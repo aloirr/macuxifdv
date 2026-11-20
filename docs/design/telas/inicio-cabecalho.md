@@ -40,9 +40,9 @@ e o sino.
 - Saudação: `fonte.bold` **22** (hoje 24), cor `colors.faixaTitulo`; 1 linha, encolhe para caber até 0,75
   (`adjustsFontSizeToFit`, `minimumFontScale={0.75}`, ≈ 16,5) e só então reticências. Continua só o primeiro nome
   (`saudacaoComNome`). No teste a 390 dp: "Boa noite, Maximiliano" ficou em 19,5, sem reticências.
-- Data · DU: `fonte.body` **13** (hoje 14; o corpo do `type.sub`), `colors.faixaSub`; o "· DU 11 de 23" segue sem quebra
+- Data · DU: `fonte.body` **14** (o corpo do `type.sub`), `colors.faixaSub`; o "· DU 11 de 23" segue sem quebra
   (`semQuebra`). Se não couber, quebra em 2 linhas antes do "·".
-- Frase: `fonte.body` **13** itálico (hoje 14), `colors.faixaSub`, até 2 linhas (`numberOfLines={2}`), com aspas.
+- Frase: `fonte.body` **14** itálico, `colors.faixaSub`, até 2 linhas (`numberOfLines={2}`), com aspas.
 - Foto/iniciais: medidas da C (§2); fundo `colors.neutralBg`, iniciais em `colors.accentInk` (`initials(nome)`); com foto, a imagem cobre a área
   (`resizeMode="cover"`) com o mesmo raio. A foto vem do perfil (o mesmo dado do avatar de hoje).
 - Espaços: `layoutCabecalho(insets.top)` como hoje (respiro de cima 12, lateral 20, embaixo 16); foto ↔ textos `space.md`
@@ -54,9 +54,8 @@ e o sino.
   `max(foto, saudação + data + frase)` no lugar de `ALVO_TOQUE + saudação + frase`.
 
 ## 4. Sino e toque
-- O sino (o do `ProvedorSinoCabecalho`, com o balão) fica no canto de cima, na linha da saudação, com **alvo de 48 × 48**
-  (`ALVO_TOQUE`). Para não tirar largura da data e da frase, ele sobe 10 dp e avança 12 dp no respiro do painel
-  (margem negativa), sem sobrepor o texto; só a saudação divide a linha com ele.
+- O sino é o `SinoNotificacoes` do kit (o do `ProvedorSinoCabecalho`, com o balão; `componentes.md` §5.4), igual ao da Rota
+  (v1.0.17, R-20261120-055304 item 2): à direita da linha de cima, centralizado na altura da foto, sem margem negativa.
 - Toque na foto ou nos textos abre o Perfil (`onPerfil`), como hoje: um só `Pressionavel` com `accessibilityLabel`
   "Boa noite, Lucas. Abrir perfil"; a foto mantém o rótulo "Foto de {nome}" e os textos ficam fora da leitura repetida.
 - Com a fonte do sistema grande: a saudação encolhe até 0,75 e depois usa reticências; a data e a frase quebram; a foto

@@ -17,6 +17,14 @@
 | `05-performance.png` | o filtro na mesma linha de Resultados e Produtividade; dia que não é útil |
 | `06-clientes-carteira-vazia.png` | Clientes com a carteira vazia: "Sua carteira está vazia." |
 
+## 0. Regra geral (v1.0.17, R-20261120-055304 item 7; vale para todas as telas do Campo)
+- **Tudo o que é filtro fica dentro do `BotaoFiltro`** (folha "Filtrar"): busca, situação, chips, período, cidade, filial. Fora
+  do botão, na tela, só as `EtiquetaFiltro` do que está ativo.
+- **Única exceção: a busca do Catálogo** (`CampoBusca` na tela, ao lado do `BotaoFiltro`).
+- Por isso a busca de Clientes (§3) e a de Pedidos entram na folha como grupo **Cliente**, e os chips de sistema e categoria do
+  Catálogo entram na folha como grupos. Telas e donos: `docs/design/campo-v1017/spec.md`.
+- O `Segmentado` da Performance (Resultados · Produtividade) troca a vista, não filtra: fica na tela.
+
 ## 1. O padrão (igual a Pedidos)
 - `BotaoFiltro` (48 dp, selo com a contagem) à direita da linha de cima da tela; `EtiquetaFiltro` removível embaixo, uma por
   filtro ativo (`packages/ui/src/mobile/filtro.tsx`, `pedidos-filtro-periodo.md`). O padrão de cada tela não conta e não vira etiqueta,
@@ -38,7 +46,7 @@
 - Mapa e lista mostram só as paradas filtradas; a numeração continua a da rota (2, 5, 7, 9).
 
 ## 3. Clientes
-- `CampoBusca` + `BotaoFiltro` na mesma linha. A linha de situações (Curva A, Sem compra 45+, Devendo, Não positivados) sai da tela e
+- A busca fica na folha como grupo **Cliente** (§0); na linha de cima fica só o `BotaoFiltro`. A linha de situações (Curva A, Sem compra 45+, Devendo, Não positivados) sai da tela e
   vira o grupo **Situação** da folha, em chips de marcar (decidido em R-20261115-074500). Cada chip marcado aparece como `EtiquetaFiltro` (`Devendo ✕`).
 - A etiqueta da situação marcada no filtro não se repete nas linhas (RD-0500): com `Devendo`, a linha mostra o nome, "Visitado
   há…" e o ›. Com 2 situações marcadas, a linha mostra a que a distingue.

@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
-import { CABECALHO, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
+import { alturaMinimaCabecalho, CABECALHO, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
 import { formaDoBadge, layoutCarregando, type LinhasBadge, rotuloDoVoltar, tocarNoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
@@ -39,7 +39,10 @@ export interface PropsCabecalhoTela {
   posicaoSubtitulo?: 'acima' | 'abaixo';
   /** Voltar dentro da faixa ("‹ Pedidos"), com as mesmas regras do `BackLink`. */
   voltar?: { label: string; fallback: string; aoVoltar?: () => void; testID?: string };
-  /** Ação curta à direita do título (ícone de 48 dp). Nunca o botão principal da tela e nada grafite (some no Azul noite). */
+  /**
+   * Ação curta à direita do título (ícone de 48 dp). Nunca o botão principal da tela e nada grafite (some no Azul noite).
+   * No Campo, nunca o `SeloAtualizacao` (componentes.md §5.2) nem filtro (ver filtro-padrao-campo §0).
+   */
   direita?: ReactNode;
   testID?: string;
 }
@@ -59,7 +62,8 @@ export function CabecalhoTela({ titulo, subtitulo, posicaoSubtitulo = 'abaixo', 
     </Text>
   ) : null;
   return (
-    <View testID={testID} style={layoutCabecalho(insets.top)}>
+    // v1.0.17 (item 5): a mesma altura do Início em todas as telas (`ALTURA_CABECALHO`), conteúdo centralizado na vertical
+    <View testID={testID} style={[layoutCabecalho(insets.top), { minHeight: alturaMinimaCabecalho(insets.top), justifyContent: 'center' }]}>
       {voltar ? <BackLink {...voltar} sobreFaixa /> : null}
       <View style={styles.cabecalhoLinha}>
         <View style={{ flex: 1, gap: 2 }}>

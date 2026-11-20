@@ -182,3 +182,4 @@
 2026-11-19 — T-0186 — RD-2355: TabelaRotuloValor e TabelaDados (CelulaTexto, BotaoCelula) no kit mobile.
 2026-11-19 — T-0186 — RD-2370: TabelaValores removida; TabelaRotuloValor com tom, carregando e rodape cobre os usos.
 2026-11-19 — T-0186 — RD-2370 e RD-2377: sem perigo na TabelaRotuloValor (só tom), LinhaResumo removida, substituição citada só no §4.10.
+2026-11-20 — v1.0.17 (R-20261120-055304) — SinoNotificacoes só com a bolinha (sino.ts/sino-rn.tsx), ALTURA_CABECALHO 100 dp no CabecalhoTela, token faixaFrase/type.fraseInicio (proposta da marca em componentes.md §5.5), sem SeloAtualizacao na faixa do Campo, regra dos filtros no botão; spec docs/design/campo-v1017/spec.md; correção dos RD-2451 a RD-2460

@@ -74,3 +74,6 @@ export * from './placa-logo-rn';
 // RD-2355 (T-0186): TabelaRotuloValor e TabelaDados (CelulaTexto, BotaoCelula), as tabelas da ficha do Cliente 360 e do pedido
 export * from './tabela-ficha';
 export * from './tabela-ficha-rn';
+// v1.0.17 (R-20261120-055304 item 2): SinoNotificacoes, o sino padrão de todas as telas (medidas, cores, selo e leitura em sino.ts)
+export * from './sino';
+export * from './sino-rn';

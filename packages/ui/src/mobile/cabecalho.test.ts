@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { contraste } from '../comum/contraste';
-import { CABECALHO, estiloBarraDeStatus, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
+import { ALTURA_CABECALHO, alturaMinimaCabecalho, CABECALHO, estiloBarraDeStatus, layoutCabecalho, LINHAS_FRASE_INICIO, respiroTopoDoConteudo } from './cabecalho';
 import { colors } from './tokens';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
@@ -39,5 +39,30 @@ describe('cabeçalho na faixa Azul noite (T-0172, manual §4)', () => {
     expect(ui).toContain('<CabecalhoTela {...cabecalho} />');
     expect(ui).toMatch(/<Text style=\{styles\.cabecalhoTitulo\} accessibilityRole="header"/);
     expect(ui).toContain('<BackLink {...voltar} sobreFaixa />');
+  });
+});
+
+describe('cabeçalho com a altura do Início (v1.0.17 item 5) e sem selo de sincronização (item 6)', () => {
+  it('altura única de 100 dp (12 + foto 72 + 16), somando a área segura', () => {
+    expect(ALTURA_CABECALHO).toBe(100);
+    expect(alturaMinimaCabecalho(24)).toBe(124);
+    expect(alturaMinimaCabecalho(Number.NaN)).toBe(100);
+  });
+
+  it('o CabecalhoTela usa a altura mínima única e não monta selo de sincronização', () => {
+    const ui = ler('./ui.tsx');
+    const corpo = ui.slice(ui.indexOf('export function CabecalhoTela('), ui.indexOf('export function Screen('));
+    expect(corpo).toContain('minHeight: alturaMinimaCabecalho(insets.top)');
+    expect(corpo).not.toContain('<SeloAtualizacao');
+    expect(corpo).not.toContain('<SyncStamp');
+  });
+});
+
+describe('frase do Início (v1.0.17 item 1): valor de hoje até a aprovação', () => {
+  it('faixaFrase segue o #C9CED5 em 400, itálico 14, até 2 linhas', () => {
+    expect(colors.faixaFrase).toBe(colors.faixaSub);
+    expect(ler('./theme.ts')).toContain("fraseInicio: { ...fonte.body, fontSize: 14, fontStyle: 'italic', color: colors.faixaFrase }");
+    expect(contraste(colors.faixaFrase, colors.faixa)).toBeGreaterThanOrEqual(4.5);
+    expect(LINHAS_FRASE_INICIO).toBe(2);
   });
 });

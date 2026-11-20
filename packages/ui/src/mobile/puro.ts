@@ -42,3 +42,5 @@ export * from './placa-logo';
 export * from './tabela-ficha';
 // RD-2449: nomes dos ícones do kit (NOMES_DE_ICONE e IconName), sem carregar o SVG
 export * from './nomes-de-icone';
+// v1.0.17: medidas, cores, selo e leitura do SinoNotificacoes
+export * from './sino';

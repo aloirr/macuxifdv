@@ -41,7 +41,8 @@ export function useSaidaDaTela(): SaidaDaTela | null {
  * T-0170 (R-20261113-173653-engenheiro-apps): sino do shell no cabeçalho de todas as telas. O shell envolve as telas com
  * `<ProvedorSinoCabecalho value={<Sino />}>` e o `CabecalhoTela` desenha o valor na linha do título, depois da ação da tela
  * (`direita`), com o mesmo vão de 8 da linha. O sino é botão de 48 dp, sem nada grafite (some no Azul noite).
- * Sem provedor (ou `value={null}`), nada muda. Só apresentação: quem monta o sino e o balão é o shell.
+ * Sem provedor (ou `value={null}`), nada muda. Só apresentação: quem monta o sino e o balão é o shell. v1.0.17: o valor é o
+ * `SinoNotificacoes` do kit (sino-rn.tsx), o mesmo no Início e nas outras telas.
  */
 const SinoCabecalhoCtx = createContext<ReactNode>(null);
 SinoCabecalhoCtx.displayName = 'ProvedorSinoCabecalho';
