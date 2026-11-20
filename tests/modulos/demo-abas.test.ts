@@ -7,12 +7,36 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { criarShell, modulosEfetivos, type Manifesto, type ModuloShell, type Perfil } from '@macuxi/platform-sdk';
+import { criarShell, modulosEfetivos, type ItemNavegacao, type Manifesto, type ModuloShell, type Perfil } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { abasDoShell, MAX_ABAS_POR_VARIANTE } from '../../apps/mobile/src/lib/abas';
+import * as libAbas from '../../apps/mobile/src/lib/abas';
 import { MANIFESTOS_INSTALADOS } from '../../apps/mobile/src/lib/instalados';
 
 const RAIZ = join(__dirname, '..', '..');
+
+/**
+ * Import tolerante (v1.0.16, Mc161 A): a API nova `abasDaVariante(navegacao, variante)` substituiu o `abasDoShell(navegacao, max)`.
+ * Onde só existe a antiga (main antes da junção), os casos usam a antiga com o limite da variante; o D-C00d (barra fixa do
+ * Gestão, sem "Mais") só roda com a nova.
+ */
+type Variante = 'campo' | 'gestao';
+interface AbasDaBarra {
+  barra: Array<{ label: string }>;
+  mais: Array<{ label: string }>;
+  perfil?: Array<{ label: string }>;
+}
+const LIB_ABAS = libAbas as unknown as {
+  MAX_ABAS_POR_VARIANTE: Readonly<Record<Variante, number>>;
+  abasDaVariante?: (navegacao: readonly ItemNavegacao<unknown>[], variante: Variante) => AbasDaBarra;
+  abasDoShell?: (navegacao: readonly ItemNavegacao<unknown>[], max?: number) => AbasDaBarra;
+};
+const { MAX_ABAS_POR_VARIANTE } = LIB_ABAS;
+const TEM_ABAS_DA_VARIANTE = typeof LIB_ABAS.abasDaVariante === 'function';
+function abasDaBarra(navegacao: readonly ItemNavegacao<unknown>[], variante: Variante): AbasDaBarra {
+  if (LIB_ABAS.abasDaVariante) return LIB_ABAS.abasDaVariante(navegacao, variante);
+  if (LIB_ABAS.abasDoShell) return LIB_ABAS.abasDoShell(navegacao, MAX_ABAS_POR_VARIANTE[variante]);
+  throw new Error('apps/mobile/src/lib/abas.ts sem abasDaVariante nem abasDoShell');
+}
 /**
  * Licenças da demo lidas do FONTE do seed (`db/seeds/demo/demo.ts`: `MODULOS_DEMO` e `PERFIL_MODULOS`), para os casos
  * virarem sozinhos quando o banco-dados licenciar um módulo na demo (ex.: o Gestor, R-20261102-131601-modulo-gestor).
@@ -107,30 +131,30 @@ describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () =>
     expect(p).not.toContain('Pedidos');
   });
 
-  /** Navegação do shell (páginas com `navegacao` dos módulos efetivos da demo), entrada do `abasDoShell` da barra. */
-  const navegacao = (variante: 'campo' | 'gestao', perfil: Perfil) => {
-    const ativos = modulosEfetivos({ manifestos: MANIFESTOS_INSTALADOS as Manifesto[], ativosNoTenant: LICENCIADOS_DEMO as never, doPerfil: (DO_PERFIL[perfil] ?? []) as never });
+  /** Navegação do shell (páginas com `navegacao` dos módulos efetivos da demo + `extra`), entrada do `abasDaVariante` da barra. */
+  const navegacao = (variante: Variante, perfil: Perfil, extra: string[] = []) => {
+    const ativos = modulosEfetivos({ manifestos: MANIFESTOS_INSTALADOS as Manifesto[], ativosNoTenant: [...LICENCIADOS_DEMO, ...extra] as never, doPerfil: [...(DO_PERFIL[perfil] ?? []), ...extra] as never });
     return criarShell<string>(variante, MODULOS).montar({ perfil, modulosAtivos: ativos }).navegacao;
   };
 
   it(`D-C00a (T-0170${ROTA_NO_GESTAO ? ', T-0187 P6 A' : ''}): o Campo tem 6 posições e o Gestão ${ROTA_NO_GESTAO ? 'também 6' : 'segue com 5'}; Metas não está na barra nem no "Mais"`, () => {
     expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: ROTA_NO_GESTAO ? 6 : 5 });
-    const { barra, mais } = abasDoShell(navegacao('campo', 'vendedor'), MAX_ABAS_POR_VARIANTE.campo);
+    const { barra, mais } = abasDaBarra(navegacao('campo', 'vendedor'), 'campo');
     expect(barra.map((a) => a.label).slice(0, 5)).toEqual(['Início', 'Rota', 'Clientes', 'Pedidos', 'Performance']);
     expect([...barra, ...mais].map((a) => a.label)).not.toContain('Metas');
-    expect(abasDoShell(navegacao('gestao', 'supervisor'), MAX_ABAS_POR_VARIANTE.gestao).barra.length).toBeLessThanOrEqual(MAX_ABAS_POR_VARIANTE.gestao);
+    expect(abasDaBarra(navegacao('gestao', 'supervisor'), 'gestao').barra.length).toBeLessThanOrEqual(MAX_ABAS_POR_VARIANTE.gestao);
   });
 
-  // DIVERGÊNCIA (dono: engenheiro-apps, apps/mobile/src/lib/abas.ts `abasDoShell`): o desenho manda a barra do Campo do
-  // vendedor ser Início · Rota · Clientes · Pedidos · Performance · Mais, com o Catálogo no "Mais" (T-0170, Performance no lugar
-  // de Metas em docs/desenho/performance-produtividade.md §plano; Catálogo e o resto no "Mais": docs/design/pedido-v3.md §0.1 e
-  // catalogo-por-linha.md §2.1, R-20261109-121700/121701; comentário de MAX_ABAS_POR_VARIANTE e imagem aprovada
-  // 2026-11-12-T0170-final-inicio.png). Na demo (core, catálogo, vendedor) há 5 abas de módulo, e o `abasDoShell` só põe o
-  // "Mais" quando sobra: a 6ª posição vira Catálogo e o "Mais" some. Vira `it` quando a barra bater com o desenho.
-  it.fails('D-C00d (T-0170) DIVERGE: a barra do Campo do vendedor na demo é Início, Rota, Clientes, Pedidos, Performance e Mais (Catálogo no "Mais")', () => {
-    const { barra, mais } = abasDoShell(navegacao('campo', 'vendedor'), MAX_ABAS_POR_VARIANTE.campo);
-    expect(barra.map((a) => a.label)).toEqual(['Início', 'Rota', 'Clientes', 'Pedidos', 'Performance', 'Mais']);
-    expect(mais.map((a) => a.label)).toContain('Catálogo');
+  // Mc161 A (R-20261119-212852, T-0187 P6 A; apps/mobile/src/lib/abas.ts `PRIORIDADE_DA_BARRA` e `EXCEDENTE_POR_VARIANTE`): no
+  // Gestão a barra tem as 6 posições fixas (Início · Equipe · Rota · Aprovações · Clientes · Alertas), sem "Mais"; o excedente
+  // (Catálogo, Pedidos...) vai para o menu do Perfil. O Gestor entra pelo `extra` para valer com ou sem ele no seed da demo.
+  it.runIf(TEM_ABAS_DA_VARIANTE)('D-C00d (Mc161 A): no Gestão a barra da supervisora tem as 6 abas fixas e não tem "Mais"; o excedente vai para o Perfil', () => {
+    const { barra, mais, perfil } = abasDaBarra(navegacao('gestao', 'supervisor', ['gestor']), 'gestao');
+    expect(barra.map((a) => a.label)).toEqual(['Início', 'Equipe', 'Rota', 'Aprovações', 'Clientes', 'Alertas']);
+    expect(barra.map((a) => a.label)).not.toContain('Mais');
+    expect(mais).toEqual([]);
+    expect((perfil ?? []).map((a) => a.label)).toContain('Pedidos');
+    expect((perfil ?? []).map((a) => a.label)).not.toContain('Mais');
   });
 
   seLoja(`D-C00b${LOJA_NA_DEMO ? '' : ' NÃO EXISTE'}: o promotor tem a aba Loja (trade: gôndola, share, preço, ruptura; T-0056) e continua sem Pedidos`, () => {
