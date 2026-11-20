@@ -8,6 +8,7 @@
  * (RN-GES-08); o Gestor não registra nem valida decisão no servidor.
  */
 import {
+  decisorEhAutor,
   maiorNivel,
   type AprovacaoDoItem,
   type ItemFilaAprovacao,
@@ -54,6 +55,11 @@ export function situacaoDoPrazo(
   const horas_restantes = horasUteisEntre(agora, prazo_em, p);
   const situacao: SituacaoPrazo = instanteMs(agora) > instanteMs(prazo_em) ? 'vencido' : horas_restantes <= p.aprovacao_aviso_horas ? 'vencendo' : 'no_prazo';
   return { prazo_em, horas_restantes, situacao };
+}
+
+/** RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem digitou o pedido, do `vendedor.pedido.criado@1` (`autor_id`). Ausente = desconhecido. */
+export function autorDoPedido(estado: EstadoProjecao, pedidoId: string): string | null {
+  return estado.pedidos[pedidoId]?.criado?.autor_id ?? null;
 }
 
 export interface MotivoPendente {
@@ -120,6 +126,8 @@ export function filaDeAprovacoes(e: EntradaFila): ItemFilaAprovacao[] {
   for (const [pedidoId, linha] of Object.entries(e.estado.aprovacoes)) {
     const a = solicitacaoDaLinha(linha);
     if (!a || !podeVer(e.escopo, a.vendedor_id)) continue;
+    // RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide não vê na fila o pedido de que é autor (analista e admin só leem)
+    if (decide && decisorEhAutor({ autor_id: autorDoPedido(e.estado, pedidoId), vendedor_id: a.vendedor_id }, e.viewer.id)) continue;
     // P3 B: quem decide vê só os motivos que pode decidir; analista e admin leem todos os do Gestor (RN-GES-07)
     const visiveis: AprovacaoDoItem[] = motivosPendentes(e.estado, pedidoId)
       .filter((m) => nivelDaFilaDoGestor(m.nivel) && (!decide || podeDecidir(e.viewer.perfil, m.nivel)))

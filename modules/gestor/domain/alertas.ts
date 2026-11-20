@@ -12,6 +12,7 @@ import { diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { motivosPendentes, nivelDaFilaDoGestor, situacaoDoPrazo } from './aprovacoes';
 import { situacaoDaRota } from './agora';
+import { visitaContaParaCampo } from './equipe';
 import { ehDiaUtil, horasUteisEntre, instanteDoHorarioLocal } from './horario-comercial';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { arredondar, instanteMs, percentual } from './numeros';
@@ -149,7 +150,8 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     const r = e.regras.cliente_sem_visita;
     const ultima = new Map<string, string>(); // cliente → último dia com check-in (qualquer usuário)
     for (const v of Object.values(e.estado.visitas)) {
-      if (!v.checkin) continue;
+      // RN-GES-05 (T-0187, P2 A): o check-in de supervisor ou gerente é apoio, não visita de campo
+      if (!v.checkin || !visitaContaParaCampo(e.membros, v.checkin.usuario_id)) continue;
       const dia = diaLocal(v.checkin.checkin_em, params.fuso);
       if (!ultima.has(v.checkin.cliente_id) || dia > ultima.get(v.checkin.cliente_id)!) ultima.set(v.checkin.cliente_id, dia);
     }
