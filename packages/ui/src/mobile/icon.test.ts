@@ -3,20 +3,26 @@ import { describe, expect, it } from 'vitest';
 
 // icon.tsx importa react-native-svg (não roda no node): a conferência é sobre o texto do arquivo.
 const fonte = readFileSync(new URL('./icon.tsx', import.meta.url), 'utf8');
+const fonteNomes = readFileSync(new URL('./nomes-de-icone.ts', import.meta.url), 'utf8');
 
 const nomesDoTipo = (): string[] => {
-  const tipo = /export type IconName =([\s\S]*?);/.exec(fonte)?.[1] ?? '';
+  const tipo = /export const NOMES_DE_ICONE = \[([\s\S]*?)\] as const;/.exec(fonteNomes)?.[1] ?? '';
   return [...tipo.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]!);
 };
 
 const desenhos = (): string[] => [...fonte.matchAll(/case '([a-zA-Z]+)':/g)].map((m) => m[1]!);
 
 describe('ícones do kit mobile', () => {
-  it('todo nome do tipo IconName tem desenho no render (e nenhum desenho sobra)', () => {
+  it('todo nome de NOMES_DE_ICONE tem desenho no render (e nenhum desenho sobra)', () => {
     const nomes = nomesDoTipo();
     expect(nomes.length).toBeGreaterThan(30);
     expect(new Set(nomes).size).toBe(nomes.length);
     expect([...desenhos()].sort()).toEqual([...nomes].sort());
+    // o tipo sai da lista (RD-2447): nenhuma cópia à mão dos nomes
+    expect(fonteNomes).toContain('export type IconName = (typeof NOMES_DE_ICONE)[number];');
+    // RD-2449: a lista fica num arquivo puro, sem react-native nem SVG, e o icon.tsx importa dali
+    expect(fonteNomes).not.toMatch(/^import /m);
+    expect(fonte).toContain("from './nomes-de-icone'");
   });
 
   it('tem câmera, caixa de entrada e pacote (R-20261104-231124, T-0072, R-20261115-084600)', () => {
@@ -42,4 +48,15 @@ describe('ícones do kit mobile', () => {
     expect(bloco).toContain('M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z');
   });
 
+  it('tem o ícone da aba Equipe do Gestão, no traço comum e diferente de users (R-20261119-201449)', () => {
+    expect(nomesDoTipo()).toEqual(expect.arrayContaining(['equipe', 'users']));
+    const bloco = (nome: string) => new RegExp(`case '${nome}':([\\s\\S]*?)\\);\\n`).exec(fonte)?.[1] ?? '';
+    const equipe = bloco('equipe');
+    expect(equipe).toContain('{...c}');
+    expect(equipe).not.toMatch(/stroke=|strokeWidth=|fill=|#[0-9A-Fa-f]{3,6}/);
+    // três pessoas: a da frente e duas atrás
+    expect(equipe.match(/<Circle /g)).toHaveLength(3);
+    const tracos = (b: string) => [...b.matchAll(/d="([^"]+)"/g)].map((m) => m[1]);
+    expect(tracos(equipe).some((d) => tracos(bloco('users')).includes(d))).toBe(false);
+  });
 });
