@@ -106,3 +106,4 @@
 2026-11-19 — v1.0.15 catalogo — RD-2245 (retorno direto), RD-2247 (leituraDoEstoque única, usada pelo chip e pela folha), RD-2291 (View sem uso em Opcao)
 2026-11-19 — v1.0.15 — catalogo: manifesto usa a consulta opcional vendedor.preco_prazo_padrao@1 (RN-VEN-43). Sem ajuste, o branch sozinho dava 17 falhas (stubs de vendedor nos testes não ofereciam a consulta); os stubs de consultas.test.ts e sugestoes.test.ts agora a oferecem e o branch fica verde sozinho e com o #506 junto.
 2026-11-19 — v1.0.15 catalogo — merge do origin/main (2f886a15) com o #506 (vendedor.preco_prazo_padrao@1) sem conflito; contrato do vendedor confere com o espelho do catálogo; catálogo, mobile e typecheck do BKO verdes.
+2026-11-20 — v1017h — busca-volume roda em banco efêmero próprio (colisão com os pulls dos outros .db.test.ts)
