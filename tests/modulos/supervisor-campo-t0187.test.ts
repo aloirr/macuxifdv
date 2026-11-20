@@ -26,9 +26,8 @@ type OpcaoEmNome = { id: string; nome: string; da_carteira: boolean; desligado: 
 const vendedorPadraoEmNome = (dominioVendedor as Record<string, unknown>).vendedorPadraoEmNome as
   | ((e: { clienteId: string; carteira: readonly VinculoCarteira[]; equipe: readonly UsuarioEquipe[] }) => string | null)
   | undefined;
-// `autor` e `visiveis` só na assinatura antiga; na nova (v1.0.16) o filtro é do `equipeEmNomeDosMembros` e eles são ignorados
 const opcoesEmNome = (dominioVendedor as Record<string, unknown>).opcoesEmNome as
-  | ((e: { autor?: { id: string; perfil: string }; clienteId: string; carteira: readonly VinculoCarteira[]; usuarios: readonly UsuarioEquipe[]; visiveis?: ReadonlySet<string> | 'tenant' }) => OpcaoEmNome[])
+  | ((e: { clienteId: string; carteira: readonly VinculoCarteira[]; usuarios: readonly UsuarioEquipe[] }) => OpcaoEmNome[])
   | undefined;
 type MembroEmNome = { usuario_id: string; nome: string; perfil: string; equipe_id: string | null; equipe_nome: string | null; ativo: boolean };
 const equipeEmNomeDosMembros = (dominioVendedor as Record<string, unknown>).equipeEmNomeDosMembros as
@@ -141,7 +140,7 @@ describe('T-0187 — funções puras do pedido em nome (modulo-vendedor)', () =>
   it.runIf(typeof opcoesEmNome === 'function' && typeof equipeEmNomeDosMembros === 'function')('14. equipeEmNomeDosMembros + opcoesEmNome (P3 A): só vendedores do escopo do slot, em ordem alfabética, sem o autor e sem promotor; inativo desligado com "Saiu da equipe"; o gerente vê as equipes abaixo com o grupo', () => {
     const membro = (u: UsuarioEquipe): MembroEmNome => ({ usuario_id: u.id, nome: u.nome, perfil: u.perfil, equipe_id: u.grupo ? `eq-${u.grupo}` : null, equipe_nome: u.grupo ?? null, ativo: u.ativo });
     const cadeia = (autor: { id: string; perfil: string }, escopo: readonly string[]) =>
-      opcoesEmNome!({ autor, clienteId: 'c1', carteira: CARTEIRA, usuarios: equipeEmNomeDosMembros!({ autor, membros: EQUIPE.filter((u) => escopo.includes(u.id)).map(membro) }), visiveis: 'tenant' });
+      opcoesEmNome!({ clienteId: 'c1', carteira: CARTEIRA, usuarios: equipeEmNomeDosMembros!({ autor, membros: EQUIPE.filter((u) => escopo.includes(u.id)).map(membro) }) });
     // o slot do supervisor s1 traz a equipe dele (com ele mesmo e o promotor); o v9 é de outra equipe e não vem
     const sup = cadeia({ id: 's1', perfil: 'supervisor' }, ['s1', 'v1', 'v2', 'v3', 'p1']);
     expect(sup.map((o) => o.nome)).toEqual(['Ana', 'Bruno', 'Carla']);
