@@ -27,11 +27,12 @@ import {
   type as t,
   type TextosFolhaPeriodo,
 } from '@macuxi/ui/mobile';
+import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
 
-import type { RouteStop } from '../../contracts';
+import type { ComplementoParada, RouteStop } from '../../contracts';
 import {
   ajustarAoDia,
   bairrosDaRota,
@@ -49,6 +50,7 @@ import {
   paradasParaVer,
   semFiltroRota,
   subtituloDaRota,
+  subtituloParada,
   textoDaDataDaRota,
   textoDasFeitas,
   textoVerVisitas,
@@ -371,6 +373,9 @@ function StopRow({ stop, last, tz, comAcao, locked, onPress, onAction }: { stop:
   const done = stop.status === 'done';
   const inProgress = stop.status === 'in_progress';
   const isNext = stop.status === 'next';
+  // hook do slot chamado sempre, uma vez por parada (StopRow é um componente por parada)
+  const complementos = useExtensoes<ComplementoParada>('rota.parada_complemento');
+  const complemento = complementos[0]?.payload.usarTexto(c.id) ?? null;
   let subtitle: string;
   if (done) {
     const v = stop.visit;
@@ -382,7 +387,7 @@ function StopRow({ stop, last, tz, comAcao, locked, onPress, onAction }: { stop:
   } else if (inProgress) {
     subtitle = `Check-in ${stop.visit ? formatHHMM(stop.visit.checkin_at, tz) : '--:--'}`;
   } else {
-    subtitle = stop.window_start;
+    subtitle = subtituloParada(stop.window_start, complemento);
   }
   const actionLabel = inProgress ? 'Checkout' : 'Check-in';
   return (

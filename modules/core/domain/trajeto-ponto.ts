@@ -4,7 +4,7 @@
  */
 import { PARAMETRO_RASTREAMENTO, PARAMETROS_RASTREAMENTO_PADRAO, ParametrosRastreamentoSchema, TRAJETO_DIAS_MAX, type MotivoSemRastreio, type ParametrosRastreamento } from '../contracts';
 import { PARAMETRO_FERIADOS } from '../contracts/inicio-parametros';
-import { podeRastrear, type EntradaRastreio } from './rastreamento';
+import { APP_RASTREADO_DO_CARGO, podeRastrear, type EntradaRastreio } from './rastreamento';
 
 /** Tolerância do relógio do aparelho para o futuro (§5.2). */
 export const FUTURO_MAX_MIN = 5;
@@ -26,7 +26,7 @@ export function triarPontoRecebido(p: PontoRecebido, agora: string, base: BaseTr
   if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude) || Math.abs(p.latitude) > 90 || Math.abs(p.longitude) > 180 || !Number.isFinite(ms)) return 'coordenada';
   if (ms > agoraMs + FUTURO_MAX_MIN * 60_000) return 'futuro';
   if (ms < agoraMs - TRAJETO_DIAS_MAX * 86_400_000) return 'antigo';
-  const r = podeRastrear({ ...base, app: base.app ?? 'campo', instante: p.capturado_em });
+  const r = podeRastrear({ ...base, app: base.app ?? APP_RASTREADO_DO_CARGO[base.cargo] ?? 'campo', instante: p.capturado_em });
   return r.pode ? null : r.motivo;
 }
 
