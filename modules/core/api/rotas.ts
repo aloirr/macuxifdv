@@ -26,6 +26,7 @@ import {
 import { carteiraParaEvento, copiarRota, PERFIS_GESTAO, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import { auditar } from './auditoria';
+import { EQUIPES_DO_RESPONSAVEL } from './carteira';
 import { BASE, TABELAS_SYNC } from './sync';
 
 const Uuid = z.string().uuid();
@@ -118,11 +119,7 @@ async function rotasDoPeriodo(ctx: ContextoBase, db: ClienteBanco, usuarios: str
  * o resto segue só com a própria. A rota do gerente não tem rastreamento (`CARGOS_RASTREADOS` não o inclui).
  */
 const DONOS_DA_CARTEIRA_DA_ROTA = `
-  with recursive eq as (
-    select id, 0 as nivel from core.equipe where responsavel_id = $1 and deleted_at is null and ativo
-    union all
-    select e.id, eq.nivel + 1 from core.equipe e join eq on e.equipe_pai_id = eq.id where e.deleted_at is null and e.ativo
-  ), donos as (
+  ${EQUIPES_DO_RESPONSAVEL}, donos as (
     select u.id from core.usuario u where u.id = $1
     union
     select m.id from core.usuario m join eq on eq.id = m.equipe_id
