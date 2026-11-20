@@ -9,9 +9,13 @@
  * com `MACUXI_PG_EXIGIR=1` (CI), a ausência do banco é ERRO.
  */
 import AvisoPulos from '@macuxi/db/teste/aviso-pulos';
+import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // v1.0.16 (visor de PDF): o alias `@/` do Metro e do tsconfig de tests (`paths`), para os testes que carregam serviços do shell
+  // (apps/mobile/src/services) com os imports internos dele; só `@/`, nunca `@macuxi/*`
+  resolve: { alias: [{ find: /^@\//, replacement: `${resolve(__dirname, '../apps/mobile/src')}/` }] },
   // JSX automático (React 19), como no tsconfig das telas: os testes de renderização (react-dom/server) importam .tsx do kit
   esbuild: { jsx: 'automatic' },
   test: {
