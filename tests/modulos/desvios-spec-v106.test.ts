@@ -53,8 +53,7 @@ describe('D-V106-1 — subtítulo do Catálogo abaixo do título (MC-0008)', () 
 });
 
 describe('D-V106-2 — filtro sem produto sem "Ver todos" (RD-0244, catalogo-grade.md §5)', () => {
-  // R-20261120-055304 (Campo v1.0.17, item 11; docs/design/campo-v1017/spec.md §4): os chips de família e sistema saem da tela e
-  // entram na folha "Filtrar" (`FolhaFiltroCatalogo`, estoque-filial.tsx); o "Todas" da folha volta a categoria para null
+  // R-20261120-055304 (spec campo-v1017 §4, item 11): chips na folha "Filtrar" (FolhaFiltroCatalogo, estoque-filial.tsx)
   it('o vazio do filtro só tem o título; o chip "Todas" da folha volta a categoria para null', () => {
     const linhaVazio = CATALOGO.split('\n').find((l) => l.includes('Nenhum produto em'));
     expect(linhaVazio, 'linha do EstadoVazio do filtro').toBeDefined();

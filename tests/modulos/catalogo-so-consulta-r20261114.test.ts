@@ -208,7 +208,7 @@ describe('R-20261114-151000 — "Adicionar ao orçamento" só lista orçamentos 
 });
 
 describe('PR do modulo-catalogo — "Copiar código" copia o código exibido e não cria pedido', () => {
-  // R-20261120-055304 (Campo v1.0.17, item 13; docs/design/campo-v1017/spec.md §4): o "Copiar código" sai da ficha e fica só no cartão da lista
+  // R-20261120-055304 (spec campo-v1017 §4, item 13)
   it('só o cartão da lista passa o `erp_code` do produto ao botão (a ficha não tem o botão); a ficha exibe esse mesmo código no subtítulo', async () => {
     const produto = semComentarios(ler('modules/catalogo/app/telas/produto.tsx'));
     expect(produto).not.toContain('BotaoCopiarCodigo');
