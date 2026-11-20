@@ -86,23 +86,22 @@ export function vendedorPadraoEmNome(e: { clienteId: string; carteira: readonly 
   return candidatos.length === 1 ? candidatos[0]!.id : null;
 }
 
-/** `gestor.membros_da_equipe@1` (só o que a montagem usa; o contrato é do Gestor). */
-export interface MembroDaConsulta { usuario_id: string; nome: string; perfil: string; equipe_id: string | null; ativo: boolean }
+/** Membro do escopo, como o slot `pedido.equipe_em_nome` o entrega (o Gestor contribui; o Vendedor não importa o Gestor). */
+export interface MembroDoSlot { usuario_id: string; nome: string; perfil: string; equipe_id: string | null; equipe_nome: string | null; ativo: boolean }
 
 /**
- * RN-PRO-01, RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" a partir da consulta `gestor.membros_da_equipe@1`,
- * que já traz só o escopo de quem está logado. Ficam só os vendedores (promotor e demais perfis fora, RN-PRO-01) e nunca o próprio autor.
+ * RN-PRO-01, RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" a partir das contribuições do slot `pedido.equipe_em_nome`,
+ * que já trazem só o escopo de quem está logado. Ficam só os vendedores (promotor e demais perfis fora, RN-PRO-01) e nunca o próprio autor.
  * O inativo segue na lista (vira "Saiu da equipe"). Para o gerente, `grupo` é o nome da equipe; para o supervisor, `null`.
+ * Sem contribuição (Campo ou Gestor desligado): lista vazia.
  */
 export function equipeEmNomeDosMembros(e: {
   autor: { id: string; perfil: string };
-  membros: readonly MembroDaConsulta[];
-  equipes: ReadonlyArray<{ equipe_id: string; nome: string }>;
+  membros: readonly MembroDoSlot[];
 }): UsuarioDaEquipe[] {
-  const nomes = new Map(e.equipes.map((q) => [q.equipe_id, q.nome]));
   return e.membros
     .filter((m) => m.perfil === 'vendedor' && m.usuario_id !== e.autor.id)
-    .map((m) => ({ id: m.usuario_id, nome: m.nome, ativo: m.ativo, perfil: 'vendedor', grupo: e.autor.perfil === 'gerente' && m.equipe_id ? (nomes.get(m.equipe_id) ?? null) : null }));
+    .map((m) => ({ id: m.usuario_id, nome: m.nome, ativo: m.ativo, perfil: 'vendedor', grupo: e.autor.perfil === 'gerente' ? m.equipe_nome : null }));
 }
 
 /** Lista vazia (cache da equipe ainda vazio): a linha única, com a ação. */

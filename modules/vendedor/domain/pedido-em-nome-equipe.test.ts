@@ -60,7 +60,7 @@ describe('RN-VEN-35 e RN-PRO-01 (T-0187): pendência do vendedor', () => {
   });
 });
 
-describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" vem da consulta gestor.membros_da_equipe@1', () => {
+describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" vem do slot pedido.equipe_em_nome', () => {
   const V = '11111111-1111-4111-8111-111111111111';
   const P = '22222222-2222-4222-8222-222222222222';
   const S = '33333333-3333-4333-8333-333333333333';
@@ -68,39 +68,39 @@ describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em no
   const L1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const L2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-  const m = (usuario_id: string, nome: string, perfil: string, equipe_id: string | null, ativo = true) => ({ usuario_id, nome, perfil, equipe_id, ativo });
+  const NOMES: Record<string, string> = { [L1]: 'Marcos Dias', [L2]: 'Ana Reis' };
+  const m = (usuario_id: string, nome: string, perfil: string, equipe_id: string | null, ativo = true) => ({ usuario_id, nome, perfil, equipe_id, equipe_nome: equipe_id ? (NOMES[equipe_id] ?? null) : null, ativo });
   const membros = [m(V, 'Carla', 'vendedor', L1), m(P, 'Paulo', 'promotor', L1), m(S, 'Saulo', 'vendedor', L1, false), m(W, 'Wilma', 'vendedor', L2), m('g', 'Rui', 'supervisor', L2)];
-  const equipes = [{ equipe_id: L1, nome: 'Marcos Dias' }, { equipe_id: L2, nome: 'Ana Reis' }];
 
   it('RN-PRO-01: o promotor e o supervisor da lista não entram e nunca viram o padrão (critério 13)', () => {
-    const eq = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros, equipes });
+    const eq = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros });
     expect(eq.map((u) => u.id).sort()).toEqual([V, S, W].sort());
     expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: P, cliente_id: C }], equipe: eq })).toBeNull();
   });
 
   it('o próprio autor não entra, mesmo vendedor', () => {
-    expect(equipeEmNomeDosMembros({ autor: { id: V, perfil: 'supervisor' }, membros, equipes }).map((u) => u.id)).not.toContain(V);
+    expect(equipeEmNomeDosMembros({ autor: { id: V, perfil: 'supervisor' }, membros }).map((u) => u.id)).not.toContain(V);
   });
 
   it('RN-CORE-04: vendedor inativo vem desligado, "Saiu da equipe", e não é o padrão (critério 14)', () => {
-    const eq = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros, equipes });
+    const eq = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros });
     const ops = opcoesEmNome({ autor: { id: 'sup', perfil: 'supervisor' }, clienteId: C, carteira: [], usuarios: eq, visiveis: 'tenant' });
     expect(ops.find((o) => o.id === S)).toMatchObject({ desligado: true, motivo: 'Saiu da equipe' });
     expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: S, cliente_id: C }], equipe: eq })).toBeNull();
   });
 
   it('RN-CORE-04: o supervisor não vê grupo; o gerente vê agrupado por equipe, na ordem da equipe e do nome', () => {
-    const sup = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros, equipes });
+    const sup = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros });
     expect(sup.every((u) => u.grupo === null)).toBe(true);
-    const ger = equipeEmNomeDosMembros({ autor: { id: 'ger', perfil: 'gerente' }, membros, equipes });
+    const ger = equipeEmNomeDosMembros({ autor: { id: 'ger', perfil: 'gerente' }, membros });
     const ops = opcoesEmNome({ autor: { id: 'ger', perfil: 'gerente' }, clienteId: C, carteira: [{ usuario_id: W, cliente_id: C }], usuarios: ger, visiveis: 'tenant' });
     expect(ops.map((o) => [o.grupo, o.nome])).toEqual([['Ana Reis', 'Wilma'], ['Marcos Dias', 'Carla'], ['Marcos Dias', 'Saulo']]);
     expect(ops.find((o) => o.id === W)?.da_carteira).toBe(true);
     expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: W, cliente_id: C }], equipe: ger })).toBe(W);
   });
 
-  it('cache vazio (lista vazia): nenhuma opção e a linha com a ação', () => {
-    expect(equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros: [], equipes: [] })).toEqual([]);
+  it('sem contribuição no slot (Campo ou Gestor desligado: lista vazia): nenhuma opção e a linha com a ação', () => {
+    expect(equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros: [] })).toEqual([]);
     expect(MSG_SEM_VENDEDORES_EM_NOME).toBe('Nenhum vendedor na lista. Sincronize e tente de novo.');
   });
 });

@@ -10,8 +10,8 @@
  */
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
-import { CONSULTA_MEMBROS_DA_EQUIPE, type MembrosDaEquipe } from '@macuxi/gestor/contracts';
-import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
+import { useAmbiente, useExtensoes, usePode } from '@macuxi/platform-sdk/react';
+import type { EquipeEmNome, MembroEquipeEmNome } from '../../contracts/extensoes';
 import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonte, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -162,6 +162,12 @@ interface Snapshot {
   rascunho: Draft;
 }
 
+/** Sem contribuição no slot `pedido.equipe_em_nome`: lista vazia (referência estável). */
+const SEM_MEMBROS: MembroEquipeEmNome[] = [];
+function usarSemMembros(): MembroEquipeEmNome[] {
+  return SEM_MEMBROS;
+}
+
 function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: vendedorEmNomeIdDaRota, vendedorEmNomeNome: vendedorEmNomeNomeDaRota, emNomeLivre }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null; vendedorEmNomeNome: string | null; emNomeLivre: boolean }) {
   const app = useVendedor();
   const avisoRodape = useAvisoRodape();
@@ -206,21 +212,12 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const hoje = localIsoDate(new Date(), tz);
   const porClienteVigente = useMemo(() => vendedoresPorCliente(app.carteiras, hoje), [app.carteiras, hoje]);
   const ambiente = useAmbiente();
-  // RN-CORE-04, RN-PRO-01: a lista "Em nome de" vem da consulta do Gestão (cache do aparelho, sem rede); sem resposta, lista vazia
-  const [membrosEmNome, setMembrosEmNome] = useState<MembrosDaEquipe>({ membros: [], equipes: [] });
-  useEffect(() => {
-    if (!emNomeLivre) return;
-    let vivo = true;
-    ambiente.consultar(CONSULTA_MEMBROS_DA_EQUIPE, {}).then(
-      (r) => vivo && setMembrosEmNome(r),
-      () => undefined,
-    );
-    return () => {
-      vivo = false;
-    };
-  }, [emNomeLivre, ambiente]);
+  // RN-CORE-04, RN-PRO-01: a lista "Em nome de" vem do slot `pedido.equipe_em_nome` (o Gestão contribui, lendo o aparelho);
+  // sem contribuição (Campo ou Gestor desligado) a lista fica vazia
+  const usarMembrosEmNome = useExtensoes<EquipeEmNome>('pedido.equipe_em_nome')[0]?.payload.usarMembros ?? usarSemMembros;
+  const membrosEmNome = usarMembrosEmNome();
   const equipeEmNome = useMemo(
-    () => (emNomeLivre ? equipeEmNomeDosMembros({ autor: { id: ambiente.usuario()?.id ?? '', perfil: app.perfil ?? '' }, ...membrosEmNome }) : []),
+    () => (emNomeLivre ? equipeEmNomeDosMembros({ autor: { id: ambiente.usuario()?.id ?? '', perfil: app.perfil ?? '' }, membros: membrosEmNome }) : []),
     [emNomeLivre, membrosEmNome, ambiente, app.perfil],
   );
   const vinculosEmNome = useMemo(() => [...porClienteVigente].flatMap(([cliente_id, us]) => us.map((usuario_id) => ({ usuario_id, cliente_id }))), [porClienteVigente]);

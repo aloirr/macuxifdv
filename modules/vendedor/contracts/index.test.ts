@@ -142,3 +142,19 @@ describe('T-0184: contratos da aprovação por motivo', () => {
     expect(AprovacaoMotivo.parse({ ...base, decidida_por_nome: 'Rui Matos' }).decidida_por_nome).toBe('Rui Matos');
   });
 });
+
+describe('slot pedido.equipe_em_nome (T-0187, RN-CORE-04, RN-PRO-01)', () => {
+  const U = '11111111-1111-4111-8111-111111111111';
+  const membro = { usuario_id: U, nome: 'Carla', perfil: 'vendedor', equipe_id: null, equipe_nome: null, ativo: true };
+  it('o Vendedor oferece o slot e o nome segue o padrão <entidade>.<ponto>', async () => {
+    const { SLOTS_VENDEDOR } = await import('./extensoes');
+    expect(SLOTS_VENDEDOR).toContain('pedido.equipe_em_nome');
+    expect(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test('pedido.equipe_em_nome')).toBe(true);
+  });
+  it('o membro é estrito: campo extra (dado pessoal) é recusado', async () => {
+    const { MembrosEquipeEmNomeSchema } = await import('./extensoes');
+    expect(MembrosEquipeEmNomeSchema.safeParse([membro]).success).toBe(true);
+    expect(MembrosEquipeEmNomeSchema.safeParse([{ ...membro, telefone: '9' }]).success).toBe(false);
+    expect(MembrosEquipeEmNomeSchema.safeParse([{ ...membro, ativo: undefined }]).success).toBe(false);
+  });
+});
