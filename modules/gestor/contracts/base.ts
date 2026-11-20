@@ -45,7 +45,7 @@ export type StatusPedido = z.infer<typeof StatusPedido>;
  * Níveis, motivos, estados e decisões da aprovação são do Vendedor (dono do ciclo, RN-VEN-10..13, T-0184): o Gestor só os
  * reexporta, sem lista própria.
  */
-export { corpoDaDecisao, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVO_REJEICAO_MIN, MOTIVOS_APROVACAO, MotivoAprovacao, NIVEIS_APROVACAO, NivelAprovacao, ROTA_DA_DECISAO } from '../../vendedor/contracts';
+export { corpoDaDecisao, DECISOES_APROVADOR, decisorEhAutor, ESTADOS_APROVACAO_MOTIVO, maiorNivel, MOTIVO_REJEICAO_MIN, MOTIVOS_APROVACAO, MotivoAprovacao, NIVEIS_APROVACAO, NivelAprovacao, ROTA_DA_DECISAO } from '../../vendedor/contracts';
 export const EstadoAprovacaoMotivo = z.enum(ESTADOS_APROVACAO_MOTIVO);
 export type EstadoAprovacaoMotivo = z.infer<typeof EstadoAprovacaoMotivo>;
 

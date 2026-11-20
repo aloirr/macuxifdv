@@ -8,6 +8,7 @@
  * (RN-GES-08); o Gestor não registra nem valida decisão no servidor.
  */
 import {
+  decisorEhAutor,
   maiorNivel,
   type AprovacaoDoItem,
   type ItemFilaAprovacao,
@@ -59,14 +60,6 @@ export function situacaoDoPrazo(
 /** RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem digitou o pedido, do `vendedor.pedido.criado@1` (`autor_id`). Ausente = desconhecido. */
 export function autorDoPedido(estado: EstadoProjecao, pedidoId: string): string | null {
   return estado.pedidos[pedidoId]?.criado?.autor_id ?? null;
-}
-
-/**
- * RN-VEN-10: ninguém decide o próprio pedido. Autor desconhecido nunca bloqueia.
- * TODO RD-2436: trocar pelo export de modules/vendedor/contracts (mesma assinatura) e apagar esta cópia.
- */
-export function decisorEhAutor(pedido: { autor_id: string | null; vendedor_id: string }, decisorId: string): boolean {
-  return pedido.autor_id !== null && pedido.autor_id !== pedido.vendedor_id && pedido.autor_id === decisorId;
 }
 
 export interface MotivoPendente {

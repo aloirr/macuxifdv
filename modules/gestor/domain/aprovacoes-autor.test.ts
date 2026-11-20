@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MembroEquipe } from '../contracts';
-import { autorDoPedido, decisorEhAutor, filaDeAprovacoes } from './aprovacoes';
+import { autorDoPedido, filaDeAprovacoes } from './aprovacoes';
 import { escopoDoUsuario } from './equipe';
 import { CLIENTE_A, ev, pedidoCriado, u } from './fixtures';
 import { aplicarEventos, estadoInicial, type EstadoProjecao, type EventoRecebido } from './projecao';
@@ -45,11 +45,5 @@ describe('RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide nunca é o autor do 
     const r = fila(s, { id: u(50), perfil: 'analista' });
     expect(r).toHaveLength(1);
     expect(r[0]!.pode_decidir).toBe(false);
-  });
-
-  it('RN-VEN-10: decisorEhAutor é verdadeiro só quando o decisor é o autor do pedido (e autor desconhecido nunca bloqueia)', () => {
-    expect(decisorEhAutor({ autor_id: SUP, vendedor_id: V1 }, SUP)).toBe(true);
-    expect(decisorEhAutor({ autor_id: SUP, vendedor_id: V1 }, GER)).toBe(false);
-    expect(decisorEhAutor({ autor_id: null, vendedor_id: V1 }, SUP)).toBe(false);
   });
 });
