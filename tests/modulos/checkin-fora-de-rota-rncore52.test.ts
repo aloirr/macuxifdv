@@ -49,7 +49,7 @@ describe('RN-CORE-52 — check-in fora da rota do dia depende da ação do perfi
   it('o app usa a mesma regra offline: sem a ação e fora da rota, nem o botão Check-in nem o check-in automático da Rota', () => {
     const tela = ler('modules/core/app/telas/cliente.tsx');
     expect(tela).toContain('usePode(ACAO_CHECKIN_FORA_DE_ROTA)');
-    expect(tela).toMatch(/botoesDoRodapeCliente\(\{ temPesquisa: Boolean\(PesquisaComp\), atendimentoAqui: openHere, checkinPermitido: checkinLiberado( && !visited \}|, visitadoHoje: visited( \}|, registraVisita: (!gestao \|\| podeRegistrarGestao|visitaDeGestaoPermitida\(\{ perfil: locais\.perfil \?\? '', podeRegistrarGestao \}\)) \}))\)/);
+    expect(tela).toMatch(/botoesDoRodapeCliente\(\{ temPesquisa: Boolean\(PesquisaComp\), atendimentoAqui: openHere, checkinPermitido: checkinLiberado( && !visited \}|, visitadoHoje: visited( \}|, registraVisita: visitaDeGestaoPermitida\(\{ perfil: locais\.perfil \?\? '', podeRegistrarGestao \}\) \}))\)/);
     expect(tela).toMatch(/const checkinLiberado = checkinPermitido\(\{[^}]*podeForaDeRota \}\)(\.permitido)?;/);
     expect(tela).toMatch(/else if \((!openHere && !visited && checkinLiberado|botoes\.checkin)\) void startCheckin\(\);/);
   });
