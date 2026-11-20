@@ -125,7 +125,7 @@ function MetasConteudo() {
         actions={
           <>
             <Button onClick={() => void painel.refetch()} disabled={painel.isFetching} aria-label="Atualizar as metas" data-testid="metas.atualizar">
-              {painel.isFetching ? 'Atualizando…' : 'Atualizar'}
+              Atualizar
             </Button>
             <Button onClick={() => d && downloadBlob(new Blob([csvDeMetas(linhas)], { type: 'text/csv;charset=utf-8' }), `metas_${mes}.csv`)} disabled={linhas.length === 0} data-testid="metas.exportar-csv">
               Exportar CSV

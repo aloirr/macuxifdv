@@ -64,7 +64,7 @@ function IndicadoresConteudo() {
         actions={
           <>
           <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar os indicadores" data-testid="indicadores.atualizar">
-            {lista.isFetching ? 'Atualizando…' : 'Atualizar'}
+            Atualizar
           </Button>
           <Button onClick={() => d && downloadBlob(new Blob([csvDeIndicadores(d)], { type: 'text/csv;charset=utf-8' }), `indicadores_${periodo}.csv`)} disabled={!d || d.itens.length === 0} data-testid="indicadores.exportar-csv">
             Exportar CSV

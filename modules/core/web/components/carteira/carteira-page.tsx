@@ -8,6 +8,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, EtiquetaCadastroIncompleto, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
+import { MINIMO_BUSCA_CLIENTE_BKO, ROTULO_BUSCA_CLIENTE_BKO } from '../../../domain';
 import { csvDaCarteira, DIAS_DA_SEMANA, rotuloFrequencia } from '../../lib/carteira';
 import { usePapeisDeCampo, useSellersDeCampo } from '../../lib/queries';
 import type { ClienteDaCarteira } from '../../lib/rotas-api';
@@ -41,7 +42,7 @@ function CarteiraConteudo() {
   const candidatos = useQuery({
     queryKey: ['core', 'clientes-busca', busca],
     queryFn: async () => ClienteListaRespostaSchema.parse(await api<unknown>('/core/clientes', { query: { q: busca, limite: 8 } })).itens,
-    enabled: busca.trim().length >= 3,
+    enabled: busca.trim().length >= MINIMO_BUSCA_CLIENTE_BKO,
   });
 
   const set = (patch: Record<string, string | null>) => {
@@ -115,7 +116,7 @@ function CarteiraConteudo() {
         <>
           <Panel title="Vincular cliente">
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-              Código, CNPJ ou nome (mínimo 3 caracteres)
+              {ROTULO_BUSCA_CLIENTE_BKO}
               <input value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="carteira.busca" disabled={!pode} className={CLASSE_CAMPO_BKO} />
             </label>
             {candidatos.data && candidatos.data.length === 0 && <p className="mt-2 text-[13px] text-ink-2">Nenhum cliente encontrado.</p>}

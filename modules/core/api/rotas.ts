@@ -343,7 +343,7 @@ const rotasDeCarteiraDoUsuario: RotaModulo[] = [
         const itens = (
           await db.query(
             `${DONOS_DA_CARTEIRA_DA_ROTA}
-             select distinct on (lower(coalesce(nullif(c.nome_fantasia, ''), c.razao_social)), c.id) c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng, c.cadastro_incompleto,
+             select distinct on (lower(coalesce(nullif(c.nome_fantasia, ''), c.razao_social)), c.id) c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.external_id, c.documento, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng, c.cadastro_incompleto,
                     to_char((select max(h.ultima_compra_em) from core.historico_compra h where h.cliente_id = c.id and h.deleted_at is null), 'YYYY-MM-DD') as ultima_compra_em,
                     k.id as carteira_id, k.papel, k.frequencia_semanas, k.dia_semana
                from core.carteira k join core.cliente c on c.id = k.cliente_id and c.deleted_at is null and c.ativo

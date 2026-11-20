@@ -12,6 +12,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CustomerSummary } from '../../contracts';
 import {
   dataLocal,
+  ROTULO_BUSCA_CLIENTE,
   ROTULO_SITUACAO_CLIENTE,
   situacaoDoCliente,
   situacaoNaLinha,
@@ -159,7 +160,7 @@ function Carteira<F extends string, T>({
         <View style={styles.top}>
           <View style={styles.linhaBusca}>
             <View style={{ flex: 1 }}>
-              <CampoBusca testID="customer-search" valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar a busca" rotuloAcessivel="Buscar cliente" placeholder="Código, CNPJ ou nome" />
+              <CampoBusca testID="customer-search" valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar a busca" rotuloAcessivel="Buscar cliente" placeholder={ROTULO_BUSCA_CLIENTE} />
             </View>
             <BotaoFiltro
               testID="clientes-filtro"

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { RotaDiaSchema, type CustomerSummary, type RouteDay } from '../../../contracts';
-import type { GeoPoint } from '../../../domain';
+import { ROTULO_BUSCA_CLIENTE_BKO, type GeoPoint } from '../../../domain';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { useSellerCustomers } from '../../lib/queries';
 import { corpoDaRota, paraRouteDay } from '../../lib/rotas-api';
@@ -332,12 +332,11 @@ function AddCustomer({ sellerId, exclude, onAdd }: { sellerId: string; exclude: 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-line bg-ground/60 p-2.5">
       <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-        Buscar na carteira do vendedor
+        {ROTULO_BUSCA_CLIENTE_BKO}
         <input
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Nome, bairro ou código"
           autoFocus
           className="h-10 rounded-[10px] border border-field bg-surface px-2.5 text-[15px] font-medium text-ink"
         />

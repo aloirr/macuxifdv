@@ -17,6 +17,9 @@ export interface ClienteDaCarteira {
   id: string;
   nome: string;
   razao_social: string;
+  /** Código do cliente no ERP e CNPJ: a busca do editor de rota casa por eles (`clienteCasaBusca`). */
+  external_id?: string | null;
+  documento?: string | null;
   cidade: string | null;
   bairro: string | null;
   lat: number | null;
@@ -34,13 +37,13 @@ const STATUS: Record<ParadaServidor['status'], RouteStop['status']> = { feita: '
 
 const diasDesde = (iso: string | null, hoje: string): number | null => (iso ? Math.max(0, Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${iso}T12:00:00Z`)) / 86_400_000)) : null);
 
-function resumo(base: { id: string; nome: string; razao: string; cidade: string | null; bairro: string | null; lat: number | null; lng: number | null; ultima: string | null }, hoje: string): CustomerSummary {
+function resumo(base: { id: string; nome: string; razao: string; codigo?: string | null; documento?: string | null; cidade: string | null; bairro: string | null; lat: number | null; lng: number | null; ultima: string | null }, hoje: string): CustomerSummary {
   return {
     id: base.id,
-    erp_code: '',
+    erp_code: base.codigo ?? '',
     trade_name: base.nome,
     legal_name: base.razao,
-    cnpj: '',
+    cnpj: base.documento ?? '',
     segment: '',
     abc_curve: 'C',
     address: '',
@@ -67,7 +70,7 @@ function resumo(base: { id: string; nome: string; razao: string; cidade: string 
 }
 
 export function clienteDaCarteira(c: ClienteDaCarteira, hoje: string): CustomerSummary {
-  return resumo({ id: c.id, nome: c.nome, razao: c.razao_social, cidade: c.cidade, bairro: c.bairro, lat: c.lat, lng: c.lng, ultima: c.ultima_compra_em }, hoje);
+  return resumo({ id: c.id, nome: c.nome, razao: c.razao_social, codigo: c.external_id, documento: c.documento, cidade: c.cidade, bairro: c.bairro, lat: c.lat, lng: c.lng, ultima: c.ultima_compra_em }, hoje);
 }
 
 /** Rota do servidor → `RouteDay` do editor. `inicio` serve ao cálculo de km (CD → paradas, estrada ≈ 1,3 × reta). */

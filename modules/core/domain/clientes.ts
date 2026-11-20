@@ -47,6 +47,26 @@ export const documentoCasa = (termo: string, documento: string | null | undefine
   const d = digitosDeBuscaDoDocumento(termo);
   return d !== null && soDigitos(documento).includes(d);
 };
+/** Rótulo do campo de busca de clientes, o mesmo texto em toda superfície (regra de `clienteCasaBusca`). */
+export const ROTULO_BUSCA_CLIENTE = 'Código, CNPJ ou nome';
+/** Menor termo que a busca de clientes do BKO aceita (carteira e editor de rota); a Carteira do app filtra desde o primeiro caractere. */
+export const MINIMO_BUSCA_CLIENTE_BKO = 3;
+export const ROTULO_BUSCA_CLIENTE_BKO = `${ROTULO_BUSCA_CLIENTE} (mínimo ${MINIMO_BUSCA_CLIENTE_BKO} caracteres)`;
+
+/**
+ * A única regra de casamento da busca de clientes (decisões R-20261120-062210 e R-20261120-070340): termo contido no
+ * código (external_id), na razão social ou no nome fantasia, sem acento e sem caixa; CNPJ só com 3 dígitos ou mais,
+ * com ou sem máscara. Cidade e bairro não entram. Termo vazio casa tudo.
+ */
+export function clienteCasaBusca(
+  termo: string | null | undefined,
+  c: { razao_social?: string | null; nome_fantasia?: string | null; external_id?: string | null; documento?: string | null },
+): boolean {
+  const q = normalizarBusca(termo);
+  if (!q) return true;
+  if ([c.razao_social, c.nome_fantasia, c.external_id].some((t) => normalizarBusca(t).includes(q))) return true;
+  return documentoCasa(q, c.documento);
+}
 const rotulo = (c: ClienteLista): string => c.nome_fantasia?.trim() || c.razao_social;
 
 /** Clientes do escopo do perfil (RN-CORE-04) + busca e filtros. O filtro nunca amplia o escopo. */
@@ -58,18 +78,13 @@ export function listarClientes<C extends ClienteLista>(
   fin: ConjuntosFinanceiros = {},
 ): C[] {
   const visiveis = clientesVisiveis(perfil, conjuntos);
-  const q = normalizarBusca(filtro.q);
   return clientes
     .filter((c) => clienteNoEscopo(c.id, visiveis))
     .filter((c) => !filtro.cidade || normalizarBusca(c.cidade) === normalizarBusca(filtro.cidade))
     .filter((c) => !filtro.segmento || normalizarBusca(c.segmento) === normalizarBusca(filtro.segmento))
     .filter((c) => !filtro.bloqueado || (fin.bloqueados?.has(c.id) ?? false))
     .filter((c) => !filtro.comVencidos || (fin.comVencidos?.has(c.id) ?? false))
-    .filter((c) => {
-      if (!q) return true;
-      if ([c.razao_social, c.nome_fantasia, c.external_id].some((t) => normalizarBusca(t).includes(q))) return true;
-      return documentoCasa(q, c.documento);
-    })
+    .filter((c) => clienteCasaBusca(filtro.q, c))
     .sort((a, b) => rotulo(a).localeCompare(rotulo(b), 'pt-BR', { sensitivity: 'base' }));
 }
 

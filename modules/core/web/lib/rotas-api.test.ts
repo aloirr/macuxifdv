@@ -74,6 +74,10 @@ describe('rotas do BKO: adaptador do servidor para o editor (T-0018)', () => {
     const c = clienteDaCarteira({ id: id(21), nome: 'X', razao_social: 'X Ltda', cidade: null, bairro: null, lat: null, lng: null, ultima_compra_em: '2026-10-21', frequencia_semanas: 1, dia_semana: 3 }, HOJE);
     expect(c.days_since_purchase).toBe(10);
   });
+  it('RF-CORE-02: cliente da carteira leva código e CNPJ para a busca do editor', () => {
+    const c = clienteDaCarteira({ id: id(21), nome: 'X', razao_social: 'X Ltda', external_id: 'QX-1', documento: '47111222000133', cidade: null, bairro: null, lat: null, lng: null, ultima_compra_em: null, frequencia_semanas: 1, dia_semana: 3 }, HOJE);
+    expect([c.erp_code, c.cnpj]).toEqual(['QX-1', '47111222000133']);
+  });
 });
 
 describe('telas Visitas e Carteira: funções puras', () => {
