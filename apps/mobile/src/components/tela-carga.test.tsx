@@ -3,9 +3,10 @@
  * `react-dom/server` e com `react-native`, o roteador e o estado da plataforma simulados.
  * - R-20261102-091336: o motor termina com sucesso → a tela navega para `/` pelo ESTADO (também com a tela remontada e
  *   depois de sair e voltar ao app). T-0172: abre o Início sozinho, sem botão.
- * - R-20261102-090915 e T-0172: nenhum nome técnico; só o percentual e as etapas ("Etapa n de N · nome" sempre à vista
- *   em cima da barra, MC-0088); nenhuma frase sobre o que o app faz por trás; erro com "Tentar de novo" e
- *   "Trocar usuário". As etapas vêm do domain do Core (`progressoDaEntrada`, RN-CORE-48; RD-0240).
+ * - R-20261102-090915 e T-0172: nenhum nome técnico; a linha "Etapa n de N · nome", o percentual e as etapas (MC-0088: a
+ *   linha fica à vista, como na entrada aprovada, manual da marca §4); nenhuma frase sobre o que o app faz por trás; erro com
+ *   "Tentar de novo" e "Trocar usuário". As etapas vêm do domain do Core (`progressoDaEntrada`, RN-CORE-48; RD-0240).
+ * - T-0182: com a logo da empresa guardada, a variação A (logo Macuxi, filete e a placa com "Logo da <nome>"); sem ela, igual.
  * - R-20261102-090919 item 2: voltar do segundo plano no meio da carga não a reinicia.
  */
 import { CARGA_VAZIA, type EstadoMotorSync, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
@@ -85,7 +86,8 @@ vi.mock('@macuxi/ui/mobile', () => {
   return new Proxy(
     {
       fonte: new Proxy({}, { get: () => ({}) }),
-      temaDaEntrada: () => new Proxy({}, { get: () => '#000' }),
+      // Campo no Azul noite (logo negativo), Gestão no Pérola (positivo); as cores não importam aqui
+      temaDaEntrada: (v: string) => new Proxy({}, { get: (_alvo, chave) => (chave === 'logo' ? (v === 'campo' ? 'negativo' : 'positivo') : '#000') }),
       firstName: (n: string) => n.split(' ')[0],
       Icon: () => createElement('i'),
       useReduzirMovimento: () => true,
@@ -98,6 +100,8 @@ vi.mock('@macuxi/ui/mobile', () => {
           createElement(TextoHost, { testID: `${testID}-etapa`, accessibilityLabel: rotulo }, rotulo),
           pct === null ? null : createElement(TextoHost, { testID: `${testID}-pct` }, `${pct}%`),
         ),
+      PlacaLogoCliente: ({ testID, fonte, nomeEmpresa, borda }: { testID?: string; fonte: string; nomeEmpresa?: string | null; borda?: boolean }) =>
+        createElement('img', { 'data-testid': testID, src: fonte, 'aria-label': `Logo da ${nomeEmpresa}`, 'data-borda': String(borda) }),
     } as Record<string | symbol, unknown>,
     { get: (simulado, chave) => (chave in simulado ? simulado[chave] : chave === 'then' ? undefined : vazio), has: () => true },
   );
@@ -128,6 +132,11 @@ const sim = vi.hoisted(() => ({
   sincronizacoes: 0,
   ultimoInicio: null as number | null,
   params: {} as { detalhe?: string },
+  empresa: { nome: null, logo: null, soLogoDoCliente: false } as {
+    nome: string | null;
+    logo: { uri: string; proporcao: number } | null;
+    soLogoDoCliente: boolean;
+  },
 }));
 
 /** Mesma regra do shell (`state/plataforma.tsx`): decide pelo estado do motor com `deveSincronizar`. */
@@ -152,6 +161,7 @@ vi.mock('@/state/plataforma', () => ({
     sincronizarSeNecessario,
     setOffline: () => Promise.resolve(),
     logout: () => Promise.resolve(),
+    empresa: sim.empresa,
   }),
 }));
 
@@ -166,7 +176,7 @@ const { ROTULO_ATUALIZANDO, ROTULO_SERVIDOR } = await import('@/lib/entrada');
 // ---------- utilitários ----------
 const montar = () => renderToStaticMarkup(createElement(TelaCarga));
 const texto = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-/** Rótulo da barra para o leitor de tela (região viva). */
+/** Rótulo da barra para o leitor de tela (região viva; o mesmo texto da linha à vista). */
 const rotuloLeitor = (html: string) => /data-testid="entrada-etapa" aria-label="([^"]*)"/.exec(html)?.[1] ?? null;
 const redireciona = (html: string) => /data-redirect="\/"/.test(html);
 
@@ -194,6 +204,7 @@ beforeEach(() => {
   sim.sincronizacoes = 0;
   sim.ultimoInicio = null;
   sim.params = {};
+  sim.empresa = { nome: null, logo: null, soLogoDoCliente: false };
 });
 
 describe('Carga na tela de entrada — navegação pelo estado (R-20261102-091336, T-0172)', () => {
@@ -442,5 +453,53 @@ describe('Antes do login, aviso e "Você sabia?" não aparecem (T-0181, estados 
       .filter((f) => /<(AvisoCarga|FraseCarga)\b/.test(readFileSync(f, 'utf8')))
       .map((f) => f.slice(SRC.length).replaceAll('\\', '/'));
     expect(usam).toEqual(['components/tela-carga.tsx']);
+  });
+});
+
+describe('Carga na tela de entrada — logo da empresa (T-0182, variação A)', () => {
+  beforeEach(() => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.2 };
+  });
+
+  it('sem logo guardada: igual a hoje (só o logo Macuxi, sem filete nem placa)', () => {
+    sim.empresa = { nome: 'Exemplo Norte', logo: null, soLogoDoCliente: false };
+    const html = montar();
+    expect(html).not.toContain('entrada-com-logo-cliente');
+    expect(html).not.toContain('entrada-logo-cliente');
+  });
+
+  it('Campo com logo: a linha Macuxi · filete · placa sem borda (Azul noite), lida como "Logo da <nome fantasia>"', () => {
+    sim.empresa = { nome: 'Exemplo Norte', logo: { uri: 'file:///docs/empresa/t1/logo-abc.png', proporcao: 2.5 }, soLogoDoCliente: false };
+    const html = montar();
+    expect(html).toContain('data-testid="entrada-com-logo-cliente"');
+    expect(html).toMatch(/data-testid="entrada-logo-cliente"[^>]*src="file:\/\/\/docs\/empresa\/t1\/logo-abc.png"/);
+    expect(html).toContain('aria-label="Logo da Exemplo Norte"');
+    expect(html).toContain('data-borda="false"');
+    // o resto da tela não muda
+    expect(texto(html)).toContain('Olá, Lucas');
+    expect(html).toContain('entrada-etapa-1-atual');
+  });
+
+  it('Gestão com logo: a placa ganha a borda (Pérola)', () => {
+    sim.variante = 'gestao';
+    sim.perfil = 'supervisor';
+    sim.empresa = { nome: 'Exemplo Norte', logo: { uri: 'file:///x.png', proporcao: 1 }, soLogoDoCliente: false };
+    expect(montar()).toContain('data-borda="true"');
+  });
+
+  it('item 15: logomarca do Macuxi oculta e a logo guardada: só a placa do cliente, sem o logo Macuxi nem o filete', () => {
+    sim.empresa = { nome: 'Exemplo Norte', logo: { uri: 'file:///x.png', proporcao: 2 }, soLogoDoCliente: true };
+    const html = montar();
+    expect(html).toContain('data-testid="entrada-so-logo-cliente"');
+    expect(html).toContain('aria-label="Logo da Exemplo Norte"');
+    expect(html).not.toContain('entrada-com-logo-cliente');
+    // o logo Macuxi é o único SvgXml da tela
+    expect(html).not.toContain('<svg');
+    expect(texto(html)).toContain('Olá, Lucas');
+  });
+
+  it('item 15: sem a chave, o logo Macuxi continua na linha', () => {
+    sim.empresa = { nome: 'Exemplo Norte', logo: { uri: 'file:///x.png', proporcao: 2 }, soLogoDoCliente: false };
+    expect(montar()).toContain('<svg');
   });
 });
