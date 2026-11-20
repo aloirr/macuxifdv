@@ -5,11 +5,17 @@
  * passando de 5 posições, o excedente vai para "Mais".
  */
 import { criarShell, definirModuloShell, modulosEfetivos, type ItemNavegacao, type ModuloId, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { abaAcesa, abaAtiva, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA, MAX_ABAS_POR_VARIANTE } from './abas';
 import { efetivosSemServidor } from './efetivos-locais';
 import { MANIFESTOS_INSTALADOS } from './instalados';
+
+// RD-2447: `abas.ts` lê `NOMES_DE_ICONE` do índice do kit, que puxa os módulos nativos; em Node eles ficam inertes.
+vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-safe-area-context', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 
 type Pg = PaginaShell<string>;
 const pg = (id: string, navegacao: string, extra: Partial<Pg> = {}): Pg => ({ id, caminho: id, titulo: navegacao, navegacao, componente: id, ...extra });
@@ -77,6 +83,12 @@ describe('T-0034 — abas do shell mobile', () => {
     const item = (modulo: string, id: string, rotulo: string, icone: string) => ({ modulo, id, caminho: id, rotulo, icone }) as unknown as ItemNavegacao<unknown>;
     const { barra } = abasDoShell([item('gestor', 'equipe', 'Equipe', 'equipe'), item('core', 'clientes', 'Clientes', 'users')], MAX_ABAS_POR_VARIANTE.gestao);
     expect(barra.map((a) => [a.label, a.icon])).toEqual([['Início', 'home'], ['Equipe', 'equipe'], ['Clientes', 'users']]);
+  });
+
+  it('RD-2447: ícone que o kit não desenha vira `file` na aba', () => {
+    const item = (id: string, icone?: string) => ({ modulo: 'core', id, caminho: id, rotulo: id, icone }) as unknown as ItemNavegacao<unknown>;
+    const { barra } = abasDoShell([item('foguete', 'foguete'), item('sem-icone')], MAX_ABAS_POR_VARIANTE.gestao);
+    expect(barra.slice(1).map((a) => a.icon)).toEqual(['file', 'file']);
   });
 
   it('nenhuma aba sem licença: o Gestor não licenciado não monta Equipe nem Aprovações', () => {

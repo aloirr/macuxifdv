@@ -51,6 +51,7 @@ vi.mock('expo-router', () => ({
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 vi.mock('@macuxi/ui/mobile', () => ({
+  NOMES_DE_ICONE: [],
   BarraAbas: ({ itens }: { itens: { testID?: string; onPress: () => void }[] }) => {
     sim.itens = itens;
     return createElement('nav', { 'data-testid': 'tab-bar' });

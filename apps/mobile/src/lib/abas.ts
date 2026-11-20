@@ -1,5 +1,5 @@
 /**
- * Abas da barra inferior a partir da visão do shell (puro, roda em Node nos testes).
+ * Abas da barra inferior a partir da visão do shell (sem tela; lê do kit só `NOMES_DE_ICONE`, RD-2447).
  * "Início" é do shell; as demais vêm das páginas com `navegacao` dos módulos EFETIVOS do usuário
  * (manifesto + licença + perfil + ação; `criarShell().montar`). O shell não inventa aba: sem página no módulo,
  * sem aba (T-0034).
@@ -9,7 +9,7 @@
  * na tela "Mais" cada item usa `mais-<modulo>-<id>`.
  */
 import type { ItemNavegacao, ModuloId } from '@macuxi/platform-sdk';
-import type { IconName } from '@macuxi/ui/mobile';
+import { NOMES_DE_ICONE, type IconName } from '@macuxi/ui/mobile';
 
 import type { OrigemPilha } from './historico-telas';
 import type { Variante } from './variante-tipo';
@@ -41,7 +41,8 @@ export const MAX_ABAS_POR_VARIANTE: Readonly<Record<Variante, number>> = { campo
 
 export const HREF_MAIS = '/mais';
 
-const ICONES = new Set<string>(['home', 'pin', 'users', 'equipe', 'clipboard', 'target', 'sync', 'check', 'navigate', 'clock', 'alert', 'chat', 'file', 'user', 'search', 'menu']);
+/** Nomes aceitos vêm do kit (RD-2447): ícone novo no kit vale na aba sem tocar no shell. */
+const ICONES: ReadonlySet<string> = new Set<string>(NOMES_DE_ICONE);
 
 const INICIO: AbaShell = { href: '/', label: 'Início', icon: 'home', testID: 'tab-inicio', modulo: null };
 const MAIS: AbaShell = { href: HREF_MAIS, label: 'Mais', icon: 'menu', testID: 'tab-mais', modulo: null };
