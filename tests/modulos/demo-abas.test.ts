@@ -90,6 +90,8 @@ const seGestor = GESTOR_NA_DEMO ? it : it.fails;
 /** T-0056: a aba Loja vem da página do Promotor com `navegacao: 'Loja'` e da licença do Promotor para o perfil promotor. */
 const LOJA_NA_DEMO = paginasDoFonte('promotor').some((p) => p.navegacao === 'Loja') && LICENCIADOS_DEMO.includes('promotor') && (DO_PERFIL.promotor ?? []).includes('promotor');
 const seLoja = LOJA_NA_DEMO ? it : it.fails;
+/** T-0187 (P6 A): a Rota do supervisor no Gestão vem da página `rota-gestao` do Core (ação `visita.registrar_gestao`); com ela o Gestão tem 6 posições. */
+const ROTA_NO_GESTAO = paginasDoFonte('core').some((p) => p.id === 'rota-gestao' && p.apps.includes('gestao'));
 
 describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () => {
   // T-0170: barra de 6 posições no Campo, com Performance no lugar de Metas (docs/desenho/performance-produtividade.md §plano,
@@ -111,12 +113,12 @@ describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () =>
     return criarShell<string>(variante, MODULOS).montar({ perfil, modulosAtivos: ativos }).navegacao;
   };
 
-  it('D-C00a (T-0170): o Campo tem 6 posições e o Gestão segue com 5; Metas não está na barra nem no "Mais"', () => {
-    expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: 5 });
+  it(`D-C00a (T-0170${ROTA_NO_GESTAO ? ', T-0187 P6 A' : ''}): o Campo tem 6 posições e o Gestão ${ROTA_NO_GESTAO ? 'também 6' : 'segue com 5'}; Metas não está na barra nem no "Mais"`, () => {
+    expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: ROTA_NO_GESTAO ? 6 : 5 });
     const { barra, mais } = abasDoShell(navegacao('campo', 'vendedor'), MAX_ABAS_POR_VARIANTE.campo);
     expect(barra.map((a) => a.label).slice(0, 5)).toEqual(['Início', 'Rota', 'Clientes', 'Pedidos', 'Performance']);
     expect([...barra, ...mais].map((a) => a.label)).not.toContain('Metas');
-    expect(abasDoShell(navegacao('gestao', 'supervisor'), MAX_ABAS_POR_VARIANTE.gestao).barra.length).toBeLessThanOrEqual(5);
+    expect(abasDoShell(navegacao('gestao', 'supervisor'), MAX_ABAS_POR_VARIANTE.gestao).barra.length).toBeLessThanOrEqual(MAX_ABAS_POR_VARIANTE.gestao);
   });
 
   // DIVERGÊNCIA (dono: engenheiro-apps, apps/mobile/src/lib/abas.ts `abasDoShell`): o desenho manda a barra do Campo do
@@ -141,8 +143,8 @@ describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () =>
     expect(abas('campo', 'promotor')).toContain('Catálogo');
   });
 
-  it(`D-G00: o Gestão da supervisora monta Clientes${CATALOGO_TEM_ABA ? ', Catálogo' : ''} e Pedidos${GESTOR_NA_DEMO ? ', Equipe, Aprovações e Alertas' : ''} (o Início é do shell; T-0029 §7)`, () => {
-    const esperadas = [...(CATALOGO_TEM_ABA ? ['Catálogo', 'Clientes', 'Pedidos'] : ['Clientes', 'Pedidos']), ...(GESTOR_NA_DEMO ? ABAS_GESTOR : [])];
+  it(`D-G00: o Gestão da supervisora monta Clientes${CATALOGO_TEM_ABA ? ', Catálogo' : ''} e Pedidos${GESTOR_NA_DEMO ? ', Equipe, Aprovações e Alertas' : ''}${ROTA_NO_GESTAO ? ' e a Rota (T-0187)' : ''} (o Início é do shell; T-0029 §7)`, () => {
+    const esperadas = [...(CATALOGO_TEM_ABA ? ['Catálogo', 'Clientes', 'Pedidos'] : ['Clientes', 'Pedidos']), ...(GESTOR_NA_DEMO ? ABAS_GESTOR : []), ...(ROTA_NO_GESTAO ? ['Rota'] : [])];
     expect([...abas('gestao', 'supervisor')].sort()).toEqual(esperadas.sort());
   });
 
