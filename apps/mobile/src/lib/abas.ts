@@ -1,5 +1,5 @@
 /**
- * Abas da barra inferior a partir da visão do shell (sem tela; lê do kit só `NOMES_DE_ICONE`, RD-2447).
+ * Abas da barra inferior a partir da visão do shell (puro, roda em Node nos testes).
  * "Início" é do shell; as demais vêm das páginas com `navegacao` dos módulos EFETIVOS do usuário
  * (manifesto + licença + perfil + ação; `criarShell().montar`). O shell não inventa aba: sem página no módulo,
  * sem aba (T-0034).
@@ -9,7 +9,7 @@
  * na tela "Mais" cada item usa `mais-<modulo>-<id>`.
  */
 import type { ItemNavegacao, ModuloId } from '@macuxi/platform-sdk';
-import { NOMES_DE_ICONE, type IconName } from '@macuxi/ui/mobile';
+import { NOMES_DE_ICONE, type IconName } from '@macuxi/ui/mobile/puro';
 
 import type { OrigemPilha } from './historico-telas';
 import type { Variante } from './variante-tipo';

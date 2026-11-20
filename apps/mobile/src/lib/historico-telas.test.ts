@@ -4,7 +4,7 @@
  * logout zera tudo. Os cenários de ponta a ponta rodam sobre o TabRouter do próprio expo-router 57 (o mesmo do app).
  */
 import { TabRouter } from 'expo-router/build/react-navigation/routers/TabRouter';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   abaDaEntrada,
@@ -35,12 +35,6 @@ import {
   type ParamsDaRota,
 } from './historico-telas';
 import { abaAcesa, type AbaShell, type AbasDoShell } from './abas';
-
-// RD-2447: `abas.ts` lê `NOMES_DE_ICONE` do índice do kit, que puxa os módulos nativos; em Node eles ficam inertes.
-vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
-vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
-vi.mock('react-native-safe-area-context', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
-vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 
 const aba = (href: string, label: string): AbaShell => ({ href, label, icon: 'file', testID: `tab-${label}`, modulo: null });
 /** Barra do Campo com Pedidos na barra e o Treinamento no "Mais". */

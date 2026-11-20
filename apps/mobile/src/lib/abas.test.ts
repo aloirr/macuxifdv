@@ -5,17 +5,11 @@
  * passando de 5 posições, o excedente vai para "Mais".
  */
 import { criarShell, definirModuloShell, modulosEfetivos, type ItemNavegacao, type ModuloId, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { abaAcesa, abaAtiva, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA, MAX_ABAS_POR_VARIANTE } from './abas';
 import { efetivosSemServidor } from './efetivos-locais';
 import { MANIFESTOS_INSTALADOS } from './instalados';
-
-// RD-2447: `abas.ts` lê `NOMES_DE_ICONE` do índice do kit, que puxa os módulos nativos; em Node eles ficam inertes.
-vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
-vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
-vi.mock('react-native-safe-area-context', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
-vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 
 type Pg = PaginaShell<string>;
 const pg = (id: string, navegacao: string, extra: Partial<Pg> = {}): Pg => ({ id, caminho: id, titulo: navegacao, navegacao, componente: id, ...extra });
