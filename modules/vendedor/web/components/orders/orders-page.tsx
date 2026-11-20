@@ -67,7 +67,7 @@ export function OrdersPage() {
 
   const acoesDaPagina: AcaoDoMenu[] = [
     { id: 'csv', rotulo: 'Exportar CSV', aoEscolher: exportarCsv, desligada: pedidos.length === 0, testId: 'pedidos.exportar-csv' },
-    { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', aoEscolher: () => atualizar(), desligada: lista.isFetching, testId: 'pedidos.atualizar' },
+    { id: 'atualizar', rotulo: 'Atualizar', aoEscolher: () => atualizar(), desligada: lista.isFetching, testId: 'pedidos.atualizar' },
   ];
 
   const vazio = (

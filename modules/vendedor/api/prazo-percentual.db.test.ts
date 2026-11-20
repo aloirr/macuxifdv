@@ -12,13 +12,16 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { entidadePedido } from '../contracts/entidades';
 import { responderFiliais } from './filial-simulada';
+import { rotaEditarOrcamento } from './orcamentos';
+import { preVendaSql, usarPreVenda } from './pre-venda';
 import { provedoresSyncVendedor } from './sync';
 
 const A = DOIS_TENANTS.A;
 const id = (n: number) => `0f2a0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const PEDIDOS = [id(1), id(2)];
+const PEDIDOS = [id(1), id(2), id(3), id(4), id(5), id(6), id(7), id(8), id(9)];
 const FORMA = id(10);
 const PRAZO = id(11);
+const PRAZO2 = id(12);
 const CADASTRO = (() => {
   const d = dadosDoisTenants('hash-de-teste');
   return { cliente: d['core.cliente']!, produto: d['core.produto']!, usuario: d['core.usuario']! };
@@ -29,6 +32,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
   let pool: pg.Pool;
   let agora!: Date;
   let prod1 = '';
+  let restaurarPreVenda: () => void = () => {};
 
   const contexto = () =>
     ({
@@ -88,7 +92,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
       await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.pedido_aprovacao where pedido_id = any($1::uuid[])', [PEDIDOS]);
       await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [PEDIDOS]);
-      await admin.query('delete from vendedor.prazo_pagamento where id = $1', [PRAZO]);
+      await admin.query('delete from vendedor.prazo_pagamento where id = any($1::uuid[])', [[PRAZO, PRAZO2]]);
       await admin.query('delete from vendedor.forma_pagamento where id = $1', [FORMA]);
     } finally {
       await admin.end();
@@ -96,6 +100,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
   }
 
   beforeAll(async () => {
+    restaurarPreVenda = usarPreVenda(preVendaSql); // orçamento e Transformar dependem do repositório SQL da pré-venda
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
     agora = new Date((await pool.query<{ agora: Date }>('select now() as agora')).rows[0]!.agora); // hora-fixa-ok: relógio único do arquivo
     prod1 = CADASTRO.produto.find((x) => x.sku === 'ALFA-001' && x.tenant_id === A.tenantId)!.id as string;
@@ -108,11 +113,16 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
         "insert into vendedor.prazo_pagamento (id, tenant_id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, percentual_ajuste) values ($1, $2, $3, 'PCT-AV', 'À vista', '{0}', 0, -1.71)",
         [PRAZO, A.tenantId, FORMA],
       );
+      await admin.query(
+        "insert into vendedor.prazo_pagamento (id, tenant_id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, percentual_ajuste) values ($1, $2, $3, 'PCT-30', '30 dias', '{30}', 30, 3)",
+        [PRAZO2, A.tenantId, FORMA],
+      );
     } finally {
       await admin.end();
     }
   });
   afterAll(async () => {
+    restaurarPreVenda();
     await limpar();
     await pool?.end();
   });
@@ -129,5 +139,94 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retrato do percentual do praz
     const [r] = await receber(push(id(2), { forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: -1.71 }));
     expect(r).toMatchObject({ id: id(2), status: 'aceito' });
     expect(await lerPercentual(id(2))).toEqual({ prazo_pagamento_id: PRAZO, pct: -1.71 });
+  });
+
+  describe('RN-VEN-45: o % gravado do orçamento vale no mesmo prazo, mesmo que o ERP mude o cadastro depois', () => {
+    const mudarPrazoNoErp = async (pct: number) => {
+      const admin = new pg.Client({ connectionString: banco().urlAdmin });
+      await admin.connect();
+      try {
+        await admin.query('update vendedor.prazo_pagamento set percentual_ajuste = $2, updated_at = now() where id = $1', [PRAZO, pct]);
+      } finally {
+        await admin.end();
+      }
+    };
+    const sinal = async (pedidoId: string) =>
+      (await comTenant(pool, A.tenantId, async (c) => (await c.query("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as t from vendedor.pedido where id = $1", [pedidoId])).rows[0])).t as string;
+    const editar = (pedidoId: string, em: string, pct: number) =>
+      rotaEditarOrcamento.executar({
+        ...(contexto() as object),
+        agora: () => new Date(agora.getTime() + 3_600_000), // depois da mudança do ERP: o % velho já não se explica pelo cadastro novo
+        params: { id: pedidoId },
+        corpo: { customer_id: A.clientes.c1, discount_pct: 0, payment_terms: 'Pix teste · À vista', forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: pct, items: [{ product_id: prod1, quantity: 2 }], atualizado_em: em },
+      } as never);
+
+    it('orçamento gravado a -1,71 %; o ERP muda o prazo para +2,50 %; o pull e o detalhe trazem o gravado; editar no mesmo prazo mantém -1,71 %; o vigente (+2,50) é recusado', async () => {
+      const [r] = await receber(push(id(3), { tipo: 'orcamento', forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: -1.71 }));
+      expect(r).toMatchObject({ id: id(3), status: 'aceito' });
+      await mudarPrazoNoErp(2.5);
+
+      const linhas = (await provedoresSyncVendedor[0]!.puxar!(contexto(), { ate: new Date(agora.getTime() + 86_400_000).toISOString(), desde: null, limite: 500 } as never)) as unknown as Array<Record<string, unknown>>;
+      expect(linhas.find((l) => l.id === id(3))).toMatchObject({ prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: -1.71 });
+      expect(entidadePedido.schemaLinha!.parse(linhas.find((l) => l.id === id(3)))).toMatchObject({ prazo_percentual_ajuste: -1.71 });
+
+      await expect(editar(id(3), await sinal(id(3)), 2.5)).rejects.toMatchObject({ codigo: 'RN-VEN-45' });
+      await editar(id(3), await sinal(id(3)), -1.71);
+      expect(await lerPercentual(id(3))).toEqual({ prazo_pagamento_id: PRAZO, pct: -1.71 });
+    });
+
+    it('Transformar no mesmo prazo leva e grava -1,71 %; o vigente (+2,50) é recusado com RN-VEN-45', async () => {
+      await mudarPrazoNoErp(2.5);
+      const origem = { orcamento_origem_id: id(3), created_offline_at: new Date(agora.getTime() + 3_600_000).toISOString(), forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO };
+      const [recusado] = await receber(push(id(5), { ...origem, prazo_percentual_ajuste: 2.5 }));
+      expect(recusado).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-45' });
+      const [ok] = await receber(push(id(4), { ...origem, prazo_percentual_ajuste: -1.71 }));
+      expect(ok).toMatchObject({ id: id(4), status: 'aceito' });
+      expect(await lerPercentual(id(4))).toEqual({ prazo_pagamento_id: PRAZO, pct: -1.71 });
+    });
+
+    it('RN-VEN-45: editar trocando para outro prazo usa o % vigente do novo prazo; o gravado do prazo antigo é recusado', async () => {
+      await mudarPrazoNoErp(2.5);
+      await receber(push(id(9), { tipo: 'orcamento', forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: 2.5 })); // orçamento aberto (o id(3) já virou pedido)
+      const trocar = (pct: number) =>
+        sinal(id(9)).then((em) =>
+          rotaEditarOrcamento.executar({
+            ...(contexto() as object),
+            agora: () => new Date(agora.getTime() + 3_600_000),
+            params: { id: id(9) },
+            corpo: { customer_id: A.clientes.c1, discount_pct: 0, payment_terms: 'Pix teste · 30 dias', forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO2, prazo_percentual_ajuste: pct, items: [{ product_id: prod1, quantity: 2 }], atualizado_em: em },
+          } as never),
+        );
+      await expect(trocar(-1.71)).rejects.toMatchObject({ codigo: 'RN-VEN-45' });
+      await trocar(3);
+      expect(await lerPercentual(id(9))).toEqual({ prazo_pagamento_id: PRAZO2, pct: 3 });
+    });
+
+    it('RN-VEN-45: gravado 0 vale 0 (não cai no vigente); coluna nula (sem retrato, antes da 0082) vale o vigente', async () => {
+      await mudarPrazoNoErp(2.5);
+      const definir = async (pedidoId: string, valor: number | null) => {
+        const admin = new pg.Client({ connectionString: banco().urlAdmin });
+        await admin.connect();
+        try {
+          await admin.query('update vendedor.pedido set prazo_percentual_ajuste = $2 where id = $1', [pedidoId, valor]);
+        } finally {
+          await admin.end();
+        }
+      };
+      await receber(push(id(6), { tipo: 'orcamento', forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: 2.5 }));
+      await receber(push(id(7), { tipo: 'orcamento', forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO, prazo_percentual_ajuste: 2.5 }));
+      await definir(id(6), 0);
+      await definir(id(7), null);
+      const origem = (de: string) => ({ orcamento_origem_id: de, created_offline_at: new Date(agora.getTime() + 3_600_000).toISOString(), forma_pagamento_id: FORMA, prazo_pagamento_id: PRAZO });
+      // gravado 0: o vigente (2,50) é recusado e o 0 é aceito
+      expect((await receber(push(id(8), { ...origem(id(6)), prazo_percentual_ajuste: 2.5 })))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-45' });
+      expect((await receber(push(id(8), { ...origem(id(6)), prazo_percentual_ajuste: 0 })))[0]).toMatchObject({ id: id(8), status: 'aceito' });
+      expect(await lerPercentual(id(8))).toEqual({ prazo_pagamento_id: PRAZO, pct: 0 });
+      // sem retrato: vale o vigente (2,50); o 0 é recusado
+      expect((await receber(push(id(5), { ...origem(id(7)), prazo_percentual_ajuste: 0 })))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-45' });
+      const [ok] = await receber(push(id(5), { ...origem(id(7)), prazo_percentual_ajuste: 2.5 }));
+      expect(ok).toMatchObject({ id: id(5), status: 'aceito' });
+      expect(await lerPercentual(id(5))).toEqual({ prazo_pagamento_id: PRAZO, pct: 2.5 });
+    });
   });
 });

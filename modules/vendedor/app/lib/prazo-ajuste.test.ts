@@ -89,3 +89,21 @@ describe('RN-VEN-44 (T-0188): a troca de prazo mantém o preço final do item', 
     expect(volta.preco_unitario_cents).toBe(9_500);
   });
 });
+
+describe('RN-VEN-44/45 (T-0188): ida e volta do prazo na edição devolve o % gravado', () => {
+  const forma = { id: 'f1', codigo: 'BOL', nome: 'Boleto', ativo: true, ordem: 1 };
+  const prazo = (id: string, pct: number) => ({ id, forma_pagamento_id: 'f1', codigo: id, descricao: id, parcelas_dias: [0], prazo_medio_dias: 0, percentual_ajuste: pct, ordem: 1, ativo: true });
+  // orçamento gravado a -1,71 % no prazo z1; o ERP já mudou z1 para +2,50 %
+  const edicao: Rascunho = { ...rascunhoVazio('c1'), prazo_pagamento_id: 'z1', prazo_percentual_ajuste: -1.71, prazo_gravado: { prazo_id: 'z1', percentual: -1.71 } };
+  it('RN-VEN-45: escolher de novo o prazo gravado mantém -1,71, não o vigente +2,50', () => {
+    expect(comPagamento(edicao, forma, prazo('z1', 2.5)).prazo_percentual_ajuste).toBe(-1.71);
+  });
+  it('RN-VEN-44: outro prazo usa o vigente e voltar ao gravado devolve -1,71', () => {
+    const outro = comPagamento(edicao, forma, prazo('z2', 1));
+    expect(outro.prazo_percentual_ajuste).toBe(1);
+    expect(comPagamento(outro, forma, prazo('z1', 2.5)).prazo_percentual_ajuste).toBe(-1.71);
+  });
+  it('RN-VEN-45: sem prazo gravado no rascunho (pedido novo) vale o vigente', () => {
+    expect(comPagamento(rascunhoVazio('c1'), forma, prazo('z1', 2.5)).prazo_percentual_ajuste).toBe(2.5);
+  });
+});

@@ -6,7 +6,7 @@
 import { descricaoPrazo, formasDaLista, formasDoCliente, pagamentoPadrao, prazosDaForma, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
 import type { EntradaPendencias } from '../../domain/pendencias-preenchimento';
 import { percentualAjusteParaBp, valorMantendoPercentualCents } from '../../domain/preco-pedido';
-import { ajustesNaTrocaDePrazo } from '../../domain/troca-prazo';
+import { ajustesNaTrocaDePrazo, percentualDoPrazoNoDocumento } from '../../domain/troca-prazo';
 import type { Ajuste, LinhaDoPedido } from './novo-pedido';
 import type { Rascunho } from './pedidos';
 
@@ -87,8 +87,10 @@ export function rascunhoMantendoPrecoFinal(antes: Rascunho, depois: Rascunho, li
 }
 
 export function comPagamento(r0: Rascunho, forma: FormaDePagamento, prazo: PrazoDePagamento): Rascunho {
-  const r = comValoresMantendoPercentual(r0, prazo.percentual_ajuste ?? 0);
-  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, prazo_percentual_ajuste: prazo.percentual_ajuste ?? 0, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
+  // RN-VEN-44/45: voltar ao prazo em que o documento foi gravado devolve o % gravado; outro prazo usa o vigente
+  const pct = percentualDoPrazoNoDocumento({ prazo_id: prazo.id, vigente: prazo.percentual_ajuste, gravado: r0.prazo_gravado });
+  const r = comValoresMantendoPercentual(r0, pct);
+  return { ...r, forma_pagamento_id: forma.id, prazo_pagamento_id: prazo.id, prazo_percentual_ajuste: pct, payment_terms: `${forma.nome} · ${prazo.descricao}`, condicao_pagamento_id: null };
 }
 
 /** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver ativo; senão volta ao placeholder (o campo fica com erro até escolher). */
