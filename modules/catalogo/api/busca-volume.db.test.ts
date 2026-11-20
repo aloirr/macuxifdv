@@ -6,11 +6,11 @@
  * - o caminho da busca (retrato → candidatos → teto de candidatos → preço/estoque → ranking) responde abaixo do teto de regressão de 2000 ms (p95) com 20 mil;
  * - o resultado da busca com índice e teto de candidatos tem a mesma primeira página do ranking sobre a lista inteira (o total para
  *   no teto: `TETO_CANDIDATOS`).
- * Pula sem Postgres; com MACUXI_PG_EXIGIR=1 (CI) falha. O tempo limite do CI é folgado (a máquina é compartilhada): o tempo por
+ * Roda num banco efêmero próprio (a fixture dois-tenants é carregada nele), não no compartilhado. Pula sem Postgres; com MACUXI_PG_EXIGIR=1 (CI) falha. O tempo limite do CI é folgado (a máquina é compartilhada): o tempo por
  * requisição HTTP é medido na carga da T-0107 (`MACUXI_CARGA_MEDIR=1`).
  */
-import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
-import { banco, semBanco } from '@macuxi/db/teste/estado';
+import { carregarDoisTenants, comTenant, criarBancoDeTeste, DOIS_TENANTS, type BancoDeTeste } from '@macuxi/db/teste';
+import { semBanco } from '@macuxi/db/teste/estado';
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -39,23 +39,8 @@ const CONSULTAS = ['pastilha de freio', 'pastilha freio cobreq', 'filtro oleo te
 
 describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T-0119, D-T0107b)', () => {
   let pool: pg.Pool;
+  let proprio: BancoDeTeste;
   const cadastro = new Map<string, { id: string; sku: string; nome: string; unidade: string; ativo: boolean; external_id: null }>();
-
-  async function limpar() {
-    await comTenant(pool, A.tenantId, async (c) => {
-      const ids = `select ('0ca00000-0000-4000-8000-' || lpad((20000000 + g)::text, 12, '0'))::uuid from generate_series(1, ${TOTAL}) g`;
-      await c.query(`delete from catalogo.produto_referencia where produto_id in (${ids})`);
-      await c.query(`delete from catalogo.produto_conteudo where produto_id in (${ids})`);
-      await c.query(`delete from catalogo.produto_atributo where produto_id in (${ids})`);
-      await c.query('delete from catalogo.estoque_saldo where deposito_id = $1', [DEPOSITO]);
-      await c.query('delete from catalogo.tabela_preco_item where tabela_preco_id = $1', [TABELA]);
-      await c.query('delete from catalogo.cliente_tabela_preco where tabela_preco_id = $1', [TABELA]);
-      await c.query('delete from catalogo.deposito where id = $1', [DEPOSITO]);
-      await c.query('delete from catalogo.tabela_preco where id = $1', [TABELA]);
-      // 0045: o papel do app não tem delete em marca_concorrente (apagar = deleted_at).
-      await c.query('update catalogo.marca_concorrente set deleted_at = now() where id = $1', [MARCA]);
-    });
-  }
 
   /** Repositório do tenant A sobre a conexão da transação; o Core é simulado pelo contrato `core.cadastro_resumo@1`. */
   async function noTenant<T>(fn: (repo: RepositorioCatalogo, db: pg.ClientBase, consultasAoBanco: string[]) => Promise<T>): Promise<T> {
@@ -85,9 +70,10 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
   }
 
   beforeAll(async () => {
-    pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
+    // as 20 mil linhas não aparecem nos pulls dos demais .db.test.ts
+    proprio = await criarBancoDeTeste({ preparar: (admin) => carregarDoisTenants(admin).then(() => undefined) });
+    pool = new pg.Pool({ connectionString: proprio.urlApp, max: 4 });
     esquecerRetratoCatalogo();
-    await limpar();
     for (let n = 1; n <= TOTAL; n++) {
       cadastro.set(PRODUTO(n), {
         id: PRODUTO(n),
@@ -104,7 +90,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
       await c.query("insert into catalogo.tabela_preco (id, tenant_id, codigo, nome) values ($1, $2, 'T119-TAB', 'T119')", [TABELA, t]);
       await c.query("insert into catalogo.deposito (id, tenant_id, codigo, nome) values ($1, $2, 'T119-DEP', 'CD T119')", [DEPOSITO, t]);
       await c.query('insert into catalogo.cliente_tabela_preco (id, tenant_id, cliente_id, tabela_preco_id) values ($1, $2, $3, $4)', [uuid(30_000_000, 5), t, CLIENTE, TABELA]);
-      await c.query("insert into catalogo.marca_concorrente (id, tenant_id, nome) values ($1, $2, 'T119 Concorrente') on conflict (id) do update set deleted_at = null", [MARCA, t]);
+      await c.query("insert into catalogo.marca_concorrente (id, tenant_id, nome) values ($1, $2, 'T119 Concorrente')", [MARCA, t]);
       await c.query(
         `insert into catalogo.tabela_preco_item (id, tenant_id, tabela_preco_id, produto_id, preco_cents)
          select gen_random_uuid(), $1, $2, ${idDe('g', 20_000_000)}, 1000 + (g % 90) * 100 from generate_series(1, ${TOTAL}) g`,
@@ -135,8 +121,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
 
   afterAll(async () => {
     esquecerRetratoCatalogo();
-    await limpar();
     await pool?.end();
+    await proprio?.apagar();
   });
 
   it('T-0119: o preço e o estoque dos candidatos são lidos por índice (EXPLAIN sem Seq Scan nas tabelas de 20 mil linhas)', async () => {
