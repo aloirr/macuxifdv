@@ -12,7 +12,8 @@ name: producao — diagnóstico da outbox (só leitura)
 # - O total de parados de TODAS as empresas sai antes pelo GET /v1/saude público (dependencias.outbox), para conferir se
 #   as empresas consultadas somam o número do alerta.
 #
-# O que o log mostra: docs/desenho/outbox-parada-v1014.md, §6.
+# O que o log mostra: docs/desenho/outbox-parada-v1014.md, §6. Bloco do catálogo (nós e produtos do ERP parados, só quando
+# há algum): modules/integracao/docs/outbox-parada-am2808-catalogo.md, §6.
 
 on:
   workflow_dispatch:
@@ -100,8 +101,10 @@ jobs:
                         when u.x like '%Lote aguardando a carga de%' then 'espera de dependência'
                         when u.x like '%: efeito depois do commit: %' then 'efeito ' ||
                              coalesce(substring(u.x from 'HTTP [0-9]{3}'), substring(u.x from 'SQLSTATE [0-9A-Z]{5}'), 'outro')
+                        -- no 23505, o índice único que bateu (nome do objeto do banco, não texto livre)
+                        when u.x ~ 'SQLSTATE 23505, [a-z_][a-z0-9_]{0,62}' then substring(u.x from 'SQLSTATE 23505, [a-z_][a-z0-9_]{0,62}')
                         when u.x ~ 'SQLSTATE [0-9A-Z]{5}' then substring(u.x from 'SQLSTATE [0-9A-Z]{5}')
-                        when btrim(split_part(u.x, ':', 2)) ~ '^(Erro[A-Z][A-Za-z]{0,40}|[A-Z][A-Za-z]{0,40}Error)$'
+                        when btrim(split_part(u.x, ':', 2)) ~ '^(Erro[A-Z][A-Za-z]{0,40}|[A-Z][A-Za-z]{0,40}Error|ReferenciaAusenteErp)$'
                              then btrim(split_part(u.x, ':', 2))
                         else 'outro' end end as classe_erro) c
            where e.publicado_em is null and e.deleted_at is null and e.tentativas >= :max
@@ -115,6 +118,56 @@ jobs:
            where l.status in ('recebido', 'processando') and l.deleted_at is null
            group by 1, 2
            order by min(l.recebido_em);
+          -- catálogo: só cadastro de produto e grupo
+          select exists (select 1 from plataforma.evento e
+                          where e.publicado_em is null and e.deleted_at is null and e.tentativas >= :max
+                            and e.nome in ('integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1')) as tem_catalogo \gset
+          \if :tem_catalogo
+          \echo 'catálogo: nós parados (indice = índice único do 23505)'
+          select to_char(e.ocorrido_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as ocorrido_manaus,
+                 e.tentativas,
+                 substring(e.ultimo_erro from 'SQLSTATE 23505, ([a-z_][a-z0-9_]{0,62})') as indice,
+                 e.payload->>'acao' as acao,
+                 e.payload->>'external_id' as external_id,
+                 e.payload->'registro'->>'codigo' as codigo,
+                 e.payload->'registro'->>'nome' as nome,
+                 e.payload->'registro'->>'nivel' as nivel,
+                 e.payload->'registro'->>'pai_external_id' as pai_external_id
+            from plataforma.evento e
+           where e.publicado_em is null and e.deleted_at is null and e.tentativas >= :max
+             and e.nome = 'integracao.catalogo_no.atualizado@1'
+           order by e.ocorrido_em, e.id
+           limit 200;
+          \echo 'catálogo: nó vivo com o mesmo código ou o mesmo external_id de um nó parado'
+          select p.external_id as parado_external_id,
+                 concat_ws(' e ', case when n.codigo = p.codigo then 'codigo' end,
+                           case when n.external_id = p.external_id then 'external_id' end) as mesma_chave,
+                 n.external_id, n.codigo, n.nome, n.nivel, pai.codigo as pai_codigo,
+                 to_char(n.created_at at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as criado_manaus
+            from (select distinct e.payload->>'external_id' as external_id, e.payload->'registro'->>'codigo' as codigo
+                    from plataforma.evento e
+                   where e.publicado_em is null and e.deleted_at is null and e.tentativas >= :max
+                     and e.nome = 'integracao.catalogo_no.atualizado@1') p
+            join catalogo.catalogo_no n
+              on n.deleted_at is null and (n.codigo = p.codigo or n.external_id = p.external_id)
+            left join catalogo.catalogo_no pai on pai.tenant_id = n.tenant_id and pai.id = n.pai_id
+           order by p.external_id, n.created_at
+           limit 200;
+          \echo 'catálogo: produtos parados (faltou = entidade da ReferenciaAusenteErp)'
+          select to_char(e.ocorrido_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as ocorrido_manaus,
+                 substring(e.ultimo_erro from 'registro\(s\) de ([a-z_]+)') as faltou,
+                 e.payload->>'external_id' as external_id,
+                 e.payload->'registro'->>'sku' as sku,
+                 e.payload->'registro'->>'nome' as nome,
+                 e.payload->'registro'->>'catalogo_no_external_id' as catalogo_no_external_id,
+                 exists (select 1 from catalogo.produto_no pn
+                          where pn.external_id = e.payload->>'external_id' and pn.deleted_at is null) as tem_grupo_vivo
+            from plataforma.evento e
+           where e.publicado_em is null and e.deleted_at is null and e.tentativas >= :max
+             and e.nome = 'integracao.produto.atualizado@1'
+           order by e.ocorrido_em, e.id
+           limit 200;
+          \endif
           \else
           \echo 'empresa não encontrada (código errado ou empresa excluída)'
           \endif
