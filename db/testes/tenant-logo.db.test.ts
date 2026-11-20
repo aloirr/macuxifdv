@@ -158,6 +158,7 @@ describe.skipIf(semBanco())('0083 logo do cliente (banco, fixture dois-tenants)'
     tenant_id: string;
     razao_social: string;
     nome_fantasia: string | null;
+    ocultar_marca_macuxi: boolean;
     logo: null | { sha256: string; tipo: string; tamanho_bytes: number; largura_px: number; altura_px: number; atualizada_em: string; chave: string };
     chave_anterior?: string | null;
   };
@@ -213,7 +214,8 @@ describe.skipIf(semBanco())('0083 logo do cliente (banco, fixture dois-tenants)'
     await emTransacao(admin, null, async () => {
       const cli = await abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: A, usuario_id: ADMIN_A }] });
       const razaoA = (await q<{ nome: string }>('select nome from plataforma.tenant where id = $1', [A]))[0]!.nome;
-      expect(await ler(cli, A)).toEqual({ tenant_id: A, razao_social: razaoA, nome_fantasia: null, logo: null });
+      // ocultar_marca_macuxi: da 0091 (banco migrado até o fim; tenant-ocultar-marca.db.test.ts)
+      expect(await ler(cli, A)).toEqual({ tenant_id: A, razao_social: razaoA, nome_fantasia: null, ocultar_marca_macuxi: false, logo: null });
       expect((await erroDe(ler(cli, B)))?.code).toBe('42501');
       expect((await erroDe(ler(cli, SEM_TENANT)))?.code).toBe('42501');
       for (const t of [A, B]) {
@@ -255,7 +257,7 @@ describe.skipIf(semBanco())('0083 logo do cliente (banco, fixture dois-tenants)'
       expect(r1.logo).toMatchObject({ sha256: l1.sha256, tipo: 'image/png', tamanho_bytes: 50_000, largura_px: 600, altura_px: 200, chave: l1.chave });
       expect(r1.logo!.atualizada_em).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
       expect(Object.keys(r1.logo!).sort()).toEqual(['altura_px', 'atualizada_em', 'chave', 'largura_px', 'sha256', 'tamanho_bytes', 'tipo']);
-      expect(Object.keys(await ler(sid, A)).sort()).toEqual(['logo', 'nome_fantasia', 'razao_social', 'tenant_id']);
+      expect(Object.keys(await ler(sid, A)).sort()).toEqual(['logo', 'nome_fantasia', 'ocultar_marca_macuxi', 'razao_social', 'tenant_id']);
 
       // mesma imagem (mesmo sha256) com outra chave: nada muda nem audita; a resposta traz a chave GRAVADA
       const igual = logo(A, 11, { sha256: l1.sha256 });

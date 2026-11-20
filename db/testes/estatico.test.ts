@@ -39,7 +39,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_SA_0073, FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS, FUNCOES_WORKER_0072 } from './funcoes-sa';
+import { DADOS_LEGAIS_PUBLICOS, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058, FUNCOES_SA_0070, FUNCOES_SA_0072, FUNCOES_SA_0073, FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_OCULTAR_MARCA, FUNCOES_SA_PLANOS, FUNCOES_WORKER_0072 } from './funcoes-sa';
 import { idAprovacaoDoBackfill, idDeChave, idDeterministico, idFixo, idMedida, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
@@ -234,6 +234,7 @@ describe('migrações (estático)', () => {
     expect(nomes[87]).toBe('0088_vendedor_pedido_aprovacao'); // T-0184 (P-6): vendedor.pedido_aprovacao (uma por motivo e ciclo, fora do sync, backfill dos pending_approval), vendedor.pedido.aprovacao_ciclo e 'inadimplencia' no CHECK pedido_motivos_validos (pedido-aprovacao.db.test.ts)
     expect(nomes[88]).toBe('0089_core_rastreamento'); // T-0156 (ADR 0061): ponto_trajeto e ausencia_usuario, sem macuxi_leitura, e core.expurgar_rastreamento (90 dias e 5 anos) só do worker (rastreamento.db.test.ts)
     expect(nomes[89]).toBe('0090_core_cliente360_documentos'); // T-0186 (Cliente 360 v2, D2–D5): forma_pagamento e NF original em core.nota_erp, forma_pagamento e NF em core.titulo, 3 índices e core.documento_tipo, documento_cliente, documento_permissao e documento_excecao (cliente360-documentos.db.test.ts)
+    expect(nomes[90]).toBe('0091_plataforma_tenant_ocultar_marca_macuxi'); // item 15 do Campo v1.0.16: plataforma.tenant.ocultar_marca_macuxi (not null default false), sa_gravar_ocultar_marca no portal (só super-admin) e ocultar_marca_macuxi no jsonb da marca (tenant-ocultar-marca.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -873,8 +874,10 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0083 (T-0182, logo do cliente): as 4 sa_* da marca da empresa (portal); a interna marca_da_empresa_json é invoker
     // (tenant-logo.db.test.ts)
     // 0086 (ADR 0047): as 3 sa_* dos planos no portal (planos-troca-licencas.db.test.ts); a trava licencas_do_tenant é invoker
+    // 0091 (item 15 do Campo v1.0.16): a sa_* que oculta a marca do Macuxi (portal); a interna da marca é recriada com create
+    // or replace (tenant-ocultar-marca.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv', ...FUNCOES_SA_CARGA.map(nome), 'plataforma.frases_carga_ativas', ...FUNCOES_SA_LOGO.map(nome), ...FUNCOES_SA_PLANOS.map(nome), 'core.expurgar_rastreamento'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv', ...FUNCOES_SA_CARGA.map(nome), 'plataforma.frases_carga_ativas', ...FUNCOES_SA_LOGO.map(nome), ...FUNCOES_SA_PLANOS.map(nome), 'core.expurgar_rastreamento', ...FUNCOES_SA_OCULTAR_MARCA.map(nome)].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);

@@ -9,8 +9,8 @@
  * 0073_plataforma_dados_legais.up.sql (dados legais do rodapé, só por função), 0074_plataforma_sync_pacote.up.sql (pacote da
  * primeira carga, ADR 0054), 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058) e
  * 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por função), 0083_plataforma_tenant_logo.up.sql
- * (logo e nome fantasia em plataforma.tenant) e 0086_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano,
- * ADR 0047), para consultas da API.
+ * (logo e nome fantasia em plataforma.tenant), 0086_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano,
+ * ADR 0047) e 0091_plataforma_tenant_ocultar_marca_macuxi.up.sql (ocultar a marca do Macuxi), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -69,6 +69,11 @@ export const tenant = plataforma.table('tenant', {
   logo_altura_px: integer('logo_altura_px'),
   logo_chave: text('logo_chave'),
   logo_atualizada_em: timestamp('logo_atualizada_em', { withTimezone: true }),
+  /**
+   * 0091 (item 15 do Campo v1.0.16): true = o app e o BKO mostram só a marca do cliente, sem a do Macuxi. Gravada só pela
+   * sa_gravar_ocultar_marca (super-admin, RN-CORE-33); o app lê a própria linha.
+   */
+  ocultar_marca_macuxi: boolean('ocultar_marca_macuxi').notNull().default(false),
   ...auditaveis(),
 });
 
