@@ -1,4 +1,4 @@
-# Frase do Início do Campo em negrito e em outra cor (proposta, aguardando aprovação)
+# Frase do Início do Campo: Sol claro 700 (aprovada em 20/11/2026, R-20261120-062210)
 
 20/11/2026 · design-de-marca · pedido do dono do produto no teste de campo do Campo v1.0.16 (R-20261120-055304, item 1).
 Print simulado (390 × 844, 2×): `frase-inicio.png` (antes · proposta · alternativa), com o `frase-inicio.html` ao lado;
@@ -20,7 +20,4 @@ itálico, aspas e até 2 linhas ficam como hoje (`docs/design/telas/inicio-cabec
 - **Branco `#FFFFFF` 700 (alternativa):** o maior contraste, 12,77:1; o destaque fica só no negrito.
 
 ## O que a aprovação muda no manual
-Hoje o manual (§3) só deixa o Sol claro como texto no título de grupo do menu e do painel do BKO. Se a proposta for
-aprovada, entra a exceção: **"e na frase motivacional do Início do Campo, em 700"**; continua proibido em item, link e
-botão. O `designer-ux` aplica pelo token (sem hex solto) em `docs/design/telas/inicio-cabecalho.md` e no kit, e o
-`modulo-core` na tela.
+Exceção registrada no `manual.md` §3.

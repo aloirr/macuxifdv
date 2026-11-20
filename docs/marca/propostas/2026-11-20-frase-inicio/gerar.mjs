@@ -21,18 +21,18 @@ const card = (l, p, r, m, w) =>
 const sino = (extra) =>
   `<div class="sino${extra}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="bolinha"></span></div>`;
 
-// Antes: sino na linha da saudação (ajuste da v1.0.16). Proposta e Alternativa: sino à direita da linha do topo,
-// centralizado na altura da foto (72), como na Rota (spec campo-v1017 §1).
+// Antes: sino na linha da saudação (ajuste da v1.0.16).
+// Proposta e Alternativa: sino à direita da linha do topo, centralizado na altura da foto (72), como na Rota (spec campo-v1017 §1); sem o "· DU 14 de 21" e com ponto na saudação (R-20261120-055304, itens 3 e 4).
 const tela = ({ rot, sub, cor, peso }, i) => `<div class="col"><div class="rot"><b>${rot}</b><br><span>${sub}</span></div>
 <div class="tel"><div class="painel"><div class="status"><span>20:40</span><span>●●● 78%</span></div>
 <div style="padding:12px 20px 16px;display:flex;gap:12px;align-items:center">
   <div class="av">LA</div>
   <div style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <div style="font-weight:700;font-size:22px;line-height:28px;color:#FFFFFF">Boa noite, Lucas</div>
+      <div style="font-weight:700;font-size:22px;line-height:28px;color:#FFFFFF">Boa noite, Lucas${i === 0 ? '' : '.'}</div>
       ${i === 0 ? sino(' sino-v1016') : ''}
     </div>
-    <div style="font-size:14px;line-height:18px;color:#C9CED5">Sexta, 20 de novembro <span style="white-space:nowrap">· DU 14 de 21</span></div>
+    <div style="font-size:14px;line-height:18px;color:#C9CED5">Sexta, 20 de novembro${i === 0 ? ' <span style="white-space:nowrap">· DU 14 de 21</span>' : ''}</div>
     <div class="frase" style="font-size:14px;line-height:18px;font-style:italic;font-weight:${peso};color:${cor}">“${FRASE}”</div>
   </div>${i === 0 ? '' : sino('')}</div></div>
 <div class="meio"><div class="h2">Metas do mês</div><div class="grade">
