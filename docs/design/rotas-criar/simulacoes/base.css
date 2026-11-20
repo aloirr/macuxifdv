@@ -1,0 +1,110 @@
+/* Simulação estática (R0 da v1.0.19, BKO → Operação → Rotas: criar rota por proximidade).
+   Tokens de apps/web/app/globals.css e packages/ui/src/web (PageHeader, FilterBar, SelectField, KpiCard, Panel, Button,
+   Badge, Notice, Dialog). Cores do mapa: WEEKDAY_COLORS de modules/core/web/lib/routes.ts. Fonte do sistema (manual da marca §5). */
+:root{--ground:#f8f6f1;--surface:#fff;--ink:#16202a;--ink2:#4a5562;--ink3:#34404d;--line:#dfe2e6;--line2:#eceef1;--field:#c9ced5;--accent:#1e3350;
+--success:#1d6b4f;--successSoft:#e2f1ea;--warning:#7a4f00;--warningSoft:#fff1d6;--danger:#a8261b;--dangerSoft:#fde8e6;--neutralSoft:#eceef1;
+--pending:#1e3350;--pendingSoft:#dfe2e6;--navActive:#2b3743;--navText:#c9ced5;--navGrupo:#f59a52;--grafico:#c2540a;--disabled:#8b96a3;
+--seg:#1e3350;--ter:#c2540a;--qua:#4a5562;--qui:#5b7fa6;--sex:#1e3350}
+*{box-sizing:border-box}
+body{margin:0;width:1366px;height:768px;overflow:hidden;background:var(--ground);color:var(--ink);font:15px/1.4 system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;display:flex}
+nav{width:240px;flex:none;background:var(--ink);color:#fff;padding:14px 12px;display:flex;flex-direction:column;gap:2px}
+nav .marca{padding:6px 10px 14px}
+nav .marca img{display:block;height:28px;width:auto}
+/* Na R1 a cor do nome da empresa vira var(--color-nav-text) (design-de-marca, item 4). */
+nav .marca .empresa{display:block;margin-top:18px;font-size:12px;line-height:16px;color:#C9CED5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav .g{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--navGrupo);padding:14px 10px 6px}
+nav .i{color:var(--navText);font-size:15px;padding:9px 10px;border-radius:8px}
+nav .i.on{background:var(--navActive);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--navGrupo)}
+main{flex:1;padding:18px 24px;display:flex;flex-direction:column;gap:12px;min-width:0;position:relative}
+/* PageHeader */
+.ph{display:flex;justify-content:space-between;align-items:center;min-height:42px;gap:12px}
+.ph h1{margin:0;font:700 24px/1.2 system-ui,'Segoe UI',Roboto,-apple-system,sans-serif}
+.ph .sub{font-size:13px;color:var(--ink2);margin-top:2px}
+.ph .acoes{display:flex;gap:8px}
+/* Button: md 42 px, sm 38 px */
+.btn{height:42px;padding:0 16px;border-radius:12px;border:1px solid var(--field);background:var(--surface);color:var(--ink);font:600 15px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.sm{height:38px;border-radius:10px;padding:0 12px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.dis{background:var(--disabled);border-color:var(--disabled);color:#fff}
+.btn.sec-dis{color:var(--disabled)}
+.lnk{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.ico{width:40px;height:40px;border:1px solid var(--field);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface);color:var(--ink);flex:none}
+.ico svg{width:17px;height:17px}
+/* FilterBar */
+.fb{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.sf{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:var(--ink2)}
+.ctl{height:38px;min-width:170px;border:1px solid var(--field);border-radius:10px;background:var(--surface);padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:15px;font-weight:400;color:var(--ink)}
+.ctl .ch{color:var(--ink2);font-size:12px}
+.ctl.foco{border-color:var(--accent);box-shadow:0 0 0 2px rgba(30,51,80,.25)}
+.seg{display:flex;height:38px;border:1px solid var(--field);border-radius:10px;background:var(--surface);padding:3px}
+.seg span{border-radius:7px;padding:0 14px;font-size:15px;font-weight:600;display:flex;align-items:center;color:var(--ink)}
+.seg span.on{background:var(--ink);color:#fff}
+.nav-p{display:flex;align-items:flex-end;gap:6px}
+.nav-p .sq{width:38px;height:38px;border:1px solid var(--field);border-radius:10px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:15px}
+.nav-p .rot{height:38px;min-width:150px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;white-space:nowrap}
+/* KpiCard */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px;display:flex;flex-direction:column;gap:1px}
+.kpi .l{font-size:13px;color:var(--ink2)}.kpi .v{font-size:24px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums}.kpi .s{font-size:12px;color:var(--ink2)}
+/* grade mapa + lista */
+.grade{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:14px;flex:1;min-height:0}
+.quadro{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden}
+.leg{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink2);padding:0 4px}
+.leg .it{display:inline-flex;align-items:center;gap:6px;margin-right:10px}
+.leg b{font-weight:600;color:var(--ink3)}
+.dot{display:inline-block;width:12px;height:12px;border-radius:999px}
+.bar{display:inline-block;width:16px;height:4px;border-radius:3px}
+.bar.tracejada{width:18px;background:repeating-linear-gradient(90deg,var(--c) 0 6px,transparent 6px 9px)}
+.mapa{position:relative;flex:1;border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:#eceef1;min-height:0}
+.mapa svg{position:absolute;inset:0;width:100%;height:100%}
+.mapa .osm{position:absolute;right:6px;bottom:4px;font-size:12px;color:var(--ink2);background:rgba(255,255,255,.8);padding:0 4px;border-radius:3px}
+.painel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;position:relative}
+.painel h2{margin:0;font:700 17px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif}
+.mut{color:var(--ink2)}
+.num{font-variant-numeric:tabular-nums}
+.bd{display:inline-block;border-radius:8px;padding:3px 8px;font-size:12px;font-weight:500;white-space:nowrap}
+.bd.success{background:var(--successSoft);color:var(--success)}.bd.warning{background:var(--warningSoft);color:var(--warning)}
+.bd.neutral{background:var(--neutralSoft);color:var(--ink2)}.bd.pending{background:var(--pendingSoft);color:var(--pending)}
+/* Notice */
+.ntc{display:flex;gap:8px;align-items:flex-start;border-radius:10px;padding:10px 12px;font-size:15px}
+.ntc.warning{background:var(--warningSoft);color:var(--warning)}.ntc.info{background:var(--pendingSoft);color:var(--pending)}
+/* Endereço base (substitui o "CD Saída") */
+.base{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 10px;background:var(--surface)}
+.casa{width:30px;height:30px;border-radius:9px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;border:2px solid #fff;box-shadow:0 1px 4px rgba(22,32,42,.45)}
+.casa svg{width:16px;height:16px}
+.base .t{display:flex;flex-direction:column;min-width:0;flex:1}
+.base .t b{font-size:15px}
+.base .t span{font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Alertas (Panel do kit) */
+.alertas{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.alertas h3{margin:0;font:700 15px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif}
+.alertas .al{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:15px;min-height:32px}
+/* lista de dias */
+.dias{list-style:none;margin:0;padding:0;overflow:hidden;flex:1}
+.dias li{display:flex;align-items:center;gap:10px;min-height:46px;border-bottom:1px solid var(--line2);padding:3px 4px}
+.dias .cor{width:6px;height:28px;border-radius:3px;flex:none}
+.dias .tx{display:flex;flex-direction:column;flex:1;min-width:0}
+.dias .tx b{font-size:15px;font-weight:600}
+.dias .tx span{font-size:12px;color:var(--ink2)}
+.dias .chev{color:var(--ink2);font-size:15px}
+.dias li.off b{color:var(--ink2)}
+.rodape{border-top:1px solid var(--line);margin:0 -16px -16px;padding:12px 16px;display:flex;gap:8px;background:var(--surface)}
+/* Dialog do kit */
+.veu{position:fixed;inset:0;background:rgba(22,32,42,.45);z-index:9}
+.dlg{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);width:460px;background:var(--surface);border-radius:16px;box-shadow:0 20px 50px rgba(22,32,42,.3);padding:20px}
+.dlg h2{margin:0;font:700 20px system-ui,'Segoe UI',Roboto,-apple-system,sans-serif}
+.dlg .acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.campo{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--ink2);margin-top:14px}
+.campo .ctl{height:44px;min-width:0;width:100%}
+.linha{display:flex;gap:10px}
+.linha .campo{flex:1}
+.radio{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:10px;min-height:52px}
+.radio.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.radio .r{width:20px;height:20px;border-radius:999px;border:2px solid var(--field);flex:none;display:flex;align-items:center;justify-content:center}
+.radio.on .r{border-color:var(--accent)}
+.radio.on .r::after{content:"";width:10px;height:10px;border-radius:999px;background:var(--accent)}
+.radio .t{display:flex;flex-direction:column}
+.radio .t b{font-size:15px}
+.radio .t span{font-size:13px;color:var(--ink2)}
+.mini-mapa{position:relative;height:150px;border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:#eceef1;margin-top:6px}
+.mini-mapa svg{position:absolute;inset:0;width:100%;height:100%}
