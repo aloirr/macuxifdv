@@ -43,7 +43,6 @@ Na v1.0.15 o visor da ficha abriu só imagens. Abrir PDF exigia uma biblioteca n
 - **Compatibilidade:** o `react-native-pdf` 7.x e o `react-native-blob-util` 1.x precisam compilar com o RN 0.86.3, só com a nova arquitetura (sem a ponte antiga), e com o Expo 57. A compatibilidade com a nova arquitetura passa pela camada de interoperabilidade do RN. Uma falha aparece só no build nativo ou na primeira abertura do PDF, e não no typecheck nem nos testes.
 - **Manutenção do `react-native-blob-util`:** é mantido pela comunidade, com histórico de atraso nas versões novas do RN. Uma atualização do RN ou do Expo pode ficar presa a ele. Como não usamos nada dele diretamente, trocar de visor no futuro não muda nenhuma tela além de `components/visor-pdf.tsx`.
 - **Tamanho do APK:** o `react-native-pdf` traz o renderizador nativo (PdfiumAndroid) para cada ABI. O aumento será medido no APK da v1.0.16.
-- **Transitivas:** `crypto-js` e `deprecated-react-native-prop-types` entram no lock sem uso nosso.
 
 ## Validação
 O build Android com as duas dependências será validado no APK da v1.0.16, gerado no próprio rito pelo workflow `android-build.yml` (`apps/mobile/docs/build-android.md`). O roteiro do testes abre o PDF da NF e de um documento, fecha, abre sem sinal e confere que a pasta `visor-pdf/` fica vazia depois de fechar, de reabrir o app e do logout. Se o build ou a abertura falhar, o "Ver PDF" sai da v1.0.16, como na v1.0.15, e esta ADR volta à revisão.
@@ -51,5 +50,4 @@ O build Android com as duas dependências será validado no APK da v1.0.16, gera
 ## Consequências
 - O shell mobile passa a ter uma dependência nativa de visualização de PDF. Outro uso dela (outro módulo, outro tipo de arquivo) precisa passar pela porta `abrirArquivo` e manter a regra de não guardar.
 - Toda atualização do RN ou do Expo confere as duas bibliotecas antes do build.
-- O visor de foto e o de PDF dividem o mesmo download (`baixarArquivoDoVisor`), o mesmo teto e o mesmo tempo limite.
 - A limpeza do temporário faz parte do logout e do bloqueio do aparelho (RN-CORE-15); quem mexer nesses fluxos mantém a chamada a `limparPdfsTemporarios`.
