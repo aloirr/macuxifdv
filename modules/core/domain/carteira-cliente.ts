@@ -4,12 +4,15 @@
  * - Uma linha por pessoa vigente na carteira do cliente; com mais de uma, o cabeçalho da coluna vira "Pessoa".
  * - Ligar e WhatsApp saem como link com DDI 55; pessoa sem telefone fica com os dois nulos (ação desligada).
  */
+import type { CarteiraClienteLinha, CarteiraClienteResposta } from '../contracts';
 import { linksDeContato } from './cliente360';
 
-export const PERFIS_VEEM_CARTEIRA_DO_CLIENTE = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
+/** Perfis de gestão: única lista para rotas, API da Carteira e telas do Gestão. */
+export const PERFIS_GESTAO = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 
-export function perfilVeCarteiraDoCliente(perfil: string): boolean {
-  return (PERFIS_VEEM_CARTEIRA_DO_CLIENTE as readonly string[]).includes(perfil);
+/** Perfil de gestão (RN-CORE-04): vê a Carteira do cliente e o "Visitada por" da Performance; aceita perfil ausente. */
+export function perfilDeGestao(perfil: string | null | undefined): boolean {
+  return perfil != null && (PERFIS_GESTAO as readonly string[]).includes(perfil);
 }
 
 export interface VinculoDaCarteira {
@@ -18,24 +21,17 @@ export interface VinculoDaCarteira {
   telefone: string | null;
 }
 
-export interface LinhaCarteiraCliente {
-  usuario_id: string;
-  nome: string;
-  tel: string | null;
-  whatsapp: string | null;
-}
-
 export function rotuloColunaCarteira(pessoas: number): 'Vendedora' | 'Pessoa' {
   return pessoas > 1 ? 'Pessoa' : 'Vendedora';
 }
 
 /** Uma linha por pessoa (a mesma pessoa em dois vínculos conta uma vez), em ordem alfabética. */
-export function montarCarteiraDoCliente(vinculos: readonly VinculoDaCarteira[]): { rotulo_coluna: 'Vendedora' | 'Pessoa'; itens: LinhaCarteiraCliente[] } {
+export function montarCarteiraDoCliente(vinculos: readonly VinculoDaCarteira[]): CarteiraClienteResposta {
   const porPessoa = new Map<string, VinculoDaCarteira>();
   for (const v of vinculos) if (!porPessoa.has(v.usuario_id)) porPessoa.set(v.usuario_id, v);
   const itens = [...porPessoa.values()]
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.usuario_id.localeCompare(b.usuario_id))
-    .map<LinhaCarteiraCliente>((v) => {
+    .map<CarteiraClienteLinha>((v) => {
       const l = linksDeContato({ telefone: v.telefone, whatsapp: v.telefone });
       return { usuario_id: v.usuario_id, nome: v.nome, tel: l.tel, whatsapp: l.whatsapp };
     });

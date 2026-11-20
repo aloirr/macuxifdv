@@ -26,6 +26,8 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
   const supervisor = amb.usuario(U.supervisor, 'supervisor');
   const gerente = amb.usuario(U.gerente, 'gerente');
   const analista = amb.usuario(U.analista, 'analista');
+  const PROMOTOR_ID = '0e900000-0000-4000-8000-0000000000f1';
+  const promotor = amb.usuario(PROMOTOR_ID, 'promotor');
   const adminB = amb.usuario(B.usuarios.admin, 'admin', B.tenantId);
 
   const ponto = (n: number, hhmm: string, extra: Record<string, unknown> = {}) => ({ id: id(n), capturado_em: em(hhmm), latitude: lat(n), longitude: -60.02, precisao_m: 10, velocidade_ms: null, ...extra });
@@ -108,12 +110,12 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
 
   });
 
-  it('RN-CORE-13/04: o vendedor não vê trajeto (nem o próprio); o supervisor vê o da equipe, não o de fora dela; analista e admin sem a permissão não veem', async () => {
+  it('RN-CORE-13/04: o vendedor não vê trajeto de outro e o próprio dá 404 (qualquer perfil); o supervisor vê o da equipe, não o de fora dela; analista e admin sem a permissão não veem', async () => {
     const daEquipe = TrajetoRespostaSchema.parse(await chamarComPerfis(supervisor, { data: DIA, usuario_id: U.vendedor1 }));
     expect(daEquipe.usuario.id).toBe(U.vendedor1);
     expect(daEquipe.usuario.pontos.length).toBeGreaterThanOrEqual(4);
     expect(daEquipe.usuario.metros).toBeGreaterThan(0);
-    await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 403 });
+    await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor1 })).rejects.toMatchObject({ status: 404, codigo: 'USUARIO_NAO_ENCONTRADO' });
     await expect(chamarComPerfis(vendedor1, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 403 });
     await expect(async () => chamarComPerfis(vendedor1, { data: DIA })).rejects.toBeDefined(); // sem usuario_id a consulta nem existe
     await expect(chamarComPerfis(supervisor, { data: DIA, usuario_id: U.vendedor2 })).rejects.toMatchObject({ status: 404 });
@@ -121,7 +123,8 @@ describe.skipIf(semBanco())('Core T-0156 × Postgres: rastreamento no expediente
     // RN-CORE-13: o próprio trajeto nunca aparece, nem para quem tem a permissão
     await expect(chamarComPerfis(supervisor, { data: DIA, usuario_id: U.supervisor })).rejects.toMatchObject({ status: 404 });
     await expect(chamarComPerfis(gerente, { data: DIA, usuario_id: U.gerente })).rejects.toMatchObject({ status: 404 });
-    await expect(chamarComPerfis(adminB, { data: DIA, usuario_id: B.usuarios.admin })).rejects.toMatchObject({ status: 403 });
+    await expect(chamarComPerfis(promotor, { data: DIA, usuario_id: PROMOTOR_ID })).rejects.toMatchObject({ status: 404, codigo: 'USUARIO_NAO_ENCONTRADO' });
+    await expect(chamarComPerfis(adminB, { data: DIA, usuario_id: B.usuarios.admin })).rejects.toMatchObject({ status: 404 });
     await expect(chamarComPerfis(gerente, { data: '2026-01-01', usuario_id: U.vendedor1 })).rejects.toMatchObject({ codigo: 'TRAJETO_FORA_DA_RETENCAO' });
   });
 

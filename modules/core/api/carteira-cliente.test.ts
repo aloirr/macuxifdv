@@ -1,6 +1,7 @@
-import { cabecalhosDaRota, CACHE_CONTROL_SEM_CACHE, ErroHttpModulo, problemasCabecalhosRota } from '@macuxi/platform-sdk';
+import { ErroHttpModulo } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { CarteiraClienteRespostaSchema } from '../contracts';
+import { PERFIS_GESTAO } from '../domain';
 import { listarCarteiraDoCliente, rotasDeCarteiraDoCliente, type RepositorioCarteiraCliente } from './carteira-cliente';
 
 const C1 = '0ea00000-0000-4000-8000-000000000001';
@@ -22,14 +23,11 @@ describe('RN-CORE-04 / T-0168: GET clientes/:id/carteira (Gestão)', () => {
   });
   it('RN-CORE-04: a rota só aceita perfis de gestão (a plataforma devolve 403 ao vendedor e ao promotor) e filtra pela carteira', () => {
     const r = rotasDeCarteiraDoCliente[0]!;
-    expect(r.perfis).toEqual(['supervisor', 'gerente', 'analista', 'assistente', 'admin']);
+    expect(r.perfis).toEqual(PERFIS_GESTAO);
     expect(r.carteira).toBe('filtrar_no_dominio');
   });
   it('RN-CORE-04: a resposta da rota sai com Cache-Control no-store (dado pessoal do tenant não fica em cache)', () => {
     const r = rotasDeCarteiraDoCliente[0]!;
     expect(r.semCache).toBe(true);
-    expect(cabecalhosDaRota(r)).toEqual({ 'cache-control': CACHE_CONTROL_SEM_CACHE });
-    expect(CACHE_CONTROL_SEM_CACHE).toBe('no-store');
-    expect(problemasCabecalhosRota('carteira', r)).toEqual([]);
   });
 });

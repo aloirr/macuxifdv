@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import { HierarquiaEquipeSchema, RotasListaSchema, type RouteDay, type Seller, type Team } from '../../contracts';
+import { HierarquiaEquipeSchema, RotasListaSchema, type MembroHierarquia, type RouteDay } from '../../contracts';
 import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { hojeNoFuso } from './hoje';
 import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, INICIO_PADRAO, paraRouteDay, type ClienteDaCarteira } from './rotas-api';
@@ -47,28 +47,21 @@ export interface RoutesFilter {
   team_id: string;
 }
 
-/** Equipe de campo (vendedores e promotores) e "equipes" (o supervisor de cada um) da hierarquia do Core (T-0018). */
-function useEquipeDeCampo<T>(select: (e: { sellers: Seller[]; teams: Team[]; papeis: Record<string, 'vendedor' | 'promotor'> }) => T) {
+/** Hierarquia do Core (T-0018): uma só chamada (`qk.hierarquia`); cada tela deriva dela, por `select`, a equipe de campo ou os donos de rota. */
+function useHierarquia<T>(select: (membros: MembroHierarquia[]) => T) {
   const enabled = useAuthed();
   return useQuery({
     queryKey: qk.hierarquia,
-    queryFn: () => api<unknown>('/core/equipe/hierarquia').then((r) => equipesDaHierarquia(HierarquiaEquipeSchema.parse(r).membros)),
+    queryFn: () => api<unknown>('/core/equipe/hierarquia').then((r) => HierarquiaEquipeSchema.parse(r).membros),
     select,
     enabled,
     staleTime: 5 * 60_000,
   });
 }
+/** Equipe de campo (vendedores e promotores) e "equipes" (o supervisor de cada um). */
+const useEquipeDeCampo = <T,>(select: (e: ReturnType<typeof equipesDaHierarquia>) => T) => useHierarquia((m) => select(equipesDaHierarquia(m)));
 /** Donos de rota (Operação › Rotas): a equipe de campo e o supervisor (T-0187, P1 A). */
-function useDonosDeRota<T>(select: (e: { sellers: Seller[]; teams: Team[] }) => T) {
-  const enabled = useAuthed();
-  return useQuery({
-    queryKey: [...qk.hierarquia, 'donos-de-rota'],
-    queryFn: () => api<unknown>('/core/equipe/hierarquia').then((r) => donosDeRotaDaHierarquia(HierarquiaEquipeSchema.parse(r).membros)),
-    select,
-    enabled,
-    staleTime: 5 * 60_000,
-  });
-}
+const useDonosDeRota = <T,>(select: (e: ReturnType<typeof donosDeRotaDaHierarquia>) => T) => useHierarquia((m) => select(donosDeRotaDaHierarquia(m)));
 export const useSellersDeRota = () => useDonosDeRota((e) => e.sellers);
 export const useTeamsDeRota = () => useDonosDeRota((e) => e.teams);
 export const useSellersDeCampo = () => useEquipeDeCampo((e) => e.sellers);

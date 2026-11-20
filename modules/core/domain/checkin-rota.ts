@@ -1,3 +1,5 @@
+import { perfilUsaApp, type Perfil } from '@macuxi/platform-sdk';
+
 /**
  * RN-CORE-52: check-in só no cliente que está na rota do dia do usuário; fora da rota, só com a ação
  * `visita.checkin_fora_de_rota` no perfil de acesso. Função pura: o app (offline) e a API (que sempre revalida) usam a mesma.
@@ -16,5 +18,5 @@ export function checkinPermitido(e: EntradaCheckinNaRota): boolean {
 
 /** RN-CORE-13 (T-0187): quem é de gestão (supervisor, gerente) registra visita só com a ação `visita.registrar_gestao`; o Campo não depende dela. */
 export function visitaDeGestaoPermitida(e: { perfil: string; podeRegistrarGestao: boolean }): boolean {
-  return (e.perfil !== 'supervisor' && e.perfil !== 'gerente') || e.podeRegistrarGestao;
+  return !perfilUsaApp(e.perfil as Perfil, 'gestao') || e.podeRegistrarGestao;
 }

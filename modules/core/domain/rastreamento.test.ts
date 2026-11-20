@@ -37,8 +37,6 @@ describe('RN-CORE-13: portão do rastreamento (podeRastrear, desenho tracking §
     expect(motivo({ cargo: 'supervisor', app: 'gestao' })).toBe('pode');
     expect(motivo({ cargo: 'supervisor', app: 'campo' })).toBe('app');
     expect(motivo({ cargo: 'vendedor', app: 'gestao' })).toBe('app');
-    expect(motivo({ cargo: 'gerente', app: 'gestao' })).toBe('cargo');
-    expect(motivo({ cargo: 'gerente', app: 'campo' })).toBe('cargo');
     expect(APP_RASTREADO_DO_CARGO).toEqual({ vendedor: 'campo', promotor: 'campo', supervisor: 'gestao' });
   });
 

@@ -32,8 +32,8 @@ export interface ItemCompradoLinha {
 const ITENS_NO_INICIO = 3;
 
 /** Só no Gestão (spec §6): Vendedora · Ligar · WhatsApp, vindos do servidor. Sem internet: "Sem internet" e "Tentar de novo". */
-function CarteiraDoCliente({ clienteId }: { clienteId: string }) {
-  const q = useCarteiraDoCliente(clienteId, true);
+function CarteiraDoCliente({ clienteId, ligado }: { clienteId: string; ligado: boolean }) {
+  const q = useCarteiraDoCliente(clienteId, ligado);
   if (q.estado === 'ocioso' || q.estado === 'carregando') return null;
   return (
     <View style={{ gap: 8 }} testID="cliente-carteira">
@@ -41,7 +41,7 @@ function CarteiraDoCliente({ clienteId }: { clienteId: string }) {
       {q.estado === 'erro' || !q.resposta ? (
         <ErroOnline falha={q.falha} titulo="Carteira" onTentar={q.recarregar} testID="cliente-carteira-erro" />
       ) : q.resposta.itens.length === 0 ? (
-        <Text style={t.sub}>Ninguém na carteira deste cliente.</Text>
+        <Text style={t.sub}>Ninguém vinculado.</Text>
       ) : (
         <TabelaDados
           colunas={[
@@ -157,7 +157,7 @@ export function AbaResumo({
         )}
       </View>
 
-      {gestao ? <CarteiraDoCliente clienteId={c.id} /> : null}
+      <CarteiraDoCliente clienteId={c.id} ligado={gestao} />
 
       <View style={{ gap: 8 }} testID="cliente-performance">
         <SectionHeader title={perf.titulo} />
