@@ -32,7 +32,7 @@ import { aprovacoesFinanceiras, disponivelParaAlerta } from '../../domain/credit
 import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
 import { tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
-import { rascunhoComPagamentoPadrao, situacaoDoPagamento } from '../lib/pagamento-pedido';
+import { rascunhoComPagamentoPadrao, rascunhoMantendoPrecoFinal, situacaoDoPagamento } from '../lib/pagamento-pedido';
 import { enderecoDoRascunho } from '../lib/endereco-pedido';
 import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
 import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
@@ -49,7 +49,7 @@ import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoS
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
-import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
+import { congeladosDoRascunho, draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
 import { hrefFichaDoCliente, hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
 import { destinoAposSalvar } from '../../domain/destino-apos-salvar';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
@@ -330,10 +330,12 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const politica = dados.politica && (vendedorEmNomeId || emNomeLivre) ? politicaParaAutor(dados.politica, app.perfil) : dados.politica;
   const vendedorId = vendedorEmNomeId ?? dados.me?.seller?.id ?? '';
   const percentualAjusteBp = percentualAjusteParaBp(draft.prazo_percentual_ajuste);
+  // a parte da entrada do cálculo que não muda entre a tela, a prévia do item e a troca de prazo
+  const baseDoCalculo = (r: Draft) => ({ percentual_ajuste_bp: percentualAjusteParaBp(r.prazo_percentual_ajuste), catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...congeladosDoRascunho(r), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, vendedor_id: vendedorId, limite: app.limiteDesconto });
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, percentual_ajuste_bp: percentualAjusteBp, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
+        ? calcularPedido({ ...baseDoCalculo(draft), lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, politica })
         : null,
     [parametrosVendedor, percentualAjusteBp, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
@@ -647,6 +649,10 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
     irParaAba(primeira);
   };
   const emRascunho = (fn: (r: Draft) => Draft) => updateDraft(customerId, fn);
+  // RN-VEN-44: ver rascunhoMantendoPrecoFinal
+  const linhasDoRascunho = (r: Draft) =>
+    politica ? calcularPedido({ ...baseDoCalculo(r), lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: 0, acrescimo_pct: 0, politica }).linhas : [];
+  const emTrocaDePagamento = (fn: (r: Draft) => Draft) => emRascunho((d) => rascunhoMantendoPrecoFinal(d, fn(d), linhasDoRascunho));
 
   const abas = abasDoPedido(calculo.linhas.length);
   const noResumo = aba === 'resumo' || Boolean(sent);
@@ -796,7 +802,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
               ...(enderecoPrincipal ? [{ rotulo: 'Endereço', valor: textoDoEndereco(enderecoPrincipal) }] : []),
               ...(customer.cnpj ? [{ rotulo: customer.cnpj.replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ', valor: formatarDocumento(customer.cnpj) }] : []),
             ]}
-            pagamento={<CardPagamento rascunho={draft} formas={formas} prazos={prazos} cliente={limites} legado={opcoesLegado} onRascunho={emRascunho} faltaForma={faltaDoCampo('forma')} faltaPrazo={faltaDoCampo('prazo')} />}
+            pagamento={<CardPagamento rascunho={draft} formas={formas} prazos={prazos} cliente={limites} legado={opcoesLegado} onRascunho={emTrocaDePagamento} faltaForma={faltaDoCampo('forma')} faltaPrazo={faltaDoCampo('prazo')} />}
             credito={credito}
             sincronizadoEm={app.sincronizadoEm}
             agora={new Date()}
@@ -908,7 +914,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
             percentualAjusteBp={percentualAjusteBp}
             previa={(lines, ajustes) =>
               politica
-                ? calcularPedido({ lines, percentual_ajuste_bp: percentualAjusteBp, ajustes, desconto_pct: 0, acrescimo_pct: 0, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
+                ? calcularPedido({ ...baseDoCalculo(draft), lines, ajustes, desconto_pct: 0, acrescimo_pct: 0, politica })
                 : null
             }
             onConfirmar={(estado) => {

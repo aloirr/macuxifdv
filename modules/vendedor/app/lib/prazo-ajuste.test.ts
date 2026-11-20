@@ -1,11 +1,13 @@
 /**
- * RN-VEN-43/44 no app (v1.0.13): a tabela do pedido é ajustada pelo % do prazo, recalcula na troca de prazo a partir da tabela
- * original, e o pull grava o percentual. Nada visível muda: o % não aparece em lugar nenhum.
+ * RN-VEN-43/44 no app: a tabela do pedido é ajustada pelo % do prazo, sempre a partir da tabela original; a troca de prazo mantém o
+ * preço final de cada item (RN-VEN-44, T-0188), e o pull grava o percentual. O % não aparece em lugar nenhum.
  */
 import { describe, expect, it } from 'vitest';
 
 import type { Product } from '@macuxi/catalogo/contracts';
-import { comPagamento } from './pagamento-pedido';
+import { comPagamento, rascunhoMantendoPrecoFinal } from './pagamento-pedido';
+import { congeladosDoRascunho, rascunhoVazio, type Rascunho } from './pedidos';
+import { percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { calcularPedido, type EntradaCalculo, type ProdutoComMinimo } from './novo-pedido';
 import { politicaApi, prazosDaTela } from './pull';
 
@@ -31,7 +33,7 @@ describe('RN-VEN-43: o pedido usa a tabela ajustada pelo prazo', () => {
     expect(c.total_cents).toBe(19_658);
   });
 
-  it('RN-VEN-44: o desconto do vendedor se mantém em % e incide sobre a tabela ajustada', () => {
+  it('RN-VEN-43: o desconto do vendedor em % incide sobre a tabela ajustada', () => {
     const c = calcularPedido(entrada({ percentual_ajuste_bp: -171, ajustes: { a: { desconto_pct: 5 } } }));
     expect(c.linhas[0]!.preco_unitario_cents).toBe(9_338); // 9 829 × 0,95 = 9 337,55
   });
@@ -61,5 +63,29 @@ describe('RN-VEN-43: o rascunho congela o percentual do prazo escolhido e o pull
     const base = { id: 'z1', updated_at: '2026-11-15T10:00:00.000Z', forma_pagamento_id: 'f1', codigo: 'AV', descricao: 'À vista', parcelas_dias: [0], prazo_medio_dias: 0, ativo: true, ordem: 1 };
     const tela = prazosDaTela({ prazos: [{ ...base, percentual_ajuste: -1.71 }, base] } as never);
     expect(tela.map((p) => p.percentual_ajuste)).toEqual([-1.71, 0]);
+  });
+});
+
+describe('RN-VEN-44 (T-0188): a troca de prazo mantém o preço final do item', () => {
+  const forma = { id: 'f1', codigo: 'BOL', nome: 'Boleto', ativo: true, ordem: 1 };
+  const prazo = (id: string, pct: number) => ({ id, forma_pagamento_id: 'f1', codigo: id, descricao: id, parcelas_dias: [28], prazo_medio_dias: 28, percentual_ajuste: pct, ordem: 1, ativo: true });
+  const linhas = (r: Rascunho) => calcularPedido(entrada({ lines: r.lines, ajustes: r.ajustes ?? {}, percentual_ajuste_bp: percentualAjusteParaBp(r.prazo_percentual_ajuste), ...congeladosDoRascunho(r) })).linhas;
+  const trocar = (r: Rascunho, pct: number) => rascunhoMantendoPrecoFinal(r, comPagamento(r, forma, prazo(`z${pct}`, pct)), linhas);
+  const inicio: Rascunho = { ...rascunhoVazio('c1'), lines: { a: 2 }, prazo_percentual_ajuste: -1.71, ajustes: { a: { desconto_pct: 3, aplicacao_marcada: false } } };
+
+  it('RN-VEN-44: o mesmo % (outro prazo com o mesmo ajuste) não refaz nada', () => {
+    const mesmo = comPagamento(inicio, forma, prazo('outro', -1.71));
+    expect(rascunhoMantendoPrecoFinal(inicio, mesmo, linhas)).toBe(mesmo);
+  });
+
+  it('RN-VEN-18/44: o preço congelado vale no prazo do orçamento; em outro prazo, a tabela original com o % novo', () => {
+    const orc: Rascunho = { ...inicio, ajustes: {}, precos_congelados: { a: 9_500 }, precos_congelados_percentual: -1.71 };
+    expect(linhas(orc)[0]!.preco_tabela_cents).toBe(9_500);
+    const r = trocar(orc, 2.5);
+    expect(linhas(r)[0]!.preco_tabela_cents).toBe(10_250);
+    expect(linhas(r)[0]!.preco_unitario_cents).toBe(9_500);
+    const volta = linhas(trocar(r, -1.71))[0]!;
+    expect(volta.preco_tabela_cents).toBe(9_500);
+    expect(volta.preco_unitario_cents).toBe(9_500);
   });
 });

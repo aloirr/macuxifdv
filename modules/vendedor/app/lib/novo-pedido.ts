@@ -12,14 +12,13 @@ import { retratoAplicacao } from '../../domain/aplicacao';
 import { limiteDoUsuario, minimoDoItem, pedidoAcimaDoLimite, permilDoDescontoExibido } from '../../domain/limite-desconto';
 import type { LimiteDesconto } from '@macuxi/core/contracts';
 import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
-import { precoDoItemNaEdicao } from '../../domain/orcamento';
 import type { ErroDeCalculo } from '../../domain/pendencias-preenchimento';
 import { faixasDaConsulta, medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
+import { precoDoItemNoPrazo } from '../../domain/troca-prazo';
 import {
   ajusteDePct,
   ajusteDoPedidoCents,
   bloqueadoPelaAlcada,
-  bpDoItem,
   equivalenteDoAjuste,
   itemRespeitaPrecoMinimo,
   MSG_DESCONTO_E_ACRESCIMO,
@@ -154,6 +153,8 @@ export interface EntradaCalculo {
   faixas?: Record<string, readonly FaixaEscalonada[] | undefined>;
   /** T-0134 (RN-VEN-18): produto → preço de tabela por unidade já gravado no orçamento em edição; esses itens não são reprecificados */
   congelados?: Record<string, number>;
+  /** % (bp) do prazo em que os `congelados` foram gravados (RN-VEN-44) */
+  congelados_bp?: number;
   /** T-0084 (RN-VEN-19): parâmetros do tenant; ausente = a linha não leva aplicação */
   aplicacao?: { padrao: boolean; max: number };
   /** RN-VEN-43/44: % do prazo do rascunho em bp; a tabela de cada item é ajustada por ele, sempre a partir da tabela original. Ausente = 0. */
@@ -249,10 +250,9 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     const produto = porId.get(product_id);
     if (!produto) continue;
     const nome = `${produto.erp_code} ${produto.description}`.trim();
-    // T-0134 (RN-VEN-18): item salvo no orçamento mantém o preço salvo; só o item novo entra pelo preço de hoje
-    const escolhido = precoDoItemNaEdicao({ congelado_cents: e.congelados?.[product_id], hoje_cents: produto.price_cents, faixas_hoje: e.faixas?.[product_id] });
-    // RN-VEN-43: o preço congelado do orçamento (RN-VEN-18) já está gravado ajustado e não ajusta de novo
-    const bp = bpDoItem(e.congelados?.[product_id] !== undefined, e.percentual_ajuste_bp ?? 0);
+    // RN-VEN-18/44: ver precoDoItemNoPrazo
+    const escolhido = precoDoItemNoPrazo({ congelado_cents: e.congelados?.[product_id], congelado_bp: e.congelados_bp, hoje_cents: produto.price_cents, faixas_hoje: e.faixas?.[product_id], percentual_ajuste_bp: e.percentual_ajuste_bp ?? 0 });
+    const bp = escolhido.percentual_ajuste_bp;
     if (escolhido.preco_unidade_cents === null) {
       pendencias.push({ codigo: 'sem_preco', alvo: { item: nome }, mensagem: `${nome}: sem preço na tabela deste cliente. Remova o item ou peça a atualização da tabela.` });
       continue;

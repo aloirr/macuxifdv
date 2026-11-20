@@ -21,16 +21,17 @@ const ATUALIZADO = '2026-11-08T12:00:00.000000Z';
 const HOJE: Record<string, number> = { [CAFE]: 12_000, [GAS]: 5_000 };
 type Sql = { sql: string; valores: unknown[] };
 
-function montar(opcoes: { vencido?: boolean; enderecoOrcamento?: Record<string, unknown> } = {}) {
+function montar(opcoes: { vencido?: boolean; enderecoOrcamento?: Record<string, unknown>; pctOrcamento?: number } = {}) {
   usarPreVenda(preVendaSql);
   const sqls: Sql[] = [];
   const db = {
     query: async (sql: string, valores: unknown[] = []) => {
       sqls.push({ sql, valores });
-      if (/select endereco_entrega from vendedor\.pedido where id = \$1/.test(sql)) return { rows: [{ endereco_entrega: opcoes.enderecoOrcamento ?? null }] };
+      // RN-VEN-17/44: endereço e % do prazo em que o orçamento foi gravado (sem prazo = null)
+      if (/select endereco_entrega, prazo_percentual_ajuste/.test(sql)) return { rows: [{ endereco_entrega: opcoes.enderecoOrcamento ?? null, prazo_percentual_ajuste: opcoes.pctOrcamento ?? null }] };
       // itens salvos do orçamento: café a R$ 100,00 a unidade
       if (/from vendedor\.pedido_item where pedido_id = \$1 and deleted_at is null order by sequencia/.test(sql)) return { rows: [{ produto_id: CAFE, preco_tabela_cents: 10_000, fator: 1 }] };
-      if (/from vendedor\.pedido where id = \$1 and tipo = 'orcamento'/.test(sql)) return { rows: [{ id: ORC, vendedor_id: VEND, cliente_id: CLIENTE, status: 'received', atualizado_em: ATUALIZADO, hash_envio: 'x', total_cents: '10000', itens: 1 }] };
+      if (/from vendedor\.pedido where id = \$1 and tipo = 'orcamento'/.test(sql)) return { rows: [{ id: ORC, vendedor_id: VEND, cliente_id: CLIENTE, status: 'received', atualizado_em: ATUALIZADO, hash_envio: 'x', total_cents: '10000', itens: 1, prazo_percentual_ajuste: opcoes.pctOrcamento ?? null }] };
       // preVendaSql.buscarOrcamento (Transformar)
       if (/p\.tipo = 'orcamento' and p\.deleted_at is null for update of p/.test(sql)) {
         return { rows: [{ id: ORC, tipo: 'orcamento', status: 'received', vendedor_id: VEND, cliente_id: CLIENTE, validade_data: '2026-11-15', validade_ate: opcoes.vencido ? '2026-11-01T04:00:00.000000Z' : '2026-11-16T04:00:00.000000Z', convertido_pedido_id: null }] };
@@ -82,7 +83,15 @@ const push = (extra: Record<string, unknown>): ItemPush =>
 describe('RN-VEN-18 (T-0134): preço congelado, lado do servidor', () => {
   it('precosCongeladosDoDocumento lê os itens ativos do orçamento e devolve o preço por unidade', async () => {
     const { db } = montar();
-    expect(await precosCongeladosDoDocumento(db as never, ORC)).toEqual({ [CAFE]: 10_000 });
+    expect(await precosCongeladosDoDocumento(db as never, ORC, null)).toEqual({ precos: { [CAFE]: 10_000 }, percentual_ajuste_bp: 0 });
+    expect((await precosCongeladosDoDocumento(db as never, ORC, 2.5)).percentual_ajuste_bp).toBe(250);
+  });
+
+  it('RN-VEN-44: Transformar em outro prazo (orçamento gravado com +2,50%, pedido sem %) usa a tabela original de hoje, não o congelado', async () => {
+    const { ctx, sqls } = montar({ pctOrcamento: 2.5 });
+    const r = await receberPedidos(ctx, [push({ orcamento_origem_id: ORC, tipo: 'pedido', total_cents: 12_000 })]);
+    expect(r[0]).toMatchObject({ status: 'aceito' });
+    expect(pedidoItem(sqls)[0]!.valores[4]).toBe(12_000); // preco_tabela_cents
   });
 
   it('RN-VEN-18: Transformar dentro da validade mantém o preço do orçamento (R$ 100,00), mesmo com a tabela de hoje em R$ 120,00', async () => {
