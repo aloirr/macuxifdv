@@ -12,7 +12,7 @@
 ## 1. O que já existe
 | Peça | Onde | Estado |
 |---|---|---|
-| Permissão "Permitir o tempo todo" exigida no Campo a cada abertura | `apps/mobile/src/lib/permissoes.ts`, `app.config.ts` (`isAndroidBackgroundLocationEnabled` só no Campo) | pronto (RN-CORE-37) |
+| Permissão "Permitir o tempo todo" exigida no Campo a cada abertura | `apps/mobile/src/lib/permissoes.ts`, `app.config.ts` (`isAndroidBackgroundLocationEnabled` nas duas variantes; no Gestão a tela pede só ao supervisor (T-0187)) | pronto (RN-CORE-37) |
 | GPS do momento no check-in e no checkout (`sem_gps` no evento) | Core, `contracts/eventos.ts` | pronto (RN-CORE-13); **não muda** |
 | `expo-location` e `expo-task-manager` | `apps/mobile/package.json` | instalados |
 | Tarefa de segundo plano `macuxi-sync-delta` (WorkManager, ≥ 15 min) | `apps/mobile/src/services/segundo-plano.ts` (ADR 0017) | pronto; o tracking se apoia nela (§3.2) |
@@ -25,8 +25,8 @@ Sete condições, todas obrigatórias, na função pura `podeRastrear` (domain d
 | # | Condição | Motivo quando falta |
 |---|---|---|
 | 1 | Parâmetro da empresa `rastreamento.ativo = true` (padrão **desligado**) | `desligado` |
-| 2 | Cargo de campo: vendedor ou promotor (ADR 0049; `CARGOS_RASTREADOS`) | `cargo` |
-| 3 | App **Campo** (o Gestão não rastreia; a API passa `campo`) | `app` |
+| 2 | Cargo rastreado: vendedor, promotor ou supervisor; o gerente não (ADR 0049 e ADR 0063; `CARGOS_RASTREADOS`) | `cargo` |
+| 3 | App do cargo: Campo para vendedor e promotor, Gestão para supervisor (ADR 0063; `APP_RASTREADO_DO_CARGO`; a API usa o app do cargo) | `app` |
 | 4 | Fora de feriado do calendário do tenant | `feriado` |
 | 5 | Fora de ausência cadastrada (§4.2) | `ausencia` |
 | 6 | Dentro do **expediente** do tenant (§4.1) | `fora_do_expediente` |
@@ -89,7 +89,7 @@ do momento (RN-CORE-13).
 
 
 ### 5.2 API (`/v1/core`; revalida tudo)
-- **Push** de `ponto_trajeto` pelo motor de sync. Cada ponto é descartado, sem gravar, se: o usuário não é de campo; o tracking
+- **Push** de `ponto_trajeto` pelo motor de sync. Cada ponto é descartado, sem gravar, se: o cargo não é rastreado ou o app não é o do cargo (ADR 0063); o tracking
   estava desligado no instante; o instante cai fora do expediente, em feriado ou em ausência; `capturado_em` está mais de [5 min] no
   futuro ou mais de [90] dias atrás; ou a coordenada é inválida. Descarte não trava a fila.
 - **Consultas**: `GET /v1/core/trajeto?usuario_id&data` (pontos de um dia, até [90] dias atrás), só com `trajeto.ver_equipe` e no

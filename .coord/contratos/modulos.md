@@ -214,3 +214,15 @@ Tudo aditivo; nenhuma versão nova de contrato existente; nenhum evento novo (`e
 | `deslocamento_dia` (`DeslocamentoDiaSchema`) | core | sem mudança de forma; passa a ser escrito com `origem = 'rastreamento'` | já existe (T-0170) |
 | parâmetro `core`/`rastreamento` | core | `{ ativo, expediente, frequencia }` validado por Zod, padrão desligado; chega no pull `parametro` | a fazer (modulo-core) |
 | `GET /v1/core/trajeto?usuario_id&data` | core | pontos de um dia; só `trajeto.ver_equipe` (escopo) | a fazer (modulo-core) |
+
+## T-0187 (19/11, ADR 0063, desenho `docs/desenho/T-0187.md` §3): supervisor em campo no app Gestão
+
+Tudo aditivo ou só restringe; nenhuma versão nova de contrato. Eventos em `eventos.md`, extensão em `extensoes.md`, ação em `permissoes.md`.
+
+| Contrato | Dono | Mudança | Situação |
+|---|---|---|---|
+| `contracts/rastreamento-portao.ts` | core | + `APP_RASTREADO_DO_CARGO` (`vendedor`/`promotor` → `campo`, `supervisor` → `gestao`); `CARGOS_RASTREADOS` + `supervisor` | feito (v1.0.16) |
+| `core.trajeto_do_dia@1` | core | schema igual; o id da sessão sai do resultado | feito (v1.0.16) |
+| `GET /v1/core/trajeto` | core | 404 `USUARIO_NAO_ENCONTRADO` para o próprio usuário | feito (v1.0.16) |
+| push de `visita` / `visita_checkout` | core | supervisor e gerente precisam de `visita.registrar_gestao` | feito (v1.0.16) |
+| decisão de aprovação | vendedor | 422 `APROVACAO_DO_PROPRIO_PEDIDO` quando o decisor é o autor | feito (v1.0.16) |
