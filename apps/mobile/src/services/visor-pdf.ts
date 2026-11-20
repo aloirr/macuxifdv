@@ -8,8 +8,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { TEXTO_FOTO_INDISPONIVEL } from '@/lib/foto-pdv';
-import type { EstadoVisor } from '@/lib/visor-foto';
-import { bytesDoPdfAceitos, nomePdfTemporario, PASTA_PDF_TEMPORARIO, type PdfCarregado } from '@/lib/visor-pdf';
+import type { EstadoVisor, VisorCarregado } from '@/lib/visor-foto';
+import { bytesDoPdfAceitos, nomePdfTemporario, PASTA_PDF_TEMPORARIO } from '@/lib/visor-pdf';
 import { baixarArquivoDoVisor } from '@/services/foto-pdv';
 
 function pasta(): Directory {
@@ -41,7 +41,7 @@ function apagarPdfTemporario(uri: string): void {
 }
 
 /** Baixa o PDF e grava o temporário; devolve o `file://` ou a mensagem. Nunca lança. */
-export async function carregarPdf(arquivoId: string): Promise<PdfCarregado> {
+export async function carregarPdf(arquivoId: string): Promise<VisorCarregado> {
   const r = await baixarArquivoDoVisor(arquivoId);
   if (r.tipo === 'erro') return r;
   if (!bytesDoPdfAceitos(r.bytes)) return { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };

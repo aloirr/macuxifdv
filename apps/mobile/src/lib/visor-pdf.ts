@@ -37,8 +37,6 @@ export function fonteDoPdf(uri: string): FontePdf {
   return { uri, cache: false };
 }
 
-export type PdfCarregado = { tipo: 'ok'; uri: string } | { tipo: 'erro'; mensagem: string };
-
 /** Depois de baixar: só PDF de verdade (assinatura `%PDF`) abre. */
 export function bytesDoPdfAceitos(b: Uint8Array | null): b is Uint8Array {
   return b !== null && b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46;

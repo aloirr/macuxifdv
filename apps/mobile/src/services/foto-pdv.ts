@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 
 import { nomeArquivoFoto, PASTA_FOTOS } from '@/lib/foto';
 import { fonteDaFoto, MAX_BYTES_VISOR, TEXTO_FOTO_INDISPONIVEL, TEXTO_SEM_SINAL_FOTO } from '@/lib/foto-pdv';
+import type { VisorCarregado } from '@/lib/visor-foto';
 import { tipoDosBytes, uriDaImagem } from '@/lib/visualizar-arquivo';
 import { NetworkError, type ApiClient } from '@/services/api';
 
@@ -57,10 +58,8 @@ function arquivoLocal(arquivoId: string): string | null {
   return f.exists && f.size > 0 ? f.uri : null;
 }
 
-export type FotoCarregada = { tipo: 'ok'; uri: string } | { tipo: 'erro'; mensagem: string };
-
 /** Local primeiro (vale sem sinal); senão o download do visor, em memória. Nunca lança. */
-export async function carregarFotoPdv(arquivoId: string): Promise<FotoCarregada> {
+export async function carregarFotoPdv(arquivoId: string): Promise<VisorCarregado> {
   let local: string | null = null;
   try {
     local = arquivoLocal(arquivoId);

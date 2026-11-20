@@ -32,9 +32,6 @@ export interface AbasDoShell {
   perfil: AbaShell[];
 }
 
-/** Posições da barra inferior, contando o Início e o "Mais". */
-export const MAX_ABAS_BARRA = 5;
-
 /**
  * Posições da barra por variante (T-0170, imagem aprovada `2026-11-12-T0170-final-inicio.png`): o Campo tem 6 (Início, Rota,
  * Clientes, Pedidos, Performance e Mais). T-0187 (P6 A): o Gestão também tem 6 (Início, Equipe, Rota, Aprovações, Clientes e
@@ -74,10 +71,12 @@ function abaDoItem(n: ItemNavegacao<unknown>): AbaShell {
 }
 
 /**
- * Barra e excedente da variante. Sem `variante`, o comportamento é o do Campo (excedente no "Mais", só a `ordem`).
- * No Gestão, as páginas de `PRIORIDADE_DA_BARRA` vêm primeiro, na ordem da lista; o excedente vai para `perfil`.
+ * Abas da variante do build, com o limite (`MAX_ABAS_POR_VARIANTE`) e o destino do excedente dela (barra, "Mais" e menu
+ * do Perfil usam esta). No Gestão, as páginas de `PRIORIDADE_DA_BARRA` vêm primeiro, na ordem da lista; o excedente vai
+ * para `perfil`.
  */
-export function abasDoShell(navegacao: readonly ItemNavegacao<unknown>[], max = MAX_ABAS_BARRA, variante: Variante = 'campo'): AbasDoShell {
+export function abasDaVariante(navegacao: readonly ItemNavegacao<unknown>[], variante: Variante): AbasDoShell {
+  const max = MAX_ABAS_POR_VARIANTE[variante];
   const prioridade = PRIORIDADE_DA_BARRA[variante];
   const posicao = (n: ItemNavegacao<unknown>) => {
     const i = prioridade.indexOf(`${n.modulo}/${n.id}`);
@@ -92,11 +91,6 @@ export function abasDoShell(navegacao: readonly ItemNavegacao<unknown>[], max = 
   }
   const cabem = Math.max(0, max - 2);
   return { barra: [INICIO, ...modulos.slice(0, cabem), MAIS], mais: modulos.slice(cabem), perfil: [] };
-}
-
-/** Abas da variante do build, com o limite e o destino do excedente dela (barra, "Mais" e menu do Perfil usam esta). */
-export function abasDaVariante(navegacao: readonly ItemNavegacao<unknown>[], variante: Variante): AbasDoShell {
-  return abasDoShell(navegacao, MAX_ABAS_POR_VARIANTE[variante], variante);
 }
 
 /** A aba está ativa no caminho atual? ("Mais" fica ativo também nas telas que estão dentro dele.) */

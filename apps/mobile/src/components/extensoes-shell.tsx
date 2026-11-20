@@ -60,7 +60,7 @@ export function ItensDoMenu({ paginas = [] }: { paginas?: readonly AbaShell[] })
             style={linha}>
             <Icon name={aba.icon} size={20} color={colors.ink2} />
             <Text style={[t.bodyStrong, { flex: 1 }]}>{aba.label}</Text>
-            <Icon name="chevron" size={16} />
+            <Icon name="chevron" size={16} color={colors.ink2} />
           </Pressable>
         ))}
         {itens.map(({ modulo, id, payload }) => (
@@ -71,7 +71,7 @@ export function ItensDoMenu({ paginas = [] }: { paginas?: readonly AbaShell[] })
             onPress={() => router.navigate(`/m/${payload.caminho.replace(/^\/+/, '')}` as never)}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14 }}>
             <Text style={t.bodyStrong}>{payload.rotulo}</Text>
-            <Icon name="chevron" size={16} />
+            <Icon name="chevron" size={16} color={colors.ink2} />
           </Pressable>
         ))}
       </Card>
