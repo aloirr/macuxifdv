@@ -180,8 +180,10 @@ describe.runIf(TEM_VISOR)('v1.0.16 — visor de PDF: nada guardado no aparelho e
     await esperar();
     const f2 = v.abrirPdfNaTela('0b9f6c3e-6a7d-4c1e-9f0a-2b3c4d5e6f72', () => undefined);
     await esperar();
-    expect([...sim.arquivos.keys()], 'a segunda abertura apaga a sobra da primeira').toHaveLength(1);
+    // cada visor aberto da pilha tem o próprio temporário (apps/mobile/src/services/visor-pdf.ts); fechar um não apaga o do outro
+    expect([...sim.arquivos.keys()], 'dois visores abertos, um temporário de cada').toHaveLength(2);
     f2();
+    expect([...sim.arquivos.keys()], 'fechou o segundo, sobra só o do primeiro, ainda aberto').toHaveLength(1);
     f1();
     expect([...sim.arquivos.keys()], 'depois de fechar as duas').toEqual([]);
   });
