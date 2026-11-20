@@ -8,6 +8,7 @@ describe('manifesto do gestor', () => {
     expect(manifest.depende).toEqual(['core']);
     expect(manifest.opcionais).toContain('vendedor');
     expect(manifest.usaExtensoes).toContain('pedido.criar_em_nome');
+    expect(manifest.usaExtensoes).toContain('pedido.equipe_em_nome');
   });
 
   it('RN-CORE-03: só o Core é obrigatório; Vendedor, Promotor, Pesquisa e Treinamento são opcionais', () => {

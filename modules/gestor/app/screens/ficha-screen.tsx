@@ -73,7 +73,7 @@ export default function FichaScreen() {
       </View>
       {estado.erro && !estado.doCache ? <Banner tone="danger">{estado.erro}</Banner> : null}
       <Secoes p={f.painel} />
-      {!estado.doCache ? <TrajetoDoDia usuarioId={f.membro.id} tz={g.tz} buscar={g.trajeto} /> : null}
+      {!estado.doCache && f.membro.id !== g.usuarioId ? <TrajetoDoDia usuarioId={f.membro.id} tz={g.tz} buscar={g.trajeto} /> : null}
       {acao && g.usuarioId ? (
         <Botao
           testID="gestor-pedido-em-nome"
