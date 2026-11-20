@@ -56,7 +56,7 @@ const FRASES = {
 type CodigoFrase = keyof typeof FRASES;
 /** Spec §5: "Licenciado para <nome fantasia>"; vazio = razão social. */
 const nomeEsperado = (fantasia: string | null, razao: string) => (fantasia?.trim() ? fantasia.trim() : razao);
-const CHAVES_MARCA = ['logo', 'nome_fantasia', 'razao_social', 'tenant_id'];
+const CHAVES_MARCA = ['logo', 'nome_fantasia', 'ocultar_marca_macuxi', 'razao_social', 'tenant_id'];
 const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
 const core = (r: MeusModulosResposta) => r.modulos.find((m) => m.id === 'core')?.parametros ?? {};
 
@@ -105,7 +105,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0182 logo do cliente e nome fanta
     const lida = await portal(tokenAdminA, 'GET', `/v1/plataforma/empresas/${A.tenantId}/marca`);
     expect(lida.statusCode, lida.body).toBe(200);
     expect(Object.keys(lida.json()).sort()).toEqual(CHAVES_MARCA);
-    expect(lida.json()).toEqual({ tenant_id: A.tenantId, razao_social: (await linhaTenant(A.tenantId)).nome, nome_fantasia: null, logo: null });
+    expect(lida.json()).toEqual({ tenant_id: A.tenantId, razao_social: (await linhaTenant(A.tenantId)).nome, nome_fantasia: null, logo: null, ocultar_marca_macuxi: false });
 
     const tentativas = [
       await enviarLogo(tokenAdminA, A.tenantId, png(600, 200)),
