@@ -51,11 +51,6 @@ export function tagDeEstoque(item: Pick<ItemVitrine, 'availability'>): TagEstoqu
   return item.availability ? chipDoEstoque(item.availability, true) : null;
 }
 
-/** Contagem do cabeçalho: "40 produtos", "1 produto". */
-export function subtituloDaGrade(total: number): string {
-  return `${total.toLocaleString('pt-BR')} ${total === 1 ? 'produto' : 'produtos'}`;
-}
-
 /** Duas colunas: [[a, b], [c, d], [e]]. */
 export function emLinhas<T>(itens: readonly T[], colunas = 2): T[][] {
   const r: T[][] = [];

@@ -3,8 +3,8 @@
  * "Estoque por filial" (tabela Filial | Estoque) e a folha "Filtrar" do Catálogo (filial e itens sem estoque). Só desenho: as
  * regras (quem vê quais filiais, texto, cor e ordem) vêm de `domain/estoque-campo.ts` e `lib/estoque-folha.ts`.
  */
-import { Botao, Button, colors, Folha, fonte, Icon, type } from '@macuxi/ui/mobile';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Botao, Button, Chip, colors, Folha, fonte, Icon, type } from '@macuxi/ui/mobile';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import type { ItemVitrine } from '../../contracts';
 import { mostraEstoquePorFilial, TITULO_FOLHA_ESTOQUE, type DadosDaFolha, type OpcaoFiltroFilial } from '../lib/estoque-folha';
 
@@ -56,7 +56,23 @@ export function FolhaEstoquePorFilial({ visivel, onFechar, dados }: { visivel: b
 
 export type EscolhaFiltro = { filial: string | null; soComEstoque: boolean };
 
-/** Folha "Filtrar" do Catálogo: grupo Filial (quando há o que escolher) e Itens sem estoque (spec §4). */
+export interface NoDoFiltro {
+  id: string;
+  nome: string;
+  codigo: string;
+}
+
+/** Chave "Só com estoque" logo abaixo da busca (RN-CAT-05: o estoque é visível a todo perfil): 48 dp, desligada mostra com e sem estoque. */
+export function ChaveSoComEstoque({ ligada, onMudar }: { ligada: boolean; onMudar: (v: boolean) => void }) {
+  return (
+    <View style={e.chave}>
+      <Text style={[e.opcaoTexto, { flex: 1 }]}>Só com estoque</Text>
+      <Switch testID="catalogo-chave-estoque" accessibilityLabel="Só com estoque" value={ligada} onValueChange={onMudar} trackColor={{ true: colors.accent, false: colors.lineStrong }} />
+    </View>
+  );
+}
+
+/** Folha "Filtrar" do Catálogo: sistema e categoria (chips), grupo Filial (quando há o que escolher). O "Só com estoque" fica na chave da tela. */
 export function FolhaFiltroCatalogo({
   visivel,
   onFechar,
@@ -65,6 +81,12 @@ export function FolhaFiltroCatalogo({
   onEscolher,
   onLimpar,
   textoVer,
+  sistemas,
+  categorias,
+  sistemaId,
+  categoriaId,
+  onSistema,
+  onCategoria,
 }: {
   visivel: boolean;
   onFechar: () => void;
@@ -72,11 +94,39 @@ export function FolhaFiltroCatalogo({
   escolha: EscolhaFiltro;
   onEscolher: (e: EscolhaFiltro) => void;
   onLimpar: () => void;
-  /** "Ver 1.284 produtos". */
+  /** "Ver produtos". */
   textoVer: string;
+  sistemas: readonly NoDoFiltro[];
+  categorias: readonly NoDoFiltro[];
+  sistemaId: string | null;
+  categoriaId: string | null;
+  onSistema: (id: string | null) => void;
+  onCategoria: (id: string | null) => void;
 }) {
   return (
     <Folha visivel={visivel} onFechar={onFechar} titulo="Filtrar" fechar={{ rotulo: 'Fechar', testID: 'catalogo-filtro-fechar' }} rotuloFechar="Fechar filtro" rolavel testID="catalogo-filtro">
+      {sistemas.length > 0 ? (
+        <View testID="catalogo-chips-sistema">
+          <Text style={e.grupo}>Sistema</Text>
+          <View style={e.chips}>
+            <Chip label="Todos" active={sistemaId === null} onPress={() => onSistema(null)} testID="catalogo-chip-sistema-todos" />
+            {sistemas.map((n) => (
+              <Chip key={n.id} label={n.nome} active={sistemaId === n.id} onPress={() => onSistema(n.id)} testID={`catalogo-chip-sistema-${n.codigo}`} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {categorias.length > 0 ? (
+        <View testID="catalogo-chips-categoria">
+          <Text style={e.grupo}>Categoria</Text>
+          <View style={e.chips}>
+            <Chip label="Todas" active={categoriaId === null} onPress={() => onCategoria(null)} testID="catalogo-chip-categoria-todas" />
+            {categorias.map((n) => (
+              <Chip key={n.id} label={n.nome} active={categoriaId === n.id} onPress={() => onCategoria(n.id)} testID={`catalogo-chip-categoria-${n.codigo}`} />
+            ))}
+          </View>
+        </View>
+      ) : null}
       {opcoes.length > 0 ? (
         <View>
           <Text style={e.grupo}>Filial</Text>
@@ -85,11 +135,6 @@ export function FolhaFiltroCatalogo({
           ))}
         </View>
       ) : null}
-      <View>
-        <Text style={e.grupo}>Itens sem estoque</Text>
-        <Opcao divisor={false} rotulo="Mostrar" marcada={!escolha.soComEstoque} onPress={() => onEscolher({ ...escolha, soComEstoque: false })} testID="catalogo-filtro-sem-estoque-mostrar" />
-        <Opcao divisor rotulo="Ocultar" marcada={escolha.soComEstoque} onPress={() => onEscolher({ ...escolha, soComEstoque: true })} testID="catalogo-filtro-sem-estoque-ocultar" />
-      </View>
       <Botao nivel="neutro" rotulo="Limpar" onPress={onLimpar} testID="catalogo-filtro-limpar" />
       <Botao nivel="principal" rotulo={textoVer} onPress={onFechar} testID="catalogo-filtro-ver" />
     </Folha>
@@ -114,6 +159,8 @@ const e = StyleSheet.create({
   nome: type.body,
   sua: type.sub,
   valor: { ...fonte.semibold, fontSize: 16, fontVariant: ['tabular-nums'], textAlign: 'right' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chave: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   grupo: { ...fonte.semibold, fontSize: 14, color: colors.ink2, marginTop: 8, marginBottom: 4 },
   opcao: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   opcaoTexto: type.body,
