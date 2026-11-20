@@ -1,10 +1,11 @@
 /**
  * T-0145 — tela "Permissões" pela imagem aprovada (R-20261110-093125, `docs/design/telas/T-0145-permissoes.png`), renderizada
- * com `react-dom/server` e `react-native`/kit simulados:
- * - quadro 1 (Campo): 4 linhas com ícone, nome, motivo e situação; o link "Como usamos a localização"; botão "Permitir" sem ícone;
+ * com `react-dom/server` e `react-native`/kit simulados. R-20261120-052422: a tela lista só as que faltam e não tem mais o
+ * link "Como usamos a localização". R-20261120-063354: título e subtítulo na faixa Azul noite (`CabecalhoTela`), sem marca.
+ * - quadro 1 (Campo): só as linhas que faltam, com ícone, nome e motivo, sem rótulo de situação (RD-2466); botão "Permitir" sem ícone;
  * - quadro 2: cartão dos 2 passos ("Durante o uso" feito; passo 2 com os nomes do Android em negrito); botão com o ícone;
- * - quadro 3: negada, o motivo vira a ação e o botão "Abrir configurações";
- * - quadro 4 (Gestão): só notificações, sem o link da localização.
+ * - quadro 3: negada, com "Negada", o motivo vira a ação e o botão "Abrir configurações";
+ * - quadro 4 (Gestão): só notificações.
  */
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -12,35 +13,36 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { telaDePermissoes, TUDO_CONCEDIDO, type EstadoPermissao, type EstadosPermissoes } from '@/lib/permissoes';
 
-type Props = { children?: ReactNode; testID?: string; style?: unknown };
+type Props = { children?: ReactNode; testID?: string; style?: unknown; accessibilityLabel?: string };
 const host = (tag: string) =>
-  function Host({ children, testID, style }: Props) {
+  function Host({ children, testID, style, accessibilityLabel }: Props) {
     const forte = Array.isArray(style) ? false : (style as { fontFamily?: string } | null)?.fontFamily === 'forte';
-    return createElement(forte ? 'b' : tag, testID ? { 'data-testid': testID } : {}, children);
+    const atributos = { ...(testID ? { 'data-testid': testID } : {}), ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}) };
+    return createElement(forte ? 'b' : tag, atributos, children);
   };
 
 vi.mock('react-native', () => ({
   View: host('div'),
   Text: host('span'),
-  Pressable: host('button'),
   ScrollView: host('main'),
   StyleSheet: { create: <T,>(s: T) => s, absoluteFill: {}, hairlineWidth: 1 },
   AccessibilityInfo: { announceForAccessibility: () => undefined },
   BackHandler: { addEventListener: () => ({ remove: () => undefined }), exitApp: () => undefined },
 }));
+vi.mock('expo-status-bar', () => ({ StatusBar: ({ style }: { style: string }) => createElement('meta', { 'data-barra': style }) }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 vi.mock('@macuxi/ui/mobile', () => ({
   colors: new Proxy({}, { get: () => '#000' }),
-  // `bold` marca o trecho forte do passo 2 (o host vira <b>)
-  fonte: new Proxy({}, { get: (_t, k) => (k === 'bold' ? { fontFamily: 'forte' } : {}) }),
-  TOUCH: 48,
-  type: new Proxy({}, { get: () => ({}) }),
+  // `semibold` vira <b> no host (a :94-95 confere os trechos fortes do passo 2)
+  fonte: new Proxy({}, { get: (_t, k) => (k === 'semibold' ? { fontFamily: 'forte' } : {}) }),
+  CABECALHO: { respiroCorpo: 16 },
+  estiloBarraDeStatus: (comCabecalho: boolean) => (comCabecalho ? 'light' : 'dark'),
+  CabecalhoTela: ({ titulo, subtitulo }: { titulo: string; subtitulo?: string }) =>
+    createElement('header', { 'data-testid': 'cabecalho-tela' }, createElement('h1', null, titulo), subtitulo ? createElement('p', null, subtitulo) : null),
   Card: host('section'),
   Icon: ({ name }: { name: string }) => createElement('i', { 'data-icone': name }),
   Button: ({ label, testID, icon }: { label: string; testID: string; icon?: string }) =>
     createElement('button', { 'data-testid': testID, 'data-icone': icon ?? '' }, label),
-  Folha: ({ visivel, titulo, children, testID }: { visivel: boolean; titulo: string; children: ReactNode; testID: string }) =>
-    createElement('dialog', { 'data-testid': testID, 'data-visivel': String(visivel) }, titulo, children),
 }));
 
 const OK: EstadoPermissao = { concedida: true, podePerguntar: true };
@@ -48,38 +50,45 @@ const FALTA: EstadoPermissao = { concedida: false, podePerguntar: true };
 const NEGADA: EstadoPermissao = { concedida: false, podePerguntar: false };
 const API_11 = 30;
 
-async function render(marca: string, e: EstadosPermissoes, variante: 'campo' | 'gestao' = 'campo'): Promise<string> {
+async function render(e: EstadosPermissoes, variante: 'campo' | 'gestao' = 'campo'): Promise<string> {
   // importado depois das simulações (o kit simulado usa o `host` deste arquivo)
   const { TelaPermissoes } = await import('./tela-permissoes');
   return renderToStaticMarkup(
-    createElement(TelaPermissoes, { marca, tela: telaDePermissoes(variante, e, API_11), pedindo: false, onBotao: () => undefined }),
+    createElement(TelaPermissoes, { tela: telaDePermissoes(variante, e, API_11), pedindo: false, onBotao: () => undefined }),
   );
 }
 
 describe('TelaPermissoes — imagem aprovada T-0145', () => {
-  it('quadro 1 (Campo, faltam 3): marca, título, subtítulo, 4 linhas com ícone e situação, link e "Permitir" sem ícone', async () => {
-    const html = await render('Macuxi Campo', { ...TUDO_CONCEDIDO, localizacao: { duranteUso: FALTA, tempoTodo: FALTA }, camera: FALTA, galeria: FALTA });
-    expect(html).toContain('Macuxi Campo');
-    expect(html).toContain('Permissões');
-    expect(html).toContain('Sem elas o app não funciona.');
-    for (const nome of ['Notificações', 'Localização o tempo todo', 'Câmera', 'Fotos e galeria']) expect(html).toContain(nome);
-    expect(html).toContain('Pedidos, aprovações e recados.');
-    expect(html).toMatch(/data-icone="bell"/);
+  it('quadro 1 (Campo, faltam 3): título e subtítulo na faixa, sem marca, só as 3 linhas que faltam e "Permitir" sem ícone', async () => {
+    const html = await render({ ...TUDO_CONCEDIDO, localizacao: { duranteUso: FALTA, tempoTodo: FALTA }, camera: FALTA, galeria: FALTA });
+    // R-20261120-063354: faixa Azul noite (CabecalhoTela) com o título e o subtítulo; barra de status clara
+    expect(html).toContain('<header data-testid="cabecalho-tela"><h1>Permissões</h1><p>Sem elas o app não funciona.</p></header>');
+    expect(html).toContain('data-barra="light"');
+    expect(html).not.toContain('Macuxi Campo');
+    for (const nome of ['Localização o tempo todo', 'Câmera', 'Fotos e galeria']) expect(html).toContain(nome);
+    // a concedida não aparece
+    expect(html).not.toContain('data-testid="permissao-notificacoes"');
+    expect(html).not.toContain('Notificações');
+    expect(html).not.toContain('Permitida');
     expect(html).toMatch(/data-icone="pin"/);
-    // a linha permitida leva o ✓ antes de "Permitida"
-    expect(html).toMatch(/data-testid="permissao-notificacoes".*data-icone="check".*Permitida/);
-    expect(html).toMatch(/data-testid="permissao-camera-situacao"[^>]*>Falta</);
-    expect(html).toContain('data-testid="permissoes-como-usamos"');
-    expect(html).toContain('Como usamos a localização');
+    // RD-2466: a lista já é só do que falta; a linha "falta" não repete a situação (nem na leitura de tela)
+    expect(html).not.toContain('-situacao"');
+    expect(html).not.toContain('Falta');
+    expect(html).toContain('aria-label="Câmera. Fotos do PDV e da gôndola."');
     expect(html).toMatch(/data-testid="permissoes-botao" data-icone="">Permitir</);
     expect(html).not.toContain('data-testid="permissao-passos-localizacao"');
-    // o aviso (folha) só abre pelo link
-    expect(html).toMatch(/data-testid="permissoes-aviso-localizacao" data-visivel="false"/);
-    expect(html).toContain('Fora do expediente, nada é registrado.');
+  });
+
+  it('R-20261120-052422: sem o link "Como usamos a localização" nem o aviso dele', async () => {
+    const html = await render({ ...TUDO_CONCEDIDO, localizacao: { duranteUso: NEGADA, tempoTodo: NEGADA } });
+    expect(html).not.toContain('Como usamos a localização');
+    expect(html).not.toContain('permissoes-como-usamos');
+    expect(html).not.toContain('permissoes-aviso-localizacao');
+    expect(html).not.toContain('Fora do expediente');
   });
 
   it('quadro 2 (passo 2 de 2): cartão dos passos com os nomes do Android em negrito e "Abrir configurações" com ícone', async () => {
-    const html = await render('Macuxi Campo', { ...TUDO_CONCEDIDO, localizacao: { duranteUso: OK, tempoTodo: FALTA } });
+    const html = await render({ ...TUDO_CONCEDIDO, localizacao: { duranteUso: OK, tempoTodo: FALTA } });
     expect(html).toContain('data-testid="permissao-passos-localizacao"');
     expect(html).toContain('Durante o uso');
     expect(html).toContain('<b>Permissões › Localização</b>');
@@ -87,20 +96,21 @@ describe('TelaPermissoes — imagem aprovada T-0145', () => {
     expect(html).toMatch(/data-testid="permissoes-botao" data-icone="[a-z]+">Abrir configurações</);
   });
 
-  it('quadro 3 (negada duas vezes): motivo vira a ação, "Negada" e o botão abre as configurações', async () => {
-    const html = await render('Macuxi Campo', { ...TUDO_CONCEDIDO, camera: NEGADA });
+  it('quadro 3 (uma negada): tela só com ela, o motivo vira a ação, "Negada" e o botão abre as configurações', async () => {
+    const html = await render({ ...TUDO_CONCEDIDO, camera: NEGADA });
+    expect(html.match(/data-testid="permissao-[a-z]+"/g)).toEqual(['data-testid="permissao-camera"']);
+    expect(html).toContain('<p>Sem ela o app não funciona.</p></header>');
     expect(html).toContain('Em Permissões › Câmera, marque Permitir.');
     expect(html).toMatch(/data-testid="permissao-camera-situacao"[^>]*>Negada</);
+    expect(html).toContain('aria-label="Câmera. Em Permissões › Câmera, marque Permitir. Negada."');
     expect(html).toMatch(/data-testid="permissoes-botao" data-icone="[a-z]+">Abrir configurações</);
   });
 
-  it('quadro 4 (Gestão): só notificações, "Sem ela", sem o link da localização', async () => {
-    const html = await render('Macuxi Gestão', { ...TUDO_CONCEDIDO, notificacoes: FALTA }, 'gestao');
-    expect(html).toContain('Macuxi Gestão');
-    expect(html).toContain('Sem ela o app não funciona.');
+  it('quadro 4 (Gestão): só notificações, "Sem ela"', async () => {
+    const html = await render({ ...TUDO_CONCEDIDO, notificacoes: FALTA }, 'gestao');
+    expect(html).toContain('<header data-testid="cabecalho-tela"><h1>Permissões</h1><p>Sem ela o app não funciona.</p></header>');
+    expect(html).not.toContain('Macuxi Gestão');
     expect(html).toContain('Pedidos para aprovar e recados.');
     expect(html).not.toContain('Câmera');
-    expect(html).not.toContain('Como usamos a localização');
-    expect(html).not.toContain('permissoes-aviso-localizacao');
   });
 });

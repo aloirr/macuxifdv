@@ -141,7 +141,7 @@ import {
   useDiagnosticoNuvem,
 } from '@/services/diagnostico';
 import { registrarSaidaAnterior } from '@/services/saida-android';
-import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes } from '@/services/permissoes';
+import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes, pedirPermissoesQueFaltam } from '@/services/permissoes';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
 import { ligarFonteFotoPdv } from '@/services/foto-pdv';
@@ -322,8 +322,28 @@ function usePlataformaValor() {
     if (mudou) setToquesSemEfeito(0);
     return mudou;
   }, []);
-  /** Lê o aparelho e diz se as exigidas (as do ref, sem recalcular) estão todas concedidas. */
-  const conferirPermissoes = useCallback(async () => {
+  /**
+   * R-20261120-052422: pedido direto pelas janelas do Android, sem a tela "Permissões" por baixo (na abertura a tela de entrada
+   * fica; depois do login, o app). Enquanto roda, a volta ao primeiro plano não relê (cada janela tira o app do primeiro plano).
+   */
+  const [pedidoAutomatico, setPedidoAutomatico] = useState(false);
+  const pedidoAutomaticoRef = useRef(false);
+  /** Lista de exigidas já pedida pelas janelas (cada lista uma vez por abertura: a do supervisor entra depois do login). */
+  const exigidasJaPedidasRef = useRef<string | null>(null);
+  /** Lê o aparelho e diz se as exigidas (as do ref, sem recalcular) estão todas concedidas; com `pedir`, antes pede as que faltam. */
+  const conferirPermissoes = useCallback(async (pedir = false) => {
+    if (pedir) {
+      const ids = permissoesDoUsuarioRef.current;
+      exigidasJaPedidasRef.current = ids.join(',');
+      pedidoAutomaticoRef.current = true;
+      setPedidoAutomatico(true);
+      try {
+        await pedirPermissoesQueFaltam(ids);
+      } finally {
+        pedidoAutomaticoRef.current = false;
+        setPedidoAutomatico(false);
+      }
+    }
     await lerEGuardarPermissoes();
     const e = estadosPermissoesRef.current;
     return e !== null && permissoesLiberadas(variante, e, permissoesDoUsuarioRef.current);
@@ -508,8 +528,8 @@ function usePlataformaValor() {
     void registrarSaidaAnterior();
     (async () => {
       const [, settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano] = await Promise.all([
-        // T-0145: as permissões são conferidas a cada abertura, antes do login e da sincronização
-        conferirPermissoes().catch(() => false),
+        // T-0145: as permissões são conferidas a cada abertura, antes do login e da sincronização; as que faltam, pedidas direto
+        conferirPermissoes(true).catch(() => false),
         readJson<{ apiUrl?: string | null }>(keys.settings),
         readJson<SessaoGuardada>(keys.session),
         readJson<boolean>(keys.offline),
@@ -1184,18 +1204,27 @@ function usePlataformaValor() {
   // que o vendedor está (o pedido aberto continua); na tela de permissões, a volta das configurações relê na hora
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
-      if (st === 'active' && !permissoesOkRef.current) void conferirPermissoes().catch(() => undefined);
+      if (st === 'active' && !permissoesOkRef.current && !pedidoAutomaticoRef.current) {
+        void conferirPermissoes().catch(() => undefined);
+      }
     });
     return () => sub.remove();
   }, [conferirPermissoes]);
 
-  /** Tela de permissões (nula enquanto não leu ou com todas concedidas). */
+  // T-0187: o supervisor que entra no Gestão passa a precisar da localização; as janelas do Android vêm direto, uma vez
+  useEffect(() => {
+    if (estadosPermissoes === null || permissoesOk || pedidoAutomaticoRef.current) return;
+    if (exigidasJaPedidasRef.current === permissoesDoUsuario.join(',')) return;
+    void conferirPermissoes(true).catch(() => undefined);
+  }, [estadosPermissoes, permissoesOk, permissoesDoUsuario, conferirPermissoes]);
+
+  /** Tela de permissões (nula enquanto não leu, durante as janelas do Android ou com todas concedidas). */
   const telaPermissoes = useMemo<TelaDePermissoes | null>(
     () =>
-      estadosPermissoes && !permissoesOk
+      estadosPermissoes && !permissoesOk && !pedidoAutomatico
         ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid(), toquesSemEfeito, permissoesDoUsuario)
         : null,
-    [estadosPermissoes, permissoesOk, variante, toquesSemEfeito, permissoesDoUsuario],
+    [estadosPermissoes, permissoesOk, pedidoAutomatico, variante, toquesSemEfeito, permissoesDoUsuario],
   );
   const permissoesLidas = estadosPermissoes !== null;
 
