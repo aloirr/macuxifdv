@@ -3,7 +3,7 @@
  * (401, 403, 400, 422, 404 do módulo, 413 e 500), antes de qualquer conferência. Aditivo: rota sem os campos não ganha cabeçalho.
  * Primeiro uso: `GET /v1/core/clientes/:id/carteira` com `Cache-Control: no-store` (S3, modulo-core).
  */
-import { definirModuloApi, ErroRegraNegocio, type ModuloApi, type RotaModulo } from '@macuxi/platform-sdk';
+import { CACHE_CONTROL_SEM_CACHE, definirModuloApi, ErroRegraNegocio, type ModuloApi, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
@@ -59,7 +59,7 @@ describe('semCache e cabecalhos da rota de módulo (v1.0.16)', () => {
   it('semCache: 200 com Cache-Control no-store', async () => {
     const r = await app().inject({ method: 'GET', url: `/v1/vendedor/clientes/${CLIENTE_DA_CARTEIRA}/resumo`, headers: cab('vendedor') });
     expect(r.statusCode).toBe(200);
-    expect(r.headers['cache-control']).toBe('no-store');
+    expect(r.headers['cache-control']).toBe(CACHE_CONTROL_SEM_CACHE);
     expect(r.json()).toEqual({ ok: true });
   });
 
@@ -76,7 +76,7 @@ describe('semCache e cabecalhos da rota de módulo (v1.0.16)', () => {
     for (const [status, req] of casos) {
       const r = await a.inject(req);
       expect(r.statusCode, req.url).toBe(status);
-      expect(r.headers['cache-control'], req.url).toBe('no-store');
+      expect(r.headers['cache-control'], req.url).toBe(CACHE_CONTROL_SEM_CACHE);
     }
   });
 
@@ -84,10 +84,10 @@ describe('semCache e cabecalhos da rota de módulo (v1.0.16)', () => {
     const a = app();
     const grande = await a.inject({ method: 'POST', url: '/v1/vendedor/envio', headers: { ...cab('vendedor'), 'content-type': 'application/json' }, payload: JSON.stringify({ n: 1, x: 'y'.repeat(200) }) });
     expect(grande.statusCode).toBe(413);
-    expect(grande.headers['cache-control']).toBe('no-store');
+    expect(grande.headers['cache-control']).toBe(CACHE_CONTROL_SEM_CACHE);
     const ruim = await a.inject({ method: 'POST', url: '/v1/vendedor/envio', headers: { ...cab('vendedor'), 'content-type': 'application/json' }, payload: '{"n":' });
     expect(ruim.statusCode).toBe(400);
-    expect(ruim.headers['cache-control']).toBe('no-store');
+    expect(ruim.headers['cache-control']).toBe(CACHE_CONTROL_SEM_CACHE);
   });
 
   it('cabecalhos fixos saem como declarados; combinam com semCache e com download', async () => {
@@ -96,7 +96,7 @@ describe('semCache e cabecalhos da rota de módulo (v1.0.16)', () => {
     expect(f.headers.vary).toBe('authorization');
     const t = await app().inject({ method: 'GET', url: '/v1/vendedor/texto.csv', headers: cab('vendedor') });
     expect(t.statusCode).toBe(200);
-    expect(t.headers['cache-control']).toBe('no-store');
+    expect(t.headers['cache-control']).toBe(CACHE_CONTROL_SEM_CACHE);
     expect(t.headers['x-macuxi-versao']).toBe('2');
     expect(t.headers['content-type']).toBe('text/csv; charset=utf-8');
   });

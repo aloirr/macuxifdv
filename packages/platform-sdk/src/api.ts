@@ -417,10 +417,10 @@ export interface RotaModulo<
 /** Valor do `Cache-Control` de rota com `semCache`. */
 export const CACHE_CONTROL_SEM_CACHE = 'no-store';
 /** Nome de cabeçalho aceito em `RotaModulo.cabecalhos` (minúsculas, dígitos e hífen; até 64). */
-export const CABECALHO_ROTA_RE = /^[a-z][a-z0-9-]{0,63}$/;
+const CABECALHO_ROTA_RE = /^[a-z][a-z0-9-]{0,63}$/;
 const VALOR_CABECALHO_ROTA_RE = /^[\x20-\x7e]{1,500}$/;
 /** Cabeçalhos que a API controla e a rota não declara em `cabecalhos`. */
-export const CABECALHOS_RESERVADOS_ROTA = [
+const CABECALHOS_RESERVADOS_ROTA = [
   'content-type',
   'content-length',
   'content-disposition',

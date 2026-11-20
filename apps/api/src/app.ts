@@ -60,6 +60,7 @@ import {
   fusoDoTenantOuPadrao,
   LIMITE_CORPO_ROTA_PADRAO,
   modulosEfetivos,
+  MODULO_INATIVO,
   problemasApiConector,
   caminhoDaRotaPublica,
   problemasRotaPublica,
@@ -262,7 +263,7 @@ function semPortal(): never {
 const portalIndisponivel: AcessoBanco = { comTenant: async () => semPortal(), semTenant: async () => semPortal() };
 
 function negar(r: { ok: false; status: 401 | 403; codigo: string; mensagem: string }, modulo: ModuloId): never {
-  if (r.codigo === 'MODULO_INATIVO') {
+  if (r.codigo === MODULO_INATIVO) {
     const c = erroModuloInativo(modulo);
     throw new ErroHttp(403, c.codigo, c.mensagem, c.detalhes);
   }

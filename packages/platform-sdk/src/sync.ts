@@ -379,7 +379,7 @@ export function rejeitarItensInvalidos(
   for (const item of req.itens) {
     const dono = registro.dono(item.entidade);
     const def = registro.entidade(item.entidade);
-    if (dono && !ativos.has(dono)) rejeitar(item, 'MODULO_INATIVO', `Módulo ${dono} inativo`);
+    if (dono && !ativos.has(dono)) rejeitar(item, MODULO_INATIVO, `Módulo ${dono} inativo`);
     else if (opcoes.perfil === 'promotor' && ehEntidadeDePedido(item.entidade))
       rejeitar(item, 'RN-PRO-01', 'Promotor não cria nem altera pedido.');
     else if (!def && dono) rejeitar(item, SYNC_NAO_IMPLEMENTADO, MENSAGEM_ENVIO_INDISPONIVEL);

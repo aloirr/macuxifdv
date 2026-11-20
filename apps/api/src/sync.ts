@@ -51,10 +51,12 @@ import {
   ErroHttpModulo,
   LIMITES_SYNC,
   MENSAGEM_ENVIO_INDISPONIVEL,
+  MODULO_INATIVO,
   modoSyncDoCabecalho,
   NovidadesQuerySchema,
   PushRequestSchema,
   rejeitarItensInvalidos,
+  SEM_RESULTADO,
   SYNC_NAO_IMPLEMENTADO,
   TAMANHO_PAGINA_SYNC,
   UUID_NIL,
@@ -185,7 +187,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     if (!ctx.usuario.modulos.includes(dono)) {
       throw new ErroHttp(
         403,
-        'MODULO_INATIVO',
+        MODULO_INATIVO,
         `O módulo ${dono} não está ativo para você. Fale com o administrador da sua empresa.`,
         { modulo: dono },
       );
@@ -345,7 +347,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
         porId.get(i.id) ?? {
           id: i.id,
           status: 'rejeitado' as const,
-          codigo: 'SEM_RESULTADO',
+          codigo: SEM_RESULTADO,
           mensagem: 'O módulo não respondeu por este item.',
         },
     );

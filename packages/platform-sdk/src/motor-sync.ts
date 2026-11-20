@@ -1249,7 +1249,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       }
       const situacao: SituacaoArquivo = CODIGOS_ARQUIVO_RETENTAVEIS.includes(r.codigo)
         ? 'pendente'
-        : r.codigo === 'MODULO_INATIVO'
+        : r.codigo === MODULO_INATIVO
           ? 'modulo_inativo'
           : 'falhou';
       await atualizar(id, { situacao, codigo: r.codigo, ultimo_erro: r.mensagem, tentativas, ultima_tentativa_em: quando });
