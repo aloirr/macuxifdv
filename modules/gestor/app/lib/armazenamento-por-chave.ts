@@ -32,3 +32,13 @@ export function criarArmazenamentoPorChave<T>(inicial: T, igual: (a: T, b: T) =>
     },
   };
 }
+
+const idsDosMotores = new WeakMap<object, number>();
+let proximoIdDeMotor = 0;
+
+/** Chave do ciclo de sync (motor, `sincronizado_em`), a mesma para a carteira e para a visão. */
+export function chaveDoCiclo(motor: object, sincronizadoEm: string | null | undefined): string {
+  let id = idsDosMotores.get(motor);
+  if (id === undefined) idsDosMotores.set(motor, (id = ++proximoIdDeMotor));
+  return `${id}|${sincronizadoEm ?? ''}`;
+}
