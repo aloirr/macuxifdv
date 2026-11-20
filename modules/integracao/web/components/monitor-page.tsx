@@ -41,7 +41,7 @@ export function MonitorPage() {
         title="Integração ERP"
         actions={
           <Button variant="link" onClick={() => void monitor.refetch()} disabled={monitor.isFetching} data-testid="integracao.monitor.atualizar">
-            {monitor.isFetching ? 'Atualizando…' : 'Atualizar'}
+            Atualizar
           </Button>
         }
       />
