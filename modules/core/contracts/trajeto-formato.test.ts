@@ -40,6 +40,6 @@ describe('RN-CORE-13: portão pelos contracts (shell)', () => {
       fuso: 'America/Manaus',
     };
     expect(podeRastrear(e)).toEqual({ pode: false, motivo: 'desligado' });
-    expect(CARGOS_RASTREADOS).toEqual(['vendedor', 'promotor']);
+    expect(CARGOS_RASTREADOS).toEqual(['vendedor', 'promotor', 'supervisor']);
   });
 });

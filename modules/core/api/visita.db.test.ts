@@ -69,10 +69,13 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
 
   /** RN-CORE-52: perfil de fábrica (a ação `visita.checkin_fora_de_rota` vem ligada); `semForaDeRota` simula o BKO desligando a ação. */
   const perfisSemForaDeRota = new Set<string>();
+  /** RN-CORE-13 (T-0187): `semGestao` simula o BKO desligando `visita.registrar_gestao` no perfil de supervisor/gerente. */
+  const perfisSemGestao = new Set<string>();
   function perfilDoTeste(u: UsuarioAutenticado, semForaDeRota: boolean) {
     const matriz = matrizDeFabrica([manifest]);
     const base = perfilDeFabrica(u.perfil);
-    return resolverPerfil(semForaDeRota ? { ...base, sobreposicoes: [{ chave: 'visita.checkin_fora_de_rota', concedida: false }] } : base, matriz);
+    const sobreposicoes = [...(semForaDeRota ? [{ chave: 'visita.checkin_fora_de_rota', concedida: false }] : []), ...(perfisSemGestao.has(u.id) ? [{ chave: 'visita.registrar_gestao', concedida: false }] : [])];
+    return resolverPerfil(sobreposicoes.length > 0 ? { ...base, sobreposicoes } : base, matriz);
   }
 
   function ctx(u: UsuarioAutenticado, modulos: ModuloId[] = ['core', 'vendedor']): ContextoBase {
@@ -240,6 +243,27 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
           await c.query('delete from core.rota where id = $1', [rotaId]);
         });
       }
+    });
+
+    it('RN-CORE-13: o supervisor faz check-in e checkout (visita dele); sem a ação visita.registrar_gestao o push volta PERFIL_SEM_ACESSO e nada é gravado', async () => {
+      perfisSemGestao.add(supervisor.id);
+      try {
+        const sem = id(960);
+        expect((await checkin(supervisor, sem))[0]).toMatchObject({ status: 'rejeitado', codigo: 'PERFIL_SEM_ACESSO' });
+        expect(await linhaVisita(sem)).toBeUndefined();
+        expect((await checkout(supervisor, id(961), sem))[0]).toMatchObject({ status: 'rejeitado', codigo: 'PERFIL_SEM_ACESSO' });
+      } finally {
+        perfisSemGestao.delete(supervisor.id);
+      }
+      const v = id(962);
+      expect(await checkin(supervisor, v)).toEqual([{ id: v, status: 'aceito' }]);
+      expect((await linhaVisita(v)).usuario_id).toBe(supervisor.id);
+      expect((await checkout(supervisor, id(963), v))[0]).toMatchObject({ status: 'aceito' });
+      // a visita do supervisor não bloqueia nem fecha a do vendedor da equipe (cada um com a sua)
+      const vv = id(964);
+      expect(await checkin(vendedor1, vv)).toEqual([{ id: vv, status: 'aceito' }]);
+      expect((await linhaVisita(vv)).checkout_em).toBeNull();
+      await checkout(vendedor1, id(965), vv);
     });
 
     it('RN-CORE-04: cliente fora da carteira (c2 do vendedor-2) é rejeitado; o promotor só faz check-in na sua carteira', async () => {
@@ -443,6 +467,26 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       expect(r2.paradas.map((p: { cliente_id: string; sequencia: number }) => [p.cliente_id, p.sequencia])).toEqual([[C.c3, 1], [C.c1, 2]]);
       expect(r2.paradas.find((p: { cliente_id: string }) => p.cliente_id === C.c1).id).toBe(idC1);
       expect(r2).toMatchObject({ total: 2, feitas: 0 });
+    });
+
+    it('RN-CORE-04: a rota do supervisor usa a carteira da equipe dele (c1 sim, c2 de outra equipe não) e o editor lista essa carteira sem repetir cliente', async () => {
+      await expect(chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.supervisor, data: SEMANA_QUA }, corpo: { paradas: [{ cliente_id: C.c2 }] } })).rejects.toMatchObject({ codigo: 'RN-CORE-04' });
+      const r = await chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.supervisor, data: SEMANA_QUA }, corpo: { paradas: [{ cliente_id: C.c1 }] } });
+      expect(r.paradas.map((p: { cliente_id: string }) => p.cliente_id)).toEqual([C.c1]);
+      const cart = await chamar('GET', 'usuarios/:id/clientes', gerente, { params: { id: U.supervisor } });
+      const ids = cart.itens.map((c: { id: string }) => c.id);
+      expect(ids).toContain(C.c1);
+      expect(ids).not.toContain(C.c2);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('RN-CORE-04: o gerente é dono de rota: a carteira dele é a das equipes abaixo (c1 sim), e o editor lista essa carteira sem repetir cliente', async () => {
+      const r = await chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.gerente, data: SEMANA_QUA }, corpo: { paradas: [{ cliente_id: C.c1 }] } });
+      expect(r.paradas.map((p: { cliente_id: string }) => p.cliente_id)).toEqual([C.c1]);
+      const cart = await chamar('GET', 'usuarios/:id/clientes', gerente, { params: { id: U.gerente } });
+      const ids = cart.itens.map((c: { id: string }) => c.id);
+      expect(ids).toContain(C.c1);
+      expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('o editor do BKO recebe o cliente de cada parada (nome, cidade e coordenada) e a carteira vigente do usuário com o vínculo', async () => {
