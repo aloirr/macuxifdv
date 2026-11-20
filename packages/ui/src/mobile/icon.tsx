@@ -10,6 +10,7 @@ export type IconName =
   | 'home'
   | 'pin'
   | 'users'
+  | 'equipe'
   | 'clipboard'
   | 'target'
   | 'sync'
@@ -100,6 +101,19 @@ function render(name: IconName, c: Common) {
           <Circle cx={9} cy={8} r={3.5} {...c} />
           <Path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5" {...c} />
           <Path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.6.8 2.6 2.6 3 5.2" {...c} />
+        </>
+      );
+    case 'equipe':
+      // aba Equipe do Gestão (R-20261119-201449): a supervisora à frente, maior e centrada, com duas pessoas atrás;
+      // distinto de `users` (Clientes, dupla lado a lado), que segue nos dois apps
+      return (
+        <>
+          <Circle cx={12} cy={10} r={3} {...c} />
+          <Path d="M6 21c.8-3.3 3.2-5 6-5s5.2 1.7 6 5" {...c} />
+          <Circle cx={5} cy={6.5} r={2} {...c} />
+          <Path d="M1.5 15c.4-2 1.8-3.3 3.5-3.5" {...c} />
+          <Circle cx={19} cy={6.5} r={2} {...c} />
+          <Path d="M22.5 15c-.4-2-1.8-3.3-3.5-3.5" {...c} />
         </>
       );
     case 'clipboard':

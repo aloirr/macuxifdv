@@ -324,6 +324,7 @@ fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
   `rolagemAteAba`, parte pura testada). Use quando os rótulos não cabem em 360 dp (ficha do cliente, 6 abas). Nomes inteiros, nunca abreviar.
 - **Barra de abas** (`BarraAbas`): 64 dp + área segura, até 5 abas, ícone 22, rótulo 11. Ativa: ícone Azul noite e rótulo `accentInk`
   em negrito; inativa: `ink2`. Contador no canto do ícone: laranja de gráfico (`destaque`, não lidas) ou âmbar (`aviso`, fila). O shell decide as abas.
+  Ícones: Clientes `users` nos dois apps; Equipe `equipe` (a supervisora à frente de duas pessoas), só no Gestão (R-20261119-201449).
 - **Estados de tela**:
   - carregando: `Loading` (indicador Azul noite) na primeira carga; depois, mostre o que já tem e atualize no lugar;
   - vazio: `EstadoVazio` (título que diz o que falta + o que fazer; ação secundária opcional);
