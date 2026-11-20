@@ -29,9 +29,9 @@ export type FiltroDoInicio = 'orcamentos' | 'a_faturar';
 export const hrefPedidosFiltrados = (filtro: FiltroDoInicio) => rota(CAMINHO_PEDIDOS, { filtro });
 /** `transformar`: abre o detalhe do orçamento já com a folha "Transformar em pedido" (T-0137). */
 export const hrefPedido = (id: string, transformar = false) => rota(CAMINHO_PEDIDO, { id, transformar: transformar ? '1' : undefined });
-/** `vendedorId`/`autorId`: pedido em nome do vendedor (RN-VEN-35), aberto pelo gestor; o autor da API é sempre o token. */
-export type ParamsNovoPedido = { customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; autorId?: string; vendedorNome?: string };
-export const hrefNovoPedido = (params: ParamsNovoPedido = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
+/** `emNome`: aberto pela ficha do cliente no Gestão (T-0187), o vendedor sai do campo "Em nome de". `vendedorId`/`autorId`: pedido em nome do vendedor (RN-VEN-35), aberto pelo gestor; o autor da API é sempre o token. */
+export type ParamsNovoPedido = { customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; autorId?: string; vendedorNome?: string; emNome?: boolean };
+export const hrefNovoPedido = ({ emNome, ...params }: ParamsNovoPedido = {}) => rota(CAMINHO_NOVO_PEDIDO, { ...params, emNome: emNome ? '1' : undefined });
 
 export const irParaPedidos = () => router.navigate(hrefPedidos() as never);
 export const irParaRascunhos = () => router.push(hrefRascunhos() as never);

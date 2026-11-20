@@ -27,6 +27,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { MSG_SEM_VENDEDORES_EM_NOME, type OpcaoEmNome } from '../../domain/pedido-em-nome';
 import { type BotaoDoResumo, type BotoesDoResumo } from '../../domain/botoes-resumo';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
@@ -133,6 +134,7 @@ export function CardPagamento({
  * consulta indisponível (as linhas de crédito não aparecem). Tudo do aparelho (vale offline).
  */
 export function AbaVenda({
+  emNome,
   clienteLinhas,
   pagamento,
   credito,
@@ -141,6 +143,8 @@ export function AbaVenda({
   tz,
   semSinal,
 }: {
+  /** T-0187: o campo "Em nome de" (pedido aberto pela ficha do cliente no Gestão); ausente = pedido do próprio vendedor */
+  emNome?: ReactNode;
   /** T-0165: Endereço, Filial e CNPJ do cadastro; a linha sem dado não aparece (a Filial só vem quando o aparelho a conhece) */
   clienteLinhas: ReadonlyArray<{ rotulo: string; valor: string }>;
   /** cartão de forma e prazo já montado pela tela (`CardPagamento`) */
@@ -154,6 +158,7 @@ export function AbaVenda({
   const tabela = tabelaDoCredito(credito);
   return (
     <View style={{ gap: 12 }} testID="aba-venda-conteudo">
+      {emNome}
       {clienteLinhas.length > 0 ? (
         <View style={{ gap: 8 }} testID="venda-cliente">
           <RotuloSecao texto="Cliente" />
@@ -378,6 +383,7 @@ function BlocoSugestoes({
  * os estados vêm do domain (`botoesDoResumo`); aqui só desenha. Sem folha intermediária: cada botão faz o que diz em 1 toque.
  */
 export function AbaResumo({
+  emNomeDe,
   rascunho: r,
   clienteRazao,
   clienteCnpj,
@@ -401,6 +407,8 @@ export function AbaResumo({
   salvando,
   somenteLeitura,
 }: {
+  /** T-0187: nome do vendedor de "Em nome de"; presente, o bloco vira "Venda" e começa com a linha "Em nome de" */
+  emNomeDe?: string | null;
   rascunho: Rascunho;
   /** razão social e CNPJ: o nome fantasia e o código já estão no cabeçalho da tela */
   clienteRazao: string;
@@ -444,8 +452,8 @@ export function AbaResumo({
         <TabelaRotuloValor {...TABELA_DO_PEDIDO} testID="resumo-cliente" linhas={[{ rotulo: 'Razão social', valor: clienteRazao }, { rotulo: 'CNPJ', valor: clienteCnpj || VALOR_SEM_DADO }]} />
       </View>
       <View style={{ gap: 6 }}>
-        <RotuloSecao texto="Condição de pagamento" />
-        <TabelaRotuloValor {...TABELA_DO_PEDIDO} testID="resumo-venda" linhas={[{ rotulo: 'Forma', valor: pagamentoEPrazo.pagamento }, { rotulo: 'Prazo', valor: pagamentoEPrazo.prazo }]} />
+        <RotuloSecao texto={emNomeDe ? 'Venda' : 'Condição de pagamento'} />
+        <TabelaRotuloValor {...TABELA_DO_PEDIDO} testID="resumo-venda" linhas={[...(emNomeDe ? [{ rotulo: 'Em nome de', valor: emNomeDe }] : []), { rotulo: 'Forma', valor: pagamentoEPrazo.pagamento }, { rotulo: 'Prazo', valor: pagamentoEPrazo.prazo }]} />
       </View>
       <View style={{ gap: 6 }} testID="resumo-itens">
         <RotuloSecao texto="Itens" />
@@ -568,3 +576,26 @@ const s = StyleSheet.create({
   sugestaoBotao: { width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
   texto: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, ...fonte.body, fontSize: 16, color: colors.ink },
 });
+
+/** T-0187 (RN-VEN-35, P3 A): "Em nome de" da aba Venda; só os vendedores da equipe, o da carteira do cliente marcado. Vazio: "Escolher". */
+export function CampoEmNomeDe({ opcoes, valor, falta, onChange }: { opcoes: ReadonlyArray<OpcaoEmNome>; valor: string | null; falta?: string | null; onChange: (id: string) => void }) {
+  return (
+    <View style={{ gap: 4 }}>
+      <ListaSuspensa
+        testID="em-nome-de"
+        rotulo="Em nome de"
+        placeholder="Escolher"
+        rotuloFechar="Fechar a lista"
+        falta={falta}
+        valor={valor}
+        onChange={onChange}
+        opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome, desabilitada: o.desligado, motivo: o.motivo ?? ([o.da_carteira ? 'Carteira deste cliente' : null, o.grupo].filter(Boolean).join(' · ') || null) }))}
+      />
+      {opcoes.length === 0 ? (
+        <Text testID="em-nome-de-vazio" style={{ ...fonte.body, fontSize: 12, color: colors.ink2 }}>
+          {MSG_SEM_VENDEDORES_EM_NOME}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
