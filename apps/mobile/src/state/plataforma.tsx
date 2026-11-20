@@ -300,9 +300,13 @@ function usePlataformaValor() {
   const permissoesDoUsuario = useMemo(() => permissoesExigidas(variante, perfilDaSessao), [variante, perfilDaSessao]);
   const permissoesDoUsuarioRef = useRef(permissoesDoUsuario);
   permissoesDoUsuarioRef.current = permissoesDoUsuario;
-  /** Todas as exigidas concedidas: gravado só aqui, a cada leitura do aparelho e a cada mudança das exigidas (login, saída). */
+  /**
+   * Todas as exigidas concedidas, calculado uma vez por render (RD-2443): sem leitura do aparelho, nada fica liberado. O ref
+   * (sync, agendador, volta ao primeiro plano) e a tela de permissões leem este mesmo valor.
+   */
+  const permissoesOk = estadosPermissoes !== null && permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario);
   const permissoesOkRef = useRef(false);
-  permissoesOkRef.current = estadosPermissoes !== null && permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario);
+  permissoesOkRef.current = permissoesOk;
   const [pedindoPermissao, setPedindoPermissao] = useState(false);
   /** 🟡 2 da revisão T-0145: toques no "Permitir" sem mudança no estado; com 2, o botão abre as configurações (sem laço). */
   const [toquesSemEfeito, setToquesSemEfeito] = useState(0);
@@ -1182,10 +1186,10 @@ function usePlataformaValor() {
   /** Tela de permissões (nula enquanto não leu ou com todas concedidas). */
   const telaPermissoes = useMemo<TelaDePermissoes | null>(
     () =>
-      estadosPermissoes && !permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario)
+      estadosPermissoes && !permissoesOk
         ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid(), toquesSemEfeito, permissoesDoUsuario)
         : null,
-    [estadosPermissoes, variante, toquesSemEfeito, permissoesDoUsuario],
+    [estadosPermissoes, permissoesOk, variante, toquesSemEfeito, permissoesDoUsuario],
   );
   const permissoesLidas = estadosPermissoes !== null;
 

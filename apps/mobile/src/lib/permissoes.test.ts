@@ -3,6 +3,9 @@
  * regras puras: Campo exige as 4 e Gestão só notificações; localização em 2 passos no Android 11+; depois de 2 recusas,
  * "Abrir configurações"; permissão retirada volta à mesma tela, só com ela em "Falta"/"Negada".
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -245,5 +248,18 @@ describe('🟡 2 da revisão T-0145: o "Permitir" sem efeito não fica em laço'
     expect(mesmoEstadoDePermissoes(estados(), estados())).toBe(true);
     expect(mesmoEstadoDePermissoes(estados(), estados({ camera: NEGADA }))).toBe(false);
     expect(mesmoEstadoDePermissoes(estados(), estados({ tempoTodo: OK }))).toBe(false);
+  });
+});
+
+describe('shell: permissões liberadas calculadas uma vez por render (RD-2443)', () => {
+  const plataforma = readFileSync(fileURLToPath(new URL('../state/plataforma.tsx', import.meta.url)), 'utf8');
+
+  it('um só cálculo no render, sem leitura do aparelho nada liberado; o ref e a tela leem o mesmo valor', () => {
+    expect(plataforma).toMatch(
+      /const permissoesOk = estadosPermissoes !== null && permissoesLiberadas\(variante, estadosPermissoes, permissoesDoUsuario\);/,
+    );
+    expect(plataforma).toMatch(/permissoesOkRef\.current = permissoesOk;/);
+    expect(plataforma).toMatch(/estadosPermissoes && !permissoesOk\s*\?\s*telaDePermissoes\(/);
+    expect(plataforma.match(/permissoesLiberadas\(variante, estadosPermissoes,/g)).toHaveLength(1);
   });
 });
