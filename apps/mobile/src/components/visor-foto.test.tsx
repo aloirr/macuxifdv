@@ -150,6 +150,15 @@ describe('VisorDeFoto — estados', () => {
     expect(html).toContain('Sem internet');
     expect(html).not.toContain('<img');
   });
+
+  it('T-0186: com `conteudo` (visor de PDF), as páginas no lugar da foto, com o mesmo topo', () => {
+    const html = renderToStaticMarkup(
+      createElement(VisorDeFoto, { titulo: 'NF 123', estado: { tipo: 'ok', uri: 'file:///cache/visor-pdf/a.pdf' }, aoFechar: () => undefined, conteudo: (uri: string) => createElement('section', { 'data-uri': uri }) }),
+    );
+    expect(html).toContain('data-uri="file:///cache/visor-pdf/a.pdf"');
+    expect(html).toContain('NF 123');
+    expect(html).not.toContain('<img');
+  });
 });
 
 describe('VisorDeFoto — zoom', () => {
