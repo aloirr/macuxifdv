@@ -1,19 +1,19 @@
 /**
  * T-0145: tela "Permissões", por cima de tudo, antes do login e da sincronização (o shell não monta as rotas enquanto falta
  * permissão). Imagem aprovada pelo dono do produto (R-20261110-093125): `docs/design/telas/T-0145-permissoes.png`, medidas em
- * `docs/design/permissoes-e-fotos-pdv.md` §1. Marca, título, subtítulo, uma linha por permissão (ícone, nome, motivo e
- * situação), o cartão dos 2 passos da localização, o link "Como usamos a localização" (só no Campo) e UM botão no pé.
+ * `docs/design/permissoes-e-fotos-pdv.md` §1. Marca, título, subtítulo, uma linha por permissão que falta (ícone, nome,
+ * motivo e situação), o cartão dos 2 passos da localização e UM botão no pé. R-20261120-052422: a tela só aparece quando,
+ * depois das janelas do Android na abertura, alguma ficou negada; sem o link "Como usamos a localização".
  * Regras e textos em `lib/permissoes.ts`. O Voltar do Android fecha o app (não há "Agora não").
  */
-import { Button, Card, colors, Folha, fonte, Icon, TOUCH, type as t, type IconName } from '@macuxi/ui/mobile';
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button, Card, colors, fonte, Icon, type as t, type IconName } from '@macuxi/ui/mobile';
+import { useEffect } from 'react';
+import { AccessibilityInfo, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ROTULO_SITUACAO, type IdPermissao, type SituacaoPermissao, type TelaDePermissoes } from '@/lib/permissoes';
+import { ROTULO_SITUACAO, type IdPermissao, type SituacaoQueFalta, type TelaDePermissoes } from '@/lib/permissoes';
 
-const COR_SITUACAO: Readonly<Record<SituacaoPermissao, string>> = {
-  permitida: colors.success,
+const COR_SITUACAO: Readonly<Record<SituacaoQueFalta, string>> = {
   falta: colors.ink2,
   negada: colors.danger,
 };
@@ -41,11 +41,10 @@ export function TelaPermissoes({
   onBotao: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [avisoAberto, setAvisoAberto] = useState(false);
   useEffect(() => {
     AccessibilityInfo.announceForAccessibility(tela.titulo);
   }, [tela.titulo]);
-  // sem "Agora não": o Voltar do Android fecha o app (com o aviso aberto, o Voltar fecha só o aviso, pelo Modal da folha)
+  // sem "Agora não": o Voltar do Android fecha o app
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       BackHandler.exitApp();
@@ -54,7 +53,6 @@ export function TelaPermissoes({
     return () => sub.remove();
   }, []);
   const passos = tela.passosLocalizacao;
-  const aviso = tela.avisoLocalizacao;
   return (
     <View testID="tela-permissoes" style={[StyleSheet.absoluteFill, styles.root]} accessibilityViewIsModal>
       <ScrollView contentContainerStyle={[styles.conteudo, { paddingTop: Math.max(36, insets.top + 24) }]}>
@@ -81,12 +79,9 @@ export function TelaPermissoes({
                 <Text style={styles.nome}>{l.nome}</Text>
                 <Text style={styles.motivo}>{l.texto}</Text>
               </View>
-              <View style={styles.situacao}>
-                {l.situacao === 'permitida' ? <Icon name="check" size={14} color={colors.success} strokeWidth={2.4} /> : null}
-                <Text style={[styles.situacaoTexto, { color: COR_SITUACAO[l.situacao] }]} testID={`permissao-${l.id}-situacao`}>
-                  {ROTULO_SITUACAO[l.situacao]}
-                </Text>
-              </View>
+              <Text style={[styles.situacaoTexto, { color: COR_SITUACAO[l.situacao] }]} testID={`permissao-${l.id}-situacao`}>
+                {ROTULO_SITUACAO[l.situacao]}
+              </Text>
             </View>
           ))}
         </Card>
@@ -112,17 +107,6 @@ export function TelaPermissoes({
             </View>
           </Card>
         ) : null}
-        {aviso ? (
-          <Pressable
-            testID="permissoes-como-usamos"
-            accessibilityRole="link"
-            onPress={() => setAvisoAberto(true)}
-            hitSlop={8}
-            style={styles.link}
-          >
-            <Text style={styles.linkTexto}>{aviso.link}</Text>
-          </Pressable>
-        ) : null}
       </ScrollView>
       {tela.botao ? (
         <View style={[styles.pe, { paddingBottom: Math.max(16, insets.bottom + 12) }]}>
@@ -136,18 +120,6 @@ export function TelaPermissoes({
             onPress={onBotao}
           />
         </View>
-      ) : null}
-      {aviso ? (
-        <Folha
-          testID="permissoes-aviso-localizacao"
-          visivel={avisoAberto}
-          onFechar={() => setAvisoAberto(false)}
-          rotuloFechar="Fechar"
-          titulo={aviso.titulo}
-          fechar={{ rotulo: 'Fechar' }}
-        >
-          <Text style={styles.avisoTexto}>{aviso.texto}</Text>
-        </Folha>
       ) : null}
     </View>
   );
@@ -165,15 +137,11 @@ const styles = StyleSheet.create({
   circulo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
   nome: { ...fonte.semibold, fontSize: 16, color: colors.ink },
   motivo: { ...fonte.body, fontSize: 14, color: colors.ink2 },
-  situacao: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   situacaoTexto: { ...fonte.semibold, fontSize: 14 },
   passo: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   numero: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   numeroTexto: { ...fonte.bold, fontSize: 12, color: colors.surface },
   passoTexto: { flex: 1, ...fonte.body, fontSize: 14, color: colors.ink },
   forte: { ...fonte.bold },
-  link: { alignSelf: 'flex-start', minHeight: TOUCH, justifyContent: 'center' },
-  linkTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   pe: { paddingHorizontal: 20, paddingTop: 8 },
-  avisoTexto: { ...fonte.body, fontSize: 16, lineHeight: 22, color: colors.ink },
 });
