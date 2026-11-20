@@ -73,6 +73,12 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(comPedidos.mais.map((a) => a.label)).toEqual(['Pedidos', 'Alertas']);
   });
 
+  it('MC-0160 (R-20261119-201449): a aba usa o ícone `equipe` declarado pela página; Clientes segue com `users`', () => {
+    const item = (modulo: string, id: string, rotulo: string, icone: string) => ({ modulo, id, caminho: id, rotulo, icone }) as unknown as ItemNavegacao<unknown>;
+    const { barra } = abasDoShell([item('gestor', 'equipe', 'Equipe', 'equipe'), item('core', 'clientes', 'Clientes', 'users')], MAX_ABAS_POR_VARIANTE.gestao);
+    expect(barra.map((a) => [a.label, a.icon])).toEqual([['Início', 'home'], ['Equipe', 'equipe'], ['Clientes', 'users']]);
+  });
+
   it('nenhuma aba sem licença: o Gestor não licenciado não monta Equipe nem Aprovações', () => {
     const r = rotulos('gestao', 'supervisor', ['core', 'catalogo', 'vendedor', 'promotor'], TODOS);
     expect(r.todas).not.toContain('Equipe');

@@ -41,7 +41,7 @@ export const MAX_ABAS_POR_VARIANTE: Readonly<Record<Variante, number>> = { campo
 
 export const HREF_MAIS = '/mais';
 
-const ICONES = new Set<string>(['home', 'pin', 'users', 'clipboard', 'target', 'sync', 'check', 'navigate', 'clock', 'alert', 'chat', 'file', 'user', 'search', 'menu']);
+const ICONES = new Set<string>(['home', 'pin', 'users', 'equipe', 'clipboard', 'target', 'sync', 'check', 'navigate', 'clock', 'alert', 'chat', 'file', 'user', 'search', 'menu']);
 
 const INICIO: AbaShell = { href: '/', label: 'Início', icon: 'home', testID: 'tab-inicio', modulo: null };
 const MAIS: AbaShell = { href: HREF_MAIS, label: 'Mais', icon: 'menu', testID: 'tab-mais', modulo: null };
