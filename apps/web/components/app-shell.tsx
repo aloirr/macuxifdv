@@ -9,6 +9,11 @@
  * Menu (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M4): grupos do SDK (`grupoMenu`/`rotuloGrupo`, ADR 0050), em ordem alfabética
  * (lib/menu-bko.ts); tudo aberto quando cabe na altura, senão sanfona com o grupo da tela atual aberto e painel ao lado
  * do menu ao passar o ponteiro (ou dar foco) num grupo fechado. Marca: logo A negativo para o grafite (MC-0056).
+ * ADR 0060 (spec docs/design/menu-parametros/spec.md §2–§3; `menuParametros: true` no SDK): Parâmetros e Sistema fixos no
+ * fim; grupo de um item vira item direto (D9); Pesquisa, Trade e Treinamento sem a licença da EMPRESA (`modulos_contratados`
+ * de `/v1/me/modulos`) aparecem com cadeado, não navegam e mostram o balão "Contrate o módulo para usar"; os endereços
+ * antigos que viraram painel de Parâmetros (`/perfis`, `/motivos`, `/alcadas`…) vão para `/parametros/<secao>#<ancora>`
+ * (`visao.destinoParametros`), com a query preservada.
  * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
  * RN-CORE-33 (T-0094; spec docs/design/ciclo-de-senha.md §1): perfil sem backoffice (a sessão cujo perfil não tem `acesso.bko`
  * no motor de permissões do SDK, `entraEm`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
@@ -24,15 +29,27 @@ import type { ItemMenu } from '@macuxi/core/contracts';
 import { ehUsuarioSemFilial, entraEm, rotuloDaLogo, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
-import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconChevronRight, IconLock, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
 import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
-import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
+import {
+  ALTURA_ITEM,
+  cabeTudoAberto,
+  destinoComBusca,
+  grupoDaTela,
+  hrefAtivo,
+  hrefsNavegaveis,
+  montarGruposMenu,
+  TEXTO_SEM_LICENCA,
+  type GrupoMenuBko,
+  type ItemMenuBko,
+} from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
+import { ehRotaParametros, secoesParametros } from '@/lib/parametros';
 import { aoSemFilial } from '@/lib/sem-filial';
-import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosEfetivos } from '@/lib/queries';
+import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosContratados, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
 import { useUrlDoBlob } from '@/lib/url-do-blob';
 import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
@@ -91,7 +108,92 @@ export function Brand({ company, logoCliente = null }: { company: string; logoCl
   );
 }
 
-const TITULO_GRUPO = 'text-[12px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
+const TITULO_TEXTO = 'text-[12px] font-semibold tracking-[0.07em] uppercase';
+const TITULO_GRUPO = cx(TITULO_TEXTO, 'text-nav-grupo');
+
+/**
+ * Item direto de 1º nível (D9: grupo com uma página só; Parâmetros): o título do grupo (Sol claro, maiúsculas, 30 px), sem
+ * seta, navega no clique; tela atual com o fundo do item ativo e o texto branco (spec §3).
+ */
+function ItemDireto({ grupo, active }: { grupo: GrupoMenuBko; active: boolean }) {
+  const item = grupo.itens[0];
+  if (!item) return null;
+  return (
+    <Link
+      href={item.href}
+      data-testid={item.testId}
+      aria-current={active ? 'page' : undefined}
+      className={cx(
+        'flex h-[30px] shrink-0 items-center rounded-lg px-2.5 no-underline transition-colors',
+        TITULO_TEXTO,
+        FOCO,
+        active ? 'bg-nav-active text-white' : 'text-nav-grupo hover:bg-nav-active',
+      )}
+    >
+      {grupo.titulo}
+    </Link>
+  );
+}
+
+/**
+ * Entrada de módulo de vitrine que a empresa não contratou (ADR 0060, spec §3): cinza no grafite com cadeado no lugar da
+ * seta; não abre nem navega; `aria-disabled`, foco de teclado e o balão "Contrate o módulo para usar" no passar do
+ * ponteiro, no foco, no clique e no Enter/Espaço (some ao sair, no Esc ou ao perder o foco). O balão é `fixed` à direita do
+ * menu, na altura da entrada (a mesma conta do painel da sanfona), com a seta para a esquerda: não ocupa lugar na lista.
+ */
+export function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
+  const [dica, setDica] = useState<{ top: number; left: number } | null>(null);
+  const idDica = `menu-dica-${grupo.id}`;
+  const mostrar = (entrada: HTMLElement) => {
+    const r = entrada.getBoundingClientRect();
+    const menu = entrada.closest('nav')?.getBoundingClientRect();
+    setDica({ top: r.top, left: menu?.right ?? r.right });
+  };
+  useEffect(() => {
+    if (!dica) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDica(null);
+    };
+    document.addEventListener('keydown', tecla);
+    return () => document.removeEventListener('keydown', tecla);
+  }, [dica]);
+  return (
+    <>
+      <div
+        role="link"
+        tabIndex={0}
+        aria-disabled="true"
+        aria-describedby={idDica}
+        data-testid={grupo.testId}
+        data-bloqueado=""
+        onMouseEnter={(e) => mostrar(e.currentTarget)}
+        onMouseLeave={() => setDica(null)}
+        onFocus={(e) => mostrar(e.currentTarget)}
+        onBlur={() => setDica(null)}
+        onClick={(e) => mostrar(e.currentTarget)}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          mostrar(e.currentTarget);
+        }}
+        className={cx('flex h-[30px] shrink-0 cursor-not-allowed items-center justify-between rounded-lg px-2.5 text-disabled', TITULO_TEXTO, FOCO)}
+      >
+        {grupo.titulo}
+        <IconLock size={14} strokeWidth={2.2} className="shrink-0" aria-hidden />
+      </div>
+      <div
+        id={idDica}
+        role="tooltip"
+        hidden={!dica}
+        data-testid={`${grupo.testId}-dica`}
+        style={dica ? { top: dica.top, left: dica.left } : undefined}
+        className="pointer-events-none fixed z-50 ml-2 rounded-lg bg-surface px-3 py-[7px] text-[13px] leading-[18px] font-semibold whitespace-nowrap text-ink shadow-[0_6px_16px_rgba(22,32,42,0.22)] before:absolute before:top-[11px] before:-left-[5px] before:size-2.5 before:rotate-45 before:bg-surface before:content-['']"
+      >
+        {TEXTO_SEM_LICENCA}
+      </div>
+    </>
+  );
+}
 
 interface Painel {
   grupo: string;
@@ -167,6 +269,8 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
   return (
     <div ref={listaRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
       {grupos.map((g) => {
+        if (g.bloqueado) return <EntradaBloqueada key={g.id} grupo={g} />;
+        if (g.direto) return <ItemDireto key={g.id} grupo={g} active={g.itens[0]?.href === ativo} />;
         const estaAberto = tudoAberto || aberto === g.id;
         const comPainel = !estaAberto && painel?.grupo === g.id;
         const titulo = (e: { currentTarget: HTMLElement }) => e.currentTarget.querySelector<HTMLElement>('[data-menu-titulo]');
@@ -189,13 +293,14 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
             }}
           >
             {tudoAberto ? (
-              <span data-menu-titulo="" className={cx('flex h-[30px] shrink-0 items-center px-2.5', TITULO_GRUPO)}>
+              <span data-menu-titulo="" data-testid={g.testId} className={cx('flex h-[30px] shrink-0 items-center px-2.5', TITULO_GRUPO)}>
                 {g.titulo}
               </span>
             ) : (
               <button
                 type="button"
                 data-menu-titulo=""
+                data-testid={g.testId}
                 aria-expanded={estaAberto}
                 aria-controls={`menu-grupo-${g.id}`}
                 onClick={() => {
@@ -263,9 +368,14 @@ function MenuEstreito({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string
         ))}
       </select>
       <div className="-mr-4 flex min-w-0 flex-1 gap-1 overflow-x-auto pr-4 pb-1">
-        {grupo.itens.map((i) => (
-          <NavLink key={i.href} item={i} active={i.href === ativo} variante="compact" />
-        ))}
+        {grupo.bloqueado ? (
+          <span aria-disabled="true" className="flex h-9 shrink-0 items-center gap-1.5 px-3 text-[13px] whitespace-nowrap text-disabled">
+            <IconLock size={14} strokeWidth={2.2} className="shrink-0" aria-hidden />
+            {TEXTO_SEM_LICENCA}
+          </span>
+        ) : (
+          grupo.itens.map((i) => <NavLink key={i.href} item={i} active={i.href === ativo} variante="compact" />)
+        )}
       </div>
     </div>
   );
@@ -279,6 +389,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const me = useMe();
   const perfil = session.user?.perfil ?? null;
   const modulos = useModulosEfetivos(perfil);
+  const contratados = useModulosContratados(perfil);
   // item 15: a logo do cliente no lugar da do Macuxi (chave ligada no portal e a logo da empresa)
   const logoCliente = useUrlDoBlob(useLogoQueSubstituiAMarca(perfil));
 
@@ -289,7 +400,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [estadoSessao, router, pathname]);
 
   // menu: só o Core enquanto `/v1/me/modulos` carrega; o miolo (páginas, que decidem 404) espera os efetivos (D-B30)
-  const visao = useMemo(() => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'] }), [perfil, modulos.data]);
+  // ADR 0060: menu novo (Parâmetros, grupos de módulo, vitrine) ligado com a rota `/parametros`; `modulosContratados` só
+  // quando a API manda (ausente: nada aparece desativado)
+  const visao = useMemo(
+    () => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'], menuParametros: true, ...(contratados ? { modulosContratados: contratados } : {}) }),
+    [perfil, modulos.data, contratados],
+  );
+  const secoes = useMemo(() => secoesParametros(visao), [visao]);
+  // ADR 0060: endereço antigo que virou painel de Parâmetros (`/perfis` → `/parametros/acesso#core-perfis`), com os efetivos
+  // já carregados e a query preservada; as rotas `/parametros/...` são da página Parâmetros (nunca redirecionam)
+  const destinoAntigo = modulos.data && !ehRotaParametros(pathname) ? visao.destinoParametros(pathname) : null;
+  useEffect(() => {
+    if (destinoAntigo) router.replace(destinoComBusca(destinoAntigo, window.location.search));
+  }, [destinoAntigo, router]);
   const usuario = session.user;
   // RD-0700 e RD-1325: a logo do PDF sai do cache de `/v1/me/modulos` (a mesma consulta do menu) e da logo, sem nova chamada
   const ambiente = useMemo(
@@ -351,8 +474,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     navegacao: visao.navegacao,
     mais: visao.extensoes<ItemMenu>('menu.itens').map((i) => i.payload),
     plataforma: entraEm('bko', perfil),
+    parametros: secoes.length > 0,
   });
-  const ativo = hrefAtivo(pathname, grupos.flatMap((g) => g.itens.map((i) => i.href)));
+  const ativo = hrefAtivo(pathname, hrefsNavegaveis(grupos));
   const conteudo = estadoDoConteudo({
     erroMe: MODO_API === 'demo' && me.isError,
     perfilUsaWeb: entraEm('bko', perfil),
@@ -405,7 +529,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SemBko perfil={perfil} />
         ) : conteudo === 'erro_modulos' ? (
           <ErrorBlock message={errorMessage(modulos.error)} onRetry={() => void modulos.refetch()} />
-        ) : conteudo === 'carregando_modulos' ? (
+        ) : conteudo === 'carregando_modulos' || destinoAntigo ? (
           <div data-testid="shell-carregando-modulos">
             <LoadingBlock label="Carregando…" />
           </div>
