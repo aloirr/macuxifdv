@@ -2,11 +2,19 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
-> **v1.0.16 em andamento** (R-20261119-181423 "Acelere" e R-20261119-192029: P1 a P7 = A). Horários de Manaus.
-> - **Escopo:** [T-0187](tarefas/T-0187.md) (supervisor em campo no Gestão, desenho em `docs/desenho/T-0187.md`); o resto da [T-0186](tarefas/T-0186.md) (PDF na ficha e tabela Carteira do Gestão por rota online); o resto do trajeto no Gestão (T-0156); a investigação do OUTBOX_PARADA (só leitura; reprocessar exige o "sim" do dono do produto).
-> - **ADR 0063** (supervisor rastreado no Gestão; revisa a 0061) e **ADR 0064** (dependência nativa de PDF no app) reservadas ao engenheiro-software.
-> - **Doc 03 (gerente-projetos):** RN-VEN-43 a 46 para a tabela ajustada pelo prazo, e número novo para os cards de Pedidos (T-0170), pela proposta de R-20261117-201110, ponto 3.
-> - **Sessões:** S1 engenheiro-software, S2 engenheiro-apps, S3 modulo-core, S4 modulo-vendedor, S5 modulo-pesquisa, S6 modulo-gestor e S7 testes. Banco sem migração (desenho da T-0187, §5).
+> **v1.0.16 no ar, servidor e APK** (20/11; R-20261120-013200 e R-20261120-022300). Horários de Manaus.
+> - **No main:**
+>   - governança: #518 (diagnóstico da outbox, só leitura);
+>   - PR conjunto: #519 ([T-0187](tarefas/T-0187.md), PDF na ficha, tabela Carteira do Gestão, barra de 6 abas e o resto do trajeto no Gestão da T-0156, pela S6 do modulo-gestor).
+> - **SHA** 85b9e9b47f5a8e08708d86367363a1c34b5ed44c (CI do main, run 44680009884). Publicado à 1h57 (issue #520; aprovação R-20261120-014547-alexandre e R-20261120-014839-alexandre). APK Campo e Gestão v1.0.16 (run 44684485331).
+> - **ADRs no main:** 0063 (supervisor rastreado no Gestão; revisa a 0061) e 0064 (PDF nativo no app).
+> - **Doc 03, no fechamento:** RN-VEN-43 a 46 (tabela ajustada pelo prazo) e RN-VEN-47 (cards de Pedidos, T-0170), pelo ponto 3 de R-20261117-201110.
+> - **Pendências para o lote seguinte:**
+>   - RD-2379, RD-2413, RD-2448 e RD-2450 (só comentário) e o comentário do teste do trajeto;
+>   - banco-dados: o deadlock em `db/testes/empresa-acoes.db.test.ts:415`;
+>   - governança: o SSH comum dos workflows;
+>   - o 🟢 do "Enviando…" e a MC-1803 (logo do e-mail);
+>   - OUTBOX_PARADA (36 eventos, desde a v1.0.14): o diagnóstico do #518 espera o §6 e os códigos das empresas. Reprocessar exige o "sim" do dono do produto.
 
 > **v1.0.15 no ar, servidor e APK** (19/11; R-20261119-172300 e R-20261119-180100). Horários de Manaus.
 > - **No main:**
@@ -22,9 +30,7 @@
 >   - envio do trajeto (T-0156): #516.
 >   - Fechados sem merge: #453, #493, #496, #497, #500, #505, #511, #512 e #513.
 > - **SHA** 53baf7c3fc854a4a1a00436c80fb585c48e55276 (CI do main, run 44616710113). Publicado às 17h37 (issue #517). APK Campo e Gestão v1.0.15 (run 44618378737).
-> - **Cortes para a v1.0.16:** PDF na ficha e tabela Carteira do Gestão ([T-0186](tarefas/T-0186.md), [T-0187](tarefas/T-0187.md)).
-> - **Trava RN-VEN-45 cancelada** (R-20261119-184441-alexandre): ninguém usa o app antigo. O Conector 1.5.0 sai no rito normal e o "% Acres.Fin." pode ser preenchido.
-> - **Pendências que não seguraram:** MC-1803 (logo do e-mail), RD-2379 e o comentário do teste do trajeto, o 🟢 do "Enviando…", os retentáveis no SDK e o OUTBOX_PARADA (36 eventos, desde a v1.0.14).
+> - **Pendências:** seguem na lista da v1.0.16.
 
 > **v1.0.14 = cenário A, só servidor** (R-20261117-063420-alexandre e R-20261118-003807-alexandre). O Cline tocou de 16 a 18/11, e a nuvem voltou em 18/11 às 20h57 (R-20261118-205700). Horários de Manaus.
 > - **No main:** #420, #486, #403, #396 (0087), #483, #412, #484, #478, #479, #480, #481, #482, #414, #416, #415, #488 e #489 (último: 555c719a, 17/11 às 23h44).
@@ -293,6 +299,8 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0137](tarefas/T-0137.md) | Frente L — Resumo completo, 4 botões e desconto compacto (absorve a D) — Sprint 10 | modulo-vendedor, designer-ux | local | aberta (08/11 13h20: depois da K) |
 | [T-0138](tarefas/T-0138.md) | Frente M — detalhe do orçamento/pedido e histórico em tags (Campo, Gestão e BKO) — Sprint 10 | modulo-vendedor, designer-ux, modulo-gestor | local | aberta (08/11 13h20: última da tarefa-mãe) |
 | [T-0139](tarefas/T-0139.md) | Recados online: repositório próprio, junções no PC, sincronização a cada 2 min, formulário de issue e Telegram — Sprint 10 | engenheiro-software, gerente-projetos, testes | local | aberta (08/11 13h30: na esteira, sem esperar o build) |
+| [T-0187](tarefas/T-0187.md) | Supervisor em campo no app Gestão: rota com check-in/checkout, rastreamento interno, ficha com Check-in, Pesquisa e Novo pedido em nome do vendedor | gerente-projetos | nuvem (S1 a S7 da v1.0.16) | concluida (v1.0.16) |
+| [T-0188](tarefas/T-0188.md) | Troca de prazo mantém o preço final: tabela muda e o desconto do item é refeito (RN-VEN-44 nova) | modulo-vendedor | — | aberta (v1.0.17) |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
 | [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | concluida no escopo da demo (apuração por tipo, push, Sincronizar, banco de testes 5434); falta o passo pnpm timers no CI (ci.yml de governança, aguarda autorização) |
