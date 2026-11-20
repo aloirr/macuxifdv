@@ -287,7 +287,7 @@ describe('T-0148 — aba Itens com popup: 30 itens, recálculo só ao confirmar'
     expect(folha).toContain('onPress={() => onConfirmar({ idx, qtd, ajuste })}');
     const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
     // o cálculo do pedido inteiro depende só do rascunho (useMemo), que o popup não toca até confirmar
-    expect(tela).toMatch(/const calculoAtual = useMemo\(\s*\(\) =>\s*politica\s*\? calcularPedido\(\{ lines: draft\.lines/);
+    expect(tela).toMatch(/const calculoAtual = useMemo\(\s*\(\) =>\s*politica\s*\? calcularPedido\(\{ \.\.\.baseDoCalculo\(draft\), lines: draft\.lines/);
     const popup = tela.slice(tela.indexOf('<FolhaDoItem'), tela.indexOf('/>', tela.indexOf('onFechar={() => setPopupId(null)}')));
     // onConfirmar, onRemover e o Desfazer do "Item removido" (R-20261112-155448), que devolve a cópia de antes da remoção
     expect(popup.match(/setLinhas\(/g)).toHaveLength(3);

@@ -599,9 +599,9 @@ describe('T-0077 critério 4 — filtro por vendedor no Gestão (RN-CORE-04, RN-
     expect((TELA.match(/filtrarPorVendedor\(/g) ?? []).length).toBe(1);
     expect((TELA.match(/opcoesDeVendedor\(/g) ?? []).length).toBe(1);
     // T-0090: o seletor de vendedor saiu do botão próprio e virou a lista suspensa dentro da folha Período (`extra`), só no
-    // ramo do Gestão; no Campo a folha não tem `extra` de vendedor e a etiqueta de vendedor nunca aparece (vendedorAtivo
-    // fica em TODOS_OS_VENDEDORES sem `gestao`, conferido acima)
-    expect(TELA).toMatch(/extra=\{\s*gestao \? \(\s*<ListaSuspensa\s+testID="orders-vendedor"/);
+    // ramo do Gestão, embaixo da busca (R-20261120-062210); no Campo a folha só tem a busca e a etiqueta de vendedor nunca aparece
+    // (vendedorAtivo fica em TODOS_OS_VENDEDORES sem `gestao`, conferido acima)
+    expect(TELA).toMatch(/extra=\{\s*<View[^>]*>\s*<CampoBusca\s+testID="orders-busca"[\s\S]*?\/>\s*\{gestao \? \(\s*<ListaSuspensa\s+testID="orders-vendedor"/);
     expect(TELA).not.toMatch(/testID="orders-vendedor-folha"/);
     expect(TELA).toMatch(/\{vendedorAtivo !== TODOS_OS_VENDEDORES \? \(\s*<EtiquetaFiltro testID="orders-etiqueta-vendedor"/);
     // o filtro vale antes da busca, do período, dos chips e do resumo: os itens nascem de `doVendedor`
@@ -611,39 +611,36 @@ describe('T-0077 critério 4 — filtro por vendedor no Gestão (RN-CORE-04, RN-
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-// T-0090 — revisão de UX (R-20261106-200329): 🟡1 resumo da busca com o vendedor, 🟡2 período sai de A faturar/Em aberto,
+// T-0090 — revisão de UX (R-20261106-200329): 🟡1 vendedor na etiqueta da busca, 🟡2 período sai de A faturar/Em aberto,
 // 🟡5 "Remover filtro <nome>". Funções puras de app/lib/consulta-periodo + a fiação no fonte da tela (React Native não roda no Node).
 // ---------------------------------------------------------------------------------------------------------------------
-describe('T-0090 UX1 — com busca, o resumo e a etiqueta dizem qual vendedor está filtrando (Gestão)', () => {
+describe('T-0090 UX1 — com busca, a etiqueta diz qual vendedor está filtrando (Gestão); o resumo não repete o nome (T-0188)', () => {
   const pedidos = [
     { id: 'a', seller_id: VEND.lucas, seller_name: 'Lucas Andrade' },
     { id: 'b', seller_id: VEND.maria, seller_name: 'Maria Souza' },
     { id: 'c', seller_id: VEND.lucas, seller_name: 'Lucas Andrade' },
   ];
 
-  it('resumo: "N resultados · <vendedor> · últimos 90 dias", singular/plural, e sem vendedor o formato antigo', () => {
-    expect(resumoDaBusca(0, null)).toBe('0 resultados · últimos 90 dias');
-    expect(resumoDaBusca(1, null)).toBe('1 resultado · últimos 90 dias');
-    expect(resumoDaBusca(2, 'Lucas Andrade')).toBe('2 resultados · Lucas Andrade · últimos 90 dias');
-    expect(resumoDaBusca(1, 'Maria Souza')).toBe('1 resultado · Maria Souza · últimos 90 dias');
-    // o "0 resultados" com vendedor escolhido diz o motivo (o caso que a revisão apontou)
-    expect(resumoDaBusca(0, 'Maria Souza')).toBe('0 resultados · Maria Souza · últimos 90 dias');
+  it('resumo: "N resultados · últimos 90 dias", singular/plural', () => {
+    expect(resumoDaBusca(0)).toBe('0 resultados · últimos 90 dias');
+    expect(resumoDaBusca(1)).toBe('1 resultado · últimos 90 dias');
+    expect(resumoDaBusca(2)).toBe('2 resultados · últimos 90 dias');
   });
 
-  it('com as peças do domain: o nome no resumo é o da opção escolhida e a contagem é a do filtro desse vendedor', () => {
-    const opcoes = opcoesDeVendedor(pedidos);
-    const nome = (id: string) => (id !== TODOS_OS_VENDEDORES ? (opcoes.find((o) => o.id === id)?.nome ?? 'Vendedor') : null);
-    expect(resumoDaBusca(filtrarPorVendedor(pedidos, VEND.lucas).length, nome(VEND.lucas))).toBe('2 resultados · Lucas Andrade · últimos 90 dias');
-    expect(resumoDaBusca(filtrarPorVendedor(pedidos, TODOS_OS_VENDEDORES).length, nome(TODOS_OS_VENDEDORES))).toBe('3 resultados · últimos 90 dias');
+  it('com as peças do domain: a contagem do resumo é a do filtro do vendedor escolhido', () => {
+    expect(resumoDaBusca(filtrarPorVendedor(pedidos, VEND.lucas).length)).toBe('2 resultados · últimos 90 dias');
+    expect(resumoDaBusca(filtrarPorVendedor(pedidos, TODOS_OS_VENDEDORES).length)).toBe('3 resultados · últimos 90 dias');
   });
 
-  it('a tela: no ramo da busca o resumo vem de resumoDaBusca(visiveis.length, nomeDoVendedor) e a etiqueta do vendedor aparece só com vendedor escolhido', () => {
-    // nomeDoVendedor nasce de vendedorAtivo, que no Campo é sempre Todos (critério 4): no Campo o resumo nunca tem vendedor
+  it('a tela: no ramo da busca o resumo vem de resumoDaBusca(visiveis.length), a etiqueta da busca aparece sempre e a do vendedor só com vendedor escolhido', () => {
+    // nomeDoVendedor nasce de vendedorAtivo, que no Campo é sempre Todos (critério 4): no Campo a etiqueta de vendedor nunca aparece
     expect(TELA).toMatch(/const nomeDoVendedor = vendedorAtivo !== TODOS_OS_VENDEDORES \? \(opcoes\.find\(\(o\) => o\.id === vendedorAtivo\)\?\.nome \?\? 'Vendedor'\) : null/);
     const ramoBusca = /\{buscando \? \(([\s\S]*?)\) : \(/.exec(TELA)?.[1] ?? '';
     expect(ramoBusca, 'orders-screen.tsx: ramo `buscando ? (...) : (...)` não encontrado').not.toBe('');
-    expect(ramoBusca).toMatch(/testID="orders-busca-resumo"[\s\S]*?\{resumoDaBusca\(visiveis\.length, nomeDoVendedor\)\}/);
-    expect(ramoBusca).toMatch(/\{nomeDoVendedor \? \(\s*<View[^>]*testID="orders-etiquetas"[^>]*>\s*<EtiquetaFiltro testID="orders-etiqueta-vendedor" texto=\{nomeDoVendedor\}/);
+    expect(ramoBusca).toMatch(/testID="orders-busca-resumo"[\s\S]*?\{resumoDaBusca\(visiveis\.length\)\}/);
+    // R-20261120-062210: a busca fica na folha do filtro; na lista, a etiqueta removível com o texto buscado
+    expect(ramoBusca).toMatch(/<View[^>]*testID="orders-etiquetas"[^>]*>\s*<EtiquetaFiltro testID="orders-etiqueta-busca" texto=\{busca\.trim\(\)\}[^\n]*onRemover=\{\(\) => setBusca\(''\)\}/);
+    expect(ramoBusca).toMatch(/\{nomeDoVendedor \? \(\s*<EtiquetaFiltro testID="orders-etiqueta-vendedor" texto=\{nomeDoVendedor\}/);
     // com busca a etiqueta de período não aparece (a busca ignora o período, R1 da T-0077)
     expect(ramoBusca).not.toMatch(/orders-etiqueta-periodo/);
     // o ✕ da etiqueta do vendedor, no ramo da busca, volta a Todos
