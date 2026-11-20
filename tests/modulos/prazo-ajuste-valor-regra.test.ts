@@ -1,5 +1,5 @@
 /**
- * Ensaio valor × regra do "% do prazo" (v1.0.14; RN-VEN-43 a 46). O esperado é calculado AQUI pela fórmula da RN, sem chamar
+ * Ensaio valor × regra do "% do prazo" (v1.0.14; RN-VEN-43 e 45; a troca de prazo da RN-VEN-44 está em troca-prazo-valor-regra-t0188). O esperado é calculado AQUI pela fórmula da RN, sem chamar
  * o domain, e comparado com o que o domain do Vendedor devolve (o mesmo que a API revalida) e com o cálculo do app.
  *
  * RN-VEN-43: ajustada = meia-para-cima(tabela × (10 000 + bp) ÷ 10 000), por unidade, antes da quantidade.
@@ -25,7 +25,7 @@ const regra = (tabela: number, bp: number): number => Math.floor((tabela * (10_0
 const comDesconto = (unit: number, pct: number): number => Math.floor((unit * (10_000 - Math.round(pct * 100)) + 5_000) / 10_000);
 /** RN-VEN-11 sobre a ajustada: ajustada × (1 − máximo), para cima. */
 const minimoRegra = (venda: number, maxPct: number, bp: number): number => Math.ceil((regra(venda, bp) * (10_000 - Math.round(maxPct * 100))) / 10_000);
-/** RN-VEN-46: R$ → % sobre a tabela anterior → R$ sobre a nova (meia para cima). */
+/** Desconto do pedido em R$ (legado): R$ → % sobre a tabela anterior → R$ sobre a nova (meia para cima). */
 const valorRegra = (v: number, anterior: number, nova: number): number => Math.round((v * nova) / anterior);
 
 describe('RN-VEN-43: limites da faixa e varredura (os 5 exemplos da proposta estão no teste do domain)', () => {
@@ -91,7 +91,7 @@ describe('Valor × regra: pedido de exemplo na revalidação da API (domain)', (
     expect(r.status).toBe('approved');
   });
 
-  it('RN-VEN-44: trocar para +2,50% recalcula da tabela original e mantém o desconto do vendedor em %; voltar devolve os mesmos centavos', () => {
+  it('RN-VEN-43: o mesmo desconto em % no +2,50% parte da tabela original; no −1,71% devolve os mesmos centavos', () => {
     const r = revalidarPedido(entrada(250, { a: 5 }));
     if (!r.ok) return expect.fail('pedido do ensaio deveria passar');
     expect(r.itens.map((i) => i.desconto_pct)).toEqual([5, 0, 0]);
@@ -185,8 +185,8 @@ describe('Valor × regra: o app calcula o mesmo que a API revalida (RN-VEN-43/44
   });
 });
 
-describe('RN-VEN-46: desconto digitado em R$ na troca de prazo', () => {
-  it('RN-VEN-46: o R$ vira o % sobre a tabela anterior e é refeito sobre a nova (varredura = fórmula)', () => {
+describe('Troca de prazo: desconto do pedido em R$ (legado)', () => {
+  it('o R$ vira o % sobre a tabela anterior e é refeito sobre a nova (varredura = fórmula)', () => {
     // R$ 5,00 sobre 98,29 (−1,71%) → 102,50 (+2,50%): 5,00 × 102,50 ÷ 98,29 = 5,2142 → 5,21
     expect(valorMantendoPercentualCents(500, regra(10_000, -171), regra(10_000, 250))).toBe(521);
     const divergentes: string[] = [];
