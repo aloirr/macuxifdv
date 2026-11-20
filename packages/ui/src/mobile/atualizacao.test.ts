@@ -332,8 +332,8 @@ describe('criarAgendadorSync (relógio simulado)', () => {
   });
 });
 
-describe('desenhoSeloAtualizacao — RD-0076: um só indicador de sincronização no cabeçalho da lista', () => {
-  const base = { atualizadoEm: INICIO, tz: 'America/Manaus', modoSemSinal: false, semRede: false, atualizando: false, semResposta: false };
+describe('desenhoSeloAtualizacao — R-20261120-062537: sem "Atualizando…" nem "Sem resposta" no app', () => {
+  const base = { atualizadoEm: INICIO, tz: 'America/Manaus', modoSemSinal: false, semRede: false };
 
   it('normal: só a hora, toque = sincronizar', () => {
     const d = desenhoSeloAtualizacao(base);
@@ -342,26 +342,16 @@ describe('desenhoSeloAtualizacao — RD-0076: um só indicador de sincronizaçã
     expect(desenhoSeloAtualizacao({ ...base, atualizadoEm: null })).toMatchObject({ texto: 'Sincronizar', rotuloAcessivel: 'Ainda não sincronizado' });
   });
 
-  it('sem sinal vence tudo; com o modo ligado o toque abre o Perfil', () => {
-    const modo = desenhoSeloAtualizacao({ ...base, modoSemSinal: true, atualizando: true, semResposta: true });
+  it('sem sinal; com o modo ligado o toque abre o Perfil', () => {
+    const modo = desenhoSeloAtualizacao({ ...base, modoSemSinal: true });
     expect(modo).toMatchObject({ estado: 'sem_sinal', texto: 'Sem sinal', tom: 'atencao', icone: 'alert', acao: 'perfil' });
     expect(modo.rotuloAcessivel).toBe('Sem sinal. A lista mostra o que está no aparelho, atualizado às 11:00.');
     expect(desenhoSeloAtualizacao({ ...base, semRede: true })).toMatchObject({ estado: 'sem_sinal', acao: 'sincronizar' });
   });
 
-  it('atualizando vence a falha anterior e não aceita toque', () => {
-    expect(desenhoSeloAtualizacao({ ...base, atualizando: true, semResposta: true })).toMatchObject({ estado: 'atualizando', texto: 'Atualizando…', acao: 'nenhuma', dica: null });
-  });
-
-  it('sem resposta do servidor: texto curto, leitura completa, toque = tentar de novo', () => {
-    const d = desenhoSeloAtualizacao({ ...base, semResposta: true });
-    expect(d).toMatchObject({ estado: 'sem_resposta', texto: 'Sem resposta', tom: 'atencao', acao: 'sincronizar', dica: 'Tenta de novo' });
-    expect(d.rotuloAcessivel).toBe('Sem resposta do servidor. A lista mostra o que está no aparelho, atualizado às 11:00.');
-  });
-
-  it('texto visível cabe na pílula (até 13 caracteres)', () => {
-    for (const e of [base, { ...base, atualizadoEm: null }, { ...base, semRede: true }, { ...base, atualizando: true }, { ...base, semResposta: true }]) {
-      expect(desenhoSeloAtualizacao(e).texto.length).toBeLessThanOrEqual(13);
-    }
+  it('o kit não tem mais os textos "Atualizando…" e "Sem resposta" do selo', () => {
+    const src = readFileSync(new URL('./atualizacao.ts', import.meta.url), 'utf8') + readFileSync(new URL('./sincronizacao.tsx', import.meta.url), 'utf8');
+    expect(src).not.toContain("'Atualizando…'");
+    expect(src).not.toContain("'Sem resposta'");
   });
 });

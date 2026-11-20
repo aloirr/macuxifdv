@@ -58,10 +58,11 @@ describe('cabeçalho com a altura do Início (v1.0.17 item 5) e sem selo de sinc
   });
 });
 
-describe('frase do Início (v1.0.17 item 1): valor de hoje até a aprovação', () => {
-  it('faixaFrase segue o #C9CED5 em 400, itálico 14, até 2 linhas', () => {
-    expect(colors.faixaFrase).toBe(colors.faixaSub);
-    expect(ler('./theme.ts')).toContain("fraseInicio: { ...fonte.body, fontSize: 14, fontStyle: 'italic', color: colors.faixaFrase }");
+describe('frase do Início (v1.0.17 item 1; aprovado em R-20261120-062210)', () => {
+  it('faixaFrase é o Sol claro #F59A52 em 700, itálico 14, até 2 linhas', () => {
+    expect(colors.faixaFrase).toBe(colors.accentLight);
+    expect(colors.faixaFrase).toBe('#F59A52');
+    expect(ler('./theme.ts')).toContain("fraseInicio: { ...fonte.bold, fontSize: 14, fontStyle: 'italic', color: colors.faixaFrase }");
     expect(contraste(colors.faixaFrase, colors.faixa)).toBeGreaterThanOrEqual(4.5);
     expect(LINHAS_FRASE_INICIO).toBe(2);
   });

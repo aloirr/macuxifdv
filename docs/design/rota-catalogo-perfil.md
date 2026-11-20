@@ -7,8 +7,7 @@
 > pedido (`pedido-v4.md` §0.1: área Alertas, tabelas brancas com título por fora).
 
 ## 0. Regras que valem para as quatro telas
-- **Atualização:** só o `SeloAtualizacao` do cabeçalho (RD-0076): "08:30", "Atualizando…", "Sem sinal", "Sem resposta". Sem
-  rodapé "Atualizado às…", sem faixa de sinal, sem hora repetida em cartão.
+- **Atualização:** sem rodapé "Atualizado às…", sem faixa de sinal, sem hora repetida em cartão (`componentes.md` §5, listas).
 - **Alertas:** problema que pede ação ou explica um bloqueio fica na área Alertas (título "ALERTAS" em danger, cartão branco,
   uma linha por alerta, ação curta à direita). Hoje o componente é `AreaAlertas` do Vendedor; com a aprovação, ele vai para o
   kit (`packages/ui`, designer-ux) e o Core e o shell passam a usar o mesmo.
@@ -17,7 +16,7 @@
 - **Aviso passageiro** depois de uma ação: `AvisoRodape` do kit (escuro, rodapé, 4 s). Nada de aviso colorido no topo.
 
 ## 1. Rota de hoje (`modules/core/app/telas/rota.tsx`) · imagem T-0153-rota, quadros 1 a 4
-Ordem: título "Rota de hoje" + `SeloAtualizacao` · subtítulo · mapa (com "Ir para a parada N", secundário 44) · lista.
+Ordem: título "Rota de hoje" · subtítulo · mapa (com "Ir para a parada N", secundário 44) · lista.
 
 | Elemento | Texto |
 |---|---|
@@ -64,7 +63,7 @@ dono; **depois do toque em Concluir checkout** com etapa pendente, a obrigatóri
 `danger` na linha e a folha rola até ela (T-0166, RD-0182; `formulario-pendencias.md` §0.0). Sai `Falta concluir: …`. Promotor: em vez dos rádios, `Atendimento concluído` como hoje.
 
 ## 3. Catálogo (`modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx`, `produto.tsx`) · imagem T-0153-catalogo
-Lista e busca, em ordem: título + `SeloAtualizacao` · com cliente: `Preços de <cliente>` · busca (`Produto, código ou
+Lista e busca, em ordem: título · com cliente: `Preços de <cliente>` · busca (`Produto, código ou
 aplicação`) · trilha (sem busca; termina no nível atual, **sem** o título repetido; com a aprovação desta imagem, o título
 abaixo da trilha da imagem T-0142 deixa de valer) · níveis (`ListaNiveis`, sem a linha "N
 produtos ativos em X") ou chips + contagem + cartões.

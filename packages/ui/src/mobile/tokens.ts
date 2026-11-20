@@ -50,8 +50,8 @@ export const colors = {
   faixa: FAIXA.fundo,
   faixaTitulo: FAIXA.titulo,
   faixaSub: FAIXA.subtitulo,
-  /** frase motivacional do Início do Campo; hoje o #C9CED5 do subtítulo (proposta em docs/design/componentes.md §5.5) */
-  faixaFrase: FAIXA.subtitulo,
+  /** frase motivacional do Início do Campo: Sol claro #F59A52, 5,85:1 na faixa (aprovado em 20/11/2026, R-20261120-062210; componentes.md §5.5) */
+  faixaFrase: MARCA.solClaro,
   /** tela de entrada: trilho da barra, ✓ da etapa feita e erro (docs/design/entrada-sync.md) */
   faixaTrilho: FAIXA.trilho,
   faixaFeito: FAIXA.feito,

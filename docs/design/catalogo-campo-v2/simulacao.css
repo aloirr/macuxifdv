@@ -27,7 +27,7 @@
   .selo-fx { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #3A4D68; color: var(--faixaSub); font-size:14px; display: flex; align-items: center; gap: 6px; flex: none; }
 
   .corpo { flex: 1; overflow: hidden; padding: 14px 16px 0; display: flex; flex-direction: column; gap: 10px; }
-  /* linha de busca de Pedidos: CampoBusca + BotaoFiltro (packages/ui/src/mobile/filtro.tsx) */
+  /* linha de busca do Catálogo: CampoBusca + BotaoFiltro (packages/ui/src/mobile/filtro.tsx) */
   .lbusca { display: flex; gap: 8px; flex: none; }
   .busca { flex: 1; min-width: 0; height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: #fff; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size:16px; color: var(--ink3); white-space: nowrap; overflow: hidden; }
   .busca.foco { border: 2px solid var(--accent); padding: 0 11px; }

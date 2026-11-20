@@ -204,21 +204,15 @@ function AnelSegurar({ cor, progresso }: { cor: string; progresso: number }) {
 }
 
 /**
- * RD-0076 (T-0153): selo de sincronização do cabeçalho das listas, à direita do título (o "↻ 06:30" da imagem
- * `docs/design/telas/T-0153-inicio-pedidos.png`). É o ÚNICO lugar da tela que fala de sinal, servidor e hora da última
- * sincronização: substitui as faixas de sinal, o "Buscando o restante no servidor…" e o rodapé da lista. Textos e prioridade
- * em `desenhoSeloAtualizacao` (atualizacao.ts).
+ * Selo da hora da última sincronização. No app, o selo não mostra "Atualizando…" nem "Sem resposta" (R-20261120-062537);
+ * no Campo, a hora fica só no Início.
  *
- * Desenho: pílula de 32 dp (alvo de 44 dp com `hitSlop`), borda `line` e fundo `surface`; em atenção ("Sem sinal", "Sem
- * resposta"), fundo `warningBg` e texto `warningInk` semibold (contraste 9,6:1). Ícone de 14 + texto 13 em números tabulares.
- * O toque é o mesmo do puxar para baixo; com o modo sem sinal ligado, abre o Perfil (`onAbrirPerfil`, rota do shell).
- * Lê a hora e o modo sem sinal do `SincronizacaoProvider`; fora do shell usa `atualizadoEm`/`tz` das props.
+ * Desenho: pílula de 32 dp (alvo de 44 dp com `hitSlop`), borda `line` e fundo `surface`; em "Sem sinal", fundo
+ * `warningBg` e texto `warningInk` semibold. Com o modo sem sinal ligado, o toque abre o Perfil (`onAbrirPerfil`).
  */
 export function SeloAtualizacao({
   testID = 'selo-atualizacao',
   semRede = false,
-  atualizando = false,
-  semResposta = false,
   onSincronizar,
   onAbrirPerfil,
   atualizadoEm,
@@ -228,9 +222,8 @@ export function SeloAtualizacao({
   testID?: string;
   /** Aparelho sem rede (o modo sem sinal vem do provider). */
   semRede?: boolean;
-  /** Consulta da tela em andamento (o puxar do provider já conta). */
+  /** @deprecated remover: R-20261120-062537 (modulo-vendedor tira o uso no lote v1.0.17). `atualizando` e `semResposta` são ignorados. */
   atualizando?: boolean;
-  /** A consulta da tela falhou (o erro do motor vem pela tela, que conhece o estado do motor). */
   semResposta?: boolean;
   /** Mesmo efeito do puxar para baixo (a tela passa `auto.puxar` + nova tentativa da consulta). */
   onSincronizar: () => void;
@@ -251,8 +244,6 @@ export function SeloAtualizacao({
     tz: tz ?? s?.tz,
     modoSemSinal: s?.semSinal ?? false,
     semRede,
-    atualizando: atualizando || (s ? s.estado.puxando : false),
-    semResposta,
   });
   const atencao = d.tom === 'atencao';
   const cor = atencao ? colors.warningInk : sobreFaixa ? colors.faixaSub : colors.ink2;
@@ -262,10 +253,7 @@ export function SeloAtualizacao({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={d.rotuloAcessivel}
-      accessibilityHint={d.dica ?? undefined}
-      accessibilityState={{ disabled: acao === 'nenhuma' }}
-      accessibilityLiveRegion="polite"
-      disabled={acao === 'nenhuma'}
+      accessibilityHint={d.dica}
       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       onPress={() => (acao === 'perfil' ? onAbrirPerfil?.() : onSincronizar())}
       style={[styles.selo, sobreFaixa && styles.seloFaixa, atencao && styles.seloAtencao]}>

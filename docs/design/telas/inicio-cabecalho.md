@@ -18,7 +18,7 @@
 | | Hoje (v1.0.7) | Escolhida (C) |
 |---|---|---|
 | Linha 1 | avatar 40 + data · DU + sino | foto/iniciais à esquerda, na altura do bloco de texto |
-| Linha 2 | "Boa noite, {primeiro nome}" na largura inteira | à direita da foto, empilhados: saudação (com o sino na mesma linha), data · DU, frase |
+| Linha 2 | "Boa noite, {primeiro nome}" na largura inteira | à direita da foto, empilhados: saudação "Boa noite, {primeiro nome}.", data, frase; sino à direita, na altura da foto |
 | Linha 3 | frase | — |
 | Altura do painel (sem a barra de status) | 131 dp | 100 dp |
 
@@ -40,9 +40,8 @@ e o sino.
 - Saudação: `fonte.bold` **22** (hoje 24), cor `colors.faixaTitulo`; 1 linha, encolhe para caber até 0,75
   (`adjustsFontSizeToFit`, `minimumFontScale={0.75}`, ≈ 16,5) e só então reticências. Continua só o primeiro nome
   (`saudacaoComNome`). No teste a 390 dp: "Boa noite, Maximiliano" ficou em 19,5, sem reticências.
-- Data · DU: `fonte.body` **14** (o corpo do `type.sub`), `colors.faixaSub`; o "· DU 11 de 23" segue sem quebra
-  (`semQuebra`). Se não couber, quebra em 2 linhas antes do "·".
-- Frase: `fonte.body` **14** itálico, `colors.faixaSub`, até 2 linhas (`numberOfLines={2}`), com aspas.
+- Data: `fonte.body` 14, `colors.faixaSub`, sem o "· DU" (`campo-v1017/spec.md` §1).
+- Frase: `type.fraseInicio` (`componentes.md` §5.5).
 - Foto/iniciais: medidas da C (§2); fundo `colors.neutralBg`, iniciais em `colors.accentInk` (`initials(nome)`); com foto, a imagem cobre a área
   (`resizeMode="cover"`) com o mesmo raio. A foto vem do perfil (o mesmo dado do avatar de hoje).
 - Espaços: `layoutCabecalho(insets.top)` como hoje (respiro de cima 12, lateral 20, embaixo 16); foto ↔ textos `space.md`

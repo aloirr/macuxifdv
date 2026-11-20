@@ -63,11 +63,12 @@ Prioridade: **Bloqueado > Devendo > Pré-Cadastro > Em dia** (RN-CORE-41). Mostr
 
 ## 4. Topo e filtros
 - Faixa Azul noite (`<Screen cabecalho>`, `componentes.md` §5.2): título `Clientes`, contagem abaixo ("86 na carteira" / "12 de
-  86 na carteira") e o `SeloAtualizacao sobreFaixa` à direita.
-- Busca ("Nome, documento ou cidade") e os 3 filtros: **"Devendo"** (era "Com título vencido", R-20261112-204639; o mesmo nome
-  no atalho que abre a lista já filtrada), "Sem compra 45+ dias" e "Bloqueados".
+  86 na carteira").
+- Busca na tela, com o placeholder "Código, CNPJ ou nome" (v1.0.17), e os 3 filtros dentro do `BotaoFiltro`
+  (`filtro-padrao-campo/spec.md` §0 e §3): **"Devendo"** (era "Com título vencido", R-20261112-204639; o mesmo nome no atalho
+  que abre a lista já filtrada), "Sem compra 45+ dias" e "Bloqueados".
 - A informação que saiu da linha vive nos filtros e na ficha. Vazio: sem mudança ("Nenhum cliente com esses filtros").
 
 ## 5. Componentes
 `ChipEstado` (tons `erro`, `neutro` e `sucesso`, `pequeno`, `icone="lock"`), `Icon`, `t.title16`, `t.sub`, `Screen` com
-`cabecalho` e `SeloAtualizacao sobreFaixa`, todos de `@macuxi/ui/mobile`. Nenhum componente novo.
+`cabecalho`, todos de `@macuxi/ui/mobile`. Nenhum componente novo.

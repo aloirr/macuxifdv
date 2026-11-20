@@ -41,7 +41,7 @@ export interface PropsCabecalhoTela {
   voltar?: { label: string; fallback: string; aoVoltar?: () => void; testID?: string };
   /**
    * Ação curta à direita do título (ícone de 48 dp). Nunca o botão principal da tela e nada grafite (some no Azul noite).
-   * No Campo, nunca o `SeloAtualizacao` (componentes.md §5.2) nem filtro (ver filtro-padrao-campo §0).
+   * Nunca filtro no Campo (filtro-padrao-campo §0); hora da sincronização: ver `SeloAtualizacao`.
    */
   direita?: ReactNode;
   testID?: string;

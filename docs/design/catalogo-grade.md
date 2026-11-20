@@ -15,19 +15,14 @@ Tela: `modules/catalogo/app/telas/catalogo.tsx` e `comum.tsx` (modulo-catalogo).
    - título `Catálogo`;
    - subtítulo **abaixo** do título, como em Clientes (`posicaoSubtitulo="abaixo"`, o padrão; MC-0008): a contagem da lista,
      `40 produtos` (`1 produto` no singular). Com filtro ou busca, a contagem é a do resultado (`5 produtos`);
-   - à direita, a hora do sync: `SeloAtualizacao` com `sobreFaixa` (`↻ 06:30`, "Atualizando…", "Sem sinal", "Sem resposta",
-     os textos de `desenhoSeloAtualizacao`). O toque é o mesmo do puxar para baixo;
    - aberto pela ficha do cliente: o voltar na faixa com o nome do cliente (`‹ Mercadinho São Jorge`).
 2. **Busca** (`CampoBusca` 48): `Produto, código ou aplicação`, com o ✕ para limpar. Mesmas regras de hoje (offline, 3 letras,
    `Você quis dizer`, `NadaEncontrado`).
-3. **Sistema** em chips (`LinhaChips` + `Chip` 36, rola na horizontal): `Todos` (marcado ao abrir) e um chip por sistema, na
-   ordem do cadastro.
-4. **Categoria** em chips, numa 2ª linha, **só depois de escolher um sistema**: `Todas` (marcado) e as categorias daquele
-   sistema. Níveis abaixo da categoria não viram chip: os produtos deles entram na grade da categoria.
-5. **Grade** de 2 colunas (§2).
-6. Fim da lista: `MostrarMais` com `contagem={false}` (só o botão `+ Mostrar mais`; a contagem já está na faixa). Páginas de 20.
+3. Família e Sistema na folha Filtrar (`filtro-padrao-campo/spec.md` §0).
+4. **Grade** de 2 colunas (§2).
+5. Fim da lista: `MostrarMais` com `contagem={false}` (só o botão `+ Mostrar mais`; a contagem já está na faixa). Páginas de 20.
 
-Com busca, os chips continuam e filtram o resultado. Trocar de sistema volta a categoria para `Todas`.
+Com busca, o filtro continua valendo sobre o resultado.
 
 **Saem:** a linha "Abra pela ficha do cliente para ver o preço da tabela dele." (e a "Preços da tabela do cliente
 selecionado."), a lista de "Sistemas" como entrada, a trilha, o título do nível, "40 produtos ativos", "Atualizado às… · puxe
@@ -64,11 +59,11 @@ Desde R-20261115-083600, só duas cores, no cartão, na busca e na ficha (o lara
 ## 5. Estados
 - Carregando a 1ª vez: `Loading` no lugar da grade; a faixa e a busca já aparecem.
 - Catálogo ainda não chegou ao aparelho: `EstadoVazio` `O catálogo ainda não está no aparelho` com a ação `Sincronizar`.
-- Filtro sem produto: `Nenhum produto em <categoria>` e o chip `Todas` continua tocável.
+- Filtro sem produto: `Nenhum produto em <categoria>`.
 - Busca sem resultado: `NadaEncontrado` (sem mudança).
-- Sem sinal: o `SeloAtualizacao` mostra `Sem sinal`; a grade continua com o que está no aparelho.
+- Sem sinal: a grade continua com o que está no aparelho.
 
 ## 6. Componentes
-`Screen` com `cabecalho` (`CabecalhoTela`), `SeloAtualizacao sobreFaixa`, `CampoBusca`, `LinhaChips`, `Chip`, `Cartao`,
+`Screen` com `cabecalho` (`CabecalhoTela`), `CampoBusca`, `Cartao`,
 `ChipEstado pequeno`, `MostrarMais contagem={false}`, `NadaEncontrado`, `EstadoVazio`, todos de `@macuxi/ui/mobile`. A grade é
-uma `FlatList` com `numColumns={2}` do módulo. Nenhum componente novo além das duas props do kit (`sobreFaixa` e `contagem`).
+uma `FlatList` com `numColumns={2}` do módulo. Nenhum componente novo além da prop `contagem` do kit.

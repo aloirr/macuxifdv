@@ -20,9 +20,11 @@
 ## 0. Regra geral (v1.0.17, R-20261120-055304 item 7; vale para todas as telas do Campo)
 - **Tudo o que é filtro fica dentro do `BotaoFiltro`** (folha "Filtrar"): busca, situação, chips, período, cidade, filial. Fora
   do botão, na tela, só as `EtiquetaFiltro` do que está ativo.
-- **Única exceção: a busca do Catálogo** (`CampoBusca` na tela, ao lado do `BotaoFiltro`).
-- Por isso a busca de Clientes (§3) e a de Pedidos entram na folha como grupo **Cliente**, e os chips de sistema e categoria do
-  Catálogo entram na folha como grupos. Telas e donos: `docs/design/campo-v1017/spec.md`.
+- **Exceções, duas** (`CampoBusca` na tela, ao lado do `BotaoFiltro`; R-20261120-062210):
+  1. a busca do Catálogo, com a chave "Só com estoque" logo abaixo dela (R-20261120-055304 item 12);
+  2. a busca de Clientes, por código, CNPJ, razão social ou nome fantasia (§3).
+- Por isso a busca de Pedidos entra na folha como grupo **Cliente**, e os chips de família e sistema do Catálogo entram na
+  folha como grupos. Telas e donos: `docs/design/campo-v1017/spec.md`.
 - O `Segmentado` da Performance (Resultados · Produtividade) troca a vista, não filtra: fica na tela.
 
 ## 1. O padrão (igual a Pedidos)
@@ -46,7 +48,7 @@
 - Mapa e lista mostram só as paradas filtradas; a numeração continua a da rota (2, 5, 7, 9).
 
 ## 3. Clientes
-- A busca fica na folha como grupo **Cliente** (§0); na linha de cima fica só o `BotaoFiltro`. A linha de situações (Curva A, Sem compra 45+, Devendo, Não positivados) sai da tela e
+- A busca fica na tela (exceção do §0), ao lado do `BotaoFiltro`. A linha de situações (Curva A, Sem compra 45+, Devendo, Não positivados) sai da tela e
   vira o grupo **Situação** da folha, em chips de marcar (decidido em R-20261115-074500). Cada chip marcado aparece como `EtiquetaFiltro` (`Devendo ✕`).
 - A etiqueta da situação marcada no filtro não se repete nas linhas (RD-0500): com `Devendo`, a linha mostra o nome, "Visitado
   há…" e o ›. Com 2 situações marcadas, a linha mostra a que a distingue.
@@ -58,3 +60,8 @@
 - A linha própria do filtro sai. `Segmentado` (Resultados · Produtividade, `flex: 1`) e `BotaoFiltro` na mesma linha, `gap: 8`.
 - O período continua na linha de baixo (`Novembro de 2026` · `DU 11 de 23 · 12 restantes`); fora do padrão, vira etiqueta (`Outubro de 2026 ✕`).
 - Em dia que não é útil (RD-0502, modulo-core): `Não é dia útil · 11 restantes`, no lugar do "DU — de 23".
+
+## 5. Pedidos (`modules/vendedor/app/screens/orders-screen.tsx`, modulo-vendedor)
+- A busca "Cliente ou nº" sai da tela e entra na folha "Filtrar" como grupo **Cliente** (`CampoBusca` dentro da `FolhaFiltro`),
+  junto da situação e do período; busca ativa vira `EtiquetaFiltro` (`"Raimundo" ✕`). Peças: `BotaoFiltro`, `FolhaFiltro`,
+  `CampoBusca`, `EtiquetaFiltro`.

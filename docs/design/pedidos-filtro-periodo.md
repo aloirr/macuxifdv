@@ -6,13 +6,15 @@
 
 ## 1. A tela, de cima para baixo
 1. Título "Pedidos" e a ação principal da tela (como hoje).
-2. **Linha de busca:** `CampoBusca` (`flex: 1`) e, à direita, `BotaoFiltro` (48 × 48 dp, funil), `gap: 8`.
+2. **Linha do filtro:** `BotaoFiltro` (48 × 48 dp, funil) à direita; a busca fica dentro da folha "Filtrar"
+   (`filtro-padrao-campo/spec.md` §5).
    - Com filtro diferente do padrão, o botão ganha borda grafite e o **selo laranja** com o número de filtros (`contagem`).
    - O padrão (Este mês, todos os vendedores) não conta como filtro: sem selo.
 3. **Etiquetas** (`EtiquetaFiltro`) logo abaixo, só com filtro ativo, em `LinhaChips` se houver mais de uma:
    "Este mês ✕" não aparece (é o padrão); "Ontem ✕", "Seg, 02/11/2026 ✕", "Setembro de 2026 ✕", "Ana Souza ✕" (Gestão).
    Tocar na etiqueta remove aquele filtro (volta ao padrão dele). Leitura: "Remover filtro Ontem".
-4. A linha de situação (chips Todos · Na fila · Aguardando · Aprovados · Rejeitados) e a lista.
+4. A lista. Os chips de situação (Todos · Na fila · Aguardando · Aprovados · Rejeitados) ficam na folha "Filtrar"
+   (`filtro-padrao-campo/spec.md` §5).
 5. **O aviso "Só os últimos 90 dias do aparelho" sai da tela.** Ele aparece só quando o período escolhido sai da janela do
    aparelho, como `ajuda` na folha ("Fora dos 90 dias do aparelho: busca no servidor, precisa de sinal") e, na lista, o estado
    carregando/sem sinal de sempre.

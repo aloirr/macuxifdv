@@ -24,7 +24,7 @@ que é a fonte da verdade (aqui não se repete a tabela). Este guia só diz qual
 
 - **App (`packages/ui/src/mobile`):** `fonte` dá só o peso, sem `fontFamily`: `body` (texto) · `medium` (rótulo, meta) ·
   `semibold` (ênfase, rótulo de campo, botão, valor, aba ativa) · `bold` (título) · `mono` (código). Estilos de texto `type`,
-  por papel: `h1` número grande · `h1Small` título de tela, folha e diálogo · `saudacao` "Bom dia, Lucas" no Início do Campo
+  por papel: `h1` número grande · `h1Small` título de tela, folha e diálogo · `saudacao` "Bom dia, Lucas." no Início do Campo
   e do Gestão (22/700, o mesmo de `h1Small`) · `h2` título de seção · `number` valor em destaque · `body` texto ·
   `bodyStrong` ênfase e título de linha · `sub` secundário · `small` legenda · `label` rótulo pequeno · `rotulo` rótulo em
   maiúsculas (quem precisa de largura ou linha própria usa `{ ...t.rotulo, <só o que muda> }`). Tamanhos: `ESCALA_FONTE`.
@@ -333,10 +333,10 @@ fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
     houver sinal.");
   - sem sinal: `Banner` âmbar (`wifiOff`) e `SyncStamp`; nada some da tela por falta de sinal;
   - **listas** (RD-0076, 10/11; regra "nenhum aviso solto", RN-VEN-42; v1.0.17, R-20261120-055304 item 6): **no Campo, a hora
-    da sincronização fica só no Início, junto do botão Sincronizar**; nenhuma tela do Campo leva o `SeloAtualizacao` no
-    cabeçalho, e o servidor sem resposta que pede ação vai para a área Alertas da tela. No Gestão, o `SeloAtualizacao` segue à
-    direita do título (textos em `desenhoSeloAtualizacao`). Sem faixa de sinal ou de fila no meio da lista e sem rodapé
-    "Atualizado às…". A fila é o selo "Na fila" da linha;
+    da sincronização fica só no Início, junto do botão Sincronizar**. Sem faixa de sinal ou de fila no meio da lista e sem
+    rodapé "Atualizado às…". A fila é o selo "Na fila" da linha;
+  - no app, o selo não mostra "Atualizando…" nem "Sem resposta" (R-20261120-062537). No Gestão, o
+    `SeloAtualizacao` com a hora segue à direita do título (textos em `desenhoSeloAtualizacao`);
   - a tela quebrou ao desenhar (erro de render, `ErrorBoundary` do shell): `TelaDeErro` com os textos de `TEXTOS_TELA_DE_ERRO`
     ("Não foi possível mostrar esta tela" · Tentar de novo · Ir para o Início · Enviar o detalhe ao suporte). Nunca
     `EstadoVazio` para erro. Spec: `docs/design/tela-de-erro.md` (T-0140).
@@ -356,17 +356,17 @@ fio `lineSoft` entre as linhas, linhas de no mínimo 48 dp. Só tokens do kit.
 - **Faixa:** Azul noite, começa na barra de status (soma a área segura) e fica parada em cima; o corpo rola embaixo, no Pérola,
   com os cartões brancos. Sem logo.
 - **Textos:** título branco, 22/28 em 700; subtítulo de uma linha em `#C9CED5`, 14. O subtítulo fica abaixo do título ou
-  acima dele (`posicaoSubtitulo="acima"`, como a data acima de "Bom dia, Lucas" no Início).
+  acima dele (`posicaoSubtitulo="acima"`, como a data acima de "Bom dia, Lucas." no Início).
 - **Voltar:** dentro da faixa ("‹ Pedidos"), em `#C9CED5`, com as regras do `BackLink` (§6.1).
 - **Direita:** uma ação curta de 48 dp (ícone) e, por último, o sino (`SinoNotificacoes`, §5.4). O botão principal fica no
-  corpo, nunca na faixa. Nada grafite na faixa, nem o botão Sincronizar. No Campo, sem `SeloAtualizacao` (§5, listas) e sem filtro (§4.2) na faixa.
+  corpo, nunca na faixa. Nada grafite na faixa, nem o botão Sincronizar. No Campo, sem filtro (§4.2) na faixa.
 - **Altura única (v1.0.17, item 5):** a do painel do Início, `ALTURA_CABECALHO` = 100 dp sem a área segura (12 + foto 72 + 16);
   o `CabecalhoTela` usa `alturaMinimaCabecalho(insets.top)` como altura mínima e centraliza o conteúdo na vertical. Só cresce
   quando o voltar e um título de 2 linhas não cabem.
 - **Uso:**
   ```tsx
   <Screen cabecalho={{ titulo: 'Clientes', subtitulo: '12 na rota de hoje' }}>…</Screen>
-  <Screen cabecalho={{ titulo: 'Bom dia, Lucas', subtitulo: 'Quinta, 12 de novembro', posicaoSubtitulo: 'acima' }}>…</Screen>
+  <Screen cabecalho={{ titulo: 'Bom dia, Lucas.', subtitulo: 'Quinta, 12 de novembro', posicaoSubtitulo: 'acima' }}>…</Screen>
   ```
   O título da faixa substitui o título que a tela desenhava dentro do `Screen`: não repita.
 - **Barra de status:** ícones claros com a faixa e escuros sem ela (`estiloBarraDeStatus`). O shell aplica.
@@ -408,12 +408,8 @@ web (`--color-disabled`). A troca no kit (`packages/ui/src/web/ui.tsx`) entra no
 - **Leitura (`leituraDoSino`):** "Recados e tarefas" e "Recados e tarefas, há novos".
 
 ### 5.5 Frase motivacional do Início (`type.fraseInicio`; v1.0.17, item 1)
-- Token `colors.faixaFrase` e estilo `type.fraseInicio` (14, itálico, até `LINHAS_FRASE_INICIO` = 2 linhas). **Hoje** o mesmo
-  `#C9CED5` em 400 de antes: a tela não muda de cor.
-- **Aguardando aprovação do dono do produto** (proposta do design-de-marca em `docs/marca/propostas/2026-11-20-frase-inicio/`,
-  README): recomendada Sol claro `#F59A52` (`colors.accentLight`) em 700, 5,85:1 na faixa; alternativa branco
-  (`colors.faixaTitulo`) em 700, 12,77:1. Com o "aprovado", o design-de-marca registra a exceção ao manual §3 e só então
-  mudam o valor do token e o peso.
+- Token `colors.faixaFrase` = Sol claro `#F59A52` (`colors.accentLight`, 5,85:1 na faixa) e estilo `type.fraseInicio`
+  (14/700, itálico, até `LINHAS_FRASE_INICIO` = 2 linhas). Aprovado em 20/11/2026 (R-20261120-062210).
 
 ## 6. Movimento (sempre com "reduzir movimento")
 | Movimento | Token | Duração | Com "reduzir movimento" | Quem liga |
