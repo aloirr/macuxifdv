@@ -280,11 +280,12 @@ jobs:
         if: ${{ !cancelled() && matrix.parte == 'verificar' }}
         run: node --test scripts/ci/timers-sync.test.mjs && pnpm timers
 
+      # --concurrency=2: sem o limite, os tsc em paralelo estouram a memória do runner (7 GB) e travam (R-20261120-155015).
       - name: typecheck
         if: ${{ !cancelled() && matrix.parte == 'verificar' }}
         env:
           FILTRO: ${{ needs.escopo.outputs.filtro_typecheck }}
-        run: pnpm exec turbo run typecheck typecheck:tests --continue $FILTRO
+        run: pnpm exec turbo run typecheck typecheck:tests --continue --concurrency=2 $FILTRO
 
       - uses: ./.github/actions/salvar-turbo
         if: ${{ !cancelled() && matrix.parte == 'verificar' }}
