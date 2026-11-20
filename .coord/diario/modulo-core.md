@@ -193,3 +193,4 @@
 2026-11-19 — v1.0.16 — no-store na rota da Carteira
 2026-11-20 — v1.0.16 — RD-2414 a RD-2418 na Carteira
 2026-11-20 — v1.0.16 — RD-2419 perfilDeGestao único no domain
+2026-11-20 — T-0187 — gerente dono de rota (sem rastreamento)

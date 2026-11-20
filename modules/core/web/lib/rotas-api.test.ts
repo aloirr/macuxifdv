@@ -55,7 +55,7 @@ describe('rotas do BKO: adaptador do servidor para o editor (T-0018)', () => {
     expect(e.papeis).toEqual({ [id(1)]: 'vendedor', [id(2)]: 'promotor' });
   });
 
-  it('RN-CORE-13: donos de rota no BKO: vendedor, promotor e supervisor ativos; gerente fora; a "equipe" do supervisor é o gerente dele', () => {
+  it('RN-CORE-13: donos de rota no BKO: vendedor, promotor, supervisor e gerente ativos; a "equipe" do supervisor é o gerente dele', () => {
     const membros = [
       { id: id(100), nome: 'Gil Gerente', perfil: 'gerente', superior_id: null, ativo: true },
       { id: id(101), nome: 'Sueli Supervisora', perfil: 'supervisor', superior_id: id(100), ativo: true },
@@ -63,9 +63,9 @@ describe('rotas do BKO: adaptador do servidor para o editor (T-0018)', () => {
       { id: id(1), nome: 'Vera Vendedora', perfil: 'vendedor', superior_id: id(101), ativo: true },
     ] as const;
     const d = donosDeRotaDaHierarquia(membros);
-    expect(d.sellers.map((s) => s.name)).toEqual(['Sueli Supervisora', 'Vera Vendedora']);
-    expect(d.sellers[0]).toMatchObject({ team_id: id(100), team_name: 'Equipe de Gil Gerente' });
-    expect(d.teams.map((t) => t.name)).toEqual(['Equipe de Gil Gerente', 'Equipe de Sueli Supervisora']);
+    expect(d.sellers.map((s) => s.name)).toEqual(['Gil Gerente', 'Sueli Supervisora', 'Vera Vendedora']);
+    expect(d.sellers[1]).toMatchObject({ team_id: id(100), team_name: 'Equipe de Gil Gerente' });
+    expect(d.teams.map((t) => t.name)).toEqual(['Equipe de Gil Gerente', 'Equipe de Sueli Supervisora', 'Sem equipe']);
     // a equipe de campo (carteira, farol, visitas) segue sem o supervisor
     expect(equipesDaHierarquia(membros).sellers.map((s) => s.name)).toEqual(['Vera Vendedora']);
   });

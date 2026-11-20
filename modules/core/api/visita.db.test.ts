@@ -480,6 +480,15 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       expect(new Set(ids).size).toBe(ids.length);
     });
 
+    it('RN-CORE-04: o gerente é dono de rota: a carteira dele é a das equipes abaixo (c1 sim), e o editor lista essa carteira sem repetir cliente', async () => {
+      const r = await chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.gerente, data: SEMANA_QUA }, corpo: { paradas: [{ cliente_id: C.c1 }] } });
+      expect(r.paradas.map((p: { cliente_id: string }) => p.cliente_id)).toEqual([C.c1]);
+      const cart = await chamar('GET', 'usuarios/:id/clientes', gerente, { params: { id: U.gerente } });
+      const ids = cart.itens.map((c: { id: string }) => c.id);
+      expect(ids).toContain(C.c1);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
     it('o editor do BKO recebe o cliente de cada parada (nome, cidade e coordenada) e a carteira vigente do usuário com o vínculo', async () => {
       const dia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA } });
       expect(dia.paradas.find((p: { cliente_id: string }) => p.cliente_id === C.c1)).toMatchObject({ cliente_nome: 'Auto Peças Um', lat: expect.any(Number), lng: expect.any(Number) });

@@ -114,16 +114,20 @@ async function rotasDoPeriodo(ctx: ContextoBase, db: ClienteBanco, usuarios: str
 
 /**
  * RN-CORE-04 (T-0187, P1 A): de quem é a carteira que vale para a rota do usuário `$1`: a dele; para o supervisor, também a da equipe
- * que ele responde (ele não tem carteira própria). Gerente não tem rota; o resto segue só com a própria.
+ * que ele responde; para o gerente, a das equipes abaixo dele (como `carteiraNoBanco`). Supervisor e gerente não têm carteira própria;
+ * o resto segue só com a própria. A rota do gerente não tem rastreamento (`CARGOS_RASTREADOS` não o inclui).
  */
 const DONOS_DA_CARTEIRA_DA_ROTA = `
   with recursive eq as (
-    select id from core.equipe where responsavel_id = $1 and deleted_at is null and ativo
+    select id, 0 as nivel from core.equipe where responsavel_id = $1 and deleted_at is null and ativo
+    union all
+    select e.id, eq.nivel + 1 from core.equipe e join eq on e.equipe_pai_id = eq.id where e.deleted_at is null and e.ativo
   ), donos as (
     select u.id from core.usuario u where u.id = $1
     union
     select m.id from core.usuario m join eq on eq.id = m.equipe_id
-      where m.deleted_at is null and exists (select 1 from core.usuario s where s.id = $1 and s.perfil = 'supervisor' and s.deleted_at is null)
+      where m.deleted_at is null
+        and exists (select 1 from core.usuario s where s.id = $1 and s.deleted_at is null and (s.perfil = 'gerente' or (s.perfil = 'supervisor' and eq.nivel = 0)))
   )`;
 
 async function checarUsuario(ctx: ContextoBase, db: ClienteBanco, usuarioId: string): Promise<void> {

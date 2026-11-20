@@ -126,9 +126,9 @@ export function equipesDaHierarquia(membros: readonly MembroHierarquia[]): { sel
   return { papeis, sellers, teams };
 }
 
-/** RN-CORE-13 (T-0187, P1 A): quem pode ter rota no BKO: a equipe de campo e o supervisor (a "equipe" dele é o gerente); o gerente não tem rota. */
+/** RN-CORE-13 (T-0187, P1 A): quem pode ter rota no BKO: a equipe de campo, o supervisor (a "equipe" dele é o gerente) e o gerente (sem rastreamento; a carteira da rota é a das equipes abaixo). */
 export function donosDeRotaDaHierarquia(membros: readonly MembroHierarquia[]): { sellers: Seller[]; teams: Team[] } {
-  const { sellers, teams } = montarEquipes(membros, ['vendedor', 'promotor', 'supervisor']);
+  const { sellers, teams } = montarEquipes(membros, ['vendedor', 'promotor', 'supervisor', 'gerente']);
   return { sellers, teams };
 }
 
