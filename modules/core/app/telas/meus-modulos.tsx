@@ -1,5 +1,5 @@
 /**
- * "Meus módulos" (RF-CORE-02; RN-CORE-01/02). Lê do aparelho (offline-first): os módulos efetivos gravados no
+ * "Módulos" (RF-CORE-02; RN-CORE-01/02). Lê do aparelho (offline-first): os módulos efetivos gravados no
  * último sync. Online, atualiza as versões com `GET /v1/me/modulos` e guarda para a próxima vez sem sinal.
  * Também mostra o que ficou "Não enviado — módulo desativado" e libera apagar os dados locais só depois do "Entendi".
  * testIDs: docs/modulos/core/test-ids.md. Alvos de toque >= 48 dp.
@@ -47,7 +47,7 @@ export function TelaMeusModulos() {
     void motor?.sincronizar();
   }, [motor]);
 
-  const ativos = estado.modulosAtivos.length > 0 ? estado.modulosAtivos : (['core'] as ModuloId[]);
+  const ativos = estado.modulosAtivos;
   const linhas = linhasMeusModulos(ativos, versoes);
   const naoEnviados = itensNaoEnviadosPorModulo(estado.fila);
 
@@ -56,25 +56,31 @@ export function TelaMeusModulos() {
       refreshing={estado.sincronizando}
       onRefresh={atualizar}
       testID="meus-modulos.tela"
-      cabecalho={{ titulo: 'Meus módulos', subtitulo: 'O que está liberado para você' }}>
+      cabecalho={{ titulo: 'Módulos' }}>
 
       {aviso ? <Banner testID="meus-modulos.aviso">{aviso}</Banner> : null}
       {estado.erro ? <Banner tone="danger">{estado.erro}</Banner> : null}
 
-      <Cartao preenchimento={4} testID="meus-modulos.lista">
-        {linhas.map((l, i) => (
-          <View key={l.modulo} style={[styles.linha, i > 0 && styles.divisor]} testID={`meus-modulos.item.${l.modulo}`}>
-            <Text style={styles.nome}>{l.modulo}</Text>
-            <Text style={styles.versao} testID={`meus-modulos.versao.${l.modulo}`}>
-              {l.versao}
-            </Text>
+      {linhas.length > 0 ? (
+        <View style={styles.tabela} testID="meus-modulos.lista">
+          <View style={[styles.linha, styles.cabecalhoTabela]}>
+            <Text style={t.label}>Módulo</Text>
+            <Text style={t.label}>Versão</Text>
           </View>
-        ))}
-      </Cartao>
+          {linhas.map((l) => (
+            <View key={l.modulo} style={[styles.linha, styles.divisor]} testID={`meus-modulos.item.${l.modulo}`}>
+              <Text style={styles.nome}>{l.modulo}</Text>
+              <Text style={styles.versao} testID={`meus-modulos.versao.${l.modulo}`}>
+                {l.versao}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       {soTemOCore(ativos) ? (
         <Text style={t.sub} testID="meus-modulos.vazio">
-          Só o módulo básico está ativo. Peça ao administrador da sua empresa para liberar os outros módulos.
+          Nenhum módulo liberado para você. Peça ao administrador da sua empresa.
         </Text>
       ) : null}
 
@@ -105,6 +111,8 @@ export function TelaMeusModulos() {
 }
 
 const styles = StyleSheet.create({
+  tabela: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 12, overflow: 'hidden' },
+  cabecalhoTabela: { minHeight: 40 },
   linha: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, gap: 8 },
   divisor: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   nome: { ...fonte.semibold, fontSize: 16, color: colors.ink, textTransform: 'capitalize' },

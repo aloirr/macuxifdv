@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { montarHierarquia, recortarHierarquia, subordinadosDe } from './hierarquia';
+import { gestorImediatoDe, montarHierarquia, recortarHierarquia, subordinadosDe } from './hierarquia';
 
 const equipes = [
   { id: 'regional', equipe_pai_id: null, responsavel_id: 'ger' },
@@ -58,5 +58,19 @@ describe('hierarquia da equipe (RF-CORE-02; RN-CORE-04)', () => {
   });
   it('RN-CORE-04: recorte "tenant" devolve a árvore inteira', () => {
     expect(recortarHierarquia(h, 'tenant')).toHaveLength(6);
+  });
+});
+
+describe('gestor imediato do Perfil (RN-CORE-04)', () => {
+  const h = montarHierarquia(equipes, usuarios);
+  it('RN-CORE-04: o gestor imediato é o superior direto (id e nome); sem superior, null', () => {
+    expect(gestorImediatoDe(h, 'v1')).toEqual({ id: 'sup', nome: 'Supervisor' });
+    expect(gestorImediatoDe(h, 'sup')).toEqual({ id: 'ger', nome: 'Gerente' });
+    expect(gestorImediatoDe(h, 'ger')).toBeNull();
+    expect(gestorImediatoDe(h, 'inexistente')).toBeNull();
+  });
+  it('RN-CORE-04: superior inativo não aparece como gestor imediato', () => {
+    const inativo = montarHierarquia(equipes, usuarios.map((u) => (u.id === 'sup' ? { ...u, ativo: false } : u)));
+    expect(gestorImediatoDe(inativo, 'v1')).toBeNull();
   });
 });

@@ -7,12 +7,13 @@ const item = (id: string, modulo: ItemOutbox['modulo'], situacao: ItemOutbox['si
 });
 
 describe('RF-CORE-02: tela Meus módulos', () => {
-  it('RF-CORE-02: uma linha por módulo efetivo, com a versão (— quando ainda não conhecida); o core sempre aparece', () => {
-    expect(linhasMeusModulos(['core', 'vendedor'], { core: '0.1.0' })).toEqual([
-      { modulo: 'core', versao: '0.1.0' },
+  it('RF-CORE-02: uma linha por módulo liberado, com a versão (— quando ainda não conhecida); o core é interno e não aparece', () => {
+    expect(linhasMeusModulos(['core', 'vendedor', 'catalogo'], { core: '0.1.0', catalogo: '1.2.0' })).toEqual([
       { modulo: 'vendedor', versao: VERSAO_DESCONHECIDA },
+      { modulo: 'catalogo', versao: '1.2.0' },
     ]);
-    expect(linhasMeusModulos([], {}).map((l) => l.modulo)).toEqual(['core']);
+    expect(linhasMeusModulos([], {})).toEqual([]);
+    expect(linhasMeusModulos(['core'], { core: '0.1.0' })).toEqual([]);
   });
 
   it('RF-CORE-02: aviso de vazio só quando o core é o único ativo', () => {

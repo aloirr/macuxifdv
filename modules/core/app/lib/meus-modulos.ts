@@ -11,10 +11,9 @@ export interface LinhaMeusModulos {
 
 export const VERSAO_DESCONHECIDA = '—';
 
-/** Uma linha por módulo efetivo, na ordem recebida (ordem de dependência, core primeiro). O core aparece sempre. */
+/** Uma linha por módulo liberado, na ordem recebida (ordem de dependência). O core é módulo interno e não entra na tabela. */
 export function linhasMeusModulos(ativos: readonly ModuloId[], versoes: Readonly<Partial<Record<ModuloId, string>>>): LinhaMeusModulos[] {
-  const ids: ModuloId[] = ativos.includes('core') ? [...ativos] : ['core', ...ativos];
-  return ids.map((modulo) => ({ modulo, versao: versoes[modulo] ?? VERSAO_DESCONHECIDA }));
+  return ativos.filter((m) => m !== 'core').map((modulo) => ({ modulo, versao: versoes[modulo] ?? VERSAO_DESCONHECIDA }));
 }
 
 /** Só o core ativo = nada contratado além do básico (mostra o aviso `meus-modulos.vazio`). */

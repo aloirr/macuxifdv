@@ -60,3 +60,13 @@ export function recortarHierarquia(membros: readonly MembroHierarquia[], visivei
   if (visiveis === 'tenant') return [...membros];
   return membros.filter((m) => visiveis.has(m.id)).map((m) => ({ ...m, superior_id: m.superior_id && visiveis.has(m.superior_id) ? m.superior_id : null }));
 }
+
+/**
+ * Gestor imediato do Perfil do app: o superior direto (`superior_id`) com id e nome; `null` sem superior ou com superior
+ * inativo/inexistente. A API calcula com a hierarquia inteira do tenant (não recortada), porque é o próprio usuário quem lê o seu.
+ */
+export function gestorImediatoDe(membros: readonly MembroHierarquia[], usuarioId: string): { id: string; nome: string } | null {
+  const superiorId = membros.find((m) => m.id === usuarioId)?.superior_id;
+  const superior = superiorId ? membros.find((m) => m.id === superiorId) : undefined;
+  return superior && superior.ativo ? { id: superior.id, nome: superior.nome } : null;
+}
