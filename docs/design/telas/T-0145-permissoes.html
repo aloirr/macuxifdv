@@ -18,7 +18,6 @@
   .pl .n { font-size: 15px; font-weight: 600; }
   .pl .m { font-size: 13px; color: var(--ink2); margin-top: 2px; line-height: 17px; }
   .pl .st { font-size: 13px; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
-  .st.ok { color: var(--success); }
   .st.falta { color: var(--ink2); }
   .st.neg { color: var(--danger); }
   .passos { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; }
@@ -28,51 +27,71 @@
   .passos .nm.ok { background: var(--success); }
   .passos .feito { color: var(--ink2); }
   .rodape-perm { flex: none; padding: 12px 20px 20px; display: flex; flex-direction: column; gap: 4px; }
-  .link { font-size: 14px; font-weight: 600; color: var(--accentInk); height: 44px; display: flex; align-items: center; }
+  /* janela do Android (desenho do sistema, não do app) */
+  .nativo { position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%); background: #EEF0F4; border-radius: 26px; padding: 22px 20px 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; box-shadow: 0 12px 32px rgba(15, 20, 25, .25); }
+  .nativo .q { font-size: 17px; line-height: 23px; color: #1B1F24; }
+  .nativo .bs { align-self: stretch; display: flex; flex-direction: column; gap: 6px; }
+  .nativo .b { height: 44px; border-radius: 22px; background: #D8DEE8; color: #1B1F24; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .nativo .cont { font-size: 12px; color: #5B6673; }
 </style>
 </head>
 <body>
-<h1 class="prancha">Permissões obrigatórias · 1ª abertura e cada abertura</h1>
-<p class="prancha">T-0145 · antes do login e da sincronização. O Campo exige as 4; o Gestão, só notificações. Um botão por tela: Permitir pede a próxima que falta; depois de duas recusas, vira Abrir configurações. Com todas, a tela some sozinha.</p>
+<h1 class="prancha">Permissões obrigatórias · cada abertura</h1>
+<p class="prancha">T-0145 · antes do login e da sincronização (R-20261120-052422-alexandre). Ao abrir, o app pede as que faltam direto nas janelas do Android, sem tela antes. A tela "Permissões" só aparece se faltar alguma e mostra só o que falta. Um botão: Permitir; depois de duas recusas, Abrir configurações.</p>
 
 <div class="board">
 
-  <!-- 1 · Campo, faltam 3 -->
+  <!-- 1 · Ao abrir: janela do Android -->
   <div class="tela">
-    <div class="legenda"><b>1</b>Campo · faltam 3<span>Cada linha: o nome, o motivo e a situação.</span></div>
+    <div class="legenda"><b>1</b>Ao abrir · janela do Android<span>Uma janela por permissão que falta, na ordem: notificações, localização, câmera, fotos.</span></div>
     <div class="phone perm">
       <div class="status"><span>07:02</span><span>4G ▮▮▮ 92%</span></div>
       <div class="conteudo" style="padding:6px 20px 0;gap:14px">
         <div class="marcax">Macuxi Campo</div>
-        <div class="titulo-tela">Permissões</div>
-        <div class="sub-t">Sem elas o app não funciona.</div>
-        <div class="pl marca">
-          <div class="p"><div class="ic"><i data-i="sino" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Notificações</div><div class="m">Pedidos, aprovações e recados.</div></div><span class="st ok"><i data-i="check" data-t="16"></i>Permitida</span></div>
-          <div class="p"><div class="ic"><i data-i="pin" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Localização o tempo todo</div><div class="m">Check-in e trajeto no horário de trabalho.</div></div><span class="st falta">Falta</span></div>
-          <div class="p"><div class="ic"><i data-i="camera" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Câmera</div><div class="m">Fotos do PDV e da gôndola.</div></div><span class="st falta">Falta</span></div>
-          <div class="p"><div class="ic"><i data-i="galeria" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Fotos e galeria</div><div class="m">Anexar fotos já tiradas.</div></div><span class="st falta">Falta</span></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="nativo marca" style="outline-offset:4px">
+        <i data-i="camera" data-t="24" data-c="#34404D"></i>
+        <div class="q">Permitir que o <b>Macuxi Campo</b> tire fotos e grave vídeos?</div>
+        <div class="bs">
+          <div class="b">Durante o uso do app</div>
+          <div class="b">Apenas esta vez</div>
+          <div class="b">Não permitir</div>
         </div>
-        <div class="link">Como usamos a localização</div>
+        <div class="cont">2 de 3</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 · Negou uma -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Campo · negou a câmera<span>Só o item que falta.</span></div>
+    <div class="phone perm">
+      <div class="status"><span>07:03</span><span>4G ▮▮▮ 92%</span></div>
+      <div class="conteudo" style="padding:6px 20px 0;gap:14px">
+        <div class="marcax">Macuxi Campo</div>
+        <div class="titulo-tela">Permissões</div>
+        <div class="sub-t">Sem ela o app não funciona.</div>
+        <div class="pl marca">
+          <div class="p"><div class="ic"><i data-i="camera" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Câmera</div><div class="m">Fotos do PDV e da gôndola.</div></div><span class="st falta">Falta</span></div>
+        </div>
       </div>
       <div style="flex:1"></div>
       <div class="rodape-perm"><div class="btn principal">Permitir</div></div>
     </div>
   </div>
 
-  <!-- 2 · Localização, passo 2 -->
+  <!-- 3 · Localização, passo 2 -->
   <div class="tela">
-    <div class="legenda"><b>2</b>Localização: passo 2 de 2<span>Android 11 ou mais novo: "o tempo todo" só nas configurações.</span></div>
+    <div class="legenda"><b>3</b>Localização: passo 2 de 2<span>Android 11 ou mais novo: "o tempo todo" só nas configurações.</span></div>
     <div class="phone perm">
       <div class="status"><span>07:03</span><span>4G ▮▮▮ 92%</span></div>
       <div class="conteudo" style="padding:6px 20px 0;gap:14px">
         <div class="marcax">Macuxi Campo</div>
         <div class="titulo-tela">Permissões</div>
-        <div class="sub-t">Sem elas o app não funciona.</div>
+        <div class="sub-t">Sem ela o app não funciona.</div>
         <div class="pl">
-          <div class="p"><div class="ic"><i data-i="sino" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Notificações</div><div class="m">Pedidos, aprovações e recados.</div></div><span class="st ok"><i data-i="check" data-t="16"></i>Permitida</span></div>
           <div class="p"><div class="ic"><i data-i="pin" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Localização o tempo todo</div><div class="m">Check-in e trajeto no horário de trabalho.</div></div><span class="st falta">Falta</span></div>
-          <div class="p"><div class="ic"><i data-i="camera" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Câmera</div><div class="m">Fotos do PDV e da gôndola.</div></div><span class="st ok"><i data-i="check" data-t="16"></i>Permitida</span></div>
-          <div class="p"><div class="ic"><i data-i="galeria" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Fotos e galeria</div><div class="m">Anexar fotos já tiradas.</div></div><span class="st ok"><i data-i="check" data-t="16"></i>Permitida</span></div>
         </div>
         <div class="passos marca">
           <div class="ps"><span class="nm ok"><i data-i="check" data-t="14" data-c="#fff"></i></span><span class="feito">Durante o uso</span></div>
@@ -84,9 +103,9 @@
     </div>
   </div>
 
-  <!-- 3 · Negada duas vezes -->
+  <!-- 4 · Negadas duas vezes -->
   <div class="tela">
-    <div class="legenda"><b>3</b>Negada duas vezes<span>O Android não pergunta mais; só pelas configurações.</span></div>
+    <div class="legenda"><b>4</b>Negadas duas vezes<span>O Android não pergunta mais; só pelas configurações.</span></div>
     <div class="phone perm">
       <div class="status"><span>07:04</span><span>4G ▮▮▮ 91%</span></div>
       <div class="conteudo" style="padding:6px 20px 0;gap:14px">
@@ -94,10 +113,8 @@
         <div class="titulo-tela">Permissões</div>
         <div class="sub-t">Sem elas o app não funciona.</div>
         <div class="pl">
-          <div class="p"><div class="ic"><i data-i="sino" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Notificações</div><div class="m">Pedidos, aprovações e recados.</div></div><span class="st ok"><i data-i="check" data-t="16"></i>Permitida</span></div>
-          <div class="p"><div class="ic"><i data-i="pin" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Localização o tempo todo</div><div class="m">Check-in e trajeto no horário de trabalho.</div></div><span class="st ok"><i data-i="check" data-t="16"></i>Permitida</span></div>
           <div class="p marca" style="outline-offset:-2px"><div class="ic"><i data-i="camera" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Câmera</div><div class="m">Em Permissões › Câmera, marque Permitir.</div></div><span class="st neg">Negada</span></div>
-          <div class="p"><div class="ic"><i data-i="galeria" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Fotos e galeria</div><div class="m">Anexar fotos já tiradas.</div></div><span class="st ok"><i data-i="check" data-t="16"></i>Permitida</span></div>
+          <div class="p"><div class="ic"><i data-i="galeria" data-t="20" data-c="#34404D"></i></div><div class="c"><div class="n">Fotos e galeria</div><div class="m">Em Permissões › Fotos e vídeos, marque Permitir.</div></div><span class="st neg">Negada</span></div>
         </div>
       </div>
       <div style="flex:1"></div>
@@ -105,9 +122,9 @@
     </div>
   </div>
 
-  <!-- 4 · Gestão -->
+  <!-- 5 · Gestão -->
   <div class="tela">
-    <div class="legenda"><b>4</b>Gestão<span>Só notificações.</span></div>
+    <div class="legenda"><b>5</b>Gestão · negou notificações<span>Mesmo fluxo: janela do Android ao abrir; a tela só com o que falta.</span></div>
     <div class="phone perm" style="height:500px">
       <div class="status"><span>07:10</span><span>4G ▮▮▮ 88%</span></div>
       <div class="conteudo" style="padding:6px 20px 0;gap:14px">
@@ -123,14 +140,14 @@
     </div>
   </div>
 
-  <!-- 5 · Regras -->
+  <!-- 6 · Regras -->
   <div class="tela">
-    <div class="legenda"><b>5</b>Comportamento<span>Sem texto extra na tela.</span></div>
+    <div class="legenda"><b>6</b>Comportamento<span>Sem texto extra na tela.</span></div>
     <div class="estados">
-      <div class="nota-prancha"><b>Cada abertura:</b> o app confere as permissões. Se alguma foi retirada, volta esta tela, com só ela em "Falta" ou "Negada".</div>
-      <div class="nota-prancha"><b>Volta das configurações:</b> a tela se atualiza sozinha; com todas, segue para o login (ou para o Início, se já entrou).</div>
-      <div class="nota-prancha"><b>Sem voltar:</b> o botão Voltar do Android fecha o app; não há "Agora não".</div>
-      <div class="nota-prancha"><b>"Como usamos a localização":</b> abre o aviso da base LGPD do tracking (finalidade e horário), escrito pelo engenheiro-software.</div>
+      <div class="nota-prancha"><b>Cada abertura:</b> o app pede nas janelas do Android as que faltam. Todas concedidas: segue para o login (ou o Início), sem a tela.</div>
+      <div class="nota-prancha"><b>Faltou alguma:</b> a tela mostra só as que faltam. Concedida, a linha sai; lista vazia, o app segue sozinho.</div>
+      <div class="nota-prancha"><b>Volta das configurações:</b> a tela se atualiza sozinha.</div>
+      <div class="nota-prancha"><b>Sem voltar:</b> o botão Voltar do Android fecha o app; não há "Agora não". Sem link na tela.</div>
     </div>
   </div>
 
