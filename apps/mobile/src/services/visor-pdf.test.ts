@@ -1,8 +1,11 @@
 /**
  * T-0186 (v1.0.16): carga do PDF — o download (`baixarArquivoDoVisor`, testado em foto-pdv.test.ts) é simulado; aqui
- * fica o que é do PDF: temporário no cache apagado ao fechar (também quando chega depois de fechar), erro do download
- * sem arquivo, bytes que não são PDF recusados, nada guardado de outra abertura e a pasta apagada no bloqueio.
+ * fica o que é do PDF: um temporário por visor, apagado só pelo próprio visor ao fechar (também quando chega depois de
+ * fechar), erro do download sem arquivo, bytes que não são PDF recusados e a pasta inteira apagada na abertura do app, no
+ * logout e no bloqueio do aparelho (RN-CORE-15).
  */
+import { readFileSync } from 'node:fs';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sim = vi.hoisted(() => ({
@@ -85,13 +88,39 @@ describe('carregarPdf', () => {
     expect(sim.arquivos.size).toBe(0);
   });
 
-  it('nova abertura apaga a sobra da anterior; o bloqueio apaga a pasta', async () => {
-    sim.arquivos.set('file:///cache/visor-pdf/sobra.pdf', PDF);
-    await carregarPdf(ID);
-    expect([...sim.arquivos.keys()].some((k) => k.endsWith('sobra.pdf'))).toBe(false);
-    expect(sim.arquivos.size).toBe(1);
+  it('cada abertura tem o próprio temporário e não apaga o de outra', async () => {
+    const a = await carregarPdf(ID);
+    const b = await carregarPdf(ID);
+    const ua = a.tipo === 'ok' ? a.uri : '';
+    const ub = b.tipo === 'ok' ? b.uri : '';
+    expect(ua).not.toBe(ub);
+    expect(sim.arquivos.has(ua) && sim.arquivos.has(ub)).toBe(true);
+  });
+});
+
+describe('limparPdfsTemporarios', () => {
+  it('apaga as sobras da pasta do visor (app encerrado com o visor aberto) e só elas', () => {
+    sim.arquivos.set('file:///cache/visor-pdf/sobra-1.pdf', PDF);
+    sim.arquivos.set('file:///cache/visor-pdf/sobra-2.pdf', PDF);
+    sim.arquivos.set('file:///cache/miniaturas/m.jpg', PDF);
     limparPdfsTemporarios();
-    expect(sim.arquivos.size).toBe(0);
+    expect([...sim.arquivos.keys()]).toEqual(['file:///cache/miniaturas/m.jpg']);
+  });
+
+  const fonte = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8');
+
+  it('o shell chama a limpeza na abertura do app (uma vez) e no logout', () => {
+    const plataforma = fonte('../state/plataforma.tsx');
+    expect(plataforma).toMatch(/useEffect\(\(\) => limparPdfsTemporarios\(\), \[\]\);/);
+    const sair = plataforma.slice(plataforma.indexOf('const logout = useCallback('), plataforma.indexOf('const logoutRef = useRef(logout);'));
+    expect(sair).toContain('limparPdfsTemporarios();');
+  });
+
+  it('o bloqueio do aparelho continua apagando a pasta (RN-CORE-15)', () => {
+    const arquivos = fonte('./arquivos.ts');
+    const bloqueio = arquivos.slice(arquivos.indexOf('export async function apagarFotosLocais('), arquivos.indexOf('export const PASTA_MINIATURAS'));
+    expect(bloqueio).toContain('limparPdfsTemporarios();');
+    expect(fonte('../state/plataforma.tsx')).toContain('apagarFotos: apagarFotosLocais,');
   });
 });
 
@@ -106,6 +135,22 @@ describe('abrirPdfNaTela', () => {
     expect(sim.arquivos.size).toBe(0);
   });
 
+  it('dois visores abertos: fechar um não apaga o do outro', async () => {
+    const estadosA: EstadoVisor[] = [];
+    const estadosB: EstadoVisor[] = [];
+    const fecharA = abrirPdfNaTela(ID, (e) => estadosA.push(e));
+    await esperar();
+    const fecharB = abrirPdfNaTela(ID, (e) => estadosB.push(e));
+    await esperar();
+    const uriA = estadosA.at(-1)?.tipo === 'ok' ? (estadosA.at(-1) as { uri: string }).uri : '';
+    const uriB = estadosB.at(-1)?.tipo === 'ok' ? (estadosB.at(-1) as { uri: string }).uri : '';
+    expect(sim.arquivos.has(uriA) && sim.arquivos.has(uriB)).toBe(true);
+    fecharB();
+    expect([...sim.arquivos.keys()]).toEqual([uriA]);
+    fecharA();
+    expect(sim.arquivos.size).toBe(0);
+  });
+
   it('fechou antes de chegar: o temporário é apagado e a tela não recebe nada', async () => {
     const estados: EstadoVisor[] = [];
     const fechar = abrirPdfNaTela(ID, (e) => estados.push(e));
@@ -113,5 +158,16 @@ describe('abrirPdfNaTela', () => {
     await esperar();
     expect(estados.map((e) => e.tipo)).toEqual(['carregando']);
     expect(sim.arquivos.size).toBe(0);
+  });
+
+  it('download tardio apaga só o próprio arquivo: o visor aberto da pilha fica com o dele', async () => {
+    const estados: EstadoVisor[] = [];
+    abrirPdfNaTela(ID, (e) => estados.push(e));
+    await esperar();
+    const aberto = estados.at(-1)?.tipo === 'ok' ? (estados.at(-1) as { uri: string }).uri : '';
+    const fechar = abrirPdfNaTela(ID, () => undefined);
+    fechar();
+    await esperar();
+    expect([...sim.arquivos.keys()]).toEqual([aberto]);
   });
 });

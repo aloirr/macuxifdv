@@ -1,7 +1,8 @@
 /**
  * Carga do PDF do visor (T-0186, v1.0.16; regras puras em `@/lib/visor-pdf`): o download do visor de foto
- * (`baixarArquivoDoVisor`) para um temporário do cache do app que a tela apaga ao fechar.
- * Nada fica guardado e nada vai para o log.
+ * (`baixarArquivoDoVisor`) para um temporário do cache do app, com nome próprio por abertura, que cada tela apaga ao
+ * fechar. A pasta inteira é apagada na abertura do app (sobra de app encerrado com o visor aberto), no logout e no
+ * bloqueio do aparelho (RN-CORE-15). Nada fica guardado e nada vai para o log.
  */
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
@@ -15,7 +16,7 @@ function pasta(): Directory {
   return new Directory(Paths.cache, PASTA_PDF_TEMPORARIO);
 }
 
-/** Apaga todos os temporários (antes de abrir outro e no bloqueio do aparelho, RN-CORE-15). Nunca lança. */
+/** Apaga todos os temporários: na abertura do app, no logout e no bloqueio do aparelho (RN-CORE-15). Nunca lança. */
 export function limparPdfsTemporarios(): void {
   if (Platform.OS === 'web') return;
   try {
@@ -26,7 +27,10 @@ export function limparPdfsTemporarios(): void {
   }
 }
 
-/** Apaga o temporário da tela que fechou. Nunca lança. */
+/** Aberturas deste processo: com a hora, dão a cada visor um temporário só dele. */
+let aberturas = 0;
+
+/** Apaga só o temporário da tela que fechou (outro visor da pilha fica com o dele). Nunca lança. */
 function apagarPdfTemporario(uri: string): void {
   try {
     const f = new File(uri);
@@ -42,10 +46,9 @@ export async function carregarPdf(arquivoId: string): Promise<PdfCarregado> {
   if (r.tipo === 'erro') return r;
   if (!bytesDoPdfAceitos(r.bytes)) return { tipo: 'erro', mensagem: TEXTO_FOTO_INDISPONIVEL };
   try {
-    limparPdfsTemporarios();
     const p = pasta();
     p.create({ intermediates: true, idempotent: true });
-    const arq = new File(p, nomePdfTemporario(arquivoId, Date.now().toString(36)));
+    const arq = new File(p, nomePdfTemporario(arquivoId, `${Date.now().toString(36)}${(++aberturas).toString(36)}`));
     arq.create({ overwrite: true });
     arq.write(r.bytes);
     return { tipo: 'ok', uri: arq.uri };

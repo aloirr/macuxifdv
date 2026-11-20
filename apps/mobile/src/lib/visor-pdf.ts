@@ -5,7 +5,7 @@
  *
  * Os bytes vêm do download do visor (`baixarArquivoDoVisor`, services/foto-pdv.ts), só com sinal. O react-native-pdf
  * só desenha arquivo do disco: o PDF vai para um temporário na pasta de cache `visor-pdf/`, apagado ao fechar a tela; a
- * pasta inteira é apagada antes de cada abertura (sobra de app encerrado) e no bloqueio do aparelho (RN-CORE-15).
+ * pasta inteira é apagada na abertura do app (sobra de app encerrado), no logout e no bloqueio do aparelho (RN-CORE-15).
  */
 import { nomeArquivoFoto } from './foto';
 import { pedidoDaRota, type PedidoVerFoto } from './foto-pdv';

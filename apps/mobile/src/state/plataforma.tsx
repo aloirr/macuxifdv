@@ -145,6 +145,7 @@ import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
 import { ligarFonteFotoPdv } from '@/services/foto-pdv';
 import { abrirFoto } from '@/services/visor-foto';
+import { limparPdfsTemporarios } from '@/services/visor-pdf';
 import { ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
@@ -479,6 +480,9 @@ function usePlataformaValor() {
     },
     [shell, api, ambiente, etapaMe, modo],
   );
+
+  // T-0186: o app encerrado com o visor de PDF aberto deixou o temporário no cache; a abertura do app apaga as sobras
+  useEffect(() => limparPdfsTemporarios(), []);
 
   useEffect(() => {
     let vivo = true;
@@ -858,6 +862,8 @@ function usePlataformaValor() {
     }
     // T-0156 (tracking §3.4): sem sessão, a captura do trajeto para antes de o banco do usuário fechar
     await pararTrajeto();
+    // T-0186: nenhum PDF do visor fica no cache depois de sair
+    limparPdfsTemporarios();
     await gravarTokens(null);
     const aberto = armazenamentoRef.current;
     fecharSessaoLocal();
