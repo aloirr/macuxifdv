@@ -10,8 +10,9 @@ import { linksDeContato } from './cliente360';
 /** Perfis de gestão: única lista para rotas, API da Carteira e telas do Gestão. */
 export const PERFIS_GESTAO = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 
-export function perfilVeCarteiraDoCliente(perfil: string): boolean {
-  return (PERFIS_GESTAO as readonly string[]).includes(perfil);
+/** Perfil de gestão (RN-CORE-04): vê a Carteira do cliente e o "Visitada por" da Performance; aceita perfil ausente. */
+export function perfilDeGestao(perfil: string | null | undefined): boolean {
+  return perfil != null && (PERFIS_GESTAO as readonly string[]).includes(perfil);
 }
 
 export interface VinculoDaCarteira {

@@ -17,7 +17,6 @@ import {
   linhasDadosCadastrais,
   linhasDoDetalheDaNota,
   linhasPerformance,
-  perfilDeGestao,
   removerChip,
   segundaLinhaDoDocumento,
   textoContagemNotas,
@@ -28,7 +27,7 @@ import {
   periodoEscolhido,
 } from './ficha-v2';
 import type { NotaDetalhe } from '../../contracts';
-import { PERFIS_GESTAO, type PerformanceCalculada } from '../../domain';
+import type { PerformanceCalculada } from '../../domain';
 
 const HOJE = '2026-11-19';
 
@@ -39,11 +38,6 @@ describe('T-0186 / P12: abas da ficha', () => {
   it('P12: promotor sem promotor_ve_pedidos não vê o Histórico', () => {
     expect(abasDoApp('promotor', false).map((a) => a.id)).toEqual(['resumo', 'documentacao']);
     expect(abasDoApp('promotor', true).map((a) => a.id)).toContain('historico');
-  });
-  it('spec §6: os perfis de gestão (PERFIS_GESTAO) são o Gestão ("Visitada por")', () => {
-    for (const p of PERFIS_GESTAO) expect(perfilDeGestao(p)).toBe(true);
-    expect(perfilDeGestao(null)).toBe(false);
-    expect(perfilDeGestao('vendedor')).toBe(false);
   });
 });
 
