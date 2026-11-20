@@ -357,14 +357,15 @@ describe('RN-CAT-12: o ano da consulta cai no MESMO trecho da aplicação que o 
     expect(acha('pastilha uno 2012').casados).toBe(3);
   });
 
-  it('RN-CAT-12: "pastilha uno 2015" NÃO acha (2015 só existe na faixa do Palio)', () => {
-    expect(acha('pastilha uno 2015').pontos).toBe(0);
-    expect(rankearBase([pastilha], { anoAtual: 2026, filtros: filtros({ text: 'pastilha uno 2015' }), sinonimos: [], parametros: PARAMETROS_PADRAO })).toEqual([]);
+  it('RN-CAT-12 + R-20261120-103142: "pastilha uno 2015" não casa o ano (2015 só existe na faixa do Palio): 2 de 3 palavras, o produto só aparece como o mais próximo', () => {
+    expect(acha('pastilha uno 2015')).toMatchObject({ casados: 2, total: 3 });
+    const r = rankearBase([pastilha], { anoAtual: 2026, filtros: filtros({ text: 'pastilha uno 2015' }), sinonimos: [], parametros: PARAMETROS_PADRAO });
+    expect(r.map((i) => [i.doc.id, i.casados])).toEqual([['pst', 2]]);
   });
 
-  it('RN-CAT-12: "pastilha palio 2015" acha e "pastilha palio 2011" NÃO acha', () => {
+  it('RN-CAT-12: "pastilha palio 2015" casa as 3 palavras e "pastilha palio 2011" só 2 (o ano é do Uno, não do Palio)', () => {
     expect(acha('pastilha palio 2015').casados).toBe(3);
-    expect(acha('pastilha palio 2011').pontos).toBe(0);
+    expect(acha('pastilha palio 2011').casados).toBe(2);
   });
 
   it('RN-CAT-12: sem ano na consulta, veículos de trechos diferentes continuam achando', () => {

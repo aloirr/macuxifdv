@@ -66,11 +66,11 @@ describe('T-0096: faixa aberta de ano vale no ano novo sem reindexar (RN-CAT-12)
       return pontuacaoTextual([['civic'], ['2028']], doc, { anoAtual: anoCivilNoFuso(relogio.agora(), FUSO) }).casados;
     };
 
-    // 31/12/2026 23:59 em Manaus (01/01 03:59 em UTC): o FTS já pré-seleciona; o domain ainda corta 2028 (2026 + 1) e tira
-    // o produto (o ano da consulta fora da aplicação e nenhum outro campo com o ano)
+    // 31/12/2026 23:59 em Manaus (01/01 03:59 em UTC): o FTS já pré-seleciona; o domain ainda corta 2028 (2026 + 1) e o grupo do
+    // ano não casa (o ano da consulta fora da aplicação e nenhum outro campo com o ano)
     expect(relogio.hoje()).toBe('2026-12-31');
     expect(await civic2028()).toEqual({ buscou: true, resultados: [expect.objectContaining({ chave: CIVIC })] });
-    expect(termosCasados()).toBe(0);
+    expect(termosCasados()).toBe(1);
 
     relogio.avancar({ minutos: 2 });
     expect(relogio.hoje()).toBe('2027-01-01');
