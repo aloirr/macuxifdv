@@ -206,7 +206,7 @@ function Produtos({ filtros, mudar, podeConteudo, abas }: { filtros: FiltrosBko;
   const acoesPagina: AcaoDoMenu[] = [
     ...(mostrarTabela ? [{ id: 'csv', rotulo: 'Exportar CSV', desligada: visiveis.length === 0, aoEscolher: () => downloadBlob(new Blob([produtosParaCsv(visiveis)], { type: 'text/csv;charset=utf-8' }), 'catalogo-produtos.csv'), testId: 'catalogo.csv' }] : []),
     ...exportacao.acoes,
-    { id: 'atualizar', rotulo: hier.isFetching || lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: hier.isFetching || lista.isFetching, aoEscolher: () => void qc.invalidateQueries({ queryKey: ['catalogo'] }) },
+    { id: 'atualizar', rotulo: 'Atualizar', desligada: hier.isFetching || lista.isFetching, aoEscolher: () => void qc.invalidateQueries({ queryKey: ['catalogo'] }) },
   ];
   const item = editores.catalogo ?? editores.conteudo;
 
