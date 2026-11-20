@@ -48,3 +48,17 @@ describe('T-0184: a lista e o detalhe trazem o estado de cada motivo (aditivo)',
     expect(paraAprovacaoMotivo(ap({ estado: 'devolvida', decidida_por: ID, decidida_em: '2026-11-18T14:00:00.000Z', texto_decisao: 'baixe o desconto' }))).toMatchObject({ estado: 'devolvida', decidida_por_id: ID, texto_decisao: 'baixe o desconto' });
   });
 });
+
+describe('RN-VEN-45 (T-0188): o detalhe traz o % do prazo gravado, só com prazo', () => {
+  const comPrazo = { forma_pagamento_id: ID, forma_pagamento_nome: 'Pix', prazo_pagamento_id: ID, prazo_descricao: 'À vista' };
+  it('RN-VEN-45: com prazo, o detalhe leva -1,71 (e 0); a lista e o detalhe seguem válidos', () => {
+    expect(paraDetalhe(linha({ ...comPrazo, prazo_percentual_ajuste: -1.71 }), [], [], 'vendedor', {})).toMatchObject({ prazo_percentual_ajuste: -1.71 });
+    const zero = paraDetalhe(linha({ ...comPrazo, prazo_percentual_ajuste: 0 }), [], [], 'vendedor', {});
+    expect(zero.prazo_percentual_ajuste).toBe(0);
+    expect(OrderDetail.safeParse(zero).success).toBe(true);
+  });
+  it('RN-VEN-45: sem prazo ou sem retrato (null) o campo não vai', () => {
+    expect(paraDetalhe(linha({ prazo_percentual_ajuste: -1.71 }), [], [], 'vendedor', {})).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(paraDetalhe(linha({ ...comPrazo, prazo_percentual_ajuste: null }), [], [], 'vendedor', {})).not.toHaveProperty('prazo_percentual_ajuste');
+  });
+});
