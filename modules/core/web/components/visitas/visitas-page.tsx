@@ -87,7 +87,7 @@ function VisitasConteudo() {
         actions={
           <>
           <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar as visitas" data-testid="visitas.atualizar">
-            {lista.isFetching ? 'Atualizando…' : 'Atualizar'}
+            Atualizar
           </Button>
           <Button onClick={() => downloadBlob(new Blob([csvDeVisitas(itens, FUSO_PADRAO)], { type: 'text/csv;charset=utf-8' }), `visitas_${de}_${ate}.csv`)} disabled={itens.length === 0} data-testid="visitas.exportar-csv">
             Exportar CSV

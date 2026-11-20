@@ -139,7 +139,7 @@ function FarolConteudo() {
               aria-label="Atualizar o farol"
               data-testid="farol.atualizar"
             >
-              {lista.isFetching ? 'Atualizando…' : 'Atualizar'}
+              Atualizar
             </Button>
             <Button
               onClick={() =>

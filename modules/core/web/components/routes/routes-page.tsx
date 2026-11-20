@@ -265,7 +265,7 @@ export function RoutesPage() {
         subtitle={subtitle}
         actions={
           <Button onClick={() => void q.refetch()} disabled={q.isFetching} aria-label="Atualizar as rotas" data-testid="rotas.atualizar">
-            {q.isFetching ? 'Atualizando…' : 'Atualizar'}
+            Atualizar
           </Button>
         }
       />
@@ -303,7 +303,6 @@ export function RoutesPage() {
             </option>
           ))}
         </SelectField>
-        {q.isFetching && q.data && <span className="pb-2.5 text-[12px] text-ink-2">atualizando…</span>}
       </FilterBar>
 
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
