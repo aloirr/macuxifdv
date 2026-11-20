@@ -23,6 +23,7 @@ import {
 import type { ArmazenamentoSync, DriverSqlite } from '@macuxi/platform-sdk';
 
 import { semDerrubar } from './trava-sync';
+import type { Variante } from './variante-tipo';
 
 export const TAREFA_TRAJETO = 'macuxi-trajeto';
 
@@ -58,21 +59,26 @@ export type OpcoesDoTrajeto = IntervalosDaCaptura & {
 
 const MINUTO_MS = 60_000;
 
+const TITULO_DA_NOTIFICACAO: Readonly<Record<Variante, string>> = { campo: 'Macuxi Campo ativo', gestao: 'Macuxi Gestão ativo' };
+
 /**
  * Opções da captura pela frequência do parâmetro `rastreamento` do BKO (§3.1 e §3.3: sobe sem build novo). `accuracy: 4` é o
  * `Accuracy.High` do expo-location (`Location.types`), em número para este arquivo não importar o módulo nativo.
  * Notificação fixa: o Android exige uma para o serviço em primeiro plano. O rastreamento é interno (dono do produto, 19/11):
- * só o título "Macuxi Campo ativo", sem ação e sem citar localização, no canal `macuxi-servico` ("Serviço do app",
- * IMPORTANCE_LOW, sem som) do `plugins/notificacao-trajeto.ts`.
+ * só o título do app ("Macuxi Campo ativo" ou, T-0187 P7 A, "Macuxi Gestão ativo"), sem ação e sem citar localização, no
+ * canal `macuxi-servico` ("Serviço do app", IMPORTANCE_LOW, sem som) do `plugins/notificacao-trajeto.ts`.
  */
-export function opcoesDoTrajeto(frequencia: FrequenciaRastreamento = PARAMETROS_RASTREAMENTO_PADRAO.frequencia): OpcoesDoTrajeto {
+export function opcoesDoTrajeto(
+  frequencia: FrequenciaRastreamento = PARAMETROS_RASTREAMENTO_PADRAO.frequencia,
+  app: Variante = 'campo',
+): OpcoesDoTrajeto {
   return {
     accuracy: 4,
     distanceInterval: frequencia.distancia_m,
     timeInterval: frequencia.intervalo_min * MINUTO_MS,
     deferredUpdatesInterval: frequencia.lote_min * MINUTO_MS,
     foregroundService: {
-      notificationTitle: 'Macuxi Campo ativo',
+      notificationTitle: TITULO_DA_NOTIFICACAO[app],
       // obrigatório no tipo do expo-location; vazio, o `setContentText("")` do LocationTaskService.kt deixa só o título
       notificationBody: '',
       killServiceOnDestroy: false,
@@ -313,6 +319,8 @@ export interface DepsDoTrajeto {
   agora(): number;
   /** Recebe o erro já sem coordenada (`erroSemCoordenada`). */
   registrarErro(e: Error): void;
+  /** Variante do app (título da notificação fixa); sem ela, o Campo. */
+  app?: Variante;
 }
 
 /**
@@ -336,7 +344,7 @@ export function criarTrajeto(d: DepsDoTrajeto) {
           const ativa = await c.ativa();
           const agora = (await d.condicao())(d.agora());
           // a frequência só importa se a captura vai ficar ligada
-          const opcoes = agora.pode ? opcoesDoTrajeto(await d.frequencia()) : null;
+          const opcoes = agora.pode ? opcoesDoTrajeto(await d.frequencia(), d.app) : null;
           const mudou = !!opcoes && ativa && !mesmosIntervalos(opcoes, await c.intervalosEmUso());
           const acao = acaoDoTrajeto(agora, ativa, mudou);
           if (acao === 'desligar' || acao === 'reiniciar') await c.parar();
