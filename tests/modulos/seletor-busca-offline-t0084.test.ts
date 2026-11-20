@@ -270,9 +270,12 @@ describe('T-0084 — seletor do Novo pedido offline: catalogo.busca_produtos@1 p
       expect(d!.serveEm?.texto).toContain('Palio');
       expect(d!.marcados).toEqual(expect.arrayContaining(['Palio']));
       expect(d!.serveEm?.inclui_ano).toBe(2015);
-      // e o ano fora da faixa do Palio (2011) não casa em trecho nenhum que tenha "palio"
+      // R-20261120-103142: o ano fora da faixa do Palio (2011) não casa em trecho nenhum que tenha "palio"; ninguém casa as 3 palavras
+      // e a dianteira vem como a mais próxima (2 de 3); a traseira (Uno 2015–2020, só "pastilha") não vem
       const fora = (await seletor(ap, 'pastilha palio 2011'))!;
-      expect(fora.map((x) => x.sku)).not.toContain('PST-D01');
+      expect(fora.map((x) => x.sku), JSON.stringify(fora.map((x) => [x.sku, x.serveEm]))).toEqual(['PST-D01']);
+      // valor × rótulo: o "inclui 2011" só pode vir com o trecho cuja faixa cobre 2011 (o do Uno), nunca com o Palio 2012–2016
+      if (fora[0]!.serveEm?.inclui_ano === 2011) expect(fora[0]!.serveEm.texto).not.toContain('Palio');
     });
 
     it('SO-3 (c3): "filtro gol 2014" acha o Gol G5/G6 em 1º com inclui 2014; o produto fora da tabela do cliente não entra no seletor', async () => {

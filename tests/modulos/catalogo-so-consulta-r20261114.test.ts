@@ -3,7 +3,7 @@
  *  - PR do modulo-vendedor (nuvem/catalogo-orcamento-modulo-vendedor): sai "Adicionar ao pedido" do Catálogo; entra
  *    "Adicionar ao orçamento" (slot `produto.acoes`), que abre a folha `adicionar-ao-orcamento` com os orçamentos EM ABERTO do
  *    vendedor e, sem nenhum, só "Nenhum orçamento em aberto.". A ação mexe só no orçamento escolhido (mesma via do "Editar").
- *  - PR do modulo-catalogo (nuvem/copiar-codigo-modulo-catalogo): botão "Copiar código" na ficha e na lista; copia o mesmo
+ *  - PR do modulo-catalogo (nuvem/copiar-codigo-modulo-catalogo): botão "Copiar código" na lista (saiu da ficha, R-20261120-055304); copia o mesmo
  *    código exibido (`erp_code`) e não cria pedido.
  * Os dois estados valem (este arquivo entra no `main` antes dos PRs): o estado é lido do fonte. Antes do PR, os casos novos
  * conferem o que vale hoje (ou não se aplicam) e o caso de valor × regra usa a regra que já existe (`orcamentoEmAberto`).
@@ -208,17 +208,17 @@ describe('R-20261114-151000 — "Adicionar ao orçamento" só lista orçamentos 
 });
 
 describe('PR do modulo-catalogo — "Copiar código" copia o código exibido e não cria pedido', () => {
-  it('ficha e cartão passam o `erp_code` do produto ao botão; a ficha exibe esse mesmo código no subtítulo', async () => {
-    if (!COPIAR_CODIGO) {
-      expect(semComentarios(ler('modules/catalogo/app/telas/produto.tsx'))).not.toContain('BotaoCopiarCodigo');
-      return;
-    }
+  // R-20261120-055304 (Campo v1.0.17, item 13; docs/design/campo-v1017/spec.md §4): o "Copiar código" sai da ficha e fica só no cartão da lista
+  it('só o cartão da lista passa o `erp_code` do produto ao botão (a ficha não tem o botão); a ficha exibe esse mesmo código no subtítulo', async () => {
     const produto = semComentarios(ler('modules/catalogo/app/telas/produto.tsx'));
+    expect(produto).not.toContain('BotaoCopiarCodigo');
+    if (!COPIAR_CODIGO) return;
     const comum = semComentarios(ler('modules/catalogo/app/telas/comum.tsx'));
-    expect(produto).toContain('<BotaoCopiarCodigo codigo={item.erp_code} />');
     expect(produto).toMatch(/subtitulo: `\$\{subtituloProduto\(item\)\}/);
-    expect(comum).toContain('<BotaoCopiarCodigo codigo={item.erp_code} variante="icone" />');
-    // valor × rótulo: o código copiado é o que o subtítulo da ficha mostra
+    const cartao = comum.slice(comum.indexOf('export function CartaoGrade('));
+    expect(cartao).toContain('<BotaoCopiarCodigo codigo={item.erp_code} />');
+    expect(comum.match(/<BotaoCopiarCodigo /g), 'um botão só, o do cartão').toHaveLength(1);
+    // valor × rótulo: o código copiado é o que o cartão e o subtítulo da ficha mostram
     const item = { brand: 'Freiomax', erp_code: 'CB3401' };
     const copiados: string[] = [];
     const mod = (await import('../../modules/catalogo/app/lib/copiar-codigo' as string)) as {

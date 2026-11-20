@@ -10,8 +10,8 @@
  *
  * Casos (matrizes docs/testes/T-0084.md e docs/testes/T-0085.md):
  *  AO-1 (T-0084 c3, RN-CAT-12): "pastilha uno 2012" acha a pastilha "Uno 1.0/1.4 2010–2014" com "Serve em" (≤ 90, termos
- *       marcados, inclui 2012); "pastilha uno 2015" não traz; "filtro gol 2014" acha o Gol; o ano de dentro da faixa está
- *       no índice FTS5 do aparelho e o de fora não.
+ *       marcados, inclui 2012), só ela (R-20261120-103142); "pastilha uno 2015" traz os mais próximos; "filtro gol 2014" acha
+ *       o Gol; o ano de dentro da faixa está no índice FTS5 do aparelho e o de fora não.
  *  AO-2 (T-0084 c3): "1.0/1.4" e "G5/G6" nunca viram faixa (o documento do índice só ganha os anos de 4 dígitos do meio).
  *  AO-3 (T-0084 c3): sinônimo do tenant vale na aplicação ("filtro volkswagen gol" acha "VW Gol").
  *  AO-4 (T-0084 c3): quem casa pelo nome vem antes de quem casa só pela aplicação, mesmo em campanha.
@@ -192,9 +192,10 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
       ap = await aparelho();
     }, 60_000);
 
-    it('AO-1 (RN-CAT-12): "pastilha uno 2012" acha a pastilha do Uno 2010–2014 com "Serve em" (≤ 90, Uno e a faixa marcados, inclui 2012); "pastilha uno 2015" não', async () => {
+    it('AO-1 (RN-CAT-12 + R-20261120-103142): "pastilha uno 2012" traz só a pastilha do Uno 2010–2014 com "Serve em" (≤ 90, Uno e a faixa marcados, inclui 2012); "pastilha uno 2015" (ninguém casa tudo) traz os mais próximos, sem "inclui 2015"', async () => {
       const r = await busca(ap, 'pastilha uno 2012');
-      expect(skus(r)).toContain('PST-D01');
+      // R-20261120-103142: a PST-D01 casa as 3 palavras; "Pastilha Uno" e a "Pastilha" com aplicação "Uno" casam 2 e saem
+      expect(skus(r)).toEqual(['PST-D01']);
       const item = r.items.find((i) => i.id === P.uno)!;
       expect(item.serve_em, 'serve_em da pastilha do Uno').toBeTruthy();
       const t = item.serve_em!;
@@ -204,10 +205,13 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
       expect(marcados(t)).toEqual(expect.arrayContaining(['Uno', '2010–2014']));
       expect(r.aviso, 'aviso discreto da busca offline').not.toBeNull();
 
+      // R-20261120-103142: 2015 está fora de 2010–2014 e nenhum produto casa as 3 palavras: vêm os que casam 2 (os mais próximos),
+      // o nome ("Pastilha Uno") antes de quem casa só pela aplicação (RN-CAT-12); quem casa 1 palavra (a lâmpada, só "uno") não vem
       const fora = await busca(ap, 'pastilha uno 2015');
-      expect(skus(fora), '2015 está fora de 2010–2014').not.toContain('PST-D01');
-      // o produto que casa "uno" pelo nome e não tem ano na aplicação não muda de comportamento
-      expect(skus(fora)).toContain('PST-UNO');
+      expect([...skus(fora)].sort(), 'só os que casam 2 de 3').toEqual(['PST-APL', 'PST-D01', 'PST-UNO']);
+      expect(skus(fora)[0]).toBe('PST-UNO');
+      const proxima = fora.items.find((i) => i.id === P.uno)!;
+      expect(proxima.serve_em?.inclui_ano ?? null, '2015 fora da faixa: sem "inclui 2015"').not.toBe(2015);
     });
 
     it('AO-1b (RN-CAT-12): "filtro gol 2014" acha o filtro "Gol G5/G6 1.0/1.6 2009–2016" em 1º, com inclui 2014', async () => {

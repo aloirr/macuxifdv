@@ -26,6 +26,7 @@ const ler = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
 
 const CATALOGO = ler('modules/catalogo/app/telas/catalogo.tsx');
 const COMUM = ler('modules/catalogo/app/telas/comum.tsx');
+const FOLHA_FILTRO = ler('modules/catalogo/app/telas/estoque-filial.tsx');
 const PEDIDOS = ler('modules/vendedor/app/screens/orders-screen.tsx');
 
 /**
@@ -52,14 +53,18 @@ describe('D-V106-1 — subtítulo do Catálogo abaixo do título (MC-0008)', () 
 });
 
 describe('D-V106-2 — filtro sem produto sem "Ver todos" (RD-0244, catalogo-grade.md §5)', () => {
-  it('o vazio do filtro só tem o título; o chip "Todas" volta a categoria para null', () => {
+  // R-20261120-055304 (Campo v1.0.17, item 11; docs/design/campo-v1017/spec.md §4): os chips de família e sistema saem da tela e
+  // entram na folha "Filtrar" (`FolhaFiltroCatalogo`, estoque-filial.tsx); o "Todas" da folha volta a categoria para null
+  it('o vazio do filtro só tem o título; o chip "Todas" da folha volta a categoria para null', () => {
     const linhaVazio = CATALOGO.split('\n').find((l) => l.includes('Nenhum produto em'));
     expect(linhaVazio, 'linha do EstadoVazio do filtro').toBeDefined();
     expect(linhaVazio).not.toContain('acao=');
     expect(CATALOGO).not.toContain('Ver todos');
-    const chipTodas = CATALOGO.split('\n').find((l) => l.includes('label="Todas"'));
-    expect(chipTodas, 'chip "Todas"').toBeDefined();
-    expect(chipTodas).toContain('escolherCategoria(f, null)');
+    expect(CATALOGO, 'chips fora da tela').not.toContain('label="Todas"');
+    const chipTodas = FOLHA_FILTRO.split('\n').find((l) => l.includes('label="Todas"'));
+    expect(chipTodas, 'chip "Todas" na folha').toBeDefined();
+    expect(chipTodas).toContain('onPress={() => onCategoria(null)}');
+    expect(CATALOGO).toContain('onCategoria={(id) => setFiltro((f) => escolherCategoria(f, id))}');
   });
 });
 

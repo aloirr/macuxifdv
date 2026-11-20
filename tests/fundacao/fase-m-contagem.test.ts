@@ -132,6 +132,12 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
     novo: 'Unifica (14/11): aspas em toda célula, internas dobradas, vazio vira "" e fórmula ganha apóstrofo (byte a byte)',
     decisao: '"Unifica" (dono do produto, 14/11/2026, recado R-20261114-070800-alexandre; RD-0051, PR #221) — o CSV do BKO do Vendedor usa o celulaCsv de @macuxi/comum/csv: aspas em toda célula e apóstrofo antes de = + - @; o caso segue coberto byte a byte',
   },
+  {
+    origem: 'apps/web/lib/routes.test.ts',
+    titulo: 'sugestões primeiro (curva A parada à frente), sem acento, por nome, bairro ou código; tira quem já está na rota',
+    novo: 'RF-CORE-02: sugestões primeiro (curva A parada à frente), sem acento, por código, CNPJ, razão social ou nome fantasia; tira quem já está na rota',
+    decisao: 'busca de clientes só por código, CNPJ, razão social e nome fantasia (dono do produto, 20/11/2026, recado R-20261120-062210; PR #546; docs/testes/v1017-busca-clientes.md, defeito 2) — o editor de rota do BKO deixa de casar bairro e cidade; o bairro passa ao caso "RF-CORE-02: cidade e bairro não casam"',
+  },
 ];
 const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);
 
