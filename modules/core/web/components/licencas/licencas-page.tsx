@@ -9,7 +9,7 @@ import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { LicencasEstadoSchema, NIVEIS_LICENCA, type LicencasEstado, type NivelLicenca } from '../../../contracts';
 import { rotuloDoModulo } from '../../lib/perfis';
-import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
+import { csvDeLicencas, efetivosListaveisDoUsuario, linhasListaveisDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
 import { PARAM_MODULOS_PERFIL, perfilDosModulos } from '../../lib/parametros-url';
 
 const CHAVE = ['core', 'licencas'] as const;
@@ -82,8 +82,8 @@ function LicencasConteudo() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  const linhas = estado ? linhasDoNivel(estado, nivel, { perfil, usuarioId }) : [];
-  const efetivos = estado && nivel === 'usuario' ? efetivosDoUsuario(estado, usuarioId) : [];
+  const linhas = estado ? linhasListaveisDoNivel(estado, nivel, { perfil, usuarioId }) : [];
+  const efetivos = estado && nivel === 'usuario' ? efetivosListaveisDoUsuario(estado, usuarioId) : [];
 
   const pedir = (modulo: ModuloId, ativo: boolean) => {
     if (!estado || !pode) return;
@@ -159,11 +159,6 @@ function LicencasConteudo() {
                 <tr key={l.modulo} data-testid={`licencas.modulo.${nivel}.${l.modulo}`}>
                   <td className={td}>{rotuloDoModulo(l.modulo)}</td>
                   <td className={td}>
-                    {l.travado ? (
-                      <span className="text-[13px] text-ink-2" data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado="ativo">
-                        Sempre ativo
-                      </span>
-                    ) : (
                     <button
                       type="button"
                       role="switch"
@@ -178,7 +173,6 @@ function LicencasConteudo() {
                     >
                       {l.ativo ? 'Desativar' : 'Ativar'}
                     </button>
-                    )}
                   </td>
                 </tr>
               ))}

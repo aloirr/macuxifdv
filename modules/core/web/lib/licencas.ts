@@ -6,7 +6,7 @@
 import { BOM_CSV } from '@macuxi/comum/csv';
 import type { ModuloId, Perfil } from '@macuxi/platform-sdk';
 import type { LicencasEstado, NivelLicenca } from '../../contracts';
-import { dependentesDe, efetivosPelasDependencias } from '../../domain/licencas';
+import { dependentesDe, efetivosPelasDependencias, moduloListavel, modulosListaveis } from '../../domain/licencas';
 
 export interface LinhaLicenca {
   modulo: ModuloId;
@@ -27,6 +27,16 @@ export function linhasDoNivel(e: LicencasEstado, nivel: NivelLicenca, alvo: { pe
     }
     return { modulo, ativo, travado: modulo === 'core' };
   });
+}
+
+/** Linhas que a tela mostra: sem o core (regra única `moduloListavel`, a mesma do app "Meus módulos"). A exportação CSV segue com todas. */
+export function linhasListaveisDoNivel(e: LicencasEstado, nivel: NivelLicenca, alvo: { perfil?: Perfil | null; usuarioId?: string | null } = {}): LinhaLicenca[] {
+  return linhasDoNivel(e, nivel, alvo).filter((l) => moduloListavel(l.modulo));
+}
+
+/** Efetivos que a tela mostra, sem o core. */
+export function efetivosListaveisDoUsuario(e: LicencasEstado, usuarioId: string | null | undefined): ModuloId[] {
+  return modulosListaveis(efetivosDoUsuario(e, usuarioId));
 }
 
 /** Módulos efetivos do usuário (RN-CORE-01/03), para a lista "Módulos efetivos do usuário". */

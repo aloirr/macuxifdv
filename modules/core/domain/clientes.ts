@@ -38,9 +38,13 @@ export const normalizarBusca = (s: string | null | undefined): string =>
 const soDigitos = (s: string | null | undefined): string => (s ?? '').replace(/\D/g, '');
 
 /** O CNPJ casa com e sem máscara: dígitos do termo (3 ou mais, para não casar qualquer número) contidos nos do documento. A única regra da busca por documento. */
-export const documentoCasa = (termo: string, documento: string | null | undefined): boolean => {
+export const digitosDeBuscaDoDocumento = (termo: string): string | null => {
   const d = soDigitos(termo);
-  return d.length >= 3 && soDigitos(documento).includes(d);
+  return d.length >= 3 ? d : null;
+};
+export const documentoCasa = (termo: string, documento: string | null | undefined): boolean => {
+  const d = digitosDeBuscaDoDocumento(termo);
+  return d !== null && soDigitos(documento).includes(d);
 };
 const rotulo = (c: ClienteLista): string => c.nome_fantasia?.trim() || c.razao_social;
 

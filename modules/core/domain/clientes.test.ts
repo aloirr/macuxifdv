@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { documentoCasa, escopoDeUsuarios, listarClientes, papelCompativel, type ClienteLista } from './clientes';
+import { digitosDeBuscaDoDocumento, documentoCasa, escopoDeUsuarios, listarClientes, papelCompativel, type ClienteLista } from './clientes';
 
 const cli = (id: string, razao_social: string, extra: Partial<ClienteLista> = {}): ClienteLista => ({
   id,
@@ -59,6 +59,11 @@ describe('busca e filtros da lista de clientes (RF-CORE-02)', () => {
     expect(documentoCasa('12', '12345678000190')).toBe(false);
     expect(documentoCasa('abc', '12345678000190')).toBe(false);
     expect(documentoCasa('123', null)).toBe(false);
+  });
+  it('RF-CORE-02: digitosDeBuscaDoDocumento — a regra dos 3 dígitos que a API usa em SQL; menos de 3 não busca documento', () => {
+    expect(digitosDeBuscaDoDocumento('12.345.678/0001-90')).toBe('12345678000190');
+    expect(digitosDeBuscaDoDocumento('Loja 12')).toBeNull();
+    expect(digitosDeBuscaDoDocumento('abc')).toBeNull();
   });
   it('RF-CORE-02: o CNPJ casa com e sem máscara, inteiro ou em parte', () => {
     for (const q of ['12.345.678/0001-90', '12345678000190', '12.345.678', '345678/0001', '0001-90']) {

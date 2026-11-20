@@ -87,3 +87,9 @@ export function dependentesDe(modulo: ModuloId, modulos: readonly ModuloId[], de
   saem.delete(modulo);
   return modulos.filter((m) => saem.has(m));
 }
+
+/** O core é módulo interno (RN-CORE-01: sempre ativo, não se liga nem desliga): nenhuma lista de módulos para pessoas o mostra (app "Meus módulos" e BKO "Licenças"). */
+export const moduloListavel = (modulo: ModuloId): boolean => modulo !== 'core';
+export function modulosListaveis(modulos: readonly ModuloId[]): ModuloId[] {
+  return modulos.filter(moduloListavel);
+}

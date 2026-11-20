@@ -17,7 +17,7 @@ import {
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { dataLocal, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro } from '../domain';
+import { dataLocal, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro } from '../domain';
 import { auditar } from './auditoria';
 import { lerHierarquiaDoTenant } from './hierarquia-leitura';
 import { lerPromotorVePedidos } from './promotor-pedidos';
@@ -48,9 +48,11 @@ async function listarClientesOnline(ctx: ContextoBase, q: z.output<typeof Client
     if (visiveis !== 'tenant') onde.push(`c.id = any(${param([...visiveis])}::uuid[])`);
     if (q.q?.trim()) {
       const texto = param(`%${escaparLike(q.q.trim())}%`);
-      const digitos = q.q.replace(/\D/g, '');
-      const doc = digitos.length >= 3 ? ` or regexp_replace(coalesce(c.documento, ''), '[^0-9]', '', 'g') like ${param(`%${digitos}%`)}` : '';
-      onde.push(`(c.razao_social ilike ${texto} or c.nome_fantasia ilike ${texto} or c.cidade ilike ${texto}${doc})`);
+      // Código (external_id), razão social, nome fantasia e CNPJ; cidade e bairro não entram (igual ao app e ao domain `listarClientes`).
+      // A regra dos 3 dígitos do CNPJ vem de `digitosDeBuscaDoDocumento` (domain, a mesma de `documentoCasa`).
+      const digitos = digitosDeBuscaDoDocumento(q.q);
+      const doc = digitos ? ` or regexp_replace(coalesce(c.documento, ''), '[^0-9]', '', 'g') like ${param(`%${digitos}%`)}` : '';
+      onde.push(`(c.razao_social ilike ${texto} or c.nome_fantasia ilike ${texto} or c.external_id ilike ${texto}${doc})`);
     }
     if (q.cidade) onde.push(`lower(c.cidade) = lower(${param(q.cidade)})`);
     if (q.segmento) onde.push(`lower(c.segmento) = lower(${param(q.segmento)})`);

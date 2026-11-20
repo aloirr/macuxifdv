@@ -261,6 +261,18 @@ describe.skipIf(semBanco())('Core T-0017 × Postgres: escopo da carteira, Client
       expect(await lista(vendedor1, { bloqueado: 'true' })).toEqual([]);
     });
 
+    it('RF-CORE-02: a busca da lista procura por código, CNPJ (com e sem máscara), razão social e fantasia; cidade não casa', async () => {
+      await comTenant(pool, A.tenantId, (c) => c.query('update core.cliente set external_id = $2 where id = $1', [C.c1, 'ERP-0042']));
+      const lista = async (q: string) => ((await chamar('GET', 'clientes', analista, { query: { q } })) as { itens: Array<{ id: string }> }).itens.map((i) => i.id).sort();
+      expect(await lista('Manacapuru')).toEqual([]); // cidade do c3
+      expect(await lista('ERP-0042')).toEqual([C.c1]);
+      expect(await lista('erp-004')).toEqual([C.c1]);
+      expect(await lista('33.333.333/0001-91')).toEqual([C.c1]);
+      expect(await lista('33333333')).toEqual([C.c1]);
+      expect(await lista('Auto Peças Três')).toEqual([C.c3]);
+      expect(await lista('33')).toEqual([]); // menos de 3 dígitos não busca documento
+    });
+
     it('a lista pagina por deslocamento opaco', async () => {
       const p1 = (await chamar('GET', 'clientes', analista, { query: { limite: '2' } })) as { itens: unknown[]; proximo_cursor: string | null };
       expect(p1.itens).toHaveLength(2);

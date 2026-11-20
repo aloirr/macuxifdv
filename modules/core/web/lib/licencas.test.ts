@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LicencasEstado } from '../../contracts';
-import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam } from './licencas';
+import { csvDeLicencas, efetivosDoUsuario, efetivosListaveisDoUsuario, linhasDoNivel, linhasListaveisDoNivel, modulosQueTambemDesligam } from './licencas';
 
 const U1 = '0b000000-0000-4000-8000-000000000001';
 const estado: LicencasEstado = {
@@ -18,6 +18,12 @@ describe('RF-CORE-02: tela de licenças (tenant → perfil → usuário)', () =>
     expect(t.find((l) => l.modulo === 'promotor')?.ativo).toBe(false);
     expect(linhasDoNivel(estado, 'perfil', { perfil: 'promotor' }).filter((l) => l.ativo).map((l) => l.modulo)).toEqual(['core', 'promotor']);
     expect(linhasDoNivel(estado, 'usuario', { usuarioId: U1 }).every((l) => l.ativo)).toBe(true);
+  });
+
+  it('RN-CORE-01: a tela de licenças não lista o core, como o "Meus módulos" do app (linhas e efetivos)', () => {
+    expect(linhasListaveisDoNivel(estado, 'tenant').map((l) => l.modulo)).toEqual(['catalogo', 'vendedor', 'promotor']);
+    expect(linhasListaveisDoNivel(estado, 'perfil', { perfil: 'promotor' }).filter((l) => l.ativo).map((l) => l.modulo)).toEqual(['promotor']);
+    expect(efetivosListaveisDoUsuario(estado, U1)).toEqual(['catalogo', 'vendedor']);
   });
 
   it('RN-CORE-01: efetivos do usuário = tenant ∩ perfil − exceções (a exceção só remove)', () => {
