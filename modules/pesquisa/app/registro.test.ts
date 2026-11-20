@@ -10,6 +10,7 @@ const core = defineModule({
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
   apps: { campo: { abas: [] }, gestao: { abas: [] }, web: { menus: [] } },
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
+  ofereceConsultas: ['core.usuarios_resumo@1'],
 });
 
 const pesquisa = montarModuloApp<string>({ pesquisas: 'Pesquisas', responder: 'Responder', abaCliente: 'Aba', etapaCheckout: 'Etapa', cardInicio: 'Card' }, () => true);
