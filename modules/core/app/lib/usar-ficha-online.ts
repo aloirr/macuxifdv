@@ -153,10 +153,10 @@ export interface DocumentosDoCliente {
   recarregar: () => void;
 }
 
-/** Lista de documentos do perfil (a API já tirou o tipo que ele não vê e marcou a exceção por documento). */
-export function useDocumentosDoCliente(clienteId: string, ligado: boolean): DocumentosDoCliente {
+/** Consulta online da ficha (documentos, carteira): busca ao abrir, só na memória; sem conexão, erro com "Tentar de novo". */
+function useConsultaOnline<T>(clienteId: string, ligado: boolean, buscar: (http: NonNullable<ReturnType<typeof httpDe>>, clienteId: string) => Promise<T>) {
   const { motor } = useMotorSync();
-  const [itens, setItens] = useState<DocumentoLinhaContrato[]>([]);
+  const [dados, setDados] = useState<T | null>(null);
   const [estado, setEstado] = useState<EstadoDaConsulta>('ocioso');
   const [falha, setFalha] = useState<FalhaOnline | null>(null);
   const [tentativa, setTentativa] = useState(0);
@@ -172,10 +172,10 @@ export function useDocumentosDoCliente(clienteId: string, ligado: boolean): Docu
     let ativo = true;
     setEstado('carregando');
     setFalha(null);
-    buscarDocumentos(http, clienteId)
+    buscar(http, clienteId)
       .then((r) => {
         if (!ativo) return;
-        setItens(r.itens);
+        setDados(r);
         setEstado('ok');
       })
       .catch((e: unknown) => {
@@ -186,10 +186,16 @@ export function useDocumentosDoCliente(clienteId: string, ligado: boolean): Docu
     return () => {
       ativo = false;
     };
-  }, [ligado, motor, clienteId, tentativa]);
+  }, [ligado, motor, clienteId, tentativa, buscar]);
 
   const recarregar = useCallback(() => setTentativa((n) => n + 1), []);
-  return { estado, falha, itens, recarregar };
+  return { estado, falha, dados, recarregar };
+}
+
+/** Lista de documentos do perfil (a API já tirou o tipo que ele não vê e marcou a exceção por documento). */
+export function useDocumentosDoCliente(clienteId: string, ligado: boolean): DocumentosDoCliente {
+  const { estado, falha, dados, recarregar } = useConsultaOnline(clienteId, ligado, buscarDocumentos);
+  return { estado, falha, itens: dados?.itens ?? [], recarregar };
 }
 
 export interface AberturaDeDocumento {
@@ -246,40 +252,6 @@ export interface CarteiraDoClienteOnline {
 
 /** Tabela "Carteira" do Gestão: consulta online ao abrir a ficha; sem cópia no aparelho. */
 export function useCarteiraDoCliente(clienteId: string, ligado: boolean): CarteiraDoClienteOnline {
-  const { motor } = useMotorSync();
-  const [resposta, setResposta] = useState<CarteiraClienteResposta | null>(null);
-  const [estado, setEstado] = useState<EstadoDaConsulta>('ocioso');
-  const [falha, setFalha] = useState<FalhaOnline | null>(null);
-  const [tentativa, setTentativa] = useState(0);
-
-  useEffect(() => {
-    if (!ligado) return;
-    const http = httpDe(motor);
-    if (!http) {
-      setEstado('erro');
-      setFalha(FALHA_SEM_INTERNET);
-      return;
-    }
-    let ativo = true;
-    setEstado('carregando');
-    setFalha(null);
-    buscarCarteiraDoCliente(http, clienteId)
-      .then((r) => {
-        if (!ativo) return;
-        setResposta(r);
-        setEstado('ok');
-      })
-      .catch((e: unknown) => {
-        if (!ativo) return;
-        setFalha(falhaDaConsulta(e));
-        setEstado('erro');
-      });
-    return () => {
-      ativo = false;
-      setResposta(null);
-    };
-  }, [ligado, motor, clienteId, tentativa]);
-
-  const recarregar = useCallback(() => setTentativa((n) => n + 1), []);
-  return { estado, falha, resposta, recarregar };
+  const { estado, falha, dados, recarregar } = useConsultaOnline(clienteId, ligado, buscarCarteiraDoCliente);
+  return { estado, falha, resposta: dados, recarregar };
 }

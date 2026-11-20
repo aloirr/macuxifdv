@@ -5,7 +5,7 @@
 import { ErroHttpModulo, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { CarteiraClienteRespostaSchema, ROTAS_CLIENTE360_V2, type CarteiraClienteResposta } from '../contracts';
-import { dataLocal, montarCarteiraDoCliente, PERFIS_VEEM_CARTEIRA_DO_CLIENTE, perfilVeCarteiraDoCliente, type VinculoDaCarteira } from '../domain';
+import { dataLocal, montarCarteiraDoCliente, PERFIS_GESTAO, perfilVeCarteiraDoCliente, type VinculoDaCarteira } from '../domain';
 import { exigirCarteira } from './cliente360-v2';
 
 const ClienteParam = z.object({ id: z.string().uuid() });
@@ -36,7 +36,7 @@ export const rotasDeCarteiraDoCliente: RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: ROTAS_CLIENTE360_V2.carteira,
-    perfis: PERFIS_VEEM_CARTEIRA_DO_CLIENTE,
+    perfis: PERFIS_GESTAO,
     carteira: 'filtrar_no_dominio',
     semCache: true,
     params: ClienteParam,

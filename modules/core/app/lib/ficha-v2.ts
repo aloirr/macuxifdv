@@ -15,6 +15,7 @@ import {
   type FiltroHistoricoNf,
   type PerformanceCalculada,
   type PeriodoNf,
+  PERFIS_GESTAO,
 } from '../../domain';
 import type { PedidoDoCliente } from '../../../vendedor/contracts';
 import type { CartaoCredito, DocumentoLinhaContrato, LinhaHistoricoNfContrato, NotaDetalhe, StatusNf } from '../../contracts';
@@ -46,8 +47,8 @@ export function abasDoApp(perfil: string, verPedidos: boolean): Array<{ id: AbaF
   return abasDaFicha(perfil, verPedidos).map((id) => ({ id, rotulo: ROTULO_ABA[id] }));
 }
 
-/** O Gestão acrescenta "Visitada por" ao bloco Performance (spec §6). */
-export const perfilDeGestao = (perfil: string | null | undefined): boolean => perfil === 'supervisor' || perfil === 'gerente';
+/** O Gestão acrescenta "Visitada por" ao bloco Performance (spec §6); a lista de perfis é a mesma da API (`PERFIS_GESTAO`). */
+export const perfilDeGestao = (perfil: string | null | undefined): boolean => Boolean(perfil) && (PERFIS_GESTAO as readonly string[]).includes(perfil as string);
 
 // ---------- Resumo ----------
 

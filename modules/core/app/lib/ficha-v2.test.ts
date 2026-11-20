@@ -28,7 +28,7 @@ import {
   periodoEscolhido,
 } from './ficha-v2';
 import type { NotaDetalhe } from '../../contracts';
-import type { PerformanceCalculada } from '../../domain';
+import { PERFIS_GESTAO, type PerformanceCalculada } from '../../domain';
 
 const HOJE = '2026-11-19';
 
@@ -40,8 +40,9 @@ describe('T-0186 / P12: abas da ficha', () => {
     expect(abasDoApp('promotor', false).map((a) => a.id)).toEqual(['resumo', 'documentacao']);
     expect(abasDoApp('promotor', true).map((a) => a.id)).toContain('historico');
   });
-  it('spec §6: só supervisor e gerente são o Gestão ("Visitada por")', () => {
-    expect(perfilDeGestao('supervisor')).toBe(true);
+  it('spec §6: os perfis de gestão (PERFIS_GESTAO) são o Gestão ("Visitada por")', () => {
+    for (const p of PERFIS_GESTAO) expect(perfilDeGestao(p)).toBe(true);
+    expect(perfilDeGestao(null)).toBe(false);
     expect(perfilDeGestao('vendedor')).toBe(false);
   });
 });
