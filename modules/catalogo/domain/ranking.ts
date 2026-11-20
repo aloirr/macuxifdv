@@ -535,10 +535,8 @@ export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_
 
 /** RN-CAT-09: referência cruzada cujo código compacto é o código/n-grama da consulta. */
 function referenciaPorCodigo(doc: DocBusca, filtros: FiltrosInterpretados, ngramas: readonly string[]): number | null {
-  const alvos = new Set<string>(ngramas);
-  if (filtros.code) alvos.add(codigoCompacto(filtros.code.value));
-  const i = (doc.referencias ?? []).findIndex((r) => alvos.has(codigoCompacto(r.codigo)));
-  return i >= 0 ? i : indiceDaReferenciaCruzada([...alvos], doc.referencias ?? []);
+  const alvos = filtros.code ? [...ngramas, codigoCompacto(filtros.code.value)] : ngramas;
+  return indiceDaReferenciaCruzada(alvos, doc.referencias ?? []);
 }
 
 /** RN-CAT-09: menor pedaço de código (compacto) que já acha uma referência cruzada. */
@@ -549,21 +547,14 @@ export const MINIMO_PEDACO_REFERENCIA = 4;
  * (inteiro ou pedaço de 4+ caracteres com dígito). Nulo quando nenhuma casa. Usada pela busca do aparelho e pela da API.
  */
 export function indiceDaReferenciaCruzada(trechos: readonly string[], referencias: readonly { codigo: string }[]): number | null {
-  const alvos = trechos.filter((t) => t.length >= MINIMO_PEDACO_REFERENCIA && /\d/.test(t));
-  if (alvos.length === 0) return null;
+  const pedacos = trechos.filter((t) => t.length >= MINIMO_PEDACO_REFERENCIA && /\d/.test(t));
   const i = referencias.findIndex((r) => {
     const cod = codigoCompacto(r.codigo);
-    return cod !== '' && alvos.some((t) => cod.includes(t));
+    return cod !== '' && (trechos.includes(cod) || pedacos.some((t) => cod.includes(t)));
   });
   return i >= 0 ? i : null;
 }
 export const referenciaCruzadaContem = (trechos: readonly string[], referencias: readonly { codigo: string }[]): boolean => indiceDaReferenciaCruzada(trechos, referencias) !== null;
-
-/**
- * RN-CAT-09: trechos compactos da consulta que podem ser (pedaço de) código do concorrente: os n-gramas de código (com letra e dígito).
- * Número sozinho ("3401") não é trecho: segue só pelo termo, sem virar código exato.
- */
-export const trechosDeReferenciaDaConsulta = (texto: string): string[] => codigosDaConsulta(texto);
 
 /** Chave do nome para o desempate; calculada uma vez por objeto (o sort comparava o mesmo nome dezenas de vezes). */
 const CHAVE_DO_NOME = new WeakMap<object, string>();
@@ -602,10 +593,9 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
 
   // RN-CAT-09: n-grama da consulta que bate com o SKU ou com uma referência cruzada também deixa o produto exato
   const ngramas = comTexto ? codigosDaConsulta(filtros.text) : [];
-  const trechos = comTexto ? trechosDeReferenciaDaConsulta(filtros.text) : [];
-  if (ngramas.length > 0 || trechos.length > 0) {
+  if (ngramas.length > 0) {
     for (const d of candidatos) {
-      if (ngramas.includes(codigoCompacto(d.sku)) || referenciaCruzadaContem(trechos, d.referencias ?? [])) exatos.add(d.id);
+      if (ngramas.includes(codigoCompacto(d.sku)) || referenciaCruzadaContem(ngramas, d.referencias ?? [])) exatos.add(d.id);
     }
   }
 
@@ -618,7 +608,7 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
     const exato = exatos.has(doc.id);
     const base = exato ? 1 : comTexto || comSemantica ? combinarNotas(textual, semantica, p.peso_semantico) : 1;
     const nota = notaFinal(base, { estoque: doc.estoque, vendas_norm: maxVendas > 0 ? doc.vendas / maxVendas : 0, campanha: doc.campanha }, p);
-    if (nota > 0) itens.push({ doc, nota, textual, semantica, exato, so_aplicacao: pt.so_aplicacao && !exato, referencia_casada: pt.referencia_casada ?? (exato ? referenciaPorCodigo(doc, filtros, trechos.length > 0 ? [...new Set([...ngramas, ...trechos])] : ngramas) : null) });
+    if (nota > 0) itens.push({ doc, nota, textual, semantica, exato, so_aplicacao: pt.so_aplicacao && !exato, referencia_casada: pt.referencia_casada ?? (exato ? referenciaPorCodigo(doc, filtros, ngramas) : null) });
   }
 
   const preco = filtros.sort;

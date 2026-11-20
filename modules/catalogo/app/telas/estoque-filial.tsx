@@ -1,6 +1,6 @@
 /**
  * Estoque por filial no Campo (docs/design/catalogo-campo-v2/spec.md §2.1, §3 e §4): o botão `pacote` do cartão e da ficha, a folha
- * "Estoque por filial" (tabela Filial | Estoque) e a folha "Filtrar" do Catálogo (filial e itens sem estoque). Só desenho: as
+ * "Estoque por filial" (tabela Filial | Estoque) e a folha "Filtrar" do Catálogo (sistema, categoria e filial). Só desenho: as
  * regras (quem vê quais filiais, texto, cor e ordem) vêm de `domain/estoque-campo.ts` e `lib/estoque-folha.ts`.
  */
 import { Botao, Button, Chip, colors, Folha, fonte, Icon, type } from '@macuxi/ui/mobile';
@@ -67,7 +67,7 @@ export function ChaveSoComEstoque({ ligada, onMudar }: { ligada: boolean; onMuda
   return (
     <View style={e.chave}>
       <Text style={[e.opcaoTexto, { flex: 1 }]}>Só com estoque</Text>
-      <Switch testID="catalogo-chave-estoque" accessibilityLabel="Só com estoque" value={ligada} onValueChange={onMudar} trackColor={{ true: colors.accent, false: colors.lineStrong }} />
+      <Switch testID="catalogo-chave-estoque" accessibilityLabel="Só com estoque" value={ligada} onValueChange={onMudar} trackColor={{ true: colors.accent, false: colors.lineStrong }} thumbColor={colors.surface} ios_backgroundColor={colors.lineStrong} />
     </View>
   );
 }

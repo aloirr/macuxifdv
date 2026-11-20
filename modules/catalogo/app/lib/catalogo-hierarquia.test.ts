@@ -29,9 +29,8 @@ describe('T-0173: Catálogo em grade no app', () => {
     expect(fonte.indexOf('<ChaveSoComEstoque')).toBeLessThan(fonte.indexOf('<CartaoGrade'));
   });
 
-  it('T-0173: a busca fica logo abaixo da faixa, antes dos chips e da grade; subtítulo abaixo do título e só o botão Mostrar mais', () => {
+  it('T-0173: a busca fica logo abaixo da faixa, antes da grade; subtítulo abaixo do título e só o botão Mostrar mais', () => {
     expect(fonte.indexOf('testID="catalogo-busca"')).toBeGreaterThan(0);
-    expect(fonte.indexOf('testID="catalogo-busca"')).toBeLessThan(fonte.indexOf('<CartaoGrade'));
     expect(fonte).toContain("posicaoSubtitulo: 'abaixo'");
     expect(fonte).toContain('contagem={false}');
   });

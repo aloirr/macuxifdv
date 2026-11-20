@@ -193,14 +193,15 @@ export default function TelaCatalogo() {
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
   const comFiltro = !naCarga && (filtroLigado(filtro) || escolhaLigada(escolha));
   const opcoesFilial = useMemo(() => opcoesDoFiltroFilial({ proprias: filiais.venda, filiais: filiais.todas }), [filiais]);
-  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha });
+  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha, sistemaId: filtro.sistemaId, categoriaId: filtro.categoriaId });
+  const subtitulo = subtituloComFilial(filiais.cadastro?.nome ?? null);
   const folhaDoItem = itemDaFolha?.availability
     ? dadosDaFolha({ availability: itemDaFolha.availability, cargaEm: sync.sincronizado_em, filialCadastro: filiais.cadastro?.id ?? null, agora: relogioReal().agora().toISOString(), fuso })
     : null;
   const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
   const cabecalho = {
     titulo: 'Catálogo',
-    ...(subtituloComFilial(filiais.cadastro?.nome ?? null) ? { subtitulo: subtituloComFilial(filiais.cadastro?.nome ?? null) } : {}),
+    ...(subtitulo ? { subtitulo } : {}),
     posicaoSubtitulo: 'abaixo' as const,
     ...(clienteId ? { voltar: { label: nomeCliente ?? 'Cliente', fallback: '/' } } : {}),
   };
@@ -233,18 +234,17 @@ export default function TelaCatalogo() {
             rotuloLimpar="Limpar a busca"
           />
         </View>
-        <BotaoFiltro testID="catalogo-filtro" contagem={resumo.contagem + (filtro.sistemaId ? 1 : 0) + (filtro.categoriaId ? 1 : 0)} rotulo="Filtrar" onPress={() => setFolhaFiltro(true)} />
+        <BotaoFiltro testID="catalogo-filtro" contagem={resumo.contagem} rotulo="Filtrar" onPress={() => setFolhaFiltro(true)} />
       </View>
       <ChaveSoComEstoque ligada={escolha.soComEstoque} onMudar={(v) => setEscolha((e) => ({ ...e, soComEstoque: v }))} />
       {resumo.filial ? (
         <View style={s.etiquetas} testID="catalogo-etiquetas">
-          {resumo.filial ? (
-            <EtiquetaFiltro
-              testID="catalogo-etiqueta-filial"
-              texto={resumo.filial.texto}
-              {...(resumo.filial.removivel ? { onRemover: () => setEscolha((e) => ({ ...e, filial: null })), rotuloRemover: `Remover filtro ${resumo.filial.texto}` } : {})}
-            />
-          ) : null}
+          <EtiquetaFiltro
+            testID="catalogo-etiqueta-filial"
+            texto={resumo.filial.texto}
+            onRemover={() => setEscolha((e) => ({ ...e, filial: null }))}
+            rotuloRemover={`Remover filtro ${resumo.filial.texto}`}
+          />
         </View>
       ) : null}
 

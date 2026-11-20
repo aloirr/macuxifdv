@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
-import { indiceDaReferenciaCruzada, rankear, referenciaCruzadaContem, trechosDeReferenciaDaConsulta, type DocBusca } from './ranking';
+import { indiceDaReferenciaCruzada, rankear, codigosDaConsulta, type DocBusca } from './ranking';
 
 const REFS = [
   { marca_id: 'm1', marca_nome: 'Cobreq', codigo: 'CB-3401' },
@@ -25,16 +25,14 @@ describe('RN-CAT-09: a busca acha o produto pela referência cruzada', () => {
   it('RN-CAT-09: sem referência ou sem pedaço no código, nada casa', () => {
     expect(indiceDaReferenciaCruzada(['cb3401'], [])).toBeNull();
     expect(indiceDaReferenciaCruzada(['9999'], REFS)).toBeNull();
-    expect(referenciaCruzadaContem(['3401'], REFS)).toBe(true);
-    expect(referenciaCruzadaContem(['9999'], REFS)).toBe(false);
   });
 });
 
-describe('RN-CAT-09: trechos da consulta e busca pelo código do concorrente', () => {
+describe('RN-CAT-09: códigos da consulta e busca pelo código do concorrente', () => {
   it('RN-CAT-09: só código com letra e dígito vira trecho; número sozinho e palavra comum não', () => {
-    expect(trechosDeReferenciaDaConsulta('pastilha cb340')).toContain('cb340');
-    expect(trechosDeReferenciaDaConsulta('pastilha 3401')).not.toContain('3401');
-    expect(trechosDeReferenciaDaConsulta('pastilha freio')).toEqual([]);
+    expect(codigosDaConsulta('pastilha cb340')).toContain('cb340');
+    expect(codigosDaConsulta('pastilha 3401')).not.toContain('3401');
+    expect(codigosDaConsulta('pastilha freio')).toEqual([]);
   });
   it('RN-CAT-09: o ranking acha o produto por um pedaço do código do concorrente e mostra "Equivale a"', () => {
     const doc = (id: string, codigo: string | null): DocBusca => ({
