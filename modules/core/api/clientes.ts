@@ -17,7 +17,7 @@ import {
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { dataLocal, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro } from '../domain';
+import { dataLocal, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, palavrasDaBusca, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, sqlBuscaNormalizada } from '../domain';
 import { auditar } from './auditoria';
 import { lerHierarquiaDoTenant } from './hierarquia-leitura';
 import { lerPromotorVePedidos } from './promotor-pedidos';
@@ -34,6 +34,7 @@ function hojeDoTenant(ctx: ContextoBase): string {
   return dataLocal(ctx.agora(), ctx.fuso());
 }
 
+const COLUNAS_BUSCA = ['c.razao_social', 'c.nome_fantasia', 'c.external_id'].map(sqlBuscaNormalizada);
 const escaparLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 async function listarClientesOnline(ctx: ContextoBase, q: z.output<typeof ClienteListaQuerySchema>): Promise<ClienteListaResposta> {
@@ -46,13 +47,12 @@ async function listarClientesOnline(ctx: ContextoBase, q: z.output<typeof Client
     const param = (v: unknown) => `$${valores.push(v)}`;
     const onde: string[] = ['c.deleted_at is null'];
     if (visiveis !== 'tenant') onde.push(`c.id = any(${param([...visiveis])}::uuid[])`);
-    if (q.q?.trim()) {
-      const texto = param(`%${escaparLike(q.q.trim())}%`);
-      // Código (external_id), razão social, nome fantasia e CNPJ; cidade e bairro não entram (igual ao app e ao domain `listarClientes`).
-      // A regra dos 3 dígitos do CNPJ vem de `digitosDeBuscaDoDocumento` (domain, a mesma de `documentoCasa`).
-      const digitos = digitosDeBuscaDoDocumento(q.q);
+    // Mesma regra de `clienteCasaBusca`, em SQL: um bloco por palavra, unidos por `and`; sem `unaccent` nas migrações, o acento sai por `translate`.
+    for (const palavra of palavrasDaBusca(q.q)) {
+      const texto = param(`%${escaparLike(palavra)}%`);
+      const digitos = digitosDeBuscaDoDocumento(palavra);
       const doc = digitos ? ` or regexp_replace(coalesce(c.documento, ''), '[^0-9]', '', 'g') like ${param(`%${digitos}%`)}` : '';
-      onde.push(`(c.razao_social ilike ${texto} or c.nome_fantasia ilike ${texto} or c.external_id ilike ${texto}${doc})`);
+      onde.push(`(${COLUNAS_BUSCA.map((col) => `${col} like ${texto}`).join(' or ')}${doc})`);
     }
     if (q.cidade) onde.push(`lower(c.cidade) = lower(${param(q.cidade)})`);
     if (q.segmento) onde.push(`lower(c.segmento) = lower(${param(q.segmento)})`);

@@ -1,7 +1,7 @@
 /**
  * Lista de clientes no escopo da carteira e escopo de usuários (RN-CORE-04). O recorte por perfil vem do SDK
  * (`escopoDoPerfil` via `escopo.ts`); aqui só se compõe a lista, a busca e os filtros da tela Clientes (RF-CORE-02).
- * Busca em memória (carteira típica de ~500 clientes), sem acento e sem diferença de caixa.
+ * Busca em memória (carteira típica de ~500 clientes).
  */
 import type { Perfil } from '@macuxi/platform-sdk';
 import { clienteCasaBusca, normalizarBusca } from '../contracts/busca-cliente';
@@ -32,15 +32,16 @@ export interface ConjuntosFinanceiros {
   comVencidos?: ReadonlySet<string>;
 }
 
-// A regra da busca de clientes mora em `contracts/busca-cliente.ts` (o Vendedor só importa contracts); aqui é reexportada.
+// Reexporta a regra da busca (`contracts/busca-cliente.ts`).
 export {
   clienteCasaBusca,
   digitosDeBuscaDoDocumento,
-  documentoCasa,
   MINIMO_BUSCA_CLIENTE_BKO,
   normalizarBusca,
+  palavrasDaBusca,
   ROTULO_BUSCA_CLIENTE,
   ROTULO_BUSCA_CLIENTE_BKO,
+  sqlBuscaNormalizada,
 } from '../contracts/busca-cliente';
 
 const rotulo = (c: ClienteLista): string => c.nome_fantasia?.trim() || c.razao_social;
