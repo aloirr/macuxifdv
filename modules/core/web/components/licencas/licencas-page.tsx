@@ -32,7 +32,7 @@ function caminhoDaAlteracao(a: Alteracao): string {
 /**
  * Tela "Módulos" (Parâmetros › Acesso) do BKO (RF-CORE-02; RN-CORE-01/02/03). Só admin: o item de menu e a página dependem da
  * ação `modulo.gerir_licencas` e a API revalida. Filtros (nível, perfil, usuário) ficam na URL. Desligar módulo com
- * dependentes mostra o aviso antes de confirmar; o `core` não desliga. testIDs: docs/modulos/core/test-ids.md.
+ * dependentes mostra o aviso antes de confirmar; o `core` não aparece (`moduloListavel`). testIDs: docs/modulos/core/test-ids.md.
  */
 function LicencasConteudo() {
   const params = useSearchParams();

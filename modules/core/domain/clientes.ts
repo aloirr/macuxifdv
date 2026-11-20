@@ -37,11 +37,12 @@ export const normalizarBusca = (s: string | null | undefined): string =>
 
 const soDigitos = (s: string | null | undefined): string => (s ?? '').replace(/\D/g, '');
 
-/** O CNPJ casa com e sem máscara: dígitos do termo (3 ou mais, para não casar qualquer número) contidos nos do documento. A única regra da busca por documento. */
+/** Dígitos do termo para buscar no documento (3 ou mais, para não casar qualquer número); `null` = não busca documento. A única regra da busca por documento (API e app). */
 export const digitosDeBuscaDoDocumento = (termo: string): string | null => {
   const d = soDigitos(termo);
   return d.length >= 3 ? d : null;
 };
+/** O CNPJ casa com e sem máscara: os dígitos do termo contidos nos do documento. */
 export const documentoCasa = (termo: string, documento: string | null | undefined): boolean => {
   const d = digitosDeBuscaDoDocumento(termo);
   return d !== null && soDigitos(documento).includes(d);

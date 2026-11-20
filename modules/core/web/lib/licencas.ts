@@ -11,8 +11,6 @@ import { dependentesDe, efetivosPelasDependencias, moduloListavel, modulosListav
 export interface LinhaLicenca {
   modulo: ModuloId;
   ativo: boolean;
-  /** `core` não desliga em nenhum nível (S0-045). */
-  travado: boolean;
 }
 
 /** Linhas do nível escolhido. No nível usuário "ativo" = sem exceção que remova o módulo. */
@@ -25,7 +23,7 @@ export function linhasDoNivel(e: LicencasEstado, nivel: NivelLicenca, alvo: { pe
       const u = e.usuarios.find((x) => x.id === alvo.usuarioId);
       ativo = modulo === 'core' || (u ? !u.removidos.includes(modulo) : false);
     }
-    return { modulo, ativo, travado: modulo === 'core' };
+    return { modulo, ativo };
   });
 }
 

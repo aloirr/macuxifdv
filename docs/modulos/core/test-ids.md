@@ -35,8 +35,7 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `licencas.seletor-perfil` | Escolha do perfil (nível perfil) |
 | `licencas.seletor-usuario` | Escolha do usuário (nível usuário) |
 | `licencas.modulo.<nivel>.<modulo>` | Linha do módulo no nível (`tenant`, `perfil`, `usuario`) |
-| `licencas.toggle.<nivel>.<modulo>` | Controle liga/desliga; no `core` vem desabilitado (`aria-disabled="true"`, S0-045) |
-| `licencas.estado.<nivel>.<modulo>` | Estado atual: `ativo` ou `inativo` (atributo `data-estado`) |
+| `licencas.toggle.<nivel>.<modulo>` | Controle liga/desliga; o estado vem em `data-estado` (`ativo`/`inativo`). O `core` não aparece na tela (RN-CORE-01) |
 | `licencas.efetivos` | Lista "Módulos efetivos do usuário" (reflete o resultado, RN-CORE-01) |
 | `licencas.efetivo.<modulo>` | Item da lista de efetivos |
 | `licencas.aviso-dependencia` | Aviso "este módulo também desliga: …" (RN-CORE-03) |

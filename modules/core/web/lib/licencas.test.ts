@@ -12,9 +12,9 @@ const estado: LicencasEstado = {
 };
 
 describe('RF-CORE-02: tela de licenças (tenant → perfil → usuário)', () => {
-  it('RN-CORE-01: linhas por nível; o core vem travado e sempre ativo', () => {
+  it('RN-CORE-01: linhas por nível; o core vem sempre ativo', () => {
     const t = linhasDoNivel(estado, 'tenant');
-    expect(t.find((l) => l.modulo === 'core')).toEqual({ modulo: 'core', ativo: true, travado: true });
+    expect(t.find((l) => l.modulo === 'core')).toEqual({ modulo: 'core', ativo: true });
     expect(t.find((l) => l.modulo === 'promotor')?.ativo).toBe(false);
     expect(linhasDoNivel(estado, 'perfil', { perfil: 'promotor' }).filter((l) => l.ativo).map((l) => l.modulo)).toEqual(['core', 'promotor']);
     expect(linhasDoNivel(estado, 'usuario', { usuarioId: U1 }).every((l) => l.ativo)).toBe(true);

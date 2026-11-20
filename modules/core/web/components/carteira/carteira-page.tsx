@@ -115,7 +115,7 @@ function CarteiraConteudo() {
         <>
           <Panel title="Vincular cliente">
             <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-              Código, CNPJ ou nome (mínimo 3 letras)
+              Código, CNPJ ou nome (mínimo 3 caracteres)
               <input value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="carteira.busca" disabled={!pode} className={CLASSE_CAMPO_BKO} />
             </label>
             {candidatos.data && candidatos.data.length === 0 && <p className="mt-2 text-[13px] text-ink-2">Nenhum cliente encontrado.</p>}
