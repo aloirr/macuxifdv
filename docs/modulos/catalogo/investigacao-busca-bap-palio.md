@@ -13,7 +13,9 @@ Investigação só de leitura, de 20/11/2026, das 19h40 às 20h25 de Manaus. As 
    com "amortecedor". As duas causas prováveis são o amortecedor BAP do Palio estar sem aplicação gravada (um dos 34 produtos
    da outbox parada) ou não existir no cadastro. O §4 decide.
 3. **Regra pedida** ("só o BAP do Palio"): o código já cumpre se a aplicação do Palio estiver gravada e o app estiver na
-   v1.0.17 (C1). **Falta decidir (§3):** quando nada casa com todas as palavras, mostrar os mais próximos ou a lista vazia?
+   v1.0.17 (C1). Pela decisão R-20261120-194335 (lista vazia quando nada casa com todas as palavras), o EcoSport também
+   deixa de aparecer nos outros casos. A mudança fica num ponto só e vale para a busca online, a do aparelho e o seletor do
+   pedido (§3). A versão fica com o Alexandre.
 
 ## 1. O aviso "A busca inteligente está indisponível agora…"
 ### 1.1 O que a busca online chama
@@ -88,9 +90,32 @@ O Cofap nunca aparece: o filtro de marca funciona. Testes existentes verdes na s
 | H3 | O app do teste não é a v1.0.17 | **Não descartada.** Antes do #550, quem casava só em parte também aparecia, abaixo de quem casava tudo. Isso daria o mesmo print mesmo com a aplicação gravada. A versão está no app, em Menu › Sobre. O servidor está na v1.0.17, mas, com o aviso na tela, a lista veio do aparelho e vale a regra da versão do app. |
 | H4 | Defeito na busca do aparelho (FTS5) com marca, texto e aplicação | **Sem evidência.** Mesmo domínio e mesmo resultado com e sem índice (§2.1 e §2.2); testes do aparelho verdes. |
 
-## 3. Regra pedida e o que falta decidir
-- **Decisão pendente do Alexandre:** quando nenhum produto casa com todas as palavras, a busca mostra os mais próximos (hoje)
-  ou a lista vazia? Com lista vazia, o C2 e o C3 não mostrariam nada até a aplicação ser gravada.
+## 3. Lista vazia quando nada casa com todas as palavras (R-20261120-194335)
+O Alexandre decidiu às 19h43 de Manaus: quando nenhum produto casa com todas as palavras, a lista fica **vazia**. Essa
+regra substitui os "mais próximos" do R-20261120-103142. Com ela, o C2 e o C3 do §2.2 não mostram nada até a aplicação do
+Palio ser gravada, e o C1 continua igual.
+
+**Onde muda:** um ponto só, `domain/ranking.ts:613-617`. Fica só quem tem `casados` igual ao número de palavras. A busca online (`api/rotas.ts`) e a do aparelho (`app/lib/local.ts:487-497`, com a pré-seleção FTS5) usam a mesma
+`buscarProdutos`, e o seletor de produtos do pedido (`modules/vendedor/app/state/use-vendedor.ts`) também passa por ela. Por
+isso as três mudam juntas.
+- **FTS5:** a pré-seleção do aparelho não muda. Ela já garante que o corte não troca quem casa todas as palavras por quem casa
+  só parte (`domain/indice-busca.test.ts:197`).
+- **Produto exato por código** (SKU, EAN, referência cruzada): conta como "casa tudo" e continua aparecendo.
+- **Efeito para o vendedor:** "pastilha uno 2015", com a aplicação só até 2013, passa a dar lista vazia. O "Você quis dizer…"
+  (T-0167) não aparece, porque todas as palavras existem no catálogo. A tela usa o texto de lista vazia que já tem.
+
+**Testes que fixam os "mais próximos":**
+
+| Onde | Teste | O que muda |
+|---|---|---|
+| `tests/integracao/api/catalogo-aplicacao-t0084.test.ts:279` | **B-1** (T-0084) | "pastilha uno 2015" passa a esperar lista vazia |
+| `tests/integracao/demo/catalogo-cadastro-demo-t0084.test.ts:52` | **D-1** (T-0084) | igual ao B-1 |
+| `tests/modulos/catalogo-aplicacao-offline-t0084.test.ts:195` | **AO-1** (T-0084) | a 2ª metade ("2015") passa a esperar lista vazia; a 1ª metade fica |
+| `tests/modulos/seletor-busca-offline-t0084.test.ts:273` | seletor do pedido | "pastilha palio 2011" passa a esperar lista vazia |
+| `tests/modulos/catalogo-busca-offline-t0052.test.ts:204` | **B-O1** (T-0052) | **nada**: ele já espera só quem casa tudo (a lona) |
+| `modules/catalogo/{domain,app,api}` | 7 arquivos de teste: `domain/busca-dinamica`, `aplicacao-busca`, `ranking`, `ranking-aplicacao` e `indice-busca`, `app/busca-produtos-aparelho` e `api/rotas` (`:709`, "2015 vem só como o mais próximo") | as afirmações dos "mais próximos" passam a esperar lista vazia; as de "só quem casa tudo" ficam |
+
+B-1 e D-1 são testes de banco (Postgres local na sessão).
 
 ## 4. Consulta só de leitura (amortecedores BAP para Palio no cadastro e no ERP)
 Ela roda no papel `macuxi_leitura`, em transação só de leitura, com o tenant da AM2808 escolhido como no
@@ -138,11 +163,11 @@ rollback;
 ## 5. Impactos estimados (tempo de sessão, já com 15% de folga)
 | Item | O que muda | Quem | Estimativa |
 |---|---|---|---|
-| Tirar o aviso da busca inteligente | O app cai para a busca do aparelho sem aviso (`catalogo.tsx:179`). A API deixa de mandar `notice` na degradação (`domain/ia.ts:156` e `:160`, `api/rotas.ts:223`). A constante `AVISO_BUSCA_FALHOU` sai, e os testes de `domain/ia`, rotas e tela são ajustados. | modulo-catalogo, testes, corretor | **~2h25** (1h20 de código e testes, 25 min do testes e 20 min do corretor = 2h05, mais 15%) |
+| Tirar o aviso da busca inteligente (v1.0.18, R-20261120-194335) | O app cai para a busca do aparelho sem aviso (`catalogo.tsx:179`). A API deixa de mandar `notice` na degradação (`domain/ia.ts:156` e `:160`, `api/rotas.ts:223`). A constante `AVISO_BUSCA_FALHOU` sai, e os testes de `domain/ia`, rotas e tela são ajustados. | modulo-catalogo, testes, corretor | **~2h25** (1h20 de código e testes, 25 min do testes e 20 min do corretor = 2h05, mais 15%) |
 | A1: "Mostrar mais" acima de 50 | O app passa a paginar com `offset` (ou limita o `limit` a 50), com teste de valor × regra no 3º toque. | modulo-catalogo, testes | **~1h25** |
 | H2: outbox parada | Opção C do relatório da outbox (código único do nó) e o reprocessamento com o "sim" do Alexandre. | modulo-integracao, banco-dados | Ver o §7 daquele relatório; nada novo do Catálogo |
 | H1: produto inexistente | Cadastro no ERP do cliente e nova carga. | cliente / modulo-integracao | ~0 de código |
 | H3: app antigo | Instalar a v1.0.17 no aparelho do teste. | Alexandre | ~0 de código |
-| Decisão "nenhum casa = lista vazia" (se for a escolha) | `domain/ranking.ts:613-617`, mais os testes da regra dos mais próximos (5 arquivos citam R-20261120-103142) e o texto da lista vazia. | modulo-catalogo, testes, corretor | **~1h45** |
+| Lista vazia quando nada casa com todas as palavras (R-20261120-194335) | `domain/ranking.ts:613-617` e os testes do §3. | modulo-catalogo, testes, corretor | **~2h40** (1h15 de código e testes do módulo, 45 min do testes em `tests/` e 20 min do corretor = 2h20, mais 15%) |
 
-A correção só começa depois da decisão de versão do Alexandre.
+Nenhuma correção entra em PR por enquanto.
