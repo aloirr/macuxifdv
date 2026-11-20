@@ -43,15 +43,17 @@ interface Estado {
   razao_social: string;
   nome_fantasia: string | null;
   logo: (Omit<LogoParaGravar, 'id'> & { atualizada_em: string }) | null;
+  /** `undefined` = banco anterior à 0091 (a `sa_marca_da_empresa` ainda sem o campo). */
+  ocultar_marca_macuxi?: boolean;
 }
 
 /** As `sa_*` em memória, com a mesma regra do desenho §1.2 (sessão, acesso, idempotência, `chave_anterior`). */
-function montar(op: { erroGravar?: string; semArmazenamento?: boolean; negarLeitura?: boolean } = {}) {
+function montar(op: { erroGravar?: string; semArmazenamento?: boolean; negarLeitura?: boolean; semFuncaoOcultar?: boolean } = {}) {
   const tenants = new Map<string, Estado>([
     [TENANT, { razao_social: 'Distribuidora Exemplo Ltda', nome_fantasia: null, logo: null }],
     [OUTRO, { razao_social: 'Outra Empresa Ltda', nome_fantasia: null, logo: null }],
   ]);
-  const chamadas = { gravarLogo: 0, gravarNome: [] as (string | null)[] };
+  const chamadas = { gravarLogo: 0, gravarNome: [] as (string | null)[], gravarOcultar: [] as boolean[] };
   const erro = (code: string) => Object.assign(new Error('pg'), { code });
   const ler = (sid: string, t: string, escrita: boolean) => {
     if (sid !== SA.sessao_id && sid !== CLI.sessao_id) throw erro('28000');
@@ -65,6 +67,7 @@ function montar(op: { erroGravar?: string; semArmazenamento?: boolean; negarLeit
     razao_social: e.razao_social,
     nome_fantasia: e.nome_fantasia,
     logo: e.logo ? { ...e.logo } : null,
+    ...(e.ocultar_marca_macuxi === undefined ? {} : { ocultar_marca_macuxi: e.ocultar_marca_macuxi }),
     ...(chave_anterior === undefined ? {} : { chave_anterior }),
   });
   const fonte: FonteMarcaEmpresa = {
@@ -84,6 +87,13 @@ function montar(op: { erroGravar?: string; semArmazenamento?: boolean; negarLeit
       const { id: _id, ...resto } = p;
       e.logo = { ...resto, atualizada_em: '2026-11-15T16:00:00.000Z' };
       return json(t, e, anterior);
+    },
+    gravarOcultarMarca: async (sid, t, ocultar) => {
+      if (op.semFuncaoOcultar) throw erro('42883');
+      const e = ler(sid, t, true);
+      chamadas.gravarOcultar.push(ocultar);
+      e.ocultar_marca_macuxi = ocultar;
+      return json(t, e);
     },
     removerLogo: async (sid, t) => {
       const e = ler(sid, t, true);
@@ -128,6 +138,7 @@ describe('PUT /v1/plataforma/empresas/:tenant_id/logo (desenho §2.2)', () => {
       razao_social: 'Distribuidora Exemplo Ltda',
       nome_fantasia: null,
       logo: { sha256: sha(b), tipo: 'image/png', tamanho_bytes: b.length, largura_px: 600, altura_px: 200, atualizada_em: '2026-11-15T16:00:00.000Z' },
+      ocultar_marca_macuxi: false,
     });
     expect(r.headers['cache-control']).toBe('private, no-store');
     const [chave] = arquivos.chaves();
@@ -267,6 +278,58 @@ describe('GET/DELETE da logo e a marca no portal', () => {
   });
 });
 
+describe('PUT .../marca/ocultar-macuxi (item 15, desenho v1017 §1)', () => {
+  const url = (t = TENANT) => `/v1/plataforma/empresas/${t}/marca/ocultar-macuxi`;
+
+  it('super-admin grava; a marca volta com ocultar_marca_macuxi; repetir o mesmo valor = 200 (idempotente)', async () => {
+    const { app, chamadas } = montar();
+    const r = await app.inject({ method: 'PUT', url: url(), headers: sa, payload: { ocultar: true } });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toEqual({ tenant_id: TENANT, razao_social: 'Distribuidora Exemplo Ltda', nome_fantasia: null, logo: null, ocultar_marca_macuxi: true });
+    expect(r.headers['cache-control']).toBe('private, no-store');
+    expect((await app.inject({ method: 'PUT', url: url(), headers: sa, payload: { ocultar: true } })).statusCode).toBe(200);
+    const lida = await app.inject({ method: 'GET', url: `/v1/plataforma/empresas/${TENANT}/marca`, headers: cli });
+    expect(lida.json().ocultar_marca_macuxi).toBe(true);
+    expect((await app.inject({ method: 'PUT', url: url(), headers: sa, payload: { ocultar: false } })).json().ocultar_marca_macuxi).toBe(false);
+    expect(chamadas.gravarOcultar).toEqual([true, true, false]);
+  });
+
+  it('RN-CORE-33: admin do cliente = 403 com a frase da escrita, sem tocar no banco; sem sessão = 401', async () => {
+    const { app, chamadas } = montar();
+    const r = await app.inject({ method: 'PUT', url: url(), headers: cli, payload: { ocultar: true } });
+    expect(r.statusCode).toBe(403);
+    expect(r.json()).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', mensagem: MENSAGENS_ACESSO_LOGO.escrita });
+    expect((await app.inject({ method: 'PUT', url: url(), payload: { ocultar: true } })).statusCode).toBe(401);
+    expect(chamadas.gravarOcultar).toEqual([]);
+  });
+
+  it.each([[{}], [{ ocultar: 'sim' }], [{ ocultar: true, outro: 1 }]])('corpo %j = 400 VALIDACAO', async (payload) => {
+    const { app, chamadas } = montar();
+    const r = await app.inject({ method: 'PUT', url: url(), headers: sa, payload });
+    expect(r.statusCode).toBe(400);
+    expect(r.json().codigo).toBe('VALIDACAO');
+    expect(chamadas.gravarOcultar).toEqual([]);
+  });
+
+  it('empresa inexistente = 404 TENANT_NAO_ENCONTRADO; função ausente (banco sem a 0091) = 503 MARCA_INDISPONIVEL', async () => {
+    const { app } = montar();
+    const r = await app.inject({ method: 'PUT', url: url('0a000000-0000-4000-8000-0000000000ff'), headers: sa, payload: { ocultar: true } });
+    expect(r.json().codigo).toBe('TENANT_NAO_ENCONTRADO');
+    const semFuncao = montar({ semFuncaoOcultar: true });
+    const s = await semFuncao.app.inject({ method: 'PUT', url: url(), headers: sa, payload: { ocultar: true } });
+    expect(s.statusCode).toBe(503);
+    expect(s.json().codigo).toBe('MARCA_INDISPONIVEL');
+  });
+
+  it('banco anterior à 0091 (marca sem o campo) = ocultar_marca_macuxi false; a leitura não quebra', async () => {
+    const { app, tenants } = montar();
+    delete tenants.get(TENANT)!.ocultar_marca_macuxi;
+    const r = await app.inject({ method: 'GET', url: `/v1/plataforma/empresas/${TENANT}/marca`, headers: sa });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().ocultar_marca_macuxi).toBe(false);
+  });
+});
+
 describe('GET /v1/me/empresa/logo/:sha256 (desenho §3.2): tenant A × B', () => {
   it('o usuário do tenant A baixa a logo atual de A (imutável); o sha256 de B ou um velho = 404', async () => {
     const { app } = montar();
@@ -296,6 +359,7 @@ describe('chaves reservadas do Core (desenho §3.1)', () => {
       sync_auto_min: 30,
       empresa_nome: 'Razão Ltda',
       empresa_logo: { sha256: 'b'.repeat(64), tipo: 'image/png', largura_px: 600, altura_px: 200 },
+      empresa_ocultar_marca_macuxi: false,
     });
     expect(p.vendedor).toEqual({});
     expect(comEmpresa({ vendedor: {} }, linha)).toEqual({ vendedor: {} });
@@ -310,5 +374,9 @@ describe('chaves reservadas do Core (desenho §3.1)', () => {
     expect(r.modulos[0]!.parametros).toMatchObject({ empresa_nome: 'Razão Ltda', empresa_logo: { sha256: 'b'.repeat(64) } });
     expect(v({ ...linha, logo_sha256: 'c'.repeat(64) }).versao_licencas).not.toBe(r.versao_licencas);
     expect(v({ ...linha, nome_fantasia: 'Fantasia' }).versao_licencas).not.toBe(r.versao_licencas);
+    // item 15: ocultar a logomarca do Macuxi também chega ao aparelho na próxima sincronização
+    const oculta = v({ ...linha, ocultar_marca_macuxi: true });
+    expect(oculta.modulos[0]!.parametros).toMatchObject({ empresa_ocultar_marca_macuxi: true });
+    expect(oculta.versao_licencas).not.toBe(r.versao_licencas);
   });
 });

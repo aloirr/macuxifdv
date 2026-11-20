@@ -92,8 +92,8 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
 - Tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`).
 
 ## 4. Filtro no topo (padrão de Pedidos)
-- Linha de busca de Pedidos: `CampoBusca` + `BotaoFiltro` (48 dp, selo com a contagem) e `EtiquetaFiltro` embaixo
-  (`packages/ui/src/mobile/filtro.tsx`, `pedidos-filtro-periodo.md`).
+- Linha de busca: `CampoBusca` + `BotaoFiltro` (48 dp, selo com a contagem) e `EtiquetaFiltro` embaixo
+  (`packages/ui/src/mobile/filtro.tsx`; exceção do `../filtro-padrao-campo/spec.md` §0).
 - **Filial** (regra: `../filial-cadastro-venda/spec.md` §1, R-20261115-093000; substitui a regra por perfil de R-20261115-073000,
   R-20261115-090000 e R-20261115-092000):
   - a filial de cadastro aparece **sempre na faixa**, no subtítulo `Sua filial: Boa Vista · 1.284 produtos`. Não é filtro e não

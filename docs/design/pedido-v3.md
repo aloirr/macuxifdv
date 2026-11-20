@@ -217,11 +217,11 @@ Pedidos                                   ⟳ 05:51
 │ ✎  Rascunhos (2)                       › │
 │    Somem 24 h após a última alteração     │
 └──────────────────────────────────────────┘
-[🔍 Buscar pedido              ] [⚙ Filtro]
-(Todos 12) (Na fila 1) (Aprovado 5) ...
+                                 [⚙ Filtro]
 ```
 - `LinhaAtalho` (o mesmo atalho do kit: fundo `accentSoft`, raio 12, ícone `edit`, rótulo e apoio, seta `accentInk`), **entre o
-  título e a busca**. Rótulo `rotuloComContador('Rascunhos', n)`; apoio **Somem 24 h após a última alteração**.
+  título e o filtro** (a busca fica dentro do filtro, `filtro-padrao-campo/spec.md` §5).
+  Rótulo `rotuloComContador('Rascunhos', n)`; apoio **Somem 24 h após a última alteração**.
 - Só aparece com **1 ou mais** rascunhos. Sem rascunho, a tela Pedidos fica como hoje.
 - No **Gestão**, a mesma linha (os rascunhos do pedido em nome).
 - Por que na aba Pedidos: é onde o vendedor procura um pedido; o Início já tem a retomada do RN-VEN-38 ("Pedido não terminado").

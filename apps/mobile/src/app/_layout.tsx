@@ -123,7 +123,6 @@ function Gate() {
   if (semPermissao) {
     return (
       <TelaPermissoes
-        marca={Constants.expoConfig?.name ?? ''}
         tela={semPermissao}
         pedindo={pedindoPermissao}
         onBotao={() => void tocarBotaoPermissoes()}

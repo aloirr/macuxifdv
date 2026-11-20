@@ -8,6 +8,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { caminhoLocalValido, PASTA_FOTOS } from '@/lib/foto';
+import { apagarPastaDaEmpresa } from '@/services/logo-empresa';
 import { limparPdfsTemporarios } from '@/services/visor-pdf';
 
 function arquivo(caminho: string): File {
@@ -44,9 +45,11 @@ export function uriLocal(caminho: string): string | null {
 
 /**
  * RN-CORE-15 (aparelho bloqueado): apaga a pasta das fotos inteira, inclusive as que ainda não entraram na fila, e as
- * miniaturas do catálogo guardadas no cache (T-0097) e algum PDF do visor ainda aberto (T-0186).
+ * miniaturas do catálogo guardadas no cache (T-0097), algum PDF do visor ainda aberto (T-0186) e a cópia da logo da empresa
+ * com o registro dela (T-0182).
  */
 export async function apagarFotosLocais(): Promise<void> {
+  await apagarPastaDaEmpresa();
   if (Platform.OS === 'web') return;
   const pasta = new Directory(Paths.document, PASTA_FOTOS);
   if (pasta.exists) pasta.delete();

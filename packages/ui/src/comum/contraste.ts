@@ -93,14 +93,14 @@ export const GRAFICO = {
 } as const;
 
 /**
- * Faixa Azul noite do cabeçalho (manual §4) e da tela de entrada (docs/design/entrada-sync.md). `trilho`, `feito` e `erro` só
- * valem na tela de entrada (barra de sincronização e etapas).
+ * Faixa Azul noite do cabeçalho (manual §4) e da tela de entrada (docs/design/entrada-sync.md). `feito` e `erro` só valem na
+ * tela de entrada (etapas); `trilho` é o trilho da barra de sincronização e a borda do sino e do selo na faixa (só contorno).
  */
 export const FAIXA = {
   fundo: MARCA.azulNoite,
   titulo: MARCA.branco,
   subtitulo: MARCA.claroNaFaixa,
-  /** trilho da barra de sincronização (só fundo; a informação está no preenchimento `GRAFICO.sobreEscuro`) */
+  /** trilho da barra de sincronização e borda do sino e do selo na faixa (só contorno; nunca texto) */
   trilho: '#3A4D68',
   /** ✓ das etapas feitas */
   feito: '#7FD1A8',
@@ -161,6 +161,7 @@ export const PARES_DO_DESTAQUE: readonly ParContraste[] = [
   // faixa Azul noite (cabeçalho e tela de entrada)
   { uso: 'título da faixa', fg: FAIXA.titulo, bg: FAIXA.fundo, tipo: 'texto' },
   { uso: 'subtítulo e voltar da faixa', fg: FAIXA.subtitulo, bg: FAIXA.fundo, tipo: 'texto' },
+  { uso: 'frase do Início: Sol claro na faixa (texto)', fg: MARCA.solClaro, bg: FAIXA.fundo, tipo: 'texto' },
   { uso: 'barra de sincronização (preenchimento) na faixa', fg: GRAFICO.sobreEscuro, bg: FAIXA.fundo, tipo: 'grafico' },
   { uso: 'barra de sincronização (preenchimento) sobre o trilho', fg: GRAFICO.sobreEscuro, bg: FAIXA.trilho, tipo: 'grafico' },
   { uso: 'etapa feita (✓) na faixa', fg: FAIXA.feito, bg: FAIXA.fundo, tipo: 'texto' },

@@ -11,6 +11,7 @@ export * from './retorno-erp';
 export * from './orcamento';
 export * from './orcamento-em-aberto';
 export * from './preco-pedido';
+export * from './troca-prazo';
 export * from './leitura-pedido';
 export * from './pedidos-da-meta';
 export * from './sugestoes';

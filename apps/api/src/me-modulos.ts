@@ -5,7 +5,7 @@
  *
  * Parâmetro de plataforma `core.sync_auto_min` (RN-CORE-23): sempre presente na resposta, padrão 30 e mínimo 15
  * (o tenant pode gravar outro valor em `plataforma.parametro`; abaixo de 15 vale 15).
- * Chaves reservadas `empresa_nome` e `empresa_logo` do Core (T-0182): chegam prontas de `licencas.ts` (`comEmpresa`) e entram
+ * Chaves reservadas `empresa_nome`, `empresa_logo` (T-0182) e `empresa_ocultar_marca_macuxi` (0091) do Core: chegam prontas de `licencas.ts` (`comEmpresa`) e entram
  * no hash do `versao_licencas` como qualquer parâmetro.
  */
 import { createHash } from 'node:crypto';

@@ -27,7 +27,7 @@
 > Tela de referência (domingo, base de 06/11):
 > ```
 > Domingo, 8 de novembro
-> Bom dia, Lucas
+> Bom dia, Lucas.
 > Sem rota hoje · não é dia útil
 > RECADOS                                    1 novo
 > Prioridade: passe cedo no Mercadinho São Jorge — título vencido e …   (2 linhas)
@@ -51,7 +51,7 @@ Ordem: **boas-vindas → Recados → Meta do mês → Orçamentos e A faturar �
 | Peça | Estilo | Texto |
 |---|---|---|
 | Data | `type.sub` (13, `ink2`) | "Quarta, 4 de novembro" |
-| Saudação | `type.saudacao` (22/700, `ink`), 1 linha | "Bom dia, Lucas" (5h–11h59) · "Boa tarde, Lucas" (12h–17h59) · "Boa noite, Lucas" (18h–4h59), fuso do tenant, só o primeiro nome |
+| Saudação | `type.saudacao` (22/700, `ink`), 1 linha | "Bom dia, Lucas." (5h–11h59) · "Boa tarde, Lucas." (12h–17h59) · "Boa noite, Lucas." (18h–4h59), fuso do tenant, só o primeiro nome |
 | Visitas | `type.sub` | "6 visitas hoje · 3 feitas" · 1: "1 visita hoje · 1 feita" · sem paradas em dia útil: "Sem rota hoje" · sem paradas e `dia_util` falso: "Sem rota hoje · não é dia útil" (RD-0006: o "não é dia útil" fica só aqui; o cartão de meta não repete) |
 - O bloco inteiro abre o Perfil (alvo ≥ 48; leitor: "Boa tarde, Lucas. Abrir perfil"). Sem sino e sem hora no topo.
 - Começa abaixo da barra de status (área segura do shell; no Android o piso é `StatusBar.currentHeight`).
@@ -164,7 +164,7 @@ Ordem: **boas-vindas → Recados → Meta do mês da equipe → Pedidos para apr
 | puxar para atualizar | `Screen onRefresh` (mesma ação do Sincronizar) |
 
 ## 5. Textos (pt-BR, sem ponto final em botão, rótulo e selo)
-Quarta, 4 de novembro · Bom dia / Boa tarde / Boa noite, {nome} · {n} visitas hoje · {m} feitas · Sem rota hoje ·
+Quarta, 4 de novembro · Bom dia / Boa tarde / Boa noite, {nome}. · {n} visitas hoje · {m} feitas · Sem rota hoje ·
 Sem rota hoje · não é dia útil · Recados · {n} novos · Ver todos · Nenhum recado por enquanto. · Meta do mês ·
 Meta do mês da equipe · {pct}% · R$ {realizado} de R$ {meta} · Meta de hoje R$ {valor} · Faltam R$ {valor} ·
 R$ {valor} por dia útil ({n} dias) · Meta de hoje batida · Meta do mês batida · {x} de {y} clientes · {x} de {y} ·

@@ -192,7 +192,7 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
     expect(r.mudancas).toEqual([]);
     expect(r.pode_enviar).toBe(true);
   });
-  it('RN-VEN-46: com o % do prazo, a tabela de hoje é ajustada e não aparece diferença falsa de preço', () => {
+  it('RN-VEN-43: com o % do prazo, a tabela de hoje é ajustada e não aparece diferença falsa de preço', () => {
     // o orçamento guarda a tabela já ajustada (-1,71%): 1890 vira 1858; o catálogo do aparelho traz 1890 (tabela pura)
     const e = entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]);
     const d = detalhe();

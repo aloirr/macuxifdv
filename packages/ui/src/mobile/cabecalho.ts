@@ -30,6 +30,18 @@ export const CABECALHO = {
   },
 } as const;
 
+/** Altura única da faixa, sem a área segura (spec docs/design/componentes.md §5.2): 12 + foto 72 + 16 = 100 dp. */
+export const ALTURA_CABECALHO = CABECALHO.respiroTopo + 72 + CABECALHO.respiroBaixo;
+
+/** Altura mínima da faixa somando a área segura de cima (`useSafeAreaInsets().top`). */
+export function alturaMinimaCabecalho(areaSeguraTopo: number): number {
+  const topo = Number.isFinite(areaSeguraTopo) && areaSeguraTopo > 0 ? areaSeguraTopo : 0;
+  return topo + ALTURA_CABECALHO;
+}
+
+/** Linhas da frase motivacional do Início (`type.fraseInicio`; componentes.md §5.5). */
+export const LINHAS_FRASE_INICIO = 2;
+
 /** Respiros da faixa para a área segura de cima do aparelho (`useSafeAreaInsets().top`). */
 export function layoutCabecalho(areaSeguraTopo: number): { paddingTop: number; paddingBottom: number; paddingHorizontal: number; backgroundColor: string } {
   const topo = Number.isFinite(areaSeguraTopo) && areaSeguraTopo > 0 ? areaSeguraTopo : 0;

@@ -42,6 +42,7 @@ import { financeiroParaAprovacao, modeloDoCredito, type ModeloDoCredito } from '
 import { tituloVencidoDias } from '../../domain/pagamento';
 import {
   aceitosComoPedidos,
+  congeladosDoRascunho,
   draftKeyFor,
   fonteDoPedido,
   mergeOrders,
@@ -206,7 +207,7 @@ export function useVendedor() {
         const tabela = dados.produtos[cli?.price_table_id ?? 'default'];
         if (!cli || !tabela || !dados.politica) return null;
         try {
-          return calcularPedido({ percentual_ajuste_bp: percentualAjusteParaBp(r.prazo_percentual_ajuste), lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu }).total_cents;
+          return calcularPedido({ percentual_ajuste_bp: percentualAjusteParaBp(r.prazo_percentual_ajuste), lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...congeladosDoRascunho(r), politica: politicaApi(parametrosRef.current), vendedor_id: eu }).total_cents;
         } catch {
           return null;
         }
@@ -535,6 +536,10 @@ export function useVendedor() {
       const ehOrcamento = naFila?.payload.tipo === 'orcamento' || linhaPedido?.tipo === 'orcamento';
       // T-0134/T-0151 (RN-VEN-18): editar ou corrigir (orçamento ou pedido) mantém os preços salvos, sem faixa de "preços atualizados"; duplicar entra pelos preços de hoje
       const congelados = modo === 'edit' ? precosCongeladosDoOrcamento(det, naFila?.display?.lines, unidadesDaTela(linhasRef.current)) : null;
+      // RN-VEN-43/44: o % do prazo do documento entra no rascunho; os preços congelados valem só nesse prazo
+      // o retrato do pedido na fila (RN-VEN-45) vale antes do % atual do pull
+      const prazoDoc = c?.rascunho.prazo_pagamento_id ? prazos.find((p) => p.id === c.rascunho.prazo_pagamento_id) : undefined;
+      const pctDoc = naFila ? (naFila.payload.prazo_percentual_ajuste ?? 0) : (prazoDoc?.percentual_ajuste ?? 0);
       await repo.guardarRascunho(chave, {
         ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
@@ -544,14 +549,15 @@ export function useVendedor() {
         route_stop_id: null,
         updated_at: new Date().toISOString(),
         edit_order_id: modo === 'edit' ? orderId : null,
-        ...(congelados && Object.keys(congelados).length > 0 ? { precos_congelados: congelados } : {}),
+        ...(prazoDoc ? { prazo_percentual_ajuste: pctDoc } : {}),
+        ...(congelados && Object.keys(congelados).length > 0 ? { precos_congelados: congelados, precos_congelados_percentual: pctDoc } : {}),
         ...(modo === 'edit' && ehOrcamento ? { tipo: 'orcamento' as const } : {}),
         notice: aviso,
       });
       await recarregar();
       return { customerId: cliente.id, chave };
     },
-    [repo, garantirProdutos, recarregar, detalhe, clientes, v1, unidadesTransportadoras],
+    [repo, garantirProdutos, recarregar, detalhe, clientes, v1, unidadesTransportadoras, prazos],
   );
 
   /** Salva a edição. P-2: só o pedido que ainda está na fila do aparelho (funciona sem sinal); o servidor não edita pedido aceito. */
@@ -773,7 +779,7 @@ export function useVendedor() {
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
-        // RN-VEN-46: o % do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
+        // RN-VEN-43: o % do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
         percentual_ajuste_bp: percentualAjusteParaBp(d.prazo_pagamento_id ? prazos.find((p) => p.id === d.prazo_pagamento_id)?.percentual_ajuste : 0),
         // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença
         preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),

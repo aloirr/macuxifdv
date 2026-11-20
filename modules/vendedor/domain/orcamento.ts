@@ -238,15 +238,6 @@ export function precosCongelados(itens: ReadonlyArray<ItemSalvoParaCongelar>): R
   return out;
 }
 
-/**
- * RN-VEN-18: o preço de UM item ao editar ou transformar. Item já salvo no orçamento (`congelado_cents` presente) mantém o
- * preço salvo e ignora a tabela de hoje e as faixas de hoje; só o item NOVO entra pelo preço de hoje. `null` = sem preço.
- */
-export function precoDoItemNaEdicao<F>(i: { congelado_cents?: number | null; hoje_cents: number | null; faixas_hoje?: F }): { preco_unidade_cents: number | null; faixas: F | undefined; congelado: boolean } {
-  if (i.congelado_cents != null) return { preco_unidade_cents: i.congelado_cents, faixas: undefined, congelado: true };
-  return { preco_unidade_cents: i.hoje_cents, faixas: i.faixas_hoje, congelado: false };
-}
-
 // ---------- cópia completa: transformar e duplicar (T-0071; desenho §1.4 c) ----------
 export interface ItemParaCopia {
   product_id: string;

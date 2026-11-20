@@ -10,11 +10,13 @@ import { Linking, PermissionsAndroid, Platform } from 'react-native';
 
 import {
   galeriaEfetiva,
+  pedirAsQueFaltam,
   TUDO_CONCEDIDO,
-  type BotaoPermissoes,
   type EstadoPermissao,
   type EstadosPermissoes,
+  type IdPermissao,
   type LeituraGaleria,
+  type PedidoDePermissao,
 } from '@/lib/permissoes';
 
 interface RespostaPermissao {
@@ -104,7 +106,7 @@ export async function lerPermissoes(): Promise<EstadosPermissoes> {
  * pedido abre a página de localização do app) ou a página do app nas configurações. Nunca lança: a tela relê o estado
  * quando o app volta ao primeiro plano.
  */
-export async function executarAcaoDePermissao(botao: BotaoPermissoes): Promise<void> {
+export async function executarAcaoDePermissao(botao: PedidoDePermissao): Promise<void> {
   try {
     if (botao.acao === 'abrir-configuracoes') {
       await Linking.openSettings();
@@ -121,4 +123,9 @@ export async function executarAcaoDePermissao(botao: BotaoPermissoes): Promise<v
   } catch {
     // sem diálogo nem página (APK sem o módulo, navegador): a tela continua com o botão
   }
+}
+
+/** R-20261120-052422: na abertura, as janelas do Android para todas as que faltam, uma depois da outra; devolve o estado final. */
+export function pedirPermissoesQueFaltam(ids: readonly IdPermissao[]): Promise<EstadosPermissoes> {
+  return pedirAsQueFaltam(ids, lerPermissoes, executarAcaoDePermissao);
 }

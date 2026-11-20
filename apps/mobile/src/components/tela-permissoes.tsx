@@ -1,22 +1,19 @@
 /**
  * T-0145: tela "Permissões", por cima de tudo, antes do login e da sincronização (o shell não monta as rotas enquanto falta
  * permissão). Imagem aprovada pelo dono do produto (R-20261110-093125): `docs/design/telas/T-0145-permissoes.png`, medidas em
- * `docs/design/permissoes-e-fotos-pdv.md` §1. Marca, título, subtítulo, uma linha por permissão (ícone, nome, motivo e
- * situação), o cartão dos 2 passos da localização, o link "Como usamos a localização" (só no Campo) e UM botão no pé.
+ * `docs/design/permissoes-e-fotos-pdv.md` §1. Faixa Azul noite com o título e o subtítulo (o `CabecalhoTela` do kit, igual às telas
+ * internas, sem marca na faixa; R-20261120-063354), uma linha por permissão que falta (ícone, nome,
+ * motivo e, só na negada, "Negada"), o cartão dos 2 passos da localização e UM botão no pé. R-20261120-052422: a tela só aparece quando,
+ * depois das janelas do Android na abertura, alguma ficou negada; sem o link "Como usamos a localização".
  * Regras e textos em `lib/permissoes.ts`. O Voltar do Android fecha o app (não há "Agora não").
  */
-import { Button, Card, colors, Folha, fonte, Icon, TOUCH, type as t, type IconName } from '@macuxi/ui/mobile';
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button, CABECALHO, CabecalhoTela, Card, colors, estiloBarraDeStatus, fonte, Icon, type IconName } from '@macuxi/ui/mobile';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { AccessibilityInfo, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ROTULO_SITUACAO, type IdPermissao, type SituacaoPermissao, type TelaDePermissoes } from '@/lib/permissoes';
-
-const COR_SITUACAO: Readonly<Record<SituacaoPermissao, string>> = {
-  permitida: colors.success,
-  falta: colors.ink2,
-  negada: colors.danger,
-};
+import { ROTULO_NEGADA, type IdPermissao, type TelaDePermissoes } from '@/lib/permissoes';
 
 /** Ícone da linha (T-0145). */
 const ICONE: Readonly<Record<IdPermissao, IconName>> = {
@@ -28,24 +25,20 @@ const ICONE: Readonly<Record<IdPermissao, IconName>> = {
 const ICONE_CONFIGURACOES: IconName = 'config';
 
 export function TelaPermissoes({
-  marca,
   tela,
   pedindo,
   onBotao,
 }: {
-  /** "Macuxi Campo" / "Macuxi Gestão". */
-  marca: string;
   tela: TelaDePermissoes;
   /** Diálogo ou configurações abertos pelo botão (carregando, sem toque duplo). */
   pedindo: boolean;
   onBotao: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [avisoAberto, setAvisoAberto] = useState(false);
   useEffect(() => {
     AccessibilityInfo.announceForAccessibility(tela.titulo);
   }, [tela.titulo]);
-  // sem "Agora não": o Voltar do Android fecha o app (com o aviso aberto, o Voltar fecha só o aviso, pelo Modal da folha)
+  // sem "Agora não": o Voltar do Android fecha o app
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       BackHandler.exitApp();
@@ -54,17 +47,12 @@ export function TelaPermissoes({
     return () => sub.remove();
   }, []);
   const passos = tela.passosLocalizacao;
-  const aviso = tela.avisoLocalizacao;
   return (
     <View testID="tela-permissoes" style={[StyleSheet.absoluteFill, styles.root]} accessibilityViewIsModal>
-      <ScrollView contentContainerStyle={[styles.conteudo, { paddingTop: Math.max(36, insets.top + 24) }]}>
-        <View style={{ gap: 6 }}>
-          <Text style={styles.marca}>{marca}</Text>
-          <Text style={styles.titulo} accessibilityRole="header">
-            {tela.titulo}
-          </Text>
-          <Text style={styles.subtitulo}>{tela.subtitulo}</Text>
-        </View>
+      {/* a faixa começa na barra de status, que fica com ícones claros (a tela monta fora da AreaSeguraSuperior) */}
+      <StatusBar style={estiloBarraDeStatus(true)} />
+      <CabecalhoTela titulo={tela.titulo} subtitulo={tela.subtitulo} />
+      <ScrollView contentContainerStyle={styles.conteudo}>
         <Card style={styles.cartao}>
           {tela.linhas.map((l, k) => (
             <View
@@ -72,7 +60,7 @@ export function TelaPermissoes({
               testID={`permissao-${l.id}`}
               style={[styles.linha, k > 0 ? styles.divisoria : null]}
               accessible
-              accessibilityLabel={`${l.nome}. ${l.texto} ${ROTULO_SITUACAO[l.situacao]}.`}
+              accessibilityLabel={`${l.nome}. ${l.texto}${l.situacao === 'negada' ? ` ${ROTULO_NEGADA}.` : ''}`}
             >
               <View style={styles.circulo}>
                 <Icon name={ICONE[l.id]} size={20} color={colors.ink2} />
@@ -81,12 +69,11 @@ export function TelaPermissoes({
                 <Text style={styles.nome}>{l.nome}</Text>
                 <Text style={styles.motivo}>{l.texto}</Text>
               </View>
-              <View style={styles.situacao}>
-                {l.situacao === 'permitida' ? <Icon name="check" size={14} color={colors.success} strokeWidth={2.4} /> : null}
-                <Text style={[styles.situacaoTexto, { color: COR_SITUACAO[l.situacao] }]} testID={`permissao-${l.id}-situacao`}>
-                  {ROTULO_SITUACAO[l.situacao]}
+              {l.situacao === 'negada' ? (
+                <Text style={styles.negada} testID={`permissao-${l.id}-situacao`}>
+                  {ROTULO_NEGADA}
                 </Text>
-              </View>
+              ) : null}
             </View>
           ))}
         </Card>
@@ -112,17 +99,6 @@ export function TelaPermissoes({
             </View>
           </Card>
         ) : null}
-        {aviso ? (
-          <Pressable
-            testID="permissoes-como-usamos"
-            accessibilityRole="link"
-            onPress={() => setAvisoAberto(true)}
-            hitSlop={8}
-            style={styles.link}
-          >
-            <Text style={styles.linkTexto}>{aviso.link}</Text>
-          </Pressable>
-        ) : null}
       </ScrollView>
       {tela.botao ? (
         <View style={[styles.pe, { paddingBottom: Math.max(16, insets.bottom + 12) }]}>
@@ -137,43 +113,24 @@ export function TelaPermissoes({
           />
         </View>
       ) : null}
-      {aviso ? (
-        <Folha
-          testID="permissoes-aviso-localizacao"
-          visivel={avisoAberto}
-          onFechar={() => setAvisoAberto(false)}
-          rotuloFechar="Fechar"
-          titulo={aviso.titulo}
-          fechar={{ rotulo: 'Fechar' }}
-        >
-          <Text style={styles.avisoTexto}>{aviso.texto}</Text>
-        </Folha>
-      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { backgroundColor: colors.ground, zIndex: 11 },
-  conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 18, paddingBottom: 24 },
-  marca: { ...fonte.bold, fontSize: 14, color: colors.accentInk },
-  titulo: t.h1,
-  subtitulo: { ...fonte.body, fontSize: 16, color: colors.ink2 },
+  conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 18, paddingTop: CABECALHO.respiroCorpo, paddingBottom: 24 },
   cartao: { padding: 0 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 68, paddingVertical: 10 },
   divisoria: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   circulo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
   nome: { ...fonte.semibold, fontSize: 16, color: colors.ink },
   motivo: { ...fonte.body, fontSize: 14, color: colors.ink2 },
-  situacao: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  situacaoTexto: { ...fonte.semibold, fontSize: 14 },
+  negada: { ...fonte.semibold, fontSize: 14, color: colors.danger },
   passo: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   numero: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  numeroTexto: { ...fonte.bold, fontSize: 12, color: colors.surface },
+  numeroTexto: { ...fonte.semibold, fontSize: 12, color: colors.surface },
   passoTexto: { flex: 1, ...fonte.body, fontSize: 14, color: colors.ink },
-  forte: { ...fonte.bold },
-  link: { alignSelf: 'flex-start', minHeight: TOUCH, justifyContent: 'center' },
-  linkTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
+  forte: { ...fonte.semibold },
   pe: { paddingHorizontal: 20, paddingTop: 8 },
-  avisoTexto: { ...fonte.body, fontSize: 16, lineHeight: 22, color: colors.ink },
 });

@@ -15,6 +15,7 @@
  * - T-0094 (0042): mais 2 sa_* do portal (sa_admins_da_empresa e sa_redefinir_senha_admin), 14 no total.
  * - T-0181 (0081): mais 3 sa_* do portal (frases da tela de carga), 30 no total, e a plataforma.frases_carga_ativas() do app.
  * - T-0182 (0083): mais 4 sa_* do portal (marca da empresa: logo e nome fantasia), 34 no total.
+ * - Item 15 do Campo v1.0.16 (0091): mais 1 sa_* do portal (sa_gravar_ocultar_marca: ocultar a logomarca do Macuxi), 38 no total.
  * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
  *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
  *   worker ou portal; as 3 tabelas novas do portal entram na varredura "nenhum privilégio efetivo em tabela" do portal.
@@ -83,12 +84,20 @@ const SA_PORTAL_LOGO: Record<string, string> = {
     `${SA}; só super-admin; zera as 8 logo_*; idempotente (sem logo não muda nem audita); audita o sha256 antes; devolve chave_anterior`,
 };
 
+/** Item 15 do teste de campo do Campo v1.0.16, 0091_plataforma_tenant_ocultar_marca_macuxi: a empresa oculta a logomarca do
+ * Macuxi (plataforma.tenant.ocultar_marca_macuxi). A 1 sa_* que a migração cria, e só ela. */
+const SA_PORTAL_OCULTAR_MARCA: Record<string, string> = {
+  'plataforma.sa_gravar_ocultar_marca(p_sid uuid, p_tenant uuid, p_ocultar boolean)':
+    `${SA}; só super-admin (admin do cliente 42501, sessão inválida 28000); nulo 22023; tenant inexistente P0002; for update; ` +
+    'idempotente (igual não muda nem audita); audita antes e depois (sa.empresa.ocultar_marca); devolve o jsonb da marca',
+};
+
 /**
- * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 34 plataforma.sa_* — as 12 da 0039
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 38 plataforma.sa_* — as 12 da 0039
  * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados), as 2 da 0042 (T-0094: o super-admin
  * redefine a senha do admin do cliente; R-20261108-001804-banco-dados), as 2 da 0058 (T-0158), a 1 da 0070 (ADR 0047), as 8 da 0072
- * (ADR 0052), as 2 da 0073 (rodapé legal), as 3 da 0081 (T-0181, SA_PORTAL_CARGA) e as 4 da 0083 (T-0182, SA_PORTAL_LOGO) — e NADA
- * mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
+ * (ADR 0052), as 2 da 0073 (rodapé legal), as 3 da 0081 (T-0181, SA_PORTAL_CARGA) e as 4 da 0083 (T-0182, SA_PORTAL_LOGO), as 3 da 0086
+ * (ADR 0047) e a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
  * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
 const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
@@ -144,6 +153,7 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
     `${SA}; só super-admin; exatamente razao_social, cnpj e site (22023), CHECKs (23514); idempotente (igual não muda nem audita); for update; audita antes e depois`,
   ...SA_PORTAL_CARGA,
   ...SA_PORTAL_LOGO,
+  ...SA_PORTAL_OCULTAR_MARCA,
   // ADR 0047 (0086_plataforma_planos_troca_licencas; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1).
   // A licencas_do_tenant() é SECURITY INVOKER (só o macuxi_app, sob RLS): não entra aqui; se virar DEFINER, o caso do papel
   // da aplicação reprova.

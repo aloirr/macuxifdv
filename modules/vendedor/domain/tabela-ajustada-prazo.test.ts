@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { revalidarPedido, politicaDosParametros } from './aprovacao';
-import { bpDoItem, percentualAjusteParaBp, valorMantendoPercentualCents, precoDoItem, precoMinimoBaseCents, itemRespeitaPrecoMinimo, tabelaAjustadaCents, type ItemParaPreco } from './preco-pedido';
+import { percentualAjusteParaBp, valorMantendoPercentualCents, precoDoItem, precoMinimoBaseCents, itemRespeitaPrecoMinimo, tabelaAjustadaCents, type ItemParaPreco } from './preco-pedido';
 
 describe('RN-VEN-43: tabelaAjustadaCents', () => {
   it.each([
@@ -63,13 +63,6 @@ describe('RN-VEN-43: precoDoItem com o prazo', () => {
   it('RN-VEN-43: o desconto do vendedor em % incide sobre a tabela ajustada', () => {
     const p = precoDoItem(item({ preco_tabela_unidade_cents: 10_000, quantidade: 1, desconto_pct: 10, percentual_ajuste_bp: -171 }));
     expect(p.preco_unitario_cents).toBe(8_846); // 9 829 × 0,90 = 8 846,1
-  });
-});
-
-describe('RN-VEN-43/18: bpDoItem', () => {
-  it('RN-VEN-18: o preço congelado do orçamento não ajusta de novo (0); os outros itens usam o bp do pedido', () => {
-    expect(bpDoItem(true, -171)).toBe(0);
-    expect(bpDoItem(false, -171)).toBe(-171);
   });
 });
 
@@ -170,17 +163,17 @@ describe('RN-VEN-43: preço do Catálogo com o prazo padrão do cliente', () => 
   });
 });
 
-describe('RN-VEN-46: desconto digitado em R$ na troca de prazo', () => {
-  it('RN-VEN-46: o R$ vira o % sobre a tabela anterior, o % se mantém e o R$ é refeito sobre a nova tabela', () => {
+describe('troca de prazo: desconto do pedido em R$ (legado)', () => {
+  it('o R$ vira o % sobre a tabela anterior, o % se mantém e o R$ é refeito sobre a nova tabela', () => {
     // R$ 5,00 sobre R$ 100,00 = 5%; nova tabela R$ 98,29 -> R$ 4,91 (4,9145 meia para cima)
     expect(valorMantendoPercentualCents(500, 10_000, 9_829)).toBe(491);
     expect(valorMantendoPercentualCents(500, 9_829, 10_000)).toBe(509);
   });
-  it('RN-VEN-46: tabela igual mantém o R$; zero fica zero', () => {
+  it('tabela igual mantém o R$; zero fica zero', () => {
     expect(valorMantendoPercentualCents(500, 10_000, 10_000)).toBe(500);
     expect(valorMantendoPercentualCents(0, 10_000, 9_829)).toBe(0);
   });
-  it('RN-VEN-46: tabela anterior inválida (0) não divide: mantém o valor', () => {
+  it('tabela anterior inválida (0) não divide: mantém o valor', () => {
     expect(valorMantendoPercentualCents(500, 0, 9_829)).toBe(500);
   });
 });

@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
 import { rotuloPreco } from '../lib/apresentacao';
-import { AVISO_CODIGO_COPIADO, copiarCodigo, ROTULO_COPIAR_CODIGO, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
+import { AVISO_CODIGO_COPIADO, copiarCodigo, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
 import { linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
 import { BotaoEstoquePorFilial } from './estoque-filial';
 import { MiniaturaProduto } from './miniatura';
@@ -23,36 +23,22 @@ export function contextoDoProduto(item: ItemVitrine, clienteId: string | null): 
 }
 
 /**
- * "Copiar código" (`erp_code`). `ficha`: botão com ícone e rótulo (48 dp); `icone`: só o ícone, alvo 48x48, dentro do cartão
- * da lista (sem disparar o toque do cartão). Um aviso só: na ficha, o rótulo vira "Código copiado" com ✓ por 2 s; no ícone, ✓ por
- * 2 s e o toast no Android. Sem toast, o leitor de tela anuncia.
+ * "Copiar código" (`erp_code`), só no cartão da lista: ícone com alvo 48x48, sem disparar o toque do cartão. Aviso único: ✓ por 2 s e
+ * o toast no Android; sem toast, o leitor de tela anuncia. A ficha do produto não tem o botão.
  */
-export function BotaoCopiarCodigo({ codigo, variante = 'ficha' }: { codigo: string; variante?: 'ficha' | 'icone' }) {
+export function BotaoCopiarCodigo({ codigo }: { codigo: string }) {
   const [copiado, setCopiado] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const copiar = async () => {
     const r = await copiarCodigo(codigo, (t) => Clipboard.setString(t));
-    if (variante === 'icone' && Platform.OS === 'android') ToastAndroid.show(r.aviso, ToastAndroid.SHORT);
+    if (Platform.OS === 'android') ToastAndroid.show(r.aviso, ToastAndroid.SHORT);
     else AccessibilityInfo.announceForAccessibility(r.aviso);
     setCopiado(r.ok);
     if (timer.current) clearTimeout(timer.current);
     if (r.ok) timer.current = setTimeout(() => setCopiado(false), 2000);
   };
   const rotuloAcessivel = copiado ? AVISO_CODIGO_COPIADO : rotuloAcessivelCopiar(codigo);
-  if (variante === 'ficha') {
-    return (
-      <Button
-        testID={`catalogo-copiar-codigo-${codigo}`}
-        label={copiado ? AVISO_CODIGO_COPIADO : ROTULO_COPIAR_CODIGO}
-        accessibilityLabel={rotuloAcessivel}
-        icon={copiado ? 'check' : 'copy'}
-        variant="outline"
-        height={ALTURA.toque}
-        onPress={() => void copiar()}
-      />
-    );
-  }
   return (
     <Pressable
       testID={`catalogo-copiar-codigo-${codigo}`}
@@ -138,7 +124,7 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEsto
         <Text style={g.codigoTexto} numberOfLines={1}>
           {item.erp_code}
         </Text>
-        <BotaoCopiarCodigo codigo={item.erp_code} variante="icone" />
+        <BotaoCopiarCodigo codigo={item.erp_code} />
       </View>
       <View style={{ flex: 1 }} />
       {preco ? (

@@ -25,8 +25,8 @@ Senha                                   ← rótulo (14, semibold, ink; fonte do
 - Começa oculta; ao sair da tela o estado some com ela.
 - Teclado (app, `propsDeTecladoDaSenha`; a tela não sobrescreve): `autoCorrect={false}`, `autoCapitalize="none"`,
   `spellCheck={false}`, `autoComplete` `password` (login) ou `new-password` (`finalidade="criacao"`), `textContentType`
-  `password` / `newPassword`, `secureTextEntry` quando oculta e `keyboardType="visible-password"` quando visível no Android
-  (sem sugestões nem espaço automático; R-20261115-064000).
+  `password` / `newPassword`, `secureTextEntry` quando oculta e `keyboardType="default"` sempre, também visível. Nunca
+  `visible-password`: no Android o RN tira a classe de texto e o teclado põe espaço depois do "!" (R-20261120-052719).
 - Web: `type` `password`/`text`, `autoComplete` `current-password` ou `new-password`, `spellCheck={false}`,
   `autoCapitalize="none"`, `autoCorrect="off"`; o olho é `<button type="button">` (não envia o formulário).
 - Movimento: no app o olho usa `Pressionavel` (escala 0,97 em 120 ms; respeita "reduzir movimento").

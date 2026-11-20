@@ -40,6 +40,10 @@ import {
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
   type AberturaArmazenamento,
+  empresaDosParametros,
+  logoQueSubstituiAMarca,
+  ocultarMarcaMacuxiDosParametros,
+  proporcaoDaLogo,
   type AmbienteAparelho,
   type ArmazenamentoSync,
   type EtapaSync,
@@ -81,6 +85,7 @@ import {
   type ResumoArmazenamento,
 } from '@/lib/armazenamento-aparelho';
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
+import { atualizarLogoDaEmpresa, logoDoTenant, type LogoGuardada } from '@/lib/logo-empresa';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import {
@@ -141,9 +146,10 @@ import {
   useDiagnosticoNuvem,
 } from '@/services/diagnostico';
 import { registrarSaidaAnterior } from '@/services/saida-android';
-import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes } from '@/services/permissoes';
+import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes, pedirPermissoesQueFaltam } from '@/services/permissoes';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
+import { dataUriDaLogoGuardada, portaLogoEmpresa, uriDaLogo } from '@/services/logo-empresa';
 import { ligarFonteFotoPdv } from '@/services/foto-pdv';
 import { abrirFoto } from '@/services/visor-foto';
 import { limparPdfsTemporarios } from '@/services/visor-pdf';
@@ -241,6 +247,16 @@ function usePlataformaValor() {
   const desassinarRef = useRef<(() => void) | null>(null);
   const [modulosAtivos, setModulosAtivos] = useState<readonly ModuloId[]>(['core']);
   const [codigoSalvo, setCodigoSalvo] = useState<string | null>(null);
+  /**
+   * T-0182: nome (fantasia; vazio = razão social) e logo da empresa da sessão, dos parâmetros do Core guardados (valem offline).
+   * A logo é a cópia do aparelho, só a do tenant da sessão (`logoDoTenant`).
+   */
+  const [nomeEmpresa, setNomeEmpresa] = useState<string | null>(null);
+  const [logoEmpresa, setLogoEmpresa] = useState<LogoGuardada | null>(null);
+  /** Item 15 (v1.0.17): a empresa oculta a logomarca do Macuxi (`empresa_ocultar_marca_macuxi`; vale com a logo guardada). */
+  const [ocultarMarcaMacuxi, setOcultarMarcaMacuxi] = useState(false);
+  const logoEmpresaRef = useRef<LogoGuardada | null>(null);
+  logoEmpresaRef.current = logoEmpresa;
   const renovarRef = useRef<(() => Promise<string | null>) | null>(null);
   /** RN-CORE-15: aviso de aparelho bloqueado (dados apagados) que fica visível na tela de login. */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
@@ -322,8 +338,28 @@ function usePlataformaValor() {
     if (mudou) setToquesSemEfeito(0);
     return mudou;
   }, []);
-  /** Lê o aparelho e diz se as exigidas (as do ref, sem recalcular) estão todas concedidas. */
-  const conferirPermissoes = useCallback(async () => {
+  /**
+   * R-20261120-052422: pedido direto pelas janelas do Android, sem a tela "Permissões" por baixo (na abertura a tela de entrada
+   * fica; depois do login, o app). Enquanto roda, a volta ao primeiro plano não relê (cada janela tira o app do primeiro plano).
+   */
+  const [pedidoAutomatico, setPedidoAutomatico] = useState(false);
+  const pedidoAutomaticoRef = useRef(false);
+  /** Lista de exigidas já pedida pelas janelas (cada lista uma vez por abertura: a do supervisor entra depois do login). */
+  const exigidasJaPedidasRef = useRef<string | null>(null);
+  /** Lê o aparelho e diz se as exigidas (as do ref, sem recalcular) estão todas concedidas; com `pedir`, antes pede as que faltam. */
+  const conferirPermissoes = useCallback(async (pedir = false) => {
+    if (pedir) {
+      const ids = permissoesDoUsuarioRef.current;
+      exigidasJaPedidasRef.current = ids.join(',');
+      pedidoAutomaticoRef.current = true;
+      setPedidoAutomatico(true);
+      try {
+        await pedirPermissoesQueFaltam(ids);
+      } finally {
+        pedidoAutomaticoRef.current = false;
+        setPedidoAutomatico(false);
+      }
+    }
     await lerEGuardarPermissoes();
     const e = estadosPermissoesRef.current;
     return e !== null && permissoesLiberadas(variante, e, permissoesDoUsuarioRef.current);
@@ -352,6 +388,8 @@ function usePlataformaValor() {
         api,
         // RD-0088: o visor de foto comum para os módulos (`ambiente.abrirFoto`)
         abrirFoto,
+        // T-0182: a logo da empresa para o PDF, da cópia guardada (vale sem sinal)
+        logoDaEmpresa: () => dataUriDaLogoGuardada(logoEmpresaRef.current),
         online: () => !offlineRef.current && sessaoRef.current !== null,
         usuario: () => {
           const s = sessaoRef.current;
@@ -508,8 +546,8 @@ function usePlataformaValor() {
     void registrarSaidaAnterior();
     (async () => {
       const [, settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano] = await Promise.all([
-        // T-0145: as permissões são conferidas a cada abertura, antes do login e da sincronização
-        conferirPermissoes().catch(() => false),
+        // T-0145: as permissões são conferidas a cada abertura, antes do login e da sincronização; as que faltam, pedidas direto
+        conferirPermissoes(true).catch(() => false),
         readJson<{ apiUrl?: string | null }>(keys.settings),
         readJson<SessaoGuardada>(keys.session),
         readJson<boolean>(keys.offline),
@@ -843,6 +881,10 @@ function usePlataformaValor() {
     setMotor(null);
     setMe(null);
     setModulosAtivos(['core']);
+    // T-0182: sair não apaga a cópia da logo (a carga do próximo login da mesma empresa a mostra); só some da tela
+    setNomeEmpresa(null);
+    setLogoEmpresa(null);
+    setOcultarMarcaMacuxi(false);
     setArmazenamento(null);
     setErroArmazenamento(null);
   }, []);
@@ -1141,6 +1183,49 @@ function usePlataformaValor() {
     });
   }, [motor, api, diagnosticoNuvem]);
 
+  // ---------- T-0182: nome e logo da empresa (parâmetros do Core) a cada sincronização; a logo só é baixada quando o sha muda ----------
+  useEffect(() => {
+    if (!motor) return;
+    const porta = portaLogoEmpresa(api);
+    let vivo = true;
+    let fila: Promise<void> = Promise.resolve();
+    const atualizar = () => {
+      fila = fila.then(async () => {
+        const tenantId = sessaoRef.current?.tenant?.id;
+        const parametrosCore = motor.parametros('core');
+        const empresa = empresaDosParametros(parametrosCore);
+        if (vivo) {
+          setNomeEmpresa(empresa?.nome ?? null);
+          setOcultarMarcaMacuxi(ocultarMarcaMacuxiDosParametros(parametrosCore));
+        }
+        if (!tenantId) return;
+        const l = await atualizarLogoDaEmpresa(porta, { tenantId, empresa, online: !offlineRef.current });
+        if (vivo && motorRef.current === motor) setLogoEmpresa(logoDoTenant(l, sessaoRef.current?.tenant?.id));
+      });
+    };
+    atualizar();
+    let antes = motor.estado();
+    const semEstado = motor.assinar((e) => {
+      const mudou = e.sincronizado_em !== antes.sincronizado_em || e.modulosAtivos !== antes.modulosAtivos;
+      antes = e;
+      if (mudou) atualizar();
+    });
+    return () => {
+      vivo = false;
+      semEstado();
+    };
+  }, [motor, api]);
+
+  /**
+   * Logo da empresa para as telas: `file://` da cópia e a proporção guardada (a placa nasce do tamanho certo). `soLogoDoCliente`
+   * (item 15): `logoQueSubstituiAMarca` do SDK (a chave ligada e a logo no aparelho); sem a logo, a do Macuxi continua.
+   */
+  const empresa = useMemo(() => {
+    const uri = logoEmpresa ? uriDaLogo(logoEmpresa) : null;
+    const logo = logoEmpresa && uri ? { uri, proporcao: proporcaoDaLogo(logoEmpresa) } : null;
+    return { nome: nomeEmpresa, logo, soLogoDoCliente: logoQueSubstituiAMarca(ocultarMarcaMacuxi, logo) !== null };
+  }, [nomeEmpresa, logoEmpresa, ocultarMarcaMacuxi]);
+
   // ---------- ADR 0017: sincronização incremental em segundo plano (expo-background-task) ----------
   useEffect(() => {
     if (!motor) return;
@@ -1184,18 +1269,27 @@ function usePlataformaValor() {
   // que o vendedor está (o pedido aberto continua); na tela de permissões, a volta das configurações relê na hora
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
-      if (st === 'active' && !permissoesOkRef.current) void conferirPermissoes().catch(() => undefined);
+      if (st === 'active' && !permissoesOkRef.current && !pedidoAutomaticoRef.current) {
+        void conferirPermissoes().catch(() => undefined);
+      }
     });
     return () => sub.remove();
   }, [conferirPermissoes]);
 
-  /** Tela de permissões (nula enquanto não leu ou com todas concedidas). */
+  // T-0187: o supervisor que entra no Gestão passa a precisar da localização; as janelas do Android vêm direto, uma vez
+  useEffect(() => {
+    if (estadosPermissoes === null || permissoesOk || pedidoAutomaticoRef.current) return;
+    if (exigidasJaPedidasRef.current === permissoesDoUsuario.join(',')) return;
+    void conferirPermissoes(true).catch(() => undefined);
+  }, [estadosPermissoes, permissoesOk, permissoesDoUsuario, conferirPermissoes]);
+
+  /** Tela de permissões (nula enquanto não leu, durante as janelas do Android ou com todas concedidas). */
   const telaPermissoes = useMemo<TelaDePermissoes | null>(
     () =>
-      estadosPermissoes && !permissoesOk
+      estadosPermissoes && !permissoesOk && !pedidoAutomatico
         ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid(), toquesSemEfeito, permissoesDoUsuario)
         : null,
-    [estadosPermissoes, permissoesOk, variante, toquesSemEfeito, permissoesDoUsuario],
+    [estadosPermissoes, permissoesOk, pedidoAutomatico, variante, toquesSemEfeito, permissoesDoUsuario],
   );
   const permissoesLidas = estadosPermissoes !== null;
 
@@ -1227,6 +1321,7 @@ function usePlataformaValor() {
     ready,
     modo,
     codigoSalvo,
+    empresa,
     variante,
     apiUrl,
     defaultApiUrl,

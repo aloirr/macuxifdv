@@ -62,23 +62,25 @@ describe('filtro de filial da folha "Filtrar" (catalogo-campo-v2 §4)', () => {
 describe('resumo do filtro e subtítulo da faixa (catalogo-campo-v2 §3 e §4)', () => {
   const opcoes = opcoesDoFiltroFilial({ proprias: ['v', 'm'], filiais: [{ id: 'v', nome: 'Boa Vista' }, { id: 'm', nome: 'Manaus' }, { id: 'x', nome: 'Outra' }] });
 
-  it('spec §4: padrão = "Suas filiais (2)" sem ✕ e nenhum filtro contado', () => {
-    expect(resumoDoFiltro({ opcoes, escolha: { filial: null, soComEstoque: false } })).toEqual({ contagem: 0, filial: { texto: 'Suas filiais (2)', removivel: false }, soComEstoque: false });
-    expect(resumoDoFiltro({ opcoes, escolha: { filial: 'todas', soComEstoque: false } }).contagem).toBe(0);
+  const sem = { sistemaId: null, categoriaId: null };
+
+  it('spec §4: padrão = "Suas filiais (2)": sem etiqueta e nenhum filtro contado', () => {
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: null }, ...sem })).toEqual({ contagem: 0, filial: null });
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: 'todas' }, ...sem })).toEqual({ contagem: 0, filial: null });
   });
 
-  it('spec §4: filial escolhida = "Filial Manaus" com ✕ e conta 1; "Ocultar" soma mais 1', () => {
-    const r = resumoDoFiltro({ opcoes, escolha: { filial: 'm', soComEstoque: true } });
-    expect(r).toEqual({ contagem: 2, filial: { texto: 'Filial Manaus', removivel: true }, soComEstoque: true });
+  it('spec §4: filial escolhida = "Filial Manaus" com ✕ e conta 1; sistema e categoria somam no mesmo selo', () => {
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: 'm' }, ...sem })).toEqual({ contagem: 1, filial: { texto: 'Filial Manaus', removivel: true } });
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: 'm' }, sistemaId: 's', categoriaId: 'c' }).contagem).toBe(3);
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: null }, sistemaId: 's', categoriaId: null })).toEqual({ contagem: 1, filial: null });
   });
 
-  it('spec §4: com uma filial só o grupo não existe, e o chip de filial também não', () => {
-    const r = resumoDoFiltro({ opcoes: [], escolha: { filial: null, soComEstoque: true } });
-    expect(r).toEqual({ contagem: 1, filial: null, soComEstoque: true });
+  it('spec §4: com uma filial só o grupo não existe, e a etiqueta de filial também não', () => {
+    expect(resumoDoFiltro({ opcoes: [], escolha: { filial: null }, ...sem })).toEqual({ contagem: 0, filial: null });
   });
 
-  it('spec §3: subtítulo "Sua filial: Boa Vista · 1.284 produtos"; sem filial, só a contagem', () => {
-    expect(subtituloComFilial('Boa Vista', 1284)).toBe('Sua filial: Boa Vista · 1.284 produtos');
-    expect(subtituloComFilial(null, 1)).toBe('1 produto');
+  it('spec §3: subtítulo "Sua filial: Boa Vista", sem contagem de produtos; sem filial, nenhum', () => {
+    expect(subtituloComFilial('Boa Vista')).toBe('Sua filial: Boa Vista');
+    expect(subtituloComFilial(null)).toBeUndefined();
   });
 });

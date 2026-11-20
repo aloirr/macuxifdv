@@ -21,7 +21,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
-import { ehUsuarioSemFilial, entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
+import { ehUsuarioSemFilial, entraEm, rotuloDaLogo, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
 import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
@@ -31,9 +31,10 @@ import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
 import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
 import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
-import { qk, useMe, useModulosEfetivos } from '@/lib/queries';
 import { aoSemFilial } from '@/lib/sem-filial';
+import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
+import { useUrlDoBlob } from '@/lib/url-do-blob';
 import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
 import { SessaoSemConexao } from './sessao-sem-conexao';
 
@@ -72,12 +73,19 @@ function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }
 
 /**
  * Logo A (MC-0056) no grafite e, abaixo, o nome da distribuidora fora da área de proteção (manual §2.3: margem igual à
- * altura do "M", ≈ 17,4 px a 28 px de altura → 18 px).
+ * altura do "M", ≈ 17,4 px a 28 px de altura → 18 px). Item 15 (v1.0.17): com a logomarca do Macuxi oculta pela empresa e a
+ * logo dela, só a logo do cliente, numa placa branca (a logo do cliente some no grafite), na mesma altura.
  */
-function Brand({ company }: { company: string }) {
+export function Brand({ company, logoCliente = null }: { company: string; logoCliente?: string | null }) {
   return (
     <div className="flex min-w-0 flex-col items-start">
-      <img src={SRC_LOGO_NEGATIVO_GRAFITE} alt="Macuxi Força de Vendas" width={LARGURA_LOGO} height={ALTURA_LOGO} className="block h-7 w-auto shrink-0" />
+      {logoCliente ? (
+        <span data-testid="menu-bko.logo-cliente" className="box-border flex h-10 max-w-[200px] items-center rounded-xl bg-surface px-2 py-1.5">
+          <img src={logoCliente} alt={rotuloDaLogo(company)} className="block h-7 w-auto max-w-full object-contain" />
+        </span>
+      ) : (
+        <img src={SRC_LOGO_NEGATIVO_GRAFITE} alt="Macuxi Força de Vendas" width={LARGURA_LOGO} height={ALTURA_LOGO} className="block h-7 w-auto shrink-0" />
+      )}
       {company && <span className="mt-[18px] max-w-full truncate text-[12px] leading-4 text-nav-text">{company}</span>}
     </div>
   );
@@ -271,6 +279,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const me = useMe();
   const perfil = session.user?.perfil ?? null;
   const modulos = useModulosEfetivos(perfil);
+  // item 15: a logo do cliente no lugar da do Macuxi (chave ligada no portal e a logo da empresa)
+  const logoCliente = useUrlDoBlob(useLogoQueSubstituiAMarca(perfil));
 
   // T-0117 (G2): só `anonymous` (401/423 ou sem usuário) vai ao login; `sem_conexao` fica na aba com o aviso
   const estadoSessao = estadoDaSessao(session.status);
@@ -281,7 +291,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   // menu: só o Core enquanto `/v1/me/modulos` carrega; o miolo (páginas, que decidem 404) espera os efetivos (D-B30)
   const visao = useMemo(() => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'] }), [perfil, modulos.data]);
   const usuario = session.user;
-  const ambiente = useMemo(() => criarAmbienteWeb(() => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null)), [usuario]);
+  // RD-0700 e RD-1325: a logo do PDF sai do cache de `/v1/me/modulos` (a mesma consulta do menu) e da logo, sem nova chamada
+  const ambiente = useMemo(
+    () =>
+      criarAmbienteWeb(
+        () => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null),
+        async () => {
+          const logo = perfil ? (await qc.fetchQuery(consultaMeusModulos(perfil))).logo : null;
+          return logo ? qc.fetchQuery(consultaLogoDaEmpresa(logo.sha256)) : null;
+        },
+      ),
+    [usuario, perfil, qc],
+  );
 
   const switchProfile = () => {
     void encerrarSessao();
@@ -347,7 +368,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* menu lateral (desktop): a lista ocupa o espaço entre a marca e o rodapé; o menu em si não rola */}
       <nav aria-label="Menu do backoffice" data-testid="menu-bko" className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col bg-ink px-3 pt-3.5 pb-3 text-white md:flex">
         <div className="shrink-0 px-2 pb-3">
-          <Brand company={company} />
+          <Brand company={company} logoCliente={logoCliente} />
         </div>
         <MenuLateral grupos={grupos} ativo={ativo} />
         <div className="mt-1 flex shrink-0 flex-col gap-0.5 border-t border-nav-active px-2 pt-3">
@@ -365,7 +386,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* menu no topo (tela estreita) */}
       <nav aria-label="Menu do backoffice" className="flex flex-col gap-3 bg-ink px-4 pt-4 pb-3 text-white md:hidden">
         <div className="flex items-start justify-between gap-3">
-          <Brand company={company} />
+          <Brand company={company} logoCliente={logoCliente} />
           <button type="button" onClick={switchProfile} className={cx('flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] border border-nav-active px-3 text-[12px] font-semibold text-nav-text', FOCO)}>
             <IconLogout size={14} />
             Trocar perfil

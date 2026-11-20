@@ -36,6 +36,8 @@ export * from './desconto-rn';
 export * from '../comum/historico';
 // RD-0014: nome curto e longo dos 7 perfis padrão (o mesmo do BKO, do portal e do login)
 export * from '../comum/perfis';
+// N-1 do v1017: nome do módulo na tela (o mesmo do BKO), sem ícone nem React
+export { nomeDoModulo } from '../comum/modulos';
 export * from './historico-rn';
 export * from './acoes';
 export * from './acoes-rn';
@@ -74,3 +76,6 @@ export * from './placa-logo-rn';
 // RD-2355 (T-0186): TabelaRotuloValor e TabelaDados (CelulaTexto, BotaoCelula), as tabelas da ficha do Cliente 360 e do pedido
 export * from './tabela-ficha';
 export * from './tabela-ficha-rn';
+// v1.0.17 (R-20261120-055304 item 2): SinoNotificacoes, o sino padrão de todas as telas (medidas, cores, selo e leitura em sino.ts)
+export * from './sino';
+export * from './sino-rn';

@@ -8,7 +8,7 @@
 import type { FiltrosInterpretados } from '../contracts';
 import { anoCivilNoFuso } from './ano-civil';
 import { expandirAplicacao } from './aplicacao';
-import { casaComCodigo, cmp, codigoCompacto, codigosCompactosDoProduto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
+import { casaComCodigo, cmp, codigoCompacto, codigosCompactosDoProduto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, referenciaCruzadaContem, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
 import { chaveDeTermo, expandirSinonimos, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 import { aplicarChips, entraNaVitrine, temEstoqueParaBusca, type ChipsVitrine, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 import { filtrosParaPerfil } from './visibilidade';
@@ -353,7 +353,15 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   for (const w of palavras) posicoesDaPalavra(indice, w, alvo);
   // n-gramas de código ("cb 3401" → "cb3401") e o código do filtro
   const porCodigo = new Set<number>();
-  for (const c of codigosDaConsulta(filtros.text)) for (const i of indice.porCodigo.get(c) ?? []) { alvo.add(i); porCodigo.add(i); }
+  const ngramasDaConsulta = codigosDaConsulta(filtros.text);
+  for (const c of ngramasDaConsulta) for (const i of indice.porCodigo.get(c) ?? []) { alvo.add(i); porCodigo.add(i); }
+  // RN-CAT-09: pedaço do código do concorrente (a chave do índice contém o trecho); quem decide é a mesma função do ranking
+  for (const c of ngramasDaConsulta) {
+    for (const [chave, ids] of indice.porCodigo) {
+      if (chave === c || !chave.includes(c)) continue;
+      for (const i of ids) if (referenciaCruzadaContem(ngramasDaConsulta, e.produtos[i]!.referencias ?? [])) { alvo.add(i); porCodigo.add(i); }
+    }
+  }
   const posicoes = [...alvo].filter(entra).sort((a, b) => a - b);
   const pre = posicoes.map((i) => {
     if (porCodigo.has(i)) return { pontos: 1, exato: true, soAplicacao: false };

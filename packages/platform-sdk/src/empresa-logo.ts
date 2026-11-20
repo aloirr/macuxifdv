@@ -3,6 +3,8 @@
  * Atributos do tenant (`plataforma.tenant`, migração 0083), gravados SÓ pelo super-admin no portal (RN-CORE-33):
  *   GET|PUT /v1/plataforma/empresas/:tenant_id/marca         nome fantasia (JSON) e o resumo da logo
  *   GET|PUT|DELETE /v1/plataforma/empresas/:tenant_id/logo   bytes crus `image/png` ou `image/jpeg` (até 1 MiB)
+ *   PUT /v1/plataforma/empresas/:tenant_id/marca/ocultar-macuxi  `{ ocultar }`: oculta a logomarca do Macuxi (item 15 do
+ *       teste de campo do Campo v1.0.16; desenho `docs/desenho/v1017-campo-versao-e-marca.md` §1; migração 0091)
  * O aparelho recebe pelos parâmetros do Core (`empresa_nome`, `empresa_logo`; `empresaDosParametros`) e baixa os bytes por
  * `GET /v1/me/empresa/logo/:sha256`. Puro TypeScript: a mesma conferência (`conferirLogo`) vale na API e no portal.
  */
@@ -81,6 +83,7 @@ export function conferirLogo(bytes: Uint8Array, tipoDeclarado: string | null | u
 // ---------- rotas ----------
 export const rotaMarcaEmpresa = (tenantId: string): string => `/v1/plataforma/empresas/${tenantId}/marca`;
 export const rotaLogoEmpresa = (tenantId: string): string => `/v1/plataforma/empresas/${tenantId}/logo`;
+export const rotaOcultarMarcaMacuxi = (tenantId: string): string => `/v1/plataforma/empresas/${tenantId}/marca/ocultar-macuxi`;
 /** Bytes da logo para o aparelho e o BKO (sessão do app, tenant do token); o endereço muda com o sha256. */
 export const ROTA_ME_EMPRESA_LOGO = '/v1/me/empresa/logo';
 export const rotaLogoDoAparelho = (sha256: string): string => `${ROTA_ME_EMPRESA_LOGO}/${sha256}`;
@@ -109,6 +112,8 @@ export const MarcaEmpresaSchema = z
     razao_social: z.string(),
     nome_fantasia: z.string().min(1).max(MAX_NOME_FANTASIA).nullable(),
     logo: EmpresaLogoSchema.nullable(),
+    /** `plataforma.tenant.ocultar_marca_macuxi` (0091): a empresa não mostra a logomarca do Macuxi (só o super-admin grava). */
+    ocultar_marca_macuxi: z.boolean(),
   })
   .strict();
 export type MarcaEmpresa = z.output<typeof MarcaEmpresaSchema>;
@@ -126,6 +131,10 @@ export const GravarNomeFantasiaSchema = z
   .strict();
 export type GravarNomeFantasia = z.output<typeof GravarNomeFantasiaSchema>;
 
+/** Corpo do `PUT .../marca/ocultar-macuxi` (só super-admin, RN-CORE-33). */
+export const GravarOcultarMarcaMacuxiSchema = z.object({ ocultar: z.boolean() }).strict();
+export type GravarOcultarMarcaMacuxi = z.output<typeof GravarOcultarMarcaMacuxiSchema>;
+
 /** "Licenciado para <x>" (spec §5): o nome fantasia; vazio = a razão social. */
 export function nomeDaEmpresa(nomeFantasia: string | null | undefined, razaoSocial: string): string {
   const f = nomeFantasia?.trim();
@@ -139,6 +148,8 @@ export { rotuloDaLogo };
 /** Chaves reservadas nos parâmetros do Core: a API sempre sobrescreve (uma linha de `plataforma.parametro` com o mesmo nome não vale). */
 export const PARAMETRO_EMPRESA_NOME = 'empresa_nome';
 export const PARAMETRO_EMPRESA_LOGO = 'empresa_logo';
+/** `true` = o app e o BKO não mostram a logomarca do Macuxi (0091; `ocultarMarcaMacuxiDosParametros`). */
+const PARAMETRO_EMPRESA_OCULTAR_MARCA = 'empresa_ocultar_marca_macuxi';
 
 /** `empresa_logo`: o suficiente para baixar (`rotaLogoDoAparelho(sha256)`), guardar com a extensão e desenhar a placa. */
 export const LogoDoAparelhoSchema = z
@@ -163,12 +174,22 @@ export interface LinhaMarcaTenant {
   logo_tipo: string | null;
   logo_largura_px: number | null;
   logo_altura_px: number | null;
+  /** 0091; ausente ou `null` (banco anterior à 0091) = `false`. */
+  ocultar_marca_macuxi?: boolean | null;
 }
 
-/** As duas chaves reservadas do Core, prontas para os parâmetros (API). Logo incompleta ou fora do contrato = `null`. */
-export function parametrosDaEmpresa(t: LinhaMarcaTenant): { empresa_nome: string; empresa_logo: LogoDoAparelho | null } {
+/** As chaves reservadas do Core, prontas para os parâmetros (API). Logo incompleta ou fora do contrato = `null`. */
+export function parametrosDaEmpresa(t: LinhaMarcaTenant): {
+  empresa_nome: string;
+  empresa_logo: LogoDoAparelho | null;
+  empresa_ocultar_marca_macuxi: boolean;
+} {
   const logo = LogoDoAparelhoSchema.safeParse({ sha256: t.logo_sha256, tipo: t.logo_tipo, largura_px: t.logo_largura_px, altura_px: t.logo_altura_px });
-  return { empresa_nome: nomeDaEmpresa(t.nome_fantasia, t.nome), empresa_logo: logo.success ? logo.data : null };
+  return {
+    empresa_nome: nomeDaEmpresa(t.nome_fantasia, t.nome),
+    empresa_logo: logo.success ? logo.data : null,
+    empresa_ocultar_marca_macuxi: t.ocultar_marca_macuxi === true,
+  };
 }
 
 /**
@@ -180,4 +201,17 @@ export function empresaDosParametros(parametrosCore: Readonly<Record<string, unk
   if (typeof nome !== 'string' || nome.trim() === '') return null;
   const logo = LogoDoAparelhoSchema.safeParse(parametrosCore?.[PARAMETRO_EMPRESA_LOGO]);
   return { nome, logo: logo.success ? logo.data : null };
+}
+
+/**
+ * Ocultar a logomarca do Macuxi no app e no BKO (lida dos parâmetros do Core, `ambiente.parametros('core')`). Só `true` oculta:
+ * servidor anterior à 0091 (sem a chave) ou valor fora do tipo = mostra (o padrão).
+ */
+export function ocultarMarcaMacuxiDosParametros(parametrosCore: Readonly<Record<string, unknown>> | null | undefined): boolean {
+  return parametrosCore?.[PARAMETRO_EMPRESA_OCULTAR_MARCA] === true;
+}
+
+/** A logo do cliente no lugar da logomarca do Macuxi: só com a chave ligada e a logo presente (RD-1326; os dois shells). */
+export function logoQueSubstituiAMarca<T>(ocultar: boolean, logo: T | null | undefined): T | null {
+  return ocultar && logo ? logo : null;
 }

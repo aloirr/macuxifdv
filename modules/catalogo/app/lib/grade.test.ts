@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { montarArvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, subtituloDaGrade, tagDeEstoque } from './grade';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from './grade';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 const no = (id: string, pai: string | null, nivel: number, nome: string): NoCatalogo => ({ id, pai_id: pai, nivel, codigo: id, nome, ordem: 0, ativo: true });
@@ -60,9 +60,7 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(tagDeEstoque({ availability: null })).toBeNull();
   });
 
-  it('T-0173: subtítulo no singular e no plural, grade em 2 colunas e TalkBack sem vazios', () => {
-    expect(subtituloDaGrade(1)).toBe('1 produto');
-    expect(subtituloDaGrade(40)).toBe('40 produtos');
+  it('T-0173: grade em 2 colunas e TalkBack sem vazios', () => {
     expect(emLinhas([1, 2, 3])).toEqual([[1, 2], [3]]);
     expect(rotuloAcessivelDoCartao(['Açúcar', null, 'R$ 4,95', ' '])).toBe('Açúcar, R$ 4,95');
   });

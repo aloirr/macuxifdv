@@ -188,11 +188,17 @@ export const FUNCOES_SA_PLANOS = [
 ] as const;
 
 /**
+ * A sa_* que oculta a marca do Macuxi (item 15 do Campo v1.0.16, migração plataforma_tenant_ocultar_marca_macuxi; rota PUT
+ * /v1/plataforma/empresas/:tenant_id/marca/ocultar-macuxi): SÓ super-admin (RN-CORE-33). EXECUTE só ao macuxi_portal.
+ */
+export const FUNCOES_SA_OCULTAR_MARCA = ['plataforma.sa_gravar_ocultar_marca(uuid, uuid, boolean)'] as const;
+
+/**
  * As sa_* públicas do banco migrado até a ÚLTIMA: as até a 0080 (FUNCOES_SA_ATE_0080) + uma constante por lote da v1.0.14
- * (FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS). Use esta lista nas conferências pelo catálogo do banco migrado até o
+ * (FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS) e a da v1.0.17 (FUNCOES_SA_OCULTAR_MARCA). Use esta lista nas conferências pelo catálogo do banco migrado até o
  * fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS] as const;
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS, ...FUNCOES_SA_OCULTAR_MARCA] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

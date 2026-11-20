@@ -78,10 +78,9 @@ describe('RN-CORE-23 / T-0090: junção do servidor com o aparelho no período p
 });
 
 describe('T-0090 revisão de UX (🟡1, 🟡2, 🟡5)', () => {
-  it('UX1: com busca e vendedor escolhido, o resumo diz N resultados · vendedor · últimos 90 dias', () => {
-    expect(resumoDaBusca(3, null)).toBe('3 resultados · últimos 90 dias');
-    expect(resumoDaBusca(1, 'Ana Souza')).toBe('1 resultado · Ana Souza · últimos 90 dias');
-    expect(resumoDaBusca(0, 'Ana Souza')).toBe('0 resultados · Ana Souza · últimos 90 dias');
+  it('UX1: o resumo da busca diz N resultados · últimos 90 dias (o vendedor fica só na etiqueta)', () => {
+    expect(resumoDaBusca(3)).toBe('3 resultados · últimos 90 dias');
+    expect(resumoDaBusca(1)).toBe('1 resultado · últimos 90 dias');
   });
   it('UX2: escolher um período sai do chip A faturar (volta para Todos); os demais ficam', () => {
     expect(situacaoAoEscolherPeriodo('a_faturar')).toBe('todos');

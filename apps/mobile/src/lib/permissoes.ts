@@ -1,11 +1,12 @@
 /**
  * T-0145 (R-20261110-062232; RN-CORE-13 e RN-CORE-37): permissões obrigatórias do aparelho, conferidas a cada abertura,
- * ANTES do login e de qualquer sincronização. Sem todas, o app fica na tela "Permissões".
+ * ANTES do login e de qualquer sincronização. R-20261120-052422: na abertura o app pede direto, pelas janelas do Android,
+ * todas as que faltam (`pedirAsQueFaltam`); a tela "Permissões" só aparece se alguma ficar negada, e só com as que faltam.
  * - Campo: notificações, localização "Permitir o tempo todo" (tracking da próxima semana), câmera e fotos/galeria.
  * - Gestão: notificações; o cargo rastreado no Gestão (o supervisor, T-0187 §1.2) também a localização "o tempo todo". Antes
  *   do login o cargo não é conhecido: a localização entra na tela depois do login (`permissoesExigidas`).
  * Regras do desenho do designer-ux (`docs/design/permissoes-e-fotos-pdv.md` §1, imagem `telas/T-0145-permissoes.png`, aprovada
- * em R-20261110-093125): situação por linha (Permitida, Falta, Negada); UM botão, que pede a próxima que falta na ordem da tabela e vira
+ * em R-20261110-093125): "Negada" só na linha negada; UM botão, que pede a próxima que falta na ordem da tabela e vira
  * "Abrir configurações" quando o Android não pergunta mais (2 recusas) ou falta o passo 2 da localização. No Android 11+
  * (API 30) "o tempo todo" só existe nas configurações: 1º "durante o uso" (diálogo), 2º "Permitir o tempo todo".
  * Puro (roda em Node). Leitura e pedidos ao aparelho em `services/permissoes.ts`; a tela em `components/tela-permissoes.tsx`.
@@ -46,7 +47,7 @@ export function permissoesExigidas(variante: Variante, cargo: string | null = nu
   return [...daVariante, 'localizacao'];
 }
 
-export type SituacaoPermissao = 'permitida' | 'falta' | 'negada';
+type SituacaoPermissao = 'permitida' | 'falta' | 'negada';
 
 /**
  * - `pedir`: diálogo do sistema;
@@ -55,12 +56,15 @@ export type SituacaoPermissao = 'permitida' | 'falta' | 'negada';
  */
 export type AcaoPermissao = 'pedir' | 'pedir-tempo-todo' | 'abrir-configuracoes';
 
+/** Situação de uma linha da tela: a tela só lista as que faltam. */
+type SituacaoQueFalta = Exclude<SituacaoPermissao, 'permitida'>;
+
 export interface LinhaPermissao {
   id: IdPermissao;
   nome: string;
   /** O motivo; na negada, o que fazer nas configurações. */
   texto: string;
-  situacao: SituacaoPermissao;
+  situacao: SituacaoQueFalta;
 }
 
 export interface BotaoPermissoes {
@@ -75,21 +79,13 @@ export interface TrechoDeTexto {
   forte?: boolean;
 }
 
-/** "Como usamos a localização" (onde a localização é exigida): o aviso curto da base LGPD do tracking (docs/desenho/T-0145-lgpd-tracking.md §6). */
-export interface AvisoLocalizacao {
-  link: string;
-  titulo: string;
-  texto: string;
-}
-
 export interface TelaDePermissoes {
   titulo: string;
   subtitulo: string;
+  /** Só as que faltam (R-20261120-052422). */
   linhas: LinhaPermissao[];
   /** Cartão dos 2 passos (Android 11+, "durante o uso" já concedido e falta "o tempo todo"). */
   passosLocalizacao: { feito: string; falta: string; faltaTrechos: readonly TrechoDeTexto[] } | null;
-  /** Link do aviso da localização: só quando a localização é exigida (Campo e o supervisor no Gestão). */
-  avisoLocalizacao: AvisoLocalizacao | null;
   /** Nulo = todas concedidas: o app segue sozinho. */
   botao: BotaoPermissoes | null;
 }
@@ -98,11 +94,8 @@ export interface TelaDePermissoes {
 export const TITULO_PERMISSOES = 'Permissões';
 export const ROTULO_PERMITIR = 'Permitir';
 export const ROTULO_ABRIR_CONFIGURACOES = 'Abrir configurações';
-export const ROTULO_SITUACAO: Readonly<Record<SituacaoPermissao, string>> = {
-  permitida: 'Permitida',
-  falta: 'Falta',
-  negada: 'Negada',
-};
+/** RD-2466: a lista já é só do que falta; a situação aparece só na negada (explica o "Abrir configurações"). */
+export const ROTULO_NEGADA = 'Negada';
 const NOMES: Readonly<Record<IdPermissao, string>> = {
   notificacoes: 'Notificações',
   localizacao: 'Localização o tempo todo',
@@ -133,14 +126,6 @@ export const PASSO_FALTA_TRECHOS: readonly TrechoDeTexto[] = [
   { texto: '.' },
 ];
 export const PASSO_FALTA_LOCALIZACAO = PASSO_FALTA_TRECHOS.map((p) => p.texto).join('');
-/** Texto curto do aviso (base LGPD §6, "prominent disclosure" do Google Play antes do pedido em segundo plano). */
-export const AVISO_LOCALIZACAO: AvisoLocalizacao = {
-  link: 'Como usamos a localização',
-  titulo: 'Localização o tempo todo',
-  texto:
-    'Durante o expediente, o Macuxi registra o seu trajeto para comprovar as visitas e planejar a rota. Fora do expediente, nada é registrado.',
-};
-
 /** API do Android a partir da qual "o tempo todo" sai do diálogo e fica só nas configurações. */
 export const API_LOCALIZACAO_EM_2_PASSOS = 30;
 
@@ -192,22 +177,22 @@ export function telaDePermissoes(
     !l.tempoTodo.concedida
       ? { feito: PASSO_FEITO_LOCALIZACAO, falta: PASSO_FALTA_LOCALIZACAO, faltaTrechos: PASSO_FALTA_TRECHOS }
       : null;
-  const linhas = ids.map((id): LinhaPermissao => {
+  const linhas = ids.flatMap((id): LinhaPermissao[] => {
     const situacao = situacaoDaPermissao(id, e);
+    if (situacao === 'permitida') return [];
     const motivo = id === 'notificacoes' && variante === 'gestao' ? MOTIVO_NOTIFICACOES_GESTAO : MOTIVOS[id];
     // RD-0073: com o cartão dos 2 passos na tela, o caminho das configurações fica só nele; a linha mantém o motivo
     const caminhoNoCartao = id === 'localizacao' && passos !== null;
-    return { id, nome: NOMES[id], texto: situacao === 'negada' && !caminhoNoCartao ? NEGADA[id] : motivo, situacao };
+    return [{ id, nome: NOMES[id], texto: situacao === 'negada' && !caminhoNoCartao ? NEGADA[id] : motivo, situacao }];
   });
-  const proxima = linhas.find((linha) => linha.situacao !== 'permitida');
+  const proxima = linhas[0];
   const acao = proxima ? acaoDa(proxima.id, e) : null;
   return {
     titulo: TITULO_PERMISSOES,
-    // o desenho: "Sem elas" com mais de uma permissão e "Sem ela" no Gestão só com notificações
-    subtitulo: ids.length > 1 ? 'Sem elas o app não funciona.' : 'Sem ela o app não funciona.',
+    // "Sem elas" com mais de uma faltando e "Sem ela" com uma só
+    subtitulo: linhas.length > 1 ? 'Sem elas o app não funciona.' : 'Sem ela o app não funciona.',
     linhas,
     passosLocalizacao: passos,
-    avisoLocalizacao: ids.includes('localizacao') ? AVISO_LOCALIZACAO : null,
     botao: botaoDepoisDeToquesSemEfeito(proxima && acao ? { id: proxima.id, acao, rotulo: rotuloDa(acao, apiAndroid) } : null, toquesSemEfeito),
   };
 }
@@ -278,3 +263,48 @@ export const TUDO_CONCEDIDO: EstadosPermissoes = (() => {
   const ok: EstadoPermissao = { concedida: true, podePerguntar: true };
   return { notificacoes: ok, localizacao: { duranteUso: ok, tempoTodo: ok }, camera: ok, galeria: ok };
 })();
+
+/** Um pedido ao aparelho: o diálogo do sistema ou o passo 2 da localização ("Abrir configurações" não entra na abertura). */
+export type PedidoDePermissao = Pick<BotaoPermissoes, 'id' | 'acao'>;
+
+function chaveDoPedido(p: PedidoDePermissao): string {
+  return `${p.id}:${p.acao}`;
+}
+
+/**
+ * R-20261120-052422: o próximo pedido da abertura, na ordem da tela. Pula as concedidas, as que o Android não pergunta mais
+ * (ficam para a tela, com "Abrir configurações") e os pedidos já feitos nesta abertura (sem laço). A localização vem em 2
+ * pedidos, como o Android exige: "durante o uso" e depois "o tempo todo".
+ */
+export function proximoPedidoAutomatico(
+  ids: readonly IdPermissao[],
+  e: EstadosPermissoes,
+  jaPedidos: readonly string[],
+): PedidoDePermissao | null {
+  for (const id of ids) {
+    if (situacaoDaPermissao(id, e) === 'permitida') continue;
+    const acao = acaoDa(id, e);
+    if (acao === 'abrir-configuracoes' || jaPedidos.includes(chaveDoPedido({ id, acao }))) continue;
+    return { id, acao };
+  }
+  return null;
+}
+
+/**
+ * Pede, um depois do outro, os pedidos da abertura (`proximoPedidoAutomatico`), relendo o aparelho depois de cada um. Cada
+ * pedido sai no máximo uma vez. Devolve o estado final.
+ */
+export async function pedirAsQueFaltam(
+  ids: readonly IdPermissao[],
+  ler: () => Promise<EstadosPermissoes>,
+  pedir: (p: PedidoDePermissao) => Promise<void>,
+): Promise<EstadosPermissoes> {
+  const feitos: string[] = [];
+  let e = await ler();
+  for (let p = proximoPedidoAutomatico(ids, e, feitos); p; p = proximoPedidoAutomatico(ids, e, feitos)) {
+    feitos.push(chaveDoPedido(p));
+    await pedir(p);
+    e = await ler();
+  }
+  return e;
+}

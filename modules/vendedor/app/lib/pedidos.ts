@@ -26,7 +26,7 @@ export interface Rascunho {
   /** T-0089 (RN-VEN-24/25): forma e prazo escolhidos; os dois juntos ou nenhum (rascunho anterior segue pela condição) */
   forma_pagamento_id?: string | null;
   prazo_pagamento_id?: string | null;
-  /** RN-VEN-43/45: % do prazo congelado na escolha (retrato; ausente = 0). Trocar o prazo grava o do novo prazo e tudo é recalculado da tabela original. */
+  /** RN-VEN-43/45: % do prazo congelado na escolha (retrato; ausente = 0). Trocar o prazo grava o do novo prazo; a tabela sai da original e o preço final do item se mantém (RN-VEN-44). */
   prazo_percentual_ajuste?: number;
   /** Observação do pedido (editada no Resumo) */
   observacao?: string;
@@ -50,6 +50,8 @@ export interface Rascunho {
   ajustes?: Record<string, Ajuste>;
   /** T-0134 (RN-VEN-18): edição de orçamento — produto → preço de tabela por unidade já salvo; o item salvo não é reprecificado */
   precos_congelados?: Record<string, number>;
+  /** % do prazo em que os congelados foram gravados (RN-VEN-44) */
+  precos_congelados_percentual?: number;
   /** acréscimo do pedido (excludente com `discount_pct`) */
   acrescimo_pct?: number;
   /** T-0071 (RN-VEN-02): ajuste do pedido em R$ sobre o total dos itens e o modo digitado (seletor % | R$); ausente = % */
@@ -66,6 +68,12 @@ export interface Rascunho {
   vendedor_em_nome_id?: string | null;
   /** RN-VEN-35: nome do dono, só para o PDF da fila (o servidor devolve o nome certo depois do pull) */
   vendedor_em_nome_nome?: string | null;
+}
+
+/** RN-VEN-18/44: os preços congelados do rascunho (edição de orçamento) e o prazo em que foram gravados, na forma do `calcularPedido`. */
+export function congeladosDoRascunho(r: Pick<Rascunho, 'precos_congelados' | 'precos_congelados_percentual'>): { congelados?: Record<string, number>; congelados_bp?: number } {
+  if (!r.precos_congelados) return {};
+  return { congelados: r.precos_congelados, ...(r.precos_congelados_percentual !== undefined ? { congelados_bp: percentualAjusteParaBp(r.precos_congelados_percentual) } : {}) };
 }
 
 /**
@@ -212,7 +220,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
     faixas: e.faixas,
-    ...(e.rascunho.precos_congelados ? { congelados: e.rascunho.precos_congelados } : {}),
+    ...congeladosDoRascunho(e.rascunho),
     aplicacao: e.aplicacao,
     politica,
     vendedor_id: vendedorId,

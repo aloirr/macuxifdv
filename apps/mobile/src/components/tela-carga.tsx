@@ -13,6 +13,8 @@
  * ADR 0054 (solução 5): com `liberado_em` (os essenciais da carga terminaram) o usuário entra na hora e a carga segue em
  * segundo plano. Aberta pelo indicador das abas (`?detalhe=1`), é o detalhe da carga e não volta sozinha às abas.
  * T-0181: durante a carga, o aviso acima da barra e o "Você sabia?" com a frase sorteada (uma por carga); no erro, os dois saem.
+ * T-0182: com a logo da empresa guardada no aparelho (só a do tenant da sessão), a variação A (logo ao lado do Macuxi); com a
+ * logomarca do Macuxi oculta pela empresa (item 15, v1.0.17), só a logo do cliente.
  */
 import { progressoDaEntrada } from '@macuxi/core/app';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
@@ -47,6 +49,7 @@ export function TelaCarga() {
     modulosAtivos,
     variante,
     perfil,
+    empresa,
   } = usePlataforma();
   const { estado } = useMotorSync();
   const frase = useFraseDaCarga();
@@ -103,6 +106,7 @@ export function TelaCarga() {
         variante={variante}
         testID="tela-carga"
         saudacao={`Olá, ${firstName(sessao.user.name)}`}
+        logoCliente={empresa.logo ? { ...empresa.logo, nome: empresa.nome, soCliente: empresa.soLogoDoCliente } : null}
         barra={parou ? null : { rotulo: rotuloDaBarra(progresso), pct: progresso.percentual }}
         etapas={progresso.etapas}
         aviso={parou ? null : <AvisoCarga variante={variante} />}

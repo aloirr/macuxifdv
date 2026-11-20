@@ -86,6 +86,7 @@ export const toneColors: Record<Tone, { fg: string; bg: string }> = {
  * | legenda | `small` | 12/400 |
  * | rótulo pequeno | `label` | 12/600 |
  * | rótulo em maiúsculas ("RECADO DO DIA") | `rotulo` | 12/600 |
+ * | frase motivacional do Início do Campo | `fraseInicio` | 14/700 itálico |
  * `saudacao` é o mesmo estilo de `h1Small` (RD-0957: um tamanho só nas duas boas-vindas; o Início do Campo lê o `fontSize` daqui).
  * `title16` e `smallStrong` são apelidos de `bodyStrong` e `label` (o mesmo objeto), mantidos porque o shell e os módulos usam.
  */
@@ -100,6 +101,8 @@ const estilosDeTexto = StyleSheet.create({
   small: { ...fonte.body, fontSize: 12, color: colors.ink2 },
   label: { ...fonte.semibold, fontSize: 12, color: colors.ink2 },
   rotulo: { ...fonte.semibold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.ink2 },
+  /** frase motivacional do Início do Campo (componentes.md §5.5); o Início troca só o `fontSize` pela escala. */
+  fraseInicio: { ...fonte.bold, fontSize: 14, fontStyle: 'italic', color: colors.faixaFrase },
 });
 
 export const type = {
