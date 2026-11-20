@@ -46,6 +46,17 @@ const PA = PAGAMENTO_FIXTURE.A;
 const AUTOR_FALSO = A.usuarios.vendedor1;
 /** P4 A (desenho §1.4): a função pura nova do modulo-vendedor; enquanto não chega, os casos de nível do autor ficam desligados. */
 const TEM_NIVEL_DO_AUTOR = typeof (dominioVendedor as Record<string, unknown>).nivelMinimoDoAutor === 'function';
+/** D-187-01 corrigido (modulo-vendedor): o dono que não existe volta VENDEDOR_INVALIDO antes da equipe. Sonda pela função pura. */
+const TEM_VENDEDOR_INVALIDO = (() => {
+  const f = (dominioVendedor as Record<string, unknown>).verificarPedidoEmNome as ((e: object) => { codigo?: string } | null) | undefined;
+  try {
+    return f?.({ autor: { id: 'sup', perfil: 'supervisor' }, vendedor_id: 'x', vendedor: null, visiveis: new Set(['sup']) })?.codigo === 'VENDEDOR_INVALIDO';
+  } catch {
+    return false;
+  }
+})();
+/** P4 A (modulo-vendedor): a decisão do próprio pedido volta 422 APROVACAO_DO_PROPRIO_PEDIDO. */
+const TEM_PROPRIO_PEDIDO = typeof (dominioVendedor as Record<string, unknown>).MSG_APROVACAO_DO_PROPRIO_PEDIDO === 'string';
 
 type Linha = Record<string, unknown>;
 const codigoDe = (r: ResultadoItemPush | undefined) => (r && 'codigo' in r ? r.codigo : undefined);
@@ -150,10 +161,8 @@ describe.skipIf(semBanco())('T-0187 — pedido em nome do vendedor pelo supervis
     it('15b. vendedor_id de promotor (da própria equipe) volta RN-PRO-01', async () => {
       await recusado((await push(tk.supervisor, [emNome(PED.promotorComoVendedor, { vendedor: A.usuarios.promotor })]))[0], PED.promotorComoVendedor, 'RN-PRO-01');
     });
-    // 15c: o desenho §4 pede VENDEDOR_INVALIDO para id de outro tenant ou inexistente; o `main` responde FORA_DA_EQUIPE, porque
-    // `verificarPedidoEmNome` (modules/vendedor/domain/pedido-em-nome.ts, linhas 31 a 40) confere a equipe antes de o vendedor
-    // existir. Defeito D-187-01 (dono: modulo-vendedor; ou o desenho muda, engenheiro-software). O que protege (recusa e nada
-    // gravado) é exigido já; o código exato fica pulado para não deixar o `main` vermelho: tirar o `.skip` quando corrigido.
+    // 15c: o desenho §4 pede VENDEDOR_INVALIDO para id de outro tenant ou inexistente. O D-187-01 (o `main` respondia FORA_DA_EQUIPE)
+    // foi corrigido pelo modulo-vendedor (`verificarPedidoEmNome` confere o dono antes da equipe); o código exato liga com a correção.
     it('15c. vendedor_id de outro tenant ou inexistente: recusado e nunca gravado (RN-CORE-05)', async () => {
       const res = await push(tk.supervisor, [emNome(PED.vendedorB, { vendedor: B.usuarios.vendedor }), emNome(PED.inexistente, { vendedor: id(999) })]);
       for (const [r, pid] of [[res[0], PED.vendedorB], [res[1], PED.inexistente]] as const) {
@@ -162,7 +171,7 @@ describe.skipIf(semBanco())('T-0187 — pedido em nome do vendedor pelo supervis
         expect(await pedido(pid)).toBeUndefined();
       }
     });
-    it.skip('15c (código exato, D-187-01). vendedor_id de outro tenant ou inexistente volta VENDEDOR_INVALIDO (desenho §4)', async () => {
+    it.runIf(TEM_VENDEDOR_INVALIDO)('15c (código exato, D-187-01). vendedor_id de outro tenant ou inexistente volta VENDEDOR_INVALIDO (desenho §4)', async () => {
       const res = await push(tk.supervisor, [emNome(PED.vendedorB, { vendedor: B.usuarios.vendedor }), emNome(PED.inexistente, { vendedor: id(999) })]);
       await recusado(res[0], PED.vendedorB, 'VENDEDOR_INVALIDO');
       await recusado(res[1], PED.inexistente, 'VENDEDOR_INVALIDO');
@@ -214,7 +223,29 @@ describe.skipIf(semBanco())('T-0187 — pedido em nome do vendedor pelo supervis
         await parametro('titulo_vencido_dias', '30');
       }
     });
-    it.todo('17d. o supervisor autor que tenta decidir a aprovação do próprio pedido recebe 422 APROVACAO_DO_PROPRIO_PEDIDO e o pedido some da fila dele — aguardando modulo-gestor (fila e 422) e modulo-vendedor (autor_id no aprovacao_solicitada@2)');
+    it.runIf(TEM_PROPRIO_PEDIDO)('17d. o supervisor autor que tenta decidir o próprio pedido recebe 422 APROVACAO_DO_PROPRIO_PEDIDO, o pedido não muda e some da fila dele; o gerente decide (o motivo subiu um nível)', async () => {
+      const url = (d: string) => `/v1/vendedor/pedidos/${PED.dozePct}/${d}`;
+      for (const [d, corpo] of [['aprovar', {}], ['rejeitar', { motivo: 'Desconto acima do combinado com o cliente' }], ['recusar', { motivo: 'Desconto acima do combinado com o cliente' }]] as const) {
+        const r = await api.chamar(tk.supervisor, { method: 'POST', url: url(d), payload: corpo });
+        expect(r.statusCode, `${d}: ${r.body}`).toBe(422);
+        expect((r.json() as { codigo?: string }).codigo, d).toBe('APROVACAO_DO_PROPRIO_PEDIDO');
+      }
+      expect((await pedido(PED.dozePct))!.status).toBe('pending_approval');
+      expect((await aprovacoes(PED.dozePct)).filter((a) => a.motivo === 'desconto')).toEqual([{ motivo: 'desconto', nivel: nivelEsperadoSupervisor(12), estado: 'pendente' }]);
+      await despachar();
+      if (worker) {
+        // a fila é do Gestor: ligado ao tenant e ao supervisor, como nos outros testes da fila (aprovacao-motivo-t0184)
+        expect((await licenca(api, tk.adminA, 'tenant', 'gestor', true)).statusCode).toBe(200);
+        expect((await licenca(api, tk.adminA, 'perfil', 'gestor', true, 'supervisor')).statusCode).toBe(200);
+        const fila = await api.chamar(tk.supervisor, { method: 'GET', url: '/v1/gestor/aprovacoes' });
+        expect(fila.statusCode, fila.body).toBe(200);
+        expect((fila.json() as { itens: { pedido_id: string }[] }).itens.map((i) => i.pedido_id)).not.toContain(PED.dozePct);
+      }
+      // contraprova: o nível acima (gerente) decide o pedido do supervisor
+      const g = await api.chamar(tk.gerente, { method: 'POST', url: url('aprovar'), payload: {} });
+      expect(g.statusCode, g.body).toBe(200);
+      expect((await pedido(PED.dozePct))!.status).toBe('approved');
+    });
   });
 
   // ------------------------------------------------------------------------------------------ Critério 18 (offline)

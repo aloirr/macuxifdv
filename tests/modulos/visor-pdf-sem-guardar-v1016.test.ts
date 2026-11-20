@@ -2,7 +2,7 @@
  * v1.0.16 (T-0187, "Também na v1.0.16": abrir PDF na ficha do cliente, NF e Documentação; corte da T-0186 de 19/11) — o visor de
  * PDF do shell, de fora, com o código REAL de `apps/mobile/src/services/visor-pdf.ts` e da tela de mensagem (`VisorDeFoto`):
  * só o disco (expo-file-system, num sistema de arquivos em memória que cobre o cache E os documentos do app), o React Native e a
- * fonte de rede (API e sinal) são trocados.
+ * fonte de rede (API e sinal, ligada pela porta real `ligarFonteFotoPdv`) são trocados.
  *
  * Pedido do dono do produto: "visualizar sem baixar, sob demanda, sem guardar no aparelho". O que se prova (matriz:
  * docs/testes/T-0187.md, seção "PDF", P-01..P-06):
@@ -92,20 +92,6 @@ vi.mock('expo-file-system', () => {
   }
   return { Directory, File, Paths: { cache: 'file:///cache', document: 'file:///document' } };
 });
-vi.mock('../../apps/mobile/src/services/foto-pdv', () => ({
-  fonteDoVisor: () => ({
-    online: () => sim.online,
-    api: () => ({
-      bytes: async (path: string) => {
-        sim.pedidos.push(path);
-        if (sim.atraso) await sim.atraso;
-        if (sim.resposta instanceof Error) throw sim.resposta;
-        return sim.resposta;
-      },
-    }),
-  }),
-}));
-
 const RAIZ_MOBILE = join(__dirname, '../../apps/mobile/src');
 const TEM_VISOR = existsSync(join(RAIZ_MOBILE, 'services/visor-pdf.ts'));
 const ID = '0b9f6c3e-6a7d-4c1e-9f0a-2b3c4d5e6f71';
@@ -120,7 +106,23 @@ interface VisorPdf {
 /** Import pelo caminho em variável: o typecheck do `main` (sem o visor) não resolve o módulo. */
 const carregar = async <T,>(rel: string): Promise<T> => (await import(/* @vite-ignore */ join(RAIZ_MOBILE, rel))) as T;
 
-beforeEach(() => {
+/** A fonte (API e sinal) entra pela porta real do shell (`ligarFonteFotoPdv`), e o download é o real (`baixarArquivoDoVisor`). */
+const apiFalsa = () => ({
+  bytes: async (path: string) => {
+    sim.pedidos.push(path);
+    if (sim.atraso) await sim.atraso;
+    if (sim.resposta instanceof Error) throw sim.resposta;
+    return sim.resposta;
+  },
+});
+
+beforeEach(async () => {
+  if (TEM_VISOR) {
+    const { ligarFonteFotoPdv } = await carregar<{ ligarFonteFotoPdv: (api: () => unknown, online: () => boolean) => () => void }>(
+      'services/foto-pdv.ts',
+    );
+    ligarFonteFotoPdv(apiFalsa, () => sim.online);
+  }
   sim.arquivos.clear();
   sim.pedidos.length = 0;
   sim.online = true;

@@ -3,7 +3,7 @@
  * do pedido em nome, sem banco. Desenho: docs/desenho/T-0187.md §1.2, §1.4, §2 e §4. Matriz: docs/testes/T-0187.md.
  *
  * Convenção: `it` = vale no `main` hoje; `it.runIf(<código entregue>)` = liga sozinho quando o símbolo do dono chegar ao `main`
- * (portão novo do modulo-core, ação `visita.registrar_gestao`, funções puras do modulo-vendedor); `it.todo` = sem como testar daqui.
+ * (portão novo do modulo-core, ação `visita.registrar_gestao`, funções puras do modulo-vendedor e do modulo-gestor); `it.todo` = só na tela do aparelho (roteiro manual da matriz).
  *
  * Instante fixo: qua 18/11/2026 11h em Manaus (15h UTC), dia útil dentro do expediente padrão (seg–sex 08h–18h).
  */
@@ -13,6 +13,7 @@ import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import { manifest as manifestoVendedor } from '@macuxi/vendedor/manifest';
 import { describe, expect, it } from 'vitest';
 import * as dominioCore from '../../modules/core/domain';
+import * as dominioGestor from '../../modules/gestor/domain';
 import * as dominioVendedor from '../../modules/vendedor/domain';
 
 const TEM_PORTAO_NOVO = 'APP_RASTREADO_DO_CARGO' in contratosCore;
@@ -33,6 +34,19 @@ const botoesDoRodapeCliente = dominioCore.botoesDoRodapeCliente as unknown as (e
 const BASE_RODAPE: EntradaRodape = { temPesquisa: true, atendimentoAqui: false, checkinPermitido: true, visitadoHoje: false };
 /** O Core entregou o `registraVisita` (Gestão sem `visita.registrar_gestao` = sem Check-in e sem Checkout). */
 const TEM_RODAPE_GESTAO = botoesDoRodapeCliente({ ...BASE_RODAPE, registraVisita: false }).checkin === false;
+
+type Membro = { id: string; nome: string; perfil: string; superior_id: string | null; ativo: boolean };
+const visitaContaParaCampo = (dominioGestor as Record<string, unknown>).visitaContaParaCampo as ((m: readonly Membro[], u: string) => boolean) | undefined;
+const pessoasDoTrajeto = (dominioGestor as Record<string, unknown>).pessoasDoTrajeto as ((e: { viewer: { id: string; perfil: string }; membros: readonly Membro[] }) => Membro[]) | undefined;
+/** Massa do Gestor: g1 (gerente) > s1 (supervisor) > v1, v2 (vendedores), p1 (promotor), v3 inativo. */
+const ROSTER: Membro[] = [
+  { id: 'g1', nome: 'Gil Gerente', perfil: 'gerente', superior_id: null, ativo: true },
+  { id: 's1', nome: 'Sara Supervisora', perfil: 'supervisor', superior_id: 'g1', ativo: true },
+  { id: 'v2', nome: 'Bruno', perfil: 'vendedor', superior_id: 's1', ativo: true },
+  { id: 'v1', nome: 'Ana', perfil: 'vendedor', superior_id: 's1', ativo: true },
+  { id: 'p1', nome: 'Paulo', perfil: 'promotor', superior_id: 's1', ativo: true },
+  { id: 'v3', nome: 'Caio', perfil: 'vendedor', superior_id: 's1', ativo: false },
+];
 
 /** Massa: equipe do supervisor s1 (v1, v2 ativos; v3 inativo; p1 promotor), v9 de outra equipe; cliente c1 na carteira de v1 e p1. */
 const EQUIPE: UsuarioEquipe[] = [
@@ -136,5 +150,25 @@ describe('T-0187 — funções puras do pedido em nome (modulo-vendedor)', () =>
     expect(botoesDoRodapeCliente(BASE_RODAPE)).toEqual({ checkin: true, checkout: false, pesquisa: true });
   });
   it.todo('12 (tela). o "Novo pedido" do rodapé só aparece com o Vendedor licenciado e pedido.criar_em_nome (extensão cliente.acoes/novo-pedido-em-nome, só Gestão; leitura do fonte em promotor-sem-pedido.test.ts) — conferir no aparelho (roteiro manual)');
-  it.todo('1. a aba Rota do Gestão mostra só as paradas do supervisor, nunca as dos vendedores que estão no aparelho pelo sync — aguardando modulo-core (app/index.ts, filtro por usuario_id)');
+  it.todo('1 (tela). a aba Rota do Gestão (rota-gestao, ação visita.registrar_gestao) mostra só as paradas do supervisor, nunca as dos vendedores que estão no aparelho pelo sync — filtro na tela (react-native); roteiro manual em docs/testes/T-0187.md');
+});
+
+describe('T-0187 — visita de apoio e trajeto visível só acima (modulo-gestor)', () => {
+  it.runIf(typeof visitaContaParaCampo === 'function')('6. RN-GES-05 (P2 A): o check-in de supervisor ou gerente não conta na cobertura nem na meta de visitas; o do vendedor e o do promotor contam; quem não está no cadastro conta', () => {
+    const f = visitaContaParaCampo!;
+    expect(['g1', 's1', 'v1', 'p1', 'fora-do-cadastro'].map((u) => [u, f(ROSTER, u)])).toEqual([
+      ['g1', false],
+      ['s1', false],
+      ['v1', true],
+      ['p1', true],
+      ['fora-do-cadastro', true],
+    ]);
+  });
+  it.runIf(typeof pessoasDoTrajeto === 'function')('9/10. RN-CORE-13: o supervisor escolhe só vendedores e promotores ativos; o gerente vê também o supervisor; ninguém vê o próprio trajeto', () => {
+    const ids = (viewer: { id: string; perfil: string }) => pessoasDoTrajeto!({ viewer, membros: ROSTER }).map((m) => m.id);
+    expect(ids({ id: 's1', perfil: 'supervisor' })).toEqual(['v1', 'v2', 'p1']);
+    expect(ids({ id: 'g1', perfil: 'gerente' })).toEqual(['v1', 'v2', 'p1', 's1']);
+    expect(ids({ id: 'g1', perfil: 'gerente' })).not.toContain('g1');
+    expect(ids({ id: 's1', perfil: 'supervisor' })).not.toContain('s1');
+  });
 });

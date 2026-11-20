@@ -5,10 +5,11 @@
  * Regras: RN-CORE-13 (check-in único, trajeto), RN-CORE-04 (carteira da equipe), RN-CORE-05 (tenant), RN-CORE-11 (uma visita aberta).
  *
  * Convenção: `it` = critério que o `main` já atende; `it.runIf(<código entregue>)` = liga sozinho quando o símbolo do dono chegar
- * (aqui: `APP_RASTREADO_DO_CARGO` do modulo-core, que entra com o portão novo e o 404 do próprio trajeto); `it.todo` = sem como
- * testar até o dono entregar.
+ * (aqui: `APP_RASTREADO_DO_CARGO` e `ACAO_VISITA_REGISTRAR_GESTAO` do modulo-core); `it.todo` = só no aparelho, com o roteiro
+ * manual da matriz.
  */
 import * as portao from '@macuxi/core/contracts';
+import { ENTIDADE_PONTO_TRAJETO, PARAMETROS_RASTREAMENTO_PADRAO } from '@macuxi/core/contracts';
 import { semBanco } from '@macuxi/db/teste/estado';
 import type { ItemPush, ResultadoItemPush } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -24,12 +25,23 @@ const V = {
   supB: id(6),
   checkoutVend: id(7),
   checkoutSup: id(8),
+  semGestao: id(9),
+  semGestaoCheckout: id(10),
 } as const;
+/** Pontos do trajeto (critérios 8 e 11): 3 dias úteis sem feriado (seg 16 a qua 18/11/2026, 11h em Manaus), dois por dia. */
+const P = (n: number) => id(100 + n);
+const DIAS = ['2026-11-16', '2026-11-17', '2026-11-18'];
+const PONTOS_SUP = DIAS.flatMap((d, i) => [0, 1].map((k) => ({ id: P(i * 2 + k), capturado_em: `${d}T15:${k ? '10' : '00'}:00.000Z`, latitude: -3.1019 - k / 1000, longitude: -60.025, precisao_m: 10, velocidade_ms: null })));
+const PONTO_GER = { id: P(50), capturado_em: '2026-11-18T15:00:00.000Z', latitude: -3.1, longitude: -60.02, precisao_m: 10, velocidade_ms: null };
+const TODO_DIA = [{ inicio_min: 0, fim_min: 1439 }];
+const EXPEDIENTE = Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, TODO_DIA]));
+/** O Core entregou a ação de gestão (manifesto) — o push de visita do supervisor sem ela volta PERFIL_SEM_ACESSO. */
+const TEM_ACAO_GESTAO = 'ACAO_VISITA_REGISTRAR_GESTAO' in portao;
 /** c1 (Manaus) com GPS na porta; c3 não tem coordenada. */
 const EM_C1 = { lat: -3.1019, lng: -60.025, precisao_m: 8 };
 /** O portão novo do modulo-core (desenho §1.2): exportado pelos contratos junto com o 404 do próprio trajeto. */
 const TEM_PORTAO_NOVO = 'APP_RASTREADO_DO_CARGO' in portao;
-const HOJE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Manaus' }).format(new Date());
+const HOJE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Manaus' }).format(new Date()); // hora-fixa-ok: a API real data a visita no relógio dela; os dias fixos são só do capturado_em dos pontos (8 e 11)
 
 describe.skipIf(semBanco())('T-0187 — check-in, checkout e trajeto do supervisor (createApp real × Postgres)', () => {
   let api: ApiDeTeste;
@@ -44,13 +56,13 @@ describe.skipIf(semBanco())('T-0187 — check-in, checkout e trajeto do supervis
     id: vid,
     entidade: 'visita',
     operacao: 'upsert',
-    payload: { id: vid, cliente_id: cliente, checkin_em: new Date().toISOString(), extra: true, ...extra },
+    payload: { id: vid, cliente_id: cliente, checkin_em: new Date().toISOString(), extra: true, ...extra }, // hora-fixa-ok: idem
   });
   const checkout = (cmd: string, vid: string): ItemPush => ({
     id: cmd,
     entidade: 'visita_checkout',
     operacao: 'upsert',
-    payload: { id: cmd, visita_id: vid, checkout_em: new Date().toISOString(), resultado: 'sem_pedido', motivo_id: A.motivos.estoqueAlto, etapas: [] },
+    payload: { id: cmd, visita_id: vid, checkout_em: new Date().toISOString(), resultado: 'sem_pedido', motivo_id: A.motivos.estoqueAlto, etapas: [] }, // hora-fixa-ok: idem
   });
   const visita = async (vid: string) =>
     (await api.admin.query<{ usuario_id: string; cliente_id: string; sem_gps: boolean; checkin_lat: string | null; checkout_em: Date | null }>('select usuario_id::text, cliente_id::text, sem_gps, checkin_lat::text, checkout_em from core.visita where id = $1', [vid])).rows;
@@ -66,11 +78,13 @@ describe.skipIf(semBanco())('T-0187 — check-in, checkout e trajeto do supervis
     tk.analista = (await api.sessao('analista@exemplo.com.br')).access_token;
     tk.vendedorB = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
     await api.admin.query('delete from core.visita where id = any($1::uuid[])', [Object.values(V)]);
+    await api.admin.query('delete from core.ponto_trajeto where id = any($1::uuid[])', [[...PONTOS_SUP.map((x) => x.id), PONTO_GER.id]]);
   }, 120_000);
 
   afterAll(async () => {
     if (!api) return;
     await api.admin.query('delete from core.visita where id = any($1::uuid[])', [Object.values(V)]).catch(() => undefined);
+    await api.admin.query('delete from core.ponto_trajeto where id = any($1::uuid[])', [[...PONTOS_SUP.map((x) => x.id), PONTO_GER.id]]).catch(() => undefined);
     await api.fechar();
   });
 
@@ -107,9 +121,24 @@ describe.skipIf(semBanco())('T-0187 — check-in, checkout e trajeto do supervis
     expect(await eventos(V.supC3SemGps, 'core.visita.checkout@1')).toHaveLength(1);
   });
 
-  it.todo('3 (aparelho). a visita aberta do próprio supervisor trava o check-in dele em outro cliente na Rota do Gestão (filtro por usuario_id da sessão) — aguardando modulo-core (app/index.ts e a faixa de visita aberta no Gestão)');
-  it.todo('5. supervisor sem visita.registrar_gestao: push de visita volta rejeitado PERFIL_SEM_ACESSO e a aba Rota e o Check-in somem — aguardando modulo-core (ação nova no manifesto, visita-push.ts e acesso.ts)');
-  it.todo('6. o check-in do supervisor fica fora da cobertura de rota e da meta de visitas do vendedor (RN-GES-05) e aparece em "Visitada por" — aguardando modulo-gestor');
+  it.todo('3 (aparelho). a visita aberta do próprio supervisor trava o check-in dele em outro cliente na Rota do Gestão (filtro por usuario_id da sessão na tela) — roteiro manual em docs/testes/T-0187.md');
+  it.runIf(TEM_ACAO_GESTAO)('5. supervisor sem visita.registrar_gestao (sobreposição no perfil, como o BKO grava): check-in e checkout voltam PERFIL_SEM_ACESSO e nada é gravado; com a ação de volta, aceito', async () => {
+    const sobrepor = (concedida: boolean | null) =>
+      concedida === null
+        ? api.admin.query("delete from plataforma.perfil_permissao where tenant_id = $1 and chave = 'visita.registrar_gestao' and perfil_id = (select id from plataforma.perfil where tenant_id = $1 and codigo = 'supervisor')", [A.tenantId])
+        : api.admin.query("insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) select $1, id, 'visita.registrar_gestao', $2 from plataforma.perfil where tenant_id = $1 and codigo = 'supervisor'", [A.tenantId, concedida]);
+    await sobrepor(null);
+    await sobrepor(false);
+    try {
+      expect((await push(tk.supervisor, [checkin(V.semGestao, A.clientes.c1, EM_C1)]))[0]).toMatchObject({ id: V.semGestao, status: 'rejeitado', codigo: 'PERFIL_SEM_ACESSO' });
+      expect(await visita(V.semGestao)).toEqual([]);
+    } finally {
+      await sobrepor(null);
+    }
+    expect((await push(tk.supervisor, [checkin(V.semGestao, A.clientes.c1, EM_C1)]))[0]).toMatchObject({ id: V.semGestao, status: 'aceito' });
+    expect((await push(tk.supervisor, [checkout(V.semGestaoCheckout, V.semGestao)]))[0]).toMatchObject({ status: 'aceito' });
+  });
+  it.todo('6 (tela). a ficha do Gestão mostra o supervisor em "Visitada por" — tela; a regra (fora da cobertura e da meta, RN-GES-05) está em tests/modulos/supervisor-campo-t0187.test.ts; roteiro manual em docs/testes/T-0187.md');
 
   // ------------------------------------------------------------------------------------------ Critério 19 (tenant)
   it('19 (visita). o supervisor de A não faz check-in no c1 de B: rejeitado FORA_DA_CARTEIRA e nada gravado', async () => {
@@ -147,8 +176,35 @@ describe.skipIf(semBanco())('T-0187 — check-in, checkout e trajeto do supervis
       expect(r.statusCode, r.body).toBe(200);
     });
 
-    it.todo('8. ponto de supervisor com rastreamento.ativo ligado e no expediente é gravado; o de gerente é descartado (cargo); com o parâmetro desligado (padrão de fábrica) é descartado — aguardando modulo-core (trajeto-push.ts e triarPontoRecebido com APP_RASTREADO_DO_CARGO)');
-    it.todo('10. nenhuma tela do Gestão mostra trajeto e nenhuma coordenada vai para log, erro ou Diagnóstico (G4 do docs/seguranca/checklist.md) — aguardando engenheiro-apps (serviço macuxi-trajeto na variante gestao); roteiro manual em docs/testes/T-0187.md');
-    it.todo('11. offline: 3 dias de pontos do supervisor sem rede sobem sem duplicar, como no Campo — aguardando engenheiro-apps (captura no Gestão) e modulo-core (portão)');
+    // 8 e 11 (API): o parâmetro `rastreamento` é do tenant A e o trajeto-envio-t0156 também o liga (mesmo valor); o teste guarda o que havia e devolve
+    it.runIf(TEM_PORTAO_NOVO)('8 e 11 (API). rastreamento ligado e no expediente: o ponto do supervisor é gravado (app Gestão pelo cargo); o do gerente é descartado; 3 dias de pontos sem rede reenviados não duplicam', async () => {
+      const antes = (await api.admin.query<{ valor: unknown }>("select valor from plataforma.parametro where tenant_id = $1 and modulo = 'core' and chave = 'rastreamento'", [A.tenantId])).rows[0];
+      const pontos = async (ids: readonly string[]) =>
+        (await api.admin.query<{ id: string; usuario_id: string }>('select id::text, usuario_id::text from core.ponto_trajeto where tenant_id = $1 and id = any($2::uuid[]) order by capturado_em', [A.tenantId, ids])).rows;
+      const item = (pt: { id: string }): ItemPush => ({ id: pt.id, entidade: ENTIDADE_PONTO_TRAJETO, operacao: 'upsert', payload: pt });
+      await api.admin.query("delete from plataforma.parametro where tenant_id = $1 and modulo = 'core' and chave = 'rastreamento'", [A.tenantId]);
+      await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'core', 'rastreamento', $2::jsonb)", [A.tenantId, JSON.stringify({ ...PARAMETROS_RASTREAMENTO_PADRAO, ativo: true, expediente: EXPEDIENTE })]);
+      try {
+        const lote = PONTOS_SUP.map(item);
+        for (const r of await push(tk.supervisor, lote)) expect(r.status, JSON.stringify(r)).toBe('aceito');
+        // 11: o reenvio do mesmo lote (rede voltou, a confirmação não chegou) não duplica
+        for (const r of await push(tk.supervisor, lote)) expect(r.status, JSON.stringify(r)).toBe('aceito');
+        const gravados = await pontos(PONTOS_SUP.map((x) => x.id));
+        expect(gravados.map((g) => [g.id, g.usuario_id])).toEqual(PONTOS_SUP.map((x) => [x.id, A.usuarios.supervisor]));
+        // 8: o gerente nunca é rastreado (cargo), mesmo ligado e no expediente
+        await push(tk.gerente, [item(PONTO_GER)]);
+        expect(await pontos([PONTO_GER.id])).toEqual([]);
+        // 9: o gerente vê o trajeto do supervisor; o supervisor não vê o dele (404)
+        const g = await api.chamar(tk.gerente, { method: 'GET', url: `/v1/core/trajeto?usuario_id=${A.usuarios.supervisor}&data=2026-11-18` });
+        expect(g.statusCode, g.body).toBe(200);
+        expect((await api.chamar(tk.supervisor, { method: 'GET', url: `/v1/core/trajeto?usuario_id=${A.usuarios.supervisor}&data=2026-11-18` })).statusCode).toBe(404);
+      } finally {
+        await api.admin.query("delete from plataforma.parametro where tenant_id = $1 and modulo = 'core' and chave = 'rastreamento'", [A.tenantId]);
+        if (antes) await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'core', 'rastreamento', $2::jsonb)", [A.tenantId, JSON.stringify(antes.valor)]);
+      }
+    });
+    it.todo('8 (desligado de fábrica, API) — coberto no domínio (7/8 em tests/modulos/supervisor-campo-t0187.test.ts) e no trajeto.db.test.ts do modulo-core: desligar o parâmetro do tenant A aqui colidiria com o trajeto-envio-t0156 em paralelo');
+    it.todo('11 (aparelho). a captura do trajeto no Gestão (serviço macuxi-trajeto na variante gestao) e a fila de 3 dias sem rede — roteiro manual em docs/testes/T-0187.md (aparelho real, GPS em segundo plano)');
+    it.todo('10 (aparelho). nenhuma coordenada vai para log, erro ou Diagnóstico do Gestão (G4 do docs/seguranca/checklist.md) e a ficha não mostra o próprio trajeto — roteiro manual em docs/testes/T-0187.md (a API do próprio trajeto = 404 está no 9)');
   });
 });
