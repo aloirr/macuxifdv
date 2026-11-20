@@ -76,8 +76,10 @@ describe('RN-VEN-35: textos e nomes do seletor', () => {
   it('RN-VEN-35: subtítulo e mensagens de vazio', () => {
     expect(subtituloDoSeletor('Ana Souza')).toBe('Clientes da carteira de Ana Souza');
     expect(subtituloDoSeletor(null)).toBe('Clientes da carteira do vendedor');
-    expect(vazioDoSeletor({ totalDaCarteira: 0, nomeDoDono: 'Ana' }, false)).toContain('carteira de Ana');
-    expect(vazioDoSeletor({ totalDaCarteira: 0, nomeDoDono: null }, false)).toContain('do vendedor');
-    expect(vazioDoSeletor({ totalDaCarteira: 3, nomeDoDono: null }, true)).toContain('Nenhum cliente encontrado');
+    expect(vazioDoSeletor('Ana', false)).toContain('carteira de Ana');
+    expect(vazioDoSeletor(null, false)).toContain('do vendedor');
+    expect(vazioDoSeletor(undefined, false)).toBe('Nenhum cliente na carteira neste aparelho. Sincronize com sinal e tente de novo.');
+    expect(vazioDoSeletor('Ana', false)).not.toContain('encontrado');
+    expect(vazioDoSeletor(null, true)).toBe('Confira o código, o CNPJ ou o nome.');
   });
 });

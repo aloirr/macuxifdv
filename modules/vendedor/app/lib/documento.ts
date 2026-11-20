@@ -8,6 +8,7 @@ import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../doma
 import type { Product } from '@macuxi/catalogo/contracts';
 import { formatBRL } from '@macuxi/comum';
 import type { OrderDetail, PedidoPush } from '../../contracts';
+import { percentualDoPrazoNoDocumento } from '../../domain/troca-prazo';
 import {
   precosCongelados,
   reconferirOrcamento,
@@ -54,6 +55,14 @@ export function enderecoEditadoDoRetrato(e: NonNullable<OrderDetail['delivery_ad
   return { logradouro: e.logradouro, numero: e.numero ?? '', complemento: e.complemento ?? null, bairro: e.bairro ?? '', cidade: e.cidade, uf, cep: (e.cep ?? '').replace(/\D/g, '') };
 }
 
+/**
+ * RN-VEN-45: o % do prazo que vale num documento do servidor: o gravado no prazo gravado; sem retrato (gravado antes da 0082) ou
+ * em outro prazo, o vigente. É a conta do Transformar e da reconferência, para o push e a tela mostrarem o mesmo preço.
+ */
+export function percentualDoDetalhe(d: Pick<OrderDetail, 'prazo_pagamento_id' | 'prazo_percentual_ajuste'>, prazos: ReadonlyArray<{ id: string; percentual_ajuste?: number | null }>): number {
+  return percentualDoPrazoNoDocumento({ prazo_id: d.prazo_pagamento_id, vigente: prazos.find((p) => p.id === d.prazo_pagamento_id)?.percentual_ajuste, gravado: { prazo_id: d.prazo_pagamento_id, percentual: d.prazo_percentual_ajuste } });
+}
+
 /** Detalhe do pedido/orçamento (servidor ou pull) → cópia completa. */
 export type DetalheParaCopia = Pick<OrderDetail, 'id' | 'customer_id' | 'discount_pct' | 'items'> & Partial<OrderDetail>;
 
@@ -68,7 +77,7 @@ export function copiaDoDetalhe(d: DetalheParaCopia, extra: ExtraCopia): Orcament
     ...((d.order_surcharge_value_cents ?? 0) > 0 ? { acrescimo_valor_cents: d.order_surcharge_value_cents } : {}),
     ...(d.order_adjust_mode ? { ajuste_em: d.order_adjust_mode } : {}),
     condicao_pagamento_id: extra.condicaoId,
-    ...(d.forma_pagamento_id && d.prazo_pagamento_id ? { forma_pagamento_id: d.forma_pagamento_id, prazo_pagamento_id: d.prazo_pagamento_id } : {}),
+    ...(d.forma_pagamento_id && d.prazo_pagamento_id ? { forma_pagamento_id: d.forma_pagamento_id, prazo_pagamento_id: d.prazo_pagamento_id, prazo_percentual_ajuste: d.prazo_percentual_ajuste ?? undefined } : {}),
     observacao: extra.observacao,
     visita_id: extra.visitaId ?? null,
     ...(frete ? { frete } : {}),
@@ -105,7 +114,7 @@ export function copiaDoPayload(p: PedidoPush, extra: Pick<ExtraCopia, 'observaca
     ...((p.acrescimo_valor_cents ?? 0) > 0 ? { acrescimo_valor_cents: p.acrescimo_valor_cents } : {}),
     ...(p.ajuste_em ? { ajuste_em: p.ajuste_em } : {}),
     condicao_pagamento_id: p.condicao_pagamento_id ?? null,
-    ...(p.forma_pagamento_id && p.prazo_pagamento_id ? { forma_pagamento_id: p.forma_pagamento_id, prazo_pagamento_id: p.prazo_pagamento_id } : {}),
+    ...(p.forma_pagamento_id && p.prazo_pagamento_id ? { forma_pagamento_id: p.forma_pagamento_id, prazo_pagamento_id: p.prazo_pagamento_id, prazo_percentual_ajuste: p.prazo_percentual_ajuste } : {}),
     observacao: p.observacao ?? extra.observacao,
     visita_id: p.visita_id ?? null,
     ...(frete ? { frete } : {}),

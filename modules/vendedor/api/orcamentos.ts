@@ -33,6 +33,7 @@ interface LinhaOrcamento {
   itens: number;
   /** RN-VEN-45: retrato do % do prazo (null = sem prazo) */
   prazo_percentual_ajuste: number | null;
+  prazo_pagamento_id: string | null;
 }
 
 /** Orçamento do usuário, com trava de linha. `null` = inexistente, de outro vendedor/tenant ou não é orçamento. */
@@ -40,7 +41,7 @@ async function orcamentoDoDono(db: ClienteBanco, id: string, eu: string): Promis
   await db.query('select pg_advisory_xact_lock(hashtext($1))', [`pedido:${id}`]);
   const r = (
     await db.query<LinhaOrcamento>(
-      `select id, vendedor_id, cliente_id, status, to_char(updated_at at time zone 'UTC', ${UTC}) as atualizado_em, hash_envio, total_cents::text as total_cents, prazo_percentual_ajuste::float8 as prazo_percentual_ajuste,
+      `select id, vendedor_id, cliente_id, status, to_char(updated_at at time zone 'UTC', ${UTC}) as atualizado_em, hash_envio, total_cents::text as total_cents, prazo_percentual_ajuste::float8 as prazo_percentual_ajuste, prazo_pagamento_id,
             (select count(*)::int from vendedor.pedido_item i where i.pedido_id = pedido.id and i.deleted_at is null) as itens
          from vendedor.pedido where id = $1 and tipo = 'orcamento' and deleted_at is null for update`,
       [id],
@@ -94,7 +95,7 @@ export const rotaEditarOrcamento: RotaModulo = {
       // T-0141 (RN-VEN-18): dentro dos 7 dias o item salvo mantém o preço e a validade do preço segue a original; depois, a edição
       // reprecifica pela tabela do dia e renova a data do preço (o orçamento em si nunca vence)
       const precoVale = precoDoOrcamentoVale(doc.validade_ate, ctx.agora());
-      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, precoVale ? { data: doc.validade_data, ate: doc.validade_ate } : undefined, precoVale ? await precosCongeladosDoDocumento(db, id, atual.prazo_percentual_ajuste) : undefined);
+      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, precoVale ? { data: doc.validade_data, ate: doc.validade_ate } : undefined, precoVale ? await precosCongeladosDoDocumento(db, id, atual.prazo_percentual_ajuste) : undefined, { prazo_id: atual.prazo_pagamento_id, percentual: atual.prazo_percentual_ajuste });
       if ('status' in calc) {
         const codigo = calc.status === 'rejeitado' ? calc.codigo : 'PAYLOAD_INVALIDO';
         const mensagem = calc.status === 'rejeitado' ? calc.mensagem : 'Orçamento recusado.';

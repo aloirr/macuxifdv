@@ -123,11 +123,17 @@ export function subtituloDoSeletor(nomeDoDono: string | null): string {
   return nomeDoDono ? `Clientes da carteira de ${nomeDoDono}` : 'Clientes da carteira do vendedor';
 }
 
-/** Lista vazia do seletor em nome: carteira sem cliente no aparelho ou busca sem resultado. */
-export function vazioDoSeletor(s: Pick<SeletorEmNome, 'totalDaCarteira' | 'nomeDoDono'>, buscando: boolean): string {
-  if (buscando) return 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.';
-  const de = s.nomeDoDono ? `de ${s.nomeDoDono}` : 'do vendedor';
-  return s.totalDaCarteira === 0 ? `Nenhum cliente na carteira ${de} neste aparelho. Sincronize com sinal e tente de novo.` : 'Nenhum cliente encontrado.';
+/** Texto de apoio da busca de cliente sem resultado (R-20261120-062210: só código, CNPJ e nome). */
+export const VAZIO_DA_BUSCA_DE_CLIENTE = 'Confira o código, o CNPJ ou o nome.';
+
+/**
+ * Lista vazia do seletor: busca sem resultado ou carteira sem cliente no aparelho. Sem busca a lista traz a carteira toda, então
+ * lista vazia sem busca só ocorre com a carteira vazia. `nomeDoDono`: nome (em nome), null (nome desconhecido) ou undefined (Campo).
+ */
+export function vazioDoSeletor(nomeDoDono: string | null | undefined, buscando: boolean): string {
+  if (buscando) return VAZIO_DA_BUSCA_DE_CLIENTE;
+  const de = nomeDoDono === undefined ? '' : nomeDoDono ? ` de ${nomeDoDono}` : ' do vendedor';
+  return `Nenhum cliente na carteira${de} neste aparelho. Sincronize com sinal e tente de novo.`;
 }
 
 /** Leitura completa da linha de outra carteira (o leitor de tela diz por que não abre). */

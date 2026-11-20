@@ -23,7 +23,7 @@ import type { CustomerDetail, DecisaoAprovacaoResposta, DecisaoAprovador, Editar
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
+import { copiaDoDetalhe, copiaDoPayload, percentualDoDetalhe, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
 import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
 import { limparRascunhosExpirados } from '../../domain/rascunhos';
 import { TEXTO_SEM_SINAL_PARA_SALVAR } from '../../domain/alertas-pedido';
@@ -40,6 +40,7 @@ import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import { financeiroParaAprovacao, modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
 import { tituloVencidoDias } from '../../domain/pagamento';
+import { percentualDoPrazoNoDocumento, type PrazoGravado } from '../../domain/troca-prazo';
 import {
   aceitosComoPedidos,
   congeladosDoRascunho,
@@ -539,7 +540,9 @@ export function useVendedor() {
       // RN-VEN-43/44: o % do prazo do documento entra no rascunho; os preços congelados valem só nesse prazo
       // o retrato do pedido na fila (RN-VEN-45) vale antes do % atual do pull
       const prazoDoc = c?.rascunho.prazo_pagamento_id ? prazos.find((p) => p.id === c.rascunho.prazo_pagamento_id) : undefined;
-      const pctDoc = naFila ? (naFila.payload.prazo_percentual_ajuste ?? 0) : (prazoDoc?.percentual_ajuste ?? 0);
+      // RN-VEN-45 (T-0188): no orçamento ou pedido do servidor, editar mantém o % gravado no prazo gravado; duplicar usa o vigente
+      const gravado: PrazoGravado | null = modo === 'edit' && !naFila && det ? { prazo_id: det.prazo_pagamento_id, percentual: det.prazo_percentual_ajuste } : null;
+      const pctDoc = naFila ? (naFila.payload.prazo_percentual_ajuste ?? 0) : percentualDoPrazoNoDocumento({ prazo_id: c?.rascunho.prazo_pagamento_id, vigente: prazoDoc?.percentual_ajuste, gravado });
       await repo.guardarRascunho(chave, {
         ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
@@ -550,6 +553,7 @@ export function useVendedor() {
         updated_at: new Date().toISOString(),
         edit_order_id: modo === 'edit' ? orderId : null,
         ...(prazoDoc ? { prazo_percentual_ajuste: pctDoc } : {}),
+        ...(gravado?.prazo_id && gravado.percentual != null ? { prazo_gravado: gravado } : {}),
         ...(congelados && Object.keys(congelados).length > 0 ? { precos_congelados: congelados, precos_congelados_percentual: pctDoc } : {}),
         ...(modo === 'edit' && ehOrcamento ? { tipo: 'orcamento' as const } : {}),
         notice: aviso,
@@ -735,7 +739,8 @@ export function useVendedor() {
       if (!d || d.items.length === 0) throw new Error('Itens do orçamento ainda não sincronizados. Sincronize e tente de novo.');
       const linha = linhasRef.current.pedidos.find((x) => x.id === orcamentoId);
       const id = ambiente.novoId();
-      const payload = pedidoDaConversao(d, { condicaoId: linha?.condicao_pagamento_id ?? null, observacao: linha?.observacao ?? null, novoId: id, agora: relogioReal().agora().toISOString(), transportadoras: transportadorasDaTela(linhasRef.current) });
+      // RN-VEN-45: o push leva o % que a reconferência usa (sem retrato, o vigente)
+      const payload = pedidoDaConversao({ ...d, prazo_percentual_ajuste: percentualDoDetalhe(d, prazos) }, { condicaoId: linha?.condicao_pagamento_id ?? null, observacao: linha?.observacao ?? null, novoId: id, agora: relogioReal().agora().toISOString(), transportadoras: transportadorasDaTela(linhasRef.current) });
       await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${d.customer_name}`, detalhe: `do orçamento ${d.number}` });
       if (!ambiente.online()) {
         await recarregar();
@@ -756,7 +761,7 @@ export function useVendedor() {
       await recarregar();
       return { kind: 'queued' };
     },
-    [motor, repo, recarregar, ambiente, perfil],
+    [motor, repo, recarregar, ambiente, perfil, prazos],
   );
   /**
    * T-0071 (RN-VEN-18): o que muda ao transformar o orçamento com os dados de hoje do aparelho (preço, estoque, mínimo, alçada,
@@ -779,8 +784,8 @@ export function useVendedor() {
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
-        // RN-VEN-43: o % do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
-        percentual_ajuste_bp: percentualAjusteParaBp(d.prazo_pagamento_id ? prazos.find((p) => p.id === d.prazo_pagamento_id)?.percentual_ajuste : 0),
+        // RN-VEN-43/45: o % gravado do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
+        percentual_ajuste_bp: percentualAjusteParaBp(percentualDoDetalhe(d, prazos)),
         // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença
         preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),
       });

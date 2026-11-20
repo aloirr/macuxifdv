@@ -56,6 +56,7 @@ import {
   type FaixaEscalonada,
   type FretePedido,
   type Recusa,
+  type PrazoGravado,
 } from '../domain';
 import { payloadAprovado } from './aprovado-erp';
 import { financeiroDoCliente } from './financeiro-aprovacao';
@@ -123,6 +124,8 @@ export async function calcularDocumento(
   validadeFixa?: { data: string; ate: string },
   /** T-0134 (RN-VEN-18): preço de tabela por unidade já gravado no orçamento (edição ou Transformar) */
   congelados?: CongeladosDoDocumento,
+  /** RN-VEN-45 */
+  gravado?: PrazoGravado,
 ) {
   const eu = ctx.usuario.id;
   const agora = ctx.agora();
@@ -200,7 +203,7 @@ export async function calcularDocumento(
   }
 
   // 6) pagamento: forma + prazo (RN-VEN-24/25, T-0089) ou, no APK anterior, a condição de pagamento (RN-VEN-14 legado)
-  const pg = await resolverPagamento(ctx, db, tx, p, cliente, tipo);
+  const pg = await resolverPagamento(ctx, db, tx, p, cliente, tipo, gravado);
   if (!pg.ok) return rejeitado(itemId, pg.codigo, pg.mensagem);
 
   // RN-VEN-18/44: ver precoDoItemNoPrazo (a mesma função do aparelho)
@@ -355,7 +358,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
 
   // T-0134: Transformar mantém os preços do orçamento enquanto valem (RN-VEN-18); estoque, mínimo (RN-VEN-11) e alçada são revalidados abaixo
   const o = origem
-    ? (await db.query<{ endereco_entrega: Record<string, unknown> | null; prazo_percentual_ajuste: number | null }>("select endereco_entrega, prazo_percentual_ajuste::float8 as prazo_percentual_ajuste from vendedor.pedido where id = $1 and tipo = 'orcamento'", [origem])).rows[0]
+    ? (await db.query<{ endereco_entrega: Record<string, unknown> | null; prazo_pagamento_id: string | null; prazo_percentual_ajuste: number | null }>("select endereco_entrega, prazo_pagamento_id, prazo_percentual_ajuste::float8 as prazo_percentual_ajuste from vendedor.pedido where id = $1 and tipo = 'orcamento'", [origem])).rows[0]
     : undefined;
   const congelados = origem && precoVale ? await precosCongeladosDoDocumento(db, origem, o?.prazo_percentual_ajuste ?? null) : undefined;
   // T-0141 (RN-VEN-17): Transformar sem endereço no corpo herda o retrato do orçamento (editado continua editado)
@@ -363,7 +366,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   if (origem && !p.endereco_entrega_id && !p.endereco_entrega_editado) {
     pDoc = { ...p, ...enderecoHerdadoDoOrcamento(o?.endereco_entrega as never) } as typeof p;
   }
-  const calc = await calcularDocumento(ctx, db, tx, pDoc, tipo, item.id, undefined, congelados);
+  const calc = await calcularDocumento(ctx, db, tx, pDoc, tipo, item.id, undefined, congelados, o ? { prazo_id: o.prazo_pagamento_id, percentual: o.prazo_percentual_ajuste } : undefined);
   if ('status' in calc) return calc;
   const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial, percentualAjustePrazo, financeiro } = calc;
 

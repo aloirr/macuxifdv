@@ -60,3 +60,19 @@ export function precoDoItemNoPrazo<F>(i: { congelado_cents?: number | null; cong
   }
   return { preco_unidade_cents: i.hoje_cents, faixas: i.faixas_hoje, congelado: false, percentual_ajuste_bp: i.percentual_ajuste_bp };
 }
+
+/** RN-VEN-45: o prazo e o % gravados no orçamento ou no pedido (retrato `pedido.prazo_percentual_ajuste`). */
+export interface PrazoGravado {
+  prazo_id: string | null | undefined;
+  percentual: number | null | undefined;
+}
+
+/**
+ * RN-VEN-43/44/45: o % do prazo que vale no documento. No prazo em que o documento foi gravado, o % gravado, mesmo que o
+ * ERP tenha mudado depois; em outro prazo, o vigente. Sem retrato, o vigente. A mesma no aparelho e na API.
+ */
+export function percentualDoPrazoNoDocumento(i: { prazo_id: string | null | undefined; vigente: number | null | undefined; gravado?: PrazoGravado | null }): number {
+  const g = i.gravado;
+  if (i.prazo_id && g && g.prazo_id === i.prazo_id && g.percentual != null) return g.percentual;
+  return i.vigente ?? 0;
+}

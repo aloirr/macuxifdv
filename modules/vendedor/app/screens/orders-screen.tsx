@@ -229,6 +229,8 @@ export default function OrdersScreen() {
       <CabecalhoTela
         titulo={gestao ? 'Pedidos da equipe' : 'Pedidos'}
         direita={
+          // R-20261120-055304 item 6: a hora da sincronização só no Início; no Campo a lista só puxa para atualizar
+          gestao ? (
           // RD-0076 (pedido-v4 §4.1): um selo só; sem "Atualizando…" nem "Sem resposta" (R-20261120-062537)
           <SeloAtualizacao
             testID="orders-selo-sync"
@@ -240,6 +242,7 @@ export default function OrdersScreen() {
             }}
             onAbrirPerfil={() => router.push('/profile' as never)}
           />
+          ) : undefined
         }
       />
       <FlatList

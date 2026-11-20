@@ -305,3 +305,17 @@ describe('T-0159 (R-20261111-003121): cadeia real retrato da filial → detalhe 
     }
   });
 });
+
+describe('RN-VEN-45 (T-0188): o detalhe do pull traz o % do prazo gravado', () => {
+  const grav = { forma_pagamento_id: U(60), forma_pagamento_nome: 'Pix', prazo_pagamento_id: U(61), prazo_descricao: 'À vista', prazo_parcelas_dias: [0], prazo_medio_dias: 0 };
+  it('RN-VEN-45: linha com prazo e % gravado (-1,71, e 0) leva o valor ao detalhe', () => {
+    const l = linhas({ pedidos: [pedido({ id: U(31), ...grav, prazo_percentual_ajuste: -1.71 } as Partial<PedidoSync> & { id: string }), pedido({ id: U(32), ...grav, prazo_percentual_ajuste: 0 } as Partial<PedidoSync> & { id: string })], itens: [item(1, U(31), 1, 1, 100), item(2, U(32), 1, 1, 100)] });
+    expect(detalheDoPedido(l, U(31), 'vendedor', {})!.prazo_percentual_ajuste).toBe(-1.71);
+    expect(detalheDoPedido(l, U(32), 'vendedor', {})!.prazo_percentual_ajuste).toBe(0);
+  });
+  it('RN-VEN-45: linha de servidor anterior (sem o campo) ou sem prazo não traz o % (vale o vigente)', () => {
+    const l = linhas({ pedidos: [pedido({ id: U(33), ...grav } as Partial<PedidoSync> & { id: string }), pedido({ id: U(34), prazo_percentual_ajuste: 3 } as Partial<PedidoSync> & { id: string })], itens: [item(1, U(33), 1, 1, 100), item(2, U(34), 1, 1, 100)] });
+    expect(detalheDoPedido(l, U(33), 'vendedor', {})!).not.toHaveProperty('prazo_percentual_ajuste');
+    expect(detalheDoPedido(l, U(34), 'vendedor', {})!).not.toHaveProperty('prazo_percentual_ajuste');
+  });
+});
