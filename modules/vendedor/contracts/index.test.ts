@@ -32,7 +32,7 @@ describe('contracts', () => {
   });
 });
 
-import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, maiorNivel, quemDecide, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
+import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, decisorEhAutor, maiorNivel, quemDecide, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
 
 describe('contracts do pedido no servidor (T-0029)', () => {
   const push = { id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', customer_id: 'c1', discount_pct: 4, items: [{ product_id: 'p1', quantity: 2 }] };
@@ -124,6 +124,11 @@ describe('T-0184: contratos da aprovação por motivo', () => {
     expect(AlcadaApiSchema.safeParse(base).success).toBe(true);
     expect(AlcadaApiSchema.safeParse({ ...base, aprovador_credito: 'gerente', aprovador_inadimplencia: 'analista' }).success).toBe(true);
     expect(AlcadaApiSchema.safeParse({ ...base, aprovador_credito: 'diretor' }).success).toBe(false);
+  });
+
+  it('RN-VEN-10 e RN-GES-04: decisorEhAutor é público no contrato (o autor não decide o próprio pedido)', () => {
+    expect(decisorEhAutor({ autor_id: 'sup', vendedor_id: 'v1' }, 'sup')).toBe(true);
+    expect(decisorEhAutor({ vendedor_id: 'v1' }, 'sup')).toBe(false);
   });
 
   it('RN-GES-04: quemDecide é público no contrato (gestor decide até a alçada; analista só o seu nível)', () => {

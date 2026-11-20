@@ -1,6 +1,6 @@
-/** T-0187 (supervisor em campo): "Em nome de", nível de aprovação do autor e dono da venda. Funções puras. */
+/** T-0187 (supervisor em campo): "Em nome de", nível de aprovação do autor. Funções puras. */
 import { describe, expect, it } from 'vitest';
-import { donoDaVenda, elevarAoNivelDoAutor, nivelMinimoDoAutor, opcoesEmNome, vendedorPadraoEmNome } from './pedido-em-nome';
+import { opcoesEmNome, vendedorPadraoEmNome } from './pedido-em-nome';
 
 const equipe = [
   { id: 'carla', nome: 'Carla Lima', ativo: true, perfil: 'vendedor' },
@@ -44,33 +44,6 @@ describe('RN-CORE-04 e RN-VEN-35: "Em nome de" lista só a equipe do autor', () 
   });
 });
 
-describe('RN-VEN-10 e RN-GES-04: ninguém aprova o próprio pedido; o motivo sobe um nível', () => {
-  it('o nível mínimo de quem decide o pedido do autor', () => {
-    expect(nivelMinimoDoAutor('supervisor')).toBe('gerente');
-    expect(nivelMinimoDoAutor('gerente')).toBe('analista');
-    expect(nivelMinimoDoAutor('vendedor')).toBeNull();
-  });
-  it('supervisor autor: motivo no nível supervisor vai ao gerente; o que já era gerente fica', () => {
-    const r = elevarAoNivelDoAutor([{ motivo: 'credito', nivel: 'supervisor', texto: 'a' }, { motivo: 'inadimplencia', nivel: 'gerente', texto: 'b' }], 'supervisor');
-    expect(r.map((a) => a.nivel)).toEqual(['gerente', 'gerente']);
-  });
-  it('gerente autor: motivo no nível gerente vai ao analista', () => {
-    expect(elevarAoNivelDoAutor([{ motivo: 'credito', nivel: 'gerente', texto: 'a' }], 'gerente')[0]?.nivel).toBe('analista');
-  });
-  it('vendedor autor: nada muda', () => {
-    const a = [{ motivo: 'credito' as const, nivel: 'supervisor' as const, texto: 'a' }];
-    expect(elevarAoNivelDoAutor(a, 'vendedor')).toEqual(a);
-  });
-});
-
-describe('RN-VEN-35 (P3 A): a venda conta para o vendedor de "Em nome de"', () => {
-  it('em nome: o dono é o vendedor escolhido; sem vendedor, o autor', () => {
-    expect(donoDaVenda({ autor_id: 'sup', vendedor_id: 'carla' })).toBe('carla');
-    expect(donoDaVenda({ autor_id: 'v1', vendedor_id: null })).toBe('v1');
-    expect(donoDaVenda({ autor_id: 'v1', vendedor_id: 'v1' })).toBe('v1');
-  });
-});
-
 describe('RN-GES-04: a aprovação do pedido em nome sobe ao nível do autor para cima', () => {
   it('o nível do pedido acompanha as aprovações elevadas', async () => {
     const { comNivelDoAutor } = await import('./aprovacao');
@@ -79,16 +52,7 @@ describe('RN-GES-04: a aprovação do pedido em nome sobe ao nível do autor par
   });
 });
 
-describe('RN-VEN-35 e RN-PRO-01 (T-0187): trava do promotor e pendência do vendedor', () => {
-  it('RN-PRO-01: promotor como autor é recusado antes de qualquer outra checagem', async () => {
-    const { verificarPedidoEmNome } = await import('./pedido-em-nome');
-    expect(verificarPedidoEmNome({ autor: { id: 'p', perfil: 'promotor' }, vendedor_id: 'carla', vendedor: { id: 'carla', perfil: 'vendedor' }, visiveis: 'tenant' })).toMatchObject({ codigo: 'RN-PRO-01', http: 403 });
-  });
-  it('RN-VEN-35: vendedor de outra equipe volta "Vendedor fora da sua equipe"', async () => {
-    const { verificarPedidoEmNome } = await import('./pedido-em-nome');
-    const r = verificarPedidoEmNome({ autor: { id: 'sup', perfil: 'supervisor' }, vendedor_id: 'x', vendedor: { id: 'x', perfil: 'vendedor' }, visiveis: new Set(['sup']) });
-    expect(r).toMatchObject({ codigo: 'FORA_DA_EQUIPE', http: 403, mensagem: 'Vendedor fora da sua equipe' });
-  });
+describe('RN-VEN-35 e RN-PRO-01 (T-0187): pendência do vendedor', () => {
   it('RN-VEN-35: sem vendedor em "Em nome de" falta o "Vendedor" na aba Venda', async () => {
     const { pendenciasDePreenchimento } = await import('./pendencias-preenchimento');
     const p = pendenciasDePreenchimento({ itens: 1, quantidade_invalida: false, pagamento: { tipo: 'ok' }, frete: 'ok', erros_calculo: [], em_nome_sem_vendedor: true });

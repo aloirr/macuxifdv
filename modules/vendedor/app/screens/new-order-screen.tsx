@@ -44,7 +44,7 @@ import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from
 import { DescontoGeral } from '../components/desconto-geral';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
-import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vinculoVigente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
+import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -203,13 +203,14 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const vendedorEmNomeId = emNomeLivre ? (draft.vendedor_em_nome_id ?? null) : vendedorEmNomeIdDaRota;
   const vendedorEmNomeNome = emNomeLivre ? (draft.vendedor_em_nome_nome ?? null) : vendedorEmNomeNomeDaRota;
   const hoje = localIsoDate(new Date(), tz);
+  const porClienteVigente = useMemo(() => vendedoresPorCliente(app.carteiras, hoje), [app.carteiras, hoje]);
   const equipeEmNome = useMemo(() => {
     if (!emNomeLivre) return [];
     const nomes = nomesDosVendedores(app.pedidos, null);
-    const ids = new Set(app.carteiras.filter((c) => vinculoVigente(c, hoje)).map((c) => c.usuario_id));
+    const ids = new Set([...porClienteVigente.values()].flat());
     return [...ids].map((id) => ({ id, nome: nomes.get(id) ?? 'Vendedor', ativo: true, perfil: 'vendedor' as const }));
-  }, [emNomeLivre, app.pedidos, app.carteiras, hoje]);
-  const vinculosEmNome = useMemo(() => app.carteiras.filter((c) => vinculoVigente(c, hoje)).map((c) => ({ usuario_id: c.usuario_id, cliente_id: c.cliente_id })), [app.carteiras, hoje]);
+  }, [emNomeLivre, app.pedidos, porClienteVigente]);
+  const vinculosEmNome = useMemo(() => [...porClienteVigente].flatMap(([cliente_id, us]) => us.map((usuario_id) => ({ usuario_id, cliente_id }))), [porClienteVigente]);
   const opcoesDoEmNome = useMemo(() => {
     if (!emNomeLivre) return [];
     // o rascunho salvo pode ter um vendedor que saiu da equipe: aparece desligado, com o motivo

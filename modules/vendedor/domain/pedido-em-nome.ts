@@ -3,7 +3,7 @@
  * `vendedor_id` = dono (conta na meta e no ranking, RN-CORE-21); `autor_id` = quem digitou, sempre o usuário do token.
  * RN-VEN-10: o pedido feito pelo gestor usa a alçada do gestor. RN-PRO-01: o promotor nunca cria pedido.
  */
-import type { AprovacaoNova, NivelAprovacao, Recusa } from './aprovacao';
+import type { Recusa } from './aprovacao';
 import type { DiscountPolicy } from './order';
 
 export const PERFIS_EM_NOME = ['supervisor', 'gerente'] as const;
@@ -107,22 +107,6 @@ export function opcoesEmNome(e: {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
-const ORDEM_DO_NIVEL: Record<NivelAprovacao, number> = { supervisor: 0, gerente: 1, analista: 2 };
-
-/** RN-VEN-10 e RN-GES-04 (P4 A): o menor nível que pode decidir o pedido do autor (um acima do dele). Sem autor gestor: `null`. */
-export function nivelMinimoDoAutor(perfil: string): NivelAprovacao | null {
-  if (perfil === 'supervisor') return 'gerente';
-  if (perfil === 'gerente') return 'analista';
-  return null;
-}
-
-/** RN-GES-04 (P4 A): ninguém aprova o próprio pedido; o motivo que cairia no nível do autor (ou abaixo) sobe um nível. */
-export function elevarAoNivelDoAutor<T extends Pick<AprovacaoNova, 'nivel'>>(aprovacoes: readonly T[], perfilDoAutor: string): T[] {
-  const minimo = nivelMinimoDoAutor(perfilDoAutor);
-  if (!minimo) return [...aprovacoes];
-  return aprovacoes.map((a) => (ORDEM_DO_NIVEL[a.nivel] < ORDEM_DO_NIVEL[minimo] ? { ...a, nivel: minimo } : a));
-}
-
 export const MSG_APROVACAO_DO_PROPRIO_PEDIDO = 'Você fez este pedido e não pode aprová-lo. Peça a decisão ao nível acima.';
 
 /**
@@ -131,9 +115,4 @@ export const MSG_APROVACAO_DO_PROPRIO_PEDIDO = 'Você fez este pedido e não pod
  */
 export function decisorEhAutor(pedido: { autor_id?: string | null; vendedor_id: string }, decisorId: string): boolean {
   return (pedido.autor_id ?? pedido.vendedor_id) === decisorId;
-}
-
-/** RN-VEN-35 (P3 A): a venda (meta, comissão, ranking) conta para o vendedor de "Em nome de"; sem ele, para o autor. */
-export function donoDaVenda(e: { autor_id: string; vendedor_id?: string | null }): string {
-  return e.vendedor_id ? e.vendedor_id : e.autor_id;
 }

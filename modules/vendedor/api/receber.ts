@@ -37,7 +37,6 @@ import {
   modalidadePadraoDosParametros,
   niveisDosParametros,
   MSG_RECUSA_FRETE,
-  donoDaVenda,
   politicaDoAutor,
   politicaDosParametros,
   precoMinimoBaseCents,
@@ -129,7 +128,7 @@ export async function calcularDocumento(
   const eu = ctx.usuario.id;
   const agora = ctx.agora();
   // RN-VEN-35: dono do pedido (o vendedor) × autor (o token). Orçamento nunca é em nome.
-  const donoId = tipo === 'pedido' && ehPedidoEmNome(eu, p.vendedor_id) ? donoDaVenda({ autor_id: eu, vendedor_id: p.vendedor_id }) : eu;
+  const donoId = tipo === 'pedido' && ehPedidoEmNome(eu, p.vendedor_id) ? p.vendedor_id! : eu;
   const emNome = donoId !== eu;
   const produtoIds = [...new Set(p.items.map((i) => i.product_id))];
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
@@ -501,7 +500,6 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         inadimplencia: v.motivos.includes('inadimplencia') && financeiro?.para_aprovacao ? { maior_atraso_dias: financeiro.para_aprovacao.maior_atraso_dias, vencidos_cents: financeiro.vencidos_cents } : null,
         historico: null,
         pedido_numero: numero,
-        autor_id: eu,
       },
       p.id,
     );

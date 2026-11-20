@@ -5,7 +5,7 @@
 import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus, type OrderValidation } from './order';
 import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
-import { decisorEhAutor, elevarAoNivelDoAutor, MSG_APROVACAO_DO_PROPRIO_PEDIDO } from './pedido-em-nome';
+import { decisorEhAutor, MSG_APROVACAO_DO_PROPRIO_PEDIDO } from './pedido-em-nome';
 import { aprovacoesFinanceiras, type FinanceiroParaAprovacao } from './credito-pedido';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
@@ -195,6 +195,20 @@ export function comAprovacoesFinanceiras(r: Omit<RecebimentoAceito, 'aceito'>, e
  */
 export function comAvisoDoPrazoMudou(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
   return { ...r, historico: r.historico.map((h) => (h.de === null && h.para === 'received' ? { ...h, motivo: MOTIVO_PRAZO_MUDOU } : h)) };
+}
+
+/** RN-VEN-10 e RN-GES-04 (P4 A): o menor nível que pode decidir o pedido do autor (um acima do dele). Sem autor gestor: `null`. */
+export function nivelMinimoDoAutor(perfil: string): NivelAprovacao | null {
+  if (perfil === 'supervisor') return 'gerente';
+  if (perfil === 'gerente') return 'analista';
+  return null;
+}
+
+/** RN-GES-04 (P4 A): ninguém aprova o próprio pedido; o motivo que cairia no nível do autor (ou abaixo) sobe um nível. */
+export function elevarAoNivelDoAutor<T extends Pick<AprovacaoNova, 'nivel'>>(aprovacoes: readonly T[], perfilDoAutor: string): T[] {
+  const minimo = nivelMinimoDoAutor(perfilDoAutor);
+  if (!minimo) return [...aprovacoes];
+  return aprovacoes.map((a) => (ORDEM_NIVEL[a.nivel] < ORDEM_NIVEL[minimo] ? { ...a, nivel: minimo } : a));
 }
 
 /** RN-GES-04 (T-0187, P4 A): ninguém aprova o próprio pedido; cada aprovação sobe ao nível mínimo do autor e o `nivel` do pedido acompanha. */

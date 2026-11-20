@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { PedidoAprovadoEvento } from '../contracts';
 import {
   CARTEIRA_FORA,
+  elevarAoNivelDoAutor,
+  nivelMinimoDoAutor,
   dataDoPreco,
   emitidoEm,
   decidirAprovacao,
@@ -409,5 +411,24 @@ describe('situacaoDoEnvio (RN-VEN-33, RN-VEN-30: reenvio do pedido devolvido abr
   });
   it('RN-VEN-33: o id é de quem criou; outro usuário recebe id em uso, mesmo no pedido devolvido', () => {
     expect(situacaoDoEnvio({ existente: existente('rejected', 'h1', 'outro'), eu, hash: 'h2' })).toBe('id_em_uso');
+  });
+});
+
+describe('RN-VEN-10 e RN-GES-04: ninguém aprova o próprio pedido; o motivo sobe um nível', () => {
+  it('o nível mínimo de quem decide o pedido do autor', () => {
+    expect(nivelMinimoDoAutor('supervisor')).toBe('gerente');
+    expect(nivelMinimoDoAutor('gerente')).toBe('analista');
+    expect(nivelMinimoDoAutor('vendedor')).toBeNull();
+  });
+  it('supervisor autor: motivo no nível supervisor vai ao gerente; o que já era gerente fica', () => {
+    const r = elevarAoNivelDoAutor([{ motivo: 'credito', nivel: 'supervisor', texto: 'a' }, { motivo: 'inadimplencia', nivel: 'gerente', texto: 'b' }], 'supervisor');
+    expect(r.map((a) => a.nivel)).toEqual(['gerente', 'gerente']);
+  });
+  it('gerente autor: motivo no nível gerente vai ao analista', () => {
+    expect(elevarAoNivelDoAutor([{ motivo: 'credito', nivel: 'gerente', texto: 'a' }], 'gerente')[0]?.nivel).toBe('analista');
+  });
+  it('vendedor autor: nada muda', () => {
+    const a = [{ motivo: 'credito' as const, nivel: 'supervisor' as const, texto: 'a' }];
+    expect(elevarAoNivelDoAutor(a, 'vendedor')).toEqual(a);
   });
 });
