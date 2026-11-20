@@ -7,31 +7,29 @@
  *                       código lê (as dos inputs `$TURBO_ROOT$/docs/...` do turbo.json, ex.: docs/modulos/, que o teste da
  *                       Integração lê). Roda só a governança e o ci-ok. A guarda R4 (grafo-turbo.mjs) prova que nenhum
  *                       código lê documentação fora dessas pastas.
- *   - "reaproveitado" → push ao main de uma árvore (tree SHA) que já passou VERDE no CI com os testes (ensaio da
- *                       verificação; run de PR não conta, porque não roda as suítes): a governança roda (donos por commit,
- *                       trailer) e os testes não se repetem. O agendado semanal também, mas só com a matriz completa
- *                       (o push da sexta que já rodou tudo na mesma árvore; economia do Actions, 18/11/2026).
+ *   - "reaproveitado" → push ao main de uma árvore (tree SHA) que já passou VERDE no CI com os testes (manual; run de PR
+ *                       não conta, porque não roda as suítes): a governança roda (donos por commit, trailer) e o estático
+ *                       não se repete.
  *   - "codigo"        → o resto. Lista vazia, erro de git e evento sem lista caem aqui, com TODOS os pacotes.
- *                       No PR, só o job estatico (R-20261115-213600-alexandre): testes-pacotes e testes-integracao rodam
- *                       no push ao main, no ensaio (manual) e no agendado, e na sessão antes do merge. O PR não grava o
- *                       artefato ci-verde-* (ci.yml). Teste quebrado num PR aparece no push ao main, e o merge seguinte
- *                       espera a correção.
+ *                       PR e push ao main: só o job estatico, o CI leve (R-20261120-073449-alexandre). testes-pacotes e
+ *                       testes-integracao rodam só no manual (workflow_dispatch: o ensaio e a suíte da versão) e na
+ *                       chamada do producao-liberar.yml (workflow_call, que chega aqui com o evento workflow_dispatch do
+ *                       liberar), uma vez por versão, e na sessão antes de cada push. Só o run com as suítes grava o
+ *                       artefato ci-verde-* (ci.yml).
  * matriz:
- *   - "completa" → agendado (semanal, sexta), sexta-feira em Manaus (véspera da produção) e manual com `completo`:
- *                  todos os pacotes.
- *   - "afetados" → PR, ensaio (manual) e push ao main: só os pacotes alterados e os que dependem deles (dependência
+ *   - "completa" → manual com `completo` (a suíte da versão sempre): todos os pacotes.
+ *   - "afetados" → PR, push ao main e ensaio (manual): só os pacotes alterados e os que dependem deles (dependência
  *                  declarada no package.json ou pasta nos inputs da tarefa no turbo.json), por tarefa. O tests/ da raiz
  *                  (lint, typecheck e a suíte de integração) roda inteiro sempre que há código.
  *
  * Base da comparação:
  *   PR       → HEAD^1..HEAD (o checkout do PR é o commit de merge com a base);
  *   push     → último push do main com CI verde (API), se for ancestral do DEPOIS; senão ANTES. Com cancel-in-progress, o
- *              push cancelado não deixa commit sem verificação de donos nem pacote sem teste;
- *   manual   → merge-base(origin/main, HEAD)..HEAD (o ensaio do branch verificacao/*); no próprio main = todos;
- *   agendado → sem lista: todos (ou reaproveitado, se a árvore do main já passou verde com a matriz completa).
+ *              push cancelado não deixa commit sem verificação de donos nem pacote sem o estático;
+ *   manual   → merge-base(origin/main, HEAD)..HEAD (o ensaio do branch verificacao/*); no próprio main = todos.
  *
  * Uso no CI: node scripts/ci/escopo.mjs (lê GITHUB_EVENT_NAME, ANTES, DEPOIS, COMPLETO, GITHUB_REPOSITORY, GH_TOKEN;
- * escreve em $GITHUB_OUTPUT). MACUXI_CI_SEM_API=1 não consulta a API (testes); MACUXI_CI_AGORA fixa a data (testes).
+ * escreve em $GITHUB_OUTPUT). MACUXI_CI_SEM_API=1 não consulta a API (testes).
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -154,31 +152,21 @@ export function afetados(arquivos, { pacotes, turbo }) {
 const filtro = (nomes, comRaiz) =>
   [...[...nomes].sort().map((n) => `--filter=${n}`), ...(comRaiz ? ['--filter=//'] : [])].join(' ');
 
-/** Dia da semana em Manaus (0 = domingo, 5 = sexta). */
-export function diaEmManaus(agora) {
-  const nome = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Manaus', weekday: 'short' }).format(
-    agora,
-  );
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(nome);
-}
-
-/** Matriz completa: agendado, sexta-feira em Manaus (véspera da produção) e manual com `completo`. */
-export const matrizCompleta = ({ evento, completo = false, agora }) =>
-  evento === 'schedule' || diaEmManaus(agora) === 5 || (evento === 'workflow_dispatch' && completo);
+/** Matriz completa: manual com `completo`. */
+export const matrizCompleta = ({ evento, completo = false }) => evento === 'workflow_dispatch' && completo;
 
 /**
- * Decisão (função pura). `arquivos` null = sem lista (agendado, erro de git, push sem base) → código, todos os pacotes.
- * `reaproveitado` = id do run verde da mesma árvore (push e agendado), ou null. Saída: o que o GITHUB_OUTPUT recebe.
+ * Decisão (função pura). `arquivos` null = sem lista (erro de git, push sem base) → código, todos os pacotes.
+ * `reaproveitado` = id do run verde da mesma árvore (push), ou null. Saída: o que o GITHUB_OUTPUT recebe.
  */
 export function decidir({
   evento,
   arquivos,
   completo = false,
-  agora = new Date(),
   workspace,
   reaproveitado = null,
 }) {
-  const matriz = matrizCompleta({ evento, completo, agora }) ? 'completa' : 'afetados';
+  const matriz = matrizCompleta({ evento, completo }) ? 'completa' : 'afetados';
   const vazio = {
     matriz,
     jobs: [],
@@ -189,22 +177,22 @@ export function decidir({
     db_sem_super: 'false',
     reaproveitado_de: '',
   };
-  const forcado = evento === 'schedule' || (evento === 'workflow_dispatch' && completo);
+  const forcado = evento === 'workflow_dispatch' && completo;
   if (
     !forcado &&
     arquivos?.length &&
     classificar(arquivos, lidosPeloCodigo(workspace.turbo)) === 'documentacao'
   )
     return { ...vazio, escopo: 'documentacao' };
-  if ((evento === 'push' || evento === 'schedule') && reaproveitado)
+  if (evento === 'push' && reaproveitado)
     return { ...vazio, escopo: 'reaproveitado', reaproveitado_de: String(reaproveitado) };
   const af = matriz === 'completa' || !arquivos?.length ? { todos: true } : afetados(arquivos, workspace);
   const todosOsPacotes = new Set(workspace.pacotes.map((p) => p.nome));
   const sel = (t) => (af.todos ? todosOsPacotes : af.porTarefa[t]);
   const testes = sel('test');
   const estatico = new Set([...sel('lint'), ...sel('typecheck')]);
-  // No PR, só o estático (cabeçalho).
-  const comTestes = evento !== 'pull_request';
+  // Suítes só no manual e na chamada do liberar; PR e push só com o estático (cabeçalho).
+  const comTestes = evento === 'workflow_dispatch';
   return {
     ...vazio,
     escopo: 'codigo',
@@ -269,8 +257,8 @@ async function baseDoPush(env) {
 }
 
 /** Run VERDE do CI que testou a mesma árvore (artefato ci-verde-<matriz>-<arvore>; a árvore é conferida no commit do run). */
-async function verificacaoDaArvore(arvore, exigeCompleta, env) {
-  const nomes = [`ci-verde-completa-${arvore}`, ...(exigeCompleta ? [] : [`ci-verde-afetados-${arvore}`])];
+async function verificacaoDaArvore(arvore, env) {
+  const nomes = [`ci-verde-completa-${arvore}`, `ci-verde-afetados-${arvore}`];
   try {
     for (const nome of nomes) {
       const j = await api(`actions/artifacts?name=${encodeURIComponent(nome)}&per_page=10`, env);
@@ -312,21 +300,16 @@ async function arquivosDoEvento(evento, env) {
 async function principal(env) {
   const evento = env.GITHUB_EVENT_NAME;
   const workspace = lerWorkspace(process.cwd());
-  const agora = env.MACUXI_CI_AGORA ? new Date(env.MACUXI_CI_AGORA) : new Date();
   const arvore = tenta(() => git('rev-parse', 'HEAD^{tree}')) ?? '';
   const { base, arquivos } = await arquivosDoEvento(evento, env);
   const completo = env.COMPLETO === 'true';
-  // No agendado a matriz é sempre completa: só o artefato ci-verde-completa-<árvore> dispensa os testes.
-  const reaproveitado =
-    (evento === 'push' || evento === 'schedule') && arvore
-      ? await verificacaoDaArvore(arvore, matrizCompleta({ evento, completo, agora }), env)
-      : null;
-  const d = decidir({ evento, arquivos, completo, agora, workspace, reaproveitado });
+  const reaproveitado = evento === 'push' && arvore ? await verificacaoDaArvore(arvore, env) : null;
+  const d = decidir({ evento, arquivos, completo, workspace, reaproveitado });
   console.log(
     `[escopo] evento=${evento} base=${base || '-'} arquivos=${arquivos === null ? '?' : arquivos.length} escopo=${d.escopo} matriz=${d.matriz} jobs=${d.jobs.join(',') || '-'}`,
   );
   if (d.reaproveitado_de)
-    console.log(`[escopo] árvore ${arvore} já verde no run ${d.reaproveitado_de}: os testes não se repetem`);
+    console.log(`[escopo] árvore ${arvore} já verde no run ${d.reaproveitado_de}: o estático não se repete`);
   for (const k of ['filtro_lint', 'filtro_typecheck', 'filtro_test'])
     console.log(`  ${k}: ${d[k] || '(todos)'}`);
   if (arquivos) for (const a of arquivos.slice(0, 50)) console.log(`  ${a}`);

@@ -10,15 +10,12 @@ import {
   afetados,
   classificar,
   decidir,
-  diaEmManaus,
   ehDocumentacao,
   lerWorkspace,
   lidosPeloCodigo,
 } from './escopo.mjs';
 
 const RAIZ = fileURLToPath(new URL('../..', import.meta.url));
-const QUARTA = new Date('2026-11-11T15:00:00Z');
-const SEXTA = new Date('2026-11-13T15:00:00Z');
 
 /** Workspace de mentira: sdk ← core ← vendedor; web e mobile usam core; gestor lê modules/vendedor e docs/modulos (inputs). */
 const WS = {
@@ -115,51 +112,40 @@ test('afetados: tests/ não seleciona pacote; arquivo global (lockfile, package.
   }
 });
 
-test('decidir: só documentação → documentacao (PR, push, ensaio e sexta); agendado e manual completo rodam tudo', () => {
+test('decidir: só documentação → documentacao (PR, push e ensaio); manual completo (a suíte da versão) roda tudo', () => {
   const docs = ['.coord/quadro.md', 'docs/desenho/T-0160.md', 'CLAUDE.md'];
-  for (const evento of ['pull_request', 'push', 'workflow_dispatch']) {
-    for (const agora of [QUARTA, SEXTA])
-      assert.equal(
-        decidir({ evento, arquivos: docs, agora, workspace: WS }).escopo,
-        'documentacao',
-        `${evento} ${agora.toISOString()}`,
-      );
-  }
-  for (const d of [
-    decidir({ evento: 'schedule', arquivos: docs, agora: QUARTA, workspace: WS }),
-    decidir({ evento: 'workflow_dispatch', arquivos: docs, completo: true, agora: QUARTA, workspace: WS }),
-  ]) {
-    assert.deepEqual(
-      [d.escopo, d.matriz, d.filtro_test, d.build, d.db_sem_super],
-      ['codigo', 'completa', '', 'true', 'true'],
-    );
-    assert.deepEqual(d.jobs, ['estatico', 'testes-pacotes', 'testes-integracao']);
-  }
+  for (const evento of ['pull_request', 'push', 'workflow_dispatch'])
+    assert.equal(decidir({ evento, arquivos: docs, workspace: WS }).escopo, 'documentacao', evento);
+  const d = decidir({ evento: 'workflow_dispatch', arquivos: docs, completo: true, workspace: WS });
+  assert.deepEqual(
+    [d.escopo, d.matriz, d.filtro_test, d.build, d.db_sem_super],
+    ['codigo', 'completa', '', 'true', 'true'],
+  );
+  assert.deepEqual(d.jobs, ['estatico', 'testes-pacotes', 'testes-integracao']);
 });
 
-test('decidir: PR só com o estático (R-20261115-213600-alexandre); push, ensaio e agendado com as suítes', () => {
-  for (const arquivos of [
-    ['modules/core/domain/a.ts'],
-    ['db/migrations/0060.sql'],
-    ['tests/a.test.ts'],
-    null,
-  ]) {
-    const pr = decidir({ evento: 'pull_request', arquivos, agora: QUARTA, workspace: WS });
-    assert.deepEqual([pr.escopo, pr.jobs], ['codigo', ['estatico']], String(arquivos));
-    const sexta = decidir({ evento: 'pull_request', arquivos, agora: SEXTA, workspace: WS });
-    assert.deepEqual(sexta.jobs, ['estatico'], `sexta ${arquivos}`);
+test('decidir: PR e push só com o estático (R-20261120-073449-alexandre); só o manual com as suítes', () => {
+  for (const evento of ['pull_request', 'push']) {
+    for (const arquivos of [
+      ['modules/core/domain/a.ts'],
+      ['db/migrations/0060.sql'],
+      ['tests/a.test.ts'],
+      null,
+    ]) {
+      const d = decidir({ evento, arquivos, workspace: WS });
+      assert.deepEqual([d.escopo, d.jobs], ['codigo', ['estatico']], `${evento} ${arquivos}`);
+    }
   }
-  for (const evento of ['push', 'workflow_dispatch', 'schedule']) {
-    const d = decidir({ evento, arquivos: ['modules/core/domain/a.ts'], agora: QUARTA, workspace: WS });
-    assert.deepEqual(d.jobs, ['estatico', 'testes-pacotes', 'testes-integracao'], evento);
-  }
+  const d = decidir({ evento: 'workflow_dispatch', arquivos: ['modules/core/domain/a.ts'], workspace: WS });
+  assert.deepEqual(d.jobs, ['estatico', 'testes-pacotes', 'testes-integracao']);
+  const t = decidir({ evento: 'workflow_dispatch', arquivos: ['tests/a.test.ts'], workspace: WS });
+  assert.deepEqual(t.jobs, ['estatico', 'testes-integracao']);
 });
 
 test('decidir: PR, ensaio e push = pacotes afetados com o tests/ da raiz; build só se web ou mobile; db sem superusuário só se o db', () => {
   const d = decidir({
     evento: 'pull_request',
     arquivos: ['modules/core/domain/a.ts'],
-    agora: QUARTA,
     workspace: WS,
   });
   assert.deepEqual([d.escopo, d.matriz], ['codigo', 'afetados']);
@@ -172,31 +158,24 @@ test('decidir: PR, ensaio e push = pacotes afetados com o tests/ da raiz; build 
   const db = decidir({
     evento: 'workflow_dispatch',
     arquivos: ['db/migrations/0060.sql'],
-    agora: QUARTA,
     workspace: WS,
   });
   assert.deepEqual([db.filtro_test, db.build, db.db_sem_super], ['--filter=@macuxi/db', 'false', 'true']);
-  const t = decidir({ evento: 'push', arquivos: ['tests/a.test.ts'], agora: QUARTA, workspace: WS });
-  assert.deepEqual(
-    [t.jobs, t.filtro_lint, t.filtro_typecheck, t.build],
-    [['estatico', 'testes-integracao'], '--filter=//', '--filter=//', 'false'],
-  );
+  const t = decidir({ evento: 'push', arquivos: ['tests/a.test.ts'], workspace: WS });
+  assert.deepEqual([t.filtro_lint, t.filtro_typecheck, t.build], ['--filter=//', '--filter=//', 'false']);
 });
 
-test('decidir: sexta em Manaus (véspera da produção), lista vazia ou sem lista = todos os pacotes', () => {
-  const s = decidir({ evento: 'push', arquivos: ['modules/core/a.ts'], agora: SEXTA, workspace: WS });
-  assert.deepEqual([s.matriz, s.filtro_lint, s.filtro_test], ['completa', '', '']);
+test('decidir: lista vazia ou sem lista = todos os pacotes', () => {
   for (const arquivos of [null, []]) {
-    const d = decidir({ evento: 'push', arquivos, agora: QUARTA, workspace: WS });
+    const d = decidir({ evento: 'push', arquivos, workspace: WS });
     assert.deepEqual([d.escopo, d.matriz, d.filtro_test, d.build], ['codigo', 'afetados', '', 'true']);
   }
 });
 
-test('decidir: push de árvore já verde = reaproveitado (push e agendado; PR e ensaio sempre testam)', () => {
+test('decidir: push de árvore já verde = reaproveitado (só no push; PR e manual sempre rodam)', () => {
   const d = decidir({
     evento: 'push',
     arquivos: ['modules/core/a.ts'],
-    agora: QUARTA,
     workspace: WS,
     reaproveitado: 123,
   });
@@ -205,7 +184,6 @@ test('decidir: push de árvore já verde = reaproveitado (push e agendado; PR e 
     decidir({
       evento: 'pull_request',
       arquivos: ['modules/core/a.ts'],
-      agora: QUARTA,
       workspace: WS,
       reaproveitado: 123,
     }).escopo,
@@ -213,23 +191,12 @@ test('decidir: push de árvore já verde = reaproveitado (push e agendado; PR e 
   );
   // só documentação continua documentacao (a governança é a mesma)
   assert.equal(
-    decidir({ evento: 'push', arquivos: ['docs/a.md'], agora: QUARTA, workspace: WS, reaproveitado: 123 })
+    decidir({ evento: 'push', arquivos: ['docs/a.md'], workspace: WS, reaproveitado: 123 })
       .escopo,
     'documentacao',
   );
-  // agendado semanal: a árvore já verde com a matriz completa não repete os testes; sem o run verde, roda tudo
-  const ag = decidir({ evento: 'schedule', arquivos: null, agora: SEXTA, workspace: WS, reaproveitado: 456 });
-  assert.deepEqual(
-    [ag.escopo, ag.matriz, ag.reaproveitado_de, ag.jobs],
-    ['reaproveitado', 'completa', '456', []],
-  );
-  assert.equal(decidir({ evento: 'schedule', arquivos: null, agora: SEXTA, workspace: WS }).escopo, 'codigo');
-});
-
-test('diaEmManaus: o dia vira às 04:00 UTC', () => {
-  assert.equal(diaEmManaus(new Date('2026-11-13T03:59:00Z')), 4);
-  assert.equal(diaEmManaus(new Date('2026-11-13T04:00:00Z')), 5);
-  assert.equal(diaEmManaus(QUARTA), 3);
+  const manual = decidir({ evento: 'workflow_dispatch', arquivos: null, completo: true, workspace: WS, reaproveitado: 456 });
+  assert.deepEqual([manual.escopo, manual.matriz], ['codigo', 'completa']);
 });
 
 test('workspace real: mudança no SDK seleciona api, web e mobile; no db, o @macuxi/db', () => {
@@ -237,20 +204,19 @@ test('workspace real: mudança no SDK seleciona api, web e mobile; no db, o @mac
   const d = decidir({
     evento: 'pull_request',
     arquivos: ['packages/platform-sdk/src/diagnostico.ts'],
-    agora: QUARTA,
     workspace: ws,
   });
   for (const n of ['api', 'web', 'mobile', '@macuxi/core'])
     assert.ok(d.filtro_test.split(' ').includes(`--filter=${n}`), n);
   assert.equal(d.build, 'true');
   assert.equal(
-    decidir({ evento: 'pull_request', arquivos: ['db/migrations/x.sql'], agora: QUARTA, workspace: ws })
+    decidir({ evento: 'pull_request', arquivos: ['db/migrations/x.sql'], workspace: ws })
       .db_sem_super,
     'true',
   );
 });
 
-test('CLI num repositório git: PR só de .coord → documentacao; push → afetados pela base; ANTES zerado e agendado → todos', () => {
+test('CLI num repositório git: PR só de .coord → documentacao; push → afetados pela base; ANTES zerado e manual completo → todos', () => {
   const dir = mkdtempSync(join(tmpdir(), 'escopo-'));
   const git = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).trim();
   const escrever = (rel, c) => {
@@ -266,7 +232,6 @@ test('CLI num repositório git: PR só de .coord → documentacao; push → afet
       env: {
         ...process.env,
         MACUXI_CI_SEM_API: '1',
-        MACUXI_CI_AGORA: QUARTA.toISOString(),
         ...env,
         GITHUB_OUTPUT: out,
       },
@@ -320,8 +285,12 @@ test('CLI num repositório git: PR só de .coord → documentacao; push → afet
       [r.escopo, r.matriz, r.filtro_test, r.build],
       ['codigo', 'afetados', '--filter=@macuxi/core --filter=web', 'true'],
     );
-    r = rodar({ GITHUB_EVENT_NAME: 'schedule' });
-    assert.deepEqual([r.escopo, r.matriz, r.filtro_test], ['codigo', 'completa', '']);
+    assert.equal(r.jobs, '["estatico"]');
+    r = rodar({ GITHUB_EVENT_NAME: 'workflow_dispatch', COMPLETO: 'true' });
+    assert.deepEqual(
+      [r.escopo, r.matriz, r.filtro_test, r.jobs],
+      ['codigo', 'completa', '', '["estatico","testes-pacotes","testes-integracao"]'],
+    );
     r = rodar({
       GITHUB_EVENT_NAME: 'push',
       ANTES: '0000000000000000000000000000000000000000',
