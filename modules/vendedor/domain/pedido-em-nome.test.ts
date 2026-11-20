@@ -1,7 +1,7 @@
 /** RN-VEN-35 / RN-VEN-10 / RN-PRO-01: pedido em nome do vendedor. Funções puras. */
 import { describe, expect, it } from 'vitest';
 import { revalidarPedido } from './aprovacao';
-import { alcadaDoAutorPct, ehPedidoEmNome, politicaDoAutor, verificarPedidoEmNome } from './pedido-em-nome';
+import { alcadaDoAutorPct, decisorEhAutor, ehPedidoEmNome, politicaDoAutor, verificarPedidoEmNome } from './pedido-em-nome';
 
 const SUP = { id: 'sup', perfil: 'supervisor' };
 const GER = { id: 'ger', perfil: 'gerente' };
@@ -20,10 +20,10 @@ describe('RN-VEN-35: supervisor cria só para vendedor da própria equipe', () =
   it('vendedor da equipe passa', () => {
     expect(verificarPedidoEmNome({ autor: SUP, vendedor_id: 'v1', vendedor, visiveis: new Set(['sup', 'v1']) })).toBeNull();
   });
-  it('vendedor fora da equipe é 403 FORA_DA_EQUIPE, com a ação seguinte', () => {
+  it('vendedor fora da equipe é 403 FORA_DA_EQUIPE com a mensagem "Vendedor fora da sua equipe"', () => {
     const r = verificarPedidoEmNome({ autor: SUP, vendedor_id: 'v9', vendedor, visiveis: new Set(['sup', 'v1']) });
     expect(r).toMatchObject({ codigo: 'FORA_DA_EQUIPE', http: 403 });
-    expect(r?.mensagem).toMatch(/equipe/);
+    expect(r?.mensagem).toBe('Vendedor fora da sua equipe');
   });
 });
 
@@ -102,5 +102,24 @@ describe('RN-VEN-35 + RN-VEN-10: revalidação do pedido em nome', () => {
   });
   it('analista não ganha o direito por em_nome', () => {
     expect(revalidarPedido(base('analista', 1))).toMatchObject({ ok: false, codigo: 'PERFIL_SEM_ACESSO' });
+  });
+});
+
+describe('RN-VEN-10 e T-0187 P4 A: ninguém decide a aprovação do próprio pedido', () => {
+  it('decisorEhAutor: o autor_id decide por ele; sem autor_id o autor é o vendedor dono', () => {
+    expect(decisorEhAutor({ autor_id: 'sup', vendedor_id: 'v1' }, 'sup')).toBe(true);
+    expect(decisorEhAutor({ autor_id: 'sup', vendedor_id: 'v1' }, 'ger')).toBe(false);
+    expect(decisorEhAutor({ autor_id: 'sup', vendedor_id: 'v1' }, 'v1')).toBe(false);
+    expect(decisorEhAutor({ autor_id: null, vendedor_id: 'v1' }, 'v1')).toBe(true);
+    expect(decisorEhAutor({ vendedor_id: 'v1' }, 'sup')).toBe(false);
+  });
+});
+
+describe('D-187-01: vendedor inexistente vem antes de fora da equipe', () => {
+  it('dono que não existe e fora da equipe é VENDEDOR_INVALIDO (422), não FORA_DA_EQUIPE', () => {
+    expect(verificarPedidoEmNome({ autor: SUP, vendedor_id: 'x', vendedor: null, visiveis: new Set(['sup']) })).toMatchObject({ codigo: 'VENDEDOR_INVALIDO', http: 422 });
+  });
+  it('dono que existe e está fora da equipe segue FORA_DA_EQUIPE (403)', () => {
+    expect(verificarPedidoEmNome({ autor: SUP, vendedor_id: 'v9', vendedor: { id: 'v9', perfil: 'vendedor' }, visiveis: new Set(['sup']) })).toMatchObject({ codigo: 'FORA_DA_EQUIPE', http: 403 });
   });
 });

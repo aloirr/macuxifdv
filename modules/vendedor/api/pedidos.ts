@@ -73,7 +73,7 @@ const NAO_ENCONTRADO = ['PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado.'] as c
 
 /** T-0054: resumo do faturamento (0013; só com `FATURAMENTO_LIGADO`): total faturado, notas e última NF. */
 const COLUNAS_FATURAMENTO = `${COLUNA_DEVOLVIDO}, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero`;
-const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
+const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.autor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
   p.condicao_pagamento, p.condicao_pagamento_descricao, p.status, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.nivel_aprovacao, p.motivos_aprovacao,
   p.motivo_rejeicao, p.observacao, p.numero_erp, ${ts('criado_no_aparelho_em')}, ${ts('recebido_em')}, ${ts('created_at')}, ${ts('updated_at')},
@@ -306,7 +306,7 @@ function decidir(decisao: DecisaoAprovador): RotaModulo {
         const lidas = (await lerAprovacoes(db, [id])).get(id) ?? [];
         const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: await aprovacoesComNomes(tx, (await lerAprovacoes(db, [id])).get(id) ?? []) });
         // 2) regra pura (RN-GES-08, RN-GES-04, RN-VEN-10, RN-VEN-30)
-        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, nivel_do_pedido: linha.nivel_aprovacao as NivelAprovacao | null, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo });
+        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, nivel_do_pedido: linha.nivel_aprovacao as NivelAprovacao | null, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo, decisor_id: eu, pedido: linha });
         if (r.tipo === 'recusa') throw new ErroHttpModulo(r.http === 403 ? 403 : 422, r.codigo, r.mensagem);
         if (r.tipo === 'repetida') return resposta(linha.status);
         const ciclo = Number((await db.query<{ c: number }>('select aprovacao_ciclo::int as c from vendedor.pedido where id = $1', [id])).rows[0]?.c ?? 1);

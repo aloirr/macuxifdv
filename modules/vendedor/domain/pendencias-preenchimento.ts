@@ -34,6 +34,8 @@ export interface EntradaPendencias {
   frete: 'ok' | 'transportadora' | 'cnpj';
   /** `CalculoPedido.pendencias`: erros do cálculo (item sem preço, medida, desconto, alçada), com código. */
   erros_calculo: readonly ErroDeCalculo[];
+  /** T-0187 (RN-VEN-35): pedido aberto pela ficha do cliente, ainda sem o vendedor de "Em nome de" (aba Venda). */
+  em_nome_sem_vendedor?: boolean;
 }
 
 
@@ -61,6 +63,7 @@ export function pendenciasDePreenchimento(e: EntradaPendencias): PendenciaDoPedi
   const r: PendenciaDoPedido[] = [];
   if (e.itens === 0) r.push({ id: 'sem-item', texto: 'Pelo menos 1 item', aba: 'itens' });
   if (e.quantidade_invalida) r.push({ id: 'quantidade', texto: 'Quantidade dos itens', aba: 'itens' });
+  if (e.em_nome_sem_vendedor) r.push({ id: 'vendedor', texto: 'Vendedor', aba: 'venda' });
   switch (e.pagamento.tipo) {
     case 'sem_forma_permitida':
       r.push({ id: 'forma', texto: 'Forma de pagamento aceita pelo cliente', aba: 'venda' });

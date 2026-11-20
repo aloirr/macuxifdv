@@ -57,7 +57,7 @@ export const manifest = defineModule({
     'forma_pagamento.ver': { perfis: ['admin', 'analista', 'gerente'] },
     'forma_pagamento.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
   },
-  ofereceExtensoes: ['pedido.criar_em_nome'],
+  ofereceExtensoes: ['pedido.criar_em_nome', 'pedido.equipe_em_nome'],
   usaExtensoes: ['produto.acoes', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards'],
 });
 
