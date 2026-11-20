@@ -111,7 +111,7 @@ describe('componentes do Novo pedido v2 (T-0133): conferência estática', () =>
 
   it('o ⋮ tem desenho próprio no kit de ícones', () => {
     const icone = ler('./icon.tsx');
-    expect(icone).toContain("  'mais',");
+    expect(ler('./nomes-de-icone.ts')).toContain("  'mais',");
     expect(icone).toContain("case 'mais':");
   });
 });

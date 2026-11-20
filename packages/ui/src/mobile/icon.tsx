@@ -6,59 +6,9 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { colors } from './theme';
 
-/** Todos os nomes de ícone do kit, para quem precisa validar um nome em tempo de execução (ex.: abas do shell, RD-2447). */
-export const NOMES_DE_ICONE = [
-  'home',
-  'pin',
-  'users',
-  'equipe',
-  'clipboard',
-  'target',
-  'sync',
-  'check',
-  'navigate',
-  'clock',
-  'alert',
-  'back',
-  'chevron',
-  'phone',
-  'chat',
-  'plus',
-  'minus',
-  'wifiOff',
-  'search',
-  'close',
-  'logout',
-  'server',
-  'send',
-  'user',
-  'lock',
-  'copy',
-  'edit',
-  'trash',
-  'file',
-  'menu',
-  'swap',
-  'x',
-  'bell',
-  'sun',
-  'map',
-  'camera',
-  'inbox',
-  'filtro',
-  'abaixo',
-  'subir',
-  'mais',
-  'galeria',
-  'config',
-  'nuvem',
-  'olho',
-  'olhoRiscado',
-  'lampada',
-  'pacote',
-] as const;
+import type { IconName } from './nomes-de-icone';
 
-export type IconName = (typeof NOMES_DE_ICONE)[number];
+export { NOMES_DE_ICONE, type IconName } from './nomes-de-icone';
 
 interface Props {
   name: IconName;
