@@ -97,7 +97,7 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-GES-02 (P0)** Ficha de cada vendedor: meta × realizado, positivação, cobertura de rota, ticket médio, mix, pedidos, conversão de visita em pedido, tempo médio de visita, desconto médio, evolução mensal.
 - **RF-GES-03 (P0)** Ranking da equipe por indicador e período.
 - **RF-GES-04 (P0)** Aprovações da sua alçada (desconto, crédito, estoque) com contexto do cliente; aprovar/rejeitar com comentário.
-- **RF-GES-05 (P0)** **Pedido em nome do vendedor**: usa o motor do módulo Vendedor; o pedido conta para o vendedor e registra o gestor como autor.
+- **RF-GES-05 (P0)** **Pedido em nome do vendedor**: usa o motor do módulo Vendedor; o pedido conta para o vendedor e registra o gestor como autor. Entra pela ficha da vendedora ou pela ficha do cliente (Novo pedido, com "Em nome de" na aba Venda; T-0187).
 - **RF-GES-06 (P0)** Ver tudo dos clientes da carteira da equipe (Cliente 360, pedidos, execuções, pesquisas).
 - **RF-GES-07 (P1)** Alertas: vendedor sem check-in até [10h], cliente da rota não visitado, cliente sem compra há [30] dias, desconto fora do padrão.
 - **RF-GES-08 (P1)** Ajustar rota do vendedor pelo app Gestão.
