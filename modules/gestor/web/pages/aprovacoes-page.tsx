@@ -27,7 +27,7 @@ export function AprovacoesPage() {
     <div className="flex flex-col gap-4" data-testid="gestor.aprovacoes">
       <PageHeader
         title={rotuloComContagem('Aprovações da equipe', fila?.resumo.total ?? 0)}
-        actions={<MenuAcoes acoes={[{ id: 'atualizar', rotulo: q.isFetching ? 'Atualizando…' : 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch() }]} />}
+        actions={<MenuAcoes acoes={[{ id: 'atualizar', rotulo: 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch() }]} />}
       />
       {q.isLoading ? <LoadingBlock label="Carregando a fila…" /> : null}
       {q.isError ? <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} /> : null}

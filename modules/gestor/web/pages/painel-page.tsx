@@ -36,7 +36,7 @@ function Conteudo() {
           <MenuAcoes
             acoes={[
               { id: 'csv', rotulo: 'Exportar CSV', desligada: !v, aoEscolher: () => v && downloadBlob(new Blob([csvDaEquipe(v)], { type: 'text/csv;charset=utf-8' }), `equipe-${v.data}.csv`) },
-              { id: 'atualizar', rotulo: q.isFetching ? 'Atualizando…' : 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch() },
+              { id: 'atualizar', rotulo: 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch() },
             ]}
           />
         }
