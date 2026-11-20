@@ -22,7 +22,7 @@ import {
   trilhasDoAparelho,
   type LinhasTreinamento,
 } from '../lib/estado';
-import { trilhasComTitulo } from '../lib/telas';
+import { mostraHoraDaSincronizacao, trilhasComTitulo } from '../lib/telas';
 
 export type ResultadoRegistro =
   | {
@@ -124,6 +124,7 @@ export function useTreinamento() {
     sincronizando: motorEstado.sincronizando,
     erroSync: motorEstado.erro,
     sincronizadoEm: motorEstado.sincronizado_em,
+    mostraHora: mostraHoraDaSincronizacao(usuario?.perfil),
     trilhas,
     estado: projecao.estado,
     naFila: projecao.na_fila,
