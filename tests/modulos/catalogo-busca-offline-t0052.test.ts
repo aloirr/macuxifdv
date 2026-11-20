@@ -201,18 +201,19 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
       const porBusca = [ap.consultasFts.length];
       expect(skus(await busca(ap.leitor, 'lubrificante motocicleta')), 'lubrificante motocicleta → óleo de moto').toContain('OLE-4T-1L');
       porBusca.push(ap.consultasFts.length);
-      // atributo do Catálogo (fonte de outra entidade no índice), sem acento. Semântica do B2 (união dos termos, quem casa
-      // mais termos vem antes): a lona (freio + Cerâmica) em 1º; abaixo, os outros freios; nenhum item que não casa nada
+      // atributo do Catálogo (fonte de outra entidade no índice), sem acento. R-20261120-103142: a lona (freio + Cerâmica) casa
+      // todas as palavras, então só ela aparece; os outros freios casam só "freio" e saem
       const ceramica = skus(await busca(ap.leitor, 'freio ceramica'));
       porBusca.push(ap.consultasFts.length);
-      expect(ceramica[0], 'atributo "Cerâmica": a lona em 1º').toBe('LON-TRA-125');
-      expect([...ceramica].sort(), 'só itens que casam "freio" ou "cerâmica"').toEqual(['FLU-DOT4-500', 'LON-TRA-125', 'PAS-DIA-150']);
+      expect(ceramica, 'atributo "Cerâmica": só a lona, que casa todas as palavras').toEqual(['LON-TRA-125']);
       // código com o separador digitado de outro jeito
       expect(skus(await busca(ap.leitor, 'pas dia 150'))[0]).toBe('PAS-DIA-150');
       porBusca.push(ap.consultasFts.length);
 
       // o FTS5 pré-selecionou de verdade em cada uma das 4 buscas (catálogo acima do limiar) e nada saiu do aparelho
       porBusca.forEach((n, i) => expect(n, `busca ${i + 1} consultou o FTS5`).toBeGreaterThan(i === 0 ? 0 : porBusca[i - 1]!));
+      // controle: "freio" sozinho
+      expect(skus(await busca(ap.leitor, 'freio')).sort(), '"freio" traz os três freios').toEqual(['FLU-DOT4-500', 'LON-TRA-125', 'PAS-DIA-150']);
       expect(ap.servidor.chamadas).toEqual(antes);
       // vendedor com cliente em contexto vê preço da tabela e estoque local
       expect(sapata.items[0]).toMatchObject({ price_stock_visible: true });
@@ -231,8 +232,8 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
       }
     });
 
-    // T-0052-B2 corrigido (R-20261105-131136-modulo-catalogo): era it.fails; no catálogo grande a busca dá o mesmo que no pequeno.
-    it('B-O2b (T-0052-B2): acima do limiar, os itens que casam só parte da frase aparecem como no catálogo pequeno (união dos termos)', async () => {
+    // T-0052-B2 corrigido (R-20261105-131136-modulo-catalogo): era it.fails.
+    it('B-O2b (T-0052-B2): acima do limiar, o FTS5 dá a mesma lista e ordem da varredura completa (catálogo pequeno)', async () => {
       for (const q of CONSULTAS_O2B) expect(skus(await busca(ap.leitor, q)), `"${q}": FTS5 × varredura`).toEqual(skus(await busca(ap.semFts, q)));
     });
 
