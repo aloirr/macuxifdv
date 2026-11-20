@@ -9,7 +9,9 @@ import {
   MarcaEmpresaSchema,
   MENSAGENS_ACESSO_LOGO,
   MENSAGENS_LOGO,
+  GravarOcultarMarcaMacuxiSchema,
   nomeDaEmpresa,
+  ocultarMarcaMacuxiDosParametros,
   parametrosDaEmpresa,
   proporcaoDaLogo,
   rotaLogoDoAparelho,
@@ -97,9 +99,19 @@ describe('contratos do portal', () => {
 
   it('MarcaEmpresa é estrita: a chave do armazenamento nunca sai na resposta', () => {
     const logo = { sha256: SHA, tipo: 'image/png', tamanho_bytes: 10, largura_px: 600, altura_px: 200, atualizada_em: '2026-11-15T12:00:00Z' };
-    const marca = { tenant_id: '00000000-0000-4000-8000-000000000001', razao_social: 'Distribuidora Exemplo Ltda', nome_fantasia: null, logo };
+    const marca = { tenant_id: '00000000-0000-4000-8000-000000000001', razao_social: 'Distribuidora Exemplo Ltda', nome_fantasia: null, logo, ocultar_marca_macuxi: false };
     expect(MarcaEmpresaSchema.parse(marca)).toEqual(marca);
     expect(MarcaEmpresaSchema.safeParse({ ...marca, logo: { ...logo, chave: 'x' } }).success).toBe(false);
+  });
+
+  it('item 15: MarcaEmpresa exige ocultar_marca_macuxi; o corpo do PUT é só { ocultar: boolean }', () => {
+    const marca = { tenant_id: '00000000-0000-4000-8000-000000000001', razao_social: 'Distribuidora Exemplo Ltda', nome_fantasia: null, logo: null };
+    expect(MarcaEmpresaSchema.safeParse(marca).success).toBe(false);
+    expect(MarcaEmpresaSchema.safeParse({ ...marca, ocultar_marca_macuxi: true }).success).toBe(true);
+    expect(GravarOcultarMarcaMacuxiSchema.parse({ ocultar: true })).toEqual({ ocultar: true });
+    expect(GravarOcultarMarcaMacuxiSchema.safeParse({ ocultar: 'sim' }).success).toBe(false);
+    expect(GravarOcultarMarcaMacuxiSchema.safeParse({}).success).toBe(false);
+    expect(GravarOcultarMarcaMacuxiSchema.safeParse({ ocultar: true, outro: 1 }).success).toBe(false);
   });
 });
 
@@ -113,7 +125,11 @@ describe('no aparelho: chaves reservadas do Core (desenho §3.1)', () => {
   it('parametrosDaEmpresa → empresaDosParametros: ida e volta; logo incompleta = null', () => {
     const linha = { nome: 'Razão Ltda', nome_fantasia: 'Fantasia', logo_sha256: SHA, logo_tipo: 'image/jpeg', logo_largura_px: 400, logo_altura_px: 200 };
     const p = parametrosDaEmpresa(linha);
-    expect(p).toEqual({ empresa_nome: 'Fantasia', empresa_logo: { sha256: SHA, tipo: 'image/jpeg', largura_px: 400, altura_px: 200 } });
+    expect(p).toEqual({
+      empresa_nome: 'Fantasia',
+      empresa_logo: { sha256: SHA, tipo: 'image/jpeg', largura_px: 400, altura_px: 200 },
+      empresa_ocultar_marca_macuxi: false,
+    });
     expect(empresaDosParametros({ sync_auto_min: 30, ...p })).toEqual({ nome: 'Fantasia', logo: p.empresa_logo });
     expect(parametrosDaEmpresa({ ...linha, logo_sha256: null }).empresa_logo).toBeNull();
   });
@@ -122,6 +138,18 @@ describe('no aparelho: chaves reservadas do Core (desenho §3.1)', () => {
     expect(empresaDosParametros({})).toBeNull();
     expect(empresaDosParametros(undefined)).toBeNull();
     expect(empresaDosParametros({ empresa_nome: 'X', empresa_logo: { sha256: 'curto', tipo: 'image/png', largura_px: 1, altura_px: 1 } })).toEqual({ nome: 'X', logo: null });
+  });
+
+  it('item 15: ocultar a logomarca do Macuxi; só true oculta (banco anterior à 0091 ou servidor antigo = mostra)', () => {
+    const linha = { nome: 'Razão Ltda', nome_fantasia: null, logo_sha256: null, logo_tipo: null, logo_largura_px: null, logo_altura_px: null };
+    expect(parametrosDaEmpresa(linha).empresa_ocultar_marca_macuxi).toBe(false);
+    expect(parametrosDaEmpresa({ ...linha, ocultar_marca_macuxi: null }).empresa_ocultar_marca_macuxi).toBe(false);
+    const p = parametrosDaEmpresa({ ...linha, ocultar_marca_macuxi: true });
+    expect(p.empresa_ocultar_marca_macuxi).toBe(true);
+    expect(ocultarMarcaMacuxiDosParametros(p)).toBe(true);
+    expect(ocultarMarcaMacuxiDosParametros({})).toBe(false);
+    expect(ocultarMarcaMacuxiDosParametros(undefined)).toBe(false);
+    expect(ocultarMarcaMacuxiDosParametros({ empresa_ocultar_marca_macuxi: 'true' })).toBe(false);
   });
 
   it('proporcaoDaLogo: largura ÷ altura dos px gravados (RD-0921)', () => {
