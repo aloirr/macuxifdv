@@ -43,6 +43,7 @@ import { AvisoAoVoltar } from '@/components/aviso-pos-login';
 import { EnviarDiagnostico } from '@/components/enviar-diagnostico';
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { ENDERECO_SERVIDOR, ENTRADA_SERVIDOR } from '@/components/servidor';
+import { BotaoVerificarAtualizacao } from '@/components/verificar-atualizacao';
 import { abasDaVariante } from '@/lib/abas';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
@@ -398,6 +399,8 @@ function Perfil() {
       ) : (
         <Text testID="versao-app" style={[t.small, styles.versao]}>{versaoDoBuild}</Text>
       )}
+      {/* item 19 (v1.0.17, RD-1324): logo abaixo da versão, nas duas variantes */}
+      <BotaoVerificarAtualizacao />
     </Screen>
   );
 }

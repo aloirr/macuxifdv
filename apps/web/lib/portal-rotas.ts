@@ -4,10 +4,13 @@
  * caminho mudar, muda aqui.
  */
 import type { Entidade } from '@macuxi/integracao/contracts';
-import { ROTA_PORTAL_FRASES_CARGA } from '@macuxi/platform-sdk';
+import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, ROTA_PORTAL_FRASES_CARGA } from '@macuxi/platform-sdk';
 
-/** T-0181: a rota das frases vem do SDK (com o `/v1`); aqui, relativa ao `/v1` como as outras. */
-const FRASES_CARGA = ROTA_PORTAL_FRASES_CARGA.replace(/^\/v1/, '');
+/** Caminho do SDK (`/v1/...`) relativo ao `/v1`, como o portal e o `api()` do BKO chamam. */
+export const semV1 = (caminho: string) => caminho.replace(/^\/v1(?=\/)/, '');
+
+/** T-0181: a rota das frases vem do SDK (com o `/v1`). */
+const FRASES_CARGA = semV1(ROTA_PORTAL_FRASES_CARGA);
 
 export const ROTAS_PORTAL = {
   // Core: acesso ao portal só com e-mail e senha (T-0093; ADR 0031). `login` é pública; `empresa`, `renovar` e `sair` levam o token.
@@ -31,6 +34,14 @@ export const ROTAS_PORTAL = {
   /** T-0181: frases da tela de carga do app, só o time da Macuxi (o admin do cliente recebe 403). Sem DELETE. */
   frasesCarga: FRASES_CARGA,
   fraseCarga: (id: string) => `${FRASES_CARGA}/${encodeURIComponent(id)}`,
+  /**
+   * T-0182: nome fantasia e resumo da logo (`MarcaEmpresaSchema`; `PUT` com `GravarNomeFantasiaSchema`). Logo: `GET` (bytes),
+   * `PUT` (bytes crus PNG/JPEG) e `DELETE`. Ler: time da Macuxi e admin do cliente (a própria); gravar: só o time da Macuxi.
+   */
+  marcaDaEmpresa: (tenantId: string) => semV1(rotaMarcaEmpresa(encodeURIComponent(tenantId))),
+  logoDaEmpresa: (tenantId: string) => semV1(rotaLogoEmpresa(encodeURIComponent(tenantId))),
+  /** Item 15 (v1.0.17): `PUT { ocultar }` oculta a logomarca do Macuxi no app e no BKO; só o time da Macuxi; responde a marca. */
+  ocultarMarcaMacuxi: (tenantId: string) => semV1(rotaOcultarMarcaMacuxi(encodeURIComponent(tenantId))),
   // Integração (com `x-macuxi-tenant`)
   ordemCarga: '/integracao/ordem-carga',
   cargaArquivo: '/integracao/cargas-arquivo',

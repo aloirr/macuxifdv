@@ -5,12 +5,24 @@
  * (faróis de pedidos e clientes, metas, planos, alçadas, rotas…) vão para `modules/<m>/web` na B2
  * (desenho T-0001 §5 e §14).
  */
-import { useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 import { MeusModulosRespostaSchema, type Me } from '@macuxi/core/contracts';
-import { AuditoriaRespostaSchema, modulosEfetivos, ROTA_AUDITORIA, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
-import { api, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
+import {
+  AuditoriaRespostaSchema,
+  empresaDosParametros,
+  logoQueSubstituiAMarca,
+  modulosEfetivos,
+  ocultarMarcaMacuxiDosParametros,
+  ROTA_AUDITORIA,
+  rotaLogoDoAparelho,
+  type LogoDoAparelho,
+  type ModuloId,
+  type Perfil,
+} from '@macuxi/platform-sdk';
+import { api, apiFetch, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
 import { intervaloSyncAutoMs, PARAMETRO_SYNC_AUTO, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { MANIFESTOS_WEB } from './modulos';
+import { semV1 } from './portal-rotas';
 import { useSessao } from './session';
 
 /**
@@ -41,24 +53,34 @@ export function useMe() {
   return useQuery({ queryKey: qk.me, queryFn: () => api<Me>('/me'), enabled, staleTime: 60_000 });
 }
 
-interface ModulosDoUsuario {
+export interface ModulosDoUsuario {
   ids: ModuloId[];
   /** `parametros.core.sync_auto_min` do tenant (RN-CORE-23), ou `undefined` (vale o padrão de 30 min). */
   syncAutoMin: unknown;
+  /** `empresa_logo` dos parâmetros do Core (T-0182), ou `null` (sem logo ou servidor anterior: o PDF usa a padrão). */
+  logo: LogoDoAparelho | null;
+  /** `empresa_ocultar_marca_macuxi` (item 15, v1.0.17): com a logo, o shell mostra só a do cliente. */
+  ocultarMarcaMacuxi: boolean;
 }
 
-/** Uma consulta só a `GET /v1/me/modulos` (cache do React Query): os efetivos e o `sync_auto_min` saem dela. */
-function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) => T) {
-  const enabled = useAuthed() && !!perfil;
-  return useQuery({
+/**
+ * Uma consulta só a `GET /v1/me/modulos` (cache do React Query, chave `qk.modulos`): os efetivos, o `sync_auto_min` e a
+ * logo da empresa saem dela. O ambiente das páginas (`lib/ambiente.ts`, PDF) lê a logo pela mesma chave (`fetchQuery`).
+ */
+export function consultaMeusModulos(perfil: Perfil | null) {
+  return queryOptions({
     queryKey: [...qk.modulos, perfil],
-    enabled,
     staleTime: 60_000,
-    select,
     queryFn: async (): Promise<ModulosDoUsuario> => {
       try {
         const r = MeusModulosRespostaSchema.parse(await api<unknown>('/me/modulos'));
-        return { ids: r.modulos.map((m) => m.id), syncAutoMin: r.modulos.find((m) => m.id === 'core')?.parametros?.[PARAMETRO_SYNC_AUTO] };
+        const core = r.modulos.find((m) => m.id === 'core')?.parametros;
+        return {
+          ids: r.modulos.map((m) => m.id),
+          syncAutoMin: core?.[PARAMETRO_SYNC_AUTO],
+          logo: empresaDosParametros(core)?.logo ?? null,
+          ocultarMarcaMacuxi: ocultarMarcaMacuxiDosParametros(core),
+        };
       } catch (e) {
         if (!(e instanceof ApiRequestError) || e.status !== 404 || !perfil) throw e;
         return {
@@ -68,13 +90,21 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
             doPerfil: MANIFESTOS_WEB.filter((m) => m.perfis.includes(perfil)).map((m) => m.id),
           }),
           syncAutoMin: undefined,
+          logo: null,
+          ocultarMarcaMacuxi: false,
         };
       }
     },
   });
 }
 
+function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) => T) {
+  return useQuery({ ...consultaMeusModulos(perfil), enabled: useAuthed() && !!perfil, select });
+}
+
 const soIds = (d: ModulosDoUsuario) => d.ids;
+/** Item 15: a logo do cliente que substitui a do Macuxi no shell; `null` = a do Macuxi (chave desligada ou sem logo). */
+const logoDoShell = (d: ModulosDoUsuario): LogoDoAparelho | null => logoQueSubstituiAMarca(d.ocultarMarcaMacuxi, d.logo);
 const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
 
 /**
@@ -84,6 +114,28 @@ const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
  */
 export function useModulosEfetivos(perfil: Perfil | null) {
   return useMeusModulos(perfil, soIds);
+}
+
+/**
+ * Bytes da logo da empresa (`GET /v1/me/empresa/logo/:sha256`), em cache pelo sha256: o shell (item 15) e o PDF (T-0182,
+ * `lib/ambiente.ts`) usam a mesma consulta, sem baixar a logo duas vezes.
+ */
+export function consultaLogoDaEmpresa(sha: string) {
+  return queryOptions({
+    queryKey: ['empresa-logo', sha] as const,
+    queryFn: async (): Promise<Blob> => (await apiFetch(semV1(rotaLogoDoAparelho(sha)))).blob(),
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * Item 15 (v1.0.17): com `empresa_ocultar_marca_macuxi` ligada e a logo da empresa, os bytes da logo (`GET /v1/me/empresa/logo/:sha256`,
+ * cache pelo sha256) para o shell mostrar só a logo do cliente. `null` = mostra a do Macuxi (também enquanto carrega ou sem rede).
+ */
+export function useLogoQueSubstituiAMarca(perfil: Perfil | null): Blob | null {
+  const logo = useMeusModulos(perfil, logoDoShell).data ?? null;
+  const bytes = useQuery({ ...consultaLogoDaEmpresa(logo?.sha256 ?? ''), enabled: logo !== null });
+  return logo ? (bytes.data ?? null) : null;
 }
 
 /**

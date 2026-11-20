@@ -8,6 +8,7 @@
  * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
  * na aba Empresa, só vê os módulos: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
  * T-0094 fatia S: na aba Empresa, o time da Macuxi vê os administradores e redefine a senha de um deles (`CartaoAdmins`).
+ * T-0182: o primeiro cartão da aba Empresa é a "Logo", seguido do "Nome fantasia" (`CartoesMarca`); só o time da Macuxi grava.
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -25,6 +26,7 @@ import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { MolduraPortal, useSessaoPortal } from './base';
 import { CartaoBase } from './cartao-base';
 import { CartaoEquipe } from './cartao-equipe';
+import { CartoesMarca } from './cartao-logo';
 import { mascararCnpj, PassoEmpresa, ROTULO_MODULO, rotuloDoFuso } from './passo-empresa';
 import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
 
@@ -160,6 +162,8 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
           )}
           {abertas.has('empresa') && (
             <div role="tabpanel" id="empresa-painel-empresa" aria-labelledby="empresa-aba-empresa" hidden={aba !== 'empresa'} className={aba === 'empresa' ? 'flex flex-col gap-4' : undefined}>
+              {/* T-0182: Logo (primeiro cartão) e Nome fantasia; só o time da Macuxi grava, o admin do cliente vê */}
+              <CartoesMarca tenant={empresa.id} podeGravar={timeMacuxi} />
               <Panel title="Módulos licenciados">
                 <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
                   {empresa.modulos.map((m) => (

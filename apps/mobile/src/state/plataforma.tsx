@@ -40,6 +40,10 @@ import {
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
   type AberturaArmazenamento,
+  empresaDosParametros,
+  logoQueSubstituiAMarca,
+  ocultarMarcaMacuxiDosParametros,
+  proporcaoDaLogo,
   type AmbienteAparelho,
   type ArmazenamentoSync,
   type EtapaSync,
@@ -81,6 +85,7 @@ import {
   type ResumoArmazenamento,
 } from '@/lib/armazenamento-aparelho';
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
+import { atualizarLogoDaEmpresa, logoDoTenant, type LogoGuardada } from '@/lib/logo-empresa';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import {
@@ -144,6 +149,7 @@ import { registrarSaidaAnterior } from '@/services/saida-android';
 import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes, pedirPermissoesQueFaltam } from '@/services/permissoes';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
+import { dataUriDaLogoGuardada, portaLogoEmpresa, uriDaLogo } from '@/services/logo-empresa';
 import { ligarFonteFotoPdv } from '@/services/foto-pdv';
 import { abrirFoto } from '@/services/visor-foto';
 import { limparPdfsTemporarios } from '@/services/visor-pdf';
@@ -241,6 +247,16 @@ function usePlataformaValor() {
   const desassinarRef = useRef<(() => void) | null>(null);
   const [modulosAtivos, setModulosAtivos] = useState<readonly ModuloId[]>(['core']);
   const [codigoSalvo, setCodigoSalvo] = useState<string | null>(null);
+  /**
+   * T-0182: nome (fantasia; vazio = razão social) e logo da empresa da sessão, dos parâmetros do Core guardados (valem offline).
+   * A logo é a cópia do aparelho, só a do tenant da sessão (`logoDoTenant`).
+   */
+  const [nomeEmpresa, setNomeEmpresa] = useState<string | null>(null);
+  const [logoEmpresa, setLogoEmpresa] = useState<LogoGuardada | null>(null);
+  /** Item 15 (v1.0.17): a empresa oculta a logomarca do Macuxi (`empresa_ocultar_marca_macuxi`; vale com a logo guardada). */
+  const [ocultarMarcaMacuxi, setOcultarMarcaMacuxi] = useState(false);
+  const logoEmpresaRef = useRef<LogoGuardada | null>(null);
+  logoEmpresaRef.current = logoEmpresa;
   const renovarRef = useRef<(() => Promise<string | null>) | null>(null);
   /** RN-CORE-15: aviso de aparelho bloqueado (dados apagados) que fica visível na tela de login. */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
@@ -372,6 +388,8 @@ function usePlataformaValor() {
         api,
         // RD-0088: o visor de foto comum para os módulos (`ambiente.abrirFoto`)
         abrirFoto,
+        // T-0182: a logo da empresa para o PDF, da cópia guardada (vale sem sinal)
+        logoDaEmpresa: () => dataUriDaLogoGuardada(logoEmpresaRef.current),
         online: () => !offlineRef.current && sessaoRef.current !== null,
         usuario: () => {
           const s = sessaoRef.current;
@@ -863,6 +881,10 @@ function usePlataformaValor() {
     setMotor(null);
     setMe(null);
     setModulosAtivos(['core']);
+    // T-0182: sair não apaga a cópia da logo (a carga do próximo login da mesma empresa a mostra); só some da tela
+    setNomeEmpresa(null);
+    setLogoEmpresa(null);
+    setOcultarMarcaMacuxi(false);
     setArmazenamento(null);
     setErroArmazenamento(null);
   }, []);
@@ -1161,6 +1183,49 @@ function usePlataformaValor() {
     });
   }, [motor, api, diagnosticoNuvem]);
 
+  // ---------- T-0182: nome e logo da empresa (parâmetros do Core) a cada sincronização; a logo só é baixada quando o sha muda ----------
+  useEffect(() => {
+    if (!motor) return;
+    const porta = portaLogoEmpresa(api);
+    let vivo = true;
+    let fila: Promise<void> = Promise.resolve();
+    const atualizar = () => {
+      fila = fila.then(async () => {
+        const tenantId = sessaoRef.current?.tenant?.id;
+        const parametrosCore = motor.parametros('core');
+        const empresa = empresaDosParametros(parametrosCore);
+        if (vivo) {
+          setNomeEmpresa(empresa?.nome ?? null);
+          setOcultarMarcaMacuxi(ocultarMarcaMacuxiDosParametros(parametrosCore));
+        }
+        if (!tenantId) return;
+        const l = await atualizarLogoDaEmpresa(porta, { tenantId, empresa, online: !offlineRef.current });
+        if (vivo && motorRef.current === motor) setLogoEmpresa(logoDoTenant(l, sessaoRef.current?.tenant?.id));
+      });
+    };
+    atualizar();
+    let antes = motor.estado();
+    const semEstado = motor.assinar((e) => {
+      const mudou = e.sincronizado_em !== antes.sincronizado_em || e.modulosAtivos !== antes.modulosAtivos;
+      antes = e;
+      if (mudou) atualizar();
+    });
+    return () => {
+      vivo = false;
+      semEstado();
+    };
+  }, [motor, api]);
+
+  /**
+   * Logo da empresa para as telas: `file://` da cópia e a proporção guardada (a placa nasce do tamanho certo). `soLogoDoCliente`
+   * (item 15): `logoQueSubstituiAMarca` do SDK (a chave ligada e a logo no aparelho); sem a logo, a do Macuxi continua.
+   */
+  const empresa = useMemo(() => {
+    const uri = logoEmpresa ? uriDaLogo(logoEmpresa) : null;
+    const logo = logoEmpresa && uri ? { uri, proporcao: proporcaoDaLogo(logoEmpresa) } : null;
+    return { nome: nomeEmpresa, logo, soLogoDoCliente: logoQueSubstituiAMarca(ocultarMarcaMacuxi, logo) !== null };
+  }, [nomeEmpresa, logoEmpresa, ocultarMarcaMacuxi]);
+
   // ---------- ADR 0017: sincronização incremental em segundo plano (expo-background-task) ----------
   useEffect(() => {
     if (!motor) return;
@@ -1256,6 +1321,7 @@ function usePlataformaValor() {
     ready,
     modo,
     codigoSalvo,
+    empresa,
     variante,
     apiUrl,
     defaultApiUrl,
