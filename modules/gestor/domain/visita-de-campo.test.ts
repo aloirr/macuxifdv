@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MembroEquipe } from '../contracts';
 import { avaliarAlertas, resolverRegras } from './alertas';
-import { ehPerfilDeCampo, visitaContaParaCampo } from './equipe';
+import { visitaContaParaCampo } from './equipe';
 import { CLIENTE_A, checkin, ev, GERENTE, SUPERVISOR, u, VENDEDOR } from './fixtures';
 import { montarPainelDia } from './painel';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
@@ -15,11 +15,6 @@ const carteira = ev('core.cliente.atualizado@1', '2026-09-01T10:00:00Z', { clien
 const CTX = { modulos: new Set(['core', 'vendedor']), agora: AGORA };
 
 describe('RN-GES-05 (T-0187, P2 A): visita de supervisor ou gerente não conta como visita de campo', () => {
-  it('RN-GES-05: só vendedor e promotor são cargo de campo', () => {
-    expect(['vendedor', 'promotor'].every((p) => ehPerfilDeCampo(p as MembroEquipe['perfil']))).toBe(true);
-    expect(['supervisor', 'gerente', 'analista', 'admin'].some((p) => ehPerfilDeCampo(p as MembroEquipe['perfil']))).toBe(false);
-  });
-
   it('RN-GES-05: check-in de usuário supervisor ou gerente não conta; cadastro sem o usuário não bloqueia', () => {
     expect(visitaContaParaCampo(MEMBROS, VENDEDOR)).toBe(true);
     expect(visitaContaParaCampo(MEMBROS, SUPERVISOR)).toBe(false);

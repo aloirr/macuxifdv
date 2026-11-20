@@ -5,6 +5,7 @@
  * A coordenada nunca vai para log nem para mensagem de erro (§9): este módulo não registra nada.
  */
 import { formatHHMM } from '@macuxi/comum/fuso';
+import { perfilUsaApp } from '@macuxi/platform-sdk';
 import { projetarPontos, type PontoDoTrajeto } from '@macuxi/core/contracts';
 import type { MembroEquipe } from '../contracts';
 
@@ -56,7 +57,7 @@ export function pessoasDoTrajeto(e: { viewer: { id: string; perfil: MembroEquipe
     .filter((m) => {
       if (m.id === e.viewer.id || !m.ativo || vistos.has(m.id)) return false;
       vistos.add(m.id);
-      return m.perfil === 'vendedor' || m.perfil === 'promotor' || (m.perfil === 'supervisor' && e.viewer.perfil === 'gerente');
+      return perfilUsaApp(m.perfil, 'campo') || (m.perfil === 'supervisor' && e.viewer.perfil === 'gerente');
     })
     .sort((a, b) => (a.nome < b.nome ? -1 : a.nome > b.nome ? 1 : a.id < b.id ? -1 : 1));
 }

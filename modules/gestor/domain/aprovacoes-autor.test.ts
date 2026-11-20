@@ -18,17 +18,12 @@ const solicita = (): EventoRecebido =>
 const montar = (eventos: EventoRecebido[]) => aplicarEventos(estadoInicial(), eventos).estado;
 const fila = (s: EstadoProjecao, viewer: { id: string; perfil: MembroEquipe['perfil'] }) =>
   filaDeAprovacoes({ estado: s, viewer, escopo: escopoDoUsuario(viewer, ROSTER), agora: AGORA, modulos: new Set(['core', 'vendedor']) });
-const comAutorNaSolicitacao = (s: EstadoProjecao, autor: string | null): EstadoProjecao => {
-  const linha = s.aprovacoes[PEDIDO]!;
-  return { ...s, aprovacoes: { ...s.aprovacoes, [PEDIDO]: { ...linha, solicitacao: { ...linha.solicitacao!, autor_id: autor } as never } } };
-};
 
 describe('RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide nunca é o autor do pedido', () => {
-  it('RN-VEN-10: o autor vem do pedido criado (autor_id) e, na falta dele, do autor_id opcional da solicitação @2', () => {
+  it('RN-VEN-10: o autor vem do pedido criado (autor_id) ', () => {
     const base = montar([solicita()]);
     expect(autorDoPedido(base, PEDIDO)).toBeNull();
     expect(autorDoPedido(montar([solicita(), pedidoCriado({ pedido: PEDIDO, vendedor: V1, autor: SUP, total: 1 })]), PEDIDO)).toBe(SUP);
-    expect(autorDoPedido(comAutorNaSolicitacao(base, SUP), PEDIDO)).toBe(SUP);
   });
 
   it('RN-GES-04: o supervisor autor do pedido em nome não vê o item na própria fila; o gerente vê', () => {
@@ -37,12 +32,6 @@ describe('RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide nunca é o autor do 
     const g = fila(s, { id: GER, perfil: 'gerente' });
     expect(g).toHaveLength(1);
     expect(g[0]!.pode_decidir).toBe(true);
-  });
-
-  it('RN-VEN-10: o mesmo vale quando o autor chega só pelo @2 (sem pedido criado)', () => {
-    const s = comAutorNaSolicitacao(montar([solicita()]), SUP);
-    expect(fila(s, { id: SUP, perfil: 'supervisor' })).toHaveLength(0);
-    expect(fila(s, { id: GER, perfil: 'gerente' })).toHaveLength(1);
   });
 
   it('RN-GES-04: pedido do próprio vendedor (autor = vendedor) segue na fila do supervisor; sem autor conhecido, comportamento de hoje', () => {
@@ -58,10 +47,9 @@ describe('RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide nunca é o autor do 
     expect(r[0]!.pode_decidir).toBe(false);
   });
 
-  it('RN-VEN-10: decisorEhAutor é verdadeiro só quando o decisor é o autor do pedido', () => {
-    const s = montar([solicita(), pedidoCriado({ pedido: PEDIDO, vendedor: V1, autor: SUP, total: 1 })]);
-    expect(decisorEhAutor(s, PEDIDO, SUP)).toBe(true);
-    expect(decisorEhAutor(s, PEDIDO, GER)).toBe(false);
-    expect(decisorEhAutor(montar([solicita()]), PEDIDO, SUP)).toBe(false);
+  it('RN-VEN-10: decisorEhAutor é verdadeiro só quando o decisor é o autor do pedido (e autor desconhecido nunca bloqueia)', () => {
+    expect(decisorEhAutor({ autor_id: SUP, vendedor_id: V1 }, SUP)).toBe(true);
+    expect(decisorEhAutor({ autor_id: SUP, vendedor_id: V1 }, GER)).toBe(false);
+    expect(decisorEhAutor({ autor_id: null, vendedor_id: V1 }, SUP)).toBe(false);
   });
 });
