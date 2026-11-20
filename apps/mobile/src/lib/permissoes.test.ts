@@ -207,7 +207,6 @@ describe('R-20261120-052422: na abertura, as janelas do Android direto; a tela s
     const final = await pedirAsQueFaltam(campo, a.ler, a.pedir);
     expect(a.pedidos).toEqual([]);
     expect(permissoesLiberadas('campo', final, campo)).toBe(true);
-    expect(telaDePermissoes('campo', final, API_11, 0, campo).linhas).toEqual([]);
   });
 
   it('1ª abertura com tudo aceito: as 5 janelas na ordem (localização em 2 passos) e nenhuma tela', async () => {

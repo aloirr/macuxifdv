@@ -47,7 +47,7 @@ export function permissoesExigidas(variante: Variante, cargo: string | null = nu
   return [...daVariante, 'localizacao'];
 }
 
-export type SituacaoPermissao = 'permitida' | 'falta' | 'negada';
+type SituacaoPermissao = 'permitida' | 'falta' | 'negada';
 
 /**
  * - `pedir`: diálogo do sistema;

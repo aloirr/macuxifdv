@@ -32,8 +32,8 @@ vi.mock('react-native', () => ({
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 vi.mock('@macuxi/ui/mobile', () => ({
   colors: new Proxy({}, { get: () => '#000' }),
-  // `bold` marca o trecho forte do passo 2 (o host vira <b>)
-  fonte: new Proxy({}, { get: (_t, k) => (k === 'bold' ? { fontFamily: 'forte' } : {}) }),
+  // `semibold` marca o trecho forte do passo 2 (o host vira <b>)
+  fonte: new Proxy({}, { get: (_t, k) => (k === 'semibold' ? { fontFamily: 'forte' } : {}) }),
   type: new Proxy({}, { get: () => ({}) }),
   Card: host('section'),
   Icon: ({ name }: { name: string }) => createElement('i', { 'data-icone': name }),

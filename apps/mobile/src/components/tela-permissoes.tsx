@@ -137,8 +137,8 @@ const styles = StyleSheet.create({
   negada: { ...fonte.semibold, fontSize: 14, color: colors.danger },
   passo: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   numero: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  numeroTexto: { ...fonte.bold, fontSize: 12, color: colors.surface },
+  numeroTexto: { ...fonte.semibold, fontSize: 12, color: colors.surface },
   passoTexto: { flex: 1, ...fonte.body, fontSize: 14, color: colors.ink },
-  forte: { ...fonte.bold },
+  forte: { ...fonte.semibold },
   pe: { paddingHorizontal: 20, paddingTop: 8 },
 });
