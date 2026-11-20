@@ -52,7 +52,7 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | **Pérola** | `#F8F6F1` | fundo das telas (app, BKO e portal) e fundo do ícone do Gestão |
 | Branco | `#FFFFFF` | cartões, campos, papel do PDF e corpo do e-mail |
 | **Sol laranja** | `#C2540A` | sol do logo e gráficos: barra de meta e de share, contador, marcador. **Nunca texto sobre claro** |
-| Sol claro | `#F59A52` | o sol e os gráficos sobre fundo escuro (Azul noite e grafite); como texto, só no título de grupo do menu e do painel do BKO, nunca em item, link ou botão (MC-0054, R-20261114-184400) |
+| Sol claro | `#F59A52` | o sol e os gráficos sobre fundo escuro (Azul noite e grafite); como texto, só no título de grupo do menu e do painel do BKO, nunca em item, link ou botão (MC-0054, R-20261114-184400); exceção: também na frase motivacional do Início do Campo, em 700 (R-20261120-062210) |
 | Grafite | `#16202A` | texto principal, botão Sincronizar, menu lateral do BKO |
 | Grafite do menu | `#2B3743` | só no menu lateral do BKO: tela atual, hover e divisória (MC-0055, R-20261114-184400) |
 | Texto secundário | `#4A5562` | texto de apoio |
