@@ -3,7 +3,7 @@
 > 2026-11-10 · designer-ux. Pedidos: R-20261110-062232 (permissões) e R-20261110-062234 (fotos do PDV). **Imagens para aprovação**
 > (fonte: o `.html` de mesmo nome): `telas/T-0145-permissoes.png` e `telas/T-0147-fotos-pdv.png`. Vale a imagem aprovada.
 > **2026-11-20 · §1 refeita** (R-20261120-052422-alexandre): pedido nativo ao abrir, tela só com o que falta, sem o link da
-> localização. Até a nova imagem, vale o `telas/T-0145-permissoes.html`; o `.png` de 10/11 mostra o fluxo antigo.
+> localização. Imagem nova: `telas/T-0145-permissoes-v1017.png` (aguarda aprovação do Alexandre); o `.png` de 10/11 mostra o fluxo antigo.
 > Permissões: engenheiro-apps (shell, variantes campo e gestão). Ficha: modulo-core; galeria e compressão: engenheiro-apps.
 
 ## 1. Permissões (antes do login e da sincronização; conferidas a cada abertura)
@@ -21,7 +21,7 @@
 - Fundo `ground`, sem barra de abas. Marca 14/700 `accentInk` ("Macuxi Campo" / "Macuxi Gestão"), título **"Permissões"**
   (22/700), subtítulo 16 `ink2`: **"Sem ela o app não funciona."** com 1 item na lista; **"Sem elas o app não funciona."** com 2 ou mais.
 - Lista (cartão branco, linhas de 68 dp) **só com as que faltam**, na ordem da tabela: ícone 20 num círculo `neutralBg` de 40 ·
-  nome 15/600 · motivo 13 `ink2` · situação à direita 13/600: **Falta** (`ink2`) ou **Negada** (`danger`). Sem linha "Permitida".
+  nome 15/600 · motivo 13 `ink2`. Situação à direita só na negada: **Negada** 13/600 (`danger`); sem "Falta" nem "Permitida".
 
 | Permissão | Motivo (texto final) | App |
 |---|---|---|
