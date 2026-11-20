@@ -40,3 +40,5 @@ export * from './carga-fundo';
 export * from './placa-logo';
 // RD-2355 (T-0186): tabelas da ficha (medidas, largura e alinhamento das colunas, leitura do par rótulo-valor)
 export * from './tabela-ficha';
+// RD-2449: nomes dos ícones do kit (NOMES_DE_ICONE e IconName), sem carregar o SVG
+export * from './nomes-de-icone';
