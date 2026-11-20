@@ -5,6 +5,8 @@
 import type { CustomerSummary } from '../../contracts';
 import { normalizarBusca } from '../../domain';
 
+const soDigitos = (s: string): string => s.replace(/\D/g, '');
+
 export type CustomerFilter = 'curve_a' | 'no_purchase_45' | 'overdue' | 'not_positivated';
 
 export const CUSTOMER_FILTERS: Array<{ id: CustomerFilter; label: string }> = [
@@ -23,6 +25,8 @@ export function filterCustomers(customers: CustomerSummary[], query: string, fil
     if (filters.includes('not_positivated') && c.positivated_this_month) return false;
     if (terms.length === 0) return true;
     const hay = normalizarBusca(`${c.trade_name} ${c.legal_name} ${c.erp_code} ${c.district} ${c.city} ${c.cnpj}`);
-    return terms.every((t) => hay.includes(t));
+    const cnpj = soDigitos(c.cnpj);
+    // o CNPJ casa com e sem máscara: os dígitos do termo contra os dígitos do CNPJ (3 ou mais, para não casar qualquer número)
+    return terms.every((t) => hay.includes(t) || (soDigitos(t).length >= 3 && cnpj.includes(soDigitos(t))));
   });
 }

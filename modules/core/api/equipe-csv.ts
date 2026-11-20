@@ -36,6 +36,7 @@ import { appsDoPerfil, emailDisponivel, empresaDoTenant, enviarEmail } from './e
 import { gravarFiliaisDoUsuario } from './filiais-usuario';
 import { hashSenha } from './seguranca';
 import { erroDaHierarquiaNoBanco } from './hierarquia-cadastro';
+import { equipesAtivas } from './hierarquia-leitura';
 
 type Tx = Parameters<Parameters<ContextoBase['comTenant']>[0]>[1];
 const MSG_CONCORRENCIA = 'Outra pessoa gravou o mesmo e-mail ou código do ERP ao mesmo tempo. Confira o arquivo e envie de novo.';
@@ -52,9 +53,7 @@ async function lerEstado(db: ClienteBanco): Promise<Estado> {
   const us = (await db.query<{ id: string; email: string; nome: string; perfil: Perfil; external_id: string | null; ativo: boolean; equipe_id: string | null; telefone: string | null }>(
     'select id, email, nome, perfil, external_id, ativo, equipe_id, telefone from core.usuario where deleted_at is null',
   )).rows;
-  const equipes = (await db.query<{ id: string; equipe_pai_id: string | null; responsavel_id: string | null }>(
-    'select id, equipe_pai_id, responsavel_id from core.equipe where deleted_at is null and ativo',
-  )).rows;
+  const equipes = await equipesAtivas(db);
   const tenantRows = (await db.query<{ modulo: string; licencas: number | null }>('select modulo, licencas from plataforma.tenant_modulo where ativo and deleted_at is null')).rows;
   const perfilRows = (await db.query<{ perfil: Perfil; modulo: string }>('select perfil, modulo from plataforma.perfil_modulo where deleted_at is null')).rows;
   const remRows = (await db.query<{ usuario_id: string; modulo: string }>("select usuario_id, modulo from plataforma.usuario_modulo where efeito = 'remover' and deleted_at is null")).rows;

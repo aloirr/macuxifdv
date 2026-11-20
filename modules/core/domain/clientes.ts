@@ -11,6 +11,8 @@ export interface ClienteLista {
   razao_social: string;
   nome_fantasia: string | null;
   documento: string | null;
+  /** Código do cliente no ERP (busca pelo código); ausente/nulo = Pré-Cadastro. */
+  external_id?: string | null;
   cidade: string | null;
   segmento: string | null;
 }
@@ -55,7 +57,7 @@ export function listarClientes<C extends ClienteLista>(
     .filter((c) => !filtro.comVencidos || (fin.comVencidos?.has(c.id) ?? false))
     .filter((c) => {
       if (!q) return true;
-      if ([c.razao_social, c.nome_fantasia, c.cidade].some((t) => normalizarBusca(t).includes(q))) return true;
+      if ([c.razao_social, c.nome_fantasia, c.external_id, c.cidade].some((t) => normalizarBusca(t).includes(q))) return true;
       return qDigitos.length >= 3 && soDigitos(c.documento).includes(qDigitos);
     })
     .sort((a, b) => rotulo(a).localeCompare(rotulo(b), 'pt-BR', { sensitivity: 'base' }));
