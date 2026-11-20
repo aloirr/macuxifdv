@@ -79,7 +79,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
   }
   const definicao = (versaoId: string, perguntaId: string) => versoes.find((v) => v.id === versaoId)?.perguntas.find((p) => p.id === perguntaId);
 
-  const cabecalho = ['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'Respondida por', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita', ...colunas.map((c) => c.enunciado)];
+  const cabecalho = ['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'respondida_por', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita', ...colunas.map((c) => c.enunciado)];
   const linhas = [cabecalho.map(celulaCsv).join(SEP)];
   const ordenadas = e.respostas.slice().sort((a, b) => (a.respondida_em < b.respondida_em ? -1 : a.respondida_em > b.respondida_em ? 1 : a.id < b.id ? -1 : 1));
   for (const r of ordenadas) {

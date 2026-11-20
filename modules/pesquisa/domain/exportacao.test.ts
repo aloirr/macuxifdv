@@ -39,7 +39,7 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     });
     expect(csv.startsWith('\uFEFF')).toBe(true);
     const [cab, linha] = csv.slice(1).split('\r\n');
-    expect(cab!.split(';').slice(0, 11)).toEqual(['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'Respondida por', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita']);
+    expect(cab!.split(';').slice(0, 11)).toEqual(['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'respondida_por', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita']);
     expect(cab).toContain('Tem ponto extra?');
     const cel = linha!.split(';');
     expect(cel.slice(1, 4)).toEqual(['1', '31/10/2026 09:05', '31/10/2026 09:06']);
@@ -84,7 +84,7 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     const base = { versoes: [v1], respostas: [resposta({ itens: [item.simNao(1, true)] })], fuso: 'America/Manaus' };
     const celula = (nomes?: ReadonlyMap<string, string>) => {
       const [cab, linha] = exportarRespostasCsv({ ...base, nomes }).slice(1).split('\r\n');
-      return linha!.split(';')[cab!.split(';').indexOf('Respondida por')];
+      return linha!.split(';')[cab!.split(';').indexOf('respondida_por')];
     };
     expect(celula(new Map([[u(31), 'Marta Souza']]))).toBe('Marta Souza');
     expect(celula()).toBe('');
@@ -105,7 +105,7 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     });
     expect(csv).toBe(
         '\uFEFF' +
-        'resposta_id;versao;respondida_em;recebida_em;usuario_id;Respondida por;equipe_id;cliente_id;visita_id;suspeita;motivos_suspeita;"\'=Tem; ""ponto""?";Obs\r\n' +
+        'resposta_id;versao;respondida_em;recebida_em;usuario_id;respondida_por;equipe_id;cliente_id;visita_id;suspeita;motivos_suspeita;"\'=Tem; ""ponto""?";Obs\r\n' +
         '00000000-0000-4000-8000-000000005000;1;31/10/2026 09:05;31/10/2026 09:06;00000000-0000-4000-8000-000000000031;;;00000000-0000-4000-8000-000000000051;;sim;\'-A | B;Sim;"\'@x ""a"";b\nc"\r\n',
       );
   });

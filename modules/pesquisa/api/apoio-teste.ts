@@ -51,6 +51,7 @@ export function criarAmbienteDeTeste() {
       consultar: async (_def: unknown, entrada: { usuario_ids?: string[] }) => {
         if (!o.nomes) throw new Error('consulta indisponível');
         const nomes = o.nomes;
+        if ((entrada.usuario_ids?.length ?? 0) > 500) throw new Error('usuario_ids acima de 500 (contrato core.usuarios_resumo@1)');
         return { usuarios: (entrada.usuario_ids ?? []).filter((i) => i in nomes).map((i) => ({ id: i, nome: nomes[i]!, perfil: 'vendedor', equipe_id: null, regional_id: null, ativo: true })), proximo_cursor: null };
       },
     } as unknown as TransacaoTenant;

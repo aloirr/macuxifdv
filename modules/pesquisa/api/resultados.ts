@@ -48,8 +48,11 @@ async function nomesDosUsuarios(ctx: Ctx, fabrica: FabricaRepositorio, ids: stri
   if (ids.length === 0) return nomes;
   try {
     await comRepositorio(ctx, fabrica, async (_repo, tx) => {
-      const r = await tx.consultar(CONSULTA_USUARIOS_RESUMO, { usuario_ids: ids, limite: 500 });
-      for (const u of r.usuarios) nomes.set(u.id, u.nome);
+      // O contrato aceita no máximo 500 `usuario_ids` por chamada: pede só os ids necessários, em lotes de 500.
+      for (let i = 0; i < ids.length; i += 500) {
+        const r = await tx.consultar(CONSULTA_USUARIOS_RESUMO, { usuario_ids: ids.slice(i, i + 500), limite: 500 });
+        for (const u of r.usuarios) nomes.set(u.id, u.nome);
+      }
     });
   } catch (e) {
     ctx.log.warn({ erro: e instanceof Error ? e.message : String(e) }, 'pesquisa: nomes de quem respondeu indisponíveis');

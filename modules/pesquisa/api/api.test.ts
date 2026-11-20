@@ -325,12 +325,34 @@ describe('RF-PES-06: resultados, galeria e exportação no escopo do perfil', ()
     const col = async (nomes?: Record<string, string>) => {
       const x = ExportacaoResponse.parse(await amb.chamar(ctx(ANALISTA, 'analista', nomes ? { nomes } : {}), 'GET', 'questionarios/:id/exportar', { params: { id: Q } }));
       const [cab, ...linhas] = x.conteudo.slice(1).trimEnd().split('\r\n');
-      const i = cab!.split(';').indexOf('Respondida por');
+      const i = cab!.split(';').indexOf('respondida_por');
       return linhas.map((l) => l.split(';')[i]);
     };
     expect(await col({ [VENDEDOR]: 'João Lima' })).toContain('João Lima');
     expect((await col()).every((c) => c === '')).toBe(true);
   });
+
+  it('T-0187: com mais de 500 pessoas respondendo, o nome sai na listagem e na exportação (consulta em lotes de 500 ids)', async () => {
+    const pub = await publicarV1();
+    const total = 1100;
+    const nomes: Record<string, string> = {};
+    for (let i = 0; i < total; i++) {
+      const u = uu(20000 + i);
+      nomes[u] = `Pessoa ${i}`;
+      await amb.push(ctx(u, 'vendedor'), [item(envio(pub.versao.id, { id: uu(30000 + i) }))]);
+    }
+    const analista = ctx(ANALISTA, 'analista', { nomes });
+    const lista = (await amb.chamar<{ itens: { usuario_id: string; usuario_nome: string | null }[] }>(analista, 'GET', 'questionarios/:id/respostas', { params: { id: Q } })).itens;
+    expect(lista.length).toBeGreaterThan(0);
+    expect(lista.every((x) => x.usuario_nome === nomes[x.usuario_id])).toBe(true);
+    const x = ExportacaoResponse.parse(await amb.chamar(analista, 'GET', 'questionarios/:id/exportar', { params: { id: Q } }));
+    const [cab, ...linhas] = x.conteudo.slice(1).trimEnd().split('\r\n');
+    const col = cab!.split(';');
+    const iNome = col.indexOf('respondida_por');
+    const iUsuario = col.indexOf('usuario_id');
+    expect(linhas).toHaveLength(total);
+    expect(linhas.every((l) => l.split(';')[iNome] === nomes[l.split(';')[iUsuario]!])).toBe(true);
+  }, 60_000);
 
   it('RF-PES-06: filtro por versão inexistente responde 422 com a ação seguinte', async () => {
     await comRespostas();
