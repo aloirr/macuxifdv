@@ -1,7 +1,7 @@
 /**
  * Visor de PDF do shell (T-0186, v1.0.16; pedido do dono do produto: "visualizar sem baixar, sob demanda, sem guardar no
  * aparelho, com o react-native-pdf"). O Core chama a porta `abrirArquivo` com `formato: 'pdf'` (NF e documentos do cliente)
- * e o shell abre a rota `/pdf`. Puro, para teste: o formato, a rota, a assinatura dos bytes, o temporário e a fonte.
+ * e o shell abre a rota `/pdf`. Puro, para teste: a rota, a assinatura dos bytes, o temporário e a fonte.
  *
  * Os bytes vêm do download do visor (`baixarArquivoDoVisor`, services/foto-pdv.ts), só com sinal. O react-native-pdf
  * só desenha arquivo do disco: o PDF vai para um temporário na pasta de cache `visor-pdf/`, apagado ao fechar a tela; a
