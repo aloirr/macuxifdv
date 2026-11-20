@@ -21,7 +21,7 @@ import RankingScreen from './screens/ranking-screen';
 export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
-    { id: 'equipe', caminho: 'equipe', titulo: 'Equipe', navegacao: 'Equipe', icone: 'users', apps: ['gestao'], acao: 'painel_equipe.ver', ordem: 10, componente: EquipeScreen },
+    { id: 'equipe', caminho: 'equipe', titulo: 'Equipe', navegacao: 'Equipe', icone: 'equipe', apps: ['gestao'], acao: 'painel_equipe.ver', ordem: 10, componente: EquipeScreen },
     { id: 'aprovacoes', caminho: 'aprovacoes', titulo: 'Aprovações', navegacao: 'Aprovações', icone: 'check', apps: ['gestao'], acao: 'fila_aprovacao.ver', ordem: 20, componente: AprovacoesScreen },
     { id: 'alertas', caminho: 'alertas', titulo: 'Alertas', navegacao: 'Alertas', icone: 'alert', apps: ['gestao'], acao: 'alerta_equipe.ver', ordem: 35, componente: AlertasScreen },
     { id: 'membro', caminho: 'equipe-membro', titulo: 'Ficha', apps: ['gestao'], acao: 'painel_equipe.ver', componente: FichaScreen },
