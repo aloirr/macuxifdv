@@ -21,7 +21,7 @@
 - Fundo `ground`, sem barra de abas. Marca 14/700 `accentInk` ("Macuxi Campo" / "Macuxi Gestão"), título **"Permissões"**
   (22/700), subtítulo 16 `ink2`: **"Sem ela o app não funciona."** com 1 item na lista; **"Sem elas o app não funciona."** com 2 ou mais.
 - Lista (cartão branco, linhas de 68 dp) **só com as que faltam**, na ordem da tabela: ícone 20 num círculo `neutralBg` de 40 ·
-  nome 15/600 · motivo 13 `ink2`. Situação à direita só na negada: **Negada** 13/600 (`danger`); sem "Falta" nem "Permitida".
+  nome 16/600 · motivo 14 `ink2`. Situação à direita só na negada: **Negada** 14/600 (`danger`); sem "Falta" nem "Permitida".
 
 | Permissão | Motivo (texto final) | App |
 |---|---|---|
