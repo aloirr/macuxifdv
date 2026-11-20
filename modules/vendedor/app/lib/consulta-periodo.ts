@@ -66,10 +66,12 @@ export function juntarServidorComAparelho(servidor: readonly PedidoDaLista[], ap
   return [...porId.values()];
 }
 
-/** T-0090 UX1: resumo da busca; com vendedor escolhido (Gestão) o nome entra, para o "0 resultados" não ficar sem motivo. */
-export function resumoDaBusca(quantidade: number, vendedor: string | null): string {
-  const n = `${quantidade} ${quantidade === 1 ? 'resultado' : 'resultados'}`;
-  return vendedor ? `${n} · ${vendedor} · últimos 90 dias` : `${n} · últimos 90 dias`;
+/**
+ * T-0090 UX1: resumo da busca. O vendedor escolhido (Gestão) fica só na etiqueta, que explica o "0 resultados" (uma informação, um lugar).
+ * @param _vendedor @deprecated ignorado; ponte para o teste antigo compilar, sai depois do PR dos testes da T-0188.
+ */
+export function resumoDaBusca(quantidade: number, _vendedor?: string | null): string {
+  return `${quantidade} ${quantidade === 1 ? 'resultado' : 'resultados'} · últimos 90 dias`;
 }
 
 /** T-0090 UX2: o chip A faturar (do Início) ignora o período; escolher um período volta para Todos, para a etiqueta não mentir. */

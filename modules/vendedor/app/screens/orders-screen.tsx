@@ -1,6 +1,6 @@
 /**
- * Pedidos (Pedidos.dc.html; T-0077; sem "Novo": o novo pedido nasce só na ficha do cliente, R-20261114-150000; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº) e o botão de filtro na
- * mesma linha (T-0090, modelo A: selo com o número de filtros, etiqueta removível e folha Período; Gestão: vendedor na mesma folha),
+ * Pedidos (Pedidos.dc.html; T-0077; sem "Novo": o novo pedido nasce só na ficha do cliente, R-20261114-150000; V9 da T-0071: lista virtualizada): o botão de filtro, com a
+ * busca (fantasia, razão social ou nº) dentro da folha (R-20261120-062210) (T-0090, modelo A: selo com o número de filtros, etiqueta removível e folha Período; Gestão: vendedor na mesma folha),
  * depois uma linha de situações, incluindo os pedidos na fila do aparelho. A busca ignora o período e procura em toda a janela
  * de 90 dias do aparelho. O período fora dessa janela (inteiro ou em parte) consulta o servidor, com sinal.
  * RN-CORE-23 (T-0054): sem consulta periódica própria. Ao abrir a tela só relê o aparelho; o pull vem do motor de sync da
@@ -55,12 +55,11 @@ import { useVendedor } from '../state/use-vendedor';
 type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'card_orc' | 'card_env';
 
 export default function OrdersScreen() {
-  const { dados, rascunhosDaLista, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizando, erroSync, aguardandoMinhaDecisao } = useVendedor();
+  const { dados, rascunhosDaLista, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, aguardandoMinhaDecisao } = useVendedor();
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
   const ambiente = useAmbiente();
-  const sync = { running: sincronizando, error: erroSync };
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [busca, setBusca] = useState('');
   // T-0077: seletor de vendedor só no Gestão; o filtro vale antes da busca, do período, dos chips e do resumo
@@ -220,6 +219,7 @@ export default function OrdersScreen() {
   const limparFiltros = () => {
     removerPeriodo();
     setVendedorId(TODOS_OS_VENDEDORES);
+    setBusca('');
   };
   // Y12: fora dos 90 dias sem resposta do servidor, "0 pedidos" seria falso; o cartão mostra o estado
   const vazio = textoDoVazio({ fora, modoConsulta, estadoDoServidor: doServidor?.estado, buscando, situacao: atual, gestao });
@@ -229,19 +229,11 @@ export default function OrdersScreen() {
       <CabecalhoTela
         titulo={gestao ? 'Pedidos da equipe' : 'Pedidos'}
         direita={
-          // RD-0076 (pedido-v4 §4.1): o estado do sinal e da consulta é um selo só, sem faixa nem rodapé
+          // RD-0076 (pedido-v4 §4.1): um selo só; sem "Atualizando…" nem "Sem resposta" (R-20261120-062537)
           <SeloAtualizacao
             testID="orders-selo-sync"
             sobreFaixa
             semRede={!ambiente.online()}
-            atualizando={
-              parcial &&
-              !semSinal &&
-              modoConsulta === 'consultar' &&
-              doServidor?.estado !== 'ok' &&
-              doServidor?.estado !== 'erro'
-            }
-            semResposta={(!sync.running && !!sync.error) || doServidor?.estado === 'erro'}
             onSincronizar={() => {
               setTentativa((n) => n + 1);
               auto.puxar();
@@ -307,21 +299,10 @@ export default function OrdersScreen() {
               </SePode>
             ) : null}
 
-            <View style={styles.linhaBusca}>
-              <View style={{ flex: 1 }}>
-                <CampoBusca
-                  testID="orders-busca"
-                  valor={busca}
-                  onChange={setBusca}
-                  placeholder="Cliente ou nº"
-                  rotuloAcessivel="Buscar pedido por nome fantasia, razão social ou número"
-                  onLimpar={() => setBusca('')}
-                  rotuloLimpar="Limpar a busca"
-                />
-              </View>
+            <View style={styles.linhaFiltro}>
               <BotaoFiltro
                 testID="orders-filtro"
-                contagem={filtro.contagem}
+                contagem={filtro.contagem + (buscando ? 1 : 0)}
                 rotulo="Filtrar"
                 onPress={() => setFolhaAberta(true)}
               />
@@ -337,36 +318,48 @@ export default function OrdersScreen() {
               escolha={semPeriodo ? null : filtro.escolha}
               onEscolher={(e) => escolherPeriodo(periodoDaEscolha(e))}
               onLimpar={limparFiltros}
-              limparDesligado={filtro.contagem === 0 && !semPeriodo}
+              limparDesligado={filtro.contagem === 0 && !semPeriodo && !buscando}
               hoje={filtro.hoje}
               diasMarcados={diasMarcados}
               ajuda={filtro.ajuda}
               extra={
-                gestao ? (
-                  <ListaSuspensa
-                    testID="orders-vendedor"
-                    rotulo="Vendedor"
-                    rotuloAcessivel="Filtrar por vendedor"
-                    opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome }))}
-                    valor={vendedorAtivo}
-                    onChange={setVendedorId}
-                    placeholder="Todos os vendedores"
-                    rotuloFechar="Fechar a lista"
+                <View style={{ gap: 12 }}>
+                  <CampoBusca
+                    testID="orders-busca"
+                    valor={busca}
+                    onChange={setBusca}
+                    placeholder="Cliente ou nº"
+                    rotuloAcessivel="Buscar pedido por nome fantasia, razão social ou número"
+                    onLimpar={() => setBusca('')}
+                    rotuloLimpar="Limpar a busca"
                   />
-                ) : null
+                  {gestao ? (
+                    <ListaSuspensa
+                      testID="orders-vendedor"
+                      rotulo="Vendedor"
+                      rotuloAcessivel="Filtrar por vendedor"
+                      opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome }))}
+                      valor={vendedorAtivo}
+                      onChange={setVendedorId}
+                      placeholder="Todos os vendedores"
+                      rotuloFechar="Fechar a lista"
+                    />
+                  ) : null}
+                </View>
               }
             />
 
             {buscando ? (
               <>
                 <Text style={t.small} testID="orders-busca-resumo">
-                  {resumoDaBusca(visiveis.length, nomeDoVendedor)}
+                  {resumoDaBusca(visiveis.length)}
                 </Text>
-                {nomeDoVendedor ? (
-                  <View style={styles.etiquetas} testID="orders-etiquetas">
+                <View style={styles.etiquetas} testID="orders-etiquetas">
+                  <EtiquetaFiltro testID="orders-etiqueta-busca" texto={busca.trim()} rotuloRemover="Limpar a busca" onRemover={() => setBusca('')} />
+                  {nomeDoVendedor ? (
                     <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={nomeDoVendedor} rotuloRemover={rotuloRemoverVendedor(nomeDoVendedor)} onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
-                  </View>
-                ) : null}
+                  ) : null}
+                </View>
               </>
             ) : (
               <>
@@ -500,7 +493,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: radius.cartao,
     overflow: 'hidden',
   },
-  linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  linhaFiltro: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: -6 },
   destaque: { backgroundColor: colors.accentSoft, color: colors.accentInk },
   row: { gap: 3, paddingVertical: 11, paddingHorizontal: 14 },

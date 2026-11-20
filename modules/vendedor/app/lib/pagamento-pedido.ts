@@ -6,6 +6,8 @@
 import { descricaoPrazo, formasDaLista, formasDoCliente, pagamentoPadrao, prazosDaForma, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
 import type { EntradaPendencias } from '../../domain/pendencias-preenchimento';
 import { percentualAjusteParaBp, valorMantendoPercentualCents } from '../../domain/preco-pedido';
+import { ajustesNaTrocaDePrazo } from '../../domain/troca-prazo';
+import type { Ajuste, LinhaDoPedido } from './novo-pedido';
 import type { Rascunho } from './pedidos';
 
 export interface OpcaoDaLista {
@@ -49,16 +51,39 @@ export function rascunhoComPagamentoPadrao(r: Rascunho, formas: readonly FormaDe
 }
 
 /**
- * RN-VEN-46: na troca de prazo, o desconto/acréscimo digitado em R$ (itens e pedido) mantém o % sobre a tabela e o R$ é refeito
- * sobre a nova tabela. Sem o catálogo aqui, a razão das tabelas é `10 000 + bp` de cada prazo.
+ * Na troca de prazo, o desconto/acréscimo DO PEDIDO digitado em R$ (legado, antes da T-0165) mantém o % sobre a tabela e o R$ é
+ * refeito sobre a nova tabela; a razão das tabelas é `10 000 + bp` de cada prazo. Os itens seguem a RN-VEN-44 (`rascunhoMantendoPrecoFinal`).
  */
 export function comValoresMantendoPercentual(r: Rascunho, pctNovo: number): Rascunho {
   const antes = 10_000 + percentualAjusteParaBp(r.prazo_percentual_ajuste);
   const depois = 10_000 + percentualAjusteParaBp(pctNovo);
   if (antes === depois) return r;
   const f = (v: number | undefined) => (v ? valorMantendoPercentualCents(v, antes, depois) : v);
-  const ajustes = r.ajustes && Object.fromEntries(Object.entries(r.ajustes).map(([k, a]) => [k, a.em === 'valor' ? { ...a, desconto_cents: f(a.desconto_cents), acrescimo_cents: f(a.acrescimo_cents) } : a]));
-  return { ...r, ...(ajustes ? { ajustes } : {}), desconto_valor_cents: f(r.desconto_valor_cents), acrescimo_valor_cents: f(r.acrescimo_valor_cents) };
+  return { ...r, desconto_valor_cents: f(r.desconto_valor_cents), acrescimo_valor_cents: f(r.acrescimo_valor_cents) };
+}
+
+/** Linha calculada que a troca de prazo precisa: a chave, a tabela e o preço final da unidade vendida. */
+export type LinhaParaTroca = Pick<LinhaDoPedido, 'chave' | 'preco_tabela_cents' | 'preco_unitario_cents'>;
+
+/**
+ * RN-VEN-44 (T-0188): trocar o prazo com itens mantém o preço final de cada item, centavo por centavo. A tabela passa a ser a do prazo
+ * novo e o desconto ou acréscimo do item é refeito, em R$ por unidade, a partir do preço final. `linhas` calcula o rascunho (o mesmo
+ * `calcularPedido` da tela). Sem mudança no % do prazo, o rascunho fica como veio.
+ */
+export function rascunhoMantendoPrecoFinal(antes: Rascunho, depois: Rascunho, linhas: (r: Rascunho) => readonly LinhaParaTroca[]): Rascunho {
+  if (percentualAjusteParaBp(antes.prazo_percentual_ajuste) === percentualAjusteParaBp(depois.prazo_percentual_ajuste)) return depois;
+  const novos = ajustesNaTrocaDePrazo(linhas(antes), linhas({ ...depois, ajustes: {} }));
+  if (Object.keys(novos).length === 0) return depois;
+  const ajustes: Record<string, Ajuste> = { ...(depois.ajustes ?? {}) };
+  for (const [chave, a] of Object.entries(novos)) {
+    const { aplicacao_marcada, aplicacao_retrato } = ajustes[chave] ?? {};
+    ajustes[chave] = {
+      ...(aplicacao_marcada !== undefined ? { aplicacao_marcada } : {}),
+      ...(aplicacao_retrato !== undefined ? { aplicacao_retrato } : {}),
+      ...(a ? { em: 'valor' as const, [a.sentido === 'desconto' ? 'desconto_cents' : 'acrescimo_cents']: a.cents } : {}),
+    };
+  }
+  return { ...depois, ajustes };
 }
 
 export function comPagamento(r0: Rascunho, forma: FormaDePagamento, prazo: PrazoDePagamento): Rascunho {

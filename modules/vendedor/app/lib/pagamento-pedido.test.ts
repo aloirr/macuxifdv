@@ -81,12 +81,11 @@ describe('RN-VEN-24: padrão, troca de forma e pendências', () => {
   });
 });
 
-describe('RN-VEN-46: troca de prazo mantém o % do desconto digitado em R$', () => {
-  it('RN-VEN-46: R$ do item e do pedido são refeitos sobre a nova tabela ao trocar o prazo', () => {
-    const base = { ...rascunhoVazio('c1'), prazo_percentual_ajuste: 0, ajustes: { p1: { em: 'valor' as const, desconto_cents: 500 }, p2: { em: 'pct' as const, desconto_pct: 5 } }, ajuste_em: 'valor' as const, desconto_valor_cents: 1_000 };
+describe('troca de prazo: desconto do pedido em R$ (legado)', () => {
+  it('o R$ do pedido mantém o % sobre a nova tabela; os itens ficam para a RN-VEN-44', () => {
+    const base = { ...rascunhoVazio('c1'), prazo_percentual_ajuste: 0, ajustes: { p1: { em: 'valor' as const, desconto_cents: 500 } }, ajuste_em: 'valor' as const, desconto_valor_cents: 1_000 };
     const r = comValoresMantendoPercentual(base, -1.71);
-    expect(r.ajustes!.p1!.desconto_cents).toBe(491);
-    expect(r.ajustes!.p2).toEqual({ em: 'pct', desconto_pct: 5 });
+    expect(r.ajustes).toBe(base.ajustes);
     expect(r.desconto_valor_cents).toBe(983);
     expect(comValoresMantendoPercentual(base, 0)).toBe(base);
   });

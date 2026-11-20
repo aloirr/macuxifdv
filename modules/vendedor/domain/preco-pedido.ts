@@ -33,14 +33,6 @@ export function percentualAjusteParaBp(pct: number | null | undefined): number {
 }
 
 /**
- * RN-VEN-43/18: bp do prazo para UM item. O preço congelado do orçamento já foi gravado ajustado e nunca ajusta de novo (0);
- * os outros itens usam o bp do pedido.
- */
-export function bpDoItem(congelado: boolean, percentualBp: number): number {
-  return congelado ? 0 : percentualBp;
-}
-
-/**
  * RN-VEN-43: tabela do produto ajustada pelo % do prazo, POR UNIDADE e antes da quantidade, em centavos inteiros:
  * `meia-para-cima(tabela × (10 000 + bp) ÷ 10 000)`. `bp` é inteiro em centésimos de ponto percentual (-1,71% = -171).
  * Parte sempre da tabela ORIGINAL (RN-VEN-44). `bp` 0 devolve a tabela intacta.
@@ -52,9 +44,9 @@ export function tabelaAjustadaCents(tabelaCents: number, percentualBp: number): 
 }
 
 /**
- * RN-VEN-46: desconto/acréscimo digitado em R$ na troca de prazo. O R$ vira o % equivalente sobre a tabela ANTERIOR, o % se
- * mantém e o R$ é refeito sobre a NOVA tabela (meia para cima, centavos inteiros). As tabelas podem ser o preço do item ou, sem
- * o catálogo, `10 000 + bp` de cada prazo (a razão é a mesma). Tabela anterior inválida (<= 0) mantém o valor.
+ * Troca de prazo, desconto/acréscimo DO PEDIDO em R$ (legado; os itens seguem a RN-VEN-44). O R$ vira o % equivalente sobre a tabela ANTERIOR, o % se
+ * mantém e o R$ é refeito sobre a NOVA tabela (meia para cima, centavos inteiros). Tabela anterior inválida
+ * (<= 0) mantém o valor.
  */
 export function valorMantendoPercentualCents(valorCents: number, tabelaAnteriorCents: number, tabelaNovaCents: number): number {
   if (!(tabelaAnteriorCents > 0) || valorCents <= 0) return valorCents;
