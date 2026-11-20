@@ -10,6 +10,7 @@
  * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
  * T-0178 (spec docs/design/trocar-senha/spec.md §2 e §7): seção "Conta" com a linha "Trocar senha" (só na API real) e, na
  * volta da troca, "Senha trocada." no rodapé.
+ * Mc161 A (R-20261119-212852): no Gestão, sem aba "Mais", as páginas que passam das 6 posições da barra entram no menu.
  */
 import { TEXTOS_TROCAR_SENHA } from '@macuxi/core/contracts';
 import type { SituacaoArquivo } from '@macuxi/platform-sdk';
@@ -42,6 +43,7 @@ import { AvisoAoVoltar } from '@/components/aviso-pos-login';
 import { EnviarDiagnostico } from '@/components/enviar-diagnostico';
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { ENDERECO_SERVIDOR, ENTRADA_SERVIDOR } from '@/components/servidor';
+import { abasDaVariante } from '@/lib/abas';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
@@ -78,7 +80,7 @@ export default function ProfileScreen() {
 
 function Perfil() {
   const app = usePlataforma();
-  const { sessao, me, offline, apiUrl, apiOverride, defaultApiUrl, perfil } = app;
+  const { sessao, me, offline, apiUrl, apiOverride, defaultApiUrl, perfil, visao } = app;
   const { motor, estado } = useMotorSync();
   const [url, setUrl] = useState(apiUrl);
   const [urlMsg, setUrlMsg] = useState<{ ok: boolean; message: string } | null>(null);
@@ -220,7 +222,8 @@ function Perfil() {
         </Card>
       </View>
 
-      <ItensDoMenu />
+      {/* Mc161 A: no Gestão, as páginas que não couberam na barra (Pedidos, Catálogo, Treinar…) ficam neste menu */}
+      <ItensDoMenu paginas={abasDaVariante(visao.navegacao, varianteAtual()).perfil} />
 
       {estado.limpezaPendente.map((modulo) => (
         <Card key={modulo} testID={`limpeza-${modulo}`} style={{ padding: 14, gap: 10 }}>

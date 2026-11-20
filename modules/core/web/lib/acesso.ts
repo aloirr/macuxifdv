@@ -230,6 +230,7 @@ const GRUPO_DA_CHAVE: Readonly<Record<string, GrupoDoGeral>> = {
   'cliente.pagamento_editar': 'Clientes',
   'cliente.aprovar_coordenada': 'Clientes',
   'cliente.filial_editar': 'Clientes',
+  'visita.registrar_gestao': 'Clientes',
   'visita.dispensar_etapa': 'Clientes',
   'meta.ver': 'Metas e RV',
   'meta.editar': 'Metas e RV',

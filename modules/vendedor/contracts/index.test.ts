@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { CreateOrderRequest, RejectRequest, SyncPushRequest } from './index';
 
 describe('contracts', () => {
@@ -32,7 +33,7 @@ describe('contracts', () => {
   });
 });
 
-import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, maiorNivel, quemDecide, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
+import { CORPO_DA_DECISAO, MOTIVO_REJEICAO_MIN, ROTA_DA_DECISAO, ROTULO_MOTIVO_APROVACAO, corpoDaDecisao, decisorEhAutor, maiorNivel, quemDecide, AprovacaoMotivo, AprovacaoSolicitadaEvento, AprovarPedidoRequest, RecusarPedidoRequest, DECISOES_APROVADOR, ESTADOS_APROVACAO_MOTIVO, MOTIVOS_APROVACAO, DiscountPolicy as AlcadaApiSchema, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
 
 describe('contracts do pedido no servidor (T-0029)', () => {
   const push = { id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', customer_id: 'c1', discount_pct: 4, items: [{ product_id: 'p1', quantity: 2 }] };
@@ -126,6 +127,11 @@ describe('T-0184: contratos da aprovação por motivo', () => {
     expect(AlcadaApiSchema.safeParse({ ...base, aprovador_credito: 'diretor' }).success).toBe(false);
   });
 
+  it('RN-VEN-10 e RN-GES-04: decisorEhAutor é público no contrato (o autor não decide o próprio pedido)', () => {
+    expect(decisorEhAutor({ autor_id: 'sup', vendedor_id: 'v1' }, 'sup')).toBe(true);
+    expect(decisorEhAutor({ vendedor_id: 'v1' }, 'sup')).toBe(false);
+  });
+
   it('RN-GES-04: quemDecide é público no contrato (gestor decide até a alçada; analista só o seu nível)', () => {
     expect(quemDecide('gerente', 'supervisor')).toEqual({ pode: true, acima_do_nivel: true });
     expect(quemDecide('supervisor', 'gerente').pode).toBe(false);
@@ -135,5 +141,22 @@ describe('T-0184: contratos da aprovação por motivo', () => {
     const base = { motivo: 'credito', nivel: 'gerente', estado: 'aprovada', texto_pendencia: '', decidida_por_id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', decidida_em: '2026-11-18T14:05:00.000Z', texto_decisao: null };
     expect(AprovacaoMotivo.safeParse(base).success).toBe(true);
     expect(AprovacaoMotivo.parse({ ...base, decidida_por_nome: 'Rui Matos' }).decidida_por_nome).toBe('Rui Matos');
+  });
+});
+
+describe('slot pedido.equipe_em_nome (T-0187, RN-CORE-04, RN-PRO-01)', () => {
+  const U = '11111111-1111-4111-8111-111111111111';
+  const membro = { usuario_id: U, nome: 'Carla', perfil: 'vendedor', equipe_id: null, equipe_nome: null, ativo: true };
+  it('o Vendedor oferece o slot e o nome segue o padrão <entidade>.<ponto>', async () => {
+    const { SLOTS_VENDEDOR } = await import('./extensoes');
+    expect(SLOTS_VENDEDOR).toContain('pedido.equipe_em_nome');
+    expect(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test('pedido.equipe_em_nome')).toBe(true);
+  });
+  it('o membro é estrito: campo extra (dado pessoal) é recusado', async () => {
+    const { MembroEquipeEmNomeSchema } = await import('./extensoes');
+    const MembrosEquipeEmNomeSchema = z.array(MembroEquipeEmNomeSchema);
+    expect(MembrosEquipeEmNomeSchema.safeParse([membro]).success).toBe(true);
+    expect(MembrosEquipeEmNomeSchema.safeParse([{ ...membro, telefone: '9' }]).success).toBe(false);
+    expect(MembrosEquipeEmNomeSchema.safeParse([{ ...membro, ativo: undefined }]).success).toBe(false);
   });
 });

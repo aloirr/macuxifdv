@@ -53,6 +53,21 @@ export const moduloApp = definirModuloShell<ComponentType>({
         abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined }),
       } satisfies AcaoCliente,
     },
+    // T-0187 (RF-GES-05, RN-VEN-35): o supervisor e o gerente abrem o novo pedido pela ficha do cliente no Gestão; o vendedor sai do
+    // campo "Em nome de" da aba Venda (padrão: o da carteira). Promotor nunca (regra 7, RN-PRO-01): a ação é só de supervisor e gerente.
+    {
+      slot: 'cliente.acoes',
+      id: 'novo-pedido-em-nome',
+      acao: 'pedido.criar_em_nome',
+      apps: ['gestao'],
+      payload: {
+        rotulo: 'Novo pedido',
+        testID: 'pedido-novo-em-nome',
+        icone: 'plus',
+        destaque: true,
+        abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined, emNome: true }),
+      } satisfies AcaoCliente,
+    },
     // R-20261114-151000: o Catálogo é só consulta e não cria nem edita pedido. A ação do Vendedor é "Adicionar ao orçamento":
     // abre a folha com os orçamentos em aberto do vendedor. O promotor não vê (acao pedido.criar, regra 7).
     {

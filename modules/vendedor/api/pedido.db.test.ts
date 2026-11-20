@@ -392,6 +392,22 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect(await chamar(rotaAprovarPedido, a.ctx, { params: { id: id(33) } })).toMatchObject({ status: 'approved' });
     });
 
+    it('RN-VEN-10 e T-0187 P4 A: o autor do pedido em nome não o aprova (422 APROVACAO_DO_PROPRIO_PEDIDO); outro decisor aprova', async () => {
+      await pendente(id(68), 8);
+      const admin = new pg.Client({ connectionString: banco().urlAdmin });
+      await admin.connect();
+      try {
+        await admin.query('update vendedor.pedido set autor_id = $2 where id = $1', [id(68), A.usuarios.supervisor]);
+      } finally {
+        await admin.end();
+      }
+      const s = contexto(supervisor, { visiveis: equipe1 });
+      await expect(chamar(rotaAprovarPedido, s.ctx, { params: { id: id(68) } })).rejects.toMatchObject({ status: 422, codigo: 'APROVACAO_DO_PROPRIO_PEDIDO', message: 'Você fez este pedido e não pode aprová-lo. Peça a decisão ao nível acima.' });
+      expect((await lerPedido(id(68))).p.status).toBe('pending_approval');
+      const g = contexto(gerente, { visiveis: gestao });
+      expect(await chamar(rotaAprovarPedido, g.ctx, { params: { id: id(68) } })).toMatchObject({ status: 'approved' });
+    });
+
     it('RN-GES-08: rejeitar sem motivo (ou com menos de 3 caracteres) = 422; com motivo rejeita; aprovar depois = 422 RN-VEN-30', async () => {
       await pendente(id(35), 8);
       const s = contexto(supervisor, { visiveis: equipe1 });

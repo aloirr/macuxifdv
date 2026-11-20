@@ -10,7 +10,8 @@
  */
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
-import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
+import { useAmbiente, useExtensoes, usePode } from '@macuxi/platform-sdk/react';
+import type { EquipeEmNome, MembroEquipeEmNome } from '../../contracts/extensoes';
 import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonte, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -22,10 +23,10 @@ import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/
 import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasDiferentesDoGeral, type AjusteGeral } from '../../domain/desconto-geral';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { buscaPodeComecar, codigoExatoPrimeiro, paginaDaBusca, resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
-import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
+import { equipeEmNomeDosMembros, opcoesEmNome, rotuloVoltarNovoPedido, vendedorPadraoEmNome } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
-import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
+import { AbaEntrega, AbaResumo, AbaVenda, CampoEmNomeDe, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
 import { financeiroParaAprovacao, type ModeloDoCredito } from '../lib/credito-cliente';
 import { aprovacoesFinanceiras, disponivelParaAlerta } from '../../domain/credito-pedido';
 import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
@@ -44,7 +45,7 @@ import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from
 import { DescontoGeral } from '../components/desconto-geral';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
-import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
+import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -66,13 +67,15 @@ function chavesDasLinhas(lines: Record<string, number>): string[] {
 }
 
 export default function NewOrderScreen() {
-  const { customerId, editId, visitId, stopId, vendedorId, vendedorNome } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; vendedorNome?: string }>();
+  const { customerId, editId, visitId, stopId, vendedorId, vendedorNome, emNome } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; vendedorNome?: string; emNome?: string }>();
+  // T-0187: aberto pela ficha do cliente no Gestão (`emNome=1`): o vendedor sai do campo "Em nome de" da aba Venda
+  const emNomeLivre = emNome === '1' && !vendedorId && !editId;
   const { carregado, dados } = useVendedor();
   if (!carregado) return <Loading />;
   // RN-VEN-35: o gestor faz o pedido pelo vendedor e não tem carteira de vendedor (`me`) no aparelho
-  if ((!dados.me && !vendedorId) || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
+  if ((!dados.me && !vendedorId && !emNomeLivre) || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
   if (!customerId) return <CustomerPicker />;
-  return <OrderEditor key={`${customerId}:${editId ?? ''}:${vendedorId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} vendedorEmNomeId={editId ? null : vendedorId || null} vendedorEmNomeNome={editId ? null : vendedorNome || null} />;
+  return <OrderEditor key={`${customerId}:${editId ?? ''}:${vendedorId ?? ''}:${emNomeLivre ? 'livre' : ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} vendedorEmNomeId={editId ? null : vendedorId || null} vendedorEmNomeNome={editId ? null : vendedorNome || null} emNomeLivre={emNomeLivre} />;
 }
 
 /** Mensagem dentro de Screen (área segura) e com caminho de volta para Pedidos. */
@@ -159,7 +162,13 @@ interface Snapshot {
   rascunho: Draft;
 }
 
-function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, vendedorEmNomeNome }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null; vendedorEmNomeNome: string | null }) {
+/** Sem contribuição no slot `pedido.equipe_em_nome`: lista vazia (referência estável). */
+const SEM_MEMBROS: MembroEquipeEmNome[] = [];
+function usarSemMembros(): MembroEquipeEmNome[] {
+  return SEM_MEMBROS;
+}
+
+function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: vendedorEmNomeIdDaRota, vendedorEmNomeNome: vendedorEmNomeNomeDaRota, emNomeLivre }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null; vendedorEmNomeNome: string | null; emNomeLivre: boolean }) {
   const app = useVendedor();
   const avisoRodape = useAvisoRodape();
   const [chaveDaRemocao, setChaveDaRemocao] = useState(0);
@@ -197,11 +206,40 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     if (!editId && (visitId || stopId)) updateDraft(customerId, (d) => ligarRascunho(d, visitId, stopId));
   }, [visitId, stopId, editId, customerId]);
 
+  // T-0187 (RN-VEN-35, P3 A): com `emNomeLivre` o dono é o do campo "Em nome de" (guardado no rascunho); senão vem da rota
+  const vendedorEmNomeId = emNomeLivre ? (draft.vendedor_em_nome_id ?? null) : vendedorEmNomeIdDaRota;
+  const vendedorEmNomeNome = emNomeLivre ? (draft.vendedor_em_nome_nome ?? null) : vendedorEmNomeNomeDaRota;
+  const hoje = localIsoDate(new Date(), tz);
+  const porClienteVigente = useMemo(() => vendedoresPorCliente(app.carteiras, hoje), [app.carteiras, hoje]);
+  const ambiente = useAmbiente();
+  // RN-CORE-04, RN-PRO-01: a lista "Em nome de" vem do slot `pedido.equipe_em_nome` (o Gestão contribui, lendo o aparelho);
+  // sem contribuição (Campo ou Gestor desligado) a lista fica vazia
+  const usarMembrosEmNome = useExtensoes<EquipeEmNome>('pedido.equipe_em_nome')[0]?.payload.usarMembros ?? usarSemMembros;
+  const membrosEmNome = usarMembrosEmNome();
+  const equipeEmNome = useMemo(
+    () => (emNomeLivre ? equipeEmNomeDosMembros({ autor: { id: ambiente.usuario()?.id ?? '', perfil: app.perfil ?? '' }, membros: membrosEmNome }) : []),
+    [emNomeLivre, membrosEmNome, ambiente, app.perfil],
+  );
+  const vinculosEmNome = useMemo(() => [...porClienteVigente].flatMap(([cliente_id, us]) => us.map((usuario_id) => ({ usuario_id, cliente_id }))), [porClienteVigente]);
+  const opcoesDoEmNome = useMemo(() => {
+    if (!emNomeLivre) return [];
+    // o rascunho salvo pode ter um vendedor que saiu da equipe: aparece desligado, com o motivo
+    const base = draft.vendedor_em_nome_id && !equipeEmNome.some((u) => u.id === draft.vendedor_em_nome_id) ? [...equipeEmNome, { id: draft.vendedor_em_nome_id, nome: draft.vendedor_em_nome_nome ?? 'Vendedor', ativo: false, perfil: 'vendedor' as const }] : equipeEmNome;
+    return opcoesEmNome({ clienteId: customerId, carteira: vinculosEmNome, usuarios: base });
+  }, [emNomeLivre, equipeEmNome, vinculosEmNome, customerId, draft.vendedor_em_nome_id, draft.vendedor_em_nome_nome]);
+  // o padrão entra uma vez, só com o rascunho sem dono (RN-VEN-35: o vendedor da carteira do cliente)
+  useEffect(() => {
+    if (!emNomeLivre || editId || draft.vendedor_em_nome_id) return;
+    const padrao = vendedorPadraoEmNome({ clienteId: customerId, carteira: vinculosEmNome, equipe: equipeEmNome });
+    const o = padrao ? opcoesDoEmNome.find((x) => x.id === padrao) : null;
+    if (o) updateDraft(customerId, (d) => ({ ...d, vendedor_em_nome_id: o.id, vendedor_em_nome_nome: o.nome }));
+  }, [emNomeLivre, editId, customerId, draft.vendedor_em_nome_id, vinculosEmNome, equipeEmNome, opcoesDoEmNome]);
+
   // RN-VEN-35: o rascunho guarda o dono (vendedor) escolhido pelo gestor; sem o parâmetro, o pedido é do próprio usuário
   useEffect(() => {
-    if (editId) return;
+    if (editId || emNomeLivre) return;
     if ((draft.vendedor_em_nome_id ?? null) !== vendedorEmNomeId || (draft.vendedor_em_nome_nome ?? null) !== vendedorEmNomeNome) updateDraft(customerId, (d) => ({ ...d, vendedor_em_nome_id: vendedorEmNomeId, vendedor_em_nome_nome: vendedorEmNomeNome }));
-  }, [vendedorEmNomeId, vendedorEmNomeNome, editId, customerId, draft.vendedor_em_nome_id, draft.vendedor_em_nome_nome]);
+  }, [vendedorEmNomeId, vendedorEmNomeNome, editId, emNomeLivre, customerId, draft.vendedor_em_nome_id, draft.vendedor_em_nome_nome]);
 
   useEffect(() => {
     if (customer && catalog.length === 0) void ensureProducts(customer);
@@ -232,7 +270,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     updateDraft(customerId, (d) => ({ ...d, payment_terms: padrao.descricao, condicao_pagamento_id: padrao.id }));
   }, [v1, formas, prazos, limites.formas_pagamento, condicoes, draft.forma_pagamento_id, draft.prazo_pagamento_id, draft.condicao_pagamento_id, sent, editId]);
 
-  const ambiente = useAmbiente();
   const parametrosVendedor = ambiente.parametros('vendedor');
   const fretePadrao = modalidadePadraoDosParametros(parametrosVendedor);
   const [aba, setAba] = useState<AbaNovoPedido>(() => abaInicialDoRascunho(draft));
@@ -290,7 +327,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   );
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
   // RN-VEN-10: em nome, a alçada é a do gestor (supervisor/gerente), como na API
-  const politica = dados.politica && vendedorEmNomeId ? politicaParaAutor(dados.politica, app.perfil) : dados.politica;
+  const politica = dados.politica && (vendedorEmNomeId || emNomeLivre) ? politicaParaAutor(dados.politica, app.perfil) : dados.politica;
   const vendedorId = vendedorEmNomeId ?? dados.me?.seller?.id ?? '';
   const percentualAjusteBp = percentualAjusteParaBp(draft.prazo_percentual_ajuste);
   const calculoAtual = useMemo(
@@ -353,6 +390,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         pagamento: situacaoDoPagamento(draft, formas, prazos, limites),
         frete: situacaoDoFrete(frete),
         erros_calculo: calculoBase.pendencias,
+        em_nome_sem_vendedor: emNomeLivre && !draft.vendedor_em_nome_id,
       })
     : [];
 
@@ -363,6 +401,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const marcas = useMemo(() => new Map(catalog.flatMap((p) => (p.brand?.trim() ? [[p.id, p.brand.trim()] as [string, string]] : []))), [catalog]);
   const semEstoque = !sent && calculoBase ? itensSemEstoque(calculoBase.linhas, (id) => byId.get(id)) : [];
   const semFormaParaOCliente = !sent && situacaoDoPagamento(draft, formas, prazos, limites).tipo === 'sem_forma_permitida';
+  const faltaDoVendedor = tentou.has('venda') && emNomeLivre && !draft.vendedor_em_nome_id ? 'Obrigatório' : null;
   const faltaDoCampo = (id: string) => (tentou.has('venda') && pendencias.some((p) => p.id === id) ? 'Obrigatório' : null);
   const alertasDoTopo = alertasDoNovoPedido({
     cliente: app.situacaoDoCliente(customerId),
@@ -752,6 +791,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
         {!sent && aba === 'venda' ? (
           <AbaVenda
+            emNome={emNomeLivre ? <CampoEmNomeDe opcoes={opcoesDoEmNome} valor={draft.vendedor_em_nome_id ?? null} falta={faltaDoVendedor} onChange={(id) => updateDraft(customerId, (d) => ({ ...d, vendedor_em_nome_id: id, vendedor_em_nome_nome: opcoesDoEmNome.find((o) => o.id === id)?.nome ?? null }))} /> : null}
             clienteLinhas={[
               ...(enderecoPrincipal ? [{ rotulo: 'Endereço', valor: textoDoEndereco(enderecoPrincipal) }] : []),
               ...(customer.cnpj ? [{ rotulo: customer.cnpj.replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ', valor: formatarDocumento(customer.cnpj) }] : []),
@@ -825,6 +865,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
         {noResumo ? (
           <AbaResumo
+            emNomeDe={vendedorEmNomeId ? (vendedorEmNomeNome ?? 'Vendedor') : null}
             rascunho={rascunhoVisivel}
             clienteRazao={customer.legal_name}
             clienteCnpj={customer.cnpj}

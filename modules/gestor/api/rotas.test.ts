@@ -230,6 +230,16 @@ describe('API do Gestor: trajeto do dia da equipe (T-0156, tracking §7)', () =>
     await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', GERENTE, { params: { usuario_id: VEND_3 } })).resolves.toBeTruthy();
   });
 
+  it('RN-CORE-13 / T-0187: o gerente vê o trajeto do supervisor das equipes abaixo; o supervisor, o dele próprio nunca (404, sem consultar o Core)', async () => {
+    const c = cenario();
+    c.trajetos[SUPERVISOR] = { metros: 800, pontos: [PONTO] };
+    const r = TrajetoEquipe.parse(await c.chamar('GET', 'equipe/:usuario_id/trajeto', GERENTE, { params: { usuario_id: SUPERVISOR } }));
+    expect(r.trajeto).toMatchObject({ id: SUPERVISOR, metros: 800 });
+    await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: SUPERVISOR } })).rejects.toMatchObject({ status: 404, codigo: 'MEMBRO_NAO_ENCONTRADO' });
+    await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', GERENTE, { params: { usuario_id: GERENTE } })).rejects.toMatchObject({ status: 404 });
+    await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', SUPERVISOR, { params: { usuario_id: SUP_2 } })).rejects.toMatchObject({ status: 404 });
+  });
+
   it('RN-CORE-37 / §7: sem `core.trajeto.ver_equipe` é 403, mesmo para quem entra pelo perfil (analista); a consulta não roda', async () => {
     const c = cenario();
     await expect(c.chamar('GET', 'equipe/:usuario_id/trajeto', ANALISTA, { params: { usuario_id: VENDEDOR } })).rejects.toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO' });

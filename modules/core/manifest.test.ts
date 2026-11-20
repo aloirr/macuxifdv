@@ -28,4 +28,7 @@ describe('RN-CORE-26: ações do Início de boas-vindas no manifesto (T-0073)', 
   it('RN-CORE-12: o Core oferece cliente.avisos (aviso de etapa pendente da equipe no Gestão, T-0102)', () => {
     expect(manifest.ofereceExtensoes).toContain('cliente.avisos');
   });
+  it('RN-CORE-52: o Core oferece rota.parada_complemento (nome do cliente na parada, Gestão, T-0187)', () => {
+    expect(manifest.ofereceExtensoes).toContain('rota.parada_complemento');
+  });
 });

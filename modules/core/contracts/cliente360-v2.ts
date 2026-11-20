@@ -19,6 +19,7 @@ export const ROTAS_CLIENTE360_V2 = {
   nota: 'clientes/:id/notas/:nota_id',
   documentos: 'clientes/:id/documentos',
   documento: 'clientes/:id/documentos/:documento_id',
+  carteira: 'clientes/:id/carteira',
   documentosPermissoes: 'documentos/permissoes',
   documentosExcecoes: 'documentos/excecoes',
 } as const;
@@ -194,3 +195,24 @@ export type DocumentoPermissoesPut = z.infer<typeof DocumentoPermissoesPutSchema
 /** `PUT documentos/excecoes`: perfis que NÃO veem o documento (P11: a exceção só tira acesso). Lista vazia = remove a exceção. */
 export const DocumentoExcecaoPutSchema = z.object({ documento_id: Id, perfis: z.array(z.string().min(1).max(40)).max(20) }).strict();
 export type DocumentoExcecaoPut = z.infer<typeof DocumentoExcecaoPutSchema>;
+
+/**
+ * `GET clientes/:id/carteira` (só app Gestão; online, `Cache-Control: no-store`): quem atende o cliente, para a tabela "Carteira" do
+ * Resumo (Vendedora · Ligar · WhatsApp). Nome e telefone NÃO vão ao aparelho pelo sync (T-0168): vêm daqui a cada abertura e não ficam
+ * guardados. `tel` e `whatsapp` já saem como link (`tel:+55...`, `https://wa.me/55...`); nulo = pessoa sem telefone cadastrado.
+ * Só perfis de gestão (supervisor, gerente, analista, assistente, admin); vendedor e promotor recebem 403.
+ */
+export const CarteiraClienteLinhaSchema = z.object({
+  usuario_id: Id,
+  nome: z.string(),
+  tel: z.string().nullable(),
+  whatsapp: z.string().nullable(),
+});
+export type CarteiraClienteLinha = z.infer<typeof CarteiraClienteLinhaSchema>;
+
+export const CarteiraClienteRespostaSchema = z.object({
+  /** "Vendedora" com uma pessoa; "Pessoa" com mais de uma (spec §6). */
+  rotulo_coluna: z.enum(['Vendedora', 'Pessoa']),
+  itens: z.array(CarteiraClienteLinhaSchema),
+});
+export type CarteiraClienteResposta = z.infer<typeof CarteiraClienteRespostaSchema>;

@@ -2,13 +2,15 @@
  * T-0145 (R-20261110-062232; RN-CORE-13 e RN-CORE-37): permissões obrigatórias do aparelho, conferidas a cada abertura,
  * ANTES do login e de qualquer sincronização. Sem todas, o app fica na tela "Permissões".
  * - Campo: notificações, localização "Permitir o tempo todo" (tracking da próxima semana), câmera e fotos/galeria.
- * - Gestão: só notificações.
+ * - Gestão: notificações; o cargo rastreado no Gestão (o supervisor, T-0187 §1.2) também a localização "o tempo todo". Antes
+ *   do login o cargo não é conhecido: a localização entra na tela depois do login (`permissoesExigidas`).
  * Regras do desenho do designer-ux (`docs/design/permissoes-e-fotos-pdv.md` §1, imagem `telas/T-0145-permissoes.png`, aprovada
  * em R-20261110-093125): situação por linha (Permitida, Falta, Negada); UM botão, que pede a próxima que falta na ordem da tabela e vira
  * "Abrir configurações" quando o Android não pergunta mais (2 recusas) ou falta o passo 2 da localização. No Android 11+
  * (API 30) "o tempo todo" só existe nas configurações: 1º "durante o uso" (diálogo), 2º "Permitir o tempo todo".
  * Puro (roda em Node). Leitura e pedidos ao aparelho em `services/permissoes.ts`; a tela em `components/tela-permissoes.tsx`.
  */
+import { APP_RASTREADO_DO_CARGO } from '@macuxi/core/contracts';
 import type { Variante } from './variante-tipo';
 
 export type IdPermissao = 'notificacoes' | 'localizacao' | 'camera' | 'galeria';
@@ -32,6 +34,17 @@ export const PERMISSOES_DA_VARIANTE: Readonly<Record<Variante, readonly IdPermis
   campo: ['notificacoes', 'localizacao', 'camera', 'galeria'],
   gestao: ['notificacoes'],
 };
+
+/**
+ * T-0187 (RN-CORE-37): permissões exigidas da variante e do cargo da sessão. O Campo exige as 4 para todos. No Gestão, a
+ * localização "o tempo todo" entra só para o cargo rastreado nele (`APP_RASTREADO_DO_CARGO` do Core: o supervisor; o gerente
+ * não). Sem cargo (antes do login), as da variante.
+ */
+export function permissoesExigidas(variante: Variante, cargo: string | null = null): readonly IdPermissao[] {
+  const daVariante = PERMISSOES_DA_VARIANTE[variante];
+  if (daVariante.includes('localizacao') || !cargo || APP_RASTREADO_DO_CARGO[cargo] !== variante) return daVariante;
+  return [...daVariante, 'localizacao'];
+}
 
 export type SituacaoPermissao = 'permitida' | 'falta' | 'negada';
 
@@ -62,7 +75,7 @@ export interface TrechoDeTexto {
   forte?: boolean;
 }
 
-/** "Como usamos a localização" (só no Campo): o aviso curto da base LGPD do tracking (docs/desenho/T-0145-lgpd-tracking.md §6). */
+/** "Como usamos a localização" (onde a localização é exigida): o aviso curto da base LGPD do tracking (docs/desenho/T-0145-lgpd-tracking.md §6). */
 export interface AvisoLocalizacao {
   link: string;
   titulo: string;
@@ -75,7 +88,7 @@ export interface TelaDePermissoes {
   linhas: LinhaPermissao[];
   /** Cartão dos 2 passos (Android 11+, "durante o uso" já concedido e falta "o tempo todo"). */
   passosLocalizacao: { feito: string; falta: string; faltaTrechos: readonly TrechoDeTexto[] } | null;
-  /** Link do aviso da localização: só na variante que pede a localização (Campo). */
+  /** Link do aviso da localização: só quando a localização é exigida (Campo e o supervisor no Gestão). */
   avisoLocalizacao: AvisoLocalizacao | null;
   /** Nulo = todas concedidas: o app segue sozinho. */
   botao: BotaoPermissoes | null;
@@ -159,14 +172,17 @@ function rotuloDa(acao: AcaoPermissao, apiAndroid: number | null): string {
   return ROTULO_PERMITIR;
 }
 
-/** Tudo o que a tela mostra, para a variante e o estado lido do aparelho. `apiAndroid` nulo fora do Android. */
+/**
+ * Tudo o que a tela mostra, para a variante, o estado lido do aparelho e as permissões exigidas (`permissoesExigidas`; sem
+ * elas, as da variante). `apiAndroid` nulo fora do Android.
+ */
 export function telaDePermissoes(
   variante: Variante,
   e: EstadosPermissoes,
   apiAndroid: number | null,
   toquesSemEfeito = 0,
+  ids: readonly IdPermissao[] = PERMISSOES_DA_VARIANTE[variante],
 ): TelaDePermissoes {
-  const ids = PERMISSOES_DA_VARIANTE[variante];
   const l = e.localizacao;
   const passos =
     ids.includes('localizacao') &&
@@ -187,7 +203,7 @@ export function telaDePermissoes(
   const acao = proxima ? acaoDa(proxima.id, e) : null;
   return {
     titulo: TITULO_PERMISSOES,
-    // o desenho: "Sem elas" no Campo (4 permissões) e "Sem ela" no Gestão (só notificações)
+    // o desenho: "Sem elas" com mais de uma permissão e "Sem ela" no Gestão só com notificações
     subtitulo: ids.length > 1 ? 'Sem elas o app não funciona.' : 'Sem ela o app não funciona.',
     linhas,
     passosLocalizacao: passos,
@@ -248,9 +264,13 @@ export function mesmoEstadoDePermissoes(a: EstadosPermissoes, b: EstadosPermisso
   );
 }
 
-/** Todas as permissões da variante concedidas: o app segue (login, carga e sincronização). */
-export function permissoesLiberadas(variante: Variante, e: EstadosPermissoes): boolean {
-  return PERMISSOES_DA_VARIANTE[variante].every((id) => situacaoDaPermissao(id, e) === 'permitida');
+/** Todas as permissões exigidas concedidas (sem a lista, as da variante): o app segue (login, carga e sincronização). */
+export function permissoesLiberadas(
+  variante: Variante,
+  e: EstadosPermissoes,
+  ids: readonly IdPermissao[] = PERMISSOES_DA_VARIANTE[variante],
+): boolean {
+  return ids.every((id) => situacaoDaPermissao(id, e) === 'permitida');
 }
 
 /** Estado "tudo concedido" (fora do Android, no navegador da demonstração, nada a pedir). */

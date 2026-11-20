@@ -1,6 +1,6 @@
 /**
  * Push do rastreamento (T-0156; ADR 0061; desenho `tracking.md` §5.2 e §5.3). RN-CORE-13, RN-CORE-37 e RN-CORE-46.
- * - `ponto_trajeto` (só ponto, sem aceite nem pausa): cada ponto passa pelo portão de 7 condições (`triarPontoRecebido`, com `app` 'campo' e sem permissão do aparelho) e o que está fora dele é descartado sem gravar e sem travar a
+ * - `ponto_trajeto` (só ponto, sem aceite nem pausa): cada ponto passa pelo portão de 7 condições (`triarPontoRecebido`, com o `app` do cargo (`APP_RASTREADO_DO_CARGO`) e sem permissão do aparelho) e o que está fora dele é descartado sem gravar e sem travar a
  *   fila (a resposta é `aceito`: o aparelho apaga o lote inteiro). Depois de gravar, recalcula o dia inteiro de cada (usuário, data
  *   no fuso do tenant) e faz upsert em `core.deslocamento_dia` (`origem = 'rastreamento'`).
  * O usuário vem sempre da sessão. Nenhuma coordenada vai para log, erro ou resposta (§9): só ids e contagens.

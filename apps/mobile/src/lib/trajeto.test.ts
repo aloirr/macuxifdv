@@ -33,6 +33,14 @@ describe('tarefa macuxi-trajeto: captura (§3.1)', () => {
     expect(`${notificationTitle} ${notificationBody}`).not.toMatch(/locali|trajeto|rastre|gps|expediente/i);
   });
 
+  it('T-0187 (P7 A): no Gestão a notificação fixa só diz "Macuxi Gestão ativo"; sem variante, a do Campo', () => {
+    const gestao = opcoesDoTrajeto(PARAMETROS_RASTREAMENTO_PADRAO.frequencia, 'gestao').foregroundService;
+    expect(gestao.notificationTitle).toBe('Macuxi Gestão ativo');
+    expect(gestao.notificationBody).toBe('');
+    expect(opcoesDoTrajeto(PARAMETROS_RASTREAMENTO_PADRAO.frequencia, 'campo')).toEqual(opcoesDoTrajeto());
+    expect(opcoesDoTrajeto(undefined, 'gestao')).toMatchObject({ distanceInterval: 200, timeInterval: 300_000 });
+  });
+
   it('§3.1 e §3.3: a captura segue a frequência do parâmetro do BKO (metros e minutos)', () => {
     expect(opcoesDoTrajeto({ distancia_m: 100, intervalo_min: 2, lote_min: 10 })).toMatchObject({ distanceInterval: 100, timeInterval: 120_000, deferredUpdatesInterval: 600_000 });
     expect(opcoesDoTrajeto(PARAMETROS_RASTREAMENTO_PADRAO.frequencia)).toEqual(opcoesDoTrajeto());

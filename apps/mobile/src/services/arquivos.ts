@@ -8,6 +8,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { caminhoLocalValido, PASTA_FOTOS } from '@/lib/foto';
+import { limparPdfsTemporarios } from '@/services/visor-pdf';
 
 function arquivo(caminho: string): File {
   if (!caminhoLocalValido(caminho)) throw new Error('caminho de arquivo local inválido');
@@ -43,13 +44,14 @@ export function uriLocal(caminho: string): string | null {
 
 /**
  * RN-CORE-15 (aparelho bloqueado): apaga a pasta das fotos inteira, inclusive as que ainda não entraram na fila, e as
- * miniaturas do catálogo guardadas no cache (T-0097).
+ * miniaturas do catálogo guardadas no cache (T-0097) e algum PDF do visor ainda aberto (T-0186).
  */
 export async function apagarFotosLocais(): Promise<void> {
   if (Platform.OS === 'web') return;
   const pasta = new Directory(Paths.document, PASTA_FOTOS);
   if (pasta.exists) pasta.delete();
   apagarMiniaturas();
+  limparPdfsTemporarios();
 }
 
 /** Pasta das miniaturas do catálogo dentro do cache do app (T-0097; `services/miniaturas.ts`). */

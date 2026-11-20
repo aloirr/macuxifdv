@@ -14,7 +14,7 @@
  * O Core usa `escolher({ titulo })`: o shell abre a folha "Tirar foto / Escolher da galeria" (components/folha-foto-pdv.tsx,
  * imagem aprovada T-0147-fotos-pdv.png) e devolve a foto gravada com a origem, para o `ClienteFotoPush`.
  * O visualizador de arquivos do shell (`abrirArquivo`, services/visualizar-arquivo.ts) vai na porta única `definirAbrirArquivo` do Core
- * (T-0186, RD-2374): fachada e documentos do cliente, com os formatos que ele abre (só imagem), para a tela do Core esconder a
+ * (T-0186, RD-2374): fachada e documentos do cliente, com os formatos que ele abre (imagem e PDF), para a tela do Core esconder a
  * ação do que o visor não abre.
  */
 import * as appCore from '@macuxi/core/app';
@@ -126,7 +126,7 @@ export function registrarCameraNosModulos(): boolean {
   definirCapturaFotoPesquisa(capturarFotoGravada);
   // a galeria só para as fotos do PDV (premissa do dono do produto, desenho T-0147 §5)
   if (typeof core.definirCapturaFotoPdv === 'function') core.definirCapturaFotoPdv({ escolher: escolherFotoPdv, camera: capturarFotoGravada, galeria: escolherFotoDaGaleria });
-  definirAbrirArquivo(abrirArquivo, { formatos: ['imagem'] });
+  definirAbrirArquivo(abrirArquivo, { formatos: ['imagem', 'pdf'] });
   if (typeof core.definirCapturaFoto !== 'function') return false;
   core.definirCapturaFoto(capturarFoto);
   return true;

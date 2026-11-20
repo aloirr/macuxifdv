@@ -6,13 +6,15 @@
 | Extensão | Oferece | Quem renderiza | Usado por |
 |---|---|---|---|
 | `cliente.abas` | core | ficha do cliente do core (app) | promotor, pesquisa, vendedor, gestor |
-| `cliente.acoes` | core | rodapé da ficha / folha de check-in do core (app); desde a T-0076 o rodapé mostra só a ação com `destaque: true` ("+ Novo pedido"), ao lado do Visitado | vendedor (o `ver-catalogo` do Catálogo saiu na T-0076) |
+| `cliente.acoes` | core | rodapé da ficha / folha de check-in do core (app); desde a T-0076 o rodapé mostra só a ação com `destaque: true` ("+ Novo pedido"), ao lado do Visitado | vendedor (o `ver-catalogo` do Catálogo saiu na T-0076); **T-0187**: item `novo-pedido-em-nome` do Vendedor, rótulo "Novo pedido", `apps: ['gestao']`, `destaque: true`, ação `pedido.criar_em_nome`; abre o pedido com `emNome: true` |
 | `cliente.avisos` | core (T-0102, aditivo, 08/11) | ficha do cliente do core (app, Campo e Gestão): abaixo do cabeçalho, acima das abas/ações; o componente recebe `{ contexto: ContextoCliente }` e devolve `null` sem aviso (offline, só o aparelho) | gestor `etapa-pendente-equipe` (`AvisoEtapaEquipe`, `apps: ['gestao']`, ação `painel_equipe.ver`) |
 | `visita.etapas_checkout` | core | folha de checkout do core (app); RN-CORE-12 | pesquisa, promotor, vendedor (motivo de não-venda) |
 | `inicio.cards` | core | shell: Início do app (`apps/mobile/src/components/extensoes-shell.tsx`) | todos, por `ordem` (menor primeiro; ausente = 100): gestor "Pedidos para aprovar" (10, Gestão), vendedor `pedidos-resumo` Orçamentos e A faturar (20, só Campo, ação `pedido.criar`, T-0076) |
 | `menu.itens` | core | shell: Perfil do app (seção "Mais") e menu do BKO (grupo "Mais") | todos |
 | `produto.acoes` | catalogo | (catálogo, T-0007+) | vendedor |
 | `pedido.criar_em_nome` | vendedor | (vendedor) | gestor · contexto `ContextoPedidoEmNomeSlot` (`modules/vendedor/contracts/extensoes.ts`): `vendedor_id`, `autor_id` e, desde o v1.0.1 (aditivo, 08/11, R-20261108-210156), `vendedor_nome?` para o PDF do pedido em nome; sem o campo nada muda |
+| `rota.parada_complemento` | core (T-0187, aditivo) | (core) | gestor |
+| `pedido.equipe_em_nome` | vendedor (T-0187, aditivo) | (vendedor) lista "Em nome de": filtra só vendedor e tira o autor | gestor · visão da equipe em cache |
 
 Itens só aparecem se o módulo registrante e o dono do slot forem efetivos, o perfil bater, a `acao` for permitida
 (ADR 0004) e, quando o item declara `apps` (T-0029 E4), o app atual estiver na lista; caso contrário somem sem erro (RN-CORE-03).

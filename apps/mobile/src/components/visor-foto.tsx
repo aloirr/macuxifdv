@@ -2,10 +2,11 @@
  * Visor de foto comum do shell (RD-0088; imagem aprovada da foto do PDV, docs/design/telas/T-0147-fotos-pdv.png, quadro 3):
  * fundo escuro, fechar (X) com título e subtítulo no topo, a foto inteira no meio, zoom por pinça (até 4x), arraste com a
  * foto aproximada e toque duplo (aproxima / volta). Sem biblioteca de gestos: `PanResponder` + `Animated` do React Native.
- * Só desenha: a fonte e o estado vêm da rota (`app/foto.tsx`); regras puras em `@/lib/visor-foto`.
+ * Só desenha: a fonte e o estado vêm da rota (`app/foto.tsx`); regras puras em `@/lib/visor-foto`. O visor de PDF
+ * (`app/pdf.tsx`) usa o mesmo topo e os mesmos estados, trocando a foto pelas páginas (`conteudo`).
  */
 import { colors, fonte, Icon } from '@macuxi/ui/mobile';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, Image, PanResponder, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,9 +33,11 @@ export interface PropsVisorDeFoto {
   aoFechar: () => void;
   /** A imagem não abriu (endereço de rede caiu, arquivo sumiu): a rota troca o estado pela mensagem. */
   aoFalharImagem?: () => void;
+  /** No lugar da foto com zoom (visor de PDF: as páginas do arquivo). */
+  conteudo?: (uri: string) => ReactNode;
 }
 
-export function VisorDeFoto({ titulo, subtitulo, estado, aoFechar, aoFalharImagem }: PropsVisorDeFoto) {
+export function VisorDeFoto({ titulo, subtitulo, estado, aoFechar, aoFalharImagem, conteudo }: PropsVisorDeFoto) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[s.tela, { paddingBottom: insets.bottom }]} testID="visor-foto">
@@ -50,6 +53,8 @@ export function VisorDeFoto({ titulo, subtitulo, estado, aoFechar, aoFalharImage
       <View style={s.corpo}>
         {estado.tipo === 'carregando' ? (
           <ActivityIndicator color={colors.surface} testID="visor-foto-carregando" />
+        ) : estado.tipo === 'ok' && conteudo ? (
+          conteudo(estado.uri)
         ) : estado.tipo === 'ok' ? (
           <FotoComZoom key={estado.uri} uri={estado.uri} rotulo={ROTULO_IMAGEM_FOTO} aoFalhar={aoFalharImagem} />
         ) : (

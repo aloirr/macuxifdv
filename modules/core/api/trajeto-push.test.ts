@@ -84,6 +84,12 @@ describe('RN-CORE-13: push de ponto_trajeto', () => {
     expect(inserts(v, 'ponto_trajeto')[0]!.valores[1]).toEqual([idn(3)]);
   });
 
+  it('RN-CORE-13: ponto de supervisor dentro do portão é gravado (o cargo decide o app: Gestão)', async () => {
+    const s = ctxFalso({}, 'supervisor');
+    await receberPontosTrajeto(s.ctx, [item(ponto(1))]);
+    expect(inserts(s, 'ponto_trajeto')).toHaveLength(1);
+  });
+
   it('RN-CORE-13: payload inválido ou remoção é rejeitado só naquele item; sem coordenada na mensagem', async () => {
     const s = ctxFalso();
     const r = await receberPontosTrajeto(s.ctx, [item(ponto(1, { latitude: 200 })), item(ponto(2), 'remover'), item(ponto(3))]);

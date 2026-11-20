@@ -1,7 +1,7 @@
 /**
  * Barra de abas inferior do shell. As abas deixaram de ser fixas (Início · Rota · Clientes · Pedidos · Metas):
  * "Início" é do shell e as demais vêm das telas com `navegacao` dos módulos efetivos (lib/modulos.ts →
- * `visao.navegacao`), filtradas por perfil e permissão por ação. Montagem e limite de 5 posições (com "Mais") em
+ * `visao.navegacao`), filtradas por perfil e permissão por ação. Montagem e posições por variante em
  * `lib/abas.ts`, puro e testado (T-0034). O desenho é a `BarraAbas` do kit (T-0072, docs/design/componentes.md §5).
  * testID estável: `tab-bar`, `tab-inicio`, `tab-<modulo>-<id>` (= `nav-<modulo>-<id>` do registro) e `tab-mais`.
  * Sem contador nas abas (RD-0078, R-20261110-112315): a fila do aparelho já aparece no selo "Na fila" de cada linha e
@@ -20,8 +20,6 @@ import { abaAcesa, type AbasDoShell } from '@/lib/abas';
 import { abrirAba } from '@/lib/historico-telas';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
 import { useDonoDaPilha } from '@/state/historico-do-shell';
-
-export { abasDoShell, type AbaShell, type AbasDoShell } from '@/lib/abas';
 
 export function TabBar({ abas }: { abas: AbasDoShell }) {
   const insets = useSafeAreaInsets();

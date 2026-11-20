@@ -5,6 +5,7 @@
 import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus, type OrderValidation } from './order';
 import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
+import { decisorEhAutor, MSG_APROVACAO_DO_PROPRIO_PEDIDO } from './pedido-em-nome';
 import { aprovacoesFinanceiras, type FinanceiroParaAprovacao } from './credito-pedido';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
@@ -196,6 +197,26 @@ export function comAvisoDoPrazoMudou(r: Omit<RecebimentoAceito, 'aceito'>): Omit
   return { ...r, historico: r.historico.map((h) => (h.de === null && h.para === 'received' ? { ...h, motivo: MOTIVO_PRAZO_MUDOU } : h)) };
 }
 
+/** RN-VEN-10 e RN-GES-04 (P4 A): o menor nível que pode decidir o pedido do autor (um acima do dele). Sem autor gestor: `null`. */
+export function nivelMinimoDoAutor(perfil: string): NivelAprovacao | null {
+  const i = (NIVEIS_APROVACAO as readonly string[]).indexOf(perfil);
+  return i === -1 ? null : (NIVEIS_APROVACAO[i + 1] ?? null);
+}
+
+/** RN-GES-04 (P4 A): ninguém aprova o próprio pedido; o motivo que cairia no nível do autor (ou abaixo) sobe um nível. */
+export function elevarAoNivelDoAutor<T extends Pick<AprovacaoNova, 'nivel'>>(aprovacoes: readonly T[], perfilDoAutor: string): T[] {
+  const minimo = nivelMinimoDoAutor(perfilDoAutor);
+  if (!minimo) return [...aprovacoes];
+  return aprovacoes.map((a) => (ORDEM_NIVEL[a.nivel] < ORDEM_NIVEL[minimo] ? { ...a, nivel: minimo } : a));
+}
+
+/** RN-GES-04 (T-0187, P4 A): ninguém aprova o próprio pedido; cada aprovação sobe ao nível mínimo do autor e o `nivel` do pedido acompanha. */
+export function comNivelDoAutor(r: Omit<RecebimentoAceito, 'aceito'>, perfilDoAutor: string): Omit<RecebimentoAceito, 'aceito'> {
+  if (r.aprovacoes.length === 0) return r;
+  const aprovacoes = elevarAoNivelDoAutor(r.aprovacoes, perfilDoAutor);
+  return { ...r, aprovacoes, nivel: maiorNivel(aprovacoes.map((a) => a.nivel)) };
+}
+
 export type ResultadoRecebimento =
   | {
       aceito: true;
@@ -310,6 +331,8 @@ export interface RevalidarEntrada {
   niveis_financeiros?: { credito: NivelAprovacao; inadimplencia: NivelAprovacao };
   /** RN-VEN-45: o percentual do push difere do vigente (cadastro mudou depois da data declarada pelo aparelho): aviso na linha do tempo, fora da alçada. */
   percentual_mudou?: boolean;
+  /** T-0187 (P4 A, RN-GES-04): perfil do autor no pedido em nome; o motivo que cairia no nível dele sobe um nível. Ausente = pedido do próprio vendedor. */
+  autor_perfil?: string;
 }
 
 export interface ItemRevalidado {
@@ -470,7 +493,8 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
   const comFinanceiro = comAprovacoesFinanceiras(resto0, aprovacoesFinanceiras({ prazo_medio_dias: e.prazo_medio_dias, total_cents: totais.total_cents, financeiro: e.financeiro, niveis: e.niveis_financeiros ?? { credito: 'gerente', inadimplencia: 'gerente' } }));
-  const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(comFinanceiro) : comFinanceiro;
+  const elevado = e.autor_perfil ? comNivelDoAutor(comFinanceiro, e.autor_perfil) : comFinanceiro;
+  const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(elevado) : elevado;
   return {
     ok: true,
     ...resto,
@@ -537,6 +561,9 @@ export interface DecidirEntrada {
   texto?: string | null;
   /** `nivel_aprovacao` do pedido: vale para o pedido pendente sem nenhuma linha de aprovação (API antiga) */
   nivel_do_pedido?: NivelAprovacao | null;
+  /** quem decide e o pedido (autor e dono): o autor nunca decide o próprio pedido (RN-VEN-10, T-0187 P4 A) */
+  decisor_id?: string;
+  pedido?: { autor_id?: string | null; vendedor_id: string };
 }
 
 export interface MudancaDeAprovacao {
@@ -583,6 +610,9 @@ export function decidirAprovacao(e: DecidirEntrada): ResultadoDecisao {
   if (e.perfil === 'promotor') return { tipo: 'recusa', codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não decide pedidos.' };
   if (e.perfil !== 'supervisor' && e.perfil !== 'gerente' && e.perfil !== 'analista') {
     return { tipo: 'recusa', codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não aprova pedidos.' };
+  }
+  if (e.pedido && e.decisor_id && decisorEhAutor(e.pedido, e.decisor_id)) {
+    return { tipo: 'recusa', codigo: 'APROVACAO_DO_PROPRIO_PEDIDO', http: 422, mensagem: MSG_APROVACAO_DO_PROPRIO_PEDIDO };
   }
   if (e.status === DESTINO_DA_DECISAO[e.decisao]) return { tipo: 'repetida' };
   const aprovacoes = aprovacoesDoPedido(e.status, e.aprovacoes, e.nivel_do_pedido);

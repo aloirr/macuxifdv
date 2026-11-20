@@ -23,14 +23,14 @@ import {
   type RotasLista,
   type VisitasLista,
 } from '../contracts';
-import { carteiraParaEvento, copiarRota, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
+import { carteiraParaEvento, copiarRota, PERFIS_GESTAO, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import { auditar } from './auditoria';
+import { EQUIPES_DO_RESPONSAVEL } from './carteira';
 import { BASE, TABELAS_SYNC } from './sync';
 
 const Uuid = z.string().uuid();
 const IdParam = z.object({ id: Uuid });
-const PERFIS_GESTAO = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 const DIA_MS = 86_400_000;
 
 const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
@@ -113,6 +113,20 @@ async function rotasDoPeriodo(ctx: ContextoBase, db: ClienteBanco, usuarios: str
   });
 }
 
+/**
+ * RN-CORE-04 (T-0187, P1 A): de quem é a carteira que vale para a rota do usuário `$1`: a dele; para o supervisor, também a da equipe
+ * que ele responde; para o gerente, a das equipes abaixo dele (como `carteiraNoBanco`). Supervisor e gerente não têm carteira própria;
+ * o resto segue só com a própria. A rota do gerente não tem rastreamento (`CARGOS_RASTREADOS` não o inclui).
+ */
+const DONOS_DA_CARTEIRA_DA_ROTA = `
+  ${EQUIPES_DO_RESPONSAVEL}, donos as (
+    select u.id from core.usuario u where u.id = $1
+    union
+    select m.id from core.usuario m join eq on eq.id = m.equipe_id
+      where m.deleted_at is null
+        and exists (select 1 from core.usuario s where s.id = $1 and s.deleted_at is null and (s.perfil = 'gerente' or (s.perfil = 'supervisor' and eq.nivel = 0)))
+  )`;
+
 async function checarUsuario(ctx: ContextoBase, db: ClienteBanco, usuarioId: string): Promise<void> {
   if (!visivel(await ctx.usuariosVisiveis(), usuarioId)) throw usuarioNaoEncontrado();
   const r = await db.query('select 1 from core.usuario where id = $1 and deleted_at is null', [usuarioId]);
@@ -127,11 +141,12 @@ async function gravarRota(
   paradas: ReadonlyArray<{ cliente_id: string; janela_inicio?: string | null; janela_fim?: string | null }>,
   origem: 'bko' | 'frequencia',
 ): Promise<string> {
-  // RN-CORE-04: só clientes da carteira do usuário da rota, vigente na data
+  // RN-CORE-04: só clientes da carteira do usuário da rota, vigente na data; a do supervisor é a da equipe dele (T-0187)
   if (paradas.length > 0) {
     const ok = await db.query<{ cliente_id: string }>(
-      `select distinct cliente_id from core.carteira
-        where usuario_id = $1 and deleted_at is null and cliente_id = any($2::uuid[])
+      `${DONOS_DA_CARTEIRA_DA_ROTA}
+       select distinct cliente_id from core.carteira
+        where usuario_id in (select id from donos) and deleted_at is null and cliente_id = any($2::uuid[])
           and (inicio is null or inicio <= $3::date) and (fim is null or fim >= $3::date)`,
       [usuarioId, paradas.map((p) => p.cliente_id), data],
     );
@@ -327,11 +342,12 @@ const rotasDeCarteiraDoUsuario: RotaModulo[] = [
         await checarUsuario(ctx, db, ctx.params.id);
         const itens = (
           await db.query(
-            `select c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng, c.cadastro_incompleto,
+            `${DONOS_DA_CARTEIRA_DA_ROTA}
+             select distinct on (lower(coalesce(nullif(c.nome_fantasia, ''), c.razao_social)), c.id) c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng, c.cadastro_incompleto,
                     to_char((select max(h.ultima_compra_em) from core.historico_compra h where h.cliente_id = c.id and h.deleted_at is null), 'YYYY-MM-DD') as ultima_compra_em,
                     k.id as carteira_id, k.papel, k.frequencia_semanas, k.dia_semana
                from core.carteira k join core.cliente c on c.id = k.cliente_id and c.deleted_at is null and c.ativo
-              where k.usuario_id = $1 and k.deleted_at is null and (k.fim is null or k.fim >= $2::date) and (k.inicio is null or k.inicio <= $2::date)
+              where k.usuario_id in (select id from donos) and k.deleted_at is null and (k.fim is null or k.fim >= $2::date) and (k.inicio is null or k.inicio <= $2::date)
               order by lower(coalesce(nullif(c.nome_fantasia, ''), c.razao_social)), c.id
               limit 5000`,
             [ctx.params.id, dataLocal(ctx.agora(), ctx.fuso())],
