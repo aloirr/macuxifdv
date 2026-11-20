@@ -10,6 +10,7 @@
  * (API 30) "o tempo todo" só existe nas configurações: 1º "durante o uso" (diálogo), 2º "Permitir o tempo todo".
  * Puro (roda em Node). Leitura e pedidos ao aparelho em `services/permissoes.ts`; a tela em `components/tela-permissoes.tsx`.
  */
+import { APP_RASTREADO_DO_CARGO } from '@macuxi/core/contracts';
 import type { Variante } from './variante-tipo';
 
 export type IdPermissao = 'notificacoes' | 'localizacao' | 'camera' | 'galeria';
@@ -34,17 +35,14 @@ export const PERMISSOES_DA_VARIANTE: Readonly<Record<Variante, readonly IdPermis
   gestao: ['notificacoes'],
 };
 
-/** App rastreado de cada cargo (o `APP_RASTREADO_DO_CARGO` do Core, T-0187 §1.2); cargo fora do mapa não é rastreado. */
-export type AppDoCargo = Readonly<Partial<Record<string, string>>>;
-
 /**
  * T-0187 (RN-CORE-37): permissões exigidas da variante e do cargo da sessão. O Campo exige as 4 para todos. No Gestão, a
- * localização "o tempo todo" entra só para o cargo rastreado nele (o supervisor; o gerente não). Sem cargo (antes do login)
- * ou sem o mapa do Core, as da variante.
+ * localização "o tempo todo" entra só para o cargo rastreado nele (`APP_RASTREADO_DO_CARGO` do Core: o supervisor; o gerente
+ * não). Sem cargo (antes do login), as da variante.
  */
-export function permissoesExigidas(variante: Variante, cargo: string | null = null, appDoCargo: AppDoCargo = {}): readonly IdPermissao[] {
+export function permissoesExigidas(variante: Variante, cargo: string | null = null): readonly IdPermissao[] {
   const daVariante = PERMISSOES_DA_VARIANTE[variante];
-  if (daVariante.includes('localizacao') || !cargo || appDoCargo[cargo] !== variante) return daVariante;
+  if (daVariante.includes('localizacao') || !cargo || APP_RASTREADO_DO_CARGO[cargo] !== variante) return daVariante;
   return [...daVariante, 'localizacao'];
 }
 

@@ -3,7 +3,6 @@
  * regras puras: Campo exige as 4 e Gestão só notificações; localização em 2 passos no Android 11+; depois de 2 recusas,
  * "Abrir configurações"; permissão retirada volta à mesma tela, só com ela em "Falta"/"Negada".
  */
-import { APP_RASTREADO_DO_CARGO } from '@macuxi/core/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -136,35 +135,27 @@ describe('telaDePermissoes — Gestão', () => {
   });
 });
 
-/** T-0187 §1.2: o app rastreado de cada cargo, o do Core (o mesmo que o shell usa). */
-const APP_DO_CARGO = APP_RASTREADO_DO_CARGO;
-
 describe('T-0187 (RN-CORE-37): "o tempo todo" no Gestão só para o supervisor', () => {
   it('permissões exigidas: o Campo segue com as 4 para todos; o Gestão acrescenta a localização só ao cargo rastreado nele', () => {
-    expect(permissoesExigidas('campo', 'vendedor', APP_DO_CARGO)).toEqual(['notificacoes', 'localizacao', 'camera', 'galeria']);
-    expect(permissoesExigidas('campo', null, APP_DO_CARGO)).toEqual(['notificacoes', 'localizacao', 'camera', 'galeria']);
-    expect(permissoesExigidas('gestao', 'supervisor', APP_DO_CARGO)).toEqual(['notificacoes', 'localizacao']);
+    expect(permissoesExigidas('campo', 'vendedor')).toEqual(['notificacoes', 'localizacao', 'camera', 'galeria']);
+    expect(permissoesExigidas('campo', null)).toEqual(['notificacoes', 'localizacao', 'camera', 'galeria']);
+    expect(permissoesExigidas('gestao', 'supervisor')).toEqual(['notificacoes', 'localizacao']);
     // o gerente não é rastreado (T-0187 §0) e, antes do login, o cargo não é conhecido
-    expect(permissoesExigidas('gestao', 'gerente', APP_DO_CARGO)).toEqual(['notificacoes']);
-    expect(permissoesExigidas('gestao', null, APP_DO_CARGO)).toEqual(['notificacoes']);
-    expect(APP_DO_CARGO).toMatchObject({ vendedor: 'campo', promotor: 'campo', supervisor: 'gestao' });
-    expect(APP_DO_CARGO.gerente).toBeUndefined();
-    // sem o mapa, nada muda no Gestão
-    expect(permissoesExigidas('gestao', 'supervisor', {})).toEqual(['notificacoes']);
-    expect(permissoesExigidas('gestao', 'supervisor')).toEqual(['notificacoes']);
+    expect(permissoesExigidas('gestao', 'gerente')).toEqual(['notificacoes']);
+    expect(permissoesExigidas('gestao', null)).toEqual(['notificacoes']);
   });
 
   it('o supervisor só segue com a localização "o tempo todo"; o gerente segue só com notificações', () => {
     const soNotificacoes = estados({ notificacoes: OK });
-    const exigidasSup = permissoesExigidas('gestao', 'supervisor', APP_DO_CARGO);
+    const exigidasSup = permissoesExigidas('gestao', 'supervisor');
     expect(permissoesLiberadas('gestao', soNotificacoes, exigidasSup)).toBe(false);
     expect(permissoesLiberadas('gestao', estados({ notificacoes: OK, duranteUso: OK, tempoTodo: FALTA }), exigidasSup)).toBe(false);
     expect(permissoesLiberadas('gestao', estados({ notificacoes: OK, duranteUso: OK, tempoTodo: OK }), exigidasSup)).toBe(true);
-    expect(permissoesLiberadas('gestao', soNotificacoes, permissoesExigidas('gestao', 'gerente', APP_DO_CARGO))).toBe(true);
+    expect(permissoesLiberadas('gestao', soNotificacoes, permissoesExigidas('gestao', 'gerente'))).toBe(true);
   });
 
   it('tela do supervisor: notificações e localização, com o aviso da base LGPD e os 2 passos no Android 11+', () => {
-    const exigidas = permissoesExigidas('gestao', 'supervisor', APP_DO_CARGO);
+    const exigidas = permissoesExigidas('gestao', 'supervisor');
     const t = telaDePermissoes('gestao', estados({ notificacoes: OK, duranteUso: OK }), API_11, 0, exigidas);
     expect(t.subtitulo).toBe('Sem elas o app não funciona.');
     expect(t.linhas.map((l) => [l.id, l.situacao])).toEqual([
@@ -178,7 +169,7 @@ describe('T-0187 (RN-CORE-37): "o tempo todo" no Gestão só para o supervisor',
   });
 
   it('tela do gerente: igual à de hoje (só notificações, sem o aviso da localização)', () => {
-    const t = telaDePermissoes('gestao', estados(), API_11, 0, permissoesExigidas('gestao', 'gerente', APP_DO_CARGO));
+    const t = telaDePermissoes('gestao', estados(), API_11, 0, permissoesExigidas('gestao', 'gerente'));
     expect(t).toEqual(telaDePermissoes('gestao', estados(), API_11));
     expect(t.avisoLocalizacao).toBeNull();
   });

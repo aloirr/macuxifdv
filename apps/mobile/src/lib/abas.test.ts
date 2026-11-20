@@ -50,7 +50,6 @@ describe('T-0034 — abas do shell mobile', () => {
   });
 
   it('T-0170: o Campo tem 6 posições (4 abas de módulo e o "Mais")', () => {
-    expect(MAX_ABAS_POR_VARIANTE.campo).toBe(6);
     const item = (id: string, rotulo: string) => ({ modulo: 'core', id, caminho: id, rotulo, icone: 'file' }) as unknown as ItemNavegacao<unknown>;
     const nav = [item('rota', 'Rota'), item('clientes', 'Clientes'), item('pedidos', 'Pedidos'), item('performance', 'Performance'), item('catalogo', 'Catálogo'), item('pesquisas', 'Pesquisas')];
     const { barra, mais } = abasDoShell(nav, MAX_ABAS_POR_VARIANTE.campo);

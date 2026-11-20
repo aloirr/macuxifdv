@@ -32,7 +32,7 @@ import {
   type CamposLogin,
   type DadosDaTroca,
 } from '@macuxi/core/app';
-import { APP_RASTREADO_DO_CARGO, type FakeUser, type Me } from '@macuxi/core/contracts';
+import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
   CODIGO_USUARIO_SEM_FILIAL,
   ErroHttp,
@@ -292,7 +292,17 @@ function usePlataformaValor() {
    * ainda não lidas (a tela de abertura fica). Sem todas, nada sincroniza (`executarSync`, agendador) e o Gate mostra a tela.
    */
   const [estadosPermissoes, setEstadosPermissoes] = useState<EstadosPermissoes | null>(null);
+  /**
+   * T-0187 (RN-CORE-37): permissões exigidas pela variante e pelo cargo da sessão, calculadas só aqui; no Gestão, o supervisor
+   * que entra passa a precisar da localização "o tempo todo" e a tela de permissões volta por cima do app, depois do login.
+   */
+  const perfilDaSessao = sessao?.user.perfil ?? null;
+  const permissoesDoUsuario = useMemo(() => permissoesExigidas(variante, perfilDaSessao), [variante, perfilDaSessao]);
+  const permissoesDoUsuarioRef = useRef(permissoesDoUsuario);
+  permissoesDoUsuarioRef.current = permissoesDoUsuario;
+  /** Todas as exigidas concedidas: gravado só aqui, a cada leitura do aparelho e a cada mudança das exigidas (login, saída). */
   const permissoesOkRef = useRef(false);
+  permissoesOkRef.current = estadosPermissoes !== null && permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario);
   const [pedindoPermissao, setPedindoPermissao] = useState(false);
   /** 🟡 2 da revisão T-0145: toques no "Permitir" sem mudança no estado; com 2, o botão abre as configurações (sem laço). */
   const [toquesSemEfeito, setToquesSemEfeito] = useState(0);
@@ -303,16 +313,16 @@ function usePlataformaValor() {
     const antes = estadosPermissoesRef.current;
     const mudou = antes === null || !mesmoEstadoDePermissoes(antes, e);
     estadosPermissoesRef.current = e;
-    // T-0187: as exigidas dependem do cargo da sessão (o supervisor no Gestão também precisa da localização "o tempo todo")
-    permissoesOkRef.current = permissoesLiberadas(variante, e, permissoesExigidas(variante, sessaoRef.current?.user.perfil ?? null, APP_RASTREADO_DO_CARGO));
     setEstadosPermissoes(e);
     if (mudou) setToquesSemEfeito(0);
     return mudou;
-  }, [variante]);
+  }, []);
+  /** Lê o aparelho e diz se as exigidas (as do ref, sem recalcular) estão todas concedidas. */
   const conferirPermissoes = useCallback(async () => {
     await lerEGuardarPermissoes();
-    return permissoesOkRef.current;
-  }, [lerEGuardarPermissoes]);
+    const e = estadosPermissoesRef.current;
+    return e !== null && permissoesLiberadas(variante, e, permissoesDoUsuarioRef.current);
+  }, [lerEGuardarPermissoes, variante]);
 
   const api = useCallback(
     () =>
@@ -1168,14 +1178,6 @@ function usePlataformaValor() {
     });
     return () => sub.remove();
   }, [conferirPermissoes]);
-
-  // T-0187 (RN-CORE-37): permissões exigidas pela variante e pelo cargo; no Gestão, o supervisor que entra passa a precisar da
-  // localização "o tempo todo" e a tela de permissões volta por cima do app, depois do login
-  const perfilDaSessao = sessao?.user.perfil ?? null;
-  const permissoesDoUsuario = useMemo(() => permissoesExigidas(variante, perfilDaSessao, APP_RASTREADO_DO_CARGO), [variante, perfilDaSessao]);
-  useEffect(() => {
-    if (estadosPermissoes) permissoesOkRef.current = permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario);
-  }, [estadosPermissoes, variante, permissoesDoUsuario]);
 
   /** Tela de permissões (nula enquanto não leu ou com todas concedidas). */
   const telaPermissoes = useMemo<TelaDePermissoes | null>(
