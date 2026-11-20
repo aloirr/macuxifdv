@@ -81,6 +81,11 @@ describe('RN-CORE-51/52: rodapé da ficha do cliente', () => {
   it('RN-CORE-52: sem permissão (cliente fora de rota) o Check-in some', () => {
     expect(botoesDoRodapeCliente({ ...base, checkinPermitido: false })).toEqual({ checkin: false, checkout: false, pesquisa: true });
   });
+  it('RN-CORE-13: no Gestão, sem a ação visita.registrar_gestao somem Check-in e Checkout; a Pesquisa fica', () => {
+    expect(botoesDoRodapeCliente({ ...base, registraVisita: false })).toEqual({ checkin: false, checkout: false, pesquisa: true });
+    expect(botoesDoRodapeCliente({ ...base, atendimentoAqui: true, registraVisita: false })).toEqual({ checkin: false, checkout: false, pesquisa: true });
+    expect(botoesDoRodapeCliente({ ...base, registraVisita: true })).toEqual({ checkin: true, checkout: false, pesquisa: true });
+  });
   it('RN-CORE-13: cliente já visitado hoje (sem atendimento aberto) não repete o Check-in', () => {
     expect(botoesDoRodapeCliente({ ...base, visitadoHoje: true })).toEqual({ checkin: false, checkout: false, pesquisa: true });
   });

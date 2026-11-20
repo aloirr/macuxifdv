@@ -17,7 +17,6 @@ import {
   linhasDadosCadastrais,
   linhasDoDetalheDaNota,
   linhasPerformance,
-  perfilDeGestao,
   removerChip,
   segundaLinhaDoDocumento,
   textoContagemNotas,
@@ -39,10 +38,6 @@ describe('T-0186 / P12: abas da ficha', () => {
   it('P12: promotor sem promotor_ve_pedidos não vê o Histórico', () => {
     expect(abasDoApp('promotor', false).map((a) => a.id)).toEqual(['resumo', 'documentacao']);
     expect(abasDoApp('promotor', true).map((a) => a.id)).toContain('historico');
-  });
-  it('spec §6: só supervisor e gerente são o Gestão ("Visitada por")', () => {
-    expect(perfilDeGestao('supervisor')).toBe(true);
-    expect(perfilDeGestao('vendedor')).toBe(false);
   });
 });
 

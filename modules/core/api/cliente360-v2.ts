@@ -407,7 +407,7 @@ export async function guardaArquivoDocumento(e: GuardaArquivoEntrada): Promise<'
   });
 }
 
-async function exigirCarteira(ctx: { carteira(): Promise<ReadonlySet<string> | 'tenant'> }, clienteId: string): Promise<void> {
+export async function exigirCarteira(ctx: { carteira(): Promise<ReadonlySet<string> | 'tenant'> }, clienteId: string): Promise<void> {
   const v = await ctx.carteira();
   if (v !== 'tenant' && !v.has(clienteId)) throw new ErroNaoEncontrado('CLIENTE_NAO_ENCONTRADO', 'Cliente não encontrado na sua carteira. Atualize a lista e tente de novo.');
 }
