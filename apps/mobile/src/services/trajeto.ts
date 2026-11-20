@@ -121,6 +121,8 @@ const trajeto = criarTrajeto({
   novoId: uuid,
   agora: () => Date.now(),
   registrarErro,
+  // T-0187: a notificação fixa é a do app (Campo ou Gestão); quem decide se liga é o podeRastrear, pelo cargo e pelo app
+  app: varianteAtual(),
 });
 
 // ---------- definição (escopo global) ----------

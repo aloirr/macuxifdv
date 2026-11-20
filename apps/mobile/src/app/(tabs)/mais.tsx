@@ -9,13 +9,13 @@ import { Card, colors, Empty, Icon, Screen, SectionHeader, type as t } from '@ma
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
-import { abasDoShell, MAX_ABAS_POR_VARIANTE } from '@/lib/abas';
+import { abasDaVariante } from '@/lib/abas';
 import { abrirAba } from '@/lib/historico-telas';
 import { varianteAtual } from '@/lib/variante';
 
 export default function Mais() {
   const visao = useVisaoShell();
-  const { mais } = abasDoShell(visao.navegacao, MAX_ABAS_POR_VARIANTE[varianteAtual()]);
+  const { mais } = abasDaVariante(visao.navegacao, varianteAtual());
   return (
     <Screen testID="tela-mais" cabecalho={{ titulo: 'Mais' }}>
       <SectionHeader title="Outras telas" />

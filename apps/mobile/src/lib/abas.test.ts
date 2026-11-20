@@ -2,12 +2,12 @@
  * T-0034: abas da barra inferior a partir da visão do shell (módulo efetivo = manifesto + licença + perfil + ação).
  * Páginas de exemplo com os rótulos que os manifestos REAIS declaram (`apps.<variante>.abas`), montadas no
  * `criarShell` real: nenhuma aba sem licença ou perfil, o promotor nunca vê aba de pedido (RN-PRO-01) e,
- * passando de 5 posições, o excedente vai para "Mais".
+ * passando do limite, o excedente vai para "Mais" no Campo e para o menu do Perfil no Gestão (Mc161 A).
  */
 import { criarShell, definirModuloShell, modulosEfetivos, type ItemNavegacao, type ModuloId, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
-import { abaAcesa, abaAtiva, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA, MAX_ABAS_POR_VARIANTE } from './abas';
+import { abaAcesa, abaAtiva, abasDaVariante, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA, MAX_ABAS_POR_VARIANTE } from './abas';
 import { efetivosSemServidor } from './efetivos-locais';
 import { MANIFESTOS_INSTALADOS } from './instalados';
 
@@ -49,8 +49,7 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(sem.mais).toEqual([]);
   });
 
-  it('T-0170: o Campo tem 6 posições (4 abas de módulo e o "Mais"); o Gestão segue com 5', () => {
-    expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: 5 });
+  it('T-0170: o Campo tem 6 posições (4 abas de módulo e o "Mais")', () => {
     const item = (id: string, rotulo: string) => ({ modulo: 'core', id, caminho: id, rotulo, icone: 'file' }) as unknown as ItemNavegacao<unknown>;
     const nav = [item('rota', 'Rota'), item('clientes', 'Clientes'), item('pedidos', 'Pedidos'), item('performance', 'Performance'), item('catalogo', 'Catálogo'), item('pesquisas', 'Pesquisas')];
     const { barra, mais } = abasDoShell(nav, MAX_ABAS_POR_VARIANTE.campo);
@@ -58,6 +57,67 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(mais.map((a) => a.label)).toEqual(['Catálogo', 'Pesquisas']);
     // até 5 destinos de módulo cabem sem o "Mais"
     expect(abasDoShell(nav.slice(0, 5), MAX_ABAS_POR_VARIANTE.campo).mais).toEqual([]);
+  });
+
+  it('T-0187 (P6 A): o Gestão tem 6 posições: Início · Equipe · Rota · Aprovações · Clientes · Alertas', () => {
+    expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: 6 });
+    const item = (modulo: string, id: string, rotulo: string) => ({ modulo, id, caminho: id, rotulo, icone: 'file' }) as unknown as ItemNavegacao<unknown>;
+    const nav = [item('gestor', 'equipe', 'Equipe'), item('core', 'rota-gestao', 'Rota'), item('gestor', 'aprovacoes', 'Aprovações'), item('core', 'clientes', 'Clientes'), item('gestor', 'alertas', 'Alertas')];
+    const { barra, mais, perfil } = abasDaVariante(nav, 'gestao');
+    expect(barra.map((a) => a.label)).toEqual(['Início', 'Equipe', 'Rota', 'Aprovações', 'Clientes', 'Alertas']);
+    expect(mais).toEqual([]);
+    expect(perfil).toEqual([]);
+  });
+
+  it('Mc161 A (R-20261119-212852): o Gestão nunca tem "Mais"; Alertas fica em 6º e o excedente vai para o menu do Perfil', () => {
+    const item = (modulo: string, id: string, rotulo: string, icone = 'file') => ({ modulo, id, caminho: id, rotulo, icone }) as unknown as ItemNavegacao<unknown>;
+    // a navegação do shell vem pela `ordem` das páginas: Equipe 10, Rota 20, Aprovações 20, Clientes 30, Pedidos 40,
+    // Catálogo 60, Alertas sem ordem (100) e Pesquisas
+    const nav = [
+      item('gestor', 'equipe', 'Equipe'),
+      item('core', 'rota-gestao', 'Rota'),
+      item('gestor', 'aprovacoes', 'Aprovações'),
+      item('core', 'clientes', 'Clientes'),
+      item('vendedor', 'pedidos', 'Pedidos', 'clipboard'),
+      item('catalogo', 'catalogo', 'Catálogo', 'search'),
+      item('gestor', 'alertas', 'Alertas'),
+      item('pesquisa', 'pesquisas', 'Pesquisas'),
+    ];
+    const { barra, mais, perfil } = abasDaVariante(nav, 'gestao');
+    expect(barra.map((a) => a.label)).toEqual(['Início', 'Equipe', 'Rota', 'Aprovações', 'Clientes', 'Alertas']);
+    expect(barra.map((a) => a.testID)).not.toContain('tab-mais');
+    expect(mais).toEqual([]);
+    // no Perfil, com o rótulo, o ícone e o endereço da página
+    expect(perfil.map((a) => [a.label, a.icon, a.href])).toEqual([
+      ['Pedidos', 'clipboard', '/m/pedidos'],
+      ['Catálogo', 'search', '/m/catalogo'],
+      ['Pesquisas', 'file', '/m/pesquisas'],
+    ]);
+    // sem a licença do Gestor, Equipe, Aprovações e Alertas saem e as vagas vão para as próximas pela `ordem`
+    const semGestor = abasDaVariante(nav.filter((n) => n.modulo !== 'gestor'), 'gestao');
+    expect(semGestor.barra.map((a) => a.label)).toEqual(['Início', 'Rota', 'Clientes', 'Pedidos', 'Catálogo', 'Pesquisas']);
+    expect(semGestor.perfil).toEqual([]);
+  });
+
+  it('Mc161 A: o Campo segue com o "Mais" e sem itens no Perfil', () => {
+    const item = (id: string, rotulo: string) => ({ modulo: 'core', id, caminho: id, rotulo, icone: 'file' }) as unknown as ItemNavegacao<unknown>;
+    const nav = [item('rota', 'Rota'), item('clientes', 'Clientes'), item('pedidos', 'Pedidos'), item('performance', 'Performance'), item('catalogo', 'Catálogo'), item('pesquisas', 'Pesquisas')];
+    const { barra, mais, perfil } = abasDaVariante(nav, 'campo');
+    expect(barra.map((a) => a.label)).toEqual(['Início', 'Rota', 'Clientes', 'Pedidos', 'Performance', 'Mais']);
+    expect(mais.map((a) => a.label)).toEqual(['Catálogo', 'Pesquisas']);
+    expect(perfil).toEqual([]);
+  });
+
+  it('MC-0160 (R-20261119-201449): a aba usa o ícone `equipe` declarado pela página; Clientes segue com `users`', () => {
+    const item = (modulo: string, id: string, rotulo: string, icone: string) => ({ modulo, id, caminho: id, rotulo, icone }) as unknown as ItemNavegacao<unknown>;
+    const { barra } = abasDoShell([item('gestor', 'equipe', 'Equipe', 'equipe'), item('core', 'clientes', 'Clientes', 'users')], MAX_ABAS_POR_VARIANTE.gestao);
+    expect(barra.map((a) => [a.label, a.icon])).toEqual([['Início', 'home'], ['Equipe', 'equipe'], ['Clientes', 'users']]);
+  });
+
+  it('RD-2447: ícone que o kit não desenha vira `file` na aba', () => {
+    const item = (id: string, icone?: string) => ({ modulo: 'core', id, caminho: id, rotulo: id, icone }) as unknown as ItemNavegacao<unknown>;
+    const { barra } = abasDoShell([item('foguete', 'foguete'), item('sem-icone')], MAX_ABAS_POR_VARIANTE.gestao);
+    expect(barra.slice(1).map((a) => a.icon)).toEqual(['file', 'file']);
   });
 
   it('nenhuma aba sem licença: o Gestor não licenciado não monta Equipe nem Aprovações', () => {

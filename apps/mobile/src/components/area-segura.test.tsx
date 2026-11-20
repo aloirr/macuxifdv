@@ -147,8 +147,8 @@ describe('cor da faixa da barra de status (pedido de 14/11/2026, manual da marca
 });
 
 describe('rotaComFaixa', () => {
-  it('só Início, login, sincronização e foto ficam sem faixa', () => {
-    expect(ROTAS_SEM_FAIXA).toEqual(['/', '/login', '/sync', '/foto']);
+  it('só Início, login, sincronização e os visores (foto e PDF) ficam sem faixa', () => {
+    expect(ROTAS_SEM_FAIXA).toEqual(['/', '/login', '/sync', '/foto', '/pdf']);
     for (const r of ROTAS_SEM_FAIXA) expect(rotaComFaixa(r)).toBe(false);
     expect(rotaComFaixa('/login/')).toBe(false);
   });
