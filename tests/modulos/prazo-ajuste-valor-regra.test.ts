@@ -1,5 +1,5 @@
 /**
- * Ensaio valor × regra do "% do prazo" (v1.0.14; RN-VEN-43 e 45; a troca de prazo da RN-VEN-44 está em troca-prazo-valor-regra-t0188). O esperado é calculado AQUI pela fórmula da RN, sem chamar
+ * Ensaio valor × regra do "% do prazo" (v1.0.14; RN-VEN-43 e 45; a troca de prazo da RN-VEN-44 está em troca-prazo-valor-regra-t0188). O esperado é calculado pela fórmula da RN (`apoio/oraculo-prazo.ts` e as fórmulas abaixo), sem chamar
  * o domain, e comparado com o que o domain do Vendedor devolve (o mesmo que a API revalida) e com o cálculo do app.
  *
  * RN-VEN-43: ajustada = meia-para-cima(tabela × (10 000 + bp) ÷ 10 000), por unidade, antes da quantidade.
@@ -18,11 +18,8 @@ import { creditoDisponivel } from '../../modules/vendedor/contracts';
 import { MSG_PERCENTUAL_DO_PRAZO_MUDOU, revalidarPercentualDoPrazo } from '../../modules/vendedor/domain/pagamento';
 import { buildOrderPdfHtml } from '../../modules/vendedor/domain/pdf-pedido';
 import { percentualAjusteParaBp, precoMinimoBaseCents, tabelaAjustadaCents, valorMantendoPercentualCents } from '../../modules/vendedor/domain/preco-pedido';
+import { comDesconto, regra } from './apoio/oraculo-prazo';
 
-/** Fórmula da RN-VEN-43, independente do domain (inteiros; meia para cima). */
-const regra = (tabela: number, bp: number): number => Math.floor((tabela * (10_000 + bp) + 5_000) / 10_000);
-/** RN-VEN-02 (v2): desconto % no unitário, meia para cima ao centavo. */
-const comDesconto = (unit: number, pct: number): number => Math.floor((unit * (10_000 - Math.round(pct * 100)) + 5_000) / 10_000);
 /** RN-VEN-11 sobre a ajustada: ajustada × (1 − máximo), para cima. */
 const minimoRegra = (venda: number, maxPct: number, bp: number): number => Math.ceil((regra(venda, bp) * (10_000 - Math.round(maxPct * 100))) / 10_000);
 /** Desconto do pedido em R$ (legado): R$ → % sobre a tabela anterior → R$ sobre a nova (meia para cima). */
