@@ -3,6 +3,7 @@
  * `vendedor_id` = dono (conta na meta e no ranking, RN-CORE-21); `autor_id` = quem digitou, sempre o usuário do token.
  * RN-VEN-10: o pedido feito pelo gestor usa a alçada do gestor. RN-PRO-01: o promotor nunca cria pedido.
  */
+import type { MembroEquipeEmNome } from '../contracts/extensoes';
 import type { Recusa } from './aprovacao';
 import type { DiscountPolicy } from './order';
 
@@ -86,9 +87,6 @@ export function vendedorPadraoEmNome(e: { clienteId: string; carteira: readonly 
   return candidatos.length === 1 ? candidatos[0]!.id : null;
 }
 
-/** Membro do escopo, como o slot `pedido.equipe_em_nome` o entrega (o Gestor contribui; o Vendedor não importa o Gestor). */
-export interface MembroDoSlot { usuario_id: string; nome: string; perfil: string; equipe_id: string | null; equipe_nome: string | null; ativo: boolean }
-
 /**
  * RN-PRO-01, RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" a partir das contribuições do slot `pedido.equipe_em_nome`,
  * que já trazem só o escopo de quem está logado. Ficam só os vendedores (promotor e demais perfis fora, RN-PRO-01) e nunca o próprio autor.
@@ -97,7 +95,7 @@ export interface MembroDoSlot { usuario_id: string; nome: string; perfil: string
  */
 export function equipeEmNomeDosMembros(e: {
   autor: { id: string; perfil: string };
-  membros: readonly MembroDoSlot[];
+  membros: readonly MembroEquipeEmNome[];
 }): UsuarioDaEquipe[] {
   return e.membros
     .filter((m) => m.perfil === 'vendedor' && m.usuario_id !== e.autor.id)

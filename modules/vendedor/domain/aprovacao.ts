@@ -199,9 +199,8 @@ export function comAvisoDoPrazoMudou(r: Omit<RecebimentoAceito, 'aceito'>): Omit
 
 /** RN-VEN-10 e RN-GES-04 (P4 A): o menor nível que pode decidir o pedido do autor (um acima do dele). Sem autor gestor: `null`. */
 export function nivelMinimoDoAutor(perfil: string): NivelAprovacao | null {
-  if (perfil === 'supervisor') return 'gerente';
-  if (perfil === 'gerente') return 'analista';
-  return null;
+  const i = (NIVEIS_APROVACAO as readonly string[]).indexOf(perfil);
+  return i === -1 ? null : (NIVEIS_APROVACAO[i + 1] ?? null);
 }
 
 /** RN-GES-04 (P4 A): ninguém aprova o próprio pedido; o motivo que cairia no nível do autor (ou abaixo) sobe um nível. */
