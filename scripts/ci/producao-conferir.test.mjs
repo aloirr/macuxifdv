@@ -126,6 +126,27 @@ test('liberar monta a imagem da API (ADR 0051): CI verde antes do build, só se 
   assert.match(lib, /needs: imagem/);
 });
 
+test('suíte completa uma vez por versão (R-20261120-073449-alexandre): o liberar roda o ci.yml no SHA antes da imagem', () => {
+  const lib = ler('.github/workflows/producao-liberar.yml');
+  const ci = ler('.github/workflows/ci.yml');
+  const suite = lib.slice(lib.indexOf('\n  suite:\n'), lib.indexOf('\n  imagem:\n'));
+  assert.match(suite, /needs: conferir\n/);
+  assert.match(suite, /uses: \.\/\.github\/workflows\/ci\.yml\n/);
+  assert.match(suite, /sha: \$\{\{ inputs\.sha \}\}/);
+  assert.doesNotMatch(suite, /secrets|if:/, 'a suíte sempre roda e sem segredo');
+  // a imagem (e a issue, que depende dela) só sai com a suíte verde: sem if que a deixe passar com a suíte falha
+  const imagem = lib.slice(lib.indexOf('\n  imagem:\n'), lib.indexOf('\n    steps:', lib.indexOf('\n  imagem:\n')));
+  assert.match(imagem, /needs: \[conferir, suite\]/);
+  assert.doesNotMatch(imagem, /\bif:/);
+  assert.match(lib, /\n  abrir:\n[^]*?needs: imagem\n/);
+  // o ci.yml aceita a chamada com o SHA, e todo checkout usa esse SHA
+  assert.match(ci, /^ {2}workflow_call:\n {4}inputs:\n {6}sha:\n[^]*?required: true/m);
+  assert.doesNotMatch(ci, /^ {2}schedule:/m, 'sem o semanal: a suíte do main só no manual e no liberar');
+  const checkouts = ci.split('uses: actions/checkout@v4').slice(1);
+  assert.ok(checkouts.length >= 5);
+  for (const c of checkouts) assert.match(c.slice(0, 200), /ref: \$\{\{ inputs\.sha \}\}/);
+});
+
 test('demo desligada: nenhum workflow publica nem entra na VM da demo', () => {
   for (const wf of ['demo-publicar', 'demo-recriar-base', 'dbaas-teste'])
     assert.throws(() => ler(`.github/workflows/${wf}.yml`), /ENOENT/, wf);

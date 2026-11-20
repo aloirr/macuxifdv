@@ -2,7 +2,9 @@ name: CI
 
 # T-0005 → T-0033 (ADR 0014) → T-0160 (ADR 0044: −70% de minutos do Actions, o mesmo nível de verificação antes do main)
 # → R-20261114-221000-alexandre (CI de ~13 para 8–10 min de relógio: governança em paralelo, shards e estático em 2 partes)
-# → R-20261115-213600-alexandre (custo do Actions; a regra está no cabeçalho do scripts/ci/escopo.mjs).
+# → R-20261115-213600-alexandre (custo do Actions; a regra está no cabeçalho do scripts/ci/escopo.mjs)
+# → R-20261120-073449-alexandre (suíte completa uma vez por versão: PR e push ao main só com o CI leve; as suítes rodam no
+#   manual e na chamada do producao-liberar.yml, no SHA da versão).
 # 5 jobs + o ci-ok (antes 12), 3 deles em matriz: cada job/shard paga a preparação (checkout + pnpm install) e o minuto
 # arredondado para cima, em troca de relógio. Sem fail-fast; dentro de cada job todos os passos rodam mesmo depois de uma
 # falha (R-20261101-014652).
@@ -10,57 +12,63 @@ name: CI
 #                       único job de que os testes dependem (needs: escopo):
 #                         documentacao  → só .coord/**, docs/** e *.md da raiz (menos a docs/modulos/, que o código lê):
 #                                         só escopo, governança e ci-ok (a guarda R4 prova que nenhum código lê documentação);
-#                         reaproveitado → push ao main (ou o agendado) de uma árvore que já passou verde com os testes
-#                                         (ensaio, push; o agendado só aceita a matriz completa): idem;
-#                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, ensaio e push; TODOS no
-#                                         agendado semanal, na sexta (véspera da produção) e no manual com "completo".
+#                         reaproveitado → push ao main de uma árvore que já passou verde com os testes (manual): idem;
+#                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, push e ensaio; TODOS na sexta,
+#                                         no manual com "completo" ou com "sha" e na chamada do producao-liberar.
 #   governanca          EM PARALELO (sem needs): coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas
 #                       do guardião v5 (T-0049), guardião ligado, agente do branch da nuvem e economia do Actions (ADR 0045).
 #                       No push, calcula a base sozinha (o mesmo escopo.mjs, segundos) para os donos por commit e o trailer.
 #   estatico            matriz parte: verificar (lint, fronteiras, timers, typecheck) | build (se web ou mobile foram
 #                       afetados: build do BKO e bundle do app, com cache do .next e do Metro; senão termina em segundos)
-#   testes-pacotes      fora do PR. Matriz shard 1..3 (scripts/ci/shards.mjs, divisão por peso dos pacotes afetados): testes (Postgres)
-#                       e, no shard que recebe o item, a suíte do @macuxi/db com admin sem superusuário (simula o DBaaS,
-#                       T-0075) num segundo Postgres do mesmo job
-#   testes-integracao   fora do PR. Matriz shard 1..3 (vitest --shard): tests/ inteiro (Postgres) sempre que há código
-#   ci-ok               agrega: é o check a olhar. Verde com código, fora do PR, grava o artefato ci-verde-<matriz>-<árvore>.
-# Cache do Turborepo (.turbo/cache): no PR lê o do main; fora do PR (push, ensaio, agendado) não lê (TURBO_FORCE) e grava.
+#   testes-pacotes      só no manual e no liberar. Matriz shard 1..3 (scripts/ci/shards.mjs, divisão por peso dos pacotes
+#                       afetados): testes (Postgres) e, no shard que recebe o item, a suíte do @macuxi/db com admin sem
+#                       superusuário (simula o DBaaS, T-0075) num segundo Postgres do mesmo job
+#   testes-integracao   só no manual e no liberar. Matriz shard 1..3 (vitest --shard): tests/ inteiro (Postgres) sempre
+#                       que há código
+#   ci-ok               agrega: é o check a olhar. Verde com as suítes, grava o artefato ci-verde-<matriz>-<árvore>.
+# Cache do Turborepo (.turbo/cache): no PR lê o do main; fora do PR (push, manual, liberar) não lê (TURBO_FORCE) e grava.
 
 on:
   # PR em rascunho não roda (os jobs escopo e governanca pulam e o resto vai junto); ao sair do rascunho
   # (ready_for_review), roda.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # CI leve, o mesmo do PR (R-20261120-073449-alexandre): sem as suítes, que antes rodavam a cada merge (~15 min).
   push:
     branches: [main]
-  # Semanal com todos os pacotes (economia do Actions, 18/11/2026; antes noturno de segunda a sexta): sábado 03:00 UTC =
-  # sexta 23:00 em Manaus, DEPOIS dos pushes da sexta (RD-2249). Garante a matriz completa da semana mesmo sem push de
-  # código; a árvore que um push da sexta já passou verde com a matriz completa não repete os testes (escopo.mjs). O
-  # gerente confere na primeira ronda de sábado (gh run list --workflow CI --event schedule --limit 1).
-  schedule:
-    - cron: '0 3 * * 6'
-  # Manual (o ensaio do branch verificacao/*, doc 07): pacotes afetados desde o merge-base com o main; "completo" = todos.
+  # Manual: o ensaio do branch verificacao/* (doc 07; pacotes afetados desde o merge-base com o main, "completo" = todos)
+  # ou a suíte de um commit do main antes do liberar ("sha": todos os pacotes nesse commit).
   workflow_dispatch:
     inputs:
       completo:
         description: 'Todos os pacotes (sem marcar: só os afetados desde o main)'
         type: boolean
         default: false
+      sha:
+        description: 'Commit a testar (SHA completo; vazio = o do branch escolhido). Com SHA, todos os pacotes'
+        type: string
+        default: ''
+  # Chamado pelo producao-liberar.yml: a suíte completa no SHA da versão, antes da imagem e da issue de aprovação. Aqui o
+  # evento é o do liberar (workflow_dispatch) e não passa segredo nenhum.
+  workflow_call:
+    inputs:
+      sha:
+        description: 'Commit da versão (SHA completo)'
+        type: string
+        required: true
 
 permissions:
   contents: read
   # API do Actions: último push verde do main (base do escopo) e o artefato ci-verde-* (reaproveitar a mesma árvore)
   actions: read
 
-# Um grupo por PR / por evento + branch: o run novo CANCELA o antigo em todo evento. No push ao main, a base do escopo e da
+# Um grupo por workflow que dispara (o CI ou o liberar, na chamada) e por PR / por evento + branch: o run novo CANCELA o
+# antigo em todo evento, e o disparo manual no main não cancela a suíte do liberar. No push ao main, a base do escopo e da
 # verificação de donos é o último push VERDE do main (escopo.mjs), então o push cancelado não deixa commit sem verificação.
-# Merge em bloco no main (avaliado em 18/11/2026): cancelar continua mais barato que esperar. O run cancelado custa ~3 min
-# (escopo e governança) e o último cobre todos os commits desde o último verde; sem cancelar, o run do meio terminaria
-# inteiro (~40 min) e o último rodaria de novo.
 # Sem paths/paths-ignore no gatilho: o ci-ok é check obrigatório e ficaria pendente; o escopo documentacao já roda só a
 # governança e o ci-ok.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.event_name, github.ref) }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: true
 
 env:
@@ -75,7 +83,7 @@ env:
   NEXT_TELEMETRY_DISABLED: '1'
   TURBO_TELEMETRY_DISABLED: '1'
   TURBO_CACHE_DIR: .turbo/cache
-  # PR: lê o cache. Push, ensaio e agendado: não lê (só grava) — fora do PR o que foi selecionado sempre roda.
+  # PR: lê o cache. Push, manual e liberar: não lê (só grava) — fora do PR o que foi selecionado sempre roda.
   TURBO_FORCE: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
 
 jobs:
@@ -95,9 +103,11 @@ jobs:
       build: ${{ steps.escopo.outputs.build }}
       db_sem_super: ${{ steps.escopo.outputs.db_sem_super }}
     steps:
-      # Histórico completo: o escopo precisa de origin/main, do merge-base e da base do push.
+      # Histórico completo: o escopo precisa de origin/main, do merge-base e da base do push. ref: o "sha" do manual ou do
+      # liberar (vazio = o commit do evento), em todos os jobs.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.sha }}
           fetch-depth: 0
 
       # Sem pnpm install: tudo aqui é node puro (sem dependência).
@@ -116,7 +126,7 @@ jobs:
         env:
           ANTES: ${{ github.event.before }}
           DEPOIS: ${{ github.sha }}
-          COMPLETO: ${{ inputs.completo }}
+          COMPLETO: ${{ (inputs.completo || inputs.sha) && 'true' || 'false' }}
           GH_TOKEN: ${{ github.token }}
         run: node scripts/ci/escopo.mjs
 
@@ -130,6 +140,7 @@ jobs:
       # Histórico completo: o verificar precisa de origin/main, do merge-base e da base do push.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.sha }}
           fetch-depth: 0
 
       # Sem pnpm install: tudo aqui é node puro (node:test, sem dependência).
@@ -242,6 +253,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         if: ${{ matrix.parte == 'verificar' || needs.escopo.outputs.build == 'true' }}
+        with:
+          ref: ${{ inputs.sha }}
 
       # Cache do turbo só na parte verificar (o build chama o next e o expo direto, fora do turbo).
       - uses: ./.github/actions/preparar
@@ -372,6 +385,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
 
       # Node do runner basta (node puro, sem dependência). vazio=true: nenhum pacote turbo neste shard.
       - name: shards
@@ -455,6 +470,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
       - uses: ./.github/actions/preparar
 
       # //#test:tests (agente testes): a suíte em 3 shards do vitest (por arquivo), um Postgres por shard; cada shard paga
@@ -497,14 +514,14 @@ jobs:
           fi
           echo "CI verde (escopo $ESCOPO)."
 
-      # Item 2 da T-0160: a árvore testada fica registrada; o push ao main da MESMA árvore (o ensaio que sobe em
-      # fast-forward) não repete os testes. O escopo.mjs confere o run e a árvore do commit dele. Fora do PR (escopo.mjs).
+      # Item 2 da T-0160: a árvore testada COM as suítes fica registrada; o push ao main da MESMA árvore (o ensaio que
+      # sobe em fast-forward) não repete o estático. O escopo.mjs confere o run e a árvore do commit dele.
       - name: registro da árvore verde
-        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && github.event_name != 'pull_request' }}
+        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && contains(needs.escopo.outputs.jobs, '"testes-integracao"') }}
         run: echo "${{ github.run_id }}" > ci-verde.txt
 
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && github.event_name != 'pull_request' }}
+        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && contains(needs.escopo.outputs.jobs, '"testes-integracao"') }}
         with:
           name: ci-verde-${{ needs.escopo.outputs.matriz }}-${{ needs.escopo.outputs.arvore }}
           path: ci-verde.txt

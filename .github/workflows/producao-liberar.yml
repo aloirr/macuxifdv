@@ -4,12 +4,15 @@ name: producao — liberar versão
 # o environment PRODUCAO não para (a v1.0.7 subiu sem aprovação). Este workflow confere e PARA na issue de aprovação:
 #   1. conferir (sem segredo, só leitura): versão vX.Y.Z nova (a tag ainda não existe), SHA completo, disparo pelo main,
 #      o commit está no main e tem CI verde de push no main (scripts/ci/producao-conferir.mjs entrada e commit);
-#   2. imagem (packages: write; ADR 0051, demo desligada em 14/11/2026): se ghcr.io/<dono>/macuxi-api:<sha> ainda não
-#      existe no GHCR, monta o apps/api/Dockerfile DESSE commit (só depois do CI verde do passo 1) e envia só a tag <sha>.
+#   2. suite (R-20261120-073449-alexandre: a suíte completa uma vez por versão, não a cada merge): o ci.yml inteiro por
+#      workflow_call no SHA da versão (todos os pacotes, testes dos pacotes e tests/ com Postgres), sem segredo. A
+#      imagem e a issue só saem com o ci-ok dela verde (needs): suíte vermelha ou cancelada = nada liberado;
+#   3. imagem (packages: write; ADR 0051, demo desligada em 14/11/2026): se ghcr.io/<dono>/macuxi-api:<sha> ainda não
+#      existe no GHCR, monta o apps/api/Dockerfile DESSE commit (só depois dos passos 1 e 2) e envia só a tag <sha>.
 #      Tag que já existe nunca é montada de novo (o digest não muda entre liberar, aprovar e publicar); GHCR sem resposta
 #      = falha, sem build. Em seguida, a MESMA conferência do producao-publicar.yml (producao-conferir.mjs conferir:
 #      commit no main, CI verde e digest da imagem);
-#   3. abrir (issues: write): abre a issue "Aprovar deploy vX.Y.Z" com o rótulo trava-deploy, o SHA, o link deste run e
+#   4. abrir (issues: write): abre a issue "Aprovar deploy vX.Y.Z" com o rótulo trava-deploy, o SHA, o link deste run e
 #      os commits e PRs desde a última tag v* (scripts/ci/producao-trava.mjs abrir). NÃO cria tag nem dispara deploy.
 # A aprovação é o comentário "aprovado vX.Y.Z" do Alexandre (conta aloirr, pelo chat e pela ponte) na issue: o
 # producao-aprovar.yml confere tudo de novo, cria a tag com o GITHUB_TOKEN, fecha a issue como aprovada e dispara o
@@ -70,9 +73,19 @@ jobs:
           SHA: ${{ inputs.sha }}
         run: node scripts/ci/producao-conferir.mjs commit
 
+  suite:
+    name: suíte completa no SHA da versão
+    needs: conferir
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      sha: ${{ inputs.sha }}
+
   imagem:
     name: imagem da API do commit (monta só se não existe) e digest
-    needs: conferir
+    needs: [conferir, suite]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
