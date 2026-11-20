@@ -57,7 +57,7 @@ export type SituacaoPermissao = 'permitida' | 'falta' | 'negada';
 export type AcaoPermissao = 'pedir' | 'pedir-tempo-todo' | 'abrir-configuracoes';
 
 /** Situação de uma linha da tela: a tela só lista as que faltam. */
-export type SituacaoQueFalta = Exclude<SituacaoPermissao, 'permitida'>;
+type SituacaoQueFalta = Exclude<SituacaoPermissao, 'permitida'>;
 
 export interface LinhaPermissao {
   id: IdPermissao;

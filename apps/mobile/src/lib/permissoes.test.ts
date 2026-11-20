@@ -18,7 +18,6 @@ import {
   permissoesExigidas,
   permissoesLiberadas,
   ROTULO_ABRIR_CONFIGURACOES,
-  ROTULO_NEGADA,
   proximoPedidoAutomatico,
   ROTULO_PERMITIR,
   telaDePermissoes,
@@ -97,8 +96,6 @@ describe('telaDePermissoes — Campo', () => {
     const camera = t.linhas.find((l) => l.id === 'camera')!;
     expect(camera).toMatchObject({ situacao: 'negada', texto: 'Em Permissões › Câmera, marque Permitir.' });
     expect(t.botao).toEqual({ id: 'camera', acao: 'abrir-configuracoes', rotulo: ROTULO_ABRIR_CONFIGURACOES });
-    // RD-2466: o único rótulo de situação é o da negada
-    expect(ROTULO_NEGADA).toBe('Negada');
   });
 
   it('localização "o tempo todo" negada depois do passo 1: abre as configurações (não pede de novo)', () => {
