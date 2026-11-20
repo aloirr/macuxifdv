@@ -138,7 +138,7 @@ export function MarcasPage() {
             <MenuAcoes
                 acoes={[
                 { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([marcasParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'marcas-concorrentes.csv'), testId: 'marcas.csv' },
-                { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch(), testId: 'marcas.atualizar' },
+                { id: 'atualizar', rotulo: 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch(), testId: 'marcas.atualizar' },
               ]}
             />
           </>

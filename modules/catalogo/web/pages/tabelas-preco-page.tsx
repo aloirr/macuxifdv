@@ -116,7 +116,7 @@ function PrecosUnidade({ filtros, mudar, tabelas, filiais, filialId, tabelaId }:
           <MenuAcoes
             acoes={[
               { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([precosParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'precos-da-unidade.csv'), testId: 'tabelas-preco.csv' },
-              { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching || tabelaId === '', aoEscolher: () => void lista.refetch() },
+              { id: 'atualizar', rotulo: 'Atualizar', desligada: lista.isFetching || tabelaId === '', aoEscolher: () => void lista.refetch() },
             ]}
           />
         }
@@ -259,7 +259,7 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
             <MenuAcoes
                 acoes={[
                 { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([faixasParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'tabela-escalonada.csv'), testId: 'escalonada.csv' },
-                { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch() },
+                { id: 'atualizar', rotulo: 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch() },
               ]}
             />
           </>
