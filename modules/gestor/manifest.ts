@@ -39,7 +39,6 @@ export const manifest = defineModule({
   apps: { gestao: { abas: ['Equipe', 'Aprovações', 'Alertas'] }, web: { menus: ['Painel da equipe', 'Trajeto do dia', 'Ranking', 'Aprovações', 'Alertas', 'Regras de alerta'] } },
   sync: ['painel_vendedor_dia', 'alerta'],
   // T-0187 §1.4: lista da equipe para o "Em nome de" do Vendedor, só no aparelho (cache da visão, RN-VEN-35)
-  ofereceConsultas: ['gestor.membros_da_equipe@1'],
   consome: [
     'core.cliente.atualizado@1',
     'core.visita.checkin@1',
@@ -78,7 +77,7 @@ export const manifest = defineModule({
   // T-0156 (tracking §5.2/§7): `core.trajeto_do_dia@1` para o trajeto do dia da equipe; o Core confere o escopo e `core.trajeto.ver_equipe`.
   usaConsultas: ['core.cadastro_resumo@1', 'core.calendario_metas@1', 'core.produtividade_equipe@1', 'core.trajeto_do_dia@1'],
   // Pedido em nome: extensão opcional do Vendedor; some sem erro se o Vendedor estiver inativo.
-  usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'cliente.avisos', 'inicio.cards'],
+  usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'cliente.avisos', 'inicio.cards', 'rota.parada_complemento'],
 });
 
 export default manifest;

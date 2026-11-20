@@ -5,8 +5,8 @@ import { manifest } from '../manifest';
 import { CardAprovacoes } from './components/card-aprovacoes';
 import { AvisoEtapaEquipe } from './components/aviso-etapa-equipe';
 import { etapasGestor } from './etapas';
-import { consultaMembrosDaEquipeAparelho } from './lib/consulta-membros';
-import { extensoesDaFicha, extensoesDoInicio } from './registro-inicio';
+import { useComplementoDaParada } from './lib/complemento-parada';
+import { extensoesDaFicha, extensoesDaRota, extensoesDoInicio } from './registro-inicio';
 import AlertasScreen from './screens/alertas-screen';
 import AprovacoesScreen from './screens/aprovacoes-screen';
 import EquipeScreen from './screens/equipe-screen';
@@ -29,8 +29,6 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'ranking', caminho: 'equipe-ranking', titulo: 'Ranking', apps: ['gestao'], acao: 'ranking_equipe.ver', componente: RankingScreen },
   ],
   etapasSync: etapasGestor,
-  // T-0187 §1.4: nomes da equipe para o "Em nome de" do Vendedor, lidos do cache local (RN-VEN-35)
-  consultas: [consultaMembrosDaEquipeAparelho],
   // T-0073: card "Pedidos para aprovar" no Início (slot `inicio.cards`, ordem 10)
-  extensoes: [...extensoesDoInicio<ComponentType>(CardAprovacoes), ...extensoesDaFicha<ComponentType<{ contexto: ContextoCliente }>>(AvisoEtapaEquipe)],
+  extensoes: [...extensoesDoInicio<ComponentType>(CardAprovacoes), ...extensoesDaFicha<ComponentType<{ contexto: ContextoCliente }>>(AvisoEtapaEquipe), ...extensoesDaRota(useComplementoDaParada)],
 });

@@ -43,3 +43,11 @@ export function extensoesDaFicha<C>(avisoEtapaEquipe: C): readonly ItemExtensaoS
     },
   ];
 }
+
+/**
+ * Slot `rota.parada_complemento` do Core (RN-CORE-52): nome da vendedora da carteira ao lado do horário da parada.
+ * Só Gestão, só com `painel_equipe.ver`; o hook lê o aparelho (pull `carteira` do Core + visão em cache) e não grava nada.
+ */
+export function extensoesDaRota(usarTexto: (clienteId: string) => string | null): readonly ItemExtensaoShell[] {
+  return [{ slot: 'rota.parada_complemento', id: 'vendedora-da-carteira', acao: 'painel_equipe.ver', apps: ['gestao'], payload: { usarTexto } }];
+}
