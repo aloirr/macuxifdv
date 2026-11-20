@@ -12,7 +12,7 @@
 ## 1. O que já existe
 | Peça | Onde | Estado |
 |---|---|---|
-| Permissão "Permitir o tempo todo" exigida no Campo a cada abertura | `apps/mobile/src/lib/permissoes.ts`, `app.config.ts` (`isAndroidBackgroundLocationEnabled` só no Campo) | pronto (RN-CORE-37) |
+| Permissão "Permitir o tempo todo" exigida no Campo a cada abertura | `apps/mobile/src/lib/permissoes.ts`, `app.config.ts` (`isAndroidBackgroundLocationEnabled` nas duas variantes; no Gestão a tela pede só ao supervisor (T-0187)) | pronto (RN-CORE-37) |
 | GPS do momento no check-in e no checkout (`sem_gps` no evento) | Core, `contracts/eventos.ts` | pronto (RN-CORE-13); **não muda** |
 | `expo-location` e `expo-task-manager` | `apps/mobile/package.json` | instalados |
 | Tarefa de segundo plano `macuxi-sync-delta` (WorkManager, ≥ 15 min) | `apps/mobile/src/services/segundo-plano.ts` (ADR 0017) | pronto; o tracking se apoia nela (§3.2) |

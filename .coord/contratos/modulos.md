@@ -225,4 +225,4 @@ Tudo aditivo ou só restringe; nenhuma versão nova de contrato. Eventos em `eve
 | `core.trajeto_do_dia@1` | core | schema igual; o id da sessão sai do resultado | a fazer (modulo-core) |
 | `GET /v1/core/trajeto` | core | 404 `USUARIO_NAO_ENCONTRADO` para o próprio usuário | a fazer (modulo-core) |
 | push de `visita` / `visita_checkout` | core | supervisor e gerente precisam de `visita.registrar_gestao` | a fazer (modulo-core) |
-| decisão de aprovação | gestor | 422 `APROVACAO_DO_PROPRIO_PEDIDO` quando o decisor é o autor | a fazer (modulo-gestor) |
+| decisão de aprovação | vendedor | 422 `APROVACAO_DO_PROPRIO_PEDIDO` quando o decisor é o autor | a fazer (modulo-vendedor) |
