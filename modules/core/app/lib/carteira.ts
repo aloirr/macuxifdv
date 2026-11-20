@@ -3,7 +3,7 @@
  * Copiada de lib/catalog.ts da Fase M (parte de clientes); a busca de produtos fica no Vendedor.
  */
 import type { CustomerSummary } from '../../contracts';
-import { documentoCasa, normalizarBusca } from '../../domain';
+import { clienteCasaBusca } from '../../domain';
 
 export type CustomerFilter = 'curve_a' | 'no_purchase_45' | 'overdue' | 'not_positivated';
 
@@ -15,14 +15,11 @@ export const CUSTOMER_FILTERS: Array<{ id: CustomerFilter; label: string }> = [
 ];
 
 export function filterCustomers(customers: CustomerSummary[], query: string, filters: CustomerFilter[]): CustomerSummary[] {
-  const terms = normalizarBusca(query).split(/\s+/).filter(Boolean);
   return customers.filter((c) => {
     if (filters.includes('curve_a') && c.abc_curve !== 'A') return false;
     if (filters.includes('no_purchase_45') && !(c.days_since_purchase === null || c.days_since_purchase >= 45)) return false;
     if (filters.includes('overdue') && c.overdue_count === 0) return false;
     if (filters.includes('not_positivated') && c.positivated_this_month) return false;
-    if (terms.length === 0) return true;
-    const hay = normalizarBusca(`${c.trade_name} ${c.legal_name} ${c.erp_code}`);
-    return terms.every((t) => hay.includes(t) || documentoCasa(t, c.cnpj));
+    return clienteCasaBusca(query, { razao_social: c.legal_name, nome_fantasia: c.trade_name, external_id: c.erp_code, documento: c.cnpj });
   });
 }

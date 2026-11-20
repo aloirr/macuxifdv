@@ -3,7 +3,7 @@
  * do editor. Só lógica de tela; distância e ordenação vêm de modules/core/domain (route.ts).
  */
 import type { CustomerSummary, RouteDay, RouteStop } from '../../contracts';
-import { optimizeRoute, routeDistanceKm, type GeoPoint } from '../../domain';
+import { clienteCasaBusca, MINIMO_BUSCA_CLIENTE_BKO, optimizeRoute, routeDistanceKm, type GeoPoint } from '../../domain';
 import { monthLabel } from '@macuxi/ui/web';
 
 /* ---------- datas civis (AAAA-MM-DD, sem fuso) ---------- */
@@ -491,33 +491,21 @@ export function isSuggested(c: CustomerSummary): boolean {
   return (c.days_since_purchase ?? Infinity) >= IDLE_SUGGEST_DAYS || c.abc_curve === 'A';
 }
 
-export function normalize(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
 /**
- * Busca por nome, bairro ou código; tira quem já está no rascunho.
+ * Busca da carteira pela regra de `clienteCasaBusca` (termo abaixo de `MINIMO_BUSCA_CLIENTE_BKO` não filtra); tira quem já está no rascunho.
  * Ordem: sugestões primeiro (curva A parada, depois sem compra há mais tempo).
  */
 export function searchWallet(customers: CustomerSummary[], q: string, exclude: Set<string>, limit = 30): CustomerSummary[] {
-  const terms = normalize(q).split(/\s+/).filter(Boolean);
   const rank = (c: CustomerSummary) => {
     const idle = c.days_since_purchase ?? 9999;
     const suggested = isSuggested(c);
     const curveA = c.abc_curve === 'A';
     return (suggested ? 0 : 1) * 1e6 + (curveA && idle >= IDLE_SUGGEST_DAYS ? 0 : curveA ? 1 : 2) * 1e5 - Math.min(idle, 99_999);
   };
+  const termo = q.trim().length >= MINIMO_BUSCA_CLIENTE_BKO ? q : '';
   return customers
     .filter((c) => !exclude.has(c.id))
-    .filter((c) => {
-      if (!terms.length) return true;
-      const hay = normalize(`${c.trade_name} ${c.legal_name} ${c.district} ${c.city} ${c.erp_code}`);
-      return terms.every((t) => hay.includes(t));
-    })
+    .filter((c) => clienteCasaBusca(termo, { razao_social: c.legal_name, nome_fantasia: c.trade_name, external_id: c.erp_code, documento: c.cnpj }))
     .sort((a, b) => rank(a) - rank(b) || a.trade_name.localeCompare(b.trade_name, 'pt-BR'))
     .slice(0, limit);
 }

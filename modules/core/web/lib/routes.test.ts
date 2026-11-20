@@ -315,7 +315,7 @@ describe('editor da rota', () => {
 
 describe('busca na carteira', () => {
   const list = [
-    customer('1', 0, 0, { trade_name: 'Auto Peças São José', district: 'Cidade Nova', abc_curve: 'C', days_since_purchase: 3 }),
+    customer('1', 0, 0, { trade_name: 'Auto Peças São José', district: 'Cidade Nova', city: 'Manaus', abc_curve: 'C', days_since_purchase: 3, legal_name: 'Zeta Ltda', cnpj: '12.345.678/0001-90' }),
     customer('2', 0, 0, { trade_name: 'Moto Center', district: 'Japiim', abc_curve: 'A', days_since_purchase: 10 }),
     customer('3', 0, 0, { trade_name: 'Diesel Norte', district: 'Cidade Nova', abc_curve: 'B', days_since_purchase: 80 }),
     customer('4', 0, 0, { trade_name: 'Freios & Cia', district: 'Centro', abc_curve: 'A', days_since_purchase: 60, erp_code: '11038' }),
@@ -323,11 +323,22 @@ describe('busca na carteira', () => {
   it('sugestão: curva A ou 45+ dias sem compra', () => {
     expect(list.map(isSuggested)).toEqual([false, true, true, true]);
   });
-  it('sugestões primeiro (curva A parada à frente), sem acento, por nome, bairro ou código; tira quem já está na rota', () => {
+  it('RF-CORE-02: sugestões primeiro (curva A parada à frente), sem acento, por código, CNPJ, razão social ou nome fantasia; tira quem já está na rota', () => {
     expect(searchWallet(list, '', new Set()).map((c) => c.id)).toEqual(['4', '2', '3', '1']);
-    expect(searchWallet(list, 'cidade nova', new Set()).map((c) => c.id)).toEqual(['3', '1']);
     expect(searchWallet(list, 'sao jose', new Set()).map((c) => c.id)).toEqual(['1']);
+    expect(searchWallet(list, 'ZETA', new Set()).map((c) => c.id)).toEqual(['1']);
     expect(searchWallet(list, '11038', new Set()).map((c) => c.id)).toEqual(['4']);
     expect(searchWallet(list, '', new Set(['4', '2'])).map((c) => c.id)).toEqual(['3', '1']);
+  });
+  it('RF-CORE-02: CNPJ casa com máscara', () => {
+    expect(searchWallet(list, '12.345.678', new Set()).map((c) => c.id)).toEqual(['1']);
+  });
+  it('RF-CORE-02: termo com menos de 3 caracteres não filtra (mínimo da busca do BKO)', () => {
+    expect(searchWallet(list, '12', new Set()).map((c) => c.id)).toEqual(['4', '2', '3', '1']);
+  });
+  it('RF-CORE-02: cidade e bairro não casam', () => {
+    expect(searchWallet(list, 'cidade nova', new Set())).toEqual([]);
+    expect(searchWallet(list, 'manaus', new Set())).toEqual([]);
+    expect(searchWallet(list, 'japiim', new Set())).toEqual([]);
   });
 });
