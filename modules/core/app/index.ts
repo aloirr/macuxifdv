@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { migracoesAparelho } from '../db/aparelho';
 import { ACAO_VISITA_REGISTRAR_GESTAO } from '../contracts';
+import { TITULO_DA_ROTA } from '../domain';
 import { manifest } from '../manifest';
 import { comVisitas } from './components/visit-sheets';
 import { consultaFinanceiroClienteAparelho } from './consultas';
@@ -27,6 +28,7 @@ export { BalaoRecadosETarefas, ENTIDADE_TAREFA } from './telas/recados-e-tarefas
 export { abrirTarefaDoCore, ROTA_RECADOS_E_TAREFAS, rotaDaTarefa } from './telas/paginas-recados-e-tarefas';
 export { chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE } from './telas/performance';
 export { useInicio } from './lib/usar-inicio';
+export { linhasDoPerfil, type LinhaDoPerfil } from './lib/perfil-dados';
 export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, definirResolvedorFotoPerfil, type ResolvedorFotoPerfil, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
 export { ENTIDADE_USUARIO_AVATAR } from './telas/inicio/foto-perfil';
 export { useNotificacoes } from './lib/usar-notificacoes';
@@ -45,12 +47,12 @@ export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
   migracoesAparelho,
   paginas: [
-    { id: 'rota', caminho: 'rota', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
+    { id: 'rota', caminho: 'rota', titulo: TITULO_DA_ROTA, navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
     // T-0187: a mesma tela no Gestão, só com a ação `visita.registrar_gestao` (supervisor e gerente); o caminho é único no shell
-    { id: 'rota-gestao', caminho: 'rota-gestao', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['gestao'], acao: ACAO_VISITA_REGISTRAR_GESTAO, ordem: 20, componente: comVisitas(TelaRota) },
+    { id: 'rota-gestao', caminho: 'rota-gestao', titulo: TITULO_DA_ROTA, navegacao: 'Rota', icone: 'pin', apps: ['gestao'], acao: ACAO_VISITA_REGISTRAR_GESTAO, ordem: 20, componente: comVisitas(TelaRota) },
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
     { id: 'metas', caminho: 'metas', titulo: 'Metas', apps: ['campo'], componente: TelaMetas },
-    { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Meus módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
+    { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
     { id: 'notificacoes', caminho: 'notificacoes', titulo: 'Notificações', apps: ['campo', 'gestao'], componente: TelaNotificacoes },
     { id: 'cliente', caminho: 'cliente', titulo: 'Ficha do cliente', apps: ['campo', 'gestao'], componente: comVisitas(TelaCliente) },
     { id: 'performance', caminho: 'performance', titulo: 'Performance', navegacao: 'Performance', icone: 'target', ordem: 50, apps: ['campo'], componente: TelaPerformance },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escopoDeUsuarios, listarClientes, papelCompativel, type ClienteLista } from './clientes';
+import { documentoCasa, escopoDeUsuarios, listarClientes, papelCompativel, type ClienteLista } from './clientes';
 
 const cli = (id: string, razao_social: string, extra: Partial<ClienteLista> = {}): ClienteLista => ({
   id,
@@ -8,10 +8,11 @@ const cli = (id: string, razao_social: string, extra: Partial<ClienteLista> = {}
   documento: null,
   cidade: null,
   segmento: null,
+  external_id: null,
   ...extra,
 });
 const todos = [
-  cli('c1', 'Mercado São João', { nome_fantasia: 'Mercadinho do João', documento: '12.345.678/0001-90', cidade: 'Manaus', segmento: 'varejo' }),
+  cli('c1', 'Mercado São João', { nome_fantasia: 'Mercadinho do João', documento: '12.345.678/0001-90', external_id: 'C-0042', cidade: 'Manaus', segmento: 'varejo' }),
   cli('c2', 'Atacado Norte', { cidade: 'Parintins', segmento: 'atacado' }),
   cli('c3', 'Padaria Aurora', { cidade: 'Manaus', segmento: 'varejo' }),
 ];
@@ -40,10 +41,34 @@ describe('busca e filtros da lista de clientes (RF-CORE-02)', () => {
   it('busca por nome ignorando acento e caixa', () => {
     expect(listarClientes(todos, 'vendedor', c, { q: 'sao joao' }).map((x) => x.id)).toEqual(['c1']);
   });
-  it('busca por nome fantasia, cidade e documento (só dígitos)', () => {
+  it('busca por nome fantasia e documento (só dígitos)', () => {
     expect(listarClientes(todos, 'vendedor', c, { q: 'mercadinho' }).map((x) => x.id)).toEqual(['c1']);
-    expect(listarClientes(todos, 'vendedor', c, { q: 'parintins' }).map((x) => x.id)).toEqual(['c2']);
     expect(listarClientes(todos, 'vendedor', c, { q: '12345678000190' }).map((x) => x.id)).toEqual(['c1']);
+  });
+  it('RF-CORE-02: busca por código do cliente (external_id), com ou sem caixa; sem código não quebra', () => {
+    expect(listarClientes(todos, 'vendedor', c, { q: 'c-0042' }).map((x) => x.id)).toEqual(['c1']);
+    expect(listarClientes(todos, 'vendedor', c, { q: '0042' }).map((x) => x.id)).toEqual(['c1']);
+    expect(listarClientes(todos, 'vendedor', c, { q: 'C-0099' })).toEqual([]);
+  });
+  it('RF-CORE-02: a cidade não casa na busca (só código, CNPJ, razão social e nome fantasia); o filtro de cidade segue', () => {
+    expect(listarClientes(todos, 'vendedor', c, { q: 'parintins' })).toEqual([]);
+    expect(listarClientes(todos, 'vendedor', c, { cidade: 'Parintins' }).map((x) => x.id)).toEqual(['c2']);
+  });
+  it('RF-CORE-02: documentoCasa — dígitos do termo (3 ou mais) contidos nos do documento, com ou sem máscara', () => {
+    expect(documentoCasa('12.345.678', '12345678000190')).toBe(true);
+    expect(documentoCasa('12345678000190', '12.345.678/0001-90')).toBe(true);
+    expect(documentoCasa('12', '12345678000190')).toBe(false);
+    expect(documentoCasa('abc', '12345678000190')).toBe(false);
+    expect(documentoCasa('123', null)).toBe(false);
+  });
+  it('RF-CORE-02: o CNPJ casa com e sem máscara, inteiro ou em parte', () => {
+    for (const q of ['12.345.678/0001-90', '12345678000190', '12.345.678', '345678/0001', '0001-90']) {
+      expect(listarClientes(todos, 'vendedor', c, { q }).map((x) => x.id)).toEqual(['c1']);
+    }
+    const semMascara = [cli('s1', 'Loja Sem Máscara', { documento: '98765432000110' })];
+    const so = { propria: new Set(['s1']), equipe: new Set<string>(), equipesAbaixo: new Set<string>() };
+    expect(listarClientes(semMascara, 'vendedor', so, { q: '98.765.432/0001-10' }).map((x) => x.id)).toEqual(['s1']);
+    expect(listarClientes(semMascara, 'vendedor', so, { q: '98765432' }).map((x) => x.id)).toEqual(['s1']);
   });
   it('filtra por cidade e segmento', () => {
     expect(listarClientes(todos, 'vendedor', c, { cidade: 'Manaus', segmento: 'varejo' }).map((x) => x.id)).toEqual(['c1', 'c3']);

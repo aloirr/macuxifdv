@@ -6,7 +6,6 @@ import {
   normalizarEmail,
   podeVerUsuarios,
   recortarUsuarios,
-  superiorImediatoNaEquipe,
   validarDadosDeUsuario,
   validarSenhaInicial,
 } from './usuarios';
@@ -135,23 +134,5 @@ describe('auditoria da alteração (RN-AUD-01)', () => {
   });
   it('RN-AUD-01: sem mudança, lista vazia', () => {
     expect(diffAuditavelDeUsuario(base, { ...base }).campos_alterados).toEqual([]);
-  });
-});
-
-describe('superior imediato derivado da equipe (RF-CORE-02; RN-CORE-04)', () => {
-  const equipes = [
-    { id: 'regional', equipe_pai_id: null, responsavel_id: 'ger' },
-    { id: 'eq1', equipe_pai_id: 'regional', responsavel_id: 'sup' },
-    { id: 'eq2', equipe_pai_id: 'regional', responsavel_id: null },
-  ];
-  it('RN-CORE-04: o superior de quem entra na equipe é o responsável dela', () => {
-    expect(superiorImediatoNaEquipe(equipes, 'eq1')).toBe('sup');
-  });
-  it('RN-CORE-04: equipe sem responsável sobe para o responsável da equipe-pai', () => {
-    expect(superiorImediatoNaEquipe(equipes, 'eq2')).toBe('ger');
-  });
-  it('RN-CORE-04: sem equipe (ou equipe desconhecida) não há superior', () => {
-    expect(superiorImediatoNaEquipe(equipes, null)).toBeNull();
-    expect(superiorImediatoNaEquipe(equipes, 'nada')).toBeNull();
   });
 });
