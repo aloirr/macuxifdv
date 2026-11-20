@@ -26,6 +26,10 @@ export const FAIXA_MAXIMA_ANOS = 40;
 /** Ano de 2 dígitos ("10/14") fica fora da v1, atrás do parâmetro `aplicacao_ano_2_digitos` (desligado). */
 export const APLICACAO_ANO_2_DIGITOS_PADRAO = false;
 
+/** RN-CAT-12: o ano da consulta que a aplicação (com anos) não cobre faz o grupo do ano não casar. */
+export const anoForaDaAplicacao = (anosDaConsulta: readonly number[], anosApl: readonly number[]): boolean =>
+  anosDaConsulta.length > 0 && !anosDaConsulta.some((a) => anosApl.includes(a));
+
 const ANO_RE = /(?<![\p{L}\p{N}])(?<![\d][.,])(?:19|20)\d{2}(?!\d)(?![.,]\d)(?![\p{L}])/gu;
 const SEP_FECHADA_RE = /^(?:\s*[–—\-/]\s*|\s+a\s+)/iu;
 const ABERTA_DEPOIS_RE = /^(?:\s*>|\s+em\s+diante(?![\p{L}\p{N}]))/iu;

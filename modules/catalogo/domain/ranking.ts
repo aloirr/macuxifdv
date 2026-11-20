@@ -7,9 +7,9 @@
  * Boost só soma quando a nota-base é maior que zero: nunca ressuscita produto sem relevância.
  */
 import type { FiltrosInterpretados, Referencia } from '../contracts';
-import { expandirAplicacao } from './aplicacao';
+import { anoForaDaAplicacao, expandirAplicacao } from './aplicacao';
 import type { ParametrosCatalogo } from './parametros';
-import { chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { ANO_DA_CONSULTA_RE, chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 
 /** Documento da busca: cadastro do Core + preço/estoque já resolvidos para o usuário e sinais de venda. */
 export interface DocBusca {
@@ -79,6 +79,11 @@ export function marcasDasReferencias(referencias: readonly { marca_nome?: string
   return [...new Set(referencias.map((r) => r.marca_nome?.trim() ?? '').filter(Boolean))].join(' ');
 }
 
+/** RN-CAT-09: chaves de comparação da marca própria e das marcas concorrentes das referências (sem repetir nem vazias). Uma regra para o filtro e o índice. */
+export function chavesDeMarcaDoProduto(marca: string, referencias: readonly { marca_nome?: string | null | undefined }[] = []): string[] {
+  return [...new Set([marca, ...referencias.map((r) => r.marca_nome ?? '')].map(chaveDeTermo).filter(Boolean))];
+}
+
 /** RN-CAT-08/09: códigos compactos do produto no índice (SKU, código ERP e códigos das referências), sem repetir nem vazios. Uma função para o índice do app e o da API. */
 export function codigosCompactosDoProduto(sku: string, externalId: string | null | undefined, codigosReferencias: readonly string[]): string[] {
   return [...new Set([codigoCompacto(sku), codigoCompacto(externalId ?? ''), ...codigosReferencias.map((c) => codigoCompacto(c))].filter(Boolean))];
@@ -89,7 +94,6 @@ export const TOKENS_DO_PRODUTO = new WeakMap<object, TokensDoDoc>();
 
 /** `aplicacao` é o padrão de `peso_aplicacao` (RN-CAT-12); o ranking usa o do tenant. */
 const PESO_CAMPO = { nome: 1, codigo: 1, marca: 0.6, categoria: 0.4, atributos: 0.3, aplicacao: 0.5 } as const;
-const ANO_RE = /^(19|20)\d{2}$/;
 /** Separador de trechos da aplicação (igual ao do "Serve em"). */
 const SEPARADOR_TRECHO = /[;|•\r\n]/;
 /** RN-CAT-09: tamanho do código (já compactado) para casar por n-grama. */
@@ -393,7 +397,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   const aplicacao = doc.aplicacao ?? '';
   const pesoAplicacao = opcoes.pesoAplicacao ?? PESO_CAMPO.aplicacao;
   const anoAtual = opcoes.anoAtual ?? 0;
-  const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ANO_RE.test(alt)));
+  const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ANO_DA_CONSULTA_RE.test(alt)));
   const outros = grupos.map((g) => {
     let m = 0;
     for (const alt of g) for (const c of campos) m = Math.max(m, melhorNivel(alt, c.termos) * c.peso);
@@ -407,8 +411,8 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
     const s = temPalavra && !casouPalavra ? 0 : soma;
     return { pontos: arred6(s / grupos.length), casados, total: grupos.length, so_aplicacao: casados > 0 && casadosSoAplicacao === casados, referencia_casada: refCasada() };
   };
-  /** `termosApl` nulo = sem campo aplicação. `exigirAno`: o ano da consulta tem de cair nos anos desse trecho. */
-  const avaliar = (termosApl: TermosAplicacao | null, anosApl: number[], exigirAno: boolean): PontuacaoTextual | null => {
+  /** `termosApl` nulo = sem campo aplicação. `exigirAno`: o ano da consulta fora dos anos desse trecho faz o grupo do ano não casar. */
+  const avaliar = (termosApl: TermosAplicacao | null, anosApl: number[], exigirAno: boolean): PontuacaoTextual => {
     let soma = 0;
     let casados = 0;
     let casadosSoAplicacao = 0;
@@ -421,9 +425,9 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
         let melhorAplicacao = 0;
         for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivelAplicacao(alt, termosApl) * pesoAplicacao);
         melhor = Math.max(melhor, melhorAplicacao);
-        // RN-CAT-12: ano da consulta que a aplicação (com anos) não cobre tira o produto, salvo se casar em outro campo
-        const anosDoGrupo = grupo.filter((alt) => ANO_RE.test(alt));
-        if (exigirAno && melhorOutros === 0 && anosDoGrupo.length > 0 && !anosDoGrupo.some((a) => anosApl.includes(Number(a)))) return null;
+        // RN-CAT-12 + R-20261120-103142: ano da consulta fora dos anos da aplicação = o grupo do ano não casa, salvo se casar em outro campo
+        const anosDoGrupo = grupo.filter((alt) => ANO_DA_CONSULTA_RE.test(alt));
+        if (exigirAno && melhorOutros === 0 && anoForaDaAplicacao(anosDoGrupo.map(Number), anosApl)) melhor = 0;
       }
       if (melhor > 0) {
         casados++;
@@ -435,27 +439,21 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
     return montar(soma, casados, casadosSoAplicacao, casouPalavra);
   };
 
-  if (aplicacao === '') return avaliar(null, [], false)!;
+  if (aplicacao === '') return avaliar(null, [], false);
   // atalho: se todo termo já casa nos outros campos com nota >= à máxima possível da aplicação (o peso), ela não muda nada
-  // (nem a nota, nem `so_aplicacao`, nem o filtro de ano, que só vale onde os outros campos zeram): mesmo resultado, sem analisar
-  if (outros.every((o) => o > 0 && o >= pesoAplicacao)) return avaliar(null, [], false)!;
+  // (nem a nota, nem `so_aplicacao`, nem o grupo do ano, que só zera onde os outros campos zeram): mesmo resultado, sem analisar
+  if (outros.every((o) => o > 0 && o >= pesoAplicacao)) return avaliar(null, [], false);
   const analise = analisarAplicacao(doc.id, aplicacao, anoAtual, temAnoNaConsulta);
   const trechos = temAnoNaConsulta ? analise.trechos : undefined;
   if (!trechos) {
-    return avaliar(analise.todos, analise.anos, analise.anos.length > 0) ?? SEM_PONTOS(grupos.length);
+    return avaliar(analise.todos, analise.anos, analise.anos.length > 0);
   }
-  // RN-CAT-12 (T-0084-A4): com ano na consulta, veículo/modelo e ano têm de casar no MESMO trecho (separado por ";")
-  // quais grupos cada trecho cobre: calculado uma vez (antes era refeito para cada trecho × cada outro trecho)
-  const soAplicacao = grupos.map((g, gi) => outros[gi] === 0 && !g.some((alt) => ANO_RE.test(alt)));
-  const casa = trechos.map((t) => grupos.map((g, gi) => soAplicacao[gi]! && g.some((alt) => melhorNivelAplicacao(alt, t.termos) > 0)));
-  const emAlgumTrecho = grupos.map((_, gi) => casa.some((c) => c[gi]));
+  // RN-CAT-12 (T-0084-A4): com ano na consulta, veículo/modelo e ano têm de casar no MESMO trecho (separado por ";"): cada trecho é
+  // avaliado sozinho e vale o que cobre mais grupos (R-20261120-103142: a cobertura manda na regra de exibição), depois a nota
   let melhorResultado: PontuacaoTextual | null = null;
-  for (let ti = 0; ti < trechos.length; ti++) {
-    const t = trechos[ti]!;
-    // termo que só a aplicação cobre (em algum trecho) tem de estar neste trecho, senão o texto seria montado de trechos diferentes
-    if (grupos.some((_, gi) => soAplicacao[gi]! && !casa[ti]![gi]! && emAlgumTrecho[gi])) continue;
+  for (const t of trechos) {
     const r = avaliar(t.termos, t.anos, true);
-    if (r && (melhorResultado === null || r.pontos > melhorResultado.pontos)) melhorResultado = r;
+    if (melhorResultado === null || r.casados > melhorResultado.casados || (r.casados === melhorResultado.casados && r.pontos > melhorResultado.pontos)) melhorResultado = r;
   }
   return melhorResultado ?? SEM_PONTOS(grupos.length);
 }
@@ -492,6 +490,8 @@ export interface ItemRankeado {
   so_aplicacao: boolean;
   /** RN-CAT-09: índice da referência cruzada que casou ("Equivale a"), ou nulo. */
   referencia_casada: number | null;
+  /** R-20261120-103142: quantas palavras (grupos de sinônimos) da consulta o produto casa; o exato por código casa todas. */
+  casados: number;
 }
 
 export interface EntradaRanking {
@@ -520,8 +520,8 @@ export function casaComCodigo(d: Pick<DocBusca, 'ean' | 'sku'> & { referencias?:
 }
 
 /** Filtros estruturados (RN-CAT-01): marca, categoria, faixa de preço e estoque. O código é tratado à parte. */
-export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_cents' | 'estoque'>, f: FiltrosInterpretados): boolean {
-  if (f.brand !== null && !mesmaChave(d.marca, f.brand)) return false;
+export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_cents' | 'estoque'> & { referencias?: DocBusca['referencias'] | undefined }, f: FiltrosInterpretados): boolean {
+  if (f.brand !== null && !chavesDeMarcaDoProduto(d.marca, d.referencias).includes(chaveDeTermo(f.brand))) return false;
   if (f.line !== null && !mesmaChave(d.categoria, f.line)) return false;
   if (f.min_price_cents !== null || f.max_price_cents !== null) {
     if (d.preco_cents === null) return false;
@@ -608,11 +608,18 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
     const exato = exatos.has(doc.id);
     const base = exato ? 1 : comTexto || comSemantica ? combinarNotas(textual, semantica, p.peso_semantico) : 1;
     const nota = notaFinal(base, { estoque: doc.estoque, vendas_norm: maxVendas > 0 ? doc.vendas / maxVendas : 0, campanha: doc.campanha }, p);
-    if (nota > 0) itens.push({ doc, nota, textual, semantica, exato, so_aplicacao: pt.so_aplicacao && !exato, referencia_casada: pt.referencia_casada ?? (exato ? referenciaPorCodigo(doc, filtros, ngramas) : null) });
+    if (nota > 0) itens.push({ doc, nota, textual, semantica, exato, so_aplicacao: pt.so_aplicacao && !exato, referencia_casada: pt.referencia_casada ?? (exato ? referenciaPorCodigo(doc, filtros, ngramas) : null), casados: exato ? grupos.length : pt.casados });
+  }
+  // R-20261120-103142: se algum produto casa TODAS as palavras, só eles aparecem; se nenhum casa, ficam os que casam com mais palavras
+  // (os mais próximos), em ordem de nota, em vez de lista vazia. Só vale com texto e sem nota semântica (a vetorial traz quem não casa palavra).
+  let lista = itens;
+  if (comTexto && !comSemantica && itens.length > 0) {
+    const melhorCobertura = itens.reduce((m, i) => Math.max(m, i.casados), 0);
+    lista = itens.filter((i) => i.casados === melhorCobertura);
   }
 
   const preco = filtros.sort;
-  return itens.sort((a, b) => {
+  return lista.sort((a, b) => {
     if (a.exato !== b.exato) return a.exato ? -1 : 1;
     if (preco) {
       const pa = a.doc.preco_cents;

@@ -5,12 +5,11 @@
 import type { TrechoBusca } from '../contracts';
 import { expandirAplicacao, type FaixaAnos } from './aplicacao';
 import { nivelDaPalavra } from './ranking';
-import { tokensDeBusca } from './texto';
+import { ANO_DA_CONSULTA_RE, tokensDeBusca } from './texto';
 
 export const SERVE_EM_MAX = 90;
 const MAX_MARCAS = 20;
 const SEPARADOR_SEGMENTO = /[;|•\r\n]/;
-const ANO_RE = /^(19|20)\d{2}$/;
 const PALAVRA_RE = /[\p{L}\p{N}]+(?:[.,][\p{N}]+)*/gu;
 
 interface Palavra {
@@ -53,7 +52,7 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
           achadas.push([p.inicio, p.fim]);
           continue;
         }
-        const faixa = partes.length === 1 && ANO_RE.test(q) ? faixas.find((f) => Number(q) >= f.de && Number(q) <= f.ate) : undefined;
+        const faixa = partes.length === 1 && ANO_DA_CONSULTA_RE.test(q) ? faixas.find((f) => Number(q) >= f.de && Number(q) <= f.ate) : undefined;
         if (faixa) faixaDoAno = { ano: Number(q), faixa };
         else todas = false;
       }

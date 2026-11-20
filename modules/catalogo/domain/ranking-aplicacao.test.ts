@@ -50,10 +50,11 @@ describe('RN-CAT-12: atalho quando os outros campos já cobrem a consulta', () =
     expect(nota('pastilha uno', d)).toEqual(nota('pastilha uno', sem));
     expect(estimarMemoriaRanking().entradas).toBe(0);
   });
-  it('RN-CAT-12: ano da consulta que a aplicação não cobre continua tirando o produto quando só ela casa', () => {
+  it('RN-CAT-12 + R-20261120-103142: ano da consulta que a aplicação não cobre é só "o grupo do ano não casa"', () => {
     const d = doc({ id: 'y', nome: 'Pastilha', aplicacao: 'Fiat Uno 2010–2014' });
-    expect(nota('uno 2020', d).pontos).toBe(0);
-    expect(nota('uno 2012', d).pontos).toBeGreaterThan(0);
+    expect(nota('uno 2020', d)).toMatchObject({ casados: 1, total: 2 });
+    expect(nota('uno 2012', d)).toMatchObject({ casados: 2, total: 2 });
+    expect(nota('uno 2012', d).pontos).toBeGreaterThan(nota('uno 2020', d).pontos);
   });
 });
 

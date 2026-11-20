@@ -41,8 +41,13 @@ describe('RN-CAT-12: busca pela aplicação', () => {
     expect(ids([PASTILHA, FILTRO], 'pastilha uno 2012')).toEqual(['pastilha']);
   });
 
-  it('RN-CAT-12: "pastilha uno 2015" não traz a pastilha (ano fora da faixa)', () => {
-    expect(ids([PASTILHA, FILTRO], 'pastilha uno 2015')).toEqual([]);
+  it('RN-CAT-12 + R-20261120-103142: "pastilha uno 2015" (ano fora da faixa): ninguém casa tudo, a pastilha vem como a mais próxima', () => {
+    expect(ids([PASTILHA, FILTRO], 'pastilha uno 2015')).toEqual(['pastilha']);
+  });
+
+  it('RN-CAT-12 + R-20261120-103142: "pastilha uno 2015" com outra pastilha do Uno que cobre 2015: só ela aparece, a de 2010–2014 some', () => {
+    const outra = doc({ id: 'outra', nome: 'Pastilha de freio traseira', aplicacao: 'Fiat Uno 2014–2018' });
+    expect(ids([PASTILHA, FILTRO, outra], 'pastilha uno 2015')).toEqual(['outra']);
   });
 
   it('RN-CAT-12: "filtro gol 2014" acha o filtro do Gol 2009–2016', () => {
@@ -81,10 +86,9 @@ describe('RN-CAT-12: busca pela aplicação', () => {
   it('RN-CAT-12: faixa aberta ("a partir de 2018") usa o ano atual + 1 do relógio injetado', () => {
     const novo = doc({ id: 'novo', nome: 'Amortecedor', aplicacao: 'Onix a partir de 2018' });
     expect(ids([novo], 'amortecedor 2027')).toEqual(['novo']);
-    expect(ids([novo], 'amortecedor 2017')).toEqual([]);
   });
 
-  it('RN-CAT-12: o ano da consulta que casa em outro campo não tira o produto', () => {
+  it('RN-CAT-12: o ano da consulta que casa em outro campo conta como palavra casada', () => {
     const d = doc({ id: 'd', nome: 'Pastilha 2015', aplicacao: 'Fiat Uno 2010–2014' });
     expect(ids([d], 'pastilha 2015')).toEqual(['d']);
   });

@@ -7,9 +7,9 @@
  */
 import type { FiltrosInterpretados } from '../contracts';
 import { anoCivilNoFuso } from './ano-civil';
-import { expandirAplicacao } from './aplicacao';
-import { casaComCodigo, cmp, codigoCompacto, codigosCompactosDoProduto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, referenciaCruzadaContem, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
-import { chaveDeTermo, expandirSinonimos, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { anoForaDaAplicacao, expandirAplicacao } from './aplicacao';
+import { casaComCodigo, chavesDeMarcaDoProduto, cmp, codigoCompacto, codigosCompactosDoProduto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, referenciaCruzadaContem, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
+import { ANO_DA_CONSULTA_RE, chaveDeTermo, expandirSinonimos, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 import { aplicarChips, entraNaVitrine, temEstoqueParaBusca, type ChipsVitrine, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 import { filtrosParaPerfil } from './visibilidade';
 
@@ -39,12 +39,12 @@ export interface IndiceBusca {
   texto: SubIndice;
   /** Termos da aplicação (com os anos das faixas expandidos), separados porque a nota e a ordem tratam esse campo à parte (RN-CAT-12). */
   aplicacao: SubIndice;
-  /** Anos que a aplicação cobre, por posição (`null` = sem aplicação ou sem ano): o ano da consulta fora deles tira o produto (RN-CAT-12). */
+  /** Anos que a aplicação cobre, por posição (`null` = sem aplicação ou sem ano): o ano da consulta fora deles faz o grupo do ano não casar (RN-CAT-12 + R-20261120-103142). */
   anos: readonly (readonly number[] | null)[];
   /** Códigos exatos (EAN cru, SKU e referências compactados) → posições. */
   porCodigo: ReadonlyMap<string, readonly number[]>;
-  /** `chaveDeTermo` da marca e da categoria por posição: o filtro de marca/linha compara cadeias prontas, sem normalizar 20 mil produtos por consulta. */
-  marcaChave: readonly string[];
+  /** Chaves da marca própria e das marcas concorrentes (RN-CAT-09) e da categoria por posição: o filtro compara cadeias prontas, sem normalizar 20 mil produtos por consulta. */
+  marcasChave: readonly (readonly string[])[];
   categoriaChave: readonly string[];
   /** Maior `vendas` entre os produtos ativos (o universo do ranking completo quando não há filtro de marca, linha nem chip). */
   maxVendasAtivos: number;
@@ -79,7 +79,7 @@ export class ConstrutorIndice {
   private readonly porTermoApl = new Map<string, number[]>();
   private readonly porCodigo = new Map<string, number[]>();
   private readonly anos: (readonly number[] | null)[];
-  private readonly marcaChave: string[] = [];
+  private readonly marcasChave: string[][] = [];
   private readonly categoriaChave: string[] = [];
   private maxVendasAtivos = 0;
   private proximo = 0;
@@ -117,7 +117,7 @@ export class ConstrutorIndice {
     }
     for (const c of codigosCompactosDoProduto(p.sku, p.external_id, (p.referencias ?? []).map((r) => r.codigo))) acrescentar(this.porCodigo, c, i);
     if (p.ean) acrescentar(this.porCodigo, p.ean, i);
-    this.marcaChave[i] = chaveDeTermo(p.marca);
+    this.marcasChave[i] = chavesDeMarcaDoProduto(p.marca, p.referencias);
     this.categoriaChave[i] = chaveDeTermo(p.categoria);
     if (p.ativo && p.vendas > this.maxVendasAtivos) this.maxVendasAtivos = p.vendas;
   }
@@ -135,7 +135,7 @@ export class ConstrutorIndice {
       aplicacao: sub(this.porTermoApl),
       anos: this.anos,
       porCodigo: this.porCodigo,
-      marcaChave: this.marcaChave,
+      marcasChave: this.marcasChave,
       categoriaChave: this.categoriaChave,
       maxVendasAtivos: this.maxVendasAtivos,
     };
@@ -266,15 +266,15 @@ export interface EntradaCandidatos {
 
 export interface Candidatos {
   produtos: ProdutoCatalogo[];
-  /** Nota barata de cada candidato (mesma ordem de `produtos`), para `cortarCandidatos`: acertos no índice sem o peso do campo. */
-  pre?: { pontos: number; exato: boolean; soAplicacao: boolean }[];
+  /** Nota barata de cada candidato (mesma ordem de `produtos`), para `cortarCandidatos`: acertos no índice sem o peso do campo; `casados` (R-20261120-103142) é a cobertura de palavras, limite superior da do ranking. */
+  pre?: { pontos: number; exato: boolean; soAplicacao: boolean; casados: number }[];
   /** Maior `vendas` entre os candidatos do ranking completo (normaliza o boost; não pode mudar com a pré-seleção). */
   maxVendas: number;
 }
 
 /** Marca e linha do filtro (os de preço e estoque já foram descartados: nesses casos não há pré-seleção): compara as chaves prontas do índice. */
 function passaCadastro(indice: IndiceBusca, i: number, marca: string | null, linha: string | null): boolean {
-  return (marca === null || indice.marcaChave[i] === marca) && (linha === null || indice.categoriaChave[i] === linha);
+  return (marca === null || indice.marcasChave[i]!.includes(marca)) && (linha === null || indice.categoriaChave[i] === linha);
 }
 
 /**
@@ -343,7 +343,7 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
     }
     return melhor;
   };
-  const porGrupo = grupos.map((g) => ({ texto: doGrupo(indice.texto, g), aplicacao: doGrupo(indice.aplicacao, g), ano: g.filter((alt) => ANO_RE.test(alt)).map(Number), palavra: g.some((alt) => /[a-z]/.test(alt)) }));
+  const porGrupo = grupos.map((g) => ({ texto: doGrupo(indice.texto, g), aplicacao: doGrupo(indice.aplicacao, g), ano: g.filter((alt) => ANO_DA_CONSULTA_RE.test(alt)).map(Number), palavra: g.some((alt) => /[a-z]/.test(alt)) }));
   const alvo = new Set<number>();
   for (const x of porGrupo) {
     for (const i of x.texto.keys()) alvo.add(i);
@@ -364,18 +364,17 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   }
   const posicoes = [...alvo].filter(entra).sort((a, b) => a - b);
   const pre = posicoes.map((i) => {
-    if (porCodigo.has(i)) return { pontos: 1, exato: true, soAplicacao: false };
+    if (porCodigo.has(i)) return { pontos: 1, exato: true, soAplicacao: false, casados: grupos.length };
     let soma = 0;
     let casados = 0;
     let casadosSoAplicacao = 0;
     let casouPalavra = false;
-    let tiraPeloAno = false;
     for (const x of porGrupo) {
       const fora = x.texto.get(i) ?? 0;
-      const melhor = Math.max(fora, (x.aplicacao.get(i) ?? 0) * PESO_APLICACAO);
-      // RN-CAT-12: o ano da consulta que a aplicação (com anos) não cobre tira o produto, salvo se o grupo casar em outro campo
+      let melhor = Math.max(fora, (x.aplicacao.get(i) ?? 0) * PESO_APLICACAO);
+      // RN-CAT-12 + R-20261120-103142: o ano da consulta que a aplicação (com anos) não cobre é "o grupo do ano não casa", salvo se casar em outro campo
       const anos = indice.anos[i];
-      if (anos && fora === 0 && x.ano.length > 0 && !x.ano.some((a) => anos.includes(a))) tiraPeloAno = true;
+      if (anos && fora === 0 && anoForaDaAplicacao(x.ano, anos)) melhor = 0;
       if (melhor > 0) {
         casados++;
         if (fora === 0) casadosSoAplicacao++;
@@ -385,13 +384,12 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
     }
     // número solto não basta quando a consulta também tem palavras (como em `pontuacaoTextual`)
     const temPalavra = porGrupo.some((x) => x.palavra);
-    const zerado = tiraPeloAno || (temPalavra && !casouPalavra);
-    return { pontos: zerado ? 0 : arred(soma / Math.max(1, grupos.length)), exato: false, soAplicacao: casados > 0 && casadosSoAplicacao === casados };
+    const zerado = temPalavra && !casouPalavra;
+    return { pontos: zerado ? 0 : arred(soma / Math.max(1, grupos.length)), exato: false, soAplicacao: casados > 0 && casadosSoAplicacao === casados, casados };
   });
   return { produtos: posicoes.map((i) => e.produtos[i]!), pre, maxVendas };
 }
 
-const ANO_RE = /^(19|20)d{2}$/;
 /** `peso_aplicacao` padrão (RN-CAT-12); a nota barata não lê o parâmetro do tenant. */
 const PESO_APLICACAO = 0.5;
 const arred = (n: number) => Math.round(n * 1e6) / 1e6;
@@ -409,35 +407,40 @@ export function cortarCandidatos(c: Candidatos, contexto: ContextoVitrine, teto:
   const pre = c.pre;
   if (!pre || c.produtos.length <= teto) return c;
   const p = contexto.parametros;
-  // nota textual 0 no ranking (ano fora da aplicação, ou só número): o produto não entra
+  // nota textual 0 no ranking (só número, sem palavra): o produto não entra
   const vivos = c.produtos.map((_, k) => k).filter((k) => pre[k]!.exato || pre[k]!.pontos > 0);
-  // classes da ordem do ranking: 0 exato, 1 casou fora da aplicação, 2 só pela aplicação (RN-CAT-12). Nenhum boost soma mais que
-  // `maiorBoost`: quem tem nota-base a mais que isso abaixo do último que cabe na própria classe (e depois das classes melhores) não entra, e nem é medido.
+  // grupos da ordem do ranking (R-20261120-103142 + RN-CAT-12): exato; depois mais palavras casadas (cobertura); em cada cobertura, quem casou
+  // fora da aplicação antes de quem casou só por ela. Nenhum boost soma mais que `maiorBoost`: quem tem nota-base a mais que isso abaixo do
+  // último que cabe no próprio grupo (e depois dos grupos melhores) não entra, e nem é medido.
   const maiorBoost = p.peso_estoque + p.peso_mais_vendido + p.peso_campanha;
-  const classe = (k: number) => (pre[k]!.exato ? 0 : pre[k]!.soAplicacao ? 2 : 1);
-  const bases: number[][] = [[], [], []];
-  for (const k of vivos) bases[classe(k)]!.push(pre[k]!.pontos);
+  const chaveGrupo = (k: number) => (pre[k]!.exato ? 'e' : `${String(1000 - pre[k]!.casados).padStart(4, '0')}${pre[k]!.soAplicacao ? 2 : 1}`);
+  const chaves = [...new Set(vivos.map(chaveGrupo))].sort();
+  const posGrupo = new Map(chaves.map((ch, g) => [ch, g]));
+  const grupoDe = (k: number) => posGrupo.get(chaveGrupo(k))!;
+  const bases: number[][] = chaves.map(() => []);
+  for (const k of vivos) bases[grupoDe(k)]!.push(pre[k]!.pontos);
   for (const l of bases) l.sort((x, y) => y - x);
-  const pisoDa = (cl: number): number => {
-    const adiante = bases.slice(0, cl).reduce((s, l) => s + l.length, 0);
+  const pisoDa = (g: number): number => {
+    const adiante = bases.slice(0, g).reduce((acc, l) => acc + l.length, 0);
     const resta = teto - adiante;
     if (resta <= 0) return Infinity;
-    return (bases[cl]![resta - 1] ?? -Infinity) - maiorBoost;
+    return (bases[g]![resta - 1] ?? -Infinity) - maiorBoost;
   };
-  const pisos = [-Infinity, pisoDa(1), pisoDa(2)];
+  const pisos = chaves.map((_, g) => pisoDa(g));
   const linhas = vivos.flatMap((k) => {
     const produto = c.produtos[k]!;
-    const { pontos, exato, soAplicacao } = pre[k]!;
-    if (!exato && pontos < pisos[classe(k)]!) return [];
+    const { pontos, exato, soAplicacao, casados } = pre[k]!;
+    if (!exato && pontos < pisos[grupoDe(k)]!) return [];
     const tem = temEstoqueParaBusca(produto, contexto);
     const nota = notaFinal(exato ? 1 : pontos, { estoque: tem ? 1 : 0, vendas_norm: c.maxVendas > 0 ? produto.vendas / c.maxVendas : 0, campanha: produto.campanha }, p);
-    return [{ k, produto, pontos, exato, soAplicacao, nota, tem, chave: null as string | null }];
+    return [{ k, produto, pontos, exato, soAplicacao, casados, nota, tem, chave: null as string | null }];
   });
   const chaveDe = (x: (typeof linhas)[number]) => (x.chave ??= nomeChave(x.produto));
   const melhores = linhas
     .sort(
       (a, b) =>
         Number(b.exato) - Number(a.exato) ||
+        b.casados - a.casados ||
         Number(a.soAplicacao) - Number(b.soAplicacao) ||
         b.nota - a.nota ||
         b.pontos - a.pontos ||

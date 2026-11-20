@@ -72,6 +72,7 @@ const CONSULTAS = [
   'filtro ar tecfil',
   'amortecedor cofap traseiro',
   'amortecedor dianteiro gol 2012',
+  'amortecedor gol 2007 mahle 33000',
   'correia dentada civic 2014',
   'vela ignicao ngk',
   'bateria 60 ah moura',
@@ -191,6 +192,21 @@ describe('T-0119 (D-T0107b): teto de candidatos antes do ranking completo', () =
     expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
     expect(corte.pre).toHaveLength(25);
     expect(corte.maxVendas).toBe(pre.maxVendas);
+  });
+
+  it('R-20261120-103142: o corte não troca quem casa todas as palavras por quem casa só em parte (total igual com e sem índice)', () => {
+    const cheios = Array.from({ length: 10 }, (_, i): ProdutoCatalogo => ({ ...PRODUTOS[0]!, id: uuid(7000 + i), sku: `CH${i}`, ean: null, nome: 'Pastilha freio cheia', marca: 'Cobreq', categoria: 'Freios', ativo: true, atributos: [], aplicacao: '', referencias: [], campanha: false, vendas: 0 }));
+    const parciais = Array.from({ length: 40 }, (_, i): ProdutoCatalogo => ({ ...cheios[0]!, id: uuid(7100 + i), sku: `PA${i}`, nome: 'Pastilha comum', categoria: 'Outros', campanha: true, vendas: 99 }));
+    const lista = [...parciais, ...cheios];
+    const filtros = interpretarConsulta('pastilha freio', vocabularioDe(lista));
+    const base = { contexto: contexto(), filtros, sinonimos: [], limit: 50, offset: 0 };
+    const cheia = buscarProdutos({ ...base, produtos: lista });
+    const pre = candidatosDaBusca({ produtos: lista, contexto: base.contexto, filtros, sinonimos: [], minimo: 0 })!;
+    const corte = cortarCandidatos(pre, base.contexto, 15);
+    const reduzida = buscarProdutos({ ...base, produtos: corte.produtos, maxVendas: corte.maxVendas });
+    expect(cheia.total).toBe(10);
+    expect(reduzida.total).toBe(10);
+    expect(reduzida.items.map((x) => x.id).sort()).toEqual(cheios.map((x) => x.id).sort());
   });
 
   it('T-0119: o empate de texto é decidido pelo estoque (o boost do ranking), não pela posição no cadastro', () => {

@@ -4,6 +4,9 @@
  * texto que entra no índice e para a consulta, então eventuais imperfeições do plural simples se anulam.
  */
 
+/** RN-CAT-12: palavra da consulta que é um ano (1900 a 2099). Uma só definição para o ranking, o índice e o "Serve em". */
+export const ANO_DA_CONSULTA_RE = /^(19|20)\d{2}$/;
+
 /** Grupo de sinônimos do tenant (forma mínima de `Sinonimo` do contrato). */
 export interface SinonimoDoTenant {
   term: string;
