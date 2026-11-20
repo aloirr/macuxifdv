@@ -23,14 +23,13 @@ import {
   type RotasLista,
   type VisitasLista,
 } from '../contracts';
-import { carteiraParaEvento, copiarRota, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
+import { carteiraParaEvento, copiarRota, PERFIS_GESTAO, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import { auditar } from './auditoria';
 import { BASE, TABELAS_SYNC } from './sync';
 
 const Uuid = z.string().uuid();
 const IdParam = z.object({ id: Uuid });
-const PERFIS_GESTAO = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 const DIA_MS = 86_400_000;
 
 const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');

@@ -22,13 +22,13 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ACAO_CHECKIN_FORA_DE_ROTA, ACAO_VISITA_REGISTRAR_GESTAO, type AbaCliente, type AcaoCliente, type AvisoCliente, type ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, visitaDeGestaoPermitida, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, limiteEDisponivelDoResumo, performanceDoCliente, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal, type AbaFicha } from '../../domain';
+import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, visitaDeGestaoPermitida, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, limiteEDisponivelDoResumo, performanceDoCliente, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal, perfilDeGestao, type AbaFicha } from '../../domain';
 import { AbaDocumentacao } from '../components/aba-documentacao';
 import { AbaHistorico } from '../components/aba-historico';
 import { AbaResumo, type ItemCompradoLinha } from '../components/aba-resumo';
 import { nomeDoCliente, subtituloDaFicha } from '../components/cliente360';
 import { abrirArquivoRegistrado } from '../lib/abrir-arquivo';
-import { pedidosQuePesamNoCredito, abasDoApp, FILTRO_PADRAO, perfilDeGestao, type FiltroDaFicha } from '../lib/ficha-v2';
+import { pedidosQuePesamNoCredito, abasDoApp, FILTRO_PADRAO, type FiltroDaFicha } from '../lib/ficha-v2';
 import { useAbrirDocumento, useDetalheDaNota, useDocumentosDoCliente, useNotasDoCliente } from '../lib/usar-ficha-online';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';

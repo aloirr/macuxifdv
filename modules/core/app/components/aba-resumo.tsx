@@ -11,7 +11,9 @@ import type { CartaoCredito } from '../../contracts';
 import { observacaoComCadastro, type PerformanceCalculada } from '../../domain';
 import type { Cliente360Local } from '../lib/cliente360-local';
 import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, valorSemMoeda } from '../lib/ficha-v2';
+import { useCarteiraDoCliente } from '../lib/usar-ficha-online';
 import { mapsUrl } from '../lib/route';
+import { ErroOnline } from './erro-online';
 
 const num = (v: string | number | null): number | null => (v === null || v === '' ? null : Number(v));
 
@@ -28,6 +30,39 @@ export interface ItemCompradoLinha {
 
 /** RN-CORE-50: os 3 últimos e "Ver os 20 itens ›". */
 const ITENS_NO_INICIO = 3;
+
+/** Só no Gestão (spec §6): Vendedora · Ligar · WhatsApp, vindos do servidor. Sem internet: "Sem internet" e "Tentar de novo". */
+function CarteiraDoCliente({ clienteId, ligado }: { clienteId: string; ligado: boolean }) {
+  const q = useCarteiraDoCliente(clienteId, ligado);
+  if (q.estado === 'ocioso' || q.estado === 'carregando') return null;
+  return (
+    <View style={{ gap: 8 }} testID="cliente-carteira">
+      <SectionHeader title="Carteira" />
+      {q.estado === 'erro' || !q.resposta ? (
+        <ErroOnline falha={q.falha} titulo="Carteira" onTentar={q.recarregar} testID="cliente-carteira-erro" />
+      ) : q.resposta.itens.length === 0 ? (
+        <Text style={t.sub}>Ninguém vinculado.</Text>
+      ) : (
+        <TabelaDados
+          colunas={[
+            { id: 'pessoa', titulo: q.resposta.rotulo_coluna },
+            { id: 'ligar', titulo: 'Ligar', largura: 48, alinhar: 'centro' },
+            { id: 'zap', titulo: 'WhatsApp', largura: 60, alinhar: 'centro' },
+          ]}
+          linhas={q.resposta.itens.map<LinhaTabela>((p) => ({
+            tipo: 'linha',
+            key: p.usuario_id,
+            celulas: [
+              <CelulaTexto key="n" principal={p.nome} />,
+              <BotaoCelula key="t" icone="phone" rotulo={p.tel ? `Ligar para ${p.nome}` : `Ligar indisponível: ${p.nome} sem número`} desligado={!p.tel} onPress={() => p.tel && void Linking.openURL(p.tel)} testID={`carteira-ligar-${p.usuario_id}`} />,
+              <BotaoCelula key="w" icone="chat" rotulo={p.whatsapp ? `WhatsApp de ${p.nome}` : `WhatsApp indisponível: ${p.nome} sem número`} desligado={!p.whatsapp} onPress={() => p.whatsapp && void Linking.openURL(p.whatsapp)} testID={`carteira-whatsapp-${p.usuario_id}`} />,
+            ],
+          }))}
+        />
+      )}
+    </View>
+  );
+}
 
 export function AbaResumo({
   ficha,
@@ -121,6 +156,8 @@ export function AbaResumo({
           />
         )}
       </View>
+
+      <CarteiraDoCliente clienteId={c.id} ligado={gestao} />
 
       <View style={{ gap: 8 }} testID="cliente-performance">
         <SectionHeader title={perf.titulo} />
