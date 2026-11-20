@@ -157,7 +157,8 @@ describe('T-0140 A — Novo pedido sem fechar o app (regra dos hooks, RF-VEN-05)
     it('a tela decide editor × seletor só pelo `customerId` e remonta o editor por cliente (chave)', () => {
       const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
       expect(tela).toContain('if (!customerId) return <CustomerPicker />;');
-      expect(tela).toMatch(/<OrderEditor key=\{`\$\{customerId\}:\$\{editId \?\? ''\}:\$\{vendedorId \?\? ''\}`\}/);
+      // T-0187: + `emNomeLivre` na chave (novo pedido em nome aberto pela ficha do cliente no Gestão)
+      expect(tela).toMatch(/<OrderEditor key=\{`\$\{customerId\}:\$\{editId \?\? ''\}:\$\{vendedorId \?\? ''\}(:\$\{emNomeLivre \? 'livre' : ''\})?`\}/);
     });
   });
 });
