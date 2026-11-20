@@ -45,6 +45,8 @@ export interface IndiceBusca {
   porCodigo: ReadonlyMap<string, readonly number[]>;
   /** `chaveDeTermo` da marca e da categoria por posição: o filtro de marca/linha compara cadeias prontas, sem normalizar 20 mil produtos por consulta. */
   marcaChave: readonly string[];
+  /** Marcas concorrentes das referências cruzadas de cada produto (RN-CAT-09): também casam o filtro de marca. */
+  marcasRefChave: readonly (readonly string[])[];
   categoriaChave: readonly string[];
   /** Maior `vendas` entre os produtos ativos (o universo do ranking completo quando não há filtro de marca, linha nem chip). */
   maxVendasAtivos: number;
@@ -80,6 +82,7 @@ export class ConstrutorIndice {
   private readonly porCodigo = new Map<string, number[]>();
   private readonly anos: (readonly number[] | null)[];
   private readonly marcaChave: string[] = [];
+  private readonly marcasRefChave: string[][] = [];
   private readonly categoriaChave: string[] = [];
   private maxVendasAtivos = 0;
   private proximo = 0;
@@ -118,6 +121,7 @@ export class ConstrutorIndice {
     for (const c of codigosCompactosDoProduto(p.sku, p.external_id, (p.referencias ?? []).map((r) => r.codigo))) acrescentar(this.porCodigo, c, i);
     if (p.ean) acrescentar(this.porCodigo, p.ean, i);
     this.marcaChave[i] = chaveDeTermo(p.marca);
+    this.marcasRefChave[i] = (p.referencias ?? []).map((r) => chaveDeTermo(r.marca_nome ?? '')).filter(Boolean);
     this.categoriaChave[i] = chaveDeTermo(p.categoria);
     if (p.ativo && p.vendas > this.maxVendasAtivos) this.maxVendasAtivos = p.vendas;
   }
@@ -136,6 +140,7 @@ export class ConstrutorIndice {
       anos: this.anos,
       porCodigo: this.porCodigo,
       marcaChave: this.marcaChave,
+      marcasRefChave: this.marcasRefChave,
       categoriaChave: this.categoriaChave,
       maxVendasAtivos: this.maxVendasAtivos,
     };
@@ -274,7 +279,7 @@ export interface Candidatos {
 
 /** Marca e linha do filtro (os de preço e estoque já foram descartados: nesses casos não há pré-seleção): compara as chaves prontas do índice. */
 function passaCadastro(indice: IndiceBusca, i: number, marca: string | null, linha: string | null): boolean {
-  return (marca === null || indice.marcaChave[i] === marca) && (linha === null || indice.categoriaChave[i] === linha);
+  return (marca === null || indice.marcaChave[i] === marca || (indice.marcasRefChave[i] ?? []).includes(marca)) && (linha === null || indice.categoriaChave[i] === linha);
 }
 
 /**
@@ -391,7 +396,7 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   return { produtos: posicoes.map((i) => e.produtos[i]!), pre, maxVendas };
 }
 
-const ANO_RE = /^(19|20)d{2}$/;
+const ANO_RE = /^(19|20)\d{2}$/;
 /** `peso_aplicacao` padrão (RN-CAT-12); a nota barata não lê o parâmetro do tenant. */
 const PESO_APLICACAO = 0.5;
 const arred = (n: number) => Math.round(n * 1e6) / 1e6;

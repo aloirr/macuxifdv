@@ -520,8 +520,9 @@ export function casaComCodigo(d: Pick<DocBusca, 'ean' | 'sku'> & { referencias?:
 }
 
 /** Filtros estruturados (RN-CAT-01): marca, categoria, faixa de preço e estoque. O código é tratado à parte. */
-export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_cents' | 'estoque'>, f: FiltrosInterpretados): boolean {
-  if (f.brand !== null && !mesmaChave(d.marca, f.brand)) return false;
+export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_cents' | 'estoque'> & { referencias?: DocBusca['referencias'] | undefined }, f: FiltrosInterpretados): boolean {
+  // R-20261120-101755 (RN-CAT-09): a marca da frase casa a marca própria OU a marca concorrente de uma referência cruzada
+  if (f.brand !== null && !mesmaChave(d.marca, f.brand) && !(d.referencias ?? []).some((r) => r.marca_nome != null && mesmaChave(r.marca_nome, f.brand!))) return false;
   if (f.line !== null && !mesmaChave(d.categoria, f.line)) return false;
   if (f.min_price_cents !== null || f.max_price_cents !== null) {
     if (d.preco_cents === null) return false;
