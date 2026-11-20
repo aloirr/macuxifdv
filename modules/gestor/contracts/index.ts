@@ -14,4 +14,3 @@ export * from './alerta';
 export * from './aprovacao';
 export * from './pedido-em-nome';
 export * from './visao';
-export * from './membros-da-equipe';

@@ -56,19 +56,6 @@ export function situacaoDoPrazo(
   return { prazo_em, horas_restantes, situacao };
 }
 
-/** RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem digitou o pedido, do `vendedor.pedido.criado@1` (`autor_id`). Ausente = desconhecido. */
-export function autorDoPedido(estado: EstadoProjecao, pedidoId: string): string | null {
-  return estado.pedidos[pedidoId]?.criado?.autor_id ?? null;
-}
-
-/**
- * RN-VEN-10: ninguém decide o próprio pedido. Autor desconhecido nunca bloqueia.
- * TODO RD-2436: trocar pelo export de modules/vendedor/contracts (mesma assinatura) e apagar esta cópia.
- */
-export function decisorEhAutor(pedido: { autor_id: string | null; vendedor_id: string }, decisorId: string): boolean {
-  return pedido.autor_id !== null && pedido.autor_id !== pedido.vendedor_id && pedido.autor_id === decisorId;
-}
-
 export interface MotivoPendente {
   motivo: MotivoAprovacao;
   nivel: NivelAprovacao;
@@ -133,8 +120,6 @@ export function filaDeAprovacoes(e: EntradaFila): ItemFilaAprovacao[] {
   for (const [pedidoId, linha] of Object.entries(e.estado.aprovacoes)) {
     const a = solicitacaoDaLinha(linha);
     if (!a || !podeVer(e.escopo, a.vendedor_id)) continue;
-    // RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem decide não vê na fila o pedido de que é autor (analista e admin só leem)
-    if (decide && decisorEhAutor({ autor_id: autorDoPedido(e.estado, pedidoId), vendedor_id: a.vendedor_id }, e.viewer.id)) continue;
     // P3 B: quem decide vê só os motivos que pode decidir; analista e admin leem todos os do Gestor (RN-GES-07)
     const visiveis: AprovacaoDoItem[] = motivosPendentes(e.estado, pedidoId)
       .filter((m) => nivelDaFilaDoGestor(m.nivel) && (!decide || podeDecidir(e.viewer.perfil, m.nivel)))

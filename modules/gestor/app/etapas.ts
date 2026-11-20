@@ -5,7 +5,6 @@
  * a etapa não derruba a sincronização e o aparelho segue com o que tinha (offline-first).
  */
 import type { EtapaSync } from '@macuxi/platform-sdk';
-import { registrarArmazenamentoGestor } from './lib/consulta-membros';
 import { atualizarCache, criarCache } from './lib/cache';
 
 export const etapaGestor: EtapaSync = {
@@ -13,7 +12,6 @@ export const etapaGestor: EtapaSync = {
   rotulo: 'Painel da equipe',
   modulo: 'gestor',
   async executar(ctx) {
-    registrarArmazenamentoGestor(ctx.armazenamento);
     const r = await atualizarCache(ctx.http, criarCache(ctx.armazenamento), ctx.agora);
     if (r.semConexao) return; // o motor já trata a falta de sinal; o cache fica como está
   },

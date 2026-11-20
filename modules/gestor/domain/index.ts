@@ -21,4 +21,3 @@ export * from './sincronizacao';
 export * from './alertas-pendencia-checkout';
 export * from './etapa-pendente-equipe';
 export * from './trajeto';
-export * from './membros-da-equipe';

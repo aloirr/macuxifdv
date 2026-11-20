@@ -235,14 +235,3 @@ describe('ranking, alerta, aprovação e pedido em nome', () => {
     expect(MembroEquipe.safeParse({ id: u(1), nome: 'Ana', perfil: 'diretor', superior_id: null, ativo: true }).success).toBe(false);
   });
 });
-
-describe('RN-VEN-35: consulta gestor.membros_da_equipe@1', () => {
-  it('RN-VEN-35: nome versionado, entrada vazia e item fora do contrato é recusado', async () => {
-    const { CONSULTA_MEMBROS_DA_EQUIPE, MembrosDaEquipeSaidaSchema } = await import('./index');
-    expect(CONSULTA_MEMBROS_DA_EQUIPE.nome).toBe('gestor.membros_da_equipe@1');
-    expect(CONSULTA_MEMBROS_DA_EQUIPE.entrada.safeParse({}).success).toBe(true);
-    const item = { usuario_id: u(1), nome: 'Vera', perfil: 'vendedor', equipe_id: u(2), ativo: true };
-    expect(MembrosDaEquipeSaidaSchema.safeParse({ membros: [item], equipes: [{ equipe_id: u(2), nome: 'Sandro' }] }).success).toBe(true);
-    expect(MembrosDaEquipeSaidaSchema.safeParse({ membros: [{ ...item, ativo: 'sim' }], equipes: [] }).success).toBe(false);
-  });
-});

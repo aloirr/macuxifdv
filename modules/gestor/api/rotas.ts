@@ -43,7 +43,6 @@ import {
   filaDeAprovacoes,
   membrosDoCadastro,
   parametrosDoTenant,
-  pessoasDoTrajeto,
   rankingDaEquipe,
   reconciliarParaViewer,
   resolverRegras,
@@ -239,7 +238,7 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
       const data = dataDoUsuario((ctx.query as DataQuery).data);
       const { usuario_id } = ctx.params as z.infer<typeof ParamsUsuario>;
       return comGestor(ctx, repo, async (g): Promise<TrajetoEquipe> => {
-        const alvo = pessoasDoTrajeto({ viewer: g.viewer, membros: equipeDoEscopo(g) }).find((m) => m.id === usuario_id);
+        const alvo = equipeDoEscopo(g).find((m) => m.id === usuario_id && (m.perfil === 'vendedor' || m.perfil === 'promotor'));
         if (!alvo) throw new ErroNaoEncontrado('MEMBRO_NAO_ENCONTRADO', 'Pessoa não encontrada na sua equipe.');
         const dia = dataDaConsulta(data, g.agora, g.params.fuso);
         const r = await g.tx.consultar(CONSULTA_TRAJETO_DO_DIA, { usuario_ids: [alvo.id], data: dia });
