@@ -271,6 +271,8 @@ export async function calcularDocumento(
     // RN-VEN-10: o pedido do gestor usa a alçada do gestor
     policy: emNome ? politicaDoAutor(politicaDosParametros(ctx.parametros()), ctx.usuario.perfil) : politicaDosParametros(ctx.parametros()),
     total_aparelho_cents: p.total_cents,
+    // RN-GES-04 (T-0187, P4 A): no pedido em nome o autor não aprova o próprio pedido
+    ...(emNome ? { autor_perfil: ctx.usuario.perfil } : {}),
   });
   if (!rv.ok) return recusa(itemId, rv);
   // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
