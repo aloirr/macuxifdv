@@ -36,12 +36,12 @@
 - **Payload que o consumidor não aceita**: quando o `schema.parse` falha no despachante, a falha é a mesma nas 10 tentativas.
   Sinal: `ultimo_erro` com `ZodError: dados inválidos` depois do módulo (`classe_erro` `<módulo>: ZodError`).
 
-## 4. Como confirmar (só leitura)
+## 4. Como confirmar
 Rode o workflow do §6 e leia o resultado assim:
 - A hipótese do §2 se confirma com quase tudo em `integracao.lote.recebido@1`, numa só `entidade_lote`, e a `classe_erro`
   `integracao: espera da mesma entidade`. A **primeira** linha, a mais antiga e com outra `classe_erro`, é a raiz.
 - Se o grosso estiver em `core.notificacao.criada@1` com a `classe_erro` `core: efeito HTTP …`, vale o §3 (configuração do FCM).
-- Qualquer outro nome: a `classe_erro` diz qual consumidor falhou. Mande o resultado para o engenheiro-software, que encaminha ao dono.
+- Qualquer outro nome: a `classe_erro` diz qual consumidor falhou. Mande o resultado para o engenheiro-software.
 
 ## 5. Correção proposta
 **Agora, operação:**
@@ -60,8 +60,7 @@ Rode o workflow do §6 e leia o resultado assim:
 - **Se for o push**: conferir os secrets `PROD_FCM_*`. Ver também se um erro de configuração (403) deve parar o evento logo, sem
   repetir 10 vezes.
 
-## 6. Diagnóstico pelo GitHub (workflow só leitura)
-Depois do deploy:
+## 6. Como rodar o diagnóstico
 1. Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow.
 2. Em "Use workflow from", escolha a **tag da versão publicada** (ex. `v1.0.17`), não o `main`.
 3. Em `empresas`, o código da empresa (ex. `thathyany`).
