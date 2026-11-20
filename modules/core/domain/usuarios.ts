@@ -19,7 +19,6 @@ import {
   type PerfilDaRequisicao,
   type ViolacaoLimite,
 } from '@macuxi/platform-sdk';
-import { montarHierarquia, type EquipeLinha } from './hierarquia';
 import { podeVer } from './matriz';
 import { faltasNaSenha, mensagemDaSenha } from './senha';
 
@@ -182,11 +181,4 @@ export function diffAuditavelDeUsuario(antes: UsuarioAuditavel, depois: UsuarioA
     d[c] = depois[c];
   }
   return { campos_alterados: campos, antes: a, depois: d };
-}
-
-/** Superior imediato de um usuário que está (ou entra) na equipe: reaproveita `montarHierarquia` (mesma regra da API de hierarquia). */
-export function superiorImediatoNaEquipe(equipes: readonly EquipeLinha[], equipeId: string | null): string | null {
-  if (!equipeId) return null;
-  const candidato = { id: '00000000-0000-0000-0000-000000000000', nome: 'x', perfil: 'vendedor' as const, equipe_id: equipeId, ativo: true };
-  return montarHierarquia(equipes, [candidato])[0]?.superior_id ?? null;
 }

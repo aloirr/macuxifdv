@@ -1,10 +1,10 @@
 /**
  * Carteira: busca e filtros locais (funcionam sem sinal).
- * Filtro padrão (R-20261115-072200): `CampoBusca` + `BotaoFiltro` na mesma
- * linha; as situações saem da tela e viram o grupo "Situação" da folha "Filtrar"; cada uma marcada vira etiqueta removível. A
+ * Filtro padrão (R-20261115-072200): o campo de busca fica na tela (exceção à regra "todo filtro no botão de filtro", com o Catálogo;
+ * R-20261120-062210) e procura por código, CNPJ, razão social ou nome fantasia; as situações ficam na folha "Filtrar"; cada situação aplicada vira etiqueta removível. A
  * carteira vazia mostra só "Sua carteira está vazia." (RD-0501, RD-0504). Regras no domain (`filtro-padrao.ts`).
  */
-import { BotaoFiltro, CabecalhoTela, CampoBusca, Chip, ChipEstado, EstadoVazio, EtiquetaFiltro, colors, Icon, radius, SeloAtualizacao, type as t } from '@macuxi/ui/mobile';
+import { BotaoFiltro, CabecalhoTela, CampoBusca, Chip, ChipEstado, EstadoVazio, EtiquetaFiltro, colors, Icon, radius, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -66,7 +66,6 @@ export function TelaClientes() {
       setFiltros={setFilters}
       query={query}
       setQuery={setQuery}
-      placeholder="Nome, código, bairro ou CNPJ"
       linha={(item, first, last, garantidas) => <CustomerRow c={item} first={first} last={last} garantidas={garantidas} />}
     />
   );
@@ -79,7 +78,7 @@ const FILTROS_LOCAIS: ReadonlyArray<Situacao<FiltroLocal>> = [
   { id: 'bloqueados', label: 'Bloqueados', garante: 'bloqueado' },
 ];
 
-/** Lista de Clientes do aparelho (Cliente 360 offline, T-0017): busca por nome, fantasia, documento e cidade. */
+/** Lista de Clientes do aparelho (Cliente 360 offline, T-0017). */
 function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
   const core = useCore();
   const [query, setQuery] = useState('');
@@ -112,7 +111,6 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
       setFiltros={setFiltros}
       query={query}
       setQuery={setQuery}
-      placeholder="Nome, documento ou cidade"
       linha={(item, first, last, garantidas) => <LinhaLocal c={item} hoje={hoje} first={first} last={last} garantidas={garantidas} />}
     />
   );
@@ -129,7 +127,6 @@ function Carteira<F extends string, T>({
   setFiltros,
   query,
   setQuery,
-  placeholder,
   linha,
   testID,
 }: {
@@ -143,7 +140,6 @@ function Carteira<F extends string, T>({
   setFiltros: Dispatch<SetStateAction<F[]>>;
   query: string;
   setQuery: (q: string) => void;
-  placeholder: string;
   linha: (item: T, first: boolean, last: boolean, garantidas: readonly SituacaoDoCliente[]) => ReactElement;
   testID?: string;
 }) {
@@ -158,13 +154,12 @@ function Carteira<F extends string, T>({
       <CabecalhoTela
         titulo="Clientes"
         subtitulo={subtituloDaCarteira(itens.length, total)}
-        direita={<SeloAtualizacao testID="clientes-selo-sync" semRede={false} onSincronizar={core.sincronizar} atualizadoEm={core.estado.sincronizadoEm} tz={core.tz} sobreFaixa />}
       />
       {vazia ? null : (
         <View style={styles.top}>
           <View style={styles.linhaBusca}>
             <View style={{ flex: 1 }}>
-              <CampoBusca testID="customer-search" valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" rotuloAcessivel="Buscar cliente" placeholder={placeholder} />
+              <CampoBusca testID="customer-search" valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar a busca" rotuloAcessivel="Buscar cliente" placeholder="Código, CNPJ ou nome" />
             </View>
             <BotaoFiltro
               testID="clientes-filtro"

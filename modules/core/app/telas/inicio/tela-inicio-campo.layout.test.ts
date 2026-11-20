@@ -72,7 +72,7 @@ describe('R-20261114-145000: Início do Campo enquadrado', () => {
   });
 
   it('variação C: um só alvo lido abre o Perfil e os textos ficam fora da leitura repetida', () => {
-    expect(painel.match(/accessibilityLabel=\{`\$\{v\.saudacao\}\. Abrir perfil`\}/g)).toHaveLength(1);
+    expect(painel.match(/accessibilityLabel=\{`\$\{v\.saudacao\} Abrir perfil`\}/g)).toHaveLength(1);
     expect(painel.match(/onPress=\{onPerfil\}/g)?.length).toBeGreaterThanOrEqual(1);
     expect(painel).toContain('importantForAccessibility="no-hide-descendants"');
   });

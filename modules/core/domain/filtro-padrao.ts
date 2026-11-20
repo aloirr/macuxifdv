@@ -92,8 +92,8 @@ export function textoDaDataDaRota(data: string, maiusculo = false): string {
   return maiusculo ? maiuscula(t) : t;
 }
 
-/** Título da tela: "Rota de hoje" ou, com outra data, "Rota" (a data fica só na etiqueta removível; RD-1235). */
-export const tituloDaRota = (f: FiltroRota): string => (f.data ? 'Rota' : 'Rota de hoje');
+/** Texto único do título da Rota (tela, abertura da ficha e página do shell). A data fica só na etiqueta removível (RD-1235). */
+export const TITULO_DA_ROTA = 'Rota';
 
 /** Etiquetas removíveis, na ordem da folha. */
 export function etiquetasDaRota(f: FiltroRota): Array<{ campo: CampoFiltroRota; texto: string }> {

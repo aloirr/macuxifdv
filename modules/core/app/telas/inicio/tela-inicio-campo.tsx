@@ -47,7 +47,7 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
     <View style={s.raiz}>
       <View style={[layoutCabecalho(insets.top), s.painel]}>
         <View style={s.linhaTopo}>
-          <Pressionavel testID="abrir-perfil" accessibilityRole="button" accessibilityLabel={`${v.saudacao}. Abrir perfil`} onPress={onPerfil} style={s.perfil}>
+          <Pressionavel testID="abrir-perfil" accessibilityRole="button" accessibilityLabel={`${v.saudacao} Abrir perfil`} onPress={onPerfil} style={s.perfil}>
             <View style={s.avatar} testID="inicio.avatar" accessibilityLabel={`Foto de ${v.nome}`}>
               {v.foto ? <Image source={{ uri: v.foto }} resizeMode="cover" style={s.foto} testID="inicio.foto" /> : <Text style={s.iniciais}>{initials(v.nome)}</Text>}
             </View>
