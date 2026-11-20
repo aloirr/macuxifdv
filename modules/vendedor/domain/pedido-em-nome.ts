@@ -86,6 +86,27 @@ export function vendedorPadraoEmNome(e: { clienteId: string; carteira: readonly 
   return candidatos.length === 1 ? candidatos[0]!.id : null;
 }
 
+export interface VinculoComPapel { usuario_id: string; cliente_id: string; papel: 'vendedor' | 'promotor'; inicio: string | null; fim: string | null; deleted_at?: string | null }
+
+/**
+ * RN-PRO-01, RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" a partir do `papel` das carteiras que o aparelho já tem.
+ * Quem tem vínculo de promotor fica fora. Vendedor com vínculo vigente (`hoje`, AAAA-MM-DD) é ativo; só com vínculo encerrado ou
+ * apagado é inativo ("Saiu da equipe"); só com vínculo futuro não entra. Nome ausente vira "Vendedor".
+ */
+export function equipeEmNomeDaCarteira(e: { carteiras: readonly VinculoComPapel[]; hoje: string; nomes: ReadonlyMap<string, string> }): UsuarioDaEquipe[] {
+  const promotores = new Set(e.carteiras.filter((c) => c.papel === 'promotor').map((c) => c.usuario_id));
+  const estado = new Map<string, 'ativo' | 'saiu'>();
+  for (const c of e.carteiras) {
+    if (c.papel !== 'vendedor' || promotores.has(c.usuario_id)) continue;
+    const futuro = !c.deleted_at && c.inicio !== null && c.inicio.slice(0, 10) > e.hoje;
+    if (futuro) continue;
+    const vigente = !c.deleted_at && !(c.fim !== null && c.fim.slice(0, 10) < e.hoje);
+    if (vigente) estado.set(c.usuario_id, 'ativo');
+    else if (!estado.has(c.usuario_id)) estado.set(c.usuario_id, 'saiu');
+  }
+  return [...estado].map(([id, st]) => ({ id, nome: e.nomes.get(id) ?? 'Vendedor', ativo: st === 'ativo', perfil: 'vendedor' }));
+}
+
 export interface OpcaoEmNome { id: string; nome: string; da_carteira: boolean; desligado: boolean; motivo: 'Saiu da equipe' | null; grupo: string | null }
 
 /**

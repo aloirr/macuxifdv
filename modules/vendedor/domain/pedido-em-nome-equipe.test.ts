@@ -59,3 +59,43 @@ describe('RN-VEN-35 e RN-PRO-01 (T-0187): pendência do vendedor', () => {
     expect(p).toEqual([{ id: 'vendedor', texto: 'Vendedor', aba: 'venda' }]);
   });
 });
+
+describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" vem do papel da carteira', () => {
+  const V = '11111111-1111-4111-8111-111111111111';
+  const P = '22222222-2222-4222-8222-222222222222';
+  const S = '33333333-3333-4333-8333-333333333333';
+  const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const hoje = '2026-11-20';
+  const v = (usuario_id: string, papel: 'vendedor' | 'promotor', fim: string | null = null, extra: object = {}) => ({ usuario_id, cliente_id: C, papel, inicio: null, fim, ...extra });
+  const nomes = new Map([[V, 'Carla'], [P, 'Paulo'], [S, 'Saulo']]);
+
+  it('RN-PRO-01: o promotor da equipe não entra na lista nem vira o padrão (critério 13)', async () => {
+    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
+    const equipe = equipeEmNomeDaCarteira({ carteiras: [v(V, 'vendedor'), v(P, 'promotor')], hoje, nomes });
+    expect(equipe.map((u) => u.id)).toEqual([V]);
+    expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: P, cliente_id: C }], equipe })).toBeNull();
+    expect(opcoesEmNome({ autor: { id: 'g', perfil: 'supervisor' }, clienteId: C, carteira: [], usuarios: equipe, visiveis: 'tenant' }).map((o) => o.id)).toEqual([V]);
+  });
+
+  it('RN-PRO-01: quem tem vínculo de promotor em qualquer cliente fica fora, mesmo com um de vendedor', async () => {
+    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
+    expect(equipeEmNomeDaCarteira({ carteiras: [v(P, 'vendedor'), v(P, 'promotor')], hoje, nomes })).toEqual([]);
+  });
+
+  it('RN-CORE-04: vendedor sem vínculo vigente (fim passado ou apagado) vem desligado, "Saiu da equipe" (critério 14)', async () => {
+    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
+    const equipe = equipeEmNomeDaCarteira({ carteiras: [v(V, 'vendedor'), v(S, 'vendedor', '2026-10-01')], hoje, nomes });
+    expect(equipe.find((u) => u.id === S)?.ativo).toBe(false);
+    expect(equipe.find((u) => u.id === V)?.ativo).toBe(true);
+    const ops = opcoesEmNome({ autor: { id: 'g', perfil: 'supervisor' }, clienteId: C, carteira: [], usuarios: equipe, visiveis: 'tenant' });
+    expect(ops.find((o) => o.id === S)).toMatchObject({ desligado: true, motivo: 'Saiu da equipe' });
+    expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: S, cliente_id: C }], equipe })).toBeNull();
+    const apagado = equipeEmNomeDaCarteira({ carteiras: [v(S, 'vendedor', null, { deleted_at: '2026-11-01T00:00:00Z' })], hoje, nomes });
+    expect(apagado[0]?.ativo).toBe(false);
+  });
+
+  it('RN-CORE-04: vínculo que ainda não começou não traz o vendedor', async () => {
+    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
+    expect(equipeEmNomeDaCarteira({ carteiras: [v(V, 'vendedor', null, { inicio: '2026-12-01' })], hoje, nomes })).toEqual([]);
+  });
+});

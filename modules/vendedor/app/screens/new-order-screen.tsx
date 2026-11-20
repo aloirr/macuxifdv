@@ -22,7 +22,7 @@ import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/
 import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasDiferentesDoGeral, type AjusteGeral } from '../../domain/desconto-geral';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { buscaPodeComecar, codigoExatoPrimeiro, paginaDaBusca, resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
-import { opcoesEmNome, rotuloVoltarNovoPedido, vendedorPadraoEmNome } from '../../domain/pedido-em-nome';
+import { equipeEmNomeDaCarteira, opcoesEmNome, rotuloVoltarNovoPedido, vendedorPadraoEmNome } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CampoEmNomeDe, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
@@ -206,10 +206,8 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const porClienteVigente = useMemo(() => vendedoresPorCliente(app.carteiras, hoje), [app.carteiras, hoje]);
   const equipeEmNome = useMemo(() => {
     if (!emNomeLivre) return [];
-    const nomes = nomesDosVendedores(app.pedidos, null);
-    const ids = new Set([...porClienteVigente.values()].flat());
-    return [...ids].map((id) => ({ id, nome: nomes.get(id) ?? 'Vendedor', ativo: true, perfil: 'vendedor' as const }));
-  }, [emNomeLivre, app.pedidos, porClienteVigente]);
+    return equipeEmNomeDaCarteira({ carteiras: app.carteiras, hoje, nomes: nomesDosVendedores(app.pedidos, null) });
+  }, [emNomeLivre, app.pedidos, app.carteiras, hoje]);
   const vinculosEmNome = useMemo(() => [...porClienteVigente].flatMap(([cliente_id, us]) => us.map((usuario_id) => ({ usuario_id, cliente_id }))), [porClienteVigente]);
   const opcoesDoEmNome = useMemo(() => {
     if (!emNomeLivre) return [];
