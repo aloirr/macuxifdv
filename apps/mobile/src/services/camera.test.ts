@@ -2,7 +2,7 @@
  * T-0147 (RN-CORE-38): galeria só para as fotos do PDV. A foto escolhida passa pela mesma redução (1600 px) e regravação
  * JPEG 80 da câmera (a regravação descarta o EXIF, inclusive o GPS), vai para `fotos/<uuid>.jpg`; galeria cancelada = null.
  * O registro dá câmera + galeria só ao Core; Promotor e Pesquisa seguem só com a câmera. T-0186 (RD-2374): o visualizador vai na
- * porta única `definirAbrirArquivo`, com os formatos que ele abre (só imagem).
+ * porta única `definirAbrirArquivo`, com os formatos que ele abre (imagem e PDF).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -149,12 +149,12 @@ describe('registrarCameraNosModulos', () => {
     expect(sim.pesquisa).toHaveBeenCalledWith(capturarFotoGravada);
   });
 
-  it('T-0186 (RD-2374): uma porta só para abrir arquivo (fachada e documentos): definirAbrirArquivo, só imagem', () => {
+  it('T-0186 (RD-2374): uma porta só para abrir arquivo (fachada e documentos): definirAbrirArquivo, imagem e PDF', () => {
     sim.core.definirAbrirArquivo = vi.fn();
     sim.core.definirAbrirFotoPdv = vi.fn();
     sim.core.definirAbrirDocumento = vi.fn();
     registrarCameraNosModulos();
-    expect(sim.core.definirAbrirArquivo).toHaveBeenCalledWith(abrirArquivo, { formatos: ['imagem'] });
+    expect(sim.core.definirAbrirArquivo).toHaveBeenCalledWith(abrirArquivo, { formatos: ['imagem', 'pdf'] });
     expect(sim.core.definirAbrirFotoPdv).not.toHaveBeenCalled();
     expect(sim.core.definirAbrirDocumento).not.toHaveBeenCalled();
   });

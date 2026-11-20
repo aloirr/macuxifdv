@@ -176,6 +176,8 @@ function Gate() {
                   {/* T-0147, RD-0088 e T-0186: o visor comum (foto do PDV, do produto, fachada e
                       documentos do cliente) abre por cima, sem deslizar */}
                   <Stack.Screen name="foto" options={{ animation: 'fade' }} />
+                  {/* T-0186 (v1.0.16): o visor de PDF (NF e documentos do cliente), do mesmo jeito */}
+                  <Stack.Screen name="pdf" options={{ animation: 'fade' }} />
                 </Stack>
               </AreaSeguraSuperior>
             </View>

@@ -92,6 +92,7 @@ import {
 } from '@/lib/sync-completa';
 import {
   mesmoEstadoDePermissoes,
+  permissoesExigidas,
   permissoesLiberadas,
   telaDePermissoes,
   type EstadosPermissoes,
@@ -145,6 +146,7 @@ import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
 import { ligarFonteFotoPdv } from '@/services/foto-pdv';
 import { abrirFoto } from '@/services/visor-foto';
+import { limparPdfsTemporarios } from '@/services/visor-pdf';
 import { ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
@@ -291,7 +293,21 @@ function usePlataformaValor() {
    * ainda não lidas (a tela de abertura fica). Sem todas, nada sincroniza (`executarSync`, agendador) e o Gate mostra a tela.
    */
   const [estadosPermissoes, setEstadosPermissoes] = useState<EstadosPermissoes | null>(null);
+  /**
+   * T-0187 (RN-CORE-37): permissões exigidas pela variante e pelo cargo da sessão, calculadas só aqui; no Gestão, o supervisor
+   * que entra passa a precisar da localização "o tempo todo" e a tela de permissões volta por cima do app, depois do login.
+   */
+  const perfilDaSessao = sessao?.user.perfil ?? null;
+  const permissoesDoUsuario = useMemo(() => permissoesExigidas(variante, perfilDaSessao), [variante, perfilDaSessao]);
+  const permissoesDoUsuarioRef = useRef(permissoesDoUsuario);
+  permissoesDoUsuarioRef.current = permissoesDoUsuario;
+  /**
+   * Todas as exigidas concedidas, calculado uma vez por render (RD-2443): sem leitura do aparelho, nada fica liberado. O ref
+   * (sync, agendador, volta ao primeiro plano) e a tela de permissões leem este mesmo valor.
+   */
+  const permissoesOk = estadosPermissoes !== null && permissoesLiberadas(variante, estadosPermissoes, permissoesDoUsuario);
   const permissoesOkRef = useRef(false);
+  permissoesOkRef.current = permissoesOk;
   const [pedindoPermissao, setPedindoPermissao] = useState(false);
   /** 🟡 2 da revisão T-0145: toques no "Permitir" sem mudança no estado; com 2, o botão abre as configurações (sem laço). */
   const [toquesSemEfeito, setToquesSemEfeito] = useState(0);
@@ -302,15 +318,16 @@ function usePlataformaValor() {
     const antes = estadosPermissoesRef.current;
     const mudou = antes === null || !mesmoEstadoDePermissoes(antes, e);
     estadosPermissoesRef.current = e;
-    permissoesOkRef.current = permissoesLiberadas(variante, e);
     setEstadosPermissoes(e);
     if (mudou) setToquesSemEfeito(0);
     return mudou;
-  }, [variante]);
+  }, []);
+  /** Lê o aparelho e diz se as exigidas (as do ref, sem recalcular) estão todas concedidas. */
   const conferirPermissoes = useCallback(async () => {
     await lerEGuardarPermissoes();
-    return permissoesOkRef.current;
-  }, [lerEGuardarPermissoes]);
+    const e = estadosPermissoesRef.current;
+    return e !== null && permissoesLiberadas(variante, e, permissoesDoUsuarioRef.current);
+  }, [lerEGuardarPermissoes, variante]);
 
   const api = useCallback(
     () =>
@@ -479,6 +496,9 @@ function usePlataformaValor() {
     },
     [shell, api, ambiente, etapaMe, modo],
   );
+
+  // T-0186: o app encerrado com o visor de PDF aberto deixou o temporário no cache; a abertura do app apaga as sobras
+  useEffect(() => limparPdfsTemporarios(), []);
 
   useEffect(() => {
     let vivo = true;
@@ -858,6 +878,8 @@ function usePlataformaValor() {
     }
     // T-0156 (tracking §3.4): sem sessão, a captura do trajeto para antes de o banco do usuário fechar
     await pararTrajeto();
+    // T-0186: nenhum PDF do visor fica no cache depois de sair
+    limparPdfsTemporarios();
     await gravarTokens(null);
     const aberto = armazenamentoRef.current;
     fecharSessaoLocal();
@@ -1170,10 +1192,10 @@ function usePlataformaValor() {
   /** Tela de permissões (nula enquanto não leu ou com todas concedidas). */
   const telaPermissoes = useMemo<TelaDePermissoes | null>(
     () =>
-      estadosPermissoes && !permissoesLiberadas(variante, estadosPermissoes)
-        ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid(), toquesSemEfeito)
+      estadosPermissoes && !permissoesOk
+        ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid(), toquesSemEfeito, permissoesDoUsuario)
         : null,
-    [estadosPermissoes, variante, toquesSemEfeito],
+    [estadosPermissoes, permissoesOk, variante, toquesSemEfeito, permissoesDoUsuario],
   );
   const permissoesLidas = estadosPermissoes !== null;
 

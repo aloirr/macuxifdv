@@ -81,6 +81,9 @@ export type EstadoVisor =
   | { tipo: 'ok'; uri: string }
   | { tipo: 'erro'; mensagem: string };
 
+/** Resultado da carga do visor (foto e PDF): o estado sem o `carregando`. */
+export type VisorCarregado = Exclude<EstadoVisor, { tipo: 'carregando' }>;
+
 /** Endereço já resolvido: local abre sempre; de rede só com sinal. */
 export function estadoDoEndereco(uri: string, online: boolean): EstadoVisor {
   if (URI_LOCAL.test(uri) || online) return { tipo: 'ok', uri };

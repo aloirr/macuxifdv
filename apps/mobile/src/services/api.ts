@@ -164,7 +164,7 @@ export class ApiClient {
       try {
         let res: Response;
         try {
-          res = await fetch(this.url(path), { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal });
+          res = await fetch(this.url(path), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store', signal: controller.signal });
         } catch (e) {
           const aborted = e instanceof Error && e.name === 'AbortError';
           throw new NetworkError(aborted ? 'O servidor demorou para responder.' : `Sem conexão com ${this.baseUrl}.`);
