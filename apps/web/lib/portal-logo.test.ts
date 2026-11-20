@@ -87,4 +87,7 @@ describe('textos de apoio', () => {
     expect(nomeMudou('', 'Exemplo Norte')).toBe(true);
     expect(nomeMudou('Norte', null)).toBe(true);
   });
+  it('item 15: o liga/desliga na voz do manual §2.4 (MC-c)', () => {
+    expect(TEXTOS_LOGO.ocultarMarca).toBe('Ocultar o logo da Macuxi');
+  });
 });

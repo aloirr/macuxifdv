@@ -117,11 +117,3 @@ export async function atualizarLogoDaEmpresa(
 export function dataUriDaLogo(tipo: TipoLogo, base64: string): string {
   return `data:${tipo};base64,${base64}`;
 }
-
-/**
- * Item 15 (teste de campo do Campo v1.0.16): com `empresa_ocultar_marca_macuxi` ligada no portal e a logo da empresa no aparelho,
- * as telas mostram só a logo do cliente no lugar da do Macuxi. Sem a logo (ou antes da primeira cópia), a do Macuxi continua.
- */
-export function soLogoDoCliente(ocultarMarcaMacuxi: boolean, temLogoDoCliente: boolean): boolean {
-  return ocultarMarcaMacuxi && temLogoDoCliente;
-}

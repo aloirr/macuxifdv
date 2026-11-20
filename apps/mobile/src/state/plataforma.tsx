@@ -41,6 +41,7 @@ import {
   perfilDaFaseM,
   type AberturaArmazenamento,
   empresaDosParametros,
+  logoQueSubstituiAMarca,
   ocultarMarcaMacuxiDosParametros,
   proporcaoDaLogo,
   type AmbienteAparelho,
@@ -84,7 +85,7 @@ import {
   type ResumoArmazenamento,
 } from '@/lib/armazenamento-aparelho';
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
-import { atualizarLogoDaEmpresa, logoDoTenant, soLogoDoCliente, type LogoGuardada } from '@/lib/logo-empresa';
+import { atualizarLogoDaEmpresa, logoDoTenant, type LogoGuardada } from '@/lib/logo-empresa';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import {
@@ -1197,12 +1198,12 @@ function usePlataformaValor() {
 
   /**
    * Logo da empresa para as telas: `file://` da cópia e a proporção guardada (a placa nasce do tamanho certo). `soLogoDoCliente`
-   * (item 15): a chave ligada e a logo no aparelho; sem a logo, a do Macuxi continua.
+   * (item 15): `logoQueSubstituiAMarca` do SDK (a chave ligada e a logo no aparelho); sem a logo, a do Macuxi continua.
    */
   const empresa = useMemo(() => {
     const uri = logoEmpresa ? uriDaLogo(logoEmpresa) : null;
     const logo = logoEmpresa && uri ? { uri, proporcao: proporcaoDaLogo(logoEmpresa) } : null;
-    return { nome: nomeEmpresa, logo, soLogoDoCliente: soLogoDoCliente(ocultarMarcaMacuxi, logo !== null) };
+    return { nome: nomeEmpresa, logo, soLogoDoCliente: logoQueSubstituiAMarca(ocultarMarcaMacuxi, logo) !== null };
   }, [nomeEmpresa, logoEmpresa, ocultarMarcaMacuxi]);
 
   // ---------- ADR 0017: sincronização incremental em segundo plano (expo-background-task) ----------

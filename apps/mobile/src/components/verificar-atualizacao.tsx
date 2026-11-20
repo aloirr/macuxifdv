@@ -1,8 +1,6 @@
 /**
- * `BotaoVerificarAtualizacao` (item 19 do teste de campo do Campo v1.0.16): o botão "Verificar atualização" do Perfil, nas duas
- * variantes. Caminho estável para o shell encaixar na tela do Perfil: `@/components/verificar-atualizacao`.
- * Um módulo não importa o shell (regra 1 do CLAUDE.md): a tela do Perfil do Core recebe o botão pronto do shell numa prop
- * (`verificarAtualizacao?: ReactNode`), como o Início do Campo recebe o `Sino`.
+ * `BotaoVerificarAtualizacao` (item 19 do teste de campo do Campo v1.0.16): o botão "Verificar atualização". Botão do Perfil
+ * (`app/profile.tsx`), nas duas variantes.
  * Lê a versão do app (`Constants.expoConfig.version`, a mesma da linha da versão do Perfil) e a variante do build; a regra
  * fica em `lib/verificar-atualizacao.ts`. Com versão nova, "Atualizar para X.Y.Z" abre o `apk_url` (Linking).
  */

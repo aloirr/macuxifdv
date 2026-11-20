@@ -8,7 +8,7 @@
  * - "Enviar logo" e "Trocar" abrem o seletor de arquivo do sistema (PNG e JPG), sem o "Choose File" do navegador na tela.
  * - Só o time da Macuxi grava (RN-CORE-33). O admin do cliente vê a logo e o nome fantasia, sem botões.
  * - A logo salva vem do `GET .../logo` com o token do portal e vira `blob:` para o `<img>`.
- * - Item 15 (v1.0.17): no cartão "Logo", o liga/desliga "Ocultar a logomarca do Macuxi" (só o time da Macuxi vê e grava;
+ * - Item 15 (v1.0.17): no cartão "Logo", o liga/desliga "Ocultar o logo da Macuxi" (só o time da Macuxi vê e grava;
  *   `PUT .../marca/ocultar-macuxi`). Ligado e com a logo salva, o app e o BKO mostram só a logo do cliente.
  * Regras e textos em `lib/portal-logo.ts`. testIDs: empresa-logo.*, empresa-nome-fantasia.*.
  */
@@ -175,7 +175,7 @@ function CartaoLogo({ tenant, marca, podeGravar }: { tenant: string; marca: Marc
   );
 }
 
-/** Item 15: "Ocultar a logomarca do Macuxi" (só o time da Macuxi). Grava no toque; o erro fica na linha, como no cartão. */
+/** Item 15: "Ocultar o logo da Macuxi" (só o time da Macuxi). Grava no toque; o erro fica na linha, como no cartão. */
 function OcultarMarcaMacuxi({ tenant, marca, aoGravar }: { tenant: string; marca: MarcaEmpresa; aoGravar: (m: MarcaEmpresa) => void }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);

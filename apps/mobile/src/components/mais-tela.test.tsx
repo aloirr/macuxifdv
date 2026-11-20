@@ -1,5 +1,5 @@
 /**
- * Item 16 do teste de campo do Campo v1.0.16 — "Perfil da conta" no Mais, renderizado com `react-dom/server` (`react-native`, o
+ * Item 16 do teste de campo do Campo v1.0.16 — "Perfil" no Mais, renderizado com `react-dom/server` (`react-native`, o
  * kit, o roteador e o estado da plataforma simulados): a linha está na seção "Conta", também sem abas no Mais, e abre `/profile`.
  */
 import { createElement, type ReactNode } from 'react';
@@ -47,11 +47,12 @@ beforeEach(() => {
   sim.mais = [];
 });
 
-describe('Mais — "Perfil da conta" (item 16)', () => {
-  it('a seção "Conta" com "Perfil da conta", mesmo com todas as telas na barra', () => {
+describe('Mais — "Perfil" (item 16)', () => {
+  it('a seção "Conta" com "Perfil", mesmo com todas as telas na barra', () => {
     const html = renderToStaticMarkup(createElement(Mais));
     expect(html).toContain('<h2>Conta</h2>');
-    expect(html).toMatch(/data-testid="mais-perfil"[^>]*>.*Perfil da conta/);
+    expect(html).toMatch(/data-testid="mais-perfil"[^>]*>.*>Perfil</);
+    expect(html).not.toContain('Perfil da conta'); // RD-1323: o cabeçalho "Conta" já diz de quem é
   });
 
   it('o toque abre o Perfil do shell (/profile)', () => {

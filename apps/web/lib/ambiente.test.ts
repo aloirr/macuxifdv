@@ -1,6 +1,6 @@
 /**
- * T-0182, RD-0700: a logo do PDF do BKO sai do cache da consulta `qk.modulos` (a mesma do menu), sem um segundo
- * `GET /v1/me/modulos`; só os bytes vão à rota do aparelho.
+ * T-0182, RD-0700, RD-1325: a logo do PDF do BKO sai do cache da consulta `qk.modulos` (a mesma do menu) e da
+ * `consultaLogoDaEmpresa` (a mesma do shell): uma chamada a `/v1/me/modulos` e um download da logo.
  */
 import { QueryClient } from '@tanstack/react-query';
 import { rotaLogoDoAparelho } from '@macuxi/platform-sdk';
@@ -29,7 +29,7 @@ vi.mock('@macuxi/platform-sdk/web', async (original) => {
 });
 
 const { criarAmbienteWeb, logoDaEmpresaWeb } = await import('./ambiente');
-const { consultaMeusModulos } = await import('./queries');
+const { consultaLogoDaEmpresa, consultaMeusModulos } = await import('./queries');
 const { semV1 } = await import('./portal-rotas');
 
 beforeAll(() => {
@@ -58,12 +58,15 @@ describe('logo do PDF do BKO (RD-0700)', () => {
   it('lê o empresa_logo do cache de /v1/me/modulos: uma consulta só, mesmo com dois PDFs', async () => {
     const qc = new QueryClient();
     await qc.fetchQuery(consultaMeusModulos('supervisor')); // o menu do shell já carregou
-    const ambiente = criarAmbienteWeb(() => null, async () => (await qc.fetchQuery(consultaMeusModulos('supervisor'))).logo);
+    const ambiente = criarAmbienteWeb(() => null, async () => {
+      const logo = (await qc.fetchQuery(consultaMeusModulos('supervisor'))).logo;
+      return logo ? qc.fetchQuery(consultaLogoDaEmpresa(logo.sha256)) : null;
+    });
 
     expect(await ambiente.logoDaEmpresa?.()).toBe('data:image/png;base64,AQID');
     expect(await ambiente.logoDaEmpresa?.()).toBe('data:image/png;base64,AQID');
     expect(chamadas.api).toEqual(['/me/modulos']);
-    expect(chamadas.fetch).toEqual([0, 1].map(() => semV1(rotaLogoDoAparelho(LOGO.sha256))));
+    expect(chamadas.fetch).toEqual([semV1(rotaLogoDoAparelho(LOGO.sha256))]); // RD-1325: a logo baixa uma vez só
   });
 
   it('sem logo ou com falha = null (o PDF usa a padrão), sem baixar nada', async () => {

@@ -5,7 +5,7 @@
  * Cada item é uma aba: volta ao topo da pilha guardada dela (lib/historico-telas.ts, T-0071).
  * T-0182 (spec docs/design/telas/logo-cliente.md §5): no pé, "Licenciado para <nome fantasia>" (vazio = razão social) e, com a
  * logo guardada no aparelho, a placa 52/36 (decorativa: a frase já diz o nome). Sobe ao pé da tela quando sobra espaço.
- * Item 16 do teste de campo do Campo v1.0.16: a seção "Conta" com "Perfil da conta", que abre o Perfil (rota `/profile` do
+ * Item 16 do teste de campo do Campo v1.0.16: a seção "Conta" com "Perfil", que abre o Perfil (rota `/profile` do
  * shell). No Gestão não há aba "Mais": o Perfil abre pelo nome no Início.
  */
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
@@ -39,7 +39,7 @@ export default function Mais() {
         ))
       )}
       <SectionHeader title="Conta" />
-      <LinhaDoMais testID="mais-perfil" icone="user" rotulo="Perfil da conta" onPress={() => router.push('/profile')} />
+      <LinhaDoMais testID="mais-perfil" icone="user" rotulo="Perfil" onPress={() => router.push('/profile')} />
       {empresa.nome ? (
         <View testID="mais-licenciado" style={{ marginTop: 'auto', paddingTop: 10, alignItems: 'center', gap: 10 }}>
           <Text style={[t.sub, { lineHeight: 18, textAlign: 'center' }]}>Licenciado para {empresa.nome}</Text>

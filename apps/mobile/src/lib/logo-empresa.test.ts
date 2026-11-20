@@ -12,7 +12,6 @@ import {
   caminhoDaLogo,
   dataUriDaLogo,
   logoDoTenant,
-  soLogoDoCliente,
   type LogoGuardada,
   type PortaLogoEmpresa,
 } from './logo-empresa';
@@ -184,18 +183,5 @@ describe('atualizarLogoDaEmpresa', () => {
     const l = await atualizarLogoDaEmpresa(porta, { tenantId: TENANT_B, empresa: empresa(SHA_2), online: true });
     expect(l).toEqual(guardada(TENANT_B, SHA_2));
     expect([...estado.arquivos]).toEqual([`empresa/${TENANT_B}/logo-${SHA_2}.png`]);
-  });
-});
-
-describe('Item 15 (v1.0.17): ocultar a logomarca do Macuxi', () => {
-  it('só com a chave ligada e a logo do cliente no aparelho a tela mostra só a do cliente', () => {
-    expect(soLogoDoCliente(true, true)).toBe(true);
-  });
-  it('sem a logo do cliente, a do Macuxi continua, com a chave ligada ou não', () => {
-    expect(soLogoDoCliente(true, false)).toBe(false);
-    expect(soLogoDoCliente(false, false)).toBe(false);
-  });
-  it('chave desligada (o padrão, também no servidor anterior à 0091): as duas, como na T-0182', () => {
-    expect(soLogoDoCliente(false, true)).toBe(false);
   });
 });

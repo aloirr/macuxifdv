@@ -37,7 +37,7 @@ export const TEXTOS_LOGO = {
   rotaAusente: TEXTO_INDISPONIVEL,
   nomeFantasia: 'Nome fantasia',
   /** Item 15 (v1.0.17): liga/desliga do time da Macuxi, no cartão da logo. */
-  ocultarMarca: 'Ocultar a logomarca do Macuxi',
+  ocultarMarca: 'Ocultar o logo da Macuxi',
 } as const;
 
 /** Tipos aceitos no seletor de arquivo do sistema (spec §2: filtrado em PNG e JPG). */

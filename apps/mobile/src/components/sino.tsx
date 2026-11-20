@@ -2,15 +2,12 @@
  * Sino do shell (T-0170; desenho `docs/desenho/tarefas-consultor.md` §7.2; imagem `2026-11-12-T0170-final-inicio-sino-aberto.png`).
  * Fica no cabeçalho de todas as telas do Campo e do Gestão: o shell entrega o `<Sino />` ao `CabecalhoTela` do kit pelo
  * `ProvedorSinoCabecalho` ((tabs)/_layout.tsx) e o põe à mão no Início (que não usa o `CabecalhoTela`).
- * - Bolinha (sem número, dono do produto 14/11/2026): acesa quando `useInicioCampo().sino.total` do Core (recados não lidos +
- *   tarefas novas, `contarSino`) passa de 0; o total é lido uma vez no layout (`ProvedorContagemSino`) e repartido por contexto
- *   com todos os sinos montados, inclusive o do Início. Premissa da Gestão: o layout é das duas variantes e o hook roda nas duas. A contagem sai só do
- *   aparelho (notificações + pull `tarefa`); a parte de Performance do hook não se aplica ao supervisor/gerente (a consulta de
- *   renovação recebe recusa do servidor, que o hook engole) e não afeta a bolinha. Enquanto o hook não tem dados (null), o sino fica sem bolinha.
+ * - Bolinha (sem número, dono do produto 14/11/2026): acesa quando `useInicioCampo().sino.total` do Core passa de 0, lido uma vez
+ *   no layout (`ProvedorContagemSino`); a bolinha é do `SinoNotificacoes`.
  * - Toque: abre o balão com o `BalaoRecadosETarefas` do Core (no máximo 5 itens e "Ver todos"). Sem o balão exportado pelo Core,
  *   o toque abre direto a lista.
  * - "Ver todos" abre `/m/recados-e-tarefas` (ou a central antiga, se a página ainda não existe); a tarefa abre `/m/tarefa?id=`.
- * - Botão, bolinha, cores (MC-0009) e leitura do TalkBack: o `SinoNotificacoes` do kit, o sino padrão de todas as telas
+ * - Botão, cores (MC-0009) e leitura do TalkBack: o `SinoNotificacoes` do kit, o sino padrão de todas as telas
  *   (RD-2450, v1.0.17; `docs/design/componentes.md` §5.4). O shell só passa o total e o toque. `sobreFaixa` ligado quando o
  *   sino vem do `CabecalhoTela` (faixa Azul noite); desligado no Início do Gestão (Pérola).
  * Formulário alterado (RN-VEN-38): a navegação do shell passa por `bloqueioDoShell.tentarSair`.

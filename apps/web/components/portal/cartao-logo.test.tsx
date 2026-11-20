@@ -1,7 +1,7 @@
 /**
  * T-0182 — teste de componente do cartão "Logo" do portal (spec docs/design/telas/logo-cliente.md §2), com `react-dom/server`:
  * os estados desenhados pela `VistaCartaoLogo` e, nos `CartoesMarca`, o admin do cliente sem botões (RN-CORE-33).
- * Item 15 (v1.0.17): o liga/desliga "Ocultar a logomarca do Macuxi", só para o time da Macuxi.
+ * Item 15 (v1.0.17): o liga/desliga "Ocultar o logo da Macuxi", só para o time da Macuxi.
  */
 import type { MarcaEmpresa } from '@macuxi/platform-sdk';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -99,12 +99,12 @@ describe('cartões Logo e Nome fantasia', () => {
   });
 });
 
-describe('item 15: "Ocultar a logomarca do Macuxi"', () => {
+describe('item 15: "Ocultar o logo da Macuxi"', () => {
   it('time da Macuxi: o liga/desliga no cartão da logo, com o estado salvo', () => {
     const desligado = renderizarMarca(true);
     expect(desligado).toContain('data-testid="empresa-logo.ocultar-marca"');
     expect(desligado).toMatch(/role="switch"[^>]*aria-checked="false"[^>]*aria-labelledby="empresa-logo-ocultar-marca"/);
-    expect(texto(desligado)).toContain('Ocultar a logomarca do Macuxi');
+    expect(texto(desligado)).toContain('Ocultar o logo da Macuxi');
     // dentro do cartão "Logo", antes do Nome fantasia
     expect(desligado.indexOf('empresa-logo.ocultar-marca')).toBeLessThan(desligado.indexOf('empresa-nome-fantasia'));
     expect(renderizarMarca(true, { ...MARCA, ocultar_marca_macuxi: true })).toMatch(/role="switch"[^>]*aria-checked="true"/);
@@ -112,7 +112,7 @@ describe('item 15: "Ocultar a logomarca do Macuxi"', () => {
   it('admin do cliente: não vê a opção', () => {
     const html = renderizarMarca(false, { ...MARCA, ocultar_marca_macuxi: true });
     expect(html).not.toContain('ocultar-marca');
-    expect(texto(html)).not.toContain('logomarca');
+    expect(texto(html)).not.toContain('Ocultar o logo da Macuxi');
   });
   it('gravando: a chave fica desabilitada; erro na linha de baixo, em região viva', () => {
     const html = renderToStaticMarkup(<VistaOcultarMarca ligado salvando erro="Não foi possível salvar. Tente de novo." aoMudar={() => undefined} />);

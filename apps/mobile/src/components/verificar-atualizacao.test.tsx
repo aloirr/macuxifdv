@@ -55,3 +55,15 @@ describe('BotaoVerificarAtualizacao (item 19)', () => {
     expect(sim.pedidos).toEqual([['/app/versao', { variante: 'campo' }]]);
   });
 });
+
+describe('BotaoVerificarAtualizacao no Perfil (RD-1324)', () => {
+  it('montado em app/profile.tsx logo abaixo da linha da versão, fora de qualquer condição de variante', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../app/profile.tsx', import.meta.url), 'utf8');
+    const versao = src.lastIndexOf('testID="versao-app"');
+    const botao = src.indexOf('<BotaoVerificarAtualizacao />');
+    expect(botao).toBeGreaterThan(versao);
+    expect(src.indexOf('</Screen>', botao)).toBeGreaterThan(botao);
+    expect(src.slice(versao, botao)).not.toMatch(/varianteAtual|gestao|campo/);
+  });
+});

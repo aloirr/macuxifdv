@@ -10,6 +10,7 @@ import { MeusModulosRespostaSchema, type Me } from '@macuxi/core/contracts';
 import {
   AuditoriaRespostaSchema,
   empresaDosParametros,
+  logoQueSubstituiAMarca,
   modulosEfetivos,
   ocultarMarcaMacuxiDosParametros,
   ROTA_AUDITORIA,
@@ -103,8 +104,7 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
 
 const soIds = (d: ModulosDoUsuario) => d.ids;
 /** Item 15: a logo do cliente que substitui a do Macuxi no shell; `null` = a do Macuxi (chave desligada ou sem logo). */
-export const logoQueSubstituiAMarca = (d: Pick<ModulosDoUsuario, 'logo' | 'ocultarMarcaMacuxi'>): LogoDoAparelho | null =>
-  d.ocultarMarcaMacuxi ? d.logo : null;
+const logoDoShell = (d: ModulosDoUsuario): LogoDoAparelho | null => logoQueSubstituiAMarca(d.ocultarMarcaMacuxi, d.logo);
 const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
 
 /**
@@ -117,17 +117,24 @@ export function useModulosEfetivos(perfil: Perfil | null) {
 }
 
 /**
+ * Bytes da logo da empresa (`GET /v1/me/empresa/logo/:sha256`), em cache pelo sha256: o shell (item 15) e o PDF (T-0182,
+ * `lib/ambiente.ts`) usam a mesma consulta, sem baixar a logo duas vezes.
+ */
+export function consultaLogoDaEmpresa(sha: string) {
+  return queryOptions({
+    queryKey: ['empresa-logo', sha] as const,
+    queryFn: async (): Promise<Blob> => (await apiFetch(semV1(rotaLogoDoAparelho(sha)))).blob(),
+    staleTime: Infinity,
+  });
+}
+
+/**
  * Item 15 (v1.0.17): com `empresa_ocultar_marca_macuxi` ligada e a logo da empresa, os bytes da logo (`GET /v1/me/empresa/logo/:sha256`,
  * cache pelo sha256) para o shell mostrar só a logo do cliente. `null` = mostra a do Macuxi (também enquanto carrega ou sem rede).
  */
 export function useLogoQueSubstituiAMarca(perfil: Perfil | null): Blob | null {
-  const logo = useMeusModulos(perfil, logoQueSubstituiAMarca).data ?? null;
-  const bytes = useQuery({
-    queryKey: ['empresa-logo', logo?.sha256 ?? null],
-    queryFn: async () => (logo ? (await apiFetch(semV1(rotaLogoDoAparelho(logo.sha256)))).blob() : null),
-    enabled: logo !== null,
-    staleTime: Infinity,
-  });
+  const logo = useMeusModulos(perfil, logoDoShell).data ?? null;
+  const bytes = useQuery({ ...consultaLogoDaEmpresa(logo?.sha256 ?? ''), enabled: logo !== null });
   return logo ? (bytes.data ?? null) : null;
 }
 

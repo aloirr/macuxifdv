@@ -32,7 +32,7 @@ import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo
 import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
 import { aoSemFilial } from '@/lib/sem-filial';
-import { consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosEfetivos } from '@/lib/queries';
+import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
 import { useUrlDoBlob } from '@/lib/url-do-blob';
 import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
@@ -80,7 +80,7 @@ export function Brand({ company, logoCliente = null }: { company: string; logoCl
   return (
     <div className="flex min-w-0 flex-col items-start">
       {logoCliente ? (
-        <span data-testid="menu-bko.logo-cliente" className="box-border flex h-10 max-w-[200px] items-center rounded-lg bg-surface px-2 py-1.5">
+        <span data-testid="menu-bko.logo-cliente" className="box-border flex h-10 max-w-[200px] items-center rounded-xl bg-surface px-2 py-1.5">
           <img src={logoCliente} alt={rotuloDaLogo(company)} className="block h-7 w-auto max-w-full object-contain" />
         </span>
       ) : (
@@ -291,12 +291,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   // menu: só o Core enquanto `/v1/me/modulos` carrega; o miolo (páginas, que decidem 404) espera os efetivos (D-B30)
   const visao = useMemo(() => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'] }), [perfil, modulos.data]);
   const usuario = session.user;
-  // RD-0700: a logo do PDF sai do cache de `/v1/me/modulos` (a mesma consulta do menu), sem nova chamada
+  // RD-0700 e RD-1325: a logo do PDF sai do cache de `/v1/me/modulos` (a mesma consulta do menu) e da logo, sem nova chamada
   const ambiente = useMemo(
     () =>
       criarAmbienteWeb(
         () => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null),
-        async () => (perfil ? (await qc.fetchQuery(consultaMeusModulos(perfil))).logo : null),
+        async () => {
+          const logo = perfil ? (await qc.fetchQuery(consultaMeusModulos(perfil))).logo : null;
+          return logo ? qc.fetchQuery(consultaLogoDaEmpresa(logo.sha256)) : null;
+        },
       ),
     [usuario, perfil, qc],
   );
