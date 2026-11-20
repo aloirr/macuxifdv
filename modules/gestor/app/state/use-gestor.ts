@@ -24,7 +24,10 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
   const lerPendencias = opcoes.pendencias === true;
   const { motor, estado } = useMotorSync();
   const ambiente = useAmbiente();
-  const cache = useMemo(() => (motor ? criarCache(motor.armazenamentoDoModulo('gestor')) : null), [motor]);
+  const cache = useMemo(() => {
+    if (!motor) return null;
+    return criarCache(motor.armazenamentoDoModulo('gestor'));
+  }, [motor]);
   const [dados, setDados] = useState<DadosGestor>(DADOS_VAZIOS);
   const [carregado, setCarregado] = useState(false);
   const [notificacoes, setNotificacoes] = useState<NotificacaoPendencia[]>([]);
