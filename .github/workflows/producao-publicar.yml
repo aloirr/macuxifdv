@@ -3,7 +3,8 @@ name: producao — publicar
 # T-0086 (ADR 0028; ADR 0024 plano B). Publica a PRODUÇÃO na VM macuxi-prod-se1 (Magalu Cloud), banco no DBaaS
 # macuxi-prod-db. Caminho de governança autorizado pelo dono do produto (mensagem de 05/11, 21h50: "workflow producao —
 # publicar (só por tag + aprovação)"). Roteiro de ligar e de voltar atrás: docs/desenho/T-0086.md (→ docs/status/producao.md).
-#   1. conferir (sem segredo): a tag v* aponta para um commit do main com o CI VERDE (push no main) e a imagem
+#   1. conferir (sem segredo): a tag v* aponta para um commit do main com a suíte completa verde (testes-pacotes e
+#      testes-integracao, rodada pelo liberar na árvore do commit), o CI VERDE (push no main) e a imagem
 #      ghcr.io/<dono>/macuxi-api:<sha> existe (montada pelo "producao — liberar versão" depois daquele CI; ADR 0051). Fixa
 #      o DIGEST: a produção roda exatamente a imagem do commit que passou no CI, a mesma conferida no liberar e no aprovar;
 #   2. bko (sem segredo): monta o BKO DE PRODUÇÃO do mesmo commit (a origem https://bko.macuxifdv.com.br fica gravada no
@@ -20,9 +21,10 @@ name: producao — publicar
 # publicar: fechada como concluída, rótulo aprovado, SHA do marcador = commit da tag, comentário "aprovado <tag>" do
 # aloirr). O caminho normal: "producao — liberar versão" (confere e abre a issue) → comentário "aprovado vX.Y.Z" na issue
 # → "producao — aprovar versão" (confere de novo, cria a tag com o GITHUB_TOKEN, fecha a issue e dispara este na tag).
-# Tag criada à mão sem issue aprovada fica vermelha no conferir. A conferência de commit, CI e imagem é a mesma nos três
-# (scripts/ci/producao-conferir.mjs). Voltar a uma versão anterior = "Re-run all jobs" no run da tag anterior (a issue
-# dela continua aprovada; as tags até v1.0.7, anteriores à trava, rodam o publicar do próprio commit, sem a trava).
+# Tag criada à mão sem issue aprovada fica vermelha no conferir. A conferência de commit, CI e imagem é a mesma nos três;
+# a da suíte, no aprovar e aqui (scripts/ci/producao-conferir.mjs). Voltar a uma versão anterior = "Re-run all jobs" no
+# run da tag anterior (a issue dela continua aprovada; as tags até v1.0.7, anteriores à trava, rodam o publicar do
+# próprio commit, sem a trava).
 # Nenhum segredo vai para log: secrets só em variável de ambiente e no stdin do ssh, nunca na linha de comando; nenhum set -x.
 
 on:
@@ -44,7 +46,7 @@ defaults:
 
 jobs:
   conferir:
-    name: tag aprovada na issue, no main, CI verde e imagem da API do commit
+    name: tag aprovada na issue, suíte completa, no main, CI verde e imagem da API do commit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -67,6 +69,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: SHA do commit da tag
+        run: echo "SHA=$(git rev-parse "$GITHUB_SHA^{commit}")" >> "$GITHUB_ENV"
+
       - name: tag v* (push ou disparo na tag)
         run: node scripts/ci/producao-conferir.mjs ref
 
@@ -75,10 +80,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSAO: ${{ github.ref_name }}
-        run: |
-          SHA="$(git rev-parse "$GITHUB_SHA^{commit}")"
-          export SHA
-          node scripts/ci/producao-trava.mjs publicar
+        run: node scripts/ci/producao-trava.mjs publicar
+
+      - name: suíte completa verde no SHA da tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci/producao-conferir.mjs suite
 
       - uses: docker/login-action@v3
         with:
@@ -94,10 +101,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSAO: ${{ github.ref_name }}
           DONO: ${{ github.repository_owner }}
-        run: |
-          SHA="$(git rev-parse "$GITHUB_SHA^{commit}")"
-          export SHA
-          node scripts/ci/producao-conferir.mjs conferir
+        run: node scripts/ci/producao-conferir.mjs conferir
 
   bko:
     name: BKO de produção do mesmo commit
