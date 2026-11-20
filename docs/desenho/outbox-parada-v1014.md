@@ -9,8 +9,7 @@
   `plataforma.evento.ultimo_erro`. A espera entre as tentativas cresce (5 s, 10 s, 20 s… até 15 min). Na 10ª, uns 36 min depois da
   1ª, o evento para e o despachante não o pega mais.
 - Só para evento que tem consumidor instalado. Os outros ficam com `tentativas = 0` e não entram na conta.
-- Os 36 eventos, portanto, falharam 10 vezes seguidas num consumidor. O motivo de cada um está no `ultimo_erro`, que não leva
-  dado pessoal (`mensagemSegura`).
+- Os 36 eventos, portanto, falharam 10 vezes seguidas num consumidor. O motivo de cada um está no `ultimo_erro`.
 
 ## 2. Causa provável (certeza média)
 **Fila de lotes do Hub travada: eventos `integracao.lote.recebido@1` parando em cadeia.**
@@ -69,7 +68,7 @@ O que já existe não basta: o `/v1/saude` e a linha `tipo: metricas` do worker 
 **`producao — diagnóstico da outbox (só leitura)`** (`.github/workflows/producao-diagnostico-outbox.yml`). Ele é manual, roda no
 environment `PRODUCAO` (com a sua aprovação) e só lê.
 
-Usa o papel `macuxi_leitura`, que já existe na produção e só lê; falta só o LOGIN.
+Usa o papel `macuxi_leitura`, que já existe na produção; falta só o LOGIN.
 
 **O que você faz, uma vez:**
 1. **Senha e LOGIN no `macuxi_leitura`.** Na VM, como o admin (`cd /opt/macuxi`):
@@ -95,7 +94,7 @@ Usa o papel `macuxi_leitura`, que já existe na produção e só lê; falta só 
 - o resumo, com os parados (10 tentativas ou mais), os que estão em nova tentativa (1 a 9) e o horário do primeiro parado;
 - os parados agrupados por nome do evento, entidade e status do lote, classe do erro (`classe_erro`: módulo e rótulo
   fixo, código ou nome do erro, sem o texto da mensagem), quantidade, tentativas mínimas e máximas e o primeiro e o último
-  horário em Manaus. A 1ª linha é a mais antiga e costuma ser a raiz (§4);
+  horário em Manaus;
 - a fila de lotes do Hub em `recebido` ou `processando`, com entidade, status, quantidade, conectores e horários em Manaus.
 
 Nunca aparecem o payload, o id do evento, o `tenant_id`, e-mail, CPF, nome ou coordenada.
