@@ -22,7 +22,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ACAO_CHECKIN_FORA_DE_ROTA, ACAO_VISITA_REGISTRAR_GESTAO, type AbaCliente, type AcaoCliente, type AvisoCliente, type ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, limiteEDisponivelDoResumo, performanceDoCliente, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal, type AbaFicha } from '../../domain';
+import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, visitaDeGestaoPermitida, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, limiteEDisponivelDoResumo, performanceDoCliente, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal, type AbaFicha } from '../../domain';
 import { AbaDocumentacao } from '../components/aba-documentacao';
 import { AbaHistorico } from '../components/aba-historico';
 import { AbaResumo, type ItemCompradoLinha } from '../components/aba-resumo';
@@ -138,7 +138,7 @@ export function TelaCliente() {
   const abaPesquisa = abas.find((a) => a.id === 'pesquisas') ?? null;
   const PesquisaComp = abaPesquisa?.payload.componente;
   // A regra do rodapé (check-in, checkout, pesquisa) fica no domain
-  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado, visitadoHoje: visited, registraVisita: !gestao || podeRegistrarGestao });
+  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado, visitadoHoje: visited, registraVisita: visitaDeGestaoPermitida({ perfil: locais.perfil ?? '', podeRegistrarGestao }) });
   const acoesRodape = acoesDoRodapeCliente(acoes);
   // T-0187: no Gestão o rodapé aparece com Check-in, Pesquisa e Novo pedido, e só se houver algum botão
   const temRodape = botoes.checkin || botoes.checkout || botoes.pesquisa || acoesRodape.length > 0;

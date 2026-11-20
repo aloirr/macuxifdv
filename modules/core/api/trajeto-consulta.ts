@@ -48,6 +48,8 @@ export async function trajetoDosUsuarios(db: ClienteBanco, usuarioIds: readonly 
   });
 }
 
+const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+
 export const rotasDeTrajeto: RotaModulo[] = [
   {
     metodo: 'GET',
@@ -63,12 +65,12 @@ export const rotasDeTrajeto: RotaModulo[] = [
       }
       exigirDataNaRetencao(q.data, ctx.agora(), ctx.fuso());
       // RN-CORE-13: o próprio trajeto nunca aparece (igual a um usuário que não existe)
-      if (alvo === ctx.usuario.id) throw new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+      if (alvo === ctx.usuario.id) throw usuarioNaoEncontrado();
       const visiveis = await ctx.usuariosVisiveis();
-      if (visiveis !== 'tenant' && !visiveis.has(alvo)) throw new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+      if (visiveis !== 'tenant' && !visiveis.has(alvo)) throw usuarioNaoEncontrado();
       const fuso = ctx.fuso();
       const [usuario] = await ctx.comTenant((db) => trajetoDosUsuarios(db, [alvo], q.data, fuso));
-      if (!usuario) throw new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+      if (!usuario) throw usuarioNaoEncontrado();
       return { data: q.data, usuario };
     },
   },
