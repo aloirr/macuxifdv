@@ -75,7 +75,12 @@ describe('catálogo e carteira (busca local, sem sinal)', () => {
     expect(filterCustomers(list, '', ['no_purchase_45']).map((c) => c.id)).toEqual(['c2']);
     expect(filterCustomers(list, '', ['overdue']).map((c) => c.id)).toEqual(['c3']);
     expect(filterCustomers(list, '', ['curve_a', 'not_positivated'])).toHaveLength(0);
-    expect(filterCustomers(list, 'cachoeirinha', [])).toHaveLength(3);
+  });
+  it('R-20261120-062210: a busca de cliente casa só código, CNPJ (3+ dígitos, com ou sem máscara), razão social e nome fantasia', () => {
+    const c = customer({ erp_code: 'QX-7781', cnpj: '47.111.222/0001-33', legal_name: 'Quimera Distribuidora Ltda', trade_name: 'Zafira Atacado', city: 'Xapurilandia', district: 'Ypsilonvale' });
+    const casa = (q: string) => filterCustomers([c], q, []).length === 1;
+    for (const q of ['qx-7781', '47.111.222/0001-33', '47111222000133', '111.222', 'quimera distribuidora', 'zafira atacado']) expect(casa(q), q).toBe(true);
+    for (const q of ['xapurilandia', 'ypsilonvale', 'cachoeirinha', '47']) expect(casa(q), q).toBe(false);
   });
   it('alçada da API vira mapa do domínio; crédito considera pedidos em aberto e a fila', () => {
     const pol = toDomainPolicy({ seller_pct: 5, supervisor_pct: 8, manager_pct: 12, above_manager: 'block', exceptions: [{ seller_id: 's9', seller_name: 'Bruna T.', max_discount_pct: 6 }] });

@@ -61,6 +61,8 @@ export interface LinhaPedido {
   prazo_descricao?: string | null;
   prazo_parcelas_dias?: number[] | null;
   prazo_medio_dias?: number | null;
+  /** RN-VEN-45: o % do prazo gravado (coluna `prazo_percentual_ajuste`). */
+  prazo_percentual_ajuste?: number | null;
   // T-0149 (0056): retrato da filial do pedido (nulo nos pedidos anteriores)
   filial_id?: string | null;
   filial?: Record<string, unknown> | null;
@@ -212,6 +214,8 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
           prazo_medio_dias: l.prazo_medio_dias ?? null,
         }
       : {}),
+    // RN-VEN-45: o % gravado só vai com prazo e só quando a coluna tem valor (ausente = servidor anterior ou sem retrato)
+    ...(l.prazo_pagamento_id && l.prazo_percentual_ajuste != null ? { prazo_percentual_ajuste: num(l.prazo_percentual_ajuste) } : {}),
     ...(l.ajuste_em ? { order_adjust_mode: l.ajuste_em, order_discount_value_cents: num(l.desconto_valor_cents ?? 0), order_surcharge_value_cents: num(l.acrescimo_valor_cents ?? 0) } : {}),
   };
 }

@@ -68,9 +68,8 @@ export function juntarServidorComAparelho(servidor: readonly PedidoDaLista[], ap
 
 /**
  * T-0090 UX1: resumo da busca. O vendedor escolhido (Gestão) fica só na etiqueta, que explica o "0 resultados" (uma informação, um lugar).
- * @param _vendedor @deprecated ignorado; ponte para o teste antigo compilar, sai depois do PR dos testes da T-0188.
  */
-export function resumoDaBusca(quantidade: number, _vendedor?: string | null): string {
+export function resumoDaBusca(quantidade: number): string {
   return `${quantidade} ${quantidade === 1 ? 'resultado' : 'resultados'} · últimos 90 dias`;
 }
 

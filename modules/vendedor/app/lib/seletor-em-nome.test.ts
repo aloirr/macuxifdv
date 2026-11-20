@@ -78,6 +78,6 @@ describe('RN-VEN-35: textos e nomes do seletor', () => {
     expect(subtituloDoSeletor(null)).toBe('Clientes da carteira do vendedor');
     expect(vazioDoSeletor({ totalDaCarteira: 0, nomeDoDono: 'Ana' }, false)).toContain('carteira de Ana');
     expect(vazioDoSeletor({ totalDaCarteira: 0, nomeDoDono: null }, false)).toContain('do vendedor');
-    expect(vazioDoSeletor({ totalDaCarteira: 3, nomeDoDono: null }, true)).toContain('Nenhum cliente encontrado');
+    expect(vazioDoSeletor({ totalDaCarteira: 3, nomeDoDono: null }, true)).toBe('Confira o código, o CNPJ ou o nome.');
   });
 });

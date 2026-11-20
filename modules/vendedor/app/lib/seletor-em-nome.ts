@@ -123,9 +123,12 @@ export function subtituloDoSeletor(nomeDoDono: string | null): string {
   return nomeDoDono ? `Clientes da carteira de ${nomeDoDono}` : 'Clientes da carteira do vendedor';
 }
 
+/** Texto de apoio da busca de cliente sem resultado (R-20261120-062210: só código, CNPJ e nome). */
+export const VAZIO_DA_BUSCA_DE_CLIENTE = 'Confira o código, o CNPJ ou o nome.';
+
 /** Lista vazia do seletor em nome: carteira sem cliente no aparelho ou busca sem resultado. */
 export function vazioDoSeletor(s: Pick<SeletorEmNome, 'totalDaCarteira' | 'nomeDoDono'>, buscando: boolean): string {
-  if (buscando) return 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.';
+  if (buscando) return VAZIO_DA_BUSCA_DE_CLIENTE;
   const de = s.nomeDoDono ? `de ${s.nomeDoDono}` : 'do vendedor';
   return s.totalDaCarteira === 0 ? `Nenhum cliente na carteira ${de} neste aparelho. Sincronize com sinal e tente de novo.` : 'Nenhum cliente encontrado.';
 }

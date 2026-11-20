@@ -45,7 +45,7 @@ import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from
 import { DescontoGeral } from '../components/desconto-geral';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
-import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
+import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, VAZIO_DA_BUSCA_DE_CLIENTE, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -112,9 +112,9 @@ function CustomerPicker() {
           {subtituloDoSeletor(emNome.nomeDoDono)}
         </Text>
       ) : null}
-      <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder="Nome, código ou bairro" rotuloAcessivel="Buscar cliente" testID="picker-search" />
+      <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder="Código, CNPJ ou nome" rotuloAcessivel="Buscar cliente" testID="picker-search" />
       {opcoes.length === 0 ? (
-        <EstadoVazio titulo="Nenhum cliente" texto={emNome ? vazioDoSeletor(emNome, q.trim() !== '') : 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.'} />
+        <EstadoVazio titulo="Nenhum cliente" texto={emNome ? vazioDoSeletor(emNome, q.trim() !== '') : VAZIO_DA_BUSCA_DE_CLIENTE} />
       ) : (
         <Card>
           {opcoes.map((o, i) => {
