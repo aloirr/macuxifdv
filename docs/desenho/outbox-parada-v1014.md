@@ -36,14 +36,12 @@
 - **Payload que o consumidor não aceita**: quando o `schema.parse` falha no despachante, a falha é a mesma nas 10 tentativas.
   Sinal: `ultimo_erro` com `ZodError: dados inválidos` depois do módulo (`classe_erro` `<módulo>: ZodError`).
 
-## 4. Como confirmar (só leitura; o Alexandre roda)
-Rode o workflow do §6.
-
-Como ler o resultado:
+## 4. Como confirmar
+Rode o workflow do §6 e leia o resultado assim:
 - A hipótese do §2 se confirma com quase tudo em `integracao.lote.recebido@1`, numa só `entidade_lote`, e a `classe_erro`
   `integracao: espera da mesma entidade`. A **primeira** linha, a mais antiga e com outra `classe_erro`, é a raiz.
 - Se o grosso estiver em `core.notificacao.criada@1` com a `classe_erro` `core: efeito HTTP …`, vale o §3 (configuração do FCM).
-- Qualquer outro nome: a `classe_erro` diz qual consumidor falhou. Mande o resultado para o engenheiro-software, que encaminha ao dono.
+- Qualquer outro nome: a `classe_erro` diz qual consumidor falhou. Mande o resultado para o engenheiro-software.
 
 ## 5. Correção proposta
 **Agora, operação:**
@@ -62,21 +60,11 @@ Como ler o resultado:
 - **Se for o push**: conferir os secrets `PROD_FCM_*`. Ver também se um erro de configuração (403) deve parar o evento logo, sem
   repetir 10 vezes.
 
-## 6. Diagnóstico pelo GitHub (workflow só leitura)
-O que já existe não basta: o `/v1/saude` e a linha `tipo: metricas` do worker só dão os totais (`pendentes`, `parados`,
-`mais_antigo_s`), sem o nome do evento nem o `ultimo_erro`. Por isso há o workflow
-**`producao — diagnóstico da outbox (só leitura)`** (`.github/workflows/producao-diagnostico-outbox.yml`). Ele é manual, roda no
-environment `PRODUCAO` (com a sua aprovação) e só lê.
+## 6. Como rodar o diagnóstico
+1. Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow.
+2. Em "Use workflow from", escolha a **tag da versão publicada** (ex. `v1.0.17`), não o `main`.
+3. Em `empresas`, o código da empresa (ex. `thathyany`).
+4. Aprove o environment `PRODUCAO`.
+5. No fim do resumo, em "Desligar o LOGIN", confira "NOLOGIN"; se houver erro, ali está o que rodar.
 
-**O que você faz** (sem secret): depois do merge, Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow, com
-`thathyany`, e aprove o environment `PRODUCAO`. No fim do resumo, confira "NOLOGIN" em "Desligar o LOGIN"; se ali houver
-erro, está escrito o que rodar.
-
-**O que o log e o resumo mostram, por empresa:**
-- o resumo, com os parados (10 tentativas ou mais), os que estão em nova tentativa (1 a 9) e o horário do primeiro parado;
-- os parados agrupados por nome do evento, entidade e status do lote, classe do erro (`classe_erro`: módulo e rótulo
-  fixo, código ou nome do erro, sem o texto da mensagem), quantidade, tentativas mínimas e máximas e o primeiro e o último
-  horário em Manaus;
-- a fila de lotes do Hub em `recebido` ou `processando`, com entidade, status, quantidade, conectores e horários em Manaus.
-
-Nunca aparecem o payload, o id do evento, o `tenant_id`, e-mail, CPF, nome ou coordenada.
+Leia o resultado pelo §4.
