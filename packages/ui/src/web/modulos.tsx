@@ -9,13 +9,10 @@ import type { ComponentType, SVGProps } from 'react';
 import { IconCatalogo, IconCore, IconGestor, IconIntegracao, IconPesquisa, IconPromotor, IconTreinamento, IconVendedor } from './icons';
 import { Interruptor } from './permissoes';
 import { cx } from './ui';
+import { ehIdDoModulo, IDS_DOS_MODULOS, MODULOS_NATIVOS, TEXTOS_DOS_MODULOS, type IdDoModulo, type TextoDoModulo } from '../comum/modulos';
 
-/** Os ids dos módulos, os mesmos do `MODULOS` do platform-sdk (o kit não depende do SDK). */
-export const IDS_DOS_MODULOS = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const;
-export type IdDoModulo = (typeof IDS_DOS_MODULOS)[number];
-const MODULOS: readonly string[] = IDS_DOS_MODULOS;
-
-export const MODULOS_NATIVOS: readonly IdDoModulo[] = ['catalogo', 'core', 'integracao'];
+// O texto (ids, nativos, nome e frase de valor) mora em `../comum/modulos`, puro, para os apps lerem o mesmo nome (N-1 do v1017).
+export { IDS_DOS_MODULOS, MODULOS_NATIVOS, nomeDoModulo, type IdDoModulo } from '../comum/modulos';
 
 type IconeDoModulo = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
 
@@ -34,38 +31,19 @@ const ICONES: Record<IdDoModulo, IconeDoModulo> = {
 /** Ícone do módulo (o mesmo do `IconeModulo`), para quem precisa do componente. */
 export const iconeDoModulo = (id: IdDoModulo): IconeDoModulo => ICONES[id];
 
-export interface InfoDoModulo {
+export interface InfoDoModulo extends TextoDoModulo {
   id: IdDoModulo;
-  nome: string;
-  /** Frase de valor do cartão: o que a equipe ganha, em uma linha. Os nativos não têm (não aparecem em lista). */
-  valor?: string;
   nativo: boolean;
 }
 
-const INFO: Record<IdDoModulo, Omit<InfoDoModulo, 'id' | 'nativo'>> = {
-  catalogo: { nome: 'Catálogo' },
-  core: { nome: 'Core' },
-  gestor: { nome: 'Gestor', valor: 'Equipe, aprovações e indicadores.' },
-  integracao: { nome: 'Integração com o ERP' },
-  pesquisa: { nome: 'Pesquisa', valor: 'Questionários na visita, com fotos e resultados.' },
-  promotor: { nome: 'Promotor', valor: 'Gôndola, share, preço, ruptura e validade no PDV.' },
-  treinamento: { nome: 'Treinamento', valor: 'Trilhas, quizzes e ranking para a equipe de campo.' },
-  vendedor: { nome: 'Vendedor', valor: 'Pedidos e orçamentos no app.' },
-};
-
 export function infoDoModulo(id: IdDoModulo): InfoDoModulo {
-  return { id, ...INFO[id], nativo: MODULOS_NATIVOS.includes(id) };
-}
-
-/** Nome do módulo para a tela (nunca o id). Id desconhecido (servidor mais novo) aparece como veio. */
-export function nomeDoModulo(id: string): string {
-  return MODULOS.includes(id) ? INFO[id as IdDoModulo].nome : id;
+  return { id, ...TEXTOS_DOS_MODULOS[id], nativo: MODULOS_NATIVOS.includes(id) };
 }
 
 /** Os módulos que aparecem em lista (licenças, perfis, portal): sem os nativos, em ordem alfabética do nome. */
 export function modulosContrataveis(ids: readonly string[] = IDS_DOS_MODULOS): InfoDoModulo[] {
   return ids
-    .filter((id): id is IdDoModulo => MODULOS.includes(id) && !MODULOS_NATIVOS.includes(id as IdDoModulo))
+    .filter((id): id is IdDoModulo => ehIdDoModulo(id) && !MODULOS_NATIVOS.includes(id))
     .map(infoDoModulo)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }

@@ -21,6 +21,8 @@ export * from './acoes';
 export * from '../comum/historico';
 // RD-0014: nome curto e longo dos 7 perfis padrão (o mesmo do BKO, do portal e do login)
 export * from '../comum/perfis';
+// N-1 do v1017: nome do módulo na tela (o mesmo do BKO), sem ícone nem React
+export { MODULOS_NATIVOS, nomeDoModulo, type IdDoModulo } from '../comum/modulos';
 // T-0140: textos da tela de erro e da linha do Diagnóstico
 export * from './tela-de-erro';
 // T-0166 / T-0165 / T-0167: falta no campo, Balao, CampoEscolha e o fim da lista da busca (partes puras)

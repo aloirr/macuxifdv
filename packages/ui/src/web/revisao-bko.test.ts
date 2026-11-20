@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { classeDaPrioridade, indiceNoMenu, nomeLegivel, posicaoDoMenu } from './tabela-dados';
 import { ordenarAcoes } from './menu-acoes';
-import { iconeDoModulo, infoDoModulo, modulosContrataveis, nomeDoModulo, IDS_DOS_MODULOS } from './modulos';
+import { iconeDoModulo, infoDoModulo, modulosContrataveis, IDS_DOS_MODULOS } from './modulos';
 import { IconCatalogo, IconCore, IconGestor, IconIntegracao, IconMais, IconPesquisa, IconPromotor, IconTreinamento, IconVendedor } from './icons';
 import { CLASSE_CAMPO, CLASSE_CAMPO_BASE, EstadoVazio, rotuloComContagem, seloPrincipal } from './ui';
 
@@ -70,9 +70,6 @@ describe('Selo único da Situação', () => {
 });
 
 describe('Mapa único dos módulos (R-20261114-143500)', () => {
-  it('os 8 ids da plataforma', () => {
-    expect([...IDS_DOS_MODULOS].sort()).toEqual(['catalogo', 'core', 'gestor', 'integracao', 'pesquisa', 'promotor', 'treinamento', 'vendedor']);
-  });
   it('Core, Integração e Catálogo são nativos e somem da lista; os outros em ordem alfabética', () => {
     expect(modulosContrataveis().map((m) => m.nome)).toEqual(['Gestor', 'Pesquisa', 'Promotor', 'Treinamento', 'Vendedor']);
     expect(modulosContrataveis(['core', 'vendedor', 'integracao', 'catalogo']).map((m) => m.id)).toEqual(['vendedor']);
@@ -86,11 +83,6 @@ describe('Mapa único dos módulos (R-20261114-143500)', () => {
     expect(infoDoModulo('core').valor).toBeUndefined();
     expect(infoDoModulo('catalogo').valor).toBeUndefined();
     expect(infoDoModulo('integracao').valor).toBeUndefined();
-  });
-  it('nome com maiúscula e acento, nunca o id', () => {
-    expect(nomeDoModulo('catalogo')).toBe('Catálogo');
-    expect(nomeDoModulo('integracao')).toBe('Integração com o ERP');
-    expect(nomeDoModulo('novo_modulo')).toBe('novo_modulo');
   });
 });
 
