@@ -14,6 +14,7 @@ RN-CORE-33, mesma auditoria), que devolve o jsonb da marca; `sa_marca_da_empresa
 - `GravarOcultarMarcaMacuxiSchema = { ocultar: boolean }` (estrito) e `rotaOcultarMarcaMacuxi(tenantId)`.
 - Parâmetros do Core: chave reservada `empresa_ocultar_marca_macuxi`, montada por
   `parametrosDaEmpresa`; o app e o BKO leem com `ocultarMarcaMacuxiDosParametros(parametrosCore)` (só `true` oculta).
+- `logoQueSubstituiAMarca(ocultar, logo)`: a logo do cliente no lugar da marca só com a chave ligada e a logo presente (RD-1326).
 
 **API:**
 - `PUT /v1/plataforma/empresas/:tenant_id/marca/ocultar-macuxi` com `{ ocultar }`: só super-admin (403 `PERFIL_SEM_ACESSO`

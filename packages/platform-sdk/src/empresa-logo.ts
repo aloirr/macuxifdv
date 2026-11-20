@@ -210,3 +210,8 @@ export function empresaDosParametros(parametrosCore: Readonly<Record<string, unk
 export function ocultarMarcaMacuxiDosParametros(parametrosCore: Readonly<Record<string, unknown>> | null | undefined): boolean {
   return parametrosCore?.[PARAMETRO_EMPRESA_OCULTAR_MARCA] === true;
 }
+
+/** A logo do cliente no lugar da logomarca do Macuxi: só com a chave ligada e a logo presente (RD-1326; os dois shells). */
+export function logoQueSubstituiAMarca<T>(ocultar: boolean, logo: T | null | undefined): T | null {
+  return ocultar && logo ? logo : null;
+}

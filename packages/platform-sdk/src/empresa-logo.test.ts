@@ -11,6 +11,7 @@ import {
   MENSAGENS_LOGO,
   GravarOcultarMarcaMacuxiSchema,
   nomeDaEmpresa,
+  logoQueSubstituiAMarca,
   ocultarMarcaMacuxiDosParametros,
   parametrosDaEmpresa,
   proporcaoDaLogo,
@@ -150,6 +151,15 @@ describe('no aparelho: chaves reservadas do Core (desenho §3.1)', () => {
     expect(ocultarMarcaMacuxiDosParametros({})).toBe(false);
     expect(ocultarMarcaMacuxiDosParametros(undefined)).toBe(false);
     expect(ocultarMarcaMacuxiDosParametros({ empresa_ocultar_marca_macuxi: 'true' })).toBe(false);
+  });
+
+  it('logoQueSubstituiAMarca: só a logo do cliente = chave ligada e logo presente (RD-1326)', () => {
+    const logo = { sha256: SHA, tipo: 'image/png', largura_px: 600, altura_px: 240 };
+    expect(logoQueSubstituiAMarca(true, logo)).toBe(logo);
+    expect(logoQueSubstituiAMarca(false, logo)).toBeNull();
+    expect(logoQueSubstituiAMarca(true, null)).toBeNull();
+    expect(logoQueSubstituiAMarca(true, undefined)).toBeNull();
+    expect(logoQueSubstituiAMarca(false, null)).toBeNull();
   });
 
   it('proporcaoDaLogo: largura ÷ altura dos px gravados (RD-0921)', () => {
