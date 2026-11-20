@@ -320,6 +320,40 @@ describe('RF-PES-06: resultados, galeria e exportação no escopo do perfil', ()
     expect(x.conteudo.trimEnd().split('\r\n')).toHaveLength(3);
   });
 
+  it('T-0187: exportação leva a coluna "Respondida por" com o nome do Core; sem nome, vazia', async () => {
+    await comRespostas();
+    const col = async (nomes?: Record<string, string>) => {
+      const x = ExportacaoResponse.parse(await amb.chamar(ctx(ANALISTA, 'analista', nomes ? { nomes } : {}), 'GET', 'questionarios/:id/exportar', { params: { id: Q } }));
+      const [cab, ...linhas] = x.conteudo.slice(1).trimEnd().split('\r\n');
+      const i = cab!.split(';').indexOf('respondida_por');
+      return linhas.map((l) => l.split(';')[i]);
+    };
+    expect(await col({ [VENDEDOR]: 'João Lima' })).toContain('João Lima');
+    expect((await col()).every((c) => c === '')).toBe(true);
+  });
+
+  it('T-0187: com mais de 500 pessoas respondendo, o nome sai na listagem e na exportação (consulta em lotes de 500 ids)', async () => {
+    const pub = await publicarV1();
+    const total = 1100;
+    const nomes: Record<string, string> = {};
+    for (let i = 0; i < total; i++) {
+      const u = uu(20000 + i);
+      nomes[u] = `Pessoa ${i}`;
+      await amb.push(ctx(u, 'vendedor'), [item(envio(pub.versao.id, { id: uu(30000 + i) }))]);
+    }
+    const analista = ctx(ANALISTA, 'analista', { nomes });
+    const lista = (await amb.chamar<{ itens: { usuario_id: string; usuario_nome: string | null }[] }>(analista, 'GET', 'questionarios/:id/respostas', { params: { id: Q } })).itens;
+    expect(lista.length).toBeGreaterThan(0);
+    expect(lista.every((x) => x.usuario_nome === nomes[x.usuario_id])).toBe(true);
+    const x = ExportacaoResponse.parse(await amb.chamar(analista, 'GET', 'questionarios/:id/exportar', { params: { id: Q } }));
+    const [cab, ...linhas] = x.conteudo.slice(1).trimEnd().split('\r\n');
+    const col = cab!.split(';');
+    const iNome = col.indexOf('respondida_por');
+    const iUsuario = col.indexOf('usuario_id');
+    expect(linhas).toHaveLength(total);
+    expect(linhas.every((l) => l.split(';')[iNome] === nomes[l.split(';')[iUsuario]!])).toBe(true);
+  }, 60_000);
+
   it('RF-PES-06: filtro por versão inexistente responde 422 com a ação seguinte', async () => {
     await comRespostas();
     await expect(amb.chamar(ctx(ANALISTA, 'analista'), 'GET', 'questionarios/:id/resultado', { params: { id: Q }, query: { versao: uu(4321) } })).rejects.toMatchObject({ status: 422, codigo: 'VERSAO_INEXISTENTE' });
@@ -348,5 +382,54 @@ describe('ADR 0010: foto já usada por outra entidade', () => {
     expect(r).toMatchObject({ status: 'rejeitado', codigo: 'ARQUIVO_JA_REFERENCIADO' });
     expect(amb.efeitos.eventos).toEqual([]);
     expect(await amb.pull(v, 'resposta_pesquisa', horizonte())).toEqual([]);
+  });
+});
+
+describe('T-0187: supervisor e gerente respondem pelo push da Pesquisa (P5 A)', () => {
+  const GERENTE = uu(22);
+  const CLIENTE_EQUIPE = uu(52);
+  const EQUIPE = new Set([CLIENTE, CLIENTE_EQUIPE]);
+  const semFoto = (versao: string, cliente: string, id: string) => envio(versao, { id, cliente_id: cliente, visita_id: null, itens: [{ pergunta_id: P1, tipo: 'sim_nao', valor: true }] });
+
+  it('RN-CORE-04: supervisor e gerente respondem cliente da carteira da equipe e o evento leva o usuario_id deles', async () => {
+    const pub = await publicarV1();
+    for (const [id, perfil, n] of [[SUPERVISOR, 'supervisor', 7701], [GERENTE, 'gerente', 7702]] as const) {
+      const [r] = await amb.push(ctx(id, perfil, { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE_EQUIPE, uu(n)))]);
+      expect(r).toMatchObject({ status: 'aceito' });
+      expect(amb.efeitos.eventos.at(-1)).toMatchObject({ nome: 'pesquisa.resposta.registrada@1', payload: expect.objectContaining({ usuario_id: id }) });
+    }
+  });
+
+  it('RN-CORE-04: supervisor não responde cliente fora da carteira da equipe (FORA_DA_CARTEIRA)', async () => {
+    const pub = await publicarV1();
+    const [r] = await amb.push(ctx(SUPERVISOR, 'supervisor', { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE_FORA, uu(7703)))]);
+    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'FORA_DA_CARTEIRA' });
+    expect(amb.efeitos.eventos).toEqual([]);
+  });
+
+  it('doc 03 §2: analista, admin e assistente não respondem (PERFIL_SEM_ACESSO); vendedor e promotor seguem respondendo', async () => {
+    const pub = await publicarV1();
+    for (const p of ['analista', 'admin', 'assistente'] as const) {
+      const [r] = await amb.push(ctx(uu(60), p, { carteira: 'tenant' }), [item(semFoto(pub.versao.id, CLIENTE, uu(7704)))]);
+      expect(r, p).toMatchObject({ status: 'rejeitado', codigo: 'PERFIL_SEM_ACESSO' });
+    }
+    for (const [p, n] of [['vendedor', 7705], ['promotor', 7706]] as const) {
+      const [r] = await amb.push(ctx(uu(n), p, { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE, uu(n)))]);
+      expect(r, p).toMatchObject({ status: 'aceito' });
+    }
+  });
+
+  it('multi-tenant: o questionário de outro tenant não existe para quem responde (QUESTIONARIO_INEXISTENTE)', async () => {
+    const pub = await publicarV1();
+    const [r] = await amb.push(ctx(SUPERVISOR, 'supervisor', { carteira: EQUIPE, tenant: TENANT_B }), [item(semFoto(pub.versao.id, CLIENTE_EQUIPE, uu(7707)))]);
+    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'QUESTIONARIO_INEXISTENTE' });
+  });
+
+  it('T-0187: "Respondida por" traz o nome de quem respondeu; consulta fora do ar deixa o nome nulo e a lista segue', async () => {
+    const pub = await publicarV1();
+    await amb.push(ctx(SUPERVISOR, 'supervisor', { carteira: EQUIPE }), [item(semFoto(pub.versao.id, CLIENTE_EQUIPE, uu(7708)))]);
+    const ler = (nomes?: Record<string, string>) => amb.chamar<{ itens: { usuario_id: string; usuario_nome: string | null }[] }>(ctx(ANALISTA, 'analista', nomes ? { nomes } : {}), 'GET', 'questionarios/:id/respostas', { params: { id: Q } });
+    expect((await ler({ [SUPERVISOR]: 'Marta Souza' })).itens).toEqual([expect.objectContaining({ usuario_id: SUPERVISOR, usuario_nome: 'Marta Souza' })]);
+    expect((await ler()).itens).toEqual([expect.objectContaining({ usuario_id: SUPERVISOR, usuario_nome: null })]);
   });
 });

@@ -27,6 +27,8 @@ export const manifest = defineModule({
   // T-0170 (#145): a tarefa de pesquisa do Core usa `questionarios_para_tarefa` (API) e `resposta_local` (aparelho; a API
   // também responde, só com as respostas sincronizadas do usuário, porque o SDK exige implementação na API)
   ofereceConsultas: ['pesquisa.etapas_checkout@1', 'pesquisa.questionarios_para_tarefa@1', 'pesquisa.resposta_local@1'],
+  // T-0187: "Respondida por <nome>" nos resultados (nome do usuário pelo Core, só leitura)
+  usaConsultas: ['core.usuarios_resumo@1'],
   usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
   acoes: {
     // --- responder (apps Campo e Gestão; funciona offline, a API revalida: RN-PES-01/03/04) ---

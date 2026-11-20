@@ -106,7 +106,7 @@ describe('RF-PES-01/02: formulário do rascunho ⇄ versão', async () => {
     );
     const f = formDaVersao(v, 'America/Manaus');
     expect(f).toMatchObject({ inicio: '2026-10-01', fim: '2026-10-30', segmentos: 'Varejo', canais: 'Tradicional, Auto Serviço', equipes: U });
-    expect(corpoDoForm(f, 'America/Manaus').publico_alvo.canais).toEqual(['Tradicional', 'Auto Serviço']); // RN-PES-05
+    expect(corpoDoForm(f, 'America/Manaus').publico_alvo?.canais).toEqual(['Tradicional', 'Auto Serviço']); // RN-PES-05
     const corpo = corpoDoForm(f, 'America/Manaus');
     expect(SalvarRascunhoRequest.safeParse(corpo).success).toBe(true);
     expect(corpo).toMatchObject({ publico_alvo: v.publico_alvo, vigencia: v.vigencia, perguntas: v.perguntas });
