@@ -86,32 +86,33 @@ export function vendedorPadraoEmNome(e: { clienteId: string; carteira: readonly 
   return candidatos.length === 1 ? candidatos[0]!.id : null;
 }
 
-export interface VinculoComPapel { usuario_id: string; cliente_id: string; papel: 'vendedor' | 'promotor'; inicio: string | null; fim: string | null; deleted_at?: string | null }
+/** `gestor.membros_da_equipe@1` (só o que a montagem usa; o contrato é do Gestor). */
+export interface MembroDaConsulta { usuario_id: string; nome: string; perfil: string; equipe_id: string | null; ativo: boolean }
 
 /**
- * RN-PRO-01, RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" a partir do `papel` das carteiras que o aparelho já tem.
- * Quem tem vínculo de promotor fica fora. Vendedor com vínculo vigente (`hoje`, AAAA-MM-DD) é ativo; só com vínculo encerrado ou
- * apagado é inativo ("Saiu da equipe"); só com vínculo futuro não entra. Nome ausente vira "Vendedor".
+ * RN-PRO-01, RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" a partir da consulta `gestor.membros_da_equipe@1`,
+ * que já traz só o escopo de quem está logado. Ficam só os vendedores (promotor e demais perfis fora, RN-PRO-01) e nunca o próprio autor.
+ * O inativo segue na lista (vira "Saiu da equipe"). Para o gerente, `grupo` é o nome da equipe; para o supervisor, `null`.
  */
-export function equipeEmNomeDaCarteira(e: { carteiras: readonly VinculoComPapel[]; hoje: string; nomes: ReadonlyMap<string, string> }): UsuarioDaEquipe[] {
-  const promotores = new Set(e.carteiras.filter((c) => c.papel === 'promotor').map((c) => c.usuario_id));
-  const estado = new Map<string, 'ativo' | 'saiu'>();
-  for (const c of e.carteiras) {
-    if (c.papel !== 'vendedor' || promotores.has(c.usuario_id)) continue;
-    const futuro = !c.deleted_at && c.inicio !== null && c.inicio.slice(0, 10) > e.hoje;
-    if (futuro) continue;
-    const vigente = !c.deleted_at && !(c.fim !== null && c.fim.slice(0, 10) < e.hoje);
-    if (vigente) estado.set(c.usuario_id, 'ativo');
-    else if (!estado.has(c.usuario_id)) estado.set(c.usuario_id, 'saiu');
-  }
-  return [...estado].map(([id, st]) => ({ id, nome: e.nomes.get(id) ?? 'Vendedor', ativo: st === 'ativo', perfil: 'vendedor' }));
+export function equipeEmNomeDosMembros(e: {
+  autor: { id: string; perfil: string };
+  membros: readonly MembroDaConsulta[];
+  equipes: ReadonlyArray<{ equipe_id: string; nome: string }>;
+}): UsuarioDaEquipe[] {
+  const nomes = new Map(e.equipes.map((q) => [q.equipe_id, q.nome]));
+  return e.membros
+    .filter((m) => m.perfil === 'vendedor' && m.usuario_id !== e.autor.id)
+    .map((m) => ({ id: m.usuario_id, nome: m.nome, ativo: m.ativo, perfil: 'vendedor', grupo: e.autor.perfil === 'gerente' && m.equipe_id ? (nomes.get(m.equipe_id) ?? null) : null }));
 }
+
+/** Lista vazia (cache da equipe ainda vazio): a linha única, com a ação. */
+export const MSG_SEM_VENDEDORES_EM_NOME = 'Nenhum vendedor na lista. Sincronize e tente de novo.';
 
 export interface OpcaoEmNome { id: string; nome: string; da_carteira: boolean; desligado: boolean; motivo: 'Saiu da equipe' | null; grupo: string | null }
 
 /**
  * RN-CORE-04 e RN-VEN-35 (P3 A): quem pode ser o dono do pedido. Só vendedores dentro do escopo do autor (`visiveis`: a equipe do
- * supervisor; as equipes abaixo do gerente), em ordem alfabética. Ficam fora o próprio autor e o promotor (RN-PRO-01).
+ * supervisor; as equipes abaixo do gerente), em ordem alfabética (por equipe e depois por nome, para o gerente). Ficam fora o próprio autor e o promotor (RN-PRO-01).
  * Vendedor inativo aparece desligado, com "Saiu da equipe". `da_carteira` marca "Carteira deste cliente".
  */
 export function opcoesEmNome(e: {
@@ -125,7 +126,7 @@ export function opcoesEmNome(e: {
   return e.usuarios
     .filter((u) => u.perfil === 'vendedor' && u.id !== e.autor.id && (e.visiveis === 'tenant' || e.visiveis.has(u.id)))
     .map((u) => ({ id: u.id, nome: u.nome, da_carteira: donos.has(u.id), desligado: !u.ativo, motivo: u.ativo ? null : ('Saiu da equipe' as const), grupo: u.grupo ?? null }))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    .sort((a, b) => (a.grupo ?? '').localeCompare(b.grupo ?? '', 'pt-BR') || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 export const MSG_APROVACAO_DO_PROPRIO_PEDIDO = 'Você fez este pedido e não pode aprová-lo. Peça a decisão ao nível acima.';

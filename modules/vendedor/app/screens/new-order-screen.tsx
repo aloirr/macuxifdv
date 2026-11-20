@@ -10,6 +10,7 @@
  */
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
+import { CONSULTA_MEMBROS_DA_EQUIPE, type MembrosDaEquipe } from '@macuxi/gestor/contracts';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonte, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -22,7 +23,7 @@ import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/
 import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasDiferentesDoGeral, type AjusteGeral } from '../../domain/desconto-geral';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { buscaPodeComecar, codigoExatoPrimeiro, paginaDaBusca, resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
-import { equipeEmNomeDaCarteira, opcoesEmNome, rotuloVoltarNovoPedido, vendedorPadraoEmNome } from '../../domain/pedido-em-nome';
+import { equipeEmNomeDosMembros, opcoesEmNome, rotuloVoltarNovoPedido, vendedorPadraoEmNome } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CampoEmNomeDe, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
@@ -204,10 +205,24 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const vendedorEmNomeNome = emNomeLivre ? (draft.vendedor_em_nome_nome ?? null) : vendedorEmNomeNomeDaRota;
   const hoje = localIsoDate(new Date(), tz);
   const porClienteVigente = useMemo(() => vendedoresPorCliente(app.carteiras, hoje), [app.carteiras, hoje]);
-  const equipeEmNome = useMemo(() => {
-    if (!emNomeLivre) return [];
-    return equipeEmNomeDaCarteira({ carteiras: app.carteiras, hoje, nomes: nomesDosVendedores(app.pedidos, null) });
-  }, [emNomeLivre, app.pedidos, app.carteiras, hoje]);
+  const ambiente = useAmbiente();
+  // RN-CORE-04, RN-PRO-01: a lista "Em nome de" vem da consulta do Gestão (cache do aparelho, sem rede); sem resposta, lista vazia
+  const [membrosEmNome, setMembrosEmNome] = useState<MembrosDaEquipe>({ membros: [], equipes: [] });
+  useEffect(() => {
+    if (!emNomeLivre) return;
+    let vivo = true;
+    ambiente.consultar(CONSULTA_MEMBROS_DA_EQUIPE, {}).then(
+      (r) => vivo && setMembrosEmNome(r),
+      () => undefined,
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [emNomeLivre, ambiente]);
+  const equipeEmNome = useMemo(
+    () => (emNomeLivre ? equipeEmNomeDosMembros({ autor: { id: ambiente.usuario()?.id ?? '', perfil: app.perfil ?? '' }, ...membrosEmNome }) : []),
+    [emNomeLivre, membrosEmNome, ambiente, app.perfil],
+  );
   const vinculosEmNome = useMemo(() => [...porClienteVigente].flatMap(([cliente_id, us]) => us.map((usuario_id) => ({ usuario_id, cliente_id }))), [porClienteVigente]);
   const opcoesDoEmNome = useMemo(() => {
     if (!emNomeLivre) return [];
@@ -258,7 +273,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
     updateDraft(customerId, (d) => ({ ...d, payment_terms: padrao.descricao, condicao_pagamento_id: padrao.id }));
   }, [v1, formas, prazos, limites.formas_pagamento, condicoes, draft.forma_pagamento_id, draft.prazo_pagamento_id, draft.condicao_pagamento_id, sent, editId]);
 
-  const ambiente = useAmbiente();
   const parametrosVendedor = ambiente.parametros('vendedor');
   const fretePadrao = modalidadePadraoDosParametros(parametrosVendedor);
   const [aba, setAba] = useState<AbaNovoPedido>(() => abaInicialDoRascunho(draft));

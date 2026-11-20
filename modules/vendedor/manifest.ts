@@ -37,7 +37,7 @@ export const manifest = defineModule({
   // T-0065 B (RN-CORE-21): fatos para o Core apurar a meta pelo tipo
   ofereceConsultas: ['vendedor.pedidos_da_meta@1', 'vendedor.formas_pagamento@1', 'vendedor.preco_prazo_padrao@1'],
   usaConsultas: ['catalogo.precos_cliente@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.sugestoes_pedido@1', 'catalogo.foto_produto@1', 'catalogo.estoque_filial@1', 'core.cadastro_resumo@1', 'core.filiais@1', 'core.promotor_ve_pedidos@1', 'core.financeiro_cliente@1'],
-  usaConsultasOpcionais: ['integracao.cancelamento_erp@1'],
+  usaConsultasOpcionais: ['integracao.cancelamento_erp@1', 'gestor.membros_da_equipe@1'],
   acoes: {
     // RN-PRO-01 / O-3: o promotor só LÊ pedidos (carteira). Escrita continua só para PERFIS_PEDIDO.
     // Matriz §2: admin vê pedidos do tenant, não cria nem cancela.

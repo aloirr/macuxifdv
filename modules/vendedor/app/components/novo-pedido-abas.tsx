@@ -27,7 +27,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { type OpcaoEmNome } from '../../domain/pedido-em-nome';
+import { MSG_SEM_VENDEDORES_EM_NOME, type OpcaoEmNome } from '../../domain/pedido-em-nome';
 import { type BotaoDoResumo, type BotoesDoResumo } from '../../domain/botoes-resumo';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
@@ -580,15 +580,22 @@ const s = StyleSheet.create({
 /** T-0187 (RN-VEN-35, P3 A): "Em nome de" da aba Venda; só os vendedores da equipe, o da carteira do cliente marcado. Vazio: "Escolher". */
 export function CampoEmNomeDe({ opcoes, valor, falta, onChange }: { opcoes: ReadonlyArray<OpcaoEmNome>; valor: string | null; falta?: string | null; onChange: (id: string) => void }) {
   return (
-    <ListaSuspensa
-      testID="em-nome-de"
-      rotulo="Em nome de"
-      placeholder="Escolher"
-      rotuloFechar="Fechar a lista"
-      falta={falta}
-      valor={valor}
-      onChange={onChange}
-      opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome, desabilitada: o.desligado, motivo: o.motivo ?? (o.da_carteira ? 'Carteira deste cliente' : null) }))}
-    />
+    <View style={{ gap: 4 }}>
+      <ListaSuspensa
+        testID="em-nome-de"
+        rotulo="Em nome de"
+        placeholder="Escolher"
+        rotuloFechar="Fechar a lista"
+        falta={falta}
+        valor={valor}
+        onChange={onChange}
+        opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome, desabilitada: o.desligado, motivo: o.motivo ?? ([o.da_carteira ? 'Carteira deste cliente' : null, o.grupo].filter(Boolean).join(' · ') || null) }))}
+      />
+      {opcoes.length === 0 ? (
+        <Text testID="em-nome-de-vazio" style={{ ...fonte.body, fontSize: 12, color: colors.ink2 }}>
+          {MSG_SEM_VENDEDORES_EM_NOME}
+        </Text>
+      ) : null}
+    </View>
   );
 }

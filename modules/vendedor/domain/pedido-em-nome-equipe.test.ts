@@ -1,6 +1,6 @@
 /** T-0187 (supervisor em campo): "Em nome de", nível de aprovação do autor. Funções puras. */
 import { describe, expect, it } from 'vitest';
-import { opcoesEmNome, vendedorPadraoEmNome } from './pedido-em-nome';
+import { equipeEmNomeDosMembros, MSG_SEM_VENDEDORES_EM_NOME, opcoesEmNome, vendedorPadraoEmNome } from './pedido-em-nome';
 
 const equipe = [
   { id: 'carla', nome: 'Carla Lima', ativo: true, perfil: 'vendedor' },
@@ -60,42 +60,47 @@ describe('RN-VEN-35 e RN-PRO-01 (T-0187): pendência do vendedor', () => {
   });
 });
 
-describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" vem do papel da carteira', () => {
+describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em nome de" vem da consulta gestor.membros_da_equipe@1', () => {
   const V = '11111111-1111-4111-8111-111111111111';
   const P = '22222222-2222-4222-8222-222222222222';
   const S = '33333333-3333-4333-8333-333333333333';
+  const W = '44444444-4444-4444-8444-444444444444';
+  const L1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const L2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-  const hoje = '2026-11-20';
-  const v = (usuario_id: string, papel: 'vendedor' | 'promotor', fim: string | null = null, extra: object = {}) => ({ usuario_id, cliente_id: C, papel, inicio: null, fim, ...extra });
-  const nomes = new Map([[V, 'Carla'], [P, 'Paulo'], [S, 'Saulo']]);
+  const m = (usuario_id: string, nome: string, perfil: string, equipe_id: string | null, ativo = true) => ({ usuario_id, nome, perfil, equipe_id, ativo });
+  const membros = [m(V, 'Carla', 'vendedor', L1), m(P, 'Paulo', 'promotor', L1), m(S, 'Saulo', 'vendedor', L1, false), m(W, 'Wilma', 'vendedor', L2), m('g', 'Rui', 'supervisor', L2)];
+  const equipes = [{ equipe_id: L1, nome: 'Marcos Dias' }, { equipe_id: L2, nome: 'Ana Reis' }];
 
-  it('RN-PRO-01: o promotor da equipe não entra na lista nem vira o padrão (critério 13)', async () => {
-    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
-    const equipe = equipeEmNomeDaCarteira({ carteiras: [v(V, 'vendedor'), v(P, 'promotor')], hoje, nomes });
-    expect(equipe.map((u) => u.id)).toEqual([V]);
-    expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: P, cliente_id: C }], equipe })).toBeNull();
-    expect(opcoesEmNome({ autor: { id: 'g', perfil: 'supervisor' }, clienteId: C, carteira: [], usuarios: equipe, visiveis: 'tenant' }).map((o) => o.id)).toEqual([V]);
+  it('RN-PRO-01: o promotor e o supervisor da lista não entram e nunca viram o padrão (critério 13)', () => {
+    const eq = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros, equipes });
+    expect(eq.map((u) => u.id).sort()).toEqual([V, S, W].sort());
+    expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: P, cliente_id: C }], equipe: eq })).toBeNull();
   });
 
-  it('RN-PRO-01: quem tem vínculo de promotor em qualquer cliente fica fora, mesmo com um de vendedor', async () => {
-    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
-    expect(equipeEmNomeDaCarteira({ carteiras: [v(P, 'vendedor'), v(P, 'promotor')], hoje, nomes })).toEqual([]);
+  it('o próprio autor não entra, mesmo vendedor', () => {
+    expect(equipeEmNomeDosMembros({ autor: { id: V, perfil: 'supervisor' }, membros, equipes }).map((u) => u.id)).not.toContain(V);
   });
 
-  it('RN-CORE-04: vendedor sem vínculo vigente (fim passado ou apagado) vem desligado, "Saiu da equipe" (critério 14)', async () => {
-    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
-    const equipe = equipeEmNomeDaCarteira({ carteiras: [v(V, 'vendedor'), v(S, 'vendedor', '2026-10-01')], hoje, nomes });
-    expect(equipe.find((u) => u.id === S)?.ativo).toBe(false);
-    expect(equipe.find((u) => u.id === V)?.ativo).toBe(true);
-    const ops = opcoesEmNome({ autor: { id: 'g', perfil: 'supervisor' }, clienteId: C, carteira: [], usuarios: equipe, visiveis: 'tenant' });
+  it('RN-CORE-04: vendedor inativo vem desligado, "Saiu da equipe", e não é o padrão (critério 14)', () => {
+    const eq = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros, equipes });
+    const ops = opcoesEmNome({ autor: { id: 'sup', perfil: 'supervisor' }, clienteId: C, carteira: [], usuarios: eq, visiveis: 'tenant' });
     expect(ops.find((o) => o.id === S)).toMatchObject({ desligado: true, motivo: 'Saiu da equipe' });
-    expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: S, cliente_id: C }], equipe })).toBeNull();
-    const apagado = equipeEmNomeDaCarteira({ carteiras: [v(S, 'vendedor', null, { deleted_at: '2026-11-01T00:00:00Z' })], hoje, nomes });
-    expect(apagado[0]?.ativo).toBe(false);
+    expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: S, cliente_id: C }], equipe: eq })).toBeNull();
   });
 
-  it('RN-CORE-04: vínculo que ainda não começou não traz o vendedor', async () => {
-    const { equipeEmNomeDaCarteira } = await import('./pedido-em-nome');
-    expect(equipeEmNomeDaCarteira({ carteiras: [v(V, 'vendedor', null, { inicio: '2026-12-01' })], hoje, nomes })).toEqual([]);
+  it('RN-CORE-04: o supervisor não vê grupo; o gerente vê agrupado por equipe, na ordem da equipe e do nome', () => {
+    const sup = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros, equipes });
+    expect(sup.every((u) => u.grupo === null)).toBe(true);
+    const ger = equipeEmNomeDosMembros({ autor: { id: 'ger', perfil: 'gerente' }, membros, equipes });
+    const ops = opcoesEmNome({ autor: { id: 'ger', perfil: 'gerente' }, clienteId: C, carteira: [{ usuario_id: W, cliente_id: C }], usuarios: ger, visiveis: 'tenant' });
+    expect(ops.map((o) => [o.grupo, o.nome])).toEqual([['Ana Reis', 'Wilma'], ['Marcos Dias', 'Carla'], ['Marcos Dias', 'Saulo']]);
+    expect(ops.find((o) => o.id === W)?.da_carteira).toBe(true);
+    expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: W, cliente_id: C }], equipe: ger })).toBe(W);
+  });
+
+  it('cache vazio (lista vazia): nenhuma opção e a linha com a ação', () => {
+    expect(equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros: [], equipes: [] })).toEqual([]);
+    expect(MSG_SEM_VENDEDORES_EM_NOME).toBe('Nenhum vendedor na lista. Sincronize e tente de novo.');
   });
 });
