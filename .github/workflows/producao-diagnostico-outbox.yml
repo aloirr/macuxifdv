@@ -3,20 +3,24 @@ name: producao — diagnóstico da outbox (só leitura)
 # Para o OUTBOX_PARADA (relatório docs/desenho/outbox-parada-v1014.md, §4 e §6). Só manual, só no environment PRODUCAO
 # (aprovação do Alexandre) e SÓ LEITURA: nada se corrige, cancela ou reprocessa aqui (isso continua dependendo do "sim" dele).
 #
-# Como funciona:
-# - O DBaaS só tem IP privado na VPC: a consulta roda na VM, pelo SSH, num contêiner descartável com o psql 16 (a mesma
-#   imagem do serviço pgcliente do compose), SEM o admin.env: conecta como o papel macuxi_leitura (migração 0078, ADR 0055),
-#   que já existe na produção desde a v1.0.12 e só lê:
-#     - NOSUPERUSER, NOBYPASSRLS, sem filiação, só SELECT (nenhum INSERT, UPDATE, DELETE, TRUNCATE) e a política `leitura`
-#       (tenant_id = app.tenant_id): vê uma empresa por vez, resolvida pelo código com plataforma.tenant_por_codigo(text);
-#     - sessão já nasce com default_transaction_read_only = on e statement_timeout = 15s (ALTER ROLE da 0078). Aqui vão de
-#       novo no PGOPTIONS e a consulta inteira roda em "begin transaction read only" e termina em rollback.
-# - A senha do macuxi_leitura sai do secret PROD_PG_LEITURA_SENHA e chega ao contêiner pelo stdin do SSH e pelo ambiente
-#   (docker run -e PGPASSWORD, sem valor no argv). Endereço, porta e modo do TLS são os da VM (banco.env e imagens.env).
+# Como funciona (sem secret de senha; o macuxi_leitura só tem LOGIN durante a execução):
+# - O DBaaS só tem IP privado na VPC: tudo roda na VM, pelo SSH, com o psql 16 (pgvector/pgvector:pg16).
+# - Senha temporária: o runner sorteia uma senha (openssl) e calcula o verificador SCRAM-SHA-256 (mesmo algoritmo de
+#   db/src/scram.ts); os dois são mascarados. A senha em texto nunca chega ao servidor. Senha e verificador passam só por
+#   arquivo do runner (600) e pelo stdin do SSH, nunca pelo argv nem pelo log.
+# - LOGIN: pelo serviço pgcliente do compose (conexão admin), numa transação que confere antes e depois que o papel
+#   macuxi_leitura (migração 0078, ADR 0055) segue só leitura: sem SUPERUSER, BYPASSRLS, CREATEDB, CREATEROLE, REPLICATION e
+#   filiação, sem escrita em tabela ou coluna, sem CREATE em schema ou no banco e com os ajustes de sessão da 0078
+#   (default_transaction_read_only = on e os timeouts). Qualquer falha desfaz a transação.
+# - Consulta: num contêiner descartável, SEM o admin.env, como macuxi_leitura: só SELECT e a política `leitura` (uma empresa
+#   por vez, por plataforma.tenant_por_codigo(text)); PGOPTIONS só leitura e a consulta inteira em "begin transaction read
+#   only", com rollback no fim. Endereço, porta e modo do TLS são os da VM (banco.env e imagens.env).
+# - Desligar (sempre que o LOGIN foi tentado, mesmo com a consulta em erro): "alter role ... nologin password null", com a
+#   conferência no resumo. Se o runner cair antes disso, a senha some com ele; rode de novo para desligar.
 # - O total de parados de TODAS as empresas sai antes pelo GET /v1/saude público (dependencias.outbox), para conferir se
 #   as empresas consultadas somam o número do alerta.
 #
-# O que o log mostra e a preparação (uma vez): docs/desenho/outbox-parada-v1014.md, §6.
+# O que o log mostra: docs/desenho/outbox-parada-v1014.md, §6.
 
 on:
   workflow_dispatch:
@@ -24,6 +28,7 @@ on:
       empresas:
         description: códigos das empresas, separados por vírgula (ex. thathyany ou AM1234,outra)
         required: true
+        default: thathyany
 
 permissions:
   contents: read
@@ -46,9 +51,7 @@ jobs:
       - name: entradas e consulta
         env:
           EMPRESAS: ${{ inputs.empresas }}
-          SENHA: ${{ secrets.PROD_PG_LEITURA_SENHA }}
         run: |
-          [ -n "$SENHA" ] || { echo "::error::falta o secret PROD_PG_LEITURA_SENHA (environment PRODUCAO): veja o §6 do docs/desenho/outbox-parada-v1014.md"; exit 1; }
           IFS=',' read -ra lista <<< "${EMPRESAS// /}"
           [ "${#lista[@]}" -ge 1 ] && [ "${#lista[@]}" -le 10 ] || { echo "::error::informe de 1 a 10 códigos de empresa"; exit 1; }
           sql="$RUNNER_TEMP/consulta.sql"
@@ -147,12 +150,118 @@ jobs:
           printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
           chmod 600 ~/.ssh/config
 
+      - name: senha temporária e verificador SCRAM
+        run: |
+          umask 077
+          senha="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9')"
+          printf '::add-mask::%s\n' "$senha"
+          printf '%s\n' "$senha" > "$RUNNER_TEMP/senha"
+          unset senha
+          # Mesmo algoritmo de db/src/scram.ts (RFC 5802/7677, 4096 iterações, sal de 16 bytes); a senha vem do arquivo.
+          cat > "$RUNNER_TEMP/scram.mjs" <<'JS'
+          import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const senha = readFileSync(process.argv[2], 'utf8').trim();
+          if (!/^[\x21-\x7e]+$/.test(senha)) process.exit(2);
+          const sal = randomBytes(16);
+          const iteracoes = 4096;
+          const salgada = pbkdf2Sync(senha, sal, iteracoes, 32, 'sha256');
+          const chaveCliente = createHmac('sha256', salgada).update('Client Key').digest();
+          const chaveGuardada = createHash('sha256').update(chaveCliente).digest();
+          const chaveServidor = createHmac('sha256', salgada).update('Server Key').digest();
+          process.stdout.write(`SCRAM-SHA-256$${iteracoes}:${sal.toString('base64')}$${chaveGuardada.toString('base64')}:${chaveServidor.toString('base64')}`);
+          JS
+          verificador="$(node "$RUNNER_TEMP/scram.mjs" "$RUNNER_TEMP/senha")"
+          printf '::add-mask::%s\n' "$verificador"
+          [[ "$verificador" =~ ^SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$ ]] || { echo "::error::verificador SCRAM inválido"; exit 1; }
+          printf '%s\n' "$verificador" > "$RUNNER_TEMP/verificador"
+
+      - name: LOGIN temporário no macuxi_leitura
+        id: login
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          # Conferência do só leitura (0078 e AJUSTES_LEITURA de db/src/papeis.ts); roda antes e depois do LOGIN.
+          cat > "$RUNNER_TEMP/conferir.sql" <<'SQL'
+          do $$
+          declare
+            v_x text;
+          begin
+            select string_agg(x, ', ') into v_x from (
+              select 'SUPERUSER' as x from pg_roles where rolname = 'macuxi_leitura' and rolsuper
+              union all select 'BYPASSRLS' from pg_roles where rolname = 'macuxi_leitura' and rolbypassrls
+              union all select 'CREATEDB' from pg_roles where rolname = 'macuxi_leitura' and rolcreatedb
+              union all select 'CREATEROLE' from pg_roles where rolname = 'macuxi_leitura' and rolcreaterole
+              union all select 'REPLICATION' from pg_roles where rolname = 'macuxi_leitura' and rolreplication
+              union all select 'membro de ' || b.rolname from pg_auth_members m join pg_roles b on b.oid = m.roleid
+                         where m.member = 'macuxi_leitura'::regrole
+              union all select 'escrita em ' || c.oid::regclass::text
+                          from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                         where c.relkind in ('r', 'p', 'v', 'm', 'f')
+                           and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%'
+                           and (has_table_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+                                or has_any_column_privilege('macuxi_leitura', c.oid, 'INSERT, UPDATE, REFERENCES'))
+              union all select 'CREATE no schema ' || n.nspname from pg_namespace n
+                         where n.nspname <> 'information_schema' and n.nspname not like 'pg\_%'
+                           and has_schema_privilege('macuxi_leitura', n.oid, 'CREATE')
+              union all select 'CREATE no banco' where has_database_privilege('macuxi_leitura', current_database(), 'CREATE')
+              union all select 'sem o ajuste ' || a
+                          from unnest(array['default_transaction_read_only=on', 'statement_timeout=15s',
+                                            'idle_in_transaction_session_timeout=60s']) a
+                         where not coalesce((select s.setconfig from pg_db_role_setting s
+                                              where s.setdatabase = 0 and s.setrole = 'macuxi_leitura'::regrole), '{}') @> array[a]
+            ) t;
+            if v_x is not null then
+              raise exception 'macuxi_leitura não está só leitura: %', v_x using errcode = '42501';
+            end if;
+          end
+          $$;
+          SQL
+          {
+            cat <<'SQL'
+          \set ON_ERROR_STOP on
+          \set QUIET on
+          \set VERBOSITY terse
+          \set SHOW_CONTEXT never
+          \getenv verificador MACUXI_LEITURA_VERIFICADOR
+          begin;
+          SQL
+            cat "$RUNNER_TEMP/conferir.sql"
+            cat <<'SQL'
+          \echo antes: macuxi_leitura só leitura
+          alter role macuxi_leitura login password :'verificador';
+          SQL
+            cat "$RUNNER_TEMP/conferir.sql"
+            cat <<'SQL'
+          do $$ begin
+            if not (select rolcanlogin from pg_roles where rolname = 'macuxi_leitura') then raise exception 'LOGIN não gravado'; end if;
+          end $$;
+          commit;
+          \echo depois: macuxi_leitura só leitura, com LOGIN temporário
+          SQL
+          } > "$RUNNER_TEMP/login.sql"
+          # Na VM (sh POSIX): 1ª linha do stdin = verificador (vai para o ambiente, nunca para o argv); o resto do stdin = o SQL.
+          remoto='set -eu; cd /opt/macuxi; IFS= read -r MACUXI_LEITURA_VERIFICADOR; export MACUXI_LEITURA_VERIFICADOR;'
+          remoto+=' exec docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T'
+          remoto+=' -e MACUXI_LEITURA_VERIFICADOR pgcliente psql -X -f -'
+          set +e
+          cat "$RUNNER_TEMP/verificador" "$RUNNER_TEMP/login.sql" | ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee "$RUNNER_TEMP/login.txt"
+          status=${PIPESTATUS[1]}
+          set -e
+          {
+            echo
+            echo "### LOGIN temporário (saída $status)"
+            echo '```'
+            cat "$RUNNER_TEMP/login.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
       - name: consulta só leitura na VM
         env:
           USUARIO: ${{ secrets.PROD_USER }}
-          SENHA: ${{ secrets.PROD_PG_LEITURA_SENHA }}
         run: |
-          # Na VM (sh POSIX): 1ª linha do stdin = senha (vai para o ambiente, nunca para o argv); o resto do stdin = o SQL.
+          # Na VM (sh POSIX): 1ª linha do stdin = senha temporária (vai para o ambiente, nunca para o argv); o resto = o SQL.
           remoto=$(cat <<'REMOTO'
           set -eu
           cd /opt/macuxi
@@ -171,7 +280,7 @@ jobs:
           REMOTO
           )
           set +e
-          { printf '%s\n' "$SENHA"; cat "$RUNNER_TEMP/consulta.sql"; } | ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee "$RUNNER_TEMP/saida.txt"
+          cat "$RUNNER_TEMP/senha" "$RUNNER_TEMP/consulta.sql" | ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee "$RUNNER_TEMP/saida.txt"
           status=${PIPESTATUS[1]}
           set -e
           {
@@ -183,6 +292,53 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
+      - name: desligar o LOGIN do macuxi_leitura
+        if: ${{ always() && steps.login.outcome != '' && steps.login.outcome != 'skipped' }}
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          cat > "$RUNNER_TEMP/nologin.sql" <<'SQL'
+          \set ON_ERROR_STOP on
+          \set QUIET on
+          \set VERBOSITY terse
+          alter role macuxi_leitura nologin password null;
+          select has_table_privilege('pg_catalog.pg_authid', 'select') as le_authid \gset
+          \if :le_authid
+          select (select rolpassword is null from pg_authid where rolname = 'macuxi_leitura') as sem_senha \gset
+          \else
+          \set sem_senha '-'
+          \endif
+          select (not rolcanlogin and :'sem_senha' <> 'f') as desligado,
+                 case when rolcanlogin then 'LOGIN ainda ligado' else 'NOLOGIN' end || ', ' ||
+                 case :'sem_senha' when 't' then 'sem senha' when 'f' then 'senha ainda gravada'
+                      else 'senha não conferida (o admin não lê o pg_authid)' end as resultado
+            from pg_roles where rolname = 'macuxi_leitura' \gset
+          \echo macuxi_leitura: :resultado
+          \if :desligado
+          \else
+          do $$ begin raise exception 'macuxi_leitura não ficou desligado'; end $$;
+          \endif
+          SQL
+          remoto='set -eu; cd /opt/macuxi;'
+          remoto+=' exec docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T pgcliente psql -X -f -'
+          set +e
+          ssh -l "$USUARIO" prod "$remoto" < "$RUNNER_TEMP/nologin.sql" 2>&1 | tee "$RUNNER_TEMP/nologin.txt"
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo
+            echo "### Desligar o LOGIN (saída $status)"
+            echo '```'
+            cat "$RUNNER_TEMP/nologin.txt"
+            echo '```'
+            if [ "$status" != 0 ]; then
+              echo "**NOLOGIN não confirmado:** rode o workflow de novo, ou rode na VM, pelo pgcliente, \`alter role macuxi_leitura nologin password null;\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
       - name: limpar o runner
         if: ${{ always() }}
-        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts "$RUNNER_TEMP/consulta.sql" "$RUNNER_TEMP/saida.txt"
+        run: |
+          rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts
+          cd "$RUNNER_TEMP" && rm -f senha verificador scram.mjs conferir.sql login.sql login.txt consulta.sql saida.txt nologin.sql nologin.txt

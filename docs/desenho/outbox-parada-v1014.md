@@ -68,27 +68,11 @@ O que já existe não basta: o `/v1/saude` e a linha `tipo: metricas` do worker 
 **`producao — diagnóstico da outbox (só leitura)`** (`.github/workflows/producao-diagnostico-outbox.yml`). Ele é manual, roda no
 environment `PRODUCAO` (com a sua aprovação) e só lê.
 
-Usa o papel `macuxi_leitura`, que já existe na produção; falta só o LOGIN.
+Não precisa de secret: o papel `macuxi_leitura` só tem LOGIN durante a execução.
 
-**O que você faz, uma vez:**
-1. **Senha e LOGIN no `macuxi_leitura`.** Na VM, como o admin (`cd /opt/macuxi`):
-   `docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm pgcliente psql -d macuxi`
-   e, no psql:
-   ```sql
-   -- confere o papel antes: login falso, sem super, sem bypassrls
-   select rolname, rolcanlogin, rolsuper, rolbypassrls from pg_roles where rolname = 'macuxi_leitura';
-   alter role macuxi_leitura login;
-   \password macuxi_leitura
-   -- confere: os ajustes de sessão da 0078 continuam lá
-   select setconfig from pg_db_role_setting where setrole = 'macuxi_leitura'::regrole;
-   ```
-   O resultado esperado do último `select` é `default_transaction_read_only=on`, `statement_timeout=15s` e
-   `idle_in_transaction_session_timeout=60s`. Para desligar depois: `alter role macuxi_leitura nologin;`. Se o `alter role` der
-   `permission denied` (42501), o admin não criou o papel: pare e mande o erro ao engenheiro-software, sem usar outro usuário.
-2. **Secret.** Grave a mesma senha em `PROD_PG_LEITURA_SENHA`, no environment `PRODUCAO` do repositório.
-3. **PR de governança.** O arquivo está em `.github/`: o merge depende da sua autorização, com o número do PR e o SHA.
-4. **Disparar.** Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow, com os códigos das empresas separados
-   por vírgula. Depois, aprove o environment `PRODUCAO`.
+**O que você faz:** depois do merge, Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow, com
+`thathyany`, e aprove o environment `PRODUCAO`. No fim do resumo, confira "NOLOGIN" em "Desligar o LOGIN"; se ali houver
+erro, está escrito o que rodar.
 
 **O que o log e o resumo mostram, por empresa:**
 - o resumo, com os parados (10 tentativas ou mais), os que estão em nova tentativa (1 a 9) e o horário do primeiro parado;
