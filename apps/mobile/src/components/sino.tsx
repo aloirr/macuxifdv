@@ -4,24 +4,26 @@
  * `ProvedorSinoCabecalho` ((tabs)/_layout.tsx) e o põe à mão no Início (que não usa o `CabecalhoTela`).
  * - Bolinha (sem número, dono do produto 14/11/2026): acesa quando `useInicioCampo().sino.total` do Core (recados não lidos +
  *   tarefas novas, `contarSino`) passa de 0; o total é lido uma vez no layout (`ProvedorContagemSino`) e repartido por contexto
- *   com todos os sinos montados, inclusive o do Início (`temNovoNoSino`, `lib/sino.ts`). Premissa da Gestão: o layout é das duas variantes e o hook roda nas duas. A contagem sai só do
+ *   com todos os sinos montados, inclusive o do Início. Premissa da Gestão: o layout é das duas variantes e o hook roda nas duas. A contagem sai só do
  *   aparelho (notificações + pull `tarefa`); a parte de Performance do hook não se aplica ao supervisor/gerente (a consulta de
  *   renovação recebe recusa do servidor, que o hook engole) e não afeta a bolinha. Enquanto o hook não tem dados (null), o sino fica sem bolinha.
  * - Toque: abre o balão com o `BalaoRecadosETarefas` do Core (no máximo 5 itens e "Ver todos"). Sem o balão exportado pelo Core,
  *   o toque abre direto a lista.
  * - "Ver todos" abre `/m/recados-e-tarefas` (ou a central antiga, se a página ainda não existe); a tarefa abre `/m/tarefa?id=`.
- * - `sobreFaixa` (MC-0009): ligado quando o sino vem do `CabecalhoTela` (faixa Azul noite); cores em `coresDoSino`.
+ * - Botão, bolinha, cores (MC-0009) e leitura do TalkBack: o `SinoNotificacoes` do kit, o sino padrão de todas as telas
+ *   (RD-2450, v1.0.17; `docs/design/componentes.md` §5.4). O shell só passa o total e o toque. `sobreFaixa` ligado quando o
+ *   sino vem do `CabecalhoTela` (faixa Azul noite); desligado no Início do Gestão (Pérola).
  * Formulário alterado (RN-VEN-38): a navegação do shell passa por `bloqueioDoShell.tentarSair`.
  */
 import * as appCore from '@macuxi/core/app';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
-import { colors, Icon, Pressionavel, radius, shadow } from '@macuxi/ui/mobile';
+import { colors, radius, shadow, SinoNotificacoes } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { createContext, useContext, useState, type ComponentType, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { coresDoSino, destinoDaTarefa, destinoVerTodos, leituraDoSino, temNovoNoSino } from '@/lib/sino';
+import { destinoDaTarefa, destinoVerTodos } from '@/lib/sino';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
 
 interface PropsBalaoCore {
@@ -42,32 +44,18 @@ export function ProvedorContagemSino({ children }: { children: ReactNode }) {
   return <ContagemCtx.Provider value={total}>{children}</ContagemCtx.Provider>;
 }
 
-const cor = (token: 'transparente' | keyof typeof colors) => (token === 'transparente' ? 'transparent' : colors[token]);
-
 export function Sino({ testID = 'sino', sobreFaixa = false }: { testID?: string; sobreFaixa?: boolean }) {
   const total = useContext(ContagemCtx);
   const visao = useVisaoShell();
   const insets = useSafeAreaInsets();
   const [aberto, setAberto] = useState(false);
-  const novo = temNovoNoSino(total);
-  const c = coresDoSino(sobreFaixa);
 
   const ir = (href: string) => bloqueioDoShell.tentarSair(() => router.navigate(href as never));
   const verTodos = () => ir(destinoVerTodos((c) => visao.pagina(c) !== null));
 
   return (
     <>
-      <Pressionavel
-        testID={testID}
-        accessibilityRole="button"
-        accessibilityLabel={leituraDoSino(total)}
-        onPress={() => (BalaoDoCore ? setAberto(true) : verTodos())}
-        style={[s.botao, { backgroundColor: cor(c.botaoFundo), borderColor: cor(c.botaoBorda) }]}>
-        <Icon name="bell" size={22} color={cor(c.icone)} />
-        {novo ? (
-          <View style={[s.bolinha, { backgroundColor: cor(c.bolinhaFundo), borderColor: cor(c.bolinhaAro) }]} testID={`${testID}-bolinha`} />
-        ) : null}
-      </Pressionavel>
+      <SinoNotificacoes testID={testID} total={total} sobreFaixa={sobreFaixa} onPress={() => (BalaoDoCore ? setAberto(true) : verTodos())} />
       {BalaoDoCore ? (
         <Modal visible={aberto} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setAberto(false)}>
           <Pressable testID={`${testID}-fundo`} accessibilityLabel="Fechar recados e tarefas" style={s.fundo} onPress={() => setAberto(false)}>
@@ -82,16 +70,6 @@ export function Sino({ testID = 'sino', sobreFaixa = false }: { testID?: string;
 }
 
 const s = StyleSheet.create({
-  botao: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // canto superior direito do ícone de 22 no botão de 48
-  bolinha: { position: 'absolute', top: 10, right: 10, width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
   fundo: { flex: 1, backgroundColor: colors.scrim, paddingHorizontal: 16 },
   balao: { backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden', ...shadow.aviso },
 });
