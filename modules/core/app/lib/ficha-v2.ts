@@ -46,9 +46,6 @@ export function abasDoApp(perfil: string, verPedidos: boolean): Array<{ id: AbaF
   return abasDaFicha(perfil, verPedidos).map((id) => ({ id, rotulo: ROTULO_ABA[id] }));
 }
 
-/** O Gestão acrescenta "Visitada por" ao bloco Performance (spec §6). */
-export const perfilDeGestao = (perfil: string | null | undefined): boolean => perfil === 'supervisor' || perfil === 'gerente';
-
 // ---------- Resumo ----------
 
 /** Spec §3.1: Razão social, CNPJ, Filial, Segmento e Cliente desde; a linha sem valor não aparece. */

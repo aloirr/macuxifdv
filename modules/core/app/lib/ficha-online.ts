@@ -4,11 +4,13 @@
  * Falha de rede ou de servidor vira mensagem em português com a ação seguinte ("Tentar de novo").
  */
 import {
+  CarteiraClienteRespostaSchema,
   DocumentoAbrirRespostaSchema,
   DocumentosRespostaSchema,
   HistoricoNfRespostaSchema,
   NotaDetalheSchema,
   ROTAS_CLIENTE360_V2,
+  type CarteiraClienteResposta,
   type DocumentoAbrirResposta,
   type DocumentosResposta,
   type HistoricoNfResposta,
@@ -54,4 +56,9 @@ export async function buscarDocumentos(http: ClienteHttp, clienteId: string): Pr
 /** P15: só visualizar. A API devolve o arquivo a abrir no visualizador do shell, sem salvar. */
 export async function buscarDocumento(http: ClienteHttp, clienteId: string, documentoId: string): Promise<DocumentoAbrirResposta> {
   return DocumentoAbrirRespostaSchema.parse(await http.get<unknown>(rota(ROTAS_CLIENTE360_V2.documento, { id: clienteId, documento_id: documentoId })));
+}
+
+/** Só no Gestão: quem atende o cliente. Nome e telefone vêm do servidor a cada abertura e não ficam guardados (T-0168). */
+export async function buscarCarteiraDoCliente(http: ClienteHttp, clienteId: string): Promise<CarteiraClienteResposta> {
+  return CarteiraClienteRespostaSchema.parse(await http.get<unknown>(rota(ROTAS_CLIENTE360_V2.carteira, { id: clienteId })));
 }

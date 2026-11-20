@@ -15,13 +15,10 @@ export type BancoDoTrajeto = Pick<DriverSqlite, 'rodar' | 'todas'>;
 const MS_POR_DIA = 86_400_000;
 
 /**
- * Códigos de rejeição que não são defeito do ponto: `CODIGOS_RETENTAVEIS` do SDK (ex.: SYNC_NAO_IMPLEMENTADO) mais
- * estes dois, que o SDK ainda não lista (`SEM_RESULTADO` da API de sync, `MODULO_INATIVO` da licença, RN-CORE-02).
- * O ponto fica pendente. Só a recusa do próprio ponto (PAYLOAD_INVALIDO, OPERACAO_NAO_SUPORTADA) é marcada e contada.
+ * Códigos de rejeição que não são defeito do ponto (`CODIGOS_RETENTAVEIS` do SDK): o ponto fica pendente.
+ * Só a recusa do próprio ponto (PAYLOAD_INVALIDO, OPERACAO_NAO_SUPORTADA) é marcada e contada.
  */
-const RETENTAVEIS_LOCAIS: readonly string[] = ['SEM_RESULTADO', 'MODULO_INATIVO'];
-const ehRetentavel = (codigo: string): boolean =>
-  CODIGOS_RETENTAVEIS.includes(codigo) || RETENTAVEIS_LOCAIS.includes(codigo);
+const ehRetentavel = (codigo: string): boolean => CODIGOS_RETENTAVEIS.includes(codigo);
 
 export interface DependenciasEnvioDoTrajeto {
   /** SQLite do usuário (o mesmo em que o shell grava os pontos). */

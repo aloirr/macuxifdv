@@ -132,6 +132,7 @@ const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'parametro.inicio': 'Ajustar o Início',
   'parametro.curva_abc': 'Ajustar as curvas ABC',
   'visita.checkin_fora_de_rota': 'Check-in fora de rota',
+  'visita.registrar_gestao': 'Registrar visita no app Gestão',
   'visita.dispensar_etapa': 'Dispensar etapa pendente da visita',
   'parametro.checkout_pendencia': 'Ajustar o prazo do alerta de checkout',
 };

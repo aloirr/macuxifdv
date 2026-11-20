@@ -17,7 +17,7 @@ import {
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { dataLocal, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, papelCompativel, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, type EquipeLinha, type UsuarioLinha } from '../domain';
+import { dataLocal, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, type EquipeLinha, type UsuarioLinha } from '../domain';
 import { auditar } from './auditoria';
 import { lerPromotorVePedidos } from './promotor-pedidos';
 import { BASE, TABELAS_SYNC, comHoje } from './sync';
@@ -180,7 +180,7 @@ export const rotasDeClientes: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'carteira',
-    perfis: ['supervisor', 'gerente', 'analista', 'assistente', 'admin'],
+    perfis: PERFIS_GESTAO,
     carteira: 'filtrar_no_dominio',
     query: CarteiraQuerySchema,
     executar: async (ctx) => {
@@ -253,7 +253,7 @@ export const rotasDeClientes: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'equipe/hierarquia',
-    perfis: ['supervisor', 'gerente', 'analista', 'assistente', 'admin'],
+    perfis: PERFIS_GESTAO,
     carteira: 'nao_se_aplica',
     executar: async (ctx): Promise<HierarquiaEquipe> => {
       const visiveis = await ctx.usuariosVisiveis();

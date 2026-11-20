@@ -10,7 +10,7 @@ export const manifest = defineModule({
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
   apps: {
     campo: { abas: ['Início', 'Rota', 'Clientes', 'Performance'] },
-    gestao: { abas: ['Início', 'Clientes'] },
+    gestao: { abas: ['Início', 'Rota', 'Clientes'] },
     web: { menus: ['Clientes', 'Rotas', 'Visitas', 'Coordenadas sugeridas', 'Motivos', 'Preço e custo', 'Recados', 'Carteira', 'Metas', 'Plano de RV', 'Perfis de acesso', 'Usuários', 'Aparelhos', 'Filiais', 'Fotos do PDV', 'Indicadores', 'Tarefas'] },
   },
   sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_checkout', 'visita_etapa', 'motivo', 'parametro', 'meta', 'indicador_diario', 'notificacao', 'notificacao_leitura', 'produto', 'produto_unidade', 'medida', 'cliente_endereco', 'filial', 'foto_tipo', 'cliente_foto', 'usuario', 'cliente_visita_resumo', 'tarefa', 'tarefa_conclusao', 'frase_dia', 'usuario_avatar', 'meta_produtividade', 'deslocamento_dia', 'ponto_trajeto', 'ausencia_usuario'],
@@ -55,6 +55,7 @@ export const manifest = defineModule({
     'parametro.alertas_produtividade': { perfis: ['analista', 'admin'], descricao: 'Editar os parâmetros dos alertas de produtividade (alertas.produtividade) e o limite do "parado" (inicio.parado_min); mesmo público de alerta_regra.gerenciar do Gestor, que monta a tela Parâmetros › Alertas (T-0180, RN-CORE-26)' },
     'parametro.curva_abc': { perfis: ['analista', 'admin'], descricao: 'Editar as faixas das curvas ABC do cliente (faturamento, volume e frequência): cliente.curva_abc.<dimensão> com a_min_pct e b_min_pct (RN-CORE-49)' },
     'visita.checkin_fora_de_rota': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Fazer check-in em cliente da carteira que não está na rota do dia; sem a ação, só check-in nos clientes da rota. Padrão ligado em todos os perfis (preserva o comportamento anterior); o BKO desliga por perfil de acesso (RN-CORE-52)' },
+    'visita.registrar_gestao': { perfis: ['supervisor', 'gerente'], descricao: 'Ver a Rota própria e fazer check-in e checkout no app Gestão; sem a ação, o push de visita do supervisor e do gerente é recusado (PERFIL_SEM_ACESSO; RN-CORE-13, RN-CORE-52)' },
     'visita.dispensar_etapa': { perfis: ['supervisor', 'admin'], descricao: 'Dispensar à mão, com justificativa, a etapa pendente de uma visita da própria equipe (supervisor) ou do tenant (admin); auditado (RN-CORE-12, T-0039 §2.5a)' },
     'parametro.checkout_pendencia': { perfis: ['admin'], descricao: 'Editar o prazo do alerta de etapa pendente do checkout, parâmetro checkout_pendencia_alerta_h, 1 a 168 h (padrão 24; RN-CORE-12)' },
     'plano_rv.editar': { perfis: ['analista', 'admin'], descricao: 'Criar, editar e excluir o plano de RV e a vigência; plano que já valeu para mês fechado não muda; auditado (RN-CORE-30, RN-AUD-01)' },
@@ -79,5 +80,5 @@ export const manifest = defineModule({
   usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1', 'pesquisa.etapas_checkout@1', 'vendedor.formas_pagamento@1'],
   // 'pesquisa.questionarios_para_tarefa@1' entra junto com o ofereceConsultas da Pesquisa (pedido ao modulo-pesquisa, T-0170)
   ofereceConsultas: ['core.cadastro_resumo@1', 'core.financeiro_cliente@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1', 'core.calendario_metas@1', 'core.filiais@1', 'core.filiais_do_usuario@1', 'core.produtos_por_sku@1', 'core.produtividade_equipe@1', 'core.credencial_conferir@1', 'core.usuarios_com_acao@1', 'core.trajeto_do_dia@1'],
-  ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
+  ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'rota.parada_complemento', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

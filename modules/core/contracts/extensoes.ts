@@ -12,6 +12,7 @@
  *  - `cliente.abas`            → ficha do cliente (caminho `cliente`)
  *  - `cliente.acoes`           → rodapé da ficha do cliente; só a ação com `destaque: true` (o "+ Novo pedido") entra, ao lado do Visitado (T-0076)
  *  - `cliente.avisos`          → logo abaixo do cabeçalho da ficha e acima das abas/ações; Banners de módulos (T-0102: etapa pendente da equipe, Gestor)
+ *  - `rota.parada_complemento` → 2ª linha da parada não iniciada na Rota, depois do horário (T-0187; só o Gestão registra)
  *  - `visita.etapas_checkout`  → folha de checkout (RN-CORE-12)
  *  - `inicio.cards`            → tela Início do shell
  *  - `menu.itens`              → menu/Perfil do shell
@@ -97,6 +98,15 @@ export interface EtapaCheckout<C = unknown> {
   componente: C;
 }
 
+/**
+ * Slot `rota.parada_complemento`: texto após o horário na parada não iniciada da Rota ("09:00 · Carla Lima").
+ * Só no app Gestão; nenhum dado pessoal é gravado no aparelho. O Core usa a primeira contribuição (por ordem).
+ */
+export interface ComplementoParada {
+  /** Hook React (chamado num subcomponente por parada): texto de até 60 caracteres, ou null. */
+  usarTexto: (clienteId: string) => string | null;
+}
+
 /** Slot `inicio.cards`: card na tela Início (recebe `{}`; usa os hooks do SDK). */
 export interface CardInicio<C = unknown> {
   testID: string;
@@ -118,9 +128,10 @@ export interface SlotsCore<C = unknown> {
   'cliente.abas': AbaCliente<C>;
   'cliente.acoes': AcaoCliente;
   'cliente.avisos': AvisoCliente<C>;
+  'rota.parada_complemento': ComplementoParada;
   'visita.etapas_checkout': EtapaCheckout<C>;
   'inicio.cards': CardInicio<C>;
   'menu.itens': ItemMenu;
 }
 
-export const SLOTS_CORE = ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'] as const;
+export const SLOTS_CORE = ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'rota.parada_complemento', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'] as const;
