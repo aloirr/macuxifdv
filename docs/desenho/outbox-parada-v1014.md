@@ -68,9 +68,7 @@ O que já existe não basta: o `/v1/saude` e a linha `tipo: metricas` do worker 
 **`producao — diagnóstico da outbox (só leitura)`** (`.github/workflows/producao-diagnostico-outbox.yml`). Ele é manual, roda no
 environment `PRODUCAO` (com a sua aprovação) e só lê.
 
-Não precisa de secret: o papel `macuxi_leitura` só tem LOGIN durante a execução.
-
-**O que você faz:** depois do merge, Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow, com
+**O que você faz** (sem secret): depois do merge, Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow, com
 `thathyany`, e aprove o environment `PRODUCAO`. No fim do resumo, confira "NOLOGIN" em "Desligar o LOGIN"; se ali houver
 erro, está escrito o que rodar.
 
