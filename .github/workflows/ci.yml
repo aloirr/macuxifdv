@@ -13,8 +13,8 @@ name: CI
 #                         documentacao  → só .coord/**, docs/** e *.md da raiz (menos a docs/modulos/, que o código lê):
 #                                         só escopo, governança e ci-ok (a guarda R4 prova que nenhum código lê documentação);
 #                         reaproveitado → push ao main de uma árvore que já passou verde com os testes (manual): idem;
-#                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, push e ensaio; TODOS na sexta,
-#                                         no manual com "completo" ou com "sha" e na chamada do producao-liberar.
+#                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, push e ensaio; TODOS no
+#                                         manual com "completo" ou com "sha" e na chamada do producao-liberar.
 #   governanca          EM PARALELO (sem needs): coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas
 #                       do guardião v5 (T-0049), guardião ligado, agente do branch da nuvem e economia do Actions (ADR 0045).
 #                       No push, calcula a base sozinha (o mesmo escopo.mjs, segundos) para os donos por commit e o trailer.
@@ -496,11 +496,17 @@ jobs:
           RESULTADOS: ${{ toJSON(needs) }}
           ESCOPO: ${{ needs.escopo.outputs.escopo }}
           JOBS: ${{ needs.escopo.outputs.jobs }}
+          SHA_DA_VERSAO: ${{ inputs.sha }}
         run: |
           echo "escopo: ${ESCOPO:-?} · jobs: ${JOBS:-?}"
           echo "$RESULTADOS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           if [ -z "$ESCOPO" ] || ! echo "$JOBS" | jq -e 'type == "array"' > /dev/null; then
             echo "::error::CI vermelho: o job escopo não decidiu o escopo"
+            exit 1
+          fi
+          # Com "sha" (manual ou liberar) a suíte da versão nunca sai verde sem os testes.
+          if [ -n "$SHA_DA_VERSAO" ] && ! echo "$JOBS" | jq -e 'index("testes-pacotes") != null and index("testes-integracao") != null' > /dev/null; then
+            echo "::error::CI vermelho: a suíte do commit $SHA_DA_VERSAO precisa de testes-pacotes e testes-integracao"
             exit 1
           fi
           ruins=$(echo "$RESULTADOS" | jq -r --argjson jobs "$JOBS" '[to_entries[] | select(
@@ -517,11 +523,12 @@ jobs:
       # Item 2 da T-0160: a árvore testada COM as suítes fica registrada; o push ao main da MESMA árvore (o ensaio que
       # sobe em fast-forward) não repete o estático. O escopo.mjs confere o run e a árvore do commit dele.
       - name: registro da árvore verde
+        id: registro
         if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && contains(needs.escopo.outputs.jobs, '"testes-integracao"') }}
         run: echo "${{ github.run_id }}" > ci-verde.txt
 
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' && contains(needs.escopo.outputs.jobs, '"testes-integracao"') }}
+        if: ${{ steps.registro.outcome == 'success' }}
         with:
           name: ci-verde-${{ needs.escopo.outputs.matriz }}-${{ needs.escopo.outputs.arvore }}
           path: ci-verde.txt

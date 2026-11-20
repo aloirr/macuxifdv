@@ -145,6 +145,9 @@ test('suíte completa uma vez por versão (R-20261120-073449-alexandre): o liber
   const checkouts = ci.split('uses: actions/checkout@v4').slice(1);
   assert.ok(checkouts.length >= 5);
   for (const c of checkouts) assert.match(c.slice(0, 200), /ref: \$\{\{ inputs\.sha \}\}/);
+  // com o SHA da versão, o ci-ok fica vermelho sem as duas suítes
+  assert.match(ci, /SHA_DA_VERSAO: \$\{\{ inputs\.sha \}\}/);
+  assert.match(ci, /index\("testes-pacotes"\) != null and index\("testes-integracao"\) != null/);
 });
 
 test('demo desligada: nenhum workflow publica nem entra na VM da demo', () => {

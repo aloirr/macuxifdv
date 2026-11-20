@@ -17,7 +17,7 @@
  *                       liberar), uma vez por versão, e na sessão antes de cada push. Só o run com as suítes grava o
  *                       artefato ci-verde-* (ci.yml).
  * matriz:
- *   - "completa" → sexta-feira em Manaus e manual com `completo` (a suíte da versão sempre): todos os pacotes.
+ *   - "completa" → manual com `completo` (a suíte da versão sempre): todos os pacotes.
  *   - "afetados" → PR, push ao main e ensaio (manual): só os pacotes alterados e os que dependem deles (dependência
  *                  declarada no package.json ou pasta nos inputs da tarefa no turbo.json), por tarefa. O tests/ da raiz
  *                  (lint, typecheck e a suíte de integração) roda inteiro sempre que há código.
@@ -29,7 +29,7 @@
  *   manual   → merge-base(origin/main, HEAD)..HEAD (o ensaio do branch verificacao/*); no próprio main = todos.
  *
  * Uso no CI: node scripts/ci/escopo.mjs (lê GITHUB_EVENT_NAME, ANTES, DEPOIS, COMPLETO, GITHUB_REPOSITORY, GH_TOKEN;
- * escreve em $GITHUB_OUTPUT). MACUXI_CI_SEM_API=1 não consulta a API (testes); MACUXI_CI_AGORA fixa a data (testes).
+ * escreve em $GITHUB_OUTPUT). MACUXI_CI_SEM_API=1 não consulta a API (testes).
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -152,17 +152,8 @@ export function afetados(arquivos, { pacotes, turbo }) {
 const filtro = (nomes, comRaiz) =>
   [...[...nomes].sort().map((n) => `--filter=${n}`), ...(comRaiz ? ['--filter=//'] : [])].join(' ');
 
-/** Dia da semana em Manaus (0 = domingo, 5 = sexta). */
-export function diaEmManaus(agora) {
-  const nome = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Manaus', weekday: 'short' }).format(
-    agora,
-  );
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(nome);
-}
-
-/** Matriz completa: sexta-feira em Manaus e manual com `completo`. */
-export const matrizCompleta = ({ evento, completo = false, agora }) =>
-  diaEmManaus(agora) === 5 || (evento === 'workflow_dispatch' && completo);
+/** Matriz completa: manual com `completo`. */
+export const matrizCompleta = ({ evento, completo = false }) => evento === 'workflow_dispatch' && completo;
 
 /**
  * Decisão (função pura). `arquivos` null = sem lista (erro de git, push sem base) → código, todos os pacotes.
@@ -172,11 +163,10 @@ export function decidir({
   evento,
   arquivos,
   completo = false,
-  agora = new Date(),
   workspace,
   reaproveitado = null,
 }) {
-  const matriz = matrizCompleta({ evento, completo, agora }) ? 'completa' : 'afetados';
+  const matriz = matrizCompleta({ evento, completo }) ? 'completa' : 'afetados';
   const vazio = {
     matriz,
     jobs: [],
@@ -310,12 +300,11 @@ async function arquivosDoEvento(evento, env) {
 async function principal(env) {
   const evento = env.GITHUB_EVENT_NAME;
   const workspace = lerWorkspace(process.cwd());
-  const agora = env.MACUXI_CI_AGORA ? new Date(env.MACUXI_CI_AGORA) : new Date();
   const arvore = tenta(() => git('rev-parse', 'HEAD^{tree}')) ?? '';
   const { base, arquivos } = await arquivosDoEvento(evento, env);
   const completo = env.COMPLETO === 'true';
   const reaproveitado = evento === 'push' && arvore ? await verificacaoDaArvore(arvore, env) : null;
-  const d = decidir({ evento, arquivos, completo, agora, workspace, reaproveitado });
+  const d = decidir({ evento, arquivos, completo, workspace, reaproveitado });
   console.log(
     `[escopo] evento=${evento} base=${base || '-'} arquivos=${arquivos === null ? '?' : arquivos.length} escopo=${d.escopo} matriz=${d.matriz} jobs=${d.jobs.join(',') || '-'}`,
   );
