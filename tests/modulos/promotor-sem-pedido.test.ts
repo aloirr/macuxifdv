@@ -88,6 +88,8 @@ function lerModuloApp(fonte: string): ItemLido[] {
 
 const FONTE_VENDEDOR_APP = ler('modules/vendedor/app/index.ts');
 const itensVendedorApp = lerModuloApp(FONTE_VENDEDOR_APP);
+/** T-0187: o Vendedor declara o "Novo pedido" em nome no slot `cliente.acoes` (ficha do cliente no Gestão). */
+const PEDIDO_NA_FICHA_GESTAO = itensVendedorApp.some((i) => i.tipo === 'extensao' && i.slot === 'cliente.acoes' && i.id === 'novo-pedido-em-nome');
 /**
  * R-20261114-151000 (Catálogo só para consulta; PR do modulo-vendedor): a extensão do Catálogo passa de "Adicionar ao pedido"
  * (`adicionar-ao-pedido`, abre o novo pedido) a "Adicionar ao orçamento" (`adicionar-ao-orcamento`, abre a folha com os
@@ -155,6 +157,8 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     // T-0186 (RD-2354): a ficha v2 não tem mais as seções "Sugestão de mix" e "Últimos pedidos" do Vendedor (cliente.abas)
     expect(itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => `${i.slot}/${i.id}`)).toEqual([
       'cliente.acoes/novo-pedido',
+      // T-0187 (RN-VEN-35): + "Novo pedido" na ficha do cliente do Gestão, acao pedido.criar_em_nome (supervisor e gerente)
+      ...(PEDIDO_NA_FICHA_GESTAO ? ['cliente.acoes/novo-pedido-em-nome'] : []),
       `produto.acoes/${ID_ACAO_CATALOGO}`,
       // T-0085 (RN-VEN-35): + "Fazer pedido em nome" no slot do próprio Vendedor, só Gestão, acao pedido.criar_em_nome
       'pedido.criar_em_nome/novo-pedido-em-nome',
@@ -162,7 +166,7 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     ]);
     // toda extensão do Vendedor é só do Campo, menos o pedido em nome, que é só da Gestão (a leitura do `apps` entra no shell abaixo)
     for (const e of itensVendedorApp.filter((i) => i.tipo === 'extensao'))
-      expect(e.apps, `${e.slot}/${e.id}`).toEqual(e.slot === 'pedido.criar_em_nome' ? ['gestao'] : ['campo']);
+      expect(e.apps, `${e.slot}/${e.id}`).toEqual(e.acao === 'pedido.criar_em_nome' ? ['gestao'] : ['campo']);
     // T-0085: a página novo-pedido vale no Campo e na Gestão (supervisor/gerente em nome do vendedor), sempre com acao pedido.criar
     expect(itensVendedorApp.find((i) => i.tipo === 'pagina' && i.id === 'novo-pedido')).toMatchObject({ acao: 'pedido.criar', apps: ['campo', 'gestao'], perfisDoManifesto: true });
     // T-0141 F: a rota Rascunhos (rascunhos salvos de pedido) é de ESCRITA de pedido: acao pedido.criar e perfis do manifesto (sem
