@@ -39,7 +39,6 @@ export const MembroEquipeEmNomeSchema = z
   })
   .strict();
 export type MembroEquipeEmNome = z.infer<typeof MembroEquipeEmNomeSchema>;
-export const MembrosEquipeEmNomeSchema = z.array(MembroEquipeEmNomeSchema);
 
 /** Slot `pedido.equipe_em_nome`: o Gestor registra um hook que devolve os membros do escopo (o Vendedor usa a 1ª contribuição). */
 export interface EquipeEmNome {

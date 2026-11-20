@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { CreateOrderRequest, RejectRequest, SyncPushRequest } from './index';
 
 describe('contracts', () => {
@@ -152,7 +153,8 @@ describe('slot pedido.equipe_em_nome (T-0187, RN-CORE-04, RN-PRO-01)', () => {
     expect(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test('pedido.equipe_em_nome')).toBe(true);
   });
   it('o membro é estrito: campo extra (dado pessoal) é recusado', async () => {
-    const { MembrosEquipeEmNomeSchema } = await import('./extensoes');
+    const { MembroEquipeEmNomeSchema } = await import('./extensoes');
+    const MembrosEquipeEmNomeSchema = z.array(MembroEquipeEmNomeSchema);
     expect(MembrosEquipeEmNomeSchema.safeParse([membro]).success).toBe(true);
     expect(MembrosEquipeEmNomeSchema.safeParse([{ ...membro, telefone: '9' }]).success).toBe(false);
     expect(MembrosEquipeEmNomeSchema.safeParse([{ ...membro, ativo: undefined }]).success).toBe(false);

@@ -225,8 +225,8 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
     if (!emNomeLivre) return [];
     // o rascunho salvo pode ter um vendedor que saiu da equipe: aparece desligado, com o motivo
     const base = draft.vendedor_em_nome_id && !equipeEmNome.some((u) => u.id === draft.vendedor_em_nome_id) ? [...equipeEmNome, { id: draft.vendedor_em_nome_id, nome: draft.vendedor_em_nome_nome ?? 'Vendedor', ativo: false, perfil: 'vendedor' as const }] : equipeEmNome;
-    return opcoesEmNome({ autor: { id: '', perfil: app.perfil ?? '' }, clienteId: customerId, carteira: vinculosEmNome, usuarios: base, visiveis: 'tenant' });
-  }, [emNomeLivre, equipeEmNome, vinculosEmNome, customerId, app.perfil, draft.vendedor_em_nome_id, draft.vendedor_em_nome_nome]);
+    return opcoesEmNome({ clienteId: customerId, carteira: vinculosEmNome, usuarios: base });
+  }, [emNomeLivre, equipeEmNome, vinculosEmNome, customerId, draft.vendedor_em_nome_id, draft.vendedor_em_nome_nome]);
   // o padrão entra uma vez, só com o rascunho sem dono (RN-VEN-35: o vendedor da carteira do cliente)
   useEffect(() => {
     if (!emNomeLivre || editId || draft.vendedor_em_nome_id) return;

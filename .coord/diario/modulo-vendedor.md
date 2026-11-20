@@ -163,3 +163,4 @@
 2026-11-20 — T-0187 item 7 — "Em nome de" montado pela consulta gestor.membros_da_equipe@1 (equipeEmNomeDosMembros; sem promotor, inativo "Saiu da equipe", gerente agrupado por equipe); removido equipeEmNomeDaCarteira
 2026-11-20 — T-0187 item 7 — dependência invertida: slot pedido.equipe_em_nome (contracts/extensoes.ts, EquipeEmNome.usarMembros) no lugar da consulta gestor.membros_da_equipe@1; merge do gestor revertido; sem import de @macuxi/gestor
 2026-11-20 — v1.0.16 S4 — RD-2437 (nivelMinimoDoAutor derivado de NIVEIS_APROVACAO) e RD-2451 (MembroDoSlot removido; usa MembroEquipeEmNome do contracts)
+2026-11-20 — v1.0.16 S4 — RD-2455 (MembrosEquipeEmNomeSchema sai do contrato) e RD-2456 (opcoesEmNome sem autor/visiveis; filtro só em equipeEmNomeDosMembros)

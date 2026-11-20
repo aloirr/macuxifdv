@@ -108,20 +108,17 @@ export const MSG_SEM_VENDEDORES_EM_NOME = 'Nenhum vendedor na lista. Sincronize 
 export interface OpcaoEmNome { id: string; nome: string; da_carteira: boolean; desligado: boolean; motivo: 'Saiu da equipe' | null; grupo: string | null }
 
 /**
- * RN-CORE-04 e RN-VEN-35 (P3 A): quem pode ser o dono do pedido. Só vendedores dentro do escopo do autor (`visiveis`: a equipe do
- * supervisor; as equipes abaixo do gerente), em ordem alfabética (por equipe e depois por nome, para o gerente). Ficam fora o próprio autor e o promotor (RN-PRO-01).
- * Vendedor inativo aparece desligado, com "Saiu da equipe". `da_carteira` marca "Carteira deste cliente".
+ * RN-VEN-35 (P3 A): as opções do "Em nome de" a partir da equipe já filtrada por `equipeEmNomeDosMembros` (RN-CORE-04, RN-PRO-01),
+ * em ordem alfabética (por equipe e depois por nome, para o gerente). Vendedor inativo aparece desligado, com "Saiu da equipe".
+ * `da_carteira` marca "Carteira deste cliente".
  */
 export function opcoesEmNome(e: {
-  autor: { id: string; perfil: string };
   clienteId: string;
   carteira: readonly VinculoDaCarteiraEmNome[];
   usuarios: readonly UsuarioDaEquipe[];
-  visiveis: ReadonlySet<string> | 'tenant';
 }): OpcaoEmNome[] {
   const donos = new Set(e.carteira.filter((c) => c.cliente_id === e.clienteId).map((c) => c.usuario_id));
   return e.usuarios
-    .filter((u) => u.perfil === 'vendedor' && u.id !== e.autor.id && (e.visiveis === 'tenant' || e.visiveis.has(u.id)))
     .map((u) => ({ id: u.id, nome: u.nome, da_carteira: donos.has(u.id), desligado: !u.ativo, motivo: u.ativo ? null : ('Saiu da equipe' as const), grupo: u.grupo ?? null }))
     .sort((a, b) => (a.grupo ?? '').localeCompare(b.grupo ?? '', 'pt-BR') || a.nome.localeCompare(b.nome, 'pt-BR'));
 }

@@ -25,9 +25,9 @@ describe('RN-VEN-35: o vendedor padrão é o da carteira do cliente', () => {
   });
 });
 
-describe('RN-CORE-04 e RN-VEN-35: "Em nome de" lista só a equipe do autor', () => {
-  const base = { autor: { id: 'sup', perfil: 'supervisor' }, clienteId: 'c1', carteira: [carteira('carla')], usuarios: [...equipe, { id: 'sup', nome: 'Marcos Dias', ativo: true, perfil: 'supervisor' }, { id: 'pro', nome: 'Ana', ativo: true, perfil: 'promotor' }, { id: 'fora', nome: 'Zé', ativo: true, perfil: 'vendedor' }], visiveis: new Set(['sup', 'carla', 'joao', 'paulo', 'pro']) as ReadonlySet<string> };
-  it('ordem alfabética, sem o autor, sem promotor (RN-PRO-01) e sem vendedor de outra equipe', () => {
+describe('RN-VEN-35: as opções do "Em nome de"', () => {
+  const base = { clienteId: 'c1', carteira: [carteira('carla')], usuarios: [equipe[2]!, equipe[0]!, equipe[1]!] };
+  it('ordem alfabética', () => {
     expect(opcoesEmNome(base).map((o) => o.id)).toEqual(['carla', 'joao', 'paulo']);
   });
   it('marca "Carteira deste cliente" em quem tem o cliente', () => {
@@ -38,9 +38,6 @@ describe('RN-CORE-04 e RN-VEN-35: "Em nome de" lista só a equipe do autor', () 
   it('vendedor inativo fica desligado com "Saiu da equipe"', () => {
     const o = opcoesEmNome({ ...base, usuarios: base.usuarios.map((u) => (u.id === 'joao' ? { ...u, ativo: false } : u)) }).find((x) => x.id === 'joao');
     expect(o).toMatchObject({ desligado: true, motivo: 'Saiu da equipe' });
-  });
-  it('visiveis = tenant (admin) não filtra por equipe, mas segue sem promotor e sem o autor', () => {
-    expect(opcoesEmNome({ ...base, visiveis: 'tenant' }).map((o) => o.id)).toEqual(['carla', 'joao', 'paulo', 'fora']);
   });
 });
 
@@ -84,7 +81,7 @@ describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em no
 
   it('RN-CORE-04: vendedor inativo vem desligado, "Saiu da equipe", e não é o padrão (critério 14)', () => {
     const eq = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros });
-    const ops = opcoesEmNome({ autor: { id: 'sup', perfil: 'supervisor' }, clienteId: C, carteira: [], usuarios: eq, visiveis: 'tenant' });
+    const ops = opcoesEmNome({ clienteId: C, carteira: [], usuarios: eq });
     expect(ops.find((o) => o.id === S)).toMatchObject({ desligado: true, motivo: 'Saiu da equipe' });
     expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: S, cliente_id: C }], equipe: eq })).toBeNull();
   });
@@ -93,7 +90,7 @@ describe('RN-PRO-01 e RN-CORE-04 (T-0187 critérios 13 e 14): a equipe do "Em no
     const sup = equipeEmNomeDosMembros({ autor: { id: 'sup', perfil: 'supervisor' }, membros });
     expect(sup.every((u) => u.grupo === null)).toBe(true);
     const ger = equipeEmNomeDosMembros({ autor: { id: 'ger', perfil: 'gerente' }, membros });
-    const ops = opcoesEmNome({ autor: { id: 'ger', perfil: 'gerente' }, clienteId: C, carteira: [{ usuario_id: W, cliente_id: C }], usuarios: ger, visiveis: 'tenant' });
+    const ops = opcoesEmNome({ clienteId: C, carteira: [{ usuario_id: W, cliente_id: C }], usuarios: ger });
     expect(ops.map((o) => [o.grupo, o.nome])).toEqual([['Ana Reis', 'Wilma'], ['Marcos Dias', 'Carla'], ['Marcos Dias', 'Saulo']]);
     expect(ops.find((o) => o.id === W)?.da_carteira).toBe(true);
     expect(vendedorPadraoEmNome({ clienteId: C, carteira: [{ usuario_id: W, cliente_id: C }], equipe: ger })).toBe(W);
