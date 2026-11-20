@@ -7,10 +7,10 @@
  * Controlado: a tela guarda `visivel` e troca no `aoAlternar` (em "Crie sua senha" o mesmo estado vale para os dois campos:
  * um só toque mostra os dois). Sem `aoAlternar` o campo não tem olho ("Repita a senha", que segue o olho do campo de cima).
  * As props de teclado vêm de `propsDeTecladoDaSenha` (sem autocorreção, sem maiúscula, `new-password` na criação,
- * `visible-password` no Android quando visível) e a tela não as sobrescreve.
+ * teclado `default`) e a tela não as sobrescreve.
  */
 import type { Ref } from 'react';
-import { Platform, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { CAMPO_SENHA, iconeDoOlhoDaSenha, propsDeTecladoDaSenha } from './campo-senha';
 import { rotuloDoOlhoDaSenha, type FinalidadeSenha } from '../comum/senha';
@@ -53,7 +53,7 @@ export function CampoSenha({
   testIDOlho,
   ...resto
 }: CampoSenhaProps) {
-  const teclado = propsDeTecladoDaSenha(visivel, finalidade, Platform.OS);
+  const teclado = propsDeTecladoDaSenha(visivel, finalidade);
   return (
     <View style={ESTILO_CAMPO.caixa}>
       <RotuloCampo>{rotulo}</RotuloCampo>

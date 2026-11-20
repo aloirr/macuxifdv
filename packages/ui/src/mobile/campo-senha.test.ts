@@ -36,14 +36,17 @@ describe('CampoSenha (mobile; R-20261115-071000, docs/design/campo-senha/spec.md
     expect(p.textContentType).toBe('newPassword');
   });
 
-  it('visível: sem secureTextEntry e teclado visible-password só no Android', () => {
-    const android = propsDeTecladoDaSenha(true, 'login', 'android');
-    expect(android.secureTextEntry).toBe(false);
-    expect(android.keyboardType).toBe('visible-password');
-    expect(android.autoCorrect).toBe(false);
-    expect(propsDeTecladoDaSenha(true, 'login', 'ios').keyboardType).toBe('default');
-    expect(propsDeTecladoDaSenha(true, 'criacao', 'web').keyboardType).toBe('default');
-    expect(propsDeTecladoDaSenha(false, 'login', 'android').keyboardType).toBe('default');
+  it('R-20261120-052719: visível ou oculta, login ou criação, nunca visible-password (teclado de texto, sem espaço após o "!")', () => {
+    for (const visivel of [false, true]) {
+      for (const finalidade of ['login', 'criacao'] as const) {
+        const p = propsDeTecladoDaSenha(visivel, finalidade);
+        expect(p.keyboardType).toBe('default');
+        expect(p.autoCorrect).toBe(false);
+        expect(p.spellCheck).toBe(false);
+        expect(p.autoCapitalize).toBe('none');
+        expect(p.secureTextEntry).toBe(!visivel);
+      }
+    }
   });
 
   it('alvo do olho de 48 dp dentro do campo de 52 e o texto não passa por baixo dele', () => {
@@ -54,7 +57,9 @@ describe('CampoSenha (mobile; R-20261115-071000, docs/design/campo-senha/spec.md
   });
 
   it('o componente usa as props de teclado do kit depois das da tela (a tela não as sobrescreve) e o rótulo do olho', () => {
-    expect(fonteRn).toContain('propsDeTecladoDaSenha(visivel, finalidade, Platform.OS)');
+    expect(fonteRn).toContain('propsDeTecladoDaSenha(visivel, finalidade)')
+    expect(fonteRn).not.toContain('visible-password');
+    expect(fonteRn).not.toContain('Platform');
     expect(fonteRn.indexOf('{...resto}')).toBeLessThan(fonteRn.indexOf('{...teclado}'));
     expect(fonteRn).toContain('accessibilityLabel={rotuloDoOlhoDaSenha(visivel)}');
     expect(fonteRn).toContain('accessibilityRole="button"');

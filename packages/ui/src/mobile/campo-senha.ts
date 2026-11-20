@@ -6,8 +6,8 @@
  * - O botão de mostrar e ocultar é só o ícone: olho aberto com a senha oculta, olho riscado com a senha visível. Sem texto na
  *   tela; o TalkBack lê "Mostrar senha" / "Ocultar senha".
  * - Teclado de senha: sem autocorreção, sem maiúscula automática, sem corretor; `password` no login e `new-password` na
- *   criação (o gerenciador de senhas oferece guardar). Visível no Android = teclado `visible-password` (sem sugestões nem
- *   espaço automático, R-20261115-064000).
+ *   criação (o gerenciador de senhas oferece guardar). Teclado sempre `default` (R-20261120-052719): no RN 0.86 o
+ *   `visible-password` do Android tira a classe de texto e o teclado põe espaço depois do "!".
  */
 import type { FinalidadeSenha } from '../comum/senha';
 import { ALVO_TOQUE } from './componentes';
@@ -37,14 +37,11 @@ export interface PropsTecladoSenha {
   spellCheck: false;
   autoComplete: 'password' | 'new-password';
   textContentType: 'password' | 'newPassword';
-  keyboardType: 'default' | 'visible-password';
+  keyboardType: 'default';
 }
 
-/**
- * Props de teclado do `TextInput` de senha. `plataforma` = `Platform.OS`: `visible-password` só existe no Android; no iOS e na
- * web fica `default`.
- */
-export function propsDeTecladoDaSenha(visivel: boolean, finalidade: FinalidadeSenha = 'login', plataforma: string = 'android'): PropsTecladoSenha {
+/** Props de teclado do `TextInput` de senha. */
+export function propsDeTecladoDaSenha(visivel: boolean, finalidade: FinalidadeSenha = 'login'): PropsTecladoSenha {
   const criacao = finalidade === 'criacao';
   return {
     secureTextEntry: !visivel,
@@ -53,6 +50,6 @@ export function propsDeTecladoDaSenha(visivel: boolean, finalidade: FinalidadeSe
     spellCheck: false,
     autoComplete: criacao ? 'new-password' : 'password',
     textContentType: criacao ? 'newPassword' : 'password',
-    keyboardType: visivel && plataforma === 'android' ? 'visible-password' : 'default',
+    keyboardType: 'default',
   };
 }
