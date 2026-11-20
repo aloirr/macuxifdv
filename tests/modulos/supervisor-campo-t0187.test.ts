@@ -26,8 +26,13 @@ type OpcaoEmNome = { id: string; nome: string; da_carteira: boolean; desligado: 
 const vendedorPadraoEmNome = (dominioVendedor as Record<string, unknown>).vendedorPadraoEmNome as
   | ((e: { clienteId: string; carteira: readonly VinculoCarteira[]; equipe: readonly UsuarioEquipe[] }) => string | null)
   | undefined;
+// `autor` e `visiveis` só na assinatura antiga; na nova (v1.0.16) o filtro é do `equipeEmNomeDosMembros` e eles são ignorados
 const opcoesEmNome = (dominioVendedor as Record<string, unknown>).opcoesEmNome as
-  | ((e: { autor: { id: string; perfil: string }; clienteId: string; carteira: readonly VinculoCarteira[]; usuarios: readonly UsuarioEquipe[]; visiveis: ReadonlySet<string> | 'tenant' }) => OpcaoEmNome[])
+  | ((e: { autor?: { id: string; perfil: string }; clienteId: string; carteira: readonly VinculoCarteira[]; usuarios: readonly UsuarioEquipe[]; visiveis?: ReadonlySet<string> | 'tenant' }) => OpcaoEmNome[])
+  | undefined;
+type MembroEmNome = { usuario_id: string; nome: string; perfil: string; equipe_id: string | null; equipe_nome: string | null; ativo: boolean };
+const equipeEmNomeDosMembros = (dominioVendedor as Record<string, unknown>).equipeEmNomeDosMembros as
+  | ((e: { autor: { id: string; perfil: string }; membros: readonly MembroEmNome[] }) => UsuarioEquipe[])
   | undefined;
 type EntradaRodape = { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean; visitadoHoje: boolean; registraVisita?: boolean };
 const botoesDoRodapeCliente = dominioCore.botoesDoRodapeCliente as unknown as (e: EntradaRodape) => { checkin: boolean; checkout: boolean; pesquisa: boolean };
@@ -130,14 +135,22 @@ describe('T-0187 — funções puras do pedido em nome (modulo-vendedor)', () =>
     expect(f({ clienteId: 'c3', carteira: CARTEIRA, equipe: EQUIPE })).toBeNull();
     expect(f({ clienteId: 'c4', carteira: CARTEIRA, equipe: EQUIPE })).toBeNull();
   });
-  it.runIf(typeof opcoesEmNome === 'function')('14. opcoesEmNome (P3 A): só vendedores da equipe, em ordem alfabética, sem o autor, sem promotor e sem outra equipe; inativo desligado com "Saiu da equipe"; o gerente vê as equipes abaixo com o grupo', () => {
-    const f = opcoesEmNome!;
-    const sup = f({ autor: { id: 's1', perfil: 'supervisor' }, clienteId: 'c1', carteira: CARTEIRA, usuarios: EQUIPE, visiveis: new Set(['s1', 'v1', 'v2', 'v3', 'p1']) });
+  // v1.0.16: o filtro (só vendedor, sem o autor) passou ao `equipeEmNomeDosMembros`, e o escopo (sem outra equipe) vem do slot
+  // `pedido.equipe_em_nome` do Gestor; o `opcoesEmNome` ordena e marca. O critério vale para a cadeia que a tela usa
+  // (modules/vendedor/app/screens/new-order-screen.tsx).
+  it.runIf(typeof opcoesEmNome === 'function' && typeof equipeEmNomeDosMembros === 'function')('14. equipeEmNomeDosMembros + opcoesEmNome (P3 A): só vendedores do escopo do slot, em ordem alfabética, sem o autor e sem promotor; inativo desligado com "Saiu da equipe"; o gerente vê as equipes abaixo com o grupo', () => {
+    const membro = (u: UsuarioEquipe): MembroEmNome => ({ usuario_id: u.id, nome: u.nome, perfil: u.perfil, equipe_id: u.grupo ? `eq-${u.grupo}` : null, equipe_nome: u.grupo ?? null, ativo: u.ativo });
+    const cadeia = (autor: { id: string; perfil: string }, escopo: readonly string[]) =>
+      opcoesEmNome!({ autor, clienteId: 'c1', carteira: CARTEIRA, usuarios: equipeEmNomeDosMembros!({ autor, membros: EQUIPE.filter((u) => escopo.includes(u.id)).map(membro) }), visiveis: 'tenant' });
+    // o slot do supervisor s1 traz a equipe dele (com ele mesmo e o promotor); o v9 é de outra equipe e não vem
+    const sup = cadeia({ id: 's1', perfil: 'supervisor' }, ['s1', 'v1', 'v2', 'v3', 'p1']);
     expect(sup.map((o) => o.nome)).toEqual(['Ana', 'Bruno', 'Carla']);
+    expect(sup.every((o) => o.grupo === null)).toBe(true);
     expect(sup.find((o) => o.id === 'v1')).toMatchObject({ da_carteira: true, desligado: false, motivo: null });
     expect(sup.find((o) => o.id === 'v2')).toMatchObject({ da_carteira: false, desligado: false });
     expect(sup.find((o) => o.id === 'v3')).toMatchObject({ desligado: true, motivo: 'Saiu da equipe' });
-    const ger = f({ autor: { id: 'g1', perfil: 'gerente' }, clienteId: 'c1', carteira: CARTEIRA, usuarios: EQUIPE, visiveis: new Set(['v1', 'v2', 'v3', 'v9', 'p1', 's1']) });
+    // o slot do gerente g1 traz as equipes abaixo
+    const ger = cadeia({ id: 'g1', perfil: 'gerente' }, ['v1', 'v2', 'v3', 'v9', 'p1', 's1']);
     expect(ger.map((o) => o.id)).toEqual(['v1', 'v2', 'v3', 'v9']);
     expect(ger.find((o) => o.id === 'v9')!.grupo).toBe('Equipe Sul');
   });
