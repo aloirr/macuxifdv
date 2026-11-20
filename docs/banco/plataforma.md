@@ -1300,3 +1300,27 @@ select plataforma.sa_remover_logo($1, $2) as r;                  -- DELETE …/l
 select nome, nome_fantasia, logo_sha256, logo_tipo, logo_largura_px, logo_altura_px, logo_chave
   from plataforma.tenant where id = $1;                           -- macuxi_app, contexto do tenant (lerTenant)
 ```
+
+### Ocultar a marca do Macuxi (0091; item 15 do teste de campo do Campo v1.0.16)
+Migração `0091_plataforma_tenant_ocultar_marca_macuxi` (aditiva; volta: `.down.sql`, que APAGA a escolha das empresas —
+anote antes com `select id from plataforma.tenant where ocultar_marca_macuxi`; antes do down, volte a API sem a rota nova e
+sem o campo no contrato da marca). Rota `PUT /v1/plataforma/empresas/:tenant_id/marca/ocultar-macuxi` (engenheiro-software).
+Teste: `db/testes/tenant-ocultar-marca.db.test.ts`.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| ocultar_marca_macuxi | boolean not null default false | true = o app e o BKO mostram só a marca do cliente, sem a do Macuxi |
+
+- Leitura pelo app e pelo BKO: `select ocultar_marca_macuxi from plataforma.tenant where id = plataforma.tenant_atual()` — o
+  `macuxi_app` lê pelo SELECT de tabela da 0001 com a política `isolamento_tenant` (só a própria linha), sem grant novo; não
+  grava. O `macuxi_leitura` ganha SELECT na coluna (não é sensível).
+- O jsonb da marca (interna `marca_da_empresa_json`, usada pelas 5 `sa_*` da marca) ganha `ocultar_marca_macuxi`:
+  `{ tenant_id, razao_social, nome_fantasia, ocultar_marca_macuxi, logo }`.
+- `sa_gravar_ocultar_marca(p_sid uuid, p_tenant uuid, p_ocultar boolean) returns jsonb` — **só super-admin** (RN-CORE-33;
+  admin do cliente = 42501, mesmo na própria empresa); sessão inválida = 28000; tenant ou `p_ocultar` nulo = 22023; empresa
+  inexistente ou apagada = P0002 (`TENANT_NAO_ENCONTRADO`). Devolve a marca (com `logo.chave`, que a rota tira); igual = nada
+  muda nem audita; novo audita `sa.empresa.ocultar_marca` `{ antes, depois }`; `for update`. EXECUTE só ao `macuxi_portal`.
+
+```sql
+select plataforma.sa_gravar_ocultar_marca($1, $2, $3) as r;      -- PUT …/marca/ocultar-macuxi
+```
