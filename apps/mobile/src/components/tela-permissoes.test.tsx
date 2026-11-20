@@ -2,9 +2,9 @@
  * T-0145 — tela "Permissões" pela imagem aprovada (R-20261110-093125, `docs/design/telas/T-0145-permissoes.png`), renderizada
  * com `react-dom/server` e `react-native`/kit simulados. R-20261120-052422: a tela lista só as que faltam e não tem mais o
  * link "Como usamos a localização".
- * - quadro 1 (Campo): só as linhas que faltam, com ícone, nome, motivo e situação; botão "Permitir" sem ícone;
+ * - quadro 1 (Campo): só as linhas que faltam, com ícone, nome e motivo, sem rótulo de situação (RD-2466); botão "Permitir" sem ícone;
  * - quadro 2: cartão dos 2 passos ("Durante o uso" feito; passo 2 com os nomes do Android em negrito); botão com o ícone;
- * - quadro 3: negada, o motivo vira a ação e o botão "Abrir configurações";
+ * - quadro 3: negada, com "Negada", o motivo vira a ação e o botão "Abrir configurações";
  * - quadro 4 (Gestão): só notificações.
  */
 import { createElement, type ReactNode } from 'react';
@@ -13,11 +13,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { telaDePermissoes, TUDO_CONCEDIDO, type EstadoPermissao, type EstadosPermissoes } from '@/lib/permissoes';
 
-type Props = { children?: ReactNode; testID?: string; style?: unknown };
+type Props = { children?: ReactNode; testID?: string; style?: unknown; accessibilityLabel?: string };
 const host = (tag: string) =>
-  function Host({ children, testID, style }: Props) {
+  function Host({ children, testID, style, accessibilityLabel }: Props) {
     const forte = Array.isArray(style) ? false : (style as { fontFamily?: string } | null)?.fontFamily === 'forte';
-    return createElement(forte ? 'b' : tag, testID ? { 'data-testid': testID } : {}, children);
+    const atributos = { ...(testID ? { 'data-testid': testID } : {}), ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}) };
+    return createElement(forte ? 'b' : tag, atributos, children);
   };
 
 vi.mock('react-native', () => ({
@@ -65,7 +66,10 @@ describe('TelaPermissoes — imagem aprovada T-0145', () => {
     expect(html).not.toContain('Notificações');
     expect(html).not.toContain('Permitida');
     expect(html).toMatch(/data-icone="pin"/);
-    expect(html).toMatch(/data-testid="permissao-camera-situacao"[^>]*>Falta</);
+    // RD-2466: a lista já é só do que falta; a linha "falta" não repete a situação (nem na leitura de tela)
+    expect(html).not.toContain('-situacao"');
+    expect(html).not.toContain('Falta');
+    expect(html).toContain('aria-label="Câmera. Fotos do PDV e da gôndola."');
     expect(html).toMatch(/data-testid="permissoes-botao" data-icone="">Permitir</);
     expect(html).not.toContain('data-testid="permissao-passos-localizacao"');
   });
@@ -93,6 +97,7 @@ describe('TelaPermissoes — imagem aprovada T-0145', () => {
     expect(html).toContain('Sem ela o app não funciona.');
     expect(html).toContain('Em Permissões › Câmera, marque Permitir.');
     expect(html).toMatch(/data-testid="permissao-camera-situacao"[^>]*>Negada</);
+    expect(html).toContain('aria-label="Câmera. Em Permissões › Câmera, marque Permitir. Negada."');
     expect(html).toMatch(/data-testid="permissoes-botao" data-icone="[a-z]+">Abrir configurações</);
   });
 

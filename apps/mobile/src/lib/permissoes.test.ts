@@ -1,7 +1,7 @@
 /**
  * T-0145 (R-20261110-062232; RN-CORE-37): permissões obrigatórias antes do login e da sincronização. Critérios 2 a 5 nas
  * regras puras: Campo exige as 4 e Gestão só notificações; localização em 2 passos no Android 11+; depois de 2 recusas,
- * "Abrir configurações"; permissão retirada volta à mesma tela, só com ela em "Falta"/"Negada".
+ * "Abrir configurações"; permissão retirada volta à mesma tela, só com ela ("Negada" só na negada, RD-2466).
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,7 @@ import {
   permissoesExigidas,
   permissoesLiberadas,
   ROTULO_ABRIR_CONFIGURACOES,
+  ROTULO_NEGADA,
   proximoPedidoAutomatico,
   ROTULO_PERMITIR,
   telaDePermissoes,
@@ -57,7 +58,7 @@ describe('permissoesLiberadas — o app só segue com todas', () => {
 });
 
 describe('telaDePermissoes — Campo', () => {
-  it('1ª abertura: as 4 linhas em "Falta", botão Permitir pede a 1ª da ordem (notificações)', () => {
+  it('1ª abertura: as 4 linhas que faltam, botão Permitir pede a 1ª da ordem (notificações)', () => {
     const t = telaDePermissoes('campo', estados(), API_11);
     expect(t.titulo).toBe('Permissões');
     expect(t.subtitulo).toBe('Sem elas o app não funciona.');
@@ -96,6 +97,8 @@ describe('telaDePermissoes — Campo', () => {
     const camera = t.linhas.find((l) => l.id === 'camera')!;
     expect(camera).toMatchObject({ situacao: 'negada', texto: 'Em Permissões › Câmera, marque Permitir.' });
     expect(t.botao).toEqual({ id: 'camera', acao: 'abrir-configuracoes', rotulo: ROTULO_ABRIR_CONFIGURACOES });
+    // RD-2466: o único rótulo de situação é o da negada
+    expect(ROTULO_NEGADA).toBe('Negada');
   });
 
   it('localização "o tempo todo" negada depois do passo 1: abre as configurações (não pede de novo)', () => {

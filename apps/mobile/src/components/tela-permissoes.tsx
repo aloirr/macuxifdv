@@ -2,7 +2,7 @@
  * T-0145: tela "Permissões", por cima de tudo, antes do login e da sincronização (o shell não monta as rotas enquanto falta
  * permissão). Imagem aprovada pelo dono do produto (R-20261110-093125): `docs/design/telas/T-0145-permissoes.png`, medidas em
  * `docs/design/permissoes-e-fotos-pdv.md` §1. Marca, título, subtítulo, uma linha por permissão que falta (ícone, nome,
- * motivo e situação), o cartão dos 2 passos da localização e UM botão no pé. R-20261120-052422: a tela só aparece quando,
+ * motivo e, só na negada, "Negada"), o cartão dos 2 passos da localização e UM botão no pé. R-20261120-052422: a tela só aparece quando,
  * depois das janelas do Android na abertura, alguma ficou negada; sem o link "Como usamos a localização".
  * Regras e textos em `lib/permissoes.ts`. O Voltar do Android fecha o app (não há "Agora não").
  */
@@ -11,12 +11,7 @@ import { useEffect } from 'react';
 import { AccessibilityInfo, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ROTULO_SITUACAO, type IdPermissao, type SituacaoQueFalta, type TelaDePermissoes } from '@/lib/permissoes';
-
-const COR_SITUACAO: Readonly<Record<SituacaoQueFalta, string>> = {
-  falta: colors.ink2,
-  negada: colors.danger,
-};
+import { ROTULO_NEGADA, type IdPermissao, type TelaDePermissoes } from '@/lib/permissoes';
 
 /** Ícone da linha (T-0145). */
 const ICONE: Readonly<Record<IdPermissao, IconName>> = {
@@ -70,7 +65,7 @@ export function TelaPermissoes({
               testID={`permissao-${l.id}`}
               style={[styles.linha, k > 0 ? styles.divisoria : null]}
               accessible
-              accessibilityLabel={`${l.nome}. ${l.texto} ${ROTULO_SITUACAO[l.situacao]}.`}
+              accessibilityLabel={`${l.nome}. ${l.texto}${l.situacao === 'negada' ? ` ${ROTULO_NEGADA}.` : ''}`}
             >
               <View style={styles.circulo}>
                 <Icon name={ICONE[l.id]} size={20} color={colors.ink2} />
@@ -79,9 +74,11 @@ export function TelaPermissoes({
                 <Text style={styles.nome}>{l.nome}</Text>
                 <Text style={styles.motivo}>{l.texto}</Text>
               </View>
-              <Text style={[styles.situacaoTexto, { color: COR_SITUACAO[l.situacao] }]} testID={`permissao-${l.id}-situacao`}>
-                {ROTULO_SITUACAO[l.situacao]}
-              </Text>
+              {l.situacao === 'negada' ? (
+                <Text style={styles.negada} testID={`permissao-${l.id}-situacao`}>
+                  {ROTULO_NEGADA}
+                </Text>
+              ) : null}
             </View>
           ))}
         </Card>
@@ -137,7 +134,7 @@ const styles = StyleSheet.create({
   circulo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
   nome: { ...fonte.semibold, fontSize: 16, color: colors.ink },
   motivo: { ...fonte.body, fontSize: 14, color: colors.ink2 },
-  situacaoTexto: { ...fonte.semibold, fontSize: 14 },
+  negada: { ...fonte.semibold, fontSize: 14, color: colors.danger },
   passo: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   numero: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   numeroTexto: { ...fonte.bold, fontSize: 12, color: colors.surface },

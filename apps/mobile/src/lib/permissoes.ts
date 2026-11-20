@@ -6,7 +6,7 @@
  * - Gestão: notificações; o cargo rastreado no Gestão (o supervisor, T-0187 §1.2) também a localização "o tempo todo". Antes
  *   do login o cargo não é conhecido: a localização entra na tela depois do login (`permissoesExigidas`).
  * Regras do desenho do designer-ux (`docs/design/permissoes-e-fotos-pdv.md` §1, imagem `telas/T-0145-permissoes.png`, aprovada
- * em R-20261110-093125): situação por linha (Falta, Negada); UM botão, que pede a próxima que falta na ordem da tabela e vira
+ * em R-20261110-093125): "Negada" só na linha negada; UM botão, que pede a próxima que falta na ordem da tabela e vira
  * "Abrir configurações" quando o Android não pergunta mais (2 recusas) ou falta o passo 2 da localização. No Android 11+
  * (API 30) "o tempo todo" só existe nas configurações: 1º "durante o uso" (diálogo), 2º "Permitir o tempo todo".
  * Puro (roda em Node). Leitura e pedidos ao aparelho em `services/permissoes.ts`; a tela em `components/tela-permissoes.tsx`.
@@ -94,10 +94,8 @@ export interface TelaDePermissoes {
 export const TITULO_PERMISSOES = 'Permissões';
 export const ROTULO_PERMITIR = 'Permitir';
 export const ROTULO_ABRIR_CONFIGURACOES = 'Abrir configurações';
-export const ROTULO_SITUACAO: Readonly<Record<SituacaoQueFalta, string>> = {
-  falta: 'Falta',
-  negada: 'Negada',
-};
+/** RD-2466: a lista já é só do que falta; a situação aparece só na negada (explica o "Abrir configurações"). */
+export const ROTULO_NEGADA = 'Negada';
 const NOMES: Readonly<Record<IdPermissao, string>> = {
   notificacoes: 'Notificações',
   localizacao: 'Localização o tempo todo',
