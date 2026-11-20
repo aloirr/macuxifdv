@@ -39,11 +39,11 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     });
     expect(csv.startsWith('\uFEFF')).toBe(true);
     const [cab, linha] = csv.slice(1).split('\r\n');
-    expect(cab!.split(';').slice(0, 10)).toEqual(['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita']);
+    expect(cab!.split(';').slice(0, 11)).toEqual(['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'respondida_por', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita']);
     expect(cab).toContain('Tem ponto extra?');
     const cel = linha!.split(';');
     expect(cel.slice(1, 4)).toEqual(['1', '31/10/2026 09:05', '31/10/2026 09:06']);
-    expect(cel.slice(10)).toEqual(['Sim', 'Opção 102', 'Opção 201 | Opção 203', '12,5', 'ok', '30/10/2026', `${u(10)} | ${u(11)}`, '789']);
+    expect(cel.slice(11)).toEqual(['Sim', 'Opção 102', 'Opção 201 | Opção 203', '12,5', 'ok', '30/10/2026', `${u(10)} | ${u(11)}`, '789']);
   });
 
   it('RN-PES-01: consolida colunas pelo id estável da pergunta (enunciado da versão mais nova) e deixa vazio o que a versão não tem', () => {
@@ -80,6 +80,17 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     expect(nomeDoArquivoCsv('Gôndola / Mês', '2026-11-01T02:00:00Z', 'America/Manaus')).toBe('pesquisa-gondola-mes-2026-10-31.csv');
   });
 
+  it('T-0187: coluna "Respondida por" traz o nome de quem respondeu e fica vazia sem nome', () => {
+    const base = { versoes: [v1], respostas: [resposta({ itens: [item.simNao(1, true)] })], fuso: 'America/Manaus' };
+    const celula = (nomes?: ReadonlyMap<string, string>) => {
+      const [cab, linha] = exportarRespostasCsv({ ...base, nomes }).slice(1).split('\r\n');
+      return linha!.split(';')[cab!.split(';').indexOf('respondida_por')];
+    };
+    expect(celula(new Map([[u(31), 'Marta Souza']]))).toBe('Marta Souza');
+    expect(celula()).toBe('');
+    expect(celula(new Map())).toBe('');
+  });
+
   it('sem respostas: só o cabeçalho', () => {
     const csv = exportarRespostasCsv({ versoes: [v1], respostas: [], fuso: 'America/Manaus' });
     expect(csv.slice(1).trimEnd().split('\r\n')).toHaveLength(1);
@@ -94,8 +105,8 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     });
     expect(csv).toBe(
         '\uFEFF' +
-        'resposta_id;versao;respondida_em;recebida_em;usuario_id;equipe_id;cliente_id;visita_id;suspeita;motivos_suspeita;"\'=Tem; ""ponto""?";Obs\r\n' +
-        '00000000-0000-4000-8000-000000005000;1;31/10/2026 09:05;31/10/2026 09:06;00000000-0000-4000-8000-000000000031;;00000000-0000-4000-8000-000000000051;;sim;\'-A | B;Sim;"\'@x ""a"";b\nc"\r\n',
+        'resposta_id;versao;respondida_em;recebida_em;usuario_id;respondida_por;equipe_id;cliente_id;visita_id;suspeita;motivos_suspeita;"\'=Tem; ""ponto""?";Obs\r\n' +
+        '00000000-0000-4000-8000-000000005000;1;31/10/2026 09:05;31/10/2026 09:06;00000000-0000-4000-8000-000000000031;;;00000000-0000-4000-8000-000000000051;;sim;\'-A | B;Sim;"\'@x ""a"";b\nc"\r\n',
       );
   });
 });

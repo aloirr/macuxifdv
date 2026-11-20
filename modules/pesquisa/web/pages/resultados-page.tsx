@@ -60,6 +60,8 @@ interface TextoRespondido {
   pergunta: string;
   texto: string;
   em: string;
+  /** "Respondida por" (T-0187): nome de quem respondeu; vazio se o nome não veio. */
+  por: string;
 }
 
 function Foto({ id }: { id: string }) {
@@ -113,13 +115,14 @@ export function ResultadosPage() {
   const total = dados ? (dados.tipo === 'versao' ? dados.resultado.total_respostas : dados.resultado.versoes.reduce((n, v) => n + v.respostas, 0)) : 0;
   const suspeitas = dados ? (dados.tipo === 'versao' ? dados.resultado.respostas_suspeitas : dados.resultado.respostas_suspeitas) : 0;
   const perguntas: ResultadoPergunta[] = dados ? (dados.tipo === 'versao' ? dados.resultado.por_pergunta : [...dados.resultado.consolidadas.map((c) => c.pergunta), ...dados.resultado.por_versao.flatMap((v) => v.perguntas)]) : [];
-  const textos: TextoRespondido[] = (respostas.data?.itens ?? []).flatMap((x) => x.itens.flatMap((i) => (i.tipo === 'texto' && i.texto.trim() ? [{ id: `${x.id}:${i.pergunta_id}`, pergunta: enunciados.get(i.pergunta_id) ?? '', texto: i.texto, em: x.respondida_em }] : [])));
+  const textos: TextoRespondido[] = (respostas.data?.itens ?? []).flatMap((x) => x.itens.flatMap((i) => (i.tipo === 'texto' && i.texto.trim() ? [{ id: `${x.id}:${i.pergunta_id}`, pergunta: enunciados.get(i.pergunta_id) ?? '', texto: i.texto, em: x.respondida_em, por: x.usuario_nome ?? '' }] : [])));
 
   const comTextos = respostas.data !== undefined && textos.length > 0;
   const fotos = galeria.data?.itens ?? [];
   const colunasTexto: ColunaDaTabela<TextoRespondido>[] = [
     { id: 'resposta', titulo: 'Resposta', celula: (x) => x.texto, texto: (x) => x.texto },
     { id: 'pergunta', titulo: 'Pergunta', prioridade: 2, largura: '36%', celula: (x) => x.pergunta, texto: (x) => x.pergunta },
+    { id: 'por', titulo: 'Respondida por', prioridade: 2, largura: '160px', celula: (x) => x.por || '—', texto: (x) => x.por },
     { id: 'quando', titulo: 'Quando', prioridade: 2, numero: true, largura: '150px', celula: (x) => formatDateTime(x.em, fuso) },
   ];
 
