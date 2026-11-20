@@ -190,7 +190,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - o Catálogo aberto pelo menu mostra o preço da **filial do vendedor** (RN-CORE-39), pela tabela de preço da filial;
     - produto sem preço nessa filial mostra **"Sem preço"**, nunca o valor de outra tabela;
     - aberto pela ficha do cliente, continua o preço da tabela do cliente.
-- **RN-VEN-02** Preço final do item = base × (1 − desconto do item) ou base × (1 + acréscimo do item). Total dos itens = Σ linhas × (1 − desconto do pedido) ou × (1 + acréscimo do pedido) ± ajuste financeiro da condição. O frete não tem valor no pedido (RN-VEN-16). Arredondamento em centavos, meia para cima, **no preço unitário** da medida vendida; total da linha = preço unitário × quantidade; o desconto ou acréscimo do pedido é calculado sobre o total dos itens e rateado nas linhas pelo maior resto. Desconto ou acréscimo em R$: no item, por unidade da medida vendida; no pedido, sobre o total dos itens, com rateio pelo maior resto *(T-0071, 03/11: fecha os números da referência aprovada, R-20261103-130003; confirmado em R-20261103-140707)*. Desconto e acréscimo do pedido são excludentes (um ou outro). *(Redação de 2026-11-02, R-20261102-093007.)*
+- **RN-VEN-02** Preço final do item = base × (1 − desconto do item) ou base × (1 + acréscimo do item). Total dos itens = Σ linhas × (1 − desconto do pedido) ou × (1 + acréscimo do pedido). A base do item já é a tabela ajustada pelo % do prazo (RN-VEN-43), sem linha de ajuste nos totais. O frete não tem valor no pedido (RN-VEN-16). Arredondamento em centavos, meia para cima, **no preço unitário** da medida vendida; total da linha = preço unitário × quantidade; o desconto ou acréscimo do pedido é calculado sobre o total dos itens e rateado nas linhas pelo maior resto. Desconto ou acréscimo em R$: no item, por unidade da medida vendida; no pedido, sobre o total dos itens, com rateio pelo maior resto *(T-0071, 03/11: fecha os números da referência aprovada, R-20261103-130003; confirmado em R-20261103-140707)*. Desconto e acréscimo do pedido são excludentes (um ou outro). *(Redação de 2026-11-02, R-20261102-093007.)*
   **A partir da v1.0.5 (T-0165, aprovada pelo dono do produto em R-20261112-031456, -031841 e -032141):**
   - **O desconto ou acréscimo é sempre no item, em %.** Não existe mais desconto ou acréscimo do pedido sobre o total.
   - O "Desc./Acrésc. geral" da aba Itens só aplica o mesmo % a todos os itens:
@@ -311,6 +311,34 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - (c) orçamento com alerta não mostra "Transformar"; a ação principal é Editar;
     - (d) os Alertas aparecem em todas as abas do Novo pedido, e o Histórico aparece sempre;
     - (e) com alerta que bloqueia o envio, ficam "Salvar como orçamento" e "Apenas salvar"; "Salvar e enviar" sai.
+- **RN-VEN-43 Tabela ajustada pelo prazo** O "Desc./Acrésc. (%)" do prazo de pagamento (−99,99 a +99,99, 2 casas; negativo = desconto) muda o valor de tabela de cada produto.
+  - **Conta:** `ajustada = meia-para-cima(tabela × (10 000 + bp) ÷ 10 000)`, com `bp` = o % em centésimos de ponto, inteiro (−1,71 → −171). Em centavos, por unidade base, antes da quantidade e do fator da embalagem. A faixa da tabela escalonada (RN-VEN-23) vale antes do %. Sem % (ou 0), a tabela fica como está.
+  - **Onde vale:** nos itens do pedido e do orçamento, e no preço do Catálogo aberto pela ficha do cliente, que sai no prazo padrão dele (a primeira forma aceita e o primeiro prazo ativo dela, RN-VEN-24/25). Sem cliente, ou com cliente sem prazo padrão, a tabela pura.
+  - **Sobre a tabela ajustada:** desconto, alçada, preço mínimo (RN-VEN-11) e crédito. O ajuste do prazo não é desconto do vendedor e não conta na alçada.
+  - **Preço congelado do orçamento** (RN-VEN-18): já está gravado ajustado e nunca ajusta de novo.
+  - **O % não aparece:** nem nos totais, nem na lista de prazos (RN-VEN-24), nem no PDF. Ao ERP, os preços vão já ajustados.
+  *(Alexandre, R-20261115-111000 e R-20261115-121000; proposta aprovada em R-20261115-123000, `docs/modulos/vendedor/prazo-desconto-acrescimo.md` no SHA 454ee68, §1 a §4; v1.0.14, migração 0082.)*
+- **RN-VEN-44 Troca de prazo** Trocar o prazo com itens no pedido recalcula tudo a partir da **tabela original** do produto: preço de cada item, descontos, total, alçada, preço mínimo e crédito. Nunca ajusta sobre o já ajustado: trocar o prazo e voltar devolve os mesmos centavos.
+  - **Desconto ou acréscimo do vendedor fica em %**, no item e no pedido. Digitado em R$, vale o % equivalente sobre a tabela anterior, e o R$ é refeito sobre a nova (meia para cima).
+  - **Nada muda em silêncio:** desconto que passa da alçada segue para aprovação (RN-VEN-10), e item abaixo do mínimo aparece em Alertas (RN-VEN-42) para o vendedor corrigir. A troca de prazo não tem aviso próprio.
+  *(Mesma origem da RN-VEN-43, proposta §3.)*
+- **RN-VEN-45 Percentual congelado no pedido** O pedido e o orçamento guardam o % do prazo do momento da escolha (retrato `pedido.prazo_percentual_ajuste`), e o total não muda com o pull seguinte. Sem prazo (condição legada, RN-VEN-14), o retrato fica vazio.
+  - **A API revalida** no envio e recalcula os preços pelo % do pedido:
+    - igual ao vigente: aceita;
+    - diferente, e o cadastro do prazo mudou depois da criação do pedido: aceita o % do pedido e grava um aviso na linha do tempo. Esse % fica fora da alçada (R-20261115-124833);
+    - diferente, sem mudança posterior no cadastro: recusa com o código `RN-VEN-45` e "Este prazo de pagamento mudou. Atualize o app e refaça o pedido." (RN-VEN-40).
+  - **Trava de operação cancelada:** a trava de R-20261118-210200-alexandre (Conector 1.5.0 guardado e "% Acres.Fin." em 0 até o APK da v1.0.15, porque o app antigo não mandava o %) caiu em R-20261119-184441-alexandre: ninguém usa o app antigo. O Conector 1.5.0 sai no rito normal, e o % pode ser preenchido na carga por arquivo e no Conector.
+  *(Mesma origem da RN-VEN-43, proposta §5.)*
+- **RN-VEN-46 % do prazo vem do ERP** O % de cada prazo ("% Acres.Fin." no ERP) chega pela Integração; ausente = 0. No BKO, a tabela e o CSV de prazos mostram a coluna "Desc./Acrésc. (%)", com sinal, vírgula e 2 casas, **só para leitura**: salvar o prazo no BKO não muda o %. O prazo criado no BKO entra com 0,00. *(Mesma origem da RN-VEN-43, proposta §7; R-20261115-121500 e R-20261115-122000.)*
+- **RN-VEN-47 Cards de Pedidos** No topo da tela Pedidos, no Campo e no Gestão, três cards resumem o período da tela pela **data de emissão** no fuso do tenant (o orçamento, pela data em que foi salvo):
+  - **Orçamentos:** os orçamentos em aberto, não convertidos e não cancelados (RN-VEN-18);
+  - **Pedidos:** os enviados, do "Enviado" do histórico (RN-VEN-30) em diante: recebido, em aprovação, aprovado, enviado ao ERP, integrado, faturado parcial e faturado. Ficam fora rascunho, na fila do aparelho, recusado e cancelado;
+  - **Total:** a soma dos dois.
+  - Cada card mostra quantidade e valor (total do documento, sem frete, RN-VEN-02; no faturado parcial, o valor do pedido). Sem resposta do servidor, traço.
+  - Busca e chip de situação filtram só a lista. Pedido emitido num período e faturado em outro entra só nos cards do período da emissão (D5).
+  - Tocar em Orçamentos ou Pedidos filtra a lista; Total não navega. Sem documento no período e sem busca, os cards não aparecem.
+  - No Gestão, os cards somam a equipe ou o vendedor escolhido no filtro (D6).
+  *(T-0170, desenho `docs/desenho/inicio-frase-avatar-pedidos.md` §4, D5 e D6 aprovadas. O desenho a numerou como RN-VEN-43; o número passou a RN-VEN-47 porque a RN-VEN-43 é a da tabela ajustada pelo prazo, R-20261117-201110, ponto 3.)*
 - **Cancelamento depois do envio ao ERP**: a partir do status 'enviado', o pedido não pode ser cancelado no Macuxi (UI e API respondem 422 com o código da regra e a mensagem "Pedido já enviado ao ERP — cancele no ERP"); o cancelamento é feito no ERP e chega pelo retorno do Hub como status 'cancelado'.
 
 ## 5. Promotor (trade marketing)
