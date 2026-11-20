@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { formatarDistancia, projetarPontos } from '@macuxi/core/contracts';
 import { formatHHMM } from '@macuxi/comum/fuso';
-import { desenharTrajeto, TEXTO_SEM_TRAJETO } from './trajeto';
+import type { MembroEquipe } from '../contracts';
+import { desenharTrajeto, pessoasDoTrajeto, TEXTO_SEM_TRAJETO } from './trajeto';
 
 const p = (capturado_em: string, latitude: number, longitude: number) => ({ capturado_em, latitude, longitude, precisao_m: 10 });
 const TAM = { largura: 300, altura: 200, margem: 10, fuso: 'America/Manaus' };
@@ -62,5 +63,26 @@ describe('desenharTrajeto: pontos do dia prontos para o desenho no aparelho (RN-
     expect(TEXTO_SEM_TRAJETO).toBe('Nada registrado');
     expect(desenharTrajeto([], TAM).vazio).toBe(true);
     expect(desenharTrajeto([p('2026-11-03T12:00:00Z', -3.1, -60)], TAM).vazio).toBe(false);
+  });
+});
+
+describe('pessoasDoTrajeto: quem aparece na escolha do trajeto do dia (RN-CORE-13, T-0187)', () => {
+  const m = (id: string, nome: string, perfil: MembroEquipe['perfil'], ativo = true): MembroEquipe => ({ id, nome, perfil, superior_id: null, ativo });
+  const TODOS = [m('g', 'Gil', 'gerente'), m('s1', 'Bia', 'supervisor'), m('v1', 'Zeca', 'vendedor'), m('p1', 'Ana', 'promotor'), m('v2', 'Inativo', 'vendedor', false), m('a1', 'Analista', 'analista')];
+
+  it('RN-CORE-13: o supervisor vê vendedores e promotores ativos, em ordem de nome, e nunca a si mesmo', () => {
+    const r = pessoasDoTrajeto({ viewer: { id: 's1', perfil: 'supervisor' }, membros: [...TODOS, m('s2', 'Outro supervisor', 'supervisor')] });
+    expect(r.map((x) => x.id)).toEqual(['p1', 'v1']);
+  });
+
+  it('RN-CORE-13 / T-0187: o gerente vê também os supervisores das equipes abaixo, e nunca o próprio trajeto', () => {
+    const r = pessoasDoTrajeto({ viewer: { id: 'g', perfil: 'gerente' }, membros: TODOS });
+    expect(r.map((x) => x.id)).toEqual(['p1', 's1', 'v1']);
+    expect(r.some((x) => x.id === 'g')).toBe(false);
+  });
+
+  it('RN-CORE-13: o usuário da sessão sai mesmo quando o escopo o traz (admin com a permissão)', () => {
+    const r = pessoasDoTrajeto({ viewer: { id: 'v1', perfil: 'admin' }, membros: TODOS });
+    expect(r.map((x) => x.id)).toEqual(['p1']);
   });
 });

@@ -4,6 +4,7 @@
  * O "dia" é a data civil no fuso do tenant (`parametros.fuso`); o armazenado é sempre UTC.
  * Módulo opcional desativado (ou seção que não se aplica ao perfil) ⇒ a seção é `null`, o painel continua válido.
  */
+import { perfilUsaApp } from '@macuxi/platform-sdk';
 import { necessidadeDiaria } from '@macuxi/core/contracts';
 import { diasUteisDoPeriodo, localDate, type BusinessDays } from '@macuxi/comum';
 import { ATENDIMENTO_POR_DESFECHO, type PainelDia, type PainelFaturamento, type PainelMes, type PainelPesquisa, type PainelTrade, type PainelTreinamento, type PainelVendas, type PainelVisitas, type StatusDia, type VisitaLojaConcluidaV1 } from '../contracts';
@@ -127,7 +128,8 @@ export function visitasDoPeriodo(
   comConversao = false,
 ): PainelVisitas {
   const params = resolverParametros(paramsParciais);
-  const todas = visitasDoUsuario(estado, usuario.id, inicio, fim, params.fuso);
+  // RN-GES-05 (T-0187, P2 A): visita de supervisor ou gerente não é visita de campo (cobertura e meta)
+  const todas = !perfilUsaApp(usuario.perfil, 'campo') ? [] : visitasDoUsuario(estado, usuario.id, inicio, fim, params.fuso);
   const promotor = usuario.perfil === 'promotor';
   const atendidas = promotor ? todas.filter((v) => !v.sem_atendimento) : todas;
   const curtas = promotor ? atendidas.filter((v) => v.permanencia_min !== null && v.permanencia_min < params.permanencia_min_min) : [];
