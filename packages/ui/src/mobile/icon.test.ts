@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 // icon.tsx importa react-native-svg (não roda no node): a conferência é sobre o texto do arquivo.
 const fonte = readFileSync(new URL('./icon.tsx', import.meta.url), 'utf8');
+const fonteNomes = readFileSync(new URL('./nomes-de-icone.ts', import.meta.url), 'utf8');
 
 const nomesDoTipo = (): string[] => {
-  const tipo = /export const NOMES_DE_ICONE = \[([\s\S]*?)\] as const;/.exec(fonte)?.[1] ?? '';
+  const tipo = /export const NOMES_DE_ICONE = \[([\s\S]*?)\] as const;/.exec(fonteNomes)?.[1] ?? '';
   return [...tipo.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]!);
 };
 
@@ -18,7 +19,10 @@ describe('ícones do kit mobile', () => {
     expect(new Set(nomes).size).toBe(nomes.length);
     expect([...desenhos()].sort()).toEqual([...nomes].sort());
     // o tipo sai da lista (RD-2447): nenhuma cópia à mão dos nomes
-    expect(fonte).toContain('export type IconName = (typeof NOMES_DE_ICONE)[number];');
+    expect(fonteNomes).toContain('export type IconName = (typeof NOMES_DE_ICONE)[number];');
+    // RD-2449: a lista fica num arquivo puro, sem react-native nem SVG, e o icon.tsx importa dali
+    expect(fonteNomes).not.toMatch(/^import /m);
+    expect(fonte).toContain("from './nomes-de-icone'");
   });
 
   it('tem câmera, caixa de entrada e pacote (R-20261104-231124, T-0072, R-20261115-084600)', () => {
