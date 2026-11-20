@@ -42,6 +42,9 @@ async function recortar(ctx: Ctx, fabrica: FabricaRepositorio): Promise<Recorte>
   return { versoes, titulo: base?.titulo ?? 'pesquisa', respostas, filtro, versao, fuso };
 }
 
+/** Máximo de `usuario_ids` por chamada de `core.usuarios_resumo@1` (também o `limite` padrão do contrato). */
+const LOTE_USUARIOS_RESUMO = 500;
+
 /** "Respondida por <nome>" (T-0187): nomes pelo Core (`core.usuarios_resumo@1`); consulta fora do ar = sem nome, a lista segue. */
 async function nomesDosUsuarios(ctx: Ctx, fabrica: FabricaRepositorio, ids: string[]): Promise<Map<string, string>> {
   const nomes = new Map<string, string>();
@@ -49,8 +52,8 @@ async function nomesDosUsuarios(ctx: Ctx, fabrica: FabricaRepositorio, ids: stri
   try {
     await comRepositorio(ctx, fabrica, async (_repo, tx) => {
       // O contrato aceita no máximo 500 `usuario_ids` por chamada: pede só os ids necessários, em lotes de 500.
-      for (let i = 0; i < ids.length; i += 500) {
-        const r = await tx.consultar(CONSULTA_USUARIOS_RESUMO, { usuario_ids: ids.slice(i, i + 500), limite: 500 });
+      for (let i = 0; i < ids.length; i += LOTE_USUARIOS_RESUMO) {
+        const r = await tx.consultar(CONSULTA_USUARIOS_RESUMO, { usuario_ids: ids.slice(i, i + LOTE_USUARIOS_RESUMO) });
         for (const u of r.usuarios) nomes.set(u.id, u.nome);
       }
     });
