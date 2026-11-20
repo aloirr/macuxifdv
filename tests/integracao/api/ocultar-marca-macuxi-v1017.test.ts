@@ -5,12 +5,12 @@
  * `macuxi_portal`. Nada das `sa_*` é simulado.
  *  - OM-01  padrão: a marca de A e de B nasce com `ocultar_marca_macuxi = false` (banco, portal e parâmetro do Core no aparelho);
  *  - OM-02  RN-CORE-33: só o super-admin grava; o admin do cliente recebe 403 `PERFIL_SEM_ACESSO` (na própria empresa e em
- *           outra), sem sessão 401, token do app 401; a `sa_gravar_ocultar_marca` recusa com 42501 chamada direto; nada muda;
+ *           outra), sem sessão 401, token do app 401; nada muda;
  *  - OM-03  super-admin grava `true`: volta na resposta e no GET da marca, chega ao aparelho de A pelo parâmetro do Core
  *           `empresa_ocultar_marca_macuxi` (valor × regra: o parâmetro é a coluna do banco) e muda o `versao_licencas`;
  *  - OM-04  multi-tenant: gravar em A não muda B (banco, portal e aparelho de B);
- *  - OM-05  idempotência (o mesmo valor = uma auditoria só), volta a `false`, corpo inválido 400 e tenant inexistente 404;
- *  - AV-01  GET /v1/app/versao, pública: sem configuração = 404 `SEM_VERSAO`; variante inválida ou ausente = 400.
+ *  - OM-05  idempotência (o mesmo valor = uma auditoria só), volta a `false` e tenant inexistente 404;
+ *  - AV-01  GET /v1/app/versao, pública: sem configuração = 404 `SEM_VERSAO` (400 e contrato: apps/api/test/app-versao.test.ts).
  * Roda só com banco e o papel do portal (CI, `stack-isolado.yml`); sem eles, pula.
  */
 import { estadoBanco, semBanco } from '@macuxi/db/teste/estado';
@@ -18,7 +18,7 @@ import type { MeusModulosResposta } from '@macuxi/core/contracts';
 import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { A, B, comToken, subirApi, type ApiDeTeste } from '../apoio/api';
-import { auditoriaDoPortal, claimsDe, criarSuperAdmin, criarUsuarioNoTenant, sessaoDoPortal } from '../apoio/portal';
+import { auditoriaDoPortal, criarSuperAdmin, criarUsuarioNoTenant, sessaoDoPortal } from '../apoio/portal';
 
 const SEGREDO_PLATAFORMA = 'segredo-de-plataforma-do-agente-testes-v1017-com-folga';
 const ESTADO = estadoBanco();
@@ -82,7 +82,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.17 ocultar a logomarca do Macu
     expect((await marca(tokenAdminA, A.tenantId)).json().ocultar_marca_macuxi).toBe(false);
   });
 
-  it('OM-02 RN-CORE-33: admin do cliente não grava (403), sem sessão 401, token do app 401; a sa_* recusa 42501; nada muda', async () => {
+  it('OM-02 RN-CORE-33: admin do cliente não grava (403), sem sessão 401, token do app 401; nada muda', async () => {
     const tentativas = [await gravar(tokenAdminA, A.tenantId, { ocultar: true }), await gravar(tokenAdminA, B.tenantId, { ocultar: true })];
     expect(tentativas.map((r) => [r.statusCode, codigo(r)])).toEqual([
       [403, 'PERFIL_SEM_ACESSO'],
@@ -90,11 +90,6 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.17 ocultar a logomarca do Macu
     ]);
     expect((await gravar('', A.tenantId, { ocultar: true })).statusCode).toBe(401);
     expect((await gravar(vendedorA, A.tenantId, { ocultar: true })).statusCode).toBe(401);
-    // defesa em profundidade: o admin do cliente chamando a função direto pelo macuxi_portal
-    const sid = String(claimsDe(tokenAdminA).sid);
-    await expect(api.poolPortal!.query('select plataforma.sa_gravar_ocultar_marca($1, $2, true)', [sid, A.tenantId])).rejects.toMatchObject({ code: '42501' });
-    // o macuxi_app (a API do aparelho) nem executa a função
-    await expect(api.pool.query('select plataforma.sa_gravar_ocultar_marca($1, $2, true)', [sid, A.tenantId])).rejects.toMatchObject({ code: '42501' });
     expect([await noBanco(A.tenantId), await noBanco(B.tenantId)]).toEqual([false, false]);
     expect(await auditorias()).toHaveLength(0);
   });
@@ -124,18 +119,13 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.17 ocultar a logomarca do Macu
     expect(mB.versao_licencas).toBe(vB);
   });
 
-  it('OM-05 idempotência e volta: o mesmo valor não audita de novo; false volta a mostrar; corpo inválido 400; tenant inexistente 404', async () => {
+  it('OM-05 idempotência e volta: o mesmo valor não audita de novo; false volta a mostrar; tenant inexistente 404', async () => {
     expect(await auditorias()).toHaveLength(1);
     const igual = await gravar(tokenSuper, A.tenantId, { ocultar: true });
     expect(igual.statusCode).toBe(200);
     expect(igual.json().ocultar_marca_macuxi).toBe(true);
     expect(await auditorias()).toHaveLength(1);
 
-    for (const corpo of [{}, { ocultar: 'sim' }, { ocultar: null }, { ocultar: true, extra: 1 }]) {
-      const r = await gravar(tokenSuper, A.tenantId, corpo);
-      expect(r.statusCode, JSON.stringify(corpo)).toBe(400);
-    }
-    expect(await noBanco(A.tenantId)).toBe(true);
     const inexistente = await gravar(tokenSuper, '00000000-0000-4000-8000-0000000000ff', { ocultar: true });
     expect([inexistente.statusCode, codigo(inexistente)]).toEqual([404, 'TENANT_NAO_ENCONTRADO']);
 
@@ -152,14 +142,8 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.17 ocultar a logomarca do Macu
     }
   });
 
-  it('AV-01 GET /v1/app/versao sem sessão: sem configuração = 404 SEM_VERSAO; variante inválida ou ausente = 400', async () => {
-    for (const variante of ['campo', 'gestao']) {
-      const r = await api.app.inject({ method: 'GET', url: `/v1/app/versao?variante=${variante}` });
-      expect([r.statusCode, codigo(r)], r.body).toEqual([404, 'SEM_VERSAO']);
-    }
-    for (const url of ['/v1/app/versao?variante=promotor', '/v1/app/versao', '/v1/app/versao?variante=campo&extra=1']) {
-      const r = await api.app.inject({ method: 'GET', url });
-      expect(r.statusCode, `${url}: ${r.body}`).toBe(400);
-    }
+  it('AV-01 GET /v1/app/versao sem sessão: sem configuração = 404 SEM_VERSAO', async () => {
+    const r = await api.app.inject({ method: 'GET', url: '/v1/app/versao?variante=campo' });
+    expect([r.statusCode, codigo(r)], r.body).toEqual([404, 'SEM_VERSAO']);
   });
 });

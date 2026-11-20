@@ -8,13 +8,14 @@
 | # | Cenário | Onde | Nível |
 |---|---|---|---|
 | OM-01 | Padrão `false` em A e B: coluna, `GET .../marca` (super-admin e admin do cliente) e parâmetro do Core `empresa_ocultar_marca_macuxi` no aparelho | `tests/integracao/api/ocultar-marca-macuxi-v1017.test.ts` | API + Postgres |
-| OM-02 | Perfil errado: admin do cliente = 403 `PERFIL_SEM_ACESSO` (própria empresa e outra); sem sessão 401; token do app 401; `sa_gravar_ocultar_marca` direto pelo `macuxi_portal` (admin) e pelo `macuxi_app` = 42501; nada muda, nada auditado | idem | API + Postgres |
+| OM-02 | Perfil errado: admin do cliente = 403 `PERFIL_SEM_ACESSO` (própria empresa e outra); sem sessão 401; token do app 401; nada muda, nada auditado | idem | API + Postgres |
 | OM-03 | Super-admin grava `true`: resposta e `GET .../marca` com `true`, `private, no-store`, sem `chave`; valor × regra: o parâmetro do Core é a coluna do banco; `versao_licencas` muda | idem | API + Postgres |
 | OM-04 | Tenant errado: gravar em A não muda B (coluna, marca, parâmetro e `versao_licencas` de B) | idem | API + Postgres |
-| OM-05 | Reenvio do mesmo valor = 200 sem auditoria nova; corpo inválido (vazio, texto, nulo, chave a mais) = 400; tenant inexistente = 404 `TENANT_NAO_ENCONTRADO`; `false` volta a mostrar; auditoria `sa.empresa.ocultar_marca` do super-admin | idem | API + Postgres |
-| AV-01 | `GET /v1/app/versao` sem sessão: sem `APP_<VARIANTE>_*` = 404 `SEM_VERSAO` (campo e gestao); variante inválida, ausente ou chave a mais = 400 | idem | API + Postgres |
+| OM-05 | Reenvio do mesmo valor = 200 sem auditoria nova; tenant inexistente = 404 `TENANT_NAO_ENCONTRADO`; `false` volta a mostrar; auditoria `sa.empresa.ocultar_marca` do super-admin | idem | API + Postgres |
+| AV-01 | `GET /v1/app/versao` sem `APP_<VARIANTE>_*` no ambiente = 404 `SEM_VERSAO` (400 e contrato: `apps/api/test/app-versao.test.ts`) | idem | API + Postgres |
 | — | Marca do portal com `ocultar_marca_macuxi` (`CHAVES_MARCA` e LC-01) | `tests/integracao/api/logo-cliente-t0182.test.ts` | API + Postgres |
 | — | A sa_* nova revisada em `DEFINER_REVISADAS_PORTAL` (38 no total; EXECUTE só ao `macuxi_portal`) | `tests/integracao/banco/conformidade.test.ts` | catálogo |
+| — | Corpo inválido do PUT (400) | `apps/api/test/empresa-logo.test.ts` e SDK | unitário |
 | — | Rota com fonte em memória, `versoesAppDoAmbiente`, `haVersaoNova` | `apps/api/test/*.test.ts`, `packages/platform-sdk/src/*.test.ts` (engenheiro-software) | unitário |
 | — | 0091 (CHECK, 28000/42501/22023/P0002, auditoria, down) | `db/testes/tenant-ocultar-marca.db.test.ts` (banco-dados) | banco |
 
