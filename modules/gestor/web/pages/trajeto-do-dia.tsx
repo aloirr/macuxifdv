@@ -11,7 +11,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { errorMessage, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ, DESTAQUE, FUNDOS, MARCA, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, TextField } from '@macuxi/ui/web';
 import { formatarDistancia } from '@macuxi/core/contracts';
-import { desenharTrajeto, TEXTO_SEM_TRAJETO } from '../../domain/trajeto';
+import { desenharTrajeto, pessoasDoTrajeto, TEXTO_SEM_TRAJETO } from '../../domain/trajeto';
+import type { MembroEquipe } from '../../contracts';
 import { lerFiltrosPainel, lerPessoaDoTrajeto } from '../lib/filtros';
 import { useTrajeto, useVisaoEquipe } from '../lib/queries';
 
@@ -19,14 +20,19 @@ const LARGURA = 640;
 const ALTURA = 320;
 
 function Conteudo() {
-  const sessao = useSession<{ perfil?: string | null; fuso?: string }>();
+  const sessao = useSession<{ id?: string; perfil?: string | null; fuso?: string }>();
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const pessoa = lerPessoaDoTrajeto(params);
   const dia = lerFiltrosPainel(params).data;
   const equipe = useVisaoEquipe({ data: dia });
-  const membros = equipe.data?.membros ?? [];
+  // RN-CORE-13 / T-0187: o gerente escolhe também os supervisores; ninguém escolhe o próprio trajeto (a API do Core também recusa)
+  const pessoas = useMemo(
+    () => pessoasDoTrajeto({ viewer: { id: sessao.user?.id ?? '', perfil: (sessao.user?.perfil ?? 'supervisor') as MembroEquipe['perfil'] }, membros: [...(equipe.data?.membros ?? []).map((x) => x.membro), ...(equipe.data?.gestores ?? [])] }),
+    [equipe.data, sessao.user?.id, sessao.user?.perfil],
+  );
+  const pedida = lerPessoaDoTrajeto(params);
+  const pessoa = pedida && pessoas.some((p) => p.id === pedida) ? pedida : null;
   const q = useTrajeto(pessoa, dia);
   const tz = sessao.user?.fuso ?? DEFAULT_TZ;
   const d = useMemo(() => (q.data ? desenharTrajeto(q.data.trajeto.pontos, { largura: LARGURA, altura: ALTURA, margem: 24, fuso: tz }) : null), [q.data, tz]);
@@ -44,9 +50,9 @@ function Conteudo() {
         <TextField label="Dia" type="date" value={dia ?? equipe.data?.data ?? ''} onChange={(e) => ir((n) => (e.target.value ? n.set('data', e.target.value) : n.delete('data')))} />
         <SelectField label="Pessoa" value={pessoa ?? ''} onChange={(e) => escolher(e.target.value)}>
           <option value="">Escolha uma pessoa</option>
-          {membros.map(({ membro }) => (
-            <option key={membro.id} value={membro.id}>
-              {membro.nome}
+          {pessoas.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.perfil === 'supervisor' ? `${p.nome} (supervisor)` : p.nome}
             </option>
           ))}
         </SelectField>
