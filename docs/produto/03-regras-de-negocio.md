@@ -315,13 +315,15 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Conta:** `ajustada = meia-para-cima(tabela × (10 000 + bp) ÷ 10 000)`, com `bp` = o % em centésimos de ponto, inteiro (−1,71 → −171). Em centavos, por unidade base, antes da quantidade e do fator da embalagem. A faixa da tabela escalonada (RN-VEN-23) vale antes do %. Sem % (ou 0), a tabela fica como está.
   - **Onde vale:** nos itens do pedido e do orçamento, e no preço do Catálogo aberto pela ficha do cliente, que sai no prazo padrão dele (a primeira forma aceita e o primeiro prazo ativo dela, RN-VEN-24/25). Sem cliente, ou com cliente sem prazo padrão, a tabela pura.
   - **Sobre a tabela ajustada:** desconto, alçada, preço mínimo (RN-VEN-11) e crédito. O ajuste do prazo não é desconto do vendedor e não conta na alçada.
-  - **Preço congelado do orçamento** (RN-VEN-18): já está gravado ajustado e nunca ajusta de novo.
+  - **Preço congelado do orçamento** (RN-VEN-18): já está gravado ajustado e nunca ajusta de novo; na troca de prazo vale a RN-VEN-44.
   - **O % não aparece:** nem nos totais, nem na lista de prazos (RN-VEN-24), nem no PDF. Ao ERP, os preços vão já ajustados.
   *(Alexandre, R-20261115-111000 e R-20261115-121000; proposta aprovada em R-20261115-123000, `docs/modulos/vendedor/prazo-desconto-acrescimo.md` no SHA 454ee68, §1 a §4; v1.0.14, migração 0082.)*
-- **RN-VEN-44 Troca de prazo** Trocar o prazo com itens no pedido recalcula tudo a partir da **tabela original** do produto: preço de cada item, descontos, total, alçada, preço mínimo e crédito. Nunca ajusta sobre o já ajustado: trocar o prazo e voltar devolve os mesmos centavos.
-  - **Desconto ou acréscimo do vendedor fica em %.** No documento gravado antes da v1.0.5 com desconto do pedido ou em R$ (RN-VEN-02), vale o % equivalente sobre a tabela anterior, e o R$ é refeito sobre a nova (meia para cima).
-  - **Nada muda em silêncio:** desconto que passa da alçada segue para aprovação (RN-VEN-10), e item abaixo do mínimo aparece em Alertas (RN-VEN-42) para o vendedor corrigir. A troca de prazo não tem aviso próprio.
-  *(Mesma origem da RN-VEN-43, proposta §3.)*
+- **RN-VEN-44 Troca de prazo** Trocar o prazo no pedido ou no orçamento com itens **mantém o preço final** de cada item e **muda o preço de tabela**:
+  - **Tabela:** cada item passa a ter a tabela original do produto ajustada pelo % do prazo novo (RN-VEN-43). Nunca ajusta sobre o já ajustado: trocar o prazo e voltar devolve os mesmos centavos de tabela.
+  - **Desconto ou acréscimo do vendedor:** é refeito no item para que a tabela nova chegue ao **mesmo preço final**. Se a tabela sobe, o desconto aumenta; se a tabela cai, o desconto diminui ou vira acréscimo. Em %, com 2 casas, e o preço final fica nos mesmos centavos (o % é arredondado de forma que `base × (1 − %)` volte ao preço final, meia para cima, RN-VEN-02). O desconto do pedido e o total não mudam.
+  - **Preço congelado do orçamento** (RN-VEN-18): o preço final também se mantém; só a tabela e o desconto exibidos mudam.
+  - **Nada muda em silêncio:** alçada, preço mínimo e crédito são conferidos sobre o desconto refeito. Desconto que passa da alçada segue para aprovação (RN-VEN-10), e item abaixo do mínimo aparece em Alertas (RN-VEN-42) para o vendedor corrigir. A troca de prazo não tem aviso próprio.
+  *(Alexandre, R-20261120-051003-gerente-projetos, 20/11/2026: opção B, "o preço final se mantém; o que muda é o preço de tabela; então altera o desconto". Substitui a redação que recalculava o preço a partir da tabela original. Implementação: T-0188.)*
 - **RN-VEN-45 Percentual congelado no pedido** O pedido e o orçamento guardam o % do prazo do momento da escolha (retrato `pedido.prazo_percentual_ajuste`), e o total não muda com o pull seguinte. Sem prazo (condição legada, RN-VEN-14), o retrato fica vazio.
   - **A API revalida** no envio e recalcula os preços pelo % do pedido:
     - igual ao vigente: aceita;
