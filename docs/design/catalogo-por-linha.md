@@ -62,7 +62,7 @@ SISTEMAS                                PRODUTOS
 ### 2.1 Barra inferior: 5 abas (ressalva do dono do produto, R-20261109-121701)
 - O Campo do vendedor mantém as **5 abas: Início · Rota · Clientes · Pedidos · Mais**. **A Rota não sai** sem decisão do dono do
   produto. O Catálogo fica dentro do **Mais**, que fica aceso em todas as telas do Catálogo (raiz, níveis, produtos e busca).
-- Quem monta é o shell (`abasDoShell`, `apps/mobile/src/lib/abas.ts`); o desenho é a `BarraAbas` do kit (64 dp + área segura,
+- Quem monta é o shell (`abasDaVariante`, `apps/mobile/src/lib/abas.ts`); o desenho é a `BarraAbas` do kit (64 dp + área segura,
   ícones `home`, `pin`, `users`, `clipboard`, `menu`). As telas do Catálogo não mexem na barra. No Gestão, as abas são as do
   perfil (o shell decide), com o mesmo desenho.
 
