@@ -21,8 +21,8 @@ import {
   type TransacaoTenant,
 } from '@macuxi/platform-sdk';
 import type { CheckinVisita, CheckoutVisita } from '../contracts';
-import { ACAO_CHECKIN_FORA_DE_ROTA, CODIGO_CHECKIN_FORA_DE_ROTA, EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT, MENSAGEM_CHECKIN_FORA_DE_ROTA } from '../contracts';
-import { avaliarCheckin, checkinPermitido, avaliarCheckoutTolerante, dataLocal, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
+import { ACAO_CHECKIN_FORA_DE_ROTA, ACAO_VISITA_REGISTRAR_GESTAO, CODIGO_CHECKIN_FORA_DE_ROTA, EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT, MENSAGEM_CHECKIN_FORA_DE_ROTA } from '../contracts';
+import { avaliarCheckin, checkinPermitido, avaliarCheckoutTolerante, dataLocal, visitaDeGestaoPermitida, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
 
 import { verificadorPorConsulta, type VerificarEtapas } from './etapas-checkout';
 import { gravarEtapasDoCheckout } from './etapas-pendencia';
@@ -52,6 +52,11 @@ async function porItem(
     }
     if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) {
       saida.push(rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id do item da fila não confere com o id do payload.'));
+      continue;
+    }
+    // RN-CORE-13 (T-0187): supervisor e gerente só registram visita com a ação `visita.registrar_gestao`
+    if (!visitaDeGestaoPermitida({ perfil: ctx.usuario.perfil, podeRegistrarGestao: pode(ctx.usuario.perfis, ACAO_VISITA_REGISTRAR_GESTAO) })) {
+      saida.push(rejeitado(item.id, 'PERFIL_SEM_ACESSO', 'Seu perfil não registra visita no app Gestão. Fale com o administrador da empresa.'));
       continue;
     }
     try {

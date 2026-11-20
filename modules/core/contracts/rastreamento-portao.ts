@@ -3,4 +3,4 @@
  * função da API e do Core. Arquivo à parte: o `domain/rastreamento` importa tipos de `contracts`, e a reexportação aqui evita o ciclo
  * de execução no `index`.
  */
-export { CARGOS_RASTREADOS, podeRastrear, type EntradaRastreio, type ResultadoRastreio } from '../domain/rastreamento';
+export { APP_RASTREADO_DO_CARGO, CARGOS_RASTREADOS, podeRastrear, type EntradaRastreio, type ResultadoRastreio } from '../domain/rastreamento';

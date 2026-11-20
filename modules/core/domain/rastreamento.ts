@@ -2,21 +2,24 @@
  * Portão do rastreamento (T-0156; desenho `docs/desenho/tracking.md` §2; ADR 0061 decisão 2). RN-CORE-13 e RN-CORE-37.
  * Função pura, a mesma no app (liga e desliga a captura, descarta o ponto) e na API (descarta o ponto que chega fora do portão).
  * Sem coordenada: decide só por cadastro, instante e fuso.
- * As 7 condições, todas obrigatórias: parâmetro ligado, cargo de campo, app Campo, feriado, ausência, expediente e permissão do aparelho.
+ * As 7 condições, todas obrigatórias: parâmetro ligado, cargo rastreado, app do cargo (Campo para vendedor e promotor, Gestão para supervisor), feriado, ausência, expediente e permissão do aparelho.
  */
 import { ehFeriado } from '@macuxi/comum/calendar';
 import { localIsoDate, zonedParts } from '@macuxi/comum/fuso';
 import type { Expediente, MotivoSemRastreio } from '../contracts';
 
-/** Cargos de campo (ADR 0049): só eles são rastreados. */
-export const CARGOS_RASTREADOS: readonly string[] = ['vendedor', 'promotor'];
+/** Cargos rastreados (ADR 0049; T-0187: o supervisor entra, o gerente continua fora). */
+export const CARGOS_RASTREADOS: readonly string[] = ['vendedor', 'promotor', 'supervisor'];
+
+/** App em que cada cargo rastreado é rastreado (T-0187 §1.2): a API não sabe de que app veio o push, então o cargo decide. */
+export const APP_RASTREADO_DO_CARGO: Readonly<Record<string, string>> = { vendedor: 'campo', promotor: 'campo', supervisor: 'gestao' };
 
 export interface EntradaRastreio {
   /** Parâmetro `rastreamento.ativo` do tenant (padrão desligado). */
   ativo: boolean;
   /** Cargo do usuário (perfil base). */
   cargo: string;
-  /** App que pede ('campo' | 'gestao'); a API passa 'campo' (só o push do Campo manda ponto). */
+  /** App que pede ('campo' | 'gestao'); a API usa `APP_RASTREADO_DO_CARGO[cargo]`. */
   app: string;
   expediente: Expediente;
   /** Feriados do tenant (AAAA-MM-DD); os nacionais entram sempre. */
@@ -45,7 +48,7 @@ function dentroDoExpediente(expediente: Expediente, instante: string, fuso: stri
 export function podeRastrear(e: EntradaRastreio): ResultadoRastreio {
   if (!e.ativo) return nao('desligado');
   if (!CARGOS_RASTREADOS.includes(e.cargo)) return nao('cargo');
-  if (e.app !== 'campo') return nao('app');
+  if (e.app !== APP_RASTREADO_DO_CARGO[e.cargo]) return nao('app');
   const data = localIsoDate(e.instante, e.fuso);
   if (ehFeriado(data, e.feriados)) return nao('feriado');
   if (e.ausencias.some((a) => a.de <= data && data <= a.ate)) return nao('ausencia');
