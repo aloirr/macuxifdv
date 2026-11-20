@@ -57,7 +57,7 @@ export function mensagemServidorFalhou(perfil: PerfilBuild): string | null {
 }
 
 /**
- * Erro da verificação do servidor (`/saude`) no build de endereço fixo: troca qualquer falha (sem resposta, tempo
+ * Erro da verificação do servidor (`/saude`) no build de endereço fixo: troca qualquer falha (falha de conexão, tempo
  * esgotado, 404, 5xx, não é Macuxi) por `SERVIDOR_INDISPONIVEL`, sem endereço nem dica de "/v1". No desenvolvimento
  * devolve o erro original (a mensagem detalhada ajuda a acertar o endereço da rede local).
  */

@@ -61,7 +61,7 @@ describe('endereço salvo por versão antiga do app', () => {
 });
 
 describe('servidor fora do ar: "Servidor indisponível — tente mais tarde"', () => {
-  const semResposta = erroDoTesteServidor({ ok: false, testado: `${PRODUCAO}/saude`, motivo: 'sem_resposta', mensagem: `Sem resposta de ${PRODUCAO}/saude. Confira o endereço; ele termina em /v1.` });
+  const semResposta = erroDoTesteServidor({ ok: false, testado: `${PRODUCAO}/saude`, motivo: 'sem_resposta', mensagem: `Não foi possível falar com ${PRODUCAO}/saude. Confira o endereço; ele termina em /v1.` });
   const naoMacuxi = erroDoTesteServidor({ ok: false, testado: `${PRODUCAO}/saude`, motivo: 'erro_do_servidor', status: 502, mensagem: 'Este endereço não é um servidor Macuxi' });
 
   it('build de endereço fixo: qualquer falha da verificação vira SERVIDOR_INDISPONIVEL, sem endereço nem dica de /v1', () => {

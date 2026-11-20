@@ -59,7 +59,7 @@ describe('teste do servidor: só um servidor Macuxi passa (R-20261101-023742-ale
     expect(r.mensagem).toMatch(/fora do ar/);
   });
 
-  it('sem resposta (DNS, certificado, sem internet): diz o endereço testado', async () => {
+  it('falha de conexão (DNS, certificado, sem internet): diz o endereço testado', async () => {
     const r = falhou(
       await testarServidor(
         ERRADO,
@@ -69,7 +69,7 @@ describe('teste do servidor: só um servidor Macuxi passa (R-20261101-023742-ale
       ),
     );
     expect(r.motivo).toBe('sem_resposta');
-    expect(r.mensagem).toMatch(/^Sem resposta de https:\/\/.*trycloudfare\.com\/v1\/saude\. Confira o endereço; ele termina em \/v1\./);
+    expect(r.mensagem).toMatch(/^Não foi possível falar com https:\/\/.*trycloudfare\.com\/v1\/saude\. Confira o endereço; ele termina em \/v1\./);
   });
 
   it('timeout: aborta e diz quanto esperou', async () => {
@@ -99,7 +99,7 @@ describe('teste do servidor: só um servidor Macuxi passa (R-20261101-023742-ale
 });
 
 describe('erro do login quando o servidor não passou (formato combinado com o modulo-core)', () => {
-  it('sem resposta e timeout viram ErroSemConexao; o resto, ErroHttp SERVIDOR_INVALIDO', async () => {
+  it('falha de conexão e timeout viram ErroSemConexao; o resto, ErroHttp SERVIDOR_INVALIDO', async () => {
     const semRede = falhou(
       await testarServidor(
         TUNEL,

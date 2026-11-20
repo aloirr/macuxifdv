@@ -5,7 +5,7 @@
  *   arquivo no processo: o app aberto (`state/plataforma.tsx`, motor) e a tarefa em segundo plano
  *   (`services/segundo-plano.ts`, ADR 0017) chamam `abrirArmazenamentoDoUsuario` e recebem a mesma promessa.
  * - Na 1ª abertura depois da atualização, a passagem do AsyncStorage antigo (`macuxi:u:<id>:*`) roda ANTES do motor, com o
- *   progresso para a tela "Atualizando os dados do aparelho…"; o espelho `fv:u:<id>:armazenamento` vai para o
+ *   progresso para a tela "Atualizando o app"; o espelho `fv:u:<id>:armazenamento` vai para o
  *   AsyncStorage e a origem sai quando a regra do SDK deixa (marcador concluído e 1 sync completo, ou 7 dias).
  * - Reserva: sem o SQLite no APK, sessão sem id de usuário, a trava `EXPO_PUBLIC_ARMAZENAMENTO=asyncstorage` ou a passagem
  *   abortada (sem espelho) = o adaptador AsyncStorage abaixo, como antes da T-0088.
@@ -97,7 +97,7 @@ export interface UsuarioDoArmazenamento {
   tenantId?: string | null;
   /** Fuso do tenant (versão dos documentos de busca conferida antes da carga). */
   fuso?: string;
-  /** Tela "Atualizando os dados do aparelho…" (só na 1ª abertura com dados a passar). */
+  /** Tela "Atualizando o app" (só na 1ª abertura com dados a passar). */
   aoProgredir?: (p: ProgressoPassagem) => void;
 }
 

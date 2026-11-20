@@ -39,7 +39,7 @@ export function AuditPage() {
         {q.data && <span className="pb-2.5 text-[12px] text-ink-2">{rows.length} registros mais recentes</span>}
         {/* RN-CORE-23 item 6: sem consulta periódica curta; atualiza a cada sync_auto_min ou por este botão */}
         <Button type="button" size="sm" onClick={() => void q.refetch()} disabled={q.isFetching} aria-label="Atualizar a trilha de auditoria">
-          {q.isFetching ? 'Atualizando…' : 'Atualizar'}
+          Atualizar
         </Button>
       </FilterBar>
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}

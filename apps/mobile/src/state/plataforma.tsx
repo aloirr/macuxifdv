@@ -291,7 +291,7 @@ function usePlataformaValor() {
   } | null>(null);
   /** Diagnóstico do Perfil: SQLite (arquivo e marcador da passagem) ou AsyncStorage (reserva) e o motivo. */
   const [armazenamento, setArmazenamento] = useState<ResumoArmazenamento | null>(null);
-  /** Tela "Atualizando os dados do aparelho…" (passagem do AsyncStorage na 1ª abertura depois da atualização). */
+  /** Tela "Atualizando o app" (passagem do AsyncStorage na 1ª abertura depois da atualização). */
   const [preparo, setPreparo] = useState<{ progresso: ProgressoPassagem | null } | null>(null);
   /**
    * Dados já no SQLite e o arquivo não abriu: tela de erro com "Tentar de novo" (nunca volta ao AsyncStorage).
