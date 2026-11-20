@@ -60,10 +60,13 @@ import {
   fusoDoTenantOuPadrao,
   LIMITE_CORPO_ROTA_PADRAO,
   modulosEfetivos,
+  MODULO_INATIVO,
   problemasApiConector,
   caminhoDaRotaPublica,
   problemasRotaPublica,
   problemasConteudoRota,
+  problemasCabecalhosRota,
+  cabecalhosDaRota,
   problemasLimiteCorpo,
   NOME_ARQUIVO_ROTA_RE,
   promotorBarradoNaRota,
@@ -260,7 +263,7 @@ function semPortal(): never {
 const portalIndisponivel: AcessoBanco = { comTenant: async () => semPortal(), semTenant: async () => semPortal() };
 
 function negar(r: { ok: false; status: 401 | 403; codigo: string; mensagem: string }, modulo: ModuloId): never {
-  if (r.codigo === 'MODULO_INATIVO') {
+  if (r.codigo === MODULO_INATIVO) {
     const c = erroModuloInativo(modulo);
     throw new ErroHttp(403, c.codigo, c.mensagem, c.detalhes);
   }
@@ -293,6 +296,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasLimiteCorpo(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
     // T-0087: tipo de conteúdo e nome de arquivo das rotas de download (lista fechada; nada executável no navegador)
     ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasConteudoRota(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
+    // v1.0.16: semCache/cabecalhos (nome, valor, reservados da API)
+    ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasCabecalhosRota(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
     // T-0091: sessão do super-admin só na conexão do portal; T-0092: rota pública fora do core só documento com cache
     // (fixture sem definirModuloApi também passa por aqui)
     ...modulos.flatMap((m) => (m.rotasPublicas ?? []).flatMap((r) => problemasRotaPublica(m.manifesto.id, r))),
@@ -762,24 +767,25 @@ function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<
   const modulo = manifesto.id;
   const url = `/v1/${modulo}${rota.caminho ? `/${rota.caminho}` : ''}`;
   const limite = rota.limiteCorpoBytes;
+  // v1.0.16: `semCache`/`cabecalhos` entram no 1º gancho da rota, antes do parser e do handler: valem no sucesso e em todo
+  // erro da rota (401, 403, 400 do JSON, 413, 422, 500), porque o tratador de erro não limpa os cabeçalhos já postos
+  const fixos = Object.entries(cabecalhosDaRota(rota));
+  const ganchos: Array<(req: FastifyRequest, reply: FastifyReply) => Promise<void>> = [];
+  if (fixos.length > 0)
+    ganchos.push(async (_req, reply) => {
+      for (const [nome, valor] of fixos) reply.header(nome, valor);
+    });
+  // corpo grande só é lido de quem diz estar autenticado: sem `Authorization`, 401 antes do parser (sem buffer de MBs);
+  // o token em si é conferido no handler, como em toda rota
+  if (limite !== undefined && limite > LIMITE_CORPO_ROTA_PADRAO)
+    ganchos.push(async (req) => {
+      if (!req.headers.authorization) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
+    });
   app.route({
     method: rota.metodo,
     url,
-    ...(limite !== undefined
-      ? {
-          bodyLimit: limite,
-          config: { limiteCorpoProprio: true } satisfies ConfigRotaModulo,
-          // corpo grande só é lido de quem diz estar autenticado: sem `Authorization`, 401 antes do parser (sem buffer de MBs);
-          // o token em si é conferido no handler, como em toda rota
-          ...(limite > LIMITE_CORPO_ROTA_PADRAO
-            ? {
-                onRequest: async (req: FastifyRequest) => {
-                  if (!req.headers.authorization) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
-                },
-              }
-            : {}),
-        }
-      : {}),
+    ...(limite !== undefined ? { bodyLimit: limite, config: { limiteCorpoProprio: true } satisfies ConfigRotaModulo } : {}),
+    ...(ganchos.length > 0 ? { onRequest: ganchos } : {}),
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
       const { ctx } = await p.preparar(req, modulo, { superAdmin: rota.superAdmin, semFilial: rota.liberadaSemFilial ? 'aceita' : undefined });
       const u = ctx.usuario;
