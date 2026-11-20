@@ -26,7 +26,7 @@ A revisão de UX **não aprova** tela fora desta especificação nem com aparên
 ### 0.1 Barra inferior: 5 abas (ressalva do dono do produto, R-20261109-121700)
 - O Campo do vendedor mantém as **5 abas: Início · Rota · Clientes · Pedidos · Mais**, nessa ordem. **A Rota não sai** sem decisão
   do dono do produto. Metas, Catálogo e o resto ficam no "Mais".
-- Quem monta é o shell (`abasDoShell` em `apps/mobile/src/lib/abas.ts`, 5 posições); o desenho é a `BarraAbas` do kit (64 dp +
+- Quem monta é o shell (`abasDaVariante` em `apps/mobile/src/lib/abas.ts`, posições por variante (`MAX_ABAS_POR_VARIANTE`)); o desenho é a `BarraAbas` do kit (64 dp +
   área segura, ícones `home`, `pin`, `users`, `clipboard`, `menu` em 22, rótulo 11; ativa com ícone `accent` e rótulo `accentInk`
   negrito). Nenhuma tela desta especificação mexe na barra.
 - A barra aparece em todas as telas desta especificação, inclusive no Novo pedido (abaixo do `RodapeTotal`). Aba acesa = a dona
