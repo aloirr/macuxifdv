@@ -5,18 +5,20 @@ import { describe, expect, it } from 'vitest';
 const fonte = readFileSync(new URL('./icon.tsx', import.meta.url), 'utf8');
 
 const nomesDoTipo = (): string[] => {
-  const tipo = /export type IconName =([\s\S]*?);/.exec(fonte)?.[1] ?? '';
+  const tipo = /export const NOMES_DE_ICONE = \[([\s\S]*?)\] as const;/.exec(fonte)?.[1] ?? '';
   return [...tipo.matchAll(/'([a-zA-Z]+)'/g)].map((m) => m[1]!);
 };
 
 const desenhos = (): string[] => [...fonte.matchAll(/case '([a-zA-Z]+)':/g)].map((m) => m[1]!);
 
 describe('ícones do kit mobile', () => {
-  it('todo nome do tipo IconName tem desenho no render (e nenhum desenho sobra)', () => {
+  it('todo nome de NOMES_DE_ICONE tem desenho no render (e nenhum desenho sobra)', () => {
     const nomes = nomesDoTipo();
     expect(nomes.length).toBeGreaterThan(30);
     expect(new Set(nomes).size).toBe(nomes.length);
     expect([...desenhos()].sort()).toEqual([...nomes].sort());
+    // o tipo sai da lista (RD-2447): nenhuma cópia à mão dos nomes
+    expect(fonte).toContain('export type IconName = (typeof NOMES_DE_ICONE)[number];');
   });
 
   it('tem câmera, caixa de entrada e pacote (R-20261104-231124, T-0072, R-20261115-084600)', () => {
