@@ -155,3 +155,8 @@ export function trilhasComTitulo(
 export function mostraHoraDaSincronizacao(perfil: Perfil | null | undefined): boolean {
   return !perfilUsaApp(perfil, 'campo');
 }
+
+/** Aviso da aba Treinar sem sinal (R-20261120-142546 item 8): só no Campo; no Gestão o selo do cabeçalho já mostra. */
+export function avisoSemSinal(offline: boolean, mostraHora: boolean): string | null {
+  return offline && !mostraHora ? 'Sem sinal: faça as lições que já estão no aparelho.' : null;
+}
