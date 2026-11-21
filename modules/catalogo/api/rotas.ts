@@ -52,6 +52,8 @@ import {
   type MarcaCriar,
   type MarcaListaQuery,
   type MarcaListaSaida,
+  type ParametrosAplicacao,
+  ParametrosAplicacaoSchema,
   ParamsSinonimo,
   ROTAS_CATALOGO,
   SalvarCadastroCatalogo,
@@ -622,6 +624,29 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
+  // RN-CAT-11 (Parâmetros › Produtos › Catálogo): limite da Aplicação do tenant; só analista e admin (`parametro.catalogo`)
+  const lerLimiteAplicacao: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.parametros,
+    acao: 'parametro.catalogo',
+    carteira: 'nao_se_aplica',
+    executar: (ctx: Ctx): Promise<ParametrosAplicacao> => Promise.resolve({ aplicacao_max_cadastro: parametrosDoTenant(ctx.parametros()).aplicacao_max_cadastro }),
+  };
+
+  const gravarLimiteAplicacao: RotaModulo = {
+    metodo: 'PUT',
+    caminho: ROTAS_CATALOGO.parametros,
+    acao: 'parametro.catalogo',
+    carteira: 'nao_se_aplica',
+    corpo: ParametrosAplicacaoSchema,
+    executar: (ctx: Ctx<ParametrosAplicacao>): Promise<ParametrosAplicacao> =>
+      ctx.comTenant(async () => {
+        // o SDK grava só no módulo da rota, por tenant, na mesma transação, idempotente e auditado (RN-AUD-01)
+        await ctx.gravarParametros!({ aplicacao_max_cadastro: ctx.corpo.aplicacao_max_cadastro }, { acao: 'parametro.catalogo' });
+        return { aplicacao_max_cadastro: ctx.corpo.aplicacao_max_cadastro };
+      }),
+  };
+
   // T-0085 fatia C: página única (teto de 20 mil produtos no domain); só quem enriquece o catálogo (analista e admin)
   const exportacao: RotaModulo = {
     metodo: 'GET',
@@ -788,5 +813,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [...criarRotasFotosLote(), busca, vitrine, hierarquia, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
+  return [...criarRotasFotosLote(), busca, vitrine, hierarquia, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, lerLimiteAplicacao, gravarLimiteAplicacao, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
 }

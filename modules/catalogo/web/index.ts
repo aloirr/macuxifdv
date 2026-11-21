@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { CatalogoPage } from './pages/catalogo-page';
+import { LimiteAplicacaoPanel } from './pages/limite-aplicacao-panel';
 import { FotosLotePage } from './pages/fotos-lote-page';
 import { MarcasPage } from './pages/marcas-page';
 import { TabelasPrecoPage } from './pages/tabelas-preco-page';
@@ -13,6 +14,8 @@ import { TabelasPrecoPage } from './pages/tabelas-preco-page';
  */
 export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
+  // RN-CAT-11 (D6): painel de Parâmetros › Produtos; sem cabeçalho próprio, a ação `parametro.catalogo` esconde para quem não ajusta
+  paineisParametros: [{ id: 'limite-aplicacao', secao: 'produtos', titulo: 'Catálogo', ordem: 30, acao: 'parametro.catalogo', componente: LimiteAplicacaoPanel }],
   paginas: [{ id: 'catalogo', caminho: 'catalogo', titulo: 'Catálogo', navegacao: 'Catálogo', grupo: 'cadastros', acao: 'produto.consultar', componente: CatalogoPage },
     // T-0089: preço da UN e tabela escalonada (analista e admin; a API confere de novo)
     { id: 'tabelas-preco', caminho: 'tabelas-preco', titulo: 'Tabelas de preço', navegacao: 'Tabelas de preço', grupo: 'cadastros', acao: 'tabela_preco.gerenciar', componente: TabelasPrecoPage },
