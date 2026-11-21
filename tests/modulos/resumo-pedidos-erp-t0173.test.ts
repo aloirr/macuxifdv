@@ -28,6 +28,9 @@ interface LinhaFila {
   tentativas?: number;
   retencao_codigo?: 'mapeamento_ausente' | 'mapeamento_ambiguo' | 'sequencia_repetida' | null;
   retencao_mensagem?: string | null;
+  /** Instantes da fila (UTC), para o `parados_desde` (T-0189). */
+  aprovado_em?: string;
+  enviado_em?: string | null;
   apagado?: boolean;
 }
 
@@ -45,11 +48,17 @@ function dbDaFila(fila: readonly LinhaFila[]) {
         for (const l of vivos(params[0])) n.set(l.estado, (n.get(l.estado) ?? 0) + 1);
         return { rows: [...n].map(([estado, c]) => ({ estado, n: c })) };
       }
-      // a mesma consulta do Hub (bko-monitor.ts): presos e retidos num `count(*) filter (...)` só
+      // a mesma consulta do Hub (bko-monitor.ts): presos, retidos e parados_desde (T-0189) num `count(*) filter (...)` só;
+      // o instante do preso é `coalesce(enviado_em, aprovado_em)` e o do retido é `aprovado_em`, o mais antigo dos dois
       if (/estado = 'enviado' and tentativas >= \$2/.test(sql) && /retencao_codigo is not null/.test(sql)) {
         const v = vivos(params[0]);
-        const presos = v.filter((l) => l.estado === 'enviado' && (l.tentativas ?? 0) >= Number(params[1])).length;
-        return { rows: [{ presos, retidos: v.filter((l) => (l.retencao_codigo ?? null) !== null).length }] };
+        const presos = v.filter((l) => l.estado === 'enviado' && (l.tentativas ?? 0) >= Number(params[1]));
+        const retidos = v.filter((l) => (l.retencao_codigo ?? null) !== null);
+        const instantes = [...presos.map((l) => l.enviado_em ?? l.aprovado_em), ...retidos.map((l) => l.aprovado_em)]
+          .filter((x): x is string => x !== undefined && x !== null)
+          .map((x) => new Date(x).getTime());
+        const parados_desde = instantes.length ? new Date(Math.min(...instantes)) : null;
+        return { rows: [{ presos: presos.length, retidos: retidos.length, parados_desde }] };
       }
       return { rows: [] };
     },
@@ -116,9 +125,43 @@ describe('T-0173 / RN-INT-08 — cards "Pedidos no ERP" = a fila do ERP do tenan
   });
 
   it('multi-tenant: a fila de B nunca entra nos números de A, e B vê só a dele', async () => {
-    const fila = [...A({ estado: 'pendente' }, 2), ...B({ estado: 'pendente' }, 5), ...B({ estado: 'rejeitado_erp' }, 1), ...B({ estado: 'enviado', tentativas: 9 }, 1)];
-    expect((await monitor(fila)).resumo_pedidos).toEqual({ na_fila: 2, entregue_ao_conector: 0, rejeitado_pelo_erp: 0, presos_sem_retorno: 0, retidos_sem_mapeamento: 0 });
-    expect((await monitor(fila, { tenant: TENANT_B })).resumo_pedidos).toEqual({ na_fila: 5, entregue_ao_conector: 1, rejeitado_pelo_erp: 1, presos_sem_retorno: 1, retidos_sem_mapeamento: 0 });
+    const fila = [
+      ...A({ estado: 'pendente', aprovado_em: '2026-11-15T17:00:00Z' }, 2),
+      ...B({ estado: 'pendente' }, 5),
+      ...B({ estado: 'rejeitado_erp' }, 1),
+      ...B({ estado: 'enviado', tentativas: 9, aprovado_em: '2026-11-14T12:00:00Z', enviado_em: '2026-11-14T12:05:00Z' }, 1),
+    ];
+    // T-0189: A não tem preso nem retido → parados_desde null (o preso de B não vaza); B: o envio do preso dele
+    expect((await monitor(fila)).resumo_pedidos).toEqual({
+      na_fila: 2,
+      entregue_ao_conector: 0,
+      rejeitado_pelo_erp: 0,
+      presos_sem_retorno: 0,
+      retidos_sem_mapeamento: 0,
+      parados_desde: null,
+    });
+    expect((await monitor(fila, { tenant: TENANT_B })).resumo_pedidos).toEqual({
+      na_fila: 5,
+      entregue_ao_conector: 1,
+      rejeitado_pelo_erp: 1,
+      presos_sem_retorno: 1,
+      retidos_sem_mapeamento: 0,
+      parados_desde: '2026-11-14T12:05:00.000Z',
+    });
+  });
+
+  it('T-0189 / RN-INT-08: parados_desde = o instante mais antigo entre presos sem retorno e retidos; enviado abaixo do limite não conta', async () => {
+    const fila = [
+      ...A({ estado: 'enviado', tentativas: 4, aprovado_em: '2026-11-10T08:00:00Z', enviado_em: '2026-11-10T08:01:00Z' }), // não é preso
+      ...A({ estado: 'enviado', tentativas: 5, aprovado_em: '2026-11-12T09:00:00Z', enviado_em: '2026-11-13T09:00:00Z' }), // preso: conta o envio
+      ...A({ estado: 'pendente', retencao_codigo: 'mapeamento_ausente', aprovado_em: '2026-11-12T20:00:00Z' }), // retido: conta a aprovação
+      ...A({ estado: 'enviado', tentativas: 7, aprovado_em: '2026-11-11T15:30:00Z', enviado_em: null }), // preso sem envio: a aprovação
+      ...A({ estado: 'pendente', retencao_codigo: 'mapeamento_ausente', aprovado_em: '2026-11-01T00:00:00Z', apagado: true }), // apagado
+    ];
+    // esperado à mão: entre 13/11 09:00, 12/11 20:00 e 11/11 15:30, o mais antigo é 11/11 15:30 UTC
+    const r = (await monitor(fila)).resumo_pedidos;
+    expect(r.presos_sem_retorno).toBe(2);
+    expect(r.parados_desde).toBe('2026-11-11T15:30:00.000Z');
   });
 
   // D-T0173-A1 (defeito aberto, modulo-integracao): modules/integracao/api/bko-monitor.ts conta qualquer `retencao_codigo`

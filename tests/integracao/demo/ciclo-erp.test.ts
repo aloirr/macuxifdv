@@ -141,17 +141,29 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
    * `mapeamento_ambiguo`), sem a de cadastro (mensagem "Pedido retido por cadastro…") nem a de sequência repetida (rótulo × valor).
    */
   const resumoDaFila = async (tenantId: string) => {
-    const [r] = await linhas<Record<string, number>>(
+    const [r] = await linhas<{
+      na_fila: number;
+      entregue_ao_conector: number;
+      rejeitado_pelo_erp: number;
+      presos_sem_retorno: number;
+      retidos_sem_mapeamento: number;
+      parados_desde: Date | null;
+    }>(
       `select count(*) filter (where estado = 'pendente')::int as na_fila,
               count(*) filter (where estado = 'enviado')::int as entregue_ao_conector,
               count(*) filter (where estado = 'rejeitado_erp')::int as rejeitado_pelo_erp,
               count(*) filter (where estado = 'enviado' and tentativas >= 5)::int as presos_sem_retorno,
               count(*) filter (where retencao_codigo in ('mapeamento_ausente', 'mapeamento_ambiguo')
-                                 and coalesce(retencao_mensagem, '') not like 'Pedido retido por cadastro%')::int as retidos_sem_mapeamento
+                                 and coalesce(retencao_mensagem, '') not like 'Pedido retido por cadastro%')::int as retidos_sem_mapeamento,
+              least(min(coalesce(enviado_em, aprovado_em)) filter (where estado = 'enviado' and tentativas >= 5),
+                    min(aprovado_em) filter (where retencao_codigo in ('mapeamento_ausente', 'mapeamento_ambiguo')
+                                               and coalesce(retencao_mensagem, '') not like 'Pedido retido por cadastro%')) as parados_desde
          from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null`,
       [tenantId],
     );
-    return r;
+    // T-0189: parados_desde = o instante mais antigo entre os presos (o envio, ou a aprovação sem envio) e os retidos (a aprovação); null sem nenhum
+    if (!r) throw new Error(`resumo da fila sem linha para ${tenantId}`);
+    return { ...r, parados_desde: r.parados_desde ? new Date(r.parados_desde).toISOString() : null };
   };
 
   beforeAll(async () => {
