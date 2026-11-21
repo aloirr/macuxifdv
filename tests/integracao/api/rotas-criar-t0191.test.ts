@@ -60,6 +60,18 @@ const G = {
 } as const;
 /** Todo texto de endereço usado aqui: nenhum pode aparecer no log (RN-CORE-77). */
 const TEXTOS_DE_ENDERECO = ['Palmeiras', 'Bairro Casa', 'Outra Base', 'Quinze', 'quinze', 'Sem Resultado', 'Via Larga', 'Cidade Apenas', 'Servico Fora', 'Do Outro Tenant', '69005', '69053', '69010', 'Rua+', 'Rua%20'];
+/**
+ * Campos do pino e do Fastify gerados a cada rodada (instante, processo, máquina, ids e duração da requisição): os dígitos
+ * deles formavam "69053" por acaso (~1 rodada em 30). Saem antes da busca; o resto de cada linha (url, msg, campos da rota) fica.
+ */
+const CAMPOS_DO_LOGGER = new Set(['time', 'pid', 'hostname', 'reqId', 'request_id', 'responseTime']);
+const semCamposDoLogger = (linhas: string[]) =>
+  linhas
+    .join('')
+    .split('\n')
+    .filter((l) => l.trim() !== '')
+    .map((l) => JSON.stringify(JSON.parse(l), (k, v: unknown) => (CAMPOS_DO_LOGGER.has(k) ? undefined : v)))
+    .join('\n');
 
 function respostaDoSimulado(p: Record<string, string>): RespostaNominatim {
   const rua = (p.street ?? '').toLowerCase();
@@ -650,7 +662,7 @@ describe.skipIf(semBanco())('T-0191 — rotas por proximidade, base e Gerar coor
       const aud = await q<{ antes: unknown; depois: unknown }>("select antes, depois from plataforma.auditoria where acao = 'cliente.gerar_coordenada'");
       expect(aud.length).toBeGreaterThanOrEqual(5);
       expect(JSON.stringify(aud)).not.toMatch(/Quinze|Resultado|Via Larga|69005|Manaus/);
-      const texto = logs.join('');
+      const texto = semCamposDoLogger(logs);
       expect(texto).toMatch(/geocodifica/); // o log existe (origem, resultado, precisão)
       expect(texto).toMatch(/"geocodificacao":"cache"/);
       for (const t of TEXTOS_DE_ENDERECO) expect(texto, t).not.toContain(t);
