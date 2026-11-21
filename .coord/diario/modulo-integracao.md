@@ -84,3 +84,4 @@
 2026-11-19 — T-0186 — exemplo do Conector com nf_numero, nf_serie, forma_pagamento (título) e forma_pagamento, nf_origem_* (nota); kit Thathyany regenerado sem duplicar colunas; view piloto do título devolve as 3 colunas como NULL
 2026-11-19 — T-0186 — gerador do kit sem COLUNAS_EXTRAS_VIEW e exemploDoKit (RD-2386); artefatos idênticos
 2026-11-21 — v1.0.18 item 3a — popup do lote: lote que falhou mostra "falhou em dd/mm/aaaa hh:mm" no fuso do tenant (textoDoFimDoLote, teste com virada do dia e do ano)
+2026-11-21 — v1.0.21 S1 — ROTULO_ENTIDADE com fonte única em contracts/entidades.ts; web/lib/apresentacao.ts só reexporta
