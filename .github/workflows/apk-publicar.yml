@@ -7,7 +7,8 @@ name: apk — publicar no bucket privado (link temporário do portal)
 # O android-build.yml não muda: build e publicação são passos separados, e a publicação pede a aprovação do environment.
 #
 # Falha fechada (nada é publicado): versão fora de X.Y.Z, run_id que não é do android-build.yml, execução não concluída
-# com sucesso, artefato ausente ou sem o .apk com o nome esperado.
+# com sucesso, execução fora da tag vX.Y.Z da versão (ou com a tag em outro commit) e fora do main, artefato ausente ou
+# sem o .apk com o nome esperado. A decisão da origem é do scripts/ci/apk-origem.mjs (testado em apk-origem.test.mjs).
 #
 # Segredos: PROD_S3_KEY_ID / PROD_S3_SECRET, que já existem no environment PRODUCAO (bucket macuxi-prod). Nenhum valor vai
 # a log, argumento de processo ou artefato; a CLI imprime só produto, versão, arquivo, tamanho e sha256.
@@ -58,11 +59,15 @@ jobs:
       VERSAO: ${{ inputs.versao }}
       RUN_ID: ${{ inputs.run_id }}
     steps:
+      # checkout antes da conferência (só o código do repositório; nada é instalado antes de a origem valer)
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: conferir versão e execução de origem (antes de instalar qualquer coisa)
         id: origem
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
         run: |
           if ! [[ "$VERSAO" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "::error::versão inválida: use X.Y.Z"; exit 1
@@ -75,17 +80,8 @@ jobs:
             campo | gestao) VARIANTES="$ESCOLHA" ;;
             *) echo "::error::variante inválida"; exit 1 ;;
           esac
-          DADOS=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '[.path,.conclusion,.head_branch]|@tsv')
-          IFS=$'\t' read -r CAMINHO CONCLUSAO RAMO <<< "$DADOS"
-          if [ "$CAMINHO" != ".github/workflows/android-build.yml" ]; then
-            echo "::error::a execução $RUN_ID não é do android-build.yml ($CAMINHO)"; exit 1
-          fi
-          if [ "$CONCLUSAO" != "success" ]; then
-            echo "::error::a execução $RUN_ID não terminou verde ($CONCLUSAO)"; exit 1
-          fi
-          if [ "$RAMO" != "main" ]; then
-            echo "::error::a execução $RUN_ID não é do main ($RAMO)"; exit 1
-          fi
+          # android-build.yml verde, NA tag vX.Y.Z da versão (a tag aponta para o head_sha da execução) ou no main
+          node scripts/ci/apk-origem.mjs
           echo "variantes=$VARIANTES" >> "$GITHUB_OUTPUT"
 
       - name: baixar e conferir os APKs (todos antes de publicar qualquer um)
@@ -104,10 +100,6 @@ jobs:
             echo "$NOME.apk  sha256 $(sha256sum "$DIR/$NOME.apk" | cut -d' ' -f1)  ($(du -h "$DIR/$NOME.apk" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
             echo "$DIR/$NOME.apk" > "$DIR/caminho"
           done
-
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
       - uses: ./.github/actions/preparar
 
