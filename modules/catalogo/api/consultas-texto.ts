@@ -18,6 +18,7 @@ import { buscarParaConsulta, textosParaConsulta } from '../domain/busca-consulta
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { parametrosDoTenant } from '../domain/parametros';
+import { fonteDoProduto, nomesDeVeiculo, type NomesDeVeiculo } from '../domain/veiculos';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 import type { Referencia } from '../contracts';
 
@@ -58,6 +59,30 @@ export const consultaTextosProduto = implementarConsulta(CONSULTA_TEXTOS_PRODUTO
   return { itens: textosParaConsulta(produtos, entrada.produto_ids) };
 });
 
+const MAXIMO_TENANTS_EM_MEMORIA = 64;
+const VEICULOS_DO_TENANT = new Map<string, { versao: string; veiculos: NomesDeVeiculo }>();
+
+/**
+ * RN-CAT-19: nomes de veículo da base ativa inteira do tenant, para a busca (com `produto_ids` ela lê só parte da base; sem ele, a leitura não traz a descrição). A memória é por
+ * tenant e vale enquanto a "versão da carga" (quantos produtos ativos e a última alteração) for a mesma; a versão é uma leitura agregada
+ * barata, e a base só é relida quando ela muda. Sem tenant no contexto (teste), calcula sem guardar.
+ */
+async function veiculosDaBase(db: { query: (sql: string, valores?: unknown[]) => Promise<{ rows: unknown[] }> }, tenant: string | undefined): Promise<NomesDeVeiculo> {
+  const v = await db.query('select count(*)::text as n, coalesce(max(updated_at)::text, \'\') as ate from catalogo.produto_busca where deleted_at is null and ativo');
+  const linha = (v.rows[0] ?? {}) as { n?: string; ate?: string };
+  const versao = `${linha.n ?? ''}|${linha.ate ?? ''}`;
+  const guardado = tenant ? VEICULOS_DO_TENANT.get(tenant) : undefined;
+  if (guardado && guardado.versao === versao) return guardado.veiculos;
+  const r = await db.query('select b.nome, b.aplicacao, c.descricao from catalogo.produto_busca b left join catalogo.produto_conteudo c on c.produto_id = b.produto_id and c.deleted_at is null where b.deleted_at is null and b.ativo');
+  const veiculos = nomesDeVeiculo((r.rows as Array<{ nome: string; aplicacao: string | null; descricao: string | null }>).map(fonteDoProduto));
+  if (tenant) {
+    VEICULOS_DO_TENANT.delete(tenant);
+    VEICULOS_DO_TENANT.set(tenant, { versao, veiculos });
+    if (VEICULOS_DO_TENANT.size > MAXIMO_TENANTS_EM_MEMORIA) VEICULOS_DO_TENANT.delete(VEICULOS_DO_TENANT.keys().next().value!);
+  }
+  return veiculos;
+}
+
 export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
   const r = await ctx.db.query(
     `select produto_id, sku, ean, nome, marca, categoria, atributos, aplicacao, ativo
@@ -91,6 +116,7 @@ export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS
       produtoIds: entrada.produto_ids,
       limite: entrada.limite,
       sinonimos,
+      veiculos: await veiculosDaBase(ctx.db, ctx.usuario?.tenant_id),
       parametros: parametrosDoTenant(ctx.parametros()),
       anoAtual: anoCivilNoFuso(ctx.agora(), ctx.fuso?.()),
     }),
