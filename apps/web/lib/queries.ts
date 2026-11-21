@@ -13,10 +13,12 @@ import {
   logoQueSubstituiAMarca,
   modulosEfetivos,
   ocultarMarcaMacuxiDosParametros,
+  parametrosDosModulos,
   ROTA_AUDITORIA,
   rotaLogoDoAparelho,
   type LogoDoAparelho,
   type ModuloId,
+  type ParametrosModulos,
   type Perfil,
 } from '@macuxi/platform-sdk';
 import { api, apiFetch, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
@@ -66,6 +68,11 @@ export interface ModulosDoUsuario {
    * BKO (Pesquisa, Trade, Treinamento com cadeado). Ausente (servidor anterior): nada aparece desativado.
    */
   contratados?: ModuloId[];
+  /**
+   * D-PAR-04: `modulos[].parametros` do tenant, por módulo, para o `useParametros` das páginas (ambiente do shell,
+   * `lib/ambiente.ts`). Módulo fora da resposta não tem entrada (RN-CORE-02); servidor anterior (404) = `{}`.
+   */
+  parametros: ParametrosModulos;
 }
 
 /**
@@ -86,6 +93,7 @@ export function consultaMeusModulos(perfil: Perfil | null) {
           logo: empresaDosParametros(core)?.logo ?? null,
           ocultarMarcaMacuxi: ocultarMarcaMacuxiDosParametros(core),
           ...(r.modulos_contratados ? { contratados: r.modulos_contratados } : {}),
+          parametros: parametrosDosModulos(r),
         };
       } catch (e) {
         if (!(e instanceof ApiRequestError) || e.status !== 404 || !perfil) throw e;
@@ -98,6 +106,7 @@ export function consultaMeusModulos(perfil: Perfil | null) {
           syncAutoMin: undefined,
           logo: null,
           ocultarMarcaMacuxi: false,
+          parametros: {},
         };
       }
     },
@@ -110,6 +119,7 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
 
 const soIds = (d: ModulosDoUsuario) => d.ids;
 const soContratados = (d: ModulosDoUsuario) => d.contratados;
+const soParametros = (d: ModulosDoUsuario) => d.parametros;
 /** Item 15: a logo do cliente que substitui a do Macuxi no shell; `null` = a do Macuxi (chave desligada ou sem logo). */
 const logoDoShell = (d: ModulosDoUsuario): LogoDoAparelho | null => logoQueSubstituiAMarca(d.ocultarMarcaMacuxi, d.logo);
 const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
@@ -129,6 +139,14 @@ export function useModulosEfetivos(perfil: Perfil | null) {
  */
 export function useModulosContratados(perfil: Perfil | null): ModuloId[] | undefined {
   return useMeusModulos(perfil, soContratados).data;
+}
+
+/**
+ * D-PAR-04: parâmetros do tenant por módulo (`modulos[].parametros` de `GET /v1/me/modulos`, mesma consulta dos efetivos,
+ * sem segunda chamada: RD-0700); `undefined` enquanto carrega.
+ */
+export function useParametrosDosModulos(perfil: Perfil | null): ModulosDoUsuario['parametros'] | undefined {
+  return useMeusModulos(perfil, soParametros).data;
 }
 
 /**

@@ -7,8 +7,18 @@
  * T-0182: `logoDaEmpresa` (PDF de pedido e orçamento) converte a logo da empresa da sessão em data URI. Os bytes vêm de quem
  * chama (`lerLogo`): o shell lê o cache de `qk.modulos` e de `consultaLogoDaEmpresa` (`lib/queries.ts`), sem um segundo
  * `GET /v1/me/modulos` (RD-0700) nem um segundo download da logo (RD-1325).
+ * D-PAR-04: `parametros(modulo)` (o `useParametros` das páginas) lê o mapa que quem chama passa: o shell passa os
+ * `modulos[].parametros` da mesma consulta `qk.modulos`; módulo sem entrada (ou carregando) = `SEM_PARAMETROS`.
  */
-import { criarClienteHttp, ErroHttp, ErroSemConexao, type AmbienteAparelho, type UsuarioAmbiente } from '@macuxi/platform-sdk';
+import {
+  criarClienteHttp,
+  ErroHttp,
+  ErroSemConexao,
+  leitorDeParametros,
+  type AmbienteAparelho,
+  type ParametrosModulos,
+  type UsuarioAmbiente,
+} from '@macuxi/platform-sdk';
 import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
 
 /** `Blob` → data URI (`data:image/png;base64,…`), o formato que o PDF embute. */
@@ -31,7 +41,11 @@ export async function logoDaEmpresaWeb(lerLogo: () => Promise<Blob | null>): Pro
   }
 }
 
-export function criarAmbienteWeb(usuario: () => UsuarioAmbiente | null, lerLogo: () => Promise<Blob | null>): AmbienteAparelho {
+export function criarAmbienteWeb(
+  usuario: () => UsuarioAmbiente | null,
+  lerLogo: () => Promise<Blob | null>,
+  parametros: ParametrosModulos | undefined,
+): AmbienteAparelho {
   const online = () => typeof navigator === 'undefined' || navigator.onLine !== false;
   const http = criarClienteHttp(
     async <T,>(metodo: string, caminho: string, opcoes: { query?: Record<string, string | number | boolean | undefined | null>; body?: unknown }) => {
@@ -48,5 +62,5 @@ export function criarAmbienteWeb(usuario: () => UsuarioAmbiente | null, lerLogo:
     },
     { online },
   );
-  return { http, online, novoId: () => crypto.randomUUID(), usuario, logoDaEmpresa: () => logoDaEmpresaWeb(lerLogo) };
+  return { http, online, novoId: () => crypto.randomUUID(), usuario, parametros: leitorDeParametros(parametros), logoDaEmpresa: () => logoDaEmpresaWeb(lerLogo) };
 }

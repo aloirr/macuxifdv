@@ -39,6 +39,7 @@ vi.mock('@/lib/queries', () => ({
   useMe: () => ({ data: undefined, isError: false }),
   useModulosEfetivos: () => estado.modulos,
   useModulosContratados: () => undefined,
+  useParametrosDosModulos: () => undefined,
   useLogoQueSubstituiAMarca: () => null,
 }));
 vi.mock('@/lib/session', () => ({
