@@ -198,3 +198,4 @@
 2026-11-20 — v1.0.17 Campo — Início sem 'Não é dia útil' e saudação com ponto, Rota, Clientes (busca na folha, sem chip), Módulos sem o Core, gestor imediato na sessão, linhasDoPerfil
 2026-11-20 — v1.0.17 Campo (r2) — achados do corretor e da marca: hierarquia lida num lugar só, regra única de superior imediato, TabelaDados em Módulos, selo/etiquetas da carteira no domain
 2026-11-20 — v1.0.17 Campo (r4) — busca de Clientes volta à tela (código, CNPJ com/sem máscara, razão social, fantasia); selo e etiquetas da busca saem do domain; sem textos de sincronização no core
+2026-11-21 — T-0189 — Início do BKO: domain inicio-bko (RN-CORE-64/65/66), GET /v1/core/inicio-bko, parâmetro integracao.horario_carga, InicioBkoPage e painel do horário da carga

@@ -496,6 +496,7 @@ export * from './enderecos';
 export * from './usuarios';
 export * from './inicio';
 export * from './inicio-parametros';
+export * from './inicio-bko';
 export * from './jornada';
 export * from './alertas-produtividade';
 export * from './curvas-abc';

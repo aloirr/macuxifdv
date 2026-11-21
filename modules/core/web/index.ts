@@ -28,6 +28,8 @@ import { FarolParametrosPanel } from './components/farol/farol-parametros-panel'
 import { FrasesDoDiaPanel } from './components/frases-do-dia/frases-do-dia-panel';
 import { PromotorPedidosPanel } from './components/licencas/promotor-pedidos-panel';
 import { CheckoutPendenciaPanel } from './components/metas/checkout-pendencia-panel';
+import { InicioBkoPage } from './components/inicio/inicio-bko-page';
+import { HorarioCargaPanel } from './components/inicio/horario-carga-panel';
 import { InicioParametrosPanel } from './components/metas/inicio-parametros-panel';
 import { DescontoPadraoPanel } from './components/produtos/desconto-padrao-panel';
 import { MedidasParametrosPanel } from './components/produtos/medidas-parametros-panel';
@@ -36,6 +38,9 @@ import { DocumentosPermissoesPanel } from './components/documentos/permissoes-pa
 import { AusenciasPanel } from './components/rastreamento/ausencias-panel';
 import { RastreamentoParametrosPanel } from './components/rastreamento/rastreamento-parametros-panel';
 import { RoutesPage } from './components/routes/routes-page';
+
+/** T-0189 (RN-CORE-64): o Início do BKO; o shell o monta em `/`. */
+export { InicioBkoPage };
 
 /** A página de rotas lê filtros da URL (`useSearchParams`), que no Next exige Suspense. */
 const RotasPagina: ComponentType = () => createElement(Suspense, null, createElement(RoutesPage));
@@ -61,6 +66,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'documentos-permissoes', secao: 'clientes', titulo: 'Quem vê cada tipo de documento', ordem: 30, acao: 'documento.permissoes', componente: DocumentosPermissoesPanel },
     { id: 'documentos-excecoes', secao: 'clientes', titulo: 'Exceções por documento', ordem: 40, acao: 'documento.permissoes', componente: DocumentosExcecoesPanel },
     { id: 'inicio', secao: 'inicio', titulo: 'Dias úteis', ordem: 10, acao: 'parametro.inicio', componente: InicioParametrosPanel },
+    { id: 'horario-carga', secao: 'inicio', titulo: 'Horário da carga do ERP', ordem: 15, acao: 'parametro.inicio', componente: HorarioCargaPanel },
     { id: 'frases-do-dia', secao: 'inicio', titulo: 'Frases do dia', ordem: 20, acao: 'frase_dia.editar', componente: FrasesDoDiaPanel },
     { id: 'etapa-pendente', secao: 'visitas', titulo: 'Etapa pendente', ordem: 50, acao: 'parametro.checkout_pendencia', componente: CheckoutPendenciaPanel },
     { id: 'calendario', secao: 'calendario', titulo: 'Feriados', ordem: 10, acao: 'parametro.inicio', componente: CalendarioPage },
