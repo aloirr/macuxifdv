@@ -131,3 +131,4 @@
 2026-11-16 — #477 e6167d93 LIBERADO.
 2026-11-16 — #420 8d465f37 e #396 e4b64ccd LIBERADOS (RD-1560 fechado).
 2026-11-17 — v1.0.14 rodada 62 (Cline) — #483, #420, #396, #412, #486, #478, #479, #480, #481, #482, #414, #416, #415, #485 e #488 LIBERADOS no SHA; RD-1582, RD-1583, RD-1584, RD-2170 a RD-2219 fechadas; #487 fechado sem merge com o #384.
+2026-11-21 — v1.0.18 tarefa 15 (R-20261120-142546) — catálogo: RD-1319a/b, RD-1320a/b, RD-1321 a RD-1332 (6 com "texto não localizado": 1327 a 1332), RD-1988, RD-1989a/b; linhas `reservado` nas lacunas e nota de numeração (RD-0040 e os outros 9 citados: sem repetição). Caixa 403.
