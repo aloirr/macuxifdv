@@ -456,6 +456,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CAT-20 Modelo derivado e vizinhas juntas** (v1.0.20; mesmas decisões, auditoria §2 item 4, etapa 4)
   - **Modelo derivado:** o nome de veículo (RN-CAT-19) também casa a palavra grudada da qual ele é o começo ou o fim, quando o outro pedaço tem 3 ou mais caracteres e o próprio nome também. Assim "fox" acha Fox, CrossFox e SpaceFox, e "gol" continua sem achar Golf, porque "f" tem menos de 3 caracteres.
   - **Vizinhas juntas no texto:** duas palavras vizinhas da busca, coladas, também casam a palavra grudada do texto e da aplicação. Assim "space fox" acha SpaceFox e "Space Fox".
+- **RN-CAT-21 Vitrine do aparelho por página** (v1.0.20; T-0192, R-20261121-122841) A vitrine do aparelho sem busca, fora do pedido, ordena por estoque, vendas e campanha e carrega só a página exibida; a ordem, o total e a paginação são os mesmos da vitrine inteira.
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.
