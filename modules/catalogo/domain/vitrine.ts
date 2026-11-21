@@ -110,24 +110,35 @@ export function itemDaVitrine(p: ProdutoCatalogo, ctx: ContextoVitrine): ItemVit
  * faixa basta (disponível/baixo = tem estoque).
  */
 export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine | null): DocBusca {
-  const estoque = estoqueDeBusca(item);
+  return {
+    ...docBase(p),
+    descricao: p.descricao ?? null,
+    atributos: p.atributos.map((x) => `${x.name} ${x.value}`).join(' '),
+    aplicacao: p.aplicacao ?? '',
+    estoque: estoqueDeBusca(item),
+    preco_cents: item?.price?.price_cents ?? null,
+  };
+}
+
+/** Campos do documento do ranking que não dependem de preço, estoque nem texto longo (comuns à busca e à vitrine leve). */
+export function docBase(p: ProdutoCatalogo): DocBusca {
   return {
     id: p.id,
     sku: p.sku,
     ean: p.ean,
     external_id: p.external_id ?? null,
     ativo: p.ativo,
-    descricao: p.descricao ?? null,
+    descricao: null,
     nome: p.nome,
     marca: p.marca,
     categoria: p.categoria,
-    atributos: p.atributos.map((x) => `${x.name} ${x.value}`).join(' '),
-    aplicacao: p.aplicacao ?? '',
+    atributos: '',
+    aplicacao: '',
     referencias: p.referencias ?? [],
-    estoque,
+    estoque: 0,
     vendas: p.vendas,
     campanha: p.campanha,
-    preco_cents: item?.price?.price_cents ?? null,
+    preco_cents: null,
     // T-0119: termos preparados na carga do índice (a busca do servidor não normaliza o produto de novo a cada consulta)
     tokens: TOKENS_DO_PRODUTO.get(p),
   };
@@ -228,15 +239,21 @@ export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
   const anoAtual = e.anoAtual ?? anoCivilNoFuso(ctx.agora, e.fuso);
   const veiculos = e.veiculos ?? veiculosDe(e.produtos);
   const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, anoAtual, veiculos, ...(e.semantica ? { semantica: e.semantica } : {}), ...(e.maxVendas !== undefined ? { maxVendas: e.maxVendas } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
-  const limit = Math.max(1, Math.trunc(e.limit));
-  const offset = Math.max(0, Math.trunc(e.offset));
+  const pag = paginaDaOrdem(ranking, e.limit, e.offset);
   const grupos = expandirSinonimos(filtros.text, e.sinonimos);
-  const pagina = ranking.slice(offset, offset + limit).map((r) => {
+  const pagina = pag.itens.map((r) => {
     const serveEm = r.doc.aplicacao === '' ? null : trechoServeEm(r.doc.aplicacao, grupos, { anoAtual, veiculos });
     const equivale = r.referencia_casada === null ? null : equivaleA(r.doc.referencias[r.referencia_casada]);
     return { ...itens.get(r.doc.id)!, score: r.nota, ...(serveEm ? { serve_em: serveEm } : {}), ...(equivale ? { equivale_a: equivale } : {}) };
   });
-  return { items: pagina, total: ranking.length, next_offset: offset + limit < ranking.length ? offset + limit : null };
+  return { items: pagina, total: pag.total, next_offset: pag.next_offset };
+}
+
+/** Corta a página (limit/offset) de uma lista já ordenada; serve à busca, à vitrine e à ordem guardada do app. */
+export function paginaDaOrdem<T>(ordem: readonly T[], limit: number, offset: number): { itens: T[]; total: number; next_offset: number | null } {
+  const n = Math.max(1, Math.trunc(limit));
+  const o = Math.max(0, Math.trunc(offset));
+  return { itens: ordem.slice(o, o + n), total: ordem.length, next_offset: o + n < ordem.length ? o + n : null };
 }
 
 /** RN-CAT-09: 'Equivale a: <marca> <código>' com o código marcado. */
@@ -246,7 +263,7 @@ export function equivaleA(ref: Referencia | undefined): EquivaleA | null {
   return { ...ref, marcas: [[ini, ini + ref.codigo.length]] };
 }
 
-const SEM_FILTRO: FiltrosInterpretados = { text: '', brand: null, line: null, min_price_cents: null, max_price_cents: null, stock: null, code: null, measures: [], sort: null };
+export const SEM_FILTRO: FiltrosInterpretados = { text: '', brand: null, line: null, min_price_cents: null, max_price_cents: null, stock: null, code: null, measures: [], sort: null };
 
 /** Vitrine sem texto (RF-CAT-01): filtros dos chips; ordenam os boosts (RN-CAT-08) e desempata o nome. */
 export function listarVitrine(e: Omit<EntradaBuscaProdutos, 'filtros' | 'semantica'>): PaginaProdutos {

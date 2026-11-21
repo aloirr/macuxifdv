@@ -36,8 +36,9 @@ import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
 import { nomeDaFilialOuCodigo } from '../../domain/estoque';
 import { filiaisDaFolha, filiaisDoEstoque, lerFiliaisDoUsuario, type FiliaisDoUsuario, type FiltroFilial } from '../../domain/estoque-campo';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
-import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
+import { buscarProdutos, itemDaVitrine, listarVitrine, paginaDaOrdem, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
 import { paresColados } from '../../domain/ranking';
+import { ordemDaVitrine } from '../../domain/vitrine-pagina';
 import { definirVeiculos, fonteDoProduto, NomesDeVeiculo, nomesDeVeiculo, veiculosDe } from '../../domain/veiculos';
 
 /** Id do índice FTS5 do Catálogo no aparelho (`app/indice.ts`). */
@@ -80,11 +81,12 @@ export interface LeitorLocal {
  * Memória de uma posição, chaveada pela versão das linhas (`versaoLinhas`, única no processo: outro motor ou outro
  * usuário = outra versão). Guarda só o derivado (o SDK não guarda linhas; ADR 0003). Sem `versaoLinhas`, não memoriza.
  */
+const chaveDasVersoes = (leitor: LeitorLocal, entidades: readonly string[]): string => entidades.map((e) => leitor.versaoLinhas!(e)).join('|');
 function memorizar<T>(posicao: Map<string, { chave: string; valor: T }>, nome: string, leitor: LeitorLocal, entidades: readonly string[]) {
   return async (calcular: () => Promise<T>): Promise<T> => {
     if (!leitor.versaoLinhas) return calcular();
     // a versão é lida ANTES das linhas: se o sync gravar durante a leitura, a próxima busca relê
-    const chave = entidades.map((e) => leitor.versaoLinhas!(e)).join('|');
+    const chave = chaveDasVersoes(leitor, entidades);
     const guardado = posicao.get(nome);
     if (guardado && guardado.chave === chave) return guardado.valor;
     const valor = await calcular();
@@ -95,12 +97,19 @@ function memorizar<T>(posicao: Map<string, { chave: string; valor: T }>, nome: s
 const memoria = new Map<string, { chave: string; valor: unknown }>();
 const lembrar = <T>(nome: string, leitor: LeitorLocal, entidades: readonly string[], calcular: () => Promise<T>) =>
   memorizar(memoria as Map<string, { chave: string; valor: T }>, nome, leitor, entidades)(calcular);
+/** O derivado já memorizado e ainda válido (mesma versão das linhas), sem calcular; `undefined` se não há. */
+function lembrado<T>(nome: string, leitor: LeitorLocal, entidades: readonly string[]): T | undefined {
+  if (!leitor.versaoLinhas) return undefined;
+  const guardado = memoria.get(nome);
+  return guardado && guardado.chave === chaveDasVersoes(leitor, entidades) ? (guardado.valor as T) : undefined;
+}
 /** Só para testes: esquece o que foi memorizado. */
 export function esquecerMemoriaLocal(): void {
   memoria.clear();
   aplicacoesLidas.clear();
   versaoAplicacoesLidas = '';
   vocabularios = new WeakMap();
+  ordemGuardada = null;
 }
 let vocabularios = new WeakMap<readonly ProdutoCatalogo[], ReturnType<typeof vocabularioDe>>();
 export const vocabularioMemorizado = (produtos: readonly ProdutoCatalogo[]) => {
@@ -136,6 +145,8 @@ async function filialLocalDoCliente(leitor: LeitorLocal, clienteId: string): Pro
   return filialDoClienteLocal(cliente?.filial_id, filiais);
 }
 
+const SALDOS_DE_TODOS = 'saldosDeTodos';
+const ENTIDADES_DOS_SALDOS = ['estoque_saldo', 'deposito', 'filial'] as const;
 /** Filiais em que cada tabela de preço tem item vivo, memorizado por versão do sync (RN-CORE-39: base do fallback por tabela). */
 function filiaisPorTabela(leitor: LeitorLocal): Promise<Map<string, Set<string>>> {
   return lembrar('filiaisPorTabela', leitor, ['tabela_preco_item'], async () => {
@@ -293,18 +304,43 @@ export function sinonimosLocais(leitor: LeitorLocal): Promise<SinonimoDoTenant[]
 /** Acima disto (ex.: a vitrine inteira) ler tudo é mais barato que pedir por campo. */
 const MAXIMO_POR_CAMPO = 1000;
 
+/** Saldos por produto; o saldo é da FILIAL do depósito (RN-CORE-39: o domain soma os depósitos da mesma filial); depósito sem filial (pull antigo) fica como estava. */
+function saldosPorProduto(depositos: ReadonlyMap<string, { nome: string; filial: string | null }>, nomesFilial: Readonly<Record<string, string>>, linhas: readonly EstoqueSaldoSync[]): Map<string, StockByBranch[]> {
+  const saldos = new Map<string, StockByBranch[]>();
+  for (const s of linhas) {
+    const l = saldos.get(s.produto_id) ?? [];
+    const dep = depositos.get(s.deposito_id);
+    const filial = dep?.filial ?? s.deposito_id;
+    l.push({ branch_id: filial, branch_name: nomeDaFilialOuCodigo(filial, (dep?.filial && nomesFilial[dep.filial]) || dep?.nome), quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
+    saldos.set(s.produto_id, l);
+  }
+  return saldos;
+}
+
+/** RN-CAT-21: com o mapa de estoque de todos já guardado, a página usa a parte dos seus ids (não lê o estoque de novo). */
+function saldosDaPagina(todos: Map<string, StockByBranch[]> | undefined, produtos: readonly ProdutoCatalogo[]): Map<string, StockByBranch[]> | undefined {
+  if (!todos) return undefined;
+  const parte = new Map<string, StockByBranch[]>();
+  for (const p of produtos) {
+    const l = todos.get(p.id);
+    if (l) parte.set(p.id, l);
+  }
+  return parte;
+}
+
 /**
  * Preço e estoque locais do usuário. RN-CAT-05: o aparelho do promotor nem recebe preço (o pull devolve vazio); mesmo
  * assim, sem a permissão nada é lido. RN-CAT-06: tabela = a viva e ativa do cliente, sem cair em outra.
  */
-export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produtos: readonly ProdutoCatalogo[]): Promise<ContextoVitrine> {
+export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produtos: readonly ProdutoCatalogo[], opcoes: { soEstoque?: boolean } = {}): Promise<ContextoVitrine> {
   const parametros = parametrosDoTenant(e.parametros);
   // sem usuário logado não há perfil para liberar preço (falha fechada): trata como promotor
   const perfil: Perfil = e.perfil ?? 'promotor';
   const base = { perfil, parametros, agora: e.agora, clienteId: e.clienteId };
   if (e.perfil === null) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [], filiaisFolha: [] };
   // RN-CAT-05 (revista): promotor sem direito ao preço lê o estoque, nunca o preço (as linhas de preço nem chegam ao aparelho)
-  const lePreco = podeVerPrecoEstoque(perfil, parametros);
+  // RN-CAT-21: a ordem da vitrine só usa o estoque; com `soEstoque` o preço nem é lido (o cartão da página lê o seu depois)
+  const lePreco = podeVerPrecoEstoque(perfil, parametros) && !opcoes.soEstoque;
 
   // só os candidatos (busca com FTS5) leem por campo; a vitrine inteira lê tudo (T-0052-B4)
   const porCampo = !!leitor.linhasPorCampo && produtos.length <= MAXIMO_POR_CAMPO;
@@ -345,18 +381,10 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
   const depositos = await lembrar('depositos', leitor, ['deposito'], async () => new Map(vivas(await leitor.linhas<DepositoSync & LinhaSync>('deposito')).map((d) => [d.id, { nome: d.nome, filial: d.filial_id ?? null }])));
   // nome da filial no rótulo do estoque (RN-CORE-39); sem as filiais no aparelho, o do depósito
   const nomesFilial: Readonly<Record<string, string>> = filialDoCliente?.nomes ?? (await lembrar('nomesFilial', leitor, ['filial'], async () => Object.fromEntries(vivas(await leitor.linhas<FilialSync & LinhaSync>('filial')).map((f) => [f.id, f.nome]))));
-  const saldos = new Map<string, StockByBranch[]>();
-  const linhasSaldo = porCampo
-    ? await leitor.linhasPorCampo!<EstoqueSaldoSync & LinhaSync>('estoque_saldo', 'produto_id', produtos.map((p) => p.id))
-    : await leitor.linhas<EstoqueSaldoSync & LinhaSync>('estoque_saldo');
-  for (const s of vivas(linhasSaldo)) {
-    const l = saldos.get(s.produto_id) ?? [];
-    const dep = depositos.get(s.deposito_id);
-    // RN-CORE-39: o saldo é da FILIAL do depósito (o domain soma os depósitos da mesma filial); depósito sem filial (pull antigo) fica como estava
-    const filial = dep?.filial ?? s.deposito_id;
-    l.push({ branch_id: filial, branch_name: nomeDaFilialOuCodigo(filial, (dep?.filial && nomesFilial[dep.filial]) || dep?.nome), quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
-    saldos.set(s.produto_id, l);
-  }
+  const saldos = opcoes.soEstoque
+    ? await lembrar(SALDOS_DE_TODOS, leitor, ENTIDADES_DOS_SALDOS, async () => saldosPorProduto(depositos, nomesFilial, vivas(await leitor.linhas<EstoqueSaldoSync & LinhaSync>('estoque_saldo'))))
+    : saldosDaPagina(lembrado<Map<string, StockByBranch[]>>(SALDOS_DE_TODOS, leitor, ENTIDADES_DOS_SALDOS), produtos) ??
+      saldosPorProduto(depositos, nomesFilial, vivas(porCampo ? await leitor.linhasPorCampo!<EstoqueSaldoSync & LinhaSync>('estoque_saldo', 'produto_id', produtos.map((p) => p.id)) : await leitor.linhas<EstoqueSaldoSync & LinhaSync>('estoque_saldo')));
   // o pull de estoque já vem filtrado pelas filiais da carteira (escopo do servidor, RN-CORE-39). Com cliente no contexto vale só a filial
   // dele (sem saldo nela = 0); sem cliente, todas as recebidas. A filial do cliente também vale sem tabela de preço.
   if (e.clienteId && !filialDoCliente) filialDoCliente = await filialLocalDoCliente(leitor, e.clienteId);
@@ -527,11 +555,36 @@ export async function buscarLocal(leitor: LeitorLocal, e: EntradaLocal & { q: st
   return { ...pagina, aviso: e.offline && e.q.trim() !== '' ? AVISO_BUSCA_OFFLINE : null, indexando: sinal.indexando };
 }
 
-/** Vitrine no aparelho (sem texto). */
+/** Ordem da vitrine guardada (RN-CAT-21): "Mostrar mais" só corta a página de novo; muda quando muda o sync, o usuário, o cliente ou os filtros. */
+const produtosPorId = new WeakMap<readonly ProdutoCatalogo[], Map<string, ProdutoCatalogo>>();
+let ordemGuardada: { chave: string; ordem: string[] } | null = null;
+const ENTIDADES_DA_ORDEM = ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia', 'marca_concorrente', ...ENTIDADES_DOS_SALDOS, 'usuario', 'cliente'] as const;
+function chaveDaOrdem(leitor: LeitorLocal, e: EntradaLocal & { chips?: ChipsVitrine }): string | null {
+  if (!leitor.versaoLinhas) return null;
+  const c = e.chips ?? {};
+  return JSON.stringify([chaveDasVersoes(leitor, ENTIDADES_DA_ORDEM), e.perfil, e.parametros, e.clienteId, e.usuarioId ?? null, e.filtroFilial ?? null, c.line ?? null, c.brand ?? null, c.only_in_stock ?? false, c.campaign ?? false, c.only_product_ids ? [...c.only_product_ids].join(',') : null, e.fuso ?? null, e.agora.slice(0, 4)]);
+}
+
+/**
+ * Vitrine no aparelho (sem texto). RN-CAT-21: a ordem sai de documentos leves (estoque, vendas, campanha) e só os cartões da página leem
+ * preço (tabela do cliente ou da filial padrão, RN-VEN-01) e estoque por IN (ids). Dentro do pedido (`only_sellable`) o preço decide quem entra:
+ * o caminho completo continua valendo.
+ */
 export async function vitrineLocal(leitor: LeitorLocal, e: EntradaLocal & { chips?: ChipsVitrine; limit: number; offset: number }): Promise<PaginaProdutos> {
   const produtos = await produtosLocais(leitor);
-  const contexto = await contextoLocal(leitor, e, produtos);
-  return listarVitrine({ produtos, contexto, chips: e.chips ?? {}, sinonimos: [], limit: e.limit, offset: e.offset });
+  if (e.chips?.only_sellable) return listarVitrine({ produtos, contexto: await contextoLocal(leitor, e, produtos), chips: e.chips, sinonimos: [], limit: e.limit, offset: e.offset });
+  const chave = chaveDaOrdem(leitor, e);
+  let ordem = chave !== null && ordemGuardada?.chave === chave ? ordemGuardada.ordem : null;
+  if (!ordem) {
+    ordem = ordemDaVitrine({ produtos, contexto: await contextoLocal(leitor, e, produtos, { soEstoque: true }), chips: e.chips ?? {}, ...(e.fuso ? { fuso: e.fuso } : {}) });
+    ordemGuardada = chave === null ? null : { chave, ordem };
+  }
+  const pag = paginaDaOrdem(ordem, e.limit, e.offset);
+  let porId = produtosPorId.get(produtos);
+  if (!porId) produtosPorId.set(produtos, (porId = new Map(produtos.map((p) => [p.id, p] as const))));
+  const daPagina = pag.itens.flatMap((id) => porId.get(id) ?? []);
+  const contexto = await contextoLocal(leitor, e, daPagina);
+  return { items: daPagina.map((p) => itemDaVitrine(p, contexto)), total: pag.total, next_offset: pag.next_offset };
 }
 
 /** Marcas e categorias locais (chips). */

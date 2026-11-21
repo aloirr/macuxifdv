@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { montarArvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from './grade';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, reaproveitarItens, rotuloAcessivelDoCartao, tagDeEstoque } from './grade';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 const no = (id: string, pai: string | null, nivel: number, nome: string): NoCatalogo => ({ id, pai_id: pai, nivel, codigo: id, nome, ordem: 0, ativo: true });
@@ -74,5 +74,16 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(precoDoCartao(null)).toBeNull();
     expect(precoDoCartao({ texto: 'R$ 4,95', riscado: null, vendavel: true })).toBe('R$ 4,95');
     expect(precoDoCartao({ texto: 'Fora da tabela do cliente', riscado: null, vendavel: false })).toBe(MENSAGEM_SEM_PRECO_CATALOGO);
+  });
+});
+
+describe('RN-CAT-21: Mostrar mais reaproveita o item que não mudou', () => {
+  const item = (id: string, cents: number) => ({ id, price: { price_cents: cents } }) as never;
+  it('RN-CAT-21: mesmo conteúdo mantém o objeto antigo e o que mudou vem novo', () => {
+    const a = [item('1', 100), item('2', 200)];
+    const r = reaproveitarItens(a, [item('1', 100), item('2', 250), item('3', 300)]);
+    expect(r[0]).toBe(a[0]);
+    expect(r[1]).not.toBe(a[1]);
+    expect(r).toHaveLength(3);
   });
 });
