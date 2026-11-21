@@ -4,7 +4,7 @@
  *
  * O banco-dados confere as LINHAS do seed em db/testes/seed-demo.test.ts; aqui o que o dono do produto vai ver na demo, pela
  * API, com os logins da demo:
- *  D-1 (T-0084 c3/c9): "pastilha uno 2012" acha a PST-D01 com "Serve em" (inclui 2012); "pastilha uno 2015" a traz como a mais próxima (R-20261120-103142);
+ *  D-1 (T-0084 c3/c9): "pastilha uno 2012" acha a PST-D01 com "Serve em" (inclui 2012); "pastilha uno 2015" dá lista vazia (R-20261120-194335);
  *      "filtro gol 2014" acha o FOL-G01; "filtro volkswagen gol" (sinônimo VW) também.
  *  D-2 (T-0084 c9): aplicação em parte das autopeças (30% a 50%), o texto acima de 300 caracteres (LAM-H4, retrato do
  *      orçamento com "…") e o "a partir de 2018"; produtos fora das autopeças sem aplicação (controle).
@@ -49,18 +49,15 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
     await api?.fechar();
   });
 
-  it('D-1 (RN-CAT-12 + R-20261120-103142): "pastilha uno 2012" acha a PST-D01 com "Serve em" (inclui 2012); "2015" (ninguém casa tudo) traz a PST-D01 como a mais próxima, sem "inclui 2015" no Uno; "filtro gol 2014" e "filtro volkswagen gol" acham o FOL-G01', async () => {
+  it('D-1 (RN-CAT-12 + R-20261120-194335): "pastilha uno 2012" acha a PST-D01 com "Serve em" (inclui 2012); "2015" (ninguém casa tudo) dá lista vazia; "filtro gol 2014" e "filtro volkswagen gol" acham o FOL-G01', async () => {
     const uno = await itens(tk.vendedor, 'pastilha uno 2012');
     const pst = uno.find((i) => i.erp_code === 'PST-D01');
     expect(pst, JSON.stringify(uno.map((i) => i.erp_code))).toBeTruthy();
     expect(pst!.serve_em).toMatchObject({ inclui_ano: 2012 });
     expect(pst!.serve_em!.texto).toContain('Uno');
     expect(pst!.serve_em!.texto.length).toBeLessThanOrEqual(90);
-    // R-20261120-103142: o 2015 está fora do Uno 2010–2014 (e o Palio 2012–2016 é outro trecho, T-0084-A4): ninguém casa as 3 palavras
-    // e a PST-D01 vem como a mais próxima, em vez de lista vazia
-    const fora = await itens(tk.vendedor, 'pastilha uno 2015');
-    expect(fora[0]?.erp_code, JSON.stringify(fora.map((i) => [i.erp_code, i.serve_em]))).toBe('PST-D01');
-    expect(fora[0]!.serve_em?.inclui_ano ?? null, '2015 fora do Uno 2010–2014: sem "inclui 2015"').not.toBe(2015);
+    // o 2015 está fora do Uno 2010–2014 (e o Palio 2012–2016 é outro trecho, T-0084-A4): ninguém casa as 3 palavras
+    expect((await itens(tk.vendedor, 'pastilha uno 2015')).map((i) => i.erp_code)).toEqual([]);
     const gol = await itens(tk.vendedor, 'filtro gol 2014');
     expect(gol[0]?.erp_code, JSON.stringify(gol.map((i) => i.erp_code))).toBe('FOL-G01');
     expect(gol[0]!.serve_em).toMatchObject({ inclui_ano: 2014 });
