@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TrilhaSyncLinha } from '../../contracts';
 import { resolverParametros, type EstadoDoAluno } from '../../domain';
-import { licaoNaTela, mapaDaTrilha, marcarAlternativa, mostraHoraDaSincronizacao, questoesDaTela, trilhasComTitulo } from './telas';
+import { avisoSemSinal, licaoNaTela, mapaDaTrilha, marcarAlternativa, mostraHoraDaSincronizacao, questoesDaTela, trilhasComTitulo } from './telas';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const MARCO = '2026-11-01T12:00:00Z';
@@ -207,5 +207,15 @@ describe('mostraHoraDaSincronizacao (R-20261120-055304 item 6)', () => {
     expect(mostraHoraDaSincronizacao('promotor')).toBe(false);
     expect(mostraHoraDaSincronizacao('supervisor')).toBe(true);
     expect(mostraHoraDaSincronizacao('gerente')).toBe(true);
+  });
+});
+
+describe('avisoSemSinal (R-20261120-142546 item 8, RN-VEN-42)', () => {
+  it('RN-VEN-42: sem sinal no Campo mostra um aviso só, com a ação; com sinal não mostra nada', () => {
+    expect(avisoSemSinal(true, false)).toBe('Sem sinal: faça as lições que já estão no aparelho.');
+    expect(avisoSemSinal(false, false)).toBeNull();
+  });
+  it('no Gestão o selo do cabeçalho já mostra "sem sinal", então não repete o aviso', () => {
+    expect(avisoSemSinal(true, true)).toBeNull();
   });
 });

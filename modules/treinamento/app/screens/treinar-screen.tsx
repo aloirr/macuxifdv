@@ -20,7 +20,7 @@ import {
 } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { rotuloDoPrazo } from '../lib/estado';
-import type { TrilhaDaLista } from '../lib/telas';
+import { avisoSemSinal, type TrilhaDaLista } from '../lib/telas';
 import { irParaLicao, irParaRanking, irParaTrilha } from '../rotas';
 import { useTreinamento } from '../state/use-treinamento';
 
@@ -28,6 +28,7 @@ export default function TreinarScreen() {
   const tr = useTreinamento();
   const { jornada } = tr;
   const nivel = jornada.nivel;
+  const aviso = avisoSemSinal(tr.offline, tr.mostraHora);
   // Um só botão principal na tela: o da primeira trilha com lição a fazer (a lista já vem com obrigatórias antes).
   const destaque = tr.listaDeTrilhas.find((x) => x.proxima_licao_id)?.trilha_id ?? null;
 
@@ -55,6 +56,7 @@ export default function TreinarScreen() {
           />
         ) : undefined,
       }}>
+      {aviso ? <Banner testID="treinar-sem-sinal">{aviso}</Banner> : null}
       {tr.recusadas.length > 0 ? (
         <Banner testID="treinar-recusadas" tone="danger" icon="alert">
           <Strong>
