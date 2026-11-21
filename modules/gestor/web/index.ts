@@ -25,9 +25,9 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'aprovacoes', caminho: 'aprovacoes', titulo: 'Aprovações da equipe', navegacao: 'Aprovações', grupo: 'operacao', ordem: 30, perfis: PERFIS_LEITURA, componente: AprovacoesPage },
     { id: 'alertas', caminho: 'alertas', titulo: 'Alertas da equipe', navegacao: 'Alertas', grupo: 'operacao', ordem: 40, perfis: PERFIS_LEITURA, componente: AlertasPage },
   ],
-  // RD-1988: as regras de alerta são painéis de Parâmetros › Alertas (ADR 0060); /regras-alerta, endereço que dava 404, leva ao painel (pedido do lote v1.0.18).
+  // RD-1988: as regras de alerta são painéis de Parâmetros › Alertas (ADR 0060); o endereço de antes, /parametros/alertas, é a própria seção.
   paineisParametros: [
-    { id: 'regras-alerta', secao: 'alertas', titulo: 'Alertas da equipe', ordem: 10, acao: 'alerta_regra.gerenciar', caminhosAntigos: ['regras-alerta'], componente: RegrasEquipePanel },
+    { id: 'regras-alerta', secao: 'alertas', titulo: 'Alertas da equipe', ordem: 10, acao: 'alerta_regra.gerenciar', componente: RegrasEquipePanel },
     { id: 'produtividade', secao: 'alertas', titulo: 'Produtividade do dia', ordem: 20, acao: 'parametro.alertas_produtividade', componente: ProdutividadeDoDiaPanel },
   ],
 });

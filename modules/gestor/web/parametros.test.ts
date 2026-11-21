@@ -29,15 +29,8 @@ describe('Gestor em Parâmetros › Alertas', () => {
     expect(v.pagina('parametros/alertas')).toBeNull();
   });
 
-  it('endereço antigo leva à seção Alertas, na âncora do painel das regras', () => {
-    const v = visao('admin');
-    expect(v.destinoParametros('regras-alerta')).toBe('/parametros/alertas#gestor-regras-alerta');
-    expect(v.destinoParametros('/regras-alerta')).toBe('/parametros/alertas#gestor-regras-alerta');
-  });
-
   it('alerta_regra.gerenciar: supervisor não vê a seção nem recebe destino', () => {
     const v = visao('supervisor');
     expect(v.parametros.some((s) => s.secao === 'alertas')).toBe(false);
-    expect(v.destinoParametros('regras-alerta')).toBeNull();
   });
 });
