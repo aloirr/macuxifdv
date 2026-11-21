@@ -9,6 +9,7 @@ import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, To
 import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
 import { rotuloPreco } from '../lib/apresentacao';
 import { AVISO_CODIGO_COPIADO, copiarCodigo, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
+import { estoqueCarregandoVisivel, LEITURA_ESTOQUE_CARREGANDO, TEXTO_ESTOQUE_CARREGANDO } from '../lib/carga-do-cartao';
 import { linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
 import { BotaoEstoquePorFilial } from './estoque-filial';
 import { MiniaturaProduto } from './miniatura';
@@ -104,13 +105,15 @@ function BotoesAcaoDoCartao({ item, clienteId, acoes }: { item: ItemVitrine; cli
  * mais de uma filial). O cartão inteiro abre a ficha; o copiar e o botão de estoque não abrem. O botão da extensão `produto.acoes`
  * (de outro módulo, só dentro do fluxo dele) fica ao lado do preço.
  */
-export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void; onEstoquePorFilial: () => void }) {
+export function CartaoGrade({ item, clienteId, miniatura = null, estoqueCarregando = false, onPress, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; estoqueCarregando?: boolean; onPress: () => void; onEstoquePorFilial: () => void }) {
   const preco = rotuloPreco(item);
   const tag = tagDeEstoque(item);
   const linhaMarca = linhaDaMarca(item);
   const precoTexto = precoDoCartao(preco);
   const acoes = useAcoesProduto();
-  const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, item.erp_code, precoTexto, tag?.texto]);
+  // T-0192 §7.3: estoque em carga = chip neutro "Estoque: —"; o perfil que não vê preço e estoque não ganha o chip
+  const mostraEstoqueCarregando = estoqueCarregandoVisivel(estoqueCarregando, item.price_stock_visible);
+  const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, item.erp_code, precoTexto, mostraEstoqueCarregando ? LEITURA_ESTOQUE_CARREGANDO : tag?.texto]);
   return (
     <Cartao testID={`catalogo-item-${item.erp_code}`} onPress={onPress} rotuloAcessivel={rotulo} preenchimento={10} gap={6} style={g.cartao}>
       <MiniaturaProduto produtoId={item.id} miniatura={miniatura} altura={96} />
@@ -136,7 +139,11 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress, onEsto
           {acoes.length > 0 ? <BotoesAcaoDoCartao item={item} clienteId={clienteId} acoes={acoes} /> : null}
         </View>
       ) : null}
-      {tag ? (
+      {mostraEstoqueCarregando ? (
+        <View style={g.rodape}>
+          <ChipEstado texto={TEXTO_ESTOQUE_CARREGANDO} tom="neutro" pequeno rotuloAcessivel={LEITURA_ESTOQUE_CARREGANDO} testID={`catalogo-estoque-${item.erp_code}`} />
+        </View>
+      ) : tag ? (
         <View style={g.rodape}>
           <ChipEstado texto={tag.texto} tom={tag.tom} pequeno rotuloAcessivel={tag.leitura} testID={`catalogo-estoque-${item.erp_code}`} />
           <BotaoEstoquePorFilial availability={item.availability} onPress={onEstoquePorFilial} testID={`catalogo-estoque-filial-${item.erp_code}`} />

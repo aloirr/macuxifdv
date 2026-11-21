@@ -1,7 +1,7 @@
 /**
  * Aba Catálogo em grade (T-0173, docs/design/catalogo-grade.md; RF-CAT-01/02/09): duas colunas de cartões (foto, nome, marca,
  * preço e tag de estoque), busca no topo com a chave "Só com estoque" logo abaixo; sistema, categoria e filial ficam na folha do botão de filtro.
- * Sem contagem de produtos e sem selo de sincronização na faixa (puxar a tela sincroniza). OFFLINE-FIRST: tudo vem do aparelho;
+ * Sem contagem de produtos e sem selo de sincronização na faixa e sem gesto de puxar (T-0192). OFFLINE-FIRST: tudo vem do aparelho;
  * a busca com texto usa a API (busca inteligente) quando há sinal e sem filtro de árvore, e cai para a busca local (FTS5 + sinônimos
  * + ranking do domain) sem sinal, em falha ou com sistema/categoria escolhidos.
  * Preço (RN-VEN-01, RN-CAT-06): pela ficha do cliente (`?cliente=`) vale a tabela dele; pelo menu, a da filial padrão do vendedor;
@@ -22,6 +22,7 @@ import { AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia
 import { textoPareceCodigo } from '../../domain/codigo-busca';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, mesmoValor, reaproveitarItens, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
 import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
+import { cargaDoEstoque } from '../lib/carga-do-cartao';
 import { buscaComSinal, modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
 import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { vazioDaBusca } from '../lib/vazio-busca';
@@ -43,6 +44,8 @@ interface EstadoLista {
   itens: ItemVitrine[];
   total: number;
   aviso: string | null;
+  /** Erro ao abrir (T-0192 §7.1): vira um só `EstadoVazio` com "Tentar de novo"; não é aviso. */
+  erro?: boolean;
 }
 
 export default function TelaCatalogo() {
@@ -71,6 +74,8 @@ export default function TelaCatalogo() {
   const [nomeCliente, setNomeCliente] = useState<string | null>(null);
   const [limite, setLimite] = useState(PAGINA_DA_BUSCA); // "Mostrar mais" soma 20 (kit); ao trocar de filtro ou de busca volta ao inicial
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null });
+  // "Tentar de novo" refaz só a carga da lista (o efeito de baixo), sem sincronizar
+  const [tentativa, setTentativa] = useState(0);
   const [sugestao, setSugestao] = useState<string | null>(null);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
@@ -78,6 +83,7 @@ export default function TelaCatalogo() {
   // ADR 0054: catálogo ainda carregando na primeira carga = busca e preço pela API; os filtros da árvore ficam desligados
   const modoCarga = modoDaCarga(sync, ambiente.online());
   const naCarga = modoCarga !== 'local';
+  const estoqueCarregando = cargaDoEstoque(sync, modoCarga);
   const noInicial = params.no ? String(params.no) : null;
 
   useEffect(() => setLimite(PAGINA_DA_BUSCA), [filtro, escolha, consulta]);
@@ -96,7 +102,7 @@ export default function TelaCatalogo() {
   }, [motor, usuarioId, sync.sincronizado_em]);
 
   // "Você quis dizer…": só quando a busca não achou nada, do vocabulário do índice no aparelho
-  const semResultado = Boolean(consulta) && !lista.carregando && lista.itens.length === 0;
+  const semResultado = Boolean(consulta) && !lista.carregando && !lista.erro && lista.itens.length === 0;
   useEffect(() => {
     if (!motor || !semResultado) return setSugestao(null);
     let vivo = true;
@@ -184,7 +190,7 @@ export default function TelaCatalogo() {
           try {
             r = await online();
           } catch (e) {
-            r = { itens: [], total: 0, aviso: ehSemConexao(e) ? TEXTO_CATALOGO_CARREGANDO : 'Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.' };
+            r = ehSemConexao(e) ? { itens: [], total: 0, aviso: TEXTO_CATALOGO_CARREGANDO } : { itens: [], total: 0, aviso: null, erro: true };
           }
         }
       } else if (!consulta) r = await local(null);
@@ -194,8 +200,8 @@ export default function TelaCatalogo() {
         if (c.origem === 'aparelho') r = await local(c.aviso);
         else {
           const api = c.pag;
-          // decisão 4 do R-20261115-100000: o estoque mostrado é o do aparelho, não o da API
-          const doAparelho = await estoqueLocalDosProdutos(motor, entrada, api.items.map((i) => i.id)).catch(() => new Map<string, ItemVitrine['availability']>());
+          // decisão 4 do R-20261115-100000: o estoque mostrado é o do aparelho, não o da API; com a carga do estoque em andamento (T-0192 §7.2) o cartão mostra "carregando"
+          const doAparelho = estoqueCarregando ? new Map<string, ItemVitrine['availability']>() : await estoqueLocalDosProdutos(motor, entrada, api.items.map((i) => i.id)).catch(() => new Map<string, ItemVitrine['availability']>());
           r = { itens: api.items.map((i) => (doAparelho.has(i.id) ? { ...i, availability: doAparelho.get(i.id) ?? null } : i)), total: api.total, aviso: c.aviso };
         }
       }
@@ -205,12 +211,12 @@ export default function TelaCatalogo() {
       // "Mostrar mais": ver `reaproveitarItens`
       if (vivo) setLista((antes) => ({ ...r, itens: reaproveitarItens(antes.itens, r.itens), carregando: false }));
     };
-    void carregar().catch((e) => vivo && !(e instanceof RodadaCancelada) && setLista({ carregando: false, itens: [], total: 0, aviso: 'Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.' }));
+    void carregar().catch((e) => vivo && !(e instanceof RodadaCancelada) && setLista({ carregando: false, itens: [], total: 0, aviso: null, erro: true }));
     return () => {
       vivo = false;
     };
     // `arvore` fica fora: ela só muda junto com `cargaDaArvore`, que já dispara a rodada
-  }, [motor, cargaDaArvore, arvoreDoSync, sync.sincronizado_em, filtro, escolha, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, modoCarga, usuarioId]);
+  }, [motor, cargaDaArvore, arvoreDoSync, sync.sincronizado_em, filtro, escolha, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, modoCarga, usuarioId, tentativa, estoqueCarregando]);
 
   const chips = useMemo(() => chipsDaGrade(naCarga ? ARVORE_VAZIA : (arvore?.arvore ?? ARVORE_VAZIA), filtro), [arvore, filtro, naCarga]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
@@ -240,10 +246,11 @@ export default function TelaCatalogo() {
     );
   }
 
+  const erroAoAbrir = !lista.carregando && lista.erro === true;
   const aparelhoVazio = !lista.carregando && lista.itens.length === 0 && !consulta && !comFiltro;
 
   return (
-    <Screen testID="pagina-catalogo-catalogo" refreshing={auto.puxando} onRefresh={auto.puxar} cabecalho={cabecalho}>
+    <Screen testID="pagina-catalogo-catalogo" cabecalho={cabecalho}>
       <View style={s.linhaBusca}>
         <View style={{ flex: 1 }}>
           <CampoBusca
@@ -282,7 +289,10 @@ export default function TelaCatalogo() {
       ) : null}
 
       {lista.carregando && lista.itens.length === 0 ? <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} /> : null}
-      {!lista.carregando && lista.itens.length === 0 && lista.aviso !== TEXTO_CATALOGO_CARREGANDO ? (
+      {erroAoAbrir ? (
+        <EstadoVazio testID="catalogo-erro" icone="alert" titulo="Não foi possível abrir o catálogo agora" acao={{ rotulo: 'Tentar de novo', onPress: () => setTentativa((n) => n + 1), testID: 'catalogo-erro-acao' }} />
+      ) : null}
+      {!erroAoAbrir && !lista.carregando && lista.itens.length === 0 && lista.aviso !== TEXTO_CATALOGO_CARREGANDO ? (
         consulta ? (
           <VazioDaBusca
             consulta={consulta}
@@ -313,7 +323,7 @@ export default function TelaCatalogo() {
       {linhas.map((par) => (
         <View key={par[0]!.id} style={s.linha}>
           {par.map((item) => (
-            <CartaoDaLista key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} onAbrir={abrirProduto} onEstoquePorFilial={abrirFolhaDeEstoque} />
+            <CartaoDaLista key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} estoqueCarregando={estoqueCarregando} onAbrir={abrirProduto} onEstoquePorFilial={abrirFolhaDeEstoque} />
           ))}
           {par.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>
@@ -353,11 +363,11 @@ export default function TelaCatalogo() {
  * Cartão da grade com `memo` e sem função nova por item. No "Mostrar mais" a lista inteira é relida e os objetos são novos, então o memo compara
  * o conteúdo: o item (reaproveitado por `reaproveitarItens` quando igual) e a miniatura (objeto novo a cada leitura, igual por valor).
  */
-const CartaoDaLista = memo(function CartaoDaLista({ item, clienteId, miniatura, onAbrir, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura: ComponentProps<typeof CartaoGrade>['miniatura']; onAbrir: (id: string) => void; onEstoquePorFilial: (item: ItemVitrine) => void }) {
+const CartaoDaLista = memo(function CartaoDaLista({ item, clienteId, miniatura, estoqueCarregando, onAbrir, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura: ComponentProps<typeof CartaoGrade>['miniatura']; estoqueCarregando: boolean; onAbrir: (id: string) => void; onEstoquePorFilial: (item: ItemVitrine) => void }) {
   const abrir = useCallback(() => onAbrir(item.id), [onAbrir, item.id]);
   const estoque = useCallback(() => onEstoquePorFilial(item), [onEstoquePorFilial, item]);
-  return <CartaoGrade item={item} clienteId={clienteId} miniatura={miniatura} onPress={abrir} onEstoquePorFilial={estoque} />;
-}, (a, b) => a.item === b.item && a.clienteId === b.clienteId && a.onAbrir === b.onAbrir && a.onEstoquePorFilial === b.onEstoquePorFilial && mesmoValor(a.miniatura, b.miniatura));
+  return <CartaoGrade item={item} clienteId={clienteId} miniatura={miniatura} estoqueCarregando={estoqueCarregando} onPress={abrir} onEstoquePorFilial={estoque} />;
+}, (a, b) => a.item === b.item && a.clienteId === b.clienteId && a.estoqueCarregando === b.estoqueCarregando && a.onAbrir === b.onAbrir && a.onEstoquePorFilial === b.onEstoquePorFilial && mesmoValor(a.miniatura, b.miniatura));
 
 const SEM_ESCOLHA: EscolhaFiltro = { filial: null, soComEstoque: false };
 /** Filial escolhida (inclusive "Suas filiais") ou "Ocultar" ligados: a busca é local, que sabe filtrar por filial e estoque. */
