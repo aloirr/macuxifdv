@@ -14,8 +14,7 @@ name: producao — diagnóstico da outbox (só leitura)
 #
 # O que o log mostra: docs/desenho/outbox-parada-v1014.md, §6. Bloco do catálogo (nós e produtos do ERP parados, só quando
 # há algum): modules/integracao/docs/outbox-parada-am2808-catalogo.md, §6.
-# Contagem do catálogo (opcional, contagem_catalogo; R-20261121-135629): por empresa, produtos, preços, saldos, nós e vínculos, e por
-# filial os produtos ativos sem preço (tabela da filial, RN-VEN-01) e sem estoque, com até 20 SKUs de cada; mesma sessão só leitura.
+# Contagem do catálogo (opcional, contagem_catalogo; R-20261121-135629): produtos, preços, saldos, nós e, por filial, sem preço e sem estoque.
 # Empresa padrão do formulário: AM2808 (R-20261120-203901).
 
 on:
@@ -26,7 +25,7 @@ on:
         required: true
         default: AM2808
       contagem_catalogo:
-        description: contar também o catálogo de cada empresa (só leitura)
+        description: contar também o catálogo de cada empresa
         type: boolean
         default: false
 
@@ -178,11 +177,12 @@ jobs:
            limit 200;
           \endif
           \if :contagem_catalogo
-          \echo 'contagem do catálogo: produtos (core.produto vivos)'
+          \echo '--- contagem do catálogo (só registros vivos)'
+          \echo 'produtos'
           select count(*) as vivos, count(*) filter (where p.ativo) as ativos
             from core.produto p
            where p.deleted_at is null;
-          \echo 'contagem do catálogo: itens de preço vivos por tabela e filial (produtos_base = produtos com preço da unidade base)'
+          \echo 'itens de preço por tabela e filial (produtos_base = produtos com preço da unidade base)'
           select t.codigo as tabela, t.ativo and t.deleted_at is null as tabela_ativa, f.codigo as filial,
                  count(*) as itens, count(distinct i.produto_id) filter (where i.unidade is null) as produtos_base
             from catalogo.tabela_preco_item i
@@ -191,7 +191,7 @@ jobs:
            where i.deleted_at is null
            group by 1, 2, 3
            order by 1, 3;
-          \echo 'contagem do catálogo: saldos vivos por depósito (zerados = quantidade <= 0)'
+          \echo 'saldos por depósito (zerados = quantidade <= 0)'
           select d.codigo as deposito, d.ativo and d.deleted_at is null as deposito_ativo, f.codigo as filial,
                  count(s.id) as saldos, count(s.id) filter (where s.quantidade <= 0) as zerados
             from catalogo.deposito d
@@ -199,7 +199,7 @@ jobs:
             left join catalogo.estoque_saldo s on s.tenant_id = d.tenant_id and s.deposito_id = d.id and s.deleted_at is null
            group by 1, 2, 3
            order by 3, 1;
-          \echo 'contagem do catálogo: nós vivos por nível e vínculos produto-nó vivos'
+          \echo 'nós por nível e vínculos produto-nó'
           select n.nivel, count(*) as nos, count(*) filter (where n.ativo) as ativos
             from catalogo.catalogo_no n
            where n.deleted_at is null
@@ -208,7 +208,7 @@ jobs:
           select count(*) as vinculos, count(distinct pn.produto_id) as produtos
             from catalogo.produto_no pn
            where pn.deleted_at is null;
-          \echo 'contagem do catálogo: por filial viva, produtos ativos que o Campo mostra "Sem preço" e "Estoque: 0" (até 20 SKUs de cada)'
+          \echo 'por filial: produtos ativos "Sem preço" e "Estoque: 0" (até 20 SKUs de cada)'
           \pset expanded on
           -- tabela da filial = RN-VEN-01, a de tabelaPorContagem (modules/catalogo/domain/preco-filial.ts): a tabela ativa com mais itens
           -- vivos na filial (empate: o menor código); preço = item vivo da unidade base (RN-VEN-15) vigente agora; estoque = soma dos saldos
@@ -248,7 +248,7 @@ jobs:
                  count(*) filter (where fora_de_vigencia) as preco_fora_de_vigencia,
                  array_to_string((array_agg(sku order by sku) filter (where sem_item or fora_de_vigencia))[1:20], ' ') as exemplos_sem_preco,
                  count(*) filter (where sem_saldo) as sem_saldo_na_filial,
-                 count(*) filter (where saldo_zero) as saldo_zero_ou_negativo,
+                 count(*) filter (where saldo_zero) as zerados,
                  array_to_string((array_agg(sku order by sku) filter (where sem_saldo or saldo_zero))[1:20], ' ') as exemplos_estoque_zero
             from caso
            group by 1, 2, 3, 4
