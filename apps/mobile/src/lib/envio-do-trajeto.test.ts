@@ -60,7 +60,10 @@ const ponto = (n: number): PontoTrajeto => ({
   velocidade_ms: null,
 });
 
-async function montar(o: { banco?: () => DriverSqlite | null } = {}) {
+/** Padrão `esperar: true`: o envio só volta com os pontos enviados. `segurarTrajeto`: o servidor só responde aos pontos depois de `liberar()`. */
+async function montar(o: { banco?: () => DriverSqlite | null; esperar?: boolean; segurarTrajeto?: boolean } = {}) {
+  let liberar = (): void => undefined;
+  const trava = o.segurarTrajeto ? new Promise<void>((r) => (liberar = r)) : null;
   const db = await driverNode();
   const registro = criarRegistroSync([defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'], sync: ['visita'] })]);
   // uma entidade da fila do motor, para conferir a ordem: o envio do motor sai antes dos pontos
@@ -70,6 +73,8 @@ async function montar(o: { banco?: () => DriverSqlite | null } = {}) {
   const transporte: TransporteSync = {
     async push(itens): Promise<ResultadoItemPush[]> {
       lotes.push(itens);
+      // o servidor lento só para os pontos: o envio do motor responde na hora
+      if (trava && itens.some((i) => i.entidade === ENTIDADE_PONTO_TRAJETO)) await trava;
       return itens.map((i) => ({ id: i.id, status: 'aceito' as const }));
     },
     pull: async () => ({ itens: [], proximo_cursor: null }),
@@ -84,11 +89,12 @@ async function montar(o: { banco?: () => DriverSqlite | null } = {}) {
     online,
     registrar,
     agora: () => new Date('2026-11-19T15:00:00.000Z'),
+    esperar: o.esperar ?? true,
   });
   await motor.carregar();
   await motor.aplicarModulosAtivos(['core']);
   const enviados = () => lotes.flat();
-  return { db, motor, lotes, enviados, sinal, registrar };
+  return { db, motor, lotes, enviados, sinal, registrar, liberar };
 }
 
 const pendentes = (db: DriverSqlite) => db.todas<{ id: string }>('SELECT id FROM core__ponto_trajeto WHERE enviado_em IS NULL');
@@ -167,5 +173,33 @@ describe('envio dos pontos do trajeto (RN-CORE-13: o ponto gravado chega ao serv
       expect(t).not.toMatch(/-?\d+\.\d{3,}/);
       expect(t).not.toContain('0b9a4c1e');
     }
+  });
+
+  it.each(['enviar', 'sincronizar', 'sincronizarNovidades'] as const)(
+    '%s com a tela: o resultado volta sem esperar os pontos (não segura o "Enviando…")',
+    async (caminho) => {
+      const { db, motor, enviados, liberar } = await montar({ esperar: false, segurarTrajeto: true });
+      await gravarPontosDoTrajeto(db, [ponto(7)]);
+      await motor[caminho]();
+      expect(motor.estado().sincronizando).toBe(false);
+      expect(enviados().map((i) => i.id)).toEqual([U(7)]);
+      expect(await pendentes(db)).toEqual([{ id: U(7) }]);
+      liberar();
+      await motor.pontosDoTrajeto();
+      expect(enviados().map((i) => i.id)).toEqual([U(7)]);
+      expect(await pendentes(db)).toEqual([]);
+    },
+  );
+
+  it('sem tela (`esperar`): o envio só volta com os pontos enviados', async () => {
+    const { db, motor, liberar } = await montar({ esperar: true, segurarTrajeto: true });
+    await gravarPontosDoTrajeto(db, [ponto(8)]);
+    let voltou = false;
+    const envio = motor.sincronizarNovidades().then(() => (voltou = true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(voltou).toBe(false);
+    liberar();
+    await envio;
+    expect(await pendentes(db)).toEqual([]);
   });
 });

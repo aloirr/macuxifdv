@@ -197,8 +197,9 @@ async function abrirMotorSemInterface(
     perfil: () => s?.user?.perfil ?? null,
     // sem tela: a busca online do Catálogo continua ligada ao motor do app (ADR 0054)
     cargaOnline: false,
-    // T-0156: os pontos do trajeto vão ao servidor antes do envio da passada
+    // T-0156: os pontos do trajeto vão ao servidor depois de cada envio da passada
     bancoDoTrajeto: () => (arquivo ? driverDoArquivo(arquivo) : null),
+    esperarPontosDoTrajeto: true,
   });
   motorRef.m = m;
   await m.carregar();
