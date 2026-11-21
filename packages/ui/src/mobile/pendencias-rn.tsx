@@ -8,11 +8,9 @@
  * Contraste (componentes.md §1.1): texto de ação só em `accentInk` (Azul noite); o `accent` aqui é o ícone da opção.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
 
 import { Dialogo, Folha, OpcaoFolha } from './folha';
 import { eventoDaSaida, type AcaoDaSaida, type EventoDaSaida, type PassoDaSaida } from './pendencias';
-import { colors, fonte } from './theme';
 
 // ---------- Folha de saída e retomada ----------
 export interface OpcaoDaSaida {
@@ -65,7 +63,6 @@ function ConfirmarDescarte({ visivel, descartar, onEvento, testID }: { visivel: 
 export function FolhaSairDoFormulario({
   visivel,
   titulo,
-  aviso,
   salvar,
   apenasSalvar,
   salvarAlternativo,
@@ -77,11 +74,6 @@ export function FolhaSairDoFormulario({
   visivel: boolean;
   /** "Sair do pedido?" */
   titulo: string;
-  /**
-   * @deprecated T-0166 (RD-0176): a folha fica sem a linha de motivo (o motivo já está nos Alertas do pedido). A prop sai
-   * quando o Novo pedido parar de passá-la.
-   */
-  aviso?: string;
   /** "Salvar e enviar pedido". Ausente na variante da RN-VEN-13. */
   salvar?: OpcaoDaSaida;
   /** "Apenas salvar" (T-0133): grava o rascunho e aceita pendências (RN-VEN-38). */
@@ -113,7 +105,6 @@ export function FolhaSairDoFormulario({
         titulo={titulo}
         rodape={{ rotulo: continuar, onPress: () => onEvento('continuar'), testID: `${testID}-continuar` }}
         testID={testID}>
-        {aviso ? <Text style={s.aviso}>{aviso}</Text> : null}
         {salvar ? <OpcaoFolha testID={salvar.testID ?? `${testID}-salvar`} icone="send" titulo={salvar.rotulo} subtitulo={salvar.subtitulo} onPress={() => onEvento('salvar')} /> : null}
         {apenasSalvar ? (
           <OpcaoFolha testID={apenasSalvar.testID ?? `${testID}-apenas-salvar`} icone="file" tom="neutro" titulo={apenasSalvar.rotulo} subtitulo={apenasSalvar.subtitulo} onPress={() => onEvento('apenas_salvar')} />
@@ -169,7 +160,3 @@ export function FolhaRetomarRascunho({
     </>
   );
 }
-
-const s = StyleSheet.create({
-  aviso: { ...fonte.body, fontSize: 14, lineHeight: 18, color: colors.ink2 },
-});

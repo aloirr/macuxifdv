@@ -43,11 +43,6 @@ export const SENHA_ATENDE_AS_REGRAS = 'A senha atende às regras.';
  */
 export const MOSTRAR_SENHA = 'Mostrar senha';
 export const OCULTAR_SENHA = 'Ocultar senha';
-/**
- * @deprecated Use `OCULTAR_SENHA` (ou `rotuloDoOlhoDaSenha`) e o `CampoSenha` do kit. Sai no lote da v1.0.10, com a migração
- * das telas (inventário em docs/design/campo-senha/inventario.md; RD-0479).
- */
-export const ESCONDER_SENHA = 'Esconder senha';
 
 /** Finalidade do `CampoSenha` (app e web): `login` = senha que já existe; `criacao` = senha nova ("Crie sua senha", troca). */
 export type FinalidadeSenha = 'login' | 'criacao';
