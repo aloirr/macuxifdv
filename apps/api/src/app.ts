@@ -90,6 +90,8 @@ import {
   type ServicoEmail,
   type ServicoPacotes,
   SERVICO_PACOTES_DESLIGADO,
+  GEOCODIFICADOR_DESLIGADO,
+  type Geocodificador,
   type LogRota,
   type AcessoPortalAutenticado,
   CABECALHO_TENANT_PLATAFORMA,
@@ -187,6 +189,11 @@ export interface OpcoesApp {
    * (`linkDoUltimo` responde 503); o `servidor.ts` passa a fábrica do ambiente (`lerPacotesDoAmbiente`, só com S3).
    */
   pacotes?: ServicoPacotes | ((log: LogRota) => ServicoPacotes);
+  /**
+   * T-0191 (RN-CORE-77): geocodificação do endereço do cliente (`ctx.geocodificador` nas rotas de módulo). Padrão: desligada
+   * (`localizar` responde 503); o `servidor.ts` passa a fábrica do ambiente (`geocodificadorDoAmbiente`, `MACUXI_NOMINATIM_URL`).
+   */
+  geocodificador?: Geocodificador | ((log: LogRota) => Geocodificador);
   /** Funções do super-admin no banco (0035; padrão: `fontePlataformaNoBanco`). Testes injetam a sua. */
   plataforma?: FontePlataforma;
   /**
@@ -363,6 +370,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const email: ServicoEmail = typeof op.email === 'function' ? op.email(logDoApp) : (op.email ?? SERVICO_EMAIL_DESLIGADO);
   // T-0098 (ADR 0037): a fábrica dos pacotes também recebe o log do app
   const pacotes: ServicoPacotes = typeof op.pacotes === 'function' ? op.pacotes(logDoApp) : (op.pacotes ?? SERVICO_PACOTES_DESLIGADO);
+  // T-0191: uma instância por processo (a fila de 1 req/s e o cache valem para todas as requisições)
+  const geocodificador: Geocodificador =
+    typeof op.geocodificador === 'function' ? op.geocodificador(logDoApp) : (op.geocodificador ?? GEOCODIFICADOR_DESLIGADO);
 
   // T-0078: contagem por status (5xx) na janela; o `/v1/saude` e o log periódico do servidor leem daqui
   const metricas = op.metricas ?? criarMetricasApi({ relogio });
@@ -590,6 +600,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       ...(doSA ? { superAdmin: doSA.sa } : {}),
       email,
       pacotes,
+      geocodificador,
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto, restritoSemFilial };
   };
