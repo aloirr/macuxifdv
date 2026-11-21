@@ -1,10 +1,22 @@
 /**
- * T-0098 — download do Conector por link temporário: validação da resposta pelo contrato do Integração
- * (`LinkDownloadConectorSchema`) e só https, textos do pacote e da validade, e o que a tela faz em cada falha (rota ausente = "em breve").
+ * T-0098 e T-0190 — download por link temporário (Conector e APKs do Campo e do Gestão): validação da resposta pelos contratos
+ * (`LinkDownloadConectorSchema`, `LinkDownloadAppSchema`) e só https, textos do pacote e da validade, e o que a tela faz em cada
+ * falha (rota ausente ou sem pacote = "em breve"; app sem licença = uma linha, RN-CORE-67).
  */
 import { describe, expect, it } from 'vitest';
 
-import { falhaDoDownload, LinkDownloadConectorResposta, tamanhoLegivel, TEXTOS_DOWNLOAD_CONECTOR, textoDaValidade, textoDoPacote, urlDeDownloadValida } from './conector-download';
+import {
+  DOWNLOAD_APPS,
+  DOWNLOAD_CONECTOR,
+  falhaDoDownload,
+  LinkDownloadAppResposta,
+  LinkDownloadConectorResposta,
+  tamanhoLegivel,
+  TEXTOS_DOWNLOAD_CONECTOR,
+  textoDaValidade,
+  textoDoPacote,
+  urlDeDownloadValida,
+} from './conector-download';
 import { ErroPortal } from './portal-api';
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -13,6 +25,25 @@ const URL_PRESIGN = 'https://br-se1.magaluobjects.com/macuxi-conector/macuxi-con
 describe('rota', () => {
   it('POST /integracao/conector/download (proposta R-20261108-234517)', () => {
     expect(ROTAS_PORTAL.conectorDownload).toBe('/integracao/conector/download');
+  });
+
+  it('T-0190: POST /core/apps/download com { variante }, Campo antes do Gestão', () => {
+    expect(ROTAS_PORTAL.appDownload).toBe('/core/apps/download');
+    expect(DOWNLOAD_CONECTOR.rota).toBe(ROTAS_PORTAL.conectorDownload);
+    expect(DOWNLOAD_APPS.map((p) => [p.rota, p.corpo, p.testId])).toEqual([
+      ['/core/apps/download', { variante: 'campo' }, 'empresa-pagina.baixar-campo'],
+      ['/core/apps/download', { variante: 'gestao' }, 'empresa-pagina.baixar-gestao'],
+    ]);
+  });
+});
+
+describe('LinkDownloadAppResposta (T-0190)', () => {
+  const app = { url: 'https://br-se1.magaluobjects.com/macuxi-prod/pacotes/campo/Campo-Oficial-v1.0.19.apk?X-Amz-Signature=abc', expira_em: '2026-11-21T10:05:00.000Z', versao: '1.0.19', arquivo: 'Campo-Oficial-v1.0.19.apk', variante: 'campo' };
+  it('pelo contrato do Core; url só https', () => {
+    expect(LinkDownloadAppResposta.safeParse(app)).toEqual({ success: true, data: app });
+    expect(LinkDownloadAppResposta.safeParse({ ...app, variante: 'outro' }).success).toBe(false);
+    expect(LinkDownloadAppResposta.safeParse({ ...app, url: 'ftp://x/y.apk' }).success).toBe(false);
+    expect(LinkDownloadAppResposta.safeParse({ ...app, url: 'http://bucket.exemplo.com/y.apk' }).success).toBe(false);
   });
 });
 
@@ -68,12 +99,9 @@ describe('urlDeDownloadValida', () => {
 
 describe('textos', () => {
   const base = { url: URL_PRESIGN, expira_em: '2026-11-09T05:15:00.000Z', versao: '', arquivo: '' };
-  it('pacote: versão · arquivo · tamanho, só o que veio', () => {
-    expect(textoDoPacote({ ...base, versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip', tamanho_bytes: 12_900_000 })).toBe(
-      `Versão 1.0.0 · macuxi-conector-1.0.0-win-x64.zip · ${tamanhoLegivel(12_900_000)}`,
-    );
-    expect(textoDoPacote({ ...base, versao: '1.0.0' })).toBe('Versão 1.0.0');
-    expect(textoDoPacote(base)).toBeNull();
+  it('pacote: só o tamanho (o nome do arquivo já está no link)', () => {
+    expect(textoDoPacote({ ...base, versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip', tamanho_bytes: 12_900_000 })).toBe('12,3 MB');
+    expect(textoDoPacote({ ...base, versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip' })).toBeNull();
   });
 
   it('tamanho em MB com uma casa ou em KB', () => {
@@ -106,5 +134,26 @@ describe('falhaDoDownload', () => {
     expect(falhaDoDownload(new ErroPortal(403, 'SEM_PERMISSAO', 'x'))).toEqual({ tipo: 'erro', texto: TEXTOS_DOWNLOAD_CONECTOR.semAcesso });
     expect(falhaDoDownload(new ErroPortal(500, 'ERRO', 'O servidor falhou ao gerar o link.'))).toEqual({ tipo: 'erro', texto: 'O servidor falhou ao gerar o link.' });
     expect(falhaDoDownload(new Error('{"x":1}')).tipo).toBe('erro');
+  });
+
+  it('T-0190 apps: sem pacote ou sem storage = "em breve"; sem licença = linha própria (RN-CORE-67); outro 403 = sem acesso', () => {
+    const [campo] = DOWNLOAD_APPS;
+    expect(falhaDoDownload(new ErroPortal(404, 'APP_SEM_PACOTE', 'x'), campo)).toEqual({ tipo: 'em-breve' });
+    expect(falhaDoDownload(new ErroPortal(503, 'ARMAZENAMENTO_INDISPONIVEL', 'x'), campo)).toEqual({ tipo: 'em-breve' });
+    expect(falhaDoDownload(new ErroPortal(403, 'APP_SEM_LICENCA', 'x'), campo)).toEqual({ tipo: 'sem-licenca' });
+    expect(falhaDoDownload(new ErroPortal(403, 'SEM_PERMISSAO', 'x'), campo)).toEqual({ tipo: 'erro', texto: 'Só quem administra a empresa no portal baixa os apps.' });
+    // o código do app não vale para o Conector (e vice-versa)
+    expect(falhaDoDownload(new ErroPortal(404, 'CONECTOR_SEM_PACOTE', 'x'), campo).tipo).toBe('erro');
+    expect(falhaDoDownload(new ErroPortal(403, 'APP_SEM_LICENCA', 'x'))).toEqual({ tipo: 'erro', texto: TEXTOS_DOWNLOAD_CONECTOR.semAcesso });
+  });
+
+  it('T-0190 apps: textos', () => {
+    const [campo, gestao] = DOWNLOAD_APPS;
+    expect(campo?.textos.botao).toBe('Gerar o link do Macuxi Campo');
+    expect(gestao?.textos.botao).toBe('Gerar o link do Macuxi Gestão');
+    expect(gestao?.textos.baixar('Gestao-Oficial-v1.0.19.apk')).toBe('Baixar Gestao-Oficial-v1.0.19.apk');
+    expect(campo?.textos.emBreve).toBe('em breve.');
+    expect(gestao?.textos.emBreve).toBe('em breve.');
+    expect(campo?.textos.semLicenca).toBe('sem licença. Peça ao suporte para ativar o módulo.');
   });
 });
