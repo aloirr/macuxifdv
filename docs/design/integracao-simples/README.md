@@ -18,22 +18,25 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 **Tabela de entidades** (a 1366 px com o menu lateral aberto; nada corta o selo, o número nem os botões):
 | Coluna | Conteúdo | Largura |
 |---|---|---|
-| Entidade | `ROTULO_ENTIDADE` (ex.: Produtos), peso 400 | 20% |
-| Última carga | `15/11 às 01:02` do lote mais recente (`formatDateTime`, data uma vez por linha); com falha, `15/11 às 01:02 · falhou 01:03`; sem falha e com mais de um lote, `15/11 às 01:01 · 4 lotes` | 27% |
-| Situação | `Badge` **Com falha** (`danger`) quando há falha reprocessável; senão **Em dia** (`success`) | 14% |
-| Linhas integradas | número (`numero: true`), sempre `x de y`: `7.378 de 14.780` | 15% |
-| (ações) | **Reprocessar** (`primary`, `size="sm"`) só com falha reprocessável, à esquerda de **Histórico (n)** (secundário, `size="sm"`; n = lotes da entidade) | 24% |
+| Entidade | `ROTULO_ENTIDADE` (ex.: Produtos), peso 400 | sem largura (divide o resto) |
+| Última carga | `15/11 às 01:02` do lote mais recente (`formatDateTime`, data uma vez por linha); com falha, `15/11 às 01:02 · falhou 01:03` (hora da falha com `formatTime`; falha em outro dia, `formatDataHoraCurta`: `15/11 às 23:58 · falhou 16/11 00:03`) | sem largura (divide o resto) |
+| Situação | `Badge` **Com falha** (`danger`) quando a entidade tem lote reprocessável (RN-INT-15), inclusive concluído com avisos; senão **Em dia** (`success`) | 120 px |
+| Linhas integradas | número (`numero: true`), `x de y` do lote mais recente: `7.378 de 14.780`; lote em andamento, célula vazia | 150 px |
+| (ações) | **Reprocessar** (`primary`, `size="sm"`) só com lote reprocessável, à esquerda de **Histórico (n)** (secundário, `size="sm"`; n = lotes da entidade) | 260 px |
+
+"Com falha" e o botão **Reprocessar** usam o mesmo critério: existe lote reprocessável da entidade (RN-INT-15).
+Ordem: entidades com falha primeiro; dentro de cada grupo, a carga mais recente no topo.
 
 **Tabela do Histórico** (dentro do `Dialog` largo, 720 px):
 | Coluna | Conteúdo | Largura |
 |---|---|---|
-| Recebido | `15/11 01:02` | 19% |
-| Falhou | só no lote com falha: `01:03` (`formatTime`); nos outros, célula vazia | 11% |
-| Situação | `Badge` do lote (seção 4) | 27% |
-| Linhas | número, `x de y`; lote com falha conta `0 de 3.695` | 20% |
-| (ações) | links (`Button variant="link"`): **Cancelar** só em andamento; **Ver erros** só em lote com erro (com falha ou com linhas com erro), abre o log (`LoteDrawer`) | resto (23%) |
+| Recebido | `15/11 01:02` (`formatDataHoraCurta`) | 17% |
+| Falhou | só no lote com falha: `01:03` (`formatTime`); falha em outro dia, `16/11 00:03` (`formatDataHoraCurta`); nos outros, célula vazia | 17% |
+| Situação | `Badge` do lote (seção 4) | 26% |
+| Linhas | número, `x de y` do lote; lote com falha conta `0 de 3.695`; lote em andamento, célula vazia | 20% |
+| (ações) | links (`Button variant="link"`): **Cancelar** só em andamento; **Ver erros** só em lote com erro (com falha ou com linhas com erro), abre o log (`LoteDrawer`) | resto (20%) |
 
-O mais recente fica no topo, nas duas tabelas.
+No Histórico, o lote mais recente fica no topo.
 **Data+hora em célula**: `dd/mm hh:mm`, 24 h, no fuso do tenant (`sessao.fuso`), sem "às" e sem ano (`formatDataHoraCurta`); data dentro de frase
 (a linha do `PageHeader`) usa `formatDateTime`. Exceção: a Última carga da tela de entidades usa o texto aprovado com "às"
 (`formatDateTime`, R-20261120-183112). Célula sem valor fica vazia: a tabela não usa **—**.
@@ -52,7 +55,7 @@ A cor vem sempre com o texto. Estes rótulos valem para o Histórico; a tabela d
 ## 5. Ações
 | Onde | Ação | Quando aparece |
 |---|---|---|
-| Linha da entidade | **Reprocessar** | só com falha reprocessável (RN-INT-15) |
+| Linha da entidade | **Reprocessar** | só com lote reprocessável (RN-INT-15), o mesmo critério do **Com falha** |
 | Linha da entidade | **Histórico (n)** | sempre |
 | Histórico, por lote | **Cancelar** | só em andamento |
 | Histórico, por lote | **Ver erros** | só em lote com erro |

@@ -104,8 +104,8 @@ export function CabecalhoDoDialog({ id, title, subtitle, rola }: { id: string; t
 
 /**
  * Popup do BKO (R-20261114-141500): nunca passa da área visível. Título e botões ficam sempre à vista;
- * só o corpo rola. A partir de 640 px é um cartão centrado de até 460 px (`largura="larga"`: 720 px, para tabela
- * curta); abaixo disso vira folha que sobe de baixo, na largura toda, com os cantos arredondados só em cima e
+ * só o corpo rola. A partir de 640 px é um cartão centrado (ver `LarguraDoDialog`);
+ * abaixo disso vira folha que sobe de baixo, na largura toda, com os cantos arredondados só em cima e
  * respeitando a área segura. `subtitle`: só linha de identificação ou estado (ex.: "erp-matriz · 4 lotes"),
  * nunca frase de explicação.
  */
