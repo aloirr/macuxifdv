@@ -12,6 +12,8 @@
     "./teste/estado": "./testes/estado.ts",
     "./teste/util": "./testes/util.ts",
     "./teste/funcoes-sa": "./testes/funcoes-sa.ts",
+    "./teste/catalogo-volume": "./seeds/volume/index.ts",
+    "./teste/massa": "./seeds/volume/massa.ts",
     "./esquema/plataforma": "./esquema/plataforma.ts"
   },
   "scripts": {
