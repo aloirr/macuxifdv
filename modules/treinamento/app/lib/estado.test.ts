@@ -338,6 +338,11 @@ describe('parâmetros e textos', () => {
     expect(parametrosDoAparelho({ segundos_minimos_licao: 60 }).segundos_minimos_licao).toBe(60);
     expect(parametrosDoAparelho({}, 'America/Sao_Paulo').fuso).toBe('America/Sao_Paulo');
     expect(parametrosDoAparelho({}, 'Fuso/Inexistente').fuso).toBe('America/Manaus');
+    expect(parametrosDoAparelho({}, null).fuso).toBe('America/Manaus');
+  });
+
+  it('RN-TRE-02: fuso do login inválido faz o app cair no padrão em tudo, como a API', () => {
+    expect(parametrosDoAparelho({ segundos_minimos_licao: 60 }, 'Fuso/Inexistente').segundos_minimos_licao).toBe(30);
   });
 
   it('RF-TRE-01: rótulo do prazo da trilha obrigatória', () => {

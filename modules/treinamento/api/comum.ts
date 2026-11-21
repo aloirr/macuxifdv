@@ -1,9 +1,9 @@
 /** Apoio das rotas e do sync do Treinamento: repositório na transação, parâmetros do tenant, "hoje" e o aluno. */
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { ErroHttpModulo, ErroRegraNegocio, type ContextoBase, type Perfil, type TransacaoTenant } from '@macuxi/platform-sdk';
-import { ParametrosTreinamentoSchema } from '../contracts/parametros';
 import type { UsuarioPublico } from '../domain/trilha';
-import { resolverParametros, type ParametrosTreinamento } from '../domain/parametros';
+import { type ParametrosTreinamento } from '../domain/parametros';
+import { parametrosEmUso } from '../domain/parametros-em-uso';
 import manifest from '../manifest';
 import type { FabricaRepositorio, RepositorioTreinamento, UsuarioTreinamento } from './repositorio';
 
@@ -24,13 +24,9 @@ export function comRepositorio<T>(
  * não derruba a rota: vale o padrão do doc 03 e o aviso vai ao log (sem dado pessoal).
  */
 export function parametrosDoTenant(ctx: Pick<ContextoBase, 'parametros' | 'fuso' | 'log'>): ParametrosTreinamento {
-  const lidos = ParametrosTreinamentoSchema.safeParse(ctx.parametros());
-  if (!lidos.success) ctx.log.warn({ campos: lidos.error.issues.map((i) => i.path.join('.')) }, 'parâmetros do treinamento inválidos; usando o padrão');
-  try {
-    return resolverParametros({ ...(lidos.success ? lidos.data : {}), fuso: ctx.fuso() });
-  } catch {
-    return resolverParametros({ fuso: ctx.fuso() });
-  }
+  const { parametros, invalidos } = parametrosEmUso(ctx.parametros(), ctx.fuso());
+  if (invalidos.length > 0) ctx.log.warn({ campos: invalidos }, 'parâmetros do treinamento inválidos; usando o padrão');
+  return parametros;
 }
 
 /** Data civil de hoje no fuso do tenant (RN-CORE-11). */

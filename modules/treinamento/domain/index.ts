@@ -4,6 +4,7 @@
  */
 export * from './numeros';
 export * from './parametros';
+export * from './parametros-em-uso';
 export * from './trilha';
 export * from './quiz';
 export * from './streak';
