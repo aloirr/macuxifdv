@@ -17,8 +17,9 @@ import { linhasEstoquePorFilial } from '../lib/estoque-filial';
 import { caminhoDoProduto, escopoDoNivel } from '../exportacao/layout';
 import { chaveDeTermo } from '../../domain/texto';
 import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
+import { parametrosDoTenant } from '../../domain/parametros';
 import { LimparFiltros, useBuscaComEspera } from '../lib/lista';
-import { abrirEditores, acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, abrirParaLeitura, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, contadorAplicacao, EDITORES_FECHADOS, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, limiteAplicacao, mapaIdsPorCodigo, nomesDoOfereceJunto, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
+import { abrirEditores, acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, abrirParaLeitura, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, contadorAplicacao, EDITORES_FECHADOS, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, mapaIdsPorCodigo, nomesDoOfereceJunto, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
 
 const POR_PAGINA = 100;
 const BASE = '/catalogo';
@@ -391,7 +392,7 @@ function EditorCadastroCatalogo({ item, produtos, somenteLeitura = false, ref }:
   const idsPorCodigo = useMemo(() => mapaIdsPorCodigo(produtos, ficha.data?.catalogo?.oferece_junto), [produtos, ficha.data]);
   const salvar = useMutation({ mutationFn: (corpo: unknown) => api(`${BASE}/produtos/${item.id}/cadastro-catalogo`, { method: 'PUT', body: corpo }) });
   const parametros = useParametros('catalogo');
-  const limite = limiteAplicacao(parametros);
+  const limite = parametrosDoTenant(parametros).aplicacao_max_cadastro;
   const contador = contadorAplicacao(form?.aplicacao.length ?? 0, limite);
   const converter = (f: FormCadastroCatalogo) => cadastroCatalogoDoForm(item.id, f, { idsPorCodigo, aplicacaoMax: limite, semReferencias: !marcas.data || marcas.data.length === 0 });
   useImperativeHandle(ref, () => ({

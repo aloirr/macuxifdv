@@ -400,6 +400,8 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - aparelho: coluna na FTS5, com peso 2;
     - ranking: `PESO_CAMPO.aplicacao` = [`peso_aplicacao` = 0,5] (atributos continuam 0,3); produto que casa pelo nome vem antes de produto que casa só pela aplicação.
   - **Trecho "Serve em":** quando a aplicação contribuiu para o acerto, o resultado mostra o segmento que casou, com até 90 caracteres, os termos marcados e "inclui 2012" quando o ano veio de faixa.
+    - Vale o segmento com mais palavras da consulta casadas.
+    - **Desempate** (v1.0.18), nesta ordem: o segmento com mais palavras casadas exatas (sem prefixo, erro de digitação nem ano por faixa) → o segmento mais curto → o primeiro da aplicação. Assim "amortecedor palio" mostra "Palio 1.0 2001" e não "Palio Weekend Adventure 1.8 2001–2010 / Siena".
   - **Sinônimos e busca online:** os sinônimos do tenant valem na aplicação (VW = Volkswagen, GM = Chevrolet). A busca em linguagem natural online mantém modelo, motor e ano no texto livre.
   - **Desempenho:** com 20 mil produtos com aplicação longa, a busca offline tem p95 < 300 ms na tela de medição. Tenant sem aplicação mantém resultados e tempos iguais aos de antes.
 

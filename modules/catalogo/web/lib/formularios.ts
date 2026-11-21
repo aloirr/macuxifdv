@@ -205,12 +205,6 @@ export function mapaIdsPorCodigo(produtos: readonly Pick<ItemVitrine, 'erp_code'
   return mapa;
 }
 
-/** RN-CAT-11: limite da Aplicação do tenant (`aplicacao_max_cadastro`, 100 a 2.000); sem o parâmetro vale o padrão 2.000. */
-export function limiteAplicacao(parametros: Readonly<Record<string, unknown>>): number {
-  const v = parametros['aplicacao_max_cadastro'];
-  return typeof v === 'number' && Number.isInteger(v) && v >= 100 && v <= 2000 ? v : 2000;
-}
-
 /** UX B2: "1.234 / 2.000", em vermelho (`excede`) quando passa do limite. */
 export function contadorAplicacao(tamanho: number, max: number): { texto: string; excede: boolean } {
   return { texto: `${tamanho.toLocaleString('pt-BR')} / ${max.toLocaleString('pt-BR')}`, excede: tamanho > max };

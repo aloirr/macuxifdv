@@ -6,7 +6,7 @@ import { Badge, Button, Drawer, ErrorBlock, EstadoVazio, formatDateTime, IconDow
 import { CODIGOS_ERRO_LINHA, type ErrosLoteResposta, type LoteListagemItem } from '../../contracts';
 
 type ErroLinhaLote = ErrosLoteResposta['itens'][number];
-import { ROTULO_ENTIDADE, rotuloDoLote, tomDoLote } from '../lib/apresentacao';
+import { ROTULO_ENTIDADE, rotuloDoLote, textoDoFimDoLote, tomDoLote } from '../lib/apresentacao';
 import { errosParaCsv, ROTULO_MODO } from '../lib/csv';
 import { buscarTodosErros, useErrosLote } from '../lib/queries';
 
@@ -78,7 +78,7 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
         <Badge tone={tomDoLote(lote.status)}>{rotuloDoLote(lote.status)}</Badge>
         <span>{ROTULO_MODO[lote.modo]}</span>
-        <span className="text-ink-2">{lote.concluido_em ? `concluído ${formatDateTime(lote.concluido_em, tz)}` : 'ainda não concluído'}</span>
+        <span className="text-ink-2">{textoDoFimDoLote(lote, tz)}</span>
       </div>
       <dl className="m-0 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2">
         {contagens.map(([rotulo, n]) => (
@@ -89,7 +89,7 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
         ))}
       </dl>
       {lote.status === 'falhou' && (
-        <p className="m-0 text-[13px] text-danger">O lote falhou e nada foi aplicado. Se repetir, confira os erros abaixo e o serviço no servidor do ERP.</p>
+        <p className="m-0 text-[13px] text-danger">Nada foi aplicado. Se repetir, confira os erros abaixo e o serviço no servidor do ERP.</p>
       )}
 
       {lote.com_erro > 0 && (

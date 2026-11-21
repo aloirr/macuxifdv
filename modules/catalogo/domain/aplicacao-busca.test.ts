@@ -141,6 +141,37 @@ describe('RN-CAT-12: trecho "Serve em"', () => {
     expect(trechoServeEm(null, grupos('uno'), opc)).toBeNull();
   });
 
+  it('RN-CAT-12: empate em grupos: vence o segmento com mais grupos casados por palavra exata, mesmo vindo depois', () => {
+    const t = trechoServeEm('Palione Fiat Weekend Adventure; Palio Fiat Weekend Adventure Completo', grupos('palio fiat'), opc)!;
+    expect(t.texto).toBe('Palio Fiat Weekend Adventure Completo');
+  });
+
+  it('RN-CAT-12: casamento por digitação ou por faixa de ano não conta como exato no desempate', () => {
+    expect(trechoServeEm('Paleo Fiat Uno; Palio Fiat Uno Mille Economy', grupos('palio'), opc)!.texto).toBe('Palio Fiat Uno Mille Economy');
+    // "2012" casa por faixa nos dois segmentos; o exato "uno" decide
+    expect(trechoServeEm('Fiat Unox 2010–2014; Fiat Uno Mille Economy 2010–2014', grupos('uno 2012'), opc)!.texto).toBe('Fiat Uno Mille Economy 2010–2014');
+  });
+
+  it('RN-CAT-12: a palavra de maior nível vale: "Palione Palio" conta como exato e a marca fica em "Palio"', () => {
+    const t = trechoServeEm('Palione; Palione Palio', grupos('palio'), opc)!;
+    expect(t.texto).toBe('Palione Palio');
+    expect(t.marcas.map(([a, b]) => t.texto.slice(a, b))).toEqual(['Palio']);
+  });
+
+  it('RN-CAT-12: empate em grupos e exatos: vence o segmento mais curto, mesmo vindo depois', () => {
+    const t = trechoServeEm('Palio Weekend Adventure 1.8 2001-2010; Palio 1.0 2001', grupos('palio'), opc)!;
+    expect(t.texto).toBe('Palio 1.0 2001');
+  });
+
+  it('RN-CAT-12: empate total (grupos, exatos e tamanho): vale o primeiro', () => {
+    expect(trechoServeEm('Palio Fiat; Palio Ford', grupos('palio'), opc)!.texto).toBe('Palio Fiat');
+  });
+
+  it('RN-CAT-12: mais grupos casados continua vencendo segmento mais curto e exato com menos grupos', () => {
+    const t = trechoServeEm('Uno; Fiat Uno Mille Economy', grupos('fiat uno'), opc)!;
+    expect(t.texto).toBe('Fiat Uno Mille Economy');
+  });
+
   it('RN-CAT-12: o trecho do contrato respeita 90 caracteres e 20 marcas', () => {
     const t = trechoServeEm('Uno '.repeat(100), grupos('uno'), opc)!;
     expect(t.texto.length).toBeLessThanOrEqual(90);

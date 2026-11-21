@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AVISO_BUSCA_FALHOU, ErroTempoEsgotadoIa, PARAMETROS_PADRAO, registrarDesfechoIa, resolverTimeoutIaMs } from '../../domain';
+import { ErroTempoEsgotadoIa, PARAMETROS_PADRAO, registrarDesfechoIa, resolverTimeoutIaMs } from '../../domain';
 import { interpretarComMedicao, type LogIa } from './buscar';
 import { criarPortaInterpretacaoHttp, ErroProvedorIa, type FetchIa } from './provedor-http';
 
@@ -151,8 +151,8 @@ describe('RN-CAT-03: busca cai para o modo sem IA, com log e cota só quando o p
     t = 8000;
     await vi.advanceTimersByTimeAsync(8000);
     const r = await p;
-    expect(r).toMatchObject({ origem: 'regras', desfecho: 'tempo_esgotado', consomeCota: false, cotaDebitada: false, duracaoMs: 8000, aviso: AVISO_BUSCA_FALHOU });
-    expect(r.resumo).toEqual({ interpreted_by: 'regras', degraded: true, notice: AVISO_BUSCA_FALHOU });
+    expect(r).toMatchObject({ origem: 'regras', desfecho: 'tempo_esgotado', consomeCota: false, cotaDebitada: false, duracaoMs: 8000, aviso: null, degradada: true });
+    expect(r.resumo).toEqual({ interpreted_by: 'regras', degraded: true, notice: null });
     expect(r.filtros.stock).toBe('com'); // a busca por regras locais continua funcionando
     expect(chamadas[0]!.signal.aborted).toBe(true);
     expect(espiao).toHaveBeenCalledTimes(1);
@@ -172,7 +172,7 @@ describe('RN-CAT-03: busca cai para o modo sem IA, com log e cota só quando o p
       const log = logFalso();
       const debitar = vi.fn(async () => undefined);
       const r = await montar(espiao, log, debitar, () => 0);
-      expect(r).toMatchObject({ origem: 'regras', desfecho: 'erro', cotaDebitada: false, aviso: AVISO_BUSCA_FALHOU });
+      expect(r).toMatchObject({ origem: 'regras', desfecho: 'erro', cotaDebitada: false, aviso: null, degradada: true });
       expect(espiao).toHaveBeenCalledTimes(1);
       expect(debitar).not.toHaveBeenCalled();
       expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: 't1', desfecho: 'erro' }), expect.any(String));

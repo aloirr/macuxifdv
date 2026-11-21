@@ -26,15 +26,11 @@ const PESO = {
 export const fonte = {
   ...PESO,
   mono: { fontFamily: 'monospace', fontWeight: '400', fontVariant: ['tabular-nums'] },
-  /** @deprecated Apelido de `fonte.bold` (700, título), ainda usado nos módulos e no shell; sai na v1.0.14 (RD-0942). */
-  display: PESO.bold,
-  /** @deprecated Apelido de `fonte.bold` (700, título), ainda usado nos módulos e no shell; sai na v1.0.14 (RD-0942). */
-  displayBold: PESO.bold,
 } as const satisfies Record<string, TextStyle>;
 
 /**
- * @deprecated Transição da v1.0.13: os módulos e o shell trocam `fontFamily: fonts.x` por `...fonte.x`; sai na limpeza
- * deste lote (branch `nuvem/fonte-sistema-designer-ux-limpeza`). Android: famílias do sistema por nome, só 400
+ * @deprecated Transição da v1.0.13: quem usa troca `fontFamily: fonts.x` por `...fonte.x`. Ainda usado em
+ * apps/mobile/src/components/frase-carga.tsx e aviso-carga.tsx (engenheiro-apps); sai quando eles pararem de usar. Android: famílias do sistema por nome, só 400
  * (`sans-serif`) e 500 (`sans-serif-medium`), nunca a família de peso 900; web e demais: a pilha do sistema, sem serifa.
  */
 export const fonts = Platform.select({
@@ -88,7 +84,6 @@ export const toneColors: Record<Tone, { fg: string; bg: string }> = {
  * | rótulo em maiúsculas ("RECADO DO DIA") | `rotulo` | 12/600 |
  * | frase motivacional do Início do Campo | `fraseInicio` | 14/700 itálico |
  * `saudacao` é o mesmo estilo de `h1Small` (RD-0957: um tamanho só nas duas boas-vindas; o Início do Campo lê o `fontSize` daqui).
- * `title16` e `smallStrong` são apelidos de `bodyStrong` e `label` (o mesmo objeto), mantidos porque o shell e os módulos usam.
  */
 const estilosDeTexto = StyleSheet.create({
   h1: { ...fonte.bold, fontSize: 28, letterSpacing: -0.3, color: colors.ink },
@@ -109,10 +104,6 @@ export const type = {
   ...estilosDeTexto,
   /** "Bom dia, Lucas" no Início do Campo e do Gestão: 22/700, o mesmo estilo de `h1Small` (RD-0957). */
   saudacao: estilosDeTexto.h1Small,
-  /** @deprecated o mesmo estilo de `bodyStrong` (RD-0942); sai na v1.0.14. */
-  title16: estilosDeTexto.bodyStrong,
-  /** @deprecated o mesmo estilo de `label` (RD-0942); sai na v1.0.14. */
-  smallStrong: estilosDeTexto.label,
 };
 
 export const ui = StyleSheet.create({

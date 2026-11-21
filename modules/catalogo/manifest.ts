@@ -85,6 +85,7 @@ export const manifest = defineModule({
     'destaque.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Marcar produtos de campanha e destaques que ganham boost na busca (RF-CAT-01)' },
     'tabela_preco.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Tabelas de preço no BKO: ver o preço da unidade e cadastrar a tabela escalonada (faixas por quantidade; RN-VEN-23)' },
     'marca.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Cadastrar, editar, inativar e reativar as marcas concorrentes do tenant (RN-CAT-13; ADR 0034)' },
+    'parametro.catalogo': { perfis: [...PERFIS_CONTEUDO], descricao: 'Ajustar o limite da Aplicação do produto em Parâmetros › Produtos (RN-CAT-11)' },
     'busca.ver_sem_resultado': { perfis: [...PERFIS_CONTEUDO], descricao: 'Ver os termos buscados sem resultado (RF-CAT-07)' },
   },
 });

@@ -1,6 +1,6 @@
 /**
  * T-0188, valor × regra da RN-VEN-44 (troca de prazo). O esperado é calculado pela fórmula da regra (`apoio/oraculo-prazo.ts`), sem chamar o domain:
- * - tabela nova = meia-para-cima(tabela original × (10 000 + bp novo) ÷ 10 000) (RN-VEN-43);
+ * - tabela nova = `regra(tabela original, bp novo)` (RN-VEN-43);
  * - o preço final do item fica igual, centavo por centavo;
  * - o desconto (ou acréscimo) do item = tabela nova − final, por unidade; conta na alçada (RN-VEN-10) e no mínimo (RN-VEN-11).
  * Compara a tela (rascunho do app + `calcularPedido`) e a revalidação da API (`revalidarPedido`, a mesma do envio e do Transformar).

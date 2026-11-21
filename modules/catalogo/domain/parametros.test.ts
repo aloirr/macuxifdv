@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PARAMETROS_PADRAO, parametrosDoTenant, resolverParametros, resolverTimeoutIaMs, timeoutIaDoTenant, TIMEOUT_IA_MAX_MS, TIMEOUT_IA_MIN_MS, TIMEOUT_IA_PADRAO_MS } from './parametros';
+import { ParametrosAplicacaoSchema } from '../contracts';
+import { PARAMETROS_PADRAO, parametrosDoTenant, validarLimiteAplicacao, resolverParametros, resolverTimeoutIaMs, timeoutIaDoTenant, TIMEOUT_IA_MAX_MS, TIMEOUT_IA_MIN_MS, TIMEOUT_IA_PADRAO_MS } from './parametros';
 
 describe('parâmetros do tenant do Catálogo (doc 03, tabela de parâmetros)', () => {
   it('RN-CAT-03: o padrão do limite de consultas de IA é 200 por usuário/dia', () => {
@@ -79,5 +80,30 @@ describe('parametrosDoTenant / timeoutIaDoTenant — leitura tolerante dos parâ
     expect(timeoutIaDoTenant({})).toBe(TIMEOUT_IA_PADRAO_MS);
     expect(timeoutIaDoTenant({ ia_timeout_ms: 60_000 })).toBe(TIMEOUT_IA_PADRAO_MS);
     expect(timeoutIaDoTenant({ ia_timeout_ms: '4000' })).toBe(TIMEOUT_IA_PADRAO_MS);
+  });
+});
+
+describe('RN-CAT-11: limite da Aplicação (aplicacao_max_cadastro)', () => {
+  it('RN-CAT-11: o padrão é 2.000 e a faixa é de 100 a 2.000 caracteres', () => {
+    expect(PARAMETROS_PADRAO.aplicacao_max_cadastro).toBe(2000);
+    expect(ParametrosAplicacaoSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('RN-CAT-11: aceita inteiro de 100 a 2.000 (inclusive as pontas)', () => {
+    for (const v of [100, 500, 2000]) expect(validarLimiteAplicacao(v)).toEqual({ ok: true, valor: v });
+  });
+
+  it('RN-CAT-11: recusa abaixo de 100, acima de 2.000, decimal, texto e vazio, com mensagem em português', () => {
+    for (const v of [99, 0, -1, 2001, 100.5, '500', null, undefined, Number.NaN]) {
+      const r = validarLimiteAplicacao(v);
+      expect(r.ok, String(v)).toBe(false);
+      if (!r.ok) expect(r.mensagem).toBe('Informe um número inteiro de 100 a 2.000.');
+    }
+  });
+
+  it('RN-CAT-11: o valor do tenant fora da faixa ou ausente vale o padrão 2.000', () => {
+    expect(parametrosDoTenant({}).aplicacao_max_cadastro).toBe(2000);
+    expect(parametrosDoTenant({ aplicacao_max_cadastro: 300 }).aplicacao_max_cadastro).toBe(300);
+    expect(parametrosDoTenant({ aplicacao_max_cadastro: 5000 }).aplicacao_max_cadastro).toBe(2000);
   });
 });

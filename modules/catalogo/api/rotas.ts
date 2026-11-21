@@ -52,6 +52,8 @@ import {
   type MarcaCriar,
   type MarcaListaQuery,
   type MarcaListaSaida,
+  type ParametrosAplicacao,
+  ParametrosAplicacaoSchema,
   ParamsSinonimo,
   ROTAS_CATALOGO,
   SalvarCadastroCatalogo,
@@ -92,7 +94,7 @@ import { textoPareceCodigo } from '../domain/codigo-busca';
 import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
 import { interpretarConsulta, type VocabularioTenant } from '../domain/consulta';
-import { AVISO_BUSCA_FALHOU, type PortaInterpretacaoLlm } from '../domain/ia';
+import type { EntradaInterpretarBusca, PortaInterpretacaoLlm } from '../domain/ia';
 import { diaDoTenant, verificarConsultaIa } from '../domain/limite-ia';
 import { parametrosDoTenant, timeoutIaDoTenant, type ParametrosCatalogo } from '../domain/parametros';
 import { chaveDeTermo, type SinonimoDoTenant } from '../domain/texto';
@@ -217,10 +219,10 @@ async function interpretar(ctx: ContextoBase, dep: DependenciasRotas, q: Consult
   if (semIa) return { filtros: interpretarConsulta(q.q, vocab), interpreted_by: q.mode === 'basica' ? 'nenhum' : 'regras', degraded: false, notice: null, remaining_ai_queries: null };
   const timeoutMs = timeoutIaDoTenant(ctx.parametros());
   const porta = dep.portaIa?.(timeoutMs) ?? null;
-  let ia: { permitido: boolean; mensagem: string | null } = { permitido: porta !== null, mensagem: null };
+  let ia: EntradaInterpretarBusca['ia'] = { permitido: porta !== null, mensagem: null };
   let restantes: number | null = null;
   if (porta) {
-    if (uso === 'indisponivel') ia = { permitido: false, mensagem: AVISO_BUSCA_FALHOU };
+    if (uso === 'indisponivel') ia = { permitido: false, mensagem: null, degradada: true };
     else {
       const v = verificarConsultaIa(uso, ctx.agora().toISOString(), ctx.fuso(), p);
       ia = { permitido: v.permitido, mensagem: v.mensagem };
@@ -622,6 +624,29 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
+  // RN-CAT-11 (Parâmetros › Produtos › Catálogo): limite da Aplicação do tenant; só analista e admin (`parametro.catalogo`)
+  const lerLimiteAplicacao: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.parametros,
+    acao: 'parametro.catalogo',
+    carteira: 'nao_se_aplica',
+    executar: (ctx: Ctx): Promise<ParametrosAplicacao> => Promise.resolve({ aplicacao_max_cadastro: parametrosDoTenant(ctx.parametros()).aplicacao_max_cadastro }),
+  };
+
+  const gravarLimiteAplicacao: RotaModulo = {
+    metodo: 'PUT',
+    caminho: ROTAS_CATALOGO.parametros,
+    acao: 'parametro.catalogo',
+    carteira: 'nao_se_aplica',
+    corpo: ParametrosAplicacaoSchema,
+    executar: (ctx: Ctx<ParametrosAplicacao>): Promise<ParametrosAplicacao> =>
+      ctx.comTenant(async () => {
+        // o SDK grava só no módulo da rota, por tenant, na mesma transação, idempotente e auditado (RN-AUD-01)
+        await ctx.gravarParametros!({ aplicacao_max_cadastro: ctx.corpo.aplicacao_max_cadastro }, { acao: 'parametro.catalogo' });
+        return { aplicacao_max_cadastro: ctx.corpo.aplicacao_max_cadastro };
+      }),
+  };
+
   // T-0085 fatia C: página única (teto de 20 mil produtos no domain); só quem enriquece o catálogo (analista e admin)
   const exportacao: RotaModulo = {
     metodo: 'GET',
@@ -788,5 +813,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [...criarRotasFotosLote(), busca, vitrine, hierarquia, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
+  return [...criarRotasFotosLote(), busca, vitrine, hierarquia, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, lerLimiteAplicacao, gravarLimiteAplicacao, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, buscaDosFiltros, cadastroCatalogoDoForm, contadorAplicacao, limiteAplicacao, mensagemDoCadastro, mensagemDoConteudo, nomesDoOfereceJunto, textoRemoverFaixa, conteudoDoForm, formCadastroDaFicha, formDaFicha, lerFiltrosBko, mapaIdsPorCodigo, abrirEditores, abrirParaLeitura, fecharEditor, EDITORES_FECHADOS, produtosParaCsv, sinonimoDoForm } from './formularios';
+import { acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, buscaDosFiltros, cadastroCatalogoDoForm, contadorAplicacao, mensagemDoCadastro, mensagemDoConteudo, nomesDoOfereceJunto, textoRemoverFaixa, conteudoDoForm, formCadastroDaFicha, formDaFicha, lerFiltrosBko, mapaIdsPorCodigo, abrirEditores, abrirParaLeitura, fecharEditor, EDITORES_FECHADOS, produtosParaCsv, sinonimoDoForm } from './formularios';
 
 describe('formulários do BKO de conteúdo (RF-CAT-07)', () => {
   it('conteúdo: ida e volta entre a ficha e o formulário', () => {
@@ -135,10 +135,7 @@ describe('UX B5: mensagens sem o caminho técnico do campo', () => {
 });
 
 describe('UX B2/B4 e T-0089 K3: contador, nomes e diálogo', () => {
-  it('RN-CAT-11: o limite vem de aplicacao_max_cadastro (padrão 2.000) e o contador fica vermelho acima dele', () => {
-    expect(limiteAplicacao({})).toBe(2000);
-    expect(limiteAplicacao({ aplicacao_max_cadastro: 500 })).toBe(500);
-    expect(limiteAplicacao({ aplicacao_max_cadastro: 50 })).toBe(2000);
+  it('RN-CAT-11: o contador fica vermelho acima do limite', () => {
     expect(contadorAplicacao(1234, 2000)).toEqual({ texto: '1.234 / 2.000', excede: false });
     expect(contadorAplicacao(501, 500).excede).toBe(true);
   });

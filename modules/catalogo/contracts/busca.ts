@@ -48,6 +48,10 @@ export const ParametrosCatalogo = z
   .strict();
 export type ParametrosCatalogo = z.infer<typeof ParametrosCatalogo>;
 
+/** RN-CAT-11: corpo e resposta de `GET|PUT /v1/catalogo/parametros` (Parâmetros › Produtos › Catálogo): o limite da Aplicação do tenant. */
+export const ParametrosAplicacaoSchema = z.object({ aplicacao_max_cadastro: ParametrosCatalogo.shape.aplicacao_max_cadastro.removeDefault() }).strict();
+export type ParametrosAplicacao = z.infer<typeof ParametrosAplicacaoSchema>;
+
 // ---------- preço visível (RF-CAT-03, RN-CAT-06, RN-VEN-01) ----------
 export const OrigemPreco = z.enum(['condicao', 'cliente', 'padrao']);
 export type OrigemPreco = z.infer<typeof OrigemPreco>;
@@ -214,7 +218,7 @@ export const ResultadoBusca = z.object({
   filters: FiltrosInterpretados,
   /** Quem interpretou a frase. `nenhum` = busca textual simples (offline, limite atingido ou modo básico). */
   interpreted_by: z.enum(['llm', 'regras', 'nenhum']),
-  /** Busca inteligente indisponível (offline, limite ou falha do provedor): mostrar aviso discreto. */
+  /** Busca inteligente indisponível (offline, limite ou falha do provedor). `notice` só vem em offline e limite; na falha do provedor vem nulo (v1.0.18). */
   degraded: z.boolean(),
   notice: z.string().nullable(),
   from_cache: z.boolean(),

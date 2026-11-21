@@ -3,6 +3,7 @@
  * prévia do prazo médio (a mesma função do servidor) e CSV. Funções puras (testadas); a proteção real é na API
  * (`/v1/vendedor/formas-pagamento`, ações `forma_pagamento.ver|gerenciar`), a tela só reflete e avisa antes.
  */
+import { normalizarBusca } from '@macuxi/core/contracts';
 import type { FormaPagamento, PrazoPagamento } from '../../contracts';
 import { descricaoPrazo, prazoMedioDias } from '../../domain/pagamento';
 import { toCsv } from './csv';
@@ -120,15 +121,6 @@ export function buscaDosFiltrosFormas(f: FiltrosFormas): string {
   if (f.ativas) p.set('ativas', f.ativas);
   const s = p.toString();
   return s ? `?${s}` : '';
-}
-
-/** Texto da busca sem diferenciar maiúsculas nem acentos. */
-export function normalizarBusca(t: string): string {
-  return t
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
 }
 
 /** Linha da tabela única de prazos: o prazo com a forma como coluna. */

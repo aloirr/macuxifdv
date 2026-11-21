@@ -1,6 +1,20 @@
+/** Acentos do português e seus equivalentes sem acento (mesma correspondência de `normalizarBusca`), para o `translate` do SQL da API. */
+export const ACENTOS_PT = 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';
+export const SEM_ACENTOS_PT = 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN';
+/** RD-7: aparelho sem `String.prototype.normalize` (ausente, que lança erro ou que não decompõe) tira os acentos pela mesma tabela do SQL. */
+const MAPA_SEM_ACENTO = new Map([...ACENTOS_PT].map((c, i) => [c, SEM_ACENTOS_PT[i]!] as const));
+const normalizeFunciona = ((): boolean => {
+  try {
+    return '\u00e1'.normalize('NFD') === 'a\u0301';
+  } catch {
+    return false;
+  }
+})();
+const decompor = (s: string): string => (normalizeFunciona ? s.normalize('NFD') : s.replace(/[À-ÿ]/g, (c) => MAPA_SEM_ACENTO.get(c) ?? c));
+
 /** Busca tolerante: minúsculas, sem acento e sem espaço nas pontas. */
 export const normalizarBusca = (s: string | null | undefined): string =>
-  (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  decompor(s ?? '').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 const soDigitos = (s: string | null | undefined): string => (s ?? '').replace(/\D/g, '');
 
@@ -20,9 +34,6 @@ export const ROTULO_BUSCA_CLIENTE = 'Código, CNPJ ou nome';
 export const MINIMO_BUSCA_CLIENTE_BKO = 3;
 export const ROTULO_BUSCA_CLIENTE_BKO = `${ROTULO_BUSCA_CLIENTE} (mínimo ${MINIMO_BUSCA_CLIENTE_BKO} caracteres)`;
 
-/** Acentos do português e seus equivalentes sem acento (mesma correspondência de `normalizarBusca`), para o `translate` do SQL da API. */
-export const ACENTOS_PT = 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';
-export const SEM_ACENTOS_PT = 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN';
 /** Expressão SQL que normaliza a coluna como `normalizarBusca` (sem caixa, sem acento; o `translate` vem antes do `lower` porque, com locale C, o `lower` do Postgres não converte maiúscula acentuada). `coluna` é identificador fixo do código, nunca dado do usuário. */
 export const sqlBuscaNormalizada = (coluna: string): string => `lower(translate(${coluna}, '${ACENTOS_PT}', '${SEM_ACENTOS_PT}'))`;
 

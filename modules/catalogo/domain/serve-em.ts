@@ -21,6 +21,8 @@ interface Palavra {
 interface Casamento {
   marcas: [number, number][];
   grupos: number;
+  /** grupos casados só por palavra exata (prefixo, digitação e ano por faixa não contam) */
+  exatos: number;
   incluiAno: number | null;
 }
 
@@ -38,6 +40,7 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
   const faixas = expandirAplicacao(segmento, { anoAtual }).faixas;
   const marcas: [number, number][] = [];
   let casados = 0;
+  let exatos = 0;
   let incluiAno: number | null = null;
   for (const grupo of grupos) {
     for (const alt of grupo) {
@@ -46,18 +49,31 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
       const achadas: [number, number][] = [];
       let faixaDoAno: { ano: number; faixa: FaixaAnos } | null = null;
       let todas = true;
+      let todasExatas = true;
       for (const q of partes) {
-        const p = palavras.find((w) => nivelDaPalavra(q, w.termo) > 0);
+        // a palavra de maior nível (exato antes de prefixo/digitação); a primeira em caso de empate
+        let p: Palavra | null = null;
+        let nivel = 0;
+        for (const w of palavras) {
+          const n = nivelDaPalavra(q, w.termo);
+          if (n > nivel) {
+            p = w;
+            nivel = n;
+          }
+        }
         if (p) {
           achadas.push([p.inicio, p.fim]);
+          if (nivel !== 1) todasExatas = false;
           continue;
         }
         const faixa = partes.length === 1 && ANO_DA_CONSULTA_RE.test(q) ? faixas.find((f) => Number(q) >= f.de && Number(q) <= f.ate) : undefined;
+        todasExatas = false;
         if (faixa) faixaDoAno = { ano: Number(q), faixa };
         else todas = false;
       }
       if (!todas) continue;
       casados++;
+      if (todasExatas) exatos++;
       if (faixaDoAno) {
         marcas.push([faixaDoAno.faixa.inicio, faixaDoAno.faixa.fim]);
         if (incluiAno === null) incluiAno = faixaDoAno.ano;
@@ -65,7 +81,7 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
       break;
     }
   }
-  return { marcas, grupos: casados, incluiAno };
+  return { marcas, grupos: casados, exatos, incluiAno };
 }
 
 /** Une marcas que se tocam e ordena. */
@@ -80,6 +96,13 @@ function unir(marcas: readonly [number, number][]): [number, number][] {
   return saida;
 }
 
+/** Desempate do "Serve em" (RN-CAT-12): grupos, exatos, mais curto; empate total mantém o anterior. */
+function vence(c: Casamento, seg: string, atual: Casamento, segAtual: string): boolean {
+  if (c.grupos !== atual.grupos) return c.grupos > atual.grupos;
+  if (c.exatos !== atual.exatos) return c.exatos > atual.exatos;
+  return seg.length < segAtual.length;
+}
+
 /**
  * RN-CAT-12: trecho da aplicação para a linha "Serve em". `grupos` são os da consulta (`expandirSinonimos`).
  * Nulo quando a aplicação é vazia ou nenhum grupo casou nela.
@@ -89,13 +112,13 @@ export function trechoServeEm(aplicacao: string | null | undefined, grupos: read
   if (texto.trim() === '' || grupos.length === 0) return null;
   const max = opcoes.max ?? SERVE_EM_MAX;
 
-  // segmentos; no empate vale o primeiro
+  // desempate em vence
   let melhor: { texto: string; c: Casamento } | null = null;
   for (const bruto of texto.split(SEPARADOR_SEGMENTO)) {
     const seg = bruto.trim();
     if (seg === '') continue;
     const c = casar(seg, grupos, opcoes.anoAtual);
-    if (c.grupos > 0 && (melhor === null || c.grupos > melhor.c.grupos)) melhor = { texto: seg, c };
+    if (c.grupos > 0 && (melhor === null || vence(c, seg, melhor.c, melhor.texto))) melhor = { texto: seg, c };
   }
   if (!melhor) return null;
 

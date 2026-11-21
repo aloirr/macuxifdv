@@ -56,7 +56,7 @@ export const AVISO_CATALOGO_ORGANIZANDO = 'Organizando o catálogo no aparelho. 
 const FRASE_ORGANIZANDO_JUNTO = 'Organizando o catálogo no aparelho; a busca pode demorar um pouco.';
 
 /**
- * Aviso final da busca (T-0088): junta numa frase só o aviso de sem sinal/falha com o de índice sendo refeito. Sem
+ * Aviso final da busca (T-0088): junta numa frase só o aviso de sem sinal com o de índice sendo refeito. Sem
  * `indexando` devolve o aviso como veio (some quando o índice fica pronto). Antes o "organizando" só valia com aviso nulo,
  * caso que a aba nunca produz com termo de busca (código morto).
  */
@@ -70,7 +70,6 @@ export function iconeDoAviso(aviso: string): 'wifiOff' | 'clock' | 'alert' {
   if (aviso === AVISO_CATALOGO_ORGANIZANDO) return 'clock';
   return 'alert';
 }
-export const AVISO_BUSCA_FALHOU = 'A busca inteligente está indisponível agora. Mostramos a busca simples; tente de novo em instantes.';
 
 // ---------- validação e mesclagem ----------
 /**
@@ -119,7 +118,7 @@ export interface EntradaInterpretarBusca {
   porta: PortaInterpretacaoLlm | null;
   online: boolean;
   /** Resultado de `verificarConsultaIa` (RN-CAT-03; não consome). */
-  ia: { permitido: boolean; mensagem: string | null };
+  ia: { permitido: boolean; mensagem: string | null; /** Sem mensagem, mas a busca é degradada (ex.: cota indisponível). */ degradada?: boolean };
   /** Cancelamento do chamador, repassado à porta (que o combina com o tempo limite). */
   signal?: AbortSignal;
 }
@@ -127,8 +126,10 @@ export interface EntradaInterpretarBusca {
 export interface ResultadoInterpretacao {
   filtros: FiltrosInterpretados;
   origem: 'llm' | 'regras';
-  /** Aviso discreto para a tela (offline, limite, falha); nulo quando tudo certo. */
+  /** Aviso discreto para a tela (offline, limite); nulo no resto. */
   aviso: string | null;
+  /** Busca degradada: sem sinal, limite, IA desligada ou falha do provedor (inclui tempo esgotado). Falha não traz aviso. */
+  degradada: boolean;
   /** O provedor foi chamado (com ou sem resposta). */
   chamouProvedor: boolean;
   /** RN-CAT-03: o que aconteceu com a tentativa; passe para `registrarDesfechoIa`. */
@@ -138,34 +139,34 @@ export interface ResultadoInterpretacao {
 }
 
 /**
- * Interpreta a consulta. Nunca lança por falha do provedor: cai para as regras locais e avisa.
+ * Interpreta a consulta. Nunca lança por falha do provedor: cai para as regras locais, sem aviso.
  * Ordem na API: cache (não consome) → `verificarConsultaIa` → esta função → `registrarDesfechoIa(desfecho)`.
  */
 export async function interpretarBusca(e: EntradaInterpretarBusca): Promise<ResultadoInterpretacao> {
   const regras = interpretarConsulta(e.texto, e.vocabulario);
-  const semChamar = (aviso: string | null): ResultadoInterpretacao => ({ filtros: regras, origem: 'regras', aviso, chamouProvedor: false, desfecho: 'nao_chamada', consomeCota: false });
-  if (!e.online) return semChamar(AVISO_BUSCA_OFFLINE);
-  if (!e.ia.permitido) return semChamar(e.ia.mensagem);
-  if (!e.porta) return semChamar(null);
+  const semChamar = (aviso: string | null, degradada: boolean): ResultadoInterpretacao => ({ filtros: regras, origem: 'regras', aviso, degradada, chamouProvedor: false, desfecho: 'nao_chamada', consomeCota: false });
+  if (!e.online) return semChamar(AVISO_BUSCA_OFFLINE, true);
+  if (!e.ia.permitido) return semChamar(e.ia.mensagem, e.ia.mensagem !== null || e.ia.degradada === true);
+  if (!e.porta) return semChamar(null, false);
 
   let bruto: unknown;
   try {
     bruto = await e.porta.interpretar({ tenant_id: e.tenant_id, texto: e.texto, marcas: [...e.vocabulario.marcas], linhas: [...e.vocabulario.linhas] }, e.signal ? { signal: e.signal } : undefined);
   } catch (erro) {
     const desfecho = classificarFalhaIa(erro);
-    return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, chamouProvedor: true, desfecho, consomeCota: consomeCotaIa(desfecho) };
+    return { filtros: regras, origem: 'regras', aviso: null, degradada: true, chamouProvedor: true, desfecho, consomeCota: consomeCotaIa(desfecho) };
   }
   const respondida = { chamouProvedor: true, desfecho: 'respondida' as const, consomeCota: true };
   const validado = validarFiltrosLlm(bruto, e.vocabulario);
-  if (!validado) return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, ...respondida };
-  return { filtros: mesclarFiltros(regras, validado), origem: 'llm', aviso: null, ...respondida };
+  if (!validado) return { filtros: regras, origem: 'regras', aviso: null, degradada: true, ...respondida };
+  return { filtros: mesclarFiltros(regras, validado), origem: 'llm', aviso: null, degradada: false, ...respondida };
 }
 
 /**
  * Campos de `ResultadoBusca` (contrato) que vêm da interpretação: quem interpretou, se a busca está degradada
  * (offline, limite ou falha do provedor, incluindo tempo esgotado — RN-CAT-03) e o aviso discreto da tela.
- * Falha do provedor ⇒ `interpreted_by = regras`, `degraded = true` e `notice` em português; nunca erro para o usuário.
+ * Falha do provedor ⇒ `interpreted_by = regras` e `degraded = true`, sem `notice`; nunca erro para o usuário.
  */
-export function resumoDaInterpretacao(r: Pick<ResultadoInterpretacao, 'origem' | 'aviso'>): { interpreted_by: 'llm' | 'regras'; degraded: boolean; notice: string | null } {
-  return { interpreted_by: r.origem, degraded: r.aviso !== null, notice: r.aviso };
+export function resumoDaInterpretacao(r: Pick<ResultadoInterpretacao, 'origem' | 'aviso' | 'degradada'>): { interpreted_by: 'llm' | 'regras'; degraded: boolean; notice: string | null } {
+  return { interpreted_by: r.origem, degraded: r.degradada, notice: r.aviso };
 }

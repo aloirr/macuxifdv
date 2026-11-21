@@ -507,9 +507,10 @@ describe.skipIf(semBanco())('T-0018 — rota e visitas reais no app Campo × API
     expect(c.ap.motor.arquivosPendentes().map((a) => a.id), '"Fotos pendentes: 1" na tela de sync').toEqual([foto]);
 
     c.ap.online.valor = true;
-    // a chave usa o mês UTC do relógio da API no envio: mede antes e depois (a virada do mês no meio não reprova)
+    // hora-fixa-ok: a chave usa o mês UTC do relógio da API no envio; mede antes e depois (a virada do mês no meio não reprova)
     const mesAntes = new Date().toISOString().slice(0, 7);
     expect(await c.ap.sincronizar()).toBe(true);
+    // hora-fixa-ok: idem
     const mesesDoEnvio = new Set([mesAntes, new Date().toISOString().slice(0, 7)]);
     expect(c.ap.motor.estado().fila).toEqual([]);
     expect(c.ap.motor.arquivosPendentes()).toEqual([]);
