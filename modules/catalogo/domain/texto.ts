@@ -136,21 +136,32 @@ function singular(p: string): string {
 
 /** Termos de busca: normaliza, tira stopwords e põe no singular. Medidas e números ficam como estão. */
 export function tokensDeBusca(texto: string): string[] {
-  return normalizarTexto(texto)
-    .split(' ')
-    .filter((p) => p !== '' && !STOPWORDS.has(p))
-    .map((p) => (MEDIDA_RE.test(p) ? p : singular(p)));
+  return palavrasInteiras(texto, false).map(noSingular);
 }
+
+const noSingular = (p: string): string => (MEDIDA_RE.test(p) ? p : singular(p));
 
 /**
  * Igual a `tokensDeBusca`, sem a memória de textos já vistos: para textos longos e únicos por produto (aplicação de até
  * 2.000 caracteres × 20 mil produtos) que não devem encher o `MEMO_NORMALIZADO` (T-0084 §4.5).
  */
 export function tokensDeBuscaSemMemo(texto: string): string[] {
-  return normalizarSemMemo(String(texto ?? ''))
-    .split(' ')
-    .filter((p) => p !== '' && !STOPWORDS.has(p))
-    .map((p) => (MEDIDA_RE.test(p) ? p : singular(p)));
+  return palavrasInteiras(texto).map(noSingular);
+}
+
+/**
+ * Termos de busca (como `tokensDeBusca`) mais as formas inteiras, sem o singular (RN-CAT-18: nome de veículo não passa pelo
+ * singular). `inteiros` é nulo quando o singular não mudou nenhum termo (as duas listas são iguais: não se guarda a segunda).
+ */
+export function tokensComInteiros(texto: string, semMemo = false): { termos: string[]; inteiros: string[] | null } {
+  const brutos = palavrasInteiras(texto, semMemo);
+  const termos = brutos.map(noSingular);
+  return { termos, inteiros: termos.some((t, i) => t !== brutos[i]) ? brutos : null };
+}
+
+/** Palavras do texto como estão (normalizadas, sem as vazias e sem o singular): base do "é nome de veículo" (RN-CAT-18). */
+export function palavrasInteiras(texto: string, semMemo = true): string[] {
+  return (semMemo ? normalizarSemMemo(String(texto ?? '')) : normalizarTexto(texto)).split(' ').filter((p) => p !== '' && !STOPWORDS.has(p));
 }
 
 /** Frase normalizada com cada termo no singular (chave de comparação de sinônimos e vocabulário). */

@@ -4,7 +4,7 @@
  */
 import type { TrechoBusca } from '../contracts';
 import { ehAnoDaConsulta, expandirAplicacao, type FaixaAnos } from './aplicacao';
-import { nivelDaPalavra } from './ranking';
+import { nivelDaPalavra, paresColados, planejarGrupos, type PalavraPlano } from './ranking';
 import { tokensDeBusca } from './texto';
 
 export const SERVE_EM_MAX = 90;
@@ -35,32 +35,50 @@ function palavrasDe(segmento: string): Palavra[] {
   return saida;
 }
 
-function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtual: number): Casamento {
+/** A palavra do segmento de maior nível para a palavra da consulta (exato antes de prefixo/digitação); a primeira em caso de empate. */
+function melhorPalavra(w: PalavraPlano, palavras: readonly Palavra[]): { p: Palavra | null; nivel: number } {
+  let p: Palavra | null = null;
+  let nivel = 0;
+  for (const x of palavras) {
+    const n = w.modo === 'v' ? (w.q === x.termo || (w.ou?.includes(x.termo) ?? false) ? 1 : 0) : nivelDaPalavra(w.q, x.termo, { prefixo: w.modo === 'p' });
+    if (n > nivel) {
+      p = x;
+      nivel = n;
+    }
+  }
+  return { p, nivel };
+}
+
+function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtual: number, veiculos?: ReadonlySet<string>): Casamento {
   const palavras = palavrasDe(segmento);
   const faixas = expandirAplicacao(segmento, { anoAtual }).faixas;
   const marcas: [number, number][] = [];
   let casados = 0;
   let exatos = 0;
   let incluiAno: number | null = null;
-  for (const grupo of grupos) {
-    for (const alt of grupo) {
+  const plano = planejarGrupos(grupos, veiculos);
+  // RN-CAT-19: a palavra grudada da aplicação ("SpaceFox") cobre as duas vizinhas da busca ("space fox") de uma vez
+  const viaPar = new Map<number, { marca: [number, number]; exato: boolean }>();
+  for (const par of paresColados(grupos)) {
+    const achada = melhorPalavra(par.palavra, palavras);
+    if (!achada.p) continue;
+    for (const gi of par.grupos) if (!viaPar.has(gi)) viaPar.set(gi, { marca: [achada.p.inicio, achada.p.fim], exato: achada.nivel === 1 });
+  }
+  for (let gi = 0; gi < grupos.length; gi++) {
+    const grupo = grupos[gi]!;
+    const antes = casados;
+    for (let ai = 0; ai < grupo.length; ai++) {
+      const alt = grupo[ai]!;
       const partes = alt.split(' ').filter(Boolean);
       if (partes.length === 0) continue;
       const achadas: [number, number][] = [];
       let faixaDoAno: { ano: number; faixa: FaixaAnos } | null = null;
       let todas = true;
       let todasExatas = true;
-      for (const q of partes) {
-        // a palavra de maior nível (exato antes de prefixo/digitação); a primeira em caso de empate
-        let p: Palavra | null = null;
-        let nivel = 0;
-        for (const w of palavras) {
-          const n = nivelDaPalavra(q, w.termo);
-          if (n > nivel) {
-            p = w;
-            nivel = n;
-          }
-        }
+      for (let pi = 0; pi < partes.length; pi++) {
+        const q = partes[pi]!;
+        // RN-CAT-18: na aplicação a palavra casa inteira; começo de palavra só na última digitada, e nome de veículo só inteiro
+        const { p, nivel } = melhorPalavra(plano[gi]![ai]![pi] ?? { q, modo: 'i' }, palavras);
         if (p) {
           achadas.push([p.inicio, p.fim]);
           if (nivel !== 1) todasExatas = false;
@@ -79,6 +97,12 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
         if (incluiAno === null) incluiAno = faixaDoAno.ano;
       } else marcas.push(...achadas);
       break;
+    }
+    const par = viaPar.get(gi);
+    if (casados === antes && par) {
+      casados++;
+      if (par.exato) exatos++;
+      marcas.push(par.marca);
     }
   }
   return { marcas, grupos: casados, exatos, incluiAno };
@@ -107,7 +131,7 @@ function vence(c: Casamento, seg: string, atual: Casamento, segAtual: string): b
  * RN-CAT-12: trecho da aplicação para a linha "Serve em". `grupos` são os da consulta (`expandirSinonimos`).
  * Nulo quando a aplicação é vazia ou nenhum grupo casou nela.
  */
-export function trechoServeEm(aplicacao: string | null | undefined, grupos: readonly (readonly string[])[], opcoes: { anoAtual: number; max?: number }): TrechoBusca | null {
+export function trechoServeEm(aplicacao: string | null | undefined, grupos: readonly (readonly string[])[], opcoes: { anoAtual: number; max?: number; veiculos?: ReadonlySet<string> }): TrechoBusca | null {
   const texto = aplicacao ?? '';
   if (texto.trim() === '' || grupos.length === 0) return null;
   const max = opcoes.max ?? SERVE_EM_MAX;
@@ -117,7 +141,7 @@ export function trechoServeEm(aplicacao: string | null | undefined, grupos: read
   for (const bruto of texto.split(SEPARADOR_SEGMENTO)) {
     const seg = bruto.trim();
     if (seg === '') continue;
-    const c = casar(seg, grupos, opcoes.anoAtual);
+    const c = casar(seg, grupos, opcoes.anoAtual, opcoes.veiculos);
     if (c.grupos > 0 && (melhor === null || vence(c, seg, melhor.c, melhor.texto))) melhor = { texto: seg, c };
   }
   if (!melhor) return null;

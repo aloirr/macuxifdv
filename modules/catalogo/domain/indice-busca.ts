@@ -8,7 +8,8 @@
 import type { FiltrosInterpretados } from '../contracts';
 import { anoCivilNoFuso } from './ano-civil';
 import { anoForaDaAplicacao, ehAnoDaConsulta, expandirAplicacao } from './aplicacao';
-import { casaComCodigo, chavesDeMarcaDoProduto, cmp, codigoCompacto, codigosCompactosDoProduto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, referenciaCruzadaContem, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
+import { ContadorVeiculos, definirVeiculos, fonteDoProduto } from './veiculos';
+import { casaComCodigo, chavesDeMarcaDoProduto, cmp, codigoCompacto, codigosCompactosDoProduto, codigosDaConsulta, nivelDaPalavra, nomeChave, paresColados, planejarGrupos, type PalavraPlano, notaFinal, referenciaCruzadaContem, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
 import { chaveDeTermo, expandirSinonimos, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 import { aplicarChips, entraNaVitrine, temEstoqueParaBusca, type ChipsVitrine, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 import { filtrosParaPerfil } from './visibilidade';
@@ -48,6 +49,8 @@ export interface IndiceBusca {
   categoriaChave: readonly string[];
   /** Maior `vendas` entre os produtos ativos (o universo do ranking completo quando não há filtro de marca, linha nem chip). */
   maxVendasAtivos: number;
+  /** RN-CAT-18: nomes de veículo da base inteira, calculados na carga junto do índice (a busca só consulta). */
+  veiculos: ReadonlySet<string>;
 }
 
 /** Bit `código do caractere mod 32` de cada caractere do texto. */
@@ -83,6 +86,7 @@ export class ConstrutorIndice {
   private readonly categoriaChave: string[] = [];
   private maxVendasAtivos = 0;
   private proximo = 0;
+  private readonly veiculos = new ContadorVeiculos();
 
   constructor(
     private readonly produtos: readonly ProdutoCatalogo[],
@@ -120,6 +124,7 @@ export class ConstrutorIndice {
     this.marcasChave[i] = chavesDeMarcaDoProduto(p.marca, p.referencias);
     this.categoriaChave[i] = chaveDeTermo(p.categoria);
     if (p.ativo && p.vendas > this.maxVendasAtivos) this.maxVendasAtivos = p.vendas;
+    if (p.ativo) this.veiculos.acrescentar(fonteDoProduto(p));
   }
 
   concluir(): IndiceBusca {
@@ -128,6 +133,8 @@ export class ConstrutorIndice {
       const termos = [...m.keys()].sort((a, b) => a.length - b.length);
       return { porTermo: m, termos, alfa: [...m.keys()].sort(cmp), mascaras: Int32Array.from(termos, mascaraDe) };
     };
+    const veiculos = this.veiculos.concluir();
+    definirVeiculos(this.produtos, veiculos);
     return {
       produtos: this.produtos,
       anoAtual: this.anoAtual,
@@ -138,6 +145,7 @@ export class ConstrutorIndice {
       marcasChave: this.marcasChave,
       categoriaChave: this.categoriaChave,
       maxVendasAtivos: this.maxVendasAtivos,
+      veiculos,
     };
   }
 }
@@ -177,12 +185,19 @@ export async function prepararIndice(produtos: readonly ProdutoCatalogo[], anoAt
   return indice;
 }
 
-/** Percorre os termos do índice que a palavra casa (exato, prefixo ou erro de digitação), com o nível do casamento. */
-function casamentos(indice: SubIndice, palavra: string, aoCasar: (posicoes: readonly number[], nivel: number) => void): void {
+/**
+ * Percorre os termos do índice que a palavra casa, com o nível do casamento (RN-CAT-18): `v` só inteira; `p` (última palavra digitada)
+ * exata, começo de palavra e, nos campos de texto, erro de digitação; `i` exata e, nos campos de texto, erro de digitação.
+ * `aplicacao` nunca aceita erro de digitação (como o ranking).
+ */
+function casamentos(indice: SubIndice, palavra: string, modo: PalavraPlano['modo'], aplicacao: boolean, aoCasar: (posicoes: readonly number[], nivel: number) => void): void {
   const exato = indice.porTermo.get(palavra);
   if (exato) aoCasar(exato, nivelDaPalavra(palavra, palavra));
   // medidas e códigos (com dígito) só casam exatos; palavras curtas só exatas (ver `nivelDaPalavra`)
-  if (soCasaExato(palavra) || palavra.length < 3) return;
+  if (modo === 'v' || soCasaExato(palavra) || palavra.length < 3) return;
+  const prefixo = modo === 'p';
+  const digitacao = !aplicacao;
+  if (!prefixo && !digitacao) return;
   const tolerancia = toleranciaDaPalavra(palavra);
   const menor = palavra.length - tolerancia;
   const maior = palavra.length + tolerancia;
@@ -203,11 +218,12 @@ function casamentos(indice: SubIndice, palavra: string, aoCasar: (posicoes: read
     const t = indice.termos[k]!;
     if (t === palavra) continue;
     // cada caractere da palavra que não existe no termo custa pelo menos uma edição
-    if (!t.startsWith(palavra) && bits(mascaraP & ~indice.mascaras[k]!) > tolerancia) continue;
-    const nivel = nivelDaPalavra(palavra, t);
+    if ((!prefixo || !t.startsWith(palavra)) && (!digitacao || bits(mascaraP & ~indice.mascaras[k]!) > tolerancia)) continue;
+    const nivel = nivelDaPalavra(palavra, t, { prefixo, digitacao });
     if (nivel > 0) aoCasar(indice.porTermo.get(t)!, nivel);
   }
   // 2) termos além do alcance da digitação: só o prefixo conta, e quem tem o prefixo é uma faixa contínua da ordem alfabética
+  if (!prefixo) return;
   let ini = 0;
   let fim = indice.alfa.length;
   while (ini < fim) {
@@ -218,25 +234,29 @@ function casamentos(indice: SubIndice, palavra: string, aoCasar: (posicoes: read
   for (let k = ini; k < indice.alfa.length; k++) {
     const t = indice.alfa[k]!;
     if (!t.startsWith(palavra)) break;
-    if (t.length > maior) aoCasar(indice.porTermo.get(t)!, nivelDaPalavra(palavra, t));
+    if (t.length > maior) aoCasar(indice.porTermo.get(t)!, nivelDaPalavra(palavra, t, { prefixo, digitacao }));
   }
 }
 
 /** Posições dos produtos que têm algum termo que a palavra casa (exato, prefixo ou erro de digitação). */
 export function posicoesDaPalavra(indice: IndiceBusca, palavra: string, destino: Set<number>): void {
+  const modo = indice.veiculos.has(palavra) ? 'v' : 'p';
   for (const sub of [indice.texto, indice.aplicacao]) {
-    casamentos(sub, palavra, (posicoes) => {
+    casamentos(sub, palavra, modo, sub === indice.aplicacao, (posicoes) => {
       for (const i of posicoes) destino.add(i);
     });
   }
 }
 
 /** Melhor nível (1 exato, 0,7 prefixo, 0,5 digitação) da palavra em cada produto. */
-function niveisDaPalavra(indice: SubIndice, palavra: string): Map<number, number> {
+function niveisDaPalavra(indice: SubIndice, w: PalavraPlano, aplicacao: boolean): Map<number, number> {
   const m = new Map<number, number>();
-  casamentos(indice, palavra, (posicoes, nivel) => {
+  const guardar = (posicoes: readonly number[], nivel: number) => {
     for (const i of posicoes) if ((m.get(i) ?? 0) < nivel) m.set(i, nivel);
-  });
+  };
+  casamentos(indice, w.q, w.modo, aplicacao, guardar);
+  // RN-CAT-19: nome de veículo também casa as palavras grudadas da base (já calculadas na carga)
+  for (const d of w.ou ?? []) casamentos(indice, d, 'v', aplicacao, guardar);
   return m;
 }
 
@@ -270,6 +290,8 @@ export interface Candidatos {
   pre?: { pontos: number; exato: boolean; soAplicacao: boolean }[];
   /** Maior `vendas` entre os candidatos do ranking completo (normaliza o boost; não pode mudar com a pré-seleção). */
   maxVendas: number;
+  /** RN-CAT-18: nomes de veículo da base inteira (não dos candidatos); `buscarProdutos` precisa dele para casar igual ao ranking completo. */
+  veiculos: ReadonlySet<string>;
 }
 
 /** Marca e linha do filtro (os de preço e estoque já foram descartados: nesses casos não há pré-seleção): compara as chaves prontas do índice. */
@@ -297,7 +319,7 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   const entra = (i: number) => entraNaVitrine(e.produtos[i]!, e.chips) && passaCadastro(indice, i, marcaDoFiltro, linhaDoFiltro);
   const saida = (posicoes: Iterable<number>): Candidatos => {
     const ordenadas = [...posicoes].sort((a, b) => a - b);
-    return { produtos: ordenadas.map((i) => e.produtos[i]!), maxVendas: 0 };
+    return { produtos: ordenadas.map((i) => e.produtos[i]!), maxVendas: 0, veiculos: indice.veiculos };
   };
 
   // código exato (SKU, EAN, referência): se achou, só eles entram (igual ao `rankear`)
@@ -312,7 +334,7 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
       const r = saida(validos);
       return { ...r, maxVendas: r.produtos.reduce((m, p) => Math.max(m, p.vendas), 0) };
     }
-    if (grupos.length === 0) return { produtos: [], maxVendas: 0 };
+    if (grupos.length === 0) return { produtos: [], maxVendas: 0, veiculos: indice.veiculos };
   }
 
   // maior venda do universo que o ranking completo enxergaria (todo ativo que passa nos filtros de cadastro)
@@ -320,19 +342,27 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   if (marcaDoFiltro === null && linhaDoFiltro === null && !e.chips?.campaign && !e.chips?.only_product_ids) maxVendas = indice.maxVendasAtivos;
   else for (let i = 0; i < e.produtos.length; i++) if (e.produtos[i]!.vendas > maxVendas && entra(i)) maxVendas = e.produtos[i]!.vendas;
 
-  // por campo (texto × aplicação), por grupo: a melhor alternativa (todas as palavras dela casam; vale o menor nível)
+  // por campo (texto × aplicação), por grupo: a melhor alternativa (todas as palavras dela casam; vale o menor nível). RN-CAT-18: o
+  // modo de cada palavra (veículo, última digitada, inteira) é o do ranking
+  const plano = planejarGrupos(grupos, indice.veiculos);
   const palavras = new Set<string>();
   for (const g of grupos) for (const alt of g) for (const w of alt.split(' ')) if (w) palavras.add(w);
-  const doGrupo = (sub: SubIndice, g: readonly string[]): Map<number, number> => {
-    const niveis = new Map<string, Map<number, number>>();
-    for (const w of palavras) niveis.set(w, niveisDaPalavra(sub, w));
+  const niveisDe = (sub: SubIndice, aplicacao: boolean) => {
+    const memo = new Map<string, Map<number, number>>();
+    return (w: PalavraPlano): Map<number, number> => {
+      const chave = `${w.modo}${w.q}`;
+      let n = memo.get(chave);
+      if (!n) memo.set(chave, (n = niveisDaPalavra(sub, w, aplicacao)));
+      return n;
+    };
+  };
+  const doGrupo = (niveis: (w: PalavraPlano) => Map<number, number>, gi: number): Map<number, number> => {
     const melhor = new Map<number, number>();
-    for (const alt of g) {
-      const ws = alt.split(' ').filter(Boolean);
+    for (const ws of plano[gi]!) {
       if (ws.length === 0) continue;
-      const atual = new Map(niveis.get(ws[0]!)!);
+      const atual = new Map(niveis(ws[0]!));
       for (const w of ws.slice(1)) {
-        const outro = niveis.get(w)!;
+        const outro = niveis(w);
         for (const [i, n] of atual) {
           const o = outro.get(i);
           if (o === undefined) atual.delete(i);
@@ -343,7 +373,17 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
     }
     return melhor;
   };
-  const porGrupo = grupos.map((g) => ({ texto: doGrupo(indice.texto, g), aplicacao: doGrupo(indice.aplicacao, g), ano: g.filter((alt) => ehAnoDaConsulta(alt)).map(Number), palavra: g.some((alt) => /[a-z]/.test(alt)) }));
+  const niveisTexto = niveisDe(indice.texto, false);
+  const niveisApl = niveisDe(indice.aplicacao, true);
+  const porGrupo = grupos.map((g, gi) => ({ texto: doGrupo(niveisTexto, gi), aplicacao: doGrupo(niveisApl, gi), ano: g.filter((alt) => ehAnoDaConsulta(alt)).map(Number), palavra: g.some((alt) => /[a-z]/.test(alt)) }));
+  // RN-CAT-19: a palavra grudada do texto casa as duas vizinhas de uma vez (mesma regra do ranking: vale para os dois grupos)
+  for (const par of paresColados(grupos)) {
+    for (const gi of par.grupos) {
+      for (const [mapa, niveis] of [[porGrupo[gi]!.texto, niveisTexto], [porGrupo[gi]!.aplicacao, niveisApl]] as const) {
+        for (const [i, nivel] of niveis(par.palavra)) if ((mapa.get(i) ?? 0) < nivel) mapa.set(i, nivel);
+      }
+    }
+  }
   const alvo = new Set<number>();
   for (const x of porGrupo) {
     for (const i of x.texto.keys()) alvo.add(i);
@@ -389,7 +429,7 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   });
   // R-20261120-194335: só aparece quem casa todas as palavras (ou o exato por código); `casados` é limite superior da cobertura do ranking, então descartar aqui é seguro
   const fica = todos.map((x) => x.exato || x.casados >= grupos.length);
-  return { produtos: posicoes.filter((_, k) => fica[k]).map((i) => e.produtos[i]!), pre: todos.filter((_, k) => fica[k]).map(({ casados: _c, ...r }) => r), maxVendas };
+  return { produtos: posicoes.filter((_, k) => fica[k]).map((i) => e.produtos[i]!), pre: todos.filter((_, k) => fica[k]).map(({ casados: _c, ...r }) => r), maxVendas, veiculos: indice.veiculos };
 }
 
 /** `peso_aplicacao` padrão (RN-CAT-12); a nota barata não lê o parâmetro do tenant. */
@@ -452,5 +492,5 @@ export function cortarCandidatos(c: Candidatos, contexto: ContextoVitrine, teto:
     )
     .slice(0, teto)
     .sort((a, b) => a.k - b.k);
-  return { produtos: melhores.map((x) => x.produto), pre: melhores.map((x) => pre[x.k]!), maxVendas: c.maxVendas };
+  return { produtos: melhores.map((x) => x.produto), pre: melhores.map((x) => pre[x.k]!), maxVendas: c.maxVendas, veiculos: c.veiculos };
 }

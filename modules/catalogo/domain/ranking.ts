@@ -9,7 +9,8 @@
 import type { FiltrosInterpretados, Referencia } from '../contracts';
 import { anoForaDaAplicacao, ehAnoDaConsulta, expandirAplicacao } from './aplicacao';
 import type { ParametrosCatalogo } from './parametros';
-import { chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { chaveDeTermo, expandirSinonimos, semAcento, tokensComInteiros, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { fonteDoProduto, nomesDeVeiculo, NomesDeVeiculo, soLetras } from './veiculos';
 
 /** Documento da busca: cadastro do Core + preço/estoque já resolvidos para o usuário e sinais de venda. */
 export interface DocBusca {
@@ -26,6 +27,8 @@ export interface DocBusca {
   atributos: string;
   /** Descrição longa do conteúdo (RN-CAT-08): entra na busca com o peso dos atributos, o menor. */
   descricao?: string | null | undefined;
+  /** RN-CAT-18: só produto ativo entra na base de nomes de veículo; ausente = ativo. */
+  ativo?: boolean | undefined;
   /** RN-CAT-11: Aplicação (descrição 2) do cadastro; '' = sem aplicação (o ranking fica igual ao de antes). */
   aplicacao: string;
   /** RN-CAT-09: referências cruzadas ativas (até 3); marca inativa já fica de fora. */
@@ -49,20 +52,31 @@ export interface TokensDoDoc {
   marca: string[];
   categoria: string[];
   atributos: string[];
+  /**
+   * RN-CAT-18: as mesmas palavras sem o singular, só dos campos em que o singular mudou alguma palavra (nome de veículo casa a
+   * palavra inteira). Campo ausente = igual aos termos.
+   */
+  inteiros?: { nome?: string[]; marca?: string[]; categoria?: string[]; atributos?: string[] } | undefined;
 }
 
 /** Termos dos campos do documento. `semMemo` evita encher a memória de textos normalizados na carga de 20 mil produtos. */
 export function tokensDoDoc(d: Pick<DocBusca, 'sku' | 'ean' | 'nome' | 'marca' | 'categoria' | 'atributos' | 'referencias'> & Partial<Pick<DocBusca, 'external_id' | 'descricao'>>, semMemo = false): TokensDoDoc {
   const tk = semMemo ? tokensDeBuscaSemMemo : tokensDeBusca;
   const referencias = d.referencias ?? [];
+  const nome = tokensComInteiros(d.nome, semMemo);
+  const marca = tokensComInteiros(`${d.marca} ${marcasDasReferencias(referencias)}`.trim(), semMemo);
+  const categoria = tokensComInteiros(d.categoria, semMemo);
+  const atributos = tokensComInteiros(`${d.atributos} ${textoDescricaoParaBusca(d.descricao)}`.trim(), semMemo);
+  const inteiros = nome.inteiros || marca.inteiros || categoria.inteiros || atributos.inteiros ? { ...(nome.inteiros ? { nome: nome.inteiros } : {}), ...(marca.inteiros ? { marca: marca.inteiros } : {}), ...(categoria.inteiros ? { categoria: categoria.inteiros } : {}), ...(atributos.inteiros ? { atributos: atributos.inteiros } : {}) } : undefined;
   const termosRef = referencias.flatMap((r) => tk(r.codigo));
   const codigoErp = d.external_id?.trim() ?? '';
   return {
-    nome: tk(d.nome),
+    nome: nome.termos,
     codigo: tk(`${d.sku} ${d.ean ?? ''} ${codigoErp}`.trim()).concat([d.sku, d.ean ?? '', codigoErp].map((c) => chaveDeTermo(c)).filter(Boolean), codigosCompactosDoProduto(d.sku, codigoErp, referencias.map((r) => r.codigo)), termosRef),
-    marca: tk(`${d.marca} ${marcasDasReferencias(referencias)}`.trim()),
-    categoria: tk(d.categoria),
-    atributos: tk(`${d.atributos} ${textoDescricaoParaBusca(d.descricao)}`.trim()),
+    marca: marca.termos,
+    categoria: categoria.termos,
+    atributos: atributos.termos,
+    inteiros,
   };
 }
 
@@ -108,15 +122,53 @@ const CODIGO_MAX = 30;
 export function codigosDaConsulta(texto: string): string[] {
   const palavras = String(texto ?? '').split(/\s+/).filter(Boolean);
   const achados = new Set<string>();
-  for (let i = 0; i < palavras.length; i++) {
-    for (let n = 1; n <= 3 && i + n <= palavras.length; n++) {
-      const c = codigoCompacto(palavras.slice(i, i + n).join(''));
-      if (c.length < CODIGO_MIN || c.length > CODIGO_MAX || !/\d/.test(c)) continue;
-      if (n === 1 && !/[a-z]/.test(c)) continue;
-      achados.add(c);
-    }
+  for (const { colada, n } of coladas(palavras, 3)) {
+    if (colada.length < CODIGO_MIN || colada.length > CODIGO_MAX || !/\d/.test(colada)) continue;
+    if (n === 1 && !/[a-z]/.test(colada)) continue;
+    achados.add(colada);
   }
   return [...achados];
+}
+
+/** Um n-grama da consulta: `n` palavras seguidas a partir da posição `de`, coladas e compactadas (`codigoCompacto`). */
+interface Colada {
+  de: number;
+  n: number;
+  colada: string;
+}
+
+/**
+ * Núcleo único dos n-gramas colados (RN-CAT-09 código e RN-CAT-19 vizinhas no texto): de 1 a `max` palavras seguidas, coladas.
+ * Quem chama filtra o que vale (código pede dígito; texto pede letras, 3 ou mais em cada palavra).
+ */
+function coladas(palavras: readonly string[], max: number): Colada[] {
+  const saida: Colada[] = [];
+  for (let de = 0; de < palavras.length; de++) {
+    for (let n = 1; n <= max && de + n <= palavras.length; n++) saida.push({ de, n, colada: codigoCompacto(palavras.slice(de, de + n).join('')) });
+  }
+  return saida;
+}
+
+/**
+ * RN-CAT-19: as palavras vizinhas da busca, coladas, que podem ser a palavra grudada do texto ou da aplicação ("space fox" → "spacefox").
+ * Um par por grupo vizinho (a palavra digitada de cada grupo, sem sinônimo de várias palavras); cada palavra só de letras, com 3 ou mais.
+ * `modo`: a palavra junta é a última digitada quando o segundo grupo é o último ("space fo" → começo de palavra); senão só inteira.
+ * `grupos` guarda os dois grupos que a palavra junta cobre de uma vez.
+ */
+interface ParColado {
+  grupos: readonly [number, number];
+  palavra: PalavraPlano;
+}
+export function paresColados(grupos: readonly (readonly string[])[]): ParColado[] {
+  const digitadas = grupos.map((g) => g[0] ?? '');
+  const pares: ParColado[] = [];
+  for (const { de, n, colada } of coladas(digitadas, 2)) {
+    if (n !== 2) continue;
+    const duas = [digitadas[de]!, digitadas[de + 1]!];
+    if (!duas.every((w) => soLetras(w))) continue;
+    pares.push({ grupos: [de, de + 1], palavra: { q: colada, modo: de + 1 === grupos.length - 1 ? 'p' : 'v' } });
+  }
+  return pares;
 }
 const NIVEL = { exato: 1, prefixo: 0.7, digitacao: 0.5 } as const;
 
@@ -124,6 +176,8 @@ const NIVEL = { exato: 1, prefixo: 0.7, digitacao: 0.5 } as const;
 interface TermosAplicacao {
   /** Ordenados e sem repetição; as cadeias vêm do vocabulário compartilhado (cada termo existe uma vez só na memória). */
   ordenados: readonly string[];
+  /** RN-CAT-18: as palavras sem o singular (nome de veículo), ordenadas; ausente = iguais às de `ordenados`. */
+  inteiros?: readonly string[];
 }
 /** Vocabulário compartilhado: "dianteiro" de 20 mil aplicações é uma cadeia só (a memória guarda ponteiros, não cópias). */
 const VOCABULARIO = new Map<string, string>();
@@ -136,7 +190,8 @@ function internar(t: string): string {
   return t;
 }
 function termosDaAplicacao(texto: string): TermosAplicacao {
-  return { ordenados: [...new Set(tokensDeBuscaSemMemo(texto))].map(internar).sort() };
+  const { termos, inteiros } = tokensComInteiros(texto, true);
+  return { ordenados: [...new Set(termos)].map(internar).sort(), ...(inteiros ? { inteiros: [...new Set(inteiros)].map(internar).sort() } : {}) };
 }
 
 /** Posição do primeiro termo >= q (busca binária). */
@@ -152,17 +207,24 @@ function primeiroNaoMenor(o: readonly string[], q: string): number {
 }
 
 /** Mesmo critério de `nivelDaPalavra` para exato e prefixo (medidas e códigos só exatos), em O(log n) sobre os termos ordenados. */
-function nivelNaAplicacao(q: string, t: TermosAplicacao): number {
-  const o = t.ordenados;
+function nivelNaAplicacao(p: PalavraPlano, t: TermosAplicacao): number {
+  const q = p.q;
+  // nome de veículo: palavra inteira, sem o singular
+  const o = p.modo === 'v' ? (t.inteiros ?? t.ordenados) : t.ordenados;
   const i = primeiroNaoMenor(o, q);
   if (i < o.length && o[i] === q) return NIVEL.exato;
-  if (q.length < 3 || /\d/.test(q) || MEDIDA_RE.test(q)) return 0;
+  // RN-CAT-19: nome de veículo também casa a palavra grudada da base
+  if (p.ou) for (const w of p.ou) {
+    const k = primeiroNaoMenor(o, w);
+    if (k < o.length && o[k] === w) return NIVEL.exato;
+  }
+  // RN-CAT-18: na aplicação só a última palavra digitada vale por começo de palavra, e nome de veículo só inteiro
+  if (p.modo !== 'p' || q.length < 3 || /\d/.test(q) || MEDIDA_RE.test(q)) return 0;
   // o primeiro termo >= q é o único candidato a prefixo (um termo maior que q e que começa com q fica logo depois de q)
   return i < o.length && o[i]!.startsWith(q) ? NIVEL.prefixo : 0;
 }
 
-function melhorNivelAplicacao(alternativa: string, t: TermosAplicacao): number {
-  const palavras = alternativa.split(' ').filter(Boolean);
+function melhorNivelAplicacao(palavras: readonly PalavraPlano[], t: TermosAplicacao): number {
   if (palavras.length === 0) return 0;
   let menor = 1;
   for (const q of palavras) {
@@ -199,7 +261,7 @@ export function esquecerMemoriaRanking(): void {
   VOCABULARIO.clear();
 }
 
-const bytesDeTermos = (t: TermosAplicacao | undefined) => (t ? 48 + 8 * t.ordenados.length : 0); // ponteiros: as cadeias são do vocabulário
+const bytesDeTermos = (t: TermosAplicacao | undefined) => (t ? 48 + 8 * (t.ordenados.length + (t.inteiros?.length ?? 0)) : 0); // ponteiros: as cadeias são do vocabulário
 /** Estimativa determinística (bytes) da memória do ranking: cadeias a 2 bytes/caractere, sobrecarga fixa por termo e por entrada. */
 export function estimarMemoriaRanking(): { entradas: number; trechos: number; bytes: number } {
   let bytes = 0;
@@ -321,11 +383,11 @@ export const soCasaExato = (q: string): boolean => /\d/.test(q) || MEDIDA_RE.tes
 export const toleranciaDaPalavra = (q: string): number => (q.length >= 8 ? 2 : q.length >= 4 ? 1 : 0);
 
 /** Quanto a palavra da consulta casa com um termo do campo: exato 1; prefixo (3+ letras) 0,7; erro de digitação 0,5. */
-export function nivelDaPalavra(q: string, termo: string): number {
+export function nivelDaPalavra(q: string, termo: string, opcoes: { prefixo?: boolean; digitacao?: boolean } = {}): number {
   if (q === termo) return NIVEL.exato;
   if (soCasaExato(q)) return 0; // medidas e códigos só casam exatos
-  if (q.length >= 3 && termo.length > q.length && termo.startsWith(q)) return NIVEL.prefixo;
-  if (q.length >= 4) {
+  if (opcoes.prefixo !== false && q.length >= 3 && termo.length > q.length && termo.startsWith(q)) return NIVEL.prefixo;
+  if (opcoes.digitacao !== false && q.length >= 4) {
     const tolerancia = toleranciaDaPalavra(q);
     // T-0052-B4: a distância é no mínimo a diferença de tamanho; evita montar a matriz para quase todos os termos
     if (Math.abs(q.length - termo.length) <= tolerancia && dentroDaDistancia(q, termo, tolerancia)) return NIVEL.digitacao;
@@ -333,14 +395,62 @@ export function nivelDaPalavra(q: string, termo: string): number {
   return 0;
 }
 
-function melhorNivel(alternativa: string, termosDoCampo: readonly string[]): number {
-  const palavras = alternativa.split(' ').filter(Boolean);
+/**
+ * RN-CAT-18: como cada palavra da consulta casa. `v` = nome de veículo (só inteira, sem singular, em qualquer campo); `p` = última palavra
+ * digitada (começo de palavra e erro de digitação, como antes); `i` = as outras (inteira, mais o erro de digitação nos campos de texto).
+ */
+export interface PalavraPlano {
+  q: string;
+  modo: 'v' | 'p' | 'i';
+  /** RN-CAT-19: nome de veículo (`modo` `v`) também casa estas palavras grudadas da base (CrossFox, SpaceFox para "fox"). */
+  ou?: readonly string[];
+}
+/** Plano de cada alternativa de cada grupo (mesma forma de `grupos`). */
+type PlanoDosGrupos = PalavraPlano[][][];
+const SEM_VEICULOS: ReadonlySet<string> = new Set();
+
+/** RN-CAT-18: só a última palavra (de cada alternativa do último grupo) vale por começo de palavra; nome de veículo, só inteiro. */
+export function planejarGrupos(grupos: readonly (readonly string[])[], veiculos: ReadonlySet<string> = SEM_VEICULOS): PlanoDosGrupos {
+  return grupos.map((g, gi) =>
+    g.map((alt) => {
+      const ws = alt.split(' ').filter(Boolean);
+      return ws.map((q, wi): PalavraPlano => {
+        if (!veiculos.has(q)) return { q, modo: gi === grupos.length - 1 && wi === ws.length - 1 ? 'p' : 'i' };
+        const ou = veiculos instanceof NomesDeVeiculo ? veiculos.derivadas.get(q) : undefined;
+        return ou ? { q, modo: 'v', ou } : { q, modo: 'v' };
+      });
+    }),
+  );
+}
+
+interface CampoTermos {
+  termos: readonly string[];
+  /** Termos sem o singular (nome de veículo); ausente = os próprios termos. */
+  inteiros?: readonly string[] | undefined;
+}
+
+function nivelNoCampo(p: PalavraPlano, c: CampoTermos): number {
+  if (p.modo === 'v') {
+    const palavras = c.inteiros ?? c.termos;
+    return palavras.includes(p.q) || (p.ou?.some((w) => palavras.includes(w)) ?? false) ? NIVEL.exato : 0;
+  }
+  const o = { prefixo: p.modo === 'p' };
+  let melhor = 0;
+  for (const t of c.termos) {
+    const n = nivelDaPalavra(p.q, t, o);
+    if (n > melhor) {
+      melhor = n;
+      if (n === NIVEL.exato) break;
+    }
+  }
+  return melhor;
+}
+
+function melhorNivel(palavras: readonly PalavraPlano[], campo: CampoTermos): number {
   if (palavras.length === 0) return 0;
   let menor = 1;
-  for (const q of palavras) {
-    let melhor = 0;
-    for (const t of termosDoCampo) melhor = Math.max(melhor, nivelDaPalavra(q, t));
-    menor = Math.min(menor, melhor);
+  for (const p of palavras) {
+    menor = Math.min(menor, nivelNoCampo(p, campo));
     if (menor === 0) return 0;
   }
   return menor;
@@ -358,6 +468,12 @@ export interface PontuacaoTextual {
 }
 
 export interface OpcoesPontuacao {
+  /** RN-CAT-18: nomes de veículo da base do tenant (`nomesDeVeiculo`); ausente = nenhum. */
+  veiculos?: ReadonlySet<string>;
+  /** Plano já montado por `planejarGrupos` (o ranking monta uma vez para todos os documentos). */
+  plano?: PlanoDosGrupos;
+  /** Vizinhas juntas já montadas por `paresColados` (RN-CAT-19); ausente = montadas aqui. */
+  pares?: readonly ParColado[];
   /** RN-CAT-12: `peso_aplicacao` do tenant (padrão 0,5). */
   pesoAplicacao?: number;
   /** Ano civil no fuso do tenant (relógio injetado, ADR 0015): expande as faixas da aplicação. */
@@ -386,21 +502,26 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   if (grupos.length === 0) return SEM_PONTOS(0);
   const referencias = doc.referencias ?? [];
   const tk = doc.tokens ?? tokensDoDoc(doc);
-  const campos: { termos: string[]; peso: number }[] = [
-    { termos: tk.nome, peso: PESO_CAMPO.nome },
+  const plano = opcoes.plano ?? planejarGrupos(grupos, opcoes.veiculos);
+  const campos: (CampoTermos & { peso: number })[] = [
+    { termos: tk.nome, inteiros: tk.inteiros?.nome, peso: PESO_CAMPO.nome },
     { termos: tk.codigo, peso: PESO_CAMPO.codigo },
-    { termos: tk.marca, peso: PESO_CAMPO.marca },
-    { termos: tk.categoria, peso: PESO_CAMPO.categoria },
-    { termos: tk.atributos, peso: PESO_CAMPO.atributos },
+    { termos: tk.marca, inteiros: tk.inteiros?.marca, peso: PESO_CAMPO.marca },
+    { termos: tk.categoria, inteiros: tk.inteiros?.categoria, peso: PESO_CAMPO.categoria },
+    { termos: tk.atributos, inteiros: tk.inteiros?.atributos, peso: PESO_CAMPO.atributos },
   ];
   // RN-CAT-12: sem aplicação o campo nem entra (resultado e custo iguais aos de antes)
   const aplicacao = doc.aplicacao ?? '';
   const pesoAplicacao = opcoes.pesoAplicacao ?? PESO_CAMPO.aplicacao;
   const anoAtual = opcoes.anoAtual ?? 0;
   const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ehAnoDaConsulta(alt)));
-  const outros = grupos.map((g) => {
+  // RN-CAT-19: a palavra grudada do texto casa as duas vizinhas de uma vez; vale para os dois grupos
+  const pares = opcoes.pares ?? paresColados(grupos);
+  const paresDoGrupo = grupos.map((_g, gi) => pares.filter((x) => x.grupos[0] === gi || x.grupos[1] === gi).map((x) => x.palavra));
+  const outros = grupos.map((_g, gi) => {
     let m = 0;
-    for (const alt of g) for (const c of campos) m = Math.max(m, melhorNivel(alt, c.termos) * c.peso);
+    for (const alt of plano[gi]!) for (const c of campos) m = Math.max(m, melhorNivel(alt, c) * c.peso);
+    for (const w of paresDoGrupo[gi]!) for (const c of campos) m = Math.max(m, nivelNoCampo(w, c) * c.peso);
     return m;
   });
   let refMemo: number | null | undefined;
@@ -423,7 +544,8 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
       let melhor = melhorOutros;
       if (termosApl) {
         let melhorAplicacao = 0;
-        for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivelAplicacao(alt, termosApl) * pesoAplicacao);
+        for (const alt of plano[gi]!) melhorAplicacao = Math.max(melhorAplicacao, melhorNivelAplicacao(alt, termosApl) * pesoAplicacao);
+        for (const w of paresDoGrupo[gi]!) melhorAplicacao = Math.max(melhorAplicacao, nivelNaAplicacao(w, termosApl) * pesoAplicacao);
         melhor = Math.max(melhor, melhorAplicacao);
         // RN-CAT-12 + R-20261120-103142: ano da consulta fora dos anos da aplicação = o grupo do ano não casa, salvo se casar em outro campo
         const anosDoGrupo = grupo.filter((alt) => ehAnoDaConsulta(alt));
@@ -504,6 +626,8 @@ export interface EntradaRanking {
   anoAtual: number;
   /** T-0119: maior `vendas` do universo completo, quando `docs` já veio pré-selecionado (normaliza o boost sem mudar a nota). */
   maxVendas?: number;
+  /** RN-CAT-18: nomes de veículo da base inteira do tenant. Ausente = calculado dos próprios `docs` (só serve quando `docs` é a base inteira). */
+  veiculos?: ReadonlySet<string>;
 }
 
 const mesmaChave = (a: string, b: string) => chaveDeTermo(a) === chaveDeTermo(b);
@@ -578,7 +702,9 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
   const grupos = expandirSinonimos(filtros.text, entrada.sinonimos);
   const comTexto = grupos.length > 0;
   const comSemantica = (entrada.semantica?.size ?? 0) > 0;
+  const plano = planejarGrupos(grupos, comTexto ? (entrada.veiculos ?? nomesDeVeiculo(docs.filter((d) => d.ativo !== false).map(fonteDoProduto))) : SEM_VEICULOS);
 
+  const pares = paresColados(grupos);
   let candidatos = docs.filter((d) => casaComFiltros(d, filtros));
   let exatos = new Set<string>();
   if (filtros.code) {
@@ -602,7 +728,7 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
   const maxVendas = entrada.maxVendas ?? candidatos.reduce((m, d) => Math.max(m, d.vendas), 0);
   const itens: ItemRankeado[] = [];
   for (const doc of candidatos) {
-    const pt = pontuacaoTextual(grupos, doc, { pesoAplicacao: p.peso_aplicacao, anoAtual: entrada.anoAtual });
+    const pt = pontuacaoTextual(grupos, doc, { pesoAplicacao: p.peso_aplicacao, anoAtual: entrada.anoAtual, plano, pares });
     const textual = pt.pontos;
     const semantica = comSemantica ? (entrada.semantica!.get(doc.id) ?? 0) : null;
     const exato = exatos.has(doc.id);

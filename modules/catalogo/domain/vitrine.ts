@@ -11,6 +11,7 @@ import { estoqueVisivel } from './estoque';
 import type { ParametrosCatalogo } from './parametros';
 import { MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel } from './preco';
 import { rankear, TOKENS_DO_PRODUTO, type DocBusca } from './ranking';
+import { veiculosDe } from './veiculos';
 import { trechoServeEm } from './serve-em';
 import { chaveDeTermo, expandirSinonimos, type SinonimoDoTenant } from './texto';
 import { filtrosParaPerfil, itemVitrineParaPerfil, podeVerPrecoEstoque } from './visibilidade';
@@ -115,6 +116,7 @@ export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine | null): DocBus
     sku: p.sku,
     ean: p.ean,
     external_id: p.external_id ?? null,
+    ativo: p.ativo,
     descricao: p.descricao ?? null,
     nome: p.nome,
     marca: p.marca,
@@ -193,6 +195,8 @@ export interface EntradaBuscaProdutos {
   fuso?: string;
   /** T-0119: `produtos` já veio pré-selecionado por `candidatosDaBusca`; este é o `maxVendas` do universo completo. */
   maxVendas?: number;
+  /** RN-CAT-18: nomes de veículo da base inteira do tenant (pré-seleção e aparelho passam o conjunto da carga); ausente = calculado de `produtos`. */
+  veiculos?: ReadonlySet<string>;
   limit: number;
   offset: number;
 }
@@ -222,12 +226,13 @@ export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
   }
   const filtros = filtrosParaPerfil(aplicarChips(e.filtros, e.chips ?? {}), ctx.perfil, ctx.parametros);
   const anoAtual = e.anoAtual ?? anoCivilNoFuso(ctx.agora, e.fuso);
-  const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, anoAtual, ...(e.semantica ? { semantica: e.semantica } : {}), ...(e.maxVendas !== undefined ? { maxVendas: e.maxVendas } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
+  const veiculos = e.veiculos ?? veiculosDe(e.produtos);
+  const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, anoAtual, veiculos, ...(e.semantica ? { semantica: e.semantica } : {}), ...(e.maxVendas !== undefined ? { maxVendas: e.maxVendas } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
   const limit = Math.max(1, Math.trunc(e.limit));
   const offset = Math.max(0, Math.trunc(e.offset));
   const grupos = expandirSinonimos(filtros.text, e.sinonimos);
   const pagina = ranking.slice(offset, offset + limit).map((r) => {
-    const serveEm = r.doc.aplicacao === '' ? null : trechoServeEm(r.doc.aplicacao, grupos, { anoAtual });
+    const serveEm = r.doc.aplicacao === '' ? null : trechoServeEm(r.doc.aplicacao, grupos, { anoAtual, veiculos });
     const equivale = r.referencia_casada === null ? null : equivaleA(r.doc.referencias[r.referencia_casada]);
     return { ...itens.get(r.doc.id)!, score: r.nota, ...(serveEm ? { serve_em: serveEm } : {}), ...(equivale ? { equivale_a: equivale } : {}) };
   });

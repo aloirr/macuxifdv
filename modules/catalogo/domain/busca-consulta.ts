@@ -10,6 +10,7 @@ import type { ParametrosCatalogo } from './parametros';
 import { codigoCompacto, dentroDaDistancia, rankear, toleranciaDaPalavra } from './ranking';
 import { trechoServeEm } from './serve-em';
 import { expandirSinonimos, normalizarTexto, type SinonimoDoTenant } from './texto';
+import { veiculosDe } from './veiculos';
 import { docDeBusca, equivaleA, vocabularioDe, type ProdutoCatalogo } from './vitrine';
 
 export interface EntradaBuscaConsulta {
@@ -21,6 +22,8 @@ export interface EntradaBuscaConsulta {
   sinonimos: readonly SinonimoDoTenant[];
   parametros: ParametrosCatalogo;
   anoAtual: number;
+  /** RN-CAT-18: nomes de veículo da base inteira, quando `produtos` já é só um conjunto de candidatos; ausente = calculado de `produtos`. */
+  veiculos?: ReadonlySet<string>;
   /** Vocabulário (marcas/linhas) do catálogo inteiro, quando `produtos` já é só o conjunto de candidatos da pré-seleção. */
   vocabulario?: ReturnType<typeof vocabularioDe> | undefined;
 }
@@ -112,13 +115,14 @@ export function buscarComTotal(e: EntradaBuscaConsulta): { itens: Array<BuscaPro
   const docs = universo.map((p) => docDeBusca(p, null));
   const grupos = expandirSinonimos(filtros.text, e.sinonimos);
   const aplicacaoDe = new Map(universo.map((p) => [p.id, p.aplicacao ?? '']));
-  const ranqueados = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: e.parametros, anoAtual: e.anoAtual })
+  const veiculos = e.veiculos ?? veiculosDe(e.produtos);
+  const ranqueados = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: e.parametros, anoAtual: e.anoAtual, veiculos })
     .slice(0, TETO_RANKING_BUSCA)
     .map((r) => ({
       produto_id: r.doc.id,
       nota: r.nota,
       so_aplicacao: r.so_aplicacao,
-      serve_em: r.doc.aplicacao === '' ? null : trechoServeEm(r.doc.aplicacao, grupos, { anoAtual: e.anoAtual }),
+      serve_em: r.doc.aplicacao === '' ? null : trechoServeEm(r.doc.aplicacao, grupos, { anoAtual: e.anoAtual, veiculos }),
       equivale_a: r.referencia_casada === null ? null : equivaleA(r.doc.referencias[r.referencia_casada]),
     }));
   const todos = codigoExatoNoTopo(ranqueados, universo, e.q).slice(0, TETO_RANKING_BUSCA);
