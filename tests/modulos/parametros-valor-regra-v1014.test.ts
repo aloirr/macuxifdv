@@ -4,7 +4,8 @@
  * - O esperado sai do domain/contrato do módulo (o mesmo que a API e o app aplicam), nunca de uma cópia do número.
  * - "Padrão: X" só aparece quando o valor do tenant difere do padrão (spec docs/design/menu-parametros/spec.md, P4).
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto (o caso diz o que falta; quando corrigir, fica vermelho e vira `it`).
- * Sem banco. O e2e da tela (testids, cadeado, links antigos) está em tests/e2e/bko/menu-parametros.spec.ts.
+ * Sem banco. O e2e da tela (testids, cadeado, links antigos) está em tests/e2e/bko/menu-parametros.spec.ts; o valor do tenant
+ * chegando aos painéis pelo ambiente do BKO, em tests/modulos/parametros-tenant-bko-v1019.test.ts.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -81,7 +82,6 @@ describe('Parâmetros › Trade (RN-PRO-04/07/08/11): valor × regra', () => {
 
 const PESQUISA = 'modules/pesquisa/web/lib/parametros-valor.ts';
 interface LibPesquisa {
-  parametrosEmUso(brutos: Readonly<Record<string, unknown>>): typeof PADRAO_PES;
   valorDoParametro(brutos: Readonly<Record<string, unknown>>, chave: keyof typeof PADRAO_PES, formatar?: (v: number) => string): { valor: string; padrao: string | null };
 }
 const NUMERICOS_PES = ['tolerancia_vigencia_h', 'max_perguntas', 'max_opcoes_por_pergunta', 'max_fotos_por_pergunta', 'texto_max_caracteres', 'foto_max_lado_px', 'foto_jpeg_qualidade', 'escala_amplitude_max'] as const;
@@ -111,10 +111,8 @@ describe('Parâmetros › Pesquisa (RN-PES-04/06/07): valor × regra', () => {
     for (const k of NUMERICOS_PES) expect(valorDoParametro(brutos, k, String).valor, k).toBe(String(api[k]));
   });
 
-  // D-PAR-03 (modulo-pesquisa, baixa): a API troca o `fuso` do parâmetro pelo do tenant (RN-CORE-11) antes de validar; a
-  // tela valida o `fuso` bruto. Fuso inválido no cadastro faz a tela mostrar o padrão de TODOS os limites, enquanto a API
-  // aplica os limites do tenant. Corrige quando `parametrosEmUso` ignorar o `fuso` (não é exibido) ao validar.
-  it.fails('D-PAR-03: fuso inválido no cadastro não muda os limites exibidos (a API usa max_perguntas 30)', async () => {
+  // a API troca o fuso do cadastro pelo do tenant antes de validar
+  it('RN-PES-07: fuso inválido no cadastro não muda os limites exibidos (a API usa max_perguntas 30)', async () => {
     const { valorDoParametro } = await carregar();
     const brutos = { max_perguntas: 30, fuso: 'Fuso/Inexistente' };
     expect(rotaPesquisa(ctxDe(brutos)).max_perguntas).toBe(30);
@@ -126,15 +124,15 @@ describe('Parâmetros › Pesquisa (RN-PES-04/06/07): valor × regra', () => {
 
 const TREINAMENTO = 'modules/treinamento/web/lib/parametros-valor.ts';
 interface LibTreinamento {
-  valorParametro<K extends keyof ParametrosTreinamento>(p: Readonly<Record<string, unknown>>, chave: K): ParametrosTreinamento[K];
+  parametrosDoPainel(p: Readonly<Record<string, unknown>>): ParametrosTreinamento;
 }
 const CHAVES_TRE = (Object.keys(PADRAO_TRE) as (keyof ParametrosTreinamento)[]).filter((k) => k !== 'fuso');
 
-describe('Parâmetros › Treinamento (RN-TRE): valor × regra', () => {
+describe('Parâmetros › Treinamento (RN-TRE-02): valor × regra', () => {
   const carregar = async () => (await import(join(RAIZ, TREINAMENTO))) as LibTreinamento;
   const exibido = async (brutos: Record<string, unknown>) => {
-    const { valorParametro } = await carregar();
-    return Object.fromEntries(CHAVES_TRE.map((k) => [k, valorParametro(brutos, k)]));
+    const em = (await carregar()).parametrosDoPainel(brutos);
+    return Object.fromEntries(CHAVES_TRE.map((k) => [k, em[k]]));
   };
   const aplicado = (brutos: Record<string, unknown>) => {
     const api = rotaTreinamento(ctxDe(brutos));
@@ -147,17 +145,14 @@ describe('Parâmetros › Treinamento (RN-TRE): valor × regra', () => {
     expect(await exibido(valido)).toEqual(aplicado(valido));
   });
 
-  // D-PAR-02 (modulo-treinamento, média): a API (parametrosDoTenant) e o app (parametrosDoAparelho) validam o conjunto e,
-  // com UM valor inválido, aplicam o padrão em TODOS; o painel do BKO confere só o tipo, chave a chave. Com nota mínima
-  // 80% e um XP negativo no cadastro, o BKO mostra "Nota mínima 80% (Padrão: 70%)", mas a regra usa 70%.
-  // Corrige quando o painel usar a mesma resolução da API (ParametrosTreinamentoSchema.safeParse + resolverParametros).
-  it.fails('D-PAR-02: tenant com um valor inválido — a tela mostra o que a regra aplica (nota mínima 70%, não 80%)', async () => {
+  // API, app e painel validam o conjunto: um valor inválido = padrão em todos
+  it('RN-TRE-02: tenant com um valor inválido — a tela mostra o que a regra aplica (nota mínima 70%, não 80%)', async () => {
     const invalido = { nota_minima_pct: 80, xp_licao: -1 };
     expect(aplicado(invalido).nota_minima_pct).toBe(PADRAO_TRE.nota_minima_pct);
     expect(await exibido(invalido)).toEqual(aplicado(invalido));
   });
 
-  it.fails('D-PAR-02: valor fora da faixa (nota mínima 150%) não aparece como valor em uso', async () => {
+  it('RN-TRE-02: valor fora da faixa (nota mínima 150%) não aparece como valor em uso', async () => {
     const invalido = { nota_minima_pct: 150 };
     expect((await exibido(invalido)).nota_minima_pct).toBe(aplicado(invalido).nota_minima_pct);
   });
