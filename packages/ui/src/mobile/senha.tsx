@@ -25,7 +25,6 @@ import { colors, fonte } from './theme';
 export {
   CAMPO_REPITA_A_SENHA,
   CAMPO_SENHA_NOVA,
-  ESCONDER_SENHA,
   ESTADO_FALADO_REGRA,
   EXEMPLO_REGRA_SENHA,
   faltasEmOrdem,
