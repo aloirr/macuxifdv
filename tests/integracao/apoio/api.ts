@@ -18,6 +18,7 @@ import { ErroApiSchema, type ErroApi, type LinhaSync, type ModuloApi, type Pagin
 import type { FastifyInstance, FastifyServerOptions, InjectOptions, LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { createApp } from '../../../apps/api/src/app';
+import type { OpcoesApp } from '../../../apps/api/src/app';
 import type { VersoesApp } from '../../../apps/api/src/app-versao';
 import type { ArmazenamentoArquivos } from '../../../apps/api/src/arquivos';
 import { criarBancoApp, criarBancoPortal } from '../../../apps/api/src/banco';
@@ -33,6 +34,8 @@ export const SENHA = process.env.MACUXI_SENHA_TESTE ?? 'Teste@1234';
 export const SEGREDO_JWT = 'segredo-do-agente-testes-com-mais-de-32-caracteres';
 
 export type Tenant = typeof A | typeof B;
+/** T-0191: a opção `geocodificador` do `createApp` (porta `Geocodificador` ou fábrica com o log do app). */
+export type GeocodificadorDaApi = NonNullable<OpcoesApp['geocodificador']>;
 
 /**
  * ADR 0048 (PR #243): situação devolvida pela Receita falsa. Os tipos ficam aqui, estruturais (iguais ao `ResultadoConsultaCnpj`
@@ -227,6 +230,11 @@ export async function subirApi(
     /** T-0190: versões do APK em `GET /v1/app/versao` e a base do `apk_url` do contrato antigo (sem elas, as do ambiente). */
     versoesApp?: VersoesApp;
     urlApiPublica?: string;
+    /**
+     * T-0191 (RN-CORE-77): o geocodificador do `ctx` (ou a fábrica com o log do app, como o `servidor.ts`). Sem ele, o padrão do
+     * `createApp` (desligado: Gerar coordenada = 503). Os testes apontam a implementação Nominatim REAL para um servidor http local.
+     */
+    geocodificador?: GeocodificadorDaApi;
   } = {},
 ): Promise<ApiDeTeste> {
   // T-0176 (RN-CORE-39): todo usuário da fixture destravado (filial padrão como cadastro e venda); os testes da T-0176 travam quem precisarem
@@ -265,6 +273,7 @@ export async function subirApi(
     ...(opcoes.pacotes ? { pacotes: opcoes.pacotes } : {}),
     ...(opcoes.versoesApp ? { versoesApp: opcoes.versoesApp } : {}),
     ...(opcoes.urlApiPublica ? { urlApiPublica: opcoes.urlApiPublica } : {}),
+    ...(opcoes.geocodificador ? { geocodificador: opcoes.geocodificador } : {}),
     ...comReceita,
   });
   await app.ready();
