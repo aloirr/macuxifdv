@@ -448,6 +448,14 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - Se ninguém casa tudo, a lista é vazia (total 0).
   - Vale igual na busca online, na do aparelho e no seletor do pedido. Exemplo: "xyzqwk amortecedor" → lista vazia.
 - **RN-CAT-18 Código do nó da árvore** (RF-CAT-04) O código de um nó da árvore do catálogo (grupo, subgrupo…) é único **entre os irmãos** (mesmo pai, ou entre as raízes), e não no tenant inteiro: o mesmo código pode aparecer em ramos diferentes (ex.: `OUTROS` raiz e `OUTROS` filho de Outros; `NAO_CLASSIFICADO` sob Outros e sob Filtração). Dois nós vivos com o mesmo código sob o mesmo pai continuam recusados. Na carga do ERP, o nó sem `external_id` é adotado pelo par pai + código. *(Diagnóstico da outbox AM2808, R-20261120-235317-alexandre, e opção C do R-20261120-180005; v1.0.19.)*
+- **RN-CAT-19 Palavra inteira e nome de veículo** (v1.0.20; R-20261120-214252 e R-20261120-230805, auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §2 item 3, etapa 3)
+  - Na aplicação, a palavra da busca casa só a palavra inteira ("gol" não traz Golf), salvo a última palavra digitada (ver "Começo de palavra").
+  - **Nome de veículo vem da própria base:** é a palavra que aparece na aplicação de pelo menos 3 produtos ativos do tenant e em pelo menos 5 vezes mais aplicações do que nomes e descrições. Ela casa só inteira, em qualquer campo, e não passa pelo singular. Assim "polo" acha "Polo Classic" e não traz "Cabo de vela 4 polos".
+  - **Começo de palavra:** vale só para a última palavra digitada, porque a busca roda a cada letra ("amortecedor pal" acha o Palio). As outras palavras casam inteiras, salvo erro de digitação nos campos de texto, como hoje.
+  - Vale igual na busca online, na do aparelho e no seletor do pedido.
+- **RN-CAT-20 Modelo derivado e vizinhas juntas** (v1.0.20; mesmas decisões, auditoria §2 item 4, etapa 4)
+  - **Modelo derivado:** o nome de veículo (RN-CAT-19) também casa a palavra grudada da qual ele é o começo ou o fim, quando o outro pedaço tem 3 ou mais caracteres e o próprio nome também. Assim "fox" acha Fox, CrossFox e SpaceFox, e "gol" continua sem achar Golf, porque "f" tem menos de 3 caracteres.
+  - **Vizinhas juntas no texto:** duas palavras vizinhas da busca, coladas, também casam a palavra grudada do texto e da aplicação. Assim "space fox" acha SpaceFox e "Space Fox".
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.
