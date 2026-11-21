@@ -179,6 +179,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     tenantId: string,
     logo: { chave: string; tipo: TipoLogo; sha256: string },
     cache: string,
+    vary?: string,
   ) => {
     if (!chaveDoTenant(logo.chave, tenantId)) throw semLogo();
     if (!dep.armazenamento) throw erroArmazenamentoIndisponivel();
@@ -187,6 +188,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
       log.warn({ tenant_id: tenantId }, 'logo: bytes ausentes no armazenamento');
       throw semLogo();
     }
+    if (vary) reply.header('vary', vary);
     return reply.header('content-type', logo.tipo).header('etag', `"${logo.sha256}"`).header('cache-control', cache).send(Buffer.from(bytes));
   };
 
@@ -320,6 +322,7 @@ export function registrarRotasMarcaEmpresa(app: FastifyInstance, dep: DepsMarcaE
     const { sha256 } = dep.validar(ParamsLogoAparelho, req.params, 'params') as z.output<typeof ParamsLogoAparelho>;
     const logo = await ctx.comTenant((db) => fonte.logoDoTenant(db));
     if (!logo || logo.sha256 !== sha256) throw semLogo();
-    return enviarBytesDaLogo(reply, ctx.log, ctx.usuario.tenant_id.toLowerCase(), logo, 'private, max-age=31536000, immutable');
+    // T-0182 (revisão, 🟢 cache immutable): a sessão vem só no `Authorization`; proxy mal configurado não serve a logo a outro tenant
+    return enviarBytesDaLogo(reply, ctx.log, ctx.usuario.tenant_id.toLowerCase(), logo, 'private, max-age=31536000, immutable', 'Authorization');
   });
 }
