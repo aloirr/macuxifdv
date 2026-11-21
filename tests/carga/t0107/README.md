@@ -114,7 +114,7 @@ Preparo: gerar 0,8 s; gravar 233.204 linhas 7,2 s; `analyze` 0,7 s.
 ### O gerador
 
 - `gerarBaseCarga({ tenantId, instante, senhaHash, semente?, produtos?, clientes? })` → `{ base, resumo }`. Padrão:
-  `SEMENTE_PADRAO = 0x01072026`, 20.000 produtos, 300 clientes. PRNG mulberry32 (sem `Math.random`, sem relógio): a mesma
+  `SEMENTE_PADRAO = 0x01072026`, 20.000 produtos, 300 clientes. PRNG `criarPrng` (mulberry32, de `@macuxi/db/teste/massa`; sem `Math.random`, sem relógio): a mesma
   semente gera as mesmas linhas na mesma ordem (`impressaoDigital(base)` = sha256 de tudo). Ids por `idDeChave` (independem
   do tenant); o `instante` vira `created_at`/`updated_at`; a senha chega já com hash (`hashSenha` de `@macuxi/db`).
 - Volumes (padrão): produto 20.000 · produto_unidade ~21.900 · catalogo_no 158 (12 sistemas › 42 grupos › 104 linhas; produto
@@ -128,9 +128,9 @@ Preparo: gerar 0,8 s; gravar 233.204 linhas 7,2 s; `analyze` 0,7 s.
   external_id do ERP: `ERP-<sku>`, `CLI-xxxxx`, `VEND-00n` (o pedido não fica retido na fila).
 - Mudar volume ou semente: passe `produtos`, `clientes` ou `semente` na chamada (o teste de carga usa o padrão). Termos de
   busca, produtos com estoque e clientes por vendedor saem no `resumo`.
-- `gravarBaseCarga(admin, base)` grava em lotes de 5.000 com `json_populate_recordset(null::<tabela>, $1)` (o Postgres
-  converte cada coluna pelo tipo da tabela; array JSON vira `text[]`) e `on conflict do nothing`, que torna a gravação
-  repetível mas esconde colisão — por isso o teste confere as linhas gravadas por tabela contra o tamanho da base.
+- `gravarBaseCarga(admin, base)` grava tabela a tabela na ordem das FKs com `gravarEmLote` de `@macuxi/db/teste/massa`
+  (lotes de 5.000, `on conflict do nothing`), que torna a gravação repetível mas esconde colisão — por isso o teste confere
+  as linhas gravadas por tabela contra o tamanho da base.
 
 ### Variáveis
 

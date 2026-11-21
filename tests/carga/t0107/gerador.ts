@@ -23,6 +23,7 @@
  */
 import { createHash } from 'node:crypto';
 import { idDeChave } from '@macuxi/db/teste';
+import { criarPrng, ean13, gravarEmLote } from '@macuxi/db/teste/massa';
 import { expandirAplicacao } from '../../../modules/catalogo/domain/aplicacao';
 import { codigoCompacto } from '../../../modules/catalogo/domain/ranking';
 
@@ -78,27 +79,7 @@ export interface VendedorCarga {
   nome: string;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
-// PRNG (mulberry32): 32 bits, rápido, determinístico em qualquer motor JS
-// ---------------------------------------------------------------------------------------------------------------------
-export function criarPrng(semente: number) {
-  let s = semente >>> 0;
-  const proximo = (): number => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  return {
-    proximo,
-    /** Inteiro em [min, max] (inclusivo). */
-    inteiro: (min: number, max: number) => min + Math.floor(proximo() * (max - min + 1)),
-    escolher: <T>(lista: readonly T[]): T => lista[Math.floor(proximo() * lista.length)]!,
-    chance: (p: number) => proximo() < p,
-  };
-}
-export type Prng = ReturnType<typeof criarPrng>;
+type Prng = ReturnType<typeof criarPrng>;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Dicionários (inventados; montadoras/modelos são nomes comerciais públicos)
@@ -247,15 +228,8 @@ const SINONIMOS: readonly (readonly [string, readonly string[]])[] = [
 // ---------------------------------------------------------------------------------------------------------------------
 // Utilidades
 // ---------------------------------------------------------------------------------------------------------------------
-/** EAN-13 com dígito verificador válido; prefixo 789 + empresa fictícia 99107 + item (4 dígitos). */
-export function ean13(base12: string): string {
-  if (!/^\d{12}$/.test(base12)) throw new Error(`ean13: base inválida ${base12}`);
-  const soma = [...base12].reduce((s, d, i) => s + Number(d) * (i % 2 === 0 ? 1 : 3), 0);
-  return base12 + String((10 - (soma % 10)) % 10);
-}
-
 /** CNPJ (14 dígitos) com DV válido a partir de uma raiz de 8 + filial de 4. */
-export function cnpj(raiz8: string, filial4 = '0001'): string {
+function cnpj(raiz8: string, filial4 = '0001'): string {
   const base = raiz8 + filial4;
   if (!/^\d{12}$/.test(base)) throw new Error('cnpj: base inválida');
   const dv = (s: string) => {
@@ -512,34 +486,16 @@ export function impressaoDigital(base: BaseCarga): string {
 }
 
 /**
- * Grava a base pela conexão de ADMINISTRAÇÃO (dona das tabelas; a RLS não se aplica ao dono/superusuário), em lotes de
- * `lote` linhas com `json_populate_recordset(null::<tabela>, $1)`: o Postgres converte cada coluna pelo tipo da própria
- * tabela (uuid, timestamptz, numeric, jsonb; array JSON de texto vira text[] — `etiquetas`, `sinonimos` — desde o PG 10),
- * sem SQL montado com valores. Os gatilhos rodam (o tsvector de produto_busca, updated_at). Colunas omitidas pegam o
- * default da tabela (ex.: `cadastro_incompleto`/`cadastro_campos_faltantes` do cliente). `on conflict do nothing` deixa a
- * gravação repetível na mesma base, mas ESCONDE colisão com a fixture: quem chama confere o devolvido (linhas gravadas por
- * tabela) contra o tamanho da base — o teste de carga faz isso.
+ * Grava a base pela conexão de ADMINISTRAÇÃO (dona das tabelas; a RLS não se aplica), tabela a tabela na ordem das FKs
+ * (`ORDEM_TABELAS_CARGA`), com `gravarEmLote` (db/seeds/volume/massa.ts). O `on conflict do nothing` esconde colisão com a
+ * fixture: quem chama confere o devolvido (linhas gravadas por tabela) contra o tamanho da base — o teste de carga faz isso.
  */
 export async function gravarBaseCarga(
-  admin: { query(sql: string, params?: unknown[]): Promise<{ rowCount: number | null }> },
+  admin: Parameters<typeof gravarEmLote>[0],
   base: BaseCarga,
   lote = 5_000,
 ): Promise<Record<TabelaCarga, number>> {
   const total = {} as Record<TabelaCarga, number>;
-  for (const tabela of ORDEM_TABELAS_CARGA) {
-    const linhas = base[tabela];
-    total[tabela] = 0;
-    if (linhas.length === 0) continue;
-    const colunas = Object.keys(linhas[0]!);
-    for (const c of colunas) if (!/^[a-z_][a-z0-9_]*$/.test(c)) throw new Error(`coluna inválida: ${c}`);
-    const lista = colunas.join(', ');
-    for (let i = 0; i < linhas.length; i += lote) {
-      const r = await admin.query(
-        `insert into ${tabela} (${lista}) select ${lista} from json_populate_recordset(null::${tabela}, $1::json) on conflict do nothing`,
-        [JSON.stringify(linhas.slice(i, i + lote))],
-      );
-      total[tabela] += r.rowCount ?? 0;
-    }
-  }
+  for (const tabela of ORDEM_TABELAS_CARGA) total[tabela] = await gravarEmLote(admin, tabela, base[tabela], lote);
   return total;
 }

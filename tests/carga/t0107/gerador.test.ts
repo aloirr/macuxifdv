@@ -6,7 +6,8 @@
  * etiquetas ≤ 4 × ≤ 20), dinheiro em centavos inteiros e a aplicação EXPANDIDA no documento de busca (RN-CAT-12).
  */
 import { describe, expect, it } from 'vitest';
-import { cnpjValido, ean13, gerarBaseCarga, impressaoDigital, ORDEM_TABELAS_CARGA, PRODUTOS_PADRAO, SEMENTE_PADRAO, type BaseCarga, type Linha } from './gerador';
+import { ean13 } from '@macuxi/db/teste/massa';
+import { cnpjValido, gerarBaseCarga, impressaoDigital, ORDEM_TABELAS_CARGA, PRODUTOS_PADRAO, SEMENTE_PADRAO, type BaseCarga, type Linha } from './gerador';
 
 const TENANT = '00000000-0000-4000-8000-0000000000aa';
 const INSTANTE = '2026-11-08T12:00:00.000Z';
@@ -25,6 +26,8 @@ describe('T-0107 — gerador determinístico da base de carga (sem banco)', () =
   it('mesma semente ⇒ mesma impressão digital; semente diferente ⇒ diferente', () => {
     const deNovo = gerarBaseCarga(op);
     expect(impressaoDigital(deNovo.base)).toBe(impressaoDigital(base));
+    // valor fixo da semente padrão: trocar o sorteador, o EAN ou o gerador sem querer muda a massa e cai aqui (T-0192)
+    expect(impressaoDigital(base)).toBe('d32e910aedc47cc140f713ff4b0678443cc1705aa6bc3455bb9011ddef8f9c1e');
     expect(resumo.semente).toBe(SEMENTE_PADRAO);
     const outra = gerarBaseCarga({ ...op, semente: SEMENTE_PADRAO + 1 });
     expect(impressaoDigital(outra.base)).not.toBe(impressaoDigital(base));
