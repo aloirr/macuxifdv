@@ -4,7 +4,7 @@
  * usuários visíveis (`usuariosVisiveis`); usuário fora do escopo é 404 (não revela que existe). Não há rota REST de
  * check-in/checkout: o app é offline-first e escreve só pela fila (`visita-push.ts`).
  */
-import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroNaoEncontrado, ErroRegraNegocio, chaveGeocodificacao, type ClienteBanco, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   AprovarCoordenadaSchema,
@@ -23,9 +23,10 @@ import {
   type RotasLista,
   type VisitasLista,
 } from '../contracts';
-import { carteiraParaEvento, copiarRota, PERFIS_GESTAO, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
+import { carteiraParaEvento, checkinPodeSubstituirCoordenada, copiarRota, enderecoPermiteGerar, type OrigemCoordenada, PERFIS_GESTAO, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import { auditar } from './auditoria';
+import { basesDosUsuarios, calendarioDoTenantNaTransacao } from './base-usuario';
 import { EQUIPES_DO_RESPONSAVEL } from './carteira';
 import { BASE, TABELAS_SYNC } from './sync';
 
@@ -33,9 +34,9 @@ const Uuid = z.string().uuid();
 const IdParam = z.object({ id: Uuid });
 const DIA_MS = 86_400_000;
 
-const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
+export const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
 
-function visivel(visiveis: ReadonlySet<string> | 'tenant', id: string): boolean {
+export function visivel(visiveis: ReadonlySet<string> | 'tenant', id: string): boolean {
   return visiveis === 'tenant' || visiveis.has(id);
 }
 
@@ -118,7 +119,7 @@ async function rotasDoPeriodo(ctx: ContextoBase, db: ClienteBanco, usuarios: str
  * que ele responde; para o gerente, a das equipes abaixo dele (como `carteiraNoBanco`). Supervisor e gerente não têm carteira própria;
  * o resto segue só com a própria. A rota do gerente não tem rastreamento (`CARGOS_RASTREADOS` não o inclui).
  */
-const DONOS_DA_CARTEIRA_DA_ROTA = `
+export const DONOS_DA_CARTEIRA_DA_ROTA = `
   ${EQUIPES_DO_RESPONSAVEL}, donos as (
     select u.id from core.usuario u where u.id = $1
     union
@@ -127,19 +128,21 @@ const DONOS_DA_CARTEIRA_DA_ROTA = `
         and exists (select 1 from core.usuario s where s.id = $1 and s.deleted_at is null and (s.perfil = 'gerente' or (s.perfil = 'supervisor' and eq.nivel = 0)))
   )`;
 
-async function checarUsuario(ctx: ContextoBase, db: ClienteBanco, usuarioId: string): Promise<void> {
+export async function checarUsuario(ctx: ContextoBase, db: ClienteBanco, usuarioId: string): Promise<void> {
   if (!visivel(await ctx.usuariosVisiveis(), usuarioId)) throw usuarioNaoEncontrado();
   const r = await db.query('select 1 from core.usuario where id = $1 and deleted_at is null', [usuarioId]);
   if (r.rowCount === 0) throw usuarioNaoEncontrado();
 }
 
 /** Substitui as paradas da rota do usuário na data (cria a rota se faltar). Mantém o id da parada do mesmo cliente (visita aponta para ele). */
-async function gravarRota(
+export async function gravarRota(
   db: ClienteBanco,
   usuarioId: string,
   data: string,
   paradas: ReadonlyArray<{ cliente_id: string; janela_inicio?: string | null; janela_fim?: string | null }>,
   origem: 'bko' | 'frequencia',
+  /** T-0191: id da rota gerado no cliente (lote idempotente); só vale quando a rota ainda não existe no dia. */
+  rotaIdNovo?: string,
 ): Promise<string> {
   // RN-CORE-04: só clientes da carteira do usuário da rota, vigente na data; a do supervisor é a da equipe dele (T-0187)
   if (paradas.length > 0) {
@@ -160,8 +163,8 @@ async function gravarRota(
     atual?.id ??
     (
       await db.query<{ id: string }>(
-        `insert into core.rota (tenant_id, usuario_id, data, situacao, origem) values (plataforma.tenant_atual(), $1, $2::date, 'planejada', $3) returning id`,
-        [usuarioId, data, origem],
+        `insert into core.rota (id, tenant_id, usuario_id, data, situacao, origem) values (coalesce($4::uuid, gen_random_uuid()), plataforma.tenant_atual(), $1, $2::date, 'planejada', $3) returning id`,
+        [usuarioId, data, origem, rotaIdNovo ?? null],
       )
     ).rows[0]!.id;
   const existentes = (await db.query<{ id: string; cliente_id: string }>('select id, cliente_id from core.rota_parada where rota_id = $1 and deleted_at is null', [rotaId])).rows;
@@ -221,10 +224,12 @@ const rotasDeRotas: RotaModulo[] = [
         if (ate < de || Date.parse(ate) - Date.parse(de) > 62 * DIA_MS) throw new ErroRegraNegocio('PERIODO_INVALIDO', 'Escolha um período de até 62 dias, com a data final depois da inicial.');
         let usuarios: string[] | 'tenant' = visiveis === 'tenant' ? 'tenant' : [...visiveis];
         if (ctx.query.usuario_id) {
-          if (!visivel(visiveis, ctx.query.usuario_id)) return { itens: [] };
+          if (!visivel(visiveis, ctx.query.usuario_id)) return { itens: [], bases: {} };
           usuarios = [ctx.query.usuario_id];
         }
-        return { itens: (await rotasDoPeriodo(ctx, db, usuarios, de, ate, fuso)) as RotasLista['itens'] };
+        const itens = (await rotasDoPeriodo(ctx, db, usuarios, de, ate, fuso)) as RotasLista['itens'];
+        // T-0191 (RN-CORE-75): a base de cada vendedor da lista e o calendário do tenant para a lista de dias
+        return { itens, bases: await basesDosUsuarios(db, [...new Set(itens.map((i) => i.usuario_id))]), calendario: await calendarioDoTenantNaTransacao(db) };
       });
     },
   },
@@ -416,12 +421,12 @@ const rotasDeVisitas: RotaModulo[] = [
         const filtro = visiveis === 'tenant' ? '' : `and c.id = any($1::uuid[])`;
         if (visiveis !== 'tenant') valores.push([...visiveis]);
         const rows = (
-          await db.query<{ cliente_id: string; cliente_nome: string; cidade: string | null; visita_id: string; usuario_nome: string; checkin_em: string; lat: number; lng: number; precisao_m: number | null }>(
-            `select c.id as cliente_id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as cliente_nome, c.cidade, v.id as visita_id, u.nome as usuario_nome,
+          await db.query<{ cliente_id: string; cliente_nome: string; cidade: string | null; geocodificada: boolean; logradouro: string | null; numero: string | null; bairro: string | null; uf: string | null; geocodificacao_chave: string | null; cep: string | null; visita_id: string; usuario_nome: string; checkin_em: string; lat: number; lng: number; precisao_m: number | null }>(
+            `select c.id as cliente_id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as cliente_nome, c.cidade, coalesce(c.coordenada_origem = 'geocodificacao', false) as geocodificada, c.logradouro, c.numero, c.bairro, c.uf, c.geocodificacao_chave, c.cep, v.id as visita_id, u.nome as usuario_nome,
                     to_char(v.checkin_em at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as checkin_em,
                     v.checkin_lat::float8 as lat, v.checkin_lng::float8 as lng, v.checkin_precisao_m as precisao_m
                from core.visita v
-               join core.cliente c on c.id = v.cliente_id and c.deleted_at is null and c.latitude is null and c.longitude is null
+               join core.cliente c on c.id = v.cliente_id and c.deleted_at is null and ((c.latitude is null and c.longitude is null) or c.coordenada_origem = 'geocodificacao')
                join core.usuario u on u.id = v.usuario_id
               where v.deleted_at is null and v.sugere_coordenada and v.checkin_lat is not null ${filtro}
               order by cliente_nome, c.id, v.checkin_em desc
@@ -431,7 +436,7 @@ const rotasDeVisitas: RotaModulo[] = [
         ).rows;
         const porCliente = new Map<string, CoordenadasSugeridas['itens'][number]>();
         for (const r of rows) {
-          const item = porCliente.get(r.cliente_id) ?? { cliente_id: r.cliente_id, cliente_nome: r.cliente_nome, cidade: r.cidade, visitas: [] };
+          const item = porCliente.get(r.cliente_id) ?? { cliente_id: r.cliente_id, cliente_nome: r.cliente_nome, cidade: r.cidade, geocodificada: r.geocodificada, pode_gerar: enderecoPermiteGerar(r), ja_tentado: r.geocodificacao_chave !== null && r.geocodificacao_chave === chaveGeocodificacao({ logradouro: r.logradouro, numero: r.numero, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep }), visitas: [] };
           if (item.visitas.length < 5) item.visitas.push({ visita_id: r.visita_id, usuario_nome: r.usuario_nome, checkin_em: r.checkin_em, lat: r.lat, lng: r.lng, precisao_m: r.precisao_m });
           porCliente.set(r.cliente_id, item);
         }
@@ -455,10 +460,13 @@ const rotasDeVisitas: RotaModulo[] = [
           )
         ).rows[0];
         if (!v || v.lat == null || v.lng == null) throw new ErroNaoEncontrado('COORDENADA_NAO_ENCONTRADA', 'Esta coordenada sugerida não existe mais. Atualize a lista e escolha de novo.');
-        const antes = (await db.query<{ latitude: string | null; longitude: string | null }>('select latitude::text, longitude::text from core.cliente where id = $1 and deleted_at is null', [ctx.params.id])).rows[0];
+        const antes = (await db.query<{ latitude: string | null; longitude: string | null; coordenada_origem: OrigemCoordenada | null }>('select latitude::text, longitude::text, coordenada_origem from core.cliente where id = $1 and deleted_at is null', [ctx.params.id])).rows[0];
         if (!antes) throw new ErroNaoEncontrado('CLIENTE_NAO_ENCONTRADO', 'Cliente não encontrado. Atualize a lista e tente de novo.');
-        if (antes.latitude !== null || antes.longitude !== null) throw new ErroRegraNegocio('RN-CORE-10', 'Este cliente já tem coordenada cadastrada. Só clientes sem coordenada recebem a sugerida.');
-        await db.query('update core.cliente set latitude = $2, longitude = $3 where id = $1', [ctx.params.id, v.lat, v.lng]);
+        // RN-CORE-77: o check-in aprovado substitui a coordenada gerada pelo endereço; as demais origens ficam
+        if (!checkinPodeSubstituirCoordenada({ latitude: antes.latitude === null ? null : Number(antes.latitude), longitude: antes.longitude === null ? null : Number(antes.longitude), coordenada_origem: antes.coordenada_origem })) {
+          throw new ErroRegraNegocio('RN-CORE-10', 'Este cliente já tem coordenada cadastrada. Só clientes sem coordenada recebem a sugerida.');
+        }
+        await db.query("update core.cliente set latitude = $2, longitude = $3, coordenada_origem = 'checkin', coordenada_precisao = null where id = $1", [ctx.params.id, v.lat, v.lng]);
         await db.query('update core.visita set sugere_coordenada = false where cliente_id = $1 and sugere_coordenada and deleted_at is null', [ctx.params.id]);
         await auditar(db, ctx, { acao: 'cliente.aprovar_coordenada', entidade: 'cliente', entidadeId: ctx.params.id, antes, depois: { latitude: v.lat, longitude: v.lng, visita_id: ctx.corpo.visita_id } });
         await tx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: ctx.params.id, campos: ['latitude', 'longitude'], origem: 'bko', ...(await carteiraDoEvento(db, ctx.params.id)) }, ctx.params.id);

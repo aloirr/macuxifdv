@@ -41,3 +41,21 @@ CLAUDE.md regra 4: datas gravadas em UTC; regra de dia no fuso do tenant. Entre 
 - Alerta: `alertarPendenciasVencidas(ctx)` varre o tenant (parâmetro `checkout_pendencia_alerta_h`, 1..168, padrão 24; `GET|PUT /v1/core/parametros/checkout-pendencia`, ação `parametro.checkout_pendencia`, admin). Reconsulta antes; se segue pendente, notifica vendedor e supervisor da equipe (textos de `textoAlertaPendencia`, `envio_id` = id da linha) e grava `alertada_em`. Tarefa periódica `alerta_pendencia_checkout` (60 min, ADR 0022) registrada em `ModuloApi.tarefas`; o agendador liga com `plataforma.tenants_ativos()`. Se a licença da Pesquisa for retirada depois da pendência, a reconsulta fica indisponível e o alerta sai mesmo assim; a dispensa manual cobre.
 - Dispensa manual (§2.5a): `POST /v1/core/visitas/:id/etapas/:modulo/:etapa/dispensa`, ação `visita.dispensar_etapa` (supervisor da equipe e admin), corpo `{ justificativa }` 3..300, auditada (RN-AUD-01); já não pendente = 200 com `alterada: false`; visita fora do escopo = 404.
 - Pull da visita leva `etapas_pendentes` (aditivo, opcional no `VisitaSyncSchema`). A tela do BKO e os selos do app ficam para depois (`docs/design/checkout-pendencia.md`).
+
+## T-0191 — Criar rota por proximidade, base do vendedor e Gerar coordenada (BKO, v1.0.19)
+Regras: RN-CORE-75 (base), RN-CORE-76 (criar por proximidade) e RN-CORE-77 (gerar coordenada); spec em `docs/design/rotas-criar/spec.md`; desenho em `docs/desenho/T-0191.md`.
+
+| Rota `/v1/core` | Ação | O que faz |
+|---|---|---|
+| `GET usuarios/:id/endereco` | `usuario.ver` | a casa do vendedor ou promotor |
+| `PUT usuarios/:id/endereco` | `usuario.editar` | grava a casa (`{ endereco: null }` apaga); só vendedor e promotor (422 `USUARIO_SEM_ENDERECO`); auditada sem o endereço |
+| `GET usuarios/:id/base` | `rota.editar` | a casa e a base resolvida, para o diálogo "Endereço base" |
+| `PUT usuarios/:id/base` | `rota.editar` | `{ tipo: 'casa' }` (422 `BASE_SEM_PONTO` sem o ponto da casa) ou `{ tipo: 'outro', endereco }` com o ponto marcado; grava `base_alterada_em`; auditada (só o tipo) |
+| `POST rotas/previa` | `rota.editar` | não grava; dias, totais, `fora_sem_coordenada`, `fora_limite`, `mantidas`, `feriados`, `substituidas`, base e limite |
+| `POST rotas/lote` | `rota.editar` | idempotente pelo id de cada rota; revalida calendário, proteção e carteira; 422 `ROTA_PROTEGIDA`, `ROTA_EXISTENTE` ou `ROTA_DIA_INVALIDO` (dia passado, fora da semana útil ou feriado); origem `bko`; auditada |
+| `POST clientes/:id/coordenada/gerar` | `cliente.aprovar_coordenada` | 200 `{ lat, lng, precisao }`; 422 `NAO_LOCALIZADO`, `JA_TENTADO` ou `JA_TEM_COORDENADA`; 503 `GEOCODIFICADOR_INDISPONIVEL` não grava a tentativa |
+| `GET rotas` | (a atual) | passa a devolver `bases` (a base de cada vendedor da lista) e `calendario` (semana útil e feriados do tenant) |
+
+- Escopo de carteira (RN-CORE-04): vendedor fora do escopo e cliente de outro tenant dão 404. Nenhum endereço vai para log nem para a auditoria.
+- `coordenada_origem`: `erp` no consumidor do ERP, `checkin` na aprovação de Coordenadas sugeridas e `geocodificacao` no Gerar coordenada (RN-CORE-77).
+- Limite do dia: `limiteVisitasPorDia` (meta `visitas_dia` em décimos; RN-CORE-76). Base e km: RN-CORE-75.

@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { RotaDiaSchema, type CustomerSummary, type RouteDay } from '../../../contracts';
 import { ROTULO_BUSCA_CLIENTE_BKO, type GeoPoint } from '../../../domain';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
-import { useSellerCustomers } from '../../lib/queries';
+import { useSellerCustomers, type RoutesResponse } from '../../lib/queries';
 import { corpoDaRota, paraRouteDay } from '../../lib/rotas-api';
 import {
   dayLabel,
@@ -46,6 +46,8 @@ export interface RouteEditorProps {
   /** rascunho para o mapa (null = sem edição pendente) */
   onDraftChange: (stops: MapStop[] | null) => void;
   onDirtyChange: (dirty: boolean) => void;
+  /** T-0191: editor do dia sobre a prévia; "Aplicar" devolve as paradas à prévia em vez de gravar a rota */
+  previa?: { onApply: (stops: DraftStop[]) => void };
 }
 
 function StopBubble({ n, status, color }: { n: number; status: DraftStop['status']; color: string }) {
@@ -84,7 +86,7 @@ function TimeField({ value, disabled, onChange }: { value: string; disabled: boo
 const iconBtn =
   'flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-field bg-surface text-[15px] font-bold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent';
 
-export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit, color, today, onClose, onDraftChange, onDirtyChange }: RouteEditorProps) {
+export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit, color, today, onClose, onDraftChange, onDirtyChange, previa }: RouteEditorProps) {
   const qc = useQueryClient();
   const toast = useToast();
   const baseline = useMemo(() => draftFromRoute(route), [route]);
@@ -121,7 +123,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
     },
     onMutate: () => setError(null),
     onSuccess: (saved) => {
-      qc.setQueriesData<{ start: GeoPoint; items: RouteDay[] }>({ queryKey: ['routes'] }, (old) => {
+      qc.setQueriesData<RoutesResponse>({ queryKey: ['routes'] }, (old) => {
         if (!old) return old;
         const has = old.items.some((r) => r.seller_id === saved.seller_id && r.date === saved.date);
         return { ...old, items: has ? old.items.map((r) => (r.seller_id === saved.seller_id && r.date === saved.date ? saved : r)) : old.items };
@@ -145,7 +147,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
   };
 
   const readOnly = !canEdit;
-  const past = date < today;
+  const past = date < today && !previa;
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -299,8 +301,8 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
 
       {canEdit && (
         <div className="sticky bottom-0 -mx-4 flex flex-wrap gap-2 border-t border-line bg-surface px-4 pt-3 pb-1">
-          <Button variant="primary" disabled={!dirty || save.isPending || issues.some((x) => x.includes('inválido'))} onClick={() => save.mutate(draft)}>
-            {save.isPending ? 'Salvando…' : route?.stops.length ? 'Salvar' : 'Criar rota'}
+          <Button variant="primary" disabled={!dirty || save.isPending || issues.some((x) => x.includes('inválido'))} onClick={() => (previa ? previa.onApply(draft) : save.mutate(draft))} data-testid="rota.salvar">
+            {previa ? 'Aplicar' : save.isPending ? 'Salvando…' : route?.stops.length ? 'Salvar' : 'Criar rota'}
           </Button>
           <Button disabled={!dirty || save.isPending} onClick={() => {
               setEdited(null);
@@ -308,6 +310,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
             }}>
             Descartar
           </Button>
+          {!previa && (
           <Button
             variant="link"
             className="ml-auto"
@@ -317,10 +320,11 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
           >
             Copiar este dia para…
           </Button>
+          )}
         </div>
       )}
 
-      {copyOpen && <CopyDayDialog sellerId={sellerId} sellerName={sellerName} date={date} stops={draft} today={today} onClose={() => setCopyOpen(false)} />}
+      {copyOpen && !previa && <CopyDayDialog sellerId={sellerId} sellerName={sellerName} date={date} stops={draft} today={today} onClose={() => setCopyOpen(false)} />}
     </div>
   );
 }
