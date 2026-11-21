@@ -8,7 +8,7 @@
  * Nome normalizado: sem acento, em maiúsculas, com qualquer sequência de espaços virando um espaço, sem espaço nas pontas.
  * O prefixo `MXN-` separa o código gerado dos códigos do ERP. Função pura, sem I/O.
  */
-import { sha256Hex } from './sha256';
+import { sha256Hex } from '@macuxi/platform-sdk/sha256';
 
 export const PREFIXO_CODIGO_MARCA_GERADO = 'MXN-';
 
