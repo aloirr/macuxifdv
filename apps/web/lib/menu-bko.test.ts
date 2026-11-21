@@ -18,8 +18,7 @@ import {
   type EntradaNavegacao,
   type GrupoMenuBko,
 } from './menu-bko';
-import { SHELL_WEB } from './modulos';
-import { secoesParametros } from './parametros';
+import { montarMenuAdmin, TODOS_MODULOS } from './menu-bko.fixture';
 
 const n = (grupoMenu: GrupoMenu, caminho: string, rotulo: string, modulo = 'core', bloqueado = false): EntradaNavegacao => ({
   grupoMenu,
@@ -179,13 +178,7 @@ describe('menu do BKO: vitrine sem licença (ADR 0060, spec §3)', () => {
 });
 
 describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 0050 e 0060)', () => {
-  const TODOS = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const;
-  const montar = (ativos: readonly (typeof TODOS)[number][], contratados?: readonly (typeof TODOS)[number][]) => {
-    const visao = SHELL_WEB.montar({ perfil: 'admin', modulosAtivos: [...ativos], menuParametros: true, ...(contratados ? { modulosContratados: [...contratados] } : {}) });
-    const secoes = secoesParametros(visao);
-    return { visao, secoes, grupos: montarGruposMenu({ navegacao: visao.navegacao, plataforma: true, parametros: secoes.length > 0 }) };
-  };
-  const { visao, secoes, grupos } = montar(TODOS);
+  const { visao, secoes, grupos } = montarMenuAdmin();
   const testIds = (id: GrupoMenu) => de(grupos, id)?.itens.map((i) => i.testId) ?? [];
 
   it('a árvore da spec §2: 11 entradas, Parâmetros e Sistema no fim, sem Administração, Comercial e Conteúdo de campo', () => {
@@ -201,7 +194,7 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
 
   it('as páginas que viraram Parâmetros saem do menu e os endereços antigos têm destino', () => {
     const todos = grupos.flatMap((g) => g.itens.map((i) => i.testId));
-    for (const t of ['nav-core-perfis', 'nav-core-motivos', 'nav-core-fotos-pdv', 'nav-core-plano-rv', 'nav-vendedor-alcadas', 'nav-gestor-regras-alerta', 'nav-integracao-de-para'])
+    for (const t of ['nav-core-perfis', 'nav-core-motivos', 'nav-core-fotos-pdv', 'nav-core-plano-rv', 'nav-vendedor-alcadas', 'nav-integracao-de-para'])
       expect(todos).not.toContain(t);
     expect(visao.destinoParametros('/perfis')).toBe('/parametros/acesso#core-perfis');
     expect(visao.destinoParametros('usuarios-e-modulos')).toBe('/parametros/acesso#core-usuarios-e-modulos');
@@ -213,31 +206,40 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
     expect(visao.destinoParametros('formas-pagamento')).toBeNull();
   });
 
-  it('página Parâmetros: 13 seções em ordem alfabética, com o de-para da Integração e as Regras de alerta como página', () => {
+  it('página Parâmetros: 13 seções em ordem alfabética; de-para da Integração como página e Alertas com os 2 painéis do gestor (RD-1988)', () => {
     expect(secoes.map((s) => s.rotulo)).toEqual(['Acesso', 'Alertas', 'Calendário', 'Clientes', 'Início', 'Integração', 'Metas e RV', 'Pedidos', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Visitas']);
     const paineis = (secao: string) => secoes.find((s) => s.secao === secao)?.paineis.map((p) => `${p.ancora}:${p.origem}`);
     expect(paineis('integracao')).toEqual(['integracao-de-para:pagina']);
-    expect(paineis('alertas')).toEqual(['gestor-regras-alerta:pagina']);
+    expect(paineis('alertas')).toEqual(['gestor-regras-alerta:painel', 'gestor-produtividade:painel']);
     expect(paineis('acesso')).toEqual(['core-perfis:painel', 'core-usuarios-e-modulos:painel', 'core-promotor-pedidos:painel']);
     expect(paineis('pedidos')).toEqual(['vendedor-alcadas:painel']);
   });
 
   it('sem modulosContratados nada fica bloqueado; com a empresa sem Pesquisa e Treinamento, os dois aparecem com cadeado', () => {
     expect(grupos.some((g) => g.bloqueado)).toBe(false);
-    const ativos = TODOS.filter((m) => m !== 'pesquisa' && m !== 'treinamento');
-    const r = montar(ativos, ativos);
+    const ativos = TODOS_MODULOS.filter((m) => m !== 'pesquisa' && m !== 'treinamento');
+    const r = montarMenuAdmin(ativos, ativos);
     expect(r.grupos.filter((x) => x.bloqueado).map((x) => x.id)).toEqual(['pesquisa', 'treinamento']);
     expect(r.secoes.filter((s) => s.bloqueado).map((s) => s.secao)).toEqual(['pesquisa', 'treinamento']);
     expect(r.visao.pagina('pesquisas')).toBeNull();
   });
 
   it('empresa com o módulo e o perfil sem ele: some (é permissão, não contratação)', () => {
-    const r = montar(
-      TODOS.filter((m) => m !== 'pesquisa'),
-      TODOS,
+    const r = montarMenuAdmin(
+      TODOS_MODULOS.filter((m) => m !== 'pesquisa'),
+      TODOS_MODULOS,
     );
     expect(de(r.grupos, 'pesquisa')).toBeUndefined();
     expect(r.secoes.some((s) => s.secao === 'pesquisa')).toBe(false);
+  });
+
+  it('sem barra de rolagem em 1366×768 (spec §3 e §5): pior caso Cadastros (6 itens) cabe mesmo com um rótulo em 2 linhas', () => {
+    /** Rótulo que quebra a linha ("Formas de pagamento e prazos"): +20 px (linha de 20 px). */
+    const QUEBRA = 20;
+    const pior = Math.max(...grupos.map((g) => alturaDoMenu(grupos, new Set([g.id]))));
+    expect(pior).toBe(alturaDoMenu(grupos, new Set(['cadastros'])));
+    expect(pior).toBe(11 * 30 + 6 * 32 + 10 * 2);
+    expect(pior + QUEBRA).toBeLessThanOrEqual(ALTURA_1366X768);
   });
 });
 

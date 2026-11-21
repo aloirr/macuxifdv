@@ -64,8 +64,10 @@ const LARGURA_LOGO = Math.round(ALTURA_LOGO * PROPORCAO_LOGO_HORIZONTAL);
 const FOCO = 'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white';
 
 /**
- * Item do menu. `lateral` (padrão): 32 px, com recuo sob o título do grupo (`recuo=false` no painel ao lado); tela atual
- * com a barra de 3 px em Sol claro à esquerda (§M3 item 4). `compact`: chip da faixa de rolagem da tela estreita.
+ * Item do menu. `lateral` (padrão): 32 px no mínimo, uma linha por padrão, com recuo sob o título do grupo (`recuo=false` no painel ao lado); tela
+ * atual com a barra de 3 px em Sol claro à esquerda (§M3 item 4). Rótulo mais largo que o menu (ex.: "Formas de pagamento e
+ * prazos" com a fonte do sistema) quebra a linha, como na simulação (spec menu-parametros §5: altura mínima 32 px, linha de
+ * 20 px), em vez de vazar para o lado e abrir a barra de rolagem da lista. `compact`: chip da faixa de rolagem da tela estreita.
  */
 function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }: { item: ItemMenuBko; active: boolean; variante?: 'lateral' | 'compact'; recuo?: boolean; onNavegar?: () => void }) {
   const lateral = variante === 'lateral';
@@ -76,9 +78,9 @@ function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }
       aria-current={active ? 'page' : undefined}
       onClick={onNavegar}
       className={cx(
-        'flex shrink-0 items-center rounded-lg whitespace-nowrap no-underline transition-colors',
+        'flex shrink-0 items-center rounded-lg no-underline transition-colors',
         FOCO,
-        lateral ? cx('relative h-8 pr-2.5 text-[15px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
+        lateral ? cx('relative min-h-8 py-1.5 pr-2.5 text-[15px] leading-5', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px] whitespace-nowrap',
         active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active hover:text-white',
         active && lateral && "before:absolute before:top-2 before:bottom-2 before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']",
       )}
@@ -204,9 +206,11 @@ interface Painel {
 /**
  * Lista do menu lateral (§M3): mede a própria altura (flex-1 entre a marca e o rodapé). Tudo cabe → tudo aberto, títulos
  * sem seta e sem clique. Não cabe → sanfona: só o grupo da tela atual aberto; ponteiro ou foco de teclado num grupo
- * fechado abre o painel ao lado (fixed, fora do overflow da lista); clique no título troca o grupo aberto.
+ * fechado abre o painel ao lado (fixed, fora do overflow da lista); clique no título troca o grupo aberto. A lista nunca
+ * rola para o lado (rótulo longo quebra a linha). A conta (§M4) supõe uma linha por item; se o menu todo aberto transbordar
+ * da altura medida, vira sanfona (de novo na conta quando a altura ou os grupos mudam: licença, perfil).
  */
-function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string | null }) {
+export function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string | null }) {
   const listaRef = useRef<HTMLDivElement>(null);
   const [disponivel, setDisponivel] = useState<number | null>(null);
   useLayoutEffect(() => {
@@ -219,7 +223,19 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const tudoAberto = disponivel !== null && cabeTudoAberto(grupos, disponivel);
+  const [transbordou, setTransbordou] = useState(false);
+  // `grupos` é montado de novo a cada render do shell: compara pelo conteúdo, não pela referência
+  const medida = `${disponivel}|${grupos.map((g) => `${g.id}:${g.direto ? 'd' : ''}${g.bloqueado ? 'b' : ''}:${g.itens.map((i) => i.label).join(',')}`).join(';')}`;
+  const [medidaVista, setMedidaVista] = useState(medida);
+  if (medidaVista !== medida) {
+    setMedidaVista(medida);
+    setTransbordou(false);
+  }
+  const tudoAberto = !transbordou && disponivel !== null && cabeTudoAberto(grupos, disponivel);
+  useLayoutEffect(() => {
+    const el = listaRef.current;
+    if (tudoAberto && el && el.scrollHeight > el.clientHeight) setTransbordou(true);
+  }, [tudoAberto, grupos]);
 
   // a sanfona acompanha a tela: ao abrir uma tela de outro grupo, o grupo dela abre e o anterior fecha
   const grupoAtual = grupoDaTela(grupos, ativo);
@@ -267,7 +283,7 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
   useEffect(() => cancelarFechar, []);
 
   return (
-    <div ref={listaRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
+    <div ref={listaRef} data-testid="menu-bko-lista" className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-1">
       {grupos.map((g) => {
         if (g.bloqueado) return <EntradaBloqueada key={g.id} grupo={g} />;
         if (g.direto) return <ItemDireto key={g.id} grupo={g} active={g.itens[0]?.href === ativo} />;

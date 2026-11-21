@@ -10,7 +10,7 @@
  * - Vitrine sem licença (ADR 0060): grupo com todos os itens `bloqueado` aparece desativado (cadeado, não abre nem navega).
  * - Grupo sem item visível não aparece (a licença e o perfil já filtraram a `navegacao`: RN-CORE-01/03, ADR 0004).
  * - Altura do menu aberto (título 30 px, item 32 px, 2 px entre grupos) decide entre "tudo aberto" e a sanfona (§M3);
- *   item direto e entrada bloqueada ocupam só a linha do título.
+ *   item direto e entrada bloqueada ocupam só a linha do título. A conta supõe um item por linha; o shell confere a altura real.
  */
 import { compararGrupoMenu, compararRotuloMenu, ROTULO_GRUPO_MENU, type ItemNavegacao } from '@macuxi/platform-sdk';
 import { secaoDaPagina } from './parametros';
