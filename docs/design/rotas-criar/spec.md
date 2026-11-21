@@ -7,9 +7,10 @@ queira usar a casa como referencia."
 
 Esta R0 é **só especificação e simulação**: nada muda no sistema (sem código, migração ou contrato). Escrita pelo designer-ux em 20/11/2026, 18h50 (Manaus).
 
-**Status: aprovada** pelo Alexandre em 20/11/2026, 19h12 (Manaus), R-20261120-191213: D1 a D5, D7 e D8 como recomendado; **D6 alterada** (o sistema tenta
-localizar o cliente pelo endereço e pelo CEP; seção 7 e seção 9); endereço base: **opção (b)**, ponto no mapa, sem geocodificação para a base (seção 8).
-Pendente de decisão: o serviço de geocodificação do cliente (seção 9).
+**Status: aprovada** pelo Alexandre em 20/11/2026, 19h12 (Manaus), R-20261120-191213: D1 a D5, D7 e D8 como recomendado; **D6 alterada** (o sistema tentaria
+localizar o cliente pelo endereço e pelo CEP; depois substituída pelo botão por cliente, linha abaixo; seção 7 e seção 9); endereço base: **opção (b)**, ponto no mapa, sem geocodificação para a base (seção 8).
+**Geocodificação do cliente decidida** (R-20261120-194335, item 4; RN-CORE-77): Nominatim público, botão **Gerar coordenada** por cliente, um clique,
+no máximo 1 consulta por segundo, sem chave e sem tentativa automática (seção 9). Atualizada pelo designer-ux em 21/11/2026 (T-0191, RD-2540).
 Tela de referência: 1366×768, menu lateral aberto, sem rolagem lateral. Regras do corretor: uma informação, um lugar; só o texto que a pessoa usa para agir;
 aviso só na área "Alertas" quando a tela tem uma. Um só botão principal por tela.
 
@@ -64,13 +65,14 @@ Ordem:
 4. Mapa: a legenda troca **CD Saída** por **Base** (ícone de casa, fundo grafite #16202A, borda branca — o mesmo `.fv-start` de hoje com o desenho da casa).
    Sem vendedor no filtro, o mapa mostra a base de cada vendedor com rota no período, na cor do vendedor. **Some o ponto fixo de Manaus**: vendedor sem base
    não tem marcador de saída, e o km conta a partir do 1º cliente.
-5. Lista "Rotas do período": vazio = **"Nenhuma rota no período."** (sai o "0 com visitas" quando é zero e sai a frase repetida da legenda).
+5. Lista "Rotas do período": vazio = **"Nenhuma rota no período."** só quando a lista não tem nenhuma linha (sai o "0 com visitas" quando é zero e sai a
+   frase repetida da legenda); com as linhas de dia, cada uma já diz **"Sem rota"** e a frase não aparece (RD-2524).
 
 Os botões "Criar rota" de cada dia vazio na lista continuam (criam a rota de um dia à mão, no editor).
 
 ## 3. Diálogo "Criar rota" (`simulacoes/criar.png`)
 
-`Dialog` do kit (`packages/ui/src/web/overlay.tsx`), 540 px.
+`Dialog` do kit (`packages/ui/src/web/overlay.tsx`), 540 px (`largura="media"`).
 - Título: **Criar rota**.
 - `SelectField` **Vendedor**: os vendedores visíveis (escopo RN-CORE-04). Vem preenchido com o vendedor do filtro, se houver. Foco inicial aqui.
 - **Período**: o mesmo `Segmented` (Dia | Semana | Mês) e a mesma navegação ‹ período › da tela, em 44 px. Vem com o período da tela.
@@ -102,12 +104,13 @@ O filtro da tela passa para o vendedor e o período da prévia; os KPIs **somem*
 e o botão **Criar rota** do cabeçalho some (o principal da tela passa a ser **Salvar rotas**).
 
 Ordem no quadro:
-1. Título **Prévia** (20 px) e a linha **"19 rotas · 209 visitas · 988 km"**. Vendedor e período não se repetem (estão na `FilterBar`). Sem X no cabeçalho: sair é pelo **Descartar** do rodapé.
+1. Título **Prévia** (17 px, negrito, o mesmo de "Rotas do período": é o mesmo quadro; MC-1901) e a linha **"19 rotas · 209 visitas · 988 km"**. Vendedor e período não se repetem (estão na `FilterBar`). Sem X no cabeçalho: sair é pelo **Descartar** do rodapé.
 2. **Endereço base** — no lugar do "CD Saída": cartão com o ícone da casa (o mesmo marcador do mapa), o rótulo em negrito (**Casa** ou **Outro endereço**) e o endereço
    em uma linha (`Rua das Palmeiras, 100 · Centro`, corta com reticências; o endereço inteiro no `title`). À direita o **lápis** (40 px, `aria-label="Trocar o endereço base"`).
 3. **Alertas** (`Panel` só quando há alerta; nenhum aviso fora dele):
-   - **"3 clientes ficaram fora: endereço não localizado."** · link **Ver clientes** (abre a lista desses clientes com o endereço e o CEP, e o atalho
-     para Coordenadas sugeridas). Conta só quem o sistema tentou localizar e não conseguiu (D6).
+   - **"3 clientes ficaram fora: sem coordenada."** (1: **"1 cliente ficou fora: sem coordenada."**) · link **Ver clientes** (abre o diálogo **Clientes sem coordenada**,
+     com o endereço e o CEP, o **Gerar coordenada** de cada um e o atalho para Coordenadas sugeridas). Conta os clientes da carteira sem coordenada; com a RN-CORE-77
+     nada é tentado sozinho, então o texto não fala em falha de localização (UX-02).
    - **"8 clientes não couberam no limite do dia."** · link **Ver clientes** (só se a dúvida D2 decidir por limite).
 4. **Lista dos dias** (rolagem própria): uma linha por dia do período, 46 px, barra na cor do dia, **"Ter 03/11"** e **"11 visitas · 54 km"**, chevron. Clicar abre o
    editor do dia sobre a prévia (reordenar, tirar, incluir, refazer horários; o "Salvar" do editor vira **"Aplicar"** e volta à prévia). Dia sem rota por feriado:
@@ -119,15 +122,14 @@ Estados da prévia:
 | Estado | O que aparece |
 |---|---|
 | Carregando | `LoadingBlock` "Montando a rota…" no quadro; o mapa fica com o marcador da base |
-| Localizando clientes sem coordenada (D6) | O mesmo `LoadingBlock` "Montando a rota…" (sem texto à parte) |
-| Nenhum cliente com localização | Sem lista; no lugar, o vazio **"Nenhum cliente da carteira foi localizado."** com o link **Abrir Coordenadas sugeridas**. Salvar desabilitado. |
+| Nenhum cliente com localização | Sem linhas de dia; o Alertas mostra **"N clientes ficaram fora: sem coordenada."** com **Ver clientes** (sem vazio à parte: uma informação, um lugar; RD-2526). Salvar desabilitado. |
 | Parte da carteira sem localização | Alerta do item 3 |
 | Endereço base trocado no lápis | A prévia refaz na hora com a nova base (mantém os dias, refaz a ordem e o km) |
 | Erro ao salvar | `Notice tone="danger"` no topo do quadro; a prévia continua aberta |
 
 ## 5. Lápis do endereço base (`simulacoes/lapis.png`)
 
-`Dialog` do kit, 560 px, título **Endereço base**.
+`Dialog` do kit, 560 px (`largura="media-larga"`), título **Endereço base**.
 - Duas opções (`radio`, 52 px):
   - **Casa** — o endereço do cadastro do vendedor (Usuários), em uma linha. Só leitura aqui; se o vendedor não tem casa cadastrada, a opção fica desabilitada com "Sem endereço no cadastro".
   - **Outro endereço** — abre os campos.
@@ -167,7 +169,7 @@ Alvos de toque ≥ 44 px no diálogo; o lápis tem 40 px como os botões de íco
 | D3 | **Dias sem rota** | Usar o calendário que já existe: semana útil do tenant (`metas.dias_uteis_semana`) + feriados nacionais + feriados do tenant (Parâmetros → Calendário). Domingo nunca. | A tela Rotas hoje só tira sábado e domingo e mostra feriado como dia útil; passa a usar o mesmo calendário (corrige também a lista de dias). |
 | D4 | **Rota existente no período**: sobrescreve? | Padrão **"Criar só nos dias sem rota"**, com a opção **"Substituir"** no diálogo. Dia com visita feita ou em atendimento nunca muda; rota que veio do ERP (`origem = erp`) também não é substituída. | O mesmo princípio do `rotas/gerar` (nunca sobrescreve) e do consumidor do ERP. Se não quiser a opção Substituir, o diálogo fica mais curto e a troca é dia a dia pelo editor. |
 | D5 | **Origem do endereço base** | R1: **só BKO** (casa no cadastro do usuário + outro endereço pelo lápis). R4 opcional: a casa também pelo ERP (colunas novas no `vendedor.csv`), com o BKO vencendo quando alguém marcou outro endereço base. | O vendedor.csv e o contrato `VendedorPayload` não têm endereço hoje; a R4 mexe no contrato (aditivo), no Hub e no kit do Conector. |
-| D6 | **Cliente sem latitude/longitude** | **Alterada pelo Alexandre (R-20261120-191213):** o sistema **tenta gerar a localização pelo endereço e pelo CEP** do cliente (seção 9). Se não conseguir, o cliente fica **fora** da prévia, no alerta **"N clientes ficaram fora: endereço não localizado."** com **Ver clientes**; o 1º check-in continua sugerindo a coordenada (RN-CORE-10) e a próxima criação já o inclui. | Fica fora só quem tem endereço ou CEP que o serviço não acha. Serviço a escolher: seção 9. |
+| D6 | **Cliente sem latitude/longitude** | **Decidida (R-20261120-194335, item 4; RN-CORE-77):** o cliente sem coordenada fica **fora** da prévia, no alerta **"N clientes ficaram fora: sem coordenada."** (texto da §4, item 3, desde a UX-02 da T-0191) com **Ver clientes** e o botão **Gerar coordenada** de cada um: um clique por cliente, **sem tentativa automática**. O 1º check-in continua sugerindo a coordenada (RN-CORE-10) e a próxima criação já inclui o cliente localizado. *Histórico:* em R-20261120-191213 o Alexandre tinha pedido que o sistema tentasse sozinho pelo endereço e pelo CEP; substituído pelo botão. | Fica fora quem ainda não tem coordenada; o analista gera pelo botão. Serviço: seção 9. |
 | D7 | **Trocar a base muda as rotas já salvas?** | Não: muda o marcador e o km mostrados; a ordem das rotas salvas fica. Só a próxima criação usa a base nova. | Evita refazer rota que o vendedor já recebeu no app. |
 | D8 | **"Casa" no lugar do CD também para quem não usa o Criar rota?** | Sim: vendedor com base mostra a base no mapa e conta o km dela em todas as rotas; sem base, nada de ponto fixo de Manaus. | O km das rotas atuais muda de número (hoje conta de um ponto fixo errado para quem não está em Manaus). |
 
@@ -188,7 +190,15 @@ filial e usuário não têm coordenada (seção 0).
 **Decisão (Alexandre, R-20261120-191213): (b)**, ponto marcado no mapa, **sem geocodificação para a base** — custo zero, sem segredo, sem o endereço da casa
 do vendedor saindo para terceiro. O mapa abre no centro dos clientes da carteira com localização, então marcar leva poucos segundos.
 
-## 9. Geocodificação do cliente (para decisão do Alexandre)
+## 9. Geocodificação do cliente
+
+**Decidido (R-20261120-194335, item 4; RN-CORE-77):** **(i) Nominatim público**, sem chave; botão **Gerar coordenada** por cliente (no diálogo "Ver clientes" da
+prévia e em Coordenadas sugeridas), **um clique por cliente**, **sem job e sem tentativa automática** (nem na carga, nem na alteração, nem ao criar a rota);
+no máximo **1 consulta por segundo** na API toda, User-Agent genérico e cache do resultado. O mesmo endereço não é tentado de novo enquanto o endereço ou o
+CEP não mudar. Estados do botão (UX-05, UX-06, UX-08; RD-2527): localizado = `IconCheck` + "Localizada pelo número / pela rua / pelo CEP", sem o botão;
+**não localizado ou já tentado = o botão some e fica só o texto em vermelho** (`text-danger`) "Endereço não localizado. Corrija o endereço ou o CEP no
+cadastro."; sem rua nem CEP = sem o botão, só "Sem rua nem CEP no cadastro."; erro de rede ou do servidor = o botão continua ativo, com a mensagem do erro.
+O texto abaixo é o histórico da comparação, mantido como registro; onde ele diverge, vale este parágrafo.
 
 Vem da D6 alterada: cliente sem lat/long → o sistema tenta localizar pelo endereço e pelo CEP. Preços e políticas abaixo são de memória: **conferir na
 política e no preço vigentes** antes de contratar. Volume de referência: um tenant com 5.000 clientes sem coordenada = 5.000 consultas na primeira carga e,
@@ -206,14 +216,14 @@ depois, só os clientes novos ou com endereço alterado (dezenas por dia).
 Para os dois lados: precisão no Brasil é boa em capital e fraca em bairro novo, zona rural e "S/N"; CEP geral de cidade cai no centro da cidade. Por isso o
 resultado só é aceito com precisão de **número ou rua**; se vier só o CEP de logradouro, aceita como "CEP"; só cidade = **não localizado** (fica fora, D6).
 
-**Quando roda (recomendado):**
+**Quando roda (recomendação anterior, substituída pelo botão; ver o parágrafo "Decidido" no topo desta seção):**
 1. **Na carga e na alteração do cliente** (Conector ou BKO): um job em segundo plano, na fila, respeitando o limite do serviço. Nova tentativa **só quando o
    endereço ou o CEP mudar** (nada de tentar de novo o mesmo endereço que falhou).
 2. **Ao criar a rota**: só para os clientes da carteira que ainda não têm coordenada e cujo endereço ainda não foi tentado (cabe no "Montando a rota…").
 3. O resultado fica **guardado no cliente** com a **origem** (`erp`, `checkin`, `geocodificacao`, `manual`) e a **precisão**. Coordenada vinda do **ERP**
    ou **aprovada do check-in** **nunca é sobrescrita** pela geocodificação; o check-in aprovado substitui a geocodificada.
 
-**Recomendação:** **(ii) paga, com direito de guardar o resultado** (Mapbox permanente ou HERE, conferindo os termos de armazenamento), porque a 1ª carga é
+**Recomendação (não adotada; decidido (i) com o botão):** **(ii) paga, com direito de guardar o resultado** (Mapbox permanente ou HERE, conferindo os termos de armazenamento), porque a 1ª carga é
 lote, o que o Nominatim público proíbe, e o Google exige mapa Google. Custo previsto baixo (a 1ª carga e depois poucas consultas por dia). Se o Alexandre
 preferir custo zero: Nominatim público só para as alterações do dia a dia (1 por segundo, User-Agent e atribuição), aceitando que a 1ª carga fica fora até
 o check-in ou o Nominatim próprio.
@@ -229,25 +239,23 @@ o endereço; o mapa do BKO ganha a atribuição do provedor se ele exigir; a est
   calendário; ordenar cada dia com `optimizeRoute` a partir da base), API de prévia (não grava) e de gravação em lote idempotente, diálogo, prévia e salvar.
 - **R3 — Estados e acabamento**: conflito com rota existente (manter/substituir, ERP e visita feita protegidos), carteira sem coordenadas e o atalho para
   Coordenadas sugeridas, feriados na lista de dias da tela, editor do dia sobre a prévia ("Aplicar"), roteiro do testes e build.
-- **Geocodificação do cliente (D6, entregue junto com a R2; coluna própria na tabela)**: adaptador do serviço escolhido (secret, limite por segundo, User-Agent/atribuição), job na fila na carga e
-  alteração do cliente, origem e precisão da coordenada no cliente, regra de não sobrescrever ERP e check-in, tentativa na criação da rota (seção 9).
+- **Gerar coordenada (R5 da T-0191)**: botão por cliente, Nominatim público, 1 consulta por segundo, sem chave e sem job (RN-CORE-77, seção 9); horas na T-0191.
 - **R4 (opcional) — Endereço da casa pelo ERP**: colunas novas no `vendedor.csv` e no `VendedorPayload` (aditivo, v1), Hub, kit do Conector, consumidor do Core.
 
-| Dono | R1 | R2 | R3 | Geocodificação | R4 (opc.) |
-|---|---|---|---|---|---|
-| banco-dados | 4,0 → **4,6** | 1,0 → **1,2** | 0,5 → **0,6** | 1,5 → **1,7** | 2,0 → **2,3** |
-| modulo-core | 14,0 → **16,1** | 20,0 → **23,0** | 8,0 → **9,2** | 8,0 → **9,2** | 3,0 → **3,5** |
-| engenheiro-software | 0 | 0 | 0 | 6,0 → **6,9** | 0 |
-| modulo-integracao | 0 | 0 | 0 | 0 | 8,0 → **9,2** |
-| designer-ux | 3,0 → **3,5** | 2,5 → **2,9** | 1,5 → **1,7** | 0,5 → **0,6** | 0,5 → **0,6** |
-| engenheiro-apps | 1,5 → **1,7** | 1,5 → **1,7** | 1,0 → **1,2** | 0 | 0 |
-| testes | 4,0 → **4,6** | 5,0 → **5,8** | 4,0 → **4,6** | 3,0 → **3,5** | 3,0 → **3,5** |
-| corretor-redundancias | 1,5 → **1,7** | 1,5 → **1,7** | 1,0 → **1,2** | 0,5 → **0,6** | 1,0 → **1,2** |
-| design-de-marca | 1,0 → **1,2** | 0,5 → **0,6** | 0,5 → **0,6** | 0 | 0 |
-| **Total** | 29,0 → **33,4** | 32,0 → **36,9** | 16,5 → **19,1** | 19,5 → **22,5** | 17,5 → **20,3** |
+| Dono | R1 | R2 | R3 | R4 (opc.) |
+|---|---|---|---|---|
+| banco-dados | 4,0 → **4,6** | 1,0 → **1,2** | 0,5 → **0,6** | 2,0 → **2,3** |
+| modulo-core | 14,0 → **16,1** | 20,0 → **23,0** | 8,0 → **9,2** | 3,0 → **3,5** |
+| engenheiro-software | 0 | 0 | 0 | 0 |
+| modulo-integracao | 0 | 0 | 0 | 8,0 → **9,2** |
+| designer-ux | 3,0 → **3,5** | 2,5 → **2,9** | 1,5 → **1,7** | 0,5 → **0,6** |
+| engenheiro-apps | 1,5 → **1,7** | 1,5 → **1,7** | 1,0 → **1,2** | 0 |
+| testes | 4,0 → **4,6** | 5,0 → **5,8** | 4,0 → **4,6** | 3,0 → **3,5** |
+| corretor-redundancias | 1,5 → **1,7** | 1,5 → **1,7** | 1,0 → **1,2** | 1,0 → **1,2** |
+| design-de-marca | 1,0 → **1,2** | 0,5 → **0,6** | 0,5 → **0,6** | 0 |
+| **Total** | 29,0 → **33,4** | 32,0 → **36,9** | 16,5 → **19,1** | 17,5 → **20,3** |
 
-R1 a R3 com a geocodificação do cliente: **111,9 h** com folga (89,4 h sem ela); com a R4: **132,2 h**. As horas da geocodificação valem para (i) e (ii);
-sem contar o custo por consulta da (ii) nem o servidor do Nominatim próprio.Premissas: o engenheiro-software faz o adaptador do serviço e o limite na plataforma, o modulo-core o job e a regra da origem; o engenheiro-apps só revisa e liga o marcador em `apps/web/app/globals.css`; o design-de-marca valida o marcador novo (casa) e as telas; sem dependência nova.
+R1 a R3: **89,4 h** com folga; com a R4: **109,7 h**. Premissas: o engenheiro-apps só revisa e liga o marcador em `apps/web/app/globals.css`; o design-de-marca valida o marcador novo (casa) e as telas; sem dependência nova.
 
 ## 11. Simulações
 

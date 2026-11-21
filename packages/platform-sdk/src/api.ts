@@ -29,6 +29,7 @@ import type { TipoImagem } from './imagens';
 import type { Manifesto } from './manifesto';
 import type { ServicoEmail } from './email/porta';
 import type { ServicoPacotes } from './pacotes';
+import type { Geocodificador } from './geocodificador';
 import { problemasCookieSessao, type CookieSessaoRota } from './cookie-sessao';
 import type { SuperficieRota } from './perfis';
 import type { EntradaZip, LimitesZip, MotivoRecusaEntrada, MotivoRecusaZip } from './zip';
@@ -269,6 +270,13 @@ export interface ContextoBase {
    * `criarServicoPacotesMemoria()`. A rota decide quem pode pedir e audita; o link nunca vai para log.
    */
   pacotes?: ServicoPacotes;
+  /**
+   * T-0191 (RN-CORE-77): geocodificação do endereço do cliente (Nominatim, fila de 1 req/s e cache no processo). A API sempre
+   * preenche nas rotas de módulo (`MACUXI_NOMINATIM_URL=desligado` ou sem serviço: `disponivel() = false` e `localizar` lança 503
+   * `GEOCODIFICADOR_INDISPONIVEL`); contexto falso de teste usa um objeto próprio ou `GEOCODIFICADOR_DESLIGADO`. A rota decide
+   * quem pode pedir, grava `geocodificacao_chave` (`chaveGeocodificacao`) e audita; o endereço nunca vai para log.
+   */
+  geocodificador?: Geocodificador;
 }
 
 /**
