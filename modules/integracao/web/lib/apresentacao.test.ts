@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ENTIDADES, ESTADOS_LOTE_BKO } from '../../contracts';
-import { ROTULO_ENTIDADE, rotuloDoLote, perfilDaSessao, podeExecutar } from './apresentacao';
+import { ROTULO_ENTIDADE, rotuloDoLote, perfilDaSessao, podeExecutar, textoDoFimDoLote } from './apresentacao';
 
 describe('rótulos do monitor (todo valor do contrato tem texto em português)', () => {
   it('cobre o status do lote e a entidade', () => {
@@ -34,5 +34,21 @@ describe('P-3: permissões refletidas na UI (a proteção real é na API)', () =
       expect(podeExecutar('inativacao.decidir', p), p).toBe(false);
     }
     expect(podeExecutar('monitor.ver', null)).toBe(false);
+  });
+});
+
+describe('texto do fim do lote no popup (fuso do tenant)', () => {
+  const tz = 'America/Manaus';
+  it('lote que falhou mostra "falhou em dd/mm/aaaa hh:mm"', () => {
+    const t = textoDoFimDoLote({ status: 'falhou', concluido_em: '2026-11-20T18:31:00Z' }, tz);
+    expect(t).toBe('falhou em 20/11/2026 14:31');
+  });
+  it('virada do dia e do ano UTC → Manaus: 03:59Z de 01/01 vira 23:59 de 31/12', () => {
+    expect(textoDoFimDoLote({ status: 'falhou', concluido_em: '2027-01-01T03:59:00Z' }, tz)).toBe('falhou em 31/12/2026 23:59');
+  });
+  it('os demais ficam como antes', () => {
+    expect(textoDoFimDoLote({ status: 'concluido', concluido_em: '2026-11-20T18:31:00Z' }, tz)).toBe('concluído 20/11 às 14:31');
+    expect(textoDoFimDoLote({ status: 'concluido', concluido_em: null }, tz)).toBe('ainda não concluído');
+    expect(textoDoFimDoLote({ status: 'falhou', concluido_em: null }, tz)).toBe('ainda não concluído');
   });
 });
