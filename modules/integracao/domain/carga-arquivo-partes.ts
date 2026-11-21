@@ -11,7 +11,7 @@ import type { Entidade, EstadoLoteBko, InativacaoLote } from '../contracts';
 import { lerCsvComPosicoes, type ParteArquivo } from './carga-arquivo';
 import { PARAMETROS_PADRAO } from './parametros';
 import { novaSessao, registrarParte, situacaoSessao, type SituacaoSessao } from './sessao';
-import { sha256Hex } from './sha256';
+import { sha256Hex } from '@macuxi/platform-sdk/sha256';
 
 /** Tamanho máximo do texto de cada parte: cabe com folga no limite de 1 MiB do corpo JSON da plataforma (aspas/escapes do JSON crescem o texto). */
 export const BYTES_MAX_PARTE_ARQUIVO = 768 * 1024;

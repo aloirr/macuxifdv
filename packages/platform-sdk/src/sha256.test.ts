@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sha256Hex } from './sha256';
 
-describe('RN-INT-02: SHA-256 puro do domain (vetores conhecidos do NIST)', () => {
+describe('SHA-256 puro da plataforma (vetores do NIST; RN-INT-02 e RN-CORE-77)', () => {
   it('RN-INT-02: string vazia', () => {
     expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
   });

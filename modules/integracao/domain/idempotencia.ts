@@ -8,7 +8,7 @@ import { classificarErroZod } from './erros';
 import { limitarCatalogoDoProduto } from './catalogo-produto';
 import { avisoVendedorSemFilial } from './vendedor-filial';
 import { avisoPrazoMedioDivergente } from './pagamento';
-import { sha256Hex } from './sha256';
+import { sha256Hex } from '@macuxi/platform-sdk/sha256';
 
 /** JSON com chaves ordenadas; `null`/`undefined` em objeto equivalem a campo ausente; `-0` vira `0`. */
 export function jsonCanonico(valor: unknown): string {

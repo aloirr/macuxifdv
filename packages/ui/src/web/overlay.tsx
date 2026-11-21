@@ -72,10 +72,20 @@ function useCorpoRola(open: boolean) {
   return { ref, rola };
 }
 
-/** Largura do popup a partir de 640 px: `padrao` = 460 px (confirmação, formulário curto); `larga` = 720 px (tabela curta dentro do popup). */
-export type LarguraDoDialog = 'padrao' | 'larga';
+/**
+ * Largura do popup a partir de 640 px: `padrao` = 460 px (confirmação, formulário curto); `media` = 540 px
+ * (formulário com opções em cartão, ex.: Criar rota); `media-larga` = 560 px (formulário com endereço,
+ * ex.: Endereço base; T-0191, rotas-criar §3 e §5); `larga` = 720 px (tabela curta dentro do popup).
+ */
+export type LarguraDoDialog = 'padrao' | 'media' | 'media-larga' | 'larga';
 
-const MAX_LARGURA: Record<LarguraDoDialog, string> = { padrao: 'sm:max-w-[460px]', larga: 'sm:max-w-[720px]' };
+/** Classes literais (o Tailwind só gera o que aparece escrito por inteiro). */
+const MAX_LARGURA: Record<LarguraDoDialog, string> = {
+  padrao: 'sm:max-w-[460px]',
+  media: 'sm:max-w-[540px]',
+  'media-larga': 'sm:max-w-[560px]',
+  larga: 'sm:max-w-[720px]',
+};
 
 /** Classes da caixa do popup; abaixo de 640 px é sempre folha na largura toda. */
 export function classesDoDialog(largura: LarguraDoDialog = 'padrao'): string {

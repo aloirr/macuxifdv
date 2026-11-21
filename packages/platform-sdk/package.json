@@ -12,7 +12,9 @@
     "./web": "./src/web/index.ts",
     "./react": "./src/react/index.tsx",
     "./sqlite-node": "./src/sqlite/driver-node.ts",
-    "./tentativas-portal": "./src/tentativas-portal.ts"
+    "./tentativas-portal": "./src/tentativas-portal.ts",
+    "./geocodificador-nominatim": "./src/geocodificador-nominatim.ts",
+    "./sha256": "./src/sha256.ts"
   },
   "scripts": {
     "lint": "eslint src",
