@@ -14,6 +14,8 @@ name: producao — diagnóstico da outbox (só leitura)
 #
 # O que o log mostra: docs/desenho/outbox-parada-v1014.md, §6. Bloco do catálogo (nós e produtos do ERP parados, só quando
 # há algum): modules/integracao/docs/outbox-parada-am2808-catalogo.md, §6.
+# Contagem do catálogo (opcional, contagem_catalogo; R-20261121-135629): por empresa, produtos, preços, saldos, nós e vínculos, e por
+# filial os produtos ativos sem preço (tabela da filial, RN-VEN-01) e sem estoque, com até 20 SKUs de cada; mesma sessão só leitura.
 # Empresa padrão do formulário: AM2808 (R-20261120-203901).
 
 on:
@@ -23,6 +25,10 @@ on:
         description: códigos das empresas, separados por vírgula (ex. AM2808 ou AM1234,outra)
         required: true
         default: AM2808
+      contagem_catalogo:
+        description: contar também o catálogo de cada empresa (só leitura)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +53,7 @@ jobs:
       - name: entradas e consulta
         env:
           EMPRESAS: ${{ inputs.empresas }}
+          CONTAGEM_CATALOGO: ${{ inputs.contagem_catalogo }}
         run: |
           IFS=',' read -ra lista <<< "${EMPRESAS// /}"
           [ "${#lista[@]}" -ge 1 ] && [ "${#lista[@]}" -le 10 ] || { echo "::error::informe de 1 a 10 códigos de empresa"; exit 1; }
@@ -67,6 +74,7 @@ jobs:
           end $$;
           \echo papel macuxi_leitura, transação só leitura
           SQL
+          if [ "$CONTAGEM_CATALOGO" = true ]; then echo '\set contagem_catalogo true'; else echo '\set contagem_catalogo false'; fi >> "$sql"
           for c in "${lista[@]}"; do
             [[ "$c" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$c" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido: $c"; exit 1; }
             sed "s/__CODIGO__/$c/" <<'SQL' >> "$sql"
@@ -168,6 +176,84 @@ jobs:
              and e.nome = 'integracao.produto.atualizado@1'
            order by e.ocorrido_em, e.id
            limit 200;
+          \endif
+          \if :contagem_catalogo
+          \echo 'contagem do catálogo: produtos (core.produto vivos)'
+          select count(*) as vivos, count(*) filter (where p.ativo) as ativos
+            from core.produto p
+           where p.deleted_at is null;
+          \echo 'contagem do catálogo: itens de preço vivos por tabela e filial (produtos_base = produtos com preço da unidade base)'
+          select t.codigo as tabela, t.ativo and t.deleted_at is null as tabela_ativa, f.codigo as filial,
+                 count(*) as itens, count(distinct i.produto_id) filter (where i.unidade is null) as produtos_base
+            from catalogo.tabela_preco_item i
+            join catalogo.tabela_preco t on t.tenant_id = i.tenant_id and t.id = i.tabela_preco_id
+            left join core.filial f on f.tenant_id = i.tenant_id and f.id = i.filial_id
+           where i.deleted_at is null
+           group by 1, 2, 3
+           order by 1, 3;
+          \echo 'contagem do catálogo: saldos vivos por depósito (zerados = quantidade <= 0)'
+          select d.codigo as deposito, d.ativo and d.deleted_at is null as deposito_ativo, f.codigo as filial,
+                 count(s.id) as saldos, count(s.id) filter (where s.quantidade <= 0) as zerados
+            from catalogo.deposito d
+            left join core.filial f on f.tenant_id = d.tenant_id and f.id = d.filial_id
+            left join catalogo.estoque_saldo s on s.tenant_id = d.tenant_id and s.deposito_id = d.id and s.deleted_at is null
+           group by 1, 2, 3
+           order by 3, 1;
+          \echo 'contagem do catálogo: nós vivos por nível e vínculos produto-nó vivos'
+          select n.nivel, count(*) as nos, count(*) filter (where n.ativo) as ativos
+            from catalogo.catalogo_no n
+           where n.deleted_at is null
+           group by 1
+           order by 1;
+          select count(*) as vinculos, count(distinct pn.produto_id) as produtos
+            from catalogo.produto_no pn
+           where pn.deleted_at is null;
+          \echo 'contagem do catálogo: por filial viva, produtos ativos que o Campo mostra "Sem preço" e "Estoque: 0" (até 20 SKUs de cada)'
+          \pset expanded on
+          -- tabela da filial = RN-VEN-01, a de tabelaPorContagem (modules/catalogo/domain/preco-filial.ts): a tabela ativa com mais itens
+          -- vivos na filial (empate: o menor código); preço = item vivo da unidade base (RN-VEN-15) vigente agora; estoque = soma dos saldos
+          -- vivos dos depósitos ativos da filial (repositorio-postgres.ts, saldos)
+          with tabela as (
+            select distinct on (i.filial_id) i.filial_id, t.id, t.codigo
+              from catalogo.tabela_preco_item i
+              join catalogo.tabela_preco t on t.tenant_id = i.tenant_id and t.id = i.tabela_preco_id and t.ativo and t.deleted_at is null
+             where i.deleted_at is null
+             group by i.filial_id, t.id, t.codigo
+             order by i.filial_id, count(*) desc, t.codigo collate "C"),
+          preco as (
+            select i.filial_id, i.produto_id,
+                   bool_or(coalesce(i.vigencia_inicio <= now(), true) and coalesce(i.vigencia_fim > now(), true)) as vigente
+              from catalogo.tabela_preco_item i
+              join tabela tb on tb.filial_id = i.filial_id and tb.id = i.tabela_preco_id
+             where i.deleted_at is null and i.unidade is null
+             group by 1, 2),
+          saldo as (
+            select d.filial_id, s.produto_id, sum(s.quantidade) as quantidade
+              from catalogo.estoque_saldo s
+              join catalogo.deposito d on d.tenant_id = s.tenant_id and d.id = s.deposito_id and d.ativo and d.deleted_at is null
+             where s.deleted_at is null
+             group by 1, 2),
+          caso as (
+            select f.codigo as filial, f.padrao, f.ativo, tb.codigo as tabela, p.sku,
+                   pr.produto_id is null as sem_item, not coalesce(pr.vigente, true) as fora_de_vigencia,
+                   sa.produto_id is null as sem_saldo, sa.quantidade <= 0 as saldo_zero
+              from core.filial f
+              left join tabela tb on tb.filial_id = f.id
+              cross join core.produto p
+              left join preco pr on pr.filial_id = f.id and pr.produto_id = p.id
+              left join saldo sa on sa.filial_id = f.id and sa.produto_id = p.id
+             where f.deleted_at is null and p.deleted_at is null and p.ativo)
+          select filial, padrao, ativo as filial_ativa, tabela as tabela_da_filial,
+                 count(*) filter (where sem_item) as sem_item_de_preco,
+                 count(*) filter (where fora_de_vigencia) as preco_fora_de_vigencia,
+                 array_to_string((array_agg(sku order by sku) filter (where sem_item or fora_de_vigencia))[1:20], ' ') as exemplos_sem_preco,
+                 count(*) filter (where sem_saldo) as sem_saldo_na_filial,
+                 count(*) filter (where saldo_zero) as saldo_zero_ou_negativo,
+                 array_to_string((array_agg(sku order by sku) filter (where sem_saldo or saldo_zero))[1:20], ' ') as exemplos_estoque_zero
+            from caso
+           group by 1, 2, 3, 4
+           order by padrao desc, filial;
+          \pset expanded off
           \endif
           \else
           \echo 'empresa não encontrada (código errado ou empresa excluída)'
