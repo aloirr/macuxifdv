@@ -38,6 +38,7 @@ vi.mock('@/lib/queries', () => ({
   qk: { modulos: ['me', 'modulos'] },
   useMe: () => ({ data: undefined, isError: false }),
   useModulosEfetivos: () => estado.modulos,
+  useModulosContratados: () => undefined,
   useLogoQueSubstituiAMarca: () => null,
 }));
 vi.mock('@/lib/session', () => ({

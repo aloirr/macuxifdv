@@ -24,6 +24,7 @@ vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ clear: () => 
 vi.mock('@/lib/queries', () => ({
   useMe: () => ({ data: undefined, isError: false }),
   useModulosEfetivos: () => ({ data: undefined, isError: false }),
+  useModulosContratados: () => undefined,
   useLogoQueSubstituiAMarca: () => null,
 }));
 vi.mock('@/lib/session', () => ({ useSessao: () => estado.sessao, encerrarSessao: () => Promise.resolve() }));

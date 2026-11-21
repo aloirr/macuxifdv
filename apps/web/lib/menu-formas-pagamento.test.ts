@@ -1,5 +1,5 @@
 /**
- * T-0089 A1 (R-20261106-073350): lugar de "Formas de pagamento e prazos" no menu do BKO: grupo Cadastros (ADR 0060),
+ * T-0089 A1 (R-20261106-073350): lugar de "Formas de pagamento e prazos" no menu do BKO: grupo Cadastros (D11; ADR 0060, menu com Parâmetros),
  * só para admin, analista e gerente (RN-VEN-24; a API decide a escrita). Registro REAL do Vendedor.
  */
 import { criarShell, type ModuloShell } from '@macuxi/platform-sdk';
@@ -14,7 +14,7 @@ const ATIVOS = ['core', 'catalogo', 'vendedor'] as const;
 
 const itemDoMenu = (perfil: 'admin' | 'analista' | 'gerente' | 'supervisor' | 'vendedor') =>
   criarShell('web', modulos)
-    .montar({ perfil, modulosAtivos: [...ATIVOS] })
+    .montar({ perfil, modulosAtivos: [...ATIVOS], menuParametros: true })
     .navegacao.find((n) => n.testID === 'nav-vendedor-formas-pagamento');
 
 describe('menu do BKO: Formas de pagamento e prazos (T-0089 A1)', () => {

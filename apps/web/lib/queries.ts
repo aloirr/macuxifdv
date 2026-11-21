@@ -61,6 +61,11 @@ export interface ModulosDoUsuario {
   logo: LogoDoAparelho | null;
   /** `empresa_ocultar_marca_macuxi` (item 15, v1.0.17): com a logo, o shell mostra só a do cliente. */
   ocultarMarcaMacuxi: boolean;
+  /**
+   * ADR 0060: `modulos_contratados` (módulos ativos na EMPRESA, sem o recorte do perfil), só para a vitrine sem licença do
+   * BKO (Pesquisa, Trade, Treinamento com cadeado). Ausente (servidor anterior): nada aparece desativado.
+   */
+  contratados?: ModuloId[];
 }
 
 /**
@@ -80,6 +85,7 @@ export function consultaMeusModulos(perfil: Perfil | null) {
           syncAutoMin: core?.[PARAMETRO_SYNC_AUTO],
           logo: empresaDosParametros(core)?.logo ?? null,
           ocultarMarcaMacuxi: ocultarMarcaMacuxiDosParametros(core),
+          ...(r.modulos_contratados ? { contratados: r.modulos_contratados } : {}),
         };
       } catch (e) {
         if (!(e instanceof ApiRequestError) || e.status !== 404 || !perfil) throw e;
@@ -103,6 +109,7 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
 }
 
 const soIds = (d: ModulosDoUsuario) => d.ids;
+const soContratados = (d: ModulosDoUsuario) => d.contratados;
 /** Item 15: a logo do cliente que substitui a do Macuxi no shell; `null` = a do Macuxi (chave desligada ou sem logo). */
 const logoDoShell = (d: ModulosDoUsuario): LogoDoAparelho | null => logoQueSubstituiAMarca(d.ocultarMarcaMacuxi, d.logo);
 const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
@@ -114,6 +121,14 @@ const soIntervalo = (d: ModulosDoUsuario) => intervaloSyncAutoMs(d.syncAutoMin);
  */
 export function useModulosEfetivos(perfil: Perfil | null) {
   return useMeusModulos(perfil, soIds);
+}
+
+/**
+ * ADR 0060: módulos contratados pela empresa (`modulos_contratados` de `GET /v1/me/modulos`, mesma consulta dos efetivos);
+ * `undefined` enquanto carrega ou quando a API não manda o campo (nada aparece desativado). Só exibição (RN-CORE-01).
+ */
+export function useModulosContratados(perfil: Perfil | null): ModuloId[] | undefined {
+  return useMeusModulos(perfil, soContratados).data;
 }
 
 /**
