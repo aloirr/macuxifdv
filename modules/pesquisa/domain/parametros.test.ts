@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
+import { PARAMETROS_PADRAO, parametrosComPadrao, resolverParametros } from './parametros';
 
 describe('parâmetros do tenant da Pesquisa', () => {
   it('RN-PES-04: tolerância padrão de 24 h e fuso America/Manaus (doc 03, tabela de parâmetros)', () => {
@@ -25,6 +25,19 @@ describe('parâmetros do tenant da Pesquisa', () => {
   it('RN-PES-04: tolerância negativa ou fracionada é recusada, em português', () => {
     expect(() => resolverParametros({ tolerancia_vigencia_h: -1 })).toThrow(/Parâmetro tolerancia_vigencia_h inválido/);
     expect(() => resolverParametros({ tolerancia_vigencia_h: 1.5 })).toThrow(/inválido/);
+  });
+
+  it('RN-PES-04/06/07: parametrosComPadrao mantém só as chaves da Pesquisa, ignora o fuso do cadastro e usa o do tenant', () => {
+    const r = parametrosComPadrao({ max_perguntas: 30, fuso: 'Nao/Existe', outra: 1 }, 'America/Sao_Paulo');
+    expect(r.erro).toBeUndefined();
+    expect(r.parametros).toEqual({ ...PARAMETROS_PADRAO, max_perguntas: 30, fuso: 'America/Sao_Paulo' });
+  });
+
+  it('RN-PES-04: valor inválido vira o padrão em tudo e devolve o erro em português; sem fuso vale o padrão', () => {
+    const r = parametrosComPadrao({ tolerancia_vigencia_h: -1, max_perguntas: 30 }, 'America/Sao_Paulo');
+    expect(r.parametros).toEqual({ ...PARAMETROS_PADRAO, fuso: 'America/Sao_Paulo' });
+    expect(r.erro).toMatch(/Parâmetro tolerancia_vigencia_h inválido/);
+    expect(parametrosComPadrao({ max_perguntas: 0 }).parametros).toEqual(PARAMETROS_PADRAO);
   });
 
   it('fuso inexistente é recusado', () => {

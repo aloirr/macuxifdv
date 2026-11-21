@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parametrosEmUso, valorDoParametro } from './parametros-valor';
+import { valorDoParametro } from './parametros-valor';
 
 describe('Parâmetros › Pesquisa: valor em uso (RN-PES-04)', () => {
   it('RN-PES-04: sem valor do tenant mostra o padrão e não repete "Padrão"', () => {
@@ -11,8 +11,8 @@ describe('Parâmetros › Pesquisa: valor em uso (RN-PES-04)', () => {
   it('RN-PES-04: valor do tenant igual ao padrão não mostra "Padrão"', () => {
     expect(valorDoParametro({ tolerancia_vigencia_h: 24 }, 'tolerancia_vigencia_h').padrao).toBeNull();
   });
-  it('RN-PES-04: valor inválido do tenant cai no padrão', () => {
-    expect(parametrosEmUso({ tolerancia_vigencia_h: -1 }).tolerancia_vigencia_h).toBe(24);
+  it('RN-PES-07: valor do tenant é usado e fuso inválido não muda os limites exibidos', () => {
+    expect(valorDoParametro({ max_perguntas: 30, fuso: 'Nao/Existe' }, 'max_perguntas').valor).toBe('30');
   });
 });
 
