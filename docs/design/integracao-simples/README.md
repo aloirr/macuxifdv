@@ -21,7 +21,7 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 | Entidade | `ROTULO_ENTIDADE` (ex.: Produtos), peso 400 | sem largura (divide o resto) |
 | Última carga | `15/11 às 01:02` do lote mais recente (`formatDateTime`, data uma vez por linha); sem falha e com mais de um lote, `15/11 às 01:01 · 4 lotes`; com falha, `15/11 às 01:02 · falhou 01:03` (hora da falha com `formatTime`; falha em outro dia, `formatDataHoraCurta`: `15/11 às 23:58 · falhou 16/11 00:03`) | 300 px |
 | Situação | `Badge` **Com falha** (`danger`) quando a entidade tem lote reprocessável (RN-INT-15), inclusive concluído com avisos; senão **Em dia** (`success`) | 120 px |
-| Linhas integradas | número (`numero: true`), `x de y` do lote mais recente: `7.378 de 14.780`; lote em andamento, célula vazia | 150 px |
+| Linhas integradas | número (`numero: true`), `x de y` do lote mais recente: `7.378 de 14.780`; lote em andamento ou cancelado, célula vazia | 150 px |
 | (ações) | **Reprocessar** (`primary`, `size="sm"`) só com lote reprocessável, à esquerda de **Histórico (n)** (secundário, `size="sm"`; n = lotes da entidade) | 260 px |
 
 "Com falha" e o botão **Reprocessar** usam o mesmo critério: existe lote reprocessável da entidade (RN-INT-15).
@@ -33,7 +33,7 @@ Ordem: entidades com falha primeiro; dentro de cada grupo, a carga mais recente 
 | Recebido | `15/11 01:02` (`formatDataHoraCurta`) | 17% |
 | Falhou | só no lote com falha: `01:03` (`formatTime`); falha em outro dia, `16/11 00:03` (`formatDataHoraCurta`); nos outros, célula vazia | 17% |
 | Situação | `Badge` do lote (seção 4) | 26% |
-| Linhas | número, `x de y` do lote; lote com falha conta `0 de 3.695`; lote em andamento, célula vazia | 20% |
+| Linhas | número, `x de y` do lote; lote com falha conta `0 de 3.695`; lote em andamento ou cancelado, célula vazia | 20% |
 | (ações) | links (`Button variant="link"`): **Cancelar** só em andamento; **Ver erros** só em lote com erro (com falha ou com linhas com erro), abre o log (`LoteDrawer`) | resto (20%) |
 
 No Histórico, o lote mais recente fica no topo.
@@ -68,6 +68,10 @@ no Histórico, o principal é o do rodapé, e o rodapé leva também **Fechar**.
 (com 1, **1 lote**); o corpo é só a tabela, sem nota explicativa.
 
 **Reprocessar** (linha ou rodapé) com a permissão `lote.reprocessar`: dispara direto, sem diálogo; aviso (`useToast`, success) **Reprocessamento iniciado.**
+Resultado do Reprocessar (`useToast`):
+- tudo certo: **Reprocessamento iniciado.** (success);
+- parcial: **2 de 3 lotes reprocessados. Falhou o lote de 15/11 às 01:02: ‹mensagem›.** (danger);
+- nenhum: **Nenhum lote reprocessado. Falhou o lote de 15/11 às 01:02: ‹mensagem›.** (danger).
 Sem a permissão: popup de autorização (seção 6).
 
 **Cancelar**: `Dialog` com o título **Cancelar este lote?**; corpo **{Entidade} · lote {8 caracteres}**; botões **Cancelar lote** (perigo) e
