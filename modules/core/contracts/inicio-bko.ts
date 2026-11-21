@@ -5,7 +5,6 @@
  * deles, que já checam perfil, escopo e licença. Dinheiro em centavos; instantes em UTC; datas civis no fuso do tenant.
  */
 import { z } from 'zod';
-import { Entidade } from '../../integracao/contracts';
 import { HoraHHMM } from './hora';
 
 /** Chave do parâmetro do tenant em `plataforma.parametro` (modulo `core`): horário esperado da carga por entidade (RN-CORE-65). */
@@ -14,7 +13,7 @@ export const PARAMETRO_HORARIO_CARGA = 'integracao.horario_carga';
 export const HORARIO_CARGA_PADRAO = '06:00';
 
 /** Valor efetivo: `entidades[x]` = HH:MM próprio ou `null` (sem horário, sem alerta); ausente = `padrao`. */
-export const HorarioCargaSchema = z.object({ padrao: HoraHHMM, entidades: z.record(Entidade, HoraHHMM.nullable()) }).strict();
+export const HorarioCargaSchema = z.object({ padrao: HoraHHMM, entidades: z.record(z.string(), HoraHHMM.nullable()) }).strict();
 export type HorarioCarga = z.infer<typeof HorarioCargaSchema>;
 /** Corpo do PUT (só o formato; a regra é do domain: `validarHorarioCarga`). */
 export const HorarioCargaPutSchema = z.object({ padrao: z.string(), entidades: z.record(z.string(), z.string().nullable()) }).strict();
