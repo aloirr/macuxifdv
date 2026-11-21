@@ -6,7 +6,7 @@
 > - **Outbox AM2808:** reprocessar os 36 parados, autorizado em R-20261121-194100 (19h40); ainda sem run de reprocesso. Opção B (R-20261121-194900): o engenheiro-software cria o workflow "producao — reprocessar outbox" (S4).
 > - **"Sem preço" AM2808:** opção A (R-20261121-194900). O modulo-integracao confere o Conector, só leitura (S4).
 > - **T-0190, operação da ADR 0065:** a 1ª publicação pelo apk-publicar está pendente com o dono do produto. A retirada de `APP_*_APK_URL` do ambiente está sem prova.
-> - **Filtro de veículo (etapa 6)** (R-20261120-230805 e R-20261120-234013): falta o código, sem PR; vai numa versão própria (v1.0.21 ou depois). Está em código na S3 (v1.0.21), e o D4 está pendente com o dono do produto. Os veículos lidos no BKO (D5) ficam para uma etapa posterior. Dono: modulo-catalogo.
+> - **Filtro de veículo (etapa 6)** (R-20261120-230805 e R-20261120-234013): código em andamento na S3 (v1.0.21), ainda sem PR; o D4 está pendente com o dono do produto. Os veículos lidos no BKO (D5) ficam para uma etapa posterior. Dono: modulo-catalogo.
 > - **Backlog da v1.0.18, item 5** (R-20261120-142546): o #578 fechou só o 🟢 da T-0182. O resto dos 🟢 das revisões do engenheiro está em andamento na S1. Dono: engenheiro-software.
 > - **T-0189:**
 >   - RD-2515 (resto): `modules/core/contracts/rota.ts:8` ainda declara `Hora` em vez de `HoraHHMM`. Dono: modulo-core, em andamento na S1.
@@ -21,7 +21,7 @@
 >   - 🟢 do "Enviando…": provável no #597, sem prova de que seja o mesmo 🟢. Dono: engenheiro-apps.
 >   - MC-1803 (logo do e-mail): nenhum registro em `docs/marca/`. Dono: design-de-marca.
 > - **PRs antigos abertos:**
->   - #285: falta o aviso dos minutos do bloqueio no portal (`modules/core/api/super-admin.ts`). Vem na v1.0.21 pela S1;
+>   - #285: faltam o aviso dos minutos do bloqueio no portal (`modules/core/api/super-admin.ts`) e a seção "Código da empresa e senha" de `docs/modulos/core/auth-e-licencas.md`. Vêm na v1.0.21 pela S1;
 >   - #288: falta a jornada EJ (`tests/integracao/api/esqueci-senha-jornada.test.ts`). Vem na v1.0.21 pela S2;
 >   - os dois fecham quando isso entrar.
 
