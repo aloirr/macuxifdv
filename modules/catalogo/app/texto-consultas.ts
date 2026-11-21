@@ -15,6 +15,7 @@ import { produtosVendaveisNaTabela } from '../domain/arvore';
 import { normalizarTexto } from '../domain/texto';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { parametrosDoTenant } from '../domain/parametros';
+import { veiculosDe } from '../domain/veiculos';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 import { cargaOnlineDoShell } from './lib/carga-online';
 import { buscaProdutosOnline, portaDaCarga, textosProdutoOnline } from './lib/consultas-online';
@@ -136,7 +137,8 @@ export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULT
   // mesma pré-seleção da aba (FTS5, ≤ 400 candidatos); sem SQLite (`sem_busca`) ou catálogo pequeno = varredura, sem erro
   const vocabulario = vocabularioMemorizado(todos);
   const filtros = interpretarConsulta(entrada.q, vocabulario);
-  const candidatos = entrada.produto_ids ? null : await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, todos.length);
+  const veiculos = veiculosDe(todos);
+  const candidatos = entrada.produto_ids ? null : await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, todos.length, undefined, veiculos);
   const idsPedidos = entrada.produto_ids ? new Set(entrada.produto_ids) : null;
   let base = candidatos ? todos.filter((p) => candidatos.has(p.id)) : idsPedidos ? todos.filter((p) => idsPedidos.has(p.id)) : todos;
   // o filtro do que o cliente pode comprar corre sobre os candidatos (preço lido só deles), não sobre os 20 mil
@@ -149,6 +151,7 @@ export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULT
     limite: entrada.lista_completa ? TETO_RANKING_BUSCA : entrada.limite,
     sinonimos,
     vocabulario,
+    veiculos,
     parametros: parametrosDoTenant(ctx.parametros()),
     anoAtual: anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso),
   });

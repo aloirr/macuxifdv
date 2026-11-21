@@ -73,7 +73,7 @@ const alvoDoCorpo = (c: Pick<MetasProdutividadePut, 'escopo' | 'equipe_id' | 'us
 
 const chaveDoAlvo = (a: Alvo) => (a.escopo === 'tenant' ? 'tenant' : a.escopo === 'equipe' ? `equipe:${a.equipe_id}` : `usuario:${a.usuario_id}`);
 
-async function linhasVivas(db: ClienteBanco): Promise<LinhaMetaProdutividade[]> {
+export async function linhasVivas(db: ClienteBanco): Promise<LinhaMetaProdutividade[]> {
   return (await db.query<LinhaMetaProdutividade>('select escopo, equipe_id, usuario_id, indicador, valor, vigencia_inicio from core.meta_produtividade where deleted_at is null')).rows;
 }
 

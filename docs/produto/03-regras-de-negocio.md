@@ -189,6 +189,24 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CORE-65 Carga que não ocorreu** (T-0189; padrão do gerente-projetos até a decisão do dono do produto): a entidade que já recebeu carga gera um alerta de atenção quando passa do horário esperado, num dia útil do calendário do tenant, e a última carga recebida é anterior a esse horário. Feriado do tenant não é dia útil. O alerta traz a entidade e a data e hora da última carga, com link para a Integração ERP. O horário esperado é o parâmetro `integracao.horario_carga` do tenant, em Parâmetros › Início: padrão **06:00 no fuso do tenant** para todas as entidades. Cada entidade pode ter um horário próprio ou ficar sem horário, e aí não gera alerta.
 - **RN-CORE-66 Cadastro incompleto no Início** (T-0189): conta os clientes ativos do escopo com cadastro incompleto pela lista `cliente_campos_obrigatorios` da RN-CORE-16 (sem lista nova). O alerta traz a quantidade e o campo que mais falta, com link para a lista de Clientes.
 - **RN-CORE-67 APKs só por link temporário** (R-20261120-194335 e R-20261120-200027, item 5; T-0190, ADR 0065; v1.0.19): os APKs do Macuxi Campo e do Macuxi Gestão só se baixam por link temporário gerado no BKO (portal da empresa) por quem administra a empresa ou pelo time da Macuxi, da versão vigente, válido por no máximo 15 minutos. O link do Campo exige o módulo Vendedor ou Promotor licenciado; o do Gestão exige o Gestor. Cada geração é auditada sem dado pessoal, e nenhuma rota ou página pública serve o APK.
+- **RN-CORE-75 Endereço base do vendedor** (R-20261120-183536 e R-20261120-191213, D5, D7, D8 e opção b; T-0191, v1.0.19):
+  - A base é a **Casa** (o endereço do cadastro em Usuários, perfis vendedor e promotor) ou **Outro endereço**, trocado pelo lápis da tela Rotas. O ponto é **marcado no mapa do BKO**, sem geocodificação.
+  - A base vale para o marcador e o km de **todas** as rotas do vendedor. Vendedor sem base não tem marcador de saída, e o km conta a partir do 1º cliente (acabou o ponto fixo de Manaus).
+  - Trocar a base **não reordena** rotas já salvas: muda o marcador e o km; só a próxima criação usa a base nova. A troca é auditada (RN-AUD-01).
+- **RN-CORE-76 Criar rota por proximidade** (R-20261120-183536 e R-20261120-191213, D1 a D4 e D6; T-0191, v1.0.19):
+  - **Dias:** a semana útil do tenant (`metas.dias_uteis_semana`), menos os feriados nacionais e os do tenant. Domingo e dia passado nunca entram.
+  - **Frequência:** a da Carteira (`frequencia_semanas` 1, 2 ou 4, e `dia_semana`). Cliente sem frequência entra como semanal. Cliente com dia da semana fica nesse dia; os outros vão para o dia que a proximidade escolher.
+  - **Limite do dia:** a meta de produtividade `visitas_dia` do vendedor (padrão 11). O que não couber aparece no alerta "não couberam no limite do dia".
+  - **Ordem do dia:** vizinho mais próximo + 2-opt, a partir do endereço base (RN-CORE-75).
+  - **Cliente sem coordenada fica fora** da rota, no alerta "ficaram fora", com **Ver clientes**.
+  - **Rota existente:** o padrão é **Criar só nos dias sem rota**. **Substituir** nunca troca dia com visita feita ou em atendimento, nem rota que veio do ERP.
+  - A **prévia não grava nada**. Salvar grava as rotas de uma vez, de forma idempotente (UUID gerado no BKO). Perfil, escopo de carteira (RN-CORE-04) e licença são revalidados na API.
+- **RN-CORE-77 Gerar coordenada do cliente** (R-20261120-194335, item 4; T-0191, v1.0.19):
+  - Um botão **Gerar coordenada** por cliente sem localização, **um clique por cliente**, **sem tentativa automática**.
+  - O serviço é o OpenStreetMap (Nominatim), sem chave. A API toda faz **no máximo 1 consulta por segundo**, com User-Agent genérico e cache do resultado. Endereço e coordenada nunca vão para log.
+  - Só vale resultado com precisão de número ou de rua. CEP de logradouro vale como "CEP". Resultado só com a cidade é **não localizado**.
+  - O mesmo endereço não é tentado de novo enquanto o endereço ou o CEP não mudar.
+  - A coordenada gerada grava no cliente com a origem `geocodificacao` e a precisão. Ela **nunca sobrescreve** coordenada que já exista (do ERP, de check-in aprovado ou manual). O check-in aprovado (RN-CORE-10) substitui a coordenada gerada. A ação é auditada.
 
 **Produto — custo, preço e medidas** (decisões do Alexandre, 2026-11-02, R-20261102-094644 e R-20261102-111619)
 - **RN-CORE-18** Cadastro do produto: custo e preço de venda são obrigatórios. Margem (%) = (preço − custo) ÷ preço; markup (%) = (preço − custo) ÷ custo; lucro (R$) = preço − custo; calculados, nunca digitados. Produto sem preço de venda não é vendável. Produto sem custo é vendável, mas aparece como "custo não informado" no BKO e no monitor de integração. **Custo, margem, markup e lucro são dados internos:** só o BKO (admin, analista, gerente) os vê; não vão para o app de campo nem para o PDF do cliente.

@@ -37,6 +37,8 @@ import { nomeDaFilialOuCodigo } from '../../domain/estoque';
 import { filiaisDaFolha, filiaisDoEstoque, lerFiliaisDoUsuario, type FiliaisDoUsuario, type FiltroFilial } from '../../domain/estoque-campo';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
+import { paresColados } from '../../domain/ranking';
+import { definirVeiculos, fonteDoProduto, NomesDeVeiculo, nomesDeVeiculo, veiculosDe } from '../../domain/veiculos';
 
 /** Id do índice FTS5 do Catálogo no aparelho (`app/indice.ts`). */
 export const ID_INDICE_BUSCA = 'catalogo.produto';
@@ -55,6 +57,8 @@ export const MAXIMO_CANDIDATOS = 400;
  * `buscou: true`; qualquer `buscou: false` (módulo indisponível, erro, consulta curta) mantém a varredura.
  */
 export const LIMIAR_SEM_VARREDURA = 5000;
+/** RN-CAT-20: palavras derivadas de um nome de veículo que entram na consulta ao FTS5 (o resto o ranking ainda acha na varredura pequena). */
+const MAXIMO_DERIVADAS_FTS = 40;
 
 /** O que a busca local precisa do motor de sync (`useMotorSync().motor`). */
 export interface LeitorLocal {
@@ -224,6 +228,9 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
     vendas: 0,
   }));
   if (sobDemanda) for (const m of montados) semAplicacaoCarregada.add(m);
+  // RN-CAT-19: nomes de veículo da base inteira, calculados na carga com a aplicação que (em catálogo grande) não fica nos produtos
+  const todasAplicacoes = sobDemanda ? new Map(conteudos.filter((c) => c.aplicacao).map((c) => [c.produto_id, c.aplicacao!])) : aplicacoes;
+  definirVeiculos(montados, nomesDeVeiculo(montados.filter((m) => m.ativo).map((m) => ({ ...fonteDoProduto(m), aplicacao: todasAplicacoes.get(m.id) ?? '' }))));
   return montados;
 }
 
@@ -437,6 +444,11 @@ async function porPrefixo(leitor: LeitorLocal, grupo: readonly string[], sinal?:
   return { lista: [], certo };
 }
 
+const comecaAlguma = (palavras: ReadonlySet<string>, comeco: string): boolean => {
+  for (const b of palavras) if (b.startsWith(comeco)) return true;
+  return false;
+};
+
 /**
  * Candidatos pelo FTS5 quando o catálogo é grande; `null` = varrer todos (catálogo pequeno, sem índice ou FTS5 sem
  * nenhum acerto). Mesma semântica do domain em qualquer tamanho (T-0052-B2): o domain pontua quem casa QUALQUER termo
@@ -450,19 +462,37 @@ export async function preselecionar(
   sinonimos: readonly SinonimoDoTenant[],
   total: number,
   sinal?: SinalIndexacao,
+  veiculos?: ReadonlySet<string>,
 ): Promise<Set<string> | null> {
   if (total <= LIMIAR_PRESELECAO_FTS || !(leitor.buscar || leitor.buscarComDesfecho)) return null;
   const grupos = expandirSinonimos(texto, sinonimos);
+  // RN-CAT-20: o FTS5 só acha a palavra inteira; as derivadas de nome de veículo (CrossFox, SpaceFox para "fox") entram como alternativas
+  // do grupo, e as vizinhas juntas ("space fox" → "spacefox") viram consultas próprias, somadas ao resultado (o AND dos grupos não as acharia)
+  const nv = veiculos instanceof NomesDeVeiculo ? veiculos : null;
+  if (nv) for (const g of grupos) for (const alt of [...g]) for (const d of (nv.derivadas.get(alt) ?? []).slice(0, MAXIMO_DERIVADAS_FTS)) if (!g.includes(d)) g.push(d);
+  // só a palavra junta que existe na base (a carga guarda as palavras longas): sem ela não há o que achar e a consulta ao FTS5 seria à toa
+  const juntas = nv ? paresColados(grupos).map((x) => x.palavra).filter((w) => (nv.palavrasLongas.has(w.q) || (w.modo === 'p' && comecaAlguma(nv.palavrasLongas, w.q)))) : [];
   if (codigo) grupos.push([codigo]);
   if (grupos.length === 0) return null;
+  const extras = new Set<string>();
+  let juntasCertas = true;
+  for (const w of juntas) {
+    const r = await consultar(leitor, { grupos: [[w.q]], prefixoNoUltimo: w.modo === 'p', limite: CANDIDATOS_POR_TERMO }, sinal);
+    juntasCertas &&= r.certo;
+    for (const x of r.lista) extras.add(x.chave);
+  }
+  const com = (c: Set<string>): Set<string> => {
+    for (const e of extras) c.add(e);
+    return c;
+  };
   // 1º todos os termos juntos (AND, uma consulta só: ~25 ms contra ~36 ms por termo comum); só cai na união termo a termo
   // quando o AND traz menos que o necessário. Quem casa todos os termos já vem primeiro no ranking do domain.
   if (grupos.length > 1) {
     const juntos = await consultar(leitor, { grupos: grupos.slice(0, 8), prefixoNoUltimo: true, limite: MAXIMO_CANDIDATOS }, sinal);
-    if (juntos.lista.length >= CANDIDATOS_POR_TERMO) return new Set(juntos.lista.slice(0, MAXIMO_CANDIDATOS).map((x) => x.chave));
+    if (juntos.lista.length >= CANDIDATOS_POR_TERMO) return com(new Set(juntos.lista.slice(0, MAXIMO_CANDIDATOS).map((x) => x.chave)));
   }
   const achados = new Map<string, { termos: number; melhor: number }>();
-  let tudoCerto = true;
+  let tudoCerto = juntasCertas;
   for (const grupo of grupos.slice(0, 8)) {
     let r = await consultar(leitor, { grupos: [grupo], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO }, sinal);
     // sem acerto = provável erro de digitação (T-0052, caso lento): o prefixo do termo aproxima a tolerância do domain
@@ -478,9 +508,9 @@ export async function preselecionar(
       } else achados.set(x.chave, { termos: 1, melhor: posicao });
     });
   }
-  if (achados.size === 0) return tudoCerto && total > LIMIAR_SEM_VARREDURA ? new Set() : null;
+  if (achados.size === 0) return extras.size > 0 ? extras : tudoCerto && total > LIMIAR_SEM_VARREDURA ? new Set() : null;
   const ordem = [...achados.entries()].sort(([, x], [, y]) => y.termos - x.termos || x.melhor - y.melhor);
-  return new Set(ordem.slice(0, MAXIMO_CANDIDATOS).map(([chave]) => chave));
+  return com(new Set(ordem.slice(0, MAXIMO_CANDIDATOS).map(([chave]) => chave)));
 }
 
 /** Busca no aparelho (sem IA): regras locais + sinônimos + ranking do domain; com `offline`, devolve o aviso. */
@@ -489,10 +519,11 @@ export async function buscarLocal(leitor: LeitorLocal, e: EntradaLocal & { q: st
   const sinonimos = await sinonimosLocais(leitor);
   const filtros = interpretarConsulta(e.q, vocabularioMemorizado(produtos));
   const sinal: SinalIndexacao = { indexando: false };
-  const candidatos = await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, produtos.length, sinal);
+  const veiculos = veiculosDe(produtos);
+  const candidatos = await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, produtos.length, sinal, veiculos);
   const universo = await comAplicacao(leitor, candidatos ? produtos.filter((p) => candidatos.has(p.id)) : produtos);
   const contexto = await contextoLocal(leitor, e, universo);
-  const pagina = buscarProdutos({ produtos: universo, contexto, filtros, chips: e.chips ?? {}, sinonimos, limit: e.limit, offset: e.offset, ...(e.fuso ? { fuso: e.fuso } : {}) });
+  const pagina = buscarProdutos({ produtos: universo, contexto, filtros, chips: e.chips ?? {}, sinonimos, veiculos, limit: e.limit, offset: e.offset, ...(e.fuso ? { fuso: e.fuso } : {}) });
   return { ...pagina, aviso: e.offline && e.q.trim() !== '' ? AVISO_BUSCA_OFFLINE : null, indexando: sinal.indexando };
 }
 

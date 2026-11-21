@@ -6,7 +6,9 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel } from '@macuxi/ui/web';
 import { CoordenadasSugeridasSchema } from '../../../contracts';
+import { MENSAGEM_SEM_ENDERECO_CADASTRO } from '../../../domain';
 import { linkDoMapa, quando } from '../../lib/visitas';
+import { GerarCoordenada } from './gerar-coordenada';
 
 const FUSO_PADRAO = 'America/Manaus';
 
@@ -46,9 +48,12 @@ export function CoordenadasPage() {
       {lista.isPending && <LoadingBlock label="Carregando as sugestões…" />}
       {lista.data && itens.length === 0 && <Notice tone="info">Nenhuma coordenada aguardando aprovação.</Notice>}
       {itens.map((c) => (
-        <Panel key={c.cliente_id} title={`${c.cliente_nome}${c.cidade ? ` · ${c.cidade}` : ''}`}>
+        <Panel
+          key={c.cliente_id}
+          title={`${c.cliente_nome}${c.cidade ? ` · ${c.cidade}` : ''}`}
+>
           <ul className="flex flex-col gap-2">
-            {c.visitas.map((v) => (
+            {c.visitas.map((v, i) => (
               <li key={v.visita_id} className="flex flex-wrap items-center gap-3 text-[13px]" data-testid={`coordenadas.sugestao.${v.visita_id}`}>
                 <span className="min-w-[200px] text-ink-2">
                   {quando(v.checkin_em, FUSO_PADRAO)} · {v.usuario_nome}
@@ -60,9 +65,19 @@ export function CoordenadasPage() {
                 <a href={linkDoMapa(v.lat, v.lng)} target="_blank" rel="noreferrer" className="font-semibold text-accent-ink underline">
                   Ver no mapa
                 </a>
-                <Button variant="primary" disabled={!pode || aprovar.isPending} onClick={() => aprovar.mutate({ clienteId: c.cliente_id, visitaId: v.visita_id })} data-testid={`coordenadas.aprovar.${v.visita_id}`}>
-                  Aprovar esta posição
-                </Button>
+                <span className="ml-auto flex max-w-[360px] flex-wrap items-center justify-end gap-2">
+                  <Button variant="primary" disabled={!pode || aprovar.isPending} onClick={() => aprovar.mutate({ clienteId: c.cliente_id, visitaId: v.visita_id })} data-testid={`coordenadas.aprovar.${v.visita_id}`}>
+                    Aprovar esta posição
+                  </Button>
+                  {i === 0 && !c.geocodificada &&
+                    (c.pode_gerar === false ? (
+                      <span className="w-full text-right text-[13px] text-ink-2" data-testid={`coordenadas.sem-endereco.${c.cliente_id}`}>
+                        {MENSAGEM_SEM_ENDERECO_CADASTRO}
+                      </span>
+                    ) : (
+                      <GerarCoordenada clienteId={c.cliente_id} jaTentado={c.ja_tentado} testId={`coordenadas.gerar.${c.cliente_id}`} />
+                    ))}
+                </span>
               </li>
             ))}
           </ul>

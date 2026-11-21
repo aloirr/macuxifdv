@@ -7,6 +7,7 @@ export * from './texto';
 export * from './consulta';
 export * from './ranking';
 export * from './indice-busca';
+export * from './veiculos';
 export * from './preco';
 export * from './estoque';
 export * from './estoque-filial';

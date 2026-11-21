@@ -1,14 +1,26 @@
 'use client';
 
 import 'leaflet/dist/leaflet.css';
+import { svgDaCasa } from '@macuxi/ui/web';
 import L from 'leaflet';
 import { useEffect, useMemo, useRef } from 'react';
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
+import { AttributionControl, CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import type { GeoPoint } from '../../../domain';
-import { boundsPoints, corResolvida, type MapRoute, type MapStop, STATUS_FILL, STATUS_LABEL, idleLabel, dayLabel } from '../../lib/routes';
+import { CENTRO_PADRAO } from '../../lib/endereco';
+import { boundsPoints, corResolvida, type MapRoute, type MapStop, STATUS_FILL, STATUS_LABEL, idleLabel, dayLabel, TRACEJADO } from '../../lib/routes';
+
+/** Base de um vendedor no mapa (RN-CORE-75): o marcador de saída no lugar do antigo "CD"; sem base não há marcador. */
+export interface BaseNoMapa {
+  sellerId: string;
+  point: GeoPoint;
+  /** cor do vendedor quando há vários no mapa; sem ela, grafite */
+  color: string | null;
+  titulo: string;
+  detalhe: string;
+}
 
 export interface RouteMapProps {
-  start: GeoPoint;
+  bases: readonly BaseNoMapa[];
   routes: MapRoute[];
   sellerNames: Record<string, string>;
   /** só marcadores pequenos para as rotas não destacadas (muitos dados) */
@@ -34,13 +46,15 @@ function stopIcon(seq: number, status: MapStop['status'], color: string, dimmed:
   });
 }
 
-const startIcon = L.divIcon({
-  className: 'fv-stop-icon',
-  html: '<span class="fv-start" title="CD Manaus · ponto de saída">CD</span>',
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-  popupAnchor: [0, -17],
-});
+/** Casa em quadrado grafite com borda branca (`.fv-start`, o mesmo marcador da legenda e do cartão da base). */
+const baseIcon = (color: string | null): L.DivIcon =>
+  L.divIcon({
+    className: 'fv-stop-icon',
+    html: `<span class="fv-start"${color ? ` style="background:${color}"` : ''}>${svgDaCasa(18)}</span>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -17],
+  });
 
 function StopPopup({ stop, route, sellerName }: { stop: MapStop; route: MapRoute; sellerName: string }) {
   const c = stop.customer;
@@ -94,22 +108,24 @@ function ResizeWatcher() {
   return null;
 }
 
-export default function RouteMap({ start, routes, sellerNames, dense, focusKey, onSelectRoute }: RouteMapProps) {
+export default function RouteMap({ bases, routes, sellerNames, dense, focusKey, onSelectRoute }: RouteMapProps) {
   const points = useMemo(() => {
     const onlyFocus = focusKey && routes.some((r) => r.key === focusKey && r.stops.length > 0) ? focusKey : null;
-    return boundsPoints(routes, start, onlyFocus);
-  }, [routes, start, focusKey]);
+    return boundsPoints(routes, bases.map((b) => b.point), onlyFocus);
+  }, [routes, bases, focusKey]);
   // muda quando o conjunto de rotas ou o destaque muda (não quando o status de uma parada muda)
   // e quando entra ou sai parada da rota em foco (rota em edição)
   const signature = useMemo(() => {
     const focus = focusKey ? routes.find((r) => r.key === focusKey) : undefined;
     return `${focusKey ?? ''}:${focus?.stops.length ?? 0}#${routes.map((r) => r.key).join(',')}`;
   }, [routes, focusKey]);
-  const center: [number, number] = start.lat !== null && start.lng !== null ? [start.lat, start.lng] : [-3.1, -60.0];
+  const primeira = bases.find((b) => b.point.lat !== null && b.point.lng !== null)?.point;
+  const center: [number, number] = primeira ? [primeira.lat!, primeira.lng!] : CENTRO_PADRAO;
 
   return (
-    <MapContainer center={center} zoom={11} scrollWheelZoom className="fv-map h-full w-full" preferCanvas={false} attributionControl>
+    <MapContainer center={center} zoom={11} scrollWheelZoom className="fv-map h-full w-full" preferCanvas={false} attributionControl={false}>
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" maxZoom={19} />
+      <AttributionControl prefix={false} position="bottomright" />
       <ResizeWatcher />
       <FitBounds points={points} signature={signature} />
 
@@ -130,15 +146,17 @@ export default function RouteMap({ start, routes, sellerNames, dense, focusKey, 
         );
       })}
 
-      {start.lat !== null && start.lng !== null && (
-        <Marker position={[start.lat, start.lng]} icon={startIcon} zIndexOffset={1000}>
-          <Popup>
-            <div className="flex flex-col gap-0.5 text-[13px]">
-              <strong>CD Manaus</strong>
-              <span className="text-ink-2">Ponto de saída de todas as rotas</span>
-            </div>
-          </Popup>
-        </Marker>
+      {bases.map((b) =>
+        b.point.lat !== null && b.point.lng !== null ? (
+          <Marker key={b.sellerId} position={[b.point.lat, b.point.lng]} icon={baseIcon(b.color)} zIndexOffset={1000}>
+            <Popup>
+              <div className="flex flex-col gap-0.5 text-[13px]">
+                <strong>{b.titulo}</strong>
+                <span className="text-ink-2">{b.detalhe}</span>
+              </div>
+            </Popup>
+          </Marker>
+        ) : null,
       )}
     </MapContainer>
   );
@@ -173,7 +191,7 @@ function FeatureRoute({
             color: route.color,
             weight: highlight ? 5 : 3,
             opacity: dimmed ? 0.18 : highlight ? 0.95 : 0.75,
-            dashArray: undefined,
+            dashArray: route.dashed ? TRACEJADO : undefined,
             lineJoin: 'round',
           }}
           eventHandlers={lineEvents}

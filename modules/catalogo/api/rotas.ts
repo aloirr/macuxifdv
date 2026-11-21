@@ -297,7 +297,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
         if (candidatos && candidatos.produtos.length > TETO_CANDIDATOS) candidatos = cortarCandidatos(candidatos, await contextoVitrine(ctx, repo, p, clienteId, candidatos.produtos, true, filial));
         const produtosDaBusca = candidatos?.produtos ?? leitura.produtos;
         const contexto = await contextoVitrine(ctx, repo, p, clienteId, produtosDaBusca, false, filial);
-        const pagina = buscarProdutos({ produtos: produtosDaBusca, contexto, filtros: interp.filtros, chips, sinonimos, limit: q.limit, offset: q.offset, ...(candidatos ? { maxVendas: candidatos.maxVendas } : {}) });
+        const pagina = buscarProdutos({ produtos: produtosDaBusca, contexto, filtros: interp.filtros, chips, sinonimos, limit: q.limit, offset: q.offset, ...(candidatos ? { maxVendas: candidatos.maxVendas, veiculos: candidatos.veiculos } : {}) });
         const termo = termoDeBusca(q.q);
         if (termo && q.offset === 0) {
           // melhor esforço (T-0052 🟢7): falha no registro não derruba a busca; o log não leva o termo (dado do usuário)

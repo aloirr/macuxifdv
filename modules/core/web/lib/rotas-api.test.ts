@@ -22,11 +22,17 @@ const item: RotasLista['itens'][number] = {
 
 describe('rotas do BKO: adaptador do servidor para o editor (T-0018)', () => {
   it('RF-CORE-05: a rota do servidor vira o RouteDay do editor com status, janelas e km', () => {
-    const r = paraRouteDay(item, HOJE);
+    const r = paraRouteDay(item, HOJE, { lat: -3.12, lng: -60.0 });
     expect(r).toMatchObject({ id: id(9), seller_id: id(1), date: HOJE, region: 'Zona Sul', done_count: 1 });
     expect(r.stops.map((s) => [s.sequence, s.status, s.customer.trade_name, s.window_start])).toEqual([[1, 'done', 'Auto Peças Um', '09:00'], [2, 'next', 'Sem Coordenada', '']]);
     expect(r.total_km).toBeGreaterThan(0);
     expect(r.stops[1]?.customer.lat).toBeNull();
+  });
+
+  it('RN-CORE-75: sem base não há ponto de saída: o km conta do 1º cliente, não de um ponto fixo', () => {
+    const doisComPonto = { ...item, paradas: [item.paradas[0]!, { ...item.paradas[1]!, lat: -3.1, lng: -60 }] };
+    expect(paraRouteDay(doisComPonto, HOJE).total_km).toBe(0);
+    expect(paraRouteDay(item, HOJE, { lat: -3.12, lng: -60.0 }).total_km).toBeGreaterThan(0);
   });
 
   it('corpo do PUT: ordem do rascunho, horário vazio vira nulo', () => {

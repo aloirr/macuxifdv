@@ -4,7 +4,8 @@ import { routeDistanceKm } from '../../domain';
 import {
   boundsPoints,
   buildMapRoutes,
-  businessDaysIn,
+  diasDoCalendario,
+  diasDaLegendaDoMapa,
   colorByFor,
   dayLabel,
   draftFromRoute,
@@ -26,6 +27,8 @@ import {
   routeKey,
   OTHER_COLOR,
   routeKpis,
+  subtituloDoKm,
+  diaTracejado,
   sameDraft,
   sameWeekdayNext,
   searchWallet,
@@ -86,11 +89,11 @@ describe('período', () => {
     expect(periodRange('day', '2026-10-12')).toEqual({ from: '2026-10-12', to: '2026-10-12' });
   });
   it.each([
-    ['2026-10-12', '2026-10-12', '2026-10-16'], // segunda
-    ['2026-10-15', '2026-10-12', '2026-10-16'], // quinta
-    ['2026-10-18', '2026-10-12', '2026-10-16'], // domingo → semana que termina nele
-    ['2026-10-01', '2026-09-28', '2026-10-02'], // atravessa o mês
-  ])('semana de %s = %s a %s (segunda a sexta)', (d, from, to) => {
+    ['2026-10-12', '2026-10-12', '2026-10-17'], // segunda
+    ['2026-10-15', '2026-10-12', '2026-10-17'], // quinta
+    ['2026-10-18', '2026-10-12', '2026-10-17'], // domingo → semana que termina nele
+    ['2026-10-01', '2026-09-28', '2026-10-03'], // atravessa o mês
+  ])('semana de %s = %s a %s (segunda a sábado, o calendário padrão do domain)', (d, from, to) => {
     expect(periodRange('week', d)).toEqual({ from, to });
     expect(mondayOf(d)).toBe(from);
   });
@@ -102,8 +105,10 @@ describe('período', () => {
   ])('mês de %s = %s a %s', (d, from, to) => expect(periodRange('month', d)).toEqual({ from, to }));
 
   it('navegação: dia pula fim de semana, semana anda 7 dias, mês vira o ano', () => {
-    expect(shiftAnchor('day', '2026-10-16', 1)).toBe('2026-10-19');
-    expect(shiftAnchor('day', '2026-10-12', -1)).toBe('2026-10-09');
+    expect(shiftAnchor('day', '2026-10-17', 1)).toBe('2026-10-19');
+    expect(shiftAnchor('day', '2026-10-16', 1, { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: [] })).toBe('2026-10-19');
+    expect(shiftAnchor('day', '2026-10-12', -1)).toBe('2026-10-10');
+    expect(shiftAnchor('day', '2026-10-12', -1, { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: [] })).toBe('2026-10-09');
     expect(shiftAnchor('week', '2026-10-14', 1)).toBe('2026-10-19');
     expect(shiftAnchor('week', '2026-10-14', -1)).toBe('2026-10-05');
     expect(shiftAnchor('month', '2026-12-15', 1)).toBe('2027-01-01');
@@ -113,14 +118,16 @@ describe('período', () => {
   it('rótulos', () => {
     expect(periodLabel('day', '2026-10-12')).toBe('Segunda, 12/10');
     expect(dayLabel('2026-10-17')).toBe('Sábado, 17/10');
-    expect(periodLabel('week', '2026-10-14')).toBe('12 a 16 de out');
-    expect(periodLabel('week', '2026-10-01')).toBe('28 de set a 2 de out');
+    expect(periodLabel('week', '2026-10-14')).toBe('12 a 17 de out');
+    expect(periodLabel('week', '2026-10-14', { dias_uteis_semana: [1, 2, 3, 4, 5] })).toBe('12 a 16 de out');
+    expect(periodLabel('week', '2026-10-01')).toBe('28 de set a 3 de out');
     expect(periodLabel('month', '2026-10-12')).toBe('Outubro 2026');
   });
 
   it('dias úteis, mesmo dia nas próximas semanas e "contém hoje"', () => {
-    expect(businessDaysIn({ from: '2026-10-09', to: '2026-10-13' })).toEqual(['2026-10-09', '2026-10-12', '2026-10-13']);
-    expect(businessDaysIn(periodRange('month', '2026-10-01'))).toHaveLength(22);
+    expect(diasDoCalendario({ from: '2026-10-09', to: '2026-10-13' }).map((d) => d.date)).toEqual(['2026-10-09', '2026-10-10', '2026-10-12', '2026-10-13']);
+    expect(diasDoCalendario({ from: '2026-10-09', to: '2026-10-13' }, { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: [] }).map((d) => d.date)).toEqual(['2026-10-09', '2026-10-12', '2026-10-13']);
+    expect(diasDoCalendario(periodRange('month', '2026-10-01'))).toHaveLength(27); // 31 dias menos os 4 domingos
     expect(sameWeekdayNext('2026-10-12', 3)).toEqual(['2026-10-19', '2026-10-26', '2026-11-02']);
     expect(periodContains('week', '2026-10-05', '2026-10-12')).toBe(false);
     expect(periodContains('month', '2026-10-31', '2026-10-12')).toBe(true);
@@ -172,8 +179,8 @@ describe('linhas do mapa', () => {
   const routes = [route('s1', '2026-10-12', [stop('1', 1, 'done', a), stop('2', 2, 'pending', noGeo), stop('3', 3, 'pending', b)]), route('s2', '2026-10-12', [stop('4', 1, 'pending', b)])];
   const colors = { s1: '#111111', s2: '#222222' };
 
-  it('CD → paradas na ordem, sem as paradas sem coordenada', () => {
-    const [r1] = buildMapRoutes(routes, START, { colorBy: 'seller', sellerColors: colors, highlightKey: null, showAllLines: true });
+  it('base → paradas na ordem, sem as paradas sem coordenada', () => {
+    const [r1] = buildMapRoutes(routes, () => START, { colorBy: 'seller', sellerColors: colors, highlightKey: null, showAllLines: true });
     expect(r1!.positions).toEqual([
       [-3.125, -59.97],
       [-3.1, -60.0],
@@ -186,35 +193,55 @@ describe('linhas do mapa', () => {
 
   it('destaque: escolhida por último (por cima), outras esmaecidas; modo denso mostra só a linha destacada', () => {
     const k = routeKey('s1', '2026-10-12');
-    const out = buildMapRoutes(routes, START, { colorBy: 'seller', sellerColors: colors, highlightKey: k, showAllLines: false });
+    const out = buildMapRoutes(routes, () => START, { colorBy: 'seller', sellerColors: colors, highlightKey: k, showAllLines: false });
     expect(out.map((r) => r.key)).toEqual([routeKey('s2', '2026-10-12'), k]);
     expect(out[0]!.emphasis).toBe('dimmed');
     expect(out[0]!.showLine).toBe(false);
     expect(out[1]!.showLine).toBe(true);
   });
 
+  it('RN-CORE-75: a linha sai da base de cada vendedor e, sem base, começa no 1º cliente', () => {
+    const out = buildMapRoutes(routes, (id) => (id === 's1' ? START : { lat: null, lng: null }), { colorBy: 'seller', sellerColors: colors, highlightKey: null, showAllLines: true });
+    expect(out.find((r) => r.sellerId === 's1')!.positions[0]).toEqual([START.lat, START.lng]);
+    expect(out.find((r) => r.sellerId === 's2')!.positions).toEqual([[-3.05, -60.02]]);
+  });
+
+  it('RN-CORE-76: sexta e sábado saem tracejados (na prévia e fora dela) quando a cor é por dia, e os outros dias, contínuos', () => {
+    const dias = ['2026-10-12', '2026-10-16', '2026-10-17'].map((d) => route('s1', d, [stop('1', 1, 'pending', a)]));
+    const out = buildMapRoutes(dias, () => START, { colorBy: 'weekday', sellerColors: colors, highlightKey: null, showAllLines: true });
+    expect(out.map((r) => [r.date, r.dashed])).toEqual([['2026-10-12', false], ['2026-10-16', true], ['2026-10-17', true]]);
+    expect(buildMapRoutes(dias, () => START, { colorBy: 'seller', sellerColors: colors, highlightKey: null, showAllLines: true }).some((r) => r.dashed)).toBe(false);
+  });
+
+  it('RN-CORE-76 (D3): a lista de dias usa a semana útil e os feriados do tenant; domingo nunca', () => {
+    const cal = { dias_uteis_semana: [1, 2, 3, 4, 5, 6], feriados: ['2026-11-04'] };
+    const r = diasDoCalendario({ from: '2026-11-01', to: '2026-11-08' }, cal);
+    expect(r.map((d) => d.date)).toEqual(['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07']);
+    expect(r.filter((d) => d.feriado).map((d) => d.date)).toEqual(['2026-11-02', '2026-11-04']); // 02/11 é Finados
+  });
+
   it('cor por dia da semana', () => {
-    const out = buildMapRoutes([route('s1', '2026-10-13', [stop('1', 1, 'pending', a)])], START, { colorBy: 'weekday', sellerColors: colors, highlightKey: null, showAllLines: true });
+    const out = buildMapRoutes([route('s1', '2026-10-13', [stop('1', 1, 'pending', a)])], () => START, { colorBy: 'weekday', sellerColors: colors, highlightKey: null, showAllLines: true });
     expect(out[0]!.color).toBe(WEEKDAY_COLORS[2]);
   });
 
   it('rascunho substitui as paradas da rota; dia sem rota vira rota nova destacada', () => {
     const k = routeKey('s1', '2026-10-12');
     const draftStops = [{ id: 'n', seq: 1, lat: -3.0, lng: -60.1, status: 'pending' as const, customer: b, window_start: '08:00', window_end: '08:40' }];
-    const out = buildMapRoutes(routes, START, { colorBy: 'seller', sellerColors: colors, highlightKey: k, showAllLines: true, draft: { key: k, stops: draftStops } });
+    const out = buildMapRoutes(routes, () => START, { colorBy: 'seller', sellerColors: colors, highlightKey: k, showAllLines: true, draft: { key: k, stops: draftStops } });
     expect(out.find((r) => r.key === k)!.positions).toHaveLength(2);
     const nk = routeKey('s2', '2026-10-14');
-    const out2 = buildMapRoutes(routes, START, { colorBy: 'seller', sellerColors: colors, highlightKey: nk, showAllLines: true, draft: { key: nk, stops: draftStops } });
+    const out2 = buildMapRoutes(routes, () => START, { colorBy: 'seller', sellerColors: colors, highlightKey: nk, showAllLines: true, draft: { key: nk, stops: draftStops } });
     expect(out2).toHaveLength(3);
     expect(out2[2]!.key).toBe(nk);
     expect(out2[2]!.color).toBe('#222222');
     expect(out2.slice(0, 2).every((r) => r.emphasis === 'dimmed')).toBe(true);
   });
 
-  it('pontos do enquadramento incluem o CD; com foco, só a rota focada', () => {
-    const out = buildMapRoutes(routes, START, { colorBy: 'seller', sellerColors: colors, highlightKey: null, showAllLines: true });
-    expect(boundsPoints(out, START)).toHaveLength(4);
-    expect(boundsPoints(out, START, routeKey('s2', '2026-10-12'))).toHaveLength(2);
+  it('pontos do enquadramento incluem as bases; com foco, só a rota focada', () => {
+    const out = buildMapRoutes(routes, () => START, { colorBy: 'seller', sellerColors: colors, highlightKey: null, showAllLines: true });
+    expect(boundsPoints(out, [START])).toHaveLength(4);
+    expect(boundsPoints(out, [START], routeKey('s2', '2026-10-12'))).toHaveLength(2);
   });
 });
 
@@ -340,5 +367,34 @@ describe('busca na carteira', () => {
     expect(searchWallet(list, 'cidade nova', new Set())).toEqual([]);
     expect(searchWallet(list, 'manaus', new Set())).toEqual([]);
     expect(searchWallet(list, 'japiim', new Set())).toEqual([]);
+  });
+});
+
+describe('legenda do mapa por dia (D6, RN-CORE-76)', () => {
+  const rota = (date: string) => ({ date, stops: [{}] });
+  it('RN-CORE-76: mostra só os dias com rota, inclusive sábado, e nunca domingo', () => {
+    const range = { from: '2026-10-12', to: '2026-10-17' };
+    expect(diasDaLegendaDoMapa([rota('2026-10-12'), rota('2026-10-14'), rota('2026-10-17'), rota('2026-10-18')], range)).toEqual([1, 3, 6]);
+  });
+  it('RN-CORE-76: sem rota, usa os dias úteis do calendário sem feriado (12/10 é nacional, 14/10 é do tenant)', () => {
+    const range = { from: '2026-10-12', to: '2026-10-17' };
+    expect(diasDaLegendaDoMapa([], range, { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: ['2026-10-14'] })).toEqual([2, 4, 5]);
+  });
+});
+
+describe('RN-CORE-75: subtítulo do km total e traço do dia', () => {
+  const c = customer('a', -3.1, -60);
+  const r = (seller: string) => route(seller, '2026-10-12', [stop('1', 1, 'pending', c)], 5);
+  const base = { lat: -3, lng: -60 };
+
+  it('RN-CORE-75: "a partir da base" só com base; sem base conta do 1º cliente; mistura não leva subtítulo', () => {
+    expect(subtituloDoKm([r('s1'), r('s2')], { s1: base, s2: base })).toBe('a partir da base, sem volta');
+    expect(subtituloDoKm([r('s1')], { s1: null })).toBe('a partir do 1º cliente, sem volta');
+    expect(subtituloDoKm([r('s1')], undefined)).toBe('a partir do 1º cliente, sem volta');
+    expect(subtituloDoKm([r('s1'), r('s2')], { s1: base, s2: null })).toBeUndefined();
+  });
+
+  it('sexta e sábado são os dias tracejados', () => {
+    expect([0, 1, 2, 3, 4, 5, 6].filter(diaTracejado)).toEqual([5, 6]);
   });
 });

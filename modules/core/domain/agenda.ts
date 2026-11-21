@@ -73,9 +73,20 @@ export interface CarteiraAgendaLike {
 }
 
 /** Segunda-feira da semana de uma data. */
-function segundaDa(isoDate: string): string {
+export function segundaDa(isoDate: string): string {
   const dow = new Date(`${isoDate}T12:00:00Z`).getUTCDay(); // 0 = domingo
   return somarDias(isoDate, -((dow + 6) % 7));
+}
+
+const ANCORA_SEMANAS = '1970-01-05'; // uma segunda-feira
+
+/**
+ * A semana (`segunda`) cai na cadência de 1, 2 ou 4 semanas? Conta a partir da semana do `inicio` da vigência (sem `inicio`, de uma
+ * âncora fixa); `deslocamento` espalha os vínculos sem `inicio` entre as semanas (T-0191, RN-CORE-76). Antes do `inicio` não cai.
+ */
+export function ehSemanaDeVisita(segunda: string, frequenciaSemanas: number, inicio?: string | null, deslocamento = 0): boolean {
+  const semanas = Math.floor(diffDays(segundaDa(inicio ?? ANCORA_SEMANAS), segunda) / 7);
+  return semanas >= 0 && (semanas + deslocamento) % frequenciaSemanas === 0;
 }
 
 /**
@@ -85,7 +96,6 @@ function segundaDa(isoDate: string): string {
  */
 export function gerarParadasPorFrequencia(carteira: CarteiraAgendaLike[], semana: string): Array<{ usuario_id: string; cliente_id: string; data: string }> {
   const segunda = segundaDa(semana);
-  const ancora = '1970-01-05'; // uma segunda-feira
   const gerar = carteira.flatMap((c) => {
     const freq = c.frequencia_semanas;
     const dia = c.dia_semana;
@@ -93,8 +103,7 @@ export function gerarParadasPorFrequencia(carteira: CarteiraAgendaLike[], semana
     const data = somarDias(segunda, dia - 1);
     if (c.inicio && data < c.inicio) return [];
     if (c.fim && data > c.fim) return [];
-    const semanas = Math.floor(diffDays(segundaDa(c.inicio ?? ancora), segunda) / 7);
-    if (semanas < 0 || semanas % freq !== 0) return [];
+    if (!ehSemanaDeVisita(segunda, freq, c.inicio)) return [];
     return [{ usuario_id: c.usuario_id, cliente_id: c.cliente_id, data }];
   });
   // ordem estável: usuário, data; a ordem recebida desempata

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
@@ -50,6 +50,8 @@ import { efetivosDoUsuario } from '../../lib/licencas';
 import { useMe } from '../../lib/queries';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 import { rotuloDoAlmoco } from '../../../domain/jornada';
+import { perfilTemEndereco } from '../../../domain/base-vendedor';
+import { SecaoEndereco, type EnderecoDaGaveta } from './secao-endereco';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
 
 type Modal = { tipo: 'form'; usuario: UsuarioItem | null } | { tipo: 'ativo'; usuario: UsuarioItem } | { tipo: 'senha'; usuario: UsuarioItem } | null;
@@ -230,10 +232,16 @@ export function UsuariosConteudo() {
     }
   };
 
+  const enderecoRef = useRef<EnderecoDaGaveta | null>(null);
+  const registrarEndereco = useCallback((h: EnderecoDaGaveta | null) => {
+    enderecoRef.current = h;
+  }, []);
+
   const salvar = useMutation({
     mutationFn: async ({ editando, corpo }: { editando: UsuarioItem | null; corpo: FormularioUsuario }) => {
       if (editando) {
         await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo, cargo, podeFilial) });
+        await enderecoRef.current?.gravar();
         await gravarModulos(editando.id, licencas?.usuarios.find((x) => x.id === editando.id)?.removidos ?? []);
         return null;
       }
@@ -545,7 +553,7 @@ export function UsuariosConteudo() {
             setTentou(true);
             setErroApi(null);
             const corpo = comSenha(form);
-            if (erros.length === 0 && !erroDaFilialCadastro(form, podeFilial) && !ocupado) salvar.mutate({ editando, corpo });
+            if (erros.length === 0 && !erroDaFilialCadastro(form, podeFilial) && (enderecoRef.current?.validar() ?? true) && !ocupado) salvar.mutate({ editando, corpo });
           }}
         >
           {editando && seloDaGaveta?.bloqueado && (
@@ -677,6 +685,7 @@ export function UsuariosConteudo() {
               </Button>
             </div>
           )}
+          {editando && podeEditar && perfilTemEndereco(editando.perfil) && <SecaoEndereco key={editando.id} usuarioId={editando.id} registrar={registrarEndereco} />}
           {editando && (
             <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.jornada">
               <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Horário de almoço</legend>
