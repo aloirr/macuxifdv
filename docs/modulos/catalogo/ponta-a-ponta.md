@@ -22,7 +22,7 @@ Escritas do BKO gravam auditoria (`tx.auditar`, RN-AUD-01) sem dado pessoal. Con
 1. Transação curta: produtos, sinônimos e uso de IA do dia (fuso do tenant).
 2. Interpretação **fora da transação** (o provedor pode levar até `ia_timeout_ms`): `verificarConsultaIa` → `interpretarComMedicao` → débito atômico condicional só se o provedor respondeu.
 3. Transação curta: preço da tabela do cliente, estoque das filiais do usuário, ranking do domain (`buscarProdutos`), registro da busca (termo normalizado e nº de resultados, sem usuário).
-- Modo `basica` = `interpreted_by: nenhum`, sem IA e sem aviso. Sem provedor configurado = regras, sem aviso. Falha/tempo/limite/IA desligada/cota indisponível = regras + aviso discreto (`degraded: true`).
+- Modo `basica` = `interpreted_by: nenhum`, sem IA e sem aviso. Sem provedor configurado = regras, sem aviso. Limite/IA desligada = regras + aviso (`degraded: true`); falha, tempo esgotado e cota indisponível = regras, `degraded: true`, sem aviso.
 - Log: `catalogo.busca` com contagens e desfecho; **nunca** o texto da busca, o cliente ou o usuário (testado).
 - Provedor: `MACUXI_CATALOGO_IA_URL` (+ `MACUXI_CATALOGO_IA_CHAVE`) no `.env`; `ia_timeout_ms` do tenant (1–30 s, padrão 8 s; inválido = padrão).
 

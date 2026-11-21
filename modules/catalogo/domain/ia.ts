@@ -126,7 +126,7 @@ export interface EntradaInterpretarBusca {
 export interface ResultadoInterpretacao {
   filtros: FiltrosInterpretados;
   origem: 'llm' | 'regras';
-  /** Aviso discreto para a tela (offline, limite); nulo quando tudo certo e na falha do provedor (cai para as regras sem aviso). */
+  /** Aviso discreto para a tela (offline, limite); nulo no resto. */
   aviso: string | null;
   /** Busca degradada: sem sinal, limite, IA desligada ou falha do provedor (inclui tempo esgotado). Falha não traz aviso. */
   degradada: boolean;
@@ -139,7 +139,7 @@ export interface ResultadoInterpretacao {
 }
 
 /**
- * Interpreta a consulta. Nunca lança por falha do provedor: cai para as regras locais e avisa.
+ * Interpreta a consulta. Nunca lança por falha do provedor: cai para as regras locais, sem aviso.
  * Ordem na API: cache (não consome) → `verificarConsultaIa` → esta função → `registrarDesfechoIa(desfecho)`.
  */
 export async function interpretarBusca(e: EntradaInterpretarBusca): Promise<ResultadoInterpretacao> {
