@@ -50,7 +50,7 @@
  *   = tudo do zero (ressincronização forçada de cada entidade, retomável), diárias inclusive. Sem modo = a de sempre.
  */
 import { ambienteIndisponivel, type AmbienteAparelho, type AmbienteModulo } from './ambiente';
-import { completarAmbiente, type RegistroConsultasAparelho } from './consultas';
+import { completarAmbiente, leitorDeParametros, type RegistroConsultasAparelho } from './consultas';
 import { decidirGeracao, filaNaTrocaDeGeracao, normalizarGeracao } from './geracao-base';
 import {
   caminhoFoto,
@@ -64,7 +64,7 @@ import {
 } from './arquivos';
 import type { BuscaTextoSync, ConsultaTexto, DesfechoBusca, ResultadoBusca } from './busca-tipos';
 import { MODULOS, type ModuloId } from './nomes';
-import type { NovidadesResposta } from './novidades';
+import { parametrosDosModulos, type NovidadesResposta } from './novidades';
 import { Gunzip } from 'fflate';
 import {
   ErroPacoteSync,
@@ -739,9 +739,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   const base: AmbienteAparelho = op.ambiente ?? ambienteIndisponivel();
   const online = op.online ?? (op.ambiente ? () => base.online() : () => true);
   let parametros: ParametrosModulos = {};
-  const SEM_PARAMETROS: Readonly<Record<string, unknown>> = Object.freeze({});
-  const parametrosDe = (m: ModuloId): Readonly<Record<string, unknown>> =>
-    (estado.modulosAtivos.includes(m) ? parametros[m] : undefined) ?? SEM_PARAMETROS;
+  const parametrosDe = (m: ModuloId): Readonly<Record<string, unknown>> => leitorDeParametros(parametros)(m);
   /** Só dos módulos ativos, congelados (o módulo não altera o que é do tenant). */
   const filtrarParametros = (p: ParametrosModulos, ativos: readonly ModuloId[]): ParametrosModulos => {
     const saida: ParametrosModulos = {};
@@ -2270,11 +2268,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           } else {
             const r = await consultar(await op.armazenamento.ler<string>(CHAVE.novidades));
             if (r.modulos_mudaram && r.modulos) {
-              const lista = r.modulos.modulos;
-              await motor.aplicarModulosAtivos(
-                lista.map((m) => m.id),
-                Object.fromEntries(lista.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos,
-              );
+              await motor.aplicarModulosAtivos(r.modulos.modulos.map((m) => m.id), parametrosDosModulos(r.modulos));
             }
             // ADR 0021: base recriada → troca de geração e passada completa (o `catch` da passada leve)
             await conferirGeracao(r.geracao_base);

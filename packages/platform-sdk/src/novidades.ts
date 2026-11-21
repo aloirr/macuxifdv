@@ -14,7 +14,9 @@
  * Cursor ausente, de outra versão ou ilegível = todas as entidades (nunca 400: o app antigo segue funcionando).
  */
 import { z } from 'zod';
-import { MODULOS } from './nomes';
+import { SEM_PARAMETROS } from './consultas';
+import type { ParametrosModulos } from './motor-sync';
+import { MODULOS, type ModuloId } from './nomes';
 
 export const ROTA_SYNC_NOVIDADES = '/v1/sync/novidades';
 
@@ -80,6 +82,18 @@ export const ModulosNovidadesSchema = z
     versao_licencas: z.string().min(1),
   })
   .passthrough();
+
+/**
+ * Resposta de `GET /v1/me/modulos` já validada (`ModulosNovidadesSchema` aqui ou `MeusModulosRespostaSchema` do Core) →
+ * parâmetros do tenant por módulo (T-0029 E3; D-PAR-04). Módulo sem `parametros` = `SEM_PARAMETROS`.
+ */
+export function parametrosDosModulos(resposta: {
+  readonly modulos: readonly { readonly id: ModuloId; readonly parametros?: Readonly<Record<string, unknown>> }[];
+}): ParametrosModulos {
+  const saida: ParametrosModulos = {};
+  for (const m of resposta.modulos) saida[m.id] = m.parametros ?? SEM_PARAMETROS;
+  return saida;
+}
 
 export const NovidadesRespostaSchema = z.object({
   /** Entidades (nomes de sync) com mudança para o usuário desde o cursor, só de módulos efetivos e com provedor. */
