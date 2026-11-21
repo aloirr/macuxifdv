@@ -246,6 +246,10 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `sa_trocar_plano`); a trava do cadastro de usuários `plataforma.licencas_do_tenant()`; o app passa a ler o plano do
 > próprio tenant. Detalhes no [plataforma.md](plataforma.md);
 > teste `db/testes/planos-troca-licencas.db.test.ts`.
+>
+> **2026-11-21 (RN-CAT-18, RF-CAT-04, R-20261120-235317-alexandre; v1.0.19):** `0092_catalogo_no_codigo_por_pai` (em cima da
+> 0091; só índice): o código do nó da árvore passa a ser único entre os irmãos (`catalogo_no_pai_codigo_uk`) no lugar de
+> único no tenant (`catalogo_no_codigo_uk`, 0013). Detalhes no [catalogo.md](catalogo.md) ("0092"); teste `db/testes/catalogo-no-codigo-por-pai.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

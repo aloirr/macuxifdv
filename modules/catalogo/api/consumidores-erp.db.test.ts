@@ -243,6 +243,23 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
     });
   });
 
+  it('RN-CAT-18: nó sem external_id é adotado só pelo par pai + código', async () => {
+    await emTransacao(A.tenantId, async (t) => {
+      const cod = (id: string, pai: string | null, nivel: number, codigo: string) => evNo(id, pai, nivel, { codigo });
+      await t.entregar(noCons, cod('N18-OUTROS', null, 1, 'OUTROS'));
+      await t.entregar(noCons, cod('N18-FILT', null, 1, 'FILTRACAO'));
+      // adoção: sem external_id sob N18-FILT; o ERP traz o mesmo código sob N18-OUTROS (outro pai) -> não adota
+      const pai = (await t.q<{ id: string }>("select id from catalogo.catalogo_no where external_id = 'N18-FILT'"))[0]!.id;
+      await t.q("insert into catalogo.catalogo_no (tenant_id, pai_id, nivel, codigo, nome, ordem, ativo) values (plataforma.tenant_atual(), $1, 2, 'MANUAL', 'Manual', 1, true)", [pai]);
+      await t.entregar(noCons, cod('N18-MAN-OUTRO', 'N18-OUTROS', 2, 'MANUAL'));
+      expect((await t.q("select 1 from catalogo.catalogo_no where codigo = 'MANUAL' and external_id is null and deleted_at is null")).length).toBe(1);
+      // mesmo pai + código: adota o manual
+      await t.entregar(noCons, cod('N18-MAN', 'N18-FILT', 2, 'MANUAL'));
+      expect((await t.q("select 1 from catalogo.catalogo_no where codigo = 'MANUAL' and external_id is null and deleted_at is null")).length).toBe(0);
+      expect((await t.q("select 1 from catalogo.catalogo_no where external_id = 'N18-MAN' and deleted_at is null")).length).toBe(1);
+    });
+  });
+
   it('RF-CAT-04: produto vinculado ao nó (um por produto); trocar de nó atualiza; sem nó solta; nó ou produto ausente repete', async () => {
     await emTransacao(A.tenantId, async (t) => {
       await t.entregar(noCons, evNo('N-T61-1', null, 1));

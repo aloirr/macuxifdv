@@ -404,7 +404,6 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - **Desempate** (v1.0.18), nesta ordem: o segmento com mais palavras casadas exatas (sem prefixo, erro de digitação nem ano por faixa) → o segmento mais curto → o primeiro da aplicação. Assim "amortecedor palio" mostra "Palio 1.0 2001" e não "Palio Weekend Adventure 1.8 2001–2010 / Siena".
   - **Sinônimos e busca online:** os sinônimos do tenant valem na aplicação (VW = Volkswagen, GM = Chevrolet). A busca em linguagem natural online mantém modelo, motor e ano no texto livre.
   - **Desempenho:** com 20 mil produtos com aplicação longa, a busca offline tem p95 < 300 ms na tela de medição. Tenant sem aplicação mantém resultados e tempos iguais aos de antes.
-
 - **RN-CAT-15 Apelidos de montadora** (v1.0.19; R-20261120-214252 e R-20261120-230805, auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §2 item 1, etapa 1)
   - Uma lista padrão do domínio do Catálogo, igual para todo tenant, liga os apelidos de montadora: VW ↔ Volkswagen, GM ↔ Chevrolet ↔ Chevy, MB ↔ Mercedes ↔ Mercedes-Benz, e as outras da lista do módulo.
   - A lista padrão soma-se aos sinônimos do tenant (RN-CAT-12): vale nos dois sentidos, em todos os campos (inclusive a aplicação), na busca online, na do aparelho e no seletor do pedido. O sinônimo do tenant não apaga o apelido padrão.
@@ -420,6 +419,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - Com texto na busca, aparece só o produto que casa **todas** as palavras (ou grupos de sinônimos) em algum campo; o código exato (SKU, EAN, código ERP, referência) conta como casa-tudo.
   - Se ninguém casa tudo, a lista é vazia (total 0).
   - Vale igual na busca online, na do aparelho e no seletor do pedido. Exemplo: "xyzqwk amortecedor" → lista vazia.
+- **RN-CAT-18 Código do nó da árvore** (RF-CAT-04) O código de um nó da árvore do catálogo (grupo, subgrupo…) é único **entre os irmãos** (mesmo pai, ou entre as raízes), e não no tenant inteiro: o mesmo código pode aparecer em ramos diferentes (ex.: `OUTROS` raiz e `OUTROS` filho de Outros; `NAO_CLASSIFICADO` sob Outros e sob Filtração). Dois nós vivos com o mesmo código sob o mesmo pai continuam recusados. Na carga do ERP, o nó sem `external_id` é adotado pelo par pai + código. *(Diagnóstico da outbox AM2808, R-20261120-235317-alexandre, e opção C do R-20261120-180005; v1.0.19.)*
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.
