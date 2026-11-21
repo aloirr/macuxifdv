@@ -27,13 +27,22 @@ describe('Dialog: largura', () => {
     expect(classesDoDialog()).toContain('sm:max-w-[460px]');
     expect(classesDoDialog('padrao')).toBe(classesDoDialog());
   });
+  // T-0191 (docs/design/rotas-criar/spec.md §3 e §5): Criar rota em 540 px e Endereço base em 560 px.
+  it("'media' = 540 px e 'media-larga' = 560 px, sem os 460 px", () => {
+    const media = classesDoDialog('media').split(/\s+/);
+    const mediaLarga = classesDoDialog('media-larga').split(/\s+/);
+    expect(media).toContain('sm:max-w-[540px]');
+    expect(mediaLarga).toContain('sm:max-w-[560px]');
+    expect(media).not.toContain('sm:max-w-[460px]');
+    expect(mediaLarga).not.toContain('sm:max-w-[460px]');
+  });
   it("'larga' vai a 720 px e não leva os 460 px", () => {
     const c = classesDoDialog('larga').split(/\s+/);
     expect(c).toContain('sm:max-w-[720px]');
     expect(c).not.toContain('sm:max-w-[460px]');
   });
-  it('abaixo de 640 px segue folha na largura toda, nas duas larguras', () => {
-    for (const l of ['padrao', 'larga'] as const)
+  it('abaixo de 640 px segue folha na largura toda, em todas as larguras', () => {
+    for (const l of ['padrao', 'media', 'media-larga', 'larga'] as const)
       expect(classesDoDialog(l).split(/\s+/)).toEqual(
         expect.arrayContaining(['w-full', 'rounded-t-2xl', 'max-h-full']),
       );
