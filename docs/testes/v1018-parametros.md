@@ -2,7 +2,7 @@
 
 Origem: R-20261115-113500, -121000 (D1 a D10), -122000 (D11); notas N8 do corretor sobre o #457. Desenho: `docs/desenho/menu-parametros.md` (#421). PRs conferidos (heads, 16/11): #421 e #457 já no `main` (`3e1beb48`, squash; o #457 final `84542c4c`), #412 `93721007` (Alçadas), #414 `81d307d6` (Pesquisa), #415 `afdf5677` (Trade), #416 `9d21e395` (Treinamento). Shell web (`apps/web`: menu, `/parametros/[secao]`, redirecionamento): no `main` na v1.0.18 (#563, com o #568 e o #573); os testes foram adaptados a ele no PR C de testes da v1.0.18.
 
-Arquivos: e2e `tests/e2e/bko/menu-parametros.spec.ts` (API simulada), `tests/e2e/bko/demo-bko.spec.ts` e `pedidos-bko.spec.ts` (demo real); valor × regra `tests/modulos/parametros-valor-regra-v1014.test.ts`; painéis do Core (visão do shell e contrato) `tests/modulos/parametros-core-n8-v1014.test.ts`; API com banco `tests/integracao/api/parametros-core-v1014.test.ts`; acesso `tests/modulos/acesso-perfil-modulos-rncore01.test.ts`. Unitários do SDK (`shell-parametros.test.ts`, `shell-grupos.test.ts`) e da API (`apps/api/test/app.test.ts`) são do engenheiro-software (#421).
+Arquivos: e2e `tests/e2e/bko/menu-parametros.spec.ts` (API simulada), `tests/e2e/bko/demo-bko.spec.ts` e `pedidos-bko.spec.ts` (demo real); valor × regra `tests/modulos/parametros-valor-regra-v1014.test.ts`; parâmetros do tenant chegando às telas do BKO `tests/modulos/parametros-tenant-bko-v1019.test.ts`; painéis do Core (visão do shell e contrato) `tests/modulos/parametros-core-n8-v1014.test.ts`; API com banco `tests/integracao/api/parametros-core-v1014.test.ts`; acesso `tests/modulos/acesso-perfil-modulos-rncore01.test.ts`. Unitários do SDK (`shell-parametros.test.ts`, `shell-grupos.test.ts`) e da API (`apps/api/test/app.test.ts`) são do engenheiro-software (#421).
 
 ## Menu (ordem, forma, perfil, licença)
 
@@ -41,10 +41,12 @@ Arquivos: e2e `tests/e2e/bko/menu-parametros.spec.ts` (API simulada), `tests/e2e
 |---|---|---|---|---|
 | V1 | Alçadas (Pedidos) | RN-VEN-10 | 5/10/15% → "Até 5,0%" Vendedor, "Até 10,0%" Supervisor, "Até 15,0%" Gerente, "Acima de 15,0%" bloqueado; só limites; decisões recentes em Operação › Pedidos (D5) | e2e "item Parâmetros", pedidos D-B28 |
 | V2 | Trade | RN-PRO-04/07/08/11 | Valor que `parametrosDosBrutos` aplica; "Padrão: X" só no que difere; unidade no valor; conjunto inválido → padrão | unit Trade; e2e Trade |
-| V3 | Pesquisa | RN-PES-04/06/07 | Mesmo valor de `parametrosDaRota`; milhar pt-BR; inválido → padrão junto com a API | unit Pesquisa; e2e "com licença" (padrão); D-PAR-04 sem caso |
-| V4 | Treinamento | RN-TRE | Mesmo valor de `parametrosDoTenant` | unit Treinamento; e2e "com licença" (padrão); D-PAR-04 sem caso |
-| V5 | Fuso do tenant | RN-CORE-11 | O fuso não muda os limites exibidos | unit D-PAR-03 (`it.fails`) |
+| V3 | Pesquisa | RN-PES-04/06/07 | Mesmo valor de `parametrosDaRota`; milhar pt-BR; inválido → padrão junto com a API; tenant com 30 perguntas em `/v1/me/modulos` → o Construtor mostra "30" e "Padrão: 50" | unit Pesquisa; render do painel real "RN-PES-07: … 30 perguntas"; e2e "com licença" (padrão) e "RN-PES-07 e RN-TRE-02: tenant com 30 perguntas…" |
+| V4 | Treinamento | RN-TRE-02 | O conjunto em uso de `parametrosDoTenant` (um valor inválido = padrão em todos); tenant com nota mínima 80% → "80%" e "Padrão: 70%" | unit Treinamento; render do painel real "RN-TRE-02: … nota mínima 80%"; e2e "com licença" (padrão) e "RN-PES-07 e RN-TRE-02: tenant…" |
+| V5 | Fuso do tenant | RN-PES-07 (o fuso é o do tenant, não o do cadastro) | Fuso inválido no cadastro não muda os limites exibidos | unit "RN-PES-07: fuso inválido no cadastro…" |
+| V6 | Módulo fora de `/v1/me/modulos` | RN-CORE-02 | Sem parâmetros: os painéis mostram o padrão, sem "Padrão: X" | render "RN-CORE-02: com Pesquisa e Treinamento fora…" |
 | V7 | Parado entre visitas | RN-CORE-26 | Um valor, um lugar: `inicio.parado_min` gravado só por Parâmetros › Alertas; o GET do Início (lido pelo Gestão) mostra o mesmo valor | API "GET/PUT do parado" |
+| V8 | Outras telas do BKO que leem o tenant | RN-CAT-11; T-0182 | Catálogo: limite da Aplicação do tenant (300 → "0 / 300", não "0 / 2.000"); PDF do pedido com o `empresa_nome` do Core | render "RN-CAT-11: o limite da Aplicação…" e "T-0182: o PDF do pedido no BKO…" |
 
 Dia útil, dia não útil, virada de mês: não se aplicam (painéis de configuração, sem número calculado por data).
 
@@ -74,11 +76,15 @@ Dia útil, dia não útil, virada de mês: não se aplicam (painéis de configur
 | A8 | Tela do Início | Dias úteis sem campo do parado nem do almoço | e2e "Início: Dias úteis sem o campo do parado" |
 
 ## Defeitos abertos (casos `it.fails` / `test.fail`)
-- **D-PAR-04** (alta, engenheiro-apps, `apps/web/lib/ambiente.ts`): o ambiente do BKO não tem `parametros`; o `useParametros` dos painéis de Pesquisa e Treinamento devolve `{}` e a tela mostra sempre o padrão (50 perguntas, nota mínima 70%) mesmo com o tenant em 30 e 80%, que é o que a API aplica. Reproduzir: tenant com `max_perguntas: 30` em `/v1/me/modulos`; `/parametros/pesquisa` mostra 50 (sem caso automático). Pronto quando o shell passar ao `ShellProvider` os `modulos[].parametros` de `/v1/me/modulos`.
-- **D-PAR-02** (média, modulo-treinamento, `modules/treinamento/web/lib/parametros-valor.ts`): com um valor inválido no cadastro (ex.: `xp_licao: -1`), a API e o app aplicam o padrão em todos os parâmetros; o painel valida chave a chave e mostra "Nota mínima 80%" quando a regra usa 70%. Também `nota_minima_pct: 150` aparece como valor em uso.
-- **D-PAR-03** (baixa, modulo-pesquisa, `modules/pesquisa/web/lib/parametros-valor.ts`): fuso inválido no cadastro faz o painel mostrar o padrão de todos os limites; a API troca o fuso pelo do tenant e aplica os limites do cadastro.
+Nenhum.
 
-## Corrigidos (no `main`)
+## Corrigidos
+Em PR (v1.0.19, lote D-PAR, ainda não no `main`); os casos viraram `it` e passam no merge local dos quatro PRs:
+- **D-PAR-04** (alta, `apps/web/lib/ambiente.ts`): o ambiente do BKO não tinha `parametros`; Pesquisa e Treinamento mostravam sempre o padrão (50 perguntas, nota mínima 70%), o Catálogo usava o limite padrão da Aplicação (2.000) e o PDF do pedido no BKO saía sem o nome da empresa. Corrigido no #585 e no #586. Casos: `parametros-tenant-bko-v1019.test.ts` e o e2e "RN-PES-07 e RN-TRE-02: tenant…".
+- **D-PAR-02** (média, `modules/treinamento/web/lib/parametros-valor.ts`): o painel validava chave a chave; com um valor inválido no cadastro mostrava "Nota mínima 80%" quando a regra usa 70%. Corrigido no #583. Casos "RN-TRE-02: tenant com um valor inválido…" e "RN-TRE-02: valor fora da faixa…".
+- **D-PAR-03** (baixa, `modules/pesquisa/web/lib/parametros-valor.ts`): fuso inválido no cadastro fazia o painel mostrar o padrão de todos os limites. Corrigido no #584. Caso "RN-PES-07: fuso inválido no cadastro…".
+
+No `main`:
 - **D-PAR-05**: o botão do Almoço diz "Salvar almoço" (`almoco-padrao.ts`); o e2e "Salvar só com alteração" confere.
 - **N8-PAR-1**: o contador saiu com a `Moldura`; o título é o `titulo` do painel ("Frases do dia"). Casos viraram `it`/`test`.
 - **N8-PAR-2**: o painel `medidas` usa `produto.editar_preco`; o gerente consulta ("Você pode consultar", "Nova medida" desligado). Casos viraram `it`/`test`.

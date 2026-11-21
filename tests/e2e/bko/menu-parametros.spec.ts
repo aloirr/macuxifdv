@@ -17,6 +17,8 @@ interface Cenario {
   ativos?: string[];
   /** Licença da empresa (`modulos_contratados`). */
   contratados?: string[];
+  /** Parâmetros do tenant por módulo (`modulos[].parametros` de `/v1/me/modulos`); ausente = `{}`. */
+  parametros?: Readonly<Record<string, Record<string, unknown>>>;
 }
 
 const PADRAO = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'integracao'];
@@ -130,7 +132,7 @@ async function entrar(page: Page, c: Cenario = {}) {
     if (caminho === '/auth/refresh') return json(200, { access_token: 'token-ficticio', token_type: 'Bearer', expires_in: 900 });
     if (caminho === '/me/modulos')
       return json(200, {
-        modulos: ativos.map((m) => ({ id: m, versao: '1.0.0', parametros: {} })),
+        modulos: ativos.map((m) => ({ id: m, versao: '1.0.0', parametros: c.parametros?.[m] ?? {} })),
         versao_licencas: 'e2e',
         calculado_em: '2026-11-15T16:00:00.000Z',
         modulos_contratados: contratados,
@@ -246,6 +248,19 @@ test.describe('ADR 0060 — menu Parâmetros do BKO (API simulada)', () => {
     const quiz = page.getByTestId('treinamento-quiz-licao');
     await expect(quiz).toContainText('Nota mínima70%');
     await expect(quiz).toContainText('Tentativas por dia3');
+  });
+
+  test('RN-PES-07 e RN-TRE-02: tenant com 30 perguntas e nota mínima 80% em /v1/me/modulos; os painéis mostram 30 e 80%, com o padrão ao lado', async ({ page }) => {
+    await entrar(page, { ativos: TODOS, contratados: TODOS, parametros: { pesquisa: { max_perguntas: 30 }, treinamento: { nota_minima_pct: 80 } } });
+    await page.goto('/parametros/pesquisa');
+    const construtor = page.getByTestId('parametros-pesquisa-construtor-valores');
+    await expect(construtor).toContainText('Perguntas por questionário30Padrão: 50', { timeout: 60_000 });
+    await expect(construtor).toContainText('Opções por pergunta');
+    await page.goto('/parametros/treinamento');
+    const quiz = page.getByTestId('treinamento-quiz-licao');
+    await expect(quiz).toContainText('Nota mínima80%Padrão: 70%', { timeout: 30_000 });
+    await expect(quiz).toContainText('Tentativas por dia3');
+    await expect(quiz).not.toContainText('Tentativas por dia3Padrão');
   });
 
   test('links antigos vão para a seção de Parâmetros com a âncora do painel; /formas-pagamento fica (D11)', async ({ page }) => {
