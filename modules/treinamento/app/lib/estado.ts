@@ -8,7 +8,6 @@ import type { LinhaSync } from '@macuxi/platform-sdk';
 import {
   AtividadeEnvio,
   conteudoParaDominio,
-  ParametrosTreinamentoSchema,
   type MedalhaUsuarioSyncLinha,
   type ProgressoSyncLinha,
   type TentativaSyncLinha,
@@ -18,7 +17,7 @@ import {
 import {
   aplicarAtividade,
   aplicarAtividades,
-  resolverParametros,
+  parametrosEmUso,
   type AtividadeDoAluno,
   type ConteudoDoAluno,
   type EstadoDoAluno,
@@ -65,25 +64,13 @@ export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasTreinament
 
 /**
  * Parâmetros do tenant guardados no aparelho (último `/v1/me/modulos`); inválidos ou ausentes = padrão do domain.
- * O fuso do login (tenant) prevalece sobre o do parâmetro.
+ * O fuso do login (tenant) prevalece sobre o do parâmetro; fuso inválido = padrão em tudo, como na API.
  */
 export function parametrosDoAparelho(
   bruto: Readonly<Record<string, unknown>>,
   fusoDoLogin?: string | null,
 ): ParametrosTreinamento {
-  const lido = ParametrosTreinamentoSchema.safeParse(bruto);
-  let params: ParametrosTreinamento;
-  try {
-    params = lido.success ? resolverParametros(lido.data) : resolverParametros();
-  } catch {
-    params = resolverParametros();
-  }
-  if (!fusoDoLogin) return params;
-  try {
-    return resolverParametros({ ...params, fuso: fusoDoLogin });
-  } catch {
-    return params;
-  }
+  return parametrosEmUso(bruto, fusoDoLogin).parametros;
 }
 
 /** Trilhas do aparelho (o servidor só manda as do público do aluno; rascunho nunca deveria chegar e é ignorado). */
