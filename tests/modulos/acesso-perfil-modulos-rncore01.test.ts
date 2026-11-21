@@ -164,4 +164,10 @@ describe('"Usuários e módulos" — o link antigo segue por URL (vai para Parâ
     // os itens que ficam no menu Acesso
     expect(core.apps.web?.menus).toEqual(expect.arrayContaining(['Usuários', 'Perfis de acesso']));
   });
+
+  it('sem página paralela em `usuarios-e-modulos` (uma informação, um lugar: o painel Módulos)', () => {
+    const paginas = /\bpaginas: \[[\s\S]*?\n {2}\],/.exec(web)?.[0] ?? '';
+    expect(paginas, 'modules/core/web/index.ts: bloco paginas').not.toBe('');
+    expect(paginas).not.toMatch(/caminho: 'usuarios-e-modulos'/);
+  });
 });

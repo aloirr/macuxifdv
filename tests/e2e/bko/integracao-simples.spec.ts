@@ -6,7 +6,7 @@
  *  - duração (`45 s`, `2 min 10 s`, `3 min`, `1 h 05 min`; em andamento, até agora) e "x de y" nas linhas integradas;
  *  - os 5 status e o "⋯" só com ação (Cancelar em andamento; Reprocessar em Com falha e Concluído com avisos);
  *  - popup de autorização (RN-INT-16): senha errada, 429 e a senha nunca na URL;
- *  - De-para em Parâmetros → Integração e os 5 cards de Pedidos com os números de `MonitorResumo.resumo_pedidos`; sem licença, tudo some.
+ *  - De-para na seção Integração da página Parâmetros e os 5 cards de Pedidos com os números de `MonitorResumo.resumo_pedidos`; sem licença, tudo some.
  * O esperado é calculado À MÃO pela regra (não pelo código do módulo). Os dados são fictícios.
  *
  * Pré-requisito: o BKO no ar (`pnpm --filter web dev`, porta 3000). Rodar: `pnpm test:e2e tests/e2e/bko/integracao-simples.spec.ts`
@@ -395,18 +395,17 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
     expect(urls.filter((u) => u.includes('senha-ficticia'))).toEqual([]);
   });
 
-  test('De-para em Parâmetros → Integração (entre Operação e Produtos), com Alertas, folha e vazio', async ({
+  test('De-para na seção Integração de Parâmetros (item Parâmetros aceso; seção fora do menu), com Alertas, folha e vazio', async ({
     page,
   }) => {
     await preparar(page);
     await page.goto('/parametros/integracao');
     await expect(page.getByRole('heading', { name: 'De-para de códigos' })).toBeVisible({ timeout: 120_000 });
-    const menu = (await page.getByTestId('menu-bko').textContent()) ?? '';
-    expect(menu.indexOf('Operação')).toBeLessThan(menu.indexOf('Parâmetros'));
-    expect(menu.indexOf('Parâmetros')).toBeLessThan(menu.indexOf('Produtos'));
-    await expect(page.getByTestId('menu-bko').locator('a[href="/parametros/integracao"]')).toHaveText(
-      'Integração',
-    );
+    const menu = page.getByTestId('menu-bko');
+    await expect(menu.getByTestId('nav-plataforma-parametros')).toHaveAttribute('aria-current', 'page');
+    await expect(menu.locator('a[href="/parametros/integracao"]')).toHaveCount(0);
+    await expect(page.getByTestId('parametros-secao-integracao')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('parametros-integracao-de-para')).toBeVisible();
     await expect(page.locator('main')).toContainText('5 pedidos retidos: condição 28D sem código do ERP');
     await page.getByRole('button', { name: 'Novo de-para' }).first().click();
     await expect(page.locator('[role="dialog"]').last()).toContainText('Novo de-para');
@@ -450,8 +449,10 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
       await expect(page.getByTestId('pedidos.tabela')).toBeVisible({ timeout: 120_000 });
       await page.waitForTimeout(1_000);
       await expect(page.getByTestId('pedidos.cards-erp')).toHaveCount(0);
-      await expect(page.getByTestId('menu-bko').locator('a[href="/parametros/integracao"]')).toHaveCount(0);
       expect(erros).toEqual([]);
+      await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
+      await expect(page.getByTestId('pagina-parametros')).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByTestId('parametros-secao-integracao')).toHaveCount(0);
     });
   }
 });

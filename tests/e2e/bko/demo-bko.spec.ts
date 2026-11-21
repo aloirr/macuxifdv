@@ -11,8 +11,9 @@
  * segue "em construção".
  * D-B31 (T-0081, R-20261105-072330): nenhuma página do menu tem `table table` no DOM (o verificador estático está em
  * tests/modulos/bko-sem-tabela-aninhada.test.ts). Matriz e causas: tests/plano/demo-matriz.md (IDs D-Bnn).
+ * Menu Parâmetros (ADR 0060): docs/testes/v1018-parametros.md; o menu com a API simulada está em menu-parametros.spec.ts.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const SENHA = 'demo-macuxi';
 /** O BKO trava em "Carregando…" ou cai em "Rota não encontrada." quando uma rota da Fase M responde 404. */
@@ -46,7 +47,7 @@ function vigiar(page: Page): Aberta {
  * limpar os campos entre o preencher e o clicar — o formulário volta com "Informe..." (T-0029: 3 casos caíram assim).
  * Preenche, confere, clica e espera `espera` (o menu, ou `login.erro` no login recusado); se não veio, repete.
  */
-async function entrar(page: Page, email: string, espera = 'nav-core-clientes') {
+async function entrar(page: Page, email: string, espera = 'nav-plataforma-parametros') {
   await page.goto('/login');
   const campos: Array<[string, string]> = [['login.codigo-empresa', 'demo'], ['login.email', email], ['login.senha', SENHA]];
   await expect(async () => {
@@ -58,12 +59,54 @@ async function entrar(page: Page, email: string, espera = 'nav-core-clientes') {
   }).toPass({ timeout: 90_000 });
 }
 
-/** Abre a página pelo MENU (navegação do cliente) e espera as consultas assentarem. */
-async function abrirPeloMenu(page: Page, a: Aberta, nav: string, pagina: string) {
+const testIds = (l: Locator) => l.evaluateAll((els) => els.map((e) => e.getAttribute('data-testid') ?? '').filter(Boolean));
+
+/** Item do menu lateral; na sanfona, abre os grupos fechados até ele aparecer. */
+async function mostrarItem(page: Page, nav: string): Promise<Locator> {
+  const menu = page.getByTestId('menu-bko');
+  const item = menu.getByTestId(nav).first();
+  for (const g of await testIds(menu.locator('button[data-testid^="nav-grupo-"]'))) {
+    if (await item.isVisible()) break;
+    const titulo = menu.getByTestId(g);
+    if ((await titulo.getAttribute('aria-expanded')) === 'false') await titulo.click();
+  }
+  await expect(item, nav).toBeVisible({ timeout: 10_000 });
+  return item;
+}
+
+/** Todos os itens navegáveis do menu lateral (grupos da sanfona abertos um a um; entrada com cadeado fica fora). */
+async function itensDoMenu(page: Page): Promise<string[]> {
+  const menu = page.getByTestId('menu-bko');
+  const itens = new Set(await testIds(menu.locator('a[data-testid^="nav-"]')));
+  for (const g of await testIds(menu.locator('button[data-testid^="nav-grupo-"]'))) {
+    const titulo = menu.getByTestId(g);
+    if ((await titulo.getAttribute('aria-expanded')) === 'false') await titulo.click();
+    for (const n of await testIds(menu.locator('a[data-testid^="nav-"]'))) itens.add(n);
+  }
+  return [...itens];
+}
+
+function limpar(a: Aberta) {
   a.falhas.length = 0;
   a.chamadas.length = 0;
-  await page.getByTestId(nav).first().click();
+}
+
+/** Abre a página pelo MENU (navegação do cliente) e espera as consultas assentarem. */
+async function abrirPeloMenu(page: Page, a: Aberta, nav: string, pagina: string) {
+  limpar(a);
+  await (await mostrarItem(page, nav)).click();
   await expect(page.getByTestId(pagina)).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(3_000);
+}
+
+/** Abre pelo item Parâmetros a seção e espera o painel (`parametros-<modulo>-<id>`). */
+async function abrirParametros(page: Page, a: Aberta, secao: string, painel: string) {
+  limpar(a);
+  await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
+  await expect(page.getByTestId('pagina-parametros')).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId(`parametros-secao-${secao}`).click();
+  await expect(page).toHaveURL(new RegExp(`/parametros/${secao}$`));
+  await expect(page.getByTestId(painel)).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(3_000);
 }
 
@@ -78,7 +121,7 @@ test.describe('Login do BKO', () => {
     test.slow();
     for (const email of ['analista@exemplo.com.br', 'admin@exemplo.com.br']) {
       await entrar(page, email);
-      await expect(page.getByTestId('nav-core-clientes').first()).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros')).toBeVisible({ timeout: 60_000 });
       await page.context().clearCookies();
       await page.evaluate(() => window.localStorage.clear());
     }
@@ -95,17 +138,16 @@ for (const quem of ['analista', 'admin'] as const) {
     test.beforeEach(async ({ page }) => {
       a = vigiar(page);
       await entrar(page, `${quem}@exemplo.com.br`);
-      await expect(page.getByTestId('nav-core-clientes').first()).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros')).toBeVisible({ timeout: 60_000 });
     });
 
-    test('D-B00: o menu tem as páginas dos módulos licenciados (Core e Vendedor)', async ({ page }) => {
-      for (const n of ['nav-core-clientes', 'nav-core-rotas', 'nav-core-visitas', 'nav-core-recados', 'nav-core-carteira', 'nav-core-metas', 'nav-core-indicadores', 'nav-core-aparelhos', 'nav-vendedor-pedidos', 'nav-vendedor-alcadas']) {
-        await expect(page.getByTestId(n).first(), n).toBeVisible();
+    test('D-B00: o menu tem as páginas dos módulos licenciados (Core e Vendedor); Perfis está em Parâmetros (admin)', async ({ page }) => {
+      for (const n of ['nav-core-clientes', 'nav-core-rotas', 'nav-core-visitas', 'nav-core-recados', 'nav-core-carteira', 'nav-core-metas', 'nav-core-indicadores', 'nav-core-aparelhos', 'nav-vendedor-pedidos']) {
+        await mostrarItem(page, n);
       }
-      // Acesso do BKO (R-20261114-144500): "Usuários e módulos" saiu do menu (a rota segue por URL, D-B09); o admin gere o acesso
-      // por "Perfis de acesso" (perfil.gerir) e "Usuários" (usuario.ver). Antes da mudança o item ainda existia: não se exige nada dele.
       if (quem === 'admin') {
-        for (const n of ['nav-core-usuarios', 'nav-core-perfis']) await expect(page.getByTestId(n).first(), n).toBeVisible();
+        await mostrarItem(page, 'nav-core-usuarios');
+        await abrirParametros(page, a, 'acesso', 'parametros-core-perfis');
       }
     });
 
@@ -114,7 +156,6 @@ for (const quem of ['analista', 'admin'] as const) {
       ['D-B02 Visitas', 'nav-core-visitas', 'pagina-core-visitas'],
       ['D-B03 Indicadores', 'nav-core-indicadores', 'pagina-core-indicadores'],
       ['D-B04 Recados', 'nav-core-recados', 'pagina-core-recados'],
-      ['D-B06 Motivos', 'nav-core-motivos', 'pagina-core-motivos'],
       ['D-B07 Coordenadas sugeridas', 'nav-core-coordenadas-sugeridas', 'pagina-core-coordenadas-sugeridas'],
       ['D-B08 Aparelhos', 'nav-core-aparelhos', 'pagina-core-aparelhos'],
     ] as const) {
@@ -123,6 +164,11 @@ for (const quem of ['analista', 'admin'] as const) {
         await semQuebra(page, a);
       });
     }
+
+    test('D-B06 Motivos: abre por Parâmetros › Visitas e mostra os dados sem erro de rota', async ({ page }) => {
+      await abrirParametros(page, a, 'visitas', 'parametros-core-motivos');
+      await semQuebra(page, a);
+    });
 
     test('D-B05/D-B12: Carteira → escolher o Lucas → Cliente 360 com títulos e contatos', async ({ page }) => {
       await abrirPeloMenu(page, a, 'nav-core-carteira', 'pagina-core-carteira');
@@ -138,12 +184,11 @@ for (const quem of ['analista', 'admin'] as const) {
     });
 
     if (quem === 'admin') {
-      test('D-B09 Usuários e módulos: abre pela URL; o menu não tem mais o item (o admin vê as licenças do tenant)', async ({ page }) => {
-        // a página segue registrada (caminho `usuarios-e-modulos`, sem prefixo do módulo, como /pedidos e /auditoria)
-        a.falhas.length = 0;
-        a.chamadas.length = 0;
+      test('D-B09 Usuários e módulos: o endereço antigo leva a Parâmetros › Acesso (painel Módulos); o admin vê as licenças do tenant', async ({ page }) => {
+        limpar(a);
         await page.goto('/usuarios-e-modulos');
-        await expect(page.getByTestId('pagina-core-usuarios-e-modulos')).toBeVisible({ timeout: 30_000 });
+        await expect(page).toHaveURL(/\/parametros\/acesso#core-usuarios-e-modulos$/, { timeout: 30_000 });
+        await expect(page.getByTestId('parametros-core-usuarios-e-modulos')).toBeVisible({ timeout: 30_000 });
         await page.waitForTimeout(3_000);
         await semQuebra(page, a);
         await expect(page.locator('main')).toContainText('Empresa');
@@ -182,8 +227,8 @@ for (const quem of ['analista', 'admin'] as const) {
     // A tela real (modules/core/web/components/plano-rv/plano-rv-page.tsx, ação plano_rv.ver) mostra a lista de versões
     // (GET /v1/core/plano-rv; a demo semeia o plano do vendedor, R$ 2.000,00) e a RV por pessoa (GET /v1/core/rv, ação
     // rv.ver: analista e admin veem). "Novo plano" só para quem tem plano_rv.editar (analista e admin).
-    test('D-B25 Plano de RV (T-0082): abre pelo menu a tela real, chama GET /v1/core/plano-rv e /v1/core/rv, lista o plano da demo e não está "em construção"', async ({ page }) => {
-      await abrirPeloMenu(page, a, 'nav-core-plano-rv', 'pagina-core-plano-rv');
+    test('D-B25 Plano de RV (T-0082): abre por Parâmetros › Metas e RV a tela real, chama GET /v1/core/plano-rv e /v1/core/rv, lista o plano da demo e não está "em construção"', async ({ page }) => {
+      await abrirParametros(page, a, 'metas-e-rv', 'parametros-core-plano-rv');
       await expect(page.getByTestId('plano-rv.tela')).toBeVisible({ timeout: 30_000 });
       await semQuebra(page, a);
       await expect(page.getByTestId('pagina-core-plano-rv')).not.toContainText('Esta tela está em construção');
@@ -198,12 +243,12 @@ for (const quem of ['analista', 'admin'] as const) {
 
     // ---------------------------------------------------------------- T-0029: Pedidos e Alçadas pela API nova
     // (o fluxo completo de Pedidos — lista, filtro, detalhe e aprovar — está em pedidos-bko.spec.ts)
-    for (const [id, nav, pagina] of [
-      ['D-B26 Pedidos', 'nav-vendedor-pedidos', 'pagina-vendedor-pedidos'],
-      ['D-B28 Alçadas', 'nav-vendedor-alcadas', 'pagina-vendedor-alcadas'],
+    for (const [id, abrir] of [
+      ['D-B26 Pedidos', (page: Page) => abrirPeloMenu(page, a, 'nav-vendedor-pedidos', 'pagina-vendedor-pedidos')],
+      ['D-B28 Alçadas (Parâmetros › Pedidos)', (page: Page) => abrirParametros(page, a, 'pedidos', 'parametros-vendedor-alcadas')],
     ] as const) {
       test(`${id} (T-0029): abre pelo menu e mostra os dados pela API nova, sem rota da Fase M`, async ({ page }) => {
-        await abrirPeloMenu(page, a, nav, pagina);
+        await abrir(page);
         await semQuebra(page, a);
         expect(a.chamadas.filter((c) => FASE_M.test(c.split(' ')[1]!)), 'chamadas a rotas da Fase M').toEqual([]);
         expect(a.chamadas.some((c) => c.startsWith('GET /vendedor/')), 'chamou /v1/vendedor').toBe(true);
@@ -211,8 +256,7 @@ for (const quem of ['analista', 'admin'] as const) {
     }
 
     test('D-B29 Auditoria (T-0030): a lista carrega pela rota nova GET /v1/auditoria, sem /v1/audit-log da Fase M', async ({ page }) => {
-      a.falhas.length = 0;
-      a.chamadas.length = 0;
+      limpar(a);
       await page.goto('/auditoria');
       await page.waitForTimeout(6_000);
       await semQuebra(page, a);
@@ -230,20 +274,29 @@ for (const quem of ['analista', 'admin'] as const) {
       await expect(page.getByTestId('pagina-vendedor-pedidos')).toBeVisible({ timeout: 20_000 });
     });
 
-    test('D-B31 (T-0081): nenhuma página do menu tem tabela dentro de tabela no DOM (table table)', async ({ page }) => {
-      test.slow(); // percorre o menu inteiro
-      const navs = await page.locator('[data-testid^="nav-"]').evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('data-testid') ?? ''))].filter(Boolean));
+    test('D-B31 (T-0081): nenhuma página do menu nem seção de Parâmetros tem tabela dentro de tabela no DOM (table table)', async ({ page }) => {
+      test.slow(); // percorre o menu inteiro e as seções de Parâmetros
+      const navs = await itensDoMenu(page);
       expect(navs.length, 'itens de menu').toBeGreaterThan(8);
       const aninhadas: string[] = [];
       let comTabela = 0;
-      for (const nav of navs) {
-        // nem todo item tem `pagina-*` (Auditoria do shell, itens de extensão): clica e espera as consultas assentarem
-        await page.getByTestId(nav).first().click();
+      const conferir = async (onde: string) => {
         await expect(page.locator('main')).toBeVisible({ timeout: 30_000 });
         await page.waitForTimeout(3_000);
         if ((await page.locator('main table').count()) > 0) comTabela += 1;
         const n = await page.locator('table table').count();
-        if (n > 0) aninhadas.push(`${nav}: ${n}`);
+        if (n > 0) aninhadas.push(`${onde}: ${n}`);
+      };
+      for (const nav of navs) {
+        // nem todo item tem `pagina-*` (Auditoria do shell, itens de extensão): clica e espera as consultas assentarem
+        await (await mostrarItem(page, nav)).click();
+        await conferir(nav);
+      }
+      await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
+      await expect(page.getByTestId('pagina-parametros')).toBeVisible({ timeout: 30_000 });
+      for (const secao of await testIds(page.locator('a[data-testid^="parametros-secao-"]:not([data-bloqueado])'))) {
+        await page.getByTestId(secao).click();
+        await conferir(secao);
       }
       expect(aninhadas, 'páginas com table table').toEqual([]);
       expect(comTabela, 'páginas com tabela (o caso não passa no vazio)').toBeGreaterThan(2);
