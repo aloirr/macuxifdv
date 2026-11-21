@@ -20,7 +20,7 @@ import type { ConsultaTexto, DesfechoBusca } from './busca-tipos';
 import type { DefinicaoConsulta } from './consultas-tipos';
 import { consultasDeclaradas, type Manifesto } from './manifesto';
 import { lerNomeConsulta, type ModuloId } from './nomes';
-import type { ValorCampoLinha } from './motor-sync';
+import type { ParametrosModulos, ValorCampoLinha } from './motor-sync';
 
 export type { DefinicaoConsulta } from './consultas-tipos';
 
@@ -247,11 +247,20 @@ export function criarRegistroConsultasAparelho(
   return { registro, problemas };
 }
 
-const SEM_PARAMETROS: Readonly<Record<string, unknown>> = Object.freeze({});
+/** "Sem parâmetros" (D-PAR-04): o único objeto vazio, congelado, para módulo sem parâmetros, inativo ou ambiente sem motor. */
+export const SEM_PARAMETROS: Readonly<Record<string, unknown>> = Object.freeze({});
+
+/**
+ * Leitor dos parâmetros do tenant por módulo (T-0029 E3; D-PAR-04): os do módulo, ou `SEM_PARAMETROS`. Mesmo leitor no
+ * motor do aparelho e no shell do BKO.
+ */
+export function leitorDeParametros(mapa?: ParametrosModulos): (modulo: ModuloId) => Readonly<Record<string, unknown>> {
+  return (modulo) => mapa?.[modulo] ?? SEM_PARAMETROS;
+}
 
 /**
  * Completa o ambiente do shell (`AmbienteAparelho` → `AmbienteModulo`): `extra` (o do motor) vale sobre o do shell; sem
- * nenhum dos dois, `consultar` lança `ConsultaIndisponivel` e `parametros` devolve `{}` (ex.: BKO, que lê tudo pela API).
+ * nenhum dos dois, `consultar` lança `ConsultaIndisponivel` e `parametros` devolve `SEM_PARAMETROS`.
  */
 export function completarAmbiente(base: AmbienteAparelho, extra: Partial<Pick<AmbienteModulo, 'consultar' | 'parametros'>> = {}): AmbienteModulo {
   return {

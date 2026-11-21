@@ -10,12 +10,10 @@ import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { QuestionarioVersao } from '../../contracts';
 import {
-  PARAMETROS_PADRAO,
   ofertaDePesquisas,
-  resolverParametros,
+  parametrosComPadrao,
   respostasConhecidas,
   versaoVigente,
-  type ParametrosPesquisa,
   type UsuarioAlvo,
 } from '../../domain';
 import { fotosDoEnvio, prepararEnvio, type Preparo, type RascunhoResposta } from '../lib/formulario';
@@ -24,22 +22,13 @@ import { definirEstadoLocal, lerRetrato, RETRATO_VAZIO, respostasDaFila, type Re
 const relogio = relogioReal();
 const PREFIXO_RASCUNHO = 'rascunho:';
 
-function parametrosDoAparelho(brutos: Readonly<Record<string, unknown>>, fuso: string): ParametrosPesquisa {
-  const conhecidos = Object.fromEntries(Object.entries(brutos).filter(([k]) => Object.hasOwn(PARAMETROS_PADRAO, k)));
-  try {
-    return resolverParametros({ ...conhecidos, fuso } as Partial<ParametrosPesquisa>);
-  } catch {
-    return resolverParametros({ fuso });
-  }
-}
-
 export function usePesquisa() {
   const { motor, estado } = useMotorSync();
   const ambiente = useAmbiente();
   const usuario = ambiente.usuario();
   const fuso = usuario?.fuso ?? DEFAULT_TZ;
   const brutos = ambiente.parametros('pesquisa');
-  const parametros = useMemo(() => parametrosDoAparelho(brutos, fuso), [brutos, fuso]);
+  const parametros = useMemo(() => parametrosComPadrao(brutos, fuso).parametros, [brutos, fuso]);
   const [retrato, setRetrato] = useState<RetratoPesquisa>(RETRATO_VAZIO);
   const [carregado, setCarregado] = useState(false);
 

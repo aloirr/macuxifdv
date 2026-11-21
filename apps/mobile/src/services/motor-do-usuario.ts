@@ -10,6 +10,7 @@ import type { BancoDoTrajeto } from '@macuxi/core/app';
 import { MeusModulosRespostaSchema, RefreshRespostaSchema } from '@macuxi/core/contracts';
 import {
   criarMotorSync,
+  parametrosDosModulos,
   type AmbienteAparelho,
   type ArmazenamentoSync,
   type EtapaSync,
@@ -152,7 +153,7 @@ export async function consultarModulosEfetivos(
     const r = MeusModulosRespostaSchema.parse((await api.request<unknown>('GET', '/me/modulos')).data);
     return {
       efetivos: r.modulos.map((m) => m.id),
-      parametros: Object.fromEntries(r.modulos.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos,
+      parametros: parametrosDosModulos(r),
     };
   } catch (e) {
     if (modo !== 'demo' || !(e instanceof HttpError) || e.status !== 404) throw e;

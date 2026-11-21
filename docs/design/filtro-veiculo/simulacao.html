@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filtro de veículo · simulação (etapa 6, proposta)</title>
+<style>
+/* Simulação do designer-ux, 21/11/2026. Tokens iguais a packages/ui/src/mobile/tokens.ts (marca v1). Spec: spec.md desta pasta.
+   Dados fictícios (premissa P1). Autocontida: sem fonte, imagem ou script de fora. */
+:root {
+  --ground:#F8F6F1; --surface:#FFFFFF; --ink:#16202A; --ink2:#4A5562; --ink3:#5B6673;
+  --line:#DFE2E6; --lineSoft:#ECEEF1; --lineStrong:#C9CED5;
+  --accent:#1E3350; --accentInk:#1E3350; --accentSoft:#DFE2E6; --grafico:#C2540A;
+  --faixa:#1E3350; --faixaSub:#C9CED5;
+  --success:#1D6B4F; --successBg:#E2F1EA; --danger:#A8261B; --dangerBg:#FDE8E6; --neutralBg:#ECEEF1;
+  --scrim:rgba(15,20,25,.45);
+  --sans:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;
+  --mono:ui-monospace,'Cascadia Mono','Roboto Mono',monospace;
+}
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { margin:0; background:#ECEEF1; font-family:var(--sans); color:var(--ink); }
+.phone { width:100%; max-width:390px; height:844px; margin:0 auto; background:var(--ground); position:relative; overflow:hidden; display:flex; flex-direction:column; }
+@media (max-width:420px){ .phone { height:100vh; height:100dvh; } }
+.status { height:24px; flex:none; display:flex; justify-content:space-between; align-items:center; padding:0 16px; font-size:12px; font-weight:600; background:var(--faixa); color:#fff; }
+.fx { background:var(--faixa); padding:6px 20px 14px; flex:none; display:flex; flex-direction:column; gap:2px; color:#fff; }
+.fx .t { font-weight:700; font-size:22px; line-height:28px; }
+.fx .s { font-size:14px; color:var(--faixaSub); }
+.fx .v { display:flex; align-items:center; gap:4px; height:40px; color:var(--faixaSub); font-size:14px; font-weight:500; cursor:pointer; align-self:flex-start; }
+.fx .cods { font-size:14px; color:var(--faixaSub); display:flex; gap:6px; align-items:center; margin-top:4px; }
+.fx .cods .c { color:#fff; font-family:var(--mono); font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; }
+.corpo { flex:1; overflow-y:auto; padding:14px 20px 20px; display:flex; flex-direction:column; gap:10px; }
+.corpo > * { flex:none; }
+.lbusca { display:flex; gap:8px; }
+.busca { flex:1; min-width:0; height:48px; border:1px solid var(--lineStrong); border-radius:12px; background:#fff; display:flex; align-items:center; gap:8px; padding:0 12px; }
+.busca input { border:0; outline:0; font:16px var(--sans); color:var(--ink); flex:1; min-width:0; background:transparent; padding:0; }
+.busca input::placeholder { color:var(--ink3); }
+.busca:focus-within { border:2px solid var(--accent); padding:0 11px; }
+.qbtn { width:48px; height:48px; flex:none; border-radius:11px; border:1px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center; position:relative; cursor:pointer; padding:0; color:var(--ink); }
+.qbtn.ativo { border:1.5px solid var(--ink); }
+.qbtn .selo { position:absolute; top:-6px; right:-6px; min-width:20px; height:20px; padding:0 5px; border-radius:10px; background:var(--grafico); border:2px solid var(--ground); color:#fff; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; }
+.chave { display:flex; align-items:center; justify-content:space-between; height:48px; font-size:16px; cursor:pointer; }
+.sw { width:40px; height:24px; border-radius:12px; background:var(--lineStrong); position:relative; }
+.sw::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:9px; background:#fff; transition:left .12s; }
+.sw.on { background:var(--accent); } .sw.on::after { left:19px; }
+.etqs { display:flex; flex-wrap:wrap; gap:0 8px; margin:-6px 0; }
+.etq { height:44px; display:flex; align-items:center; cursor:pointer; background:none; border:0; padding:0; font:inherit; }
+.etq span { height:32px; padding:0 12px; border-radius:999px; background:var(--accentSoft); color:var(--accentInk); font-weight:600; font-size:14px; display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.grade { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:10px 10px 12px; display:flex; flex-direction:column; min-width:0; cursor:pointer; transition:transform .12s; }
+.card:active, .linha:active, .opc:active, .ano:active { transform:scale(.97); }
+.foto { height:96px; border-radius:12px; background:var(--neutralBg); display:flex; align-items:center; justify-content:center; }
+.card .n { font-weight:600; font-size:16px; line-height:20px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; min-height:60px; margin-top:8px; }
+.card .r { font-size:14px; line-height:18px; color:var(--ink2); margin-top:6px; }
+.card .c { font-family:var(--mono); font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
+.card .p { font-weight:600; font-size:18px; line-height:24px; font-variant-numeric:tabular-nums; margin-top:auto; padding-top:8px; }
+.ce { display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; align-self:flex-start; }
+.ce.suc { background:var(--successBg); color:var(--success); }
+.ce.erro { background:var(--dangerBg); color:var(--danger); }
+.ce.g { height:28px; font-size:14px; padding:0 12px; }
+.card .ok { margin-top:6px; }
+.card .est { margin-top:6px; }
+.serve { font-size:14px; line-height:18px; color:var(--ink2); margin-top:6px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.serve b { color:var(--ink); font-weight:600; }
+.serve .rot { font-size:12px; font-weight:600; }
+.vazio { background:#fff; border:1px solid var(--line); border-radius:14px; padding:24px 20px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
+.vazio .ic { width:56px; height:56px; border-radius:28px; background:var(--neutralBg); display:flex; align-items:center; justify-content:center; }
+.vazio .tt { font-weight:600; font-size:16px; }
+.vazio .ap { font-size:14px; color:var(--ink2); line-height:20px; }
+.sec { height:44px; padding:0 16px; border-radius:12px; border:1.5px solid var(--ink); background:#fff; font:600 16px var(--sans); color:var(--ink); cursor:pointer; margin-top:6px; }
+.loading { flex:1; display:flex; align-items:center; justify-content:center; min-height:240px; }
+.spin { width:28px; height:28px; border-radius:50%; border:3px solid var(--accentSoft); border-top-color:var(--accent); animation:g .8s linear infinite; }
+@keyframes g { to { transform:rotate(360deg); } }
+.barra-abas { flex:none; height:64px; background:#fff; border-top:1px solid var(--line); display:flex; }
+.barra-abas div { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:12px; font-weight:500; color:var(--ink2); }
+.barra-abas div.ativa { color:var(--accentInk); font-weight:600; }
+/* ficha */
+.cx { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:8px; }
+.cx h4 { margin:0; font-weight:700; font-size:18px; }
+.rotp { font-size:14px; font-weight:600; color:var(--ink2); }
+.preco { font-weight:600; font-size:22px; font-variant-numeric:tabular-nums; }
+.btn { height:52px; border-radius:14px; background:var(--accent); color:#fff; font:600 16px var(--sans); border:0; width:100%; cursor:pointer; flex:none; }
+.txt { font-size:16px; line-height:22px; }
+.txt b { font-weight:600; }
+.lj { display:flex; align-items:center; gap:8px; min-height:48px; border-top:1px solid var(--lineSoft); cursor:pointer; }
+.lj:first-of-type { border-top:0; }
+.lj .tx { flex:1; min-width:0; display:flex; flex-direction:column; }
+.lj .nm { font-size:16px; }
+.lj .cd { font-family:var(--mono); font-size:14px; color:var(--ink2); }
+.ref { display:flex; justify-content:space-between; min-height:40px; align-items:center; font-size:16px; }
+.ref .cd { font-family:var(--mono); font-weight:600; }
+/* folha */
+.scrim { position:absolute; inset:0; background:var(--scrim); z-index:5; }
+.folha { position:absolute; left:0; right:0; bottom:0; max-height:90%; background:#fff; border-radius:22px 22px 0 0; display:flex; flex-direction:column; z-index:6; animation:sobe .28s ease-out; }
+@keyframes sobe { from { transform:translateY(100%); } }
+.folha .topo { padding:10px 20px 0; flex:none; }
+.folha .pega { width:40px; height:4px; border-radius:2px; background:var(--lineStrong); margin:0 auto; }
+.folha .tit { display:flex; justify-content:space-between; align-items:center; height:48px; font-weight:700; font-size:22px; }
+.fechar { width:48px; height:48px; margin-right:-12px; border:0; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink); }
+.folha .meio { flex:1; overflow-y:auto; padding:0 20px 12px; display:flex; flex-direction:column; gap:8px; }
+.folha .meio > * { flex:none; }
+.folha .meio.av { animation:lado .24s ease-out; }
+@keyframes lado { from { transform:translateX(24px); opacity:.4; } }
+.folha .pe { flex:none; padding:10px 20px 16px; border-top:1px solid var(--lineSoft); display:flex; gap:10px; }
+.trilha { display:flex; flex-wrap:wrap; align-items:center; font-size:14px; min-height:32px; }
+.trilha a { color:var(--ink2); cursor:pointer; min-height:44px; display:flex; align-items:center; padding-right:2px; }
+.trilha .pul { color:var(--ink2); min-height:44px; display:flex; align-items:center; }
+.trilha .sep { color:var(--ink3); padding:0 6px; }
+.trilha .at { color:var(--accentInk); font-weight:600; }
+.rots { font-size:12px; font-weight:600; color:var(--ink2); text-transform:uppercase; letter-spacing:.4px; margin-top:6px; }
+.lista { background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+.opc { display:flex; align-items:center; gap:8px; min-height:48px; padding:6px 14px; border-top:1px solid var(--lineSoft); cursor:pointer; background:#fff; }
+.opc:first-child { border-top:0; }
+.opc .tx { flex:1; min-width:0; display:flex; flex-direction:column; }
+.opc .nm { font-size:16px; }
+.opc .ap { font-size:14px; color:var(--ink2); }
+.anos { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.ano { height:48px; border-radius:12px; border:1px solid var(--lineStrong); background:#fff; font:600 16px var(--sans); font-variant-numeric:tabular-nums; color:var(--ink); cursor:pointer; }
+.nada { font-size:14px; color:var(--ink2); padding:8px 0; }
+.grp { font-size:14px; font-weight:600; color:var(--ink2); margin-top:4px; }
+.chips { display:flex; flex-wrap:wrap; gap:12px 8px; padding:6px 0; }
+.chip { height:36px; border-radius:18px; border:1px solid var(--lineStrong); background:#fff; padding:0 12px; font:600 14px var(--sans); color:var(--ink); cursor:pointer; display:flex; align-items:center; gap:6px; }
+.chip i { font-style:normal; font-weight:400; font-variant-numeric:tabular-nums; }
+.chip.on { background:var(--accentSoft); border-color:var(--accentSoft); color:var(--accentInk); }
+.neutro { flex:1; height:52px; border-radius:14px; border:0; background:var(--neutralBg); font:600 16px var(--sans); color:var(--ink); cursor:pointer; }
+.pe .btn { flex:1.6; }
+/* pedido */
+.abas { display:flex; background:#fff; border-bottom:1px solid var(--line); flex:none; }
+.abas div { flex:1; height:48px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:500; color:var(--ink2); }
+.abas div.on { color:var(--accentInk); font-weight:600; box-shadow:inset 0 -3px 0 var(--accent); }
+.res { background:#fff; border:1px solid var(--line); border-radius:14px; }
+.res .i { display:flex; align-items:center; gap:8px; padding:10px 10px 10px 12px; min-height:64px; }
+.res .i + .i { border-top:1px solid var(--lineSoft); }
+.res .cc { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.res .d { font-size:16px; font-weight:600; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.res .d span { font-weight:400; }
+.res .s { font-size:14px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.res .s .c { font-family:var(--mono); font-size:12px; color:var(--ink); }
+.res .serve { -webkit-line-clamp:2; margin-top:0; }
+.mais { width:44px; height:44px; border-radius:12px; border:1.5px solid var(--accent); background:#fff; display:flex; align-items:center; justify-content:center; flex:none; color:var(--accent); }
+.rodape-p { flex:none; padding:10px 20px 14px; background:var(--ground); border-top:1px solid var(--line); }
+/* controles da simulação (fora do aparelho) */
+.ctl { max-width:390px; margin:12px auto 24px; padding:0 12px; font-size:14px; color:var(--ink2); }
+.ctl b { color:var(--ink); }
+.ctl .bt { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+.ctl button { height:40px; padding:0 12px; border-radius:10px; border:1px solid var(--lineStrong); background:#fff; font:500 14px var(--sans); color:var(--ink); cursor:pointer; }
+.ctl button.on { background:var(--accentSoft); border-color:var(--accentSoft); color:var(--accentInk); font-weight:600; }
+body.print .ctl { display:none; }
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+<div class="ctl">
+  <b>Simulação</b> (fora do aparelho). Dados fictícios. Toque no ícone do carro, ao lado da busca, para escolher o veículo.
+  <div class="bt">
+    <button data-ctl="vitrine">Catálogo</button>
+    <button data-ctl="pedido">Novo pedido (aba Itens)</button>
+    <button data-ctl="sinal">Sem sinal</button>
+    <button data-ctl="reset">Recomeçar</button>
+  </div>
+</div>
+<script>
+'use strict';
+// ---------- ícones (traço 2, como o kit) ----------
+const P = {
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  filtro:'<path d="M4 5h16l-6 8v5l-4 2v-7z"/>',
+  carro:'<path d="M5 17H3.5a1 1 0 01-1-1v-3.2a2 2 0 01.6-1.4L5 9.5l1.6-3.2A2 2 0 018.4 5h7.2a2 2 0 011.8 1.3L19 9.5l1.9 1.9a2 2 0 01.6 1.4V16a1 1 0 01-1 1H19"/><path d="M5.2 9.5h13.6"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/><path d="M9.5 17h5"/>',
+  close:'<path d="M6 6l12 12M18 6L6 18"/>',
+  chevron:'<path d="M9 5l7 7-7 7"/>',
+  voltar:'<path d="M15 5l-7 7 7 7"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  copiar:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/>',
+  mais:'<path d="M12 5v14M5 12h14"/>',
+  lapis:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  home:'<path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/>', pin:'<path d="M12 21s-7-6-7-11a7 7 0 0114 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-4 3-6 7-6s7 2 7 6"/><path d="M16 4.5a3.5 3.5 0 010 7M18 14c2.5.5 4 2.5 4 6"/>',
+  clipboard:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/>', target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h16"/>', foto:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-8 7"/>'
+};
+const ic = (n, t = 20, c = 'currentColor') => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+
+// ---------- dados fictícios (P1): produtos de teste BAP da auditoria §5 ----------
+const ANO_ATUAL = 2026, FIM_ABERTO = ANO_ATUAL + 1;
+const V = (mont, modelo, de, ate, motores = [], versoes = []) => ({ mont, modelo, de, ate, motores, versoes });
+const T = ['Trendline', 'Comfortline', 'Highline'];
+const PRODUTOS = [
+  { id:'p1', nome:'Amortecedor dianteiro Gol G5', marca:'BAP', cm:'4410', sku:'AMD.4410', preco:28990, est:12, sis:'Suspensão', fam:'Amortecedores', lin:'Leve', cat:'Peça', ap:'VW Gol G5 2014–2019 1.0/1.6 Trendline/Comfortline/Highline', apps:[V('Volkswagen','Gol',2014,2019,['1.0','1.6'],T)], junto:['p16','p6','p14'], refs:[['Cofap','GP32010']] },
+  { id:'p2', nome:'Amortecedor traseiro Gol KYB 441126', marca:'BAP', cm:'4412', sku:'AMT.4412', preco:24590, est:4, sis:'Suspensão', fam:'Amortecedores', lin:'Leve', cat:'Peça', ap:'VW Gol G4 2006–2014', apps:[V('Volkswagen','Gol',2006,2014)], refs:[['KYB','441126']] },
+  { id:'p3', nome:'Amortecedor dianteiro Golf', marca:'BAP', cm:'4420', sku:'AMD.4420', preco:31990, est:3, sis:'Suspensão', fam:'Amortecedores', lin:'Leve', cat:'Peça', ap:'VW Golf 1999–2013', apps:[V('Volkswagen','Golf',1999,2013)] },
+  { id:'p4', nome:'Amortecedor dianteiro Palio', marca:'BAP', cm:'4430', sku:'AMD.4430', preco:26990, est:9, sis:'Suspensão', fam:'Amortecedores', lin:'Leve', cat:'Peça', ap:'FIAT - Palio 1996–2017 1.0/1.3/1.6', apps:[V('Fiat','Palio',1996,2017,['1.0','1.3','1.6'])] },
+  { id:'p5', nome:'Amortecedor dianteiro EcoSport', marca:'BAP', cm:'7255', sku:'AMT7255', preco:33490, est:2, sis:'Suspensão', fam:'Amortecedores', lin:'Leve', cat:'Peça', ap:'Ford EcoSport 2003–2012', apps:[V('Ford','EcoSport',2003,2012)] },
+  { id:'p6', nome:'Bucha da bandeja Polo Classic', marca:'BAP', cm:'5110', sku:'BB.5110', preco:3890, est:30, sis:'Suspensão', fam:'Buchas', lin:'Leve', cat:'Peça', ap:'VW Polo Classic 1997–2002', apps:[V('Volkswagen','Polo Classic',1997,2002)] },
+  { id:'p7', nome:'Cabo de vela 4 polos', marca:'BAP', cm:'6010', sku:'CV.6010', preco:8990, est:15, sis:'Elétrica', fam:'Cabos', lin:'Leve', cat:'Peça', ap:'Motor AP 1.6/1.8/2.0', apps:[] },
+  { id:'p8', nome:'Junta homocinética Gol', marca:'BAP', cm:'7020', sku:'JH.7020', preco:15990, est:6, sis:'Transmissão', fam:'Juntas', lin:'Leve', cat:'Peça', ap:'VW Gol G5/G6 2009–2016 1.0', apps:[V('Volkswagen','Gol',2009,2016,['1.0'])] },
+  { id:'p9', nome:'Coxim do motor Fox', marca:'BAP', cm:'7110', sku:'CX.7110', preco:12490, est:8, sis:'Motor', fam:'Coxins', lin:'Leve', cat:'Peça', ap:'VW Fox 2004–2014 · CrossFox 2005–2014 · SpaceFox 2006–2014', apps:[V('Volkswagen','Fox',2004,2014),V('Volkswagen','CrossFox',2005,2014),V('Volkswagen','SpaceFox',2006,2014)] },
+  { id:'p10', nome:'Pastilha de freio dianteira Civic', marca:'BAP', cm:'1306', sku:'CXD13062', preco:13990, est:11, sis:'Freios', fam:'Pastilhas', lin:'Leve', cat:'Peça', ap:'Honda Civic 2007 até 2011 1.8', apps:[V('Honda','Civic',2007,2011,['1.8'])] },
+  { id:'p11', nome:'Disco de freio ventilado Civic', marca:'BAP', cm:'1310', sku:'DFV.1310', preco:21990, est:5, sis:'Freios', fam:'Discos', lin:'Leve', cat:'Peça', ap:'Civic 07–11 · Fit 2003>', apps:[V('Honda','Civic',2007,2011),V('Honda','Fit',2003,FIM_ABERTO)] },
+  { id:'p12', nome:'Pivô de suspensão Civic', marca:'BAP', cm:'1690', sku:'PV.1690', preco:9890, est:7, sis:'Suspensão', fam:'Pivôs', lin:'Leve', cat:'Peça', ap:'Honda Civic 2006> 1.8', apps:[V('Honda','Civic',2006,FIM_ABERTO,['1.8'])], refs:[['TRW','16900255S']] },
+  { id:'p13', nome:'Pastilha de freio Civic 92', marca:'BAP', cm:'1292', sku:'PF.1292', preco:9490, est:0, sis:'Freios', fam:'Pastilhas', lin:'Leve', cat:'Peça', ap:'Honda Civic 1992–1995', apps:[V('Honda','Civic',1992,1995)] },
+  { id:'p14', nome:'Filtro de óleo', marca:'BAP', cm:'3110', sku:'FO.3110', ean:'7891234567895', preco:3690, est:40, sis:'Motor', fam:'Filtros', lin:'Leve', cat:'Peça', ap:'VW Gol/Fox/Polo 1.0/1.6 2008>', apps:[V('Volkswagen','Gol',2008,FIM_ABERTO,['1.0','1.6']),V('Volkswagen','Fox',2008,FIM_ABERTO,['1.0','1.6']),V('Volkswagen','Polo',2008,FIM_ABERTO,['1.0','1.6'])] },
+  { id:'p15', nome:'Fluido de freio DOT 4 500 ml', marca:'BAP', cm:'9001', sku:'FL.9001', preco:2990, est:60, sis:'Freios', fam:'Fluidos', lin:'Leve', cat:'Fluido', ap:'', apps:[] },
+  { id:'p16', nome:'Kit batente e coifa dianteiro Gol', marca:'BAP', cm:'4490', sku:'KB.4490', preco:7490, est:14, sis:'Suspensão', fam:'Kits', lin:'Leve', cat:'Kit', ap:'VW Gol 2014–2019', apps:[V('Volkswagen','Gol',2014,2019)] },
+  { id:'p17', nome:'Pastilha de freio dianteira Gol', marca:'BAP', cm:'1434', sku:'PAF.1434', preco:8640, est:17, sis:'Freios', fam:'Pastilhas', lin:'Leve', cat:'Peça', ap:'VW Gol', apps:[V('Volkswagen','Gol',null,null)] },
+  { id:'p18', nome:'Amortecedor dianteiro Gol esportivo', marca:'BAP', cm:'4415', sku:'AMD.4415', preco:34990, est:2, sis:'Suspensão', fam:'Amortecedores', lin:'Leve', cat:'Peça', ap:'VW Gol 2017–2019 1.0/1.6 Highline', apps:[V('Volkswagen','Gol',2017,2019,['1.0','1.6'],['Highline'])] },
+  { id:'p19', nome:'Amortecedor dianteiro Palio', marca:'Cofap', cm:'GP320', sku:'GP32010', preco:25990, est:5, sis:'Suspensão', fam:'Amortecedores', lin:'Leve', cat:'Peça', ap:'Fiat Palio 1996–2017', apps:[V('Fiat','Palio',1996,2017)] },
+  { id:'p20', nome:'Amortecedor da cabine Delivery', marca:'BAP', cm:'8810', sku:'AMC.8810', preco:41990, est:1, sis:'Suspensão', fam:'Amortecedores', lin:'Pesada', cat:'Peça', ap:'VW Delivery 2005–2017', apps:[V('Volkswagen','Delivery',2005,2017)] },
+];
+const POR_ID = Object.fromEntries(PRODUTOS.map((p) => [p.id, p]));
+const APELIDOS = { vw:'Volkswagen', gm:'Chevrolet', chevy:'Chevrolet', mb:'Mercedes-Benz' };
+const NIVEIS = ['mont', 'modelo', 'ano', 'motor', 'versao'];
+const ROT_NIVEL = { mont:'Montadora', modelo:'Modelo', ano:'Ano', motor:'Motor', versao:'Versão' };
+
+// ---------- índice de veículos (o domínio faria; aqui só para a simulação) ----------
+const todasApps = () => PRODUTOS.flatMap((p) => p.apps);
+const cobreAno = (a, ano) => a.de != null && ano >= a.de && ano <= a.ate;
+function opcoes(nivel, v) {
+  let apps = todasApps();
+  if (v.mont) apps = apps.filter((a) => a.mont === v.mont);
+  if (v.modelo) apps = apps.filter((a) => a.modelo === v.modelo);
+  if (nivel === 'mont') return [...new Set(apps.map((a) => a.mont))].sort();
+  if (nivel === 'modelo') return [...new Set(apps.map((a) => a.modelo))].sort((x, y) => x.localeCompare(y));
+  if (nivel === 'ano') { const s = new Set(); apps.forEach((a) => { if (a.de != null) for (let y = a.de; y <= a.ate; y++) s.add(y); }); return [...s].sort((x, y) => y - x); }
+  apps = apps.filter((a) => cobreAno(a, v.ano));
+  if (nivel === 'motor') return [...new Set(apps.flatMap((a) => a.motores))].sort();
+  if (v.motor) apps = apps.filter((a) => !a.motores.length || a.motores.includes(v.motor));
+  return [...new Set(apps.flatMap((a) => a.versoes))].sort();
+}
+function proximoNivelAntes(v, depois, ate) {
+  for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.indexOf(ate); i++) if (opcoes(NIVEIS[i], v).length >= 2 && v[NIVEIS[i]] == null) return true;
+  return false;
+}
+function proximoNivel(v, depois) {
+  for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.length; i++) { const n = NIVEIS[i]; if (v[n] == null && opcoes(n, v).length >= 2) return n; }
+  return null;
+}
+// compatível / conferir / null (premissa P2)
+function compat(p, v) {
+  if (!v) return null;
+  let melhor = null;
+  for (const a of p.apps) {
+    if (a.mont !== v.mont || a.modelo !== v.modelo) continue;
+    if (v.ano == null) { melhor = melhor || 'conferir'; continue; }
+    if (a.de == null) { melhor = melhor || 'conferir'; continue; }
+    if (!cobreAno(a, v.ano)) continue;
+    if (v.motor && a.motores.length && !a.motores.includes(v.motor)) continue;
+    if (v.versao && a.versoes.length && !a.versoes.includes(v.versao)) continue;
+    const restringe = (nivel, lista) => lista.length && !v[nivel] && opcoes(nivel, v).some((o) => !lista.includes(o));
+    if (restringe('motor', a.motores) || restringe('versao', a.versoes)) { melhor = melhor || 'conferir'; continue; }
+    return 'ok';
+  }
+  return melhor;
+}
+const nomeVeic = (v) => [v.modelo, v.ano, v.motor, v.versao].filter(Boolean).join(' ');
+const brl = (c) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const sem = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+// trecho da aplicação que cita o modelo, sem a montadora (cartão e linha do seletor)
+function trechoVeic(p, v) {
+  const seg = p.ap.split(' · ').find((x) => sem(x).includes(sem(v.modelo))) || p.ap;
+  const i = sem(seg).indexOf(sem(v.modelo));
+  const t = seg.slice(i);
+  if (sem(t).trim() === sem(v.modelo)) return ''; // só o nome do modelo: sem a linha (§5)
+  return '<b>' + esc(t.slice(0, v.modelo.length)) + '</b>' + esc(t.slice(v.modelo.length));
+}
+function trechoNegrito(ap, v) {
+  if (!v) return esc(ap);
+  const re = new RegExp('(' + v.modelo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^·]*)', 'i');
+  return esc(ap).replace(re, '<b>$1</b>');
+}
+
+// ---------- estado ----------
+const INICIAL = () => ({ tela:'vitrine', veic:null, pedidoVeic:null, folha:null, rasc:{}, nivel:'mont', bf:'', q:'', qp:'', chips:{}, soEst:false, sinal:true, carregando:false, ficha:null, voltaDe:'vitrine',
+  auto:new Set(), recentes:[{ mont:'Honda', modelo:'Civic', ano:2008, motor:'1.8' }, { mont:'Fiat', modelo:'Palio', ano:2012, motor:'1.0' }], av:false });
+let S = INICIAL();
+const veicAtual = () => (S.tela === 'pedido' ? S.pedidoVeic : S.veic);
+function setVeic(v) { if (S.tela === 'pedido') S.pedidoVeic = v; else S.veic = v; }
+
+function filtrar({ semChips = false, contexto } = {}) {
+  const v = contexto ? contexto.v : veicAtual();
+  const q = sem((contexto ? contexto.q : (S.tela === 'pedido' ? S.qp : S.q)).trim());
+  let lista = PRODUTOS.map((p) => ({ p, c: compat(p, v) }));
+  if (v) lista = lista.filter((x) => x.c);
+  if (q) { const pal = q.split(/\s+/); lista = lista.filter(({ p }) => { const h = sem([p.nome, p.marca, p.sku, p.cm, p.ap, p.ean || '', ...(p.refs || []).flat()].join(' ')); return pal.every((w) => h.includes(w)); }); }
+  if (S.soEst && S.tela === 'vitrine') lista = lista.filter(({ p }) => p.est > 0);
+  if (!semChips) for (const g of GRUPOS) { const m = S.chips[g.k]; if (m && m.size) lista = lista.filter(({ p }) => m.has(p[g.k])); }
+  lista.sort((a, b) => (a.c === 'ok' ? 0 : 1) - (b.c === 'ok' ? 0 : 1));
+  return lista;
+}
+const GRUPOS = [{ k:'sis', r:'Sistema' }, { k:'fam', r:'Família' }, { k:'lin', r:'Linha' }, { k:'cat', r:'Categoria' }];
+const nChips = () => GRUPOS.reduce((n, g) => n + (S.chips[g.k] ? S.chips[g.k].size : 0), 0);
+
+// ---------- peças de tela ----------
+function status() { return `<div class="status"><span>09:12</span><span>${S.sinal ? '4G 82%' : 'Sem sinal · 82%'}</span></div>`; }
+function linhaBusca(ph, valor, idInput) {
+  const v = veicAtual();
+  const filtro = S.tela === 'vitrine' ? `<button class="qbtn ${nChips() ? 'ativo' : ''}" data-a="abrir-filtrar" aria-label="Filtrar${nChips() ? ', ' + nChips() + ' filtro ativo' : ''}">${ic('filtro')}${nChips() ? `<span class="selo">${nChips()}</span>` : ''}</button>` : '';
+  return `<div class="lbusca"><label class="busca">${ic('search', 18, '#4A5562')}<input id="${idInput}" placeholder="${ph}" value="${esc(valor)}" autocomplete="off"></label>
+    <button class="qbtn ${v ? 'ativo' : ''}" data-a="abrir-veiculo" aria-label="${v ? 'Veículo: ' + esc(v.mont + ' ' + nomeVeic(v)) : 'Veículo'}">${ic('carro')}</button>${filtro}</div>`;
+}
+function etiquetas() {
+  const v = veicAtual(); const e = [];
+  if (v) e.push(`<button class="etq" data-a="tirar-veiculo" aria-label="Remover veículo ${esc(v.mont + ' ' + nomeVeic(v))}"><span>${esc(nomeVeic(v))}${ic('close', 14)}</span></button>`);
+  if (S.tela === 'vitrine') for (const g of GRUPOS) for (const val of (S.chips[g.k] || [])) e.push(`<button class="etq" data-a="tirar-chip" data-g="${g.k}" data-v="${esc(val)}" aria-label="Remover filtro ${esc(val)}"><span>${esc(val)}${ic('close', 14)}</span></button>`);
+  return e.length ? `<div class="etqs">${e.join('')}</div>` : '';
+}
+function vazioSemResultado() {
+  const v = veicAtual(); const q = (S.tela === 'pedido' ? S.qp : S.q).trim();
+  const tt = q ? `Nada encontrado para "${esc(q)}"` : 'Nenhum produto com esses filtros';
+  if (S.tela === 'vitrine' && nChips()) return `<div class="vazio"><div class="ic">${ic('search', 24, '#4A5562')}</div><div class="tt">${tt}</div>${v ? '' : '<div class="ap">Há filtro ligado. Tire o filtro para procurar em todo o catálogo.</div>'}<button class="sec" data-a="limpar-chips">Limpar filtros</button></div>`;
+  if (v) return `<div class="vazio"><div class="ic">${ic('search', 24, '#4A5562')}</div><div class="tt">${tt}</div><button class="sec" data-a="tirar-veiculo">Tirar o veículo</button></div>`;
+  return `<div class="vazio"><div class="ic">${ic('search', 24, '#4A5562')}</div><div class="tt">Nada encontrado para "${esc(q)}"</div><div class="ap">Confira a grafia, tente o código ou só o começo do nome.</div><button class="sec" data-a="limpar-busca">Limpar a busca</button></div>`;
+}
+function cartao({ p, c }) {
+  const v = veicAtual();
+  const extra = c === 'ok' ? `<span class="ce suc ok">${ic('check', 12)}Compatível</span>` : c === 'conferir' && trechoVeic(p, v) ? `<div class="serve"><span class="rot">Serve em:</span> ${trechoVeic(p, v)}</div>` : '';
+  return `<div class="card" data-a="ficha" data-id="${p.id}" role="button"><div class="foto">${ic('foto', 32, '#9AA3B0')}</div><span class="n">${esc(p.nome)}</span>
+    <div class="r">${esc(p.cm)} · ${esc(p.marca)}</div><div class="c">${esc(p.sku)}</div>${extra}<span class="p">${brl(p.preco)}</span>
+    <span class="ce est ${p.est > 0 ? 'suc' : 'erro'}">Estoque: ${p.est}</span></div>`;
+}
+const abas = () => `<div class="barra-abas">${[['home','Início'],['pin','Rota'],['users','Clientes'],['clipboard','Pedidos'],['target','Performance'],['menu','Mais']].map(([i, r]) => `<div class="${r === 'Mais' ? 'ativa' : ''}">${ic(i, 22)}${r}</div>`).join('')}</div>`;
+
+function telaVitrine() {
+  const lista = filtrar();
+  let conteudo;
+  if (S.carregando) conteudo = `<div class="loading" aria-label="Carregando"><div class="spin"></div></div>`;
+  else if (!lista.length) conteudo = vazioSemResultado();
+  else conteudo = `<div class="grade">${lista.map(cartao).join('')}</div>`;
+  return `${status()}<div class="fx"><span class="t">Catálogo</span><span class="s">Sua filial: Boa Vista</span></div>
+  <div class="corpo">${linhaBusca('Peça ou código…', S.q, 'q')}
+  <div class="chave" data-a="so-estoque" role="switch" aria-checked="${S.soEst}"><span>Só com estoque</span><span class="sw ${S.soEst ? 'on' : ''}"></span></div>
+  ${etiquetas()}${conteudo}</div>${abas()}`;
+}
+function telaFicha() {
+  const p = POR_ID[S.ficha]; const v = S.voltaDe === 'pedido' ? S.pedidoVeic : S.veic; const c = compat(p, v);
+  const chip = c === 'ok' ? `<span class="ce suc g">${ic('check', 14)}Compatível com ${esc(nomeVeic(v))}</span>` : '';
+  const junto = (p.junto || []).map((id) => POR_ID[id]).filter((j) => !v || !j.apps.length || compat(j, v) === 'ok');
+  return `${status()}<div class="fx"><span class="v" data-a="voltar">${ic('voltar', 20)}Catálogo</span><span class="t">${esc(p.nome)}</span>
+    <div class="cods"><span>${esc(p.cm)} · ${esc(p.marca)} ·</span><span class="c">${esc(p.sku)}</span></div></div>
+  <div class="corpo">${chip ? `<div>${chip}</div>` : ''}
+    <div class="foto" style="height:160px">${ic('foto', 48, '#9AA3B0')}</div>
+    <div class="cx"><span class="rotp">Preço</span><span class="preco">${brl(p.preco)}</span><span class="ce g ${p.est > 0 ? 'suc' : 'erro'}">Estoque: ${p.est}</span></div>
+    <button class="btn">Adicionar ao orçamento</button>
+    ${p.ap ? `<div class="cx"><h4>Aplicação</h4><div class="txt">${trechoNegrito(p.ap, c ? v : null)}</div></div>` : ''}
+    ${junto.length ? `<div class="cx"><h4>Leve também</h4><div>${junto.map((j) => `<div class="lj" data-a="ficha" data-id="${j.id}" role="button"><div class="tx"><span class="nm">${esc(j.nome)}</span><span class="cd">${esc(j.sku)}</span></div>${ic('chevron', 16, '#5B6673')}</div>`).join('')}</div></div>` : ''}
+    ${(p.refs || []).length ? `<div class="cx"><h4>Referência cruzada</h4>${p.refs.map(([m, cd]) => `<div class="ref"><span style="color:var(--ink2)">${esc(m)}</span><span class="cd">${esc(cd)}</span></div>`).join('')}</div>` : ''}
+  </div>${abas()}`;
+}
+function telaPedido() {
+  const v = S.pedidoVeic; const q = S.qp.trim();
+  let corpo;
+  if (S.carregando) corpo = `<div class="loading"><div class="spin"></div></div>`;
+  else if (!v && !q) corpo = `<div class="res">${['p17', 'p14'].map((id) => linhaPedido({ p: POR_ID[id], c: null }, true)).join('')}</div>`;
+  else { const l = filtrar(); corpo = l.length ? `<div class="res">${l.map((x) => linhaPedido(x, false)).join('')}</div>` : vazioSemResultado(); }
+  return `${status()}<div class="fx"><span class="v" data-a="ir-vitrine">${ic('voltar', 20)}Pedidos</span><span class="t">Novo pedido</span><span class="s">Auto Peças Raimundo</span></div>
+  <div class="abas"><div>Venda</div><div class="on">Itens</div><div>Entrega</div><div>Resumo</div></div>
+  <div class="corpo">${linhaBusca('Buscar produto', S.qp, 'qp')}${etiquetas()}${corpo}</div>
+  <div class="rodape-p"><button class="btn">Avançar</button></div>`;
+}
+function linhaPedido({ p, c }, noPedido) {
+  const v = S.pedidoVeic;
+  const l3 = c === 'ok' ? `<span class="ce suc">${ic('check', 12)}Compatível</span>` : c === 'conferir' && trechoVeic(p, v) ? `<div class="serve"><span class="rot">Serve em:</span> ${trechoVeic(p, v)}</div>` : '';
+  const botao = noPedido ? `<span class="mais" style="border-color:#1D6B4F;background:#E2F1EA;color:#1D6B4F" aria-label="Adicionado">${ic('lapis', 20)}</span>` : `<span class="mais" aria-label="Adicionar ${esc(p.nome)}">${ic('mais', 22)}</span>`;
+  return `<div class="i"><div class="cc"><span class="d">${esc(p.nome)} <span>- ${esc(p.marca)}</span></span><span class="s"><span class="c">${esc(p.sku)}</span> · Emb. PC · Est. ${p.est}</span>${l3}</div>${botao}</div>`;
+}
+
+function folhaVeiculo() {
+  const r = S.rasc; const n = S.nivel;
+  const trilha = NIVEIS.slice(0, NIVEIS.indexOf(n)).filter((k) => r[k] != null);
+  const tr = trilha.length ? `<div class="trilha" aria-label="${esc(trilha.map((k) => r[k]).join(', '))}">${trilha.map((k) => S.auto.has(k) ? `<span class="pul">${esc(r[k])}</span>` : `<a data-a="nivel" data-n="${k}">${esc(r[k])}</a>`).join('<span class="sep">›</span>')}</div>` : '';
+  let meio = '';
+  if (n === 'mont') {
+    meio += `<label class="busca">${ic('search', 18, '#4A5562')}<input id="bf" placeholder="Modelo ou montadora" value="${esc(S.bf)}" autocomplete="off"></label>`;
+    const b = sem(S.bf.trim());
+    if (b) {
+      const alvo = APELIDOS[b] ? sem(APELIDOS[b]) : b;
+      const monts = opcoes('mont', {}).filter((m) => sem(m).startsWith(alvo));
+      const mods = []; for (const m of opcoes('mont', {})) for (const mo of opcoes('modelo', { mont: m })) if (sem(mo).split(/\s+/).some((w) => w.startsWith(b))) mods.push([m, mo]);
+      const itens = [...monts.map((m) => `<div class="opc" data-a="esc-mont" data-v="${esc(m)}" role="button"><div class="tx"><span class="nm">${esc(m)}</span></div>${ic('chevron', 16, '#5B6673')}</div>`),
+        ...mods.map(([m, mo]) => `<div class="opc" data-a="esc-modelo-busca" data-m="${esc(m)}" data-v="${esc(mo)}" role="button"><div class="tx"><span class="nm">${esc(mo)}</span><span class="ap">${esc(m)}</span></div>${ic('chevron', 16, '#5B6673')}</div>`)];
+      meio += itens.length ? `<div class="lista">${itens.join('')}</div>` : `<div class="nada">Nenhum modelo com "${esc(S.bf.trim())}".</div>`;
+    } else {
+      if (S.recentes.length) meio += `<div class="rots">Recentes</div><div class="lista">${S.recentes.map((v, i) => `<div class="opc" data-a="recente" data-i="${i}" role="button"><div class="tx"><span class="nm">${esc(nomeVeic(v))}</span><span class="ap">${esc(v.mont)}</span></div></div>`).join('')}</div>`;
+      meio += `<div class="rots">Montadora</div><div class="lista">${opcoes('mont', {}).map((m) => `<div class="opc" data-a="esc-mont" data-v="${esc(m)}" role="button"><div class="tx"><span class="nm">${esc(m)}</span></div>${ic('chevron', 16, '#5B6673')}</div>`).join('')}</div>`;
+    }
+  } else {
+    meio += tr + `<div class="rots" id="rot-nivel" tabindex="-1">${ROT_NIVEL[n]}</div>`;
+    const ops = opcoes(n, r);
+    const ultimo = !proximoNivel({ ...r }, n) && n !== 'mont' && n !== 'modelo';
+    if (n === 'ano') meio += `<div class="anos">${ops.map((o) => `<button class="ano" data-a="esc" data-v="${o}">${o}</button>`).join('')}</div>`;
+    else meio += `<div class="lista">${ops.map((o) => `<div class="opc" data-a="esc" data-v="${esc(o)}" role="button"><div class="tx"><span class="nm">${esc(o)}</span></div>${n === 'modelo' || !ultimo ? ic('chevron', 16, '#5B6673') : ''}</div>`).join('')}</div>`;
+  }
+  const pe = ['ano', 'motor', 'versao'].includes(n) ? `<div class="pe"><button class="btn" data-a="ver-pecas">Ver peças</button></div>` : '';
+  return `<div class="scrim" data-a="fechar-folha"></div><div class="folha" role="dialog" aria-label="Veículo"><div class="topo"><div class="pega"></div><div class="tit"><span>Veículo</span><button class="fechar" data-a="fechar-folha" aria-label="Fechar">${ic('close', 22)}</button></div></div>
+    <div class="meio ${S.av ? 'av' : ''}">${meio}</div>${pe}</div>`;
+}
+function folhaFiltrar() {
+  const base = filtrar({ semChips: true });
+  let html = '';
+  for (const g of GRUPOS) {
+    // conta com os outros grupos aplicados
+    const outros = base.filter(({ p }) => GRUPOS.every((h) => h.k === g.k || !(S.chips[h.k] && S.chips[h.k].size) || S.chips[h.k].has(p[h.k])));
+    const cont = {}; outros.forEach(({ p }) => { cont[p[g.k]] = (cont[p[g.k]] || 0) + 1; });
+    const marcados = S.chips[g.k] || new Set();
+    const ops = [...new Set([...Object.keys(cont), ...marcados])].sort();
+    if (ops.length < 2 && !marcados.size) continue;
+    html += `<div class="grp">${g.r}</div><div class="chips">${ops.map((o) => `<button class="chip ${marcados.has(o) ? 'on' : ''}" data-a="chip" data-g="${g.k}" data-v="${esc(o)}" aria-label="${esc(o)}, ${cont[o] || 0} peças" aria-pressed="${marcados.has(o)}">${esc(o)}<i>${cont[o] || 0}</i></button>`).join('')}</div>`;
+  }
+  return `<div class="scrim" data-a="fechar-folha"></div><div class="folha" role="dialog" aria-label="Filtrar"><div class="topo"><div class="pega"></div><div class="tit"><span>Filtrar</span><button class="fechar" data-a="fechar-folha" aria-label="Fechar">${ic('close', 22)}</button></div></div>
+    <div class="meio">${html}</div><div class="pe"><button class="neutro" data-a="limpar-chips">Limpar</button><button class="btn" data-a="fechar-folha">Ver produtos</button></div></div>`;
+}
+
+// ---------- render e ações ----------
+const app = document.getElementById('app');
+function render() {
+  const foco = document.activeElement && document.activeElement.id; const pos = foco ? document.activeElement.selectionStart : null;
+  let h = S.tela === 'ficha' ? telaFicha() : S.tela === 'pedido' ? telaPedido() : telaVitrine();
+  if (S.folha === 'veiculo') h += folhaVeiculo();
+  if (S.folha === 'filtrar') h += folhaFiltrar();
+  app.innerHTML = h; S.av = false;
+  if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
+  document.querySelectorAll('[data-ctl]').forEach((b) => b.classList.toggle('on', (b.dataset.ctl === 'sinal' && !S.sinal) || (b.dataset.ctl === S.tela)));
+}
+function aplicar(v) {
+  setVeic(v); S.folha = null;
+  const k = JSON.stringify(v); S.recentes = [v, ...S.recentes.filter((r) => JSON.stringify(r) !== k)].slice(0, 3);
+  S.carregando = true; render(); setTimeout(() => { S.carregando = false; render(); }, 600);
+}
+function avancar(depois) {
+  // nível com uma opção só é preenchido sozinho (aparece na trilha sem toque); sem opção, pulado
+  for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.length; i++) { const n = NIVEIS[i]; const o = opcoes(n, S.rasc); if (o.length !== 1) continue; if (n === 'modelo' || n === 'ano' || n === 'motor' || n === 'versao') { if (proximoNivelAntes(S.rasc, depois, n)) break; S.rasc[n] = o[0]; S.auto.add(n); } }
+  const prox = proximoNivel(S.rasc, depois);
+  if (prox) { S.nivel = prox; S.av = true; render(); const r = document.getElementById('rot-nivel'); if (r) r.focus({ preventScroll: true }); }
+  else aplicar({ ...S.rasc });
+}
+app.addEventListener('input', (e) => {
+  if (e.target.id === 'q') S.q = e.target.value; else if (e.target.id === 'qp') S.qp = e.target.value; else if (e.target.id === 'bf') S.bf = e.target.value; else return;
+  render();
+});
+app.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-a]'); if (!el) return; const a = el.dataset.a, d = el.dataset;
+  if (a === 'abrir-veiculo') { const v = veicAtual(); S.rasc = v ? { ...v } : {}; S.bf = ''; S.nivel = v ? (['versao', 'motor', 'ano'].find((k) => v[k] != null) || 'ano') : 'mont'; S.folha = 'veiculo'; }
+  else if (a === 'abrir-filtrar') S.folha = 'filtrar';
+  else if (a === 'fechar-folha') S.folha = null;
+  else if (a === 'tirar-veiculo') setVeic(null);
+  else if (a === 'recente') return aplicar({ ...S.recentes[+d.i] });
+  else if (a === 'esc-mont') { S.auto = new Set(); S.rasc = { mont: d.v }; S.bf = ''; return avancar('mont'); }
+  else if (a === 'esc-modelo-busca') { S.auto = new Set(); S.rasc = { mont: d.m, modelo: d.v }; S.bf = ''; return avancar('modelo'); }
+  else if (a === 'esc') { const n = S.nivel; const val = n === 'ano' ? +d.v : d.v; const r = {}; for (const k of NIVEIS) { if (k === n) break; if (S.rasc[k] != null) r[k] = S.rasc[k]; } r[n] = val; S.rasc = r; S.auto = new Set([...S.auto].filter((k) => NIVEIS.indexOf(k) < NIVEIS.indexOf(n))); return avancar(n); }
+  else if (a === 'nivel') { S.auto = new Set([...S.auto].filter((k) => NIVEIS.indexOf(k) < NIVEIS.indexOf(d.n))); S.nivel = d.n; const r = {}; for (const k of NIVEIS) { if (k === d.n) break; if (S.rasc[k] != null) r[k] = S.rasc[k]; } S.rasc = r; }
+  else if (a === 'ver-pecas') return aplicar(Object.fromEntries(Object.entries(S.rasc).filter(([k, v]) => v != null && NIVEIS.indexOf(k) < NIVEIS.indexOf(S.nivel))));
+  else if (a === 'chip') { const s = S.chips[d.g] || (S.chips[d.g] = new Set()); s.has(d.v) ? s.delete(d.v) : s.add(d.v); }
+  else if (a === 'tirar-chip') S.chips[d.g].delete(d.v);
+  else if (a === 'limpar-chips') S.chips = {};
+  else if (a === 'limpar-busca') { if (S.tela === 'pedido') S.qp = ''; else S.q = ''; }
+  else if (a === 'so-estoque') S.soEst = !S.soEst;
+  else if (a === 'ficha') { if (S.tela !== 'ficha') S.voltaDe = S.tela; S.ficha = d.id; S.tela = 'ficha'; app.scrollTop = 0; }
+  else if (a === 'voltar') S.tela = S.voltaDe;
+  else if (a === 'ir-vitrine') S.tela = 'vitrine';
+  render();
+});
+document.querySelectorAll('[data-ctl]').forEach((b) => b.addEventListener('click', () => {
+  const c = b.dataset.ctl;
+  if (c === 'reset') S = INICIAL(); else if (c === 'sinal') S.sinal = !S.sinal; else { S.tela = c; S.folha = null; }
+  render();
+}));
+
+// ---------- estados prontos para os prints (?estado=) ----------
+const GOL = { mont:'Volkswagen', modelo:'Gol', ano:2018, motor:'1.0' };
+const ESTADOS = {
+  'vitrine': () => {},
+  'folha-montadora': () => { S.folha = 'veiculo'; S.nivel = 'mont'; },
+  'folha-busca': () => { S.folha = 'veiculo'; S.nivel = 'mont'; S.bf = 'gol'; },
+  'folha-ano': () => { S.folha = 'veiculo'; S.rasc = { mont:'Volkswagen', modelo:'Gol' }; S.nivel = 'ano'; },
+  'folha-motor': () => { S.folha = 'veiculo'; S.rasc = { mont:'Volkswagen', modelo:'Gol', ano:2018 }; S.nivel = 'motor'; },
+  'folha-versao': () => { S.folha = 'veiculo'; S.rasc = { ...GOL }; S.nivel = 'versao'; },
+  'vitrine-veiculo': () => { S.veic = { ...GOL }; },
+  'filtrar-contagem': () => { S.veic = { ...GOL }; S.chips = { sis: new Set(['Suspensão']) }; S.folha = 'filtrar'; },
+  'ficha': () => { S.veic = { ...GOL }; S.tela = 'ficha'; S.ficha = 'p1'; S.voltaDe = 'vitrine'; },
+  'sem-resultado': () => { S.veic = { ...GOL }; S.q = 'traseiro'; },
+  'sem-resultado-filtro': () => { S.veic = { ...GOL }; S.chips = { sis: new Set(['Elétrica']) }; },
+  'sem-sinal': () => { S.veic = { ...GOL }; S.sinal = false; },
+  'carregando': () => { S.veic = { ...GOL }; S.carregando = true; },
+  'pedido': () => { S.tela = 'pedido'; S.pedidoVeic = { ...GOL }; },
+};
+const prm = new URLSearchParams(location.search);
+if (prm.has('estado') && ESTADOS[prm.get('estado')]) { ESTADOS[prm.get('estado')](); document.body.classList.add('print'); }
+render();
+</script>
+</body>
+</html>
