@@ -11,6 +11,8 @@
  * - Grupo sem item visível não aparece (a licença e o perfil já filtraram a `navegacao`: RN-CORE-01/03, ADR 0004).
  * - Altura do menu aberto (título 30 px, item 32 px, 2 px entre grupos) decide entre "tudo aberto" e a sanfona (§M3);
  *   item direto e entrada bloqueada ocupam só a linha do título. A conta supõe um item por linha; o shell confere a altura real.
+ * - Densidade compacta (v1.0.18, notebook 1366×768 com ~650 px úteis): só na sanfona, quando o pior grupo aberto na densidade
+ *   normal não cabe (`piorSanfona > disponivel`); título 24 px e item 28 px numa linha só (rótulo com reticências).
  */
 import { compararGrupoMenu, compararRotuloMenu, ROTULO_GRUPO_MENU, type ItemNavegacao } from '@macuxi/platform-sdk';
 import { secaoDaPagina } from './parametros';
@@ -57,6 +59,15 @@ export const TEXTO_SEM_LICENCA = 'Contrate o módulo para usar';
 export const ALTURA_TITULO = 30;
 export const ALTURA_ITEM = 32;
 export const ESPACO_ENTRE_GRUPOS = 2;
+/** Densidade compacta (v1.0.18): título h-6 e item py-1 + leading-5. */
+export const ALTURA_TITULO_COMPACTA = 24;
+export const ALTURA_ITEM_COMPACTA = 28;
+
+export type DensidadeMenu = 'normal' | 'compacta';
+const MEDIDAS: Record<DensidadeMenu, { titulo: number; item: number }> = {
+  normal: { titulo: ALTURA_TITULO, item: ALTURA_ITEM },
+  compacta: { titulo: ALTURA_TITULO_COMPACTA, item: ALTURA_ITEM_COMPACTA },
+};
 
 /** Caminho do slot "Mais" (escrito pelo módulo, com ou sem barra inicial) → href. */
 const href = (caminho: string) => `/${caminho.replace(/^\/+/, '')}`;
@@ -125,15 +136,27 @@ const soTitulo = (g: GrupoMenuBko) => g.direto || g.bloqueado;
  * entrada bloqueada nunca abrem. `abertos = 'todos'` mede o menu inteiro aberto. O balão da entrada bloqueada fica fora
  * da lista (fixo à direita do menu) e não conta.
  */
-export function alturaDoMenu(grupos: readonly GrupoMenuBko[], abertos: 'todos' | ReadonlySet<string>): number {
+export function alturaDoMenu(grupos: readonly GrupoMenuBko[], abertos: 'todos' | ReadonlySet<string>, densidade: DensidadeMenu = 'normal'): number {
   if (grupos.length === 0) return 0;
+  const { titulo, item } = MEDIDAS[densidade];
   const itens = grupos.reduce((soma, g) => soma + (!soTitulo(g) && (abertos === 'todos' || abertos.has(g.id)) ? g.itens.length : 0), 0);
-  return grupos.length * ALTURA_TITULO + itens * ALTURA_ITEM + (grupos.length - 1) * ESPACO_ENTRE_GRUPOS;
+  return grupos.length * titulo + itens * item + (grupos.length - 1) * ESPACO_ENTRE_GRUPOS;
 }
 
-/** Tudo aberto cabe na altura disponível (entre a marca e o rodapé)? Senão, sanfona (§M3). */
+/** Tudo aberto cabe na altura disponível (entre a marca e o rodapé)? Senão, sanfona (§M3). Sempre na densidade normal. */
 export function cabeTudoAberto(grupos: readonly GrupoMenuBko[], alturaDisponivel: number): boolean {
   return alturaDoMenu(grupos, 'todos') <= alturaDisponivel;
+}
+
+/** Altura da sanfona com o maior grupo aberto: títulos + itens do maior grupo + espaços entre grupos. */
+export function piorSanfona(grupos: readonly GrupoMenuBko[], densidade: DensidadeMenu = 'normal'): number {
+  const maior = grupos.reduce<GrupoMenuBko | null>((m, g) => (!soTitulo(g) && g.itens.length > (m?.itens.length ?? 0) ? g : m), null);
+  return alturaDoMenu(grupos, new Set(maior ? [maior.id] : []), densidade);
+}
+
+/** Densidade da sanfona (regra no cabeçalho). */
+export function densidadeDoMenu(grupos: readonly GrupoMenuBko[], alturaDisponivel: number): DensidadeMenu {
+  return piorSanfona(grupos) > alturaDisponivel ? 'compacta' : 'normal';
 }
 
 /**

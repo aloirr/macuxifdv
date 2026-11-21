@@ -10,11 +10,13 @@ import { describe, expect, it } from 'vitest';
 import {
   alturaDoMenu,
   cabeTudoAberto,
+  densidadeDoMenu,
   destinoComBusca,
   grupoDaTela,
   hrefAtivo,
   hrefsNavegaveis,
   montarGruposMenu,
+  piorSanfona,
   type EntradaNavegacao,
   type GrupoMenuBko,
 } from './menu-bko';
@@ -77,6 +79,8 @@ const ASSISTENTE: EntradaNavegacao[] = [
 
 /** Altura entre a marca e o rodapé no menu de 768 px (medida no BKO em 1366×768: 581 px; o shell mede a lista de verdade). */
 const ALTURA_1366X768 = 581;
+/** Notebook físico 1366×768: ~1366×650 úteis no navegador, ~470 px para a lista (v1.0.18). */
+const ALTURA_1366X650 = 470;
 
 const de = (grupos: readonly GrupoMenuBko[], id: string) => grupos.find((g) => g.id === id);
 
@@ -236,10 +240,29 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
   it('sem barra de rolagem em 1366×768 (spec §3 e §5): pior caso Cadastros (6 itens) cabe mesmo com um rótulo em 2 linhas', () => {
     /** Rótulo que quebra a linha ("Formas de pagamento e prazos"): +20 px (linha de 20 px). */
     const QUEBRA = 20;
-    const pior = Math.max(...grupos.map((g) => alturaDoMenu(grupos, new Set([g.id]))));
+    const pior = piorSanfona(grupos);
     expect(pior).toBe(alturaDoMenu(grupos, new Set(['cadastros'])));
     expect(pior).toBe(11 * 30 + 6 * 32 + 10 * 2);
     expect(pior + QUEBRA).toBeLessThanOrEqual(ALTURA_1366X768);
+  });
+
+  it('densidade compacta (v1.0.18): liga com 541 e não liga com 542', () => {
+    expect(densidadeDoMenu(grupos, 541)).toBe('compacta');
+    expect(densidadeDoMenu(grupos, 542)).toBe('normal');
+  });
+
+  it('compacta em 1366×650: Cadastros aberto = 452 (11×24 + 6×28 + 10×2) e qualquer grupo aberto cabe em 470', () => {
+    expect(densidadeDoMenu(grupos, ALTURA_1366X650)).toBe('compacta');
+    expect(piorSanfona(grupos, 'compacta')).toBe(452);
+    for (const g of grupos) expect(alturaDoMenu(grupos, new Set([g.id]), 'compacta')).toBeLessThanOrEqual(ALTURA_1366X650);
+  });
+
+  it('"tudo aberto" continua medido em 30/32', () => {
+    const itens = grupos.filter((g) => !g.direto && !g.bloqueado).reduce((soma, g) => soma + g.itens.length, 0);
+    const tudo = alturaDoMenu(grupos, 'todos');
+    expect(tudo).toBe(11 * 30 + itens * 32 + 10 * 2);
+    expect(cabeTudoAberto(grupos, tudo)).toBe(true);
+    expect(cabeTudoAberto(grupos, tudo - 1)).toBe(false);
   });
 });
 
