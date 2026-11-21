@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as contrato from './busca-cliente';
 import * as dominio from '../domain/clientes';
 
@@ -56,6 +56,37 @@ describe('busca de clientes (contrato)', () => {
       const de = [...contrato.ACENTOS_PT];
       const para = [...contrato.SEM_ACENTOS_PT];
       de.forEach((c, i) => expect(para[i]!.toLowerCase()).toBe(contrato.normalizarBusca(c)));
+    });
+  });
+  describe('aparelho sem String.normalize (RD-7)', () => {
+    const original = String.prototype.normalize;
+    afterEach(() => {
+      String.prototype.normalize = original;
+      vi.resetModules();
+    });
+    /** Carrega o contrato de novo com o `normalize` trocado (ausente ou quebrado), como num aparelho sem ele. */
+    const contratoSem = async (troca: ((this: string) => string) | undefined): Promise<typeof contrato> => {
+      vi.resetModules();
+      (String.prototype as { normalize?: unknown }).normalize = troca;
+      return import('./busca-cliente');
+    };
+    const amostras = [
+      ...contrato.ACENTOS_PT,
+      ...Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)),
+      'JOÃO DA SILVA', 'Açougue São José', 'CONFECÇÕES ÍRIS', 'Pão de Açúcar', 'ÔNIBUS Ü', ' Maçã Ñandu ',
+      'Joa\u0303o', // acento já separado (forma decomposta)
+      '', '12.345.678/0001-90',
+    ];
+    it.each([
+      ['ausente', undefined],
+      ['que lança erro', function (this: string): string { throw new RangeError('sem ICU'); }],
+      ['que não decompõe', function (this: string): string { return String(this); }],
+    ])('RF-CORE-02: com normalize %s, normalizarBusca dá o mesmo resultado da versão com normalize', async (_nome, troca) => {
+      const esperado = amostras.map((a) => contrato.normalizarBusca(a));
+      const sem = await contratoSem(troca);
+      expect(amostras.map((a) => sem.normalizarBusca(a))).toEqual(esperado);
+      expect(sem.clienteCasaBusca('joão 0103', { razao_social: 'JOAO', external_id: '0103' })).toBe(true);
+      expect(sem.clienteCasaBusca('acougue', { nome_fantasia: 'Açougue Central' })).toBe(true);
     });
   });
 });

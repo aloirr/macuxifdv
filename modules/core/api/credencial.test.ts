@@ -1,8 +1,17 @@
 import { catalogoDePermissoes, matrizDeFabrica, type ClienteBanco, type ContextoConsulta, type Manifesto } from '@macuxi/platform-sdk';
-import { describe, expect, it } from 'vitest';
+import * as crypto from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
 import { CredencialConferirEntradaSchema, CredencialConferirSaidaSchema, UsuariosComAcaoEntradaSchema } from '../contracts';
 import { hashSenha } from './seguranca';
 import { consultaCredencialConferir, consultaUsuariosComAcao } from './credencial';
+
+// O argon2 de verdade, com espião: conta as conferências e os parâmetros de cada uma.
+vi.mock('node:crypto', async (original) => {
+  const real = await original<typeof import('node:crypto')>();
+  return { ...real, argon2: vi.fn((real as unknown as { argon2: (...a: unknown[]) => void }).argon2) };
+});
+type ChamadaArgon2 = [string, { memory: number; passes: number; parallelism: number; tagLength: number }, unknown];
+const argon2 = (crypto as unknown as { argon2: { mock: { calls: ChamadaArgon2[] }; mockClear: () => void } }).argon2;
 
 const U = '0ea00000-0000-4000-8000-0000000000a1';
 const SENHA = 'Senha-Do-Admin-123';
@@ -55,12 +64,18 @@ describe('RN-INT-16 e RN-CORE-15: core.credencial_conferir@1', () => {
   });
   it('RN-INT-16: usuário inexistente e senha incorreta gastam uma conferência argon2 cada (tempo comparável)', async () => {
     const senha_hash = await hashSenha(SENHA);
-    const t = async (linha: Record<string, unknown> | null) => { const i = performance.now(); await conferir(linha, 'errada'); return performance.now() - i; };
-    await t(null); // aquece o hash falso
-    const sem = await t(null);
-    const errada = await t({ senha_hash, ...LINHA });
-    expect(sem).toBeGreaterThan(errada * 0.4);
-    expect(sem).toBeLessThan(errada * 2.5);
+    const custo = async (linha: Record<string, unknown> | null) => {
+      argon2.mockClear();
+      await conferir(linha, 'errada');
+      return argon2.mock.calls.map(([alg, p]) => ({ alg, memory: p.memory, passes: p.passes, parallelism: p.parallelism, tagLength: p.tagLength }));
+    };
+    await custo(null); // aquece o hash falso (gerado uma vez por processo)
+    const sem = await custo(null);
+    const errada = await custo({ senha_hash, ...LINHA });
+    const semSenha = await custo({ senha_hash: null, ...LINHA });
+    expect(errada).toEqual([{ alg: 'argon2id', memory: 19_456, passes: 2, parallelism: 1, tagLength: 32 }]);
+    expect(sem).toEqual(errada);
+    expect(semSenha).toEqual(errada);
   });
   it('RN-INT-16: a entrada recusa campo extra, usuário que não é uuid e ausência da ação', () => {
     expect(() => CredencialConferirEntradaSchema.parse({ usuario_id: 'x', senha: 'a', acao: ACAO })).toThrow();
