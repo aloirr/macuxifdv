@@ -4,11 +4,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import { ErroHttpModulo } from './api';
+import { VARIANTES_APP } from './app-versao';
 import {
   CODIGO_ARMAZENAMENTO_INDISPONIVEL,
+  PRODUTOS_PACOTE,
   chaveDoPacote,
   chaveUltimoPacote,
   criarServicoPacotesMemoria,
+  LinkPacoteSchema,
   PacotePublicadoSchema,
   SERVICO_PACOTES_DESLIGADO,
   VALIDADE_LINK_PACOTE_S,
@@ -36,12 +39,28 @@ describe('PacotePublicadoSchema', () => {
   });
 });
 
+describe('LinkPacoteSchema', () => {
+  it('é o link que a rota devolve: tira publicado_em e campos a mais, exige url e expira_em', async () => {
+    const servico = criarServicoPacotesMemoria({ conector: { versao: '1.3.0', arquivo: 'c.zip', sha256: SHA, publicado_em: '2026-11-09T12:00:00Z' } });
+    const link = await servico.linkDoUltimo('conector');
+    const r = LinkPacoteSchema.parse({ ...link, extra: 1 });
+    expect(Object.keys(r).sort()).toEqual(['arquivo', 'expira_em', 'sha256', 'url', 'versao']);
+    expect(LinkPacoteSchema.safeParse({ versao: '1.3.0', arquivo: 'c.zip' }).success).toBe(false);
+  });
+});
+
 describe('chaves do pacote', () => {
   it('produto da lista fechada e nome sem barra', () => {
     expect(chaveDoPacote('conector', 'c-1.0.0.zip')).toBe('conector/c-1.0.0.zip');
     expect(chaveUltimoPacote('conector')).toBe('conector/ultimo.json');
     expect(() => chaveDoPacote('outro' as ProdutoPacote, 'c.zip')).toThrow();
     expect(() => chaveDoPacote('conector', '../x')).toThrow();
+  });
+
+  it('T-0190 (RN-CORE-67): os APKs do Campo e do Gestão são produtos de pacote, um por variante do app', () => {
+    expect(PRODUTOS_PACOTE).toEqual(['conector', ...VARIANTES_APP]);
+    expect(chaveDoPacote('campo', 'macuxi-campo-1.0.19.apk')).toBe('campo/macuxi-campo-1.0.19.apk');
+    expect(chaveUltimoPacote('gestao')).toBe('gestao/ultimo.json');
   });
 });
 
