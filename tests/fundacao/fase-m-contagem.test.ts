@@ -138,6 +138,18 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
     novo: 'RF-CORE-02: sugestões primeiro (curva A parada à frente), sem acento, por código, CNPJ, razão social ou nome fantasia; tira quem já está na rota',
     decisao: 'busca de clientes só por código, CNPJ, razão social e nome fantasia (dono do produto, 20/11/2026, recado R-20261120-062210; PR #546; docs/testes/v1017-busca-clientes.md, defeito 2) — o editor de rota do BKO deixa de casar bairro e cidade; o bairro passa ao caso "RF-CORE-02: cidade e bairro não casam"',
   },
+  {
+    origem: 'apps/web/lib/routes.test.ts',
+    titulo: 'CD → paradas na ordem, sem as paradas sem coordenada',
+    novo: 'base → paradas na ordem, sem as paradas sem coordenada',
+    decisao: 'RN-CORE-75 e D8 (R-20261120-191213; T-0191) — o ponto fixo do CD saiu; a rota parte da base do vendedor, ou do 1º cliente quando não há base',
+  },
+  {
+    origem: 'apps/web/lib/routes.test.ts',
+    titulo: 'pontos do enquadramento incluem o CD; com foco, só a rota focada',
+    novo: 'pontos do enquadramento incluem as bases; com foco, só a rota focada',
+    decisao: 'RN-CORE-75 e D8 (R-20261120-191213; T-0191) — o ponto fixo do CD saiu; a rota parte da base do vendedor, ou do 1º cliente quando não há base',
+  },
 ];
 const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);
 
