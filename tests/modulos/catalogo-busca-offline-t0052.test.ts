@@ -225,7 +225,8 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
       for (const q of CONSULTAS_O2) {
         const comFts = skus(await busca(ap.leitor, q));
         const varredura = skus(await busca(ap.semFts, q));
-        expect(comFts.length, `"${q}": achou algo`).toBeGreaterThan(0);
+        // R-20261120-194335: frase que nenhum produto casa inteira dá lista vazia; a de uma palavra (sinônimo, código) sempre acha
+        if (!q.includes(' ')) expect(comFts.length, `"${q}": achou algo`).toBeGreaterThan(0);
         expect(comFts[0], `"${q}": 1º item`).toBe(varredura[0]);
         // tudo o que o FTS5 deixa passar está na varredura, na mesma ordem relativa
         expect(varredura.filter((s) => comFts.includes(s)), `"${q}": FTS5 ⊆ varredura`).toEqual(comFts);
