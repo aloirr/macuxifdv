@@ -2,7 +2,7 @@
  * Parâmetros do tenant do Catálogo. O esquema e os padrões vivem em `contracts` (`ParametrosCatalogo`);
  * aqui só a resolução com mensagem de erro em português.
  */
-import { ParametrosCatalogo } from '../contracts';
+import { ParametrosAplicacaoSchema, ParametrosCatalogo } from '../contracts';
 
 export type { ParametrosCatalogo };
 
@@ -66,4 +66,14 @@ export function timeoutIaDoTenant(cru: Readonly<Record<string, unknown>> | undef
   } catch {
     return TIMEOUT_IA_PADRAO_MS;
   }
+}
+
+// ---------- limite da Aplicação do produto (RN-CAT-11) ----------
+export type ResultadoLimiteAplicacao = { ok: true; valor: number } | { ok: false; mensagem: string };
+
+/** RN-CAT-11: só inteiro na faixa do contrato (`ParametrosAplicacaoSchema`). Vale na tela e na API (a API sempre revalida). */
+export function validarLimiteAplicacao(valor: unknown): ResultadoLimiteAplicacao {
+  const r = ParametrosAplicacaoSchema.shape.aplicacao_max_cadastro.safeParse(valor);
+  if (r.success) return { ok: true, valor: r.data };
+  return { ok: false, mensagem: 'Informe um número inteiro de 100 a 2.000.' };
 }

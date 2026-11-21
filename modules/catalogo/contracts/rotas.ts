@@ -298,6 +298,7 @@ export const ROTAS_CATALOGO = {
   marcas: 'marcas',
   marca: 'marcas/:id',
   exportacao: 'exportacao',
+  parametros: 'parametros',
   hierarquia: 'hierarquia',
   tabelasPreco: 'tabelas-preco',
   precosTabela: 'tabelas-preco/:id/precos',

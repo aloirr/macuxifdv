@@ -42,6 +42,7 @@ interface Resposta<T> {
 }
 
 const auditoria: unknown[] = [];
+const parametrosGravados: Array<{ tenant: string; valores: Record<string, unknown>; acao?: string }> = [];
 const eventos: Array<{ tenant: string; nome: string; payload: Record<string, unknown> }> = [];
 const arquivosRegistrados: Array<Record<string, unknown>> = [];
 const logs: Array<{ nivel: string; obj: Record<string, unknown>; msg?: string }> = [];
@@ -82,6 +83,7 @@ async function chamar<T>(rota: RotaModulo, u: Usuario, e: { query?: unknown; par
     agora: () => relogio.agora(),
     fuso: () => 'America/Manaus',
     parametros: () => o.parametros ?? {},
+    gravarParametros: async (v: Record<string, unknown>, op?: { acao?: string }) => void parametrosGravados.push({ tenant: u.tenant_id, valores: v, acao: op?.acao }),
     carteira: async () => o.carteira ?? new Set([CLIENTE_VAREJO, CLIENTE_ATACADO]),
     usuariosVisiveis: async () => new Set([u.id]),
     comTenant: async (fn) =>
@@ -137,6 +139,7 @@ function portaFalsa(resposta: unknown | Error): PortaInterpretacaoLlm & { chamad
 beforeEach(() => {
   memoria = criarRepositorioMemoria({ [TENANT_A]: dadosA(), [TENANT_B]: dadosB() });
   auditoria.length = 0;
+  parametrosGravados.length = 0;
   eventos.length = 0;
   logs.length = 0;
 });
@@ -1037,5 +1040,42 @@ describe('Marcas concorrentes do Catálogo (RN-CAT-13, T-0113, ADR 0034)', () =>
       corpo: { aplicacao: null, oferece_junto: [], etiquetas: [], referencias: [{ marca_id: M1, codigo: 'FM-100' }] },
     });
     expect(r.status).toBe(200);
+  });
+});
+
+describe('GET|PUT /v1/catalogo/parametros — limite da Aplicação (RN-CAT-11)', () => {
+  it('RN-CAT-11: o GET devolve o limite do tenant, ou 2.000 sem o parâmetro', async () => {
+    const { rota } = montar();
+    expect((await chamar(rota('GET', 'parametros'), usuario('admin'))).corpo).toEqual({ aplicacao_max_cadastro: 2000 });
+    expect((await chamar(rota('GET', 'parametros'), usuario('analista'), {}, { parametros: { aplicacao_max_cadastro: 300 } })).corpo).toEqual({ aplicacao_max_cadastro: 300 });
+  });
+
+  it('RN-CAT-04: só analista e admin leem e gravam o limite; os demais perfis levam 403 PERFIL_SEM_ACESSO', async () => {
+    const { rota } = montar();
+    for (const perfil of ['vendedor', 'promotor', 'supervisor', 'gerente', 'assistente'] as const) {
+      expect(await chamar(rota('GET', 'parametros'), usuario(perfil)), perfil).toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO' });
+      expect(await chamar(rota('PUT', 'parametros'), usuario(perfil), { corpo: { aplicacao_max_cadastro: 500 } }), perfil).toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO' });
+    }
+    expect((await chamar(rota('PUT', 'parametros'), usuario('analista'), { corpo: { aplicacao_max_cadastro: 500 } })).status).toBe(200);
+  });
+
+  it('RN-CORE-03: sem a licença do Catálogo, 403 MODULO_INATIVO', async () => {
+    const { rota } = montar();
+    expect(await chamar(rota('PUT', 'parametros'), usuario('admin', { modulos: ['core'] }), { corpo: { aplicacao_max_cadastro: 500 } })).toMatchObject({ status: 403, codigo: 'MODULO_INATIVO' });
+  });
+
+  it('RN-CAT-11: o PUT grava pelo SDK (auditado, idempotente) só a chave aplicacao_max_cadastro, no tenant do token', async () => {
+    const { rota } = montar();
+    const r = await chamar(rota('PUT', 'parametros'), usuario('admin'), { corpo: { aplicacao_max_cadastro: 800 } });
+    expect(r).toMatchObject({ status: 200, corpo: { aplicacao_max_cadastro: 800 } });
+    expect(parametrosGravados).toEqual([{ tenant: TENANT_A, valores: { aplicacao_max_cadastro: 800 }, acao: 'parametro.catalogo' }]);
+  });
+
+  it('RN-CAT-11: valor fora de 100 a 2.000, decimal ou campo a mais = 400 (nada é gravado)', async () => {
+    const { rota } = montar();
+    for (const corpo of [{ aplicacao_max_cadastro: 99 }, { aplicacao_max_cadastro: 2001 }, { aplicacao_max_cadastro: 100.5 }, { aplicacao_max_cadastro: '500' }, {}, { aplicacao_max_cadastro: 500, peso_estoque: 1 }]) {
+      expect((await chamar(rota('PUT', 'parametros'), usuario('admin'), { corpo })).status, JSON.stringify(corpo)).toBe(400);
+    }
+    expect(parametrosGravados).toEqual([]);
   });
 });
