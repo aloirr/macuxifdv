@@ -67,7 +67,7 @@ no Histórico, o principal é o do rodapé, e o rodapé leva também **Fechar**.
 **Diálogo Histórico — ‹Entidade›**: `subtitle` **‹conector› · n lotes**
 (com 1, **1 lote**); o corpo é só a tabela, sem nota explicativa.
 
-**Reprocessar** (linha ou rodapé) com a permissão `lote.reprocessar`: dispara direto, sem diálogo; aviso (`useToast`, success) **Reprocessamento iniciado.**
+**Reprocessar** (linha ou rodapé) com a permissão `lote.reprocessar`: dispara direto, sem diálogo.
 Resultado do Reprocessar (`useToast`):
 - tudo certo: **Reprocessamento iniciado.** (success);
 - parcial: **2 de 3 lotes reprocessados. Falhou o lote de 15/11 às 01:02: ‹mensagem›.** (danger);
@@ -84,7 +84,7 @@ escolhido, então só a senha é digitada; senha com "Mostrar", foco nela); bot�
 com a senha vazia; "Autorizando…" enquanto espera). Sem e-mail digitado: o seletor diz quem autorizou, que a senha sozinha não diz (a auditoria precisa do autor). O seletor é um campo do kit (15 px, 400).
 - Erros (embaixo da senha, `text-danger`; a senha é limpa e recebe o foco): **Senha incorreta.** · **Muitas tentativas. Tente de novo
   em alguns minutos.** · **Não deu para autorizar agora. Tente de novo.** (o "sem perfil" some: a lista só traz quem pode).
-- Sucesso: fecha e mostra **Reprocessamento iniciado.**
+- Sem erro de senha: fecha e mostra o resultado do Reprocessar (seção 5).
 
 Premissa: a API recebe o id do usuário escolhido + a senha, confere o perfil (RN-INT-06) e audita quem autorizou; a senha nunca vai
 para log nem fica guardada na tela. Contrato a pedir ao modulo-integracao/engenheiro-software (lista dos autorizadores e a rota).
