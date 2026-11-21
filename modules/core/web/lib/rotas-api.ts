@@ -3,11 +3,14 @@
  * o modelo do editor de rotas herdado da Fase M (`RouteDay`, `Seller`, `Team`, `CustomerSummary`). O editor (lista,
  * mapa Leaflet, 2-opt, copiar dia) continua igual; só a camada de dados troca. Puro: sem React nem rede.
  */
-import type { CustomerSummary, MembroHierarquia, PutRota, RotasLista, RouteDay, RouteStop, Seller, Team } from '../../contracts';
-import { routeDistanceKm } from '../../domain';
+import type { CustomerSummary, BaseNoMapa, DiaDaPrevia, MembroHierarquia, PutRota, RotasLista, RouteDay, RouteStop, Seller, Team } from '../../contracts';
+import { routeDistanceKm, type GeoPoint } from '../../domain';
 
-/** Ponto de partida padrão do mapa (centro de distribuição); sem endereço de CD no cadastro nesta sprint. */
-export const INICIO_PADRAO = { lat: -3.125, lng: -59.97 } as const;
+/** Sem base não há ponto de saída: o km conta a partir do 1º cliente (RN-CORE-75). */
+export const SEM_BASE: GeoPoint = { lat: null, lng: null };
+
+/** A base do vendedor como ponto do mapa e do cálculo de km. */
+export const pontoDaBase = (b: Pick<BaseNoMapa, 'lat' | 'lng'> | null | undefined): GeoPoint => (b ? { lat: b.lat, lng: b.lng } : SEM_BASE);
 
 type ItemRota = RotasLista['itens'][number];
 type ParadaServidor = ItemRota['paradas'][number];
@@ -73,8 +76,8 @@ export function clienteDaCarteira(c: ClienteDaCarteira, hoje: string): CustomerS
   return resumo({ id: c.id, nome: c.nome, razao: c.razao_social, codigo: c.external_id, documento: c.documento, cidade: c.cidade, bairro: c.bairro, lat: c.lat, lng: c.lng, ultima: c.ultima_compra_em }, hoje);
 }
 
-/** Rota do servidor → `RouteDay` do editor. `inicio` serve ao cálculo de km (CD → paradas, estrada ≈ 1,3 × reta). */
-export function paraRouteDay(item: ItemRota, hoje: string, inicio: { lat: number | null; lng: number | null } = INICIO_PADRAO): RouteDay {
+/** Rota do servidor → `RouteDay` do editor. `inicio` (a base do vendedor) serve ao cálculo de km (base → paradas, estrada ≈ 1,3 × reta). */
+export function paraRouteDay(item: ItemRota, hoje: string, inicio: GeoPoint = SEM_BASE): RouteDay {
   const stops: RouteStop[] = item.paradas.map((p) => ({
     id: p.id,
     sequence: p.sequencia,
@@ -96,6 +99,35 @@ export function paraRouteDay(item: ItemRota, hoje: string, inicio: { lat: number
     stops,
     done_count: item.feitas,
   };
+}
+
+type ParadaPendente = { id: string; customer: CustomerSummary; window_start: string; window_end: string };
+
+/** Dia da prévia (RN-CORE-76): nada gravado (sem id), paradas pendentes na ordem dada; o km vem de quem montou a ordem. */
+export function diaPendente(dia: { seller_id: string; date: string }, paradas: readonly ParadaPendente[], km: number): RouteDay {
+  const stops: RouteStop[] = paradas.map((p, i) => ({
+    id: p.id,
+    sequence: i + 1,
+    window_start: p.window_start,
+    window_end: p.window_end,
+    status: 'pending',
+    distance_km: 0,
+    customer: p.customer,
+    visit: null,
+    order_total_cents: null,
+  }));
+  return { id: null, seller_id: dia.seller_id, date: dia.date, status: 'planejada', region: '', total_km: km, stops, done_count: 0 };
+}
+
+/** Dia da prévia da API → `RouteDay` do editor, com o km que a API calculou (a tela não recalcula). */
+export function diaDaPreviaParaRouteDay(dia: Pick<DiaDaPrevia, 'data' | 'paradas' | 'km'>, usuarioId: string, hoje: string): RouteDay {
+  const paradas = dia.paradas.map((p) => ({
+    id: p.cliente_id,
+    window_start: '',
+    window_end: '',
+    customer: resumo({ id: p.cliente_id, nome: p.nome, razao: p.nome, cidade: p.cidade, bairro: p.bairro, lat: p.lat, lng: p.lng, ultima: null }, hoje),
+  }));
+  return diaPendente({ seller_id: usuarioId, date: dia.data }, paradas, dia.km);
 }
 
 /** Monta vendedores/"equipes" (o superior direto) dos membros que passam no filtro. */

@@ -478,6 +478,7 @@ export * from './eventos';
 export * from './visita';
 export * from './etapas-checkout';
 export * from './rota';
+export * from './endereco-usuario';
 export * from './carteira';
 export * from './cliente360';
 export * from './notificacao';

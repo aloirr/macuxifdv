@@ -8,10 +8,10 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import { HierarquiaEquipeSchema, RotasListaSchema, type MembroHierarquia, type RouteDay } from '../../contracts';
+import { HierarquiaEquipeSchema, RotasListaSchema, type BaseNoMapa, type CalendarioRotas, type MembroHierarquia, type RouteDay } from '../../contracts';
 import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { hojeNoFuso } from './hoje';
-import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, INICIO_PADRAO, paraRouteDay, type ClienteDaCarteira } from './rotas-api';
+import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, paraRouteDay, pontoDaBase, type ClienteDaCarteira } from './rotas-api';
 
 export const qk = {
   me: ['me'] as const,
@@ -36,7 +36,10 @@ export function useMe() {
 }
 
 export interface RoutesResponse {
-  start: { lat: number; lng: number };
+  /** RN-CORE-75: a base de cada vendedor da lista (`null` = sem base). */
+  bases: Record<string, BaseNoMapa | null>;
+  /** Semana útil e feriados do tenant para a lista de dias (RN-CORE-76, D3). */
+  calendario: CalendarioRotas | null;
   items: RouteDay[];
 }
 
@@ -88,7 +91,8 @@ export function useRoutes(f: RoutesFilter, enabled = true) {
     queryFn: async ({ signal }): Promise<RoutesResponse> => {
       const r = await api<unknown>('/core/rotas', { query: { de: f.from, ate: f.to, ...(f.seller_id ? { usuario_id: f.seller_id } : {}) }, signal });
       const hoje = hojeIso();
-      return { start: { ...INICIO_PADRAO }, items: RotasListaSchema.parse(r).itens.map((i) => paraRouteDay(i, hoje)) };
+      const lista = RotasListaSchema.parse(r);
+      return { bases: lista.bases, calendario: lista.calendario ?? null, items: lista.itens.map((i) => paraRouteDay(i, hoje, pontoDaBase(lista.bases[i.usuario_id]))) };
     },
     enabled: authed && enabled && !!f.from,
     refetchInterval: intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN), // RN-CORE-23 item 6: sync_auto_min (30, mín. 15); o botão Atualizar cobre o resto

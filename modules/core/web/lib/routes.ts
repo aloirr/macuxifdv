@@ -3,8 +3,10 @@
  * do editor. Só lógica de tela; distância e ordenação vêm de modules/core/domain (route.ts).
  */
 import type { CustomerSummary, RouteDay, RouteStop } from '../../contracts';
-import { clienteCasaBusca, MINIMO_BUSCA_CLIENTE_BKO, optimizeRoute, routeDistanceKm, type GeoPoint } from '../../domain';
+import { CALENDARIO_PADRAO, clienteCasaBusca, diaDeSemanaUtil as diaDeRota, MINIMO_BUSCA_CLIENTE_BKO, optimizeRoute, routeDistanceKm, type GeoPoint } from '../../domain';
+import { ehFeriado } from '@macuxi/comum/calendar';
 import { monthLabel } from '@macuxi/ui/web';
+import type { CSSProperties } from 'react';
 
 /* ---------- datas civis (AAAA-MM-DD, sem fuso) ---------- */
 
@@ -29,7 +31,19 @@ export function weekday(iso: string): number {
   return new Date(toUtc(iso)).getUTCDay();
 }
 
-export const isBusinessDay = (iso: string) => weekday(iso) !== 0 && weekday(iso) !== 6;
+/** Semana útil e feriados do tenant (`GET rotas` → `calendario`); os feriados nacionais entram sempre (RN-CORE-76, D3). */
+export interface CalendarioDaTela {
+  dias_uteis_semana: readonly number[];
+  feriados: readonly string[];
+}
+
+/** Dia da semana útil do tenant (padrão do domain, segunda a sábado), pelo mesmo predicado do domain (RN-CORE-76); feriado é outro estado. */
+export function diaDeSemanaUtil(iso: string, cal?: Pick<CalendarioDaTela, 'dias_uteis_semana'> | null): boolean {
+  return diaDeRota(iso, cal?.dias_uteis_semana ?? CALENDARIO_PADRAO.dias_uteis_semana);
+}
+
+/** Dia de rota: dia da semana útil e não feriado (nacional ou do tenant). */
+export const isBusinessDay = (iso: string, cal?: CalendarioDaTela | null) => diaDeSemanaUtil(iso, cal) && !ehFeriado(iso, cal?.feriados ?? []);
 
 export const WEEKDAY_LONG = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 export const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -47,14 +61,16 @@ export interface PeriodRange {
 }
 
 /**
- * Intervalo consultado na API. Semana = segunda a sexta (rotas em dias úteis);
+ * Intervalo consultado na API. Semana = segunda até o último dia da semana útil do tenant (padrão do domain: sábado);
  * mês = do dia 1 ao último dia.
  */
-export function periodRange(mode: PeriodMode, anchor: string): PeriodRange {
+export function periodRange(mode: PeriodMode, anchor: string, cal?: Pick<CalendarioDaTela, 'dias_uteis_semana'> | null): PeriodRange {
   if (mode === 'day') return { from: anchor, to: anchor };
   if (mode === 'week') {
     const mon = mondayOf(anchor);
-    return { from: mon, to: addDays(mon, 4) };
+    let fim = 5;
+    while (fim > 0 && !diaDeSemanaUtil(addDays(mon, fim), cal)) fim -= 1;
+    return { from: mon, to: addDays(mon, fim) };
   }
   const first = `${anchor.slice(0, 7)}-01`;
   const y = Number(anchor.slice(0, 4));
@@ -64,15 +80,15 @@ export function periodRange(mode: PeriodMode, anchor: string): PeriodRange {
 }
 
 /** Próximo/anterior dia útil. */
-export function shiftBusinessDay(iso: string, dir: 1 | -1): string {
+export function shiftBusinessDay(iso: string, dir: 1 | -1, cal?: CalendarioDaTela | null): string {
   let d = addDays(iso, dir);
-  while (!isBusinessDay(d)) d = addDays(d, dir);
+  while (!isBusinessDay(d, cal)) d = addDays(d, dir);
   return d;
 }
 
 /** Navegação ‹ ›: dia útil anterior/seguinte, semana ±7 dias, mês ±1 (fica no dia 1). */
-export function shiftAnchor(mode: PeriodMode, anchor: string, dir: 1 | -1): string {
-  if (mode === 'day') return shiftBusinessDay(anchor, dir);
+export function shiftAnchor(mode: PeriodMode, anchor: string, dir: 1 | -1, cal?: CalendarioDaTela | null): string {
+  if (mode === 'day') return shiftBusinessDay(anchor, dir, cal);
   if (mode === 'week') return addDays(mondayOf(anchor), 7 * dir);
   const y = Number(anchor.slice(0, 4));
   const m = Number(anchor.slice(5, 7)) - 1 + dir;
@@ -95,11 +111,11 @@ export function dayShortLabel(iso: string): string {
   return `${WEEKDAY_SHORT[weekday(iso)]} ${ddmm(iso)}`;
 }
 
-/** Rótulo do período: 'Segunda, 12/10' · '12 a 16 de out' · '28 de set a 2 de out' · 'Outubro 2026'. */
-export function periodLabel(mode: PeriodMode, anchor: string): string {
+/** Rótulo do período: 'Segunda, 12/10' · '12 a 17 de out' · '28 de set a 3 de out' · 'Outubro 2026'. */
+export function periodLabel(mode: PeriodMode, anchor: string, cal?: Pick<CalendarioDaTela, 'dias_uteis_semana'> | null): string {
   if (mode === 'day') return dayLabel(anchor);
   if (mode === 'month') return monthLabel(anchor.slice(0, 7));
-  const { from, to } = periodRange('week', anchor);
+  const { from, to } = periodRange('week', anchor, cal);
   const d1 = Number(from.slice(8, 10));
   const d2 = Number(to.slice(8, 10));
   const m1 = MONTH_SHORT[Number(from.slice(5, 7)) - 1];
@@ -108,16 +124,31 @@ export function periodLabel(mode: PeriodMode, anchor: string): string {
 }
 
 /** Período contém a data? (para o botão "Hoje" ficar desativado) */
-export function periodContains(mode: PeriodMode, anchor: string, iso: string): boolean {
-  const r = periodRange(mode, anchor);
+export function periodContains(mode: PeriodMode, anchor: string, iso: string, cal?: Pick<CalendarioDaTela, 'dias_uteis_semana'> | null): boolean {
+  const r = periodRange(mode, anchor, cal);
   return iso >= r.from && iso <= r.to;
 }
 
-/** Dias úteis do período, em ordem. */
-export function businessDaysIn(range: PeriodRange): string[] {
-  const out: string[] = [];
-  for (let d = range.from; d <= range.to; d = addDays(d, 1)) if (isBusinessDay(d)) out.push(d);
+/**
+ * Dias do período da semana útil do tenant, em ordem, com a marca de feriado (nacional ou do tenant). Domingo nunca entra
+ * (RN-CORE-76: o mesmo calendário da criação por proximidade).
+ */
+export function diasDoCalendario(range: PeriodRange, cal?: CalendarioDaTela | null): Array<{ date: string; feriado: boolean }> {
+  const out: Array<{ date: string; feriado: boolean }> = [];
+  for (let d = range.from; d <= range.to; d = addDays(d, 1)) {
+    if (diaDeSemanaUtil(d, cal)) out.push({ date: d, feriado: ehFeriado(d, cal?.feriados ?? []) });
+  }
   return out;
+}
+
+/**
+ * Legenda de cor por dia do mapa: os dias da semana que de fato têm rota (com parada) no período e são dias de semana úteis do
+ * tenant (`diaDeSemanaUtil`). Sem rota nenhuma, os dias úteis do calendário do período, sem feriado. Em ordem seg a sáb.
+ */
+export function diasDaLegendaDoMapa(routes: ReadonlyArray<{ date: string; stops: readonly unknown[] }>, range: PeriodRange, cal?: CalendarioDaTela | null): number[] {
+  const comRota = routes.filter((r) => r.stops.length > 0 && diaDeSemanaUtil(r.date, cal)).map((r) => weekday(r.date));
+  const dias = comRota.length > 0 ? comRota : diasDoCalendario(range, cal).filter((d) => !d.feriado).map((d) => weekday(d.date));
+  return [...new Set(dias)].sort((a, b) => a - b);
 }
 
 /** Mesmo dia da semana nas próximas N semanas (para "Copiar este dia para…"). */
@@ -156,6 +187,14 @@ export const WEEKDAY_COLORS: Record<number, string> = {
 };
 
 export const weekdayColor = (iso: string) => WEEKDAY_COLORS[weekday(iso)] ?? OTHER_COLOR;
+
+/** Traço da cor do dia (spec §4): o 2º dia que divide a cor (sexta e sábado) é tracejado, na lista e na legenda. */
+export function traceDaCor(cor: string, tracejado: boolean, direcao: 'vertical' | 'horizontal'): CSSProperties {
+  if (!tracejado) return { background: cor };
+  return { backgroundImage: `repeating-linear-gradient(${direcao === 'vertical' ? 'to bottom' : 'to right'}, ${cor} 0 6px, transparent 6px 10px)` };
+}
+
+export const traceDoDia = (date: string, direcao: 'vertical' | 'horizontal'): CSSProperties => traceDaCor(weekdayColor(date), diaTracejado(weekday(date)), direcao);
 
 /** Cores de status das paradas: tokens do `globals.css` (MC-0014; sucesso e gráfico da marca v1), sem hex solto. */
 export const STATUS_FILL = { done: 'var(--color-success)', in_progress: 'var(--color-grafico)' } as const;
@@ -206,6 +245,8 @@ export interface MapRoute {
   color: string;
   positions: Array<[number, number]>;
   stops: MapStop[];
+  /** traço tracejado: o 2º dia que divide a cor (sexta e sábado), quando a cor é por dia */
+  dashed: boolean;
   /** destaque: rota escolhida (ou nenhuma escolhida e nenhuma esmaecida) */
   emphasis: 'normal' | 'highlight' | 'dimmed';
   showLine: boolean;
@@ -222,6 +263,13 @@ export interface BuildMapOptions {
   draft?: { key: string; stops: MapStop[] } | null;
 }
 
+/** Sexta e sábado repetem a cor de segunda e terça: o 2º dia que divide a cor sai tracejado (spec §4). */
+export const diaTracejado = (dow: number): boolean => dow === 5 || dow === 6;
+
+/** `dashArray` do Leaflet para o 2º dia que divide a cor (spec §4). */
+export const TRACEJADO = '10 7';
+const dividePorTraco = (date: string, opts: BuildMapOptions) => opts.colorBy === 'weekday' && diaTracejado(weekday(date));
+
 export function toMapStops(stops: RouteStop[]): MapStop[] {
   return stops
     .filter((s) => s.customer.lat !== null && s.customer.lng !== null)
@@ -237,9 +285,10 @@ export function toMapStops(stops: RouteStop[]): MapStop[] {
     }));
 }
 
-/** Prepara as linhas: CD → paradas na ordem; cor, destaque e visibilidade da linha. */
-export function buildMapRoutes(routes: RouteDay[], start: GeoPoint, opts: BuildMapOptions): MapRoute[] {
+/** Prepara as linhas: base do vendedor → paradas na ordem; cor, destaque e visibilidade da linha. Sem base, a linha começa no 1º cliente. */
+export function buildMapRoutes(routes: RouteDay[], startOf: (sellerId: string) => GeoPoint, opts: BuildMapOptions): MapRoute[] {
   const out: MapRoute[] = routes.map((r) => {
+    const start = startOf(r.seller_id);
     const key = routeKey(r.seller_id, r.date);
     const stops = opts.draft && opts.draft.key === key ? opts.draft.stops : toMapStops(r.stops);
     const color = opts.colorBy === 'weekday' ? weekdayColor(r.date) : (opts.sellerColors[r.seller_id] ?? OTHER_COLOR);
@@ -247,25 +296,26 @@ export function buildMapRoutes(routes: RouteDay[], start: GeoPoint, opts: BuildM
     const positions: Array<[number, number]> = [];
     if (start.lat !== null && start.lng !== null) positions.push([start.lat, start.lng]);
     for (const s of stops) positions.push([s.lat, s.lng]);
-    return { key, sellerId: r.seller_id, date: r.date, color, positions, stops, emphasis, showLine: opts.showAllLines || emphasis === 'highlight' };
+    return { key, sellerId: r.seller_id, date: r.date, color, positions, stops, dashed: dividePorTraco(r.date, opts), emphasis, showLine: opts.showAllLines || emphasis === 'highlight' };
   });
   // rascunho de um dia que ainda não tem rota (criar rota)
   if (opts.draft && !out.some((r) => r.key === opts.draft!.key)) {
     const [sellerId = '', date = ''] = opts.draft.key.split('|');
+    const start = startOf(sellerId);
     const positions: Array<[number, number]> = start.lat !== null && start.lng !== null ? [[start.lat, start.lng]] : [];
     for (const s of opts.draft.stops) positions.push([s.lat, s.lng]);
     const color = opts.colorBy === 'weekday' ? weekdayColor(date) : (opts.sellerColors[sellerId] ?? OTHER_COLOR);
     out.forEach((r) => (r.emphasis = 'dimmed'));
-    out.push({ key: opts.draft.key, sellerId, date, color, positions, stops: opts.draft.stops, emphasis: 'highlight', showLine: true });
+    out.push({ key: opts.draft.key, sellerId, date, color, positions, stops: opts.draft.stops, dashed: dividePorTraco(date, opts), emphasis: 'highlight', showLine: true });
   }
   // a destacada por último (desenhada por cima)
   return out.sort((a, b) => Number(a.emphasis === 'highlight') - Number(b.emphasis === 'highlight'));
 }
 
-/** Todos os pontos para o fitBounds (com o CD). */
-export function boundsPoints(routes: MapRoute[], start: GeoPoint, onlyKey?: string | null): Array<[number, number]> {
+/** Todos os pontos para o fitBounds (com as bases). */
+export function boundsPoints(routes: MapRoute[], starts: readonly GeoPoint[], onlyKey?: string | null): Array<[number, number]> {
   const pts: Array<[number, number]> = [];
-  if (start.lat !== null && start.lng !== null) pts.push([start.lat, start.lng]);
+  for (const start of starts) if (start.lat !== null && start.lng !== null) pts.push([start.lat, start.lng]);
   for (const r of routes) {
     if (onlyKey && r.key !== onlyKey) continue;
     for (const s of r.stops) pts.push([s.lat, s.lng]);
@@ -283,6 +333,14 @@ export interface RouteKpis {
   inProgress: number;
   pending: number;
   avgPerRoute: number;
+}
+
+/** Subtítulo do Km total: "a partir da base" só quando todos os vendedores das rotas têm base; todos sem base, do 1º cliente (RN-CORE-75); mistura, sem subtítulo. */
+export function subtituloDoKm(routes: readonly Pick<RouteDay, 'seller_id' | 'stops'>[], bases: Readonly<Record<string, unknown>> | undefined): string | undefined {
+  const vendedores = [...new Set(routes.filter((r) => r.stops.length > 0).map((r) => r.seller_id))];
+  const comBase = vendedores.filter((id) => bases?.[id]).length;
+  if (comBase === vendedores.length) return 'a partir da base, sem volta';
+  return comBase === 0 ? 'a partir do 1º cliente, sem volta' : undefined;
 }
 
 export function routeKpis(routes: RouteDay[]): RouteKpis {

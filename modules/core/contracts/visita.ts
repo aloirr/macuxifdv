@@ -126,6 +126,12 @@ export const CoordenadaSugeridaSchema = z.object({
   cliente_id: z.string().uuid(),
   cliente_nome: z.string(),
   cidade: z.string().nullable(),
+  /** T-0191: o cliente já tem coordenada gerada pelo endereço (o check-in aprovado a substitui); o botão "Gerar coordenada" não se aplica. */
+  geocodificada: z.boolean().optional(),
+  /** T-0191 D7: o cadastro tem rua ou CEP (`enderecoPermiteGerar`, calculado na API); sem isso a tela mostra o aviso no lugar do botão. */
+  pode_gerar: z.boolean().optional(),
+  /** T-0191 D8: o endereço atual é o da última tentativa (`geocodificacao_chave`); sem botão, só o texto vermelho. */
+  ja_tentado: z.boolean().optional(),
   visitas: z.array(z.object({ visita_id: z.string().uuid(), usuario_nome: z.string(), checkin_em: z.string(), lat: z.number(), lng: z.number(), precisao_m: z.number().nullable() })),
 });
 export const CoordenadasSugeridasSchema = z.object({ itens: z.array(CoordenadaSugeridaSchema) });
@@ -133,3 +139,19 @@ export type CoordenadasSugeridas = z.infer<typeof CoordenadasSugeridasSchema>;
 
 export const AprovarCoordenadaSchema = z.object({ visita_id: z.string().uuid() }).strict();
 export type AprovarCoordenada = z.infer<typeof AprovarCoordenadaSchema>;
+
+/**
+ * T-0191 / RN-CORE-77: `POST /v1/core/clientes/:id/coordenada/gerar` (ação `cliente.aprovar_coordenada`), um clique por cliente sem
+ * coordenada. 200 com a coordenada gravada (`coordenada_origem = 'geocodificacao'`); 422 `NAO_LOCALIZADO` (só cidade ou nada; a
+ * tentativa fica registrada), `JA_TENTADO` (o endereço e o CEP não mudaram desde a última tentativa) e `JA_TEM_COORDENADA` (nunca
+ * sobrescreve); 503 `GEOCODIFICADOR_INDISPONIVEL` (a tentativa não é gravada).
+ */
+export const PRECISOES_COORDENADA = ['numero', 'rua', 'cep'] as const;
+export const GerarCoordenadaRespostaSchema = z.object({
+  cliente_id: z.string().uuid(),
+  lat: z.number(),
+  lng: z.number(),
+  precisao: z.enum(PRECISOES_COORDENADA),
+});
+export type GerarCoordenadaResposta = z.infer<typeof GerarCoordenadaRespostaSchema>;
+export const CODIGOS_GERAR_COORDENADA = ['NAO_LOCALIZADO', 'JA_TENTADO', 'JA_TEM_COORDENADA'] as const;

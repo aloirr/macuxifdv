@@ -57,6 +57,7 @@ import { rotasDeRastreamento } from './rastreamento-bko';
 import { consultaTrajetoDoDia, rotasDeTrajeto } from './trajeto-consulta';
 import { rotasDeTarefas } from './tarefas';
 import { rotasDeRotasEVisitas } from './rotas';
+import { rotasDeCriarRotaEBase } from './rotas-criar';
 import { rotasDeUsuarios } from './usuarios';
 import { rotasDeVinculoErp } from './vinculo-erp';
 import { rotasDePerfis } from './perfis';
@@ -77,7 +78,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   return definirModuloApi({
     manifesto: manifest,
     guardaArquivo: guardaArquivoDocumento,
-    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeAppsDownload, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeInicioBko, ...rotasDeParametrosHorarioCarga, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDeCliente360V2, ...rotasDeCarteiraDoCliente, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
+    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeAppsDownload, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeCriarRotaEBase, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeInicioBko, ...rotasDeParametrosHorarioCarga, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDeCliente360V2, ...rotasDeCarteiraDoCliente, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170, ...provedoresSyncTrajeto],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
