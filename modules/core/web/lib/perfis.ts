@@ -127,6 +127,7 @@ const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'notificacao.enviar': 'Enviar recado à equipe',
   'notificacao.recado_do_dia': 'Marcar o recado do dia',
   'inicio.ver': 'Ver o Início do app',
+  'inicio_bko.ver': 'Ver o Início do BKO',
   'farol.ver': 'Ver o farol de clientes',
   'parametro.farol': 'Ajustar o farol',
   'parametro.inicio': 'Ajustar o Início',

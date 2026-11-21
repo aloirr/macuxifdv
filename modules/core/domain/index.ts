@@ -46,6 +46,7 @@ export * from './meta-do-dia';
 export * from './inicio';
 export * from './rodape-cliente';
 export * from './inicio-parametros';
+export * from './inicio-bko';
 export * from './jornada';
 export * from './alertas-produtividade';
 export * from './lembretes-produtividade';
