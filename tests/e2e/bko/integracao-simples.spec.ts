@@ -974,7 +974,11 @@ test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os r
     await expect(page.getByTestId(`base-${entidade}.importar`)).toBeEnabled();
     await page.getByTestId(`base-${entidade}.importar`).click();
     // "Em andamento": o Hub segue gravando além dos 15 min de espera da tela
-    if (entidade === 'preco') await page.clock.fastForward('16:00');
+    // só depois da 1ª leitura do lote (fase "gravando"): antes disso a espera ainda não marcou o início
+    if (entidade === 'preco') {
+      await expect(page.getByTestId('base-preco.progresso')).toContainText('Gravando o arquivo');
+      await page.clock.fastForward('16:00');
+    }
     await expect(page.getByTestId(`base-${entidade}.resultado`)).toBeAttached({ timeout: 60_000 });
   }
   for (const [entidade, , rotulo] of BASES_PORTAL) {
