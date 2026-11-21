@@ -50,7 +50,7 @@ describe('expandirAplicacao', () => {
 
   it('RN-CAT-12: faixa aberta fora do limite fica só como texto', () => {
     expect(ex('1980 em diante').anos).toEqual([1980]);
-    expect(ex('2040>').anos).toEqual([2040]);
+    expect(ex('2040>').anos).toEqual([]); // RN-CAT-16: 2040 não é ano válido
   });
 
   it('RN-CAT-12: cadeia de 3 anos ligados por "/" é lista, não faixa', () => {
@@ -74,8 +74,9 @@ describe('expandirAplicacao', () => {
     expect(ex('12012').anos).toEqual([]);
   });
 
-  it('RN-CAT-12: ano de 2 dígitos ("10/14") não vira faixa (parâmetro desligado)', () => {
-    expect(ex('Uno 10/14').anos).toEqual([]);
+  it('RN-CAT-12 + RN-CAT-16: ano de 2 dígitos ("10/14") só deixa de valer com a opção `ano2Digitos` desligada', () => {
+    expect(expandirAplicacao('Uno 10/14', { anoAtual: 2026, ano2Digitos: false }).anos).toEqual([]);
+    expect(ex('Uno 10/14').anos).toEqual(de(2010, 2014));
   });
 
   it('RN-CAT-12: o ano atual entra pelo relógio injetado, não pelo do sistema', () => {

@@ -54,18 +54,17 @@ describe.each([false, true])('R-20261120-101755: busca palavra por palavra em qu
   });
 });
 
-/**
- * R-20261120-103142 (v1.0.17, "b com o ajuste"). Premissa: "casar a palavra" = grupo de sinônimos com nota > 0; produto exato por código
- * (SKU, EAN, n-grama, referência) casa tudo; o ano da consulta fora dos anos da aplicação é só "o grupo do ano não casa".
- */
 it('RN-CAT-09: o filtro de marca "mahle" traz quem tem a Mahle como marca própria e como marca concorrente', () => {
   expect(buscar('mahle')).toEqual(expect.arrayContaining([ALVO.id, uuid(5)]));
 });
 
-describe.each([false, true])('R-20261120-103142: só quem casa tudo; sem ninguém, os mais próximos (índice: %s)', (comIndice) => {
-  it('RN-CAT-12: "AMORTECEDOR GOL 2015 MAHLE 33000" (ano fora de 2005 a 2010): ninguém casa tudo, o alvo vem primeiro como o mais próximo', () => {
-    const r = buscar('AMORTECEDOR GOL 2015 MAHLE 33000', comIndice);
-    expect(r[0]).toBe(ALVO.id);
+/**
+ * Premissa (R-20261120-194335): "casar a palavra" = grupo de sinônimos com nota > 0; produto exato por código (SKU, EAN, n-grama,
+ * referência) casa tudo; o ano da consulta fora dos anos da aplicação é só "o grupo do ano não casa".
+ */
+describe.each([false, true])('R-20261120-194335: só quem casa tudo; sem ninguém, lista vazia (índice: %s)', (comIndice) => {
+  it('RN-CAT-12: "AMORTECEDOR GOL 2015 MAHLE 33000" (ano fora de 2005 a 2010): ninguém casa tudo, lista vazia', () => {
+    expect(buscar('AMORTECEDOR GOL 2015 MAHLE 33000', comIndice)).toEqual([]);
   });
   it('RN-CAT-08: "AMORTECEDOR GOL 2007 MAHLE 33000": o alvo casa tudo e o Uno (só "amortecedor") não aparece', () => {
     const r = buscar('AMORTECEDOR GOL 2007 MAHLE 33000', comIndice);
@@ -82,14 +81,14 @@ describe.each([false, true])('R-20261120-103142: só quem casa tudo; sem ningué
 });
 
 describe('R-20261120-101755: pré-nota do índice vê o ano da consulta', () => {
-  it('RN-CAT-12: a pré-nota conta 2 de 3 palavras no Gol 2012 a 2016 para "gol 2007" e não zera o Gol 2005 a 2010', () => {
+  it('RN-CAT-12: a pré-seleção descarta o Gol 2012 a 2016 (2 de 3 palavras) para "amortecedor gol 2007" e mantém o Gol 2005 a 2010', () => {
     const filtros = interpretarConsulta('amortecedor gol 2007', vocabularioDe(PRODUTOS));
     const pre = candidatosDaBusca({ produtos: PRODUTOS, contexto, filtros, sinonimos: [], anoAtual: 2026, minimo: 0 })!;
     const daPre = (id: string) => pre.pre![pre.produtos.findIndex((p) => p.id === id)]!;
-    expect(pre.produtos.map((p) => p.id)).toEqual(expect.arrayContaining([ALVO.id, uuid(2)]));
+    // R-20261120-194335: quem casa só 2 de 3 palavras (ano fora) já sai da pré-seleção
+    const ids = pre.produtos.map((p) => p.id);
+    expect(ids).toContain(ALVO.id);
+    expect(ids).not.toContain(uuid(2));
     expect(daPre(ALVO.id).pontos).toBeGreaterThan(0);
-    // R-20261120-103142: o ano fora é "o grupo não casa" (2 de 3 palavras), não zera mais o produto
-    expect(daPre(uuid(2)).casados).toBe(2);
-    expect(daPre(ALVO.id).casados).toBe(3);
   });
 });

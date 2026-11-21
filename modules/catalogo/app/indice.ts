@@ -8,7 +8,7 @@
 import { definirIndiceBusca, type LinhaSync } from '@macuxi/platform-sdk';
 import type { ProdutoSync } from '@macuxi/core/contracts';
 import type { ProdutoAtributoSync, ProdutoConteudoSync, ProdutoReferenciaSync } from '../contracts';
-import { expandirAplicacao, FAIXA_MAXIMA_ANOS } from '../domain/aplicacao';
+import { ANO_MAXIMO_INDICE, expandirAplicacao, FAIXA_MAXIMA_ANOS } from '../domain/aplicacao';
 import { codigosCompactosDoProduto, marcasDasReferencias, textoDescricaoParaBusca } from '../domain/ranking';
 import { COLUNAS_BUSCA_CATALOGO, TABELAS_BUSCA_CATALOGO } from '../db/aparelho';
 import { ID_INDICE_BUSCA } from './lib/local';
@@ -31,7 +31,7 @@ export const PESOS_BUSCA_CATALOGO: Readonly<Record<Coluna, number>> = { sku: 10,
  */
 export function textoIndiceAplicacao(texto: string | null | undefined): string {
   const t = texto ?? '';
-  const base = expandirAplicacao(t, { anoAtual: 0 }); // limite 1: nenhuma faixa aberta vale, só as fechadas
+  const base = expandirAplicacao(t, { anoAtual: 0, anoMaximo: ANO_MAXIMO_INDICE }); // limite 1: nenhuma faixa aberta vale, só as fechadas
   if (base.anos.length === 0) return base.textoIndice;
   const gerados = base.textoIndice === t ? [] : base.textoIndice.slice(t.length + 1).split(' ').map(Number);
   const literais = new Set(base.anos);
@@ -41,7 +41,7 @@ export function textoIndiceAplicacao(texto: string | null | undefined): string {
   const janelas = new Set(base.anos.map((a) => Math.floor((a - PRIMEIRO_ANO) / JANELA)));
   for (const w of janelas) {
     const anoAtual = PRIMEIRO_ANO + w * JANELA + FAIXA_MAXIMA_ANOS - 1;
-    for (const f of expandirAplicacao(t, { anoAtual }).faixas) {
+    for (const f of expandirAplicacao(t, { anoAtual, anoMaximo: ANO_MAXIMO_INDICE }).faixas) {
       if (fechadas.has(`${f.inicio}:${f.fim}`)) continue;
       for (let a = f.de; a <= f.de + FAIXA_MAXIMA_ANOS; a++) todos.add(a);
     }
@@ -52,14 +52,14 @@ export function textoIndiceAplicacao(texto: string | null | undefined): string {
 
 /** Janela de anos de início em que uma chamada só do domain valida toda faixa aberta (`anoAtual - 39 ..= anoAtual + 1`). */
 const JANELA = FAIXA_MAXIMA_ANOS + 1;
-/** Começo das janelas: um antes do menor ano que o domain reconhece (1900). */
+/** Começo das janelas: um antes do menor ano que o domain reconhece (`ANO_MINIMO_VALIDO` desde a RN-CAT-16; a janela mais antiga só fica sem uso). */
 const PRIMEIRO_ANO = 1899;
 
 /**
- * Formato do documento (`v5` = marca das referências na coluna `marca` e descrição longa em `atributos`, RN-CAT-08/09; `v4` = faixa
+ * Formato do documento (`v6` = anos da RN-CAT-16 ("até", mês/ano, 2 dígitos, ano válido 1950..atual+2) no texto da aplicação; `v5` = marca das referências na coluna `marca` e descrição longa em `atributos`, RN-CAT-08/09; `v4` = faixa
  * aberta até o teto, T-0096). Sem o ano: a virada do ano não reindexa nada; a troca de versão reindexa uma vez no app atualizado.
  */
-export const versaoDocumentosCatalogo = () => 'v5';
+export const versaoDocumentosCatalogo = () => 'v6';
 
 export const INDICE_BUSCA_CATALOGO = definirIndiceBusca<Coluna>({
   id: ID_INDICE_BUSCA,

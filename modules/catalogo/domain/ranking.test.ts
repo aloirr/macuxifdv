@@ -324,13 +324,13 @@ describe('RF-CAT-02: desempenho do ranking com catálogo grande (T-0052-B4; limi
   const LIMITE_PERF = (meta: number) => (process.env['MACUXI_PERF'] === '1' ? meta : meta * 4);
 
   it('RF-CAT-02: 400 candidatos (o que o FTS5 entrega) rankeiam em menos de 3 s, mesmo na primeira busca (antes: 1,2 s sem carga; folga para máquina ocupada)', () => {
-    const { ms, r } = medir(catalogo(400), 'freio dianteiro');
+    const { ms, r } = medir(catalogo(400), 'freio filtro');
     expect(r.length).toBeGreaterThan(0);
     expect(ms).toBeLessThan(LIMITE_PERF(3000));
   });
 
   it('RF-CAT-02: 2.154 produtos na varredura completa (pior caso, sem FTS5) não passam de 5 s (eram 3,8 a 14 s)', () => {
-    const { ms, r } = medir(catalogo(2154), 'freio dianteiro');
+    const { ms, r } = medir(catalogo(2154), 'freio filtro');
     expect(r.length).toBeGreaterThan(0);
     expect(ms).toBeLessThan(LIMITE_PERF(5000));
   });
@@ -357,10 +357,10 @@ describe('RN-CAT-12: o ano da consulta cai no MESMO trecho da aplicação que o 
     expect(acha('pastilha uno 2012').casados).toBe(3);
   });
 
-  it('RN-CAT-12 + R-20261120-103142: "pastilha uno 2015" não casa o ano (2015 só existe na faixa do Palio): 2 de 3 palavras, o produto só aparece como o mais próximo', () => {
+  it('RN-CAT-12 + R-20261120-194335: "pastilha uno 2015" não casa o ano (2015 só existe na faixa do Palio): 2 de 3 palavras, o produto não aparece (lista vazia)', () => {
     expect(acha('pastilha uno 2015')).toMatchObject({ casados: 2, total: 3 });
     const r = rankearBase([pastilha], { anoAtual: 2026, filtros: filtros({ text: 'pastilha uno 2015' }), sinonimos: [], parametros: PARAMETROS_PADRAO });
-    expect(r.map((i) => [i.doc.id, i.casados])).toEqual([['pst', 2]]);
+    expect(r).toEqual([]);
   });
 
   it('RN-CAT-12: "pastilha palio 2015" casa as 3 palavras e "pastilha palio 2011" só 2 (o ano é do Uno, não do Palio)', () => {

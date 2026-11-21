@@ -115,7 +115,7 @@ describe('T-0119: índice de busca (pré-seleção dos candidatos)', () => {
   });
 
   it('T-0119: a pré-seleção enxuga de verdade (consulta específica fica longe do catálogo inteiro)', () => {
-    const filtros = interpretarConsulta('pastilha fremax dianteiro', vocabularioDe(PRODUTOS));
+    const filtros = interpretarConsulta('pastilha fremax', vocabularioDe(PRODUTOS));
     const pre = candidatosDaBusca({ produtos: PRODUTOS, contexto: contexto(), filtros, sinonimos: [], minimo: 0 })!;
     expect(pre.produtos.length).toBeGreaterThan(0);
     expect(pre.produtos.length).toBeLessThan(PRODUTOS.length * 0.6);
