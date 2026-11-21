@@ -1,0 +1,133 @@
+name: apk — publicar no bucket privado (link temporário do portal)
+
+# T-0190 (ADR 0065, RN-CORE-67). SÓ MANUAL (workflow_dispatch). Pega o APK que uma execução VERDE do `android-build.yml`
+# gerou (artefato <Campo|Gestao>-Oficial-v<versão>) e publica no bucket privado da produção pelo
+# `pnpm --filter api publicar-pacote <campo|gestao> <apk> --versao <versão>` (APK primeiro, ultimo.json depois). O portal
+# (POST /v1/core/apps/download) passa a dar o link temporário da versão nova quando o ultimo.json aponta para ela.
+# O android-build.yml não muda: build e publicação são passos separados, e a publicação pede a aprovação do environment.
+#
+# Falha fechada (nada é publicado): versão fora de X.Y.Z, run_id que não é do android-build.yml, execução não concluída
+# com sucesso, artefato ausente ou sem o .apk com o nome esperado.
+#
+# Segredos: PROD_S3_KEY_ID / PROD_S3_SECRET, que já existem no environment PRODUCAO (bucket macuxi-prod). Nenhum valor vai
+# a log, argumento de processo ou artefato; a CLI imprime só produto, versão, arquivo, tamanho e sha256.
+# Endpoint, região e bucket são os mesmos do conector-publicar.yml e do scripts/deploy/producao/compose.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'ID da execução do "android build" que gerou o APK (o número no fim da URL da execução)'
+        type: string
+        required: true
+      variante:
+        description: 'campo, gestao ou ambas'
+        type: choice
+        options: [ambas, campo, gestao]
+        default: ambas
+      versao:
+        description: 'versão do app (X.Y.Z, a mesma do android build, ex. 1.0.19)'
+        type: string
+        required: true
+      simular:
+        description: só conferir e calcular o manifesto (não grava no bucket)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: apk-publicar
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publicar:
+    # um job só (sem matriz): "ambas" pede uma aprovação do environment, não uma por variante
+    name: APK ${{ inputs.variante }} v${{ inputs.versao }} (producao)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: PRODUCAO
+    env:
+      ESCOLHA: ${{ inputs.variante }}
+      VERSAO: ${{ inputs.versao }}
+      RUN_ID: ${{ inputs.run_id }}
+    steps:
+      - name: conferir versão e execução de origem (antes de instalar qualquer coisa)
+        id: origem
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if ! [[ "$VERSAO" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::versão inválida: use X.Y.Z"; exit 1
+          fi
+          if ! [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]]; then
+            echo "::error::run_id inválido: use o número da execução do android build"; exit 1
+          fi
+          case "$ESCOLHA" in
+            ambas) VARIANTES="campo gestao" ;;
+            campo | gestao) VARIANTES="$ESCOLHA" ;;
+            *) echo "::error::variante inválida"; exit 1 ;;
+          esac
+          DADOS=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '[.path,.conclusion,.head_branch]|@tsv')
+          IFS=$'\t' read -r CAMINHO CONCLUSAO RAMO <<< "$DADOS"
+          if [ "$CAMINHO" != ".github/workflows/android-build.yml" ]; then
+            echo "::error::a execução $RUN_ID não é do android-build.yml ($CAMINHO)"; exit 1
+          fi
+          if [ "$CONCLUSAO" != "success" ]; then
+            echo "::error::a execução $RUN_ID não terminou verde ($CONCLUSAO)"; exit 1
+          fi
+          if [ "$RAMO" != "main" ]; then
+            echo "::error::a execução $RUN_ID não é do main ($RAMO)"; exit 1
+          fi
+          echo "variantes=$VARIANTES" >> "$GITHUB_OUTPUT"
+
+      - name: baixar e conferir os APKs (todos antes de publicar qualquer um)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VARIANTES: ${{ steps.origem.outputs.variantes }}
+        run: |
+          for VARIANTE in $VARIANTES; do
+            # o mesmo nome do apps/mobile/src/lib/nome-build.ts (nomeDoBuild / nomeDoApk), perfil producao = canal Oficial
+            case "$VARIANTE" in campo) ROTULO=Campo ;; gestao) ROTULO=Gestao ;; esac
+            NOME="$ROTULO-Oficial-v$VERSAO"
+            DIR="$RUNNER_TEMP/apk/$VARIANTE"
+            gh run download "$RUN_ID" -R "$REPO" -n "$NOME" -D "$DIR"
+            if [ ! -s "$DIR/$NOME.apk" ]; then echo "::error::$NOME.apk não veio no artefato"; ls -la "$DIR" || true; exit 1; fi
+            echo "$NOME.apk  sha256 $(sha256sum "$DIR/$NOME.apk" | cut -d' ' -f1)  ($(du -h "$DIR/$NOME.apk" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+            echo "$DIR/$NOME.apk" > "$DIR/caminho"
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/preparar
+
+      - name: publicar no bucket (macuxi-prod)
+        env:
+          VARIANTES: ${{ steps.origem.outputs.variantes }}
+          SIMULAR: ${{ inputs.simular }}
+          MACUXI_ARQUIVOS_DRIVER: s3
+          MACUXI_S3_ENDPOINT: https://br-se1.magaluobjects.com
+          MACUXI_S3_REGIAO: br-se1
+          MACUXI_S3_BUCKET: macuxi-prod
+          MACUXI_S3_PREFIXO: arquivos/
+          MACUXI_PACOTES_PREFIXO: pacotes/
+          MACUXI_S3_CHAVE_ID: ${{ secrets.PROD_S3_KEY_ID }}
+          MACUXI_S3_SEGREDO: ${{ secrets.PROD_S3_SECRET }}
+        run: |
+          EXTRA=()
+          if [ "$SIMULAR" = "true" ]; then EXTRA=(--simular); fi
+          for VARIANTE in $VARIANTES; do
+            APK=$(cat "$RUNNER_TEMP/apk/$VARIANTE/caminho")
+            # uma linha JSON (produto, versão, arquivo, tamanho, sha256); nunca credencial nem URL assinada
+            pnpm --filter api publicar-pacote "$VARIANTE" "$APK" --versao "$VERSAO" "${EXTRA[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
