@@ -12,6 +12,7 @@ import { ModuloIdSchema } from './modulos';
 import { FilialDadosFiscaisSchema } from './filial';
 import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
 import { MinutoDoDiaSchema } from './jornada';
+import { HoraHHMM as Hora } from './hora';
 
 const Base = {
   id: z.string().uuid(),
@@ -196,7 +197,6 @@ export type ClienteEnderecoSync = z.infer<typeof ClienteEnderecoSyncSchema>;
 
 // ---------- Sprint 1 (desenho T-0016 §3, §4, §5, §6) ----------
 const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const Hora = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const AnoMes = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const Centavos = z.number().int();
 

@@ -116,7 +116,7 @@ import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from '
 import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
 import { registrarRotasFrasesCarga, type FonteFrasesCarga } from './frases-carga';
 import { registrarRotasMarcaEmpresa, type FonteMarcaEmpresa } from './empresa-logo';
-import { registrarRotaAppVersao, versoesAppDoAmbiente, type VersoesApp } from './app-versao';
+import { registrarRotaAppVersao, urlApiPublicaDoAmbiente, versoesAppDoAmbiente, type VersoesApp } from './app-versao';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
@@ -240,6 +240,8 @@ export interface OpcoesApp {
   syncPacotes?: OpcoesSyncPacotes | null;
   /** Item 19 (v1.0.17): versões do APK em `GET /v1/app/versao` (padrão: `APP_<CAMPO|GESTAO>_*` do ambiente, `versoesAppDoAmbiente`). */
   versoesApp?: VersoesApp;
+  /** T-0190: base do `apk_url` do contrato antigo de `/v1/app/versao` (padrão: `urlApiPublicaDoAmbiente`). */
+  urlApiPublica?: string;
   /** T-0182: fonte das funções da logo e do nome fantasia (padrão: `fonteMarcaNoBanco`). Testes injetam a sua. */
   fonteMarca?: FonteMarcaEmpresa;
 }
@@ -633,7 +635,11 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   });
 
   // item 19 (v1.0.17): "Verificar atualização" do app, pública como o `/v1/saude`
-  registrarRotaAppVersao(app, { versoes: op.versoesApp ?? versoesAppDoAmbiente(process.env), validar });
+  registrarRotaAppVersao(app, {
+    versoes: op.versoesApp ?? versoesAppDoAmbiente(process.env),
+    urlApiPublica: op.urlApiPublica ?? urlApiPublicaDoAmbiente(process.env),
+    validar,
+  });
 
   app.get(ROTA_ME_MODULOS, async (req) => {
     const { ctx, licencas } = await preparar(req, 'core');

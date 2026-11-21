@@ -6,6 +6,8 @@
  * enviam (`enviar`, `sincronizar` e `sincronizarNovidades`), e o app aberto e a tarefa em segundo plano usam o mesmo motor
  * embrulhado (`services/motor-do-usuario.ts`). Sem sinal, nada sai.
  * Falha da rotina nunca derruba o envio nem o sync; `registrar` recebe só contagens (nenhuma coordenada nem id, §9).
+ * Com a tela, o resultado do motor volta depois do envio do motor e os pontos seguem em paralelo (não seguram o "Enviando…");
+ * sem tela (`esperar`), a passada espera os pontos para o sistema não encerrá-la no meio.
  */
 import { enviarPontosDoTrajeto, type BancoDoTrajeto } from '@macuxi/core/app';
 import type { MotorSync, TransporteSync } from '@macuxi/platform-sdk';
@@ -19,10 +21,15 @@ export interface DependenciasDoEnvioDoTrajeto {
   /** Só contagens, nunca coordenada nem id. */
   registrar: (mensagem: string) => void;
   agora?: () => Date;
+  /** `true` = só volta com os pontos enviados (tarefa sem tela). */
+  esperar?: boolean;
 }
 
-/** O motor com os pontos do trajeto enviados depois de cada envio do motor. Uma rotina por vez: quem chega no meio espera a mesma. */
-export function comPontosDoTrajeto(motor: MotorSync, d: DependenciasDoEnvioDoTrajeto): MotorSync {
+/** O motor embrulhado; `pontosDoTrajeto()` é a rotina em curso (ou já resolvida), para quem precisa esperar por ela. */
+export type MotorComPontosDoTrajeto = MotorSync & { pontosDoTrajeto: () => Promise<void> };
+
+/** O motor com os pontos do trajeto enviados depois de cada envio do motor. Uma rotina por vez: quem chega no meio usa a mesma. */
+export function comPontosDoTrajeto(motor: MotorSync, d: DependenciasDoEnvioDoTrajeto): MotorComPontosDoTrajeto {
   let emCurso: Promise<void> | null = null;
   const agora = d.agora ?? (() => new Date());
   const depoisDoEnvio = (): Promise<void> => {
@@ -39,22 +46,17 @@ export function comPontosDoTrajeto(motor: MotorSync, d: DependenciasDoEnvioDoTra
     });
     return emCurso;
   };
+  /** Depois do envio do motor. A rotina nunca rejeita (o `catch` acima): sem esperar, ela segue sozinha. */
+  const depois = async <R>(resultado: R): Promise<R> => {
+    if (d.esperar) await depoisDoEnvio();
+    else void depoisDoEnvio();
+    return resultado;
+  };
   return {
     ...motor,
-    enviar: async (opcoes) => {
-      const resultado = await motor.enviar(opcoes);
-      await depoisDoEnvio();
-      return resultado;
-    },
-    sincronizar: async (opcoes) => {
-      const resultado = await motor.sincronizar(opcoes);
-      await depoisDoEnvio();
-      return resultado;
-    },
-    sincronizarNovidades: async (opcoes) => {
-      const resultado = await motor.sincronizarNovidades(opcoes);
-      await depoisDoEnvio();
-      return resultado;
-    },
+    enviar: async (opcoes) => depois(await motor.enviar(opcoes)),
+    sincronizar: async (opcoes) => depois(await motor.sincronizar(opcoes)),
+    sincronizarNovidades: async (opcoes) => depois(await motor.sincronizarNovidades(opcoes)),
+    pontosDoTrajeto: () => emCurso ?? Promise.resolve(),
   };
 }

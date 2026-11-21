@@ -2,7 +2,8 @@
  * `BotaoVerificarAtualizacao` (item 19 do teste de campo do Campo v1.0.16): o botão "Verificar atualização". Botão do Perfil
  * (`app/profile.tsx`), nas duas variantes.
  * Lê a versão do app (`Constants.expoConfig.version`, a mesma da linha da versão do Perfil) e a variante do build; a regra
- * fica em `lib/verificar-atualizacao.ts`. Com versão nova, "Atualizar para X.Y.Z" abre o `apk_url` (Linking).
+ * fica em `lib/verificar-atualizacao.ts`. Com versão nova, a linha de baixo pede o link ao administrador (T-0190: a API não manda
+ * mais o `apk_url`); só se um servidor antigo mandar o `apk_url`, "Atualizar para X.Y.Z" o abre (Linking).
  */
 import { useHttp } from '@macuxi/platform-sdk/react';
 import { Button, type as t } from '@macuxi/ui/mobile';
@@ -33,7 +34,7 @@ export function BotaoVerificarAtualizacao({ testID = 'verificar-atualizacao' }: 
     }
   };
 
-  const nova = resultado?.tipo === 'nova' ? resultado : null;
+  const nova = resultado?.tipo === 'nova' && resultado.apkUrl ? { versao: resultado.versao, apkUrl: resultado.apkUrl } : null;
   const baixar = () => {
     if (!nova) return;
     setNaoAbriu(false);

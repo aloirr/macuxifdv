@@ -22,7 +22,7 @@ import {
 } from '@macuxi/platform-sdk';
 
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
-import { comPontosDoTrajeto } from '@/lib/envio-do-trajeto';
+import { comPontosDoTrajeto, type MotorComPontosDoTrajeto } from '@/lib/envio-do-trajeto';
 import type { ModoApi } from '@/lib/modo-api';
 import type { shellDaVariante } from '@/lib/modulos';
 import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from '@/lib/ordem-da-carga';
@@ -91,6 +91,8 @@ export interface OpcoesMotorDoUsuario {
    * nada a enviar.
    */
   bancoDoTrajeto?: () => BancoDoTrajeto | null;
+  /** Repassa `esperar` do envio do trajeto (lib/envio-do-trajeto.ts): `true` só na tarefa sem tela. */
+  esperarPontosDoTrajeto?: boolean;
 }
 
 /** Falha do envio do trajeto: só contagens, no Diagnóstico do Perfil (nenhuma coordenada nem id). */
@@ -110,8 +112,8 @@ export function portaCargaOnline(motor: Pick<MotorSync, 'estado'>, ambiente: Pic
 }
 
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
-export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
-  const ref: { m: MotorSync | null } = { m: null };
+export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorComPontosDoTrajeto {
+  const ref: { m: MotorComPontosDoTrajeto | null } = { m: null };
   const transporte = modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api);
   const opcoes: OpcoesMotorSync = {
     registro: o.shell.registroSync,
@@ -135,6 +137,7 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     push: (itens) => transporte.push(itens),
     online: o.online,
     registrar: registrarEnvioDoTrajeto,
+    esperar: o.esperarPontosDoTrajeto === true,
   });
   if (o.cargaOnline !== false) definirCargaOnline(portaCargaOnline(ref.m, o.ambiente));
   return ref.m;

@@ -86,7 +86,7 @@ export const usoIa = catalogo.table('uso_ia', {
   consultas: integer('consultas').notNull().default(0),
 });
 
-/** Nó da árvore do catálogo vinda do ERP (RF-CAT-04). pai_id nulo <=> nivel 1. Código único vivo por tenant. */
+/** Nó da árvore do catálogo vinda do ERP (RF-CAT-04). pai_id nulo <=> nivel 1. Código único vivo entre os irmãos (mesmo pai ou entre as raízes; RN-CAT-18, 0092). */
 export const catalogoNo = catalogo.table('catalogo_no', {
   ...comuns(),
   pai_id: uuid('pai_id'),

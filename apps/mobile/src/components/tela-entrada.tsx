@@ -115,6 +115,16 @@ export function TelaEntrada({
   }, [desenhou, aoDesenhar]);
   const logo = posicaoDoLogo(janela);
   const comAviso = Boolean(barra && aviso);
+  const barraDaEntrada = barra ? (
+    <BarraProgresso
+      rotulo={barra.rotulo}
+      pct={barra.pct}
+      cores={tema}
+      reduzirMovimento={reduzir}
+      rotuloAcessivel={ROTULO_BARRA_ENTRADA}
+      testID="entrada"
+    />
+  ) : null;
   // T-0181: o bloco "Você sabia?" só depois de medir a tela (prioridade: logo, "Olá", aviso e barra; spec §1.1)
   const linhasFrase = frase && saudacao && desenhou ? cabeFrase(janela, insets.bottom, frase.texto, escala) : 0;
   // antes de medir a tela, a lista entra (o logo ainda não aparece): na tela baixa ela sai assim que a altura chega
@@ -159,20 +169,15 @@ export function TelaEntrada({
           <Animated.View style={{ gap: 18, opacity: opacidade }}>
             {/* RD-0635: a barra do kit (a mesma do popup da sincronização completa); o rótulo ("Etapa n de N · nome")
                 fica sempre à vista, também com a lista, como na entrada aprovada (MC-0088, manual da marca §4). T-0181: o
-                aviso da carga acima da barra */}
-            {barra ? (
+                aviso da carga acima da barra (o par só se envolve quando há aviso) */}
+            {comAviso ? (
               <View style={styles.avisoEBarra}>
-                {comAviso ? aviso : null}
-                <BarraProgresso
-                  rotulo={barra.rotulo}
-                  pct={barra.pct}
-                  cores={tema}
-                  reduzirMovimento={reduzir}
-                  rotuloAcessivel={ROTULO_BARRA_ENTRADA}
-                  testID="entrada"
-                />
+                {aviso}
+                {barraDaEntrada}
               </View>
-            ) : null}
+            ) : (
+              barraDaEntrada
+            )}
             {mostrarEtapas && etapas ? <ListaEtapas tema={tema} etapas={etapas} /> : null}
             {typeof children === 'function' ? children(mostrarEtapas) : children}
           </Animated.View>

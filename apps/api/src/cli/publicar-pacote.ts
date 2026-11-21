@@ -2,6 +2,7 @@
  * Publica um pacote para download por link temporário (T-0098; ADR 0037), no bucket S3 privado da API:
  *
  *   pnpm --filter api publicar-pacote conector <caminho/macuxi-conector-1.3.0-win-x64.zip> --versao 1.3.0 [--simular]
+ *   pnpm --filter api publicar-pacote campo|gestao <caminho/macuxi-campo-1.0.19.apk> --versao 1.0.19   (T-0190, ADR 0065)
  *
  * - Usa as mesmas variáveis da API (`MACUXI_S3_*` e `MACUXI_PACOTES_PREFIXO`, padrão `pacotes/`), lidas do ambiente ou do
  *   `.env` da raiz; segredo nunca em argumento.
@@ -23,6 +24,7 @@ const TIPO_POR_EXTENSAO: Readonly<Record<string, string>> = {
   zip: 'application/zip',
   exe: 'application/vnd.microsoft.portable-executable',
   msi: 'application/x-msi',
+  apk: 'application/vnd.android.package-archive',
 };
 
 export interface PedidoPublicacao {

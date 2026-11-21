@@ -1,6 +1,8 @@
 /**
  * Item 19 do teste de campo do Campo v1.0.16 — "Verificar atualização" (desenho `docs/desenho/v1017-campo-versao-e-marca.md` §2):
  * a rota pública da versão publicada, a comparação pelo `haVersaoNova` do SDK e o que o botão mostra em cada caso.
+ * T-0190 (ADR 0065, RN-CORE-67): a API responde `AppVersaoPublicadaV2`, sem `apk_url`; versão nova sem `apk_url` pede o link ao
+ * administrador.
  */
 import { ErroHttp, ErroSemConexao, type ClienteHttp } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
@@ -20,17 +22,24 @@ function httpQue(responde: (caminho: string, query: unknown) => unknown): Pick<C
   };
 }
 
-const publicada = (versao: string, variante = 'campo') => ({ variante, versao, apk_url: APK, publicada_em: null });
+const publicada = (versao: string, variante = 'campo') => ({ variante, versao, publicada_em: null });
+const publicadaComApk = (versao: string) => ({ ...publicada(versao), apk_url: APK });
 
 describe('verificarAtualizacao (item 19)', () => {
-  it('chama GET /app/versao com a variante do app (relativo ao /v1, como o ClienteHttp do shell)', async () => {
+  it('chama GET /app/versao com a variante do app e o contrato 2 (relativo ao /v1, como o ClienteHttp do shell)', async () => {
     const http = httpQue(() => publicada('1.0.16'));
     await verificarAtualizacao(http, 'gestao', '1.0.16');
-    expect(http.pedidos).toEqual([['/app/versao', { variante: 'gestao' }]]);
+    expect(http.pedidos).toEqual([['/app/versao', { variante: 'gestao', contrato: '2' }]]);
   });
 
-  it('versão publicada maior: "nova", com a versão e o link do APK', async () => {
-    const r = await verificarAtualizacao(httpQue(() => publicada('1.0.17')), 'campo', '1.0.16');
+  it('T-0190: versão publicada maior, sem apk_url: "nova" sem link e a linha pede o link ao administrador', async () => {
+    const r = await verificarAtualizacao(httpQue(() => publicada('1.0.19')), 'campo', '1.0.18');
+    expect(r).toEqual({ tipo: 'nova', versao: '1.0.19', apkUrl: null });
+    expect(mensagemDaVerificacao(r)).toBe('Versão 1.0.19 disponível: peça o link ao administrador.');
+  });
+
+  it('servidor antigo que ainda manda apk_url (https): "nova" com o link do APK e sem linha', async () => {
+    const r = await verificarAtualizacao(httpQue(() => publicadaComApk('1.0.17')), 'campo', '1.0.16');
     expect(r).toEqual({ tipo: 'nova', versao: '1.0.17', apkUrl: APK });
     expect(TEXTOS_ATUALIZACAO.atualizar('1.0.17')).toBe('Atualizar para 1.0.17');
     expect(mensagemDaVerificacao(r)).toBeNull();
@@ -69,6 +78,7 @@ describe('verificarAtualizacao (item 19)', () => {
         throw new ErroHttp(500, 'ERRO_INTERNO', 'falhou');
       },
       () => ({ ...publicada('1.0.17'), apk_url: 'http://inseguro.exemplo.com/a.apk' }),
+      () => ({ ...publicada('1.0.17'), extra: 1 }),
       () => publicada('1.0.17', 'gestao'),
       () => null,
     ];

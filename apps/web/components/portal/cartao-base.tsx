@@ -12,7 +12,7 @@ import { ErrosLoteResposta, type ConferenciaArquivo, type Entidade, type ItemOrd
 import { Badge, Bar, Button, Dialog, ErrorBlock, IconDownload, Notice, useToast } from '@macuxi/ui/web';
 
 import { baixarDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
-import { baixarTexto, CARTAO_DA_ENTIDADE, conferirArquivo, errosDaConferenciaCsv, formatarLinhas, importarArquivo, novaChaveDeCarga, planejarEnvio, ROTULO_MODO, ROTULO_STATUS_LOTE, type PlanoDeEnvio, type ProgressoCarga, type ResultadoCarga } from '@/lib/portal-carga';
+import { baixarTexto, CARTAO_DA_ENTIDADE, conferirArquivo, errosDaConferenciaCsv, formatarLinhas, importarArquivo, novaChaveDeCarga, planejarEnvio, ROTULO_MODO, seloDaCarga, TEXTO_CARGA_EM_ANDAMENTO, type PlanoDeEnvio, type ProgressoCarga, type ResultadoCarga } from '@/lib/portal-carga';
 import { criarPortaCarga } from '@/lib/portal-carga-rede';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
@@ -195,15 +195,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
     }
   };
 
-  const statusFinal = resultado?.progressoSessao
-    ? resultado.progressoSessao.partes_com_falha > 0
-      ? 'falhou'
-      : resultado.progressoSessao.erros_total > 0
-        ? 'concluido_com_erros'
-        : resultado.progressoSessao.situacao === 'completa' || resultado.progressoSessao.partes_aplicadas === resultado.progressoSessao.total_partes
-          ? 'concluido'
-          : 'processando'
-    : (resultado?.status ?? null);
+  const selo = seloDaCarga(resultado);
 
   return (
     <section data-testid={`base-${entidade}`} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
@@ -213,7 +205,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white tabular-nums">{item.posicao}</span>
             <h3 className="m-0 text-[17px] font-bold">{cartao.titulo}</h3>
             {item.opcional && <Badge tone="neutral">opcional</Badge>}
-            {statusFinal && <Badge tone={statusFinal === 'concluido' ? 'success' : statusFinal === 'falhou' ? 'danger' : statusFinal === 'concluido_com_erros' ? 'warning' : 'pending'}>{ROTULO_STATUS_LOTE[statusFinal]}</Badge>}
+            {selo && <Badge tone={selo.tom}>{selo.rotulo}</Badge>}
           </div>
           <span className="text-[13px] text-ink-2">{cartao.descricao}</span>
           {rotuloDepende && <span className="text-[12px] text-ink-2">Carregue depois de: {rotuloDepende}.</span>}
@@ -293,11 +285,11 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
         </div>
       )}
 
-      {progresso && (ocupado === 'importando' || (resultado && !resultado.terminou)) && (
+      {progresso && ocupado === 'importando' && (
         <div data-testid={`base-${entidade}.progresso`} className="flex flex-col gap-1" aria-live="polite">
           <div className="flex items-center gap-3">
             <Bar pct={progresso.percentual} colorClass="bg-accent" />
-            <span className="w-10 text-right text-[13px] font-semibold tabular-nums">{progresso.percentual}%</span>
+            {progresso.totalPartes <= 1 && <span className="w-10 text-right text-[13px] font-semibold tabular-nums">{progresso.percentual}%</span>}
           </div>
           <span className="text-[12px] text-ink-2">
             {progresso.fase === 'enviando'
@@ -306,14 +298,14 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
                 : 'Enviando o arquivo…'
               : progresso.totalPartes > 1
                 ? `Gravando: ${progresso.aplicadas} de ${progresso.totalPartes} partes aplicadas.`
-                : 'Gravando no Hub…'}
+                : 'Gravando o arquivo…'}
           </span>
         </div>
       )}
 
       {resultado && (
         <div data-testid={`base-${entidade}.resultado`} className="flex flex-col gap-2">
-          {!resultado.terminou && <Notice tone="info">O Hub continua gravando este arquivo. Volte a esta página daqui a pouco para ver o resultado.</Notice>}
+          {!resultado.terminou && <Notice tone="info">{TEXTO_CARGA_EM_ANDAMENTO}</Notice>}
           {resultado.repetido && <Notice tone="info">Este arquivo já tinha sido enviado com a mesma chave: nada foi gravado de novo.</Notice>}
           {resultado.progressoSessao?.inativacao?.situacao === 'aguardando_confirmacao' && (
             <Notice tone="warning">A carga completa inativaria muitos registros e ficou aguardando confirmação no monitor da Integração (BKO).</Notice>

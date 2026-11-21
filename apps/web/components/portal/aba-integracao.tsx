@@ -13,9 +13,10 @@ import { Badge, Button, Dialog, ErrorBlock, IconDownload, LoadingBlock, Notice, 
 
 import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
+import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
 import { CONECTOR_ARQUIVO_PORTAL, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { BaixarConector } from './baixar-conector';
+import { BaixarPacote } from './baixar-conector';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
@@ -186,7 +187,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
 
       <Panel title="Conector e documentação">
         <div className="flex flex-col gap-2 text-[15px]">
-          <BaixarConector tenant={tenant} />
+          <BaixarPacote produto={DOWNLOAD_CONECTOR} tenant={tenant} />
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="link" data-testid="integracao.openapi" onClick={() => void baixarOpenapi()}>
               <IconDownload size={14} /> Documentação da API (OpenAPI 3.1)

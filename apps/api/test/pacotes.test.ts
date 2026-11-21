@@ -123,6 +123,14 @@ describe('pacotes × S3 falso', () => {
     await executarPublicarPacote(['conector', arquivo, '--versao', '1.4.0'], env, AGORA);
     expect((await servico().linkDoUltimo('conector'))?.versao).toBe('1.4.0');
     await expect(executarPublicarPacote(['outro', arquivo, '--versao', '1.4.0'], env)).rejects.toThrow(/produto inválido/);
+    // T-0190 (RN-CORE-67, ADR 0065): o APK vai para o mesmo bucket privado, com o tipo do Android e o link com o nome do arquivo
+    const apk = join(dir, 'macuxi-gestao-1.0.19.apk');
+    writeFileSync(apk, ZIP);
+    await executarPublicarPacote(['gestao', apk, '--versao', '1.0.19'], env, AGORA);
+    expect(s3.tipos.get(`/${s3.bucket}/pacotes/gestao/macuxi-gestao-1.0.19.apk`)).toBe('application/vnd.android.package-archive');
+    const la = await servico().linkDoUltimo('gestao');
+    expect(la).toMatchObject({ versao: '1.0.19', arquivo: 'macuxi-gestao-1.0.19.apk' });
+    expect((await servico().linkDoUltimo('campo'))).toBeNull();
     await expect(executarPublicarPacote(['conector', arquivo], env)).rejects.toThrow(/--versao/);
     await expect(executarPublicarPacote(['conector', arquivo, '--versao', 'v1'], env)).rejects.toThrow();
   });
