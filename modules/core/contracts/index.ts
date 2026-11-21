@@ -472,6 +472,7 @@ export * from './extensoes';
 export * from './modulos';
 export * from './auth';
 export * from './licencas';
+export * from './apps-download';
 export * from './sync';
 export * from './eventos';
 export * from './visita';

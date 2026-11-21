@@ -23,6 +23,7 @@ export const manifest = defineModule({
     'meta.editar': { perfis: ['supervisor', 'gerente', 'analista', 'admin'], descricao: 'Definir a meta mensal de um usuário do escopo; publica core.meta.definida@1 (RN-CORE-20)' },
     'meta.fechar_periodo': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Fechar/reabrir o mês e exportar para o RH' },
     'modulo.gerir_licencas': { perfis: ['admin'], descricao: 'Ativar/desativar módulos por tenant, perfil e usuário (Parâmetros › Acesso › Módulos)' },
+    'app.baixar': { perfis: ['admin'], descricao: 'Gerar no BKO o link temporário de download do APK do Campo ou do Gestão, conforme os módulos licenciados; auditado sem a URL (RN-CORE-67)' },
     'usuario.ver': { perfis: ['gerente', 'admin'], descricao: 'Ver a lista de usuários no BKO, recortada pelo escopo: equipes abaixo (gerente), tenant (admin); o supervisor não usa o BKO (RF-CORE-02, RN-CORE-04, RN-CORE-33)' },
     'cliente.pagamento_editar': { perfis: ['analista', 'admin'], descricao: 'Editar no cliente o prazo médio máximo e as formas de pagamento permitidas (RN-VEN-25); auditado (BKO)' },
     'carteira.editar': { perfis: ['analista', 'admin'], descricao: 'Vincular/desvincular clientes a vendedor ou promotor, com vigência e frequência de visita (BKO)' },
