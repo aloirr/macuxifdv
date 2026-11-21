@@ -27,7 +27,7 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 "Com falha" e o botão **Reprocessar** usam o mesmo critério: existe lote reprocessável da entidade (RN-INT-15).
 Ordem: entidades com falha primeiro; dentro de cada grupo, a carga mais recente no topo.
 
-**Tabela do Histórico** (dentro do `Dialog` largo, 720 px):
+**Tabela do Histórico**:
 | Coluna | Conteúdo | Largura |
 |---|---|---|
 | Recebido | `15/11 01:02` (`formatDataHoraCurta`) | 17% |
@@ -64,7 +64,7 @@ A cor vem sempre com o texto. Estes rótulos valem para o Histórico; a tabela d
 Ação que não vale para o estado some (não aparece desligada). Um só principal por tela: na tabela, **Reprocessar** é o principal da linha com falha;
 no Histórico, o principal é o do rodapé, e o rodapé leva também **Fechar**.
 
-**Diálogo Histórico — ‹Entidade›**: `Dialog largura="larga"`, título **Histórico — ‹Entidade›**, `subtitle` **‹conector› · n lotes**
+**Diálogo Histórico — ‹Entidade›**: `subtitle` **‹conector› · n lotes**
 (com 1, **1 lote**); o corpo é só a tabela, sem nota explicativa.
 
 **Reprocessar** (linha ou rodapé) com a permissão `lote.reprocessar`: dispara direto, sem diálogo; aviso (`useToast`, success) **Reprocessamento iniciado.**
