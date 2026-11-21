@@ -335,6 +335,11 @@ export const ResumoPedidosErp = z.object({
   rejeitado_pelo_erp: z.number().int().nonnegative(),
   presos_sem_retorno: z.number().int().nonnegative(),
   retidos_sem_mapeamento: z.number().int().nonnegative(),
+  /**
+   * T-0189: o instante mais antigo entre as mensagens paradas que a tela soma (presos sem retorno + retidos sem mapeamento);
+   * `null` sem nenhuma. Campo aditivo: a API sempre o preenche.
+   */
+  parados_desde: DataHoraUtc.nullable().optional(),
 });
 export type ResumoPedidosErp = z.infer<typeof ResumoPedidosErp>;
 /** `GET /v1/integracao/monitor` (relativa a `/v1`): o `MonitorResumo`, com os lotes da tela e o `resumo_pedidos` dos cards do Vendedor. */
@@ -380,7 +385,7 @@ export const AlertaMonitor = z.object({
   /** Texto em português com a causa e a ação seguinte. */
   mensagem: z.string(),
   conector_id: ConectorIdentificador.nullable(),
-  entidade: z.enum(ENTIDADES).nullable(),
+  entidade: Entidade.nullable(),
 });
 export type AlertaMonitor = z.infer<typeof AlertaMonitor>;
 
@@ -392,5 +397,7 @@ export const MonitorResumo = z.object({
   conectores: z.array(z.object({ conector_id: ConectorIdentificador, versao_conector: z.string().nullable() })).default([]),
   /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. */
   resumo_pedidos: ResumoPedidosErp,
+  /** T-0189: a última carga recebida de cada entidade que já teve carga, sem limite de janela (os lotes recentes cobrem só os 100 últimos). */
+  ultima_carga_por_entidade: z.array(z.object({ entidade: Entidade, recebido_em: DataHoraUtc })),
 });
 export type MonitorResumo = z.infer<typeof MonitorResumo>;
