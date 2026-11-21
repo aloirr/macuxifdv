@@ -237,10 +237,12 @@ describe.skipIf(semBanco())('T-0019 — notificação do servidor ao app no pró
     // leitura: o mesmo comando reenviado e um 2º comando depois mantêm a PRIMEIRA hora
     const t = (await api.sessao('vendedor@exemplo.com.br')).access_token;
     const minha = linhas.find((l) => l.usuario_id === U.vendedor1)!;
-    const primeira = leitura(minha.id, '2026-10-31T13:00:00.000Z');
+    // hora-fixa-ok: horas de leitura nunca comparadas com o relógio
+    const [PRIMEIRA_HORA, SEGUNDA_HORA] = ['2026-10-31T13:00:00.000Z', '2026-10-31T15:00:00.000Z'];
+    const primeira = leitura(minha.id, PRIMEIRA_HORA);
     for (let i = 0; i < 2; i++) expect((await pushLeitura(t, [primeira]))[0]).toMatchObject({ status: 'aceito' });
-    expect((await pushLeitura(t, [leitura(minha.id, '2026-10-31T15:00:00.000Z')]))[0]).toMatchObject({ status: 'aceito' });
-    expect(new Date((await doEnvio(corpo.id)).find((l) => l.id === minha.id)!.lida_em as Date).toISOString()).toBe('2026-10-31T13:00:00.000Z');
+    expect((await pushLeitura(t, [leitura(minha.id, SEGUNDA_HORA)]))[0]).toMatchObject({ status: 'aceito' });
+    expect(new Date((await doEnvio(corpo.id)).find((l) => l.id === minha.id)!.lida_em as Date).toISOString()).toBe(PRIMEIRA_HORA);
     // a do promotor segue não lida
     expect((await doEnvio(corpo.id)).find((l) => l.usuario_id === U.promotor)!.lida_em).toBeNull();
   });
