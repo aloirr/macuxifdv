@@ -9,6 +9,7 @@
  * na aba Empresa, só vê os módulos: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
  * T-0094 fatia S: na aba Empresa, o time da Macuxi vê os administradores e redefine a senha de um deles (`CartaoAdmins`).
  * T-0182: o primeiro cartão da aba Empresa é a "Logo", seguido do "Nome fantasia" (`CartoesMarca`); só o time da Macuxi grava.
+ * T-0190: cartão "Apps" (depois dos módulos): link temporário do APK do Macuxi Campo e do Macuxi Gestão (`BaixarPacote`).
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -20,7 +21,9 @@ import { chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro } from '@/lib/p
 import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { rotuloDoStatus, tomDoStatus } from '@/lib/portal-empresa-acoes';
+import { DOWNLOAD_APPS } from '@/lib/conector-download';
 import { AbaIntegracao } from './aba-integracao';
+import { BaixarPacote } from './baixar-conector';
 import { CartaoAdmins } from './cartao-admins';
 import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { MolduraPortal, useSessaoPortal } from './base';
@@ -175,6 +178,13 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
                     </li>
                   ))}
                 </ul>
+              </Panel>
+              <Panel title="Apps">
+                <div data-testid="empresa-pagina.apps" className="flex flex-col gap-2 text-[15px]">
+                  {DOWNLOAD_APPS.map((p) => (
+                    <BaixarPacote key={p.testId} produto={p} tenant={empresa.id} />
+                  ))}
+                </div>
               </Panel>
               {/* T-0094 fatia S: só o time da Macuxi redefine a senha do admin (o admin do cliente usa "Esqueci a senha") */}
               {timeMacuxi && <CartaoAdmins tenant={empresa.id} fuso={empresa.fuso} />}

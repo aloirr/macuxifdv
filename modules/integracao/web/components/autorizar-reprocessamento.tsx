@@ -3,15 +3,29 @@
 import { useEffect, useState } from 'react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, CampoSenha, Dialog, ErrorBlock, LoadingBlock } from '@macuxi/ui/web';
-import { useAutorizadores, useReprocessarLote } from '../lib/queries';
+import { paraAFila, useAutorizadores, useReprocessarLote } from '../lib/queries';
+import { reprocessarLotes, textoResultadoReprocesso } from '../lib/reprocessar-lotes';
 
 /**
  * Popup de autorização (RN-INT-16; spec docs/design/integracao-simples §6): quem não tem `lote.reprocessar` escolhe quem autoriza
  * (admin ou analista, vem o primeiro) e digita a SENHA dessa pessoa. A senha fica só neste estado, vai uma vez no corpo da chamada e
  * é apagada a cada erro; nunca vai para URL, log nem cache.
  */
-export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { loteId: string | null; onClose: () => void; onAutorizado: () => void }) {
-  const aberto = loteId !== null;
+export function AutorizarReprocessamento({
+  loteIds,
+  rotuloDoLote,
+  onRestantes,
+  onClose,
+  onConcluido,
+}: {
+  loteIds: readonly string[] | null;
+  rotuloDoLote: (loteId: string) => string;
+  /** Lotes que ainda faltam depois de uma senha recusada: os que já foram saem da lista. */
+  onRestantes: (loteIds: readonly string[]) => void;
+  onClose: () => void;
+  onConcluido: (texto: string, semFalha: boolean) => void;
+}) {
+  const aberto = loteIds !== null;
   const autorizadores = useAutorizadores(aberto);
   const reprocessar = useReprocessarLote();
   const [quem, setQuem] = useState('');
@@ -31,23 +45,18 @@ export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { lo
     if (!quem && itens[0]) setQuem(itens[0].id);
   }, [quem, itens]);
 
-  const autorizar = () => {
-    if (!loteId || !quem || !senha) return;
+  const autorizar = async () => {
+    if (!loteIds || !quem || !senha) return;
     setErro('');
-    reprocessar.mutate(
-      { loteId, autorizadorId: quem, senha },
-      {
-        onSuccess: () => {
-          setSenha('');
-          onAutorizado();
-        },
-        onError: (e) => {
-          setSenha('');
-          setErro(errorMessage(e));
-          document.getElementById('integracao-autorizar-senha')?.focus();
-        },
-      },
-    );
+    const r = await reprocessarLotes(loteIds, (loteId) => reprocessar.mutateAsync({ loteId, autorizadorId: quem, senha }), paraAFila);
+    setSenha('');
+    if (r.interrompido) {
+      onRestantes(r.restantes);
+      setErro(errorMessage(r.interrompido));
+      document.getElementById('integracao-autorizar-senha')?.focus();
+      return;
+    }
+    onConcluido(textoResultadoReprocesso(r, loteIds.length, rotuloDoLote, errorMessage), r.falhas.length === 0);
   };
 
   return (
@@ -60,7 +69,7 @@ export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { lo
           <Button onClick={onClose} data-testid="integracao.autorizar.voltar">
             Voltar
           </Button>
-          <Button variant="primary" onClick={autorizar} disabled={!senha || !quem || reprocessar.isPending} data-testid="integracao.autorizar.confirmar">
+          <Button variant="primary" onClick={() => void autorizar()} disabled={!senha || !quem || reprocessar.isPending} data-testid="integracao.autorizar.confirmar">
             {reprocessar.isPending ? 'Autorizando…' : 'Autorizar'}
           </Button>
         </>
@@ -73,7 +82,7 @@ export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { lo
           className="flex flex-col gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            autorizar();
+            void autorizar();
           }}
         >
           <div className="flex items-center gap-2 text-[12px] font-semibold text-ink-2">

@@ -73,7 +73,7 @@ campos comuns, RLS forçado, `updated_at` por gatilho e FKs compostas só dentro
 | Tabela | Colunas principais | Únicos / índices | Sync |
 |---|---|---|---|
 | `uso_ia` | usuario_id, dia (date, fuso do tenant), consultas | `uso_ia_dia_uk (tenant_id, usuario_id, dia)` | fora |
-| `catalogo_no` | pai_id (FK no schema), nivel 1..8 (raiz = 1), codigo, nome, ordem, ativo | código vivo; (tenant, pai, ordem) | tenant |
+| `catalogo_no` | pai_id (FK no schema), nivel 1..8 (raiz = 1), codigo, nome, ordem, ativo | código vivo entre os irmãos (`catalogo_no_pai_codigo_uk`, 0092); (tenant, pai, ordem) | tenant |
 | `produto_no` | produto_id, no_id (FK) | (tenant, produto, nó) vivo; (tenant, nó) | tenant |
 | `produto_conteudo` | produto_id, descricao, aplicacoes (= `applications`), argumentos_venda, faq jsonb `[{pergunta,resposta}]`, campanha (= `is_campaign`), destaque | 1 vivo por produto | tenant |
 | `produto_atributo` | produto_id, nome, valor, valor_num numeric(14,4), unidade, ordem | (tenant, produto, nome) vivo; (tenant, nome, valor) | tenant |
@@ -463,3 +463,17 @@ O app continua mostrando só a principal (ordem 1); a galeria é da 2ª etapa.
 ### core.produto (0079)
 `produto_sku_lower_ix (tenant_id, lower(sku))` entre os vivos, para `core.produtos_por_sku@1` (casamento sem diferenciar
 maiúsculas). O EAN no nome do arquivo usa o `produto_ean_ix (tenant_id, ean)` da 0002.
+
+## 0092 — código do nó único entre os irmãos (`0092_catalogo_no_codigo_por_pai`; RN-CAT-18, RF-CAT-04, R-20261120-235317-alexandre)
+Diagnóstico: `modules/integracao/docs/outbox-parada-am2808-catalogo.md` (o índice da 0013 recusava o mesmo código em ramos
+diferentes com 23505).
+
+- **Sai** `catalogo_no_codigo_uk (tenant_id, codigo) where deleted_at is null` (0013).
+- **Entra** `catalogo_no_pai_codigo_uk (tenant_id, coalesce(pai_id, '00000000-0000-0000-0000-000000000000'::uuid), codigo)
+  where deleted_at is null`: o código é único entre os nós vivos do mesmo pai; o `coalesce` põe as raízes num "pai" só, para
+  duas raízes com o mesmo código continuarem recusadas. Nó apagado não conta; cada tenant tem o seu.
+- Nenhum upsert usa o índice como alvo de `on conflict` (o Hub usa `catalogo_no_external_uk`). A adoção do nó sem
+  `external_id` pelo par pai + código (RN-CAT-18) é do consumidor do Catálogo (`modules/catalogo/api/consumidores-erp.ts`).
+- **Volta:** o down recria o índice da 0013 e **falha com 23505** se já houver código vivo repetido em ramos diferentes; a consulta
+  que lista os repetidos está no cabeçalho do `0092_catalogo_no_codigo_por_pai.down.sql`.
+- Teste: `db/testes/catalogo-no-codigo-por-pai.db.test.ts`.

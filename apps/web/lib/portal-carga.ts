@@ -5,18 +5,17 @@
  * ficam todas na Integração: aqui só a ordem das chamadas, o progresso e os textos. O conteúdo do CSV não é guardado nem logado.
  */
 import {
-  ENTIDADES,
   type CargaArquivoAceita,
   type CargaArquivoEntrada,
   type ConferenciaArquivo,
   type Entidade,
-  type EstadoLote,
+  type EstadoLoteBko,
   type LinhaErro,
   type ModoCarga,
   type ProgressoSessaoArquivo,
 } from '@macuxi/integracao/contracts';
 import { protegerFormula } from '@macuxi/comum/csv';
-import { dividirCsvEmPartes, type ParteDoArquivo } from '@macuxi/integracao/web';
+import { dividirCsvEmPartes, loteEmAndamento, rotuloDoLote, tomDoLote, type ParteDoArquivo } from '@macuxi/integracao/web';
 import { downloadBlob } from '@macuxi/platform-sdk/web';
 
 /** Nome do cartão e a frase curta de cada base (T-0087 §3). */
@@ -39,24 +38,13 @@ export const CARTAO_DA_ENTIDADE: Record<Entidade, { titulo: string; descricao: s
   nota: { titulo: 'Notas e histórico', descricao: 'Notas fiscais emitidas, para o histórico de compras do cliente.' },
 };
 
-export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
-  recebido: 'Na fila',
-  processando: 'Gravando',
-  concluido: 'Concluído',
-  concluido_com_erros: 'Concluído com erros',
-  falhou: 'Falhou',
-};
-
 export const ROTULO_MODO: Record<ModoCarga, { titulo: string; ajuda: string }> = {
   delta: { titulo: 'Delta', ajuda: 'Grava só as linhas do arquivo; o que não veio continua como está.' },
   completo: { titulo: 'Completo', ajuda: 'O arquivo é a lista inteira: o que não vier é inativado no fim da última parte. O registro de uma linha com erro continua como está, sem ser inativado.' },
 };
 
-export const ENTIDADES_DO_HUB: readonly Entidade[] = ENTIDADES;
-
-export function loteTerminou(status: EstadoLote): boolean {
-  return status === 'concluido' || status === 'concluido_com_erros' || status === 'falhou';
-}
+/** O cartão ainda em andamento depois da espera da tela (RD-0968): só a ação. */
+export const TEXTO_CARGA_EM_ANDAMENTO = 'Volte daqui a pouco para ver o resultado.';
 
 /** Chave de idempotência da carga (RN-INT-12): a mesma em todas as partes e nas novas tentativas de uma parte. */
 export function novaChaveDeCarga(uuid: () => string = () => crypto.randomUUID()): string {
@@ -141,7 +129,7 @@ export interface PortaCarga {
   enviarParte(corpo: CargaArquivoEntrada): Promise<CargaArquivoAceita>;
   /** Cria o Conector tipo arquivo do portal quando o tenant ainda não tem (404 CONECTOR_NAO_ENCONTRADO na 1ª parte). */
   garantirConectorArquivo(entidade: Entidade): Promise<void>;
-  lerLote(id: string): Promise<{ status: EstadoLote }>;
+  lerLote(id: string): Promise<{ status: EstadoLoteBko }>;
   lerSessao(id: string): Promise<ProgressoSessaoArquivo>;
   esperar(ms: number): Promise<void>;
   agora(): number;
@@ -161,10 +149,28 @@ export interface ResultadoCarga {
   lotes: string[];
   sessaoId: string | null;
   progressoSessao: ProgressoSessaoArquivo | null;
-  status: EstadoLote | null;
+  status: EstadoLoteBko | null;
   repetido: boolean;
   /** `false` = passou do tempo de espera da tela com o Hub ainda gravando. */
   terminou: boolean;
+}
+
+const sessaoTemParteCancelada = (p: ProgressoSessaoArquivo): boolean => p.partes.some((x) => x.status === 'cancelado');
+
+/** Estado técnico do lote (ou da sessão em partes) que vira o selo do cartão. */
+function estadoDaCarga(r: ResultadoCarga): EstadoLoteBko | null {
+  const s = r.progressoSessao;
+  if (!s) return r.status;
+  if (sessaoTemParteCancelada(s)) return 'cancelado';
+  if (s.partes_com_falha > 0) return 'falhou';
+  if (s.erros_total > 0) return 'concluido_com_erros';
+  return s.situacao === 'completa' || s.partes_aplicadas === s.total_partes ? 'concluido' : 'processando';
+}
+
+/** Selo do cartão com os mesmos 5 status e tons do monitor da Integração (RN-INT-15, `rotuloDoLote`/`tomDoLote`). */
+export function seloDaCarga(r: ResultadoCarga | null): { rotulo: string; tom: ReturnType<typeof tomDoLote> } | null {
+  const estado = r ? estadoDaCarga(r) : null;
+  return estado ? { rotulo: rotuloDoLote(estado), tom: tomDoLote(estado) } : null;
 }
 
 export async function conferirArquivo(porta: PortaCarga, e: { entidade: Entidade; modo: ModoCarga; plano: Extract<PlanoDeEnvio, { ok: true }> }): Promise<ConferenciaArquivo> {
@@ -219,7 +225,7 @@ export async function importarArquivo(
 
   // acompanha a gravação (o Hub aplica em segundo plano)
   const inicio = porta.agora();
-  let status: EstadoLote | null = null;
+  let status: EstadoLoteBko | null = null;
   let progressoSessao: ProgressoSessaoArquivo | null = null;
   let terminou = false;
   while (!terminou && porta.agora() - inicio < ESPERA_MAXIMA_MS) {
@@ -227,15 +233,15 @@ export async function importarArquivo(
       progressoSessao = await porta.lerSessao(sessaoId);
       const feitas = progressoSessao.partes_aplicadas + progressoSessao.partes_com_falha;
       avisar('gravando', total, feitas);
-      terminou = progressoSessao.situacao !== 'aberta' || feitas >= total;
+      terminou = progressoSessao.situacao !== 'aberta' || feitas >= total || sessaoTemParteCancelada(progressoSessao);
     } else {
       status = (await porta.lerLote(lotes[0] as string)).status;
-      avisar('gravando', total, loteTerminou(status) ? 1 : 0);
-      terminou = loteTerminou(status);
+      terminou = !loteEmAndamento(status);
+      avisar('gravando', total, terminou ? 1 : 0);
     }
     if (!terminou) await porta.esperar(ESPERA_MS);
   }
-  // sem terminar no prazo: a tela diz que o Hub continua gravando e o status do lote segue consultável
+  // sem terminar no prazo: o selo fica Em andamento e o status do lote segue consultável
   if (terminou) avisar('pronto', total, total);
   return { lotes, sessaoId, progressoSessao, status, repetido, terminou };
 }

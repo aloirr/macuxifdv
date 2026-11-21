@@ -1,6 +1,6 @@
 import { defineModule, PERFIS, type ModuloId } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { calcularModulosEfetivos, dependentesDe, efetivosPelasDependencias, moduloEstaAtivo, modulosRemovidos, podeDesativarModulo } from './licencas';
+import { calcularModulosEfetivos, dependentesDe, efetivosPelasDependencias, moduloEstaAtivo, modulosRemovidos, podeBaixarApp, podeDesativarModulo } from './licencas';
 
 const todos = [...PERFIS];
 const manifestos = [
@@ -104,5 +104,19 @@ describe('RN-CORE-01/03: efetivos e dependentes na tela de licenças (sem manife
     expect(dependentesDe('catalogo', modulos, dependencias)).toEqual(['vendedor']);
     expect(dependentesDe('core', modulos, dependencias)).toEqual(['catalogo', 'vendedor', 'promotor', 'treinamento']);
     expect(dependentesDe('vendedor', modulos, dependencias)).toEqual([]);
+  });
+});
+
+
+describe('RN-CORE-67: licença do link de download do app', () => {
+  it('RN-CORE-67: Campo exige vendedor ou promotor entre os módulos efetivos', () => {
+    expect(podeBaixarApp('campo', ['core', 'vendedor'])).toBe(true);
+    expect(podeBaixarApp('campo', ['core', 'promotor'])).toBe(true);
+    expect(podeBaixarApp('campo', ['core', 'gestor', 'catalogo'])).toBe(false);
+    expect(podeBaixarApp('campo', ['core'])).toBe(false);
+  });
+  it('RN-CORE-67: Gestão exige o módulo gestor', () => {
+    expect(podeBaixarApp('gestao', ['core', 'gestor'])).toBe(true);
+    expect(podeBaixarApp('gestao', ['core', 'vendedor', 'promotor'])).toBe(false);
   });
 });

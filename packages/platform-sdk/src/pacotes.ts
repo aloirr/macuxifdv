@@ -1,6 +1,7 @@
 /**
- * Porta dos pacotes publicados para download (T-0098; ADR 0037): o instalador do Conector on-premise fica num bucket PRIVADO
- * e a API entrega ao portal um link GET assinado de validade curta (URL pré-assinada SigV4), sem nunca servir os bytes.
+ * Porta dos pacotes publicados para download (T-0098; ADR 0037): o instalador do Conector on-premise e, desde a T-0190
+ * (ADR 0065, RN-CORE-67), os APKs do Macuxi Campo e do Macuxi Gestão ficam num bucket PRIVADO e a API entrega ao portal um
+ * link GET assinado de validade curta (URL pré-assinada SigV4), sem nunca servir os bytes.
  *
  * - `ServicoPacotes` — o que a rota do módulo recebe em `ctx.pacotes`. `linkDoUltimo(produto)` lê o manifesto
  *   `<prefixo><produto>/ultimo.json` (`PacotePublicadoSchema`) e assina o GET de `<prefixo><produto>/<arquivo>`.
@@ -13,9 +14,13 @@
  */
 import { z } from 'zod';
 import { ErroHttpModulo } from './api';
+import { VARIANTES_APP } from './app-versao';
 
-/** Produtos com pacote publicado. Lista fechada: a chave do objeto nunca vem do cliente. */
-export const PRODUTOS_PACOTE = ['conector'] as const;
+/**
+ * Produtos com pacote publicado. Lista fechada: a chave do objeto nunca vem do cliente. Os APKs entram pela variante do app
+ * (`campo`, `gestao`; T-0190, ADR 0065): `linkDoUltimo(variante)` serve a rota do Core.
+ */
+export const PRODUTOS_PACOTE = ['conector', ...VARIANTES_APP] as const;
 export type ProdutoPacote = (typeof PRODUTOS_PACOTE)[number];
 
 /** Validade do link em segundos: padrão 5 min, de 1 a 15 min (`MACUXI_PACOTES_VALIDADE_S`). */
@@ -46,13 +51,21 @@ export const PacotePublicadoSchema = z.object({
 });
 export type PacotePublicado = z.output<typeof PacotePublicadoSchema>;
 
-/** O que a rota devolve ao portal (mesmos campos do `LinkDownloadConectorSchema` da Integração). */
-export interface LinkPacote extends PacotePublicado {
-  /** URL GET assinada do objeto (https em produção). Segredo de curta duração: nunca em log. */
-  url: string;
-  /** ISO UTC: depois disso o bucket recusa o link. */
-  expira_em: string;
-}
+/**
+ * Link de download que as rotas devolvem ao portal (Conector, Apps): o manifesto sem `publicado_em`, mais `url` e `expira_em`.
+ * Os contratos dos módulos usam este schema (o Core acrescenta `variante` com `.extend`) em vez de repetir os campos.
+ */
+export const LinkPacoteSchema = PacotePublicadoSchema.omit({ publicado_em: true })
+  .extend({
+    /** URL GET assinada do objeto (https em produção). Segredo de curta duração: nunca em log. */
+    url: z.string().url(),
+    /** ISO UTC: depois disso o bucket recusa o link. */
+    expira_em: z.string().datetime(),
+  })
+  .strip();
+
+/** O que `linkDoUltimo` devolve: os campos do `LinkPacoteSchema` e o `publicado_em` do manifesto, quando houver. */
+export type LinkPacote = z.output<typeof LinkPacoteSchema> & Pick<PacotePublicado, 'publicado_em'>;
 
 export interface ServicoPacotes {
   /** `false` quando a API não tem armazenamento S3 (disco local em dev/CI). */

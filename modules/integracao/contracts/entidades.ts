@@ -34,6 +34,26 @@ export const ORDEM_CARGA_ENTIDADES: readonly (typeof ENTIDADES)[number][] = ['fi
 export const Entidade = z.enum(ENTIDADES, { errorMap: () => ({ message: 'entidade desconhecida' }) });
 export type Entidade = z.infer<typeof Entidade>;
 
+/** Rótulo humano de cada entidade de carga (Monitor do BKO, alerta de carga que não ocorreu). */
+export const ROTULO_ENTIDADE: Record<Entidade, string> = {
+  vendedor: 'Vendedores',
+  cliente: 'Clientes',
+  produto: 'Produtos',
+  preco: 'Preços',
+  estoque: 'Estoque',
+  titulo: 'Títulos',
+  nota: 'Notas fiscais',
+  rota: 'Rotas',
+  catalogo_no: 'Árvore do catálogo',
+  produto_unidade: 'Unidades do produto',
+  cliente_endereco: 'Endereços de clientes',
+  transportadora: 'Transportadoras',
+  forma_pagamento: 'Formas de pagamento',
+  prazo_pagamento: 'Prazos de pagamento',
+  tabela_escalonada: 'Tabela escalonada',
+  filial: 'Filiais',
+};
+
 // ---------- vendedor ----------
 export const VendedorPayload = RegistroBase.extend({
   nome: Texto(120),
