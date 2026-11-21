@@ -19,7 +19,7 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 | Coluna | Conteúdo | Largura |
 |---|---|---|
 | Entidade | `ROTULO_ENTIDADE` (ex.: Produtos), peso 400 | sem largura (divide o resto) |
-| Última carga | `15/11 às 01:02` do lote mais recente (`formatDateTime`, data uma vez por linha); com falha, `15/11 às 01:02 · falhou 01:03` (hora da falha com `formatTime`; falha em outro dia, `formatDataHoraCurta`: `15/11 às 23:58 · falhou 16/11 00:03`) | sem largura (divide o resto) |
+| Última carga | `15/11 às 01:02` do lote mais recente (`formatDateTime`, data uma vez por linha); sem falha e com mais de um lote, `15/11 às 01:01 · 4 lotes`; com falha, `15/11 às 01:02 · falhou 01:03` (hora da falha com `formatTime`; falha em outro dia, `formatDataHoraCurta`: `15/11 às 23:58 · falhou 16/11 00:03`) | sem largura (divide o resto) |
 | Situação | `Badge` **Com falha** (`danger`) quando a entidade tem lote reprocessável (RN-INT-15), inclusive concluído com avisos; senão **Em dia** (`success`) | 120 px |
 | Linhas integradas | número (`numero: true`), `x de y` do lote mais recente: `7.378 de 14.780`; lote em andamento, célula vazia | 150 px |
 | (ações) | **Reprocessar** (`primary`, `size="sm"`) só com lote reprocessável, à esquerda de **Histórico (n)** (secundário, `size="sm"`; n = lotes da entidade) | 260 px |
