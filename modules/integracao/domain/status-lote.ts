@@ -1,9 +1,9 @@
 /**
  * Status do lote na tela do BKO (T-0173; RN-INT-15, RN-INT-16): 5 status para quem opera, mapeados do estado técnico do lote
- * (`EstadoLoteBko`, RN-INT-08); ações válidas por status; duração e linhas integradas; autorização do reprocessamento.
+ * (`EstadoLoteBko`, RN-INT-08); ações válidas por status; linhas integradas; autorização do reprocessamento.
  * Funções puras: a API grava/lê, a tela só compõe o texto.
  */
-import { ESTADOS_LOTE_BKO, type EstadoLote, type EstadoLoteBko } from '../contracts';
+import type { EstadoLote, EstadoLoteBko } from '../contracts';
 import { transicionarLote } from './estados';
 
 /** RN-INT-15: os 5 status que a pessoa vê (Em andamento, Concluído, Concluído com avisos, Com falha, Cancelado). */
@@ -32,40 +32,14 @@ export function statusDoLote(estado: EstadoLoteBko): StatusLote {
  */
 export const estadoLoteNoHubV1 = (estado: EstadoLoteBko): EstadoLote => (estado === 'cancelado' ? 'falhou' : estado);
 
-/** Estados técnicos que formam cada status (o filtro Status da tela e da API usam isto): o inverso de `statusDoLote`. */
-export const estadosDoStatus = (status: StatusLote): EstadoLoteBko[] => ESTADOS_LOTE_BKO.filter((e) => statusDoLote(e) === status);
-
-export type AcaoLote = 'cancelar' | 'reprocessar';
-
 /** RN-INT-15: Cancelar só em andamento — a regra é a aresta `→ cancelado` de `TRANSICOES_LOTE`. */
 export const podeCancelarLote = (estado: EstadoLoteBko): boolean => transicionarLote(estado, 'cancelado').ok;
 
 /** RN-INT-15: Reprocessar só em Com falha e Concluído com avisos — a aresta `→ recebido` de `TRANSICOES_LOTE`. */
 export const podeReprocessarLote = (estado: EstadoLoteBko): boolean => transicionarLote(estado, 'recebido').ok;
 
-/** RN-INT-15: ações do menu "⋯" da linha; a que não vale não aparece. Vazio = a linha não tem "⋯". */
-export function acoesDoLote(estado: EstadoLoteBko): AcaoLote[] {
-  return [...(podeCancelarLote(estado) ? (['cancelar'] as const) : []), ...(podeReprocessarLote(estado) ? (['reprocessar'] as const) : [])];
-}
-
-/** RN-INT-15: segundos do início à conclusão; em andamento, até agora; sem início, nulo. Nunca negativo. */
-export function duracaoLoteSegundos(inicio: string | null | undefined, conclusao: string | null | undefined, agora: Date): number | null {
-  if (!inicio) return null;
-  const fim = conclusao ? Date.parse(conclusao) : agora.getTime();
-  const seg = Math.floor((fim - Date.parse(inicio)) / 1000);
-  return Number.isFinite(seg) ? Math.max(0, seg) : null;
-}
-
-export interface LinhasIntegradas {
-  integradas: number;
-  total: number;
-  comErro: boolean;
-}
-
-/** RN-INT-15: linhas integradas = recebidas menos as com erro; `comErro` diz se a tela mostra "x de y". */
-export function linhasIntegradas(recebidas: number, comErro: number): LinhasIntegradas {
-  return { integradas: Math.max(0, recebidas - comErro), total: recebidas, comErro: comErro > 0 };
-}
+/** RN-INT-15: lote que falhou não aplicou nada; nos demais, recebidas menos as com erro. */
+export const integradasDoLote = (estado: EstadoLoteBko, recebidas: number, comErro: number): number => (estado === 'falhou' ? 0 : Math.max(0, recebidas - comErro));
 
 export type ResultadoAutorizacaoReprocessar =
   | { ok: true; via: 'direto' | 'autorizado' }

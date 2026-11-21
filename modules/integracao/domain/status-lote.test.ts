@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ESTADOS_LOTE_BKO, LoteResultado } from '../contracts';
 import {
-  acoesDoLote,
   autorizacaoReprocessar,
-  duracaoLoteSegundos,
-  estadosDoStatus,
   limiteTentativasAutorizacao,
-  linhasIntegradas,
+  integradasDoLote,
   podeCancelarLote,
   podeReprocessarLote,
   statusDoLote,
-  STATUS_LOTE,
   estadoLoteNoHubV1,
 } from '.';
 
@@ -27,10 +23,8 @@ describe('RN-INT-15: os 5 status do lote na tela', () => {
     expect(statusDoLote('cancelado')).toBe('cancelado');
   });
 
-  it('RN-INT-15: todo estado do contrato mapeia para um dos 5 status e o filtro devolve os mesmos estados', () => {
+  it('RN-INT-15: todo estado do contrato mapeia para um dos 5 status', () => {
     expect(new Set(ESTADOS_LOTE_BKO.map(statusDoLote)).size).toBe(5);
-    for (const s of STATUS_LOTE) for (const e of estadosDoStatus(s)) expect(statusDoLote(e)).toBe(s);
-    expect(STATUS_LOTE.flatMap(estadosDoStatus).sort()).toEqual([...ESTADOS_LOTE_BKO].sort());
   });
 });
 
@@ -42,28 +36,14 @@ describe('RN-INT-15: ações válidas por status', () => {
   it('RN-INT-15: Reprocessar só em Com falha e Concluído com avisos', () => {
     for (const e of ESTADOS_LOTE_BKO) expect(podeReprocessarLote(e), e).toBe(e === 'falhou' || e === 'concluido_com_erros');
   });
-
-  it('RN-INT-15: concluído e cancelado não têm ação; ação que não vale não aparece', () => {
-    expect(acoesDoLote('concluido')).toEqual([]);
-    expect(acoesDoLote('cancelado')).toEqual([]);
-    expect(acoesDoLote('processando')).toEqual(['cancelar']);
-    expect(acoesDoLote('falhou')).toEqual(['reprocessar']);
-    expect(acoesDoLote('concluido_com_erros')).toEqual(['reprocessar']);
-  });
 });
 
-describe('RN-INT-15: duração e linhas integradas', () => {
-  const t0 = '2026-11-15T14:31:00.000Z';
-  it('RN-INT-15: duração vai do início à conclusão; em andamento, até agora; sem início, nula', () => {
-    expect(duracaoLoteSegundos(t0, '2026-11-15T14:33:10.000Z', new Date('2026-11-15T20:00:00Z'))).toBe(130);
-    expect(duracaoLoteSegundos(t0, null, new Date('2026-11-15T14:31:45.000Z'))).toBe(45);
-    expect(duracaoLoteSegundos(null, null, new Date('2026-11-15T20:00:00Z'))).toBeNull();
-  });
-
-  it('RN-INT-15: linhas integradas = recebidas - erros; com erro mostra "x de y"', () => {
-    expect(linhasIntegradas(1240, 0)).toEqual({ integradas: 1240, total: 1240, comErro: false });
-    expect(linhasIntegradas(1240, 60)).toEqual({ integradas: 1180, total: 1240, comErro: true });
-    expect(linhasIntegradas(10, 99)).toEqual({ integradas: 0, total: 10, comErro: true });
+describe('RN-INT-15: linhas integradas do lote', () => {
+  it('RN-INT-15: lote que falhou não integrou nada; nos demais, recebidas menos as com erro', () => {
+    expect(integradasDoLote('falhou', 3695, 0)).toBe(0);
+    expect(integradasDoLote('concluido', 1240, 0)).toBe(1240);
+    expect(integradasDoLote('concluido_com_erros', 1240, 60)).toBe(1180);
+    expect(integradasDoLote('concluido', 10, 99)).toBe(0);
   });
 });
 

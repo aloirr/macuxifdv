@@ -25,6 +25,9 @@ interface LinhaLote {
   concluido_em: Date | null;
 }
 
+/** Limite de lotes recentes devolvidos por entidade: carga rara não some quando outra entidade carrega sem parar. */
+export const LOTES_POR_ENTIDADE = 20;
+
 const COLUNAS_LOTE = `l.id as lote_id, c.identificador as conector_id, l.entidade, l.modo, l.status, l.recebidas, l.com_erro, l.novas, l.atualizadas,
   l.inalteradas, l.obsoletas, l.inativadas, l.recebido_em, l.concluido_em`;
 
@@ -41,8 +44,15 @@ export const rotaMonitor: RotaModulo = {
     const agoraIso = ctx.agora().toISOString();
     return ctx.comTenant(async (db) => {
       const { rows: recentes } = await db.query<LinhaLote>(
-        `select ${COLUNAS_LOTE} from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
-          where l.tenant_id = $1 and l.deleted_at is null order by l.recebido_em desc limit 100`,
+        `select ${COLUNAS_LOTE}
+           from (select x.*, row_number() over (partition by x.entidade order by x.recebido_em desc) as rn
+                   from integracao.lote x where x.tenant_id = $1 and x.deleted_at is null) l
+           join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
+          where l.rn <= ${LOTES_POR_ENTIDADE} order by l.recebido_em desc`,
+        [tenantId],
+      );
+      const { rows: conectores } = await db.query<{ conector_id: string; versao_conector: string | null }>(
+        'select identificador as conector_id, versao_conector from integracao.conector where tenant_id = $1 and deleted_at is null order by identificador',
         [tenantId],
       );
       // RN-INT-08: contagem por estado da fila, presos (enviados com tentativas no limite) e retidos sem mapeamento
@@ -63,6 +73,7 @@ export const rotaMonitor: RotaModulo = {
       return {
         gerado_em: agoraIso,
         lotes_recentes: recentes.map(paraItem),
+        conectores,
         resumo_pedidos: resumoPedidosErp({ por_estado: contagem, presos: extras[0]?.presos ?? 0, retidos: extras[0]?.retidos ?? 0 }),
       };
     });
