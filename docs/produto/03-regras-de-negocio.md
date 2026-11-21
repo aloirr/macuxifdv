@@ -179,6 +179,16 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Sem histórico de 3 meses**, a curva não aparece. Dimensão com média zero também não.
   - O promotor sem `promotor_ve_pedidos` não vê as curvas (RN-PRO-01).
   - Na ficha, as curvas ficam no **Resumo**. "Positivado em <mês>" sai da ficha; o segmento deixa de ser tag e vira dado de **Dados cadastrais**.
+- **RN-CORE-64 Início do BKO** (dono do produto, R-20261120-183112 item 4 e R-20261120-184917 item 1; T-0189; v1.0.19):
+  - O `/` do BKO traz a saudação ("Boa noite, ‹nome›.") e a data por extenso no fuso do tenant, e três cartões: **Precisa de você**, **Hoje** e **Equipe no mês**.
+  - **Precisa de você** é a única área de alertas da tela (R-20261110-093124). Cada alerta ocupa uma linha, com um ponto vermelho para falha ou amarelo para atenção, o número em negrito e, à direita, a ação com seta. As falhas vêm antes. Entram: mensagens paradas e lote que falhou na Integração (→ Integração ERP ou lote), carga que não ocorreu (RN-CORE-65), pedidos esperando aprovação com o mais antigo, alertas abertos, usuários com senha temporária vencida e clientes com cadastro incompleto (RN-CORE-66).
+  - **Hoje** traz Vendas (R$, barra e % da meta do dia), Pedidos (com quantos dos de hoje estão em aprovação, só quando há algum), Positivação no mês (%, barra e meta) e Visitas ("x de y", barra e quantas ainda estão na rota).
+  - **Equipe no mês** traz o top 3 (nome, R$ e % da meta) e "Ver ranking". Só aparece para quem vê o ranking.
+  - O conteúdo segue o perfil, o escopo da carteira (RN-CORE-04) e a licença dos módulos. Alerta ou número de módulo sem licença não aparece. Quem tem escopo de carteira (o gerente, por exemplo) vê só a carteira dele; o supervisor não entra no BKO (RN-CORE-33). A API revalida perfil, escopo e licença.
+  - Sem pendências, o cartão mostra só "Nada pendente.".
+- **RN-CORE-65 Carga que não ocorreu** (T-0189; padrão do gerente-projetos até a decisão do dono do produto): a entidade que já recebeu carga gera um alerta de atenção quando passa do horário esperado, num dia útil do calendário do tenant, e a última carga recebida é anterior a esse horário. Feriado do tenant não é dia útil. O alerta traz a entidade e a data e hora da última carga, com link para a Integração ERP. O horário esperado é o parâmetro `integracao.horario_carga` do tenant, em Parâmetros › Início: padrão **06:00 no fuso do tenant** para todas as entidades. Cada entidade pode ter um horário próprio ou ficar sem horário, e aí não gera alerta.
+- **RN-CORE-66 Cadastro incompleto no Início** (T-0189): conta os clientes ativos do escopo com cadastro incompleto pela lista `cliente_campos_obrigatorios` da RN-CORE-16 (sem lista nova). O alerta traz a quantidade e o campo que mais falta, com link para a lista de Clientes.
+- **RN-CORE-67 APKs só por link temporário** (R-20261120-194335 e R-20261120-200027, item 5; T-0190, ADR 0065; v1.0.19): os APKs do Macuxi Campo e do Macuxi Gestão só se baixam por link temporário gerado no BKO (portal da empresa) por quem administra a empresa ou pelo time da Macuxi, da versão vigente, válido por no máximo 15 minutos. O link do Campo exige o módulo Vendedor ou Promotor licenciado; o do Gestão exige o Gestor. Cada geração é auditada sem dado pessoal, e nenhuma rota ou página pública serve o APK.
 
 **Produto — custo, preço e medidas** (decisões do Alexandre, 2026-11-02, R-20261102-094644 e R-20261102-111619)
 - **RN-CORE-18** Cadastro do produto: custo e preço de venda são obrigatórios. Margem (%) = (preço − custo) ÷ preço; markup (%) = (preço − custo) ÷ custo; lucro (R$) = preço − custo; calculados, nunca digitados. Produto sem preço de venda não é vendável. Produto sem custo é vendável, mas aparece como "custo não informado" no BKO e no monitor de integração. **Custo, margem, markup e lucro são dados internos:** só o BKO (admin, analista, gerente) os vê; não vão para o app de campo nem para o PDF do cliente.
@@ -404,7 +414,6 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - **Desempate** (v1.0.18), nesta ordem: o segmento com mais palavras casadas exatas (sem prefixo, erro de digitação nem ano por faixa) → o segmento mais curto → o primeiro da aplicação. Assim "amortecedor palio" mostra "Palio 1.0 2001" e não "Palio Weekend Adventure 1.8 2001–2010 / Siena".
   - **Sinônimos e busca online:** os sinônimos do tenant valem na aplicação (VW = Volkswagen, GM = Chevrolet). A busca em linguagem natural online mantém modelo, motor e ano no texto livre.
   - **Desempenho:** com 20 mil produtos com aplicação longa, a busca offline tem p95 < 300 ms na tela de medição. Tenant sem aplicação mantém resultados e tempos iguais aos de antes.
-
 - **RN-CAT-15 Apelidos de montadora** (v1.0.19; R-20261120-214252 e R-20261120-230805, auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §2 item 1, etapa 1)
   - Uma lista padrão do domínio do Catálogo, igual para todo tenant, liga os apelidos de montadora: VW ↔ Volkswagen, GM ↔ Chevrolet ↔ Chevy, MB ↔ Mercedes ↔ Mercedes-Benz, e as outras da lista do módulo.
   - A lista padrão soma-se aos sinônimos do tenant (RN-CAT-12): vale nos dois sentidos, em todos os campos (inclusive a aplicação), na busca online, na do aparelho e no seletor do pedido. O sinônimo do tenant não apaga o apelido padrão.
@@ -420,14 +429,14 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - Com texto na busca, aparece só o produto que casa **todas** as palavras (ou grupos de sinônimos) em algum campo; o código exato (SKU, EAN, código ERP, referência) conta como casa-tudo.
   - Se ninguém casa tudo, a lista é vazia (total 0).
   - Vale igual na busca online, na do aparelho e no seletor do pedido. Exemplo: "xyzqwk amortecedor" → lista vazia.
-
-- **RN-CAT-18 Palavra inteira e nome de veículo** (v1.0.20; R-20261120-214252 e R-20261120-230805, auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §2 item 3, etapa 3)
+- **RN-CAT-18 Código do nó da árvore** (RF-CAT-04) O código de um nó da árvore do catálogo (grupo, subgrupo…) é único **entre os irmãos** (mesmo pai, ou entre as raízes), e não no tenant inteiro: o mesmo código pode aparecer em ramos diferentes (ex.: `OUTROS` raiz e `OUTROS` filho de Outros; `NAO_CLASSIFICADO` sob Outros e sob Filtração). Dois nós vivos com o mesmo código sob o mesmo pai continuam recusados. Na carga do ERP, o nó sem `external_id` é adotado pelo par pai + código. *(Diagnóstico da outbox AM2808, R-20261120-235317-alexandre, e opção C do R-20261120-180005; v1.0.19.)*
+- **RN-CAT-19 Palavra inteira e nome de veículo** (v1.0.20; R-20261120-214252 e R-20261120-230805, auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §2 item 3, etapa 3)
   - Na aplicação, a palavra da busca casa só a palavra inteira ("gol" não traz Golf), salvo a última palavra digitada (ver "Começo de palavra").
   - **Nome de veículo vem da própria base:** é a palavra que aparece na aplicação de pelo menos 3 produtos ativos do tenant e em pelo menos 5 vezes mais aplicações do que nomes e descrições. Ela casa só inteira, em qualquer campo, e não passa pelo singular. Assim "polo" acha "Polo Classic" e não traz "Cabo de vela 4 polos".
   - **Começo de palavra:** vale só para a última palavra digitada, porque a busca roda a cada letra ("amortecedor pal" acha o Palio). As outras palavras casam inteiras, salvo erro de digitação nos campos de texto, como hoje.
   - Vale igual na busca online, na do aparelho e no seletor do pedido.
-- **RN-CAT-19 Modelo derivado e vizinhas juntas** (v1.0.20; mesmas decisões, auditoria §2 item 4, etapa 4)
-  - **Modelo derivado:** o nome de veículo (RN-CAT-18) também casa a palavra grudada da qual ele é o começo ou o fim, quando o outro pedaço tem 3 ou mais caracteres e o próprio nome também. Assim "fox" acha Fox, CrossFox e SpaceFox, e "gol" continua sem achar Golf, porque "f" tem menos de 3 caracteres.
+- **RN-CAT-20 Modelo derivado e vizinhas juntas** (v1.0.20; mesmas decisões, auditoria §2 item 4, etapa 4)
+  - **Modelo derivado:** o nome de veículo (RN-CAT-19) também casa a palavra grudada da qual ele é o começo ou o fim, quando o outro pedaço tem 3 ou mais caracteres e o próprio nome também. Assim "fox" acha Fox, CrossFox e SpaceFox, e "gol" continua sem achar Golf, porque "f" tem menos de 3 caracteres.
   - **Vizinhas juntas no texto:** duas palavras vizinhas da busca, coladas, também casam a palavra grudada do texto e da aplicação. Assim "space fox" acha SpaceFox e "Space Fox".
 
 ## 9. Integração (Hub `/integracao/v1`)

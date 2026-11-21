@@ -25,3 +25,6 @@ export { dividirCsvEmPartes, type ParteDoArquivo } from '../domain/carga-arquivo
 
 /** RD-0961: rótulos e tons dos 5 status do lote (RN-INT-15) e a função estado → status, para o portal e o BKO usarem um só texto. */
 export { rotuloDoLote, tomDoLote } from './lib/apresentacao';
+
+/** RN-INT-15: "lote em andamento" é o lote que ainda pode ser cancelado; o portal usa este nome para não repetir a regra. */
+export { podeCancelarLote as loteEmAndamento } from '../domain/status-lote';

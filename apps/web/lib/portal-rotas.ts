@@ -56,6 +56,8 @@ export const ROTAS_PORTAL = {
   // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
   equipeModeloCsv: '/core/equipe/modelo.csv',
   equipeImportacoes: '/core/equipe/importacoes',
+  /** T-0190: link temporário do APK do Campo ou do Gestão (`{ variante }`); auditado na API. Só admin e super-admin. */
+  appDownload: '/core/apps/download',
   // N1 (PR #97, nuvem): até o merge respondem 404 e o portal mostra "em breve"
   modeloCsv: (e: Entidade) => `/integracao/modelos/${e}.csv`,
   dicionario: (e: Entidade) => `/integracao/modelos/${e}.json`,

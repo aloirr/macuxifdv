@@ -6,6 +6,7 @@ import {
   ClientePayload,
   EVENTOS_ATUALIZADO,
   ENTIDADES,
+  ROTULO_ENTIDADE,
   EstoquePayload,
   FilialPayload,
   ChaveConectorCriada,
@@ -274,5 +275,12 @@ describe('RN-INT-09: política de versão do Conector e chave por Conector (adit
     const chave = { conector_id: 'cnx-1', tenant_id: UUID, escopo: 'integracao.v1', chave: 'x'.repeat(40), prefixo: 'mxc_1234', criada_em: '2026-10-31T10:00:00Z' };
     expect(ChaveConectorCriada.safeParse(chave).success).toBe(true);
     expect(ChaveConectorCriada.safeParse({ ...chave, escopo: 'api.tudo' }).success).toBe(false);
+  });
+});
+
+describe('ROTULO_ENTIDADE', () => {
+  it('toda entidade de carga tem rótulo humano', () => {
+    for (const e of ENTIDADES) expect(ROTULO_ENTIDADE[e]).toBeTruthy();
+    expect(Object.keys(ROTULO_ENTIDADE).sort()).toEqual([...ENTIDADES].sort());
   });
 });

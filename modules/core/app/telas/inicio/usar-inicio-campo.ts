@@ -19,12 +19,12 @@ import {
   fraseDoPainel,
   indicadoresDoInicio,
   linhaDaData,
-  saudacaoComNome,
   textoUltimaSincronizacao,
   type CardMetaInicio,
   type ContagemSino,
   type IndicadorInicio,
 } from './inicio-campo';
+import { saudacaoComNome } from '../../../domain/nome';
 import { ENTIDADE_USUARIO_AVATAR, fotoDoPerfil } from './foto-perfil';
 
 /** Entidade do pull das frases do tenant (`core.frase_dia`); até ser registrada na costura o aparelho usa as 30 padrão. */

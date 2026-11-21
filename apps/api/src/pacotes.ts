@@ -1,11 +1,11 @@
 /**
  * Adaptador S3 da porta `ServicoPacotes` do SDK (T-0098; ADR 0037): pacotes publicados para download por link temporário
- * (hoje o instalador do Conector on-premise, baixado pelo portal).
+ * pelo portal: o instalador do Conector on-premise e os APKs do Campo e do Gestão (T-0190, ADR 0065).
  *
  * No bucket privado das fotos, sob `MACUXI_PACOTES_PREFIXO` (padrão `pacotes/`):
  *   `<prefixo><produto>/<arquivo>`      — o pacote (ex.: `pacotes/conector/macuxi-conector-1.3.0-win-x64.zip`);
  *   `<prefixo><produto>/ultimo.json`    — o manifesto do último publicado (`PacotePublicadoSchema`), gravado DEPOIS do pacote.
- * Publicação: `pnpm --filter api publicar-pacote -- conector <arquivo> <versao>` (`cli/publicar-pacote.ts`).
+ * Publicação: `pnpm --filter api publicar-pacote <conector|campo|gestao> <arquivo> --versao X.Y.Z` (`cli/publicar-pacote.ts`).
  *
  * `linkDoUltimo` lê o manifesto com a chave da API e devolve um GET pré-assinado (SigV4 por query string) do pacote, com
  * validade `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s, de 60 a 900) e `Content-Disposition: attachment` com o nome do arquivo.

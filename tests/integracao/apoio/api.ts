@@ -14,10 +14,11 @@
 import { MeusModulosRespostaSchema, SessaoRespostaSchema, type MeusModulosResposta, type SessaoResposta } from '@macuxi/core/contracts';
 import { criarModuloApiCore } from '@macuxi/core/api';
 import { carregarDoisTenants, criarBancoDeTeste, DOIS_TENANTS, type BancoDeTeste } from '@macuxi/db/teste';
-import { ErroApiSchema, type ErroApi, type LinhaSync, type ModuloApi, type PaginaSync } from '@macuxi/platform-sdk';
+import { ErroApiSchema, type ErroApi, type LinhaSync, type ModuloApi, type PaginaSync, type ServicoPacotes } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyServerOptions, InjectOptions, LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { createApp } from '../../../apps/api/src/app';
+import type { VersoesApp } from '../../../apps/api/src/app-versao';
 import type { ArmazenamentoArquivos } from '../../../apps/api/src/arquivos';
 import { criarBancoApp, criarBancoPortal } from '../../../apps/api/src/banco';
 import type { ServicoEmailDaApi } from '../../../apps/api/src/email';
@@ -221,6 +222,11 @@ export async function subirApi(
     emailReal?: ServicoEmailDaApi;
     /** ADR 0048 (PR #243): resposta inicial da Receita falsa (padrão `ativa`) ou a própria consulta. Nunca vai à rede. */
     receita?: ReceitaDeTeste | ConsultaCnpjDeTeste;
+    /** T-0190 (ADR 0037/0065): a porta dos pacotes em `ctx.pacotes` (sem ela, desligada: 503, como o servidor sem S3). */
+    pacotes?: ServicoPacotes;
+    /** T-0190: versões do APK em `GET /v1/app/versao` e a base do `apk_url` do contrato antigo (sem elas, as do ambiente). */
+    versoesApp?: VersoesApp;
+    urlApiPublica?: string;
   } = {},
 ): Promise<ApiDeTeste> {
   // T-0176 (RN-CORE-39): todo usuário da fixture destravado (filial padrão como cadastro e venda); os testes da T-0176 travam quem precisarem
@@ -256,6 +262,9 @@ export async function subirApi(
     arquivos: opcoes.arquivos ?? null,
     ...(opcoes.relogio ? { relogio: opcoes.relogio } : {}),
     ...(opcoes.emailReal ? { email: opcoes.emailReal } : {}),
+    ...(opcoes.pacotes ? { pacotes: opcoes.pacotes } : {}),
+    ...(opcoes.versoesApp ? { versoesApp: opcoes.versoesApp } : {}),
+    ...(opcoes.urlApiPublica ? { urlApiPublica: opcoes.urlApiPublica } : {}),
     ...comReceita,
   });
   await app.ready();

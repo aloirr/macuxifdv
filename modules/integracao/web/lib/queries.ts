@@ -9,9 +9,7 @@
  *  - `GET  /v1/integracao/lotes/autorizadores` e `GET /v1/integracao/mapeamentos/codigos-macuxi` (`monitor.ver`)
  */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
 import { MeusModulosRespostaSchema } from '@macuxi/core/contracts';
-import { relogioReal } from '@macuxi/comum/relogio';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ, intervaloSyncAutoMs, PARAMETRO_SYNC_AUTO, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
@@ -30,6 +28,7 @@ import {
   type TipoMapeamento,
 } from '../../contracts';
 import { perfilDaSessao } from './apresentacao';
+import { paraSeNaoForDoLote } from './reprocessar-lotes';
 
 /**
  * RN-CORE-23: o monitor atualiza pelo `sync_auto_min` do tenant (padrão 30 min, mínimo 15), lido de `parametros.core` em
@@ -47,22 +46,6 @@ export const qk = {
   codigosMacuxi: (tipo: string) => ['integracao', 'codigos-macuxi', tipo] as const,
   erros: (loteId: string, codigo: string) => ['integracao', 'lote', loteId, 'erros', codigo] as const,
 };
-
-const relogio = relogioReal();
-
-/** "Agora" da tela, renovado no intervalo do tenant (o tempo desde o último sinal anda sem recarregar). */
-export function useAgora(intervaloInformadoMs?: number): Date {
-  // T-0140: o hook roda SEMPRE (antes ficava no valor padrão do parâmetro, que o React vê como chamada condicional)
-  const intervaloDoTenantMs = useIntervaloSyncAutoMs();
-  const intervaloMs = intervaloInformadoMs ?? intervaloDoTenantMs;
-  const [agora, setAgora] = useState(() => relogio.agora());
-  useEffect(() => {
-    // timer-permitido: sync_auto_min do tenant passado por intervaloSyncAutoMs (nunca abaixo de 15 min)
-    const t = setInterval(() => setAgora(relogio.agora()), intervaloMs);
-    return () => clearInterval(t);
-  }, [intervaloMs]);
-  return agora;
-}
 
 export interface SessaoDoBko {
   perfil: Perfil | null;
@@ -187,6 +170,8 @@ export function useReprocessarLote() {
           body: autorizadorId && senha ? { autorizador_id: autorizadorId, senha } : {},
         }),
       ),
+    // a senha do autorizador está nas `variables`: sem `gcTime: 0` ela ficaria no MutationCache por 5 min
+    gcTime: 0,
     onSettled: () => encerrarAcaoDeLote(qc),
   });
 }
@@ -215,6 +200,8 @@ export function useCodigosMacuxi(tipo: TipoMapeamento, ativo: boolean) {
 
 /** O erro é a recusa de quem não tem `lote.reprocessar` (a tela abre a autorização por senha)? */
 export const precisaAutorizador = (e: unknown): boolean => codigoDoErro(e) === 'autorizador_necessario';
+/** Erro que interrompe a fila do reprocessamento (RN-INT-16). */
+export const paraAFila = (e: unknown): boolean => paraSeNaoForDoLote(codigoDoErro(e));
 
 /** Código do erro da API (`senha_incorreta`, `muitas_tentativas`…) ou vazio. */
 export function codigoDoErro(e: unknown): string {
