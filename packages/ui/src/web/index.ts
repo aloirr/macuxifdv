@@ -30,3 +30,5 @@ export * from './progresso';
 export * from './lista-parametros';
 // RD-0323 (T-0104): abas acessíveis (Abas, PainelAba, ItemAba, idDaAba, idDoPainel)
 export * from './abas';
+// T-0191: opção exclusiva em cartão de 52 px (OpcaoCartao, GrupoOpcoesCartao); IconCasa, IconLapis e svgDaCasa ficam em icons
+export * from './opcao-cartao';

@@ -28,6 +28,8 @@ interface LinhaFila {
   tentativas?: number;
   retencao_codigo?: 'mapeamento_ausente' | 'mapeamento_ambiguo' | 'sequencia_repetida' | null;
   retencao_mensagem?: string | null;
+  /** `parados_desde` que o banco devolve para o tenant desta linha (T-0189); a regra é do `bko-monitor.db.test.ts`. */
+  parados_desde?: string;
   apagado?: boolean;
 }
 
@@ -45,11 +47,12 @@ function dbDaFila(fila: readonly LinhaFila[]) {
         for (const l of vivos(params[0])) n.set(l.estado, (n.get(l.estado) ?? 0) + 1);
         return { rows: [...n].map(([estado, c]) => ({ estado, n: c })) };
       }
-      // a mesma consulta do Hub (bko-monitor.ts): presos e retidos num `count(*) filter (...)` só
+      // a mesma consulta do Hub (bko-monitor.ts): presos, retidos e parados_desde (T-0189)
       if (/estado = 'enviado' and tentativas >= \$2/.test(sql) && /retencao_codigo is not null/.test(sql)) {
         const v = vivos(params[0]);
         const presos = v.filter((l) => l.estado === 'enviado' && (l.tentativas ?? 0) >= Number(params[1])).length;
-        return { rows: [{ presos, retidos: v.filter((l) => (l.retencao_codigo ?? null) !== null).length }] };
+        const retidos = v.filter((l) => (l.retencao_codigo ?? null) !== null).length;
+        return { rows: [{ presos, retidos, parados_desde: v.find((l) => l.parados_desde)?.parados_desde ?? null }] };
       }
       return { rows: [] };
     },
@@ -116,9 +119,29 @@ describe('T-0173 / RN-INT-08 — cards "Pedidos no ERP" = a fila do ERP do tenan
   });
 
   it('multi-tenant: a fila de B nunca entra nos números de A, e B vê só a dele', async () => {
-    const fila = [...A({ estado: 'pendente' }, 2), ...B({ estado: 'pendente' }, 5), ...B({ estado: 'rejeitado_erp' }, 1), ...B({ estado: 'enviado', tentativas: 9 }, 1)];
-    expect((await monitor(fila)).resumo_pedidos).toEqual({ na_fila: 2, entregue_ao_conector: 0, rejeitado_pelo_erp: 0, presos_sem_retorno: 0, retidos_sem_mapeamento: 0 });
-    expect((await monitor(fila, { tenant: TENANT_B })).resumo_pedidos).toEqual({ na_fila: 5, entregue_ao_conector: 1, rejeitado_pelo_erp: 1, presos_sem_retorno: 1, retidos_sem_mapeamento: 0 });
+    const fila = [
+      ...A({ estado: 'pendente' }, 2),
+      ...B({ estado: 'pendente' }, 5),
+      ...B({ estado: 'rejeitado_erp' }, 1),
+      ...B({ estado: 'enviado', tentativas: 9, parados_desde: '2026-11-14T12:05:00Z' }, 1),
+    ];
+    // T-0189: o parados_desde de B não vaza para A
+    expect((await monitor(fila)).resumo_pedidos).toEqual({
+      na_fila: 2,
+      entregue_ao_conector: 0,
+      rejeitado_pelo_erp: 0,
+      presos_sem_retorno: 0,
+      retidos_sem_mapeamento: 0,
+      parados_desde: null,
+    });
+    expect((await monitor(fila, { tenant: TENANT_B })).resumo_pedidos).toEqual({
+      na_fila: 5,
+      entregue_ao_conector: 1,
+      rejeitado_pelo_erp: 1,
+      presos_sem_retorno: 1,
+      retidos_sem_mapeamento: 0,
+      parados_desde: '2026-11-14T12:05:00.000Z',
+    });
   });
 
   // D-T0173-A1 (defeito aberto, modulo-integracao): modules/integracao/api/bko-monitor.ts conta qualquer `retencao_codigo`

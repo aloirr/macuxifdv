@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { ENTIDADES, SCHEMA_REGISTRO, VERSAO_CONTRATO, type Entidade, type LinhaInvalidaConector, type LoteEnvelopeValido, type ModoCarga } from '../contracts';
 import { jsonCanonico } from './idempotencia';
 import { PARAMETROS_PADRAO } from './parametros';
-import { sha256Hex } from './sha256';
+import { sha256Hex } from '@macuxi/platform-sdk/sha256';
 
 // ---------------------------------------------------------------------------------------------------------------- leitura do CSV
 

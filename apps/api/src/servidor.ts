@@ -16,6 +16,8 @@
  * (só o contêiner `api` e o passo de papéis do `banco` recebem; o worker nunca).
  * T-0098 (ADR 0037): com S3, o link temporário do instalador do Conector sai do mesmo bucket, em `MACUXI_PACOTES_PREFIXO`
  * (padrão `pacotes/`), válido por `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s); sem S3, a rota do download responde 503.
+ * T-0191 (RN-CORE-77): `MACUXI_NOMINATIM_URL` é a base do geocodificador do cliente (padrão: o Nominatim público, 1 req/s
+ * no processo); `desligado` = sem serviço (o botão Gerar coordenada responde 503).
  * T-0158 (ADR 0043): `MACUXI_DIAGNOSTICOS=1` liga o Portal › Diagnósticos (padrão desligado; exige a migração 0058).
  * ADR 0047: `MACUXI_PLANOS=1` liga os planos e licenças do portal (padrão desligado; exige a migração dos planos).
  * ADR 0052: `MACUXI_EMPRESA_ACOES=1` liga Inativar/Reativar, Backup e Excluir empresa no portal (padrão desligado; exige a
@@ -27,6 +29,7 @@ import { lerConfigApp, urlApp, urlPortal } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
+import { geocodificadorDoAmbiente } from '@macuxi/platform-sdk/geocodificador-nominatim';
 import { lerPacotesDoAmbiente } from './pacotes';
 import { criarBancoApp, criarBancoPortal, esperaDoPoolMs, POOL_PORTAL_PADRAO } from './banco';
 import { conferirSegredoJwt, diagnosticosAppLigados, diagnosticosLigados, lerSessaoWeb, lerTrustProxy, opcoesLogger, planosLigados, empresaAcoesLigadas, backupEmpresaDisponivel } from './config';
@@ -41,9 +44,11 @@ if (!segredoJwt.ok && segredoJwt.fatal) {
 }
 let arquivos: ReturnType<typeof lerArmazenamentoDoAmbiente>;
 let pacotes: ReturnType<typeof lerPacotesDoAmbiente>;
+let geocodificador: ReturnType<typeof geocodificadorDoAmbiente>;
 try {
   arquivos = lerArmazenamentoDoAmbiente(process.env);
   pacotes = lerPacotesDoAmbiente(process.env); // T-0098: variáveis conferidas na subida (falha fechada)
+  geocodificador = geocodificadorDoAmbiente(process.env); // T-0191: MACUXI_NOMINATIM_URL (padrão: Nominatim público)
 } catch (e) {
   console.error(`[api] ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
@@ -82,6 +87,7 @@ const app = createApp({
   envioUrlAssinada: process.env.MACUXI_ENVIO_URL_ASSINADA === '1',
   email: (log) => criarServicoEmailDaConfig(configEmail, log),
   pacotes: (log) => pacotes.criar(log),
+  geocodificador: (log) => geocodificador.criar(log),
   trustProxy: lerTrustProxy(process.env),
   // T-0117 (ADR 0038): cookie do token de renovação do BKO (Secure fora do PC)
   sessaoWeb: lerSessaoWeb(process.env, cfg.host),
@@ -101,6 +107,7 @@ const app = createApp({
 if (!segredoJwt.ok) app.log.warn(segredoJwt.mensagem);
 if (!poolPortal) app.log.warn('MACUXI_PG_PORTAL_SENHA não definida: o portal de implantação responde 503; os tenants seguem normais (T-0091).');
 app.log.info({ armazenamento: arquivos.descricao, pacotes: pacotes.descricao }, 'armazenamento de arquivos');
+app.log.info({ geocodificador: geocodificador.descricao }, 'geocodificação do cliente (T-0191)');
 
 const porta = Number(process.env.MACUXI_API_PORTA ?? 8100);
 const host = process.env.MACUXI_API_HOST ?? '127.0.0.1';
