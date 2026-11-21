@@ -3,7 +3,7 @@
  * O Nominatim público está bloqueado na rede da sessão e nunca é chamado pelos testes: a implementação real
  * (`@macuxi/platform-sdk/geocodificador-nominatim`) aponta para cá por `MACUXI_NOMINATIM_URL` (`geocodificadorDoAmbiente`).
  *
- * Cada requisição fica registrada (instante, parâmetros e cabeçalhos), para medir o intervalo da fila (1 por segundo), conferir
+ * Cada requisição fica registrada (parâmetros e cabeçalhos), para contar as consultas, conferir
  * o User-Agent e o `countrycodes=br`, e provar que o cache e o `JA_TENTADO` não chegam à rede. A resposta sai de `responder`,
  * trocável no meio do arquivo.
  */
@@ -11,8 +11,6 @@ import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 export interface RequisicaoNominatim {
-  /** `performance.now()` na chegada (ms). */
-  em: number;
   params: Record<string, string>;
   headers: IncomingHttpHeaders;
 }
@@ -43,7 +41,7 @@ export async function subirNominatimFalso(inicial: (params: Record<string, strin
   const servidor: Server = createServer((req, res) => {
     const u = new URL(req.url ?? '/', 'http://127.0.0.1');
     const params = Object.fromEntries(u.searchParams.entries());
-    requisicoes.push({ em: performance.now(), params, headers: req.headers });
+    requisicoes.push({ params, headers: req.headers });
     if (u.pathname !== '/search') {
       res.writeHead(404).end();
       return;
