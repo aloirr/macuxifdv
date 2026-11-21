@@ -60,11 +60,18 @@ export const rotaMonitor: RotaModulo = {
         'select estado, count(*)::int as n from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null group by estado',
         [tenantId],
       );
-      const { rows: extras } = await db.query<{ presos: number; retidos: number }>(
+      const { rows: extras } = await db.query<{ presos: number; retidos: number; parados_desde: Date | null }>(
         `select count(*) filter (where estado = 'enviado' and tentativas >= $2)::int as presos,
-                count(*) filter (where retencao_codigo is not null)::int as retidos
+                count(*) filter (where retencao_codigo is not null)::int as retidos,
+                least(min(coalesce(enviado_em, aprovado_em)) filter (where estado = 'enviado' and tentativas >= $2),
+                      min(aprovado_em) filter (where retencao_codigo is not null)) as parados_desde
            from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null`,
         [tenantId, parametros.tentativasAlertaPedido],
+      );
+      // T-0189: a última carga de cada entidade, sem janela (índice lote_entidade_ix: tenant_id, entidade, recebido_em desc)
+      const { rows: ultimas } = await db.query<{ entidade: Entidade; recebido_em: Date }>(
+        'select entidade, max(recebido_em) as recebido_em from integracao.lote where tenant_id = $1 and deleted_at is null group by entidade order by entidade',
+        [tenantId],
       );
 
       const contagem = Object.fromEntries(ESTADOS_PEDIDO_ERP.map((e) => [e, 0])) as Record<(typeof ESTADOS_PEDIDO_ERP)[number], number>;
@@ -74,7 +81,11 @@ export const rotaMonitor: RotaModulo = {
         gerado_em: agoraIso,
         lotes_recentes: recentes.map(paraItem),
         conectores,
-        resumo_pedidos: resumoPedidosErp({ por_estado: contagem, presos: extras[0]?.presos ?? 0, retidos: extras[0]?.retidos ?? 0 }),
+        resumo_pedidos: {
+          ...resumoPedidosErp({ por_estado: contagem, presos: extras[0]?.presos ?? 0, retidos: extras[0]?.retidos ?? 0 }),
+          parados_desde: iso(extras[0]?.parados_desde ?? null),
+        },
+        ultima_carga_por_entidade: ultimas.map((u) => ({ entidade: u.entidade, recebido_em: iso(u.recebido_em) as string })),
       };
     });
   },
