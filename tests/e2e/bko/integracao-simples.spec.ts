@@ -482,10 +482,6 @@ test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os r
   page,
   baseURL,
 }) => {
-  test.fail(
-    true,
-    'D-T0173-A4 (docs/testes/T-0173.md): portal com LoteResultado sem `cancelado` e rótulos antigos',
-  );
   const portal = (baseURL ?? 'http://localhost:3000').replace('//localhost', '//config.localhost');
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.clock.install({ time: new Date(AGORA) });
