@@ -2,6 +2,62 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **Em aberto depois da v1.0.20** (registro de 21/11, conta reativada; R-20261121-194500-alexandre). Decidido ou autorizado e ainda não feito. Horários de Manaus.
+> - **Outbox AM2808:** reprocessar os 36 parados, autorizado em R-20261121-194100 (19h40); ainda sem run de reprocesso. Opção B (R-20261121-194900): o engenheiro-software cria o workflow "producao — reprocessar outbox" (S4).
+> - **"Sem preço" AM2808:** opção A (R-20261121-194900). O modulo-integracao confere o Conector, só leitura (S4).
+> - **T-0190, operação da ADR 0065:** a 1ª publicação pelo apk-publicar está pendente com o dono do produto. A retirada de `APP_*_APK_URL` do ambiente está sem prova.
+> - **Filtro de veículo (etapa 6)** (R-20261120-230805 e R-20261120-234013): falta o código, sem PR; vai numa versão própria (v1.0.21 ou depois). Está em código na S3 (v1.0.21), e o D4 está pendente com o dono do produto. Os veículos lidos no BKO (D5) ficam para uma etapa posterior. Dono: modulo-catalogo.
+> - **Backlog da v1.0.18, item 5** (R-20261120-142546): o #578 fechou só o 🟢 da T-0182. O resto dos 🟢 das revisões do engenheiro está em andamento na S1. Dono: engenheiro-software.
+> - **T-0189:**
+>   - RD-2515 (resto): `modules/core/contracts/rota.ts:8` ainda declara `Hora` em vez de `HoraHHMM`. Dono: modulo-core, em andamento na S1.
+>   - `ROTULO_ENTIDADE` duplicado em `modules/integracao/web/lib/apresentacao.ts:32` × `contracts/entidades.ts:38`. Dono: modulo-integracao, em andamento na S1.
+>   - D0 (supervisor × RN-CORE-33) foi ao dono do produto, e não há prova de resposta.
+> - **RD-A do #636** (R-20261121-083400-gerente-projetos): falta a regra `error` no `packages/config/dependency-cruiser.cjs`; depois, o modulo-core apaga `modules/core/contracts/ciclo-import.test.ts`. Dono: engenheiro-software, em andamento na S1.
+> - **Pendências da v1.0.16:**
+>   - RD-2379, RD-2413 e RD-2448 estão sem prova: não têm linha no `catalogo.md`, que só cita a faixa na linha 463. A RD-2450 aparece no sino do #533, e não há prova de que seja o mesmo achado. Dono: corretor-redundancias.
+>   - O comentário do teste do trajeto está sem prova; o #624 reescreveu a espera desse teste. Dono: testes.
+>   - Deadlock em `db/testes/empresa-acoes.db.test.ts:415`. Dono: banco-dados, em andamento na S1.
+>   - SSH comum dos workflows: nenhum PR. Dono: engenheiro-software (governança).
+>   - 🟢 do "Enviando…": provável no #597, sem prova de que seja o mesmo 🟢. Dono: engenheiro-apps.
+>   - MC-1803 (logo do e-mail): nenhum registro em `docs/marca/`. Dono: design-de-marca.
+> - **PRs antigos abertos:**
+>   - #285: falta o aviso dos minutos do bloqueio no portal (`modules/core/api/super-admin.ts`). Vem na v1.0.21 pela S1;
+>   - #288: falta a jornada EJ (`tests/integracao/api/esqueci-senha-jornada.test.ts`). Vem na v1.0.21 pela S2;
+>   - os dois fecham quando isso entrar.
+
+> **v1.0.20 no ar, servidor e APK** (21/11; R-20261121-184110 e R-20261121-194500).
+> - **No main:**
+>   - [T-0192](tarefas/T-0192.md): #639 a #644, #646 e #648;
+>   - governança: #620 (apk-publicar, T-0190) e #647 (contagem do catálogo no diagnóstico);
+>   - testes: #645 (T-0190) e #649 (T-0191).
+> - **SHA** ef063812a9510f2fee16190f4af6a5fbbdbcfb24 (liberar run 44950797425). Publicado às 18h46 (issue #650; publicar run 44958052856). APK Campo e Gestão v1.0.20 (run 44958869719). Diagnóstico AM2808 com a contagem (run 44958892233).
+
+> **v1.0.19 no ar, servidor e APK** (21/11; R-20261121-100754 e R-20261121-102132).
+> - **No main:**
+>   - [T-0189](tarefas/T-0189.md): #612 a #617;
+>   - [T-0190](tarefas/T-0190.md): #618, #619 e #621 a #623;
+>   - [T-0191](tarefas/T-0191.md): #625 a #629 e #631 a #634;
+>   - busca do Catálogo, etapas 1 a 4: #591 a #594 e #598 a #601;
+>   - RF-CAT-04 (RN-CAT-18): #596;
+>   - D-PAR-02 a 04: #583 a #586 e #589;
+>   - spec do filtro de veículo: #588;
+>   - o resto: #595 (governança), #597, #602 a #611, #624 e #635 a #637.
+>   - Fechados sem merge: #590 (dividido nos #591 a #594) e #630 (substituído pelo #634).
+> - **SHA** 239e6109e57905f8711f51e426dc1b72046375b4. Publicado às 10h15 (issue #638; publicar run 44912384044). APK Campo e Gestão v1.0.19 (run 44913665421).
+
+> **v1.0.18 no ar, servidor e APK** (20/11; R-20261120-233947 e R-20261120-234846).
+> - **No main:**
+>   - #559 a #582: backlog itens 1 a 15 (R-20261120-133510 e R-20261120-142546; o item 5 em parte, o resto no "Em aberto");
+>   - menu Parâmetros;
+>   - popup do lote (#569);
+>   - fase 2 do diagnóstico (#560);
+>   - auditoria da busca (#580).
+> - **SHA** 3823e3217d8911825f729a4b3e7c5a4902ba98d2. Publicado às 23h46 (issue #587; publicar run 44862323766). APK Campo e Gestão v1.0.18 (run 44863193919, 21/11 às 0h28).
+
+> **v1.0.17 no ar, servidor e APK** (20/11; R-20261120-070730 e R-20261120-172140).
+> - **No main:** #521 a #557, com a [T-0188](tarefas/T-0188.md) (#531, #532, #535 e #554).
+> - **SHA** 9bb2454c2ed976d85bdb9b034735a90e9f7c419f. Publicado às 17h12 (issue #558; publicar run 44817382780). APK Campo e Gestão v1.0.17 (run 44819121125).
+
 > **v1.0.16 no ar, servidor e APK** (20/11; R-20261120-013200 e R-20261120-022300). Horários de Manaus.
 > - **No main:**
 >   - governança: #518 (diagnóstico da outbox, só leitura);
@@ -9,12 +65,7 @@
 > - **SHA** 85b9e9b47f5a8e08708d86367363a1c34b5ed44c (CI do main, run 44680009884). Publicado à 1h57 (issue #520; aprovação R-20261120-014547-alexandre e R-20261120-014839-alexandre). APK Campo e Gestão v1.0.16 (run 44684485331).
 > - **ADRs no main:** 0063 (supervisor rastreado no Gestão; revisa a 0061) e 0064 (PDF nativo no app).
 > - **Doc 03, no fechamento:** RN-VEN-43 a 46 (tabela ajustada pelo prazo) e RN-VEN-47 (cards de Pedidos, T-0170), pelo ponto 3 de R-20261117-201110.
-> - **Pendências para o lote seguinte:**
->   - RD-2379, RD-2413, RD-2448 e RD-2450 (só comentário) e o comentário do teste do trajeto;
->   - banco-dados: o deadlock em `db/testes/empresa-acoes.db.test.ts:415`;
->   - governança: o SSH comum dos workflows;
->   - o 🟢 do "Enviando…" e a MC-1803 (logo do e-mail);
->   - OUTBOX_PARADA (36 eventos, desde a v1.0.14): o diagnóstico do #518 espera o §6 e os códigos das empresas. Reprocessar exige o "sim" do dono do produto.
+> - **Pendências:** seguem no bloco "Em aberto".
 
 > **v1.0.15 no ar, servidor e APK** (19/11; R-20261119-172300 e R-20261119-180100). Horários de Manaus.
 > - **No main:**
@@ -30,7 +81,7 @@
 >   - envio do trajeto (T-0156): #516.
 >   - Fechados sem merge: #453, #493, #496, #497, #500, #505, #511, #512 e #513.
 > - **SHA** 53baf7c3fc854a4a1a00436c80fb585c48e55276 (CI do main, run 44616710113). Publicado às 17h37 (issue #517). APK Campo e Gestão v1.0.15 (run 44618378737).
-> - **Pendências:** seguem na lista da v1.0.16.
+> - **Pendências:** seguem no bloco "Em aberto".
 
 > **v1.0.14 = cenário A, só servidor** (R-20261117-063420-alexandre e R-20261118-003807-alexandre). O Cline tocou de 16 a 18/11, e a nuvem voltou em 18/11 às 20h57 (R-20261118-205700). Horários de Manaus.
 > - **No main:** #420, #486, #403, #396 (0087), #483, #412, #484, #478, #479, #480, #481, #482, #414, #416, #415, #488 e #489 (último: 555c719a, 17/11 às 23h44).
@@ -300,10 +351,11 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0138](tarefas/T-0138.md) | Frente M — detalhe do orçamento/pedido e histórico em tags (Campo, Gestão e BKO) — Sprint 10 | modulo-vendedor, designer-ux, modulo-gestor | local | aberta (08/11 13h20: última da tarefa-mãe) |
 | [T-0139](tarefas/T-0139.md) | Recados online: repositório próprio, junções no PC, sincronização a cada 2 min, formulário de issue e Telegram — Sprint 10 | engenheiro-software, gerente-projetos, testes | local | aberta (08/11 13h30: na esteira, sem esperar o build) |
 | [T-0187](tarefas/T-0187.md) | Supervisor em campo no app Gestão: rota com check-in/checkout, rastreamento interno, ficha com Check-in, Pesquisa e Novo pedido em nome do vendedor | gerente-projetos | nuvem (S1 a S7 da v1.0.16) | concluida (v1.0.16) |
-| [T-0188](tarefas/T-0188.md) | Troca de prazo mantém o preço final: tabela muda e o desconto do item é refeito (RN-VEN-44 nova) | modulo-vendedor | — | aberta (v1.0.17) |
-| [T-0189](tarefas/T-0189.md) | Início do BKO: Precisa de você, Hoje e Equipe no mês por perfil, escopo e licença (RN-CORE-64/65/66) | modulo-core, engenheiro-apps, designer-ux, design-de-marca, testes, corretor-redundancias | nuvem (esta sessão; travados: modules/core/{domain,api,contracts,web}/inicio-bko*, apps/web/app/(bko)/page.tsx) | em_revisao (v1.0.19; caminhos destravam no merge dos PRs da T-0189) |
-| [T-0190](tarefas/T-0190.md) | Download dos APKs (Campo e Gestão) por link temporário gerado pelo BKO, como o do Conector (R-20261120-194335 e R-20261120-200027, item 5) | engenheiro-software, modulo-core, engenheiro-apps, testes | nuvem (v1.0.19) | em_andamento (v1.0.19; reserva RN-CORE-67 e ADR 0065) |
-| [T-0191](tarefas/T-0191.md) | BKO → Rotas: criar a rota do vendedor por proximidade a partir do endereço base (R1 a R3) e o botão Gerar coordenada pelo OpenStreetMap (R5); RN-CORE-75 a 77 | gerente-projetos, engenheiro-software, banco-dados, modulo-core, designer-ux, design-de-marca, testes, corretor-redundancias | nuvem (session_0157qAhoxesgkmgVLQP9wZkt) | em_revisao (v1.0.19; 9 PRs na ordem da tarefa; migração 0093; revisões sem achado em aberto) |
+| [T-0188](tarefas/T-0188.md) | Troca de prazo mantém o preço final: tabela muda e o desconto do item é refeito (RN-VEN-44 nova) | modulo-vendedor | nuvem (v1.0.17) | concluida (v1.0.17) |
+| [T-0189](tarefas/T-0189.md) | Início do BKO: Precisa de você, Hoje e Equipe no mês por perfil, escopo e licença (RN-CORE-64/65/66) | modulo-core, engenheiro-apps, designer-ux, design-de-marca, testes, corretor-redundancias | nuvem (v1.0.19) | concluida (v1.0.19; pendências no "Em aberto") |
+| [T-0190](tarefas/T-0190.md) | Download dos APKs (Campo e Gestão) por link temporário gerado pelo BKO, como o do Conector (R-20261120-194335 e R-20261120-200027, item 5) | engenheiro-software, modulo-core, engenheiro-apps, testes | nuvem (v1.0.19 e v1.0.20) | concluida no código; a 1ª publicação pelo apk-publicar no "Em aberto" |
+| [T-0191](tarefas/T-0191.md) | BKO → Rotas: criar a rota do vendedor por proximidade a partir do endereço base (R1 a R3) e o botão Gerar coordenada pelo OpenStreetMap (R5); RN-CORE-75 a 77 | gerente-projetos, engenheiro-software, banco-dados, modulo-core, designer-ux, design-de-marca, testes, corretor-redundancias | nuvem (v1.0.19) | concluida (v1.0.19) |
+| [T-0192](tarefas/T-0192.md) | Catálogo do Campo: sem puxar para atualizar e mais rápido (melhorias A a F; RN-CAT-21) | modulo-catalogo, designer-ux, banco-dados, testes, corretor-redundancias, design-de-marca, gerente-projetos | nuvem (v1.0.20) | concluida (v1.0.20) |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
 | [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | concluida no escopo da demo (apuração por tipo, push, Sincronizar, banco de testes 5434); falta o passo pnpm timers no CI (ci.yml de governança, aguarda autorização) |
