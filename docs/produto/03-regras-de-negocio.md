@@ -394,7 +394,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - "2012>", "2012 em diante" e "a partir de 2012" vão até o ano atual + 1.
     - Faixa invertida ou com mais de 40 anos fica só como texto.
     - Nunca expande "1.0/1.4" nem "G5/G6".
-    - Ano de 2 dígitos ("10/14") fica fora da v1, atrás de parâmetro desligado.
+    - Os outros formatos da BAP, o ano de 2 dígitos e o ano válido estão na RN-CAT-16 (v1.0.19).
   - **Campo próprio no índice:**
     - servidor: coluna `aplicacao` em `catalogo.produto_busca`, com peso C;
     - aparelho: coluna na FTS5, com peso 2;
@@ -404,6 +404,22 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - **Desempate** (v1.0.18), nesta ordem: o segmento com mais palavras casadas exatas (sem prefixo, erro de digitação nem ano por faixa) → o segmento mais curto → o primeiro da aplicação. Assim "amortecedor palio" mostra "Palio 1.0 2001" e não "Palio Weekend Adventure 1.8 2001–2010 / Siena".
   - **Sinônimos e busca online:** os sinônimos do tenant valem na aplicação (VW = Volkswagen, GM = Chevrolet). A busca em linguagem natural online mantém modelo, motor e ano no texto livre.
   - **Desempenho:** com 20 mil produtos com aplicação longa, a busca offline tem p95 < 300 ms na tela de medição. Tenant sem aplicação mantém resultados e tempos iguais aos de antes.
+
+- **RN-CAT-15 Apelidos de montadora** (v1.0.19; R-20261120-214252 e R-20261120-230805, auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §2 item 1, etapa 1)
+  - Uma lista padrão do domínio do Catálogo, igual para todo tenant, liga os apelidos de montadora: VW ↔ Volkswagen, GM ↔ Chevrolet ↔ Chevy, MB ↔ Mercedes ↔ Mercedes-Benz, e as outras da lista do módulo.
+  - A lista padrão soma-se aos sinônimos do tenant (RN-CAT-12): vale nos dois sentidos, em todos os campos (inclusive a aplicação), na busca online, na do aparelho e no seletor do pedido. O sinônimo do tenant não apaga o apelido padrão.
+  - Exemplo: "vw gol 2018" e "2018 gol vw" acham o "Amortecedor Gol G5 2014–2019" cadastrado como Volkswagen.
+- **RN-CAT-16 Ano na aplicação: formatos da BAP** (v1.0.19; mesmas decisões, auditoria §5, etapa 1; complementa a RN-CAT-12)
+  - Faixa fechada também com "até"/"ATE" ("2007 até 2011"), ">" entre dois anos ("1998>2009"), "→" ("2008→2012"), mês/ano ("06/2008–06/2012" vale de 2008 a 2012) e "../08" (até 2008; sem início escrito, a faixa começa 40 anos antes, no limite da RN-CAT-12, e nunca antes de 1950).
+  - Faixa aberta também com "+" ("2015+"), até o ano atual + 1, como a "2012>".
+  - Ano de 2 dígitos passa a valer dentro de faixa ou de mês/ano: até 35 é 20xx, acima de 35 é 19xx ("01/89 - 12/97" vale de 1989 a 1997; "(83-92)" de 1983 a 1992; "Civic 07–11" de 2007 a 2011).
+  - Ano válido: de 1950 até o ano atual + 2. Número fora dessa faixa fica só como texto (2035 e 1938 deixam de ser ano).
+  - Polegada não é ano: "13"", "16"" e afins ficam só como texto.
+  - O "·" separa trechos da aplicação: o ano de um trecho ("Fit 2003>") não vale para o veículo de outro ("Civic 07–11").
+- **RN-CAT-17 Busca sem resultado completo: lista vazia** (v1.0.19; R-20261120-194335, auditoria §4, etapa 2)
+  - Com texto na busca, aparece só o produto que casa **todas** as palavras (ou grupos de sinônimos) em algum campo; o código exato (SKU, EAN, código ERP, referência) conta como casa-tudo.
+  - Se ninguém casa tudo, a lista é vazia (total 0).
+  - Vale igual na busca online, na do aparelho e no seletor do pedido. Exemplo: "xyzqwk amortecedor" → lista vazia.
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.
