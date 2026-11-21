@@ -51,7 +51,7 @@ import {
 import { SHELL_WEB } from '@/lib/modulos';
 import { ehRotaParametros, secoesParametros } from '@/lib/parametros';
 import { aoSemFilial } from '@/lib/sem-filial';
-import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosContratados, useModulosEfetivos } from '@/lib/queries';
+import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosContratados, useModulosEfetivos, useParametrosDosModulos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
 import { useUrlDoBlob } from '@/lib/url-do-blob';
 import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
@@ -466,6 +466,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (destinoAntigo) router.replace(destinoComBusca(destinoAntigo, window.location.search));
   }, [destinoAntigo, router]);
   const usuario = session.user;
+  // D-PAR-04: os parâmetros do tenant (`useParametros` das páginas) saem da mesma consulta `qk.modulos` (RD-0700)
+  const parametros = useParametrosDosModulos(perfil);
   // RD-0700 e RD-1325: a logo do PDF sai do cache de `/v1/me/modulos` (a mesma consulta do menu) e da logo, sem nova chamada
   const ambiente = useMemo(
     () =>
@@ -475,8 +477,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           const logo = perfil ? (await qc.fetchQuery(consultaMeusModulos(perfil))).logo : null;
           return logo ? qc.fetchQuery(consultaLogoDaEmpresa(logo.sha256)) : null;
         },
+        parametros,
       ),
-    [usuario, perfil, qc],
+    [usuario, perfil, qc, parametros],
   );
 
   const switchProfile = () => {
