@@ -15,8 +15,6 @@ export function cx(...c: Array<string | false | null | undefined>): string {
 /**
  * Cabeçalho da página (revisão do BKO §P1): título à esquerda, ações à direita, na mesma linha. No máximo uma ação
  * principal e uma secundária visíveis; o resto (Exportar CSV, Atualizar) vai no `MenuAcoes` da página.
- * `subtitle` está obsoleto: frase de explicação sob o título sai (R-20261114-142000; o que o usuário precisa para agir
- * fica no rótulo do campo ou no estado vazio). Continua aceito só até cada tela sair dele.
  */
 export function PageHeader({
   title,
@@ -26,7 +24,7 @@ export function PageHeader({
   actions,
 }: {
   title: ReactNode;
-  /** @deprecated Revisão do BKO §P1: sem frase de explicação sob o título. */
+  /** Linha de identificação ou de estado (ex.: "erp-matriz · v1.4.2 · última carga recebida 15/11 às 01:02"); frase de explicação não (§P1). */
   subtitle?: ReactNode;
   eyebrow?: ReactNode;
   badge?: ReactNode;

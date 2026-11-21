@@ -485,6 +485,8 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
         expect(m.lotes_recentes.find((l) => l.lote_id === lotes[e]), e).toMatchObject({ status: 'concluido', conector_id: A.integracao.identificador });
       }
       expect(m.resumo_pedidos).toEqual(await resumoDaFila(A.tenantId));
+      // v1.0.19 (RF-INT-04): o cabeçalho do monitor lê a versão de cada Conector do tenant, a do último sinal
+      expect(m.conectores).toEqual([{ conector_id: A.integracao.identificador, versao_conector: VERSAO_CONECTOR }]);
       // Conector de A no ar (sinal no C1): a lista de Conectores (mesma ação monitor.ver) só tem o de A, ativo e com sinal
       const c = await api.chamar(tk.analistaA, { method: 'GET', url: '/v1/integracao/conectores' });
       expect(c.statusCode, c.body).toBe(200);
@@ -504,6 +506,8 @@ describe.skipIf(semBanco())('T-0032 — ciclo com o ERP simulado: carga → pedi
       const c = await api.chamar(tk.adminB, { method: 'GET', url: '/v1/integracao/conectores' });
       expect(c.statusCode, c.body).toBe(200);
       expect((c.json() as { itens: unknown[] }).itens.map((x) => ConectorResumo.parse(x).conector_id)).toEqual([B.integracao.identificador]);
+      // v1.0.19: a versão dos Conectores no monitor de B também é só de B
+      expect(m.conectores.map((x) => x.conector_id)).toEqual([B.integracao.identificador]);
       const idsLotesA = Object.values(lotes);
       expect(m.lotes_recentes.filter((l) => idsLotesA.includes(l.lote_id))).toEqual([]);
       expect(JSON.stringify(m)).not.toContain(pedidoId);

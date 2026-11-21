@@ -209,6 +209,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
   3. job com mais de 2× o tempo normal é cancelado na hora e usa o rerun único;
   4. a previsão usa o tempo real de cada etapa mais 15% de folga e só muda por motivo novo, escrito.
 - **Decisão nova no fechamento** (Alexandre, R-20261120-130552): vai ao Alexandre com o impacto em minutos e duas opções, antes de entrar.
+- **pnpm sem binário nativo nas sessões da nuvem** (v1.0.19, PR #603): o "Exec format error" do turbo se corrige com `node scripts/ci/pnpm-nativo.mjs`, que o `postinstall` da raiz já chama.
 - **Typecheck do CI com `--concurrency=2`** (R-20261120-155015, PR de governança #557): sem o limite, os `tsc` em paralelo estouram a memória do runner e travam.
 - **Proibido**: force push, rebase do `main`, push direto ao `main`, merge com CI vermelho, apagar histórico.
 - **Permissão de push**: a regra do `.claude/settings.json` permite push para `nuvem/*`, `alexandre/*` e `agente/*` (e `main`, que deixa de ser usado) e nega force e delete.

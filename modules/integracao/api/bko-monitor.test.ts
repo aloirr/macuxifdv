@@ -7,6 +7,7 @@ function montarCtx() {
   const db = {
     query: async (sql: string) => {
       if (/group by estado/.test(sql)) return { rows: [{ estado: 'pendente', n: 4 }, { estado: 'enviado', n: 2 }, { estado: 'rejeitado_erp', n: 1 }, { estado: 'integrado', n: 50 }] };
+      if (/versao_conector from integracao.conector/.test(sql)) return { rows: [{ conector_id: 'erp-matriz', versao_conector: '1.4.2' }] };
       if (/as presos/.test(sql)) return { rows: [{ presos: 3, retidos: 5 }] };
       return { rows: [] };
     },
@@ -28,9 +29,14 @@ describe('GET /integracao/monitor: resumo_pedidos (T-0173)', () => {
     expect(MonitorResumo.safeParse(r).success).toBe(true);
   });
 
-  it('RD-0963, RD-1567: o monitor devolve só o que alguma tela lê (lotes da tela e os 5 números dos cards)', async () => {
+  it('RD-0963, RD-1567: o monitor devolve só o que alguma tela lê (lotes da tela, a versão de cada Conector e os 5 números dos cards)', async () => {
     const r = (await rotaMonitor.executar(montarCtx() as never)) as unknown as Record<string, unknown>;
-    expect(Object.keys(r).sort()).toEqual(['gerado_em', 'lotes_recentes', 'resumo_pedidos']);
-    expect(Object.keys(MonitorResumo.shape).sort()).toEqual(['gerado_em', 'lotes_recentes', 'resumo_pedidos']);
+    expect(Object.keys(r).sort()).toEqual(['conectores', 'gerado_em', 'lotes_recentes', 'resumo_pedidos']);
+    expect(Object.keys(MonitorResumo.shape).sort()).toEqual(['conectores', 'gerado_em', 'lotes_recentes', 'resumo_pedidos']);
+  });
+
+  it('RF-INT-04: o monitor traz a versão instalada de cada Conector para o cabeçalho da tela', async () => {
+    const r = (await rotaMonitor.executar(montarCtx() as never)) as MonitorResumo;
+    expect(r.conectores).toEqual([{ conector_id: 'erp-matriz', versao_conector: '1.4.2' }]);
   });
 });

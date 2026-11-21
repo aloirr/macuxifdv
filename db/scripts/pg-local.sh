@@ -230,6 +230,8 @@ status() {
 }
 
 subir() {
+  # pnpm sem binário nativo na sessão da nuvem; ver scripts/ci/pnpm-nativo.mjs.
+  node "$(dirname "${BASH_SOURCE[0]}")/../../scripts/ci/pnpm-nativo.mjs" || true
   instalar
   local porta
   for porta in "${PORTAS[@]}"; do subir_um "${porta}"; done

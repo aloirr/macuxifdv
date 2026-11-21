@@ -164,19 +164,6 @@ export type RevogarChaveEntrada = z.infer<typeof RevogarChaveEntrada>;
 export const PoliticaVersaoEntrada = PoliticaVersaoConector;
 export type PoliticaVersaoEntrada = z.infer<typeof PoliticaVersaoEntrada>;
 
-export const LoteListagemQuery = z.object({
-  conector_id: ConectorIdentificador.optional(),
-  entidade: Entidade.optional(),
-  status: EstadoLoteBko.optional(),
-  /** Só lotes com erro por linha. */
-  com_erro: z.coerce.boolean().optional(),
-  de: DataHoraUtc.optional(),
-  ate: DataHoraUtc.optional(),
-  pagina: z.coerce.number().int().min(1).default(1),
-  por_pagina: z.coerce.number().int().min(1).max(200).default(50),
-});
-export type LoteListagemQuery = z.infer<typeof LoteListagemQuery>;
-
 export const LoteListagemItem = z.object({
   lote_id: Uuid,
   conector_id: ConectorIdentificador,
@@ -194,14 +181,6 @@ export const LoteListagemItem = z.object({
   concluido_em: DataHoraUtc.nullable(),
 });
 export type LoteListagemItem = z.infer<typeof LoteListagemItem>;
-
-export const LoteListagem = z.object({
-  itens: z.array(LoteListagemItem),
-  total: z.number().int().nonnegative(),
-  pagina: z.number().int().positive(),
-  por_pagina: z.number().int().positive(),
-});
-export type LoteListagem = z.infer<typeof LoteListagem>;
 
 /** `GET /v1/integracao/lotes/{id}/erros`: paginado (CSV exporta tudo pelo mesmo filtro). */
 export const ErrosLoteQuery = z.object({
@@ -409,6 +388,8 @@ export type AlertaMonitor = z.infer<typeof AlertaMonitor>;
 export const MonitorResumo = z.object({
   gerado_em: DataHoraUtc,
   lotes_recentes: z.array(LoteListagemItem),
+  /** Versão instalada de cada Conector (cabeçalho da tela; RF-INT-04). Resposta antiga sem o campo vale lista vazia. */
+  conectores: z.array(z.object({ conector_id: ConectorIdentificador, versao_conector: z.string().nullable() })).default([]),
   /** Os 5 números dos cards de BKO > Pedidos, já calculados pela API (T-0173); o Vendedor só exibe. */
   resumo_pedidos: ResumoPedidosErp,
 });
