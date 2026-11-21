@@ -161,10 +161,10 @@ const skus = (r: Awaited<ReturnType<typeof busca>>) => r.items.map((i) => SKU[i.
 const noIndice = async (motor: MotorSync, ...termos: string[]) => ((await motor.buscar(ID_INDICE_BUSCA, { grupos: termos.map((t) => [t]), prefixoNoUltimo: false, limite: 500 })) ?? []).map((r) => r.chave);
 
 /**
- * Consultas do B-O2: frase da demo, sinônimo, código e medida. Sem termo de milhares de candidatos ("parafuso"): a
+ * Consultas do B-O2: sinônimo, frase e código. Sem termo de milhares de candidatos ("parafuso"): a
  * varredura completa do domain sobre 2.150 parafusos leva dezenas de segundos e deixaria o caso frágil no CI.
  */
-const CONSULTAS_O2 = ['sapata', 'lubrificante para moto', 'óleo para moto 150 cilindradas', 'FLU-DOT4', 'freio dianteiro'];
+const CONSULTAS_O2 = ['sapata', 'lubrificante para moto', 'FLU-DOT4', 'freio dianteiro'];
 /**
  * Divergência medida em 05/11 (T-0052-B2, corrigida): com o FTS5 em AND, os produtos que o domain mostraria mais abaixo
  * por casar só parte da frase sumiam no catálogo grande ("pastilha de freio" = 1 item; varredura: 3, 3 e 4 itens).
@@ -225,12 +225,17 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
       for (const q of CONSULTAS_O2) {
         const comFts = skus(await busca(ap.leitor, q));
         const varredura = skus(await busca(ap.semFts, q));
-        // R-20261120-194335: frase que nenhum produto casa inteira dá lista vazia; a de uma palavra (sinônimo, código) sempre acha
-        if (!q.includes(' ')) expect(comFts.length, `"${q}": achou algo`).toBeGreaterThan(0);
+        expect(comFts.length, `"${q}": achou algo`).toBeGreaterThan(0);
         expect(comFts[0], `"${q}": 1º item`).toBe(varredura[0]);
         // tudo o que o FTS5 deixa passar está na varredura, na mesma ordem relativa
         expect(varredura.filter((s) => comFts.includes(s)), `"${q}": FTS5 ⊆ varredura`).toEqual(comFts);
       }
+    });
+
+    it('B-O2c (R-20261120-194335): "óleo para moto 150 cilindradas" (nenhum produto casa todas as palavras) dá lista vazia com e sem o FTS5', async () => {
+      const q = 'óleo para moto 150 cilindradas';
+      expect(skus(await busca(ap.leitor, q))).toEqual([]);
+      expect(skus(await busca(ap.semFts, q))).toEqual([]);
     });
 
     // T-0052-B2 corrigido (R-20261105-131136-modulo-catalogo): era it.fails.
