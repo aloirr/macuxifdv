@@ -34,6 +34,8 @@ const SA = { email: 'operador.t0190@exemplo.com.br', nome: 'Operador Fictício T
 const URL_PUBLICA = 'https://api.teste.macuxi.invalid';
 const APK_CAMPO = { arquivo: 'Campo-Oficial-v1.0.19.apk', versao: '1.0.19', bytes: new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x63, 0x61, 0x6d, 0x70, 0x6f]) };
 const APK_GESTAO = { arquivo: 'Gestao-Oficial-v1.0.19.apk', versao: '1.0.19', bytes: new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x67, 0x65, 0x73, 0x74, 0x61, 0x6f]) };
+/** IPv4 em qualquer lugar do texto (127.0.0.1 do inject, 10.x da rede privada etc.). */
+const IPV4 = /(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])/;
 /** Dados pessoais e segredos da fixture que nunca vão à auditoria nem ao log. */
 const PESSOAIS = ['admin@exemplo.com.br', 'admin.b@exemplo.com.br', 'Admin Alfa', 'Admin Beta', SA.email, SA.nome, SA.senha, SENHA];
 
@@ -330,7 +332,9 @@ describe.skipIf(semBanco())('T-0190 — APKs por link temporário (createApp rea
       for (const l of linhas) {
         expect(l).toMatchObject({ modulo: 'core', acao: 'core.app_download_link', entidade: 'app_pacote', entidade_id: null, antes: null });
         expect(Object.keys(l.depois).sort()).toEqual(['arquivo', 'variante', 'versao']);
-        for (const proibido of ['http', 'X-Amz', 'Signature', s3.endpoint, '10.', ...PESSOAIS]) expect(l.bruto, proibido).not.toContain(proibido);
+        for (const proibido of ['http', 'X-Amz', 'Signature', s3.endpoint, ...PESSOAIS]) expect(l.bruto, proibido).not.toContain(proibido);
+        // Regex, não o texto '10.': o texto casava com os segundos do carimbo (`...T14:23:10.5+00:00`).
+        expect(l.bruto, 'IP na auditoria').not.toMatch(IPV4);
       }
     });
 
