@@ -74,3 +74,15 @@ export function precoDoCartao(preco: RotuloPreco | null): string | null {
 export function rotuloAcessivelDoCartao(partes: readonly (string | null | undefined)[]): string {
   return partes.filter((p): p is string => Boolean(p && p.trim())).join(', ');
 }
+
+/** Igualdade por conteúdo de dados simples (JSON); o item e a miniatura da lista são só isso. */
+export const mesmoValor = (a: unknown, b: unknown): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);
+
+/** "Mostrar mais": cada rodada monta objetos novos; o item cujo conteúdo não mudou mantém o objeto antigo, e o cartão memorizado (`CartaoDaLista`) não redesenha. */
+export function reaproveitarItens(antes: readonly ItemVitrine[], depois: readonly ItemVitrine[]): ItemVitrine[] {
+  const porId = new Map(antes.map((i) => [i.id, i] as const));
+  return depois.map((i) => {
+    const velho = porId.get(i.id);
+    return velho && mesmoValor(velho, i) ? velho : i;
+  });
+}
