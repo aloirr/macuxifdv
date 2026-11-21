@@ -97,6 +97,28 @@ export const usuario = core.table('usuario', {
    * leitura (usuario_codigo_fdv_somente_leitura, 23514). Somente leitura — nunca grave. Nulo só no apagado antes da 0080.
    */
   codigo_fdv: text('codigo_fdv'),
+  // --- 0093 (T-0191, RN-CORE-75): casa e base do vendedor/promotor. Dado pessoal: fora do pull e sem macuxi_leitura. ---
+  /** Endereço da casa: CEP com 8 dígitos e UF com 2 letras maiúsculas (CHECKs); ponto marcado no mapa, lat e lng juntos. */
+  casa_cep: text('casa_cep'),
+  casa_logradouro: text('casa_logradouro'),
+  casa_numero: text('casa_numero'),
+  casa_bairro: text('casa_bairro'),
+  casa_cidade: text('casa_cidade'),
+  casa_uf: text('casa_uf'),
+  casa_lat: numeric('casa_lat', { precision: 9, scale: 6 }),
+  casa_lng: numeric('casa_lng', { precision: 9, scale: 6 }),
+  /** Base (ponto de partida da rota): 'casa' usa o ponto da casa; 'outro' exige base_lat e base_lng (CHECK); nulo = sem base. */
+  base_tipo: text('base_tipo', { enum: ['casa', 'outro'] }),
+  base_cep: text('base_cep'),
+  base_logradouro: text('base_logradouro'),
+  base_numero: text('base_numero'),
+  base_bairro: text('base_bairro'),
+  base_cidade: text('base_cidade'),
+  base_uf: text('base_uf'),
+  base_lat: numeric('base_lat', { precision: 9, scale: 6 }),
+  base_lng: numeric('base_lng', { precision: 9, scale: 6 }),
+  /** Última troca da base (UTC), gravada pela API. */
+  base_alterada_em: timestamp('base_alterada_em', { withTimezone: true }),
 });
 
 /** Contador do Código FDV (0080, RN-CORE-59): uma linha por tenant, o maior número emitido; só o gatilho grava. Fora do sync. */
@@ -191,6 +213,15 @@ export const cliente = core.table('cliente', {
    * nulo). Relógio da retenção das fotos do PDV (cliente inativo + 5 anos, docs/banco/lgpd.md). Fora do pull.
    */
   inativado_em: timestamp('inativado_em', { withTimezone: true }),
+  // --- 0093 (T-0191, RN-CORE-77): origem e precisão da coordenada e geocodificação ("Gerar coordenada"). Fora do pull. ---
+  /** De onde veio latitude/longitude; nulo = desconhecida. Backfill da 0093: 'erp' em quem já tinha latitude. */
+  coordenada_origem: text('coordenada_origem', { enum: ['erp', 'checkin', 'geocodificacao', 'manual'] }),
+  /** Precisão da geocodificação; nulo fora dela. */
+  coordenada_precisao: text('coordenada_precisao', { enum: ['numero', 'rua', 'cep'] }),
+  /** Última tentativa de geocodificar (UTC). */
+  geocodificacao_tentada_em: timestamp('geocodificacao_tentada_em', { withTimezone: true }),
+  /** Hash do endereço e do CEP tentados (mesma chave = JA_TENTADO). Sensível pelo nome: fora do SELECT do macuxi_leitura. */
+  geocodificacao_chave: text('geocodificacao_chave'),
 });
 
 /**
