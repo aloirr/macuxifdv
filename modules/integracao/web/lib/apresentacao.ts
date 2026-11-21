@@ -9,7 +9,7 @@ import type { Entidade, EstadoLoteBko } from '../../contracts';
 import { autorizarAcaoIntegracao, statusDoLote, type AcaoIntegracao, type StatusLote } from '../../domain';
 
 /** RN-INT-15: os 5 status que a pessoa vê; o estado técnico do lote vira um deles em `statusDoLote` (domain). */
-export const ROTULO_STATUS: Record<StatusLote, string> = {
+const ROTULO_STATUS: Record<StatusLote, string> = {
   em_andamento: 'Em andamento',
   concluido: 'Concluído',
   concluido_com_avisos: 'Concluído com avisos',
@@ -17,7 +17,7 @@ export const ROTULO_STATUS: Record<StatusLote, string> = {
   cancelado: 'Cancelado',
 };
 
-export const TOM_STATUS: Record<StatusLote, BadgeTone> = {
+const TOM_STATUS: Record<StatusLote, BadgeTone> = {
   em_andamento: 'pending',
   concluido: 'success',
   concluido_com_avisos: 'warning',
