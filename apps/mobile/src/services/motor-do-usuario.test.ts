@@ -16,6 +16,8 @@ const sim = vi.hoisted(() => ({
   perfilDosEssenciais: null as (() => string | null | undefined) | null,
   passos: [] as string[],
   pushes: 0,
+  /** Servidor lento: o push só responde depois que a trava solta. */
+  trava: null as Promise<void> | null,
   erros: [] as { mensagem: string; onde: string | null }[],
 }));
 
@@ -38,7 +40,13 @@ vi.mock('./erros', () => ({
 }));
 vi.mock('./transporte', () => {
   // o transporte do motor recusa (sem rede no meio do envio): a mensagem dele leva coordenada, que não pode chegar ao Diagnóstico
-  const transporte = { push: async () => (sim.pushes++, Promise.reject(new Error('sem rede em -3.119027'))) };
+  const transporte = {
+    push: async () => {
+      sim.pushes++;
+      if (sim.trava) await sim.trava;
+      throw new Error('sem rede em -3.119027');
+    },
+  };
   return { modoSync: () => 'v1', transporteV1: () => transporte, transporteFaseM: () => transporte };
 });
 vi.mock('@macuxi/platform-sdk', async (original) => ({
@@ -60,7 +68,9 @@ const ambiente = {
   http: { get: async (caminho: string, query?: unknown) => (pedidos.push({ caminho, query }), { ok: true }) },
 } as unknown as AmbienteAparelho;
 
-function montar(o: { perfil?: string; cargaOnline?: boolean; bancoDoTrajeto?: () => BancoDoTrajeto | null } = {}) {
+function montar(
+  o: { perfil?: string; cargaOnline?: boolean; bancoDoTrajeto?: () => BancoDoTrajeto | null; esperarPontosDoTrajeto?: boolean } = {},
+) {
   return criarMotorDoUsuario({
     usuarioId: 'u1',
     armazenamento: criarArmazenamentoEmMemoria(),
@@ -74,6 +84,7 @@ function montar(o: { perfil?: string; cargaOnline?: boolean; bancoDoTrajeto?: ()
     perfil: () => o.perfil ?? 'vendedor',
     ...(o.cargaOnline === undefined ? {} : { cargaOnline: o.cargaOnline }),
     ...(o.bancoDoTrajeto ? { bancoDoTrajeto: o.bancoDoTrajeto } : {}),
+    ...(o.esperarPontosDoTrajeto === undefined ? {} : { esperarPontosDoTrajeto: o.esperarPontosDoTrajeto }),
   });
 }
 
@@ -83,6 +94,7 @@ beforeEach(() => {
   pedidos.length = 0;
   sim.passos = [];
   sim.pushes = 0;
+  sim.trava = null;
   sim.erros = [];
 });
 
@@ -115,11 +127,26 @@ describe('motor do usuário — pontos do trajeto depois de cada envio (T-0156, 
   it('usa o push do transporte do motor; a falha não para o sync e o Diagnóstico recebe só contagens', async () => {
     const m = montar({ bancoDoTrajeto: () => banco });
     expect(await m.sincronizar()).toBe(true);
+    await m.pontosDoTrajeto();
     expect(sim.pushes).toBe(1);
     expect(sim.passos).toEqual(['sincronizar']);
     expect(sim.erros).toHaveLength(1);
     expect(sim.erros[0]?.onde).toBe('envio do trajeto');
     expect(sim.erros[0]?.mensagem).not.toMatch(/-?\d+\.\d{3,}|0b9a4c1e/);
+  });
+
+  it('a tarefa sem tela (`esperarPontosDoTrajeto`) só volta do sync com os pontos enviados', async () => {
+    let liberar = (): void => undefined;
+    sim.trava = new Promise<void>((r) => (liberar = r));
+    const m = montar({ bancoDoTrajeto: () => banco, esperarPontosDoTrajeto: true });
+    let voltou = false;
+    const sync = m.sincronizar().then((r) => ((voltou = true), r));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sim.pushes).toBe(1);
+    expect(voltou).toBe(false);
+    liberar();
+    expect(await sync).toBe(true);
+    expect(sim.erros).toHaveLength(1);
   });
 });
 
