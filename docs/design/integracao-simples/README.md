@@ -19,7 +19,7 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 | Coluna | Conteúdo | Largura |
 |---|---|---|
 | Entidade | `ROTULO_ENTIDADE` (ex.: Produtos), peso 400 | 20% |
-| Última carga | `15/11 01:02` do lote mais recente; com falha, `15/11 01:02 · falhou 01:03`; sem falha e com mais de um lote, `15/11 01:01 · 4 lotes` | 27% |
+| Última carga | `15/11 às 01:02` do lote mais recente (`formatDateTime`, data uma vez por linha); com falha, `15/11 às 01:02 · falhou 01:03`; sem falha e com mais de um lote, `15/11 às 01:01 · 4 lotes` | 27% |
 | Situação | `Badge` **Com falha** (`danger`) quando há falha reprocessável; senão **Em dia** (`success`) | 14% |
 | Linhas integradas | número (`numero: true`), sempre `x de y`: `7.378 de 14.780` | 15% |
 | (ações) | **Reprocessar** (`primary`, `size="sm"`) só com falha reprocessável, à esquerda de **Histórico (n)** (secundário, `size="sm"`; n = lotes da entidade) | 24% |
@@ -35,7 +35,8 @@ Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, car
 
 O mais recente fica no topo, nas duas tabelas.
 **Data+hora em célula**: `dd/mm hh:mm`, 24 h, no fuso do tenant (`sessao.fuso`), sem "às" e sem ano (`formatDataHoraCurta`); data dentro de frase
-(a linha do `PageHeader`) usa `formatDateTime`. Célula sem valor fica vazia: a tabela não usa **—**.
+(a linha do `PageHeader`) usa `formatDateTime`. Exceção: a Última carga da tela de entidades usa o texto aprovado com "às"
+(`formatDateTime`, R-20261120-183112). Célula sem valor fica vazia: a tabela não usa **—**.
 
 ## 4. Status (rótulo e tom do `Badge`)
 | Estado do lote | Rótulo | Tom |
