@@ -20,7 +20,7 @@ import manifest from '../manifest';
 import { aplicarLote } from './aplicar-lote';
 import { consultaCancelamentoErp } from './consulta-cancelamento';
 import { entrarNaFila, sairDaFila, tratarCancelamento } from './consumidores-pedido';
-import { rotaMonitor } from './bko-monitor';
+import { LOTES_POR_ENTIDADE, rotaMonitor } from './bko-monitor';
 import { moduloApi } from './index';
 import { pedidosPendentes, retornoPedido } from './rotas-pedidos';
 
@@ -605,8 +605,17 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
         agora: () => new Date(),
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
         comTenant: (fn: (db: pg.PoolClient, tx: unknown) => Promise<unknown>) => comTenant(pool, tenantId, (db) => fn(db, {})),
-      } as never) as Promise<{ resumo_pedidos: { retidos_sem_mapeamento: number } }>;
+      } as never) as Promise<{ resumo_pedidos: { retidos_sem_mapeamento: number }; conectores: { conector_id: string }[]; lotes_recentes: { entidade: string }[] }>;
     const contarRetidos = async (tenantId: string) => (await monitor(tenantId)).resumo_pedidos.retidos_sem_mapeamento;
+
+    it('RF-INT-04: o monitor limita os lotes POR ENTIDADE: a carga antiga de uma entidade rara continua na lista com muitos lotes recentes de outra', async () => {
+      const marca = await novoLote(A.tenantId, A.integracao.conector, 'rota', { registros: [{ external_id: 'R1' } as never] });
+      for (let i = 0; i < LOTES_POR_ENTIDADE + 85; i++) await novoLote(A.tenantId, A.integracao.conector, 'titulo', { registros: [{ external_id: 'T1' } as never] });
+      const lotes = (await monitor(A.tenantId)).lotes_recentes;
+      expect(lotes.some((l) => l.entidade === 'rota')).toBe(true);
+      expect(lotes.filter((l) => l.entidade === 'titulo')).toHaveLength(LOTES_POR_ENTIDADE);
+      await admin.query('delete from integracao.lote where tenant_id = $1 and (entidade = $2 or id = $3)', [A.tenantId, 'titulo', marca]); // staging cai em cascata
+    });
 
     it('RN-INT-08 (T-0032 🟡): aprovado sem chave do ERP NÃO lança nem some: fica RETIDO na fila (mapeamento_ausente, payload nulo) com a mensagem do que completar, visível no monitor e fora do GET do Conector', async () => {
       await limpar();
@@ -622,6 +631,10 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       expect((await retirar()).pedidos.map((x) => x.pedido_uuid)).not.toContain(uuid);
       const m = await monitor(A.tenantId);
       expect(m.resumo_pedidos.retidos_sem_mapeamento).toBe(antes + 1);
+      // outro tenant não vê, em `conectores`, o Conector de A
+      const idsB = (await monitor(B.tenantId)).conectores.map((c) => c.conector_id);
+      expect(idsB).not.toContain(A.integracao.identificador);
+      expect(m.conectores.map((c) => c.conector_id)).toContain(A.integracao.identificador);
       // outro tenant não vê o retido de A
       expect(await filaCompleta(B.tenantId, uuid)).toBeUndefined();
       await limpar();

@@ -15,10 +15,10 @@
 import { ENTIDADE_PONTO_TRAJETO, PARAMETROS_RASTREAMENTO_PADRAO, TRAJETO_DIAS_MAX, type PontoTrajeto } from '@macuxi/core/contracts';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import { semBanco } from '@macuxi/db/teste/estado';
-import { criarArmazenamentoSqlite, criarMotorSync, criarRegistroSync, type ItemPush, type LinhaSync, type MotorSync, type PaginaSync, type ResultadoItemPush, type TransporteSync } from '@macuxi/platform-sdk';
+import { criarArmazenamentoSqlite, criarMotorSync, criarRegistroSync, type ItemPush, type LinhaSync, type PaginaSync, type ResultadoItemPush, type TransporteSync } from '@macuxi/platform-sdk';
 import { criarDriverNode } from '@macuxi/platform-sdk/sqlite-node';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { comPontosDoTrajeto } from '../../../apps/mobile/src/lib/envio-do-trajeto';
+import { comPontosDoTrajeto, type MotorComPontosDoTrajeto } from '../../../apps/mobile/src/lib/envio-do-trajeto';
 import { gravarPontosDoTrajeto } from '../../../apps/mobile/src/lib/trajeto';
 import { entidadesRastreamento } from '../../../modules/core/app/lib/entidades-rastreamento';
 import { migracoesAparelho } from '../../../modules/core/db/aparelho';
@@ -49,7 +49,7 @@ describe.skipIf(semBanco())('T-0156 — envio do trajeto: SQLite do aparelho →
   let token = '';
   const enviados: ItemPush[] = [];
   const driver = criarDriverNode(':memory:');
-  let motor: MotorSync;
+  let motor: MotorComPontosDoTrajeto;
   const registros: string[] = [];
 
   const noServidor = (ids: readonly string[]) =>
@@ -65,11 +65,15 @@ describe.skipIf(semBanco())('T-0156 — envio do trajeto: SQLite do aparelho →
     await api.admin.query("delete from plataforma.parametro where tenant_id = $1 and modulo = 'core' and chave = 'rastreamento'", [A.tenantId]);
     await api.admin.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'core', 'rastreamento', $2::jsonb)", [A.tenantId, JSON.stringify({ ...PARAMETROS_RASTREAMENTO_PADRAO, ativo: true, expediente: EXPEDIENTE })]);
   };
-  /** O envio do motor (e, depois dele, o do trajeto), com as rotas e a rotina no instante ENVIO. */
+  /**
+   * O envio do motor e, depois dele, o do trajeto, com as rotas e a rotina no instante ENVIO. Com a tela, `enviar` volta sem
+   * esperar os pontos (#597): o teste espera a rotina (`pontosDoTrajeto`) antes de soltar o relógio e de conferir.
+   */
   async function enviar(): Promise<void> {
     congelado = new Date(ENVIO);
     try {
       await motor.enviar();
+      await motor.pontosDoTrajeto();
     } finally {
       congelado = null;
     }

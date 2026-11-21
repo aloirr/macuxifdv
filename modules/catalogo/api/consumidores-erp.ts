@@ -220,7 +220,7 @@ async function noId(db: ClienteBanco, externalId: string): Promise<string> {
   return r.id;
 }
 
-/** RF-CAT-04: nó da árvore. O pai tem de existir (senão repete na outbox, RN-INT-04); código igual de nó sem external_id é adotado. */
+/** RF-CAT-04 / RN-CAT-18: nó da árvore. O pai tem de existir (senão repete na outbox, RN-INT-04); o código é único entre os irmãos (mesmo pai ou raízes), então o nó sem external_id é adotado pelo par pai + código. */
 export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
   return definirConsumidor({
     evento: EventoIntegracaoCatalogoNoAtualizado,
@@ -233,7 +233,7 @@ export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
       }
       const l = plano.linha;
       const pai = l.pai_external_id === null ? null : await noId(ctx.db, l.pai_external_id);
-      const mesmoCodigo = (await ctx.db.query<{ id: string }>('select id from catalogo.catalogo_no where codigo = $1 and external_id is null and deleted_at is null', [l.codigo])).rows[0];
+      const mesmoCodigo = (await ctx.db.query<{ id: string }>('select id from catalogo.catalogo_no where pai_id is not distinct from $1::uuid and codigo = $2 and external_id is null and deleted_at is null', [pai, l.codigo])).rows[0];
       if (mesmoCodigo) await ctx.db.query('update catalogo.catalogo_no set external_id = $2 where id = $1', [mesmoCodigo.id, l.external_id]);
       await ctx.db.query(
         `insert into catalogo.catalogo_no (tenant_id, pai_id, nivel, codigo, nome, ordem, ativo, external_id)

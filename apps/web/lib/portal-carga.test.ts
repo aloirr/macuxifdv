@@ -1,8 +1,9 @@
 /** T-0087: cartões das bases do portal (lib/portal-carga.ts): divisão, corpo das partes, soma da conferência e a execução. */
 import { describe, expect, it } from 'vitest';
-import type { CargaArquivoAceita, CargaArquivoEntrada, ConferenciaArquivo, ProgressoSessaoArquivo } from '@macuxi/integracao/contracts';
+import { EstadoLoteBko, type CargaArquivoAceita, type CargaArquivoEntrada, type ConferenciaArquivo, type ProgressoSessaoArquivo } from '@macuxi/integracao/contracts';
+import { rotuloDoLote, tomDoLote } from '@macuxi/integracao/web';
 
-import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, importarArquivo, novaChaveDeCarga, percentualDaCarga, planejarEnvio, somarConferencias, type PortaCarga, type ProgressoCarga } from './portal-carga';
+import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, importarArquivo, novaChaveDeCarga, percentualDaCarga, planejarEnvio, seloDaCarga, somarConferencias, type PortaCarga, type ProgressoCarga, type ResultadoCarga } from './portal-carga';
 
 const csv = (n: number) => ['external_id;nome', ...Array.from({ length: n }, (_, i) => `V${i + 1};Vendedor ${i + 1}`)].join('\n') + '\n';
 const UUID = '0b0f2f8e-7b1c-4f7e-9a51-3f1c2d4e5a6b';
@@ -115,7 +116,7 @@ function portaFalsa(o: { semConector?: boolean; quedas?: number } = {}) {
       conector = true;
     },
     lerLote: async () => ({ status: ++leituras >= 2 ? 'concluido' : 'processando' }),
-    lerSessao: async () => ({ situacao: ++leituras >= 2 ? 'completa' : 'aberta', partes_aplicadas: leituras >= 2 ? 3 : 1, partes_com_falha: 0 }) as ProgressoSessaoArquivo,
+    lerSessao: async () => ({ situacao: ++leituras >= 2 ? 'completa' : 'aberta', partes_aplicadas: leituras >= 2 ? 3 : 1, partes_com_falha: 0, partes: [] }) as unknown as ProgressoSessaoArquivo,
     esperar: async () => undefined,
     agora: () => 0,
     ehConectorAusente: (e) => e instanceof ErroFalso && e.codigo === 'CONECTOR_NAO_ENCONTRADO',
@@ -157,5 +158,47 @@ describe('importarArquivo', () => {
     const c = await conferirArquivo(porta, { entidade: 'vendedor', modo: 'delta', plano });
     expect(c.linhas_lidas).toBe(12_000);
     expect(c.gravou).toBe(false);
+  });
+});
+
+describe('selo da carga (RN-INT-15: os 5 status do monitor, D-T0173-A4)', () => {
+  /** Relógio que anda 1 min a cada leitura: sem a correção, a espera acaba no prazo com `terminou: false` (sem laço infinito). */
+  const relogio = () => {
+    let t = 0;
+    return () => (t += 60_000);
+  };
+  const resultado = (o: Partial<ResultadoCarga>): ResultadoCarga => ({ lotes: [UUID], sessaoId: null, progressoSessao: null, status: null, repetido: false, terminou: true, ...o });
+  const selo = (estado: EstadoLoteBko) => ({ rotulo: rotuloDoLote(estado), tom: tomDoLote(estado) });
+  it.each(EstadoLoteBko.options)('lote %s: o selo do monitor da Integração', (status) => {
+    expect(seloDaCarga(resultado({ status }))).toEqual(selo(status));
+  });
+  it('sem resultado: sem selo', () => {
+    expect(seloDaCarga(null)).toBeNull();
+    expect(seloDaCarga(resultado({ status: null }))).toBeNull();
+  });
+  it('arquivo em partes com uma parte cancelada no BKO: Cancelado', () => {
+    const progressoSessao = { situacao: 'aberta', partes_aplicadas: 1, partes_com_falha: 0, erros_total: 0, total_partes: 3, partes: [{ status: 'concluido' }, { status: 'cancelado' }] } as unknown as ProgressoSessaoArquivo;
+    expect(seloDaCarga(resultado({ sessaoId: UUID, progressoSessao }))).toEqual(selo('cancelado'));
+  });
+  it('arquivo em partes: falha, avisos, concluído e em andamento', () => {
+    const sessao = (o: object) => resultado({ sessaoId: UUID, progressoSessao: { situacao: 'aberta', partes_aplicadas: 0, partes_com_falha: 0, erros_total: 0, total_partes: 2, partes: [], ...o } as unknown as ProgressoSessaoArquivo });
+    expect(seloDaCarga(sessao({ partes_com_falha: 1 }))).toEqual(selo('falhou'));
+    expect(seloDaCarga(sessao({ erros_total: 3 }))).toEqual(selo('concluido_com_erros'));
+    expect(seloDaCarga(sessao({ situacao: 'completa' }))).toEqual(selo('concluido'));
+    expect(seloDaCarga(sessao({ partes_aplicadas: 1 }))).toEqual(selo('processando'));
+  });
+  it('cancelado é status final: a espera da tela para', async () => {
+    const { porta } = portaFalsa();
+    porta.lerLote = async () => ({ status: 'cancelado' });
+    porta.agora = relogio();
+    const r = await importarArquivo(porta, { entidade: 'produto', modo: 'delta', plano: planoOk(csv(2)), chave: 'k'.repeat(20), sessaoId: null, aoProgredir: () => undefined });
+    expect(r).toMatchObject({ status: 'cancelado', terminou: true });
+  });
+  it('sessão com parte cancelada: a espera da tela para', async () => {
+    const { porta } = portaFalsa();
+    porta.lerSessao = async () => ({ situacao: 'aberta', partes_aplicadas: 1, partes_com_falha: 0, erros_total: 0, total_partes: 3, partes: [{ status: 'cancelado' }] }) as unknown as ProgressoSessaoArquivo;
+    porta.agora = relogio();
+    const r = await importarArquivo(porta, { entidade: 'produto', modo: 'delta', plano: planoOk(csv(12_000)), chave: 'k'.repeat(20), sessaoId: UUID, aoProgredir: () => undefined });
+    expect(r.terminou).toBe(true);
   });
 });

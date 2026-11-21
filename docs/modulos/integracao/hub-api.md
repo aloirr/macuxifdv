@@ -322,19 +322,7 @@ O evento `vendedor.pedido.status_alterado@1` **não carrega o pedido** (`pedido_
 
 ## 13. Monitor do BKO (RF-INT-04, RF-INT-06)
 
-O que o monitor mostra (`MonitorResumo`, `GET /v1/integracao/monitor`) e de onde vem:
-
-| Bloco | Conteúdo | Regra |
-|---|---|---|
-| **Conectores** | identificador, nome, tipo, versão, situação de versão, último sinal, **saúde** (`ok` < 3 min · `atrasado` 3–15 min · `sem_sinal` ≥ 15 min · `parado_por_versao` · `nunca_conectou` · `desativado`), chave (prefixo, criada em, anterior em convivência) | `avaliarSaudeConector`; doc 06 (alerta com 15 min sem sinal) |
-| **Alertas** | críticos primeiro: sem sinal, parado por versão, reconciliação divergente; atenção: nunca conectou, desatualizado, lotes que falharam nas últimas 24 h, inativação aguardando confirmação, pedido preso (≥ 5 entregas sem retorno), pedido retido sem mapeamento, **itens faturados descartados nas últimas 24 h** (P-4, `retornosComItensDescartados24h`); info: chave anterior em uso. Cada um com causa e a ação seguinte, em português | `montarAlertasMonitor` |
-| **Carga por entidade** | as 8 entidades na ordem de dependência, com estado (`sem_lotes`, `pendente`, `em_andamento`, `concluida`, `concluida_com_erros`, `falhou`), lotes, erros e o que está esperando | `resumirCargaPorEntidade` |
-| **Lotes recentes** | tabela densa: Conector, entidade, modo, status, recebidas/novas/atualizadas/inalteradas/erros/inativadas, recebido/concluído em; filtros (Conector, entidade, status, período, só com erro) **na URL**; exportar CSV | `LoteListagemQuery` |
-| **Detalhe do lote** | contagens, avisos, **erros por linha** (`external_id`, campo, mensagem legível, reprocessável, origem), filtro por código, CSV, botão "Reprocessar" | `ErrosLoteQuery`, `ReprocessarLoteEntrada` |
-| **Inativação em massa** | pendências: entidade, Conector, % e quantidade, amostra, CSV, confirmar/recusar (**admin ou analista**, P-3), validade, **auditoria** (quem, quando, lote, quantidade, motivo) | seção 10 |
-| **Reconciliação** | últimos 30 dias por entidade (contagens e somas, diferença, divergente, motivos) | RN-INT-07 |
-| **Pedidos no ERP** | contagem por estado, presos, retidos; lista com número do ERP, motivo, nota, última tentativa; **erros de retorno** (itens descartados: pedido, nota, sequência, `external_id` do produto, motivo; CSV) | RN-INT-08, P-4 |
-| **Mapeamento** | de-para de condição de pagamento, depósito e status | doc 06 |
+O que a tela mostra e de onde vem: `monitor-bko.md` (fonte única). `MonitorResumo` (`GET /v1/integracao/monitor`) traz `gerado_em`, `lotes_recentes`, `conectores` e `resumo_pedidos`; o log do lote vem de `ErrosLoteQuery`, e o reprocessamento de `ReprocessarLoteEntrada`.
 
 Permissões na UI espelham as ações do manifesto (a proteção real é na API): `monitor.ver`, `lote.reprocessar`, `mapeamento.editar` e **`inativacao.decidir`** (admin, analista — P-3); `conector.gerenciar` (Conector, chave de API, política de versão: **só admin**).
 

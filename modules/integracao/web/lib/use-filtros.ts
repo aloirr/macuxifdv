@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { type FiltrosMonitor, lerFiltros, paraBusca } from './filtros-url';
 
-/** Filtros do monitor na URL (`?entidade=...&lote=...`): lê ao abrir e grava a cada mudança, sem recarregar a página. */
+/** Estado do monitor na URL (`?historico=...&lote=...`): lê ao abrir e grava a cada mudança, sem recarregar a página. */
 export function useFiltrosNaUrl(): [FiltrosMonitor, (patch: Partial<FiltrosMonitor>) => void] {
   const [filtros, setFiltros] = useState<FiltrosMonitor>(() => lerFiltros(typeof window === 'undefined' ? '' : window.location.search));
 

@@ -24,7 +24,7 @@ vi.mock('@macuxi/platform-sdk/react', () => ({
   useHttp: () => ({
     get: async (caminho: string, query: unknown) => {
       sim.pedidos.push([caminho, query]);
-      return { variante: 'campo', versao: '1.0.17', apk_url: 'https://downloads.exemplo.com/a.apk', publicada_em: null };
+      return { variante: 'campo', versao: '1.0.17', publicada_em: null };
     },
   }),
 }));
@@ -52,7 +52,7 @@ describe('BotaoVerificarAtualizacao (item 19)', () => {
     renderToStaticMarkup(createElement(BotaoVerificarAtualizacao));
     sim.toques.at(-1)!();
     await new Promise((r) => setTimeout(r, 0));
-    expect(sim.pedidos).toEqual([['/app/versao', { variante: 'campo' }]]);
+    expect(sim.pedidos).toEqual([['/app/versao', { variante: 'campo', contrato: '2' }]]);
   });
 });
 

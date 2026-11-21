@@ -5,7 +5,7 @@
  * `modules/*` (fronteiras). O Core a consome aqui, com o vocabulário do módulo, e tem os testes de regra
  * (S0-040). A API chama esta função A CADA REQUISIÇÃO: o resultado nunca é gravado no JWT (S0-055).
  */
-import { modulosEfetivos, verificarAcesso, type Manifesto, type ModuloId } from '@macuxi/platform-sdk';
+import { modulosEfetivos, verificarAcesso, type Manifesto, type ModuloId, type VarianteApp } from '@macuxi/platform-sdk';
 
 export interface EntradaLicencas {
   manifestos: readonly Manifesto[];
@@ -92,4 +92,16 @@ export function dependentesDe(modulo: ModuloId, modulos: readonly ModuloId[], de
 export const moduloListavel = (modulo: ModuloId): boolean => modulo !== 'core';
 export function modulosListaveis(modulos: readonly ModuloId[]): ModuloId[] {
   return modulos.filter(moduloListavel);
+}
+
+/** RN-CORE-67: módulos que dão direito ao app (qualquer um basta). */
+export const MODULOS_DO_APP: Readonly<Record<VarianteApp, readonly ModuloId[]>> = Object.freeze({
+  campo: ['vendedor', 'promotor'],
+  gestao: ['gestor'],
+});
+
+/** RN-CORE-67: o link do Campo exige Vendedor ou Promotor entre os módulos ativos da empresa; o do Gestão exige o Gestor. */
+export function podeBaixarApp(variante: VarianteApp, ativos: Iterable<ModuloId>): boolean {
+  const lista = new Set(ativos);
+  return MODULOS_DO_APP[variante].some((m) => lista.has(m));
 }
