@@ -1,6 +1,7 @@
 /**
- * v1.0.17 (PR #537, R-20261120-062210), valor × regra da busca de clientes: o termo casa só com código (external_id),
- * CNPJ (3 dígitos ou mais, com ou sem máscara), razão social ou nome fantasia; cidade e bairro não entram na busca.
+ * v1.0.17 (PR #537, R-20261120-062210), valor × regra da busca de clientes: cada palavra do termo casa só com código
+ * (external_id), CNPJ (3 dígitos ou mais, com ou sem máscara), razão social ou nome fantasia, e todas precisam casar
+ * (v1.0.18, "JOAO 0103", R-20261120-101755); cidade e bairro não entram na busca.
  * Matriz: `docs/testes/v1017-busca-clientes.md`.
  */
 import { ClienteListaRespostaSchema, type ClienteSync } from '@macuxi/core/contracts';
@@ -15,22 +16,28 @@ import { A, puxarTudo, subirApi, type ApiDeTeste } from '../apoio/api';
 import { esperarHorizonte } from '../apoio/campo';
 
 const HOJE = '2026-11-20';
-/** Dois clientes do ensaio na carteira do vendedor-1; cidade e bairro de um são o nome/código do outro (a armadilha). */
+/**
+ * Clientes do ensaio na carteira do vendedor-1. X e Y: cidade e bairro de um são o nome/código do outro (a armadilha).
+ * J1, J2 e J3: J1 casa as duas palavras; J2 tem JOAO no nome e 0103 só no bairro; J3 tem 0103 no código e outro nome.
+ */
 const CLIENTES = [
   { id: '0c000000-1017-4000-8000-000000000001', external_id: 'QX-7781', documento: '47111222000133', razao_social: 'Quimera Distribuidora Ltda', nome_fantasia: 'Zafira Atacado', bairro: 'Ypsilonvale', cidade: 'Xapurilandia' },
   { id: '0c000000-1017-4000-8000-000000000002', external_id: 'WK-0310', documento: '58999000000144', razao_social: 'Ypsilonvale Comercio Ltda', nome_fantasia: 'Xapurilandia Pecas', bairro: 'Zafira', cidade: 'Quimera' },
+  { id: '0c000000-1018-4000-8000-000000000001', external_id: '0103', documento: '61222333000155', razao_social: 'JOAO MATERIAIS LTDA', nome_fantasia: 'Casa do Joao', bairro: 'Centro', cidade: 'Manaus' },
+  { id: '0c000000-1018-4000-8000-000000000002', external_id: '0207', documento: '62444555000166', razao_social: 'JOAO FERRAGENS LTDA', nome_fantasia: 'Ferragens Rio Negro', bairro: 'Conjunto 0103', cidade: 'Manaus' },
+  { id: '0c000000-1018-4000-8000-000000000003', external_id: '01030', documento: '63777888000177', razao_social: 'MARIA TINTAS LTDA', nome_fantasia: 'Tintas Taruma', bairro: 'Centro', cidade: 'Manaus' },
 ] as const;
 type Cliente = (typeof CLIENTES)[number];
-const [X, Y] = CLIENTES;
+const [X, Y, J1, J2, J3] = CLIENTES;
 
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const digitos = (s: string) => s.replace(/\D/g, '');
-/** A regra, independente do código de produção. */
-const casaPelaRegra = (c: Cliente, termo: string): boolean => {
-  const t = semAcento(termo.trim());
-  if ([c.external_id, c.razao_social, c.nome_fantasia].some((campo) => semAcento(campo).includes(t))) return true;
-  return digitos(t).length >= 3 && c.documento.includes(digitos(t));
-};
+/** A regra, independente do código de produção: cada palavra num dos 4 campos; todas precisam casar. */
+const casaPelaRegra = (c: Cliente, termo: string): boolean =>
+  semAcento(termo)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((p) => [c.external_id, c.razao_social, c.nome_fantasia].some((campo) => semAcento(campo).includes(p)) || (digitos(p).length >= 3 && c.documento.includes(digitos(p))));
 const esperado = (termo: string) => CLIENTES.filter((c) => casaPelaRegra(c, termo)).map((c) => c.id).sort();
 
 /** Termos que casam por um dos 4 campos, e só por ele. */
@@ -50,7 +57,17 @@ const NEGATIVOS: ReadonlyArray<{ campo: string; termo: string; ids: string[] }> 
   { campo: 'bairro de Y (fantasia de X)', termo: 'Zafira', ids: [X.id] },
   { campo: 'cidade de Y (razão social de X)', termo: 'Quimera', ids: [X.id] },
 ];
-const TERMOS = [...POSITIVOS, ...NEGATIVOS];
+/** Todas as palavras precisam casar; "JOAO" e "0103" sozinhos provam as armadilhas de J2 e J3. */
+const DUAS_PALAVRAS: ReadonlyArray<{ campo: string; termo: string; ids: string[] }> = [
+  { campo: 'nome + código', termo: 'JOAO 0103', ids: [J1.id] },
+  { campo: 'nome com acento e caixa baixa + código', termo: 'joão 0103', ids: [J1.id] },
+  { campo: 'código + nome (ordem trocada)', termo: '0103 JOAO', ids: [J1.id] },
+  { campo: 'nome + CNPJ em parte', termo: 'JOAO 222.333', ids: [J1.id] },
+  { campo: 'nome + código que ninguém tem', termo: 'JOAO 9999', ids: [] },
+  { campo: 'só o nome (J1 e J2)', termo: 'JOAO', ids: [J1.id, J2.id] },
+  { campo: 'só o código (J1 e o 01030 do J3)', termo: '0103', ids: [J1.id, J3.id] },
+];
+const TERMOS = [...POSITIVOS, ...NEGATIVOS, ...DUAS_PALAVRAS];
 
 describe.skipIf(semBanco())('v1.0.17 busca de clientes: só código, CNPJ, razão social e nome fantasia (valor × regra)', () => {
   let api: ApiDeTeste;
@@ -80,7 +97,7 @@ describe.skipIf(semBanco())('v1.0.17 busca de clientes: só código, CNPJ, razã
     await api?.fechar();
   });
 
-  it('o oráculo concorda com a tabela do ensaio (positivos pelos 4 campos; cidade e bairro nunca)', () => {
+  it('o oráculo concorda com a tabela do ensaio (positivos pelos 4 campos; cidade e bairro nunca; duas palavras)', () => {
     for (const t of TERMOS) expect(esperado(t.termo), `${t.campo}: ${t.termo}`).toEqual([...t.ids].sort());
     expect(nossos(pull.map((c) => c.id))).toEqual(CLIENTES.map((c) => c.id).sort());
   });
