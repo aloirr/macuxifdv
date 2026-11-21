@@ -15,14 +15,14 @@ import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, colors, DEFAULT_TZ
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../contracts';
+import { caminhoCatalogo, type ItemVitrine } from '../../contracts';
 import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
 import { idsAtivos } from '../../domain/hierarquia';
-import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
+import { AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
 import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
-import { modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
+import { buscaComSinal, modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
 import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, estoqueLocalDosProdutos, filialDeCadastroLocal, filiaisDoUsuarioLocal, filiaisLocais, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
@@ -32,7 +32,6 @@ import { CartaoGrade } from './comum';
 import { ChaveSoComEstoque, FolhaEstoquePorFilial, FolhaFiltroCatalogo, type EscolhaFiltro } from './estoque-filial';
 import { useMiniaturasDosItens } from './miniatura';
 
-const POR_PAGINA = PAGINA_DA_BUSCA;
 const ESPERA_DIGITACAO_MS = 350;
 const ARVORE_VAZIA: Arvore = montarArvore([]);
 
@@ -63,7 +62,7 @@ export default function TelaCatalogo() {
   const [itemDaFolha, setItemDaFolha] = useState<ItemVitrine | null>(null);
   const [filiais, setFiliais] = useState<{ venda: string[]; todas: { id: string; nome: string }[]; cadastro: { id: string; nome: string | null } | null }>({ venda: [], todas: [], cadastro: null });
   const [nomeCliente, setNomeCliente] = useState<string | null>(null);
-  const [limite, setLimite] = useState(POR_PAGINA); // "Mostrar mais" soma 20 (kit); ao trocar de filtro ou de busca volta ao inicial
+  const [limite, setLimite] = useState(PAGINA_DA_BUSCA); // "Mostrar mais" soma 20 (kit); ao trocar de filtro ou de busca volta ao inicial
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null });
   const [sugestao, setSugestao] = useState<string | null>(null);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
@@ -74,7 +73,7 @@ export default function TelaCatalogo() {
   const naCarga = modoCarga !== 'local';
   const noInicial = params.no ? String(params.no) : null;
 
-  useEffect(() => setLimite(POR_PAGINA), [filtro, escolha, consulta]);
+  useEffect(() => setLimite(PAGINA_DA_BUSCA), [filtro, escolha, consulta]);
 
   // spec §3 e §4: filiais de venda (filtro e folha), todas as do tenant (nomes) e a de cadastro (faixa), das linhas locais
   const usuarioId = usuario?.id ?? null;
@@ -143,15 +142,14 @@ export default function TelaCatalogo() {
       const ids = doFiltro || permitidos ? new Set([...(doFiltro ?? ativos)].filter((id) => ativos.has(id) && (!permitidos || permitidos.has(id)))) : undefined;
       const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}), ...(escolha.soComEstoque ? { only_in_stock: true } : {}) };
       const r = consulta ? await buscarLocal(motor, { ...entrada, fuso, q: consulta, chips, limit: limite, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: limite, offset: 0 });
-      // índice em reconstrução (T-0088): sem erro; junta com o aviso de sem sinal/falha numa frase só (some quando o índice fica pronto)
+      // índice em reconstrução (T-0088): sem erro; junta com o aviso de sem sinal numa frase só (some quando o índice fica pronto)
       const organizando = 'indexando' in r && r.indexando === true;
       return { itens: r.items, total: r.total, aviso: consulta ? avisoDaBusca(aviso, organizando) : null };
     };
+    const daApi = (rota: 'busca' | 'produtos') =>
+      paginasDaApi<ItemVitrine>((c, q) => ambiente.http.get(c, q), caminhoCatalogo(rota), { ...(rota === 'busca' ? { q: consulta } : {}), ...(clienteId ? { customer_id: clienteId } : {}) }, limite, rota === 'busca' ? PAGINA_DA_BUSCA : undefined);
     const online = async (): Promise<Omit<EstadoLista, 'carregando'>> => {
-      const query = clienteId ? { customer_id: clienteId } : {};
-      const pag = consulta
-        ? await paginasDaApi<ItemVitrine>((c, q) => ambiente.http.get(c, q), caminhoCatalogo('busca'), { q: consulta, ...query }, limite)
-        : await paginasDaApi<ItemVitrine>((c, q) => ambiente.http.get(c, q), caminhoCatalogo('produtos'), query, limite);
+      const pag = await daApi(consulta ? 'busca' : 'produtos');
       const itens = dentroDoPedido ? soVendaveisNaCarga(pag.items) : pag.items; // RN-CAT-06
       return { itens, total: dentroDoPedido ? itens.length : pag.total, aviso: null };
     };
@@ -170,13 +168,13 @@ export default function TelaCatalogo() {
       } else if (!consulta) r = await local(null);
       else if (!ambiente.online() || filtroLigado(filtro) || escolhaLigada(escolha) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
       else {
-        try {
-          const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, limit: limite });
+        const c = await buscaComSinal(() => daApi('busca'), ehSemConexao, AVISO_BUSCA_OFFLINE);
+        if (c.origem === 'aparelho') r = await local(c.aviso);
+        else {
+          const api = c.pag;
           // decisão 4 do R-20261115-100000: o estoque mostrado é o do aparelho, não o da API
           const doAparelho = await estoqueLocalDosProdutos(motor, entrada, api.items.map((i) => i.id)).catch(() => new Map<string, ItemVitrine['availability']>());
-          r = { itens: api.items.map((i) => (doAparelho.has(i.id) ? { ...i, availability: doAparelho.get(i.id) ?? null } : i)), total: api.total, aviso: api.notice };
-        } catch (e) {
-          r = await local(ehSemConexao(e) ? AVISO_BUSCA_OFFLINE : AVISO_BUSCA_FALHOU);
+          r = { itens: api.items.map((i) => (doAparelho.has(i.id) ? { ...i, availability: doAparelho.get(i.id) ?? null } : i)), total: api.total, aviso: c.aviso };
         }
       }
       // RN-VEN-43: pela ficha do cliente o preço sai no prazo padrão dele; sem cliente, tabela pura

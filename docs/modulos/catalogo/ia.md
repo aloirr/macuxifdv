@@ -1,6 +1,6 @@
 # Catálogo — chamada ao provedor de IA da busca (T-0041)
 
-Código: `modules/catalogo/api/ia/` (`provedor-http.ts`, `buscar.ts`) + regras puras em `domain/` (`ia.ts`, `parametros.ts`, `limite-ia.ts`). Testes: `api/ia/provedor-http.test.ts`, `domain/ia.test.ts`, `domain/parametros.test.ts`. Regra de origem: **RN-CAT-03** (só consulta respondida consome; falha e tempo esgotado não) e RF-CAT-01/02 (contingência e aviso discreto).
+Código: `modules/catalogo/api/ia/` (`provedor-http.ts`, `buscar.ts`) + regras puras em `domain/` (`ia.ts`, `parametros.ts`, `limite-ia.ts`). Testes: `api/ia/provedor-http.test.ts`, `domain/ia.test.ts`, `domain/parametros.test.ts`. Regra de origem: **RN-CAT-03** (só consulta respondida consome; falha e tempo esgotado não) e RF-CAT-01/02 (contingência; aviso só em offline e limite).
 
 ## Tempo limite real
 - `criarPortaInterpretacaoHttp({ url, timeoutMs, fetch?, criarSinalTempo?, montarCorpo?, extrairFiltros?, cabecalhos? })` implementa `PortaInterpretacaoLlm` (domain) sobre HTTP. **Uma chamada só, sem retry em cascata.**
@@ -10,8 +10,8 @@ Código: `modules/catalogo/api/ia/` (`provedor-http.ts`, `buscar.ts`) + regras p
 - **Parâmetro**: `resolverTimeoutIaMs(valor?)` (`domain/parametros.ts`): padrão **8000 ms**, aceita inteiros de **1000 a 30000 ms**, fora disso `RangeError` em português. O resultado vai em `timeoutMs`. **Premissa**: `ParametrosCatalogo` (contracts, estrito) ainda não tem o campo; a API lê o valor do tenant (ex.: `ia_timeout_ms`) por onde a configuração vier e passa à função. Pedido de contrato abaixo.
 
 ## Fallback sem IA
-- `interpretarBusca` (domain) nunca lança por falha do provedor: erro, HTTP não-2xx, corpo inválido, tempo esgotado ou cancelamento ⇒ filtros das **regras locais** (`interpretarConsulta`) + `AVISO_BUSCA_FALHOU` ("A busca inteligente está indisponível agora. Mostramos a busca simples; tente de novo em instantes.").
-- O contrato `ResultadoBusca` já comporta o aviso: `resumoDaInterpretacao(r)` devolve `interpreted_by` (`llm`|`regras`), `degraded` (true se há aviso) e `notice`. Nenhuma mudança de contrato é necessária para o aviso.
+- `interpretarBusca` (domain) nunca lança por falha do provedor: erro, HTTP não-2xx, corpo inválido, tempo esgotado ou cancelamento ⇒ filtros das **regras locais** (`interpretarConsulta`) com `degraded = true` e **sem aviso** (`notice` nulo; v1.0.18 tirou o aviso "A busca inteligente está indisponível agora…").
+- `resumoDaInterpretacao(r)` devolve `interpreted_by`, `degraded` (= `degradada`) e `notice`.
 
 ## Orquestração e log (`interpretarComMedicao`)
 - Mede a duração (`relogio`, padrão `performance.now`) e registra **um** log por chamada ao provedor, no formato pino (`log.info|warn(obj, msg)`): `{ evento: 'catalogo.ia.interpretacao', tenant_id, duracao_ms, desfecho, origem, timeout_ms }`. `info` quando respondida; `warn` em erro/tempo esgotado. **Sem texto da pergunta, sem usuário, sem dado pessoal** (testado). Busca offline/limite/sem porta não chama o provedor e não gera log.
