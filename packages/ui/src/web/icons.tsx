@@ -229,3 +229,29 @@ export const IconMais = ({ size = 18, ...p }: IconProps) => (
     <circle cx="19" cy="12" r="1" />
   </Svg>
 );
+
+/**
+ * Casa com porta (T-0191, docs/design/rotas-criar/spec.md §6): o endereço base do vendedor. Um desenho só para o cartão da base,
+ * a legenda e o marcador do mapa; `CASA_PATHS` e `svgDaCasa` levam o mesmo traço para o `divIcon` do Leaflet (HTML em string).
+ */
+export const CASA_PATHS = ['M3 10.5 12 3l9 7.5', 'M5 9v11h14V9', 'M10 20v-6h4v6'] as const;
+export const IconCasa = (p: IconProps) => (
+  <Svg {...p}>
+    {CASA_PATHS.map((d) => (
+      <path key={d} d={d} />
+    ))}
+  </Svg>
+);
+/** SVG da casa em string, cor `currentColor` (dentro de `.fv-start` fica branca), para `L.divIcon({ html: svgDaCasa(), className: 'fv-start' })`. */
+export function svgDaCasa(tamanho = 18): string {
+  const n = Number.isFinite(tamanho) && tamanho > 0 ? Math.round(tamanho) : 18;
+  const caminhos = CASA_PATHS.map((d) => `<path d="${d}"/>`).join('');
+  return `<svg aria-hidden="true" width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${caminhos}</svg>`;
+}
+/** Lápis (T-0191): trocar o endereço base. */
+export const IconLapis = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    <path d="m15 5 4 4" />
+  </Svg>
+);

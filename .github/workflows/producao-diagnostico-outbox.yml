@@ -14,14 +14,15 @@ name: producao — diagnóstico da outbox (só leitura)
 #
 # O que o log mostra: docs/desenho/outbox-parada-v1014.md, §6. Bloco do catálogo (nós e produtos do ERP parados, só quando
 # há algum): modules/integracao/docs/outbox-parada-am2808-catalogo.md, §6.
+# Empresa padrão do formulário: AM2808 (R-20261120-203901).
 
 on:
   workflow_dispatch:
     inputs:
       empresas:
-        description: códigos das empresas, separados por vírgula (ex. thathyany ou AM1234,outra)
+        description: códigos das empresas, separados por vírgula (ex. AM2808 ou AM1234,outra)
         required: true
-        default: thathyany
+        default: AM2808
 
 permissions:
   contents: read
