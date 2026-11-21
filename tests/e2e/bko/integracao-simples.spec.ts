@@ -3,7 +3,7 @@
  *
  * Confere, pela tela, valor × regra (RN-INT-15; spec docs/design/integracao-simples §3, §4, §5, §8, §9):
  *  - colunas exatas da tabela de lotes; início/conclusão `dd/mm hh:mm` no fuso do tenant (America/Manaus), inclusive virada de dia e de mês;
- *  - duração (`45 s`, `2 min 10 s`, `3 min`, `1 h 05 min`; em andamento, até agora) e "x de y" nas linhas integradas;
+ *  - duração (`45 s`, `2 min 10 s`, `3 min`, `1 h 5 min`; em andamento, até agora) e "x de y" nas linhas integradas;
  *  - os 5 status e o "⋯" só com ação (Cancelar em andamento; Reprocessar em Com falha e Concluído com avisos);
  *  - popup de autorização (RN-INT-16): senha errada, 429 e a senha nunca na URL;
  *  - De-para na seção Integração da página Parâmetros e os 5 cards de Pedidos com os números de `MonitorResumo.resumo_pedidos`; sem licença, tudo some.
@@ -11,6 +11,8 @@
  *
  * Pré-requisito: o BKO no ar (`pnpm --filter web dev`, porta 3000). Rodar: `pnpm test:e2e tests/e2e/bko/integracao-simples.spec.ts`
  * (`MACUXI_PW_CANAL=` usa o Chromium do Playwright). Viewport 1366×768 (tela de referência da spec).
+ * Em `next dev` o Next abre o próprio `role=dialog` (aviso "Security Insight", `data-nextjs-dialog`): os popups do BKO são
+ * localizados pelo nome acessível, nunca por `[role="dialog"]` solto.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -101,7 +103,7 @@ const LOTES: Array<[ReturnType<typeof lote>, string[], string[]]> = [
   ],
   [
     lote(5, 'a4c81b96', 'titulo', 'cancelado', '2026-11-15T13:00:00.000Z', '2026-11-15T14:05:30.000Z', 95, 0),
-    ['15/11 09:00', '1 h 05 min', '15/11 10:05', 'Cancelado', '95'],
+    ['15/11 09:00', '1 h 5 min', '15/11 10:05', 'Cancelado', '95'], // minutos sem zero à esquerda (spec §3)
     [],
   ],
   // virada de dia no fuso: 03:50Z de 15/11 = 14/11 23:50 em Manaus
@@ -284,7 +286,11 @@ async function preparar(page: Page, c: Cenario = {}): Promise<string[]> {
         return json(403, { codigo: 'autorizador_necessario', mensagem: 'Escolha quem autoriza.' });
       tentativas++;
       return tentativas > 5
-        ? json(429, { codigo: 'muitas_tentativas', mensagem: 'Muitas tentativas.' })
+        ? // a mensagem do 429 é a da API (modules/integracao/domain/status-lote.ts); a tela mostra o que vem
+          json(429, {
+            codigo: 'muitas_tentativas',
+            mensagem: 'Muitas tentativas. Tente de novo em alguns minutos.',
+          })
         : json(422, { codigo: 'senha_incorreta', mensagem: 'Senha incorreta.' });
     }
     if (p === '/vendedor/pedidos') {
@@ -364,7 +370,7 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
     const alvo = LOTES[3]![0];
     await page.getByTestId(`integracao.lote.${alvo.lote_id}`).locator('td').first().click();
     await expect(page).toHaveURL(new RegExp(`lote=${alvo.lote_id}`));
-    await expect(page.locator('[role="dialog"]').first()).toBeVisible();
+    await expect(page.getByRole('dialog', { name: /^Lote de / })).toBeVisible();
   });
 
   test('RN-INT-16: sem permissão, o popup pede a senha de quem autoriza; erro limpa a senha; 429 avisa; a senha nunca vai na URL', async ({
@@ -375,8 +381,8 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
     const alvo = LOTES[4]![0];
     await page.getByTestId(`integracao.lotes.acoes.${alvo.lote_id}`).click();
     await page.getByTestId(`integracao.lote.reprocessar.${alvo.lote_id}`).click();
-    const dialogo = page.locator('[role="dialog"]');
-    await expect(dialogo).toContainText('Autorizar reprocessamento');
+    const dialogo = page.getByRole('dialog', { name: 'Autorizar reprocessamento' });
+    await expect(dialogo).toBeVisible();
     await expect(page.getByTestId('integracao.autorizar.quem')).toHaveValue(AUTORIZADORES.itens[0]!.id);
     await expect(page.getByTestId('integracao.autorizar.confirmar')).toBeDisabled();
     // um rótulo só no popup ("Senha de" + quem autoriza); o campo leva o nome acessível da pessoa escolhida
@@ -408,7 +414,7 @@ test.describe('T-0173 — Integração ERP simples (API simulada)', () => {
     await expect(page.getByTestId('parametros-integracao-de-para')).toBeVisible();
     await expect(page.locator('main')).toContainText('5 pedidos retidos: condição 28D sem código do ERP');
     await page.getByRole('button', { name: 'Novo de-para' }).first().click();
-    await expect(page.locator('[role="dialog"]').last()).toContainText('Novo de-para');
+    await expect(page.getByRole('dialog', { name: 'Novo de-para' })).toBeVisible();
   });
 
   test('De-para vazio: só o texto, "Novo de-para" só no cabeçalho, sem filtros nem busca (RD-0967)', async ({
@@ -476,6 +482,10 @@ test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os r
   page,
   baseURL,
 }) => {
+  test.fail(
+    true,
+    'D-T0173-A4 (docs/testes/T-0173.md): portal com LoteResultado sem `cancelado` e rótulos antigos',
+  );
   const portal = (baseURL ?? 'http://localhost:3000').replace('//localhost', '//config.localhost');
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.clock.install({ time: new Date(AGORA) });
