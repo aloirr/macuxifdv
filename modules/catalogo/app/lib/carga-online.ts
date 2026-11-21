@@ -58,24 +58,39 @@ export const soVendaveisNaCarga = <T extends { price: { sellable: boolean } | nu
 
 const POR_PAGINA_API = 50;
 
-/** Junta páginas de 50 (teto da rota) até `limite` itens ou o fim da API. */
+/**
+ * Junta páginas e o aviso (`notice`) da API (padrão 50, o teto da rota; `porPagina` nunca passa disso) por `offset` até `limite` itens ou o fim da API,
+ * sem repetir item por `id`. O "Mostrar mais" da busca usa `PAGINA_DA_BUSCA` (A1).
+ */
 export async function paginasDaApi<I>(
   get: HttpOnline,
   caminho: string,
   query: Record<string, string | number | boolean | null | undefined>,
   limite: number,
-): Promise<{ items: I[]; total: number }> {
+  porPagina: number = POR_PAGINA_API,
+): Promise<{ items: I[]; total: number; notice: string | null }> {
+  const tam = Math.min(Math.max(1, Math.floor(porPagina)), POR_PAGINA_API);
+  const vistos = new Set<string>();
   const items: I[] = [];
   let total = 0;
+  let notice: string | null = null;
   let offset = 0;
   while (items.length < limite) {
-    const r = await get<{ items: I[]; total: number; next_offset: number | null }>(caminho, { ...query, limit: POR_PAGINA_API, offset });
-    items.push(...r.items);
+    const r = await get<{ items: I[]; total: number; next_offset: number | null; notice?: string | null }>(caminho, { ...query, limit: tam, offset });
+    for (const i of r.items) {
+      const id = (i as { id?: unknown }).id;
+      if (typeof id === 'string') {
+        if (vistos.has(id)) continue;
+        vistos.add(id);
+      }
+      items.push(i);
+    }
     total = r.total;
+    notice ??= r.notice ?? null;
     if (r.next_offset === null || r.items.length === 0) break;
     offset = r.next_offset;
   }
-  return { items: items.slice(0, limite), total };
+  return { items: items.slice(0, limite), total, notice };
 }
 
 const SIMULTANEAS = 6;
@@ -96,4 +111,21 @@ export async function fichasDaApi(get: HttpOnline, ids: readonly string[], clien
     throw consultaIndisponivel('catalogo.fichas');
   }
   return saida;
+}
+
+/**
+ * Busca com sinal (v1.0.18): com resposta da API, o `notice` dela segue (limite diário atingido, IA desligada);
+ * só o ERRO cai para a busca do aparelho, e apenas a falta de conexão traz o aviso `avisoSemConexao`; erro HTTP cai sem aviso.
+ */
+export async function buscaComSinal<P extends { notice: string | null }>(
+  chamarApi: () => Promise<P>,
+  ehSemConexao: (e: unknown) => boolean,
+  avisoSemConexao: string,
+): Promise<{ origem: 'api'; pag: P; aviso: string | null } | { origem: 'aparelho'; aviso: string | null }> {
+  try {
+    const pag = await chamarApi();
+    return { origem: 'api', pag, aviso: pag.notice };
+  } catch (e) {
+    return { origem: 'aparelho', aviso: ehSemConexao(e) ? avisoSemConexao : null };
+  }
 }

@@ -10,7 +10,7 @@ import { criarPermissoes, ErroHttpModulo, verificarAcao, verificarAcesso, type C
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FichaProduto, FiltrosCatalogo, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, RespostaBusca } from '../contracts';
 import { RespostaExportacao, RespostaHierarquia } from '../contracts';
-import { AVISO_BUSCA_FALHOU, ErroTempoEsgotadoIa, type PortaInterpretacaoLlm } from '../domain/ia';
+import { ErroTempoEsgotadoIa, type PortaInterpretacaoLlm } from '../domain/ia';
 import { MENSAGEM_IA_DESLIGADA, MENSAGEM_LIMITE_ATINGIDO } from '../domain/limite-ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../domain/preco';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_DEMO, saldosDemo, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../fixtures/base-demo';
@@ -357,12 +357,12 @@ describe('GET /v1/catalogo/busca — IA, contingência e cota (RN-CAT-03)', () =
     expect([...memoria.estado(TENANT_A).usoIa.values()]).toEqual([]);
   });
 
-  it('RN-CAT-03: provedor falhou ou estourou o tempo → busca textual com aviso discreto e NÃO consome', async () => {
+  it('RN-CAT-03: provedor falhou ou estourou o tempo → busca textual degradada, sem aviso (v1.0.18), e NÃO consome', async () => {
     for (const erro of [new Error('fora do ar'), new ErroTempoEsgotadoIa()]) {
       memoria = criarRepositorioMemoria({ [TENANT_A]: dadosA() });
       const { rota } = montar({ portaIa: () => portaFalsa(erro) });
       const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'refri' } });
-      expect(r.corpo, erro.name).toMatchObject({ interpreted_by: 'regras', degraded: true, notice: AVISO_BUSCA_FALHOU });
+      expect(r.corpo, erro.name).toMatchObject({ interpreted_by: 'regras', degraded: true, notice: null });
       expect(skus(r.corpo.items).slice(0, 2).sort()).toEqual(['REF-2L', 'REF-350']);
       expect(memoria.estado(TENANT_A).usoIa.size).toBe(0);
     }
@@ -380,12 +380,12 @@ describe('GET /v1/catalogo/busca — IA, contingência e cota (RN-CAT-03)', () =
     expect(porta.chamadas).toBe(1);
   });
 
-  it('RN-CAT-03: sem onde guardar a cota (banco sem a 0013) a IA não é chamada — falha fechada, com aviso', async () => {
+  it('RN-CAT-03: sem onde guardar a cota (banco sem a 0013) a IA não é chamada — falha fechada, degradada e sem aviso', async () => {
     memoria = criarRepositorioMemoria({ [TENANT_A]: { ...dadosA(), semCotaIa: true } });
     const porta = portaFalsa(filtrosLlm);
     const { rota } = montar({ portaIa: () => porta });
     const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'refri' } });
-    expect(r.corpo).toMatchObject({ interpreted_by: 'regras', degraded: true, notice: AVISO_BUSCA_FALHOU });
+    expect(r.corpo).toMatchObject({ interpreted_by: 'regras', degraded: true, notice: null });
     expect(porta.chamadas).toBe(0);
   });
 

@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Parâmetros › Alertas no BKO (T-0180; `alerta_regra.gerenciar`: analista e admin; a proteção real é na API). Duas seções:
+ * Parâmetros › Alertas no BKO (T-0180; `alerta_regra.gerenciar`: analista e admin; a proteção real é na API). Dois painéis,
+ * que o shell põe na seção "Alertas" de Parâmetros (cada um já vem num `Panel` com o título; RD-1988):
  * "Alertas da equipe" (uma regra por cartão, só os campos que ela usa, com a unidade dentro do campo e o padrão preenchido) e
  * "Produtividade do dia" (almoço, parado, sem check-in, rota, visita aberta, envio pendente e o teto de lembretes). Cada
  * cartão salva sozinho (Salvar ativo só no alterado). Regra desligada: valores à vista, só leitura com fundo Pérola, com o
@@ -11,7 +12,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import { CHAVES_REGRA_PRODUTIVIDADE, NOME_REGRA_PRODUTIVIDADE, textoDoMinuto, type ChaveRegraProdutividade, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
-import { Button, CLASSE_CAMPO_BASE, ErrorBlock, Interruptor, LoadingBlock, Notice, PageHeader, Panel, cx, type NoticeTone } from '@macuxi/ui/web';
+import { Button, CLASSE_CAMPO_BASE, ErrorBlock, Interruptor, LoadingBlock, Notice, cx, type NoticeTone } from '@macuxi/ui/web';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { ROTULO_SEVERIDADE, SEVERIDADES, type ParametrosAlertasEquipe, type RegraAlerta, type Severidade, type TipoRegraEquipe } from '../../contracts';
 import {
@@ -150,6 +151,17 @@ function CartaoEquipe({ tipo, regra, parametros, aoSalvar }: { tipo: TipoRegraEq
   );
 }
 
+/** Aviso de salvamento no topo do painel, com o botão de fechar. */
+function useAviso() {
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const noTopo = aviso ? (
+    <Notice tone={aviso.tom} onClose={() => setAviso(null)}>
+      {aviso.texto}
+    </Notice>
+  ) : null;
+  return { avisar: setAviso, noTopo };
+}
+
 function SecaoEquipe({ modulos, aviso }: { modulos: ReadonlySet<string>; aviso: (a: Aviso) => void }) {
   const regras = useRegras(true);
   const params = useParametrosAlertasEquipe();
@@ -167,7 +179,7 @@ function SecaoEquipe({ modulos, aviso }: { modulos: ReadonlySet<string>; aviso: 
     }
   };
   return (
-    <Panel title="Alertas da equipe" label="Alertas da equipe">
+    <>
       {regras.isLoading || params.isLoading ? <LoadingBlock label="Carregando as regras…" /> : null}
       {q.isError ? <ErrorBlock message={errorMessage(q.error)} onRetry={() => void Promise.all([regras.refetch(), params.refetch()])} /> : null}
       {regras.data && params.data ? (
@@ -179,7 +191,7 @@ function SecaoEquipe({ modulos, aviso }: { modulos: ReadonlySet<string>; aviso: 
           })}
         </ul>
       ) : null}
-    </Panel>
+    </>
   );
 }
 
@@ -287,7 +299,7 @@ function SecaoProdutividade({ aviso }: { aviso: (a: Aviso) => void }) {
     }
   };
   return (
-    <Panel title="Produtividade do dia" label="Produtividade do dia">
+    <>
       {prod.isLoading || parado.isLoading ? <LoadingBlock label="Carregando a produtividade do dia…" /> : null}
       {q.isError ? <ErrorBlock message={errorMessage(q.error)} onRetry={() => void Promise.all([prod.refetch(), parado.refetch()])} /> : null}
       {prod.data && parado.data !== undefined ? (
@@ -300,23 +312,29 @@ function SecaoProdutividade({ aviso }: { aviso: (a: Aviso) => void }) {
           </ul>
         </>
       ) : null}
-    </Panel>
+    </>
   );
 }
 
-export function ParametrosAlertasPage() {
+/** Painel "Alertas da equipe" de Parâmetros › Alertas. */
+export function RegrasEquipePanel() {
   const modulos = useModulosAtivos();
-  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const { avisar, noTopo } = useAviso();
   return (
-    <div className="flex flex-col gap-4" data-testid="gestor.parametros-alertas">
-      <PageHeader eyebrow="Parâmetros" title="Alertas" />
-      {aviso ? (
-        <Notice tone={aviso.tom} onClose={() => setAviso(null)}>
-          {aviso.texto}
-        </Notice>
-      ) : null}
-      {modulos ? <SecaoEquipe modulos={modulos} aviso={setAviso} /> : <LoadingBlock label="Carregando…" />}
-      <SecaoProdutividade aviso={setAviso} />
+    <div className="flex flex-col gap-4" data-testid="gestor.parametros-alertas.equipe">
+      {noTopo}
+      {modulos ? <SecaoEquipe modulos={modulos} aviso={avisar} /> : <LoadingBlock label="Carregando…" />}
+    </div>
+  );
+}
+
+/** Painel "Produtividade do dia" de Parâmetros › Alertas. */
+export function ProdutividadeDoDiaPanel() {
+  const { avisar, noTopo } = useAviso();
+  return (
+    <div className="flex flex-col gap-4" data-testid="gestor.parametros-alertas.produtividade-dia">
+      {noTopo}
+      <SecaoProdutividade aviso={avisar} />
     </div>
   );
 }

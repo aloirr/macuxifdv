@@ -5,6 +5,7 @@ import {
   definirCargaOnline,
   fichasDaApi,
   modoDaCarga,
+  buscaComSinal,
   paginasDaApi,
   soVendaveisNaCarga,
   usarApiNaCarga,
@@ -50,6 +51,20 @@ describe('paginação da API durante a carga', () => {
     expect(r.total).toBe(120);
     expect(get).toHaveBeenNthCalledWith(2, '/x', { q: 'a', limit: 50, offset: 50 });
   });
+  it('A1 (v1.0.18): "Mostrar mais" no 3º toque — 3 chamadas com limit 20 e offset 0, 20 e 40; 60 itens, na ordem e sem repetir', async () => {
+    const pagina = (de: number, n: number, prox: number | null) => ({ items: Array.from({ length: n }, (_, i) => ({ id: `p${de + i}` })), total: 100, next_offset: prox });
+    const get = vi.fn().mockResolvedValueOnce(pagina(0, 20, 20)).mockResolvedValueOnce(pagina(20, 20, 40)).mockResolvedValueOnce(pagina(40, 20, 60));
+    const r = await paginasDaApi<{ id: string }>(get, '/busca', { q: 'bap' }, 60, 20);
+    expect(get.mock.calls.map((c) => [(c[1] as { limit: number }).limit, (c[1] as { offset: number }).offset].join('/'))).toEqual(['20/0', '20/20', '20/40']);
+    expect(r.items).toHaveLength(60);
+    expect(r.items.map((i) => i.id)).toEqual(Array.from({ length: 60 }, (_, i) => `p${i}`));
+    expect(r.total).toBe(100);
+  });
+  it('A1: a página pedida nunca passa de 50, mesmo se alguém pedir mais', async () => {
+    const get = vi.fn().mockResolvedValue({ items: [{ id: 'a' }], total: 1, next_offset: null });
+    await paginasDaApi(get, '/x', {}, 100, 80);
+    expect(get).toHaveBeenCalledWith('/x', { limit: 50, offset: 0 });
+  });
   it('RF-CAT-01: next_offset nulo encerra', async () => {
     const get = vi.fn().mockResolvedValueOnce({ items: [{ id: '1' }], total: 1, next_offset: null });
     expect((await paginasDaApi(get, '/x', {}, 100)).items).toHaveLength(1);
@@ -82,5 +97,19 @@ describe('modo da carga a partir do estado do sync', () => {
   it('RF-CAT-01: pendente com sinal = api; pendente sem sinal = sem_sinal', () => {
     expect(modoDaCarga({ pendentes: ['catalogo_precos'] }, true)).toBe('api');
     expect(modoDaCarga({ pendentes: ['produto'] }, false)).toBe('sem_sinal');
+  });
+});
+
+describe('busca com sinal (v1.0.18)', () => {
+  const OFF = 'A busca inteligente volta quando houver internet.';
+  const semConexao = (e: unknown) => (e as Error).message === 'sem conexão';
+  it('com resposta da API, o aviso dela aparece (limite atingido, IA desligada)', async () => {
+    const r = await buscaComSinal(async () => ({ items: [], total: 0, notice: 'Você usou as buscas inteligentes de hoje.' }), semConexao, OFF);
+    expect(r).toMatchObject({ origem: 'api', aviso: 'Você usou as buscas inteligentes de hoje.' });
+    expect((await buscaComSinal(async () => ({ items: [], total: 0, notice: null }), semConexao, OFF)).aviso).toBeNull();
+  });
+  it('erro HTTP cai para o aparelho sem aviso; só a falta de conexão avisa', async () => {
+    expect(await buscaComSinal(async () => Promise.reject(new Error('HTTP 500')), semConexao, OFF)).toEqual({ origem: 'aparelho', aviso: null });
+    expect(await buscaComSinal(async () => Promise.reject(new Error('sem conexão')), semConexao, OFF)).toEqual({ origem: 'aparelho', aviso: OFF });
   });
 });

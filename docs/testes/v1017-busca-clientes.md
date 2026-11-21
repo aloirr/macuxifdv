@@ -3,8 +3,8 @@
 > 2026-11-20 · testes · PR #537 (modulo-core) · R-20261120-062210 · sem cidade e sem bairro, no app e no BKO.
 
 Ensaio: `tests/integracao/api/busca-clientes-v1017.test.ts` (API + Postgres). O esperado sai de um oráculo da regra escrito no
-teste e é comparado, termo a termo, com cada lugar onde se busca cliente. Dois clientes na carteira do vendedor-1: a cidade e o
-bairro de um são o nome do outro.
+teste e é comparado, termo a termo, com cada lugar onde se busca cliente. Cinco clientes na carteira do vendedor-1: em X e Y, a cidade
+e o bairro de um são o nome do outro; J1, J2 e J3 são as armadilhas das duas palavras (BC-04).
 
 ## Matriz
 
@@ -13,6 +13,7 @@ bairro de um são o nome do outro.
 | BC-01 | Positivo pelos 4 campos | código (`QX-7781`, `wk-0310`), CNPJ com e sem máscara e em parte, razão social, nome fantasia | todos abaixo |
 | BC-02 | Negativo: termo que é cidade ou bairro de um cliente não o traz (traz só o outro, pelo nome) | `Xapurilandia`, `Ypsilonvale`, `Zafira`, `Quimera` | todos abaixo |
 | BC-03 | O filtro de cidade segue separado da busca | `?cidade=Xapurilandia` | API |
+| BC-04 | Duas palavras (v1.0.18, R-20261120-101755): todas precisam casar, cada uma num dos 4 campos, em qualquer ordem | `JOAO 0103`, `joão 0103`, `0103 JOAO`, `JOAO 222.333`; `JOAO 9999` (nada); `0103` só no bairro não casa | todos abaixo |
 
 | Superfície | Código | Resultado em 20/11 (origin/main 54e6e4e) |
 |---|---|---|

@@ -44,8 +44,7 @@ próprio e rótulo "Esconder senha"; **Sem olho** = campo sem o botão.
 `modules/core/app/components/tela-esqueci-senha.tsx`, `apps/conector` (sem interface) e `apps/api` (CLI).
 
 ## Kit e docs (designer-ux, feitos neste lote)
-`packages/ui/src/comum/senha.ts` (`OCULTAR_SENHA`, `rotuloDoOlhoDaSenha`; `ESCONDER_SENHA` fica `@deprecated` e sai no lote da
-v1.0.10, com a migração das telas acima; RD-0479), `CLASSE_CAMPO_ACESSO` em `packages/ui/src/web/ui.tsx` (RD-0478), `packages/ui/src/mobile/campo-senha.ts`, `campo-senha-rn.tsx`, `icon.tsx` (`olho`, `olhoRiscado`),
+`packages/ui/src/comum/senha.ts` (`OCULTAR_SENHA`, `rotuloDoOlhoDaSenha`; `ESCONDER_SENHA` saiu do kit na v1.0.18, sem uso fora dele; RD-0479), `CLASSE_CAMPO_ACESSO` em `packages/ui/src/web/ui.tsx` (RD-0478), `packages/ui/src/mobile/campo-senha.ts`, `campo-senha-rn.tsx`, `icon.tsx` (`olho`, `olhoRiscado`),
 `packages/ui/src/web/campo-senha.tsx`; `docs/design/ciclo-de-senha.md`, `portal-entrar.md` e `componentes.md` passam a dizer
 "Ocultar senha".
 

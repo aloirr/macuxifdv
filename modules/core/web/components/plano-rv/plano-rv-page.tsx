@@ -503,7 +503,6 @@ function PlanoRvConteudo() {
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="plano-rv.tela">
       <PageHeader
         title="Plano de RV"
-        subtitle="Parâmetros da remuneração variável por indicador e faixa de atingimento, com vigência por mês. A RV é calculada na hora com a meta e o realizado de cada pessoa."
         actions={
           podeEditar && !edicao ? (
             <Button

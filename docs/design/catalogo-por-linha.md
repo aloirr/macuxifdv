@@ -55,7 +55,7 @@ SISTEMAS                                PRODUTOS
 - Cabeçalho da lista (`RotuloSecao` com rótulo à direita): à esquerda o **nome do nível no plural** ("Sistemas", "Grupos",
   "Linhas"; o domain devolve, a partir dos nomes dos níveis do ERP; sem nome: "Categorias"); à direita **Produtos**.
 - **Lista de níveis** (`ListaNiveis`, do kit; §7): um cartão branco, raio 14, traço `lineSoft` entre as linhas.
-  Linha de **56 dp** no mínimo (alvo inteiro, afunda 0,97): nome 15/600 `ink` em até 2 linhas; contagem **Archivo 700 15
+  Linha de **56 dp** no mínimo (alvo inteiro, afunda 0,97): nome 15/600 `ink` em até 2 linhas; contagem **700 15
   tabular** `ink`, alinhada à direita; seta `chevron` 16 `ink3`. TalkBack: "Alimentos, 16 produtos, botão".
 - Rodapé da lista, 12 `ink2`: "40 produtos ativos" e, como hoje, a linha de atualização do catálogo.
 
@@ -90,7 +90,7 @@ GRUPOS                                  PRODUTOS
 ### 3.3 Último nível: produtos (ex.: Freios → Pastilhas e lonas)
 ```
 Catálogo › Automotivo › Freios › Pastilhas
-Pastilhas                                         ← h2, Archivo 17
+Pastilhas                                         ← h2, 17
 (Com estoque) (Bosch) (Cobreq) (Fras-le)
 12 produtos
 ┌──────────────────────────────────────────────┐
@@ -102,12 +102,12 @@ Pastilhas                                         ← h2, Archivo 17
 │        R$ 89,90                 [Estoque 24] │
 └──────────────────────────────────────────────┘
 ```
-- Título do nível em `t.secao` (Archivo 700, 17) e, abaixo, os chips **Com estoque** (quem vê estoque) e de **marca**, como hoje.
+- Título do nível em `t.secao` (700, 17) e, abaixo, os chips **Com estoque** (quem vê estoque) e de **marca**, como hoje.
 - "12 produtos" (12 `ink2`) e **um só cartão de produto**, o `CartaoProduto` (`modules/catalogo/app/telas/comum.tsx`), o mesmo
   da busca, nesta ordem: foto, código, descrição até 2 linhas, **"Serve em:"** com a aplicação **em até 2 linhas** com
   reticências (RN-CAT-12; a ficha mostra tudo), **"Equivale a:"** com as referências de concorrente (RN-CAT-09), as
   **etiquetas** em `Selo` neutro (até 4), preço e estoque no contexto do cliente (promotor sem preço e estoque, RN-CAT-05).
-  Rótulos "Serve em:"/"Equivale a:" em `t.smallStrong`, texto em `t.sub` `ink2`. Tudo lido do aparelho (offline igual).
+  Rótulos "Serve em:"/"Equivale a:" em `t.label`, texto em `t.sub` `ink2`. Tudo lido do aparelho (offline igual).
   Sem aplicação, referência ou etiqueta: a linha não aparece (nada de "Sem aplicação").
 - **"Oferece junto" só na ficha** (`catalogo-aplicacao.md` §3.1), não no cartão: manteria o cartão alto demais para a lista.
 - Na busca, o mesmo cartão mostra o caminho acima da descrição e o trecho achado em negrito (§5).

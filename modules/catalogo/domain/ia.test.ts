@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
-import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, AVISO_CATALOGO_ORGANIZANDO, avisoDaBusca, iconeDoAviso, ErroTempoEsgotadoIa, interpretarBusca, mesclarFiltros, resumoDaInterpretacao, validarFiltrosLlm, type EntradaInterpretacao, type PortaInterpretacaoLlm } from './ia';
+import { AVISO_BUSCA_OFFLINE, AVISO_CATALOGO_ORGANIZANDO, avisoDaBusca, iconeDoAviso, ErroTempoEsgotadoIa, interpretarBusca, mesclarFiltros, resumoDaInterpretacao, validarFiltrosLlm, type EntradaInterpretacao, type PortaInterpretacaoLlm } from './ia';
 import { interpretarConsulta, type VocabularioTenant } from './consulta';
 import { MENSAGEM_LIMITE_ATINGIDO, registrarDesfechoIa, verificarConsultaIa } from './limite-ia';
 import { PARAMETROS_PADRAO } from './parametros';
@@ -102,18 +102,18 @@ describe('RF-CAT-01 / RF-CAT-02: busca inteligente atrás da porta de LLM (com c
     expect(r.filtros.max_price_cents).toBe(1000);
   });
 
-  it('RN-CAT-03: o provedor falhou — contingência pelas regras, aviso em português, e NÃO consome a cota', async () => {
+  it('RN-CAT-03: o provedor falhou — contingência pelas regras, sem aviso (v1.0.18), degradada, e NÃO consome a cota', async () => {
     const porta = new LlmFalso(new Error('falha no provedor'));
     const r = await interpretarBusca({ ...base, porta, texto: 'detergente em estoque' });
-    expect(r).toMatchObject({ origem: 'regras', chamouProvedor: true, aviso: AVISO_BUSCA_FALHOU, desfecho: 'erro', consomeCota: false });
+    expect(r).toMatchObject({ origem: 'regras', chamouProvedor: true, aviso: null, degradada: true, desfecho: 'erro', consomeCota: false });
     expect(r.filtros.stock).toBe('com');
   });
 
-  it('RN-CAT-03: tempo esgotado (ErroTempoEsgotadoIa ou TimeoutError/AbortError da porta; o timer é da porta em api/ia/) — regras, aviso e NÃO consome a cota', async () => {
+  it('RN-CAT-03: tempo esgotado (ErroTempoEsgotadoIa ou TimeoutError/AbortError da porta; o timer é da porta em api/ia/) — regras, sem aviso e NÃO consome a cota', async () => {
     const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
     for (const erro of [new ErroTempoEsgotadoIa(), timeout]) {
       const r = await interpretarBusca({ ...base, porta: new LlmFalso(erro), texto: 'detergente' });
-      expect(r).toMatchObject({ origem: 'regras', aviso: AVISO_BUSCA_FALHOU, desfecho: 'tempo_esgotado', consomeCota: false });
+      expect(r).toMatchObject({ origem: 'regras', aviso: null, degradada: true, desfecho: 'tempo_esgotado', consomeCota: false });
     }
   });
 
@@ -138,7 +138,7 @@ describe('RF-CAT-01 / RF-CAT-02: busca inteligente atrás da porta de LLM (com c
 
   it('RN-CAT-01: o LLM devolveu lixo — contingência pelas regras (o provedor respondeu: consome, RN-CAT-03)', async () => {
     const r = await interpretarBusca({ ...base, porta: new LlmFalso({ foo: 'bar', max_price_cents: 'barato' }), texto: 'detergente' });
-    expect(r).toMatchObject({ origem: 'regras', aviso: AVISO_BUSCA_FALHOU, desfecho: 'respondida', consomeCota: true });
+    expect(r).toMatchObject({ origem: 'regras', aviso: null, degradada: true, desfecho: 'respondida', consomeCota: true });
   });
 
   it('RN-CAT-01: o LLM inventou marca — o filtro some, o resto da interpretação fica', async () => {
@@ -164,9 +164,9 @@ describe('RN-CAT-03: cancelamento e resumo para o contrato da busca', () => {
     expect(recebidos[1]).toBeUndefined();
   });
 
-  it('RN-CAT-03: falha ou tempo esgotado no provedor vira busca degradada (interpreted_by regras, aviso discreto), nunca erro', async () => {
+  it('RN-CAT-03: falha ou tempo esgotado no provedor vira busca degradada (interpreted_by regras, sem aviso), nunca erro', async () => {
     const r = await interpretarBusca({ ...base, porta: new LlmFalso(new ErroTempoEsgotadoIa()), texto: 'detergente' });
-    expect(resumoDaInterpretacao(r)).toEqual({ interpreted_by: 'regras', degraded: true, notice: AVISO_BUSCA_FALHOU });
+    expect(resumoDaInterpretacao(r)).toEqual({ interpreted_by: 'regras', degraded: true, notice: null });
   });
 
   it('RN-CAT-03: com o provedor respondendo a busca não é degradada', async () => {
@@ -176,11 +176,10 @@ describe('RN-CAT-03: cancelamento e resumo para o contrato da busca', () => {
 });
 
 describe('T-0088: aviso do índice sendo organizado', () => {
-  it('RF-CAT-02: com indexando o aviso aparece (sozinho ou junto do de sem sinal/falha) e some quando o índice fica pronto', () => {
+  it('RF-CAT-02: com indexando o aviso aparece (sozinho ou junto do de sem sinal) e some quando o índice fica pronto', () => {
     expect(avisoDaBusca(null, true)).toBe(AVISO_CATALOGO_ORGANIZANDO);
     expect(AVISO_CATALOGO_ORGANIZANDO).toContain('A busca pode demorar um pouco');
     expect(avisoDaBusca(AVISO_BUSCA_OFFLINE, true)).toBe(`${AVISO_BUSCA_OFFLINE} Organizando o catálogo no aparelho; a busca pode demorar um pouco.`);
-    expect(avisoDaBusca(AVISO_BUSCA_FALHOU, true)).toContain('Organizando o catálogo');
     expect(avisoDaBusca(AVISO_BUSCA_OFFLINE, false)).toBe(AVISO_BUSCA_OFFLINE);
     expect(avisoDaBusca(null, false)).toBeNull();
   });
@@ -191,7 +190,6 @@ describe('iconeDoAviso (T-0088)', () => {
     expect(iconeDoAviso(AVISO_CATALOGO_ORGANIZANDO)).toBe('clock');
     expect(iconeDoAviso(AVISO_BUSCA_OFFLINE)).toBe('wifiOff');
     expect(iconeDoAviso(avisoDaBusca(AVISO_BUSCA_OFFLINE, true) as string)).toBe('wifiOff');
-    expect(iconeDoAviso(AVISO_BUSCA_FALHOU)).toBe('alert');
     expect(iconeDoAviso('Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.')).toBe('alert');
   });
 });

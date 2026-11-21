@@ -1,8 +1,7 @@
 /**
- * Ensaio valor × regra do "% do prazo" (v1.0.14; RN-VEN-43 e 45; a troca de prazo da RN-VEN-44 está em troca-prazo-valor-regra-t0188). O esperado é calculado pela fórmula da RN (`apoio/oraculo-prazo.ts` e as fórmulas abaixo), sem chamar
+ * Ensaio valor × regra do "% do prazo" (v1.0.14; RN-VEN-43 e 45; a troca de prazo da RN-VEN-44 está em troca-prazo-valor-regra-t0188). O esperado é calculado pela fórmula da RN (RN-VEN-43 em `apoio/oraculo-prazo.ts`; as derivadas abaixo), sem chamar
  * o domain, e comparado com o que o domain do Vendedor devolve (o mesmo que a API revalida) e com o cálculo do app.
  *
- * RN-VEN-43: ajustada = meia-para-cima(tabela × (10 000 + bp) ÷ 10 000), por unidade, antes da quantidade.
  * RN-VEN-45 (R-20261115-124833): % divergente aceito = aviso na linha do tempo, FORA da alçada.
  * P-6 (R-20261115-155500): a API não confere crédito no pedido com prazo.
  */

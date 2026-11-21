@@ -340,10 +340,12 @@ describe('GET /v1/me/empresa/logo/:sha256 (desenho §3.2): tenant A × B', () =>
     const ok = await app.inject({ method: 'GET', url: `/v1/me/empresa/logo/${sha(a)}`, headers: cab('vendedor') });
     expect(ok.statusCode, ok.body).toBe(200);
     expect(ok.headers['cache-control']).toBe('private, max-age=31536000, immutable');
+    expect(ok.headers.vary).toBe('Authorization'); // T-0182: cache separado por sessão
     expect(ok.rawPayload.equals(a)).toBe(true);
     const deB = await app.inject({ method: 'GET', url: `/v1/me/empresa/logo/${sha(b)}`, headers: cab('vendedor') });
     expect(deB.statusCode).toBe(404);
     expect(deB.json().codigo).toBe(CODIGOS_LOGO.naoEncontrada);
+    expect(deB.headers['cache-control'] ?? '').not.toContain('immutable');
     await enviar(app, png(600, 200, 5, 3));
     expect((await app.inject({ method: 'GET', url: `/v1/me/empresa/logo/${sha(a)}`, headers: cab('vendedor') })).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: `/v1/me/empresa/logo/${sha(a)}` })).statusCode).toBe(401);

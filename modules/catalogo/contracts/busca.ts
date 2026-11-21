@@ -218,7 +218,7 @@ export const ResultadoBusca = z.object({
   filters: FiltrosInterpretados,
   /** Quem interpretou a frase. `nenhum` = busca textual simples (offline, limite atingido ou modo básico). */
   interpreted_by: z.enum(['llm', 'regras', 'nenhum']),
-  /** Busca inteligente indisponível (offline, limite ou falha do provedor): mostrar aviso discreto. */
+  /** Busca inteligente indisponível (offline, limite ou falha do provedor). `notice` só vem em offline e limite; na falha do provedor vem nulo (v1.0.18). */
   degraded: z.boolean(),
   notice: z.string().nullable(),
   from_cache: z.boolean(),

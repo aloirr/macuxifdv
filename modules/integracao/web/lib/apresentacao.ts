@@ -4,7 +4,7 @@
  * só se compõe a resposta para a interface. A proteção real continua na API.
  */
 import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
-import type { BadgeTone } from '@macuxi/ui/web';
+import { formatDateTime, formatDateTimeFull, type BadgeTone } from '@macuxi/ui/web';
 import type { Entidade, EstadoLoteBko } from '../../contracts';
 import { autorizarAcaoIntegracao, statusDoLote, type AcaoIntegracao, type StatusLote } from '../../domain';
 
@@ -67,3 +67,9 @@ export function podeExecutar(acao: AcaoIntegracao, perfil: Perfil | null): boole
 
 /** RD-0967: sem nenhum de-para cadastrado, filtros e busca não aparecem (o vazio só convida a cadastrar pelo cabeçalho). */
 export const mostrarFiltrosDePara = (totalCadastrado: number): boolean => totalCadastrado > 0;
+
+/** Fim do lote no popup: lote que falhou não "concluiu" — mostra "falhou em dd/mm/aaaa hh:mm" no fuso do tenant. */
+export const textoDoFimDoLote = (lote: { status: EstadoLoteBko; concluido_em: string | null }, tz: string): string => {
+  if (!lote.concluido_em) return 'ainda não concluído';
+  return lote.status === 'falhou' ? `falhou em ${formatDateTimeFull(lote.concluido_em, tz)}` : `concluído ${formatDateTime(lote.concluido_em, tz)}`;
+};
