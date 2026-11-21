@@ -4,16 +4,16 @@
  *
  * Mesmo arranjo do `catalogo-busca-bap-v1019.test.ts`: shell Campo (`criarShell`) com os manifestos REAIS de Core, Catálogo,
  * Vendedor e Promotor, o índice FTS5 e as consultas do aparelho, e o motor de sync REAL sobre o SQLite. A aplicação chega
- * pelo sync (`produto_conteudo`) e o "é veículo" (RN-CAT-18) sai da conta da carga do aparelho, não de um conjunto montado no
+ * pelo sync (`produto_conteudo`) e o "é veículo" (RN-CAT-19) sai da conta da carga do aparelho, não de um conjunto montado no
  * teste. Depois da carga o servidor sai do ar. Cada consulta roda pelos dois caminhos do vendedor:
  *  - tela do Catálogo: `buscarLocal` com o FTS5 (catálogo acima do limiar);
  *  - seletor do Novo pedido: `catalogo.busca_produtos@1` pelo SDK, como `buscarProdutos` do Vendedor, e `resolverBusca`.
  *
  * Regras (docs/produto/03-regras-de-negocio.md):
- *  RN-CAT-18 palavra inteira na aplicação; nome de veículo tirado da base (≥ 5× mais nas aplicações do que nos nomes e
+ *  RN-CAT-19 palavra inteira na aplicação; nome de veículo tirado da base (≥ 5× mais nas aplicações do que nos nomes e
  *            descrições; premissa do módulo: mínimo de 3 produtos com a palavra na aplicação, `modules/catalogo/domain/veiculos.ts`);
  *            veículo casa só inteiro e sem singular; começo de palavra só na última palavra digitada;
- *  RN-CAT-19 modelo derivado (o veículo casa a palavra grudada com outro pedaço de 3+ caracteres) e vizinhas juntas.
+ *  RN-CAT-20 modelo derivado (o veículo casa a palavra grudada com outro pedaço de 3+ caracteres) e vizinhas juntas.
  * O que este arquivo cobre além de `modules/catalogo/domain/busca-bap-etapa3/4.test.ts`: a conta de "é veículo" feita na carga
  * do aparelho a partir do sync, o FTS5 acima do limiar, o seletor do pedido de ponta a ponta e o "Serve em" (valor × rótulo).
  * Matriz: docs/testes/T-0052.md (B-BAP-7..B-BAP-14).
@@ -234,7 +234,7 @@ const palavras = (t: string) =>
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
-/** RN-CAT-18: produtos com a palavra (só letras, 3+), contada uma vez por produto, nos nomes e nas aplicações. */
+/** RN-CAT-19: produtos com a palavra (só letras, 3+), contada uma vez por produto, nos nomes e nas aplicações. */
 function contagem(w: string): { nomes: number; aplicacoes: number } {
   let nomes = 0;
   let aplicacoes = 0;
@@ -244,13 +244,13 @@ function contagem(w: string): { nomes: number; aplicacoes: number } {
   }
   return { nomes, aplicacoes };
 }
-const RAZAO = 5; // RN-CAT-18 (doc 03)
+const RAZAO = 5; // RN-CAT-19 (doc 03)
 const MINIMO = 3; // premissa do módulo
 const ehVeiculo = (w: string) => {
   const c = contagem(w);
   return c.aplicacoes >= MINIMO && c.aplicacoes >= RAZAO * c.nomes;
 };
-/** RN-CAT-19: a palavra da base que é o veículo grudado a outro pedaço de 3+ caracteres, antes ou depois. */
+/** RN-CAT-20: a palavra da base que é o veículo grudado a outro pedaço de 3+ caracteres, antes ou depois. */
 const derivadaDe = (v: string, w: string) => w !== v && w.length - v.length >= 3 && (w.startsWith(v) || w.endsWith(v));
 /** Esperado para a busca de um nome de veículo: quem tem a palavra inteira ou uma derivada dela em algum campo. */
 const esperadoVeiculo = (v: string) =>
@@ -258,7 +258,7 @@ const esperadoVeiculo = (v: string) =>
     .map((p) => p.sku)
     .sort();
 
-describe('v1.0.20 — busca do Catálogo no aparelho, etapas 3 e 4 (RN-CAT-18, RN-CAT-19)', { timeout: 60_000 }, () => {
+describe('v1.0.20 — busca do Catálogo no aparelho, etapas 3 e 4 (RN-CAT-19, RN-CAT-20)', { timeout: 60_000 }, () => {
   let ap: Aparelho;
   beforeAll(async () => {
     ap = await aparelho();
@@ -273,7 +273,7 @@ describe('v1.0.20 — busca do Catálogo no aparelho, etapas 3 e 4 (RN-CAT-18, R
     expect(ap.consultasFts.length, 'a tela pediu candidatos ao FTS5').toBeGreaterThan(antes);
   });
 
-  it('pré-condição (valor × regra RN-CAT-18): a massa faz de gol, polo e fox nomes de veículo pela razão ≥ 5× e o mínimo de 3; golf não', () => {
+  it('pré-condição (valor × regra RN-CAT-19): a massa faz de gol, polo e fox nomes de veículo pela razão ≥ 5× e o mínimo de 3; golf não', () => {
     expect(contagem('gol')).toEqual({ nomes: 2, aplicacoes: 14 });
     expect(contagem('polo')).toEqual({ nomes: 1, aplicacoes: 7 });
     expect(contagem('polos')).toEqual({ nomes: 1, aplicacoes: 0 });
@@ -291,7 +291,7 @@ describe('v1.0.20 — busca do Catálogo no aparelho, etapas 3 e 4 (RN-CAT-18, R
 
   for (const [caminho, buscar] of CAMINHOS) {
     describe(caminho, () => {
-      it('B-BAP-7 (RN-CAT-18): "gol" traz o Gol G5 e o Gol KYB (e os filtros do Gol), sem o Golf; o "Serve em" mostra o Gol', async () => {
+      it('B-BAP-7 (RN-CAT-19): "gol" traz o Gol G5 e o Gol KYB (e os filtros do Gol), sem o Golf; o "Serve em" mostra o Gol', async () => {
         const r = await buscar(ap, 'gol');
         const esperado = esperadoVeiculo('gol');
         expect(esperado).toEqual(expect.arrayContaining(['AMO-G01', 'AMO-G02']));
@@ -304,7 +304,7 @@ describe('v1.0.20 — busca do Catálogo no aparelho, etapas 3 e 4 (RN-CAT-18, R
         }
       });
 
-      it('B-BAP-8 (RN-CAT-18): "polo" traz a Bucha Polo Classic (e os filtros do Polo), sem o "Cabo de vela 4 polos"; "polos" não vira "polo" no nome', async () => {
+      it('B-BAP-8 (RN-CAT-19): "polo" traz a Bucha Polo Classic (e os filtros do Polo), sem o "Cabo de vela 4 polos"; "polos" não vira "polo" no nome', async () => {
         const r = await buscar(ap, 'polo');
         const esperado = esperadoVeiculo('polo');
         expect(esperado).toContain('BCH-P04');
@@ -314,27 +314,27 @@ describe('v1.0.20 — busca do Catálogo no aparelho, etapas 3 e 4 (RN-CAT-18, R
         expect(skus(r).filter((s) => ALVO.some((a) => a.sku === s))).toEqual(['BCH-P04']);
       });
 
-      it('B-BAP-9 (RN-CAT-18): "homoc" acha a junta homocinética (começo da última palavra); "homoc junta" não acha (não é a última)', async () => {
+      it('B-BAP-9 (RN-CAT-19): "homoc" acha a junta homocinética (começo da última palavra); "homoc junta" não acha (não é a última)', async () => {
         expect(skus(await buscar(ap, 'homoc'))).toEqual(['JNT-H06']);
         expect(skus(await buscar(ap, 'junta homoc'))).toEqual(['JNT-H06']);
         expect(skus(await buscar(ap, 'homoc junta'))).toEqual([]);
       });
 
-      it('B-BAP-10 (RN-CAT-18): "amortecedor para gol" = "amortecedor gol" = Gol G5 e Gol KYB, sem o Golf', async () => {
+      it('B-BAP-10 (RN-CAT-19): "amortecedor para gol" = "amortecedor gol" = Gol G5 e Gol KYB, sem o Golf', async () => {
         const comPara = skus(await buscar(ap, 'amortecedor para gol'));
         const sem = skus(await buscar(ap, 'amortecedor gol'));
         expect(sem).toEqual(['AMO-G01', 'AMO-G02']);
         expect(comPara).toEqual(sem);
       });
 
-      it('B-BAP-11 (RN-CAT-18): "amortecedor pal" acha o Palio (só na aplicação, começo da última palavra); "pal amortecedor" não', async () => {
+      it('B-BAP-11 (RN-CAT-19): "amortecedor pal" acha o Palio (só na aplicação, começo da última palavra); "pal amortecedor" não', async () => {
         const r = await buscar(ap, 'amortecedor pal');
         expect(skus(r)).toEqual(['AMO-P07']);
         expect(r[0]!.serveEm?.texto ?? '').toContain('Palio');
         expect(skus(await buscar(ap, 'pal amortecedor'))).toEqual([]);
       });
 
-      it('B-BAP-12 (RN-CAT-19): "fox" traz Fox, CrossFox e SpaceFox (estes dois só da aplicação) e o SPACE-FOX do nome', async () => {
+      it('B-BAP-12 (RN-CAT-20): "fox" traz Fox, CrossFox e SpaceFox (estes dois só da aplicação) e o SPACE-FOX do nome', async () => {
         const r = await buscar(ap, 'fox');
         const esperado = esperadoVeiculo('fox');
         expect(esperado).toEqual(expect.arrayContaining(['COX-F08', 'KIT-S09', 'BIE-C10', 'BAT-S11']));
@@ -344,11 +344,11 @@ describe('v1.0.20 — busca do Catálogo no aparelho, etapas 3 e 4 (RN-CAT-18, R
         expect(r.find((x) => x.sku === 'BAT-S11')!.serveEm?.texto ?? '').toContain('SpaceFox');
       });
 
-      it('B-BAP-13 (RN-CAT-19): "space fox" traz os dois SpaceFox (o "SPACE-FOX" do nome e o "SpaceFox" da aplicação), sem o Fox e o CrossFox', async () => {
+      it('B-BAP-13 (RN-CAT-20): "space fox" traz os dois SpaceFox (o "SPACE-FOX" do nome e o "SpaceFox" da aplicação), sem o Fox e o CrossFox', async () => {
         expect(skus(await buscar(ap, 'space fox'))).toEqual(['BAT-S11', 'KIT-S09']);
       });
 
-      it('B-BAP-14 (RN-CAT-18, limites da regra na carga do aparelho): 5× exato e o mínimo de 3 viram veículo (sem "Sienas"/"Doblos"); 4× e 2 aplicações não', async () => {
+      it('B-BAP-14 (RN-CAT-19, limites da regra na carga do aparelho): 5× exato e o mínimo de 3 viram veículo (sem "Sienas"/"Doblos"); 4× e 2 aplicações não', async () => {
         // veículo: casa só inteiro, sem singular nem começo de palavra — a aplicação "Fiat Sienas" fica de fora
         expect(skus(await buscar(ap, 'friso siena'))).toEqual(['FRS-S12']);
         expect(skus(await buscar(ap, 'tapete doblo'))).toEqual([]);
