@@ -37,12 +37,14 @@ import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo
 import {
   ALTURA_ITEM,
   cabeTudoAberto,
+  densidadeDoMenu,
   destinoComBusca,
   grupoDaTela,
   hrefAtivo,
   hrefsNavegaveis,
   montarGruposMenu,
   TEXTO_SEM_LICENCA,
+  type DensidadeMenu,
   type GrupoMenuBko,
   type ItemMenuBko,
 } from '@/lib/menu-bko';
@@ -64,29 +66,56 @@ const LARGURA_LOGO = Math.round(ALTURA_LOGO * PROPORCAO_LOGO_HORIZONTAL);
 const FOCO = 'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white';
 
 /**
- * Item do menu. `lateral` (padrão): 32 px, com recuo sob o título do grupo (`recuo=false` no painel ao lado); tela atual
- * com a barra de 3 px em Sol claro à esquerda (§M3 item 4). `compact`: chip da faixa de rolagem da tela estreita.
+ * Item do menu. `lateral` (padrão): 32 px no mínimo, uma linha por padrão, com recuo sob o título do grupo (`recuo=false` no painel ao lado); tela
+ * atual com a barra de 3 px em Sol claro à esquerda (§M3 item 4). Rótulo mais largo que o menu (ex.: "Formas de pagamento e
+ * prazos" com a fonte do sistema) quebra a linha, como na simulação (spec menu-parametros §5: altura mínima 32 px, linha de
+ * 20 px), em vez de vazar para o lado e abrir a barra de rolagem da lista. `compact`: chip da faixa de rolagem da tela estreita.
+ * `densidade="compacta"` (sanfona em tela baixa, v1.0.18): 28 px (py-1, 15 px, linha de 20 px), uma linha só com reticências e
+ * o nome completo no `title`; a barrinha da tela atual fica em top/bottom 6 px.
  */
-function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }: { item: ItemMenuBko; active: boolean; variante?: 'lateral' | 'compact'; recuo?: boolean; onNavegar?: () => void }) {
+export function NavLink({
+  item,
+  active,
+  variante = 'lateral',
+  recuo = true,
+  densidade = 'normal',
+  onNavegar,
+}: {
+  item: ItemMenuBko;
+  active: boolean;
+  variante?: 'lateral' | 'compact';
+  recuo?: boolean;
+  densidade?: DensidadeMenu;
+  onNavegar?: () => void;
+}) {
   const lateral = variante === 'lateral';
+  const compacta = lateral && densidade === 'compacta';
   return (
     <Link
       href={item.href}
       data-testid={item.testId}
       aria-current={active ? 'page' : undefined}
+      title={compacta ? item.label : undefined}
       onClick={onNavegar}
       className={cx(
-        'flex shrink-0 items-center rounded-lg whitespace-nowrap no-underline transition-colors',
+        'flex shrink-0 items-center rounded-lg no-underline transition-colors',
         FOCO,
-        lateral ? cx('relative h-8 pr-2.5 text-[15px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
+        lateral
+          ? cx('relative pr-2.5 leading-5', compacta ? 'h-7 py-1 text-[15px] whitespace-nowrap' : 'min-h-8 py-1.5 text-[15px]', recuo ? 'pl-5' : 'pl-2.5')
+          : 'h-9 px-3 text-[13px] whitespace-nowrap',
         active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active hover:text-white',
-        active && lateral && "before:absolute before:top-2 before:bottom-2 before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']",
+        active &&
+          lateral &&
+          cx("before:absolute before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']", compacta ? 'before:top-1.5 before:bottom-1.5' : 'before:top-2 before:bottom-2'),
       )}
     >
-      {item.label}
+      {compacta ? <span className="min-w-0 truncate">{item.label}</span> : item.label}
     </Link>
   );
 }
+
+/** Altura do título de 1º nível: 30 px (normal) ou 24 px (compacta, linha de 16 px). */
+const alturaTitulo = (densidade: DensidadeMenu) => (densidade === 'compacta' ? 'h-6 leading-4' : 'h-[30px]');
 
 /**
  * Logo A (MC-0056) no grafite e, abaixo, o nome da distribuidora fora da área de proteção (manual §2.3: margem igual à
@@ -115,7 +144,7 @@ const TITULO_GRUPO = cx(TITULO_TEXTO, 'text-nav-grupo');
  * Item direto de 1º nível (D9: grupo com uma página só; Parâmetros): o título do grupo (Sol claro, maiúsculas, 30 px), sem
  * seta, navega no clique; tela atual com o fundo do item ativo e o texto branco (spec §3).
  */
-function ItemDireto({ grupo, active }: { grupo: GrupoMenuBko; active: boolean }) {
+function ItemDireto({ grupo, active, densidade }: { grupo: GrupoMenuBko; active: boolean; densidade: DensidadeMenu }) {
   const item = grupo.itens[0];
   if (!item) return null;
   return (
@@ -124,7 +153,8 @@ function ItemDireto({ grupo, active }: { grupo: GrupoMenuBko; active: boolean })
       data-testid={item.testId}
       aria-current={active ? 'page' : undefined}
       className={cx(
-        'flex h-[30px] shrink-0 items-center rounded-lg px-2.5 no-underline transition-colors',
+        'flex shrink-0 items-center rounded-lg px-2.5 no-underline transition-colors',
+        alturaTitulo(densidade),
         TITULO_TEXTO,
         FOCO,
         active ? 'bg-nav-active text-white' : 'text-nav-grupo hover:bg-nav-active',
@@ -141,7 +171,7 @@ function ItemDireto({ grupo, active }: { grupo: GrupoMenuBko; active: boolean })
  * ponteiro, no foco, no clique e no Enter/Espaço (some ao sair, no Esc ou ao perder o foco). O balão é `fixed` à direita do
  * menu, na altura da entrada (a mesma conta do painel da sanfona), com a seta para a esquerda: não ocupa lugar na lista.
  */
-export function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
+export function EntradaBloqueada({ grupo, densidade = 'normal' }: { grupo: GrupoMenuBko; densidade?: DensidadeMenu }) {
   const [dica, setDica] = useState<{ top: number; left: number } | null>(null);
   const idDica = `menu-dica-${grupo.id}`;
   const mostrar = (entrada: HTMLElement) => {
@@ -176,7 +206,7 @@ export function EntradaBloqueada({ grupo }: { grupo: GrupoMenuBko }) {
           e.preventDefault();
           mostrar(e.currentTarget);
         }}
-        className={cx('flex h-[30px] shrink-0 cursor-not-allowed items-center justify-between rounded-lg px-2.5 text-disabled', TITULO_TEXTO, FOCO)}
+        className={cx('flex shrink-0 cursor-not-allowed items-center justify-between rounded-lg px-2.5 text-disabled', alturaTitulo(densidade), TITULO_TEXTO, FOCO)}
       >
         {grupo.titulo}
         <IconLock size={14} strokeWidth={2.2} className="shrink-0" aria-hidden />
@@ -204,9 +234,12 @@ interface Painel {
 /**
  * Lista do menu lateral (§M3): mede a própria altura (flex-1 entre a marca e o rodapé). Tudo cabe → tudo aberto, títulos
  * sem seta e sem clique. Não cabe → sanfona: só o grupo da tela atual aberto; ponteiro ou foco de teclado num grupo
- * fechado abre o painel ao lado (fixed, fora do overflow da lista); clique no título troca o grupo aberto.
+ * fechado abre o painel ao lado (fixed, fora do overflow da lista); clique no título troca o grupo aberto. A lista nunca
+ * rola para o lado (rótulo longo quebra a linha). A conta (§M4) supõe uma linha por item; se o menu todo aberto transbordar
+ * da altura medida, vira sanfona (de novo na conta quando a altura ou os grupos mudam: licença, perfil). Na sanfona, a
+ * densidade vem de `densidadeDoMenu` (ou da lista medida que rola na normal); a rolagem é o último recurso.
  */
-function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string | null }) {
+export function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string | null }) {
   const listaRef = useRef<HTMLDivElement>(null);
   const [disponivel, setDisponivel] = useState<number | null>(null);
   useLayoutEffect(() => {
@@ -219,7 +252,22 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const tudoAberto = disponivel !== null && cabeTudoAberto(grupos, disponivel);
+  const [transbordou, setTransbordou] = useState(false);
+  const [rolouNormal, setRolouNormal] = useState(false);
+  // `grupos` é montado de novo a cada render do shell: compara pelo conteúdo, não pela referência
+  const medida = `${disponivel}|${grupos.map((g) => `${g.id}:${g.direto ? 'd' : ''}${g.bloqueado ? 'b' : ''}:${g.itens.map((i) => i.label).join(',')}`).join(';')}`;
+  const [medidaVista, setMedidaVista] = useState(medida);
+  if (medidaVista !== medida) {
+    setMedidaVista(medida);
+    setTransbordou(false);
+    setRolouNormal(false);
+  }
+  const tudoAberto = !transbordou && disponivel !== null && cabeTudoAberto(grupos, disponivel);
+  const densidade: DensidadeMenu = !tudoAberto && disponivel !== null ? (rolouNormal ? 'compacta' : densidadeDoMenu(grupos, disponivel)) : 'normal';
+  useLayoutEffect(() => {
+    const el = listaRef.current;
+    if (tudoAberto && el && el.scrollHeight > el.clientHeight) setTransbordou(true);
+  }, [tudoAberto, grupos]);
 
   // a sanfona acompanha a tela: ao abrir uma tela de outro grupo, o grupo dela abre e o anterior fecha
   const grupoAtual = grupoDaTela(grupos, ativo);
@@ -229,6 +277,10 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
     setGrupoVisto(grupoAtual);
     setAberto(grupoAtual);
   }
+  useLayoutEffect(() => {
+    const el = listaRef.current;
+    if (!tudoAberto && disponivel !== null && densidade === 'normal' && el && el.scrollHeight > el.clientHeight) setRolouNormal(true);
+  }, [tudoAberto, disponivel, densidade, grupos, aberto]);
 
   const [painel, setPainel] = useState<Painel | null>(null);
   const fechar = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -267,10 +319,10 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
   useEffect(() => cancelarFechar, []);
 
   return (
-    <div ref={listaRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
+    <div ref={listaRef} data-testid="menu-bko-lista" className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-1">
       {grupos.map((g) => {
-        if (g.bloqueado) return <EntradaBloqueada key={g.id} grupo={g} />;
-        if (g.direto) return <ItemDireto key={g.id} grupo={g} active={g.itens[0]?.href === ativo} />;
+        if (g.bloqueado) return <EntradaBloqueada key={g.id} grupo={g} densidade={densidade} />;
+        if (g.direto) return <ItemDireto key={g.id} grupo={g} active={g.itens[0]?.href === ativo} densidade={densidade} />;
         const estaAberto = tudoAberto || aberto === g.id;
         const comPainel = !estaAberto && painel?.grupo === g.id;
         const titulo = (e: { currentTarget: HTMLElement }) => e.currentTarget.querySelector<HTMLElement>('[data-menu-titulo]');
@@ -310,7 +362,7 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
                 onFocus={(e) => {
                   if (!estaAberto && e.currentTarget.matches(':focus-visible')) abrirPainel(g, e.currentTarget);
                 }}
-                className={cx('flex h-[30px] w-full shrink-0 items-center justify-between rounded-lg px-2.5 text-left transition-colors hover:bg-nav-active', TITULO_GRUPO, FOCO, comPainel && 'bg-nav-active')}
+                className={cx('flex w-full shrink-0 items-center justify-between rounded-lg px-2.5 text-left transition-colors hover:bg-nav-active', alturaTitulo(densidade), TITULO_GRUPO, FOCO, comPainel && 'bg-nav-active')}
               >
                 {g.titulo}
                 <IconChevronRight size={14} strokeWidth={2.2} className={cx('shrink-0 transition-transform', estaAberto && 'rotate-90')} />
@@ -319,7 +371,7 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
             {estaAberto && (
               <div id={`menu-grupo-${g.id}`} className="flex flex-col">
                 {g.itens.map((item) => (
-                  <NavLink key={item.href} item={item} active={item.href === ativo} />
+                  <NavLink key={item.href} item={item} active={item.href === ativo} densidade={densidade} />
                 ))}
               </div>
             )}
