@@ -8,7 +8,6 @@ import {
   lerFiltrosFormas,
   linhasDeFormas,
   linhasDePrazos,
-  normalizarBusca,
   percentualDoPrazo,
   prazoEfetivamenteAtivo,
   prazosToCsv,
@@ -103,9 +102,9 @@ describe('RN-VEN-24: tabela única de prazos, abas, busca e CSV', () => {
     expect(lerFiltrosFormas('?aba=xyz').aba).toBe('prazos');
   });
   it('RN-VEN-24: a busca ignora maiúsculas e acentos', () => {
-    expect(normalizarBusca('  CARTÃO ')).toBe('cartao');
+    expect(linhasDeFormas(formas, { ...vazios, q: '  Cartão ' }).map((f) => f.codigo)).toEqual(['CARTAO']);
+    expect(linhasDePrazos(formas, prazos, { ...vazios, q: 'BOLETO' }).map((x) => x.prazo.codigo)).toEqual(['BOL-28', 'BOL-30']);
     expect(linhasDeFormas(formas, { ...vazios, q: 'cartao' }).map((f) => f.codigo)).toEqual(['CARTAO']);
-    expect(linhasDeFormas(formas, { ...vazios, q: 'CARTÃO' }).map((f) => f.codigo)).toEqual(['CARTAO']);
   });
   it('RN-VEN-24: a tabela única tem uma linha por prazo, com o nome da forma como coluna', () => {
     const l = linhasDePrazos(formas, prazos, vazios);
