@@ -610,13 +610,10 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
     const nota = notaFinal(base, { estoque: doc.estoque, vendas_norm: maxVendas > 0 ? doc.vendas / maxVendas : 0, campanha: doc.campanha }, p);
     if (nota > 0) itens.push({ doc, nota, textual, semantica, exato, so_aplicacao: pt.so_aplicacao && !exato, referencia_casada: pt.referencia_casada ?? (exato ? referenciaPorCodigo(doc, filtros, ngramas) : null), casados: exato ? grupos.length : pt.casados });
   }
-  // R-20261120-103142: se algum produto casa TODAS as palavras, só eles aparecem; se nenhum casa, ficam os que casam com mais palavras
-  // (os mais próximos), em ordem de nota, em vez de lista vazia. Só vale com texto e sem nota semântica (a vetorial traz quem não casa palavra).
+  // R-20261120-194335 (substitui os "mais próximos" do R-20261120-103142): com texto, só aparece quem casa TODAS as palavras (o exato por código conta
+  // como casa-tudo); se ninguém casa tudo, a lista é vazia. Só vale sem nota semântica (a vetorial traz quem não casa palavra).
   let lista = itens;
-  if (comTexto && !comSemantica && itens.length > 0) {
-    const melhorCobertura = itens.reduce((m, i) => Math.max(m, i.casados), 0);
-    lista = itens.filter((i) => i.casados === melhorCobertura);
-  }
+  if (comTexto && !comSemantica) lista = itens.filter((i) => i.casados === grupos.length);
 
   const preco = filtros.sort;
   return lista.sort((a, b) => {

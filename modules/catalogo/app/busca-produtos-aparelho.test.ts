@@ -49,11 +49,10 @@ describe('catalogo.busca_produtos@1 no aparelho', () => {
     expect(lidas).not.toContain('marca_concorrente');
   });
 
-  it('RN-CAT-11 + R-20261120-103142: "pastilha uno 2015" (aplicação só até 2013): ninguém casa tudo, a pastilha vem como a mais próxima, sem "inclui 2015"', async () => {
+  it('RN-CAT-11 + R-20261120-194335: "pastilha uno 2015" (aplicação só até 2013): ninguém casa tudo, lista vazia', async () => {
     const { c } = ctx();
     const { itens } = await buscar(c, 'pastilha uno 2015');
-    expect(itens.map((i) => i.produto_id)).toContain(P1);
-    expect(itens.find((i) => i.produto_id === P1)?.serve_em ?? null).not.toMatchObject({ inclui_ano: 2015 });
+    expect(itens).toEqual([]);
   });
 
   it('RN-CAT-09: o "Equivale a" usa a marca do retrato da referência, sem o cadastro de marcas', async () => {

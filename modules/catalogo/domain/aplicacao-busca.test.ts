@@ -41,10 +41,6 @@ describe('RN-CAT-12: busca pela aplicação', () => {
     expect(ids([PASTILHA, FILTRO], 'pastilha uno 2012')).toEqual(['pastilha']);
   });
 
-  it('RN-CAT-12 + R-20261120-103142: "pastilha uno 2015" (ano fora da faixa): ninguém casa tudo, a pastilha vem como a mais próxima', () => {
-    expect(ids([PASTILHA, FILTRO], 'pastilha uno 2015')).toEqual(['pastilha']);
-  });
-
   it('RN-CAT-12 + R-20261120-103142: "pastilha uno 2015" com outra pastilha do Uno que cobre 2015: só ela aparece, a de 2010–2014 some', () => {
     const outra = doc({ id: 'outra', nome: 'Pastilha de freio traseira', aplicacao: 'Fiat Uno 2014–2018' });
     expect(ids([PASTILHA, FILTRO, outra], 'pastilha uno 2015')).toEqual(['outra']);
@@ -226,5 +222,24 @@ describe('RN-CAT-09: referência cruzada do concorrente', () => {
     const com = buscar([OUTRO, { ...X, referencias: [] }], 'pastilha freio');
     expect(com.every((i) => i.referencia_casada === null)).toBe(true);
     expect(buscar([OUTRO, X], 'pastilha freio').map((i) => i.doc.id)).toEqual(com.map((i) => i.doc.id));
+  });
+});
+
+describe('R-20261120-194335: caso BAP, lista vazia quando ninguém casa todas as palavras', () => {
+  const vocab = { marcas: ['BAP', 'Cofap'], linhas: [] };
+  const q = 'BAP amortecedor palio';
+  const idsBap = (docs: DocBusca[]) => rankear(docs, { filtros: interpretarConsulta(q, vocab), sinonimos: [], parametros: PARAMETROS_PADRAO, anoAtual: ANO }).map((i) => i.doc.id);
+  const ECO = doc({ id: 'eco', nome: 'Amortecedor dianteiro', marca: 'BAP', aplicacao: 'Ford EcoSport 2010–2014' });
+  const PASTILHA_PALIO = doc({ id: 'pastilha-palio', nome: 'Pastilha de freio Palio', marca: 'BAP' });
+  const COFAP = doc({ id: 'cofap', nome: 'Amortecedor Palio', marca: 'Cofap' });
+
+  it('valor x regra: amortecedor BAP do EcoSport (sem Palio) e pastilha BAP Palio: ninguém casa as duas palavras, lista vazia', () => {
+    expect(interpretarConsulta(q, vocab).brand).toBeTruthy();
+    expect(idsBap([ECO, PASTILHA_PALIO, COFAP])).toEqual([]);
+  });
+
+  it('valor x regra: com o amortecedor BAP com aplicação "FIAT - Palio", só ele aparece', () => {
+    const palio = doc({ id: 'palio', nome: 'Amortecedor dianteiro', marca: 'BAP', aplicacao: 'FIAT - Palio 2010–2014' });
+    expect(idsBap([ECO, PASTILHA_PALIO, COFAP, palio])).toEqual(['palio']);
   });
 });
