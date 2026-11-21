@@ -50,6 +50,13 @@ describe('índice FTS5 do Catálogo no aparelho (T-0008, pedido R-20261031-20543
     const t = 'Fusca 1960 em diante; Civic 2018 em diante; Fit 2015–2020';
     const extras = textoIndiceAplicacao(t).slice(t.length + 1).split(' ').map(Number);
     expect(extras).toEqual([...new Set([...anos(1961, 2000), ...anos(2016, 2017), ...anos(2019, 2058)])].sort((a, b) => a - b).filter((a) => a !== 2020));
-    expect(INDICE_BUSCA_CATALOGO.versaoDocumentos?.({ agora: criarRelogio().agora(), fuso: 'America/Manaus' })).toBe('v5');
+    expect(INDICE_BUSCA_CATALOGO.versaoDocumentos?.({ agora: criarRelogio().agora(), fuso: 'America/Manaus' })).toBe('v6');
+  });
+
+  it('RN-CAT-16: o texto da aplicação no FTS5 traz os anos de "até", mês/ano e 2 dígitos, e não traz ano inválido nem polegada', () => {
+    expect(textoIndiceAplicacao('Civic 2007 até 2011')).toBe('Civic 2007 até 2011 2008 2009 2010');
+    expect(textoIndiceAplicacao('Civic 07–11')).toBe('Civic 07–11 2007 2008 2009 2010 2011');
+    expect(textoIndiceAplicacao('Palio 06/2008–06/2012')).toBe('Palio 06/2008–06/2012 2009 2010 2011');
+    expect(textoIndiceAplicacao('Roda 16" código 2035 e 1938')).toBe('Roda 16" código 2035 e 1938');
   });
 });

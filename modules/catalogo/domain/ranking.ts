@@ -7,9 +7,9 @@
  * Boost só soma quando a nota-base é maior que zero: nunca ressuscita produto sem relevância.
  */
 import type { FiltrosInterpretados, Referencia } from '../contracts';
-import { anoForaDaAplicacao, expandirAplicacao } from './aplicacao';
+import { anoForaDaAplicacao, ehAnoDaConsulta, expandirAplicacao } from './aplicacao';
 import type { ParametrosCatalogo } from './parametros';
-import { ANO_DA_CONSULTA_RE, chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 
 /** Documento da busca: cadastro do Core + preço/estoque já resolvidos para o usuário e sinais de venda. */
 export interface DocBusca {
@@ -95,7 +95,7 @@ export const TOKENS_DO_PRODUTO = new WeakMap<object, TokensDoDoc>();
 /** `aplicacao` é o padrão de `peso_aplicacao` (RN-CAT-12); o ranking usa o do tenant. */
 const PESO_CAMPO = { nome: 1, codigo: 1, marca: 0.6, categoria: 0.4, atributos: 0.3, aplicacao: 0.5 } as const;
 /** Separador de trechos da aplicação (igual ao do "Serve em"). */
-const SEPARADOR_TRECHO = /[;|•\r\n]/;
+const SEPARADOR_TRECHO = /[;|•·\r\n]/;
 /** RN-CAT-09: tamanho do código (já compactado) para casar por n-grama. */
 const CODIGO_MIN = 3;
 const CODIGO_MAX = 30;
@@ -397,7 +397,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   const aplicacao = doc.aplicacao ?? '';
   const pesoAplicacao = opcoes.pesoAplicacao ?? PESO_CAMPO.aplicacao;
   const anoAtual = opcoes.anoAtual ?? 0;
-  const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ANO_DA_CONSULTA_RE.test(alt)));
+  const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ehAnoDaConsulta(alt)));
   const outros = grupos.map((g) => {
     let m = 0;
     for (const alt of g) for (const c of campos) m = Math.max(m, melhorNivel(alt, c.termos) * c.peso);
@@ -426,7 +426,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
         for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivelAplicacao(alt, termosApl) * pesoAplicacao);
         melhor = Math.max(melhor, melhorAplicacao);
         // RN-CAT-12 + R-20261120-103142: ano da consulta fora dos anos da aplicação = o grupo do ano não casa, salvo se casar em outro campo
-        const anosDoGrupo = grupo.filter((alt) => ANO_DA_CONSULTA_RE.test(alt));
+        const anosDoGrupo = grupo.filter((alt) => ehAnoDaConsulta(alt));
         if (exigirAno && melhorOutros === 0 && anoForaDaAplicacao(anosDoGrupo.map(Number), anosApl)) melhor = 0;
       }
       if (melhor > 0) {
@@ -449,7 +449,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
     return avaliar(analise.todos, analise.anos, analise.anos.length > 0);
   }
   // RN-CAT-12 (T-0084-A4): com ano na consulta, veículo/modelo e ano têm de casar no MESMO trecho (separado por ";"): cada trecho é
-  // avaliado sozinho e vale o que cobre mais grupos (R-20261120-103142: a cobertura manda na regra de exibição), depois a nota
+  // avaliado sozinho e vale o que cobre mais grupos (R-20261120-194335: a cobertura manda na regra de exibição), depois a nota
   let melhorResultado: PontuacaoTextual | null = null;
   for (const t of trechos) {
     const r = avaliar(t.termos, t.anos, true);
@@ -610,13 +610,10 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
     const nota = notaFinal(base, { estoque: doc.estoque, vendas_norm: maxVendas > 0 ? doc.vendas / maxVendas : 0, campanha: doc.campanha }, p);
     if (nota > 0) itens.push({ doc, nota, textual, semantica, exato, so_aplicacao: pt.so_aplicacao && !exato, referencia_casada: pt.referencia_casada ?? (exato ? referenciaPorCodigo(doc, filtros, ngramas) : null), casados: exato ? grupos.length : pt.casados });
   }
-  // R-20261120-103142: se algum produto casa TODAS as palavras, só eles aparecem; se nenhum casa, ficam os que casam com mais palavras
-  // (os mais próximos), em ordem de nota, em vez de lista vazia. Só vale com texto e sem nota semântica (a vetorial traz quem não casa palavra).
+  // R-20261120-194335 (substitui os "mais próximos" do R-20261120-103142): com texto, só aparece quem casa TODAS as palavras (o exato por código conta
+  // como casa-tudo); se ninguém casa tudo, a lista é vazia. Só vale sem nota semântica (a vetorial traz quem não casa palavra).
   let lista = itens;
-  if (comTexto && !comSemantica && itens.length > 0) {
-    const melhorCobertura = itens.reduce((m, i) => Math.max(m, i.casados), 0);
-    lista = itens.filter((i) => i.casados === melhorCobertura);
-  }
+  if (comTexto && !comSemantica) lista = itens.filter((i) => i.casados === grupos.length);
 
   const preco = filtros.sort;
   return lista.sort((a, b) => {

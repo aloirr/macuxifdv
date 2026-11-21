@@ -4,8 +4,8 @@
  * texto que entra no índice e para a consulta, então eventuais imperfeições do plural simples se anulam.
  */
 
-/** RN-CAT-12: palavra da consulta que é um ano (1900 a 2099). Uma só definição para o ranking, o índice e o "Serve em". */
-export const ANO_DA_CONSULTA_RE = /^(19|20)\d{2}$/;
+import { APELIDOS_MONTADORA } from './montadoras';
+
 
 /** Grupo de sinônimos do tenant (forma mínima de `Sinonimo` do contrato). */
 export interface SinonimoDoTenant {
@@ -169,18 +169,20 @@ export function chaveDeTermo(texto: string): string {
  */
 export function expandirSinonimos(consulta: string, sinonimos: readonly SinonimoDoTenant[]): string[][] {
   const tokens = tokensDeBusca(consulta);
-  // frase (chave) → todas as frases do grupo
+  // frase (chave) → todas as frases do grupo. RN-CAT-15: a lista padrão de montadoras entra antes dos sinônimos do tenant,
+  // e grupos que dividem uma frase se juntam (o sinônimo do tenant soma ao apelido padrão e não o apaga).
   const porFrase = new Map<string, Set<string>>();
   let maxPalavras = 1;
-  for (const s of sinonimos) {
+  const todosSinonimos: readonly SinonimoDoTenant[] = sinonimos.length === 0 ? APELIDOS_MONTADORA : [...APELIDOS_MONTADORA, ...sinonimos];
+  for (const s of todosSinonimos) {
     if (s.active === false) continue;
     // mesma forma da consulta (`tokensDeBusca`): sem stopword, senão "pasta de dente" nunca casaria com "pasta dente"
     const frases = [...new Set([s.term, ...s.synonyms].map((t) => tokensDeBusca(t).join(' ')).filter((f) => f !== ''))];
     if (frases.length < 2) continue;
-    for (const f of frases) {
-      const grupo = porFrase.get(f) ?? new Set<string>();
-      for (const g of frases) grupo.add(g);
-      porFrase.set(f, grupo);
+    const uniao = new Set<string>(frases);
+    for (const f of frases) for (const g of porFrase.get(f) ?? []) uniao.add(g);
+    for (const f of uniao) {
+      porFrase.set(f, uniao);
       maxPalavras = Math.max(maxPalavras, f.split(' ').length);
     }
   }

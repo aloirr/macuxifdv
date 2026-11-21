@@ -709,15 +709,15 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     expect(outro.status).toBe(404);
   });
 
-  it('RN-CAT-12: a busca da rota acha o produto pela aplicação com "Serve em" e "inclui 2012"; "2015" vem só como o mais próximo', async () => {
+  it('RN-CAT-12: a busca da rota acha o produto pela aplicação com "Serve em" e "inclui 2012"; "2015" dá lista vazia (R-20261120-194335)', async () => {
     const { rota } = montar();
     await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo({ aplicacao: 'Feijão carioca tipo 1 safra 2010–2014' }) });
     const dentro = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'carioca 2012', mode: 'basica' } });
     expect(dentro.corpo.items.map((i) => i.id)).toContain(FEI);
     expect(dentro.corpo.items.find((i) => i.id === FEI)?.serve_em).toMatchObject({ inclui_ano: 2012 });
     const fora = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'carioca 2015', mode: 'basica' } });
-    expect(fora.corpo.items.map((i) => i.id)).toContain(FEI);
-    expect(fora.corpo.items.find((i) => i.id === FEI)?.serve_em).not.toMatchObject({ inclui_ano: 2015 });
+    expect(fora.corpo.items).toEqual([]);
+    expect(fora.corpo.total).toBe(0);
   });
 
   it('RN-CAT-09: a busca pelo código do concorrente mostra "Equivale a"', async () => {

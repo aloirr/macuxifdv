@@ -3,13 +3,13 @@
  * os termos marcados e, quando o ano da consulta casou por faixa, o "inclui 2012". Função pura: app e API.
  */
 import type { TrechoBusca } from '../contracts';
-import { expandirAplicacao, type FaixaAnos } from './aplicacao';
+import { ehAnoDaConsulta, expandirAplicacao, type FaixaAnos } from './aplicacao';
 import { nivelDaPalavra } from './ranking';
-import { ANO_DA_CONSULTA_RE, tokensDeBusca } from './texto';
+import { tokensDeBusca } from './texto';
 
 export const SERVE_EM_MAX = 90;
 const MAX_MARCAS = 20;
-const SEPARADOR_SEGMENTO = /[;|•\r\n]/;
+const SEPARADOR_SEGMENTO = /[;|•·\r\n]/;
 const PALAVRA_RE = /[\p{L}\p{N}]+(?:[.,][\p{N}]+)*/gu;
 
 interface Palavra {
@@ -66,7 +66,7 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
           if (nivel !== 1) todasExatas = false;
           continue;
         }
-        const faixa = partes.length === 1 && ANO_DA_CONSULTA_RE.test(q) ? faixas.find((f) => Number(q) >= f.de && Number(q) <= f.ate) : undefined;
+        const faixa = partes.length === 1 && ehAnoDaConsulta(q) ? faixas.find((f) => Number(q) >= f.de && Number(q) <= f.ate) : undefined;
         todasExatas = false;
         if (faixa) faixaDoAno = { ano: Number(q), faixa };
         else todas = false;

@@ -190,7 +190,7 @@ describe('pré-seleção do FTS5 em catálogo grande (T-0052-B2/B4)', () => {
     };
     const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'café açúcar', limit: 20, offset: 0, offline: true });
     expect(chamadas).toEqual(['[["cafe"],["acucar"]]', '[["cafe"]]', '[["acucar"]]']); // 1º o AND, que traz só 1 (< CANDIDATOS_POR_TERMO): cai na união termo a termo
-    expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['ACU-1K', 'CAF-500']);
+    expect(r.items).toEqual([]); // R-20261120-194335: a união só pré-seleciona; nenhum produto casa café E açúcar, lista vazia
   });
 
   it('RF-CAT-02: FTS5 sem nenhum acerto cai na varredura do domain (tolerância a erro de digitação continua valendo)', async () => {
