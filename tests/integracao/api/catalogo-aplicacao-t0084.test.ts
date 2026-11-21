@@ -15,7 +15,7 @@
  *       `referencias_cortadas`; marca desconhecida não leva a marca (descartada até a marca opcional, R-20261115-073000; depois
  *       entra só com o código e marca_id nulo): as duas formas passam.
  *  H-3  (doc 06): `aplicacao` ausente não altera; `null` limpa.
- *  B-1  (T-0084 c3, RN-CAT-12) online: "pastilha uno 2012" acha com "Serve em" (inclui 2012); "2015" traz a mais próxima (R-20261120-103142); "filtro gol 2014".
+ *  B-1  (T-0084 c3, RN-CAT-12) online: "pastilha uno 2012" acha com "Serve em" (inclui 2012); "2015" dá lista vazia (R-20261120-194335); "filtro gol 2014".
  *  B-2  (T-0084 c8) multi-tenant: a aplicação de A não aparece para B (busca e ficha) e vice-versa.
  *  P-1  (T-0084 c6, RN-VEN-19): o retrato vai cortado em 300 na palavra com "…"; desmarcado (null) e APK antigo (ausente)
  *       gravam nulo; a API recorta pelo parâmetro do tenant; reenvio idempotente.
@@ -276,18 +276,16 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       expect(r2.statusCode, r2.body).toBe(200);
     });
 
-    it('B-1 (RN-CAT-12 + R-20261120-103142): "pastilha uno 2012" acha ALFA-001 com "Serve em" (≤ 90, inclui 2012); "pastilha uno 2015" (ninguém casa tudo) traz ALFA-001 como a mais próxima; "filtro gol 2014" acha ALFA-002', async () => {
+    it('B-1 (RN-CAT-12 + R-20261120-194335): "pastilha uno 2012" acha ALFA-001 com "Serve em" (≤ 90, inclui 2012); "pastilha uno 2015" (ninguém casa tudo) dá lista vazia; "filtro gol 2014" acha ALFA-002', async () => {
       const r = await itensDaBusca(tk.vA, 'pastilha uno 2012');
       const item = r.find((i) => i.erp_code === 'ALFA-001');
       expect(item, JSON.stringify(r.map((i) => i.erp_code))).toBeTruthy();
       expect(item!.serve_em).toMatchObject({ inclui_ano: 2012 });
       expect(item!.serve_em!.texto.length).toBeLessThanOrEqual(90);
       expect(item!.serve_em!.texto).toContain('Uno');
-      // R-20261120-103142: 2015 fora do Uno 2010–2014 (o Palio 2012–2016 é outro trecho, T-0084-A4): ninguém casa as 3 palavras e
-      // a ALFA-001 vem como a mais próxima, em vez de lista vazia
+      // 2015 fora do Uno 2010–2014 (o Palio 2012–2016 é outro trecho, T-0084-A4): ninguém casa as 3 palavras
       const fora = await itensDaBusca(tk.vA, 'pastilha uno 2015');
-      expect(fora[0]?.erp_code, JSON.stringify(fora.map((i) => [i.erp_code, i.serve_em]))).toBe('ALFA-001');
-      expect(fora[0]!.serve_em?.inclui_ano ?? null, '2015 fora do Uno 2010–2014: sem "inclui 2015"').not.toBe(2015);
+      expect(fora.map((i) => i.erp_code)).toEqual([]);
       const gol = await itensDaBusca(tk.vA, 'filtro gol 2014');
       expect(gol[0]?.erp_code).toBe('ALFA-002');
       expect(gol[0]!.serve_em).toMatchObject({ inclui_ano: 2014 });
