@@ -421,6 +421,15 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - Se ninguém casa tudo, a lista é vazia (total 0).
   - Vale igual na busca online, na do aparelho e no seletor do pedido. Exemplo: "xyzqwk amortecedor" → lista vazia.
 
+- **RN-CAT-18 Palavra inteira e nome de veículo** (v1.0.20; R-20261120-214252 e R-20261120-230805, auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §2 item 3, etapa 3)
+  - Na aplicação, a palavra da busca casa só a palavra inteira ("gol" não traz Golf), salvo a última palavra digitada (ver "Começo de palavra").
+  - **Nome de veículo vem da própria base:** é a palavra que aparece na aplicação de pelo menos 3 produtos ativos do tenant e em pelo menos 5 vezes mais aplicações do que nomes e descrições. Ela casa só inteira, em qualquer campo, e não passa pelo singular. Assim "polo" acha "Polo Classic" e não traz "Cabo de vela 4 polos".
+  - **Começo de palavra:** vale só para a última palavra digitada, porque a busca roda a cada letra ("amortecedor pal" acha o Palio). As outras palavras casam inteiras, salvo erro de digitação nos campos de texto, como hoje.
+  - Vale igual na busca online, na do aparelho e no seletor do pedido.
+- **RN-CAT-19 Modelo derivado e vizinhas juntas** (v1.0.20; mesmas decisões, auditoria §2 item 4, etapa 4)
+  - **Modelo derivado:** o nome de veículo (RN-CAT-18) também casa a palavra grudada da qual ele é o começo ou o fim, quando o outro pedaço tem 3 ou mais caracteres e o próprio nome também. Assim "fox" acha Fox, CrossFox e SpaceFox, e "gol" continua sem achar Golf, porque "f" tem menos de 3 caracteres.
+  - **Vizinhas juntas no texto:** duas palavras vizinhas da busca, coladas, também casam a palavra grudada do texto e da aplicação. Assim "space fox" acha SpaceFox e "Space Fox".
+
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.
 - **RN-CAT-13 Marcas concorrentes** O cadastro de marcas concorrentes é do **Catálogo** (BKO → Catálogo → Marcas), numa lista só por tenant, que funciona com ou sem o Promotor licenciado. O Promotor e a referência cruzada leem a lista por contrato (`catalogo.marcas@1`). Marca em uso não se apaga: inativa-se, e a referência com marca inativa deixa de aparecer (RN-CAT-09). A ação é `marca.gerenciar` (padrão de fábrica: analista e admin). *(Decisão do dono do produto, 07/11/2026, R-20261107-173950 b; ADR 0034, que substitui a 0027; T-0113.)*
