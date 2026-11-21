@@ -1,4 +1,4 @@
-# BKO → Sistema → Integração ERP: só a tabela de lotes (T-0173)
+# BKO → Sistema → Integração ERP: uma linha por entidade (T-0173; desenho da v1.0.19)
 
 Decisão do dono do produto R-20261115-110600, item 3. Tela de referência: 1366×768, sem rolagem lateral.
 Regras do corretor: uma informação, um lugar; só o texto que a pessoa usa para agir.
@@ -7,29 +7,35 @@ Regras do corretor: uma informação, um lugar; só o texto que a pessoa usa par
 Saem o de-para (mapeamento), os cards "Pedidos no ERP", conectores, alertas, carga por entidade, inativações, os KPIs do topo, o filtro "Conector",
 "Só com erro" e "Exportar lotes (CSV)". O de-para vai para Parâmetros → Integração (seção 9).
 
-## 2. Ordem na tela
-1. `PageHeader` com o título **Integração ERP**, sem subtítulo; à direita, a ação `Button variant="link"` **Atualizar**.
-2. `FilterBar` com dois `SelectField`: **Entidade** (Todas) e **Status** (Todos). "Limpar filtros" só aparece com filtro ativo.
-3. `TabelaDados` (rótulo "Lotes"), sem `TableScroll`. Clicar na linha abre o log (o `LoteDrawer` que já existe); a linha indica que é clicável só com o cursor de mão e o fundo `--ground` (#F8F6F1) sob o mouse, sem chevron. O mais recente fica no topo.
-   Cabeçalho da tabela sem fundo (`--surface`, peso 600).
+## 2. Ordem na tela (desenho aprovado na v1.0.19)
+1. `PageHeader` com o título **Integração ERP** e, no `subtitle`, só a linha de identificação **‹conector› · v‹versão› · última carga
+   recebida 15/11 às 01:02** (do lote mais recente; sem lote, sem linha); à direita, a ação `Button variant="link"` **Atualizar**. Sem filtro.
+2. `Panel label="Entidades"` com uma `TabelaDados` (rótulo "Entidades"), sem `TableScroll`: **uma linha por entidade**, agregando os lotes recentes dela.
+   A linha não é clicável: as ações ficam nos botões da última coluna (seção 5). Cabeçalho da tabela sem fundo (`--surface`, peso 600).
+3. **Histórico — ‹Entidade›**: `Dialog largura="larga"` (720 px a partir de 640 px; abaixo, folha na largura toda), aberto por **Histórico (n)** (seção 5).
 
 ## 3. Colunas (rótulos exatos)
-| Coluna | Conteúdo | Largura | Prioridade |
-|---|---|---|---|
-| Entidade | `ROTULO_ENTIDADE` (ex.: Clientes) | 20% | 1 |
-| Lote | 8 primeiros caracteres do id, fonte mono; id inteiro no `title` | 10% | 2 |
-| Início | `15/11 14:31` | 11% | 1 |
-| Duração | `2 min 10 s` | 10% | 2 |
-| Conclusão | `15/11 14:33`; **célula vazia** em andamento (o selo já diz "Em andamento" e a Duração conta ao vivo) | 11% | 3 |
-| Status | um `Badge` (seção 4) | 16% | 1 |
-| Linhas integradas | número (`numero: true`): `1.240`; se houve erro, `1.180 de 1.240` | 14% | 1 |
-| (ações) | `MenuAcoes` "⋯", só nas linhas com ação (seção 5); nas outras a célula fica vazia | 52 px | 1 |
+**Tabela de entidades** (a 1366 px com o menu lateral aberto; nada corta o selo, o número nem os botões):
+| Coluna | Conteúdo | Largura |
+|---|---|---|
+| Entidade | `ROTULO_ENTIDADE` (ex.: Produtos), peso 400 | 20% |
+| Última carga | `15/11 01:02` do lote mais recente; com falha, `15/11 01:02 · falhou 01:03`; sem falha e com mais de um lote, `15/11 01:01 · 4 lotes` | 27% |
+| Situação | `Badge` **Com falha** (`danger`) quando há falha reprocessável; senão **Em dia** (`success`) | 14% |
+| Linhas integradas | número (`numero: true`), sempre `x de y`: `7.378 de 14.780` | 15% |
+| (ações) | **Reprocessar** (`primary`, `size="sm"`) só com falha reprocessável, à esquerda de **Histórico (n)** (secundário, `size="sm"`; n = lotes da entidade) | 24% |
 
-As colunas cabem no quadro de 1366 px com o menu lateral aberto; nada corta o selo nem o número.
-**Data+hora**: `dd/mm hh:mm`, 24 h, no fuso do tenant (`sessao.fuso`), sem "às" e sem ano: é o formato de célula de tabela do BKO (`formatDataHoraCurta`); data dentro de frase usa `formatDateTime`.
-**Duração** (do início até a conclusão; em andamento, até agora, e atualiza com a tabela): `< 1 min` → `45 s`; `< 1 h` → `2 min 10 s`
-(segundos zerados somem: `3 min`); `≥ 1 h` → `1 h 5 min` (minutos zerados somem: `1 h`). Sem início: célula vazia. A tabela não usa **—**.
-Os dois formatadores entram em `packages/ui/src/web/format.ts` (`formatDataHoraCurta`, `formatDuracao`), feitos pelo designer-ux; o módulo não cria cópia.
+**Tabela do Histórico** (dentro do `Dialog` largo, 720 px):
+| Coluna | Conteúdo | Largura |
+|---|---|---|
+| Recebido | `15/11 01:02` | 19% |
+| Falhou | só no lote com falha: `01:03` (`formatTime`); nos outros, célula vazia | 11% |
+| Situação | `Badge` do lote (seção 4) | 27% |
+| Linhas | número, `x de y`; lote com falha conta `0 de 3.695` | 20% |
+| (ações) | links (`Button variant="link"`): **Cancelar** só em andamento; **Ver erros** só em lote com erro (com falha ou com linhas com erro), abre o log (`LoteDrawer`) | resto (23%) |
+
+O mais recente fica no topo, nas duas tabelas.
+**Data+hora em célula**: `dd/mm hh:mm`, 24 h, no fuso do tenant (`sessao.fuso`), sem "às" e sem ano (`formatDataHoraCurta`); data dentro de frase
+(a linha do `PageHeader`) usa `formatDateTime`. Célula sem valor fica vazia: a tabela não usa **—**.
 
 ## 4. Status (rótulo e tom do `Badge`)
 | Estado do lote | Rótulo | Tom |
@@ -40,20 +46,25 @@ Os dois formatadores entram em `packages/ui/src/web/format.ts` (`formatDataHoraC
 | falhou | Com falha | `danger` |
 | cancelado (estado novo, contrato do modulo-integracao) | Cancelado | `neutral` |
 
-A cor vem sempre com o texto. O filtro Status usa estes 5 rótulos.
+A cor vem sempre com o texto. Estes rótulos valem para o Histórico; a tabela de entidades usa só **Com falha** e **Em dia** (seção 3).
 
-## 5. Menu "⋯" por status (`MenuAcoes`)
-| Status | Ações |
-|---|---|
-| Em andamento | **Cancelar** (perigo) |
-| Concluído com avisos | Reprocessar |
-| Com falha | Reprocessar |
-| Concluído, Cancelado | sem "⋯" |
+## 5. Ações
+| Onde | Ação | Quando aparece |
+|---|---|---|
+| Linha da entidade | **Reprocessar** | só com falha reprocessável (RN-INT-15) |
+| Linha da entidade | **Histórico (n)** | sempre |
+| Histórico, por lote | **Cancelar** | só em andamento |
+| Histórico, por lote | **Ver erros** | só em lote com erro |
+| Rodapé do Histórico | **Reprocessar os n lotes** (principal; com 1, **Reprocessar o lote**) | só se a entidade tem lote reprocessável |
 
-O log não entra no menu: abre com o clique na linha (seção 2). Ação que não vale para o status some (não aparece desligada).
+Ação que não vale para o estado some (não aparece desligada). Um só principal por tela: na tabela, **Reprocessar** é o principal da linha com falha;
+no Histórico, o principal é o do rodapé, e o rodapé leva também **Fechar**.
 
-**Reprocessar** com a permissão `lote.reprocessar`: dispara direto, sem diálogo; aviso (`useToast`, success) **Reprocessamento iniciado.**
-O status da mesma linha volta a Em andamento.
+**Diálogo Histórico — ‹Entidade›**: `Dialog largura="larga"`, título **Histórico — ‹Entidade›**, `subtitle` **‹conector› · n lotes**
+(com 1, **1 lote**); o corpo é só a tabela, sem nota explicativa.
+
+**Reprocessar** (linha ou rodapé) com a permissão `lote.reprocessar`: dispara direto, sem diálogo; aviso (`useToast`, success) **Reprocessamento iniciado.**
+Sem a permissão: popup de autorização (seção 6).
 
 **Cancelar**: `Dialog` com o título **Cancelar este lote?**; corpo **{Entidade} · lote {8 caracteres}**; botões **Cancelar lote** (perigo) e
 **Voltar**. Depois: aviso **Lote cancelado.**
@@ -72,7 +83,7 @@ para log nem fica guardada na tela. Contrato a pedir ao modulo-integracao/engenh
 
 ## 7. Estados
 - Carregando: `LoadingBlock`. Erro sem dado: `ErrorBlock` com "Tentar de novo". Erro com dado: a tabela fica e o `ErrorBlock` diz **Não deu para atualizar agora.**
-- Vazio (`EstadoVazio`): **Nenhum lote recebido ainda.** Com filtro: **Nenhum lote com esses filtros.** + `Button` **Limpar filtros**.
+- Vazio (`EstadoVazio semBorda`, dentro do `Panel`): só **Nenhum lote recebido ainda.** É o único vazio da tela.
 
 ## 8. Cards no início de Pedidos (BKO → Pedidos)
 Logo abaixo do `PageHeader` da lista de Pedidos e antes dos filtros, um `KpiGrid` (5 por linha a 1366 px) com `KpiCard` só com o valor, sem `sub`:
@@ -99,13 +110,13 @@ Página **De-para de códigos** (rota em Parâmetros → Integração), campos r
 6. Vazio (`EstadoVazio`): só **Nenhum de-para ainda.**, sem botão; o **Novo de-para** fica só no `PageHeader` (item 1: um só principal).
    Sem itens, o `FilterBar` (Entidade e Buscar) some.
 Premissa: a lista de códigos do Macuxi por entidade vem de uma consulta do modulo-integracao (a pedir).
-Marca (valem para a tabela de lotes e para o de-para; manual da marca §4 e §5):
+Marca (valem para a tabela de entidades, o Histórico e o de-para; manual da marca §4 e §5):
 - tabelas e o vazio ficam dentro de um cartão branco (`--surface`) com borda contínua (`--line`), raio 12 px;
 - códigos (Macuxi, ERP e lote) na pilha mono do manual §5.1, 15/400, com `tabular-nums`; **{n} retidos** é um selo `Badge` de aviso (`warning`);
 - o nome da entidade na tabela vai em peso 400 (texto comum, sem negrito).
 
 ## 10. Simulações (1366×768, PNG 2x)
-`simulacoes/`: `lotes.png` (menu ⋯ aberto num lote em andamento: só Cancelar), `lotes-popup.png`, `de-para.png` (menu ⋯ de um inativo),
-`de-para-folha.png` (busca do código do Macuxi aberta), `de-para-vazio.png`. HTML e `base.css` ao lado, com os tokens do BKO, o logo
-negativo para o grafite (28 px, manual da marca §2) e a fonte do sistema, sem `@font-face` (manual §5); dados fictícios.
+`simulacoes/`: `de-para.png` (menu ⋯ de um inativo), `de-para-folha.png` (busca do código do Macuxi aberta), `de-para-vazio.png`. HTML e `base.css`
+ao lado, com os tokens do BKO, o logo negativo para o grafite (28 px, manual da marca §2) e a fonte do sistema, sem `@font-face` (manual §5); dados fictícios.
+A tabela de entidades e o Histórico (seções 2, 3 e 5) não têm simulação: a referência é o texto desta spec. As pranchas da tela antiga de lotes saíram.
 Decisões: R-20261115-111800.

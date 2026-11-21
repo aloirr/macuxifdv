@@ -72,12 +72,60 @@ function useCorpoRola(open: boolean) {
   return { ref, rola };
 }
 
+/** Largura do popup a partir de 640 px: `padrao` = 460 px (confirmação, formulário curto); `larga` = 720 px (tabela curta dentro do popup). */
+export type LarguraDoDialog = 'padrao' | 'larga';
+
+const MAX_LARGURA: Record<LarguraDoDialog, string> = { padrao: 'sm:max-w-[460px]', larga: 'sm:max-w-[720px]' };
+
+/** Classes da caixa do popup; abaixo de 640 px é sempre folha na largura toda. */
+export function classesDoDialog(largura: LarguraDoDialog = 'padrao'): string {
+  return `flex max-h-full w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl ${MAX_LARGURA[largura]} sm:rounded-2xl`;
+}
+
+/** Cabeçalho do popup: título e, se houver, a linha de identificação embaixo (13 px, `ink-2`, como no Drawer). Sem hooks. */
+export function CabecalhoDoDialog({ id, title, subtitle, rola }: { id: string; title: string; subtitle?: ReactNode; rola: boolean }) {
+  const divisa = rola ? 'border-b border-line' : '';
+  if (!subtitle) {
+    return (
+      <h2 id={id} className={`m-0 shrink-0 px-5 pt-5 pb-3 text-[20px] font-bold ${divisa}`}>
+        {title}
+      </h2>
+    );
+  }
+  return (
+    <div className={`flex shrink-0 flex-col gap-0.5 px-5 pt-5 pb-3 ${divisa}`}>
+      <h2 id={id} className="m-0 text-[20px] font-bold">
+        {title}
+      </h2>
+      <div className="text-[13px] text-ink-2">{subtitle}</div>
+    </div>
+  );
+}
+
 /**
  * Popup do BKO (R-20261114-141500): nunca passa da área visível. Título e botões ficam sempre à vista;
- * só o corpo rola. A partir de 640 px é um cartão centrado de até 460 px; abaixo disso vira folha que
- * sobe de baixo, na largura toda, com os cantos arredondados só em cima e respeitando a área segura.
+ * só o corpo rola. A partir de 640 px é um cartão centrado de até 460 px (`largura="larga"`: 720 px, para tabela
+ * curta); abaixo disso vira folha que sobe de baixo, na largura toda, com os cantos arredondados só em cima e
+ * respeitando a área segura. `subtitle`: só linha de identificação ou estado (ex.: "erp-matriz · 4 lotes"),
+ * nunca frase de explicação.
  */
-export function Dialog({ open, title, children, footer, onClose }: { open: boolean; title: string; children: ReactNode; footer: ReactNode; onClose: () => void }) {
+export function Dialog({
+  open,
+  title,
+  subtitle,
+  largura = 'padrao',
+  children,
+  footer,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  subtitle?: ReactNode;
+  largura?: LarguraDoDialog;
+  children: ReactNode;
+  footer: ReactNode;
+  onClose: () => void;
+}) {
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
   useEscape(open, onClose, ref);
@@ -97,11 +145,9 @@ export function Dialog({ open, title, children, footer, onClose }: { open: boole
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
-        className="flex max-h-full w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl sm:max-w-[460px] sm:rounded-2xl"
+        className={classesDoDialog(largura)}
       >
-        <h2 id={id} className={`m-0 shrink-0 px-5 pt-5 pb-3 text-[20px] font-bold ${corpo.rola ? 'border-b border-line' : ''}`}>
-          {title}
-        </h2>
+        <CabecalhoDoDialog id={id} title={title} subtitle={subtitle} rola={corpo.rola} />
         <div ref={corpo.ref} className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 text-[15px] text-ink ${corpo.rola ? 'py-3' : 'py-0.5'}`}>
           {children}
         </div>
