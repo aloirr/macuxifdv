@@ -57,7 +57,7 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
   let exatos = 0;
   let incluiAno: number | null = null;
   const plano = planejarGrupos(grupos, veiculos);
-  // RN-CAT-19: a palavra grudada da aplicação ("SpaceFox") cobre as duas vizinhas da busca ("space fox") de uma vez
+  // RN-CAT-20: a palavra grudada da aplicação ("SpaceFox") cobre as duas vizinhas da busca ("space fox") de uma vez
   const viaPar = new Map<number, { marca: [number, number]; exato: boolean }>();
   for (const par of paresColados(grupos)) {
     const achada = melhorPalavra(par.palavra, palavras);
@@ -77,7 +77,7 @@ function casar(segmento: string, grupos: readonly (readonly string[])[], anoAtua
       let todasExatas = true;
       for (let pi = 0; pi < partes.length; pi++) {
         const q = partes[pi]!;
-        // RN-CAT-18: na aplicação a palavra casa inteira; começo de palavra só na última digitada, e nome de veículo só inteiro
+        // RN-CAT-19: na aplicação a palavra casa inteira; começo de palavra só na última digitada, e nome de veículo só inteiro
         const { p, nivel } = melhorPalavra(plano[gi]![ai]![pi] ?? { q, modo: 'i' }, palavras);
         if (p) {
           achadas.push([p.inicio, p.fim]);

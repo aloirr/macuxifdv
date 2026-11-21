@@ -1,5 +1,5 @@
 /**
- * Massa comum dos testes de busca da auditoria BAP (RN-CAT-18 e RN-CAT-19, domínio): produto de teste, contexto da vitrine e os dois
+ * Massa comum dos testes de busca da auditoria BAP (RN-CAT-19 e RN-CAT-20, domínio): produto de teste, contexto da vitrine e os dois
  * caminhos de busca (lista inteira e pré-seleção do índice). anoAtual = 2026. A lista volta ordenada pelo nome.
  */
 import { expect } from 'vitest';

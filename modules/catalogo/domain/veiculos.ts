@@ -1,5 +1,5 @@
 /**
- * RN-CAT-18: "é nome de veículo" tirado da própria base do tenant. É veículo a palavra que aparece nas aplicações dos produtos
+ * RN-CAT-19: "é nome de veículo" tirado da própria base do tenant. É veículo a palavra que aparece nas aplicações dos produtos
  * pelo menos `RAZAO_VEICULO` vezes mais do que nos nomes e descrições (e em pelo menos `MINIMO_APLICACOES_VEICULO` produtos).
  * Cálculo puro, feito uma vez por carga (aparelho), por índice (servidor) ou por lista de produtos (`veiculosDe`): a busca só
  * consulta o conjunto pronto. A mesma conta vale para a busca online, a do aparelho e o seletor do pedido.
@@ -18,14 +18,14 @@ export const RAZAO_VEICULO = 5;
  */
 export const MINIMO_APLICACOES_VEICULO = 3;
 
-/** RN-CAT-19: tamanho mínimo de cada pedaço, no modelo derivado, nas palavras da base e nas vizinhas juntas. */
+/** RN-CAT-20: tamanho mínimo de cada pedaço, no modelo derivado, nas palavras da base e nas vizinhas juntas. */
 export const PEDACO_MINIMO = 3;
 
 /** Palavra só de letras minúsculas com pelo menos `PEDACO_MINIMO` letras. */
 export const soLetras = (w: string): boolean => w.length >= PEDACO_MINIMO && /^[a-z]+$/.test(w);
 
 /**
- * Os nomes de veículo da base (RN-CAT-18) e, para cada um, as palavras grudadas da base de que ele é o começo ou o fim (RN-CAT-19).
+ * Os nomes de veículo da base (RN-CAT-19) e, para cada um, as palavras grudadas da base de que ele é o começo ou o fim (RN-CAT-20).
  * É um `Set` de nomes, então quem só pergunta "é veículo?" não muda; a busca lê `derivadas` para casar CrossFox e SpaceFox por "fox".
  */
 export class NomesDeVeiculo extends Set<string> {
@@ -33,7 +33,7 @@ export class NomesDeVeiculo extends Set<string> {
   readonly derivadas: ReadonlyMap<string, readonly string[]>;
   /**
    * Palavras da base (só letras, com 2 pedaços de 3+ caracteres = 6 ou mais) que podem ser a palavra grudada de duas vizinhas da busca
-   * (RN-CAT-19). O FTS5 do aparelho só consulta a palavra junta que existe aqui: "cafe acucar" não gasta uma consulta à toa.
+   * (RN-CAT-20). O FTS5 do aparelho só consulta a palavra junta que existe aqui: "cafe acucar" não gasta uma consulta à toa.
    */
   readonly palavrasLongas: ReadonlySet<string>;
 
@@ -45,7 +45,7 @@ export class NomesDeVeiculo extends Set<string> {
 }
 
 /**
- * RN-CAT-19: palavras da base que são o nome de veículo mais um pedaço de 3+ caracteres, antes ou depois. Roda uma vez na carga
+ * RN-CAT-20: palavras da base que são o nome de veículo mais um pedaço de 3+ caracteres, antes ou depois. Roda uma vez na carga
  * (cada palavra é partida em todos os pontos), nunca por busca.
  */
 function derivadasDeVeiculos(veiculos: ReadonlySet<string>, palavras: Iterable<string>): Map<string, string[]> {
@@ -104,7 +104,7 @@ export class ContadorVeiculos {
   concluir(): NomesDeVeiculo {
     const veiculos = new Set<string>();
     for (const [p, nA] of this.aplicacoes) if (nA >= MINIMO_APLICACOES_VEICULO && nA >= RAZAO_VEICULO * (this.nomes.get(p) ?? 0)) veiculos.add(p);
-    // RN-CAT-19: as palavras da base (nomes, descrições e aplicações) são as candidatas a derivada
+    // RN-CAT-20: as palavras da base (nomes, descrições e aplicações) são as candidatas a derivada
     const palavras = new Set([...this.nomes.keys(), ...this.aplicacoes.keys()]);
     return new NomesDeVeiculo(veiculos, derivadasDeVeiculos(veiculos, palavras), new Set([...palavras].filter((w) => w.length >= 2 * PEDACO_MINIMO)));
   }

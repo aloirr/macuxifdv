@@ -63,7 +63,7 @@ const MAXIMO_TENANTS_EM_MEMORIA = 64;
 const VEICULOS_DO_TENANT = new Map<string, { versao: string; veiculos: NomesDeVeiculo }>();
 
 /**
- * RN-CAT-18: nomes de veículo da base ativa inteira do tenant, para a busca (com `produto_ids` ela lê só parte da base; sem ele, a leitura não traz a descrição). A memória é por
+ * RN-CAT-19: nomes de veículo da base ativa inteira do tenant, para a busca (com `produto_ids` ela lê só parte da base; sem ele, a leitura não traz a descrição). A memória é por
  * tenant e vale enquanto a "versão da carga" (quantos produtos ativos e a última alteração) for a mesma; a versão é uma leitura agregada
  * barata, e a base só é relida quando ela muda. Sem tenant no contexto (teste), calcula sem guardar.
  */

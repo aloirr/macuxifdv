@@ -49,7 +49,7 @@ export interface IndiceBusca {
   categoriaChave: readonly string[];
   /** Maior `vendas` entre os produtos ativos (o universo do ranking completo quando não há filtro de marca, linha nem chip). */
   maxVendasAtivos: number;
-  /** RN-CAT-18: nomes de veículo da base inteira, calculados na carga junto do índice (a busca só consulta). */
+  /** RN-CAT-19: nomes de veículo da base inteira, calculados na carga junto do índice (a busca só consulta). */
   veiculos: ReadonlySet<string>;
 }
 
@@ -186,7 +186,7 @@ export async function prepararIndice(produtos: readonly ProdutoCatalogo[], anoAt
 }
 
 /**
- * Percorre os termos do índice que a palavra casa, com o nível do casamento (RN-CAT-18): `v` só inteira; `p` (última palavra digitada)
+ * Percorre os termos do índice que a palavra casa, com o nível do casamento (RN-CAT-19): `v` só inteira; `p` (última palavra digitada)
  * exata, começo de palavra e, nos campos de texto, erro de digitação; `i` exata e, nos campos de texto, erro de digitação.
  * `aplicacao` nunca aceita erro de digitação (como o ranking).
  */
@@ -255,7 +255,7 @@ function niveisDaPalavra(indice: SubIndice, w: PalavraPlano, aplicacao: boolean)
     for (const i of posicoes) if ((m.get(i) ?? 0) < nivel) m.set(i, nivel);
   };
   casamentos(indice, w.q, w.modo, aplicacao, guardar);
-  // RN-CAT-19: nome de veículo também casa as palavras grudadas da base (já calculadas na carga)
+  // RN-CAT-20: nome de veículo também casa as palavras grudadas da base (já calculadas na carga)
   for (const d of w.ou ?? []) casamentos(indice, d, 'v', aplicacao, guardar);
   return m;
 }
@@ -290,7 +290,7 @@ export interface Candidatos {
   pre?: { pontos: number; exato: boolean; soAplicacao: boolean }[];
   /** Maior `vendas` entre os candidatos do ranking completo (normaliza o boost; não pode mudar com a pré-seleção). */
   maxVendas: number;
-  /** RN-CAT-18: nomes de veículo da base inteira (não dos candidatos); `buscarProdutos` precisa dele para casar igual ao ranking completo. */
+  /** RN-CAT-19: nomes de veículo da base inteira (não dos candidatos); `buscarProdutos` precisa dele para casar igual ao ranking completo. */
   veiculos: ReadonlySet<string>;
 }
 
@@ -342,7 +342,7 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   if (marcaDoFiltro === null && linhaDoFiltro === null && !e.chips?.campaign && !e.chips?.only_product_ids) maxVendas = indice.maxVendasAtivos;
   else for (let i = 0; i < e.produtos.length; i++) if (e.produtos[i]!.vendas > maxVendas && entra(i)) maxVendas = e.produtos[i]!.vendas;
 
-  // por campo (texto × aplicação), por grupo: a melhor alternativa (todas as palavras dela casam; vale o menor nível). RN-CAT-18: o
+  // por campo (texto × aplicação), por grupo: a melhor alternativa (todas as palavras dela casam; vale o menor nível). RN-CAT-19: o
   // modo de cada palavra (veículo, última digitada, inteira) é o do ranking
   const plano = planejarGrupos(grupos, indice.veiculos);
   const palavras = new Set<string>();
@@ -376,7 +376,7 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   const niveisTexto = niveisDe(indice.texto, false);
   const niveisApl = niveisDe(indice.aplicacao, true);
   const porGrupo = grupos.map((g, gi) => ({ texto: doGrupo(niveisTexto, gi), aplicacao: doGrupo(niveisApl, gi), ano: g.filter((alt) => ehAnoDaConsulta(alt)).map(Number), palavra: g.some((alt) => /[a-z]/.test(alt)) }));
-  // RN-CAT-19: a palavra grudada do texto casa as duas vizinhas de uma vez (mesma regra do ranking: vale para os dois grupos)
+  // RN-CAT-20: a palavra grudada do texto casa as duas vizinhas de uma vez (mesma regra do ranking: vale para os dois grupos)
   for (const par of paresColados(grupos)) {
     for (const gi of par.grupos) {
       for (const [mapa, niveis] of [[porGrupo[gi]!.texto, niveisTexto], [porGrupo[gi]!.aplicacao, niveisApl]] as const) {

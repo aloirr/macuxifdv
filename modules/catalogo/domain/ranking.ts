@@ -27,7 +27,7 @@ export interface DocBusca {
   atributos: string;
   /** Descrição longa do conteúdo (RN-CAT-08): entra na busca com o peso dos atributos, o menor. */
   descricao?: string | null | undefined;
-  /** RN-CAT-18: só produto ativo entra na base de nomes de veículo; ausente = ativo. */
+  /** RN-CAT-19: só produto ativo entra na base de nomes de veículo; ausente = ativo. */
   ativo?: boolean | undefined;
   /** RN-CAT-11: Aplicação (descrição 2) do cadastro; '' = sem aplicação (o ranking fica igual ao de antes). */
   aplicacao: string;
@@ -53,7 +53,7 @@ export interface TokensDoDoc {
   categoria: string[];
   atributos: string[];
   /**
-   * RN-CAT-18: as mesmas palavras sem o singular, só dos campos em que o singular mudou alguma palavra (nome de veículo casa a
+   * RN-CAT-19: as mesmas palavras sem o singular, só dos campos em que o singular mudou alguma palavra (nome de veículo casa a
    * palavra inteira). Campo ausente = igual aos termos.
    */
   inteiros?: { nome?: string[]; marca?: string[]; categoria?: string[]; atributos?: string[] } | undefined;
@@ -138,7 +138,7 @@ interface Colada {
 }
 
 /**
- * Núcleo único dos n-gramas colados (RN-CAT-09 código e RN-CAT-19 vizinhas no texto): de 1 a `max` palavras seguidas, coladas.
+ * Núcleo único dos n-gramas colados (RN-CAT-09 código e RN-CAT-20 vizinhas no texto): de 1 a `max` palavras seguidas, coladas.
  * Quem chama filtra o que vale (código pede dígito; texto pede letras, 3 ou mais em cada palavra).
  */
 function coladas(palavras: readonly string[], max: number): Colada[] {
@@ -150,7 +150,7 @@ function coladas(palavras: readonly string[], max: number): Colada[] {
 }
 
 /**
- * RN-CAT-19: as palavras vizinhas da busca, coladas, que podem ser a palavra grudada do texto ou da aplicação ("space fox" → "spacefox").
+ * RN-CAT-20: as palavras vizinhas da busca, coladas, que podem ser a palavra grudada do texto ou da aplicação ("space fox" → "spacefox").
  * Um par por grupo vizinho (a palavra digitada de cada grupo, sem sinônimo de várias palavras); cada palavra só de letras, com 3 ou mais.
  * `modo`: a palavra junta é a última digitada quando o segundo grupo é o último ("space fo" → começo de palavra); senão só inteira.
  * `grupos` guarda os dois grupos que a palavra junta cobre de uma vez.
@@ -176,7 +176,7 @@ const NIVEL = { exato: 1, prefixo: 0.7, digitacao: 0.5 } as const;
 interface TermosAplicacao {
   /** Ordenados e sem repetição; as cadeias vêm do vocabulário compartilhado (cada termo existe uma vez só na memória). */
   ordenados: readonly string[];
-  /** RN-CAT-18: as palavras sem o singular (nome de veículo), ordenadas; ausente = iguais às de `ordenados`. */
+  /** RN-CAT-19: as palavras sem o singular (nome de veículo), ordenadas; ausente = iguais às de `ordenados`. */
   inteiros?: readonly string[];
 }
 /** Vocabulário compartilhado: "dianteiro" de 20 mil aplicações é uma cadeia só (a memória guarda ponteiros, não cópias). */
@@ -213,12 +213,12 @@ function nivelNaAplicacao(p: PalavraPlano, t: TermosAplicacao): number {
   const o = p.modo === 'v' ? (t.inteiros ?? t.ordenados) : t.ordenados;
   const i = primeiroNaoMenor(o, q);
   if (i < o.length && o[i] === q) return NIVEL.exato;
-  // RN-CAT-19: nome de veículo também casa a palavra grudada da base
+  // RN-CAT-20: nome de veículo também casa a palavra grudada da base
   if (p.ou) for (const w of p.ou) {
     const k = primeiroNaoMenor(o, w);
     if (k < o.length && o[k] === w) return NIVEL.exato;
   }
-  // RN-CAT-18: na aplicação só a última palavra digitada vale por começo de palavra, e nome de veículo só inteiro
+  // RN-CAT-19: na aplicação só a última palavra digitada vale por começo de palavra, e nome de veículo só inteiro
   if (p.modo !== 'p' || q.length < 3 || /\d/.test(q) || MEDIDA_RE.test(q)) return 0;
   // o primeiro termo >= q é o único candidato a prefixo (um termo maior que q e que começa com q fica logo depois de q)
   return i < o.length && o[i]!.startsWith(q) ? NIVEL.prefixo : 0;
@@ -396,20 +396,20 @@ export function nivelDaPalavra(q: string, termo: string, opcoes: { prefixo?: boo
 }
 
 /**
- * RN-CAT-18: como cada palavra da consulta casa. `v` = nome de veículo (só inteira, sem singular, em qualquer campo); `p` = última palavra
+ * RN-CAT-19: como cada palavra da consulta casa. `v` = nome de veículo (só inteira, sem singular, em qualquer campo); `p` = última palavra
  * digitada (começo de palavra e erro de digitação, como antes); `i` = as outras (inteira, mais o erro de digitação nos campos de texto).
  */
 export interface PalavraPlano {
   q: string;
   modo: 'v' | 'p' | 'i';
-  /** RN-CAT-19: nome de veículo (`modo` `v`) também casa estas palavras grudadas da base (CrossFox, SpaceFox para "fox"). */
+  /** RN-CAT-20: nome de veículo (`modo` `v`) também casa estas palavras grudadas da base (CrossFox, SpaceFox para "fox"). */
   ou?: readonly string[];
 }
 /** Plano de cada alternativa de cada grupo (mesma forma de `grupos`). */
 type PlanoDosGrupos = PalavraPlano[][][];
 const SEM_VEICULOS: ReadonlySet<string> = new Set();
 
-/** RN-CAT-18: só a última palavra (de cada alternativa do último grupo) vale por começo de palavra; nome de veículo, só inteiro. */
+/** RN-CAT-19: só a última palavra (de cada alternativa do último grupo) vale por começo de palavra; nome de veículo, só inteiro. */
 export function planejarGrupos(grupos: readonly (readonly string[])[], veiculos: ReadonlySet<string> = SEM_VEICULOS): PlanoDosGrupos {
   return grupos.map((g, gi) =>
     g.map((alt) => {
@@ -468,11 +468,11 @@ export interface PontuacaoTextual {
 }
 
 export interface OpcoesPontuacao {
-  /** RN-CAT-18: nomes de veículo da base do tenant (`nomesDeVeiculo`); ausente = nenhum. */
+  /** RN-CAT-19: nomes de veículo da base do tenant (`nomesDeVeiculo`); ausente = nenhum. */
   veiculos?: ReadonlySet<string>;
   /** Plano já montado por `planejarGrupos` (o ranking monta uma vez para todos os documentos). */
   plano?: PlanoDosGrupos;
-  /** Vizinhas juntas já montadas por `paresColados` (RN-CAT-19); ausente = montadas aqui. */
+  /** Vizinhas juntas já montadas por `paresColados` (RN-CAT-20); ausente = montadas aqui. */
   pares?: readonly ParColado[];
   /** RN-CAT-12: `peso_aplicacao` do tenant (padrão 0,5). */
   pesoAplicacao?: number;
@@ -515,7 +515,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   const pesoAplicacao = opcoes.pesoAplicacao ?? PESO_CAMPO.aplicacao;
   const anoAtual = opcoes.anoAtual ?? 0;
   const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ehAnoDaConsulta(alt)));
-  // RN-CAT-19: a palavra grudada do texto casa as duas vizinhas de uma vez; vale para os dois grupos
+  // RN-CAT-20: a palavra grudada do texto casa as duas vizinhas de uma vez; vale para os dois grupos
   const pares = opcoes.pares ?? paresColados(grupos);
   const paresDoGrupo = grupos.map((_g, gi) => pares.filter((x) => x.grupos[0] === gi || x.grupos[1] === gi).map((x) => x.palavra));
   const outros = grupos.map((_g, gi) => {
@@ -626,7 +626,7 @@ export interface EntradaRanking {
   anoAtual: number;
   /** T-0119: maior `vendas` do universo completo, quando `docs` já veio pré-selecionado (normaliza o boost sem mudar a nota). */
   maxVendas?: number;
-  /** RN-CAT-18: nomes de veículo da base inteira do tenant. Ausente = calculado dos próprios `docs` (só serve quando `docs` é a base inteira). */
+  /** RN-CAT-19: nomes de veículo da base inteira do tenant. Ausente = calculado dos próprios `docs` (só serve quando `docs` é a base inteira). */
   veiculos?: ReadonlySet<string>;
 }
 

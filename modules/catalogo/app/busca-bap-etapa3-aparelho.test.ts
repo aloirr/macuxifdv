@@ -1,5 +1,5 @@
 /**
- * RN-CAT-18 no aparelho: "é nome de veículo" calculado na carga dos produtos locais (a aplicação nem fica na memória em catálogo
+ * RN-CAT-19 no aparelho: "é nome de veículo" calculado na carga dos produtos locais (a aplicação nem fica na memória em catálogo
  * grande) e usado pela consulta do seletor (`catalogo.busca_produtos@1`) e pela aba (`buscarLocal`). Mesmos casos da lista inteira.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -23,31 +23,31 @@ const { pelaConsulta, pelaAba } = aparelhoCom(LINHAS);
 describe.each([
   ['consulta do seletor', pelaConsulta],
   ['aba', pelaAba],
-] as const)('RN-CAT-18 no aparelho (%s)', (_nome, buscar) => {
+] as const)('RN-CAT-19 no aparelho (%s)', (_nome, buscar) => {
   beforeEach(() => {
     esquecerMemoriaLocal();
     esquecerMemoriaTextos();
   });
 
-  it('RN-CAT-18: "gol" traz Gol G5 e Gol KYB, sem o Golf', async () => {
+  it('RN-CAT-19: "gol" traz Gol G5 e Gol KYB, sem o Golf', async () => {
     const achados = await buscar('gol');
     expect(achados).toEqual(expect.arrayContaining(['Amortecedor Gol G5', 'Amortecedor Gol KYB 441126']));
     expect(achados).not.toContain('Amortecedor Golf');
   });
 
-  it('RN-CAT-18: "polo" traz só a Bucha Polo Classic, sem o "Cabo de vela 4 polos"', async () => {
+  it('RN-CAT-19: "polo" traz só a Bucha Polo Classic, sem o "Cabo de vela 4 polos"', async () => {
     const achados = await buscar('polo');
     expect(achados).toContain('Bucha Polo Classic');
     expect(achados).not.toContain('Cabo de vela 4 polos');
   });
 
-  it('RN-CAT-18: "homoc" acha a junta; "amortecedor pal" acha o Palio; "pal amortecedor" não', async () => {
+  it('RN-CAT-19: "homoc" acha a junta; "amortecedor pal" acha o Palio; "pal amortecedor" não', async () => {
     expect(await buscar('homoc')).toEqual(['Junta homocinética']);
     expect(await buscar('amortecedor pal')).toEqual(['Amortecedor dianteiro']);
     expect(await buscar('pal amortecedor')).toEqual([]);
   });
 
-  it('RN-CAT-18: "amortecedor para gol" = "amortecedor gol", sem o Golf', async () => {
+  it('RN-CAT-19: "amortecedor para gol" = "amortecedor gol", sem o Golf', async () => {
     expect(await buscar('amortecedor para gol')).toEqual(await buscar('amortecedor gol'));
     expect(await buscar('amortecedor gol')).toEqual(['Amortecedor Gol G5', 'Amortecedor Gol KYB 441126']);
   });

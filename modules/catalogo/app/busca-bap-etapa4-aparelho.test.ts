@@ -1,5 +1,5 @@
 /**
- * RN-CAT-19 no aparelho: o modelo derivado e as vizinhas juntas valem na aba (`buscarLocal`), no seletor (`catalogo.busca_produtos@1`)
+ * RN-CAT-20 no aparelho: o modelo derivado e as vizinhas juntas valem na aba (`buscarLocal`), no seletor (`catalogo.busca_produtos@1`)
  * e na pré-seleção do FTS5 (a consulta ao FTS5 é expandida com as derivadas e com a palavra junta).
  */
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -26,22 +26,22 @@ const semFiltros = (x: string[]) => x.filter((n) => !n.startsWith('Filtro')).sor
 describe.each([
   ['consulta do seletor', pelaConsulta],
   ['aba', pelaAba],
-] as const)('RN-CAT-19 no aparelho (%s)', (_nome, buscar) => {
+] as const)('RN-CAT-20 no aparelho (%s)', (_nome, buscar) => {
   beforeEach(() => {
     esquecerMemoriaLocal();
     esquecerMemoriaTextos();
   });
 
-  it('RN-CAT-19: "fox" acha Fox, CrossFox e SpaceFox', async () => {
+  it('RN-CAT-20: "fox" acha Fox, CrossFox e SpaceFox', async () => {
     expect(semFiltros(await buscar('fox'))).toEqual([...ESPERADO_FOX].sort());
   });
 
-  it('RN-CAT-19: "space fox" acha os dois SpaceFox', async () => {
+  it('RN-CAT-20: "space fox" acha os dois SpaceFox', async () => {
     expect((await buscar('space fox')).sort()).toEqual(['Amortecedor SPACE-FOX', 'Amortecedor traseiro SpaceFox']);
   });
 });
 
-describe('RN-CAT-19: pré-seleção do FTS5 do aparelho', () => {
+describe('RN-CAT-20: pré-seleção do FTS5 do aparelho', () => {
   const veiculos = nomesDeVeiculo([
     ...Array.from({ length: 10 }, () => ({ nomeEDescricao: 'Filtro', aplicacao: 'Fox 2010' })),
     { nomeEDescricao: 'Coxim CrossFox', aplicacao: '' },
@@ -61,17 +61,17 @@ describe('RN-CAT-19: pré-seleção do FTS5 do aparelho', () => {
   };
   const alternativas = (c: ConsultaTexto[]) => new Set(c.flatMap((x) => x.grupos.flat()));
 
-  it('RN-CAT-19: "fox" pede ao FTS5 também as derivadas (crossfox, spacefox)', async () => {
+  it('RN-CAT-20: "fox" pede ao FTS5 também as derivadas (crossfox, spacefox)', async () => {
     expect([...alternativas(await consultas('fox'))]).toEqual(expect.arrayContaining(['fox', 'crossfox', 'spacefox']));
   });
 
-  it('RN-CAT-19: "space fox" pede ao FTS5 a palavra junta "spacefox" (consulta própria, fora do AND)', async () => {
+  it('RN-CAT-20: "space fox" pede ao FTS5 a palavra junta "spacefox" (consulta própria, fora do AND)', async () => {
     const feitas = await consultas('space fox');
     expect(feitas.some((c) => c.grupos.length === 1 && c.grupos[0]!.includes('spacefox'))).toBe(true);
     expect(feitas.some((c) => c.grupos.length === 2 && c.grupos.flat().includes('space'))).toBe(true);
   });
 
-  it('RN-CAT-19: o que não é veículo nem tem vizinha de 3+ letras não ganha alternativa nova', async () => {
+  it('RN-CAT-20: o que não é veículo nem tem vizinha de 3+ letras não ganha alternativa nova', async () => {
     expect([...alternativas(await consultas('cabo'))].sort()).toEqual(['cab', 'cabo']); // "cab" = prefixo tolerante de sempre
     expect([...alternativas(await consultas('ab cde'))].sort()).toEqual(['ab', 'cde']);
   });

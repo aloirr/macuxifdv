@@ -22,7 +22,7 @@ export interface EntradaBuscaConsulta {
   sinonimos: readonly SinonimoDoTenant[];
   parametros: ParametrosCatalogo;
   anoAtual: number;
-  /** RN-CAT-18: nomes de veículo da base inteira, quando `produtos` já é só um conjunto de candidatos; ausente = calculado de `produtos`. */
+  /** RN-CAT-19: nomes de veículo da base inteira, quando `produtos` já é só um conjunto de candidatos; ausente = calculado de `produtos`. */
   veiculos?: ReadonlySet<string>;
   /** Vocabulário (marcas/linhas) do catálogo inteiro, quando `produtos` já é só o conjunto de candidatos da pré-seleção. */
   vocabulario?: ReturnType<typeof vocabularioDe> | undefined;

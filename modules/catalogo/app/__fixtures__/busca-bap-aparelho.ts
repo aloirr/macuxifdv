@@ -1,5 +1,5 @@
 /**
- * Massa comum dos testes de busca da auditoria BAP no aparelho (RN-CAT-18 e RN-CAT-19): um leitor local com as linhas dadas e os dois
+ * Massa comum dos testes de busca da auditoria BAP no aparelho (RN-CAT-19 e RN-CAT-20): um leitor local com as linhas dadas e os dois
  * caminhos de busca (consulta do seletor e aba). A lista volta ordenada pelo nome.
  */
 import type { ContextoConsultaAparelho } from '@macuxi/platform-sdk';

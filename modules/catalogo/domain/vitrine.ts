@@ -195,7 +195,7 @@ export interface EntradaBuscaProdutos {
   fuso?: string;
   /** T-0119: `produtos` já veio pré-selecionado por `candidatosDaBusca`; este é o `maxVendas` do universo completo. */
   maxVendas?: number;
-  /** RN-CAT-18: nomes de veículo da base inteira do tenant (pré-seleção e aparelho passam o conjunto da carga); ausente = calculado de `produtos`. */
+  /** RN-CAT-19: nomes de veículo da base inteira do tenant (pré-seleção e aparelho passam o conjunto da carga); ausente = calculado de `produtos`. */
   veiculos?: ReadonlySet<string>;
   limit: number;
   offset: number;

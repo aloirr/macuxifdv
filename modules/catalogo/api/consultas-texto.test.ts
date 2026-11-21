@@ -1,5 +1,5 @@
 /**
- * RN-CAT-09 e RN-CAT-18: `catalogo.busca_produtos@1` na API acha pelo código do concorrente (lê `produto_referencia`), como o aparelho e a vitrine.
+ * RN-CAT-09 e RN-CAT-19: `catalogo.busca_produtos@1` na API acha pelo código do concorrente (lê `produto_referencia`), como o aparelho e a vitrine.
  * Banco falso por SQL; o ponta a ponta com Postgres é do agente testes.
  */
 import { describe, expect, it } from 'vitest';
@@ -26,7 +26,7 @@ function contexto(o: { referencias?: unknown[]; marcas?: unknown[] } = {}) {
 }
 const impl = consultaBuscaProdutos as unknown as { executar: (e: unknown, c: unknown) => Promise<{ itens: Array<{ produto_id: string; equivale_a: { marca_nome: string; codigo: string } | null }> }> };
 
-describe('RN-CAT-09 e RN-CAT-18: busca_produtos na API (código do concorrente e base de veículos)', () => {
+describe('RN-CAT-09 e RN-CAT-19: busca_produtos na API (código do concorrente e base de veículos)', () => {
   it('RN-CAT-09: "w71275" acha o produto pela referência "Mann W 712/75" e devolve o Equivale a', async () => {
     const r = await impl.executar({ q: 'w71275', limite: 100 }, contexto().ctx);
     expect(r.itens.map((i) => i.produto_id)).toEqual([PROD]);
@@ -46,7 +46,7 @@ describe('RN-CAT-09 e RN-CAT-18: busca_produtos na API (código do concorrente e
     expect(consultas.filter((s) => /produto_referencia/.test(s)).every((s) => /any\(\$1::uuid\[\]\)/.test(s))).toBe(true);
   });
 
-  it('RN-CAT-18: com produto_ids o nome de veículo vem da base ativa inteira ("palio" não traz "Palios"), com memória por tenant e versão', async () => {
+  it('RN-CAT-19: com produto_ids o nome de veículo vem da base ativa inteira ("palio" não traz "Palios"), com memória por tenant e versão', async () => {
     const base = ['1', '2', '3'].map((n) => ({ produto_id: `00000000-0000-4000-8000-00000000010${n}`, sku: `A${n}`, ean: null, nome: `Filtro ${n}`, marca: null, categoria: null, atributos: null, aplicacao: 'Palio 1.0', ativo: true }));
     const consultas: string[] = [];
     const db = {
@@ -68,7 +68,7 @@ describe('RN-CAT-09 e RN-CAT-18: busca_produtos na API (código do concorrente e
   it.each([
     { caso: 'com produto_ids', produto_ids: [ALVO.produto_id] },
     { caso: 'sem produto_ids', produto_ids: undefined },
-  ])('RN-CAT-18: $caso a API conta nome + descrição + aplicação na base de veículos, no mesmo conjunto do domínio', async ({ caso, produto_ids }) => {
+  ])('RN-CAT-19: $caso a API conta nome + descrição + aplicação na base de veículos, no mesmo conjunto do domínio', async ({ caso, produto_ids }) => {
     const linhas = ['1', '2', '3'].map((n) => ({ nome: `Filtro ${n}`, aplicacao: 'Palio 1.0', descricao: n === '1' ? 'Serve no Palio' : null }));
     const consultas: string[] = [];
     const db = {

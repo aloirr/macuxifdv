@@ -57,7 +57,7 @@ export const MAXIMO_CANDIDATOS = 400;
  * `buscou: true`; qualquer `buscou: false` (módulo indisponível, erro, consulta curta) mantém a varredura.
  */
 export const LIMIAR_SEM_VARREDURA = 5000;
-/** RN-CAT-19: palavras derivadas de um nome de veículo que entram na consulta ao FTS5 (o resto o ranking ainda acha na varredura pequena). */
+/** RN-CAT-20: palavras derivadas de um nome de veículo que entram na consulta ao FTS5 (o resto o ranking ainda acha na varredura pequena). */
 const MAXIMO_DERIVADAS_FTS = 40;
 
 /** O que a busca local precisa do motor de sync (`useMotorSync().motor`). */
@@ -228,7 +228,7 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
     vendas: 0,
   }));
   if (sobDemanda) for (const m of montados) semAplicacaoCarregada.add(m);
-  // RN-CAT-18: nomes de veículo da base inteira, calculados na carga com a aplicação que (em catálogo grande) não fica nos produtos
+  // RN-CAT-19: nomes de veículo da base inteira, calculados na carga com a aplicação que (em catálogo grande) não fica nos produtos
   const todasAplicacoes = sobDemanda ? new Map(conteudos.filter((c) => c.aplicacao).map((c) => [c.produto_id, c.aplicacao!])) : aplicacoes;
   definirVeiculos(montados, nomesDeVeiculo(montados.filter((m) => m.ativo).map((m) => ({ ...fonteDoProduto(m), aplicacao: todasAplicacoes.get(m.id) ?? '' }))));
   return montados;
@@ -466,7 +466,7 @@ export async function preselecionar(
 ): Promise<Set<string> | null> {
   if (total <= LIMIAR_PRESELECAO_FTS || !(leitor.buscar || leitor.buscarComDesfecho)) return null;
   const grupos = expandirSinonimos(texto, sinonimos);
-  // RN-CAT-19: o FTS5 só acha a palavra inteira; as derivadas de nome de veículo (CrossFox, SpaceFox para "fox") entram como alternativas
+  // RN-CAT-20: o FTS5 só acha a palavra inteira; as derivadas de nome de veículo (CrossFox, SpaceFox para "fox") entram como alternativas
   // do grupo, e as vizinhas juntas ("space fox" → "spacefox") viram consultas próprias, somadas ao resultado (o AND dos grupos não as acharia)
   const nv = veiculos instanceof NomesDeVeiculo ? veiculos : null;
   if (nv) for (const g of grupos) for (const alt of [...g]) for (const d of (nv.derivadas.get(alt) ?? []).slice(0, MAXIMO_DERIVADAS_FTS)) if (!g.includes(d)) g.push(d);

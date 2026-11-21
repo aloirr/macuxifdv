@@ -150,7 +150,7 @@ export function tokensDeBuscaSemMemo(texto: string): string[] {
 }
 
 /**
- * Termos de busca (como `tokensDeBusca`) mais as formas inteiras, sem o singular (RN-CAT-18: nome de veículo não passa pelo
+ * Termos de busca (como `tokensDeBusca`) mais as formas inteiras, sem o singular (RN-CAT-19: nome de veículo não passa pelo
  * singular). `inteiros` é nulo quando o singular não mudou nenhum termo (as duas listas são iguais: não se guarda a segunda).
  */
 export function tokensComInteiros(texto: string, semMemo = false): { termos: string[]; inteiros: string[] | null } {
@@ -159,7 +159,7 @@ export function tokensComInteiros(texto: string, semMemo = false): { termos: str
   return { termos, inteiros: termos.some((t, i) => t !== brutos[i]) ? brutos : null };
 }
 
-/** Palavras do texto como estão (normalizadas, sem as vazias e sem o singular): base do "é nome de veículo" (RN-CAT-18). */
+/** Palavras do texto como estão (normalizadas, sem as vazias e sem o singular): base do "é nome de veículo" (RN-CAT-19). */
 export function palavrasInteiras(texto: string, semMemo = true): string[] {
   return (semMemo ? normalizarSemMemo(String(texto ?? '')) : normalizarTexto(texto)).split(' ').filter((p) => p !== '' && !STOPWORDS.has(p));
 }
