@@ -8,7 +8,7 @@ import {
   ConectorCriado,
   ConferenciaArquivo,
   ENTIDADES,
-  LoteResultado,
+  LoteResultadoBko,
   ProgressoSessaoArquivo,
   type Entidade,
 } from '@macuxi/integracao/contracts';
@@ -36,7 +36,8 @@ export function criarPortaCarga(tenant: string): PortaCarga {
         throw x;
       }
     },
-    lerLote: (id) => chamarPortal(ROTAS_PORTAL.lote(id), { tenant, schema: LoteResultado }),
+    // rota do BKO: o lote cancelado volta `cancelado` (contrato do BKO, não o `LoteResultado` do Hub v1; D-T0173-A4)
+    lerLote: (id) => chamarPortal(ROTAS_PORTAL.lote(id), { tenant, schema: LoteResultadoBko }),
     lerSessao: (id) => chamarPortal(ROTAS_PORTAL.sessaoArquivo(id), { tenant, schema: ProgressoSessaoArquivo }),
     esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
     agora: () => Date.now(),
