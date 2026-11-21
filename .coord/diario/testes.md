@@ -174,3 +174,4 @@
 2026-11-16 — T-0176 — RD-2101: filialPadrao e codigoDaFilialPadrao (tests/integracao/apoio/filial-usuario.ts) derivam de uma consulta só (lerFilialPadrao devolve { id, codigo }); assinaturas e erro "sem filial padrão viva" mantidos.
 2026-11-17 — v1.0.14 logo (#478) — RD-2170 (LC-02 sem copiar a frase da tela) e RD-2171 (uma linha só para o banco da 0083) em docs/testes/T-0182.md; refeito no Cline.
 2026-11-17 — v1.0.14 prazo (#479) — RD-2172 a RD-2176: saem a seção de fórmulas (fica uma linha no cabeçalho) e os casos que o teste do domain já cobre (PZ-01, 09, 10, 11); ficam limites, varreduras e o que é novo; 21 verdes; refeito no Cline.
+2026-11-21 — T-0189 — r2 do teste do Início do BKO sobre o core r3 (bb7124a): D0 (RN-CORE-33), D1, D2 e D3 viram it verdes; IB-b6 cartão Pedidos com a fila do Gestor; contrato sem dia/campo_codigo/meta_dia_cents; 32/32 com banco.
