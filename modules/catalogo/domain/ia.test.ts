@@ -190,6 +190,6 @@ describe('iconeDoAviso (T-0088)', () => {
     expect(iconeDoAviso(AVISO_CATALOGO_ORGANIZANDO)).toBe('clock');
     expect(iconeDoAviso(AVISO_BUSCA_OFFLINE)).toBe('wifiOff');
     expect(iconeDoAviso(avisoDaBusca(AVISO_BUSCA_OFFLINE, true) as string)).toBe('wifiOff');
-    expect(iconeDoAviso('Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.')).toBe('alert');
+    expect(iconeDoAviso('Qualquer outro aviso')).toBe('alert');
   });
 });
