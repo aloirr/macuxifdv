@@ -162,3 +162,19 @@ BKO, Parâmetros › Calendário (ações `rastreamento.configurar` e `ausencia.
 | `rastreamento.parametros.frequencia.distancia_m` · `.intervalo_min` · `.lote_min` (e `.erro`) | frequência da captura |
 | `rastreamento.ausencias.painel` · `.usuario` · `.de` · `.ate` · `.cadastrar` · `.aviso` · `.lista` · `.linha.<id>` · `.cancelar.<id>` | ausências: formulário e lista |
 
+
+## BKO — Rotas: criar rota, prévia, base e Gerar coordenada (T-0191)
+| testID | O que é |
+|---|---|
+| `rotas.criar` | botão principal "Criar rota" (só com `rota.editar`; some durante a prévia) |
+| `criar-rota.dialogo` · `criar-rota.vendedor` · `criar-rota.criar` · `criar-rota.cadastrar-base` | diálogo, seleção do vendedor, "Criar por proximidade" e o link "Cadastrar" do aviso "Sem endereço base." |
+| `criar-rota.conflito` · `criar-rota.opcao-manter` · `criar-rota.opcao-substituir` | opções de rota existente (cartões de 52 px) |
+| `previa.painel` · `previa.resumo` · `previa.base` · `previa.trocar-base` | quadro da prévia, "N rotas · N visitas · N km", cartão da base e o lápis |
+| `previa.alerta-fora` · `previa.alerta-limite` · `previa.dias` · `previa.dia.<AAAA-MM-DD>` | alertas, lista de dias e a linha de cada dia (também `previa.feriado.<data>` e `previa.mantida.<data>`) |
+| `previa.salvar` · `previa.descartar` · `previa.sem-localizacao` | "Salvar rotas", "Descartar" e o vazio "Nenhum cliente da carteira foi localizado." |
+| `base.dialogo` · `base.opcao-casa` · `base.opcao-outro` · `base.salvar` | diálogo "Endereço base" |
+| `base.endereco.<campo>` · `usuarios.endereco-campos.<campo>` | campos do componente de endereço (`cep`, `logradouro`, `numero`, `bairro`, `cidade`, `uf`, `mapa`) no diálogo da base e na gaveta |
+| `usuarios.endereco` | seção "Endereço" da gaveta Editar usuário (vendedor e promotor) |
+| `fora.lista` · `fora.cliente.<id>` · `fora.cliente.<id>.gerar` · `fora-limite.lista` | listas do "Ver clientes" e o botão "Gerar coordenada" de cada linha |
+| `coordenadas.gerar.<clienteId>` · `coordenadas.gerar.<clienteId>.gerar` | "Gerar coordenada" em Coordenadas sugeridas |
+| `route-feriado` · `previa.legenda` · `rota.salvar` | linha de feriado na lista de dias, legenda da prévia e o botão do editor do dia ("Salvar" ou "Aplicar") |

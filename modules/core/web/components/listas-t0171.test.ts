@@ -16,12 +16,12 @@ describe('T-0171: listas do BKO com uma informação por linha', () => {
     expect(acoes).not.toContain('EtiquetaCadastroIncompleto');
   });
 
-  it('RD-0218 (RF-CORE-05): Rotas mostram o bairro na linha do cliente, sem o código, e o resumo sem explicar a tela', () => {
+  it('RD-0218 (RF-CORE-05): Rotas mostram o bairro na linha do cliente, sem o código, e a lista sem repetir o KPI (RD-2525) nem explicar a tela', () => {
     const editor = ler('routes/route-editor.tsx');
     expect(editor).not.toContain('cód.');
     expect(editor.match(/<span className="truncate text-\[12px\] text-ink-2">\{c\.district\}<\/span>/g)).toHaveLength(2);
     const pagina = ler('routes/routes-page.tsx');
-    expect(pagina).toContain('{withRoute} com visitas</span>');
+    expect(pagina).not.toContain('com visitas</span>');
     expect(pagina).not.toContain('clique para ver e configurar');
   });
 });

@@ -1267,3 +1267,42 @@ Volta: `0090_core_cliente360_documentos.down.sql` (apaga as 4 tabelas com os dad
 bytes ficam — e as 6 colunas com índices e CHECKs; a forma de pagamento e o vínculo NF/devolução voltam na próxima carga do
 ERP). Idempotente. Volte antes o código do Core e da Integração que lê ou grava. Teste:
 `db/testes/cliente360-documentos.db.test.ts`.
+
+## 0093 — casa e base do usuário, origem da coordenada e geocodificação do cliente (`0093_core_usuario_base_cliente_geocodificacao`; T-0191, RN-CORE-75 a 77)
+Migração **aditiva**, em cima da 0092 (o número segue a ordem de merge): 22 colunas **nulas**, sem default, e 12 CHECKs. Nenhuma
+tabela, índice, política ou grant do `macuxi_app` muda; as colunas herdam a RLS e os grants da tabela. Fora do pull.
+
+### `core.usuario` — casa e base (ponto de partida da rota)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `casa_cep`, `base_cep` | text null | 8 dígitos (`usuario_casa_cep_formato`, `usuario_base_cep_formato`) |
+| `casa_logradouro`, `casa_numero`, `casa_bairro`, `casa_cidade` | text null | endereço da casa |
+| `casa_uf`, `base_uf` | text null | 2 letras maiúsculas (`usuario_casa_uf_formato`, `usuario_base_uf_formato`) |
+| `casa_lat`, `casa_lng` | numeric(9,6) null | ponto da casa marcado no mapa; -90..90 e -180..180 (`usuario_casa_coordenada_faixa`), os dois juntos (`usuario_casa_coordenada_par`) |
+| `base_tipo` | text null | `'casa'` (a base usa o ponto da casa) ou `'outro'`; nulo = sem base (`usuario_base_tipo_valido`) |
+| `base_logradouro`, `base_numero`, `base_bairro`, `base_cidade` | text null | endereço da base `'outro'` |
+| `base_lat`, `base_lng` | numeric(9,6) null | faixa (`usuario_base_coordenada_faixa`) e par (`usuario_base_coordenada_par`); obrigatórios com `base_tipo = 'outro'` (`usuario_base_outro_com_ponto`) |
+| `base_alterada_em` | timestamptz null | última troca da base (UTC), gravada pela API |
+
+Quem grava: o BKO do Core (`PUT /v1/core/usuarios/:id/endereco` e `/base`); ERP e CSV da Equipe não tocam. O `macuxi_leitura`
+(0078, SELECT por coluna em `core.usuario`) **não** recebe as colunas novas: endereço e ponto da casa (e a base, que pode ser a
+casa) são dado pessoal do trabalhador, e a saída da consulta vai para o log do Actions (mesmo critério da 0089, ADR 0061).
+
+### `core.cliente` — origem e precisão da coordenada, geocodificação
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `coordenada_origem` | text null | `'erp'`, `'checkin'`, `'geocodificacao'` ou `'manual'`; nulo = desconhecida (`cliente_coordenada_origem_valida`) |
+| `coordenada_precisao` | text null | `'numero'`, `'rua'` ou `'cep'` (da geocodificação) (`cliente_coordenada_precisao_valida`) |
+| `geocodificacao_tentada_em` | timestamptz null | última tentativa de geocodificar (UTC) |
+| `geocodificacao_chave` | text null | hash do endereço e do CEP tentados (mesma chave = `JA_TENTADO`) |
+
+Backfill: cliente com `latitude` preenchida (vivo ou apagado) recebe `coordenada_origem = 'erp'`, com o gatilho
+`cliente_updated_at` desligado só nesse UPDATE (nenhum aparelho puxa o cliente de novo). Depois, o consumidor do ERP grava
+`'erp'` e a aprovação de Coordenadas sugeridas grava `'checkin'`. `geocodificacao_chave` tem "chave" no nome (sensível pela regra
+da 0078): o SELECT do `macuxi_leitura` em `core.cliente` passa de tabela para **por coluna**, com todas menos ela (como a 0083 em
+`plataforma.tenant`). Volume: o de `core.usuario` e `core.cliente`; leitura por PK e pela carteira, já indexadas; nenhum índice novo.
+
+Volta: `0093_core_usuario_base_cliente_geocodificacao.down.sql` (apaga as 22 colunas e os CHECKs — perde a casa, a base, a
+origem/precisão e as tentativas; as coordenadas dos clientes ficam — e devolve o SELECT de tabela em `core.cliente` ao
+`macuxi_leitura`). Idempotente. Volte antes o código do Core que lê ou grava. Teste:
+`db/testes/usuario-base-cliente-geocodificacao.db.test.ts`.

@@ -31,6 +31,16 @@ const COLUNAS_GRAVADAS = [
   'cadastro_incompleto', 'cadastro_campos_faltantes',
 ] as const;
 
+/**
+ * RN-CORE-77 (T-0191): a coordenada do ERP vale quando ele a manda (origem 'erp', sem precisão). Sem coordenada no payload, a que o cliente
+ * já tem por check-in aprovado, digitação ou geração pelo endereço fica; a que veio do ERP (ou de origem desconhecida) segue o ERP.
+ */
+const PROPRIAS = "('geocodificacao', 'checkin', 'manual')";
+const coordenadaDoErp = (c: 'latitude' | 'longitude') =>
+  `${c} = case when excluded.${c} is null and core.cliente.coordenada_origem in ${PROPRIAS} then core.cliente.${c} else excluded.${c} end`;
+const ORIGEM_DO_ERP = `coordenada_origem = case when excluded.latitude is not null then 'erp' when core.cliente.coordenada_origem in ${PROPRIAS} then core.cliente.coordenada_origem end,
+  coordenada_precisao = case when excluded.latitude is not null then null else core.cliente.coordenada_precisao end`;
+
 export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoClienteAtualizado,
   async executar(p, ctx: ContextoConsumo) {
@@ -67,10 +77,11 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
     const valores = [l.external_id, ...COLUNAS_GRAVADAS.map((c) => l[c]), l.alterado_em];
     const colunas = todas.join(', ');
     const marcas = todas.map((_, i) => `$${i + 2}`).join(', ');
-    const atualizar = todas.map((c) => `${c} = excluded.${c}`).join(', ');
+    const iLat = COLUNAS_GRAVADAS.indexOf('latitude') + 2;
+    const atualizar = todas.map((c) => (c === 'latitude' || c === 'longitude' ? coordenadaDoErp(c) : `${c} = excluded.${c}`)).join(', ');
     const r = await ctx.db.query<{ id: string }>(
-      `insert into core.cliente (tenant_id, external_id, ${colunas}) values (plataforma.tenant_atual(), $1, ${marcas})
-         on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set ${atualizar}
+      `insert into core.cliente (tenant_id, external_id, ${colunas}, coordenada_origem) values (plataforma.tenant_atual(), $1, ${marcas}, case when $${iLat}::numeric is not null then 'erp' end)
+         on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set ${atualizar}, ${ORIGEM_DO_ERP}
        returning id`,
       valores,
     );
