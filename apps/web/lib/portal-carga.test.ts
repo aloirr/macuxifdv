@@ -1,8 +1,9 @@
 /** T-0087: cartões das bases do portal (lib/portal-carga.ts): divisão, corpo das partes, soma da conferência e a execução. */
 import { describe, expect, it } from 'vitest';
-import type { CargaArquivoAceita, CargaArquivoEntrada, ConferenciaArquivo, ProgressoSessaoArquivo } from '@macuxi/integracao/contracts';
+import { EstadoLoteBko, type CargaArquivoAceita, type CargaArquivoEntrada, type ConferenciaArquivo, type ProgressoSessaoArquivo } from '@macuxi/integracao/contracts';
+import { rotuloDoLote, tomDoLote } from '@macuxi/integracao/web';
 
-import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, importarArquivo, loteTerminou, novaChaveDeCarga, percentualDaCarga, planejarEnvio, seloDaCarga, somarConferencias, type PortaCarga, type ProgressoCarga, type ResultadoCarga } from './portal-carga';
+import { conferirArquivo, corpoDaParte, errosDaConferenciaCsv, importarArquivo, novaChaveDeCarga, percentualDaCarga, planejarEnvio, seloDaCarga, somarConferencias, type PortaCarga, type ProgressoCarga, type ResultadoCarga } from './portal-carga';
 
 const csv = (n: number) => ['external_id;nome', ...Array.from({ length: n }, (_, i) => `V${i + 1};Vendedor ${i + 1}`)].join('\n') + '\n';
 const UUID = '0b0f2f8e-7b1c-4f7e-9a51-3f1c2d4e5a6b';
@@ -167,15 +168,9 @@ describe('selo da carga (RN-INT-15: os 5 status do monitor, D-T0173-A4)', () => 
     return () => (t += 60_000);
   };
   const resultado = (o: Partial<ResultadoCarga>): ResultadoCarga => ({ lotes: [UUID], sessaoId: null, progressoSessao: null, status: null, repetido: false, terminou: true, ...o });
-  it.each([
-    ['recebido', 'Em andamento', 'pending'],
-    ['processando', 'Em andamento', 'pending'],
-    ['concluido', 'Concluído', 'success'],
-    ['concluido_com_erros', 'Concluído com avisos', 'warning'],
-    ['falhou', 'Com falha', 'danger'],
-    ['cancelado', 'Cancelado', 'neutral'],
-  ] as const)('lote %s: %s', (status, rotulo, tom) => {
-    expect(seloDaCarga(resultado({ status }))).toEqual({ rotulo, tom });
+  const selo = (estado: EstadoLoteBko) => ({ rotulo: rotuloDoLote(estado), tom: tomDoLote(estado) });
+  it.each(EstadoLoteBko.options)('lote %s: o selo do monitor da Integração', (status) => {
+    expect(seloDaCarga(resultado({ status }))).toEqual(selo(status));
   });
   it('sem resultado: sem selo', () => {
     expect(seloDaCarga(null)).toBeNull();
@@ -183,18 +178,16 @@ describe('selo da carga (RN-INT-15: os 5 status do monitor, D-T0173-A4)', () => 
   });
   it('arquivo em partes com uma parte cancelada no BKO: Cancelado', () => {
     const progressoSessao = { situacao: 'aberta', partes_aplicadas: 1, partes_com_falha: 0, erros_total: 0, total_partes: 3, partes: [{ status: 'concluido' }, { status: 'cancelado' }] } as unknown as ProgressoSessaoArquivo;
-    expect(seloDaCarga(resultado({ sessaoId: UUID, progressoSessao }))).toEqual({ rotulo: 'Cancelado', tom: 'neutral' });
+    expect(seloDaCarga(resultado({ sessaoId: UUID, progressoSessao }))).toEqual(selo('cancelado'));
   });
   it('arquivo em partes: falha, avisos, concluído e em andamento', () => {
     const sessao = (o: object) => resultado({ sessaoId: UUID, progressoSessao: { situacao: 'aberta', partes_aplicadas: 0, partes_com_falha: 0, erros_total: 0, total_partes: 2, partes: [], ...o } as unknown as ProgressoSessaoArquivo });
-    expect(seloDaCarga(sessao({ partes_com_falha: 1 }))?.rotulo).toBe('Com falha');
-    expect(seloDaCarga(sessao({ erros_total: 3 }))?.rotulo).toBe('Concluído com avisos');
-    expect(seloDaCarga(sessao({ situacao: 'completa' }))?.rotulo).toBe('Concluído');
-    expect(seloDaCarga(sessao({ partes_aplicadas: 1 }))?.rotulo).toBe('Em andamento');
+    expect(seloDaCarga(sessao({ partes_com_falha: 1 }))).toEqual(selo('falhou'));
+    expect(seloDaCarga(sessao({ erros_total: 3 }))).toEqual(selo('concluido_com_erros'));
+    expect(seloDaCarga(sessao({ situacao: 'completa' }))).toEqual(selo('concluido'));
+    expect(seloDaCarga(sessao({ partes_aplicadas: 1 }))).toEqual(selo('processando'));
   });
   it('cancelado é status final: a espera da tela para', async () => {
-    expect(loteTerminou('cancelado')).toBe(true);
-    expect(loteTerminou('processando')).toBe(false);
     const { porta } = portaFalsa();
     porta.lerLote = async () => ({ status: 'cancelado' });
     porta.agora = relogio();

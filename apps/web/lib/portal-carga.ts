@@ -15,7 +15,7 @@ import {
   type ProgressoSessaoArquivo,
 } from '@macuxi/integracao/contracts';
 import { protegerFormula } from '@macuxi/comum/csv';
-import { dividirCsvEmPartes, rotuloDoLote, tomDoLote, type ParteDoArquivo } from '@macuxi/integracao/web';
+import { dividirCsvEmPartes, loteEmAndamento, rotuloDoLote, tomDoLote, type ParteDoArquivo } from '@macuxi/integracao/web';
 import { downloadBlob } from '@macuxi/platform-sdk/web';
 
 /** Nome do cartão e a frase curta de cada base (T-0087 §3). */
@@ -42,11 +42,6 @@ export const ROTULO_MODO: Record<ModoCarga, { titulo: string; ajuda: string }> =
   delta: { titulo: 'Delta', ajuda: 'Grava só as linhas do arquivo; o que não veio continua como está.' },
   completo: { titulo: 'Completo', ajuda: 'O arquivo é a lista inteira: o que não vier é inativado no fim da última parte. O registro de uma linha com erro continua como está, sem ser inativado.' },
 };
-
-/** Estado final do lote: concluído (com ou sem avisos), com falha ou cancelado no BKO (RN-INT-15). */
-export function loteTerminou(status: EstadoLoteBko): boolean {
-  return status !== 'recebido' && status !== 'processando';
-}
 
 /** O cartão ainda em andamento depois da espera da tela (RD-0968): só a ação. */
 export const TEXTO_CARGA_EM_ANDAMENTO = 'Volte daqui a pouco para ver o resultado.';
@@ -241,8 +236,8 @@ export async function importarArquivo(
       terminou = progressoSessao.situacao !== 'aberta' || feitas >= total || sessaoTemParteCancelada(progressoSessao);
     } else {
       status = (await porta.lerLote(lotes[0] as string)).status;
-      avisar('gravando', total, loteTerminou(status) ? 1 : 0);
-      terminou = loteTerminou(status);
+      terminou = !loteEmAndamento(status);
+      avisar('gravando', total, terminou ? 1 : 0);
     }
     if (!terminou) await porta.esperar(ESPERA_MS);
   }
