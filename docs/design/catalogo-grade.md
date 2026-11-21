@@ -63,14 +63,14 @@ Desde R-20261115-083600, só duas cores, no cartão, na busca e na ficha (o lara
 - Busca sem resultado: `NadaEncontrado` (sem mudança).
 - Sem sinal: a grade continua com o que está no aparelho.
 - Erro ao abrir: §7.1.
-- Preço/estoque carregando: §7.3.
+- Estoque carregando: §7.3.
 
 ## 6. Componentes
 `Screen` com `cabecalho` (`CabecalhoTela`), `CampoBusca`, `Cartao`,
 `ChipEstado pequeno`, `MostrarMais contagem={false}`, `NadaEncontrado`, `EstadoVazio`, todos de `@macuxi/ui/mobile`. A grade é
 uma `FlatList` com `numColumns={2}` do módulo. Nenhum componente novo além da prop `contagem` do kit.
 
-## 7. T-0192 (v1.0.20): sem "puxar" e preço e estoque carregando
+## 7. T-0192 (v1.0.20): sem "puxar" e estoque carregando
 > 2026-11-21 · designer-ux · T-0192 · Origem: R-20261121-122841 (Alexandre). Implementa: modulo-catalogo
 > (`modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx`, `estoque-filial.tsx`, `app/lib/`). Muda layout em
 > dois pontos (§7.3): passa pelo design-de-marca.
@@ -91,29 +91,25 @@ uma `FlatList` com `numColumns={2}` do módulo. Nenhum componente novo além da 
 
 ### 7.2 "Ainda carregando" × "não há" (critério)
 O critério é do aparelho inteiro, não de cada produto: só há "carregando" com carga em andamento, como o indicador
-`Catálogo NN%` do shell (`carga-fundo.ts`). Duas marcas independentes, calculadas pela tela numa função pura em
-`modules/catalogo/app/lib/` (ex.: `cargaDoCartao(sync, modoCarga)` → `{ precoCarregando, estoqueCarregando }`):
+`Catálogo NN%` do shell (`carga-fundo.ts`). Uma marca só, calculada pela tela numa função pura em
+`modules/catalogo/app/lib/` (ex.: `cargaDoCartao(sync, modoCarga)` → `{ estoqueCarregando }`): `estoqueCarregando` é
+verdadeira quando `modoCarga === 'local'` **e** `estoque_saldo` está em `sync.pendentes`.
 
-| Marca | Verdadeira quando |
-|---|---|
-| `precoCarregando` | `modoCarga === 'local'` **e** alguma chave de preço em `sync.pendentes` (`catalogo_precos` ou os nomes de `ENTIDADES_PRECO`) |
-| `estoqueCarregando` | `modoCarga === 'local'` **e** `estoque_saldo` em `sync.pendentes` |
-
-- `modoCarga === 'api'` (`modoDaCarga`, ADR 0054): preço e estoque vêm da API, já reais; as duas marcas ficam falsas.
+- Preço não tem estado carregando: com preço pendente (`CHAVES_DO_CATALOGO`, `carga-online.ts:14-18`) a tela está em
+  `'api'` ou `'sem_sinal'`, nunca em `'local'`.
+- `modoCarga === 'api'` (`modoDaCarga`, ADR 0054): preço e estoque vêm da API, já reais; a marca fica falsa.
 - `modoCarga === 'sem_sinal'`: continua o `CatalogoCarregando` (`TEXTO_CATALOGO_CARREGANDO`) no lugar da grade; não há cartão.
 - Busca pela API em modo local (`catalogo.tsx:172-178`): com `estoqueCarregando`, a tela **não** troca o estoque da API
   pelo do aparelho; o cartão mostra o estado carregando (§7.3).
-- Com as duas marcas falsas, vale o que já existe (§3 e §4).
+- Com a marca falsa, vale o que já existe (§3 e §4).
 - O domínio (`modules/catalogo/domain/vitrine.ts`) **não muda**: a API usa a mesma função e lá o dado existe sempre;
-  `MENSAGEM_SEM_PRECO_CATALOGO` continua significando "não há". As marcas chegam ao `CartaoGrade` por prop
-  (`precoCarregando`, `estoqueCarregando`); o contrato `ItemVitrine` não muda.
+  `MENSAGEM_SEM_PRECO_CATALOGO` continua significando "não há". A marca chega ao `CartaoGrade` por prop
+  (`estoqueCarregando`); o contrato `ItemVitrine` não muda.
 
 ### 7.3 O que o cartão mostra
-Escolha: **traço** (`—`, U+2014). Motivo: fica parado no lugar do valor (sem animação ao sol nem em aparelho fraco, sem
-salto de layout) e não repete o indicador `Catálogo 63%` do shell, que já diz que está carregando.
+Escolha: **traço** (`—`, U+2014) no lugar da quantidade do estoque. Motivo: fica parado no chip (sem animação ao sol nem
+em aparelho fraco, sem salto de layout) e não repete o indicador `Catálogo 63%` do shell, que já diz que está carregando.
 
-- `precoCarregando`: `—` em 16/600 `ink3` (estilo `semPreco`, `comum.tsx:155`) no lugar do preço. TalkBack
-  (`rotuloAcessivelDoCartao`): `Preço carregando`. No pedido (slot `produto.acoes`), o botão `+` não aparece.
 - `estoqueCarregando`: chip `Estoque: —` (`ChipEstado pequeno`) tom `neutro` (também no tenant sem quantidade), sem o
   botão `Estoque por filial`. TalkBack (`rotuloAcessivel` do chip): `Estoque carregando`.
 - Nenhum texto novo na tela além do traço; sem `Banner` de carga.
@@ -123,6 +119,4 @@ salto de layout) e não repete o indicador `Catálogo 63%` do shell, que já diz
 
 ### 7.4 Componentes
 `Screen` (sem `refreshing`/`onRefresh`), `EstadoVazio` (com `acao`), `ChipEstado pequeno` tom `neutro`, `CatalogoCarregando`,
-`TEXTO_CATALOGO_CARREGANDO`, tokens `colors.ink3`, `TONS_ESTADO.neutro`, todos de `@macuxi/ui/mobile`. **Nenhum componente
-novo** no kit. Fica fora desta tarefa: a ficha do produto (`produto.tsx`) usa o mesmo `rotuloPreco`; recomenda-se a mesma
-regra lá, em tarefa própria.
+`TEXTO_CATALOGO_CARREGANDO`, token `TONS_ESTADO.neutro`, todos de `@macuxi/ui/mobile`. **Nenhum componente novo** no kit.
