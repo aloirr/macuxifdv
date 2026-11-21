@@ -75,6 +75,8 @@ describe.skipIf(semBanco())('T-0191 — rotas por proximidade, base e Gerar coor
   let api: ApiDeTeste;
   let nominatim: NominatimFalso;
   const logs: string[] = [];
+  /** `Date.now()` de cada requisição ao sair para o Nominatim simulado (o relógio da fila de produção). */
+  const saidas: number[] = [];
   const tk = { admin: '', analista: '', gerente: '', supervisor: '', vendedor: '', promotor: '', adminB: '' };
 
   const chamar = (token: string, method: 'GET' | 'PUT' | 'POST', url: string, payload?: unknown) => api.chamar(token, { method, url: `/v1/core/${url}`, ...(payload !== undefined ? { payload: payload as object } : {}) });
@@ -121,7 +123,16 @@ describe.skipIf(semBanco())('T-0191 — rotas por proximidade, base e Gerar coor
 
   beforeAll(async () => {
     nominatim = await subirNominatimFalso(respostaDoSimulado);
-    const ambiente = geocodificadorDoAmbiente({ MACUXI_NOMINATIM_URL: nominatim.url });
+    // RN-CORE-77: intervalo medido na saída (ver `saidas`).
+    const ambiente = geocodificadorDoAmbiente(
+      { MACUXI_NOMINATIM_URL: nominatim.url },
+      {
+        buscar: (url, init) => {
+          saidas.push(Date.now());
+          return globalThis.fetch(url, init);
+        },
+      },
+    );
     const destino = new Writable({
       write(pedaco, _c, fim) {
         logs.push(String(pedaco));
@@ -551,11 +562,15 @@ describe.skipIf(semBanco())('T-0191 — rotas por proximidade, base e Gerar coor
 
     it('RN-CORE-77: fila de no máximo 1 requisição por segundo para toda a API (3 cliques ao mesmo tempo, 5 consultas, intervalo ≥ 1 s)', async () => {
       const antes = nominatim.requisicoes.length;
+      const saidasAntes = saidas.length;
       const rs = await Promise.all([gerar(tk.analista, G.semResultado.id), gerar(tk.admin, G.rua.id), gerar(tk.analista, G.cep.id)]);
       const novas = nominatim.requisicoes.slice(antes);
+      const t = saidas.slice(saidasAntes);
       // sem resultado: rua + CEP; via: só a rua; CEP: rua (vazia) + CEP
       expect(novas).toHaveLength(5);
-      for (let i = 1; i < novas.length; i++) expect(novas[i]!.em - novas[i - 1]!.em, `intervalo ${i}`).toBeGreaterThanOrEqual(990);
+      expect(t).toHaveLength(5);
+      // Folga de 2 ms: Date.now trunca o ms e o setTimeout do Node pode disparar até 1 ms antes no relógio de parede.
+      for (let i = 1; i < t.length; i++) expect(t[i]! - t[i - 1]!, `intervalo ${i}`).toBeGreaterThanOrEqual(998);
       expect(rs.map((r) => r.statusCode)).toEqual([422, 200, 200]);
       expect(erroDe(rs[0]!).codigo).toBe('NAO_LOCALIZADO');
       expect(rs[1]!.json()).toMatchObject({ precisao: 'rua' });
