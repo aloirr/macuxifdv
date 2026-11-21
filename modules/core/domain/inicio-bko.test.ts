@@ -54,6 +54,12 @@ describe('RN-CORE-65: horário esperado da carga', () => {
     expect(r2.ok).toBe(false);
     if (!r2.ok) expect(r2.erros[0]?.campo).toBe('entidades');
   });
+  it('RN-CORE-65: entidade desconhecida é rejeitada na validação e descartada na leitura', () => {
+    const r = validarHorarioCarga({ padrao: '06:00', entidades: { inexistente: '07:30' } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erros[0]).toMatchObject({ campo: 'entidades', mensagem: expect.stringContaining('desconhecida') });
+    expect(horarioCargaDasLinhas([{ modulo: 'core', chave: 'integracao.horario_carga', valor: { padrao: '06:00', entidades: { inexistente: '07:30' } } }])).toEqual({ padrao: '06:00', entidades: {} });
+  });
   it('RN-CORE-65: alerta quando agora passou do horário de hoje e a última carga é anterior a ele', () => {
     const r = cargasAtrasadas({ agora: new Date('2026-11-20T11:00:00Z'), fuso: MANAUS, dia_util: true, horario: CFG, ultimas: [{ entidade: 'cliente', recebido_em: '2026-11-19T10:05:00Z' }] });
     expect(r).toEqual([{ entidade: 'cliente', ultima_em: '2026-11-19T10:05:00Z' }]);
