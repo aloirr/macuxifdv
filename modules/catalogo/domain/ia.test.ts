@@ -176,7 +176,7 @@ describe('RN-CAT-03: cancelamento e resumo para o contrato da busca', () => {
 });
 
 describe('T-0088: aviso do índice sendo organizado', () => {
-  it('RF-CAT-02: com indexando o aviso aparece (sozinho ou junto do de sem sinal/falha) e some quando o índice fica pronto', () => {
+  it('RF-CAT-02: com indexando o aviso aparece (sozinho ou junto do de sem sinal) e some quando o índice fica pronto', () => {
     expect(avisoDaBusca(null, true)).toBe(AVISO_CATALOGO_ORGANIZANDO);
     expect(AVISO_CATALOGO_ORGANIZANDO).toContain('A busca pode demorar um pouco');
     expect(avisoDaBusca(AVISO_BUSCA_OFFLINE, true)).toBe(`${AVISO_BUSCA_OFFLINE} Organizando o catálogo no aparelho; a busca pode demorar um pouco.`);
