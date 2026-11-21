@@ -263,7 +263,8 @@ export interface ContextoBase {
    */
   email?: ServicoEmail;
   /**
-   * T-0098 (ADR 0037): pacotes publicados para download por link temporário (hoje o instalador do Conector). A API sempre
+   * T-0098 (ADR 0037): pacotes publicados para download por link temporário (o instalador do Conector e, T-0190/ADR 0065,
+   * os APKs `campo` e `gestao`, servidos pela rota do Core). A API sempre
    * preenche nas rotas de módulo (sem S3: `disponivel() = false` e `linkDoUltimo` responde 503); contexto falso de teste usa
    * `criarServicoPacotesMemoria()`. A rota decide quem pode pedir e audita; o link nunca vai para log.
    */

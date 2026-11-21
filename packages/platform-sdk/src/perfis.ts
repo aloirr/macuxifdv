@@ -8,6 +8,7 @@
  *   login com `perfilDaFaseM` e daí em diante só falam `Perfil`. Some quando a API real (T-0003) emitir perfis.
  */
 import { ROTULO_PERFIL_CURTO, ROTULO_PERFIL_LONGO as ROTULO_LONGO_COMUM } from '@macuxi/comum/perfis';
+import { NOME_APP_VARIANTE } from './app-versao';
 import type { AppId, Perfil } from './nomes';
 
 export const PERFIS_DO_APP: Readonly<Record<Exclude<AppId, 'conector'>, readonly Perfil[]>> = {
@@ -46,7 +47,11 @@ export function perfilDaFaseM(papel: string | null | undefined): Perfil | null {
 }
 
 /** Nome do app ou do BKO na frase ("o app Macuxi Campo"), o mesmo das mensagens do login. RD-0016: exportado para os shells. */
-export const NOME_DO_APP: Readonly<Record<keyof typeof PERFIS_DO_APP, string>> = { campo: 'o app Macuxi Campo', gestao: 'o app Macuxi Gestão', web: 'o backoffice (web)' };
+export const NOME_DO_APP: Readonly<Record<keyof typeof PERFIS_DO_APP, string>> = {
+  campo: `o app ${NOME_APP_VARIANTE.campo}`,
+  gestao: `o app ${NOME_APP_VARIANTE.gestao}`,
+  web: 'o backoffice (web)',
+};
 
 /**
  * Login certo num app que não é do perfil (ex.: promotor no BKO): mensagem com a ação seguinte, ou `null` se o perfil
