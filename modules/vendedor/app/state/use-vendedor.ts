@@ -10,7 +10,7 @@
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
 import { abrirFotoDoProduto, idsComFoto } from '../lib/foto-produto';
-import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_VEICULOS, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida, type VeiculoEscolhido, type VeiculoParcial, type VeiculosSaida } from '@macuxi/catalogo/contracts';
 import { CONSULTA_FINANCEIRO_CLIENTE, type CustomerSummary } from '@macuxi/core/contracts';
 import { ehConsultaIndisponivel, ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
@@ -837,13 +837,29 @@ export function useVendedor() {
    * (aparelho sem a leitura liberada pelo SDK): a tela usa a busca local. Qualquer outro erro = `erro` (aparece na tela e vai ao log).
    */
   const buscarProdutos = useCallback(
-    async (q: string, produtoIds: string[] | null, clienteId?: string): Promise<ResultadoBuscaCatalogo> => {
-      if (!v1 || !q.trim()) return { tipo: 'reserva' };
+    async (q: string, produtoIds: string[] | null, clienteId?: string, veiculo?: VeiculoEscolhido | null): Promise<ResultadoBuscaCatalogo> => {
+      if (!v1 || (!q.trim() && !veiculo)) return { tipo: 'reserva' };
       return buscarNoCatalogoComReserva(
-        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(clienteId ? { cliente_id: clienteId } : produtoIds ? { produto_ids: produtoIds } : {}), limite: 100, lista_completa: true }),
+        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(veiculo ? { veiculo } : {}), ...(clienteId ? { cliente_id: clienteId } : produtoIds ? { produto_ids: produtoIds } : {}), limite: 100, lista_completa: true }),
         ehConsultaIndisponivel,
         (m, extra) => console.warn(m, extra),
       );
+    },
+    [v1, ambiente],
+  );
+  /**
+   * RN-CAT-22: a cascata do veículo (`catalogo.veiculos@1`). `null` = consulta indisponível ou falha: a tela não mostra o botão Veículo.
+   * `disponivel` falso (catálogo sem veículo nas aplicações) também some com o botão.
+   */
+  const consultarVeiculos = useCallback(
+    async (entrada: { escolha: VeiculoParcial; busca?: string; produto_ids?: string[]; cliente_id?: string }): Promise<VeiculosSaida | null> => {
+      if (!v1) return null;
+      try {
+        return await ambiente.consultar(CONSULTA_VEICULOS, entrada);
+      } catch (e) {
+        if (!ehConsultaIndisponivel(e)) console.warn('[veiculo-seletor] falha da catalogo.veiculos@1', { nome: e instanceof Error ? e.name : 'desconhecido' });
+        return null;
+      }
     },
     [v1, ambiente],
   );
@@ -945,6 +961,7 @@ export function useVendedor() {
     reconferirOrcamentoLocal,
     sugestoesDoPedido,
     buscarProdutos,
+    consultarVeiculos,
     textosDeProdutos,
     fotosDeProdutos,
     abrirFotoProduto,
