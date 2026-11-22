@@ -23,7 +23,7 @@ describe('selecionarParados: uma vez só', () => {
     expect(r.jaTentados.map((e) => e.id)).toEqual(['a']);
   });
 
-  it('teto de segurança: a CLI recusa mais do que o teto (o escopo é a empresa, não a outbox inteira)', () => {
+  it('TETO_REPROCESSO cabe os 36 parados da AM2808 e fica abaixo de 200', () => {
     expect(TETO_REPROCESSO).toBeGreaterThanOrEqual(36);
     expect(TETO_REPROCESSO).toBeLessThanOrEqual(200);
   });

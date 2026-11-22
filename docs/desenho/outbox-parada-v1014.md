@@ -95,13 +95,7 @@ ambiente do despachante no ar: `macuxi_worker` + `macuxi_app`, nunca o admin), p
   Publicou: sai da outbox. Falhou: `tentativas` vai de 10 para 11, `ultimo_erro` é gravado e o log mostra a classe nova.
 - Teto de 100 eventos por empresa, contado antes de ler qualquer payload: acima disso nada muda (saída 5).
 
-**Idempotência.** A lista pega só `publicado_em` nulo e `tentativas >= 10` daquela empresa; entram os de `tentativas = 10`.
-Com `confirmar=true`, cada evento roda na **própria transação**: trava a linha com `for no key update skip locked` só se ela
-ainda estiver parada (`tentativas = 10`, sem `publicado_em`), entrega e grava o resultado no mesmo commit. Se a rodada cair no
-meio, os já confirmados ficam publicados ou com `tentativas = 11`, e só os restantes entram numa nova rodada. Depois da
-tentativa, nenhuma rodada seguinte seleciona o evento (aparece como "já reprocessados antes e parados de novo"), e o despachante
-também não, porque ele só pega `< 10`. O alerta OUTBOX_PARADA continua contando o evento (`>= 10`). O `concurrency: producao-vm`
-impede duas rodadas juntas, e a trava por evento impede a mesma tentativa duas vezes.
+**Idempotência.** A lista pega só `publicado_em` nulo e `tentativas >= 10` daquela empresa; entram os de `tentativas = 10`. Com `confirmar=true`, cada evento roda na **própria transação**: trava a linha com `for no key update skip locked` só se ela ainda estiver parada, entrega e grava o resultado no mesmo commit. Se a rodada cair no meio, os já tentados ficam publicados ou com `tentativas = 11`, e nenhuma rodada seguinte os tenta (os de 11 aparecem como "já reprocessados antes e parados de novo"); o despachante também não, porque só pega `< 10`. O alerta OUTBOX_PARADA continua contando o evento (`>= 10`). O `concurrency: producao-vm` impede duas rodadas juntas, e a trava por evento impede a mesma tentativa duas vezes.
 
 **Log.** Só contagens, ids técnicos, nomes de evento e classes de erro (a mesma classe do diagnóstico, `classeDoErro`). Nunca o
 payload nem a mensagem. O log técnico do despachante sai sem o campo `erro`.
