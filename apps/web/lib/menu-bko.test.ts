@@ -31,7 +31,7 @@ const n = (grupoMenu: GrupoMenu, caminho: string, rotulo: string, modulo = 'core
   ...(bloqueado ? { bloqueado: true } : {}),
 });
 
-/** Administrador com os 8 módulos: o menu final da spec (§2), 28 páginas de módulo (+ Auditoria e Parâmetros, da plataforma). */
+/** Administrador com os 8 módulos: o menu final da spec (§2), 27 páginas de módulo (+ Auditoria e Parâmetros, da plataforma). */
 const ADMIN: EntradaNavegacao[] = [
   n('acesso', 'usuarios', 'Usuários'),
   n('acesso', 'aparelhos', 'Aparelhos'),
@@ -59,7 +59,6 @@ const ADMIN: EntradaNavegacao[] = [
   n('trade', 'trade-cadastros', 'Cadastros', 'promotor'),
   n('trade', 'trade', 'Indicadores', 'promotor'),
   n('treinamento', 'trilhas', 'Trilhas', 'treinamento'),
-  n('sistema', 'integracao/carga-arquivo', 'Carga por arquivo', 'integracao'),
   n('sistema', 'integracao', 'Integração ERP', 'integracao'),
 ];
 
@@ -89,7 +88,7 @@ describe('menu do BKO: entradas de 1º nível (spec §2, ADR 0060)', () => {
 
   it('11 entradas: alfabéticas, com Parâmetros e Sistema fixos no fim (D1); sem Comercial nem Conteúdo de campo', () => {
     expect(grupos.map((g) => g.titulo)).toEqual(['Acesso', 'Análise', 'Cadastros', 'Comunicação', 'Operação', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Parâmetros', 'Sistema']);
-    expect(grupos.flatMap((g) => g.itens)).toHaveLength(30);
+    expect(grupos.flatMap((g) => g.itens)).toHaveLength(29);
   });
 
   it('D9: grupo de um item só vira item direto, com o testID do item; os demais continuam grupos', () => {
@@ -120,7 +119,7 @@ describe('menu do BKO: entradas de 1º nível (spec §2, ADR 0060)', () => {
   });
 
   it('Auditoria fica em Sistema, sem grupo "Plataforma"', () => {
-    expect(de(grupos, 'sistema')?.itens.map((i) => i.label)).toEqual(['Auditoria', 'Carga por arquivo', 'Integração ERP']);
+    expect(de(grupos, 'sistema')?.itens.map((i) => i.label)).toEqual(['Auditoria', 'Integração ERP']);
     expect(de(grupos, 'sistema')?.itens[0]).toEqual({ href: '/auditoria', label: 'Auditoria', testId: 'nav-plataforma-auditoria' });
     expect(grupos.some((g) => g.titulo === 'Plataforma')).toBe(false);
   });
@@ -274,7 +273,6 @@ describe('menu do BKO: tela atual (§M3 item 4)', () => {
     expect(hrefAtivo('/catalogo/marcas', hrefs)).toBe('/catalogo/marcas');
     expect(hrefAtivo('/catalogo', hrefs)).toBe('/catalogo');
     expect(hrefAtivo('/catalogo/123', hrefs)).toBe('/catalogo');
-    expect(hrefAtivo('/integracao/carga-arquivo', hrefs)).toBe('/integracao/carga-arquivo');
     expect(hrefAtivo('/pedidos/abc', hrefs)).toBe('/pedidos');
     expect(hrefAtivo('/parametros/clientes', hrefs)).toBe('/parametros');
   });

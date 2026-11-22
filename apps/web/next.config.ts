@@ -17,6 +17,9 @@ export function origemDaApi(apiUrl: string): string {
  */
 export const PROXY_OPENAPI_HUB = '/api-proxy/_publico/integracao/v1/openapi.json';
 
+/** Guia da API em PDF do Hub (v1.0.21): `GET /integracao/v1/guia.pdf`, público como o OpenAPI, pelo mesmo caminho same-origin. */
+export const PROXY_GUIA_PDF_HUB = '/api-proxy/_publico/integracao/v1/guia.pdf';
+
 /**
  * Hosts em que o BKO roda atrás de proxy/túnel (T-0038; doc 04, "Domínio e endereços"). `MACUXI_BKO_ORIGEM` (variável
  * do build e do start) acrescenta a origem em uso, ex.: um `https://<nome>.trycloudflare.com` de reserva. Vale para o
@@ -89,6 +92,7 @@ const nextConfig: NextConfig = {
     return [
       // o específico antes do geral: a 1ª regra que casa vale
       { source: PROXY_OPENAPI_HUB, destination: `${origemDaApi(API_URL)}/integracao/v1/openapi.json` },
+      { source: PROXY_GUIA_PDF_HUB, destination: `${origemDaApi(API_URL)}/integracao/v1/guia.pdf` },
       { source: '/api-proxy/:path*', destination: `${API_URL}/:path*` },
     ];
   },

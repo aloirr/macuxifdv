@@ -251,13 +251,6 @@ async function lerResposta<T>(res: Response, schema: OpcoesChamada<T>['schema'])
   return p.data;
 }
 
-/** Baixa um arquivo (CSV, JSON) de uma rota autenticada: `fetch` + `Blob`, com o nome do `Content-Disposition`. */
-export async function baixarDoPortal(caminho: string, o: { tenant?: string; nomePadrao: string }): Promise<void> {
-  const res = await enviar(caminho, { metodo: 'GET', tenant: o.tenant });
-  const blob = await res.blob();
-  downloadBlob(blob, filenameFromDisposition(res.headers.get('content-disposition'), o.nomePadrao));
-}
-
 /** Bytes de uma rota autenticada como `Blob` (o print do diagnóstico, T-0158), sem baixar: a tela mostra e abre em outra aba. */
 export async function blobDoPortal(caminho: string): Promise<Blob> {
   const res = await enviar(caminho, { metodo: 'GET' });
@@ -265,14 +258,13 @@ export async function blobDoPortal(caminho: string): Promise<Blob> {
 }
 
 /**
- * Baixa um documento público (sem token nem tenant), pelo caminho same-origin do `next.config.ts`. Hoje só o OpenAPI do Hub
- * (`OPENAPI_HUB`). No modo falso não há API: responde como rota ausente ("em breve").
+ * Baixa um documento público (sem token nem tenant), pelo caminho same-origin do `next.config.ts`: o OpenAPI do Hub (`OPENAPI_HUB`)
+ * e o guia da API em PDF (`GUIA_PDF_HUB`). No modo falso, `documentoPublicoFalso` responde um PDF e um OpenAPI de exemplo.
  */
 export async function baixarDocumentoPublico(viaProxy: string, nomePadrao: string): Promise<void> {
-  if (MODO_PORTAL_FALSO) throw new ErroPortal(404, 'http_404', 'Documento ausente no modo falso.');
   let res: Response;
   try {
-    res = await fetch(viaProxy, { method: 'GET', cache: 'no-store', credentials: 'omit' });
+    res = MODO_PORTAL_FALSO ? (await import('./portal-falso')).documentoPublicoFalso(viaProxy) : await fetch(viaProxy, { method: 'GET', cache: 'no-store', credentials: 'omit' });
   } catch {
     throw new ErroPortal(0, 'sem_conexao', MENSAGEM_SEM_CONEXAO);
   }
