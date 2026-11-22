@@ -4,7 +4,7 @@
  * caminho mudar, muda aqui.
  */
 import type { Entidade } from '@macuxi/integracao/contracts';
-import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, ROTA_PORTAL_FRASES_CARGA } from '@macuxi/platform-sdk';
+import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, rotaPortalAssinatura, ROTA_PORTAL_CNPJ, ROTA_PORTAL_EMPRESA_COM_PLANO, ROTA_PORTAL_FRASES_CARGA, ROTA_PORTAL_PLANOS } from '@macuxi/platform-sdk';
 
 /** Caminho do SDK (`/v1/...`) relativo ao `/v1`, como o portal e o `api()` do BKO chamam. */
 export const semV1 = (caminho: string) => caminho.replace(/^\/v1(?=\/)/, '');
@@ -42,6 +42,12 @@ export const ROTAS_PORTAL = {
   logoDaEmpresa: (tenantId: string) => semV1(rotaLogoEmpresa(encodeURIComponent(tenantId))),
   /** Item 15 (v1.0.17): `PUT { ocultar }` oculta a logomarca do Macuxi no app e no BKO; só o time da Macuxi; responde a marca. */
   ocultarMarcaMacuxi: (tenantId: string) => semV1(rotaOcultarMarcaMacuxi(encodeURIComponent(tenantId))),
+  /** ADR 0047 (atrás de `MACUXI_PLANOS`; desligado = 404): catálogo (`ListaPlanosSchema`), criar com plano e a ficha/troca. */
+  planos: semV1(ROTA_PORTAL_PLANOS),
+  empresaComPlano: semV1(ROTA_PORTAL_EMPRESA_COM_PLANO),
+  assinatura: (tenantId: string) => semV1(rotaPortalAssinatura(encodeURIComponent(tenantId))),
+  /** ADR 0048: `POST { cnpj }` → dados da Receita (`ConsultaCnpjRespostaSchema`). */
+  cnpj: semV1(ROTA_PORTAL_CNPJ),
   // Integração (com `x-macuxi-tenant`)
   ordemCarga: '/integracao/ordem-carga',
   cargaArquivo: '/integracao/cargas-arquivo',

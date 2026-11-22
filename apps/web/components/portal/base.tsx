@@ -48,7 +48,7 @@ export function Marca() {
   return <MarcaNaFaixa area="Portal de implantação" />;
 }
 
-/** Link com cara de botão (sem `<button>` dentro de `<a>`). */
+/** Link com cara de botão (sem `<button>` dentro de `<a>`); o principal em Azul noite, como o `Button` (MC-0021). */
 export function LinkBotao({ href, children, primario, testId, className }: { href: string; children: ReactNode; primario?: boolean; testId?: string; className?: string }) {
   return (
     <Link
@@ -56,7 +56,7 @@ export function LinkBotao({ href, children, primario, testId, className }: { hre
       data-testid={testId}
       className={cx(
         'inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl px-4 text-[15px] font-semibold no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-        primario ? 'bg-ink text-white hover:bg-[#0b1218]' : 'border border-field bg-surface text-ink hover:bg-ground',
+        primario ? 'bg-accent text-white hover:bg-accent/90' : 'border border-field bg-surface text-ink hover:bg-ground',
         className,
       )}
     >

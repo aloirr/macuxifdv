@@ -7,33 +7,32 @@
  *   a pessoa cria a dela no 1º acesso ao backoffice e as sessões dela caem.
  * - Sem e-mail configurado a API responde 503 `EMAIL_INDISPONIVEL` ANTES de trocar a senha: não há senha para mostrar nem copiar
  *   (diferente da tela Usuários do BKO, em que quem digita a senha é o admin; spec docs/design/ciclo-de-senha.md §5).
- * Textos propostos ao designer-ux (revisão pedida na entrega), no tom da spec ciclo-de-senha.md.
+ * Textos da spec docs/design/telas/portal-config-enxuto.md §8 (RD-0288, RD-0291, RD-0292).
  */
-import type { AdminDaEmpresa, RedefinirSenhaAdminResposta } from '@macuxi/platform-sdk';
+import type { AdminDaEmpresa } from '@macuxi/platform-sdk';
 import { formatDateTime, type BadgeTone } from '@macuxi/ui/web';
 
-import { ehRotaAusente, ErroPortal, MENSAGEM_SEM_CONEXAO, mensagemDoErro } from './portal-api';
+import { ehRotaAusente, ErroPortal, MENSAGEM_SEM_CONEXAO, mensagemDoErro, TEXTO_INDISPONIVEL } from './portal-api';
 
 export const TEXTOS_ADMINS = Object.freeze({
   titulo: 'Administradores',
-  ajuda: 'Quem administra esta empresa no backoffice. Se um deles perdeu a senha, mande uma senha temporária nova por e-mail.',
   carregando: 'Buscando os administradores…',
   vazio: 'Esta empresa ainda não tem administrador.',
-  emBreve: 'A lista de administradores ainda não está disponível neste servidor.',
+  emBreve: TEXTO_INDISPONIVEL,
   botao: 'Redefinir senha',
-  /** Revisão de UX R-20261108-125732 🟡 1: quem só entra pelo app cria a senha no próximo acesso ao app (RN-CORE-35). */
-  dialogoTexto: (a: Pick<AdminDaEmpresa, 'nome' | 'email' | 'entra_no_portal'>) =>
-    `O Macuxi gera uma senha temporária e manda para ${a.email}. Ela vale por 72 horas; no próximo acesso ${a.entra_no_portal ? 'ao backoffice' : 'ao app'}, a pessoa cria uma senha nova. ${a.nome} sai do Macuxi agora, em todos os aparelhos.`,
+  /** §8 (RD-0291): o destino e o efeito, sem o funcionamento (a validade fica só no selo da linha). */
+  dialogoTexto: (a: Pick<AdminDaEmpresa, 'nome' | 'email'>) => `Uma senha temporária vai para ${a.email}. ${a.nome} sai do Macuxi em todos os aparelhos.`,
   cancelar: 'Cancelar',
   confirmar: 'Redefinir senha',
   confirmando: 'Redefinindo…',
-  semEmail: 'O envio de e-mail não está configurado neste servidor, e a senha não foi trocada. Confira a configuração de e-mail e tente de novo.',
+  /** RD-0292: quem vê é o time da Macuxi (só ele redefine), que confere a configuração. */
+  semEmail: 'O envio de e-mail não está configurado neste servidor: nada foi gravado. Confira a configuração de e-mail.',
   alterado: 'Os dados deste administrador mudaram. Confira a lista atualizada e tente de novo.',
   naoEncontrado: 'Este administrador não está mais ativo nesta empresa. A lista foi atualizada.',
-  empresaNaoEncontrada: 'Empresa não encontrada ou inativa. Volte à lista de empresas.',
+  empresaNaoEncontrada: 'Empresa não encontrada ou inativa.',
   semAcesso: 'Só o time da Macuxi redefine a senha do administrador. O administrador usa "Esqueci a senha" no backoffice.',
   repetido: 'Não deu para concluir. Tente de novo.',
-  rotaAusente: 'A redefinição de senha ainda não está disponível neste servidor.',
+  rotaAusente: TEXTO_INDISPONIVEL,
   /** RN-CORE-33/35: admin com outro perfil de base vendedor, promotor ou supervisor (ex.: admin + vendedor). R-20261108-125732 🟡 3. */
   soPeloApp: 'Entra só pelo app',
   soPeloAppDica: 'Também tem perfil de vendedor, promotor ou supervisor; por isso não entra no backoffice.',
@@ -48,12 +47,9 @@ export const soEntraPeloApp = (a: Pick<AdminDaEmpresa, 'entra_no_portal'>): bool
 
 export const tituloDoDialogo = (nome: string) => `Redefinir a senha de ${nome}?`;
 
-/**
- * Resultado (a senha nunca aparece no portal; nem com `repetida`, que é a mesma redefinição já feita). No formato das etiquetas,
- * com a validade no fuso da empresa (R-20261108-125732 🟢 4).
- */
-export function textoDoResultado(email: string, r: Pick<RedefinirSenhaAdminResposta, 'senha_expira_em'>, fuso?: string): string {
-  return `Senha temporária enviada para ${email}. Vale até ${formatDateTime(r.senha_expira_em, fuso)}.`;
+/** Resultado (a senha nunca aparece no portal). A validade fica só no selo da linha (RD-0291: uma informação, um lugar). */
+export function textoDoResultado(email: string): string {
+  return `Senha temporária enviada para ${email}.`;
 }
 
 /** Só admin ativo e não bloqueado (a API responde 404 aos outros). Também para senha pendente ou vencida: é como reenviar. */
