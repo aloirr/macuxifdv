@@ -3,14 +3,15 @@ import { ADICIONAIS_DO_PLANO, iconeDoAdicional, nomeDoAdicional } from './adicio
 import { IconPesquisa, IconPromotor, IconTreinamento } from './icons';
 import { nomeDoModulo } from './modulos';
 
-// MC-0042 e RD-0366: um mapa só. Nome e ícone vêm do mapa dos módulos (`modulos.tsx`).
+// MC-0042 e RD-0366: um mapa só. Nome e ícone vêm do mapa dos módulos (`modulos.tsx`), exceto o nome
+// "Promotor Avulso" (R-20261122-005500-alexandre, tela aprovada 02-nova-empresa.png).
 describe('adicionais do plano', () => {
   it('cobre os três adicionais do contrato, na ordem da tela', () => {
     expect(ADICIONAIS_DO_PLANO.map((a) => a.id)).toEqual(['promotor', 'pesquisa', 'treinamento']);
   });
 
   it('nome com maiúscula e ícone próprio de cada um', () => {
-    expect(nomeDoAdicional('promotor')).toBe('Promotor');
+    expect(nomeDoAdicional('promotor')).toBe('Promotor Avulso');
     expect(nomeDoAdicional('pesquisa')).toBe('Pesquisa');
     expect(nomeDoAdicional('treinamento')).toBe('Treinamento');
     expect(iconeDoAdicional('promotor')).toBe(IconPromotor);
@@ -19,8 +20,9 @@ describe('adicionais do plano', () => {
     expect(new Set(ADICIONAIS_DO_PLANO.map((a) => a.Icone)).size).toBe(3);
   });
 
-  it('o nome é o do mapa dos módulos (RD-0366)', () => {
-    for (const a of ADICIONAIS_DO_PLANO) expect(a.nome).toBe(nomeDoModulo(a.id));
+  it('o nome é o do mapa dos módulos (RD-0366), exceto o Promotor Avulso', () => {
+    for (const a of ADICIONAIS_DO_PLANO.filter((x) => x.id !== 'promotor')) expect(a.nome).toBe(nomeDoModulo(a.id));
+    expect(nomeDoModulo('promotor')).toBe('Promotor');
   });
 
   it('id desconhecido: o nome volta como veio e sem ícone', () => {
