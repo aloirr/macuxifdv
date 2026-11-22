@@ -99,7 +99,9 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     const veiculos: VeiculoEscolhido[] = MODELOS.slice(0, 10).map(([montadora, modelo], i) => ({ montadora, modelo, ano: 2005 + i, motor: null, versao: null }));
     const lista: number[] = [];
     let total = 0;
-    for (const volta of [0, 1])
+    // medição só da função do produto (`listaComVeiculo`; a carga e os dados ficam fora do cronômetro): a volta 0 aquece (JIT, caches do SQLite, memória) e é
+    // descartada; as 4 seguintes dão 40 amostras, então o p95 é a 3ª maior e uma pausa isolada de coleta de lixo no runner compartilhado não decide o teste
+    for (const volta of [0, 1, 2, 3, 4])
       for (const v of veiculos) {
         t = performance.now();
         const r = await listaComVeiculo(leitor, { ...entrada, q: '', veiculo: v, offline: true });
