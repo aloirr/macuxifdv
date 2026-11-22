@@ -4,7 +4,14 @@
  */
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { CACHE_ROTA_PUBLICA_MAX_SEGUNDOS, caminhoDaRotaPublica, definirModuloApi, problemasRotaPublica, type RotaPublica } from './api';
+import {
+  CACHE_ROTA_PUBLICA_MAX_SEGUNDOS,
+  caminhoDaRotaPublica,
+  definirModuloApi,
+  problemasRotaPublica,
+  TIPOS_DOCUMENTO_PUBLICO_BINARIO,
+  type RotaPublica,
+} from './api';
 import type { ApiConector } from './conector';
 import { defineModule } from './manifesto';
 
@@ -66,6 +73,19 @@ describe('rota pública com cache (T-0092)', () => {
     // mesmo caminho com outro método, ou outro caminho: sem conflito
     expect(definirModuloApi({ manifesto: integracao, conector: conector('/versao', 'POST'), rotasPublicas: [documento({ caminho: 'versao' })] }).rotasPublicas).toHaveLength(1);
     expect(definirModuloApi({ manifesto: integracao, conector: conector('/lotes'), rotasPublicas: [documento()] }).rotasPublicas).toHaveLength(1);
+  });
+
+  it('v1.0.21: documento binário (PDF) só com cache, tipo da lista fechada e nomeArquivo válido; JSON segue sem os campos', () => {
+    const p = (r: Partial<RotaPublica>) => problemasRotaPublica('integracao', documento(r)).join('\n');
+    const pdf: Partial<RotaPublica> = { caminho: 'guia.pdf', tipoConteudo: 'application/pdf', nomeArquivo: 'macuxi-guia-api-v1.pdf' };
+    expect(p(pdf)).toBe('');
+    expect(TIPOS_DOCUMENTO_PUBLICO_BINARIO).toEqual(['application/pdf']);
+    expect(definirModuloApi({ manifesto: integracao, rotasPublicas: [documento(), documento(pdf)] }).rotasPublicas).toHaveLength(2);
+    expect(p({ ...pdf, nomeArquivo: undefined })).toMatch(/nomeArquivo obrigatório/);
+    expect(p({ ...pdf, nomeArquivo: 'guia api.pdf' })).toMatch(/nomeArquivo obrigatório/);
+    expect(p({ ...pdf, tipoConteudo: 'text/html' as never })).toMatch(/fora de application\/pdf/);
+    expect(p({ nomeArquivo: 'x.json' })).toMatch(/nomeArquivo só com tipoConteudo/);
+    expect(problemasRotaPublica('core', { ...documento(pdf), cache: undefined }).join()).toMatch(/tipoConteudo só em documento com cache/);
   });
 
   it('serviços de plataforma continuam só no core', () => {

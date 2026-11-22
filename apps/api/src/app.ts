@@ -104,7 +104,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, 
 import { ZodError, type ZodTypeAny } from 'zod';
 import { esperaDoPoolEsgotada, RETRY_AFTER_BANCO_OCUPADO_S, type BancoApp, type BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
-import { corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
+import { corpoBinarioDoDocumento, corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
 import { criarLimitador, recusarPorLimite } from './limitador';
 import { prepararSessaoWeb, SESSAO_WEB_PADRAO, type OpcoesSessaoWeb } from './sessao-web';
 import { registrarConector, ehRotaConector } from './conector';
@@ -885,7 +885,8 @@ const SEM_CABECALHOS = Object.freeze({});
 /**
  * Rota pública do `modulo` (core em `/v1`, outro em `/<modulo>/v1`; T-0092).
  * `acesso` = `null`: rota do portal (`conexao: 'portal'`) sem o banco do portal → 503 antes de validar ou contar tentativa (T-0091).
- * Com `cache` (T-0092): sem cabeçalhos para a rota, banco sem tenant, `Cache-Control` público, ETag e 304 por `If-None-Match`.
+ * Com `cache` (T-0092): sem cabeçalhos para a rota, banco sem tenant, `Cache-Control` público, ETag e 304 por `If-None-Match`;
+ * com `tipoConteudo` (v1.0.21, ex.: PDF), os bytes vão como estão, com `Content-Disposition: attachment`.
  */
 function montarRotaPublica(
   app: FastifyInstance,
@@ -931,11 +932,14 @@ function montarRotaPublica(
     const cabecalhosRota = cache ? SEM_CABECALHOS : cabecalhosPublicos(req.headers);
     const resultado = await rota.executar({ corpo, query, params, requestId: req.id, ip: req.ip, agora: relogio, banco, log, cabecalhos: cabecalhosRota, ...(cache ? {} : { email }) } as never);
     if (cache) {
-      const documento = corpoDoDocumento(resultado);
+      // v1.0.21: com `tipoConteudo` (ex.: PDF), bytes como estão e sempre `attachment`; sem ele, JSON como antes
+      const binario = rota.tipoConteudo !== undefined;
+      const documento = binario ? corpoBinarioDoDocumento(resultado, `${rota.metodo} ${url}`) : corpoDoDocumento(resultado);
       const etag = etagDe(documento);
       reply.header('cache-control', `public, max-age=${cache.maxAgeSegundos}`).header('etag', etag);
       if (ifNoneMatchAtende(req.headers['if-none-match'], etag)) return reply.code(304).send();
-      reply.header('content-type', TIPO_DOCUMENTO_PUBLICO).header('x-content-type-options', 'nosniff');
+      reply.header('content-type', rota.tipoConteudo ?? TIPO_DOCUMENTO_PUBLICO).header('x-content-type-options', 'nosniff');
+      if (binario) reply.header('content-disposition', `attachment; filename="${rota.nomeArquivo}"`);
       return reply.code(200).send(documento);
     }
     const corpoResposta = saida(resultado);
