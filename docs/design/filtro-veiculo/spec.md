@@ -1,8 +1,10 @@
-# Filtro de veículo: cascata, "✓ Compatível" e "Leve também" (etapa 6, proposta)
+# Filtro de veículo: cascata, "✓ Compatível" e "Leve também" (etapa 6)
 
 > 2026-11-21 · designer-ux · origem: auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §1 (linha §4), §2 item 5,
 > §3 (lista sem rolagem lateral) e §4 etapa 6; pedido do gerente-projetos para a aprovação do dono do produto
-> (R-20261120-230805-alexandre). **Proposta, ainda não aprovada.** Só desenho: sem contrato de API e sem código.
+> (R-20261120-230805-alexandre). D1, D2, D3 e D5 decididos (R-20261120-234013-alexandre); D4 decidido em 2026-11-21
+> (R-20261121-211000-alexandre); motor, versão e nível preenchido sozinho decididos (D6 e D7, R-20261121-211200-alexandre),
+> §5 e §15. Só desenho: sem contrato de API e sem código.
 > Simulação: `simulacao.html` (abre no celular; os estados do §9 ficam em `?estado=<id>`). Prints 390 × 844, escala 2.
 > Produtos de teste: os da auditoria §5 (marca BAP, salvo indicação), com aplicações e veículos **fictícios** (premissa P1).
 > Telas que mudam: `modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx` e `produto.tsx` (modulo-catalogo); aba Itens do Novo
@@ -16,19 +18,19 @@
 | `04-folha-ano.png` | nível Ano em grade de 4 colunas, sem rolagem lateral |
 | `05-folha-motor.png` | nível Motor, com a trilha `Volkswagen › Gol › 2018` |
 | `06-folha-versao.png` | nível Versão, o último: tocar aplica e fecha |
-| `07-vitrine-veiculo.png` | Gol 2018 1.0, a lista inteira (print alto): os "✓ Compatível" e, depois, os de conferir com o "Serve em" |
-| `08-filtrar-contagem.png` | folha Filtrar com os chips e a contagem do veículo escolhido |
-| `09-ficha.png` | ficha inteira (print alto): "✓ Compatível com Gol 2018 1.0", a aplicação com o trecho em negrito e "Leve também" sem a bucha do Polo Classic |
+| `07-vitrine-veiculo.png` | Gol 2018 1.0, a lista inteira (print alto): só as peças que passam no filtro, sem chip nem "Serve em" (refeito pelo D4) |
+| `08-filtrar-contagem.png` | folha Filtrar com os chips e a contagem da lista filtrada do Gol 2018 1.0 (refeito pelo D4) |
+| `09-ficha.png` | ficha inteira (print alto): "✓ Compatível com Gol 2018 1.0", a aplicação com o trecho em negrito e "Leve também" só com o filtro de óleo (refeito pelo D4: sem a bucha do Polo Classic e sem o kit batente, que não cita o motor) |
 | `10-sem-resultado.png` | "traseiro" no Gol 2018 1.0: nada serve; ação `Tirar o veículo` |
-| `11-sem-sinal.png` | a mesma lista sem sinal: só a barra de status muda |
+| `11-sem-sinal.png` | a mesma lista sem sinal: só a barra de status muda (refeito pelo D4) |
 | `12-carregando.png` | a lista enquanto o filtro roda |
-| `13-pedido.png` | aba Itens do Novo pedido com o veículo: a linha 3 com "✓ Compatível" ou o "Serve em" (sem o Desc./Acrésc. geral, que não muda) |
+| `13-pedido.png` | aba Itens do Novo pedido com o veículo: as peças que passam no filtro, com as duas linhas de hoje (sem o Desc./Acrésc. geral, que não muda; refeito pelo D4) |
 | `14-sem-resultado-filtro.png` | Gol 2018 1.0 com o chip `Elétrica` marcado: nada serve; ação `Limpar filtros`, que mantém o veículo |
 
 ## 1. O que o vendedor faz
 No balcão ou na oficina, o cliente diz o carro ("Gol 2018 1.0"). O vendedor escolhe o veículo uma vez e passa a ver só as peças
-que servem nele, com a certeza (`✓ Compatível`) ou o trecho da aplicação para conferir com o cliente. A busca por texto continua
-igual e soma com o veículo ("amortecedor" + Gol 2018 1.0).
+que servem nele: a peça aparece ou não aparece, sem item "de conferir" (D4). A busca por texto continua igual e soma com o
+veículo ("amortecedor" + Gol 2018 1.0).
 
 ## 2. Onde aparece
 | Superfície | Sim/não | Por quê |
@@ -98,47 +100,51 @@ quebra linha.
   (`1.0, botão`). Ao avançar, o foco vai para o rótulo do novo nível.
 
 ## 5. Lista com veículo (vitrine e seletor)
-- Entram só as peças cuja aplicação cita o modelo escolhido. O domínio do Catálogo devolve, para cada uma, **compatível** ou
-  **conferir** (regra a escrever pelo modulo-catalogo, como RN-CAT nova; premissa P2):
-  - **compatível:** a aplicação tem o ano dentro da faixa e serve em todas as opções dos níveis que o vendedor não escolheu;
-  - **conferir:** a aplicação cita o modelo, mas sem ano, ou restringe um nível que o vendedor não escolheu (ex.: só Highline,
-    sem versão escolhida).
-- Sem ano escolhido (`Ver peças` no nível Ano), nenhum item é compatível: todos vêm com o `Serve em`.
-- **Ordem:** primeiro os compatíveis, depois os de conferir; dentro de cada grupo, a ordem de hoje (§3.10 da auditoria).
-- **Cartão compatível:** `ChipEstado` pequeno (24 dp) `tom="sucesso"`, ícone `check`, texto `Compatível`, logo abaixo dos códigos.
-  Verde com texto, como pede o manual da marca §3.
-- **Cartão de conferir:** sem chip; no mesmo lugar, a linha `Serve em:` do `catalogo-aplicacao.md` §1.1 (14 `ink2`, o modelo em
-  negrito `ink`), com o trecho da aplicação que cita o modelo, sem a montadora: `Serve em: Gol 2017–2019 1.0/1.6 Highline`. Até
-  3 linhas no cartão, para o que falta conferir (aqui, a versão) não ser cortado. É o texto que o vendedor confere com o
-  cliente; a aplicação inteira fica na ficha.
-- **Trecho só com o nome do modelo** (ex.: aplicação `VW Gol`, na Pastilha de freio dianteira Gol): a linha `Serve em` **não
-  aparece**. Ela repetiria o nome do produto e a etiqueta; a falta do chip `Compatível` já diz "conferir", e a aplicação inteira
-  está na ficha. (Escolhida no lugar de `Serve em: Gol · sem ano`, que poria um texto novo para dizer o que a falta do chip já diz.)
-- O chip não repete a etiqueta: a etiqueta diz qual veículo foi escolhido; o chip diz, item a item, que a aplicação confirma o
-  ano. Ele só existe porque a lista mistura os dois casos.
+**Regra (D4, R-20261121-211000-alexandre, já no domínio do modulo-catalogo):** o filtro só restringe pelo que o vendedor
+escolheu. A peça entra quando um trecho da aplicação cita o modelo escolhido e:
+- **ano escolhido:** a faixa de ano do trecho inclui o ano. O trecho **sem ano não entra** (ex.: `VW Gol`, na Pastilha de freio
+  dianteira Gol, some no Gol 2018);
+- **ano não escolhido** (`Ver peças` no nível Ano): entram todas as peças do modelo, **inclusive as sem ano**;
+- **motor e versão** (decidido, R-20261121-211200-alexandre: a mesma regra do ano; RN-CAT-22): **escolhido**, a peça precisa
+  ter o dado no trecho e ele precisa bater; o trecho sem motor ou sem versão **não entra** (ex.: o kit batente e coifa,
+  `VW Gol 2014–2019`, sem motor, some do Gol 2018 1.0). **Não escolhido**, não filtra (`Gol 2017–2019 Highline` entra no
+  Gol 2018);
+- o nível que a cascata **preencheu sozinha** (§4.2) conta como escolhido e filtra como se o vendedor tivesse tocado
+  (decidido, R-20261121-211200-alexandre).
+
+A peça aparece ou não aparece: **não há item "de conferir"**.
+- **Cartão como hoje:** sem chip `Compatível` e sem a linha `Serve em` do veículo. A lista não mistura casos, e a etiqueta
+  `Gol 2018 1.0 ✕` já diz para qual veículo ela vale (uma informação, um lugar). A aplicação inteira fica na ficha.
+- O `Serve em` da **busca por texto** (RN-CAT-12, `catalogo-aplicacao.md` §1.1) continua como está: ele mostra onde a palavra
+  buscada bateu, não o veículo.
+- **Ordem:** a de hoje (§3.10 da auditoria).
 - Universais (aplicação sem veículo nenhum, ex.: fluido de freio) não entram na lista com veículo; voltam ao tirar o veículo.
 
 ## 6. Folha Filtrar: chips com contagem
 - Grupos, nesta ordem: **Sistema · Família · Linha · Categoria** (os nomes vêm do cadastro), e depois os de hoje (Filial, quando
-  houver mais de uma). Cada grupo em chips de marcar (`Chip` do kit, 36 dp com folga de 6 em cima e embaixo, alvo de 48; quebram linha com 12 dp
+  houver mais de uma). O rótulo do 2º grupo sai do `rotuloDoNivel` do Catálogo (`modules/catalogo/domain/hierarquia.ts`), hoje
+  **`Grupo`**; o D1 escreve "família". Fica como dúvida aberta para o dono do produto (§15, dúvida aberta 1); a simulação ainda
+  mostra `Família`. Cada grupo em chips de marcar (`Chip` do kit, 36 dp com folga de 6 em cima e embaixo, alvo de 48; quebram linha com 12 dp
   entre as linhas, para a folga caber; nada de rolagem lateral).
-- **Contagem em cada chip:** `Suspensão 3`, o número em 400 tabular e o nome em 600. Conta as peças da lista de agora (veículo,
-  busca, `Só com estoque` e os outros grupos). Leitor: `Suspensão, 3 peças`.
+- **Contagem em cada chip:** `Suspensão 2`, o número em 400 tabular e o nome em 600. Conta as peças da **lista filtrada** de
+  agora: as que passam no veículo pela regra do §5, a busca, o `Só com estoque` e os outros grupos. Leitor: `Suspensão, 2 peças`.
 - **Chip com 0 sai**, salvo o que já está marcado. **Grupo com uma opção só sai** (no Gol 2018 1.0 a Linha fica toda "Leve" e
   não aparece).
 - Rodapé como hoje: `Limpar` (neutro: desmarca os chips; **não** tira o veículo, que tem o ✕ próprio) e `Ver produtos`
   (principal, sem número).
 - Chip marcado vira `EtiquetaFiltro` na tela (`Suspensão ✕`), depois da etiqueta do veículo.
-- A contagem nos chips é o único número de quantidade da folha (decisão D1: o item 14 da v1.0.17 tirou as contagens).
+- A contagem nos chips é o único número de quantidade da folha (D1, decidido: o item 14 da v1.0.17 tirou as contagens).
 
 ## 7. Ficha do produto
 - **`✓ Compatível com Gol 2018 1.0`**: `ChipEstado` 28 dp `tom="sucesso"`, ícone `check`, na linha das etiquetas logo abaixo do
-  título (`catalogo-aplicacao.md` §3.1, item 1). Só quando há veículo escolhido e a peça é compatível. Aqui o veículo vai
-  escrito porque a ficha não mostra a etiqueta. De conferir ou que não serve: sem chip.
-- **Aplicação:** o texto de hoje, com o trecho do veículo escolhido em negrito `ink` (como o "Serve em").
-- **Leve também** (hoje "Oferece junto", RN-CAT-11; troca do título na decisão D3): com veículo, só os itens que servem nele
-  (compatíveis ou universais); some o que tem aplicação e não serve. Sem nenhum que sirva, a seção não aparece. Sem veículo, a
-  lista de hoje. Linha como hoje (nome, código, chevron; abre a ficha), sem chip por linha: a seção inteira já é do veículo.
+  título (`catalogo-aplicacao.md` §3.1, item 1). Só quando há veículo escolhido e a peça passa no filtro (regra do §5). Aqui o
+  veículo vai escrito porque a ficha não mostra a etiqueta. Peça que não passa (aberta por outro caminho): sem chip.
+- **Aplicação:** o texto de hoje, com o trecho do veículo escolhido em negrito `ink`, quando a peça passa no filtro.
+- **Leve também** (hoje "Oferece junto", RN-CAT-11; troca do título decidida no D3): com veículo, só as peças que passam no
+  filtro (regra do §5) e as universais; some o que tem aplicação e não passa. No Gol 2018 1.0, o amortecedor Gol G5 leva só o
+  filtro de óleo: a bucha do Polo Classic e o kit batente (aplicação `VW Gol 2014–2019`, sem motor) saem. Sem nenhuma que
+  passe, a seção não aparece. Sem veículo, a lista de hoje. Linha como hoje (nome, código, chevron; abre a ficha), sem chip
+  por linha: a seção inteira já é do veículo.
 - O principal da ficha continua um só (`Adicionar ao orçamento`).
 
 ## 8. Novo pedido, aba Itens (modulo-vendedor)
@@ -146,9 +152,9 @@ quebra linha.
   (RN-VEN-42); o veículo **não gera alerta** nenhum.
 - **Com veículo e sem texto:** a lista mostra as peças do veículo (no lugar dos itens do pedido); tirar o veículo volta aos itens
   do pedido (`pedido-v4.md` §5.3).
-- Linha do produto: as duas linhas de hoje e, **só com veículo**, a linha 3: `✓ Compatível` (chip pequeno) ou
-  `Serve em: <trecho>` (o trecho do §5, até 2 linhas, reticências; sem a linha quando o trecho é só o nome do modelo, §5). É a
-  mesma linha condicional do `catalogo-aplicacao.md` §1.3.
+- Com veículo, entram as peças pela mesma regra do §5 (a peça aparece ou não aparece), na ordem de hoje.
+- Linha do produto: as duas linhas de hoje, **sem linha 3** com veículo: sem chip `Compatível` e sem o `Serve em` do veículo
+  (a etiqueta já diz o veículo, §5). O `Serve em` da busca por texto (`catalogo-aplicacao.md` §1.3, RN-CAT-12) continua.
 - O `+`, o lápis e o `Mostrar mais` não mudam. O principal da tela continua o `Avançar`.
 
 ## 9. Estados
@@ -157,7 +163,7 @@ quebra linha.
 | vazio, sem veículo (`vitrine`) | a lista de hoje; botão Veículo sem destaque | abre em Montadora, com Recentes se houver |
 | catálogo sem veículo nas aplicações | sem botão Veículo | — |
 | sem resultado (`sem-resultado`) | `EstadoVazio` (ícone `search`), título `Nada encontrado para "traseiro"` (sem texto buscado, só com o veículo e o `Só com estoque`: `Nenhum produto com esses filtros`), **sem apoio** (o veículo já está na etiqueta), ação `Tirar o veículo` (secundário 44). Com chip marcado na Filtrar (`sem-resultado-filtro`): o mesmo título, **sem apoio** e a ação `Limpar filtros` (secundário 44), que desmarca os chips e mantém o veículo; se ainda não houver peça, entra o caso acima, com `Tirar o veículo`. O apoio do caso 1 do `catalogo-busca-vazio.md` ("Tire o filtro para procurar em todo o catálogo") só vale sem veículo, porque com ele o `Limpar filtros` não abre o catálogo todo | busca sem modelo: `Nenhum modelo com "xyz".` |
-| sem sinal (`sem-sinal`) | **igual**: a cascata, o "Compatível" e os chips saem do catálogo do aparelho (busca FTS5 local). Nenhum texto novo; o aviso da busca, se houver, é o de hoje | igual |
+| sem sinal (`sem-sinal`) | **igual**: a cascata, a lista filtrada, o "Compatível com" da ficha e os chips saem do catálogo do aparelho (busca FTS5 local). Nenhum texto novo; o aviso da busca, se houver, é o de hoje | igual |
 | primeira carga sem sinal | `CatalogoCarregando` de hoje; o botão Veículo só aparece quando o catálogo estiver no aparelho | — |
 | carregando (`carregando`) | a lista some e entra o `Loading` do kit no lugar dela, só se o filtro passar de 300 ms; sem texto | nível que passa de 300 ms: `Loading embutido` no lugar das opções |
 
@@ -165,7 +171,7 @@ quebra linha.
 | Caminho | Toques até a lista do veículo |
 |---|---|
 | veículo recente | **2**: Veículo, o recente |
-| modelo pela busca da folha | **3**: Veículo, `Gol` (depois de digitar), `Ver peças`; sem o ano, todos vêm com o `Serve em` (§5). Com o ano, 4 |
+| modelo pela busca da folha | **3**: Veículo, `Gol` (depois de digitar), `Ver peças`; sem o ano, entram todas as peças do Gol, inclusive as sem ano (§5). Com o ano, 4 |
 | cascata até o ano | 4: Veículo, Volkswagen, Gol, 2018 (com motor e versão de uma opção só, o ano já fecha) |
 | cascata completa | até 6: + motor + versão; cada nível depois do Ano é opcional (`Ver peças`) |
 | busca por texto, sem a folha | 0 toques: `gol 2018` na busca da tela continua achando (etapas 1 a 4) |
@@ -180,12 +186,12 @@ quebra linha.
 | `FolhaCascata` | folha de níveis com trilha, busca, recentes, linhas de opção de 48 dp (nome e apoio opcional, chevron quando há próximo nível) e grade; só apresentação: quem diz os níveis, as opções e o que se preenche sozinho é o domínio do Catálogo | **novo** |
 | `GradeOpcoes` | a grade de 4 colunas do Ano | **novo** (dentro da `FolhaCascata`) |
 | `Chip` com `contagem` | folha Filtrar | ajuste |
-| `ChipEstado` `tom="sucesso"` `icone="check"` | cartão, linha do seletor e ficha | não |
+| `ChipEstado` `tom="sucesso"` `icone="check"` | ficha (`Compatível com …`) | não |
 | `EstadoVazio`, `Loading`, `CatalogoCarregando` | estados | não |
 
 Tokens: `colors.ink`, `ink2`, `ink3`, `line`, `lineStrong`, `accent`, `accentSoft`, `accentInk`, `success`, `successBg`,
 `surface`, `ground`; `radius` (folha 22, botão 14/12, cartão 14); `layout.telaLateral` 20; `ALTURA.toque` 48,
-`chipEstado` 28, `chipEstadoPequeno` 24; movimento `avancar` 240 ms e `folha` 280 ms (`movimento.ts`). Nenhuma cor nova.
+`chipEstado` 28; movimento `avancar` 240 ms e `folha` 280 ms (`movimento.ts`). Nenhuma cor nova.
 
 ## 12. Textos (todos)
 | Lugar | Texto |
@@ -194,35 +200,45 @@ Tokens: `colors.ink`, `ink2`, `ink3`, `line`, `lineStrong`, `accent`, `accentSof
 | botão (leitor de tela) | `Veículo` · `Veículo: <montadora> <modelo> <ano> <motor> <versão>` |
 | etiqueta | `<modelo> <ano> <motor> <versão>` · leitor `Remover veículo <montadora> <modelo> …` |
 | folha | título `Veículo` · busca `Modelo ou montadora` · `Recentes` · `Montadora` · `Modelo` · `Ano` · `Motor` · `Versão` · `Ver peças` · `Nenhum modelo com "<texto>".` |
-| cartão e linha do seletor | `Compatível` · `Serve em: <trecho do modelo, sem a montadora>` |
 | ficha | `Compatível com <modelo> <ano> <motor> <versão>` · `Leve também` |
 | sem resultado | `Nada encontrado para "<texto>"` · `Nenhum produto com esses filtros` · `Tirar o veículo` · `Limpar filtros` (com chip marcado) |
-| folha Filtrar | `Sistema` · `Família` · `Linha` · `Categoria` · `<nome> <n>` · leitor `<nome>, <n> peças` |
+| folha Filtrar | `Sistema` · `Grupo` (o `rotuloDoNivel`; `Família` no D1, dúvida aberta 1) · `Linha` · `Categoria` · `<nome> <n>` · leitor `<nome>, <n> peças` |
 
-Regras seguidas: uma informação, um lugar (o veículo só na etiqueta, e na ficha só no chip); nenhum aviso fora dos Alertas
+Regras seguidas: uma informação, um lugar (o veículo só na etiqueta, sem chip nem `Serve em` do veículo na lista, e na ficha
+só no chip); nenhum aviso fora dos Alertas
 (RN-VEN-42: o veículo não gera aviso); nenhum texto sobre o que o sistema faz por trás (sem "lido da aplicação", "no aparelho",
 "sem internet funciona").
 
 ## 13. Fora do escopo
-Contrato de API e índice de veículos (engenheiro-software, modulo-catalogo), a regra de compatível/conferir no domínio
-(modulo-catalogo), o veículo estruturado do ERP (etapa 5, a levantar) e a **placa** (etapa 7).
+Contrato de API e índice de veículos (engenheiro-software, modulo-catalogo), a regra do filtro no domínio
+(modulo-catalogo, já feita pelo D4), o veículo estruturado do ERP (etapa 5, a levantar) e a **placa** (etapa 7).
 
 ## 14. Premissas
 - **P1.** Os veículos, anos, motores e versões da simulação são **fictícios**: a etapa 5 (veículo estruturado do ERP) está "a
   levantar". Até lá, a cascata sai das aplicações em texto, lidas pelas etapas 1 a 4 da auditoria.
-- **P2.** A diferença entre compatível e conferir (§5) é calculável pelo domínio a partir da aplicação; a regra é do
-  modulo-catalogo.
+- **P2.** Se a peça passa no filtro (§5) é calculável pelo domínio a partir da aplicação; a regra é do modulo-catalogo.
 - **P3.** O botão aparece pelo dado (há veículo nas aplicações), sem parâmetro novo do tenant.
 - **P4.** A busca online e a do aparelho dão o mesmo resultado com veículo, como já dão sem ele (auditoria §8).
 - **P5.** O veículo é só filtro: não é gravado no pedido.
 
-## 15. Decisões para o dono do produto
-- **D1. Contagem nos chips da Filtrar:** a v1.0.17 (item 14) tirou toda contagem da tela e da folha. O modelo BAP põe a
-  contagem nos chips. Proposta: contagem **só nos chips** da folha Filtrar, para o vendedor não marcar o que não tem peça; o
-  botão continua `Ver produtos`, sem número.
-- **D2. Botão Veículo fora da Filtrar** (3ª exceção do filtro padrão, §3). Alternativa: o Veículo como 1º grupo da folha Filtrar,
-  com um toque a mais em todos os caminhos do §10.
-- **D3. "Oferece junto" passa a se chamar "Leve também"** na ficha, com ou sem veículo. Se preferir manter o nome, a regra do §7
-  vale igual.
-- **D4. Itens de conferir na lista** (§5): mostrar no fim, sem o chip (proposta), ou esconder e mostrar só os compatíveis.
-- **D5. BKO:** nada nesta etapa (§2). Depois, se quiser, a lista dos veículos lidos na seção Catálogo do cadastro.
+## 15. Decisões do dono do produto
+- **D1. Contagem nos chips da Filtrar** (decidido, R-20261120-234013-alexandre): contagem **só nos chips** da folha Filtrar,
+  para o vendedor não marcar o que não tem peça; o botão continua `Ver produtos`, sem número (§6).
+- **D2. Botão Veículo fora da Filtrar** (decidido, R-20261120-234013-alexandre): 3ª exceção do filtro padrão, ao lado da
+  busca (§3).
+- **D3. "Oferece junto" passa a se chamar "Leve também"** (decidido, R-20261120-234013-alexandre) na ficha, com ou sem
+  veículo (§7).
+- **D4. Itens sem o dado do que foi escolhido** (decidido, R-20261121-211000-alexandre): o texto do dono do produto é "se ele
+  pesquisasse com o ano, as pecas sem ano não apareceriam. Mas se ele pesquisou sem ano, todas, mesmos as sem anos devem
+  aparecer". O filtro só restringe pelo que foi escolhido; a peça aparece ou não aparece, sem "de conferir", sem o chip
+  `Compatível` e sem o `Serve em` do veículo na lista (§5, §8). A ficha mantém o `✓ Compatível com …` (§7).
+- **D5. BKO** (decidido, R-20261120-234013-alexandre): nada nesta etapa (§2).
+- **D6. Motor e versão** (decidido, R-20261121-211200-alexandre; RN-CAT-22): a mesma regra do ano. Campo escolhido: a peça
+  precisa ter o dado e ele precisa bater; campo não escolhido: não filtra. No Gol 2018 1.0, o kit batente e coifa
+  (`VW Gol 2014–2019`, sem motor) sai da lista e do "Leve também" (§5, §7).
+- **D7. Nível preenchido sozinho** (decidido, R-20261121-211200-alexandre; RN-CAT-22): o nível que a cascata preenche sozinha
+  (§4.2) conta como escolhido e filtra (§5).
+
+### Dúvida aberta (para o dono do produto)
+1. **Rótulo do 2º grupo da Filtrar** (§6): o `rotuloDoNivel` do Catálogo diz `Grupo`; o D1 escreve "família". Qual vale na
+   folha?
