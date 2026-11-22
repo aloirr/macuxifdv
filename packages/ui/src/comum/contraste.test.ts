@@ -37,6 +37,7 @@ describe('marca v1 (T-0172): paleta e contraste do manual §3', () => {
       azulSuave: '#DFE2E6',
       nevoa: '#ECEEF1',
       claroNaFaixa: '#C9CED5',
+      campo: '#7A8593',
       azulClaro: '#9AA3B0',
     });
   });
@@ -53,6 +54,11 @@ describe('marca v1 (T-0172): paleta e contraste do manual §3', () => {
     expect(GRAFICO).toEqual({ cor: '#C2540A', sobreEscuro: '#F59A52' });
     expect(FUNDOS).toEqual({ ground: '#F8F6F1', surface: '#FFFFFF', ink: '#16202A', faixa: '#1E3350' });
     expect(FAIXA).toEqual({ fundo: '#1E3350', titulo: '#FFFFFF', subtitulo: '#C9CED5', trilho: '#3A4D68', feito: '#7FD1A8', erro: '#F7A59C' });
+  });
+
+  it('borda dos campos (Campo #7A8593) atinge 3:1 no branco, no Pérola e na Névoa', () => {
+    expect([MARCA.branco, MARCA.perola, MARCA.nevoa].map((bg) => razaoTexto(MARCA.campo, bg))).toEqual(['3,75:1', '3,47:1', '3,22:1']);
+    for (const bg of [MARCA.branco, MARCA.perola, MARCA.nevoa]) expect(contraste(MARCA.campo, bg)).toBeGreaterThanOrEqual(MINIMO_CONTRASTE.grafico);
   });
 
   it('mínimos do WCAG AA: 4,5 texto, 3 texto grande e gráfico', () => {

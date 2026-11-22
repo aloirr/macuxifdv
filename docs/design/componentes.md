@@ -17,6 +17,7 @@
 | `colors.ink` | `#16202A` | texto, botão secundário (borda), cartão escuro (recado), aviso no rodapé |
 | `colors.ground` | `#F8F6F1` Pérola | fundo das telas |
 | `colors.surface` | `#FFFFFF` | cartões, folha, barra de abas |
+| `colors.lineStrong` | `#7A8593` Campo | borda de campo e controle (≥ 3:1 no branco, Pérola e Névoa) |
 | `colors.ink2` / `ink3` | `#4A5562` / `#5B6673` | texto secundário / terciário (≥ 4,5:1 no branco e no Pérola) |
 
 **Fonte do sistema** (R-20261115-110600, v1.0.13): famílias, pesos e escala estão no **[manual da marca §5](../marca/manual.md#5-tipografia)**,

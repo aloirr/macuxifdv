@@ -282,7 +282,7 @@ export function EstadoVazio({ titulo, acao, testId, semBorda = false }: { titulo
   return (
     <div
       data-testid={testId}
-      className={cx('flex flex-col items-center gap-3 px-6 py-10 text-center', !semBorda && 'rounded-2xl border border-dashed border-field')}
+      className={cx('flex flex-col items-center gap-3 px-6 py-10 text-center', !semBorda && 'rounded-2xl border border-dashed border-line')}
     >
       <span className="text-[15px] font-semibold text-ink-2">{titulo}</span>
       {acao}
@@ -303,18 +303,32 @@ export function Bar({ pct, colorClass, min = 80 }: { pct: number; colorClass: st
 
 type Variant = 'primary' | 'secondary' | 'link' | 'danger';
 
-export function Button({ variant = 'secondary', className, size = 'md', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }) {
+/**
+ * Desabilitado (RD-2619; docs/design/componentes.md, "Botão desabilitado no web"): um padrão só, o do app — Névoa
+ * (`neutral-soft`, #ECEEF1) com texto de apoio (`texto-apoio`, #5B6673, 5,03:1), sem transparência, cursor not-allowed.
+ * Sai o `bg-disabled` (#8B96A3) com texto branco (3,00:1). O link desabilitado só troca a cor do texto (5,84:1 no branco).
+ */
+const DESABILITADO_CHEIO = 'disabled:border-transparent disabled:bg-neutral-soft disabled:text-texto-apoio';
+
+/** Classes do botão do kit web, sem hooks (testável sem DOM). */
+export function classesDoBotao(variant: Variant = 'secondary', size: 'sm' | 'md' = 'md'): string {
   const base = 'inline-flex items-center justify-center gap-1.5 font-semibold transition-colors disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
   const sizes = size === 'sm' ? 'h-[38px] rounded-[10px] px-3 text-[15px]' : 'h-[42px] rounded-xl px-4 text-[15px]';
   const variants: Record<Variant, string> = {
     // T-0172 (marca v1): o principal é Azul noite (accent), texto branco 12,77:1
-    primary: 'bg-accent text-white hover:bg-accent/90 disabled:bg-disabled',
-    secondary: 'border border-field bg-surface text-ink hover:bg-ground disabled:text-disabled',
-    danger: 'bg-danger text-white hover:bg-[#8d1f16] disabled:bg-disabled',
+    primary: `bg-accent text-white hover:bg-accent/90 ${DESABILITADO_CHEIO}`,
+    secondary: `border border-field bg-surface text-ink hover:bg-ground ${DESABILITADO_CHEIO}`,
+    danger: `bg-danger text-white hover:bg-[#8d1f16] ${DESABILITADO_CHEIO}`,
     // Link em accent-ink (Azul noite, 11,82:1 no Pérola). Hover: sublinhado.
-    link: 'h-auto px-0 text-accent-ink underline-offset-2 hover:underline disabled:text-disabled disabled:no-underline',
+    link: 'h-auto px-0 text-accent-ink underline-offset-2 hover:underline disabled:text-texto-apoio disabled:no-underline',
   };
-  return <button type="button" className={cx(base, variant === 'link' ? 'text-[15px]' : sizes, variants[variant], className)} {...rest} />;
+  return cx(base, variant === 'link' ? 'text-[15px]' : sizes, variants[variant]);
+}
+
+export function Button({ variant = 'secondary', className, size = 'md', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }) {
+  // `aria-disabled` acompanha o `disabled` nativo (leitor de tela lê "indisponível"); quem chama pode passar o seu.
+  const ariaDisabled = rest['aria-disabled'] ?? (rest.disabled ? true : undefined);
+  return <button type="button" className={cx(classesDoBotao(variant, size), className)} {...rest} aria-disabled={ariaDisabled} />;
 }
 
 /* ---------- avisos ---------- */

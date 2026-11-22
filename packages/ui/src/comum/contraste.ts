@@ -59,8 +59,10 @@ export const MARCA = {
   azulSuave: '#DFE2E6',
   /** Névoa (MC-0004 B, 14/11/2026): linha suave, chip neutro, botão desabilitado, avatar, fundo do mapa */
   nevoa: '#ECEEF1',
-  /** subtítulo dentro do cabeçalho Azul noite; borda forte (campo, linha forte, borda do mapa) */
+  /** subtítulo dentro do cabeçalho Azul noite */
   claroNaFaixa: '#C9CED5',
+  /** borda dos campos e controles (WCAG 1.4.11: ≥ 3:1 no branco, no Pérola e na Névoa) */
+  campo: '#7A8593',
   /** azul sobre o grafite (menu do BKO) */
   azulClaro: '#9AA3B0',
 } as const;
