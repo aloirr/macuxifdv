@@ -20,6 +20,7 @@ import { fichaExemplo, PLANOS_EXEMPLO } from '@/lib/portal-planos.fixture';
 import { AbaEmpresa } from './aba-empresa';
 import { CartaoPlano, chaveDaFicha, DialogoTrocarPlano } from './cartao-plano';
 import { NovaEmpresa } from './passo-empresa';
+import { PassoEmpresa } from './passo-empresa-legado';
 import { CHAVE_PLANOS } from './seletor-plano';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: () => undefined, replace: () => undefined }) }));
@@ -112,7 +113,28 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
     expect(html).not.toContain('empresa-plano.trocar');
     expect(html).not.toContain('empresa-plano.cartao');
     expect(html).toContain('data-testid="empresa-admins"');
-    expect(html).toContain('data-testid="so-sem-plano"');
+    // o "Acrescentar módulos" fica dentro do cartão "Módulos licenciados", antes da coluna da direita (RD-2613)
+    expect(html.indexOf('data-testid="so-sem-plano"')).toBeGreaterThan(html.indexOf('data-testid="empresa-pagina.modulos"'));
+    expect(html.indexOf('data-testid="so-sem-plano"')).toBeLessThan(html.indexOf('data-testid="empresa-pagina.coluna-direita"'));
+    // nome do mapa único do kit, sem os nativos (RD-2617)
+    expect(html).not.toContain('>Core<');
+  });
+  it('empresa sem plano, passo antigo: só as caixas dos módulos não licenciados e "Acrescentar módulos" (RD-2613)', () => {
+    const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: '11222333000181', fuso: 'America/Manaus', modulos: [...MODULOS, { modulo: 'catalogo' as const, licencas: null }] };
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={existente.modulos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    for (const m of ['gestor', 'pesquisa', 'promotor', 'treinamento']) expect(html).toContain(`data-testid="empresa.modulo-${m}"`);
+    for (const m of ['vendedor', 'core', 'catalogo', 'integracao']) expect(html).not.toContain(`data-testid="empresa.modulo-${m}"`);
+    for (const t of ['empresa.razao-social', 'empresa.cnpj', 'empresa.codigo', 'empresa.fuso', 'empresa.admin', 'empresa.conferir']) expect(html).not.toContain(`data-testid="${t}"`);
+    expect(html).not.toMatch(/Módulos e licenças|Administrador da empresa|Conferir sem gravar/);
+    expect(html).toContain('>Acrescentar módulos<');
+    expect(html.match(/>Vendedor/g)).toHaveLength(1);
+  });
+  it('empresa sem plano com tudo licenciado: só os selos, sem o formulário', () => {
+    const todos = (['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const).map((modulo) => ({ modulo, licencas: null }));
+    const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: null, fuso: 'America/Manaus', modulos: todos };
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    expect(html).not.toContain('empresa.form');
+    expect(html).toContain('>Treinamento<');
   });
   it('servidor sem planos (MACUXI_PLANOS desligado, 404 de rota): o mesmo cartão, também para o admin do cliente', () => {
     for (const timeMacuxi of [true, false]) {
@@ -135,6 +157,10 @@ describe('Nova empresa sem planos', () => {
     expect(html).not.toContain('empresa.plano-');
     expect(html).not.toContain('empresa.cnpj-estado');
     expect(html).toContain('data-testid="empresa.modulo-vendedor"');
+    // empresa nova: Empresa, Administrador (o bloco comum, RD-2620), módulos sem os nativos e o "Conferir sem gravar"
+    for (const t of ['empresa.razao-social', 'empresa.admin', 'empresa.admin-senha', 'empresa.conferir']) expect(html).toContain(`data-testid="${t}"`);
+    for (const m of ['core', 'catalogo', 'integracao']) expect(html).not.toContain(`data-testid="empresa.modulo-${m}"`);
+    expect(html).toContain('>Criar empresa<');
   });
   it('com o catálogo: Plano, Adicionais e Ciclo', () => {
     const html = renderizar(<NovaEmpresa />);

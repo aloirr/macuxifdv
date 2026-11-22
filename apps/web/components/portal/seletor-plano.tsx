@@ -38,9 +38,6 @@ export function usePlanos() {
 /** Caixa de marcar do portal: branca, borda e ✓ em Azul noite (§11.3, MC-0028). */
 export const caixaCss = 'h-[18px] w-[18px] shrink-0 accent-accent';
 
-/** Principal desabilitado do portal: Névoa `#ECEEF1` com texto `#5B6673` (§11.2; `componentes.md` §5.3, MC-0041). */
-export const principalDesabilitadoCss = 'disabled:bg-neutral-soft! disabled:text-texto-apoio!';
-
 const qtdCss =
   'h-9 w-[88px] rounded-xl border border-field bg-surface px-3 text-[15px] text-ink tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger';
 
@@ -57,10 +54,13 @@ function PrecoDoPlano({ plano, ciclo }: { plano: Plano; ciclo: Ciclo }) {
   );
 }
 
-/** Os cartões de plano (rádio). `atual` = plano de hoje, com o selo "Atual" e as licenças em duas linhas (diálogo). */
+/**
+ * Os cartões de plano (rádio). `atual` = plano de hoje, com o selo "Atual" e as licenças em duas linhas, e os planos sempre 2 × 2
+ * (diálogo "Trocar de plano", §11.4: a largura do `Dialog` do kit não cabe 4 preços numa linha).
+ */
 export function EscolhaDoPlano({ planos, escolha, aoMudar, erro, atual }: { planos: readonly Plano[]; escolha: EscolhaDaTela; aoMudar: (e: EscolhaDaTela) => void; erro?: string; atual?: string }) {
   return (
-    <div role="radiogroup" aria-label={TEXTOS_PLANO.plano} aria-invalid={erro ? true : undefined} className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div role="radiogroup" aria-label={TEXTOS_PLANO.plano} aria-invalid={erro ? true : undefined} className={cx('grid grid-cols-2 gap-3', atual === undefined && 'md:grid-cols-4')}>
       {planosVisiveis(planos, atual).map((p) => {
         const on = escolha.plano === p.codigo;
         const [linha1, linha2] = licencasDoPlanoEmDuasLinhas(p);

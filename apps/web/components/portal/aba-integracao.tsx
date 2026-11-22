@@ -4,7 +4,7 @@
  * Aba "Integração" do portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §10.2; R-20261114-132000 e R-20261114-170200):
  * ou é Conector, ou é API, em dois lados com a mesma largura e uma divisória de 1 px no meio (`line`), com 24 px de folga para cada
  * lado; abaixo de 768 px, empilhados (Conector primeiro) com a divisória na horizontal, 24 px antes da API.
- * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar e colar a credencial) e a
+ * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar o Conector) e a
  *   tabela "Conectores" (tipos `conector` e `arquivo`; só o `conector` tem "Bases" e "Gerar nova chave").
  * - "Integração via API": "Gerar a credencial" (botão neutro) pela mesma rota com `tipo: 'nuvem'`, escolhendo entre as bases livres e
  *   se envia os pedidos; o cartão "Guia" (botão do PDF pela rota pública `GUIA_PDF_HUB`; link do OpenAPI 3.1) e a tabela "Credenciais".
@@ -23,10 +23,10 @@ import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel, Tab
 import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
 import { NOME_DA_BASE } from '@/lib/portal-bases';
 import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
+import { principalDesabilitadoCss } from '@/lib/portal-estilos';
 import { ENCAIXE_API_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { BaixarPacote } from './baixar-conector';
-import { principalDesabilitadoCss } from './seletor-plano';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
@@ -63,11 +63,12 @@ export function mensagemSemBases(temArquivo: boolean): string {
 }
 
 /**
- * O que deixa de acontecer ao desativar: o Conector de arquivo recusa as cargas por CSV (a API só aceita lote de Conector de
- * arquivo ativo, RN-INT-13); o do ERP para de enviar as bases e, só se recebe pedidos, de buscá-los.
+ * O texto do "Desativar", só o que muda para quem age: o Conector de arquivo (sem CSV no portal) solta as bases dele para outro
+ * Conector ou credencial (RN-INT-13); a credencial de API passa a ser recusada; o do ERP para de enviar as bases e, só se recebe
+ * pedidos, de buscá-los.
  */
 export function corpoDesativar(c: { tipo: string; recebe_pedidos: boolean }): string {
-  if (c.tipo === 'arquivo') return 'A carga por CSV deixa de funcionar nesta empresa.';
+  if (c.tipo === 'arquivo') return 'As bases dele ficam livres para outro Conector ou credencial.';
   if (c.tipo === 'nuvem') return 'As chamadas com esta chave passam a ser recusadas.';
   return c.recebe_pedidos ? 'Ele para de enviar as bases e de buscar os pedidos.' : 'Ele para de enviar as bases.';
 }
@@ -596,7 +597,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
         <Panel title={<Passo n={2}>Gerar a credencial</Passo>}>
           <GerarCredencial tenant={tenant} tipo="conector" todos={todos} carregando={q.isPending} principal escolheBases={false} inicial={{ identificador: 'erp', nome: 'Conector do ERP', recebePedidos: true }} testId="integracao." aoCriar={aoMudar} />
         </Panel>
-        <Panel title={<Passo n={3}>Instalar e colar a credencial</Passo>}>
+        <Panel title={<Passo n={3}>Instalar o Conector</Passo>}>
           <ol className="m-0 list-decimal space-y-0.5 pl-5 text-[15px]">
             <li>Instale o Conector no servidor do ERP.</li>
             <li>Cole o identificador e a chave na configuração.</li>

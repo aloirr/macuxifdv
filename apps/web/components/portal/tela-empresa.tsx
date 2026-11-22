@@ -7,7 +7,8 @@
  * (R-20261114-132000). A aba fica no `#` do endereço (o F5 volta nela; o `#bases` antigo cai na Integração). testIDs: empresa-pagina.*.
  * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
  * na aba Empresa, só vê: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
- * Empresa sem plano (ficha 404): o time da Macuxi acrescenta módulos pelo passo antigo (`semPlano`), embaixo das colunas.
+ * Empresa sem plano (ficha 404): o time da Macuxi acrescenta módulos pelo passo antigo (`semPlano`), dentro do cartão "Módulos
+ * licenciados" (RD-2613).
  * Logo e Nome fantasia (T-0182, `CartoesMarca`): só o time da Macuxi grava. Apps (T-0190): link temporário dos APKs (`BaixarPacote`).
  */
 import { useRouter } from 'next/navigation';

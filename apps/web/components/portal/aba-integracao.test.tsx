@@ -114,7 +114,7 @@ describe('aba Integração em dois lados', () => {
   });
 
   it('Conector: passos 1 a 3 na ordem, botão principal no passo 2 e "Conectores" com o do ERP e o de arquivo', () => {
-    const ordem = ['1 Baixar o Conector', '2 Gerar a credencial', '3 Instalar e colar a credencial', 'Conectores'].map((x) => t.indexOf(x));
+    const ordem = ['1 Baixar o Conector', '2 Gerar a credencial', '3 Instalar o Conector', 'Conectores'].map((x) => t.indexOf(x));
     expect(ordem.every((i) => i >= 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
     expect(t).toContain('Instale o Conector no servidor do ERP. Cole o identificador e a chave na configuração. Inicie o serviço.');
@@ -210,13 +210,13 @@ describe('nova chave e desativar (S10)', () => {
     expect((await responderFalso('POST', ROTAS_PORTAL.chaveConector(criado.conector.id), {}, f.cab)).status).toBe(409);
   });
 
-  it('desativar pede confirmação, com o texto pelo tipo: bases e pedidos, só as bases, ou a carga por CSV', () => {
+  it('desativar pede confirmação, com o texto pelo tipo: bases e pedidos, só as bases, ou as bases livres (Conector de arquivo)', () => {
     const html = renderToStaticMarkup(<DialogoConector alvo={conector(1, 'erp')} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
     expect(html).toContain('Desativar o Conector erp?');
     expect(html).toMatch(/data-testid="integracao.acao-confirmar-desativar"[^>]*>Desativar</);
     expect(html).toContain('Ele para de enviar as bases e de buscar os pedidos.');
     expect(corpoDesativar({ tipo: 'conector', recebe_pedidos: false })).toBe('Ele para de enviar as bases.');
-    expect(corpoDesativar({ tipo: 'arquivo', recebe_pedidos: false })).toBe('A carga por CSV deixa de funcionar nesta empresa.');
+    expect(corpoDesativar({ tipo: 'arquivo', recebe_pedidos: false })).toBe('As bases dele ficam livres para outro Conector ou credencial.');
   });
 
   it('sem bases livres: a mensagem só com a ação que libera ("Bases" ou desativar; o de arquivo, desativar)', () => {

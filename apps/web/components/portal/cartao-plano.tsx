@@ -8,12 +8,13 @@
  * na linha do título. `GET`/`PUT rotaPortalAssinatura` (`FichaAssinaturaSchema`, `TrocarPlanoSchema` com `pedido_id`).
  * testIDs: empresa-plano.*.
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FichaAssinaturaSchema, type FichaAssinatura, type Plano } from '@macuxi/platform-sdk';
-import { Badge, Button, cx, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
+import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
 
 import { chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL } from '@/lib/portal-api';
+import { principalDesabilitadoCss } from '@/lib/portal-estilos';
 import { diaCivil } from '@/lib/portal-formato';
 import {
   blocosDaFicha,
@@ -32,7 +33,7 @@ import {
 } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AdicionaisEmLinhas, AlternadorCiclo, EscolhaDoPlano, IconeDoAdicional, principalDesabilitadoCss, usePlanos } from './seletor-plano';
+import { AdicionaisEmLinhas, AlternadorCiclo, EscolhaDoPlano, IconeDoAdicional, usePlanos } from './seletor-plano';
 
 export const chaveDaFicha = (tenant: string) => ['portal', tenant, 'assinatura'] as const;
 
@@ -144,13 +145,12 @@ export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: str
   );
 }
 
-const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 /**
  * Diálogo "Trocar de plano" (§11.4): os planos (o atual com "Atual" e já escolhido), os adicionais em linhas, o alternador
- * Mensal/Anual numa linha própria (MC-0050) e o rodapé só com Total, "Cancelar" e "Trocar para {plano}". 880 px no desktop; folha
- * de tela cheia abaixo de 768 px. Esc e "Cancelar" fecham sem gravar; o Tab fica dentro do diálogo. Plano abaixo do uso
- * (RN-PLA-05): as frases do contrato embaixo dos planos e o principal desabilitado; a API revalida (422).
+ * Mensal/Anual numa linha própria (MC-0050) e o rodapé só com Total, "Cancelar" e "Trocar para {plano}". O `Dialog` do kit (RD-2616),
+ * na maior largura que ele tem (`larga`, 720 px; os 880 px da spec ficam com o kit), folha abaixo de 640 px; Esc e "Cancelar" fecham
+ * sem gravar (não durante o envio) e o kit prende o Tab. Plano abaixo do uso (RN-PLA-05): as frases do contrato embaixo dos planos e
+ * o principal desabilitado; a API revalida (422).
  */
 export function DialogoTrocarPlano({ tenant, ficha, aoFechar, aoTrocar }: { tenant: string; ficha: FichaAssinatura; aoFechar: () => void; aoTrocar: (nome: string) => void }) {
   const qc = useQueryClient();
@@ -159,35 +159,9 @@ export function DialogoTrocarPlano({ tenant, ficha, aoFechar, aoTrocar }: { tena
   const [pedidoId] = useState(() => crypto.randomUUID());
   const [enviando, setEnviando] = useState(false);
   const [erroApi, setErroApi] = useState<string[] | null>(null);
-  const idTitulo = useId();
-  const caixa = useRef<HTMLDivElement>(null);
-  const fecharRef = useRef(aoFechar);
-  useEffect(() => {
-    fecharRef.current = enviando ? () => undefined : aoFechar;
-  }, [enviando, aoFechar]);
-
-  useEffect(() => {
-    const antes = document.activeElement as HTMLElement | null;
-    caixa.current?.querySelector<HTMLElement>('input:checked, input, button')?.focus({ preventScroll: true });
-    const tecla = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return fecharRef.current();
-      if (e.key !== 'Tab' || !caixa.current) return;
-      const lista = Array.from(caixa.current.querySelectorAll<HTMLElement>(FOCAVEIS));
-      const i = lista.indexOf(document.activeElement as HTMLElement);
-      const alvo = e.shiftKey ? (i <= 0 ? lista.length - 1 : null) : i === lista.length - 1 || i < 0 ? 0 : null;
-      if (alvo === null) return;
-      e.preventDefault();
-      lista[alvo]?.focus();
-    };
-    document.addEventListener('keydown', tecla);
-    const rolagem = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', tecla);
-      document.body.style.overflow = rolagem;
-      antes?.focus?.();
-    };
-  }, []);
+  const fechar = () => {
+    if (!enviando) aoFechar();
+  };
 
   const lista: readonly Plano[] = planos.data ?? [];
   const plano = lista.find((p) => p.codigo === escolha.plano) ?? null;
@@ -219,54 +193,47 @@ export function DialogoTrocarPlano({ tenant, ficha, aoFechar, aoTrocar }: { tena
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-ink/45 md:items-center md:p-4" onMouseDown={(e) => e.target === e.currentTarget && fecharRef.current()}>
-      <div
-        ref={caixa}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={idTitulo}
-        data-testid="empresa-plano.dialogo"
-        className="flex h-full w-full flex-col overflow-hidden bg-surface shadow-xl md:h-auto md:max-h-full md:max-w-[880px] md:rounded-2xl"
-      >
-        <h2 id={idTitulo} className="m-0 shrink-0 px-5 pt-5 pb-3 text-[20px] font-bold md:px-6">
-          {TEXTOS_PLANO.trocar}
-        </h2>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 pb-2 md:px-6">
-          {planos.isPending && <LoadingBlock label={TEXTOS_PLANO.buscandoPlanos} />}
-          {planos.isError && <ErrorBlock message={ehRotaAusente(planos.error) ? TEXTO_INDISPONIVEL : mensagemDoErro(planos.error)} onRetry={() => void planos.refetch()} />}
-          {planos.isSuccess && (
-            <>
-              <div className="flex flex-col gap-2">
-                <EscolhaDoPlano planos={lista} escolha={escolha} aoMudar={mudar} atual={ficha.plano.codigo} />
-                {problemas.length > 0 && (
-                  <ul data-testid="empresa-plano.erro" role="alert" className="m-0 flex list-none flex-col gap-0.5 p-0 text-[13px] font-semibold text-danger">
-                    {problemas.map((p) => (
-                      <li key={p}>{p}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              {plano && <AdicionaisEmLinhas plano={plano} escolha={escolha} aoMudar={mudar} erros={erros} />}
-              <AlternadorCiclo ciclo={escolha.ciclo} mesesGratis={plano?.meses_gratis_anual ?? 0} aoMudar={(ciclo) => mudar({ ...escolha, ciclo })} />
-            </>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-line px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:border-t-0 md:px-6 md:pt-4 md:pb-6">
+    <Dialog
+      open
+      title={TEXTOS_PLANO.trocar}
+      largura="larga"
+      onClose={fechar}
+      footer={
+        <>
           {total && (
-            <span data-testid="empresa-plano.total" className="mr-auto text-[17px] font-bold tabular-nums text-ink">
+            <span data-testid="empresa-plano.total" className="mr-auto self-center text-[17px] font-bold tabular-nums text-ink">
               {total}
             </span>
           )}
-          <div className="ml-auto flex flex-wrap gap-2">
-            <Button data-testid="empresa-plano.cancelar" onClick={() => fecharRef.current()} disabled={enviando}>
-              {TEXTOS_PLANO.cancelar}
-            </Button>
-            <Button variant="primary" data-testid="empresa-plano.confirmar" className={principalDesabilitadoCss} disabled={!pode} onClick={() => void trocar()}>
-              {mudou && plano ? TEXTOS_PLANO.trocarPara(plano.nome) : TEXTOS_PLANO.trocar}
-            </Button>
-          </div>
-        </div>
+          <Button data-testid="empresa-plano.cancelar" onClick={fechar} disabled={enviando}>
+            {TEXTOS_PLANO.cancelar}
+          </Button>
+          <Button variant="primary" data-testid="empresa-plano.confirmar" className={principalDesabilitadoCss} disabled={!pode} onClick={() => void trocar()}>
+            {mudou && plano ? TEXTOS_PLANO.trocarPara(plano.nome) : TEXTOS_PLANO.trocar}
+          </Button>
+        </>
+      }
+    >
+      <div data-testid="empresa-plano.dialogo" className="flex flex-col gap-4">
+        {planos.isPending && <LoadingBlock label={TEXTOS_PLANO.buscandoPlanos} />}
+        {planos.isError && <ErrorBlock message={ehRotaAusente(planos.error) ? TEXTO_INDISPONIVEL : mensagemDoErro(planos.error)} onRetry={() => void planos.refetch()} />}
+        {planos.isSuccess && (
+          <>
+            <div className="flex flex-col gap-2">
+              <EscolhaDoPlano planos={lista} escolha={escolha} aoMudar={mudar} atual={ficha.plano.codigo} />
+              {problemas.length > 0 && (
+                <ul data-testid="empresa-plano.erro" role="alert" className="m-0 flex list-none flex-col gap-0.5 p-0 text-[13px] font-semibold text-danger">
+                  {problemas.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {plano && <AdicionaisEmLinhas plano={plano} escolha={escolha} aoMudar={mudar} erros={erros} />}
+            <AlternadorCiclo ciclo={escolha.ciclo} mesesGratis={plano?.meses_gratis_anual ?? 0} aoMudar={(ciclo) => mudar({ ...escolha, ciclo })} />
+          </>
+        )}
       </div>
-    </div>
+    </Dialog>
   );
 }

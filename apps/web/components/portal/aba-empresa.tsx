@@ -7,7 +7,7 @@
  * - Esquerda: o cartão "Plano {nome}" com "Trocar de plano". Empresa sem plano (a ficha dá 404: `SEM_ASSINATURA` ou servidor com
  *   `MACUXI_PLANOS` desligado): o cartão "Módulos licenciados" de antes, sem "Trocar de plano".
  * - Direita: "Administradores" e, abaixo dele, `colunaDireita` (Logo, Nome fantasia e Apps, até o designer-ux decidir o lugar).
- * - `semPlano`: só na empresa sem plano, embaixo das colunas, na largura toda (o passo antigo que acrescenta módulos).
+ * - `semPlano`: só na empresa sem plano, dentro do cartão "Módulos licenciados" (o "Acrescentar módulos" do passo antigo, RD-2613).
  * O admin do cliente vê o Plano (ou os Módulos licenciados) na largura toda, sem "Trocar de plano" e sem Administradores; a
  * `colunaDireita` vem embaixo.
  * `AvisoEmpresaCriada`: o aviso de sucesso da Nova empresa (§4), uma vez, no topo da página da empresa recém-criada.
@@ -33,14 +33,14 @@ export interface PropsAbaEmpresa {
   modulos: EmpresaResumo['modulos'];
   /** Cartões da coluna da direita, abaixo de Administradores (Logo, Nome fantasia, Apps). */
   colunaDireita?: ReactNode;
-  /** Só na empresa sem plano: embaixo das colunas, na largura toda. */
+  /** Só na empresa sem plano: dentro do cartão "Módulos licenciados" (RD-2613). */
   semPlano?: ReactNode;
 }
 
 export function AbaEmpresa({ tenant, fuso, timeMacuxi, modulos, colunaDireita, semPlano }: PropsAbaEmpresa) {
   const ficha = useFicha(tenant);
   const sem = ficha.isError && fichaSemPlano(ficha.error);
-  const principal = sem ? <CartaoModulosLicenciados modulos={modulos} /> : <CartaoPlano tenant={tenant} podeTrocar={timeMacuxi} largo={!timeMacuxi} />;
+  const principal = sem ? <CartaoModulosLicenciados modulos={modulos}>{semPlano}</CartaoModulosLicenciados> : <CartaoPlano tenant={tenant} podeTrocar={timeMacuxi} largo={!timeMacuxi} />;
   return (
     <div data-testid="empresa-pagina.conteudo-empresa" data-sem-plano={sem ? 'sim' : undefined} className="flex flex-col gap-4">
       {timeMacuxi ? (
@@ -57,12 +57,11 @@ export function AbaEmpresa({ tenant, fuso, timeMacuxi, modulos, colunaDireita, s
           {colunaDireita}
         </>
       )}
-      {sem && semPlano}
     </div>
   );
 }
 
-/** "Empresa criada. Código da empresa: AM4821." (§4): uma vez, fechável, só logo depois do "Criar empresa" nesta aba do navegador. */
+/** "Empresa criada." (§4; o código já está no cabeçalho, RD-2614): uma vez, fechável, só logo depois do "Criar empresa" nesta aba do navegador. */
 export function AvisoEmpresaCriada({ tenant }: { tenant: string }) {
   const [codigo, setCodigo] = useState<string | null>(null);
   useEffect(() => {
@@ -73,7 +72,7 @@ export function AvisoEmpresaCriada({ tenant }: { tenant: string }) {
   return (
     <div data-testid="empresa-pagina.criada" aria-live="polite">
       <Notice tone="success" onClose={() => setCodigo(null)}>
-        {TEXTOS_NOVA_EMPRESA.criada(codigo)}
+        {TEXTOS_NOVA_EMPRESA.criada}
       </Notice>
     </div>
   );

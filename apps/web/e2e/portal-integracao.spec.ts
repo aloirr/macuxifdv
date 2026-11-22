@@ -1,7 +1,9 @@
 /**
  * e2e do portal config. no modo falso (spec portal-config-enxuto §10.2 e §11): aba Integração em dois lados (Conector | API), o caso
  * do ERP (Bases do Conector e credencial de API), "Envia os pedidos" no diálogo "Bases", "Reativar" com a chave nova, o guia da API em
- * PDF e a aba Empresa com plano; refaz os prints 05b, 05c, 05d, 05e e 06b em 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
+ * PDF, a aba Empresa com plano, o "Trocar de plano" no Dialog do kit (RD-2616), a empresa sem plano só com o "Acrescentar módulos" no
+ * cartão "Módulos licenciados" (RD-2613) e a Nova empresa preenchida; refaz os prints 03b, 05b, 05c, 05d, 05e, 06a, 06b e 06d em
+ * 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
  */
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
@@ -181,6 +183,94 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'true');
     await expect(conteudo).toContainText('Promotor Avulso');
     await page.screenshot({ path: `${PRINTS}/06b-aba-empresa${nome}.png`, fullPage: true });
+    await ctx.close();
+  });
+}
+
+/** Entra como o time da Macuxi, sem o indicador do next dev nos prints. */
+async function entrarComoTime(page: Page) {
+  await page.goto('/entrar');
+  await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
+  await page.getByTestId('entrar.senha').fill('certa-123');
+  await page.getByTestId('entrar.entrar').click();
+  await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
+}
+const semIndicador = (page: Page) => page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
+
+for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
+  test(`Trocar de plano no Dialog do kit (${largura} px)`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    await entrarComoTime(page);
+    await page.goto('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000001#empresa');
+    await semIndicador(page);
+    await page.getByTestId('empresa-plano.trocar').click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo.getByTestId('empresa-plano.dialogo')).toBeVisible({ timeout: 60000 });
+    await expect(dialogo.getByTestId('empresa-plano.confirmar')).toBeDisabled();
+    await dialogo.getByTestId('empresa.plano-enterprise').click();
+    await expect(dialogo.getByTestId('empresa-plano.confirmar')).toHaveText('Trocar para Enterprise');
+    await expect(dialogo.getByTestId('empresa-plano.confirmar')).toBeEnabled();
+    // o fim da transição de cor do principal (de desabilitado para habilitado) antes do print
+    await page.waitForTimeout(400);
+    await expect(dialogo.getByTestId('empresa-plano.total')).toContainText('Total:');
+    await page.screenshot({ path: `${PRINTS}/06d-trocar-plano${nome}.png` });
+    if (!nome) {
+      // RN-PLA-05: Light abaixo do uso, a frase do contrato embaixo dos planos e o principal desabilitado
+      await dialogo.getByTestId('empresa.plano-light').click();
+      await expect(dialogo.getByTestId('empresa-plano.erro')).toContainText('Inative');
+      await expect(dialogo.getByTestId('empresa-plano.confirmar')).toBeDisabled();
+      await page.screenshot({ path: `${PRINTS}/06d-trocar-plano-abaixo-do-uso.png` });
+    }
+    // Esc fecha sem gravar
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByTestId('empresa-plano.nome')).toHaveText('Plano PME');
+    await ctx.close();
+  });
+
+  test(`empresa sem plano: só o Acrescentar módulos no cartão (${largura} px)`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    await entrarComoTime(page);
+    await page.goto('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000011#empresa');
+    await semIndicador(page);
+    const conteudo = page.getByTestId('empresa-pagina.conteudo-empresa');
+    await expect(conteudo).toHaveAttribute('data-sem-plano', 'sim', { timeout: 60000 });
+    await expect(page.getByTestId('empresa-pagina.modulos')).toHaveText('Vendedor · 10 licenças');
+    for (const m of ['gestor', 'pesquisa', 'promotor', 'treinamento']) await expect(page.getByTestId(`empresa.modulo-${m}`)).toBeVisible();
+    await expect(page.getByTestId('empresa.gravar')).toHaveText('Acrescentar módulos');
+    for (const t of ['empresa.razao-social', 'empresa.admin', 'empresa.conferir', 'empresa.modulo-vendedor', 'empresa.modulo-core']) await expect(page.getByTestId(t)).toHaveCount(0);
+    await expect(conteudo).not.toContainText('Administrador da empresa');
+    await expect(page.getByTestId('empresa-pagina.apps')).toBeVisible();
+    await page.screenshot({ path: `${PRINTS}/06a-aba-empresa-sem-plano${nome}.png`, fullPage: true });
+    await ctx.close();
+  });
+
+  test(`Nova empresa preenchida (${largura} px)`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    await entrarComoTime(page);
+    await page.goto('/empresas/nova');
+    await semIndicador(page);
+    await page.getByTestId('empresa.cnpj').fill('11.222.333/0001-81');
+    await page.getByTestId('empresa.cnpj').blur();
+    await expect(page.getByTestId('empresa.cnpj')).toHaveAttribute('data-estado', 'encontrado', { timeout: 60000 });
+    await page.getByTestId('empresa.plano-pme').click();
+    await page.getByTestId('empresa.adicional-promotor').check();
+    await page.getByTestId('empresa.adicional-promotor-qtd').fill('3');
+    await page.getByTestId('empresa.adicional-pesquisa').check();
+    await page.getByTestId('empresa.adicional-pesquisa-qtd').fill('10');
+    await page.getByTestId('empresa.admin-nome').fill('Ana Souza');
+    await page.getByTestId('empresa.admin-email').fill('ana@uma.com.br');
+    await page.getByTestId('empresa.admin-senha').fill('Norte#2026');
+    await expect(page.getByTestId('empresa.total')).toHaveText('Total: R$ 1.537,00/mês');
+    await page.screenshot({ path: `${PRINTS}/03b-nova-empresa${nome}.png`, fullPage: true });
+    if (!nome) {
+      await page.getByTestId('empresa.ciclo-anual').click();
+      await expect(page.getByTestId('empresa.total')).toContainText('/ano');
+      await page.screenshot({ path: `${PRINTS}/03b-nova-empresa-anual.png`, fullPage: true });
+    }
     await ctx.close();
   });
 }
