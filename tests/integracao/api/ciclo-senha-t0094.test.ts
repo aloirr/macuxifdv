@@ -14,7 +14,7 @@
  *           por IP e por chave, 15 min sem repetir, senha temporária PARALELA (P6), multi-tenant (mesmo e-mail em A e B);
  *  - CS-06  redefinição pelo BKO (P7): todos os perfis menos admin e o próprio; sem e-mail e sem senha = 503 sem mexer; auditoria;
  *  - CS-07  sessões: troca, redefinição e troca voluntária matam o token na hora e o refresh; a sessão do portal cai;
- *  - CS-08  Equipe por CSV sem convite: senha por pessoa, e-mails na fila, 503 EMAIL_INDISPONIVEL sem gravar; rotas do convite 404;
+ *  - CS-08  o convite saiu: rotas do convite 404 (a Equipe por CSV saiu na v1.0.22; integração só por Conector ou API);
  *  - CS-06b super-admin redefine a senha do admin do cliente pelo portal (fatia S; 0042 `sa_admins_da_empresa` e
  *           `sa_redefinir_senha_admin`): só super-admin, só admin ativo da empresa, mesma transação, idempotência por `email_id`,
  *           sessões (BKO, refresh e portal) caem na hora, auditoria sem dado pessoal, 503 sem e-mail;
@@ -29,7 +29,6 @@ import {
   CODIGOS_PORTAL,
   CriarUsuarioRespostaSchema,
   DetalhesSenhaATrocarSchema,
-  ImportarEquipeRespostaSchema,
   MENSAGEM_PORTAL_SENHA_A_TROCAR,
   RedefinirSenhaRespostaSchema,
   RefreshRespostaSchema,
@@ -53,7 +52,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
-import { camposDeFilial, codigoDaFilialPadrao } from '../apoio/filial-usuario';
+import { camposDeFilial } from '../apoio/filial-usuario';
 import { A, B, comToken, erroDe, novoIp, SEGREDO_JWT, SENHA, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import {
   assuntoDoEml,
@@ -231,12 +230,10 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
         ['usuarios (lista)', 'GET', '/v1/core/usuarios', undefined],
         ['equipes', 'GET', '/v1/core/equipes', undefined],
         ['licenças', 'GET', '/v1/core/licencas', undefined],
-        ['modelo do CSV', 'GET', '/v1/core/equipe/modelo.csv', undefined],
         ['parâmetros do início', 'GET', '/v1/core/parametros/inicio', undefined],
         ['criar usuário', 'POST', '/v1/core/usuarios', { nome: 'Não Grava', email: EM('nao.grava'), perfil: 'vendedor', senha: SENHA_INICIAL }],
         ['redefinir senha', 'PUT', `/v1/core/usuarios/${alvo}/senha`, { senha: SENHA_INICIAL }],
         ['licença do tenant', 'PUT', '/v1/core/licencas/tenant/promotor', { ativo: false }],
-        ['importar CSV', 'POST', '/v1/core/equipe/importacoes', { csv: 'nome,email,perfil\nZ,z.t0094@exemplo.com.br,vendedor', modo: 'gravar' }],
       ];
       const antes = await usuarioNoBanco(alvo);
       for (const [e, perfil] of FORA_DO_BKO) {
@@ -249,7 +246,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
         }
       }
       expect((await usuarioNoBanco(alvo)).senha_hash).toBe(antes.senha_hash);
-      expect((await api.admin.query("select 1 from core.usuario where email in ($1, 'z.t0094@exemplo.com.br')", [EM('nao.grava')])).rowCount).toBe(0);
+      expect((await api.admin.query('select 1 from core.usuario where email = $1', [EM('nao.grava')])).rowCount).toBe(0);
       // a rota que o Gestão usa não leva a marca: o supervisor continua vendo a hierarquia da equipe
       const sup = sessaoDe(await api.entrar('supervisor@exemplo.com.br', { app: 'gestao' }));
       const hier = await api.chamar(sup.access_token, { method: 'GET', url: '/v1/core/equipe/hierarquia' });
@@ -257,7 +254,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
     });
 
     it('as mesmas rotas: admin = 200 nas leituras; analista, assistente e gerente nunca recebem PERFIL_SEM_BKO (a recusa, se houver, é a do perfil)', async () => {
-      const leituras = ['/v1/core/usuarios', '/v1/core/equipes', '/v1/core/licencas', '/v1/core/equipe/modelo.csv'];
+      const leituras = ['/v1/core/usuarios', '/v1/core/equipes', '/v1/core/licencas'];
       for (const url of leituras) {
         const r = await api.chamar(tokenAdminA, { method: 'GET', url });
         expect(r.statusCode, `${url}: ${r.body}`).toBe(200);
@@ -979,81 +976,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
   });
 
   // ---------------------------------------------------------------------------------------------------------------- CS-08
-  describe('CS-08 Equipe por CSV sem convite (critério 8; P3)', () => {
-    let CSV = '';
-    beforeAll(async () => {
-      const filial = await codigoDaFilialPadrao(api.admin, A.tenantId);
-      CSV = [
-        'nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial',
-        `Gina Gerente T94,${EM('gina.csv')},,gerente,,,,${filial}`,
-        `Saulo Sup T94,${EM('saulo.csv')},95991112222,supervisor,${EM('gina.csv')},,,${filial}`,
-        `Vera Campo T94,${EM('vera.csv')},,vendedor,${EM('saulo.csv')},CSV94-V1,,${filial}`,
-      ].join('\n');
-    });
-    const importar = (modo: 'conferir' | 'gravar', token = tokenAdminA) => api.chamar(token, { method: 'POST', url: '/v1/core/equipe/importacoes', payload: { csv: CSV, modo } });
-
-    it('sem e-mail configurado: gravar = 503 EMAIL_INDISPONIVEL sem gravar ninguém; conferir funciona', async () => {
-      emailsPessoais.push(EM('gina.csv'), EM('saulo.csv'), EM('vera.csv'));
-      email.desligar();
-      try {
-        const r = await importar('gravar');
-        expect(`${r.statusCode} ${erroDe(r).codigo}`).toBe('503 EMAIL_INDISPONIVEL');
-        expect((await api.admin.query("select 1 from core.usuario where email like '%.csv.t0094@exemplo.com.br'")).rowCount).toBe(0);
-        const c = await importar('conferir');
-        expect(c.statusCode, c.body).toBe(200);
-        expect(ImportarEquipeRespostaSchema.parse(c.json())).toMatchObject({ gravado: false, resumo: { novos: 3 } });
-      } finally {
-        email.ligar();
-      }
-    });
-
-    it('gravar: cada pessoa nova com a sua senha gerada (RN-CORE-32) e "Seu acesso ao Macuxi" na fila; trocar_senha + 72 h; sem convite na resposta', async () => {
-      const r = await importar('gravar');
-      expect(r.statusCode, r.body).toBe(200);
-      const corpo = r.json() as Record<string, unknown>;
-      expect(Object.keys(corpo)).not.toEqual(expect.arrayContaining(['convites']));
-      expect(corpo).not.toHaveProperty('convites_csv');
-      expect(ImportarEquipeRespostaSchema.parse(corpo)).toMatchObject({ gravado: true, acessos_enviados: 3, email_acesso: 'enfileirado' });
-      const u = await api.admin.query<{ id: string; email: string; perfil: string; trocar_senha: boolean; senha_expira_em: Date }>(
-        "select id::text, email, perfil, trocar_senha, senha_expira_em from core.usuario where email like '%.csv.t0094@exemplo.com.br' order by email",
-      );
-      expect(u.rows.map((x) => [x.email, x.trocar_senha])).toEqual([
-        [EM('gina.csv'), true],
-        [EM('saulo.csv'), true],
-        [EM('vera.csv'), true],
-      ]);
-      const senhas = new Set<string>();
-      for (const x of u.rows) {
-        expect(x.senha_expira_em.getTime()).toBeGreaterThan(Date.now() + 71 * HORA);
-        const m = await email.ultimoPara(api.admin, x.id);
-        expect(m, x.email).toMatchObject({ modelo: 'acesso_inicial', para: x.email, tenant_id: A.tenantId, dados: { login: x.email, validade_horas: 72 } });
-        expect(m!.dados.senha).toMatch(/^(?=.*[A-Za-z])(?=.*[2-9])(?=.*[!@#$%&*?]).{12}$/);
-        senhas.add(m!.dados.senha);
-        segredos.push(m!.dados.senha);
-      }
-      expect(senhas.size, 'uma senha por pessoa').toBe(3);
-      const vera = u.rows.find((x) => x.email === EM('vera.csv'))!;
-      const d = detalhesTrocar(await api.entrar(EM('vera.csv'), { senha: (await email.ultimoPara(api.admin, vera.id))!.dados.senha, app: 'campo' }));
-      expect(d.motivo).toBe('primeiro_acesso');
-      const aud = await api.admin.query<{ bruto: string; depois: Record<string, unknown> }>(
-        "select row_to_json(a)::text as bruto, depois from plataforma.auditoria a where acao = 'usuario.criar' and depois->>'origem' = 'csv' and tenant_id = $1",
-        [A.tenantId],
-      );
-      expect(aud.rows).toHaveLength(3);
-      for (const l of aud.rows) {
-        expect(l.depois).toMatchObject({ origem: 'csv', trocar_senha: true, email: 'enfileirado' });
-        expect(l.bruto).not.toMatch(/t0094@|T94|argon2/);
-      }
-    });
-
-    it('gravar de novo: ninguém novo, nenhum e-mail a mais (acessos_enviados 0)', async () => {
-      const antes = (await outboxDeEmail(api.admin)).length;
-      const r = await importar('gravar');
-      expect(r.statusCode, r.body).toBe(200);
-      expect(ImportarEquipeRespostaSchema.parse(r.json())).toMatchObject({ acessos_enviados: 0, email_acesso: null, resumo: { novos: 0 } });
-      expect((await outboxDeEmail(api.admin)).length).toBe(antes);
-    });
-
+  describe('CS-08 o convite saiu (critério 8; P3; a Equipe por CSV saiu na v1.0.22)', () => {
     it('o convite saiu: rotas do convite = 404 (lista, renovar, aceitar)', async () => {
       const casos = [
         await api.chamar(tokenAdminA, { method: 'GET', url: '/v1/core/equipe/convites' }),
