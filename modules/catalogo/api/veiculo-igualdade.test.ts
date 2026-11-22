@@ -137,7 +137,6 @@ describe('RN-CAT-22 / P4: aparelho e API dão o mesmo resultado com veículo', (
     const r = await executarVeiculosAparelho({}, ctx);
     await montando;
     expect(r).toMatchObject({ disponivel: true, nivel: 'montadora' });
-    expect(r.nivel).toBe('montadora');
   });
 
   it('RN-CAT-22: tenant sem veículo nas aplicações: disponivel = false (sem o botão)', async () => {

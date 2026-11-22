@@ -117,7 +117,7 @@ export type ChipFiltro = z.infer<typeof ChipFiltro>;
 export const GruposFiltro = z.array(z.object({ grupo: GrupoFiltro, rotulo: z.string(), chips: z.array(ChipFiltro) }).strict());
 export type GruposFiltro = z.infer<typeof GruposFiltro>;
 
-// ---------- apoios puros da folha Veículo (RD-2573): o Catálogo e o Vendedor passam `NAVEGACAO_VEICULO` e `TEXTOS_VEICULO` à `FolhaVeiculo` do kit ----------
+// ---------- apoios puros da folha Veículo: o Catálogo e o Vendedor passam `NAVEGACAO_VEICULO` e `TEXTOS_VEICULO` à `FolhaVeiculo` do kit ----------
 
 /** A escolha da folha (só o que já tem) vira veículo quando há modelo. */
 export function veiculoDaEscolha(p: VeiculoParcial): VeiculoEscolhido | null {
@@ -163,7 +163,7 @@ export const NAVEGACAO_VEICULO = {
   niveisComVerPecas: ['ano', 'motor', 'versao'] as readonly NivelVeiculo[],
 };
 
-/** No formato `TextosFolhaVeiculo` do kit (mais o `botao`, do botão Veículo da tela). */
+/** No formato `TextosFolhaVeiculo` do kit, mais os textos da tela (botão, sem resultado, busca). */
 export const TEXTOS_VEICULO = {
   botao: 'Veículo',
   titulo: 'Veículo',
