@@ -116,7 +116,7 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
 
     // RN-CORE-31: bloqueado = 423 para QUALQUER senha e QUALQUER e-mail (existente ou não), sem conferir nem contar
     const estado = await repo.tentativaEstado(chave);
-    if (estado.bloqueado_ate && chaveBloqueada(estado.bloqueado_ate, agora)) {
+    if (chaveBloqueada(estado.bloqueado_ate, agora)) {
       await gastar(ctx.corpo.senha);
       await auditar(repo, ctx, 'sa.login.falha', 423, rota, ANONIMO, { motivo: 'bloqueado' });
       throw bloqueioPortal(estado.bloqueado_ate, agora);
@@ -136,9 +136,9 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     }
     if (!decidido) {
       const r = await repo.tentativaFalha(chave);
-      const bloqueou = r.bloqueado_ate !== null && chaveBloqueada(r.bloqueado_ate, agora);
+      const bloqueou = chaveBloqueada(r.bloqueado_ate, agora);
       await auditar(repo, ctx, 'sa.login.falha', bloqueou ? 423 : 401, rota, ANONIMO, { motivo: 'credenciais', falhas: r.falhas });
-      if (r.bloqueado_ate && bloqueou) throw bloqueioPortal(r.bloqueado_ate, agora);
+      if (chaveBloqueada(r.bloqueado_ate, agora)) throw bloqueioPortal(r.bloqueado_ate, agora);
       throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
     }
 
