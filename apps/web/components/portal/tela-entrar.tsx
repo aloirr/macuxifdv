@@ -30,14 +30,14 @@ import { Campo } from '@/components/campo-acesso';
 
 import { MolduraEstreita } from './base';
 
-/** Textos da entrada (spec §1 e §4): sem variação. */
+/** Textos da entrada (spec portal-entrar §1 e §4; portal-config-enxuto §1): sem variação. */
 export const TEXTOS_ENTRAR = Object.freeze({
   titulo: 'Entrar',
   esqueceu: 'Esqueceu a senha? Use "Esqueci a senha" no backoffice.',
   vazio: 'Informe o e-mail e a senha.',
   credenciais: 'E-mail ou senha incorretos.',
   /** T-0094 (RN-CORE-34; spec ciclo-de-senha §7): a senha conferiu, mas ainda é a temporária; a troca é no backoffice. */
-  senhaATrocar: 'Crie a sua senha no backoffice antes de entrar aqui. Use o código da empresa, o e-mail e a senha que você recebeu.',
+  senhaATrocar: 'Crie a sua senha no backoffice antes de entrar aqui.',
 });
 
 /**
