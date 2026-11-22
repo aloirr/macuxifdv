@@ -83,3 +83,6 @@ export * from './sino-rn';
 // ícone e `ativo`, a LinhaEtiquetas e o Chip com contagem ficam nos arquivos de sempre)
 export * from './cascata';
 export * from './cascata-rn';
+// RD-2573: FolhaVeiculo, a folha Veículo única do Catálogo e do Novo pedido (fiação sobre a FolhaCascata; parte pura no -estado)
+export * from './folha-veiculo-estado';
+export * from './folha-veiculo';

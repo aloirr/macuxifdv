@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Filtro de veículo · simulação (etapa 6, proposta)</title>
+<title>Filtro de veículo · simulação (etapa 6)</title>
 <style>
 /* Simulação do designer-ux, 21/11/2026. Tokens iguais a packages/ui/src/mobile/tokens.ts (marca v1). Spec: spec.md desta pasta.
    Dados fictícios (premissa P1). Autocontida: sem fonte, imagem ou script de fora. */
@@ -57,11 +57,7 @@ html,body { margin:0; background:#ECEEF1; font-family:var(--sans); color:var(--i
 .ce.suc { background:var(--successBg); color:var(--success); }
 .ce.erro { background:var(--dangerBg); color:var(--danger); }
 .ce.g { height:28px; font-size:14px; padding:0 12px; }
-.card .ok { margin-top:6px; }
 .card .est { margin-top:6px; }
-.serve { font-size:14px; line-height:18px; color:var(--ink2); margin-top:6px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-.serve b { color:var(--ink); font-weight:600; }
-.serve .rot { font-size:12px; font-weight:600; }
 .vazio { background:#fff; border:1px solid var(--line); border-radius:14px; padding:24px 20px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
 .vazio .ic { width:56px; height:56px; border-radius:28px; background:var(--neutralBg); display:flex; align-items:center; justify-content:center; }
 .vazio .tt { font-weight:600; font-size:16px; }
@@ -135,7 +131,6 @@ html,body { margin:0; background:#ECEEF1; font-family:var(--sans); color:var(--i
 .res .d span { font-weight:400; }
 .res .s { font-size:14px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .res .s .c { font-family:var(--mono); font-size:12px; color:var(--ink); }
-.res .serve { -webkit-line-clamp:2; margin-top:0; }
 .mais { width:44px; height:44px; border-radius:12px; border:1.5px solid var(--accent); background:#fff; display:flex; align-items:center; justify-content:center; flex:none; color:var(--accent); }
 .rodape-p { flex:none; padding:10px 20px 14px; background:var(--ground); border-top:1px solid var(--line); }
 /* controles da simulação (fora do aparelho) */
@@ -233,35 +228,23 @@ function proximoNivel(v, depois) {
   for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.length; i++) { const n = NIVEIS[i]; if (v[n] == null && opcoes(n, v).length >= 2) return n; }
   return null;
 }
-// compatível / conferir / null (premissa P2)
+// passa no filtro ou não (D4, spec §5): só restringe o que foi escolhido (o nível preenchido sozinho conta como escolhido);
+// o escolhido exige o dado no trecho: ano dentro da faixa (sem ano, não passa); motor e versão citados e iguais (D6 e D7, §15)
 function compat(p, v) {
   if (!v) return null;
-  let melhor = null;
   for (const a of p.apps) {
     if (a.mont !== v.mont || a.modelo !== v.modelo) continue;
-    if (v.ano == null) { melhor = melhor || 'conferir'; continue; }
-    if (a.de == null) { melhor = melhor || 'conferir'; continue; }
-    if (!cobreAno(a, v.ano)) continue;
-    if (v.motor && a.motores.length && !a.motores.includes(v.motor)) continue;
-    if (v.versao && a.versoes.length && !a.versoes.includes(v.versao)) continue;
-    const restringe = (nivel, lista) => lista.length && !v[nivel] && opcoes(nivel, v).some((o) => !lista.includes(o));
-    if (restringe('motor', a.motores) || restringe('versao', a.versoes)) { melhor = melhor || 'conferir'; continue; }
+    if (v.ano != null && !cobreAno(a, v.ano)) continue;
+    if (v.motor && !a.motores.includes(v.motor)) continue;
+    if (v.versao && !a.versoes.includes(v.versao)) continue;
     return 'ok';
   }
-  return melhor;
+  return null;
 }
 const nomeVeic = (v) => [v.modelo, v.ano, v.motor, v.versao].filter(Boolean).join(' ');
 const brl = (c) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const sem = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
-// trecho da aplicação que cita o modelo, sem a montadora (cartão e linha do seletor)
-function trechoVeic(p, v) {
-  const seg = p.ap.split(' · ').find((x) => sem(x).includes(sem(v.modelo))) || p.ap;
-  const i = sem(seg).indexOf(sem(v.modelo));
-  const t = seg.slice(i);
-  if (sem(t).trim() === sem(v.modelo)) return ''; // só o nome do modelo: sem a linha (§5)
-  return '<b>' + esc(t.slice(0, v.modelo.length)) + '</b>' + esc(t.slice(v.modelo.length));
-}
 function trechoNegrito(ap, v) {
   if (!v) return esc(ap);
   const re = new RegExp('(' + v.modelo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^·]*)', 'i');
@@ -283,7 +266,6 @@ function filtrar({ semChips = false, contexto } = {}) {
   if (q) { const pal = q.split(/\s+/); lista = lista.filter(({ p }) => { const h = sem([p.nome, p.marca, p.sku, p.cm, p.ap, p.ean || '', ...(p.refs || []).flat()].join(' ')); return pal.every((w) => h.includes(w)); }); }
   if (S.soEst && S.tela === 'vitrine') lista = lista.filter(({ p }) => p.est > 0);
   if (!semChips) for (const g of GRUPOS) { const m = S.chips[g.k]; if (m && m.size) lista = lista.filter(({ p }) => m.has(p[g.k])); }
-  lista.sort((a, b) => (a.c === 'ok' ? 0 : 1) - (b.c === 'ok' ? 0 : 1));
   return lista;
 }
 const GRUPOS = [{ k:'sis', r:'Sistema' }, { k:'fam', r:'Família' }, { k:'lin', r:'Linha' }, { k:'cat', r:'Categoria' }];
@@ -310,11 +292,9 @@ function vazioSemResultado() {
   if (v) return `<div class="vazio"><div class="ic">${ic('search', 24, '#4A5562')}</div><div class="tt">${tt}</div><button class="sec" data-a="tirar-veiculo">Tirar o veículo</button></div>`;
   return `<div class="vazio"><div class="ic">${ic('search', 24, '#4A5562')}</div><div class="tt">Nada encontrado para "${esc(q)}"</div><div class="ap">Confira a grafia, tente o código ou só o começo do nome.</div><button class="sec" data-a="limpar-busca">Limpar a busca</button></div>`;
 }
-function cartao({ p, c }) {
-  const v = veicAtual();
-  const extra = c === 'ok' ? `<span class="ce suc ok">${ic('check', 12)}Compatível</span>` : c === 'conferir' && trechoVeic(p, v) ? `<div class="serve"><span class="rot">Serve em:</span> ${trechoVeic(p, v)}</div>` : '';
+function cartao({ p }) {
   return `<div class="card" data-a="ficha" data-id="${p.id}" role="button"><div class="foto">${ic('foto', 32, '#9AA3B0')}</div><span class="n">${esc(p.nome)}</span>
-    <div class="r">${esc(p.cm)} · ${esc(p.marca)}</div><div class="c">${esc(p.sku)}</div>${extra}<span class="p">${brl(p.preco)}</span>
+    <div class="r">${esc(p.cm)} · ${esc(p.marca)}</div><div class="c">${esc(p.sku)}</div><span class="p">${brl(p.preco)}</span>
     <span class="ce est ${p.est > 0 ? 'suc' : 'erro'}">Estoque: ${p.est}</span></div>`;
 }
 const abas = () => `<div class="barra-abas">${[['home','Início'],['pin','Rota'],['users','Clientes'],['clipboard','Pedidos'],['target','Performance'],['menu','Mais']].map(([i, r]) => `<div class="${r === 'Mais' ? 'ativa' : ''}">${ic(i, 22)}${r}</div>`).join('')}</div>`;
@@ -353,14 +333,12 @@ function telaPedido() {
   else { const l = filtrar(); corpo = l.length ? `<div class="res">${l.map((x) => linhaPedido(x, false)).join('')}</div>` : vazioSemResultado(); }
   return `${status()}<div class="fx"><span class="v" data-a="ir-vitrine">${ic('voltar', 20)}Pedidos</span><span class="t">Novo pedido</span><span class="s">Auto Peças Raimundo</span></div>
   <div class="abas"><div>Venda</div><div class="on">Itens</div><div>Entrega</div><div>Resumo</div></div>
-  <div class="corpo">${linhaBusca('Buscar produto', S.qp, 'qp')}${etiquetas()}${corpo}</div>
+  <div class="corpo">${linhaBusca('Peça ou código…', S.qp, 'qp')}${etiquetas()}${corpo}</div>
   <div class="rodape-p"><button class="btn">Avançar</button></div>`;
 }
-function linhaPedido({ p, c }, noPedido) {
-  const v = S.pedidoVeic;
-  const l3 = c === 'ok' ? `<span class="ce suc">${ic('check', 12)}Compatível</span>` : c === 'conferir' && trechoVeic(p, v) ? `<div class="serve"><span class="rot">Serve em:</span> ${trechoVeic(p, v)}</div>` : '';
+function linhaPedido({ p }, noPedido) {
   const botao = noPedido ? `<span class="mais" style="border-color:#1D6B4F;background:#E2F1EA;color:#1D6B4F" aria-label="Adicionado">${ic('lapis', 20)}</span>` : `<span class="mais" aria-label="Adicionar ${esc(p.nome)}">${ic('mais', 22)}</span>`;
-  return `<div class="i"><div class="cc"><span class="d">${esc(p.nome)} <span>- ${esc(p.marca)}</span></span><span class="s"><span class="c">${esc(p.sku)}</span> · Emb. PC · Est. ${p.est}</span>${l3}</div>${botao}</div>`;
+  return `<div class="i"><div class="cc"><span class="d">${esc(p.nome)} <span>- ${esc(p.marca)}</span></span><span class="s"><span class="c">${esc(p.sku)}</span> · Emb. PC · Est. ${p.est}</span></div>${botao}</div>`;
 }
 
 function folhaVeiculo() {
