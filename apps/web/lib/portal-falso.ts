@@ -64,7 +64,16 @@ import {
   type LoteResultado,
 } from '@macuxi/integracao/contracts';
 
-import { CODIGOS_PORTAL, faltasNaSenha, ImportarEquipeRequestSchema, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, PerfilSchema, type ImportarEquipeResposta } from '@macuxi/core/contracts';
+import {
+  CODIGOS_PORTAL,
+  faltasNaSenha,
+  ImportarEquipeRequestSchema,
+  mensagemBloqueioPorTentativas,
+  mensagemDaSenha,
+  MENSAGEM_PORTAL_SENHA_A_TROCAR,
+  PerfilSchema,
+  type ImportarEquipeResposta,
+} from '@macuxi/core/contracts';
 
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -321,6 +330,8 @@ function adminsIniciais(): Map<string, AdminDaEmpresa[]> {
 
 /** Erros seguidos por e-mail: só na memória da aba (nem o e-mail vai ao `sessionStorage`). */
 const falhas = new Map<string, number>();
+/** RN-CORE-31: o falso não conta o tempo do bloqueio (só o `zerarModoFalso` solta); responde sempre os 15 min inteiros. */
+const MINUTOS_BLOQUEIO_FALSO = 15;
 
 const ADMINS_M = /^\/plataforma\/empresas\/([^/]+)\/admins(?:\/([^/]+)\/redefinir-senha)?$/;
 
@@ -547,7 +558,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   if (rota === `POST ${ROTAS_PORTAL.login}`) {
     const c = lerCorpo(LoginPortalSchema, corpo);
     if (c instanceof Response) return c;
-    if ((falhas.get(c.email) ?? 0) >= 5) return erro(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.');
+    if ((falhas.get(c.email) ?? 0) >= 5) return erro(423, 'BLOQUEADO', mensagemBloqueioPorTentativas(MINUTOS_BLOQUEIO_FALSO), { minutos_restantes: MINUTOS_BLOQUEIO_FALSO });
     // T-0094 (RN-CORE-34): admin do cliente com a senha master ainda por trocar; a troca é no backoffice (só para a senha certa)
     if (c.email === CONTA_SENHA_A_TROCAR && c.senha !== 'errada') return erro(403, CODIGOS_PORTAL.senhaATrocar, MENSAGEM_PORTAL_SENHA_A_TROCAR);
     const conta = CONTAS_FALSAS[c.email];
