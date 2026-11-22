@@ -10,7 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { responderFalso } from '@/lib/portal-falso';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AbaIntegracao, Credencial, DialogoConector, mensagemSemBases, rotaChaveDoConector, rotaDoConector } from './aba-integracao';
+import { AbaIntegracao, basesDoDialogo, corpoDaCredencial, Credencial, DialogoBases, DialogoConector, mensagemSemBases, rotaChaveDoConector, rotaDoConector } from './aba-integracao';
 
 const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const AVISO = 'Copie a chave agora: ela não aparece de novo.';
@@ -88,5 +88,28 @@ describe('aba Integração: nova chave e desativar', () => {
     const lista = [conector({})];
     expect(mensagemSemBases(lista, false)).toBe('Todas as bases já vêm do Conector thathyany-conector. Gere uma nova chave para ele ou desative-o.');
     expect(mensagemSemBases(lista, true)).toBe('Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.');
+  });
+
+  it('Bases: botão nos Conectores ativos não de arquivo; o diálogo marca as do Conector e bloqueia as de outro Conector ativo', () => {
+    const thathyany = conector({});
+    const outro = conector({ id: '7c1d2e3f-4a5b-4c6d-8e9f-000000000004', conector_id: 'erp-nuvem', tipo: 'nuvem', entidades: ['forma_pagamento'] });
+    const html = renderizar([thathyany, conector({ id: '7c1d2e3f-4a5b-4c6d-8e9f-000000000002', conector_id: 'portal-arquivo', tipo: 'arquivo', entidades: [] })]);
+    expect(html).toMatch(/data-testid="integracao.bases-thathyany-conector"[^>]*>Bases</);
+    expect(html).not.toContain('integracao.bases-portal-arquivo');
+    const bases = basesDoDialogo([thathyany, outro], { ...thathyany, entidades: ENTIDADES.filter((e) => e !== 'forma_pagamento') });
+    expect(bases.find((b) => b.entidade === 'forma_pagamento')).toEqual({ entidade: 'forma_pagamento', marcada: false, bloqueada: true });
+    expect(bases.filter((b) => b.bloqueada)).toHaveLength(1);
+    const dialogo = renderToStaticMarkup(<DialogoBases alvo={thathyany} conectores={[thathyany]} enviando={false} erro={null} aoFechar={() => {}} aoGravar={() => {}} />);
+    expect(dialogo).toContain('Bases do Conector thathyany-conector');
+    expect(dialogo).toMatch(/data-testid="integracao.bases-gravar"[^>]*>Gravar</);
+  });
+
+  it('credencial: Tipo e bases no corpo; sem base marcada não envia', () => {
+    expect(corpoDaCredencial({ identificador: ' erp-fp ', nome: 'ERP ', tipo: 'nuvem', recebePedidos: false, entidades: ['forma_pagamento'] })).toEqual({ conector_id: 'erp-fp', nome: 'ERP', tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] });
+    expect(corpoDaCredencial({ identificador: 'erp', nome: 'ERP', tipo: 'conector', recebePedidos: true, entidades: [] })).toBeNull();
+    const html = renderizar([]);
+    expect(html).toContain('data-testid="integracao.tipo"');
+    expect(html).toContain('Integração em nuvem');
+    expect(html).toContain('data-testid="integracao.nova-base-forma_pagamento"');
   });
 });
