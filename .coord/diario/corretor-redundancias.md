@@ -146,3 +146,5 @@
 2026-11-21 — T-0191 rotas do vendedor no BKO (árvore compartilhada, sem commit) — COM ACHADO: RD-2524 a RD-2540 (modulo-core 2524–2535; engenheiro-software 2536–2537; testes 2538–2539; designer-ux 2540); 4 encaminhados ao testes; relatório docs/qualidade/redundancias/2026-11-21-T-0191-rotas.md; caixa 403, recados na resposta ao gerente.
 2026-11-21 — T-0191 rotas, 2ª rodada — corrigidos RD-2524 a RD-2540; novos RD-2541 (média), RD-2542 a RD-2544 (baixa), todos do modulo-core; 1 encaminhado ao testes (doc 422 do lote); COM ACHADO; caixa 403.
 2026-11-21 — T-0191 rotas, 3ª rodada (árvore `macuxifdv-int`, sobre origin/main 11b5990e; renumeração RD-2495…2515 → RD-2524…2544, +29, pela colisão com o #613 e o branch da busca 3-4) — corrigidos RD-2541 a RD-2544; SEM ACHADOS EM ABERTO.
+2026-11-21 — v1.0.21: registro do gerente (#651, liberado no 1c2e5549; RD-2548 a RD-2556) e S2 do testes (liberada no 5a397fec; RD-2557 a RD-2560) — todos corrigidos; relatório 2026-11-21-v1021.md.
+2026-11-21 — v1.0.21: #652 reprocesso da outbox (liberado no 4298d543; RD-2561 a RD-2570) — todos corrigidos; relatório 2026-11-21-v1021.md §3.

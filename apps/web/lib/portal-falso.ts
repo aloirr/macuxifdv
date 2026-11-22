@@ -56,7 +56,7 @@ import {
 } from '@macuxi/platform-sdk';
 import { ConectorCriar, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
 
-import { CODIGOS_PORTAL, faltasNaSenha, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
+import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -301,6 +301,8 @@ function adminsIniciais(): Map<string, AdminDaEmpresa[]> {
 
 /** Erros seguidos por e-mail: só na memória da aba (nem o e-mail vai ao `sessionStorage`). */
 const falhas = new Map<string, number>();
+/** RN-CORE-31: o falso não conta o tempo do bloqueio (só o `zerarModoFalso` solta); responde sempre os 15 min inteiros. */
+const MINUTOS_BLOQUEIO_FALSO = 15;
 
 const ADMINS_M = /^\/plataforma\/empresas\/([^/]+)\/admins(?:\/([^/]+)\/redefinir-senha)?$/;
 
@@ -497,7 +499,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   if (rota === `POST ${ROTAS_PORTAL.login}`) {
     const c = lerCorpo(LoginPortalSchema, corpo);
     if (c instanceof Response) return c;
-    if ((falhas.get(c.email) ?? 0) >= 5) return erro(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.');
+    if ((falhas.get(c.email) ?? 0) >= 5) return erro(423, 'BLOQUEADO', mensagemBloqueioPorTentativas(MINUTOS_BLOQUEIO_FALSO), { minutos_restantes: MINUTOS_BLOQUEIO_FALSO });
     // T-0094 (RN-CORE-34): admin do cliente com a senha master ainda por trocar; a troca é no backoffice (só para a senha certa)
     if (c.email === CONTA_SENHA_A_TROCAR && c.senha !== 'errada') return erro(403, CODIGOS_PORTAL.senhaATrocar, MENSAGEM_PORTAL_SENHA_A_TROCAR);
     const conta = CONTAS_FALSAS[c.email];
@@ -619,6 +621,12 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     const novo = conectorResumo({ conector_id: c.conector_id, nome: c.nome, tipo: c.tipo, recebe_pedidos: c.recebe_pedidos, aceita_cancelamento: c.aceita_cancelamento, entidades: c.entidades });
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: [...lista, novo] } });
     return json(201, { conector: novo, chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: null } });
+  }
+  const chaveM = /^\/integracao\/conectores\/([^/]+)\/chave$/.exec(caminho);
+  if (metodo === 'POST' && chaveM) {
+    const c = (e.conectores[tenant] ?? []).find((x) => x.id === chaveM[1]);
+    if (!c) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
+    return json(201, { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: agoraIso(24 * 60) });
   }
   const conectorM = /^\/integracao\/conectores\/([^/]+)$/.exec(caminho);
   if (metodo === 'PATCH' && conectorM) {

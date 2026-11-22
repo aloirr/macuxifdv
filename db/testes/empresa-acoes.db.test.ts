@@ -11,7 +11,7 @@
  * - RN-PLA-10: o código da empresa excluída não volta (gatilho e sorteio); a restauração (mesmo id) pode;
  * - RN-PLA-11: backup 30 dias, o da exclusão 90 dias depois dela;
  * - papéis da ADR 0024: sa_* só do macuxi_portal, as do worker só do macuxi_worker, nenhum grant de tabela; up/down exato.
- * Estático (sempre) + banco (fixture dois-tenants, sempre com ROLLBACK; up/down num banco efêmero) no CI.
+ * Estático (sempre) + banco (empresas próprias do caso (`empresasDoCaso`), sempre com ROLLBACK; up/down num banco efêmero) no CI.
  */
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -66,10 +66,13 @@ const INTERNAS = [
 const nomeDe = (f: string) => f.slice(0, f.indexOf('('));
 
 const A = DOIS_TENANTS.A.tenantId;
-const B = DOIS_TENANTS.B.tenantId;
 const ADMIN_A = DOIS_TENANTS.A.usuarios.admin;
 const SHA = 'a'.repeat(64);
 const id = (n: number) => `00720000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const E = id(101);
+const F = id(102);
+const CODIGO_E = 'acoes0072e';
+const CODIGO_F = 'acoes0072f';
 
 describe('0072 ações da empresa (estático)', () => {
   it('nome e posição: 0072_plataforma_empresa_acoes logo depois da 0071 (planos)', () => {
@@ -186,7 +189,7 @@ describe('0072 ações da empresa (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0072 ações da empresa (banco, empresas próprias do caso)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -221,6 +224,20 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
   const pedirBackup = (sid: string, t: string, b: string) => portal('select plataforma.sa_pedir_backup($1, $2, $3) as r', [sid, t, b]);
   const pedirExclusao = (sid: string, t: string, x: string, b: string, codigo: string) =>
     portal('select plataforma.sa_pedir_exclusao($1, $2, $3, $4, $5) as r', [sid, t, x, b, codigo]);
+
+  /**
+   * E e F com os semeios do tenant (gatilhos tenant_semear_*), um usuário e 5 clientes, dentro da transação do caso. O
+   * banco dos testes é um só para todos os arquivos: a exclusão apaga e trava toda linha da empresa, e o inativar trava a
+   * linha dela em plataforma.tenant até o ROLLBACK. Sobre o A e o B da fixture, que os outros arquivos gravam ao mesmo
+   * tempo, isso fechava ciclo de espera com eles (deadlock). Sobre E e F, sem commit, ninguém mais espera nem é esperado.
+   */
+  async function empresasDoCaso() {
+    for (const [t, codigo, letra] of [[E, CODIGO_E, 'e'], [F, CODIGO_F, 'f']] as const) {
+      await q('insert into plataforma.tenant (id, codigo, nome) values ($1, $2, $3)', [t, codigo, `Empresa ${letra.toUpperCase()} 0072`]);
+      await q("insert into core.usuario (tenant_id, nome, email, perfil, senha_hash) values ($1, 'Vendedor 0072', $2, 'vendedor', $3)", [t, `vendedor.${letra}@acoes0072.exemplo`, HASH_TESTE]);
+      await q("insert into core.cliente (tenant_id, razao_social) select $1, 'Cliente 0072 ' || g from generate_series(1, 5) g", [t]);
+    }
+  }
 
   /** O worker exporta o backup todo (páginas de `limite`), confirma as partes e devolve as linhas por tabela. */
   async function exportarTudo(backup: string, limite = 5000) {
@@ -266,68 +283,70 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
 
   it('RN-PLA-07 inativar e reativar: idempotentes, auditoria e eventos na outbox; erros do contrato', async () => {
     await emTransacao(admin, null, async () => {
+      await empresasDoCaso();
       for (const papel of ['macuxi_app', 'macuxi_worker']) {
         expect((await erroDe(comoPapel(admin, papel, 'select plataforma.sa_inativar_tenant(null, null, null)')))?.code, papel).toBe('42501');
       }
-      expect((await falha(inativar(null, A)))?.code).toBe('28000');
+      expect((await falha(inativar(null, E)))?.code).toBe('28000');
       const cli = await abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: A, usuario_id: ADMIN_A }] });
       expect((await falha(inativar(cli.sessao_id, A)))?.code).toBe('42501');
       const sid = await sessaoSuperAdmin();
-      expect(await falha(inativar(sid, A, 'qualquer'))).toEqual({ code: '22023', hint: null });
+      expect(await falha(inativar(sid, E, 'qualquer'))).toEqual({ code: '22023', hint: null });
       expect(await falha(inativar(sid, id(999)))).toEqual({ code: 'P0002', hint: 'TENANT_NAO_ENCONTRADO' });
 
-      const r1 = SituacaoEmpresaRespostaSchema.parse(await inativar(sid, A));
-      expect(r1).toMatchObject({ tenant_id: A, status: 'suspenso', motivo: 'inadimplencia', resultado: 'alterado' });
-      expect(SituacaoEmpresaRespostaSchema.parse(await inativar(sid, A, 'outro'))).toEqual({ ...r1, resultado: 'sem_mudanca' });
-      expect(await q('select status, motivo_inativacao from plataforma.tenant where id = $1', [A])).toEqual([{ status: 'suspenso', motivo_inativacao: 'inadimplencia' }]);
-      const ev = await q<{ nome: string; payload: unknown }>("select nome, payload from plataforma.evento where tenant_id = $1 and nome like 'plataforma.tenant.%'", [A]);
+      const r1 = SituacaoEmpresaRespostaSchema.parse(await inativar(sid, E));
+      expect(r1).toMatchObject({ tenant_id: E, status: 'suspenso', motivo: 'inadimplencia', resultado: 'alterado' });
+      expect(SituacaoEmpresaRespostaSchema.parse(await inativar(sid, E, 'outro'))).toEqual({ ...r1, resultado: 'sem_mudanca' });
+      expect(await q('select status, motivo_inativacao from plataforma.tenant where id = $1', [E])).toEqual([{ status: 'suspenso', motivo_inativacao: 'inadimplencia' }]);
+      const ev = await q<{ nome: string; payload: unknown }>("select nome, payload from plataforma.evento where tenant_id = $1 and nome like 'plataforma.tenant.%'", [E]);
       expect(ev.map((e) => e.nome)).toEqual([EVENTO_TENANT_INATIVADO.nome]);
-      expect(EVENTO_TENANT_INATIVADO.schema.parse(ev[0]!.payload)).toMatchObject({ tenant_id: A, motivo: 'inadimplencia' });
+      expect(EVENTO_TENANT_INATIVADO.schema.parse(ev[0]!.payload)).toMatchObject({ tenant_id: E, motivo: 'inadimplencia' });
 
-      const r2 = SituacaoEmpresaRespostaSchema.parse(await reativar(sid, A));
-      expect(r2).toEqual({ tenant_id: A, status: 'ativo', inativada_em: null, motivo: null, resultado: 'alterado' });
-      expect(SituacaoEmpresaRespostaSchema.parse(await reativar(sid, A)).resultado).toBe('sem_mudanca');
-      const ev2 = await q<{ payload: unknown }>('select payload from plataforma.evento where tenant_id = $1 and nome = $2', [A, EVENTO_TENANT_REATIVADO.nome]);
-      expect(EVENTO_TENANT_REATIVADO.schema.parse(ev2[0]!.payload)).toMatchObject({ tenant_id: A, inativa_desde: r1.inativada_em });
+      const r2 = SituacaoEmpresaRespostaSchema.parse(await reativar(sid, E));
+      expect(r2).toEqual({ tenant_id: E, status: 'ativo', inativada_em: null, motivo: null, resultado: 'alterado' });
+      expect(SituacaoEmpresaRespostaSchema.parse(await reativar(sid, E)).resultado).toBe('sem_mudanca');
+      const ev2 = await q<{ payload: unknown }>('select payload from plataforma.evento where tenant_id = $1 and nome = $2', [E, EVENTO_TENANT_REATIVADO.nome]);
+      expect(EVENTO_TENANT_REATIVADO.schema.parse(ev2[0]!.payload)).toMatchObject({ tenant_id: E, inativa_desde: r1.inativada_em });
       const aud = await q<{ acao: string; detalhes: Record<string, unknown> }>("select acao, detalhes from plataforma.auditoria_plataforma where sessao_id = $1 and acao like 'tenant.%' order by ocorrido_em, acao", [sid]);
       expect(aud.map((x) => x.acao).sort()).toEqual(['tenant.inativado', 'tenant.reativado']);
       expect(aud.find((x) => x.acao === 'tenant.inativado')!.detalhes).toEqual({ motivo: 'inadimplencia', antes: 'ativo', depois: 'suspenso', origem: 'banco' });
 
       // quem ainda muda o status direto não quebra o CHECK: o gatilho preenche a data, sem motivo (e limpa ao voltar a ativo)
-      await q("update plataforma.tenant set status = 'suspenso' where id = $1", [B]);
-      expect(await q('select inativada_em is not null as tem, motivo_inativacao from plataforma.tenant where id = $1', [B])).toEqual([{ tem: true, motivo_inativacao: null }]);
-      await q("update plataforma.tenant set status = 'ativo' where id = $1", [B]);
-      expect(await q('select inativada_em, motivo_inativacao from plataforma.tenant where id = $1', [B])).toEqual([{ inativada_em: null, motivo_inativacao: null }]);
+      await q("update plataforma.tenant set status = 'suspenso' where id = $1", [F]);
+      expect(await q('select inativada_em is not null as tem, motivo_inativacao from plataforma.tenant where id = $1', [F])).toEqual([{ tem: true, motivo_inativacao: null }]);
+      await q("update plataforma.tenant set status = 'ativo' where id = $1", [F]);
+      expect(await q('select inativada_em, motivo_inativacao from plataforma.tenant where id = $1', [F])).toEqual([{ inativada_em: null, motivo_inativacao: null }]);
 
       // motivo opcional (a tela envia {}): nulo na empresa, na resposta, no evento e na auditoria
-      const r3 = SituacaoEmpresaRespostaSchema.parse(await inativar(sid, B, null));
-      expect(r3).toMatchObject({ tenant_id: B, status: 'suspenso', motivo: null, resultado: 'alterado' });
-      expect(await q('select status, motivo_inativacao from plataforma.tenant where id = $1', [B])).toEqual([{ status: 'suspenso', motivo_inativacao: null }]);
-      const ev3 = await q<{ payload: unknown }>('select payload from plataforma.evento where tenant_id = $1 and nome = $2', [B, EVENTO_TENANT_INATIVADO.nome]);
-      expect(EVENTO_TENANT_INATIVADO.schema.parse(ev3[0]!.payload)).toMatchObject({ tenant_id: B, motivo: null });
-      const aud3 = await q<{ detalhes: Record<string, unknown> }>("select detalhes from plataforma.auditoria_plataforma where sessao_id = $1 and acao = 'tenant.inativado' and tenant_alvo_id = $2", [sid, B]);
+      const r3 = SituacaoEmpresaRespostaSchema.parse(await inativar(sid, F, null));
+      expect(r3).toMatchObject({ tenant_id: F, status: 'suspenso', motivo: null, resultado: 'alterado' });
+      expect(await q('select status, motivo_inativacao from plataforma.tenant where id = $1', [F])).toEqual([{ status: 'suspenso', motivo_inativacao: null }]);
+      const ev3 = await q<{ payload: unknown }>('select payload from plataforma.evento where tenant_id = $1 and nome = $2', [F, EVENTO_TENANT_INATIVADO.nome]);
+      expect(EVENTO_TENANT_INATIVADO.schema.parse(ev3[0]!.payload)).toMatchObject({ tenant_id: F, motivo: null });
+      const aud3 = await q<{ detalhes: Record<string, unknown> }>("select detalhes from plataforma.auditoria_plataforma where sessao_id = $1 and acao = 'tenant.inativado' and tenant_alvo_id = $2", [sid, F]);
       expect(aud3).toHaveLength(1);
       expect(aud3[0]!.detalhes).toMatchObject({ antes: 'ativo', depois: 'suspenso' });
       expect(aud3[0]!.detalhes.motivo ?? null).toBeNull();
-      expect(SituacaoEmpresaRespostaSchema.parse(await reativar(sid, B)).resultado).toBe('alterado');
+      expect(SituacaoEmpresaRespostaSchema.parse(await reativar(sid, F)).resultado).toBe('alterado');
     });
   });
 
   it('RN-PLA-07 despachante e e-mail: o worker não vê o evento nem o e-mail da empresa inativa (os plataforma.tenant.* sim)', async () => {
     await emTransacao(admin, null, async () => {
+      await empresasDoCaso();
       const sid = await sessaoSuperAdmin();
-      const ev = (await q<{ id: string }>("insert into plataforma.evento (tenant_id, nome, modulo, payload) values ($1, 'core.teste.criado@1', 'core', '{}') returning id", [A]))[0]!.id;
-      const visiveis = async () => (await comoPapel<{ id: string }>(admin, 'macuxi_worker', 'select id from plataforma.evento where tenant_id = $1 and publicado_em is null', [A])).rows.map((x) => x.id);
+      const ev = (await q<{ id: string }>("insert into plataforma.evento (tenant_id, nome, modulo, payload) values ($1, 'core.teste.criado@1', 'core', '{}') returning id", [E]))[0]!.id;
+      const visiveis = async () => (await comoPapel<{ id: string }>(admin, 'macuxi_worker', 'select id from plataforma.evento where tenant_id = $1 and publicado_em is null', [E])).rows.map((x) => x.id);
       expect(await visiveis()).toContain(ev);
-      await inativar(sid, A);
+      await inativar(sid, E);
       const inativo = await visiveis();
       expect(inativo).not.toContain(ev);
       expect(inativo).toHaveLength(1); // só o plataforma.tenant.inativado@1
-      expect((await comoPapel(admin, 'macuxi_worker', 'select 1 from plataforma.email_saida where tenant_id = $1', [A])).rowCount).toBe(0);
-      expect((await comoPapel(admin, 'macuxi_worker', 'select 1 from plataforma.evento where tenant_id = $1', [B])).rowCount).toBe(
-        (await q('select 1 from plataforma.evento where tenant_id = $1', [B])).length,
+      expect((await comoPapel(admin, 'macuxi_worker', 'select 1 from plataforma.email_saida where tenant_id = $1', [E])).rowCount).toBe(0);
+      expect((await comoPapel(admin, 'macuxi_worker', 'select 1 from plataforma.evento where tenant_id = $1', [F])).rowCount).toBe(
+        (await q('select 1 from plataforma.evento where tenant_id = $1', [F])).length,
       );
-      await reativar(sid, A);
+      await reativar(sid, E);
       expect(await visiveis()).toContain(ev);
       const pol = await q<{ policyname: string; qual: string }>("select policyname, qual from pg_policies where policyname in ('despacho_outbox', 'despacho_email') order by 1");
       expect(pol.map((p) => [p.policyname, p.qual.includes('tenant_esta_ativo(tenant_id)')])).toEqual([['despacho_email', true], ['despacho_outbox', true]]);
@@ -336,19 +355,20 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
 
   it('backup → exclusão: ordem de FK, só o tenant do backup, contagem igual por tabela, registro que sobrevive e código não reaproveitado', async () => {
     await emTransacao(admin, null, async () => {
+      await empresasDoCaso();
       const sid = await sessaoSuperAdmin();
-      const codigoA = (await q<{ codigo: string }>('select codigo from plataforma.tenant where id = $1', [A]))[0]!.codigo;
-      await inativar(sid, A, 'pedido_do_cliente');
-      const pedido = BackupEmpresaSchema.parse(await pedirBackup(sid, A, id(1)));
-      expect(pedido).toMatchObject({ id: id(1), tenant_id: A, situacao: 'em_andamento', consistente: true, progresso_pct: 0 });
-      expect(BackupEmpresaSchema.parse(await pedirBackup(sid, A, id(1)))).toEqual(pedido);
-      expect(await falha(pedirBackup(sid, A, id(2)))).toEqual({ code: '55000', hint: 'BACKUP_EM_ANDAMENTO' });
-      expect((await falha(pedirBackup(sid, B, id(1))))?.code).toBe('23505');
-      expect(await falha(pedirExclusao(sid, A, id(50), id(1), codigoA))).toEqual({ code: '22023', hint: 'EXCLUSAO_SEM_BACKUP' });
+      const codigoE = (await q<{ codigo: string }>('select codigo from plataforma.tenant where id = $1', [E]))[0]!.codigo;
+      await inativar(sid, E, 'pedido_do_cliente');
+      const pedido = BackupEmpresaSchema.parse(await pedirBackup(sid, E, id(1)));
+      expect(pedido).toMatchObject({ id: id(1), tenant_id: E, situacao: 'em_andamento', consistente: true, progresso_pct: 0 });
+      expect(BackupEmpresaSchema.parse(await pedirBackup(sid, E, id(1)))).toEqual(pedido);
+      expect(await falha(pedirBackup(sid, E, id(2)))).toEqual({ code: '55000', hint: 'BACKUP_EM_ANDAMENTO' });
+      expect((await falha(pedirBackup(sid, F, id(1))))?.code).toBe('23505');
+      expect(await falha(pedirExclusao(sid, E, id(50), id(1), codigoE))).toEqual({ code: '22023', hint: 'EXCLUSAO_SEM_BACKUP' });
 
       // worker: pega, lista em ordem de FK e exporta (páginas de 2 numa tabela grande, para o keyset)
       const pego = await worker<Record<string, unknown>>('select plataforma.pegar_backup() as r');
-      expect(pego).toMatchObject({ id: id(1), codigo: codigoA, partes: [] });
+      expect(pego).toMatchObject({ id: id(1), codigo: codigoE, partes: [] });
       expect(await worker('select plataforma.pegar_backup() as r')).toBeNull(); // concessão viva
       const { tabelas, linhas } = await exportarTudo(id(1));
       expect(tabelas[0]).toEqual({ ordem: 1, tabela: 'plataforma.tenant', chave: ['id'], adiar: [] });
@@ -371,9 +391,10 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
         if (fk.cols.length === 0 || !fk.cols.every((c) => adiadas.get(filha)!.has(c))) expect(posicao.get(mae)!, `${filha} -> ${mae}`).toBeLessThan(posicao.get(filha)!);
       }
       // só o tenant do backup
-      for (const [t, ls] of linhas) for (const l of ls) expect(t === 'plataforma.tenant' ? l.id : l.tenant_id, t).toBe(A);
-      const contagemB = Number((await q<{ n: string }>('select count(*) as n from core.cliente where tenant_id = $1', [A]))[0]!.n);
-      expect(linhas.get('core.cliente')!.length).toBe(contagemB);
+      for (const [t, ls] of linhas) for (const l of ls) expect(t === 'plataforma.tenant' ? l.id : l.tenant_id, t).toBe(E);
+      const contagemE = Number((await q<{ n: string }>('select count(*) as n from core.cliente where tenant_id = $1', [E]))[0]!.n);
+      expect(contagemE).toBe(5); // 3 páginas de 2 no keyset abaixo
+      expect(linhas.get('core.cliente')!.length).toBe(contagemE);
       const paginado = (await (async () => {
         const todas: string[] = [];
         let depois: unknown = null;
@@ -392,93 +413,94 @@ describe.skipIf(semBanco())('0072 ações da empresa (banco, fixture dois-tenant
       expect(pronto).toMatchObject({ situacao: 'pronto', consistente: true, progresso_pct: 100, tamanho_bytes: 1234, arquivos: 3, tabelas: tabelas.length });
       expect(pronto.linhas).toBe([...linhas.values()].reduce((s, ls) => s + ls.length, 0));
       expect(BackupEmpresaSchema.parse(await worker('select plataforma.fechar_backup($1, $2::jsonb) as r', [id(1), JSON.stringify({ situacao: 'pronto', tamanho_bytes: 1234, arquivos: 3 })]))).toEqual(pronto);
-      const concl = await q<{ payload: unknown }>('select payload from plataforma.evento where tenant_id = $1 and nome = $2', [A, EVENTO_TENANT_BACKUP_CONCLUIDO.nome]);
+      const concl = await q<{ payload: unknown }>('select payload from plataforma.evento where tenant_id = $1 and nome = $2', [E, EVENTO_TENANT_BACKUP_CONCLUIDO.nome]);
       expect(EVENTO_TENANT_BACKUP_CONCLUIDO.schema.parse(concl[0]!.payload)).toMatchObject({ backup_id: id(1), consistente: true });
-      expect(ListaBackupsEmpresaSchema.parse(await portal('select plataforma.sa_listar_backups($1, $2, null) as r', [sid, A])).itens.map((b) => b.id)).toEqual([id(1)]);
+      expect(ListaBackupsEmpresaSchema.parse(await portal('select plataforma.sa_listar_backups($1, $2, null) as r', [sid, E])).itens.map((b) => b.id)).toEqual([id(1)]);
 
       // exclusão: código errado, depois o certo (sem diferença de maiúsculas); idempotente; nada mais vale com ela em andamento
-      expect(await falha(pedirExclusao(sid, A, id(50), id(1), 'outro-codigo'))).toEqual({ code: '22023', hint: 'EXCLUSAO_CODIGO_NAO_CONFERE' });
-      const exclusao = ExclusaoEmpresaSchema.parse(await pedirExclusao(sid, A, id(50), id(1), ` ${codigoA.toUpperCase()} `));
-      expect(exclusao).toMatchObject({ id: id(50), tenant_id: A, codigo: codigoA, backup_id: id(1), situacao: 'em_andamento', etapa: 'banco' });
-      expect(ExclusaoEmpresaSchema.parse(await pedirExclusao(sid, A, id(50), id(1), codigoA))).toEqual(exclusao);
-      expect(await falha(reativar(sid, A))).toEqual({ code: '55000', hint: 'EXCLUSAO_EM_ANDAMENTO' });
-      expect(await falha(pedirBackup(sid, A, id(3)))).toEqual({ code: '55000', hint: 'EXCLUSAO_EM_ANDAMENTO' });
+      expect(await falha(pedirExclusao(sid, E, id(50), id(1), 'outro-codigo'))).toEqual({ code: '22023', hint: 'EXCLUSAO_CODIGO_NAO_CONFERE' });
+      const exclusao = ExclusaoEmpresaSchema.parse(await pedirExclusao(sid, E, id(50), id(1), ` ${codigoE.toUpperCase()} `));
+      expect(exclusao).toMatchObject({ id: id(50), tenant_id: E, codigo: codigoE, backup_id: id(1), situacao: 'em_andamento', etapa: 'banco' });
+      expect(ExclusaoEmpresaSchema.parse(await pedirExclusao(sid, E, id(50), id(1), codigoE))).toEqual(exclusao);
+      expect(await falha(reativar(sid, E))).toEqual({ code: '55000', hint: 'EXCLUSAO_EM_ANDAMENTO' });
+      expect(await falha(pedirBackup(sid, E, id(3)))).toEqual({ code: '55000', hint: 'EXCLUSAO_EM_ANDAMENTO' });
       const acoes = (await portal<{ itens: Array<Record<string, unknown>> }>('select plataforma.sa_acoes_das_empresas($1) as r', [sid])).itens;
-      const deA = acoes.find((x) => x.tenant_id === A)!;
-      const semId = Object.fromEntries(Object.entries(deA).filter(([k]) => k !== 'tenant_id'));
+      const deE = acoes.find((x) => x.tenant_id === E)!;
+      const semId = Object.fromEntries(Object.entries(deE).filter(([k]) => k !== 'tenant_id'));
       expect(AcoesDaEmpresaSchema.parse(semId)).toMatchObject({ motivo_inativacao: 'pedido_do_cliente', exclusao_bloqueada: 'EXCLUSAO_EM_ANDAMENTO' });
-      const deB = acoes.find((x) => x.tenant_id === B)!;
-      expect(deB).toMatchObject({ inativada_em: null, ultimo_backup: null, exclusao: null, exclusao_bloqueada: 'EXCLUSAO_EMPRESA_ATIVA' });
+      const deF = acoes.find((x) => x.tenant_id === F)!;
+      expect(deF).toMatchObject({ inativada_em: null, ultimo_backup: null, exclusao: null, exclusao_bloqueada: 'EXCLUSAO_EMPRESA_ATIVA' });
 
       // worker: etapa banco (excluir_tenant) e arquivos
       expect(await worker('select plataforma.pegar_exclusao() as r')).toMatchObject({ id: id(50), etapa: 'banco' });
       const banco1 = ExclusaoEmpresaSchema.parse(await worker('select plataforma.executar_exclusao($1) as r', [id(50)]));
       expect(banco1).toMatchObject({ situacao: 'em_andamento', etapa: 'arquivos' });
       expect(ExclusaoEmpresaSchema.parse(await worker('select plataforma.executar_exclusao($1) as r', [id(50)]))).toEqual(banco1);
-      expect(await q('select 1 from plataforma.tenant where id = $1', [A])).toEqual([]);
+      expect(await q('select 1 from plataforma.tenant where id = $1', [E])).toEqual([]);
       // o que a exclusão apagou = o que o backup exportou, tabela a tabela (a outbox tem 1 a mais: o backup_concluido@1)
       const contagem = (await q<{ contagem: Record<string, number> }>('select contagem from plataforma.exclusao_empresa where id = $1', [id(50)]))[0]!.contagem;
       const exportado = Object.fromEntries([...linhas].filter(([, ls]) => ls.length > 0).map(([t, ls]) => [t, ls.length]));
       exportado['plataforma.evento'] = (exportado['plataforma.evento'] ?? 0) + 1;
       expect(contagem).toEqual(exportado);
       expect(banco1.linhas_apagadas).toBe(Object.values(exportado).reduce((s, n) => s + n, 0));
-      expect(await q('select id, codigo, backup_id, exclusao_id from plataforma.empresa_excluida where id = $1', [A])).toEqual([{ id: A, codigo: codigoA, backup_id: id(1), exclusao_id: id(50) }]);
+      expect(await q('select id, codigo, backup_id, exclusao_id from plataforma.empresa_excluida where id = $1', [E])).toEqual([{ id: E, codigo: codigoE, backup_id: id(1), exclusao_id: id(50) }]);
       expect(await falha(worker('select plataforma.fechar_exclusao($1, $2::jsonb) as r', [id(50), JSON.stringify({ situacao: 'falhou', erro_codigo: 'S3_FALHOU' })]))).toEqual({ code: '55000', hint: null });
       const fim = ExclusaoEmpresaSchema.parse(await worker('select plataforma.fechar_exclusao($1, $2::jsonb) as r', [id(50), JSON.stringify({ situacao: 'concluida', arquivos_apagados: 3 })]));
       expect(fim).toMatchObject({ situacao: 'concluida', etapa: 'fim', arquivos_apagados: 3 });
       expect(await q<{ dias: number }>('select round(extract(epoch from expira_em - now()) / 86400)::int as dias from plataforma.backup_empresa where id = $1', [id(1)])).toEqual([{ dias: RETENCAO_BACKUP_EXCLUIDA_DIAS }]);
       // o registro sobrevive: o portal ainda lê a exclusão e os backups da empresa excluída
-      expect(ExclusaoEmpresaSchema.parse(await portal('select plataforma.sa_ler_exclusao($1, $2) as r', [sid, A]))).toEqual(fim);
-      expect(ListaBackupsEmpresaSchema.parse(await portal('select plataforma.sa_listar_backups($1, $2, $3) as r', [sid, A, id(1)])).itens).toHaveLength(1);
-      const auditadas = await q<{ acao: string; detalhes: Record<string, unknown> }>("select acao, detalhes from plataforma.auditoria_plataforma where tenant_alvo_id = $1 and acao = 'tenant.excluido'", [A]);
+      expect(ExclusaoEmpresaSchema.parse(await portal('select plataforma.sa_ler_exclusao($1, $2) as r', [sid, E]))).toEqual(fim);
+      expect(ListaBackupsEmpresaSchema.parse(await portal('select plataforma.sa_listar_backups($1, $2, $3) as r', [sid, E, id(1)])).itens).toHaveLength(1);
+      const auditadas = await q<{ acao: string; detalhes: Record<string, unknown> }>("select acao, detalhes from plataforma.auditoria_plataforma where tenant_alvo_id = $1 and acao = 'tenant.excluido'", [E]);
       expect(auditadas).toHaveLength(1);
 
       // RN-PLA-10: o código não volta para outra empresa; a restauração (mesmo id) pode
-      expect((await erroNoSavepoint(admin, 'insert into plataforma.tenant (codigo, nome) values ($1, $2)', [codigoA, 'Outra']))?.code).toBe('23505');
-      expect((await erroNoSavepoint(admin, 'update plataforma.tenant set codigo = $1 where id = $2', [codigoA.toUpperCase(), B]))?.code).toBe('23505');
+      expect((await erroNoSavepoint(admin, 'insert into plataforma.tenant (codigo, nome) values ($1, $2)', [codigoE, 'Outra']))?.code).toBe('23505');
+      expect((await erroNoSavepoint(admin, 'update plataforma.tenant set codigo = $1 where id = $2', [codigoE.toUpperCase(), F]))?.code).toBe('23505');
       await q('savepoint restaurar');
-      await q('insert into plataforma.tenant (id, codigo, nome) values ($1, $2, $3)', [A, codigoA, 'Restaurada']);
+      await q('insert into plataforma.tenant (id, codigo, nome) values ($1, $2, $3)', [E, codigoE, 'Restaurada']);
       await q('rollback to savepoint restaurar');
     });
   });
 
   it('RN-PLA-08/09: backup com a empresa ativa, reativada no meio, vencido ou falho não libera a exclusão', async () => {
     await emTransacao(admin, null, async () => {
+      await empresasDoCaso();
       const sid = await sessaoSuperAdmin();
-      const codigoB = (await q<{ codigo: string }>('select codigo from plataforma.tenant where id = $1', [B]))[0]!.codigo;
+      const codigoF = (await q<{ codigo: string }>('select codigo from plataforma.tenant where id = $1', [F]))[0]!.codigo;
       const fechar = async (b: string) => {
         await exportarTudo(b);
         return BackupEmpresaSchema.parse(await worker('select plataforma.fechar_backup($1, $2::jsonb) as r', [b, JSON.stringify({ situacao: 'pronto', tamanho_bytes: 1, arquivos: 0 })]));
       };
       // pedido com a empresa ativa: sai inconsistente
-      expect(BackupEmpresaSchema.parse(await pedirBackup(sid, B, id(11))).consistente).toBe(false);
+      expect(BackupEmpresaSchema.parse(await pedirBackup(sid, F, id(11))).consistente).toBe(false);
       await worker('select plataforma.pegar_backup() as r');
       expect((await fechar(id(11))).consistente).toBe(false);
-      expect(await falha(pedirExclusao(sid, B, id(60), id(11), codigoB))).toEqual({ code: '22023', hint: 'EXCLUSAO_EMPRESA_ATIVA' });
-      await inativar(sid, B);
-      expect(await falha(pedirExclusao(sid, B, id(60), id(11), codigoB))).toEqual({ code: '22023', hint: 'EXCLUSAO_BACKUP_ANTES_DA_INATIVACAO' });
+      expect(await falha(pedirExclusao(sid, F, id(60), id(11), codigoF))).toEqual({ code: '22023', hint: 'EXCLUSAO_EMPRESA_ATIVA' });
+      await inativar(sid, F);
+      expect(await falha(pedirExclusao(sid, F, id(60), id(11), codigoF))).toEqual({ code: '22023', hint: 'EXCLUSAO_BACKUP_ANTES_DA_INATIVACAO' });
       // reativada durante o backup: inconsistente
-      await pedirBackup(sid, B, id(12));
+      await pedirBackup(sid, F, id(12));
       await worker('select plataforma.pegar_backup() as r');
-      await reativar(sid, B);
-      await inativar(sid, B);
+      await reativar(sid, F);
+      await inativar(sid, F);
       expect((await fechar(id(12))).consistente).toBe(false);
       // inativa do início ao fim: consistente; depois de 7 dias, vencido
-      await pedirBackup(sid, B, id(13));
+      await pedirBackup(sid, F, id(13));
       await worker('select plataforma.pegar_backup() as r');
       expect((await fechar(id(13))).consistente).toBe(true);
       await q(`update plataforma.backup_empresa set concluido_em = now() - interval '${PRAZO_BACKUP_PARA_EXCLUIR_DIAS + 1} days' where id = $1`, [id(13)]);
-      expect(await falha(pedirExclusao(sid, B, id(60), id(13), codigoB))).toEqual({ code: '22023', hint: 'EXCLUSAO_BACKUP_VENCIDO' });
+      expect(await falha(pedirExclusao(sid, F, id(60), id(13), codigoF))).toEqual({ code: '22023', hint: 'EXCLUSAO_BACKUP_VENCIDO' });
       // falhou: código técnico, evento e não libera
-      await pedirBackup(sid, B, id(14));
+      await pedirBackup(sid, F, id(14));
       await worker('select plataforma.pegar_backup() as r');
       const falhou = BackupEmpresaSchema.parse(await worker('select plataforma.fechar_backup($1, $2::jsonb) as r', [id(14), JSON.stringify({ situacao: 'falhou', erro_codigo: 'S3_FALHOU' })]));
       expect(falhou).toMatchObject({ situacao: 'falhou', erro_codigo: 'S3_FALHOU' });
-      expect(await falha(pedirExclusao(sid, B, id(60), id(14), codigoB))).toEqual({ code: '22023', hint: 'EXCLUSAO_SEM_BACKUP' });
+      expect(await falha(pedirExclusao(sid, F, id(60), id(14), codigoF))).toEqual({ code: '22023', hint: 'EXCLUSAO_SEM_BACKUP' });
       // backup de outra empresa não serve
-      expect(await falha(pedirExclusao(sid, A, id(61), id(13), DOIS_TENANTS.A.codigo))).toEqual({ code: '22023', hint: 'EXCLUSAO_EMPRESA_ATIVA' });
+      expect(await falha(pedirExclusao(sid, E, id(61), id(13), CODIGO_E))).toEqual({ code: '22023', hint: 'EXCLUSAO_EMPRESA_ATIVA' });
       // fechar sem todas as partes: 55000 BACKUP_INCOMPLETO
-      await pedirBackup(sid, B, id(15));
+      await pedirBackup(sid, F, id(15));
       await worker('select plataforma.pegar_backup() as r');
       expect(await falha(worker('select plataforma.fechar_backup($1, $2::jsonb) as r', [id(15), JSON.stringify({ situacao: 'pronto', tamanho_bytes: 1, arquivos: 0 })]))).toEqual({ code: '55000', hint: 'BACKUP_INCOMPLETO' });
       // retenção (RN-PLA-11): o falho e os prontos mais velhos vencem; o pronto mais novo (o 12: mesma hora do 11, id maior) fica
