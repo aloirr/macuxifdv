@@ -51,6 +51,7 @@ export const NOMES_DE_ICONE = [
   'olhoRiscado',
   'lampada',
   'pacote',
+  'carro',
 ] as const;
 
 export type IconName = (typeof NOMES_DE_ICONE)[number];
