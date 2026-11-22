@@ -160,4 +160,6 @@ export type { Autenticacao } from './autenticacao';
 /** T-0083 (RN-CORE-31): política do admin inicial, lida pelo comando `pnpm tenant:criar` (a fronteira não deixa o shell importar o domain). */
 export { normalizarEmail, validarSenhaInicial } from '../domain/usuarios';
 export { bloqueioPorTentativas } from '../domain/auth';
+/** RD-2590: 423 único do portal por tentativas (RN-CORE-31); lança `ErroHttpModulo` do platform-sdk. */
+export { exigirChaveLivre } from './bloqueio-portal';
 export { gerarSenhaTemporaria } from '../domain/acesso-senha';
