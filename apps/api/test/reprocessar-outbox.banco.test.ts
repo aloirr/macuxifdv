@@ -4,7 +4,8 @@
  *  - só leitura (`confirmar: false`): lista os parados da empresa e não muda nada;
  *  - só os parados (tentativas = máximo) da empresa pedida: o da outra empresa e o que ainda está em nova tentativa ficam;
  *  - uma tentativa só: o que volta a falhar fica com tentativas > máximo, com a classe nova, e a rodada seguinte não o pega;
- *  - o consumidor que já tinha consumido não repete (mesma `evento_consumo` do despachante).
+ *  - o consumidor que já tinha consumido não repete (mesma `evento_consumo` do despachante);
+ *  - acima do teto: recusa e nada muda no banco.
  * Pula sem Postgres (aviso no fim); com MACUXI_PG_EXIGIR=1 falha.
  */
 import { randomUUID } from 'node:crypto';
@@ -17,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { criarBancoApp, type BancoApp } from '../src/banco';
 import { criarDespachante } from '../src/despachante';
+import { ErroTetoReprocesso } from '../src/reprocessar-outbox';
 import { gravarEvento } from '../src/outbox';
 
 const A = DOIS_TENANTS.A.tenantId;
@@ -114,8 +116,8 @@ describe.skipIf(semBanco())('reprocesso único dos eventos parados × Postgres',
     expect(r.modo).toBe('reprocessado');
     const itens = r.itens.filter((i) => ([eOk, eFalha] as string[]).includes(i.evento_id));
     expect(itens).toEqual([
-      { evento_id: eOk, nome: NOME, classe_antes: 'vendedor: ReferenciaAusenteErp', resultado: 'publicado', classe_depois: null },
-      { evento_id: eFalha, nome: NOME, classe_antes: 'vendedor: ReferenciaAusenteErp', resultado: 'parado_de_novo', classe_depois: 'vendedor: ReferenciaAusenteErp' },
+      { evento_id: eOk, nome: NOME, resultado: 'publicado', classe_depois: null },
+      { evento_id: eFalha, nome: NOME, resultado: 'parado_de_novo', classe_depois: 'vendedor: ReferenciaAusenteErp' },
     ]);
     expect(await evento(eOk)).toMatchObject({ publicado_em: expect.any(Date), tentativas: MAX + 1, ultimo_erro: null });
     expect(await evento(eFalha)).toMatchObject({ publicado_em: null, tentativas: MAX + 1 });
@@ -132,5 +134,30 @@ describe.skipIf(semBanco())('reprocesso único dos eventos parados × Postgres',
     await d.ciclo();
     expect(chamadas.get(`vendedor:${eFalha}`)).toBe(MAX + 1);
     expect(await evento(eFalha)).toMatchObject({ tentativas: MAX + 1 });
+  });
+
+  it('acima do teto: recusa (mesmo com confirmar) e nada muda no banco', async () => {
+    const d = novo();
+    const marcas = [`teto1-${randomUUID()}`, `teto2-${randomUUID()}`];
+    for (const m of marcas) falhando.add(m);
+    const ids = [await publicar(A, marcas[0]!), await publicar(A, marcas[1]!)];
+    await pararAte(d);
+    const antes = await Promise.all(ids.map(evento));
+    for (const e of antes) expect(e).toMatchObject({ publicado_em: null, tentativas: MAX });
+    const chamadasAntes = ids.map((id) => chamadas.get(`vendedor:${id}`));
+
+    // teto = parados do tenant − 1 (pode haver parados de outras rodadas do teste no mesmo tenant)
+    const parados = (await d.reprocessarParados({ tenantId: A, confirmar: false })).selecionados.length;
+    expect(parados).toBeGreaterThanOrEqual(2);
+    const recusa = d.reprocessarParados({ tenantId: A, confirmar: true, teto: parados - 1 });
+    await expect(recusa).rejects.toBeInstanceOf(ErroTetoReprocesso);
+    await expect(recusa).rejects.toMatchObject({ selecionados: parados, teto: parados - 1 });
+    expect(await Promise.all(ids.map(evento))).toEqual(antes);
+    expect(ids.map((id) => chamadas.get(`vendedor:${id}`))).toEqual(chamadasAntes);
+
+    // limpeza: sem a falha, o reprocesso dentro do teto publica os dois
+    for (const m of marcas) falhando.delete(m);
+    await d.reprocessarParados({ tenantId: A, confirmar: true });
+    for (const id of ids) expect(await evento(id)).toMatchObject({ publicado_em: expect.any(Date), tentativas: MAX + 1 });
   });
 });

@@ -1,6 +1,6 @@
 /**
  * CLI `reprocessar-outbox` (workflow producao-reprocessar-outbox.yml). Banco FALSO: argumentos, códigos de saída, o
- * `--confirmar` repassado e a saída só com contagens, ids técnicos, nomes de evento e classes. O caminho no banco está em
+ * `--confirmar` repassado e a saída só com contagens, nomes de evento e classes. O caminho no banco está em
  * reprocessar-outbox.banco.test.ts.
  */
 import { describe, expect, it } from 'vitest';
@@ -52,8 +52,8 @@ describe('reprocessar-outbox (CLI)', () => {
       selecionados,
       ja_tentados: 1,
       itens: [
-        { evento_id: ID1, nome: NO, classe_antes: selecionados[0]!.classe, resultado: 'publicado', classe_depois: null },
-        { evento_id: ID2, nome: PRODUTO, classe_antes: selecionados[1]!.classe, resultado: 'parado_de_novo', classe_depois: 'catalogo: ReferenciaAusenteErp' },
+        { evento_id: ID1, nome: NO, resultado: 'publicado', classe_depois: null },
+        { evento_id: ID2, nome: PRODUTO, resultado: 'parado_de_novo', classe_depois: 'catalogo: ReferenciaAusenteErp' },
       ],
     });
     expect(r.codigo).toBe(0);
@@ -61,7 +61,11 @@ describe('reprocessar-outbox (CLI)', () => {
     const texto = r.saida.join('\n');
     expect(texto).toContain('resultado: 1 publicados · 1 pararam de novo (não serão tentados outra vez)');
     expect(texto).toContain('já reprocessados antes e parados de novo (fora): 1');
-    expect(texto).toContain(`  ${ID2} | ${PRODUTO} | parado_de_novo | catalogo: ReferenciaAusenteErp`);
+    expect(r.saida.slice(r.saida.indexOf('pararam de novo, por evento e classe do erro:'))).toEqual([
+      'pararam de novo, por evento e classe do erro:',
+      `  1 | ${PRODUTO} | catalogo: ReferenciaAusenteErp`,
+    ]);
+    expect(texto).not.toContain(ID2);
   });
 
   it('uso errado = 2 e não abre o banco para código inválido; empresa não encontrada = 3', async () => {
@@ -74,7 +78,9 @@ describe('reprocessar-outbox (CLI)', () => {
   });
 
   it('acima do teto = 5 (nada mudou); erro do banco = 1 só com o nome do erro', async () => {
-    expect((await rodar(['--empresa', 'AM2808', '--confirmar'], new ErroTetoReprocesso(150))).codigo).toBe(5);
+    const teto = await rodar(['--empresa', 'AM2808', '--confirmar'], new ErroTetoReprocesso(150));
+    expect(teto.codigo).toBe(5);
+    expect(teto.erro).toEqual(['[reprocessar-outbox] 150 eventos parados passam do teto de 100: nada foi reprocessado.']);
     const r = await rodar(['--empresa', 'AM2808'], new Error('valor "Maria" viola a chave'));
     expect(r.codigo).toBe(1);
     expect(r.erro.join('\n')).not.toContain('Maria');

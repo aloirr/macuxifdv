@@ -1,21 +1,12 @@
 /**
- * Reprocesso único dos eventos PARADOS da outbox de uma empresa (workflow producao-reprocessar-outbox.yml; desenho
- * docs/desenho/outbox-parada-v1014.md, §7):
- *
- *   node --import tsx apps/api/src/cli/reprocessar-outbox.ts --empresa AM2808 [--confirmar]
- *
- * Roda com o ambiente do serviço `worker` (os papéis `macuxi_worker` e `macuxi_app`, nunca o admin) e entrega pelo MESMO
- * despachante do worker (`Despachante.reprocessarParados`: mesmos consumidores, licença e `evento_consumo`).
- * Sem `--confirmar`: só a lista (contagem por evento e classe do erro), transação desfeita. Com `--confirmar`: cada evento
- * parado é tentado UMA vez; o que falha de novo fica parado (tentativas > máximo) e nenhuma rodada seguinte o tenta outra vez.
- * Saída sem dado pessoal: contagens, ids técnicos, nomes de evento e classes de erro (nunca payload nem mensagem).
- * Saída do processo: 0 ok (inclusive quando algum evento parou de novo: a contagem está na saída) · 1 erro · 2 uso errado ·
- * 3 empresa não encontrada · 5 acima do teto (nada mudou).
+ * uso: node --import tsx apps/api/src/cli/reprocessar-outbox.ts --empresa <código> [--confirmar]
+ * Saída: 0 ok · 1 erro · 2 uso errado · 3 empresa não encontrada · 5 acima do teto (nada mudou).
+ * Regras: desenho, §7 (docs/desenho/outbox-parada-v1014.md).
  */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { ErroTetoReprocesso, resumirPorClasse, TETO_REPROCESSO, type ResultadoReprocesso } from '../reprocessar-outbox';
+import { ErroTetoReprocesso, resumirPorClasse, type ResultadoReprocesso } from '../reprocessar-outbox';
 
 const USO = 'uso: reprocessar-outbox --empresa <código> [--confirmar]';
 const RE_CODIGO = /^([a-z0-9][a-z0-9-]{1,39}|[A-Z]{2}[0-9]{4})$/;
@@ -33,7 +24,7 @@ export interface DepsReprocesso {
   erro(linha: string): void;
 }
 
-/** Linhas do resultado: só contagens, ids técnicos, nomes de evento e classes. */
+/** Linhas do resultado: só contagens, nomes de evento e classes. */
 export function formatarResultado(empresa: string, r: ResultadoReprocesso): string[] {
   const l: string[] = [];
   const modo = r.modo === 'leitura' ? 'só leitura (confirmar=false): nada mudou' : 'reprocesso (confirmar=true): uma tentativa por evento';
@@ -49,8 +40,6 @@ export function formatarResultado(empresa: string, r: ResultadoReprocesso): stri
     l.push('pararam de novo, por evento e classe do erro:');
     for (const g of resumirPorClasse(deNovo.map((i) => ({ nome: i.nome, classe: i.classe_depois ?? '(sem erro)' })))) l.push(`  ${g.eventos} | ${g.nome} | ${g.classe}`);
   }
-  l.push('por evento (id técnico | evento | resultado | classe):');
-  for (const i of r.itens) l.push(`  ${i.evento_id} | ${i.nome} | ${i.resultado} | ${i.classe_depois ?? '-'}`);
   return l;
 }
 
@@ -80,7 +69,7 @@ export async function executarReprocessarOutbox(argv: readonly string[], deps: D
     return 0;
   } catch (e) {
     if (e instanceof ErroTetoReprocesso) {
-      deps.erro(`[reprocessar-outbox] ${e.selecionados} eventos parados passam do teto de ${TETO_REPROCESSO}: nada foi reprocessado.`);
+      deps.erro(`[reprocessar-outbox] ${e.message}.`);
       return 5;
     }
     // só o nome do erro: a mensagem pode trazer valor do banco

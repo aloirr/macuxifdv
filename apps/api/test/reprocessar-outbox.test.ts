@@ -1,65 +1,26 @@
 /**
- * Reprocesso único dos eventos parados da outbox de UMA empresa (workflow producao-reprocessar-outbox.yml; desenho
- * docs/desenho/outbox-parada-v1014.md, §7). Sem banco: a seleção, a regra de "não tentar de novo", a classe do erro (a mesma
- * do producao-diagnostico-outbox.yml, sem texto livre) e o resumo por classe. O caminho no banco está em
- * reprocessar-outbox.banco.test.ts.
+ * Reprocesso único dos parados (desenho docs/desenho/outbox-parada-v1014.md, §7). Sem banco: a separação entre parados e
+ * já tentados, a classe do erro (a mesma do producao-diagnostico-outbox.yml, sem texto livre) e o resumo por classe. A
+ * seleção no banco (empresa, publicado, ordem, teto) está em reprocessar-outbox.banco.test.ts.
  */
 import { describe, expect, it } from 'vitest';
-import { classeDoErro, resumirPorClasse, selecionarParados, TETO_REPROCESSO, type EventoParadoLido } from '../src/reprocessar-outbox';
+import { classeDoErro, resumirPorClasse, selecionarParados, TETO_REPROCESSO } from '../src/reprocessar-outbox';
 
-const AM = '11111111-1111-4111-8111-111111111111';
-const OUTRA = '22222222-2222-4222-8222-222222222222';
 const NO = 'integracao.catalogo_no.atualizado@1';
 const PRODUTO = 'integracao.produto.atualizado@1';
 const MAX = 10;
 
-let n = 0;
-function ev(p: Partial<EventoParadoLido> = {}): EventoParadoLido {
-  n += 1;
-  return {
-    id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
-    tenant_id: AM,
-    nome: PRODUTO,
-    tentativas: MAX,
-    publicado_em: null,
-    deleted_at: null,
-    ocorrido_em: new Date(Date.UTC(2026, 10, 15, 4, 58, 0, n)),
-    ultimo_erro: 'catalogo: ReferenciaAusenteErp: referencia_ausente: 1 registro(s) de catalogo_no ainda não chegaram',
-    ...p,
-  };
-}
-
-const sel = (linhas: EventoParadoLido[]) => selecionarParados(linhas, { tenantId: AM, nomes: [NO, PRODUTO], maxTentativas: MAX });
-
-describe('selecionarParados: só os parados da empresa, uma vez só', () => {
-  it('pega só evento parado (tentativas = máximo, sem publicado_em) da empresa pedida', () => {
-    const parado = ev();
-    const r = sel([
-      parado,
-      ev({ tenant_id: OUTRA }), // outra empresa
-      ev({ publicado_em: new Date('2026-11-15T05:00:00Z') }), // já publicado
-      ev({ tentativas: 3 }), // ainda em nova tentativa: é do despachante, não do reprocesso
-      ev({ tentativas: 0 }),
-      ev({ deleted_at: new Date('2026-11-16T05:00:00Z') }), // apagado
-      ev({ nome: 'core.notificacao.criada@1' }), // sem consumidor instalado
-    ]);
-    expect(r.reprocessar.map((e) => e.id)).toEqual([parado.id]);
-    expect(r.jaTentados).toEqual([]);
-  });
-
-  it('não tenta de novo: o que passou do máximo (já reprocessado e parado outra vez) fica fora e é contado à parte', () => {
-    const jaTentado = ev({ tentativas: MAX + 1 });
-    const parado = ev();
-    const r = sel([jaTentado, parado]);
-    expect(r.reprocessar.map((e) => e.id)).toEqual([parado.id]);
-    expect(r.jaTentados.map((e) => e.id)).toEqual([jaTentado.id]);
-  });
-
-  it('ordem do despachante: do mais antigo para o mais novo (os nós antes dos produtos), desempate pelo id', () => {
-    const produto = ev({ nome: PRODUTO, ocorrido_em: new Date('2026-11-15T04:58:00Z') });
-    const no2 = ev({ nome: NO, ocorrido_em: new Date('2026-11-15T04:47:00Z'), id: '00000000-0000-4000-8000-0000000000b2' });
-    const no1 = ev({ nome: NO, ocorrido_em: new Date('2026-11-15T04:47:00Z'), id: '00000000-0000-4000-8000-0000000000b1' });
-    expect(sel([produto, no2, no1]).reprocessar.map((e) => e.id)).toEqual([no1.id, no2.id, produto.id]);
+describe('selecionarParados: uma vez só', () => {
+  it('o que passou do máximo (já reprocessado e parado outra vez) fica fora e é contado à parte', () => {
+    const r = selecionarParados(
+      [
+        { id: 'a', tentativas: MAX + 1 },
+        { id: 'b', tentativas: MAX },
+      ],
+      MAX,
+    );
+    expect(r.reprocessar.map((e) => e.id)).toEqual(['b']);
+    expect(r.jaTentados.map((e) => e.id)).toEqual(['a']);
   });
 
   it('teto de segurança: a CLI recusa mais do que o teto (o escopo é a empresa, não a outbox inteira)', () => {

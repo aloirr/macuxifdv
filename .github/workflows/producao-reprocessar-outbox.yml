@@ -1,22 +1,6 @@
 name: producao — reprocessar outbox
 
-# Reprocesso ÚNICO dos eventos parados da outbox de UMA empresa (OUTBOX_PARADA; desenho docs/desenho/outbox-parada-v1014.md,
-# §7; AM2808: modules/integracao/docs/outbox-parada-am2808-catalogo.md). Só manual e só no environment PRODUCAO.
-#
-# Autorização: no BKO, o reprocesso de lote de quem não tem `lote.reprocessar` pede a senha de um autorizador (RN-INT-16).
-# Aqui não há usuário do BKO: a senha é substituída pela APROVAÇÃO DO ALEXANDRE no environment PRODUCAO (o job não roda sem
-# ela) e o registro é o próprio run (quem disparou, quem aprovou, SHA e saída). Rode primeiro com confirmar=false.
-#
-# O que roda: apps/api/src/cli/reprocessar-outbox.ts, dentro da imagem que está no ar, com o ambiente do serviço worker
-# (macuxi_worker + macuxi_app; nunca o admin, nenhum segredo novo). Por dentro é o MESMO despachante do worker
-# (Despachante.reprocessarParados → entregar: mesmos consumidores, licença e plataforma.evento_consumo). Nada de SQL à mão.
-# - confirmar=false: só leitura; lista os parados (tentativas = 10) da empresa, por evento e classe do erro; transação desfeita.
-# - confirmar=true: cada parado é tentado UMA vez, do mais antigo para o mais novo. Publicou → sai da outbox. Falhou → fica
-#   parado com tentativas 11 e a classe nova no log; não é tentado outra vez, nem por esta rotina (que só pega tentativas = 10)
-#   nem pelo despachante (que só pega < 10). Rodar de novo, portanto, não repete o que já foi tentado.
-# - Teto de 100 eventos por empresa (acima disso nada muda, saída 5).
-# Log: só contagens, ids técnicos, nomes de evento e classes de erro; nunca payload, mensagem, dado pessoal ou coordenada.
-# Depende do deploy da versão com a CLI (v1.0.21): sem ela, para com a saída 9.
+# Reprocesso único dos eventos parados da outbox de UMA empresa. Regras, autorização e saídas: docs/desenho/outbox-parada-v1014.md, §7. Rode primeiro com confirmar=false.
 
 on:
   workflow_dispatch:
@@ -54,19 +38,19 @@ jobs:
         run: |
           [[ "$EMPRESA" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$EMPRESA" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido"; exit 1; }
 
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
       - name: chave SSH
-        env:
-          CHAVE: ${{ secrets.PROD_SSH_KEY }}
-          HOST: ${{ secrets.PROD_HOST }}
-          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
-        run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
-          chmod 600 ~/.ssh/prod
-          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
-          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
-          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
-          chmod 600 ~/.ssh/config
+        id: chave
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: preparar
+          chave: ${{ secrets.PROD_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          conhecidos: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
 
       - name: reprocessar-outbox na VM
         timeout-minutes: 10
@@ -96,6 +80,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
+      # sempre que a chave chegou a ser gravada (mesmo com falha depois); sem o checkout, a ação local nem existe
       - name: limpar o runner
-        if: ${{ always() }}
-        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts saida.txt
+        if: ${{ always() && steps.chave.outcome != 'skipped' }}
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: limpar
+          arquivos: saida.txt

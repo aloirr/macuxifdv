@@ -1,46 +1,13 @@
-/**
- * Reprocesso único dos eventos PARADOS da outbox de uma empresa (workflow producao-reprocessar-outbox.yml; desenho
- * docs/desenho/outbox-parada-v1014.md, §7). Regras puras; o caminho no banco é `Despachante.reprocessarParados`
- * (despachante.ts), que entrega pelo MESMO `entregar` do ciclo normal (mesmos consumidores, mesma idempotência
- * `plataforma.evento_consumo`, mesma licença do tenant). A CLI é `cli/reprocessar-outbox.ts`.
- *
- * - Parado = `publicado_em` nulo e `tentativas` = máximo do despachante (10): o despachante não o pega mais.
- * - Uma vez só: a tentativa do reprocesso soma 1 (10 → 11). Se falhar, o evento fica com `tentativas` > máximo, continua
- *   parado (o alerta OUTBOX_PARADA conta `>= 10`) e nenhuma rodada seguinte o seleciona de novo (`jaTentados`).
- * - Saída sem texto livre: só id técnico, nome do evento e a classe do erro (a mesma do producao-diagnostico-outbox.yml).
- */
-
-/** Linha de `plataforma.evento` com o que a seleção usa (envelope pelo `macuxi_worker`; erro e exclusão pelo `macuxi_app`). */
-export interface EventoParadoLido {
-  id: string;
-  tenant_id: string;
-  nome: string;
-  tentativas: number;
-  publicado_em: Date | null;
-  deleted_at: Date | null;
-  ocorrido_em: Date;
-  ultimo_erro: string | null;
-}
+/** Regras puras do reprocesso (desenho, §7); o caminho no banco é `Despachante.reprocessarParados`. */
 
 /** Mais que isto numa empresa = recusa sem mexer em nada (o escopo é a fila parada de uma empresa, não a outbox inteira). */
 export const TETO_REPROCESSO = 100;
 
-/**
- * Seleção do reprocesso: só a empresa pedida, só evento com consumidor instalado, não publicado, não apagado e com
- * `tentativas` = máximo. Com `tentativas` > máximo = já passou por um reprocesso e parou de novo: fica fora (`jaTentados`).
- * Ordem do despachante: `ocorrido_em`, depois `id` (os nós da árvore chegam antes dos produtos).
- */
-export function selecionarParados(
-  linhas: readonly EventoParadoLido[],
-  o: { tenantId: string; nomes: readonly string[]; maxTentativas: number },
-): { reprocessar: EventoParadoLido[]; jaTentados: EventoParadoLido[] } {
-  const nomes = new Set(o.nomes);
-  const candidatos = linhas
-    .filter((e) => e.tenant_id === o.tenantId && nomes.has(e.nome) && e.publicado_em === null && e.deleted_at === null)
-    .sort((a, b) => a.ocorrido_em.getTime() - b.ocorrido_em.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+/** `tentativas` = máximo entra; > máximo já foi reprocessado e parou de novo, e fica fora (o SQL já filtra e ordena). */
+export function selecionarParados<T extends { tentativas: number }>(linhas: readonly T[], maxTentativas: number): { reprocessar: T[]; jaTentados: T[] } {
   return {
-    reprocessar: candidatos.filter((e) => e.tentativas === o.maxTentativas),
-    jaTentados: candidatos.filter((e) => e.tentativas > o.maxTentativas),
+    reprocessar: linhas.filter((e) => e.tentativas === maxTentativas),
+    jaTentados: linhas.filter((e) => e.tentativas > maxTentativas),
   };
 }
 
@@ -86,8 +53,6 @@ export function resumirPorClasse(itens: readonly { nome: string; classe: string 
 export interface ItemReprocesso {
   evento_id: string;
   nome: string;
-  /** Classe do erro que o deixou parado. */
-  classe_antes: string;
   resultado: 'publicado' | 'parado_de_novo';
   /** Classe da nova falha (`parado_de_novo`); `null` quando publicou. */
   classe_depois: string | null;
@@ -106,8 +71,11 @@ export interface ResultadoReprocesso {
 }
 
 export class ErroTetoReprocesso extends Error {
-  constructor(readonly selecionados: number) {
-    super(`${selecionados} eventos parados passam do teto de ${TETO_REPROCESSO}: nada foi reprocessado`);
+  constructor(
+    readonly selecionados: number,
+    readonly teto: number = TETO_REPROCESSO,
+  ) {
+    super(`${selecionados} eventos parados passam do teto de ${teto}: nada foi reprocessado`);
     this.name = 'ErroTetoReprocesso';
   }
 }

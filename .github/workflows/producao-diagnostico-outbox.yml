@@ -111,6 +111,7 @@ jobs:
             -- classe do erro sem texto livre: só o módulo e um rótulo fixo, um código (SQLSTATE, HTTP) ou o nome da classe
             -- do erro; o resto da mensagem nunca sai (ultimo_erro = "<módulo>: <Nome>: <mensagem>", 1a falha antes de " | ")
             cross join lateral (select split_part(coalesce(e.ultimo_erro, ''), ' | ', 1) as x) u
+            -- mesma regra de `classeDoErro` em apps/api/src/reprocessar-outbox.ts
             cross join lateral (select case when u.x = '' then '(sem erro)' else
                    case when split_part(u.x, ':', 1) ~ '^[a-z_]{1,20}$' then split_part(u.x, ':', 1) else '?' end || ': ' ||
                    case when u.x like '%Lote aguardando o lote anterior da mesma entidade%' then 'espera da mesma entidade'
