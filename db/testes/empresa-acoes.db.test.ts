@@ -11,9 +11,7 @@
  * - RN-PLA-10: o código da empresa excluída não volta (gatilho e sorteio); a restauração (mesmo id) pode;
  * - RN-PLA-11: backup 30 dias, o da exclusão 90 dias depois dela;
  * - papéis da ADR 0024: sa_* só do macuxi_portal, as do worker só do macuxi_worker, nenhum grant de tabela; up/down exato.
- * Estático (sempre) + banco (empresas próprias do caso, sempre com ROLLBACK; up/down num banco efêmero) no CI.
- * Os casos que escrevem não usam os tenants A e B da fixture: com os outros arquivos no mesmo banco (vitest em paralelo),
- * a exclusão do A travava as linhas que eles gravam do A e caía em deadlock (40P01) no executar_exclusao.
+ * Estático (sempre) + banco (empresas próprias do caso (`empresasDoCaso`), sempre com ROLLBACK; up/down num banco efêmero) no CI.
  */
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -71,7 +69,6 @@ const A = DOIS_TENANTS.A.tenantId;
 const ADMIN_A = DOIS_TENANTS.A.usuarios.admin;
 const SHA = 'a'.repeat(64);
 const id = (n: number) => `00720000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-/** Empresas próprias dos casos que escrevem (criadas na transação do caso; nenhum outro arquivo as vê). */
 const E = id(101);
 const F = id(102);
 const CODIGO_E = 'acoes0072e';
