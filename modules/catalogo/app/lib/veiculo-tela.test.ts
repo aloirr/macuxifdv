@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { nadaEncontradoPara } from '../../contracts';
 import { partirTrecho, textoDaFichaCompativel, vazioComVeiculo } from './veiculo-tela';
 
 const GOL = { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018, motor: '1.0', versao: null };
@@ -7,7 +6,6 @@ const GOL = { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018, motor: '1.0', v
 describe('RN-CAT-22: apoio das telas do veículo', () => {
   it('RN-CAT-22: o texto da ficha da spec §12 (o veículo escrito, sem a montadora)', () => {
     expect(textoDaFichaCompativel(GOL)).toBe('Compatível com Gol 2018 1.0');
-    expect(nadaEncontradoPara('traseiro')).toBe('Nada encontrado para "traseiro"');
   });
   it('RN-CAT-22: o vazio com veículo: com texto, o título leva o texto; sem texto, "Nenhum produto com esses filtros"; chip marcado pede Limpar filtros', () => {
     expect(vazioComVeiculo({ consulta: 'traseiro', chipMarcado: false })).toEqual({ titulo: 'Nada encontrado para "traseiro"', acao: 'tirar_veiculo' });

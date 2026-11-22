@@ -347,9 +347,9 @@ export default function TelaCatalogo() {
             testID="catalogo-busca"
             valor={texto}
             onChange={setTexto}
-            placeholder={temVeiculos ? TEXTOS_VEICULO_CATALOGO.placeholderBusca : 'Produto, código ou aplicação'}
+            placeholder={temVeiculos ? TEXTOS_VEICULO.placeholderBusca : 'Produto, código ou aplicação'}
             rotuloAcessivel="Buscar produto"
-            {...(temVeiculos ? { dica: TEXTOS_VEICULO_CATALOGO.dicaBusca } : {})}
+            {...(temVeiculos ? { dica: TEXTOS_VEICULO.dicaBusca } : {})}
             onEnviar={() => setConsulta(texto.trim())}
             onLimpar={() => {
               setTexto('');
