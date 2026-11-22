@@ -138,7 +138,7 @@ export const ConectorResumo = z.object({
 export type ConectorResumo = z.infer<typeof ConectorResumo>;
 
 /** Chave em claro (a mesma `ChaveConectorCriada`, sem `tenant_id`), devolvida uma única vez ao criar o Conector ou gerar chave nova (`POST /v1/integracao/conectores/{id}/chave`). */
-export const ChaveNovaConector = ChaveConectorCriada.omit({ tenant_id: true });
+export const ChaveNovaConector = ChaveConectorCriada.omit({ tenant_id: true }).extend({ conector_id: ConectorIdentificador });
 export type ChaveNovaConector = z.infer<typeof ChaveNovaConector>;
 
 /** Criar Conector devolve o resumo e a chave em claro (uma única vez). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuditoriaInativacao, ConectoresQuery, DecidirInativacaoResposta, PendenciaInativacao, RecusaTopologiaConector } from './bko';
+import { AuditoriaInativacao, ChaveNovaConector, ConectoresQuery, DecidirInativacaoResposta, PendenciaInativacao, RecusaTopologiaConector } from './bko';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const pendencia = {
@@ -59,5 +59,23 @@ describe('RN-INT-10: filtro ?tipo= da listagem de conectores (credencial de API 
     expect(ConectoresQuery.parse({ tipo: 'nuvem' })).toEqual({ tipo: 'nuvem' });
     expect(ConectoresQuery.parse({ tipo: 'conector' })).toEqual({ tipo: 'conector' });
     expect(ConectoresQuery.safeParse({ tipo: 'api' }).success).toBe(false);
+  });
+});
+
+describe('RN-INT-10: ChaveNovaConector devolvida na criação e na rotação', () => {
+  const chave = {
+    conector_id: 'conector-matriz_01',
+    escopo: 'integracao.v1',
+    chave: 'k'.repeat(40),
+    prefixo: 'abcd1234',
+    criada_em: '2026-11-22T12:00:00.000Z',
+  };
+  it('RN-INT-10: aceita um conector_id no formato do identificador do Conector', () => {
+    expect(ChaveNovaConector.safeParse(chave).success).toBe(true);
+  });
+  it('RN-INT-10: rejeita conector_id inválido (espaço, barra, acento ou vazio)', () => {
+    for (const conector_id of ['com espaço', 'a/b', 'ação', '', 'x'.repeat(101)]) {
+      expect(ChaveNovaConector.safeParse({ ...chave, conector_id }).success).toBe(false);
+    }
   });
 });
