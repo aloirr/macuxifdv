@@ -17,7 +17,7 @@
  *  - poll de pedidos: `for update skip locked`; retorno: `select ... for update` na linha da fila.
  * bigint lido como number; no `pg` cru o int8 e o numeric chegam como string (converta no repositório).
  */
-import { bigint, boolean, date, inet, integer, jsonb, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, customType, date, inet, integer, jsonb, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import {
   CODIGOS_ERRO_LINHA,
   ENTIDADES,
@@ -449,3 +449,110 @@ export const pedidoRetornoErro = integracao.table('pedido_retorno_erro', {
   resolvido_em: quando('resolvido_em'),
 });
 
+
+// ---------------------------------------------------------------------------------------------
+// 0094 — integração por ERP (F2). Regras e colunas: docs/banco/integracao.md ("0094"). Listas abaixo = CHECKs do SQL
+// (db/testes/integracao-busca-erp.db.test.ts compara).
+// ---------------------------------------------------------------------------------------------
+/** ERPs com adaptador de busca na API (F4a). */
+export const ERPS_BUSCA_API = ['protheus', 'sap_b1', 'sankhya', 'senior'] as const;
+/** ERPs do passo 1 do assistente. */
+export const ERPS_IMPLANTACAO = ['protheus', 'winthor', 'sap_b1', 'sankhya', 'senior', 'outro'] as const;
+/** Meio escolhido no passo 2 do assistente. */
+export const MEIOS_IMPLANTACAO = ['conector', 'api_busca', 'api_envia'] as const;
+export const ORIGENS_COLETA = ['agendada', 'buscar_agora', 'recarregar'] as const;
+export const ESTADOS_COLETA = ['solicitada', 'executando', 'concluida', 'falhou'] as const;
+/** Classes de falha da coleta; só no estado `falhou`. */
+export const CLASSES_FALHA_COLETA = ['credencial_recusada', 'transitoria', 'formato_mudou'] as const;
+/**
+ * Frequência por entidade, em minutos: múltiplo de 15, de 15 a 1440 (RN-CORE-23). Espelham `FREQUENCIA_MINIMA_COLETA_MIN` e
+ * `FREQUENCIA_MAXIMA_COLETA_MIN` de packages/platform-sdk/src/coleta-erp.ts; a troca pelo import fica para a F3, com os dois
+ * no main.
+ */
+export const FREQUENCIA_MINIMA_MIN = 15;
+export const FREQUENCIA_MAXIMA_MIN = 1440;
+/** Marcos do painel dos 30 dias: a coluna é `marco_<nome>_em` em `integracao.implantacao`. */
+export const MARCOS_IMPLANTACAO = ['primeira_completa', 'primeiro_pedido', 'primeiro_faturamento', 'reconciliacao', 'sem_alerta'] as const;
+
+/** bytea do Postgres (Buffer no node-postgres). */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
+
+/** Configuração NÃO secreta da busca na API do ERP; uma viva por Conector. */
+export const conectorApi = integracao.table('conector_api', {
+  ...comuns(),
+  conector_id: uuid('conector_id').notNull(),
+  erp: text('erp', { enum: ERPS_BUSCA_API }).notNull(),
+  url_base: text('url_base').notNull(),
+  usuario_erp: text('usuario_erp'),
+  parametros: jsonb('parametros').$type<Record<string, string | number | boolean>>().notNull().default({}),
+  frequencias: jsonb('frequencias').$type<Partial<Record<(typeof ENTIDADES)[number], number>>>().notNull().default({}),
+  coletas_paradas_em: quando('coletas_paradas_em'),
+});
+
+/** Segredo do ERP cifrado; uma viva por Conector, só o macuxi_app lê. Ao apagar (deleted_at), grave cifrado/iv/tag nulos. */
+export const credencialErp = integracao.table('credencial_erp', {
+  ...comuns(),
+  conector_id: uuid('conector_id').notNull(),
+  cifrado: bytea('cifrado'),
+  iv: bytea('iv'),
+  tag: bytea('tag'),
+  chave_versao: smallint('chave_versao').notNull(),
+  atualizada_em: quando('atualizada_em').notNull().defaultNow(),
+  atualizada_por: uuid('atualizada_por'),
+});
+
+/** Assistente e marcos do painel dos 30 dias (MARCOS_IMPLANTACAO); uma viva por tenant. Marco nulo = não cumprido. */
+export const implantacao = integracao.table('implantacao', {
+  ...comuns(),
+  passo: smallint('passo').notNull().default(1),
+  erp: text('erp', { enum: ERPS_IMPLANTACAO }),
+  meio: text('meio', { enum: MEIOS_IMPLANTACAO }),
+  conector_id: uuid('conector_id'),
+  iniciada_em: quando('iniciada_em').notNull().defaultNow(),
+  marco_primeira_completa_em: quando('marco_primeira_completa_em'),
+  marco_primeiro_pedido_em: quando('marco_primeiro_pedido_em'),
+  marco_primeiro_faturamento_em: quando('marco_primeiro_faturamento_em'),
+  marco_reconciliacao_em: quando('marco_reconciliacao_em'),
+  marco_sem_alerta_em: quando('marco_sem_alerta_em'),
+  concluida_em: quando('concluida_em'),
+});
+
+/** Retrato diário do painel; um vivo por (tenant, implantacao, dia). */
+export const implantacaoDia = integracao.table('implantacao_dia', {
+  ...comuns(),
+  implantacao_id: uuid('implantacao_id').notNull(),
+  dia: date('dia').notNull(),
+  minutos_fora_do_ar: smallint('minutos_fora_do_ar').notNull().default(0),
+  lotes_concluidos: integer('lotes_concluidos').notNull().default(0),
+  lotes_com_erro: integer('lotes_com_erro').notNull().default(0),
+  divergencias: integer('divergencias').notNull().default(0),
+  alertas: integer('alertas').notNull().default(0),
+  pedidos_integrados: integer('pedidos_integrados').notNull().default(0),
+  pedidos_rejeitados: integer('pedidos_rejeitados').notNull().default(0),
+  pedidos_presos: integer('pedidos_presos').notNull().default(0),
+  pedidos_retidos: integer('pedidos_retidos').notNull().default(0),
+  mediana_pedido_s: integer('mediana_pedido_s'),
+  por_entidade: jsonb('por_entidade').$type<Record<string, Record<string, number>>>().notNull().default({}),
+});
+
+/** Cada coleta (Conector, entidade) do trabalho `coletar_erp`; `erro_codigo` nunca traz a resposta do ERP. */
+export const coletaExecucao = integracao.table('coleta_execucao', {
+  ...comuns(),
+  conector_id: uuid('conector_id').notNull(),
+  entidade: entidade(),
+  modo: text('modo', { enum: ModoCarga.options }).notNull(),
+  origem: text('origem', { enum: ORIGENS_COLETA }).notNull(),
+  estado: text('estado', { enum: ESTADOS_COLETA }).notNull().default('solicitada'),
+  falha_classe: text('falha_classe', { enum: CLASSES_FALHA_COLETA }),
+  http_status: smallint('http_status'),
+  erro_codigo: text('erro_codigo'),
+  tentativas: smallint('tentativas').notNull().default(0),
+  paginas: integer('paginas').notNull().default(0),
+  linhas: integer('linhas').notNull().default(0),
+  lotes: integer('lotes').notNull().default(0),
+  solicitada_em: quando('solicitada_em').notNull().defaultNow(),
+  iniciada_em: quando('iniciada_em'),
+  concluida_em: quando('concluida_em'),
+  proxima_tentativa_em: quando('proxima_tentativa_em'),
+  trabalho_id: uuid('trabalho_id'),
+});

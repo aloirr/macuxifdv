@@ -52,6 +52,8 @@ const TABELAS_INTEGRACAO = [
   'integracao.lote', 'integracao.lote_staging', 'integracao.lote_linha_erro', 'integracao.registro_atual', 'integracao.pendencia_inativacao',
   'integracao.inativacao_auditoria', 'integracao.cursor_entidade', 'integracao.reconciliacao', 'integracao.mapeamento', 'integracao.pedido_fila_erp',
   'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
+  // 0094 (integração por ERP, F2): integracao-busca-erp.db.test.ts
+  'integracao.conector_api', 'integracao.credencial_erp', 'integracao.implantacao', 'integracao.implantacao_dia', 'integracao.coleta_execucao',
 ] as const;
 /** Tabelas do schema promotor (0015, T-0056): 9 cadastros de trade (pull) e 11 coletas (push). */
 const TABELAS_PROMOTOR = [
@@ -236,6 +238,7 @@ describe('migrações (estático)', () => {
     expect(nomes[89]).toBe('0090_core_cliente360_documentos'); // T-0186 (Cliente 360 v2, D2–D5): forma_pagamento e NF original em core.nota_erp, forma_pagamento e NF em core.titulo, 3 índices e core.documento_tipo, documento_cliente, documento_permissao e documento_excecao (cliente360-documentos.db.test.ts)
     expect(nomes[90]).toBe('0091_plataforma_tenant_ocultar_marca_macuxi'); // item 15 do Campo v1.0.16: plataforma.tenant.ocultar_marca_macuxi (not null default false), sa_gravar_ocultar_marca no portal (só super-admin) e ocultar_marca_macuxi no jsonb da marca (tenant-ocultar-marca.db.test.ts)
     expect(nomes[92]).toBe('0093_core_usuario_base_cliente_geocodificacao'); // T-0191 (Rotas, RN-CORE-75 a 77): casa_* e base_* em core.usuario e coordenada_origem, coordenada_precisao, geocodificacao_tentada_em e geocodificacao_chave em core.cliente, com CHECKs, backfill 'erp' e SELECT por coluna do macuxi_leitura em core.cliente (usuario-base-cliente-geocodificacao.db.test.ts)
+    expect(nomes[93]).toBe('0094_integracao_busca_erp'); // integração por ERP (F2): conector_api, credencial_erp (sem macuxi_leitura), implantacao, implantacao_dia e coleta_execucao, piso de 15 min na frequência (integracao-busca-erp.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
