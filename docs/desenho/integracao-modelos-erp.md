@@ -159,7 +159,7 @@ O "driver HTTP" no Conector fica para quando aparecer um cliente com API só na 
 
   O worker sai por um IP fixo, publicado no assistente para a lista de IPs do cliente (D7).
 
-**RN propostas** (o gerente dá o número final):
+**RN propostas**:
 - RN-INT-17: Conector `nuvem` e frequência por entidade, múltipla de 15 min, de 15 min a 1 dia; a carga completa semanal à parte.
 - RN-INT-18: cofre de credenciais do ERP (só escrita, cifra por tenant, rotação).
 - RN-INT-19: pedido pela API só com o campo do UUID no ERP, com consulta antes de criar.
@@ -375,7 +375,7 @@ D+30, ou antes, quando todos os marcos estiverem cumpridos e houver 7 dias segui
 | F0 | ADR "Busca na API do ERP e cofre de credenciais por tenant" (número reservado no quadro, conferido no `origin/main`); registro em `.coord/contratos/` dos eventos `integracao.coleta.solicitada@v1` e `integracao.implantacao.marco@v1`; RF e RN no doc 02 e 03 (gerente) | engenheiro-software; gerente-projetos | decisões do §8 |
 | F1 | Plataforma: cofre (`cifrar`/`decifrar` AES-256-GCM, versão de chave, `redact`), cliente HTTP de saída com proteção contra SSRF, timeout e limite por host, recifra da chave-mestra | engenheiro-software | F0 |
 | F2 | Migração: `integracao.conector_api` (ERP, URL e parâmetros não secretos), `credencial_erp`, `implantacao`, `implantacao_dia` e `coleta_execucao`; RLS, down, `*.db.test.ts` e dicionário | banco-dados | F0 |
-| F3 | Núcleo da busca: contratos (`ModeloErp`, `ConfigApiErp`), domain puro (plano de coleta, janela, classes de falha, conversão), tarefa `agendar_coletas`, trabalhos `coletar_erp` e `entregar_pedido_erp`, rotas salvar, testar e buscar agora, saúde do tipo `nuvem` no Monitor | modulo-integracao | F1, F2 |
+| F3 | Núcleo da busca: contratos (`ModeloErp`, `ConfigApiErp`), domain puro (plano de coleta, janela, classes de falha, conversão), tarefa `agendar_coletas`, trabalhos `coletar_erp` e `entregar_pedido_erp`, rotas salvar, testar e buscar agora, saúde do tipo `nuvem` no Monitor; trocar o espelho de `FREQUENCIA_MINIMA_MIN`/`MAXIMA_MIN` em `modules/integracao/db/nuvem.ts` pelo import de `FREQUENCIA_MINIMA_COLETA_MIN`/`FREQUENCIA_MAXIMA_COLETA_MIN` de `@macuxi/platform-sdk` (`src/coleta-erp.ts`) | modulo-integracao | F1, F2 |
 | F4a | Adaptadores de API: SAP B1, Sankhya, Protheus REST e Senior, na ordem de D2 | modulo-integracao | F3 |
 | F4b | Views por ERP (`db/conector/modelos/<erp>.sql`) para os 5, com a entrada de pedido onde couber, e o teste estático contra `SCHEMA_REGISTRO` | banco-dados | F0 |
 | F4c | Ficha de cada ERP no guia (`docs/modulos/integracao/`) | modulo-integracao | F4a, F4b |

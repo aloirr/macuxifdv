@@ -3,7 +3,7 @@
 - **Status**: aceita em 2026-11-22 (decisões D1–D9 do dono do produto, R-20261122-005500-alexandre, item 5 A).
 - **Data**: 2026-11-22 (Manaus)
 - **Tarefa**: integração por ERP (fatias F0 e F1; número de tarefa ainda não reservado no quadro). Regras: RN-INT-17 a RN-INT-21
-  (propostas; o número final é do gerente-projetos no doc 03), RN-INT-01 a 14, RN-CORE-23.
+  (propostas, entram no doc 03), RN-INT-01 a 14, RN-CORE-23.
 - **Autor**: engenheiro-software
 - **Origem**: R-20261111-194840-alexandre (modelos de integração por ERP); aprovação do desenho e das decisões:
   R-20261122-005500-alexandre.
