@@ -1,0 +1,112 @@
+name: producao — chave de deploy do ERP (uma vez)
+
+# Uso ÚNICO, pedido do dono do produto (22/11/2026; pedido conjunto com o Macuxi ERP): acrescenta a chave pública de
+# deploy do Macuxi ERP na VM de produção. Idempotente (compara tipo + base64, ignora o comentário), não toca em outras
+# chaves nem no usuário do FDV, e confere no fim que a chave do FDV continua no usuário de deploy do FDV.
+# destino=novo-usuario: cria o usuário deploy-erp, sem sudo, sem grupo docker, sem senha, home 750 própria.
+# destino=ubuntu: acrescenta a chave no authorized_keys do usuário do FDV (só com ordem expressa do dono do produto).
+# confirmar=false: só mostra o que faria. O workflow sai do repositório no PR seguinte.
+
+on:
+  workflow_dispatch:
+    inputs:
+      destino:
+        description: onde a chave entra
+        type: choice
+        options: [novo-usuario, ubuntu]
+        default: novo-usuario
+      confirmar:
+        description: gravar de verdade (desmarcado = só mostra o que faria)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  chave:
+    name: chave de deploy do ERP (${{ inputs.destino }}, ${{ inputs.confirmar && 'de verdade' || 'só mostra' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: PRODUCAO
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
+      - name: chave SSH
+        id: chave
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: preparar
+          chave: ${{ secrets.PROD_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          conhecidos: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+
+      - name: acrescentar a chave na VM
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          DESTINO: ${{ inputs.destino }}
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          remoto=$(cat <<'SCRIPT'
+          set -euo pipefail
+          CHAVE='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIhbZKm7yyiJgg1nqQaaO+J1C1K0mChs4g/vbl5kkQJV deploy-macuxierp'
+          TB=$(printf '%s\n' "$CHAVE" | awk '{print $1" "$2}')
+          FDV=$(id -un)
+          ak_fdv="$HOME/.ssh/authorized_keys"
+          antes_fdv=$(sha256sum "$ak_fdv" | cut -d' ' -f1)
+          if [ "$DESTINO" = novo-usuario ]; then ALVO=deploy-erp; else ALVO="$FDV"; fi
+          HOME_ALVO=$(getent passwd "$ALVO" | cut -d: -f6 || true)
+          [ -n "$HOME_ALVO" ] || HOME_ALVO="/home/$ALVO"
+          AK="$HOME_ALVO/.ssh/authorized_keys"
+          echo "destino: $DESTINO (usuário $ALVO); confirmar=$CONFIRMAR"
+          if [ "$CONFIRMAR" != true ]; then
+            id "$ALVO" 2>/dev/null && echo "usuário $ALVO já existe" || echo "criaria o usuário $ALVO (sem sudo, sem docker, sem senha)"
+            if sudo test -f "$AK" && sudo awk '{print $1" "$2}' "$AK" | grep -qxF "$TB"; then echo "a chave já está em $AK"; else echo "acrescentaria a chave em $AK"; fi
+            exit 0
+          fi
+          if [ "$DESTINO" = novo-usuario ] && ! id "$ALVO" >/dev/null 2>&1; then
+            sudo useradd --create-home --shell /bin/bash --user-group "$ALVO"
+            sudo passwd -l "$ALVO" >/dev/null
+            sudo chmod 750 "$HOME_ALVO"
+          fi
+          sudo install -d -m 700 -o "$ALVO" -g "$(id -gn "$ALVO")" "$HOME_ALVO/.ssh"
+          if ! sudo test -f "$AK"; then sudo install -m 600 -o "$ALVO" -g "$(id -gn "$ALVO")" /dev/null "$AK"; fi
+          if sudo awk '{print $1" "$2}' "$AK" | grep -qxF "$TB"; then
+            echo "a chave já estava em $AK: nada a gravar"
+          else
+            printf '%s\n' "$CHAVE" | sudo tee -a "$AK" >/dev/null
+            echo "chave acrescentada em $AK"
+          fi
+          echo "--- conferência"
+          sudo awk '{print $1" "$2}' "$AK" | grep -qxF "$TB" && echo "OK: a chave do ERP está em $AK"
+          printf '%s\n' "$CHAVE" | ssh-keygen -lf - | awk '{print "impressão digital da chave do ERP: "$2}'
+          echo "grupos de $ALVO: $(id -nG "$ALVO")"
+          if [ "$DESTINO" = novo-usuario ]; then
+            id -nG "$ALVO" | tr ' ' '\n' | grep -qxE 'sudo|docker|adm|root' && { echo "ERRO: $ALVO está num grupo privilegiado"; exit 1; }
+            sudo -l -U "$ALVO" 2>/dev/null | grep -q 'may run' && { echo "ERRO: $ALVO tem sudo"; exit 1; } || echo "OK: $ALVO sem sudo"
+            sudo -u "$ALVO" test -r /opt/macuxi/banco.env && { echo "ERRO: $ALVO lê os .env do FDV"; exit 1; } || echo "OK: $ALVO não lê os .env do FDV"
+          fi
+          if [ "$ALVO" != "$FDV" ]; then
+            [ "$(sha256sum "$ak_fdv" | cut -d' ' -f1)" = "$antes_fdv" ] && echo "OK: authorized_keys do $FDV sem mudança"
+          fi
+          echo "chaves no authorized_keys do $FDV: $(grep -c . "$ak_fdv")"
+          SCRIPT
+          )
+          ssh -l "$USUARIO" prod "DESTINO=$(printf '%q' "$DESTINO") CONFIRMAR=$(printf '%q' "$CONFIRMAR") bash -s" <<< "$remoto"
+
+      - name: limpar o runner
+        if: always() && steps.chave.outcome != 'skipped'
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: limpar
