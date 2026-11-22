@@ -15,7 +15,7 @@
 > - **"Sem preço" AM2808** (opção A, R-20261121-194900): o Conector da AM2808 não manda preço nem estoque. O cliente precisa ativar as entidades `preco` e `estoque` no `conector.json`, com as views `vw_macuxi_preco` e `vw_macuxi_estoque` e as chaves iguais às de produto e filial, e liberar as duas entidades no cadastro do conector no BKO. A confirmação vem pelo diagnóstico com `contagem_integracao`, depois do deploy da v1.0.21. Dono: modulo-integracao, com o cliente.
 > - **T-0190:** a retirada de `APP_*_APK_URL` do ambiente está sem prova. Dono: engenheiro-software.
 > - **T-0189, D0** (supervisor × RN-CORE-33): sem prova de resposta do dono do produto.
-> - **`catalogo.busca_produtos@1` na API ignora o `cliente_id`:** o escopo do cliente só vale no aparelho; a `veiculos@1` já aplica nos dois. Dono: modulo-catalogo.
+> - **Busca do Catálogo pela API** (`modules/catalogo/api/consultas-texto.ts`): ela ignora o `cliente_id`, e o escopo do cliente só vale no aparelho (a `veiculos@1` já aplica nos dois). Ela também lê só a `catalogo.produto_busca`, que nenhum código de produção preenche, e por isso o produto que chega pelo Hub não aparece nela. O app não usa essa busca. O teste `catalogo-veiculo-igualdade-t0193` marca o caso com `it.fails`. Dono: modulo-catalogo.
 > - **`modules/core/contracts/ciclo-import.test.ts`:** apagar depois da regra `error` do dependency-cruiser (RD-A do #636). Dono: modulo-core.
 > - **SSH comum dos workflows:** a ação `.github/actions/ssh-prod` (#652) é usada só no reprocesso; os 7 workflows antigos passam a usá-la. Dono: engenheiro-software (governança).
 > - **Pendências da v1.0.16 sem prova:**
