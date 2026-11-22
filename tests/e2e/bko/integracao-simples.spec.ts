@@ -188,6 +188,14 @@ const L = {
 };
 const LOTES = Object.values(L);
 const CONECTORES = [{ conector_id: 'erp-matriz', versao_conector: '1.4.2' }];
+/** T-0189 (`MonitorResumo.ultima_carga_por_entidade`, campo obrigatório): o recebimento mais recente de cada entidade dos LOTES. */
+const ULTIMA_CARGA_POR_ENTIDADE = [...new Set(LOTES.map((l) => l.entidade))].map((entidade) => ({
+  entidade,
+  recebido_em: LOTES.filter((l) => l.entidade === entidade)
+    .map((l) => l.recebido_em)
+    .sort()
+    .at(-1)!,
+}));
 
 /**
  * Esperado pela regra, linha a linha e NA ORDEM da tela (com falha primeiro; depois a carga mais recente):
@@ -376,6 +384,7 @@ async function preparar(page: Page, c: Cenario = {}): Promise<Chamadas> {
         lotes_recentes: LOTES,
         conectores: CONECTORES,
         resumo_pedidos: RESUMO_PEDIDOS,
+        ultima_carga_por_entidade: ULTIMA_CARGA_POR_ENTIDADE,
       });
     }
     if (p === '/integracao/mapeamentos' && req.method() === 'GET')
@@ -850,4 +859,158 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
       await expect(page.getByTestId('parametros-secao-integracao')).toHaveCount(0);
     });
   }
+});
+
+/**
+ * RN-INT-15 no BKO: a Situação de cada lote no Histórico usa só os 5 status (`rotuloDoLote`), inclusive os estados brutos do Hub
+ * (`recebido`, `concluido_com_erros`, `falhou`, `cancelado`), sem os rótulos antigos. Antes esta regra era conferida no selo da carga
+ * por CSV do portal `config.`; a carga por arquivo saiu do portal (spec portal-config-enxuto §10.1) e o selo fica só no BKO.
+ * Esperado à mão: rota recebido → Em andamento; preço concluido_com_erros → Concluído com avisos; estoque falhou → Com falha e
+ * concluido → Concluído; vendedor cancelado → Cancelado.
+ */
+const CINCO_STATUS = ['Em andamento', 'Concluído', 'Concluído com avisos', 'Com falha', 'Cancelado'];
+const SITUACAO_POR_ENTIDADE: Array<[string, string[]]> = [
+  ['rota', ['Em andamento']],
+  ['preco', ['Concluído com avisos']],
+  ['estoque', ['Com falha', 'Com falha', 'Concluído']],
+  ['vendedor', ['Cancelado']],
+];
+
+test('RN-INT-15: Histórico do BKO — a Situação mostra os 5 status, sem os rótulos antigos', async ({
+  page,
+}) => {
+  const erros: string[] = [];
+  page.on('pageerror', (e) => erros.push(String(e)));
+  await preparar(page);
+  await abrirMonitor(page);
+  const vistos = new Set<string>();
+  for (const [entidade, esperado] of SITUACAO_POR_ENTIDADE) {
+    await page.getByTestId(`integracao.entidade.historico.${entidade}`).click();
+    const dialogo = page.locator('[role="dialog"]').filter({ has: page.getByTestId('integracao.historico') });
+    const linhas = dialogo.locator('[data-testid="integracao.historico.lotes"] tbody tr');
+    await expect(linhas).toHaveCount(esperado.length);
+    const situacoes: string[] = [];
+    for (let i = 0; i < esperado.length; i++)
+      situacoes.push((await linhas.nth(i).locator('td').nth(2).innerText()).trim());
+    expect(situacoes, `Situação no Histórico de ${entidade}`).toEqual(esperado);
+    for (const s of situacoes) {
+      expect(CINCO_STATUS, s).toContain(s);
+      vistos.add(s);
+    }
+    for (const velho of [
+      'Na fila',
+      'Gravando',
+      'Concluído com erros',
+      'Falhou',
+      'recebido',
+      'concluido_com_erros',
+      'falhou',
+    ])
+      expect(situacoes, velho).not.toContain(velho);
+    await dialogo.getByRole('button', { name: 'Fechar' }).click();
+    await expect(page.getByTestId('integracao.historico')).toHaveCount(0);
+  }
+  expect([...vistos].sort()).toEqual([...CINCO_STATUS].sort());
+  expect(erros).toEqual([]);
+});
+
+/**
+ * Portal `config.` (spec portal-config-enxuto §10.1 e §10.2): a página da empresa tem só as abas "Integração · Empresa", com a
+ * Integração aberta por padrão; a aba Bases (carga por CSV) e a "Integração automática" saíram. O `#bases` antigo cai na Integração,
+ * e o portal não chama mais a ordem de carga, a carga por arquivo nem a Equipe por CSV (a rota de carga segue no servidor para o BKO).
+ * Host `config.localhost` (o Chromium resolve `*.localhost` para o próprio aparelho); sessão fictícia do time da Macuxi.
+ */
+const TENANT_PORTAL = '0f000000-0000-4000-8000-0000000000aa';
+
+test('Portal config.: abas Integração · Empresa (Integração por padrão; #bases cai nela), sem a carga por CSV', async ({
+  page,
+  baseURL,
+}) => {
+  const portal = (baseURL ?? 'http://localhost:3000').replace('//localhost', '//config.localhost');
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.clock.install({ time: new Date(AGORA) });
+  const agoraMs = Date.parse(AGORA);
+  await page.addInitScript((s) => sessionStorage.setItem('macuxi.portal.sessao', JSON.stringify(s)), {
+    token: 'token-ficticio-do-portal-0123456789',
+    expira_em: new Date(agoraMs + 4 * 3600_000).toISOString(),
+    sessao_expira_em: new Date(agoraMs + 8 * 3600_000).toISOString(),
+    tipo: 'super_admin',
+    empresa: null,
+    empresas: [],
+  });
+  const erros: string[] = [];
+  page.on('pageerror', (e) => erros.push(String(e)));
+  const chamadas: string[] = [];
+  await page.route('**/api-proxy/**', async (route) => {
+    const req = route.request();
+    const p = new URL(req.url()).pathname.replace(/^\/api-proxy(\/v1)?/, '');
+    chamadas.push(`${req.method()} ${p}`);
+    const json = (status: number, body: unknown) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (p === '/plataforma/empresas')
+      return json(200, {
+        itens: [
+          {
+            id: TENANT_PORTAL,
+            codigo: 'DIST01',
+            razao_social: 'Distribuidora Fictícia Ltda',
+            cnpj: '11222333000181',
+            fuso: FUSO,
+            status: 'ativo',
+            criada_em: '2026-11-01T12:00:00.000Z',
+            modulos: [
+              { modulo: 'core', licencas: 10 },
+              { modulo: 'integracao', licencas: null },
+            ],
+          },
+        ],
+      });
+    if (p === '/integracao/conectores') return json(200, { itens: [] });
+    return json(404, { codigo: 'nao_encontrado', mensagem: 'Rota não simulada.' });
+  });
+
+  // endereço antigo com `#bases`: abre na Integração
+  await page.goto(`${portal}/empresas/${TENANT_PORTAL}#bases`);
+  const abas = page.getByRole('tablist', { name: 'Seções da empresa' }).getByRole('tab');
+  await expect(abas).toHaveCount(2, { timeout: 120_000 });
+  expect((await abas.allInnerTexts()).map((t) => t.trim())).toEqual(['Integração', 'Empresa']);
+  await expect(page.getByTestId('empresa-pagina.aba-integracao')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'false');
+  await expect(page.getByTestId('integracao.aba')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Integração via Conector' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Integração via API' })).toBeVisible();
+
+  // o que saiu com a aba Bases e com a "Integração automática"
+  const saiu = async () => {
+    await expect(page.getByTestId('empresa-pagina.aba-bases')).toHaveCount(0);
+    await expect(page.getByTestId('empresa-pagina.bases')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Bases' })).toHaveCount(0);
+    await expect(page.locator('[data-testid^="base-"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="equipe-"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="integracao.confirmar-"]')).toHaveCount(0);
+    await expect(page.getByTestId('integracao.ja-copiei')).toHaveCount(0);
+    await expect(page.getByText('Integração automática')).toHaveCount(0);
+    await expect(page.locator('#empresa-painel-integracao input[type="file"]')).toHaveCount(0);
+  };
+  await saiu();
+
+  // aba Empresa: o `#` guarda a aba e o F5 volta nela
+  await page.getByTestId('empresa-pagina.aba-empresa').click();
+  await expect(page).toHaveURL(/#empresa$/);
+  await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'true');
+  await saiu();
+  await page.reload();
+  await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'true', {
+    timeout: 120_000,
+  });
+  await page.getByTestId('empresa-pagina.aba-integracao').click();
+  await expect(page).toHaveURL(/#integracao$/);
+  await expect(page.getByTestId('integracao.aba')).toBeVisible();
+  await saiu();
+
+  // o portal não chama mais a carga por arquivo, a ordem de carga nem a Equipe por CSV
+  expect(
+    chamadas.filter((c) => /\/integracao\/(cargas-arquivo|ordem-carga)|\/core\/equipe\//.test(c)),
+  ).toEqual([]);
+  expect(erros).toEqual([]);
 });
