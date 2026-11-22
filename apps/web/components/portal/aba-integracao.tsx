@@ -6,18 +6,21 @@
  * de folga para cada lado; abaixo de 768 px, empilhados (Conector primeiro) com a divisória na horizontal, 24 px antes da API.
  * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar e colar a credencial) e a
  *   tabela "Conectores" (tipo `conector`).
- * - "Integração via API": "Gerar a credencial" (botão neutro: o principal da tela é o do Conector) e a tabela "Credenciais", só com a
- *   rota de credenciais de API; o cartão "Guia" (botão do PDF só quando ele existir; link do OpenAPI 3.1). Encaixe: `ENCAIXE_API_HUB`.
+ * - "Integração via API": "Gerar a credencial" (botão neutro: o principal da tela é o do Conector) pela mesma rota do Conector com
+ *   `tipo: 'nuvem'`, e a tabela "Credenciais" (tipo `nuvem` da mesma lista); o cartão "Guia" (botão do PDF só quando ele existir,
+ *   `ENCAIXE_API_HUB.guiaPdf`; link do OpenAPI 3.1).
+ * - Em cada linha ativa das duas tabelas: "Gerar nova chave" (`ROTAS_PORTAL.chaveConector`) e "Desativar" (`PATCH { ativo: false }`,
+ *   com confirmação). Linha desativada: sem botões.
  * Credencial: a chave em claro vem só na resposta do `POST` e aparece UMA vez, com "Copiar". Na v1 cada base vem de um único
  * Conector por empresa (RN-INT-13): a credencial nova leva as bases que nenhum outro ativo recebe. testIDs: integracao.* (Conector)
  * e integracao.api-* (API).
  */
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ConectorCriado, ConectorResumo, ENTIDADES, type Entidade, type TipoConector } from '@macuxi/integracao/contracts';
-import { Badge, Button, cx, ErrorBlock, LoadingBlock, Notice, Panel, TableScroll, td, th, useToast } from '@macuxi/ui/web';
+import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel, TableScroll, td, th, useToast } from '@macuxi/ui/web';
 
-import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL } from '@/lib/portal-api';
+import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
 import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
 import { ENCAIXE_API_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
@@ -156,40 +159,151 @@ function GerarCredencial({
   );
 }
 
-/** Tabela "Conectores" / "Credenciais": Identificador · Pedidos · Situação. */
-export function ListaCredenciais({ itens, vazio, testId }: { itens: readonly Resumo[]; vazio: string; testId: string }) {
+const sem = <V,>(m: Record<string, V>, id: string): Record<string, V> => Object.fromEntries(Object.entries(m).filter(([k]) => k !== id));
+
+/** Chamada ao portal (injetável nos testes). */
+type Chamar = <T>(caminho: string, o: OpcoesChamada<T>) => Promise<T>;
+
+/** "Gerar nova chave": a chave nova (uma vez) ou a frase da tela; 404 de rota = `TEXTO_INDISPONIVEL`. */
+export async function gerarNovaChave(tenant: string, id: string, chamar: Chamar = chamarPortal): Promise<{ criado: Criado } | { erro: string }> {
+  try {
+    return { criado: await chamar(ROTAS_PORTAL.chaveConector(id), { metodo: 'POST', tenant, schema: ConectorCriado }) };
+  } catch (x) {
+    return { erro: ehRotaAusente(x) ? TEXTO_INDISPONIVEL : mensagemDoErro(x) };
+  }
+}
+
+/** "Desativar": `PATCH { ativo: false }`; devolve `null` ou a frase do erro. */
+export async function desativarCredencial(tenant: string, id: string, chamar: Chamar = chamarPortal): Promise<string | null> {
+  try {
+    await chamar(ROTAS_PORTAL.conector(id), { metodo: 'PATCH', tenant, corpo: { ativo: false }, schema: ConectorResumo });
+    return null;
+  } catch (x) {
+    return mensagemDoErro(x);
+  }
+}
+
+/** Tabela "Conectores" / "Credenciais": Identificador · Pedidos · Situação e, com `tenant`, os botões de cada linha ativa. */
+export function ListaCredenciais({ itens, vazio, testId, tenant, aoMudar }: { itens: readonly Resumo[]; vazio: string; testId: string; tenant?: string; aoMudar?: () => void }) {
+  const toast = useToast();
+  const [chaves, setChaves] = useState<Record<string, Criado>>({});
+  const [erros, setErros] = useState<Record<string, string>>({});
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [confirmar, setConfirmar] = useState<Resumo | null>(null);
+
   if (itens.length === 0) return <span className="text-[13px] text-ink-2">{vazio}</span>;
+
+  const novaChave = async (c: Resumo) => {
+    if (!tenant || ocupado) return;
+    setOcupado(c.id);
+    setErros((m) => sem(m, c.id));
+    const r = await gerarNovaChave(tenant, c.id);
+    setOcupado(null);
+    if ('criado' in r) {
+      setChaves((m) => ({ ...m, [c.id]: r.criado }));
+      aoMudar?.();
+    } else setErros((m) => ({ ...m, [c.id]: r.erro }));
+  };
+  const desativar = async (c: Resumo) => {
+    if (!tenant || ocupado) return;
+    setOcupado(c.id);
+    const erro = await desativarCredencial(tenant, c.id);
+    setOcupado(null);
+    setConfirmar(null);
+    if (erro) toast('danger', erro);
+    else {
+      setChaves((m) => sem(m, c.id));
+      aoMudar?.();
+    }
+  };
+  const comAcoes = tenant !== undefined;
+
   return (
-    <TableScroll minWidth={320}>
-      <table data-testid={testId} className="w-full border-collapse text-[13px]">
-        <thead>
-          <tr>
-            <th className={th}>Identificador</th>
-            <th className={th}>Pedidos</th>
-            <th className={th}>Situação</th>
-          </tr>
-        </thead>
-        <tbody>
-          {itens.map((c) => (
-            <tr key={c.id}>
-              <td className={cx(td, 'font-mono')}>{c.conector_id}</td>
-              <td className={td}>{c.recebe_pedidos ? 'Sim' : '—'}</td>
-              <td className={td}>
-                <Badge tone={c.ativo ? 'success' : 'neutral'}>{c.ativo ? 'Ativo' : 'Desativado'}</Badge>
-              </td>
+    <>
+      <TableScroll minWidth={320}>
+        <table data-testid={testId} className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr>
+              <th className={th}>Identificador</th>
+              <th className={th}>Pedidos</th>
+              <th className={th}>Situação</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableScroll>
+          </thead>
+          <tbody>
+            {itens.map((c) => {
+              // linha ativa com ações: os botões (e a chave nova) numa segunda linha, para caber no lado estreito e no celular
+              const acoes = comAcoes && c.ativo;
+              const k = chaves[c.id];
+              return (
+                <Fragment key={c.id}>
+                  <Linha c={c} semBorda={acoes} />
+                  {acoes && (
+                    <tr>
+                      <td colSpan={3} className={cx(td, 'pt-0')}>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Button size="sm" data-testid={`integracao.nova-chave.${c.id}`} disabled={ocupado !== null} onClick={() => void novaChave(c)}>
+                            {ocupado === c.id && !confirmar ? 'Gerando…' : 'Gerar nova chave'}
+                          </Button>
+                          <Button size="sm" data-testid={`integracao.desativar.${c.id}`} disabled={ocupado !== null} onClick={() => setConfirmar(c)}>
+                            Desativar
+                          </Button>
+                          {erros[c.id] && <span className="text-[12px] text-ink-2">{erros[c.id]}</span>}
+                        </span>
+                        {k && (
+                          <div className="mt-2">
+                            <ChaveGerada c={k} testId={`integracao.nova-chave.${c.id}.`} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </TableScroll>
+      <Dialog
+        open={confirmar !== null}
+        title={`Desativar ${confirmar?.conector_id ?? ''}?`}
+        onClose={() => ocupado === null && setConfirmar(null)}
+        footer={
+          <>
+            <Button data-testid="integracao.desativar-cancelar" disabled={ocupado !== null} onClick={() => setConfirmar(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" data-testid="integracao.desativar-confirmar" disabled={ocupado !== null} onClick={() => confirmar && void desativar(confirmar)}>
+              {ocupado !== null ? 'Desativando…' : 'Desativar'}
+            </Button>
+          </>
+        }
+      >
+        A chave deixa de valer.
+      </Dialog>
+    </>
   );
 }
 
+function Linha({ c, semBorda }: { c: Resumo; semBorda: boolean }) {
+  const cel = semBorda ? td.replace(/\bborder-b border-line-2\b/, '').trim() : td;
+  return (
+    <tr>
+      <td className={cx(cel, 'font-mono')}>{c.conector_id}</td>
+      <td className={cel}>{c.recebe_pedidos ? 'Sim' : '—'}</td>
+      <td className={cel}>
+        <Badge tone={c.ativo ? 'success' : 'neutral'}>{c.ativo ? 'Ativo' : 'Desativado'}</Badge>
+      </td>
+    </tr>
+  );
+}
+
+type Consulta = { isPending: boolean; isError: boolean; error: unknown; data?: readonly Resumo[]; refetch: () => unknown };
+
 /** Carregando, erro ou a tabela de uma consulta de credenciais. */
-function Tabela({ q, vazio, testId }: { q: { isPending: boolean; isError: boolean; error: unknown; data?: readonly Resumo[]; refetch: () => unknown }; vazio: string; testId: string }) {
+function Tabela({ q, vazio, testId, tenant, aoMudar }: { q: Consulta; vazio: string; testId: string; tenant: string; aoMudar: () => void }) {
   if (q.isPending) return <LoadingBlock label="Buscando…" />;
   if (q.isError) return <ErrorBlock message={mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />;
-  return <ListaCredenciais itens={q.data ?? []} vazio={vazio} testId={testId} />;
+  return <ListaCredenciais itens={q.data ?? []} vazio={vazio} testId={testId} tenant={tenant} aoMudar={aoMudar} />;
 }
 
 /** Cartão "Guia": o botão do PDF só quando ele existir (`guiaPdf`); o link do OpenAPI 3.1 sempre (uma informação, um lugar). */
@@ -223,41 +337,27 @@ export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
   );
 }
 
-/** Lado "Integração via API". Sem a rota de credenciais de API (`null` ou 404 de rota), só o "Guia" (§10.5). */
-export function LadoApi({ tenant, conectores, encaixe = ENCAIXE_API_HUB }: { tenant: string; conectores: readonly Resumo[]; encaixe?: typeof ENCAIXE_API_HUB }) {
-  const qc = useQueryClient();
-  const rota = encaixe.credenciais;
-  const chave = ['portal', tenant, 'credenciais-api'] as const;
-  const q = useQuery({
-    queryKey: chave,
-    queryFn: () => chamarPortal(rota ?? '', { tenant, schema: ListaConectores }),
-    enabled: rota !== null,
-    retry: (n, e) => !ehRotaAusente(e) && n < 2,
-  });
-  const comCredenciais = rota !== null && !(q.isError && ehRotaAusente(q.error));
+/** Lado "Integração via API": credenciais de tipo `nuvem` pela mesma rota do Conector (§10.2). */
+export function LadoApi({ tenant, q, todos, guiaPdf = ENCAIXE_API_HUB.guiaPdf, aoMudar }: { tenant: string; q: Consulta; todos: readonly Resumo[]; guiaPdf?: string | null; aoMudar: () => void }) {
   return (
     <>
-      {rota !== null && comCredenciais && (
-        <Panel title="Gerar a credencial">
-          <GerarCredencial
-            tenant={tenant}
-            rota={rota}
-            tipo="nuvem"
-            ocupadas={[...conectores, ...(q.data ?? [])]}
-            carregando={q.isPending}
-            principal={false}
-            inicial={{ identificador: '', nome: '', recebePedidos: false, exemplo: { identificador: 'ex.: erp-api', nome: 'ex.: ERP do cliente' } }}
-            testId="integracao.api-"
-            aoCriar={() => void qc.invalidateQueries({ queryKey: chave })}
-          />
-        </Panel>
-      )}
-      <CartaoGuia guiaPdf={encaixe.guiaPdf} />
-      {comCredenciais && (
-        <Panel title="Credenciais">
-          <Tabela q={q} vazio="Nenhuma credencial." testId="integracao.api-credenciais" />
-        </Panel>
-      )}
+      <Panel title="Gerar a credencial">
+        <GerarCredencial
+          tenant={tenant}
+          rota={ROTAS_PORTAL.conectores}
+          tipo="nuvem"
+          ocupadas={todos}
+          carregando={q.isPending}
+          principal={false}
+          inicial={{ identificador: '', nome: '', recebePedidos: false, exemplo: { identificador: 'ex.: erp-api', nome: 'ex.: ERP do cliente' } }}
+          testId="integracao.api-"
+          aoCriar={aoMudar}
+        />
+      </Panel>
+      <CartaoGuia guiaPdf={guiaPdf} />
+      <Panel title="Credenciais">
+        <Tabela q={q} vazio="Nenhuma credencial." testId="integracao.api-credenciais" tenant={tenant} aoMudar={aoMudar} />
+      </Panel>
     </>
   );
 }
@@ -268,6 +368,8 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
   const q = useQuery({ queryKey: chave, queryFn: () => chamarPortal(ROTAS_PORTAL.conectores, { tenant, schema: ListaConectores }) });
   const todos = q.data ?? [];
   const conectores = { ...q, data: q.data?.filter((c) => c.tipo === 'conector') };
+  const credenciais = { ...q, data: q.data?.filter((c) => c.tipo === 'nuvem') };
+  const aoMudar = () => void qc.invalidateQueries({ queryKey: chave });
 
   return (
     <div data-testid="integracao.aba" className="grid md:grid-cols-2">
@@ -289,7 +391,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
             principal
             inicial={{ identificador: 'erp', nome: 'Conector do ERP', recebePedidos: true }}
             testId="integracao."
-            aoCriar={() => void qc.invalidateQueries({ queryKey: chave })}
+            aoCriar={aoMudar}
           />
         </Panel>
         <Panel title={<Passo n={3}>Instalar e colar a credencial</Passo>}>
@@ -300,7 +402,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
           </ol>
         </Panel>
         <Panel title="Conectores">
-          <Tabela q={conectores} vazio="Nenhum Conector." testId="integracao.conectores" />
+          <Tabela q={conectores} vazio="Nenhum Conector." testId="integracao.conectores" tenant={tenant} aoMudar={aoMudar} />
         </Panel>
       </section>
 
@@ -308,7 +410,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
         <h2 id="integracao-api" className="m-0 text-[20px] font-extrabold">
           Integração via API
         </h2>
-        <LadoApi tenant={tenant} conectores={todos} />
+        <LadoApi tenant={tenant} q={credenciais} todos={todos} aoMudar={aoMudar} />
       </section>
     </div>
   );

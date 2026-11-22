@@ -50,7 +50,15 @@ export const ROTAS_PORTAL = {
   lote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}`,
   errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
   errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
+  /** Conector (tipo `conector`) e credencial de API (tipo `nuvem`): `GET` lista os dois, `POST` cria com o `tipo` (`ConectorCriar`). */
   conectores: '/integracao/conectores',
+  /** `PATCH` (`ConectorAtualizar`; `{ ativo: false }` desativa e revoga as chaves, RN-INT-10) → `ConectorResumo`. */
+  conector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}`,
+  /**
+   * v1.0.21 (S10): "Gerar nova chave". `POST` sem corpo → `ConectorCriado` (premissa: o mesmo formato do cadastro, com `chave.chave`
+   * em claro UMA vez). Antes do merge responde 404 de rota e a tela mostra `TEXTO_INDISPONIVEL`.
+   */
+  chaveConector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}/chave`,
   /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = 'em breve'. */
   conectorDownload: '/integracao/conector/download',
   // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
@@ -70,13 +78,10 @@ export const ROTAS_PORTAL = {
 export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.json', viaProxy: '/api-proxy/_publico/integracao/v1/openapi.json' });
 
 /**
- * Encaixe da S6 (v1.0.21; spec portal-config-enxuto §10.2 e §10.5): as duas peças do lado "Integração via API" que o servidor ainda
- * não tem. Um lugar só: quando chegarem, preencha aqui e a aba Integração passa a mostrá-las.
- * - `credenciais`: rota (relativa ao `/v1`, com `x-macuxi-tenant`) só das credenciais de API, separada da do Conector: `GET` →
- *   `{ itens: ConectorResumo[] }` e `POST` `ConectorCriar` → `ConectorCriado`. `null` (ou 404 de rota) = o lado da API mostra só o "Guia".
- * - `guiaPdf`: caminho same-origin (público) do guia da API em PDF. `null` = o cartão "Guia" fica só com o link do OpenAPI.
+ * Guia da API em PDF (spec portal-config-enxuto §10.2): caminho same-origin público (sem sessão, como o OpenAPI; R-20261121-235000).
+ * Um lugar só: quando o PDF existir, preencha aqui e o cartão "Guia" mostra o botão. `null` = só o link do OpenAPI.
  */
-export const ENCAIXE_API_HUB: Readonly<{ credenciais: string | null; guiaPdf: string | null }> = Object.freeze({ credenciais: null, guiaPdf: null });
+export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: null });
 
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];

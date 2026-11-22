@@ -759,6 +759,14 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
   }
+  // v1.0.21 (S10): "Gerar nova chave" do Conector ou da credencial de API (tipo `nuvem`); a resposta é a do cadastro (`ConectorCriado`)
+  const chaveM = /^\/integracao\/conectores\/([^/]+)\/chave$/.exec(caminho);
+  if (metodo === 'POST' && chaveM) {
+    const c = (e.conectores[tenant] ?? []).find((x) => x.id === chaveM[1]);
+    if (!c) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
+    if (!c.ativo) return erro(409, 'conector_inativo', 'Este Conector está desativado.');
+    return json(201, { conector: c, chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: null } });
+  }
   // T-0098: link temporário do pacote do Conector (spec portal-config-enxuto §10.2: "38 MB", validade e SHA-256); o link não abre nada
   if (rota === `POST ${ROTAS_PORTAL.conectorDownload}`) {
     const arquivo = 'macuxi-conector-1.4.0-win-x64.zip';
