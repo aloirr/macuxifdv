@@ -457,6 +457,15 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Modelo derivado:** o nome de veículo (RN-CAT-19) também casa a palavra grudada da qual ele é o começo ou o fim, quando o outro pedaço tem 3 ou mais caracteres e o próprio nome também. Assim "fox" acha Fox, CrossFox e SpaceFox, e "gol" continua sem achar Golf, porque "f" tem menos de 3 caracteres.
   - **Vizinhas juntas no texto:** duas palavras vizinhas da busca, coladas, também casam a palavra grudada do texto e da aplicação. Assim "space fox" acha SpaceFox e "Space Fox".
 - **RN-CAT-21 Vitrine do aparelho por página** (v1.0.20; T-0192, R-20261121-122841) A vitrine do aparelho sem busca, fora do pedido, ordena por estoque, vendas e campanha e carrega só a página exibida; a ordem, o total e a paginação são os mesmos da vitrine inteira.
+- **RN-CAT-22 Filtro de veículo** (v1.0.21; T-0193; D1 a D7: R-20261120-234013, R-20261121-211000 e R-20261121-211200)
+  - **Só o que o vendedor escolheu restringe:** a peça aparece ou não aparece, sem "de conferir".
+    - **Ano, motor e versão:** escolhido, a peça precisa ter o dado na aplicação e ele precisa bater. Com Gol 2018, a peça só com "VW Gol", sem ano, não aparece. Não escolhido, não filtra: com só Gol, aparecem todas as peças do modelo, inclusive as sem ano.
+    - O nível que a cascata preenche sozinha, por ter uma única opção, não conta como escolhido e não filtra: só restringe o que o vendedor tocou.
+  - **Escopo do cliente:** no pedido, a cascata, a lista e a contagem só contam os produtos vendáveis ao cliente (RN-CAT-06).
+  - **Peça universal** (aplicação sem veículo): não entra na lista filtrada e aparece no "Leve também".
+  - **Lista:** sem selo de compatível e sem o "Serve em" do veículo. A ficha mostra "✓ Compatível com <veículo>".
+  - **Filtrar:** chips de Sistema, Família (com o rótulo do cadastro), Linha e Categoria, com a contagem da lista filtrada.
+  - O veículo é só filtro: não vai ao pedido, ao PDF nem ao ERP. A busca online e a do aparelho dão o mesmo resultado.
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.

@@ -2,6 +2,8 @@
  * Filtro de período da lista de Pedidos, modelo A (T-0090; referência
  * docs/produto/referencias/R-20261106-064752-alexandre-filtro-periodo.png; spec docs/design/pedidos-filtro-periodo.md):
  * - `BotaoFiltro`: o funil ao lado da busca (48 × 48 dp), com selo laranja do número de filtros ativos;
+ *   com `icone` e `ativo`, o botão Veículo (spec filtro-veiculo §3);
+ * - `LinhaEtiquetas`: a linha das etiquetas, que quebra linha (sem rolagem lateral);
  * - `EtiquetaFiltro`: a etiqueta do filtro ativo ("Este mês ✕"); tocar remove;
  * - `FolhaPeriodo`: a folha "Período" sobre a `Folha` do kit: atalhos (tocar aplica e fecha), "Escolher dia, mês ou ano ›"
  *   com as abas Dia (calendário), Mês (grade com ‹ ano ›) e Ano, e o "Limpar". O Gestão passa o filtro de vendedor em `extra`.
@@ -15,12 +17,13 @@ import { Botao } from './base';
 import { ALVO_TOQUE } from './componentes';
 import { Folha } from './folha';
 import { Segmentado } from './formulario';
-import { Icon } from './icon';
+import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import {
   anosAte,
   celulaMarcada,
   depoisDeHoje,
+  destaqueDoBotaoFiltro,
   estadoAoAbrirFolha,
   eventoDaFolha,
   gradeDoMes,
@@ -28,9 +31,9 @@ import {
   leituraDoBotaoFiltro,
   leituraDoDia,
   leituraDoMes,
+  LINHA_ETIQUETAS,
   MESES_ABREVIADOS,
   mesesDoAno,
-  textoDoSelo,
   tituloDoMes,
   type EscolhaPeriodo,
   type EstadoFolhaPeriodo,
@@ -39,17 +42,50 @@ import {
 import { colors, fonte, radius } from './theme';
 
 // ---------- BotaoFiltro ----------
-export function BotaoFiltro({ contagem, onPress, rotulo, testID = 'filtro' }: { contagem: number; onPress: () => void; /** "Filtrar" (o leitor lê "Filtrar, 1 filtro ativo"). */ rotulo: string; testID?: string }) {
-  const selo = textoDoSelo(contagem);
+/**
+ * Quadro de 48 × 48 dp ao lado da busca. Padrão: o funil do "Filtrar", com selo do número de filtros ativos. Com `icone`, o
+ * mesmo quadro serve a outro filtro fora da folha (botão Veículo, ícone `carro`, spec filtro-veiculo §3); `ativo` dá a borda
+ * `ink` 1,5 sem selo (o valor escolhido fica na etiqueta).
+ */
+export function BotaoFiltro({
+  contagem,
+  onPress,
+  rotulo,
+  icone = 'filtro',
+  ativo,
+  testID = 'filtro',
+}: {
+  /** Filtros ativos (selo laranja; acima de 9, "9+"). Sem ela, sem selo. */
+  contagem?: number;
+  onPress: () => void;
+  /** Leitura do leitor de tela: "Filtrar" (lido "Filtrar, 1 filtro ativo"), "Veículo" ou "Veículo: Volkswagen Gol 2018 1.0". */
+  rotulo: string;
+  /** Ícone do quadro (20 dp, `ink`). Padrão: `filtro`. */
+  icone?: IconName;
+  /** Borda `ink` 1,5 sem selo (ex.: veículo escolhido). */
+  ativo?: boolean;
+  testID?: string;
+}) {
+  const { destacado, selo } = destaqueDoBotaoFiltro(contagem, ativo);
   return (
-    <Pressionavel testID={testID} accessibilityRole="button" accessibilityLabel={leituraDoBotaoFiltro(rotulo, contagem)} onPress={onPress} style={[s.botao, selo ? s.botaoAtivo : null]}>
-      <Icon name="filtro" size={20} color={colors.ink} strokeWidth={2} />
+    <Pressionavel testID={testID} accessibilityRole="button" accessibilityLabel={leituraDoBotaoFiltro(rotulo, contagem ?? 0)} onPress={onPress} style={[s.botao, destacado ? s.botaoAtivo : null]}>
+      <Icon name={icone} size={20} color={colors.ink} strokeWidth={2} />
       {selo ? (
         <View style={s.selo} testID={`${testID}-selo`} importantForAccessibility="no-hide-descendants">
           <Text style={s.seloTexto}>{selo}</Text>
         </View>
       ) : null}
     </Pressionavel>
+  );
+}
+
+// ---------- LinhaEtiquetas ----------
+/** Linha das etiquetas dos filtros ativos: quebra em mais de uma linha quando não cabe (8 dp entre as linhas), sem rolagem lateral. */
+export function LinhaEtiquetas({ children, testID }: { children: ReactNode; testID?: string }) {
+  return (
+    <View style={s.linhaEtiquetas} testID={testID}>
+      {children}
+    </View>
   );
 }
 
@@ -405,6 +441,7 @@ const s = StyleSheet.create({
   selo: { position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: colors.grafico, borderWidth: 2, borderColor: colors.ground, alignItems: 'center', justifyContent: 'center' },
   seloTexto: { ...fonte.semibold, fontSize: 12, color: colors.onAccent, fontVariant: ['tabular-nums'] },
   // .tag
+  linhaEtiquetas: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: LINHA_ETIQUETAS.vaoColuna, rowGap: LINHA_ETIQUETAS.vaoLinha },
   etiquetaAlvo: { alignSelf: 'flex-start', minHeight: ALVO_ETIQUETA, justifyContent: 'center' },
   etiqueta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, height: ALTURA_ETIQUETA, paddingHorizontal: 12, borderRadius: radius.pilula, backgroundColor: colors.accentSoft },
   etiquetaTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },

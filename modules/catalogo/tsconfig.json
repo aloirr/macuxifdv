@@ -1,1 +1,1 @@
-{ "extends": "@macuxi/config/tsconfig.base.json", "include": ["manifest.ts", "manifest.test.ts", "manifest.check.test.ts", "domain", "contracts", "api", "fixtures", "app/consultas.ts", "app/consultas.test.ts", "app/indice.ts", "app/indice.test.ts", "app/lib"] }
+{ "extends": "@macuxi/config/tsconfig.base.json", "compilerOptions": { "jsx": "react-jsx" }, "include": ["manifest.ts", "manifest.test.ts", "manifest.check.test.ts", "domain", "contracts", "api", "fixtures", "app/consultas.ts", "app/consultas.test.ts", "app/indice.ts", "app/indice.test.ts", "app/lib"] }

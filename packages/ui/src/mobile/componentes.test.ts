@@ -126,7 +126,8 @@ describe('componentes genéricos (T-0071, fatia 4): conferência estática', () 
   it('Chip lê o rótulo completo quando o visível é abreviado ("28 d" → "28 dias")', () => {
     const ui = ler('./ui.tsx');
     expect(ui).toMatch(/export function Chip\(\{[^}]*rotuloAcessivel[^}]*\}: \{[^}]*rotuloAcessivel\?: string/);
-    expect(ui).toContain('accessibilityLabel={rotuloAcessivel ?? label}');
+    // sem contagem, leituraDoChip devolve o próprio rótulo (filtro de veículo: com contagem, "Suspensão, 3 peças")
+    expect(ui).toContain('accessibilityLabel={rotuloAcessivel ?? leituraDoChip(label, contagem)}');
   });
 });
 

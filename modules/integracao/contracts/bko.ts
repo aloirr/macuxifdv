@@ -137,21 +137,25 @@ export const ConectorResumo = z.object({
 });
 export type ConectorResumo = z.infer<typeof ConectorResumo>;
 
+/** Chave em claro, devolvida uma única vez ao criar o Conector ou gerar chave nova (`POST /v1/integracao/conectores/{id}/chave`). */
+export const ChaveNovaConector = z.object({
+  conector_id: ConectorIdentificador,
+  escopo: z.literal('integracao.v1'),
+  chave: z.string().min(32),
+  prefixo: z.string().min(4).max(12),
+  criada_em: DataHoraUtc,
+  anterior_valida_ate: DataHoraUtc.nullish(),
+});
+export type ChaveNovaConector = z.infer<typeof ChaveNovaConector>;
+
 /** Criar Conector devolve o resumo e a chave em claro (uma única vez). */
 export const ConectorCriado = z.object({
   conector: ConectorResumo,
-  chave: z.object({
-    conector_id: ConectorIdentificador,
-    escopo: z.literal('integracao.v1'),
-    chave: z.string().min(32),
-    prefixo: z.string().min(4).max(12),
-    criada_em: DataHoraUtc,
-    anterior_valida_ate: DataHoraUtc.nullish(),
-  }),
+  chave: ChaveNovaConector,
 });
 export type ConectorCriado = z.infer<typeof ConectorCriado>;
 
-/** `POST /v1/integracao/conectores/{id}/chave/rotacionar`: a resposta é `ChaveConectorCriada` (conector.ts). */
+/** `POST /v1/integracao/conectores/{id}/chave` (corpo opcional): a resposta é `ChaveNovaConector`. */
 export const RotacionarChaveEntrada = z.object({
   /** Minutos em que a chave anterior continua valendo (0 = revoga na hora). Padrão: 1440 (24 h); máximo 10080 (7 dias). */
   convivencia_min: z.number().int().min(0).max(10_080).optional(),

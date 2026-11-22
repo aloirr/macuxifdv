@@ -141,6 +141,14 @@ export function leituraDoAtalho(rotulo: string, apoio?: string | null): string {
   return a ? `${r}. ${a}` : r;
 }
 
+/**
+ * Dica do `CampoBusca` (catalogo-campo-v2/spec.md §5; filtro-veiculo/spec.md §3): aparece só com o campo em foco e vazio
+ * e some ao digitar. Sem dica (ausente ou em branco), nunca aparece.
+ */
+export function mostrarDicaDaBusca({ dica, emFoco, valor }: { dica?: string | null; emFoco: boolean; valor: string }): boolean {
+  return Boolean((dica ?? '').trim()) && emFoco && valor.trim() === '';
+}
+
 /** Valor sem dado na `TabelaRotuloValor` (T-0141, crédito do cliente; RD-2370): travessão, nunca um "R$ 0,00" falso. */
 export const VALOR_SEM_DADO = '—';
 
@@ -165,6 +173,15 @@ export function textoDaContagem(n: number): string {
 export function leituraDoNivel(nome: string, contagem: number, singular = 'produto', plural = 'produtos'): string {
   const n = Number.isFinite(contagem) && contagem > 0 ? Math.floor(contagem) : 0;
   return `${nome.trim()}, ${textoDaContagem(n)} ${n === 1 ? singular : plural}`;
+}
+
+/** Unidade lida na contagem do `Chip` (folha Filtrar do Catálogo, spec filtro-veiculo §6). */
+export const UNIDADE_CONTAGEM_CHIP = { singular: 'peça', plural: 'peças' } as const;
+
+/** Leitura do `Chip`: sem contagem, o rótulo; com contagem, "Suspensão, 3 peças" / "Freio, 1 peça". */
+export function leituraDoChip(rotulo: string, contagem?: number | null): string {
+  if (contagem === undefined || contagem === null) return rotulo;
+  return leituraDoNivel(rotulo, contagem, UNIDADE_CONTAGEM_CHIP.singular, UNIDADE_CONTAGEM_CHIP.plural);
 }
 
 /** Respiro lateral de cada aba no modo `rolavel` das `Abas` e folga mínima ao rolar até a ativa (dp). */

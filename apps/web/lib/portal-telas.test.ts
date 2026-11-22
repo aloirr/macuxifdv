@@ -121,7 +121,7 @@ describe('entrada só com e-mail e senha (T-0093; spec portal-entrar §1 e §4)'
   });
   it('423 (também para e-mail inexistente), 429, 503 e sem rede', () => {
     // RN-CORE-01 (T-0185): os textos do contrato do Core; 423 sem `minutos_restantes` = 15 min; 429 com a espera real
-    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas.'))).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'x'))).toBe(mensagemBloqueioPorTentativas(15));
     expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'x', { minutos_restantes: 4 }))).toBe(mensagemBloqueioPorTentativas(4));
     expect(mensagemDoLoginPortal(new ErroPortal(400, 'BLOQUEADO', 'x'))).toBe(mensagemBloqueioPorTentativas());
     expect(mensagemDoLoginPortal(new ErroPortal(429, 'MUITAS_TENTATIVAS', 'x', { retry_after_s: 240 }))).toBe('Muitas tentativas. Tente de novo em 4 minutos.');

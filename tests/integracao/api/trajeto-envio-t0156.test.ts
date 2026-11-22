@@ -1,15 +1,12 @@
 /**
- * T-0156 (RN-CORE-13; desenho `tracking.md` §3.4 e §5.2) — o ponto do trajeto gravado no SQLite do aparelho chega ao servidor,
- * de ponta a ponta: SQLite real (node:sqlite em memória, adaptador do platform-sdk) com a migração do Core
- * (`core__ponto_trajeto`) → `gravarPontosDoTrajeto` (a escrita da tarefa `macuxi-trajeto`) → motor de sync REAL embrulhado
- * por `comPontosDoTrajeto` (apps/mobile, o mesmo do app aberto e do segundo plano) → depois do envio do motor,
- * `enviarPontosDoTrajeto` (Core) manda os pontos direto pelo `push` do transporte, fora da fila do motor →
- * `POST /v1/sync/push` do `createApp` REAL (Postgres como macuxi_app, fixture dois-tenants) → `receberPontosTrajeto` →
- * `core.ponto_trajeto` e `core.deslocamento_dia`.
+ * T-0156 (RN-CORE-13; desenho `tracking.md` §3.4 e §5.2) — o ponto do trajeto gravado no SQLite do aparelho chega ao servidor:
+ * SQLite real em memória com a migração do Core (`core__ponto_trajeto`) → `gravarPontosDoTrajeto` → motor de sync REAL
+ * embrulhado por `comPontosDoTrajeto` (apps/mobile) → depois de `motor.enviar()`, a rotina `enviarPontosDoTrajeto` (Core) manda
+ * os pontos pelo `push` do transporte, fora da fila do motor → `POST /v1/sync/push` do `createApp` REAL (Postgres como
+ * macuxi_app, fixture dois-tenants) → `core.ponto_trajeto`.
  *
- * Relógio: as rotas e a rotina do aparelho usam um instante fixo de dia útil, dentro do expediente (qua 18/11/2026 11h em
- * Manaus), só no envio; o login segue o relógio real. O parâmetro `rastreamento` do tenant A é ligado com expediente de
- * 00:00 a 23:59 todos os dias, para o portão de 7 condições só depender do que o teste controla.
+ * Relógio: rotas e rotina no instante fixo ENVIO (qua 18/11/2026 11h em Manaus, dia útil) só durante `enviar()`; o login segue
+ * o relógio real.
  * Cenários E-01, E-02 e E-06.
  */
 import { ENTIDADE_PONTO_TRAJETO, PARAMETROS_RASTREAMENTO_PADRAO, TRAJETO_DIAS_MAX, type PontoTrajeto } from '@macuxi/core/contracts';
