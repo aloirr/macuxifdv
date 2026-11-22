@@ -69,7 +69,7 @@ describe('cartão Plano da aba Empresa (§11.4)', () => {
     expect(bloco(html, 'vendedor')).not.toContain('no limite');
     // no limite: só o selo; o número segue igual aos demais (RD-a)
     expect(bloco(html, 'gestor')).toContain('no limite');
-    expect(bloco(html, 'promotor')).toContain('Promotor');
+    expect(bloco(html, 'promotor')).toContain('Promotor Avulso');
     expect(html).not.toContain('empresa-plano.uso-treinamento');
     expect(html).not.toContain('empresa-plano.dialogo');
   });
@@ -152,7 +152,9 @@ describe('diálogo "Trocar de plano" (§11.4)', () => {
     expect(html).toContain('30 vendedores');
     expect(html).toContain('3 gestores · 5 BKO');
     expect(html.match(/>Quantidade</g)).toHaveLength(1);
-    expect(html).toContain('aria-label="Quantidade de Promotor"');
+    expect(html).toContain('aria-label="Quantidade de Promotor Avulso"');
+    expect(html).toContain('R$ 80,00 por licença/mês');
+    expect(html).not.toMatch(/avulsa/);
     expect(html).toContain('2 meses grátis');
     expect(html).not.toContain('dias de teste');
     expect(html).toContain('Total: R$ 1.537,00/mês');

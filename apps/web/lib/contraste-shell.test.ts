@@ -45,6 +45,19 @@ describe('shell web sem laranja cru em texto', () => {
     expect(de('components/portal/base.tsx')).toContain('<MarcaNaFaixa area="Portal de implantação" />');
   });
 
+  it('cabeçalho do portal na faixa Azul noite (MC-0023, portal-config-enxuto.md §0): só tokens da faixa, texto e foco claros', () => {
+    const base = fontes.find((x) => x.f.split(sep).join('/') === 'components/portal/base.tsx')?.texto ?? '';
+    const cabecalho = base.slice(base.indexOf('<header'), base.indexOf('</header>'));
+    expect(cabecalho).toContain('<header className="bg-faixa">');
+    expect(cabecalho).toContain('<Marca naBarra />');
+    // na faixa: branco (12,77:1) e faixa-texto (8,07:1); nada dos tons de texto pensados para o fundo claro
+    expect(cabecalho).toContain('text-faixa-texto');
+    expect(cabecalho).toContain('border-white text-white');
+    expect(cabecalho).not.toMatch(/text-ink|bg-surface|outline-accent|<Button /);
+    expect(base).toMatch(/border-faixa-texto bg-transparent[^"]*text-white[^"]*outline-white/);
+    expect(base).toContain('<MarcaNaFaixa area="Portal de implantação" naBarra />');
+  });
+
   it('menu do BKO (R-20261114-184400, MC-0054/MC-0056): token nav-grupo próprio, sem accent-light; logo A no grafite', () => {
     const css = readFileSync(join(RAIZ, 'app/globals.css'), 'utf8').toLowerCase();
     expect(css).toMatch(/--color-nav-grupo:\s*#f59a52/);
