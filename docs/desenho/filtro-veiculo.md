@@ -91,7 +91,7 @@ e o atalho `construirIndiceVeiculos(produtos, aplicacoes, { anoAtual, veiculos }
 ### 2.2 Onde vive e quando é recalculado
 | Lado | Onde é montado | Recalcula quando |
 |---|---|---|
-| Aparelho | em `indiceVeiculosLocal` (`app/veiculos-consulta.ts`), logo depois da lista de produtos, em lotes de 500 produtos, cedendo o laço entre os lotes; a consulta espera a montagem, que cede o laço; `disponivel: false` só sem veículo na base; guardado por `definirIndiceVeiculos(produtos, indice)` / lido por `indiceVeiculosDe(produtos)` (WeakMap, como `veiculosDe`) | a lista de produtos é remontada (versão de `produto` ou `produto_conteudo` mudou, memória `lembrar` de hoje) **ou** o `anoAtual` (fuso do tenant) é outro (faixa aberta "2015+" vai até ano atual + 1) |
+| Aparelho | em `indiceVeiculosLocal` (`app/veiculos-consulta.ts`), logo depois da lista de produtos, em lotes de 500 produtos, cedendo o laço entre os lotes; a consulta espera a montagem; `disponivel: false` só sem veículo na base; guardado por `definirIndiceVeiculos(produtos, indice)` / lido por `indiceVeiculosDe(produtos)` (WeakMap, como `veiculosDe`) | a lista de produtos é remontada (versão de `produto` ou `produto_conteudo` mudou, memória `lembrar` de hoje) **ou** o `anoAtual` (fuso do tenant) é outro (faixa aberta "2015+" vai até ano atual + 1) |
 | Servidor | ao lado de `veiculosDaBase` (`api/consultas-texto.ts`), na mesma memória por tenant e pela mesma "versão da carga" (contagem + `max(updated_at)` de `catalogo.produto_busca`) | versão da carga ou `anoAtual` mudou |
 
 Custo esperado: uma passada linear pelas aplicações, já feita hoje para RN-CAT-19.
