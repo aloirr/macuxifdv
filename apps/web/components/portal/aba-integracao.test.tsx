@@ -10,7 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { responderFalso } from '@/lib/portal-falso';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AbaIntegracao, Credencial, DialogoConector, mensagemSemBases, rotaChaveDoConector, rotaDoConector } from './aba-integracao';
+import { AbaIntegracao, corpoDesativar, Credencial, DialogoConector, mensagemSemBases, rotaChaveDoConector, rotaDoConector } from './aba-integracao';
 
 const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const AVISO = 'Copie a chave agora: ela não aparece de novo.';
@@ -71,6 +71,8 @@ describe('aba Integração: nova chave e desativar', () => {
     expect(html).toMatch(/data-testid="integracao.copiar"[^>]*>Copiar</);
     expect(html).toContain(AVISO);
     expect(html).toContain('data-testid="integracao.ja-copiei"');
+    expect(html).not.toContain('escopo');
+    expect(html).not.toContain('prefixo');
     expect(renderizar([criado.conector])).not.toContain(nova.chave);
   });
 
@@ -78,10 +80,20 @@ describe('aba Integração: nova chave e desativar', () => {
     const html = renderToStaticMarkup(<DialogoConector alvo={conector({})} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
     expect(html).toContain('Desativar o Conector thathyany-conector?');
     expect(html).toMatch(/data-testid="integracao.acao-confirmar-desativar"[^>]*>Desativar</);
+    expect(html).toContain('Ele para de enviar as bases e de buscar os pedidos.');
     const criado = ConectorCriado.parse(await (await chamar('POST', ROTAS_PORTAL.conectores, { conector_id: 'erp-desativar', nome: 'ERP', tipo: 'conector', recebe_pedidos: false, entidades: ['cliente'] })).json());
     const r = await chamar('PATCH', rotaDoConector(criado.conector.id), { ativo: false });
     expect(r.status).toBe(200);
     expect(((await r.json()) as { ativo: boolean }).ativo).toBe(false);
+  });
+
+  it('o texto de desativar diz o que de fato para: bases e pedidos, só as bases, ou a carga por CSV', () => {
+    expect(corpoDesativar({ tipo: 'conector', recebe_pedidos: true })).toBe('Ele para de enviar as bases e de buscar os pedidos.');
+    expect(corpoDesativar({ tipo: 'conector', recebe_pedidos: false })).toBe('Ele para de enviar as bases.');
+    expect(corpoDesativar({ tipo: 'arquivo', recebe_pedidos: false })).toBe('A carga por CSV deixa de funcionar nesta empresa.');
+    const html = renderToStaticMarkup(<DialogoConector alvo={conector({ conector_id: 'implantacao-csv', tipo: 'arquivo', recebe_pedidos: false })} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
+    expect(html).toContain('A carga por CSV deixa de funcionar nesta empresa.');
+    expect(html).not.toContain('pedidos');
   });
 
   it('sem bases livres: a mensagem cita o Conector quando não há Conector de arquivo, e mantém a original quando há', () => {
