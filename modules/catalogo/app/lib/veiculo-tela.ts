@@ -13,11 +13,12 @@ export const TEXTOS_VEICULO = {
   buscaLimpar: 'Limpar a busca',
   recentes: 'Recentes',
   verPecas: 'Ver peças',
-  compativel: 'Compatível',
   tirar: 'Tirar o veículo',
   limparFiltros: 'Limpar filtros',
   semFiltros: 'Nenhum produto com esses filtros',
   placeholderBusca: 'Peça ou código…',
+  /** Embaixo do campo de busca em foco e vazio, só com o botão Veículo visível (spec §3). */
+  dicaBusca: 'Também acha por marca, aplicação e referência cruzada.',
   leveTambem: 'Leve também',
 } as const;
 

@@ -11,17 +11,17 @@ import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO, type ProdutoConteudoS
 import { interpretarConsulta } from '../domain/consulta';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { buscaPodeRodar, buscarComTotal, sugerirTermo, TETO_RANKING_BUSCA, textosParaConsulta } from '../domain/busca-consulta';
-import { produtosVendaveisNaTabela } from '../domain/arvore';
 import { normalizarTexto } from '../domain/texto';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { parametrosDoTenant } from '../domain/parametros';
 import { veiculosDe } from '../domain/veiculos';
 import { produtosDoModelo } from '../domain/veiculo-filtro';
+import { soVendaveisDoCliente } from './escopo-cliente';
 import { indiceVeiculosLocal, lembrarVeiculo } from './veiculos-consulta';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 import { cargaOnlineDoShell, consultaIndisponivel } from './lib/carga-online';
 import { buscaProdutosOnline, portaDaCarga, textosProdutoOnline } from './lib/consultas-online';
-import { comAplicacao, contextoLocal, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
+import { comAplicacao, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
 
 const vivas = <L extends { deleted_at: string | null }>(l: L[]) => l.filter((x) => !x.deleted_at);
 
@@ -116,14 +116,6 @@ function termosDoCatalogo(produtos: readonly ProdutoCatalogo[]): Map<string, num
 export async function sugestaoDaBuscaLocal(leitor: LeitorLocal, q: string): Promise<string | null> {
   if (!buscaPodeRodar(q)) return null;
   return sugerirTermo(q, termosDoCatalogo(await produtosLocais(leitor, { lerConcorrente: false })));
-}
-
-/** RN-CAT-06: dentro da consulta, só os produtos com preço vigente na tabela do cliente (no lugar dos até 5.000 `produto_ids`). */
-async function soVendaveisDoCliente(ctx: ContextoConsultaAparelho, clienteId: string, produtos: readonly ProdutoCatalogo[]): Promise<ProdutoCatalogo[]> {
-  const agora = ctx.agora().toISOString();
-  const contexto = await contextoLocal(ctx, { perfil: ctx.usuario()?.perfil ?? null, parametros: ctx.parametros(), agora, clienteId, ...(ctx.usuario()?.fuso ? { fuso: ctx.usuario()!.fuso } : {}) }, produtos);
-  const vendaveis = produtosVendaveisNaTabela(contexto.itensPreco, contexto.tabelaClienteId, agora);
-  return produtos.filter((p) => vendaveis.has(p.id));
 }
 
 export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {

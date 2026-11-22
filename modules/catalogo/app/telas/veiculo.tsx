@@ -15,7 +15,7 @@ import { escolhaAntesDoPasso, escolhaDoResultadoDaBusca, escolherOpcao, nenhumMo
 /** Espera antes do `Loading` embutido no nível (spec §9: só se passar de 300 ms). */
 const ESPERA_CARREGANDO_MS = 300;
 
-export function FolhaVeiculoCatalogo({ visivel, leitor, fuso, aplicado, onAplicar, onFechar }: { visivel: boolean; leitor: LeitorLocal; fuso: string; aplicado: VeiculoEscolhido | null; onAplicar: (v: VeiculoEscolhido) => void; onFechar: () => void }) {
+export function FolhaVeiculoCatalogo({ visivel, leitor, fuso, aplicado, escopo, onAplicar, onFechar }: { visivel: boolean; leitor: LeitorLocal; fuso: string; aplicado: VeiculoEscolhido | null; escopo?: ReadonlySet<string> | null; onAplicar: (v: VeiculoEscolhido) => void; onFechar: () => void }) {
   const [cascata, setCascata] = useState<VeiculosSaida | null>(null);
   const [textoBusca, setTextoBusca] = useState('');
   const [carregando, setCarregando] = useState(false);
@@ -28,7 +28,7 @@ export function FolhaVeiculoCatalogo({ visivel, leitor, fuso, aplicado, onAplica
       const minha = ++rodada.current;
       const espera = setTimeout(() => minha === rodada.current && setCarregando(true), ESPERA_CARREGANDO_MS);
       try {
-        const c = await cascataLocal(leitor, { escolha, ...(busca ? { busca } : {}) }, anoAtual());
+        const c = await cascataLocal(leitor, { escolha, escopo, ...(busca ? { busca } : {}) }, anoAtual());
         if (minha !== rodada.current) return;
         const v = veiculoDaEscolha(c.escolha);
         if (aplicarSeFechou && c.nivel === null && v) return onAplicar(v);
@@ -38,7 +38,7 @@ export function FolhaVeiculoCatalogo({ visivel, leitor, fuso, aplicado, onAplica
         if (minha === rodada.current) setCarregando(false);
       }
     },
-    [leitor, anoAtual, onAplicar],
+    [leitor, anoAtual, onAplicar, escopo],
   );
 
   // ao abrir: no último nível escolhido (o veículo aplicado volta ao nível em que se escolheu), ou no 1º
@@ -48,11 +48,11 @@ export function FolhaVeiculoCatalogo({ visivel, leitor, fuso, aplicado, onAplica
     let vivo = true;
     void (async () => {
       let p: VeiculoParcial = aplicado ? parcialDoVeiculo(aplicado) : {};
-      let c = await cascataLocal(leitor, { escolha: p }, anoAtual());
+      let c = await cascataLocal(leitor, { escolha: p, escopo }, anoAtual());
       while (c.nivel === null && c.trilha.length > 0) {
         const k = c.trilha.map((x) => x.automatico).lastIndexOf(false);
         p = escolhaAntesDoPasso(c.trilha, k < 0 ? 0 : k);
-        c = await cascataLocal(leitor, { escolha: p }, anoAtual());
+        c = await cascataLocal(leitor, { escolha: p, escopo }, anoAtual());
       }
       if (vivo) setCascata(c);
     })();

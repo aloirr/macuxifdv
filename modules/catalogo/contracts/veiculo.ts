@@ -1,12 +1,12 @@
 /**
  * Filtro de veículo em cascata (RN-CAT-22; spec `docs/design/filtro-veiculo/spec.md`; desenho `docs/desenho/filtro-veiculo.md` §1).
  * Consulta `catalogo.veiculos@1` (a cascata montadora › modelo › ano › motor › versão) e o aditivo de `catalogo.busca_produtos@1`
- * (`veiculo` na entrada e na saída). Tudo sai das aplicações em texto do catálogo; o veículo é só filtro: não vai ao pedido.
+ * (`veiculo` na entrada; a saída não traz campo de veículo por item: o item ou está na lista ou não está). Tudo sai das aplicações em texto do catálogo; o veículo é só filtro: não vai ao pedido.
  * A regra mora em `../domain/veiculo-*.ts`; aqui só a forma.
  */
 import { z } from 'zod';
 import { definirConsulta } from '@macuxi/platform-sdk';
-import { TrechoBusca, type ItemVitrine } from './busca';
+import { Id } from '@macuxi/core/contracts';
 
 export const NivelVeiculo = z.enum(['montadora', 'modelo', 'ano', 'motor', 'versao']);
 export type NivelVeiculo = z.infer<typeof NivelVeiculo>;
@@ -58,18 +58,22 @@ export type OpcaoVeiculo = z.infer<typeof OpcaoVeiculo>;
 export const PassoTrilha = z.object({ nivel: NivelVeiculo, valor: z.string(), rotulo: z.string(), automatico: z.boolean() }).strict();
 export type PassoTrilha = z.infer<typeof PassoTrilha>;
 
-/** "Não serve" não existe no contrato: o item sai da lista. */
-export const CompatibilidadeVeiculo = z.enum(['compativel', 'conferir']);
-export type CompatibilidadeVeiculo = z.infer<typeof CompatibilidadeVeiculo>;
-
-/** `serve_em` nulo quando o trecho é só o nome do modelo (spec §5) ou quando o item é `compativel`. */
-export const ResultadoVeiculoItem = z.object({ compatibilidade: CompatibilidadeVeiculo, serve_em: TrechoBusca.nullable() }).strict();
-export type ResultadoVeiculoItem = z.infer<typeof ResultadoVeiculoItem>;
-
 export const VeiculoRecente = z.object({ veiculo: VeiculoEscolhido, rotulos: RotulosVeiculo }).strict();
 export type VeiculoRecente = z.infer<typeof VeiculoRecente>;
 
-export const VeiculosEntradaSchema = z.object({ escolha: VeiculoParcial.default({}), busca: z.string().trim().max(60).optional() }).strict();
+export const VeiculosEntradaSchema = z
+  .object({
+    escolha: VeiculoParcial.default({}),
+    busca: z.string().trim().max(60).optional(),
+    /**
+     * Escopo opcional (aditivo, mesma semântica de `catalogo.busca_produtos@1`): `produto_ids` restringe aos produtos dados; `cliente_id`
+     * restringe aos vendáveis na tabela de preço do cliente (RN-CAT-06, RN-CAT-22), filtrados dentro da consulta. Com os dois, vale
+     * `produto_ids`. Sem nenhum = o catálogo inteiro. A cascata, a `busca` e `disponivel` só contam o que está no escopo; os Recentes não.
+     */
+    produto_ids: z.array(Id).max(5000).optional(),
+    cliente_id: Id.optional(),
+  })
+  .strict();
 export type VeiculosEntrada = z.infer<typeof VeiculosEntradaSchema>;
 
 export const VeiculosSaidaSchema = z.object({
@@ -112,6 +116,3 @@ export type ChipFiltro = z.infer<typeof ChipFiltro>;
 /** Só os grupos com 2+ chips; chip com contagem 0 sai, salvo o marcado. */
 export const GruposFiltro = z.array(z.object({ grupo: GrupoFiltro, rotulo: z.string(), chips: z.array(ChipFiltro) }).strict());
 export type GruposFiltro = z.infer<typeof GruposFiltro>;
-
-/** O item da vitrine com o que o veículo escolhido disse dele (`veiculo` só existe com veículo escolhido). */
-export type ItemVitrineComVeiculo = ItemVitrine & { veiculo?: ResultadoVeiculoItem };

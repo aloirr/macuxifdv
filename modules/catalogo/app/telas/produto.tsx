@@ -131,7 +131,7 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
-  const compat = veic ? compatibilidadeDoProduto(veic.indice, id, aplicacao, veic.veiculo) : null;
+  const compat = veic ? compatibilidadeDoProduto(veic.indice, id, veic.veiculo) : null;
   const trechoDoVeiculo: [number, number][] = compat?.segmento ? [[compat.segmento.inicio, compat.segmento.fim]] : [];
   const leveTambem = catalogo ? (veic ? leveTambemDoVeiculo(catalogo.oferece_junto, veic.indice, veic.veiculo) : catalogo.oferece_junto) : [];
   // spec §2 e §3: `Estoque: N` exato (sem o "999+" do cartão); as linhas por filial e o "Atualizado às" ficam só na folha (§2.1)

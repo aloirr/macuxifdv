@@ -28,7 +28,7 @@ export interface EntradaBuscaConsulta {
   veiculos?: ReadonlySet<string>;
   /** Vocabulário (marcas/linhas) do catálogo inteiro, quando `produtos` já é só o conjunto de candidatos da pré-seleção. */
   vocabulario?: ReturnType<typeof vocabularioDe> | undefined;
-  /** RN-CAT-22: só os produtos que servem no veículo (compatíveis antes dos de conferir); soma com `q`, que pode ser vazio. Pede `indiceVeiculos`. */
+  /** RN-CAT-22: só os produtos que servem no veículo (RN-CAT-22); soma com `q`, que pode ser vazio. Pede `indiceVeiculos`. */
   veiculo?: VeiculoEscolhido | undefined;
   indiceVeiculos?: IndiceVeiculos | undefined;
 }

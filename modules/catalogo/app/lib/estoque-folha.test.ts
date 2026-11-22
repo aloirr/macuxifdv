@@ -73,6 +73,7 @@ describe('resumo do filtro e subtítulo da faixa (catalogo-campo-v2 §3 e §4)',
     expect(resumoDoFiltro({ opcoes, escolha: { filial: 'm' }, ...sem })).toEqual({ contagem: 1, filial: { texto: 'Filial Manaus', removivel: true } });
     expect(resumoDoFiltro({ opcoes, escolha: { filial: 'm' }, sistemaId: 's', categoriaId: 'c' }).contagem).toBe(3);
     expect(resumoDoFiltro({ opcoes, escolha: { filial: null }, sistemaId: 's', categoriaId: null })).toEqual({ contagem: 1, filial: null });
+    expect(resumoDoFiltro({ opcoes, escolha: { filial: 'm' }, sistemaId: 's', familiaId: 'f', linhaId: 'l', categoriaId: 'c' }).contagem).toBe(5);
   });
 
   it('spec §4: com uma filial só o grupo não existe, e a etiqueta de filial também não', () => {

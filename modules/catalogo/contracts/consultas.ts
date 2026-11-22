@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { Cents, Id } from '@macuxi/core/contracts';
 import { EquivaleA, Referencia, TrechoBusca } from './busca';
-import { ResultadoVeiculoItem, VeiculoEscolhido } from './veiculo';
+import { VeiculoEscolhido } from './veiculo';
 
 export const PrecosClienteEntradaSchema = z.object({
   cliente_id: Id,
@@ -138,7 +138,7 @@ export const BuscaProdutosEntradaSchema = z
   .object({
     /** Vazio só quando vem `veiculo` (RN-CAT-22): a lista é a das peças do veículo. */
     q: z.string().trim().max(200).default(''),
-    /** RN-CAT-22 (aditivo): só os produtos que servem no veículo, compatíveis antes dos de conferir; soma com `q`. */
+    /** RN-CAT-22 (aditivo): só os produtos que servem no veículo (ano, motor e versão só filtram se escolhidos, RN-CAT-22); soma com `q`. */
     veiculo: VeiculoEscolhido.optional(),
     produto_ids: z.array(Id).max(5000).optional(),
     /** T-0167: no lugar dos até 5.000 `produto_ids`, só os vendáveis na tabela de preço deste cliente (RN-CAT-06), filtrados dentro da consulta. */
@@ -162,8 +162,6 @@ export const BuscaProdutosSaidaSchema = z.object({
       equivale_a: EquivaleA.nullable(),
       /** T-0167: Aplicação (descrição 2) do item, na mesma consulta; ausente = consulta antiga (use `textos_produto@1`). */
       aplicacao: z.string().nullable().optional(),
-      /** RN-CAT-22 (aditivo): só quando a entrada trouxe `veiculo`. */
-      veiculo: ResultadoVeiculoItem.optional(),
     }),
   ),
   /** T-0167: quantos produtos casaram (até o teto de 400), ainda que `itens` traga só `limite`. */
