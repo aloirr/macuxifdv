@@ -3,7 +3,7 @@
  * frase de valor. Puro, sem React: o BKO (`@macuxi/ui/web`, que junta o ícone e o cartão) e os apps (`@macuxi/ui/mobile` e
  * `@macuxi/ui/mobile/puro`) leem o MESMO nome. Nenhuma tela mostra o id ("vendedor", "integracao").
  *
- * Core, Integração e Catálogo são nativos: entram em toda empresa e SOMEM de toda lista de módulos (licenças, perfis, portal).
+ * Core e Integração entram em toda empresa. O Catálogo é nativo (sem frase de valor), mas no portal é opcional.
  */
 
 /** Os ids dos módulos, os mesmos do `MODULOS` do platform-sdk (o kit não depende do SDK). */

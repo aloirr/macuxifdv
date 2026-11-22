@@ -11,9 +11,9 @@ Banco em nuvem do Macuxi conectando-se ao banco do cliente via API REST, extrain
 | **Nuvem acessando o banco do cliente** | Exige abrir firewall/VPN, expõe o banco na internet, trava em TI do cliente. | Conexão **sempre de saída** (do cliente para a nuvem, HTTPS 443). Nada de porta aberta no cliente. |
 | **"Extrair todos os dados"** | Cargas completas repetidas são lentas, caras e pesam no ERP. | **Delta**: carga inicial completa uma vez; depois só o que mudou (data de alteração/rowversion), mais reconciliação diária por contagem e totais. |
 | **ERPs na nuvem** | Já têm API própria. | **Adaptador nuvem-a-nuvem** no Hub (o Hub chama a API do ERP), sem Conector. |
-| **Clientes pequenos** | Sem TI, sem servidor. | **Conector** num computador da empresa ou **API** (`/integracao/v1`). Não há carga por arquivo (CSV) no BKO nem no portal (R-20261121-235000-alexandre, item 5, v1.0.22). |
+| **Clientes pequenos** | Sem TI, sem servidor. | **Conector** num computador da empresa ou **API** (`/integracao/v1`). Não há carga por arquivo (CSV) no BKO nem no portal (R-20261121-235000-alexandre, item 5; saiu na v1.0.24). |
 
-**Conclusão**: REST sim, em dois caminhos sobre o **mesmo contrato canônico** — Conector (padrão) e API (nuvem-a-nuvem ou o próprio ERP chamando o Hub). A carga por arquivo saiu na v1.0.22.
+**Conclusão**: REST sim, em dois caminhos sobre o **mesmo contrato canônico** — Conector (padrão) e API (nuvem-a-nuvem ou o próprio ERP chamando o Hub).
 
 ## Fluxos
 ```

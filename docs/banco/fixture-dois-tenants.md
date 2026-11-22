@@ -120,6 +120,10 @@ muda nada. Teste que avalie "sem sinal há X", "lote antigo" ou retenção ainda
 | inativacao_auditoria | confirmar (analista, inativadas 1) | recusar (admin, inativadas nulo) |
 | cursor_entidade / reconciliacao / mapeamento | produto `PRD-1` / divergente / À vista `001` e 28 dias `028` | cliente `CLI-1` / sem divergência / À vista `AV` |
 | pedido_fila_erp / pedido_retorno / pedido_retorno_erro | p3 `faturado_parcial` (nota 1001) / 1 retorno / 1 descartado `sequencia_inexistente` | p1 `faturado_total` (nota 2001) / 1 retorno / 1 descartado `produto_divergente` |
+| conector_api (0094, grupo `007e`) | `sap_b1`, `https://erp-alfa.exemplo.com.br:50000/b1s/v1`, `CompanyDB`, frequências preço 15, cliente 60, filial 1440 | `sankhya`, coletas **paradas** por credencial (11:00) |
+| credencial_erp (0094, `007f`) | cifrado/iv/tag de texto fixo de teste (não decifra), chave v1, pelo admin | idem, pelo admin-B |
+| implantacao / implantacao_dia (0094, `0080`/`0081`) | SAP B1 por `api_busca`, passo 7, marcos de carga, pedido e faturamento / 1 retrato (3 lotes, 1 com erro, mediana 120 s) | Sankhya, passo 3, sem marco / 1 retrato (30 min fora do ar) |
+| coleta_execucao (0094, `0082`) | preço delta `concluida` (200, 150 linhas) | cliente delta `falhou` por `credencial_recusada` (401) |
 
 A licença do módulo `integracao` **não** está em `tenant_modulo` da fixture (os módulos de A e B não mudaram; os testes de
 licença contam a lista). Quem precisar das rotas do Hub com licença ativa grava a linha no próprio teste (ou pede ao banco-dados).

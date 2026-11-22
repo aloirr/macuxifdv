@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import nextConfig, { hostDaOrigem, hostsDoBko, origemDaApi, PROXY_GUIA_PDF_HUB, PROXY_OPENAPI_HUB } from '../next.config';
-import { ENCAIXE_API_HUB, GUIA_PDF_HUB, OPENAPI_HUB } from './portal-rotas';
+import { GUIA_PDF_HUB, OPENAPI_HUB } from './portal-rotas';
 
 const FIXOS = ['bko.macuxifdv.com.br', 'config.macuxifdv.com.br'];
 
@@ -49,7 +49,6 @@ describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
     expect(guia).toBeGreaterThanOrEqual(0);
     expect(guia).toBeLessThan(rewrites.findIndex((r) => r.source === '/api-proxy/:path*'));
     expect(GUIA_PDF_HUB.viaProxy).toBe(PROXY_GUIA_PDF_HUB);
-    expect(ENCAIXE_API_HUB.guiaPdf).toBe(PROXY_GUIA_PDF_HUB);
     expect(rewrites[guia]?.destination).toMatch(/:\d+\/integracao\/v1\/guia\.pdf$/);
     expect(rewrites[guia]?.destination.endsWith(GUIA_PDF_HUB.rotaNaApi)).toBe(true);
   });

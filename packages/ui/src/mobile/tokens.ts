@@ -25,10 +25,10 @@ export const colors = {
   /** texto de opção desabilitada (lista suspensa, dia futuro): o neutro de apoio da marca #5B6673 (MC-1503 B, R-20261118-210515;
    * 5,84:1 no branco, 5,41:1 no Pérola), sempre com outro sinal (cadeado, sem toque) */
   inkDisabled: NEUTRO_APOIO,
-  /** neutros da marca (MC-0004 B, manual §3): linha no Azul suave, linha suave na Névoa, linha forte no #C9CED5 */
+  /** neutros da marca (MC-0004 B, manual §3): linha no Azul suave, linha suave na Névoa, linha forte no Campo #7A8593 */
   line: MARCA.azulSuave,
   lineSoft: MARCA.nevoa,
-  lineStrong: MARCA.claroNaFaixa,
+  lineStrong: MARCA.campo,
   /** AÇÃO (Azul noite): botão principal, aba ativa (ícone e borda), seleção, foco, ícone de ação. Nunca sobre o grafite. */
   accent: DESTAQUE.accent,
   /** ação e gráfico sobre o grafite: sol claro (7,56:1) */

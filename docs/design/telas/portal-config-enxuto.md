@@ -57,11 +57,11 @@ Título **"Empresas"** + **"Nova empresa"**. Sai o subtítulo "Cada empresa clie
 
 "← Empresas" · **"Nova empresa"**. Saem "Passo 1" e "Confira antes de gravar: o código da empresa não muda depois. As bases vêm nos próximos passos."
 1. **"Empresa"**: **Razão social** · **CNPJ** · **UF** (obrigatório, lista das 27, sem pré-seleção; erro **"Escolha a UF."**) · **Fuso**. Sai o campo "Código da empresa" e a ajuda dele; sai a ajuda do fuso "Datas e horários do app e do BKO aparecem neste fuso."
-2. **"Módulos e licenças"**: só o nome de cada módulo, selo **"sempre"** em Core e Integração com o ERP (fica; pergunta ao dono do produto no §10), campo **"Licenças"** (placeholder "sem limite"). Saem as 8 descrições (`ROTULO_MODULO[*].ajuda`, 10 frases).
+2. **"Módulos e licenças"**: só o nome de cada módulo contratável, campo **"Licenças"** (placeholder "sem limite"). Core e Integração com o ERP entram em toda empresa e não aparecem na lista (sem selo). Saem as 8 descrições (`ROTULO_MODULO[*].ajuda`, 10 frases).
 3. **"Administrador da empresa"**: Nome · E-mail · Senha inicial com "A senha precisa ter" ao vivo; embaixo só **"Passe esta senha ao administrador."** Saem "É o primeiro acesso da empresa. Ele cria os outros usuários no BKO." e "No primeiro acesso ao backoffice, ele cria a dele." Senha vazia ao criar: só **"Informe a senha inicial."**, com as regras neutras; o vermelho das regras volta quando há senha digitada (ajustado pelo RD-0272).
 4. **Sai o cartão "Parâmetros iniciais" inteiro** (alçadas, validade, aplicação e "Desconto que o vendedor dá sem aprovação."); o corpo vai sem `parametros`.
 
-Botão só **"Criar empresa"**/"Criando…" (sai "Conferir sem gravar": sem código digitado não há o que conferir; os erros por campo aparecem no Criar e nada é gravado com erro). Erro **"Confira os campos marcados."** Sucesso: página da empresa com aviso success fechável, uma vez: **"Empresa criada. Código da empresa: AM4821."**
+Botão só **"Criar empresa"**/"Criando…" (sai "Conferir sem gravar": sem código digitado não há o que conferir; os erros por campo aparecem no Criar e nada é gravado com erro). Erro **"Confira os campos marcados."** Sucesso: página da empresa com aviso success fechável, uma vez: **"Empresa criada."** (o código já está no cabeçalho da página, RD-2614)
 Sai: 18 frases, "Passo 1", 1 campo, 1 cartão (5 campos), 1 botão. Entra: campo UF.
 
 | Antes | Depois (com os planos do §11) |
@@ -124,7 +124,7 @@ Dois lados lado a lado, com a mesma largura (≥ 768 px), separados por uma **di
 **Esquerda — "Integração via Conector"** (passos numerados na ordem em que a pessoa age; o círculo do número em Azul noite `bg-accent`, texto branco, ajustado pelo MC-0024):
 1. **"Baixar o Conector"**: botão "Gerar o link do Conector"/"Gerando o link…" (texto atual de `TEXTOS_DOWNLOAD_CONECTOR`) → link **"Baixar {arquivo}"**, embaixo só **"38 MB"** (saem o nome do arquivo e a versão: os dois já estão no link; ajustado pelo P6 do corretor), **"O link vale até 01:30. Depois disso, gere outro."** e **"SHA-256 {hash}"**. Estados de erro do download sem mudança.
 2. **"Gerar a credencial"**: **Identificador** (começa com "erp") · **Nome** (começa com "Conector do ERP") · caixa **"Envia os pedidos aprovados ao ERP"** (marcada) · **"Gerar credencial"** (principal). O Conector leva todas as bases livres, sem lista de escolha (a escolha fica no "Bases" da linha). Chave gerada: **no lugar do formulário**, faixa de aviso (`Notice` warning do kit) com **"Copie a chave agora: ela não aparece de novo."** + chave + **"Copiar"** (secundário pequeno; vira "Copiada"), e embaixo **"Já copiei, esconder"**, que volta ao formulário (MC-0160). Saem o título interno "Credencial do Conector "erp"" e o rodapé "Identificador: erp · escopo integracao.v1 · prefixo mx_…" (ajustado pelo RD-0286 e pelo MC-0159; o "cole na configuração" já está no passo 3).
-3. **"Instalar e colar a credencial"**: lista numerada, três linhas:
+3. **"Instalar o Conector"**: lista numerada, três linhas:
    1. **"Instale o Conector no servidor do ERP."**
    2. **"Cole o identificador e a chave na configuração."**
    3. **"Inicie o serviço."**
@@ -132,7 +132,7 @@ Dois lados lado a lado, com a mesma largura (≥ 768 px), separados por uma **di
 Embaixo: **"Conectores"** — tabela **Identificador · Pedidos** ("Sim" ou "—") **· Situação** (selo "Ativo" ou "Desativado"); vazio **"Nenhum Conector."** Linha ativa: os botões pequenos vêm **numa segunda linha, embaixo dela** (cabe no lado estreito e no celular): **"Bases"** · **"Gerar nova chave"** · **"Desativar"**; o Conector de arquivo só tem "Desativar"; linha desativada, sem botões. A nova chave aparece embaixo dos botões da própria linha, com a mesma faixa de aviso do passo 2.
 - **"Bases"** abre o diálogo **"Bases do Conector {id}"** (na direita, **"Bases da credencial {id}"**): as caixas das bases livres para ele (as dele, marcadas, mais as que nenhum outro ativo recebe), na ordem de carga, em duas colunas; **"Cancelar"** · **"Gravar"** (principal; desabilitado sem nenhuma marcada; "Gravando…"). Conflito (409) mostra a mensagem da API numa faixa de erro dentro do diálogo.
 - **"Gerar nova chave"**: diálogo **"Gerar nova chave para o Conector {id}?"** (na direita, "…para a credencial {id}?"), **"A chave atual ainda funciona por pouco tempo. Troque a chave na configuração do Conector."** (na direita, "…no sistema que chama a API."), "Cancelar" · **"Gerar nova chave"** (perigo).
-- **"Desativar"**: diálogo **"Desativar o Conector {id}?"** (na direita, "Desativar a credencial {id}?"), com o que deixa de acontecer: **"Ele para de enviar as bases e de buscar os pedidos."** (sem pedidos: "Ele para de enviar as bases."); Conector de arquivo: **"A carga por CSV deixa de funcionar nesta empresa."**; credencial de API: **"As chamadas com esta chave passam a ser recusadas."**; "Cancelar" · **"Desativar"** (perigo).
+- **"Desativar"**: diálogo **"Desativar o Conector {id}?"** (na direita, "Desativar a credencial {id}?"), com o que deixa de acontecer: **"Ele para de enviar as bases e de buscar os pedidos."** (sem pedidos: "Ele para de enviar as bases."); Conector de arquivo: **"As bases dele ficam livres para outro Conector ou credencial."**; credencial de API: **"As chamadas com esta chave passam a ser recusadas."**; "Cancelar" · **"Desativar"** (perigo).
 
 **Direita — "Integração via API":** (o título do lado já diz "API"; os cartões não repetem, RD-b)
 1. **"Gerar a credencial"**: **Identificador** e **Nome** vazios, com os exemplos **"ex.: erp-api"** e **"ex.: ERP do cliente"** · **"Bases"**: caixas das bases livres (nenhum Conector ou credencial ativa as recebe), todas marcadas no começo, na ordem de carga, em duas colunas; ao menos uma · **"Envia os pedidos aprovados ao ERP"** (desmarcada) · **"Gerar credencial"** (neutro) · chave gerada com a mesma faixa de aviso, "Copiar" e "Já copiei, esconder".
@@ -140,11 +140,11 @@ Embaixo: **"Conectores"** — tabela **Identificador · Pedidos** ("Sim" ou "—
    - Decisão (caixa de pedidos fica): pela API o ERP também busca os pedidos aprovados; a caixa diz se esta credencial pode buscá-los, igual ao Conector.
    - Decisão (botão neutro): um só principal por tela; o principal fica no Conector, que é o primeiro caminho.
 2. **"Guia"**: botão **"Baixar o guia (PDF)"** + link **"Documentação (OpenAPI 3.1)"** (o link sai do lado do Conector: uma informação, um lugar).
-   - Decisão: enquanto o PDF não existir, o botão **não aparece** e o cartão fica só com o link do OpenAPI. Sem "O guia chega em breve.": a pessoa não age com esse texto.
+   - Decisão (RD-2618, 22/11/2026): o botão **aparece sempre** (API e portal saem na mesma versão; o portal não sonda a rota a cada abertura). Se a rota do PDF não existir no servidor (404), ao tocar no botão aparece, ao lado do link, a constante única **"Ainda não disponível neste servidor."** (§0, RD-0288), como em `docs/desenho/config-credencial-api.md` §5. Sem "O guia chega em breve.": a pessoa não age com esse texto.
 
 Embaixo: **"Credenciais"** — a mesma tabela e os mesmos botões da linha ativa ("Bases", "Gerar nova chave", "Desativar") dos "Conectores" (a coluna Pedidos fica, porque a caixa ficou); vazio **"Nenhuma credencial."**
 
-> MC-0164 (22/11/2026): a simulação e este §10.2 passam a mostrar a aba como está implementada em `apps/web/components/portal/aba-integracao.tsx` (v1.0.23, prints `05b`, `05c` e `05d` do engenheiro-apps): chave no lugar do formulário com "Já copiei, esconder", "Bases" na credencial de API, botões da linha ativa embaixo dela e o "Guia" só com o link do OpenAPI enquanto o PDF não existe.
+> MC-0164 (22/11/2026): a simulação e este §10.2 passam a mostrar a aba como está implementada em `apps/web/components/portal/aba-integracao.tsx` (v1.0.23, prints `05b`, `05c` e `05d` do engenheiro-apps): chave no lugar do formulário com "Já copiei, esconder", "Bases" na credencial de API, botões da linha ativa embaixo dela e o "Guia" só com o link do OpenAPI enquanto o PDF não existia. Desde a v1.0.24 o botão "Baixar o guia (PDF)" aparece sempre (RD-2618, acima).
 
 **Sai:** o diálogo "Passar as bases ao Conector do ERP?" inteiro (título, 3 frases, botões "Gerar só para as bases livres" e "Desativar o de arquivo e passar todas"), o tipo "Carga por arquivo" (`ROTULO_TIPO.arquivo`), "Nenhum Conector ainda. A primeira importação de CSV cria o Conector de arquivo do portal.", "O guia da API (…) chega em breve neste servidor.", "Gera a chave que o Conector…" e "Vai no arquivo de configuração do Conector."
 
@@ -156,16 +156,16 @@ No celular (abaixo de 768 px), o **"Sair"** fica na linha do logo, à direita; a
 
 
 ### 10.3 Nova empresa (§4)
-Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergunta ao dono do produto:** sem CSV, toda empresa precisa de Conector ou API; a Integração com o ERP continua "sempre"?
+Core e Integração com o ERP entram em toda empresa e não aparecem entre os módulos (sem selo "sempre"). **Pergunta ao dono do produto:** sem CSV, toda empresa precisa de Conector ou API; a Integração com o ERP continua em toda empresa?
 
 > Ver §11: com os planos, a Nova empresa não lista mais módulos; a pergunta acima passa a ser se todo plano inclui a Integração com o ERP.
 
 ### 10.5 Para o engenheiro-apps
 - **Saem do portal:** `components/portal/cartao-base.tsx`, `components/portal/cartao-equipe.tsx`, `lib/portal-carga.ts`, `lib/portal-carga-rede.ts` (e `portal-carga.test.ts`), `lib/equipe-csv.ts` (e o teste), o Conector de arquivo em `lib/portal-rotas.ts` ("Carga por arquivo (implantação)"), a Equipe por CSV de `lib/portal-falso.ts` e os testIDs `base-*`, `equipe-*` e `integracao.confirmar-*`. Confirmar com o corretor-redundancias se algum deles é usado fora do portal antes de apagar.
 - `tela-empresa.tsx`: abas Integração e Empresa; Integração abre por padrão.
-- `aba-integracao.tsx`: dois lados (grid de 2 colunas ≥ 768 px; 1 coluna abaixo, Conector primeiro); o botão do Conector passa para dentro do passo 1; `textoDoPacote` sem o nome do arquivo quando o link já o mostra; o link do OpenAPI vai para o cartão "Guia"; `integracao.guia` vira o botão do PDF, só quando ele existir.
+- `aba-integracao.tsx`: dois lados (grid de 2 colunas ≥ 768 px; 1 coluna abaixo, Conector primeiro); o botão do Conector passa para dentro do passo 1; `textoDoPacote` sem o nome do arquivo quando o link já o mostra; o link do OpenAPI vai para o cartão "Guia"; `integracao.guia` vira o botão do PDF, sempre visível; rota ausente (404) mostra "Ainda não disponível neste servidor." (feito na v1.0.24).
 - **A Equipe passa a vir só pelo ERP (Conector/API) ou pelo BKO.** ~~Pendência — pergunta ao dono do produto: a Equipe por CSV sai mesmo do portal?~~ **Respondida: sim** (§12).
-- **Pendência para engenheiro-software / modulo-integracao:** credencial de API separada da do Conector (tipo próprio, ex. o `nuvem` que já existe em `ROTULO_TIPO`, rota que lista só as de API) e o guia da API em PDF (modulo-integracao faz e manda ao designer-ux para revisão de layout). Se a rota não existir, o lado direito mostra só o guia e o link do OpenAPI.
+- **Pendência para engenheiro-software / modulo-integracao:** credencial de API separada da do Conector (tipo próprio, ex. o `nuvem` que já existe em `ROTULO_TIPO`, rota que lista só as de API) ~~e o guia da API em PDF~~ **Fechada (v1.0.24):** o guia em PDF existe (`GET /integracao/v1/guia.pdf`, `docs/desenho/config-credencial-api.md` §5); o modulo-integracao manda o PDF ao designer-ux para revisão de layout e o design-de-marca valida. Se a rota de credenciais não existir, o lado direito mostra só o cartão "Guia" (botão do PDF e link do OpenAPI).
 
 ## 11. Adendo — Planos (Light, PME, Enterprise, Corporate) e CNPJ pela Receita
 > 2026-11-14 · designer-ux · pedido do dono do produto R-20261114-132600-alexandre (chegou pela ponte; não lido no repositório de recados nesta sessão — confirmar). Onde conflitar, o §11 vale sobre §3 (coluna Módulos), §4 (cartões Empresa e Módulos e licenças), §8 (cartão Módulos e licenças) e §10.3. Contratos novos (planos e CNPJ) vêm do engenheiro-software.
@@ -228,7 +228,7 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 
 Envio: `POST ROTA_PORTAL_EMPRESA_COM_PLANO` (`CriarEmpresaComPlanoSchema`) com `assinatura: { plano: codigo, ciclo, adicionais: [{ adicional, quantidade }], com_teste, pedido_id }` (`pedido_id` gerado no portal).
 
-Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro geral: **"Confira os campos marcados."**
+Sucesso, como no §4: **"Empresa criada."** Erro geral: **"Confira os campos marcados."**
 
 | Depois — Nova empresa (CNPJ preenchido, PME, Promotor 3 e Pesquisa 10, total) | Depois — estados do campo CNPJ |
 |---|---|
@@ -241,8 +241,8 @@ Coluna esquerda da aba (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId
 - **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em 600, tabular). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: só o selo de alerta **"no limite"** ao lado do número; borda e número seguem iguais aos demais blocos (RD-a: uma informação, um sinal). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
 - **Admin do cliente** (decidido em 14/11): só vê; o valor e o selo do teste ficam na linha do título, sem "Trocar de plano" (o `PUT` é só do super-admin); sem o cartão Administradores.
 
-**Diálogo "Trocar de plano"** (880 px no desktop, folha de tela cheia abaixo de 768 px, planos 2 × 2):
-- **4 planos** em uma linha (o mesmo seletor do Criar empresa, §11.3; licenças em duas linhas, "30 vendedores" / "3 gestores · 5 BKO"); o atual com o selo **"Atual"** (Névoa `#ECEEF1`, texto `#34404D`, MC-0039) e já selecionado.
+**Diálogo "Trocar de plano"** (880 px no desktop; abaixo de 640 px o `Dialog` vira folha de tela cheia):
+- **4 planos** no mesmo seletor do Criar empresa (§11.3; licenças em duas linhas, "30 vendedores" / "3 gestores · 5 BKO"); o atual com o selo **"Atual"** (Névoa `#ECEEF1`, texto `#34404D`, MC-0039) e já selecionado.
 - **Adicionais** numa lista de uma linha por adicional: caixa · ícone · nome · preço no ciclo · campo de quantidade (só com a caixa marcada); um cabeçalho só, **"Adicionais"** e **"Quantidade"** (`aria-label` "Quantidade de {adicional}" em cada campo). Os atuais já marcados, com as quantidades atuais.
 - **Ciclo:** o alternador **Mensal / Anual** (selo "2 meses grátis") numa linha própria, logo abaixo dos Adicionais: o mesmo componente do cartão "Ciclo" do Criar empresa (§11.3), sem título e sem a caixa do teste (MC-0050).
 - **Rodapé:** só **"Total: R$ 20.590,00/ano"** à esquerda e, à direita, **"Cancelar"** e **"Trocar para {plano}"** (principal). Sem mudança, o principal fica desabilitado como **"Trocar de plano"**. "Cancelar" e Esc fecham sem gravar. Envio: `PUT rotaPortalAssinatura(tenantId)` (`TrocarPlanoSchema`, com `pedido_id`).

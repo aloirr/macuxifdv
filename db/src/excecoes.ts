@@ -67,13 +67,15 @@ export const TABELAS_SO_POR_FUNCAO = [
 
 /**
  * Tabelas de tenant SEM a política `leitura` e SEM grant ao macuxi_leitura (exceção à regra da 0078, ADR 0055): dado pessoal do
- * trabalhador que não pode sair na consulta só leitura, cuja saída vai para o log do Actions. Os testes e o conferir-rls.sql
+ * trabalhador ou segredo de terceiro (0094) que não pode sair na consulta só leitura, cuja saída vai para o log do Actions. Os testes e o conferir-rls.sql
  * exigem o contrário nelas: nenhuma política nem privilégio para o macuxi_leitura.
  */
 export const TABELAS_SEM_LEITURA = [
   /** Rastreamento (0089, T-0156, ADR 0061 item 7): pontos e ausências. */
   'core.ponto_trajeto',
   'core.ausencia_usuario',
+  /** Cofre da credencial do ERP (0094, integração por ERP F2, desenho §2.2): só o macuxi_app lê; nem diagnóstico nem suporte. */
+  'integracao.credencial_erp',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
@@ -152,6 +154,12 @@ export const TABELAS_FORA_DO_SYNC = [
   'integracao.pedido_fila_erp',
   'integracao.pedido_retorno',
   'integracao.pedido_retorno_erro',
+  /** 0094 (integração por ERP, F2): busca na API do ERP, cofre, assistente e painel dos 30 dias; só a API e o worker. */
+  'integracao.conector_api',
+  'integracao.credencial_erp',
+  'integracao.implantacao',
+  'integracao.implantacao_dia',
+  'integracao.coleta_execucao',
 ] as const;
 
 /**

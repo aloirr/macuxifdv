@@ -62,7 +62,7 @@ describe('0089 rastreamento (estático)', () => {
   });
 
   it('macuxi_leitura: nenhum grant nem política nas 2 (ADR 0061 item 7); exceção declarada em TABELAS_SEM_LEITURA', () => {
-    expect([...TABELAS_SEM_LEITURA]).toEqual([...TABELAS]);
+    expect([...TABELAS_SEM_LEITURA].slice(0, 2)).toEqual([...TABELAS]);
     expect(up).not.toMatch(/grant [^;]* to [a-z_, ]*macuxi_leitura/);
     expect(up).not.toMatch(/create policy leitura/);
   });

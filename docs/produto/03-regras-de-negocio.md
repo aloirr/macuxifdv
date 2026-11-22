@@ -497,6 +497,13 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 > - **RN-INT-13 Topologia na v1 (P-6, P-7)**: um Conector por entidade por empresa; filial com ERP próprio vira outra empresa; o Hub recusa configuração conflitante. Um ERP de destino de pedidos por empresa (mais de um: backlog).
 > - Premissas aprovadas: aplicação do lote pela outbox (ADR 0007); ADR nova para as rotas do Conector (prefixo `/integracao/v1`, chave por Conector) com o engenheiro; reprocessamento de lote no BKO.
 
+> Busca na API do ERP (5 modelos de ERP; desenho `docs/desenho/integracao-modelos-erp.md`, ADR 0066; D1–D9 aprovadas pelo dono do produto em R-20261122-005500-alexandre, item 5 A):
+> - **RN-INT-17 Busca pelo Conector `nuvem`**: frequência por entidade múltipla de 15 min, de 15 min a 1 dia; a carga completa semanal fica à parte e é a única que inativa registros; o pedido vai ao ERP na hora, por evento.
+> - **RN-INT-18 Credencial do ERP**: só de escrita e cifrada, com a chave-mestra fora do banco e do backup; só troca a anterior depois de "Testar conexão" OK, com auditoria sem o valor; nunca aparece em rota de leitura, tela, log, diagnóstico ou recado.
+> - **RN-INT-19 Pedido pela API**: só com o campo do UUID do Macuxi no ERP, procurado antes de criar; se o ERP recusa, o pedido fica `rejeitado_erp` com o motivo; sem o campo, vai pelo Conector.
+> - **RN-INT-20 Falhas do ERP**: 401 ou 403 param as coletas do Conector até a credencial ser trocada; rede, timeout, 429 e 5xx tentam de novo em 1, 2, 4, 8 e 16 min, respeitando o `Retry-After`.
+> - **RN-INT-21 Implantação**: vai da primeira carga completa até o D+30, ou acaba antes se os marcos forem cumpridos com 7 dias seguidos sem alerta; o admin do cliente vê o painel só para leitura.
+
 ## 10. Auditoria
 - **RN-AUD-01** Ficam na auditoria: alterações de preço, limite, alçada, status de pedido, licenças de módulos, perfis, parâmetros e publicações de pesquisa/trilha (quem, quando, antes/depois).
 

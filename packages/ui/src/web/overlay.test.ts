@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CabecalhoDoDialog, alvoDoTab, classesDoDialog } from './overlay';
+import { CabecalhoDoDialog, alvoDoTab, classesDoDialog, focoInicialDoDialog, type CaixaDoFoco } from './overlay';
 
 // R-20261114-141500: o Tab não sai do popup (Dialog e Drawer do BKO).
 describe('alvoDoTab', () => {
@@ -41,8 +41,17 @@ describe('Dialog: largura', () => {
     expect(c).toContain('sm:max-w-[720px]');
     expect(c).not.toContain('sm:max-w-[460px]');
   });
+  // RD-2616: "Trocar de plano" do portal (cartões dos planos lado a lado) passa a usar o Dialog do kit.
+  it("'extra-larga' vai a 880 px e não leva as outras larguras", () => {
+    const c = classesDoDialog('extra-larga').split(/\s+/);
+    expect(c).toContain('sm:max-w-[880px]');
+    for (const outra of ['sm:max-w-[460px]', 'sm:max-w-[540px]', 'sm:max-w-[560px]', 'sm:max-w-[720px]']) expect(c).not.toContain(outra);
+  });
+  it('a caixa focada pelo script não mostra contorno (o foco visível fica nos campos)', () => {
+    expect(classesDoDialog().split(/\s+/)).toContain('outline-none');
+  });
   it('abaixo de 640 px segue folha na largura toda, em todas as larguras', () => {
-    for (const l of ['padrao', 'media', 'media-larga', 'larga'] as const)
+    for (const l of ['padrao', 'media', 'media-larga', 'larga', 'extra-larga'] as const)
       expect(classesDoDialog(l).split(/\s+/)).toEqual(
         expect.arrayContaining(['w-full', 'rounded-t-2xl', 'max-h-full']),
       );
@@ -76,5 +85,24 @@ describe('Dialog: subtítulo', () => {
     const sem = CabecalhoDoDialog({ id: 't', title: 'T', rola: true }) as unknown as No;
     expect(String(com.props.className)).toContain('border-b');
     expect(String(sem.props.className)).toContain('border-b');
+  });
+});
+
+// RD-2616: ao abrir, o foco entra no popup e nunca fica atrás dele (a volta ao elemento que abriu fica no useEscape).
+describe('Dialog: foco inicial', () => {
+  type Falso = CaixaDoFoco & { nome: string };
+  const caixa = (achados: Record<'campo' | 'focavel', Falso | null>): Falso => ({
+    nome: 'caixa',
+    querySelector: (sel: string) => (sel.startsWith('a[href]') ? achados.focavel : achados.campo),
+  });
+  const el = (nome: string): Falso => ({ nome, querySelector: () => null });
+  it('vai ao primeiro campo ou botão habilitado', () => {
+    expect(focoInicialDoDialog(caixa({ campo: el('input'), focavel: el('link') })).nome).toBe('input');
+  });
+  it('sem campo nem botão habilitado, vai ao primeiro focável (link, tabindex)', () => {
+    expect(focoInicialDoDialog(caixa({ campo: null, focavel: el('link') })).nome).toBe('link');
+  });
+  it('sem nada focável, fica na própria caixa', () => {
+    expect(focoInicialDoDialog(caixa({ campo: null, focavel: null })).nome).toBe('caixa');
   });
 });

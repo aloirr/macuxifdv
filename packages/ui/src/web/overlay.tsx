@@ -19,6 +19,22 @@ export function alvoDoTab(total: number, atual: number, shift: boolean): number 
   return null;
 }
 
+/** Campos e botões habilitados, na ordem do documento: o primeiro recebe o foco quando o popup abre. */
+const CAMPOS_DO_FOCO_INICIAL = 'textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), button:not([disabled])';
+
+/** O mínimo do elemento que o foco inicial usa (testável sem DOM). */
+export interface CaixaDoFoco {
+  querySelector(seletor: string): CaixaDoFoco | null;
+}
+
+/**
+ * Quem recebe o foco quando o Dialog abre (RD-2616): o primeiro campo ou botão habilitado; sem nenhum, outro focável
+ * (link, `tabindex`); sem nada, a própria caixa (`tabIndex={-1}`), para o foco nunca ficar atrás do popup.
+ */
+export function focoInicialDoDialog<T extends CaixaDoFoco>(caixa: T): T {
+  return (caixa.querySelector(CAMPOS_DO_FOCO_INICIAL) ?? caixa.querySelector(FOCAVEIS) ?? caixa) as T;
+}
+
 /**
  * Fecha com Esc, prende o Tab dentro do popup e devolve o foco ao elemento que abriu.
  * O efeito depende só de `open`: se dependesse de `onClose` (função nova a cada render),
@@ -39,6 +55,12 @@ function useEscape(open: boolean, onClose: () => void, caixa: { current: HTMLEle
       }
       if (e.key !== 'Tab' || !caixa.current) return;
       const lista = Array.from(caixa.current.querySelectorAll<HTMLElement>(FOCAVEIS)).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (lista.length === 0) {
+        // Sem nada focável dentro, o Tab não sai do popup: o foco fica na própria caixa.
+        e.preventDefault();
+        caixa.current.focus({ preventScroll: true });
+        return;
+      }
       const alvo = alvoDoTab(lista.length, lista.indexOf(document.activeElement as HTMLElement), e.shiftKey);
       if (alvo === null) return;
       e.preventDefault();
@@ -75,9 +97,10 @@ function useCorpoRola(open: boolean) {
 /**
  * Largura do popup a partir de 640 px: `padrao` = 460 px (confirmação, formulário curto); `media` = 540 px
  * (formulário com opções em cartão, ex.: Criar rota); `media-larga` = 560 px (formulário com endereço,
- * ex.: Endereço base; T-0191, rotas-criar §3 e §5); `larga` = 720 px (tabela curta dentro do popup).
+ * ex.: Endereço base; T-0191, rotas-criar §3 e §5); `larga` = 720 px (tabela curta dentro do popup);
+ * `extra-larga` = 880 px (cartões lado a lado, ex.: "Trocar de plano" do portal; RD-2616).
  */
-export type LarguraDoDialog = 'padrao' | 'media' | 'media-larga' | 'larga';
+export type LarguraDoDialog = 'padrao' | 'media' | 'media-larga' | 'larga' | 'extra-larga';
 
 /** Classes literais (o Tailwind só gera o que aparece escrito por inteiro). */
 const MAX_LARGURA: Record<LarguraDoDialog, string> = {
@@ -85,11 +108,12 @@ const MAX_LARGURA: Record<LarguraDoDialog, string> = {
   media: 'sm:max-w-[540px]',
   'media-larga': 'sm:max-w-[560px]',
   larga: 'sm:max-w-[720px]',
+  'extra-larga': 'sm:max-w-[880px]',
 };
 
 /** Classes da caixa do popup; abaixo de 640 px é sempre folha na largura toda. */
 export function classesDoDialog(largura: LarguraDoDialog = 'padrao'): string {
-  return `flex max-h-full w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl ${MAX_LARGURA[largura]} sm:rounded-2xl`;
+  return `flex max-h-full w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl outline-none ${MAX_LARGURA[largura]} sm:rounded-2xl`;
 }
 
 /** Cabeçalho do popup: título e, se houver, a linha de identificação embaixo (13 px, `ink-2`, como no Drawer). Sem hooks. */
@@ -142,10 +166,12 @@ export function Dialog({
   const corpo = useCorpoRola(open);
   useEffect(() => {
     if (!open) return;
-    const alvo = ref.current?.querySelector<HTMLElement>('textarea, input, select, button');
+    const caixa = ref.current;
+    if (!caixa) return;
+    const alvo = focoInicialDoDialog<HTMLElement>(caixa);
     // Sem rolar a página nem centralizar o corpo: só o mínimo para o campo aparecer.
-    alvo?.focus({ preventScroll: true });
-    alvo?.scrollIntoView?.({ block: 'nearest' });
+    alvo.focus({ preventScroll: true });
+    alvo.scrollIntoView?.({ block: 'nearest' });
   }, [open]);
   if (!open) return null;
   return (
@@ -155,6 +181,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
+        tabIndex={-1}
         className={classesDoDialog(largura)}
       >
         <CabecalhoDoDialog id={id} title={title} subtitle={subtitle} rola={corpo.rola} />
@@ -185,7 +212,7 @@ export function Drawer({ open, title, subtitle, children, onClose, rodape }: { o
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-ink/35" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl">
+      <aside ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl outline-none">
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line bg-surface px-5 py-4">
           <div className="flex min-w-0 flex-col gap-0.5">
             <h2 id={id} className="m-0 text-[20px] font-bold">
