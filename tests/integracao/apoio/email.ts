@@ -23,7 +23,7 @@
 import crypto from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { CargaEmail, ClienteBanco, LogRota, ModeloEmail as ModeloEmailSdk, ModuloApi } from '@macuxi/platform-sdk';
+import type { CargaEmail, ClienteBanco, LogRota, ModeloEmail as ModeloEmailSdk, ModuloApi, OpcoesApresentacaoEmail } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import {
   criarCifraEmail,
@@ -242,8 +242,11 @@ export async function cargaDaOutbox(admin: pg.Pool, id: string, cifra: CifraEmai
   return { ...cifra.decifrar(l.carga, { id, tenant_id: l.tenant_id, modelo: l.modelo }), modelo: l.modelo, tenant_id: l.tenant_id };
 }
 
-/** Despachante REAL (papel `macuxi_worker`) com o adaptador de arquivo: ciclos até a fila esvaziar (teto de 50 ciclos). */
-export async function despacharParaArquivo(op: { urlWorker: string; cifra: CifraEmail; pasta: string; log: LogRota; agora?: () => Date }): Promise<ResumoCicloEmail> {
+/**
+ * Despachante REAL (papel `macuxi_worker`) com o adaptador de arquivo: ciclos até a fila esvaziar (teto de 50 ciclos).
+ * `apresentacao`: logo e botão do backoffice (`ConfigEmail.apresentacao`, das `MACUXI_EMAIL_URL_*`); ausente = sem os dois.
+ */
+export async function despacharParaArquivo(op: { urlWorker: string; cifra: CifraEmail; pasta: string; log: LogRota; agora?: () => Date; apresentacao?: OpcoesApresentacaoEmail }): Promise<ResumoCicloEmail> {
   const worker = new pg.Pool({ connectionString: op.urlWorker, max: 1 });
   try {
     const despachante = criarDespachanteEmail({
@@ -253,6 +256,7 @@ export async function despacharParaArquivo(op: { urlWorker: string; cifra: Cifra
       remetente: { email: 'nao-responda@exemplo.com.br', nome: 'Macuxi FDV' },
       log: op.log,
       ...(op.agora ? { agora: op.agora } : {}),
+      ...(op.apresentacao ? { apresentacao: op.apresentacao } : {}),
     });
     const total: ResumoCicloEmail = { lidos: 0, enviados: 0, adiados: 0, falhos: 0 };
     for (let i = 0; i < 50; i++) {

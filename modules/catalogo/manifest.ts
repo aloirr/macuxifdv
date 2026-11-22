@@ -64,7 +64,7 @@ export const manifest = defineModule({
   // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
   // T-0148: foto_produto (ícone de câmera e foto ao tocar, cache no aparelho)
   // T-0084: textos (aplicação e referências) e busca do seletor do Novo pedido, com o mesmo ranking da vitrine
-  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.marcas@1', 'catalogo.foto_produto@1', 'catalogo.estoque_filial@1'],
+  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.marcas@1', 'catalogo.foto_produto@1', 'catalogo.estoque_filial@1', 'catalogo.veiculos@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
   // T-0149 (RN-CORE-39): filial do cliente, filial padrão e filiais da carteira (preço e estoque por filial, pull do aparelho, consumidores do ERP)
   // T-0174 (RN-CAT-14): core.produtos_por_sku@1 casa o nome da foto com o código (sku ou EAN) do produto, sem ler `core.produto`

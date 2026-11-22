@@ -564,7 +564,11 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       const inexistente = await passos(FANTASMA2, MULTI.senha);
       expect(existente.map((x) => x.slice(0, 3))).toEqual(['401', '401', '401', '401', '423', '423']);
       expect(inexistente).toEqual(existente);
-      expect(JSON.parse(existente[5]!.slice(4))).toEqual({ codigo: 'BLOQUEADO', mensagem: 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.' });
+      expect(JSON.parse(existente[5]!.slice(4))).toEqual({
+        codigo: 'BLOQUEADO',
+        mensagem: 'Muitas tentativas. Tente de novo em 15 minutos.',
+        detalhes: { minutos_restantes: 15 },
+      });
       // e-mail com maiúsculas e espaços é o mesmo e-mail: continua bloqueado
       expect((await entrarNoPortal(api, ` ${BLOQUEIO.email.toUpperCase()}`, BLOQUEIO.senha)).statusCode).toBe(423);
     });

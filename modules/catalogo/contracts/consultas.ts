@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { Cents, Id } from '@macuxi/core/contracts';
 import { EquivaleA, Referencia, TrechoBusca } from './busca';
+import { VeiculoEscolhido } from './veiculo';
 
 export const PrecosClienteEntradaSchema = z.object({
   cliente_id: Id,
@@ -135,7 +136,10 @@ export const CONSULTA_TEXTOS_PRODUTO = definirConsulta({
  */
 export const BuscaProdutosEntradaSchema = z
   .object({
-    q: z.string().trim().min(1).max(200),
+    /** Vazio só quando vem `veiculo` (RN-CAT-22): a lista é a das peças do veículo. */
+    q: z.string().trim().max(200).default(''),
+    /** RN-CAT-22 (aditivo): só os produtos que servem no veículo (ano, motor e versão só filtram se escolhidos); soma com `q`. */
+    veiculo: VeiculoEscolhido.optional(),
     produto_ids: z.array(Id).max(5000).optional(),
     /** T-0167: no lugar dos até 5.000 `produto_ids`, só os vendáveis na tabela de preço deste cliente (RN-CAT-06), filtrados dentro da consulta. */
     cliente_id: Id.optional(),
@@ -143,7 +147,8 @@ export const BuscaProdutosEntradaSchema = z
     /** T-0167: devolve a lista ranqueada inteira (até o teto de 400, ignorando `limite`) para o app paginar de 20 em 20 sem nova consulta. */
     lista_completa: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((e) => e.q.length >= 1 || e.veiculo !== undefined, { message: 'Informe o texto da busca ou o veículo.', path: ['q'] });
 export type BuscaProdutosEntrada = z.infer<typeof BuscaProdutosEntradaSchema>;
 
 export const BuscaProdutosSaidaSchema = z.object({

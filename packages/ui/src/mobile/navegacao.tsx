@@ -35,6 +35,7 @@ export function Trilha({
   itens,
   onEscolher,
   compacta,
+  semAtual,
   rotuloAcessivel,
   testID = 'trilha',
 }: {
@@ -46,6 +47,11 @@ export function Trilha({
    * Azul noite. O alvo de toque continua 48 dp.
    */
   compacta?: boolean;
+  /**
+   * Nenhum item é o lugar atual: todos voltam àquele passo (fora os `desligado`). Para a trilha da `FolhaCascata`, em que o
+   * nível atual fica no rótulo de baixo, não na trilha (spec filtro-veiculo §4.1).
+   */
+  semAtual?: boolean;
   /** Leitura de cada item no leitor de tela; sem ela, "Ir para X" / "X, você está aqui". */
   rotuloAcessivel?: (item: ItemTrilha, atual: boolean) => string;
   testID?: string;
@@ -54,7 +60,7 @@ export function Trilha({
   return (
     <View style={s.trilha} testID={testID}>
       {itens.map((item, i) => {
-        const atual = i === itens.length - 1;
+        const atual = !semAtual && i === itens.length - 1;
         const pulado = !atual && Boolean(item.desligado);
         const desligado = atual || pulado;
         return (
