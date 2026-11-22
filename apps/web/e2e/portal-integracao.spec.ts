@@ -1,7 +1,7 @@
 /**
  * e2e do portal config. no modo falso (spec portal-config-enxuto §10.2 e §11): aba Integração em dois lados (Conector | API), o caso
- * do ERP (Bases do Conector e credencial de API), o guia da API em PDF e a aba Empresa com plano; refaz os prints 05b, 05c, 05d e 06b
- * em 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
+ * do ERP (Bases do Conector e credencial de API), "Envia os pedidos" no diálogo "Bases", "Reativar" com a chave nova, o guia da API em
+ * PDF e a aba Empresa com plano; refaz os prints 05b, 05c, 05d, 05e e 06b em 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
  */
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
@@ -51,9 +51,13 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('integracao.bases-erp').click();
     const dialogo = page.getByRole('dialog', { name: 'Bases do Conector erp' });
     await expect(dialogo).toBeVisible();
-    await expect(dialogo.locator('input[type=checkbox]:checked')).toHaveCount(16);
+    const marcadas = dialogo.locator('[data-testid^="integracao.bases."]:checked');
+    await expect(marcadas).toHaveCount(16);
     await dialogo.getByTestId('integracao.bases.forma_pagamento').uncheck();
-    await expect(dialogo.locator('input[type=checkbox]:checked')).toHaveCount(15);
+    await expect(marcadas).toHaveCount(15);
+    await expect(dialogo.getByTestId('integracao.bases-recebe-pedidos')).toBeChecked();
+    await expect(dialogo.getByTestId('integracao.bases-recebe-pedidos')).toBeEnabled();
+    await expect(dialogo).toContainText('Envia os pedidos aprovados ao ERP');
     await page.screenshot({ path: `${PRINTS}/05c-dialogo-bases${nome}.png` });
     await dialogo.getByTestId('integracao.bases-gravar').click();
     await expect(dialogo).toBeHidden();
@@ -64,7 +68,6 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('integracao.api-bases.forma_pagamento')).toBeChecked();
     await expect(page.getByTestId('integracao.api-recebe-pedidos')).not.toBeChecked();
     await expect(page.locator('fieldset[data-testid="integracao.api-bases"] > legend')).toHaveText('Bases');
-    await page.screenshot({ path: `${PRINTS}/05b-integracao${nome}.png`, fullPage: true });
 
     // no diálogo de novo: Formas de pagamento desmarcada; Gravar sem nenhuma base fica desabilitado
     await page.getByTestId('integracao.bases-erp').click();
@@ -103,7 +106,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
 
     // RD-2609: o diálogo do erp lista só as livres para ele (sem Formas de pagamento, que é da erp-api) e nada desabilitado
     await page.getByTestId('integracao.bases-erp').click();
-    await expect(dialogo.locator('input[type=checkbox]')).toHaveCount(15);
+    await expect(dialogo.locator('[data-testid^="integracao.bases."]')).toHaveCount(15);
     await expect(dialogo.locator('input[type=checkbox]:disabled')).toHaveCount(0);
     await expect(dialogo.getByTestId('integracao.bases.forma_pagamento')).toHaveCount(0);
     await expect(dialogo).not.toContainText('erp-api');
@@ -111,9 +114,52 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await dialogo.getByTestId('integracao.bases-cancelar').click();
     await page.getByTestId('integracao.bases-erp-api').click();
     const dialogoApi = page.getByRole('dialog', { name: 'Bases da credencial erp-api' });
-    await expect(dialogoApi.locator('input[type=checkbox]')).toHaveCount(1);
+    await expect(dialogoApi.locator('[data-testid^="integracao.bases."]')).toHaveCount(1);
     await expect(dialogoApi.getByTestId('integracao.bases.forma_pagamento')).toBeChecked();
+    // os pedidos já vão pelo erp: a caixa da credencial fica bloqueada
+    await expect(dialogoApi.getByTestId('integracao.bases-recebe-pedidos')).toBeDisabled();
     await dialogoApi.getByTestId('integracao.bases-cancelar').click();
+
+    // "Envia os pedidos" editável no diálogo: o erp deixa de enviar (PATCH { entidades, recebe_pedidos }) e a caixa da credencial abre
+    await page.getByTestId('integracao.bases-erp').click();
+    await dialogo.getByTestId('integracao.bases-recebe-pedidos').uncheck();
+    await dialogo.getByTestId('integracao.bases-gravar').click();
+    await expect(dialogo).toBeHidden();
+    expect(await estado(page)).toEqual([
+      ['erp', 'conector', false, SEM_FORMA],
+      ['erp-api', 'nuvem', false, ['forma_pagamento']],
+    ]);
+    await page.getByTestId('integracao.bases-erp-api').click();
+    await expect(dialogoApi.getByTestId('integracao.bases-recebe-pedidos')).toBeEnabled();
+    await dialogoApi.getByTestId('integracao.bases-cancelar').click();
+
+    // Desativar o erp: a linha fica só com "Reativar"
+    await page.getByTestId('integracao.desativar-erp').click();
+    await page.getByTestId('integracao.acao-confirmar-desativar').click();
+    await expect(page.getByTestId('integracao.reativar-erp')).toHaveText('Reativar');
+    await expect(page.getByTestId('integracao.bases-erp')).toHaveCount(0);
+    await page.screenshot({ path: `${PRINTS}/05b-integracao${nome}.png`, fullPage: true });
+
+    // Reativar (caso da thathyany): as livres marcadas (sem Formas de pagamento, da erp-api); o erp volta enviando os pedidos; a chave nova uma vez
+    await page.getByTestId('integracao.reativar-erp').click();
+    const reativar = page.getByRole('dialog', { name: 'Reativar o Conector erp?' });
+    await expect(reativar.locator('[data-testid^="integracao.bases."]:checked')).toHaveCount(15);
+    await expect(reativar.getByTestId('integracao.bases.forma_pagamento')).toHaveCount(0);
+    await expect(reativar.getByTestId('integracao.bases-recebe-pedidos')).not.toBeChecked();
+    await reativar.getByTestId('integracao.bases-recebe-pedidos').check();
+    await expect(reativar.getByTestId('integracao.bases-gravar')).toHaveText('Reativar');
+    await reativar.getByTestId('integracao.bases-gravar').click();
+    await expect(reativar).toBeHidden();
+    const chave = page.getByTestId('integracao.nova-chave-erp.chave');
+    await expect(chave).toHaveText(/^mx_falso_/);
+    await expect(page.getByTestId('integracao.nova-chave-erp.copiar')).toHaveText('Copiar');
+    await expect(page.getByTestId('integracao.reativar-erp')).toHaveCount(0);
+    await chave.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${PRINTS}/05e-reativar${nome}.png`, fullPage: true });
+    expect(await estado(page)).toEqual([
+      ['erp', 'conector', true, SEM_FORMA],
+      ['erp-api', 'nuvem', false, ['forma_pagamento']],
+    ]);
     await ctx.close();
   });
 }

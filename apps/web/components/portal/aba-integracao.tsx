@@ -8,9 +8,10 @@
  *   tabela "Conectores" (tipos `conector` e `arquivo`; só o `conector` tem "Bases" e "Gerar nova chave").
  * - "Integração via API": "Gerar a credencial" (botão neutro) pela mesma rota com `tipo: 'nuvem'`, escolhendo entre as bases livres e
  *   se envia os pedidos; o cartão "Guia" (botão do PDF pela rota pública `GUIA_PDF_HUB`; link do OpenAPI 3.1) e a tabela "Credenciais".
- * - Linha ativa: "Bases" (`PATCH { entidades }`, só as bases livres para ele) e "Gerar nova chave" (`POST ROTAS_PORTAL.chaveConector`)
- *   fora do de arquivo; "Desativar" (`PATCH { ativo: false }`); nova chave e desativar com confirmação, no texto do tipo (Conector ou
- *   credencial de API). Linha desativada: sem botões.
+ * - Linha ativa: "Bases" (`PATCH { entidades, recebe_pedidos }`, só as bases livres para ele) e "Gerar nova chave" (`POST
+ *   ROTAS_PORTAL.chaveConector`) fora do de arquivo; "Desativar" (`PATCH { ativo: false }`); nova chave e desativar com confirmação, no
+ *   texto do tipo (Conector ou credencial de API). Linha desativada: "Reativar" fora do de arquivo, no mesmo diálogo "Bases" (`PATCH
+ *   { ativo: true, entidades, recebe_pedidos }` e a chave nova, porque desativar revogou as chaves, RN-INT-10).
  * A chave em claro vem só na resposta e aparece UMA vez, com "Copiar". Na v1 cada base vem de um único Conector por empresa
  * (RN-INT-13): a credencial nova leva só bases livres e a API revalida (409 `topologia_conflitante`). testIDs: integracao.*.
  */
@@ -47,6 +48,11 @@ export function entidadesLivres(conectores: readonly Topologia[], ignorar?: stri
   return ENTIDADES.filter((e) => !ocupadas.has(e));
 }
 
+/** Outro Conector ou credencial ativa já envia os pedidos ao ERP (um só por empresa na v1, RN-INT-13; a API revalida). */
+export function outroRecebePedidos(conectores: readonly { ativo: boolean; recebe_pedidos: boolean; conector_id: string }[], ignorar: string): boolean {
+  return conectores.some((c) => c.ativo && c.recebe_pedidos && c.conector_id !== ignorar);
+}
+
 /**
  * Aviso quando não sobra base livre, só com a ação que libera: "Bases" ou "Desativar" no Conector ou na credencial de API (os dois
  * ocupam bases); o Conector de arquivo só tem "Desativar".
@@ -79,9 +85,25 @@ export function criarCredencial(tenant: string, corpo: CorpoCredencial, chamar: 
   return chamar(ROTAS_PORTAL.conectores, { metodo: 'POST', tenant, corpo, schema: ConectorCriado });
 }
 
-/** O único PATCH do Conector (`ConectorAtualizar`): "Bases" (`{ entidades }`, 409 `topologia_conflitante` no conflito) e "Desativar" (`{ ativo: false }`). */
-export function patchConector(tenant: string, id: string, corpo: { entidades: Entidade[] } | { ativo: false }, chamar: Chamar = chamarPortal): Promise<Conector> {
+type CorpoBases = { entidades: Entidade[]; recebe_pedidos: boolean };
+
+/**
+ * O único PATCH do Conector (`ConectorAtualizar`): "Bases" (`{ entidades, recebe_pedidos }`, 409 `topologia_conflitante` no conflito),
+ * "Desativar" (`{ ativo: false }`) e "Reativar" (`{ ativo: true, entidades, recebe_pedidos }`).
+ */
+export function patchConector(tenant: string, id: string, corpo: CorpoBases | { ativo: false } | ({ ativo: true } & CorpoBases), chamar: Chamar = chamarPortal): Promise<Conector> {
   return chamar(ROTAS_PORTAL.conector(id), { metodo: 'PATCH', tenant, corpo, schema: ConectorResumo });
+}
+
+/** A chave nova (`POST ROTAS_PORTAL.chaveConector`): "Gerar nova chave" e o fim do "Reativar"; Conector desativado dá 409 `conector_inativo`. */
+export function gerarChaveNova(tenant: string, id: string, chamar: Chamar = chamarPortal): Promise<ChaveNova> {
+  return chamar(ROTAS_PORTAL.chaveConector(id), { metodo: 'POST', tenant, corpo: {}, schema: ConectorCriado.shape.chave });
+}
+
+/** "Reativar": o PATCH com `ativo: true` e, só se ele passar, a chave nova (desativar revogou as chaves, RN-INT-10). */
+export async function reativarConector(tenant: string, id: string, corpo: CorpoBases, chamar: Chamar = chamarPortal): Promise<ChaveNova> {
+  await patchConector(tenant, id, { ativo: true, ...corpo }, chamar);
+  return gerarChaveNova(tenant, id, chamar);
 }
 
 /** Como o diálogo chama a linha: Conector (esquerda, `conector`/`arquivo`) ou credencial de API (direita, `nuvem`). */
@@ -183,6 +205,16 @@ export function ListaBases({ bases, marcadas, aoMudar, testId, legendaOculta = f
   );
 }
 
+/** "Envia os pedidos aprovados ao ERP" (formulário e diálogo "Bases"); `bloqueada` quando outro ativo já envia. */
+function CaixaPedidos({ testId, marcada, bloqueada = false, aoMudar }: { testId: string; marcada: boolean; bloqueada?: boolean; aoMudar: (v: boolean) => void }) {
+  return (
+    <label className={cx('flex items-center gap-2.5 text-[15px]', bloqueada ? 'text-ink-2' : 'cursor-pointer')}>
+      <input type="checkbox" data-testid={testId} className="h-4 w-4 accent-accent" disabled={bloqueada} checked={marcada && !bloqueada} onChange={(e) => aoMudar(e.target.checked)} />
+      Envia os pedidos aprovados ao ERP
+    </label>
+  );
+}
+
 /** Título do passo com o número num círculo Azul noite, texto branco (MC-0024). */
 function Passo({ n, children }: { n: number; children: ReactNode }) {
   return (
@@ -280,10 +312,7 @@ function GerarCredencial({
         ) : (
           <ListaBases bases={livres} marcadas={escolhidas} testId={`${testId}bases`} aoMudar={selecao.mudar} />
         ))}
-      <label className="flex cursor-pointer items-center gap-2.5 text-[15px]">
-        <input type="checkbox" data-testid={`${testId}recebe-pedidos`} className="h-4 w-4 accent-accent" checked={recebePedidos} onChange={(e) => setRecebePedidos(e.target.checked)} />
-        Envia os pedidos aprovados ao ERP
-      </label>
+      <CaixaPedidos testId={`${testId}recebe-pedidos`} marcada={recebePedidos} aoMudar={setRecebePedidos} />
       {erro && (
         <div data-testid={`${testId}erro`}>
           <Notice tone="danger">{erro}</Notice>
@@ -304,16 +333,30 @@ function GerarCredencial({
   );
 }
 
-/** Diálogo "Bases": só as bases livres para ele (as dele mais as que nenhum outro Conector ativo recebe), as dele marcadas; "Gravar" pede ao menos uma. */
-export function DialogoBases({ alvo, todos, tenant, aoFechar, aoGravar }: { alvo: Conector | null; todos: readonly Conector[]; tenant: string; aoFechar: () => void; aoGravar: () => void }) {
+export type ModoBases = 'bases' | 'reativar';
+
+/**
+ * Diálogo "Bases" (linha ativa) e "Reativar" (linha desativada): só as bases livres para ele (as dele mais as que nenhum outro ativo
+ * recebe) e "Envia os pedidos aprovados ao ERP", bloqueada quando outro ativo já envia. "Bases" marca as dele; "Reativar" marca todas
+ * as livres e devolve a chave nova. O botão pede ao menos uma base.
+ */
+export function DialogoBases({ alvo, modo = 'bases', todos, tenant, aoFechar, aoGravar }: { alvo: Conector | null; modo?: ModoBases; todos: readonly Conector[]; tenant: string; aoFechar: () => void; aoGravar: (chave: ChaveNova | null) => void }) {
+  const reativar = modo === 'reativar';
   const bases = alvo ? entidadesLivres(todos, alvo.conector_id) : [];
-  const selecao = useSelecaoDeBases(bases, alvo?.entidades ?? []);
+  const selecao = useSelecaoDeBases(bases, reativar ? bases : (alvo?.entidades ?? []));
+  const bloqueada = alvo ? outroRecebePedidos(todos, alvo.conector_id) : false;
+  const [pedidos, setPedidos] = useState<boolean | null>(null);
+  const recebe = !bloqueada && (pedidos ?? alvo?.recebe_pedidos ?? false);
   const [erro, setErro] = useState<string | null>(null);
   const [gravando, setGravando] = useState(false);
+  const limpar = () => {
+    selecao.limpar();
+    setPedidos(null);
+    setErro(null);
+  };
   const fechar = () => {
     if (gravando) return;
-    selecao.limpar();
-    setErro(null);
+    limpar();
     aoFechar();
   };
   const gravar = async () => {
@@ -321,20 +364,22 @@ export function DialogoBases({ alvo, todos, tenant, aoFechar, aoGravar }: { alvo
     setGravando(true);
     setErro(null);
     try {
-      await patchConector(tenant, alvo.id, { entidades: selecao.marcadas });
-      selecao.limpar();
-      aoGravar();
+      const corpo = { entidades: selecao.marcadas, recebe_pedidos: recebe };
+      const chave = reativar ? await reativarConector(tenant, alvo.id, corpo) : (await patchConector(tenant, alvo.id, corpo), null);
+      limpar();
+      aoGravar(chave);
     } catch (x) {
-      // 409 `topologia_conflitante`: a mensagem da API diz qual Conector já recebe cada base
+      // 409 `topologia_conflitante`: a mensagem da API diz qual Conector já recebe cada base ou os pedidos
       setErro(ehRotaAusente(x) ? TEXTO_INDISPONIVEL : mensagemDoErro(x));
     } finally {
       setGravando(false);
     }
   };
+  const nome = alvo ? `${alvo.tipo === 'nuvem' ? 'da credencial' : 'do Conector'} ${alvo.conector_id}` : '';
   return (
     <Dialog
       open={alvo !== null}
-      title={alvo ? `Bases ${alvo.tipo === 'nuvem' ? 'da credencial' : 'do Conector'} ${alvo.conector_id}` : ''}
+      title={alvo ? (reativar ? `Reativar ${nomeDoAlvo(alvo)}?` : `Bases ${nome}`) : ''}
       largura="media"
       onClose={fechar}
       footer={
@@ -343,13 +388,20 @@ export function DialogoBases({ alvo, todos, tenant, aoFechar, aoGravar }: { alvo
             Cancelar
           </Button>
           <Button variant="primary" data-testid="integracao.bases-gravar" disabled={gravando || selecao.marcadas.length === 0} onClick={() => void gravar()}>
-            {gravando ? 'Gravando…' : 'Gravar'}
+            {reativar ? (gravando ? 'Reativando…' : 'Reativar') : gravando ? 'Gravando…' : 'Gravar'}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        <ListaBases bases={bases} marcadas={selecao.marcadas} testId="integracao.bases" aoMudar={selecao.mudar} legendaOculta />
+        {bases.length === 0 ? (
+          <div data-testid="integracao.bases-sem-bases">
+            <Notice tone="warning">{mensagemSemBases(todos.some((c) => c.ativo && c.tipo === 'arquivo'))}</Notice>
+          </div>
+        ) : (
+          <ListaBases bases={bases} marcadas={selecao.marcadas} testId="integracao.bases" aoMudar={selecao.mudar} legendaOculta={!reativar} />
+        )}
+        <CaixaPedidos testId="integracao.bases-recebe-pedidos" marcada={recebe} bloqueada={bloqueada} aoMudar={setPedidos} />
         {erro && (
           <div data-testid="integracao.bases-erro">
             <Notice tone="danger">{erro}</Notice>
@@ -362,7 +414,10 @@ export function DialogoBases({ alvo, todos, tenant, aoFechar, aoGravar }: { alvo
 
 type Consulta = { isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
 
-/** Tabela "Conectores" / "Credenciais": Identificador · Pedidos · Situação; os botões da linha ativa numa segunda linha (lado estreito e celular). */
+/**
+ * Tabela "Conectores" / "Credenciais": Identificador · Pedidos · Situação; os botões numa segunda linha (lado estreito e celular): na
+ * ativa, Bases, nova chave e Desativar; na desativada, "Reativar" (fora do de arquivo). A chave nova aparece ali, uma vez.
+ */
 export function ListaConectores({
   q,
   itens,
@@ -381,7 +436,7 @@ export function ListaConectores({
   novaChave: { id: string; chave: ChaveNova } | null;
   agindo: boolean;
   aoAgir: (c: Conector, acao: AcaoConector) => void;
-  aoBases: (c: Conector) => void;
+  aoBases: (c: Conector, modo: ModoBases) => void;
   aoFecharChave: () => void;
 }) {
   if (q.isPending) return <LoadingBlock label="Buscando…" />;
@@ -399,8 +454,9 @@ export function ListaConectores({
         </thead>
         <tbody>
           {itens.map((c) => {
-            // linha ativa: sem a borda de baixo, porque os botões vêm na linha seguinte
-            const cel = c.ativo ? td.replace(/\bborder-b border-line-2\b/, '').trim() : td;
+            // com botões (ativa, ou desativada fora do de arquivo): sem a borda de baixo, porque os botões vêm na linha seguinte
+            const botoes = c.ativo || c.tipo !== 'arquivo';
+            const cel = botoes ? td.replace(/\bborder-b border-line-2\b/, '').trim() : td;
             return (
               <Fragment key={c.id}>
                 <tr>
@@ -410,13 +466,18 @@ export function ListaConectores({
                     <Badge tone={c.ativo ? 'success' : 'neutral'}>{c.ativo ? 'Ativo' : 'Desativado'}</Badge>
                   </td>
                 </tr>
-                {c.ativo && (
+                {botoes && (
                   <tr>
                     <td colSpan={3} className={cx(td, 'pt-0')}>
                       <span className="flex flex-wrap items-center gap-2">
-                        {c.tipo !== 'arquivo' && (
+                        {!c.ativo && (
+                          <Button size="sm" data-testid={`integracao.reativar-${c.conector_id}`} disabled={agindo} onClick={() => aoBases(c, 'reativar')}>
+                            Reativar
+                          </Button>
+                        )}
+                        {c.ativo && c.tipo !== 'arquivo' && (
                           <>
-                            <Button size="sm" data-testid={`integracao.bases-${c.conector_id}`} disabled={agindo} onClick={() => aoBases(c)}>
+                            <Button size="sm" data-testid={`integracao.bases-${c.conector_id}`} disabled={agindo} onClick={() => aoBases(c, 'bases')}>
                               Bases
                             </Button>
                             <Button size="sm" data-testid={`integracao.nova-chave-${c.conector_id}`} disabled={agindo} onClick={() => aoAgir(c, 'chave')}>
@@ -424,9 +485,11 @@ export function ListaConectores({
                             </Button>
                           </>
                         )}
-                        <Button size="sm" data-testid={`integracao.desativar-${c.conector_id}`} disabled={agindo} onClick={() => aoAgir(c, 'desativar')}>
-                          Desativar
-                        </Button>
+                        {c.ativo && (
+                          <Button size="sm" data-testid={`integracao.desativar-${c.conector_id}`} disabled={agindo} onClick={() => aoAgir(c, 'desativar')}>
+                            Desativar
+                          </Button>
+                        )}
                       </span>
                       {novaChave?.id === c.id && (
                         <div className="mt-2">
@@ -484,7 +547,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
   const [alvo, setAlvo] = useState<{ conector: Conector; acao: AcaoConector } | null>(null);
   const [novaChave, setNovaChave] = useState<{ id: string; chave: ChaveNova } | null>(null);
   const [agindo, setAgindo] = useState(false);
-  const [bases, setBases] = useState<Conector | null>(null);
+  const [bases, setBases] = useState<{ conector: Conector; modo: ModoBases } | null>(null);
 
   const todos = q.data ?? [];
   const aoMudar = () => void qc.invalidateQueries({ queryKey: chave });
@@ -494,7 +557,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
     setAgindo(true);
     try {
       const id = alvo.conector.id;
-      if (alvo.acao === 'chave') setNovaChave({ id, chave: await chamarPortal(ROTAS_PORTAL.chaveConector(id), { metodo: 'POST', tenant, corpo: {}, schema: ConectorCriado.shape.chave }) });
+      if (alvo.acao === 'chave') setNovaChave({ id, chave: await gerarChaveNova(tenant, id) });
       else await patchConector(tenant, id, { ativo: false });
       setAlvo(null);
       aoMudar();
@@ -515,7 +578,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
       novaChave={novaChave}
       agindo={agindo}
       aoAgir={(c, acao) => setAlvo({ conector: c, acao })}
-      aoBases={setBases}
+      aoBases={(conector, modo) => setBases({ conector, modo })}
       aoFecharChave={() => setNovaChave(null)}
     />
   );
@@ -566,11 +629,17 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
 
       <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmarAcao()} />
       <DialogoBases
-        alvo={bases}
+        alvo={bases?.conector ?? null}
+        modo={bases?.modo}
         todos={todos}
         tenant={tenant}
-        aoFechar={() => setBases(null)}
-        aoGravar={() => {
+        aoFechar={() => {
+          // o "Reativar" pode ter reativado sem trazer a chave: a lista volta do servidor
+          setBases(null);
+          aoMudar();
+        }}
+        aoGravar={(nova) => {
+          if (bases && nova) setNovaChave({ id: bases.conector.id, chave: nova });
           setBases(null);
           aoMudar();
         }}

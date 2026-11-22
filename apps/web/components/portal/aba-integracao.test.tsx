@@ -2,8 +2,9 @@
  * Aba "Integração" do portal (spec portal-config-enxuto §10.2), renderizada com `react-dom/server` (lista no cache do React Query) e
  * as rotas atendidas pelo modo falso (`responderFalso`):
  * - dois lados (Conector | API), passos 1 a 3, "Conectores" (conector e arquivo) e "Credenciais" (nuvem);
- * - nova chave e desativar (v1.0.21 S10, confirmação e `corpoDesativar`), "Bases" do Conector (`PATCH { entidades }`) e a credencial
- *   de API com as bases livres e os pedidos (`POST { tipo: 'nuvem', entidades, recebe_pedidos }`);
+ * - nova chave e desativar (v1.0.21 S10, confirmação e `corpoDesativar`), "Bases" do Conector (`PATCH { entidades, recebe_pedidos }`),
+ *   "Reativar" no mesmo diálogo (`PATCH { ativo: true, ... }` e a chave nova) e a credencial de API com as bases livres e os pedidos
+ *   (`POST { tipo: 'nuvem', entidades, recebe_pedidos }`);
  * - o caso real: o Conector com todas as bases passa "Formas de pagamento" à credencial de API, sem pedidos.
  */
 import { ConectorCriado, ENTIDADES, ORDEM_CARGA_ENTIDADES, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
@@ -16,7 +17,23 @@ import { ErroPortal, lerErroDaApi, mensagemDoErro, type OpcoesChamada } from '@/
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
 import { ENCAIXE_API_HUB, GUIA_PDF_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AbaIntegracao, CartaoGuia, corpoDaCredencial, corpoDesativar, criarCredencial, Credencial, DialogoBases, DialogoConector, entidadesLivres, ListaBases, mensagemSemBases, patchConector, type Chamar } from './aba-integracao';
+import {
+  AbaIntegracao,
+  CartaoGuia,
+  corpoDaCredencial,
+  corpoDesativar,
+  criarCredencial,
+  Credencial,
+  DialogoBases,
+  DialogoConector,
+  entidadesLivres,
+  ListaBases,
+  mensagemSemBases,
+  outroRecebePedidos,
+  patchConector,
+  reativarConector,
+  type Chamar,
+} from './aba-integracao';
 
 const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const AVISO = 'Copie a chave agora: ela não aparece de novo.';
@@ -85,7 +102,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('aba Integração em dois lados', () => {
-  const lista = [conector(1, 'erp'), conector(2, 'implantacao-csv', { tipo: 'arquivo', recebe_pedidos: false, entidades: [] }), conector(3, 'erp-api', { tipo: 'nuvem', recebe_pedidos: false, entidades: [] }), conector(4, 'velho', { ativo: false })];
+  const lista = [conector(1, 'erp'), conector(2, 'implantacao-csv', { tipo: 'arquivo', recebe_pedidos: false, entidades: [] }), conector(3, 'erp-api', { tipo: 'nuvem', recebe_pedidos: false, entidades: [] }), conector(4, 'velho', { ativo: false }), conector(5, 'csv-velho', { tipo: 'arquivo', ativo: false, recebe_pedidos: false, entidades: [] })];
   const html = aba(lista);
   const t = texto(html);
 
@@ -120,7 +137,7 @@ describe('aba Integração em dois lados', () => {
     expect(credenciais).not.toMatch(/>erp<|velho|implantacao-csv/);
   });
 
-  it('linha ativa: Bases e nova chave fora do de arquivo (Conector e credencial de API); desativada sem botões', () => {
+  it('linha ativa: Bases e nova chave fora do de arquivo (Conector e credencial de API); desativada: só "Reativar", fora do de arquivo', () => {
     expect(html).toContain('data-testid="integracao.bases-erp"');
     expect(html).toContain('data-testid="integracao.bases-erp-api"');
     expect(html).not.toContain('data-testid="integracao.bases-implantacao-csv"');
@@ -128,7 +145,10 @@ describe('aba Integração em dois lados', () => {
     expect(html).toContain('data-testid="integracao.nova-chave-erp-api"');
     expect(html).not.toContain('data-testid="integracao.nova-chave-implantacao-csv"');
     expect(html).toContain('data-testid="integracao.desativar-implantacao-csv"');
-    expect(html).not.toMatch(/integracao\.(bases|nova-chave|desativar)-velho/);
+    expect(html).not.toMatch(/integracao\.(bases|nova-chave|desativar)-(csv-)?velho/);
+    expect(html).toMatch(/data-testid="integracao\.reativar-velho"[^>]*>Reativar</);
+    expect(html).not.toContain('integracao.reativar-csv-velho');
+    expect(html).not.toMatch(/integracao\.reativar-(erp|erp-api|implantacao-csv)"/);
     expect(html).not.toContain('data-testid="integracao.chave"');
   });
 
@@ -228,7 +248,7 @@ describe('Bases', () => {
     expect(entidadesLivres(todos)).toEqual<Entidade[]>(['produto']);
     const html = renderToStaticMarkup(<DialogoBases alvo={erp} todos={todos} tenant={TENANT} aoFechar={() => {}} aoGravar={() => {}} />);
     expect(html).toContain('Bases do Conector erp');
-    expect(html.match(/type="checkbox"/g)).toHaveLength(ENTIDADES.length - 1);
+    expect(html.match(/data-testid="integracao\.bases\.[a-z_]+"/g)).toHaveLength(ENTIDADES.length - 1);
     expect(html).not.toContain('integracao.bases.forma_pagamento');
     expect(html).not.toContain('erp-api');
     expect(html).not.toContain('disabled=""');
@@ -285,7 +305,7 @@ describe('Bases', () => {
     const f = await portalFalso();
     const a = await criarCredencial(TENANT, { conector_id: 'a', nome: 'A', tipo: 'conector', recebe_pedidos: true, entidades: ['produto'] }, f.chamar);
     await criarCredencial(TENANT, { conector_id: 'b', nome: 'B', tipo: 'nuvem', recebe_pedidos: false, entidades: ['cliente'] }, f.chamar);
-    const erro = await patchConector(TENANT, a.conector.id, { entidades: ['produto', 'cliente'] }, f.chamar).catch((x: unknown) => x);
+    const erro = await patchConector(TENANT, a.conector.id, { entidades: ['produto', 'cliente'], recebe_pedidos: true }, f.chamar).catch((x: unknown) => x);
     expect(erro).toBeInstanceOf(ErroPortal);
     expect((erro as ErroPortal).codigo).toBe('topologia_conflitante');
     expect(mensagemDoErro(erro)).toBe('A base cliente já vem do Conector b.');
@@ -299,6 +319,78 @@ describe('Bases', () => {
   });
 });
 
+describe('"Envia os pedidos" no diálogo e "Reativar"', () => {
+  const dialogo = (alvo: ConectorResumo, todos: ConectorResumo[], modo?: 'reativar') => renderToStaticMarkup(<DialogoBases alvo={alvo} modo={modo} todos={todos} tenant={TENANT} aoFechar={() => {}} aoGravar={() => {}} />);
+  const PEDIDOS = /data-testid="integracao\.bases-recebe-pedidos"[^>]*>/;
+  // caso da thathyany: macuxierp (API) só com Formas de pagamento e sem pedidos; o kit desativado volta com as outras bases e os pedidos
+  const erp = conector(1, 'macuxierp', { tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] });
+  const kit = conector(2, 'kit', { ativo: false });
+
+  it('outro ativo que envia os pedidos: só conta ativo e fora o próprio', () => {
+    expect(outroRecebePedidos([erp, kit], 'kit')).toBe(false);
+    expect(outroRecebePedidos([{ ...erp, recebe_pedidos: true }, kit], 'kit')).toBe(true);
+    expect(outroRecebePedidos([{ ...erp, recebe_pedidos: true, ativo: false }, kit], 'kit')).toBe(false);
+    expect(outroRecebePedidos([{ ...kit, ativo: true }], 'kit')).toBe(false);
+  });
+
+  it('Bases: a caixa dos pedidos como está no Conector; bloqueada e desmarcada quando outro ativo envia', () => {
+    const ativo = { ...kit, ativo: true, entidades: SEM_FORMA };
+    expect(dialogo(ativo, [erp, ativo]).match(PEDIDOS)?.[0]).toMatch(/checked=""/);
+    expect(dialogo(ativo, [erp, ativo]).match(PEDIDOS)?.[0]).not.toContain('disabled');
+    const bloqueada = dialogo(erp, [erp, ativo]).match(PEDIDOS)?.[0];
+    expect(bloqueada).toContain('disabled=""');
+    expect(bloqueada).not.toContain('checked');
+    expect(texto(dialogo(erp, [erp, ativo]))).toContain('Envia os pedidos aprovados ao ERP');
+  });
+
+  it('Reativar: título pelo tipo, todas as livres marcadas, legenda visível, pedidos conforme o Conector e o botão "Reativar"', () => {
+    const html = dialogo(kit, [erp, kit], 'reativar');
+    expect(html).toContain('Reativar o Conector kit?');
+    expect(html).not.toContain('integracao.bases.forma_pagamento');
+    expect(html.match(/data-testid="integracao\.bases\.[a-z_]+"[^>]*checked=""/g)).toHaveLength(ENTIDADES.length - 1);
+    expect(html).toMatch(/<legend class="(?!sr-only)[^"]*">Bases<\/legend>/);
+    expect(html.match(PEDIDOS)?.[0]).toMatch(/checked=""/);
+    expect(html).toMatch(/data-testid="integracao\.bases-gravar"[^>]*>Reativar</);
+    expect(dialogo({ ...erp, ativo: false }, [kit], 'reativar')).toContain('Reativar a credencial macuxierp?');
+    expect(dialogo(kit, [{ ...erp, recebe_pedidos: true }, kit], 'reativar').match(PEDIDOS)?.[0]).toContain('disabled=""');
+  });
+
+  it('Reativar sem base livre: o aviso no lugar da lista e o botão desabilitado', () => {
+    const html = dialogo(kit, [{ ...erp, entidades: [...ENTIDADES] }, kit], 'reativar');
+    expect(html).toContain('data-testid="integracao.bases-sem-bases"');
+    expect(html).not.toContain('<fieldset');
+    expect(html).toMatch(/data-testid="integracao\.bases-gravar"[^>]*disabled/);
+  });
+
+  it('fluxo: PATCH { ativo: true, entidades, recebe_pedidos } e só depois a chave nova; 409 dos pedidos não gera chave', async () => {
+    const f = await portalFalso();
+    await criarCredencial(TENANT, { conector_id: 'macuxierp', nome: 'ERP', tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] }, f.chamar);
+    const k = await criarCredencial(TENANT, { conector_id: 'kit', nome: 'Kit', tipo: 'conector', recebe_pedidos: true, entidades: ['produto'] }, f.chamar);
+    await patchConector(TENANT, k.conector.id, { ativo: false }, f.chamar);
+    f.pedidos.length = 0;
+    const nova = await reativarConector(TENANT, k.conector.id, { entidades: SEM_FORMA, recebe_pedidos: true }, f.chamar);
+    expect(nova.chave).toMatch(/^mx_falso_/);
+    expect(nova.chave).not.toBe(k.chave.chave);
+    expect(f.pedidos).toEqual([
+      { caminho: `/integracao/conectores/${k.conector.id}`, metodo: 'PATCH', corpo: { ativo: true, entidades: SEM_FORMA, recebe_pedidos: true } },
+      { caminho: `/integracao/conectores/${k.conector.id}/chave`, metodo: 'POST', corpo: {} },
+    ]);
+    expect((await f.listar()).map((c) => [c.conector_id, c.ativo, c.recebe_pedidos, c.entidades])).toEqual([
+      ['macuxierp', true, false, ['forma_pagamento']],
+      ['kit', true, true, SEM_FORMA],
+    ]);
+
+    // os pedidos já vão pelo kit: a macuxierp não passa a enviar, e o kit desativado não volta com eles
+    expect(await patchConector(TENANT, (await f.listar())[0]!.id, { entidades: ['forma_pagamento'], recebe_pedidos: true }, f.chamar).catch((x: unknown) => (x as ErroPortal).codigo)).toBe('topologia_conflitante');
+    await patchConector(TENANT, k.conector.id, { ativo: false }, f.chamar);
+    await patchConector(TENANT, (await f.listar())[0]!.id, { entidades: ['forma_pagamento'], recebe_pedidos: true }, f.chamar);
+    f.pedidos.length = 0;
+    const erro = await reativarConector(TENANT, k.conector.id, { entidades: SEM_FORMA, recebe_pedidos: true }, f.chamar).catch((x: unknown) => x);
+    expect(mensagemDoErro(erro)).toBe('Os pedidos já vão ao ERP pelo Conector macuxierp.');
+    expect(f.pedidos.map((p) => p.metodo)).toEqual(['PATCH']);
+  });
+});
+
 describe('caso real: o ERP passa "Formas de pagamento" do Conector à API', () => {
   it('Conector > Bases > desmarca Formas de pagamento > Gravar; API > Gerar a credencial só com ela e sem pedidos', async () => {
     const f = await portalFalso();
@@ -309,7 +401,7 @@ describe('caso real: o ERP passa "Formas de pagamento" do Conector à API', () =
     expect(aba(lista)).toContain('data-testid="integracao.api-sem-bases"');
 
     // Bases do Conector: desmarca "Formas de pagamento" e grava
-    await patchConector(TENANT, erp.conector.id, { entidades: SEM_FORMA }, f.chamar);
+    await patchConector(TENANT, erp.conector.id, { entidades: SEM_FORMA, recebe_pedidos: true }, f.chamar);
     lista = await f.listar();
     expect(entidadesLivres(lista)).toEqual<Entidade[]>(['forma_pagamento']);
 
@@ -323,7 +415,7 @@ describe('caso real: o ERP passa "Formas de pagamento" do Conector à API', () =
 
     // os corpos das duas chamadas
     expect(f.pedidos.slice(1)).toEqual([
-      { caminho: `/integracao/conectores/${erp.conector.id}`, metodo: 'PATCH', corpo: { entidades: SEM_FORMA } },
+      { caminho: `/integracao/conectores/${erp.conector.id}`, metodo: 'PATCH', corpo: { entidades: SEM_FORMA, recebe_pedidos: true } },
       { caminho: '/integracao/conectores', metodo: 'POST', corpo: { conector_id: 'erp-api', nome: 'ERP pela API', tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] } },
     ]);
 

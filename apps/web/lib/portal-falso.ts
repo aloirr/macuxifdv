@@ -844,15 +844,20 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (!lista.some((x) => x.id === conectorM[1])) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
     const c = lerCorpo(ConectorAtualizar, corpo);
     if (c instanceof Response) return c;
-    // RN-INT-13: com `entidades`, cada base só pode vir deste Conector (como a API: 409 `topologia_conflitante` com a mensagem)
-    if (c.entidades) {
-      const outros = lista.filter((x) => x.ativo && x.id !== conectorM[1]);
-      const conflito = c.entidades.map((b) => ({ b, dono: outros.find((x) => x.entidades.includes(b)) })).filter((x) => x.dono);
+    // RN-INT-13 (como a API): ativo ou sendo reativado, cada base e os pedidos só podem vir deste Conector; 409 `topologia_conflitante`
+    const atual = lista.find((x) => x.id === conectorM[1]) as ConectorResumo;
+    const novo = { ...atual, entidades: c.entidades ?? atual.entidades, recebe_pedidos: c.recebe_pedidos ?? atual.recebe_pedidos, ativo: c.ativo ?? atual.ativo };
+    if (novo.ativo) {
+      const outros = lista.filter((x) => x.ativo && x.id !== atual.id);
+      const conflito = novo.entidades.map((b) => ({ b, dono: outros.find((x) => x.entidades.includes(b)) })).filter((x) => x.dono);
       if (conflito.length) {
-        return erro(409, 'topologia_conflitante', conflito.map((x) => `A base ${x.b} já vem do Conector ${x.dono?.conector_id}.`).join(' '), { entidades_livres: c.entidades.filter((b) => !conflito.some((x) => x.b === b)) });
+        return erro(409, 'topologia_conflitante', conflito.map((x) => `A base ${x.b} já vem do Conector ${x.dono?.conector_id}.`).join(' '), { entidades_livres: novo.entidades.filter((b) => !conflito.some((x) => x.b === b)) });
       }
+      const pedidos = novo.recebe_pedidos && outros.find((x) => x.recebe_pedidos);
+      if (pedidos) return erro(409, 'topologia_conflitante', `Os pedidos já vão ao ERP pelo Conector ${pedidos.conector_id}.`);
     }
-    const nova = lista.map((x) => (x.id !== conectorM[1] ? x : { ...x, ...(c.entidades ? { entidades: c.entidades } : {}), ...(typeof c.ativo === 'boolean' ? { ativo: c.ativo, saude: c.ativo ? x.saude : ('desativado' as const) } : {}) }));
+    const saude = !novo.ativo ? ('desativado' as const) : atual.saude === 'desativado' ? ('nunca_conectou' as const) : atual.saude;
+    const nova = lista.map((x) => (x.id !== atual.id ? x : { ...novo, saude }));
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
   }
