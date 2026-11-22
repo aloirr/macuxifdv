@@ -56,13 +56,8 @@ type Exec = { executar(e: unknown, c: unknown): Promise<Saida> };
 const buscaAparelho = (e: unknown) => (consultaBuscaProdutosAparelho as unknown as Exec).executar(e, aparelho());
 const buscaApi = (e: unknown) => (consultaBuscaProdutos as unknown as Exec).executar(e, api());
 const executarVeiculosAparelho = (e: unknown, ctx: ContextoConsultaAparelho) => (consultaVeiculosAparelho as unknown as Exec).executar(e, ctx);
-/** A consulta do aparelho não espera a montagem do índice: ela dispara a montagem, a espera aqui (como a tela, que pergunta de novo) e responde. */
-async function cascataAparelho(e: unknown, escopo = false): Promise<Saida> {
-  const ctx = aparelho(escopo);
-  await executarVeiculosAparelho(e, ctx);
-  await indiceVeiculosLocal(ctx as unknown as LeitorLocal, 2026);
-  return executarVeiculosAparelho(e, ctx);
-}
+/** A consulta do aparelho espera a montagem do índice e já responde a cascata na 1ª chamada. */
+const cascataAparelho = (e: unknown, escopo = false): Promise<Saida> => executarVeiculosAparelho(e, aparelho(escopo));
 const cascataApi = (e: unknown) => (consultaVeiculos as unknown as Exec).executar(e, api());
 const itens = (r: Saida) => r.itens.map(({ aplicacao: _a, ...x }) => x);
 
@@ -136,11 +131,13 @@ describe('RN-CAT-22 / P4: aparelho e API dão o mesmo resultado com veículo', (
     expect(r.recentes[0]!.rotulos.curto).toBe('Gol 2020');
   });
 
-  it('RN-CAT-22: enquanto o índice não está pronto, a consulta do aparelho não espera e devolve disponivel = false; pronto, devolve a cascata', async () => {
+  it('RN-CAT-22: a 1ª chamada, com o índice ainda montando, espera a montagem e devolve a cascata (não SEM_VEICULO)', async () => {
     const ctx = aparelho();
-    expect(await executarVeiculosAparelho({}, ctx)).toMatchObject({ disponivel: false, nivel: null, opcoes: [] });
-    await indiceVeiculosLocal(ctx as unknown as LeitorLocal, 2026);
-    expect(await executarVeiculosAparelho({}, ctx)).toMatchObject({ disponivel: true, nivel: 'montadora' });
+    const montando = indiceVeiculosLocal(ctx as unknown as LeitorLocal, 2026); // a montagem começa e não terminou
+    const r = await executarVeiculosAparelho({}, ctx);
+    await montando;
+    expect(r).toMatchObject({ disponivel: true, nivel: 'montadora' });
+    expect(r.nivel).toBe('montadora');
   });
 
   it('RN-CAT-22: tenant sem veículo nas aplicações: disponivel = false (sem o botão)', async () => {

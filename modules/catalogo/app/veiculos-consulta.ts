@@ -50,7 +50,7 @@ async function montarIndice(leitor: LeitorLocal, produtos: readonly ProdutoCatal
 
 /**
  * O índice dos produtos ativos do aparelho, esperando a montagem se ainda não terminou (guardado enquanto a lista de produtos e o ano civil
- * forem os mesmos). Quem não precisa esperar (abrir o Catálogo, a ficha, o pedido) usa `indiceVeiculosPronto`.
+ * forem os mesmos).
  */
 export async function indiceVeiculosLocal(leitor: LeitorLocal, anoAtual: number): Promise<IndiceVeiculos> {
   const produtos = await produtosLocais(leitor, { lerConcorrente: false });
@@ -64,15 +64,6 @@ export async function indiceVeiculosLocal(leitor: LeitorLocal, anoAtual: number)
     porAno.set(anoAtual, andando);
   }
   return andando;
-}
-
-/** O índice se já está montado; senão `null` e a montagem segue em segundo plano (a tela não espera: o botão Veículo aparece quando ela termina). */
-export async function indiceVeiculosPronto(leitor: LeitorLocal, anoAtual: number): Promise<IndiceVeiculos | null> {
-  const produtos = await produtosLocais(leitor, { lerConcorrente: false });
-  const guardado = indiceVeiculosDe(produtos, anoAtual);
-  if (guardado) return guardado;
-  void indiceVeiculosLocal(leitor, anoAtual).catch(() => undefined);
-  return null;
 }
 
 type EntradaCascata = { escolha?: VeiculoParcial | undefined; busca?: string | undefined; escopo?: ReadonlySet<string> | null | undefined };
@@ -92,9 +83,8 @@ export const consultaVeiculosAparelho = implementarConsultaAparelho(CONSULTA_VEI
   } catch {
     return SEM_VEICULO;
   }
-  // índice ainda em montagem: sem botão por enquanto (a consulta não espera, não trava a tela)
-  const todo = await indiceVeiculosPronto(ctx, anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso));
-  if (!todo) return SEM_VEICULO;
+  // espera o índice, se ainda monta (a montagem cede o laço, não trava a tela): `disponivel: false` só quando a base não tem veículo
+  const todo = await indiceVeiculosLocal(ctx, anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso));
   return cascataSobre(todo, { ...entrada, escopo: await escopoLocal(ctx, entrada) });
 });
 

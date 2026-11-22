@@ -3,7 +3,7 @@
  * veículo (`listaComVeiculo`, a do Catálogo) sai em até 300 ms (p95 sobre vários veículos, com o índice de veículos já montado) e a troca de nível
  * da cascata em até 100 ms. Meta estrita (`MACUXI_DESEMPENHO=1`): os tetos do desenho (`MACUXI_FATOR_DESEMPENHO` folga em CI compartilhado); na suíte
  * (turbo em paralelo, runner lento) os tetos têm folga de 3x, como a de `desempenho-vitrine.test.ts`. A montagem do índice é medida pela RAZÃO à montagem da lista de
- * produtos do aparelho e a lista, à carga (gerar e gravar os 20 mil produtos), como lá; a montagem cede o laço (não trava a tela) e `catalogo.veiculos@1` não espera por ela.
+ * produtos do aparelho e a lista, à mesma lista de produtos; a montagem cede o laço (não trava a tela) e `catalogo.veiculos@1` espera por ela.
  */
 import { criarArmazenamentoSqlite, type LinhaSync } from '@macuxi/platform-sdk';
 import { criarDriverNode } from '@macuxi/platform-sdk/sqlite-node';
@@ -12,7 +12,7 @@ import { entidadesSyncCatalogo } from '../../../tests/modulos/apoio/entidades-ca
 import { migracoesAparelho } from '../db/aparelho';
 import type { VeiculoEscolhido } from '../contracts';
 import { esquecerMemoriaLocal, produtosLocais, type LeitorLocal } from './lib/local';
-import { cascataLocal, esquecerVeiculosRecentes, indiceVeiculosPronto, listaComVeiculo } from './veiculos-consulta';
+import { cascataLocal, esquecerVeiculosRecentes, listaComVeiculo } from './veiculos-consulta';
 
 const AGORA = '2026-11-21T12:00:00.000Z'; // hora-fixa-ok: instante do catálogo medido
 const base = { updated_at: '2026-11-01T00:00:00.000000Z', deleted_at: null, external_id: null };
@@ -20,9 +20,9 @@ const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0
 const N_PRODUTOS = 20_000;
 const FATOR = Math.max(1, Number(process.env.MACUXI_FATOR_DESEMPENHO ?? 1));
 const ESTRITO = process.env.MACUXI_DESEMPENHO === '1';
-// razões medidas (log desta suíte: índice 2,0x a lista de produtos, lista 0,27x a carga, maior pausa ~0,15x a montagem), com folga de ~3x para o runner lento
+// razões medidas (log desta suíte: índice 2,0x a lista de produtos, lista 0,25 a 0,43x a lista de produtos, maior pausa ~0,15x a montagem), com folga de ~3x para o runner lento
 const RAZAO_INDICE = 6;
-const RAZAO_LISTA = 0.8;
+const RAZAO_LISTA = 1.0;
 const RAZAO_PAUSA = 0.5;
 
 const MODELOS: readonly (readonly [string, string])[] = [
@@ -77,13 +77,10 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     const anoAtual = 2026;
     const entrada = { perfil: 'vendedor' as const, parametros: {}, agora: AGORA, clienteId: null as string | null, fuso: 'America/Manaus' };
 
-    // a montagem do índice (uma vez por lista de produtos montada) corre em segundo plano: quem pergunta antes dela terminar não espera e vê `disponivel: false`
     // referência: a montagem da lista de produtos do aparelho (a passada que a carga já faz hoje)
     let t = performance.now();
     await produtosLocais(leitor, { lerConcorrente: false });
     const msProdutos = performance.now() - t;
-    const pronto = await indiceVeiculosPronto(leitor, anoAtual); // lê os produtos (memória da lista) e dispara a montagem
-    expect(pronto).toBeNull();
     t = performance.now();
     let maiorPausa = 0;
     let ultimo = t;
@@ -95,7 +92,6 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     const raiz = await cascataLocal(leitor, {}, anoAtual); // espera a montagem (a folha só abre com o botão, já pronto)
     clearInterval(batida);
     const msIndice = performance.now() - t;
-    expect(await indiceVeiculosPronto(leitor, anoAtual)).not.toBeNull();
     expect(raiz.disponivel).toBe(true);
     expect(raiz.nivel).toBe('montadora');
 
@@ -127,12 +123,12 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     const folga = ESTRITO ? 1 : 3;
     const pLista = p95(lista);
     const pNivel = p95(niveis);
-    console.log(`[desempenho RN-CAT-22] carga ${(msCarga / 1000).toFixed(1)} s; lista de produtos ${msProdutos.toFixed(0)} ms; índice de veículos ${msIndice.toFixed(0)} ms (razão à lista de produtos ${(msIndice / msProdutos).toFixed(2)}), maior pausa do laço ${maiorPausa.toFixed(0)} ms; lista com veículo p95 ${pLista.toFixed(0)} ms (razão à carga ${(pLista / msCarga).toFixed(3)}); troca de nível p95 ${pNivel.toFixed(0)} ms`);
+    console.log(`[desempenho RN-CAT-22] carga ${(msCarga / 1000).toFixed(1)} s; lista de produtos ${msProdutos.toFixed(0)} ms; índice de veículos ${msIndice.toFixed(0)} ms (razão à lista de produtos ${(msIndice / msProdutos).toFixed(2)}), maior pausa do laço ${maiorPausa.toFixed(0)} ms; lista com veículo p95 ${pLista.toFixed(0)} ms (razão à lista de produtos ${(pLista / msProdutos).toFixed(3)}); troca de nível p95 ${pNivel.toFixed(0)} ms`);
     expect(pLista).toBeLessThan(300 * FATOR * folga);
     expect(pNivel).toBeLessThan(100 * FATOR * folga);
-    // pela razão à referência (a lista de produtos montada; a carga para a lista): o runner lento estica os dois lados juntos
+    // pela razão à referência (a lista de produtos montada, para o índice e para a lista): o runner lento estica os dois lados juntos
     expect(msIndice).toBeLessThan(RAZAO_INDICE * msProdutos);
-    expect(pLista).toBeLessThan(RAZAO_LISTA * msCarga);
+    expect(pLista).toBeLessThan(RAZAO_LISTA * msProdutos);
     // a montagem cede o laço: nenhuma pausa passa de uma fração da montagem inteira
     expect(maiorPausa).toBeLessThan(RAZAO_PAUSA * msIndice);
   });
