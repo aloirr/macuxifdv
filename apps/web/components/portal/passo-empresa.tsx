@@ -7,6 +7,7 @@
  * "Criar empresa" (decidido em 14/11). Código da licença UF + 4 dígitos sorteado e conferido com `simular` antes de gravar
  * (`lib/portal-nova-empresa.ts`). A API revalida tudo. A senha inicial só vive no estado da tela (nunca em storage, URL ou log) e é
  * limpa depois de gravar. testIDs: empresa.*.
+ * Servidor sem planos (`MACUXI_PLANOS` desligado) ou catálogo vazio: a "Nova empresa" usa o passo antigo (`passo-empresa-legado.tsx`).
  * Os nomes antigos (`PassoEmpresa`, `ROTULO_MODULO`, `mascararCnpj`, `rotuloDoFuso`…) seguem exportados daqui, do legado, enquanto
  * a página da empresa e o cartão Equipe os importam.
  */
@@ -48,9 +49,10 @@ import {
   type AdminDoForm,
   type FormNovaEmpresa,
 } from '@/lib/portal-nova-empresa';
-import { ESCOLHA_VAZIA, totalDaEscolha, type EscolhaDaTela } from '@/lib/portal-planos';
+import { ESCOLHA_VAZIA, semCatalogoDePlanos, totalDaEscolha, type EscolhaDaTela } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
+import { PassoEmpresa as PassoEmpresaLegado } from './passo-empresa-legado';
 import { principalDesabilitadoCss, SeletorPlano, usePlanos } from './seletor-plano';
 
 export { rotuloDoFuso } from '@/lib/portal-formato';
@@ -100,7 +102,18 @@ function CampoSelecao({ rotulo, erro, testId, children, className, ...rest }: Se
 /** Sorteio do número da licença (0 a 9999), no navegador. */
 const sortearNumero = (): number => (crypto.getRandomValues(new Uint32Array(1))[0] ?? 0) % 10_000;
 
+/**
+ * "Nova empresa": com o catálogo de planos, o fluxo novo (CNPJ, Plano, Adicionais, Ciclo, Administrador). Servidor sem planos
+ * (`MACUXI_PLANOS` desligado: o catálogo dá 404) ou catálogo vazio: o passo antigo, módulo por módulo, como antes dos planos.
+ */
 export function NovaEmpresa({ aoGravar }: { aoGravar?: () => void }) {
+  const planos = usePlanos();
+  if (planos.isPending) return <LoadingBlock label="Buscando os planos…" />;
+  if (semCatalogoDePlanos({ erro: planos.error, planos: planos.data })) return <PassoEmpresaLegado aoGravar={aoGravar ? () => aoGravar() : undefined} />;
+  return <NovaEmpresaComPlano aoGravar={aoGravar} />;
+}
+
+function NovaEmpresaComPlano({ aoGravar }: { aoGravar?: () => void }) {
   const router = useRouter();
   const planos = usePlanos();
   const [cnpj, setCnpj] = useState('');

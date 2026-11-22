@@ -5,8 +5,12 @@
 import { describe, expect, it } from 'vitest';
 import { TrocarPlanoSchema } from '@macuxi/platform-sdk';
 
+import { ErroPortal } from './portal-api';
 import { fichaExemplo, planoExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
 import {
+  fichaSemPlano,
+  precoDoPlanoEmPartes,
+  semCatalogoDePlanos,
   adicionaisDaEscolha,
   blocosDaFicha,
   comAdicional,
@@ -144,5 +148,26 @@ describe('diálogo "Trocar de plano" (§11.4; RN-PLA-05)', () => {
   it('422: as mensagens de `detalhes.problemas`; sem lista, a mensagem do erro', () => {
     expect(mensagensDosProblemas({ problemas: [{ mensagem: 'Vendedores: 14 em uso. Inative 4 antes de trocar.' }, { codigo: 'x' }] }, 'p')).toEqual(['Vendedores: 14 em uso. Inative 4 antes de trocar.']);
     expect(mensagensDosProblemas(undefined, 'Plano inválido.')).toEqual(['Plano inválido.']);
+  });
+});
+
+describe('sem plano e sem planos (404)', () => {
+  it('ficha 404 (SEM_ASSINATURA ou rota ausente) = sem plano; outro erro, não', () => {
+    expect(fichaSemPlano(new ErroPortal(404, 'SEM_ASSINATURA', 'x'))).toBe(true);
+    expect(fichaSemPlano(new ErroPortal(404, 'NAO_ENCONTRADO', 'x'))).toBe(true);
+    expect(fichaSemPlano(new ErroPortal(500, 'ERRO', 'x'))).toBe(false);
+    expect(fichaSemPlano(new Error('x'))).toBe(false);
+  });
+  it('catálogo 404 ou vazio = Nova empresa pelo passo antigo; com plano ativo, pelo novo', () => {
+    expect(semCatalogoDePlanos({ erro: new ErroPortal(404, 'NAO_ENCONTRADO', 'x'), planos: undefined })).toBe(true);
+    expect(semCatalogoDePlanos({ erro: null, planos: [] })).toBe(true);
+    expect(semCatalogoDePlanos({ erro: null, planos: PLANOS_EXEMPLO.map((p) => ({ ...p, ativo: false })) })).toBe(true);
+    expect(semCatalogoDePlanos({ erro: null, planos: PLANOS_EXEMPLO })).toBe(false);
+    expect(semCatalogoDePlanos({ erro: new ErroPortal(500, 'ERRO', 'x'), planos: undefined })).toBe(false);
+  });
+  it('preço do cartão em duas partes: valor e "/mês" ou "/ano"', () => {
+    const pme = PLANOS_EXEMPLO.find((p) => p.codigo === 'pme')!;
+    expect(precoDoPlanoEmPartes(pme, 'mensal')).toEqual({ valor: 'R$ 1.197,00', sufixo: '/mês' });
+    expect(precoDoPlanoEmPartes(pme, 'anual')).toEqual({ valor: 'R$ 11.970,00', sufixo: '/ano' });
   });
 });

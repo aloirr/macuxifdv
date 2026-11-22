@@ -21,6 +21,8 @@ import {
 } from '@macuxi/platform-sdk';
 import { nomeDoAdicional } from '@macuxi/ui/web';
 
+import { ErroPortal } from './portal-api';
+
 export const TEXTOS_PLANO = Object.freeze({
   plano: 'Plano',
   adicionais: 'Adicionais',
@@ -60,6 +62,11 @@ export const valorPorCiclo = (centavos: number, ciclo: Ciclo): string => `${form
 
 /** Preço do cartão do plano no ciclo (RN-PLA-06: no anual, (12 − meses grátis) × mensal): "R$ 1.197,00/mês", "R$ 11.970,00/ano". */
 export const precoDoPlano = (plano: Plano, ciclo: Ciclo): string => valorPorCiclo(valorDaAssinatura(plano, [], ciclo).por_ciclo_centavos, ciclo);
+
+/** O mesmo preço em duas partes, para o cartão do plano (planos-assinatura 02 e 05: valor grande, "/mês" ou "/ano" pequeno). */
+export function precoDoPlanoEmPartes(plano: Plano, ciclo: Ciclo): { valor: string; sufixo: string } {
+  return { valor: formatBRL(valorDaAssinatura(plano, [], ciclo).por_ciclo_centavos), sufixo: sufixo(ciclo) };
+}
 
 const PLURAL: Readonly<Record<TipoLicenca, readonly [string, string]>> = {
   vendedor: ['vendedor', 'vendedores'],
@@ -246,3 +253,17 @@ export function mensagensDosProblemas(detalhes: Record<string, unknown> | undefi
   const msgs = lista.map((p) => p.mensagem).filter((m): m is string => typeof m === 'string' && m.trim() !== '');
   return msgs.length > 0 ? msgs : [padrao];
 }
+
+/**
+ * A ficha respondeu 404: a empresa não tem plano (`SEM_ASSINATURA`, a `sa_*` dá P0002; empresas de antes dos planos) ou o servidor
+ * está sem planos (`MACUXI_PLANOS` desligado: a rota nem existe, `NAO_ENCONTRADO`). Nos dois casos a aba Empresa mostra os
+ * "Módulos licenciados", sem "Trocar de plano".
+ */
+export const fichaSemPlano = (e: unknown): boolean => e instanceof ErroPortal && e.status === 404;
+
+/**
+ * O portal está sem planos (`MACUXI_PLANOS` desligado, o catálogo dá 404 de rota) ou o catálogo está vazio (sem o seed): a Nova
+ * empresa segue pelo passo antigo, módulo por módulo, como antes dos planos.
+ */
+export const semCatalogoDePlanos = (estado: { erro: unknown; planos: readonly Plano[] | undefined }): boolean =>
+  (estado.erro instanceof ErroPortal && estado.erro.status === 404) || (estado.planos !== undefined && planosVisiveis(estado.planos).length === 0);

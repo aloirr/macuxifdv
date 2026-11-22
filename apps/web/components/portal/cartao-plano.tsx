@@ -21,6 +21,7 @@ import {
   emTeste,
   errosDaEscolha,
   escolhaDaFicha,
+  fichaSemPlano,
   mensagensDosProblemas,
   mudouDaFicha,
   problemasDaTroca,
@@ -35,12 +36,12 @@ import { AdicionaisEmLinhas, AlternadorCiclo, EscolhaDoPlano, IconeDoAdicional, 
 
 export const chaveDaFicha = (tenant: string) => ['portal', tenant, 'assinatura'] as const;
 
-/** Ficha da assinatura da empresa. Sem plano (404 `SEM_ASSINATURA`) ou sem a rota: sem nova tentativa. */
+/** Ficha da assinatura da empresa. Sem plano (404 `SEM_ASSINATURA`) ou sem a rota (`MACUXI_PLANOS` desligado): sem nova tentativa. */
 export function useFicha(tenant: string) {
   return useQuery({
     queryKey: chaveDaFicha(tenant),
     queryFn: () => chamarPortal(ROTAS_PORTAL.assinatura(tenant), { schema: FichaAssinaturaSchema }),
-    retry: (n, e) => !(e instanceof ErroPortal && e.status === 404) && n < 2,
+    retry: (n, e) => !fichaSemPlano(e) && n < 2,
   });
 }
 
@@ -101,17 +102,8 @@ export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: str
           </div>
         )}
         {q.isPending && <LoadingBlock label={TEXTOS_PLANO.buscandoPlano} />}
-        {q.isError &&
-          (q.error instanceof ErroPortal && q.error.status === 404 ? (
-            <>
-              <h2 className="m-0 text-[20px] font-bold">{TEXTOS_PLANO.plano}</h2>
-              <span data-testid="empresa-plano.erro" className="text-[13px] text-ink-2">
-                {ehRotaAusente(q.error) ? TEXTO_INDISPONIVEL : mensagemDoErro(q.error)}
-              </span>
-            </>
-          ) : (
-            <ErrorBlock message={mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />
-          ))}
+        {/* 404 (empresa sem plano ou servidor sem planos) não chega aqui: a aba Empresa mostra os "Módulos licenciados" */}
+        {q.isError && <ErrorBlock message={mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />}
         {q.data && (
           <>
             <div className="flex flex-col gap-1.5">

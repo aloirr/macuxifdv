@@ -1,11 +1,12 @@
 'use client';
 
 /**
- * Seletor de plano do portal (spec docs/design/telas/portal-config-enxuto.md §11.3 e §11.4): um componente só, usado no Criar
- * empresa (`SeletorPlano`: cartões "Plano", "Adicionais" e "Ciclo") e no diálogo "Trocar de plano" (`EscolhaDoPlano` com `atual`,
- * `AdicionaisEmLinhas` e `AlternadorCiclo`). Planos: cartões de escolha única, só os ativos na `ordem` do catálogo. Adicionais:
- * caixa + ícone + nome do kit + preço no ciclo + Quantidade. Ciclo: Mensal/Anual com o selo "2 meses grátis". Números só do
- * catálogo (`lib/portal-planos.ts`). testIDs: empresa.plano-*, empresa.adicional-*, empresa.ciclo-*, empresa.teste.
+ * Seletor de plano do portal (telas docs/design/planos-assinatura/02 e 05, aprovadas em 15/11; textos em
+ * docs/design/telas/portal-config-enxuto.md §11.3 e §11.4): um componente só, usado no Criar empresa (`SeletorPlano`: cartões
+ * "Plano", "Adicionais" e "Ciclo") e no diálogo "Trocar de plano" (`EscolhaDoPlano` com `atual`, `AdicionaisEmLinhas` e
+ * `AlternadorCiclo`). Planos: cartões de escolha única, só os ativos na `ordem` do catálogo, valor grande e "/mês" pequeno.
+ * Adicionais: caixa + ícone + nome do kit + preço no ciclo + Quantidade, uma linha por adicional, em duas colunas. Ciclo:
+ * Mensal/Anual com o selo "2 meses grátis". Números só do catálogo (`lib/portal-planos.ts`). testIDs: empresa.plano-*, empresa.adicional-*, empresa.ciclo-*, empresa.teste.
  */
 import { useQuery } from '@tanstack/react-query';
 import { CICLOS, ListaPlanosSchema, type Adicional, type Ciclo, type Plano } from '@macuxi/platform-sdk';
@@ -20,7 +21,7 @@ import {
   licencasDoPlanoEmDuasLinhas,
   planosVisiveis,
   precoDoAdicional,
-  precoDoPlano,
+  precoDoPlanoEmPartes,
   TEXTOS_PLANO,
   type EscolhaDaTela,
 } from '@/lib/portal-planos';
@@ -44,6 +45,17 @@ const qtdCss =
 
 type Erros = Readonly<Record<string, string | undefined>>;
 
+/** Preço do cartão do plano: o valor grande e o "/mês" ou "/ano" pequeno (planos-assinatura 02 e 05). */
+function PrecoDoPlano({ plano, ciclo }: { plano: Plano; ciclo: Ciclo }) {
+  const { valor, sufixo } = precoDoPlanoEmPartes(plano, ciclo);
+  return (
+    <span data-testid={`empresa.plano-${plano.codigo}-preco`} className="text-[20px] leading-tight font-bold whitespace-nowrap tabular-nums text-ink">
+      {valor}
+      <span className="text-[13px] font-semibold text-ink-2">{sufixo}</span>
+    </span>
+  );
+}
+
 /** Os cartões de plano (rádio). `atual` = plano de hoje, com o selo "Atual" e as licenças em duas linhas (diálogo). */
 export function EscolhaDoPlano({ planos, escolha, aoMudar, erro, atual }: { planos: readonly Plano[]; escolha: EscolhaDaTela; aoMudar: (e: EscolhaDaTela) => void; erro?: string; atual?: string }) {
   return (
@@ -65,7 +77,7 @@ export function EscolhaDoPlano({ planos, escolha, aoMudar, erro, atual }: { plan
               {p.nome}
               {atual === p.codigo && <Badge tone="neutral">{TEXTOS_PLANO.atual}</Badge>}
             </span>
-            <span className="text-[15px] font-bold whitespace-nowrap tabular-nums text-ink">{precoDoPlano(p, escolha.ciclo)}</span>
+            <PrecoDoPlano plano={p} ciclo={escolha.ciclo} />
             {atual === undefined ? (
               <span className="text-[13px] text-ink-2">{licencasDoPlano(p)}</span>
             ) : (
@@ -140,7 +152,8 @@ export function AdicionaisEmLinhas({ plano, escolha, aoMudar, erros }: { plano: 
   return (
     <div className="rounded-xl border border-field">
       <div aria-hidden="true" className={cx(grade, 'h-[34px] border-b border-line text-[12px] font-semibold text-ink-2')}>
-        <span className="col-span-3 sm:col-span-4">{TEXTOS_PLANO.adicionais}</span>
+        <span className="col-span-2" />
+        <span className="sm:col-span-2">{TEXTOS_PLANO.adicionais}</span>
         <span>{TEXTOS_PLANO.quantidade}</span>
       </div>
       <ul aria-label={TEXTOS_PLANO.adicionais} className="m-0 list-none p-0">
@@ -198,26 +211,28 @@ export function SeletorPlano({ planos, escolha, aoMudar, erros }: { planos: read
 
       {plano && vendidos.length > 0 && (
         <Panel title={TEXTOS_PLANO.adicionais}>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             {vendidos.map((a) => {
               const q = escolha.adicionais[a];
               const marcado = q !== undefined;
               const erro = erros[`adicional-${a}`];
               return (
-                <div key={a} className={cx('flex min-h-[52px] flex-col gap-2 rounded-xl border px-3.5 py-2.5', erro ? 'border-danger' : 'border-field')}>
-                  <label className="flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <input type="checkbox" data-testid={`empresa.adicional-${a}`} className={caixaCss} checked={marcado} onChange={(e) => aoMudar(comAdicional(escolha, a, e.target.checked ? '1' : undefined))} />
-                    <IconeDoAdicional a={a} />
-                    <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicional(a)}</span>
-                    <span className="w-full pl-[28px] text-[13px] text-ink-2">{precoDoAdicional(plano, a, escolha.ciclo)}</span>
-                  </label>
-                  {marcado && (
-                    <label className="flex items-center gap-2.5 pl-[28px] text-[13px] font-semibold text-ink-2">
-                      {TEXTOS_PLANO.quantidade}
-                      <CampoQuantidade a={a} valor={q} erro={erro} aoMudar={(v) => aoMudar(comAdicional(escolha, a, v))} />
+                <div key={a} className={cx('flex min-h-[52px] flex-col justify-center gap-1 rounded-xl border px-3.5 py-2', erro ? 'border-danger' : 'border-field')}>
+                  <div className="flex items-center gap-x-2.5">
+                    <label className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                      <input type="checkbox" data-testid={`empresa.adicional-${a}`} className={caixaCss} checked={marcado} onChange={(e) => aoMudar(comAdicional(escolha, a, e.target.checked ? '1' : undefined))} />
+                      <IconeDoAdicional a={a} />
+                      <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicional(a)}</span>
+                      <span className="text-[13px] text-ink-2">{precoDoAdicional(plano, a, escolha.ciclo)}</span>
                     </label>
-                  )}
-                  {erro && <span className="pl-[28px] text-[12px] text-danger">{erro}</span>}
+                    {marcado && (
+                      <label className="flex shrink-0 items-center gap-2.5 text-[12px] font-semibold text-ink-2">
+                        {TEXTOS_PLANO.quantidade}
+                        <CampoQuantidade a={a} valor={q} erro={erro} aoMudar={(v) => aoMudar(comAdicional(escolha, a, v))} />
+                      </label>
+                    )}
+                  </div>
+                  {erro && <span className="text-right text-[12px] text-danger">{erro}</span>}
                 </div>
               );
             })}
