@@ -20,7 +20,8 @@
  *   4. todos os consumidores ok → `publicado_em`; alguma falha → `tentativas + 1`, `ultimo_erro` e espera crescente
  *      (`esperaPadrao`) antes da próxima tentativa; os que já tinham consumido não repetem (passo 3). O evento em espera
  *      sai do lote e os outros (de qualquer tenant) seguem. Com `tentativas >= maxTentativas` o evento para (fica
- *      pendente para análise; para reprocessar, zere `tentativas` como administrador).
+ *      pendente para análise). Reprocesso: `reprocessarParados` (uma tentativa por evento parado de um tenant; workflow
+ *      producao-reprocessar-outbox.yml).
  * A ordem entre eventos não é garantida quando há retentativa: o consumidor usa `envelope.ocorrido_em`.
  * `ctx.consultar` (ADR 0012; T-0060): consulta a outro módulo na transação do consumo, só as `usaConsultas` do módulo
  * consumidor; a implementação recebe o usuário de sistema (`USUARIO_SISTEMA_ID`, perfil admin, efetivos do tenant).
@@ -46,6 +47,7 @@ import { ErroPapelBanco } from './banco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
 import { mensagemSegura } from './log-seguro';
 import { publicadorTenant, registroDeConsultas, transacaoTenant } from './outbox';
+import { classeDoErro, ErroTetoReprocesso, selecionarParados, TETO_REPROCESSO, type ResultadoReprocesso } from './reprocessar-outbox';
 import { consumidoresDoModulo } from './trabalhos';
 
 export interface OpcoesDespachante {
@@ -356,10 +358,89 @@ export function criarDespachante(op: OpcoesDespachante) {
     }
   }
 
+  /**
+   * Reprocesso único dos eventos PARADOS de um tenant (`reprocessar-outbox.ts`; workflow producao-reprocessar-outbox.yml).
+   * Mesmo `entregar` do ciclo (consumidores, licença, `evento_consumo`); o consumidor que já tinha consumido não repete.
+   * Trava os parados do tenant (`skip locked`) na transação do `macuxi_worker`; o erro e a exclusão vêm pelo `macuxi_app` no
+   * tenant. `confirmar: false` = só a lista, e a transação é desfeita. Com `confirmar`, cada evento é tentado UMA vez, sem
+   * espera: ok → `publicado_em`; falha → `tentativas + 1` (passa do máximo) e `ultimo_erro`, e ele não volta a ser selecionado.
+   */
+  async function reprocessarParados(o: { tenantId: string; confirmar: boolean }): Promise<ResultadoReprocesso> {
+    const c = await op.worker.connect();
+    try {
+      await c.query('begin');
+      const envelopes = (
+        await c.query<LinhaEvento>(
+          `select id, tenant_id, nome, modulo, payload, ocorrido_em, tentativas, usuario_id, request_id
+             from plataforma.evento
+            where publicado_em is null and tenant_id = $1 and nome = any($2::text[]) and tentativas >= $3
+            order by ocorrido_em, id
+            for no key update skip locked`,
+          [o.tenantId, nomes, maxTentativas],
+        )
+      ).rows;
+      const ids = envelopes.map((e) => e.id);
+      const extras = new Map<string, { ultimo_erro: string | null; deleted_at: Date | null }>();
+      if (ids.length > 0) {
+        const r = await op.app.comTenant(o.tenantId, (db) =>
+          db.query<{ id: string; ultimo_erro: string | null; deleted_at: Date | null }>('select id, ultimo_erro, deleted_at from plataforma.evento where id = any($1::uuid[])', [ids]),
+        );
+        for (const l of r.rows) extras.set(l.id, l);
+      }
+      const { reprocessar, jaTentados } = selecionarParados(
+        envelopes.map((e) => ({ ...e, publicado_em: null, ultimo_erro: extras.get(e.id)?.ultimo_erro ?? null, deleted_at: extras.get(e.id)?.deleted_at ?? null })),
+        { tenantId: o.tenantId, nomes, maxTentativas },
+      );
+      if (reprocessar.length > TETO_REPROCESSO) throw new ErroTetoReprocesso(reprocessar.length);
+      const selecionados = reprocessar.map((e) => ({ evento_id: e.id, nome: e.nome, classe: classeDoErro(e.ultimo_erro) }));
+      const resultado: ResultadoReprocesso = { modo: o.confirmar ? 'reprocessado' : 'leitura', maxTentativas, selecionados, ja_tentados: jaTentados.length, itens: [] };
+      if (!o.confirmar) {
+        await c.query('rollback');
+        return resultado;
+      }
+      const t = await tenantDoCiclo(o.tenantId);
+      const porId = new Map(envelopes.map((e) => [e.id, e]));
+      for (const s of reprocessar) {
+        const l = porId.get(s.id)!;
+        const env: EnvelopeEvento = {
+          evento_id: l.id,
+          nome: l.nome,
+          origem: l.modulo as ModuloId,
+          tenant_id: l.tenant_id,
+          usuario_id: l.usuario_id,
+          request_id: l.request_id,
+          ocorrido_em: l.ocorrido_em.toISOString(),
+          payload: l.payload,
+        };
+        const { falhas } = await entregar(env, t);
+        const campos = { tenant_id: l.tenant_id, evento: l.nome, evento_id: l.id, request_id: l.request_id };
+        const classeAntes = classeDoErro(s.ultimo_erro);
+        if (falhas.length === 0) {
+          await c.query('update plataforma.evento set publicado_em = now(), tentativas = tentativas + 1, ultimo_erro = null where id = $1', [l.id]);
+          log.info({ ...campos, reprocesso: 'publicado' }, 'evento parado reprocessado e publicado');
+          resultado.itens.push({ evento_id: l.id, nome: l.nome, classe_antes: classeAntes, resultado: 'publicado', classe_depois: null });
+          continue;
+        }
+        const erro = falhas.join(' | ').slice(0, MAX_ERRO);
+        await c.query('update plataforma.evento set tentativas = tentativas + 1, ultimo_erro = $2 where id = $1', [l.id, erro]);
+        log.error({ ...campos, reprocesso: 'parado_de_novo' }, 'evento reprocessado parou de novo (não é tentado outra vez)');
+        resultado.itens.push({ evento_id: l.id, nome: l.nome, classe_antes: classeAntes, resultado: 'parado_de_novo', classe_depois: classeDoErro(erro) });
+      }
+      await c.query('commit');
+      return resultado;
+    } catch (e) {
+      await c.query('rollback').catch(() => undefined);
+      throw e;
+    } finally {
+      c.release();
+    }
+  }
+
   return {
     /** Eventos que têm consumidor instalado (os outros ficam na outbox). */
     eventos: (): readonly string[] => nomes,
     ciclo,
+    reprocessarParados,
     /** Ids em espera (testes e diagnóstico). */
     emEspera: (): ReadonlyMap<string, number> => emEspera,
     /**

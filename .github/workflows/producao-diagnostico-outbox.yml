@@ -15,6 +15,8 @@ name: producao — diagnóstico da outbox (só leitura)
 # O que o log mostra: docs/desenho/outbox-parada-v1014.md, §6. Bloco do catálogo (nós e produtos do ERP parados, só quando
 # há algum): modules/integracao/docs/outbox-parada-am2808-catalogo.md, §6.
 # Contagem do catálogo (opcional, contagem_catalogo; R-20261121-135629): produtos, preços, saldos, nós e, por filial, sem preço e sem estoque.
+# Contagem da integração (opcional, contagem_integracao; v1.0.21, consultas do modulo-integracao): lotes e erros de 30 dias,
+# conectores, cursores, registros no Hub e filiais com tabelas e depósitos. Reprocesso: producao-reprocessar-outbox.yml.
 # Empresa padrão do formulário: AM2808 (R-20261120-203901).
 
 on:
@@ -26,6 +28,10 @@ on:
         default: AM2808
       contagem_catalogo:
         description: contar também o catálogo de cada empresa
+        type: boolean
+        default: false
+      contagem_integracao:
+        description: contar também a integração de cada empresa (lotes, erros, conectores, cursores, Hub e filiais)
         type: boolean
         default: false
 
@@ -53,6 +59,7 @@ jobs:
         env:
           EMPRESAS: ${{ inputs.empresas }}
           CONTAGEM_CATALOGO: ${{ inputs.contagem_catalogo }}
+          CONTAGEM_INTEGRACAO: ${{ inputs.contagem_integracao }}
         run: |
           IFS=',' read -ra lista <<< "${EMPRESAS// /}"
           [ "${#lista[@]}" -ge 1 ] && [ "${#lista[@]}" -le 10 ] || { echo "::error::informe de 1 a 10 códigos de empresa"; exit 1; }
@@ -74,6 +81,7 @@ jobs:
           \echo papel macuxi_leitura, transação só leitura
           SQL
           if [ "$CONTAGEM_CATALOGO" = true ]; then echo '\set contagem_catalogo true'; else echo '\set contagem_catalogo false'; fi >> "$sql"
+          if [ "$CONTAGEM_INTEGRACAO" = true ]; then echo '\set contagem_integracao true'; else echo '\set contagem_integracao false'; fi >> "$sql"
           for c in "${lista[@]}"; do
             [[ "$c" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$c" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido: $c"; exit 1; }
             sed "s/__CODIGO__/$c/" <<'SQL' >> "$sql"
@@ -175,6 +183,59 @@ jobs:
              and e.nome = 'integracao.produto.atualizado@1'
            order by e.ocorrido_em, e.id
            limit 200;
+          \endif
+          \if :contagem_integracao
+          \echo '--- contagem da integração (só contagens, ids técnicos e classes)'
+          \echo 'Q1 lotes por entidade, 30 dias (aceitos = recebidos - rejeitados)'
+          select l.entidade, count(*) as lotes, coalesce(sum(l.recebidas), 0) as recebidos,
+                 coalesce(sum(l.recebidas - l.com_erro), 0) as aceitos, coalesce(sum(l.com_erro), 0) as rejeitados,
+                 count(*) filter (where l.status = 'falhou') as lotes_falhos,
+                 to_char(max(l.recebido_em) at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as ultimo_manaus
+            from integracao.lote l
+           where l.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and l.deleted_at is null
+             and l.recebido_em >= now() - interval '30 days'
+           group by 1
+           order by 1;
+          \echo 'Q2 erros por entidade e classe'
+          select l.entidade, e.origem, e.codigo as classe, e.campo, e.reprocessavel, (e.resolvido_em is null) as em_aberto,
+                 count(*) as linhas
+            from integracao.lote_linha_erro e
+            join integracao.lote l on l.tenant_id = e.tenant_id and l.id = e.lote_id
+           where e.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and e.deleted_at is null
+             and l.deleted_at is null and l.recebido_em >= now() - interval '30 days'
+           group by 1, 2, 3, 4, 5, 6
+           order by 1, linhas desc;
+          \echo 'Q3 conectores: entidades liberadas e sinal de vida'
+          select c.identificador, c.tipo, c.ativo, c.entidades, c.versao_conector, c.parado_por_versao,
+                 to_char(c.ultimo_sinal_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as sinal_manaus
+            from integracao.conector c
+           where c.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and c.deleted_at is null;
+          \echo 'Q4 cursor por entidade (sem linha = nunca leu)'
+          select c.identificador, k.entidade,
+                 to_char(k.cursor_alterado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as cursor_manaus,
+                 to_char(k.atualizado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as atualizado_manaus
+            from integracao.cursor_entidade k
+            join integracao.conector c on c.tenant_id = k.tenant_id and c.id = k.conector_id
+           where k.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and k.deleted_at is null
+           order by 2;
+          \echo 'Q5 registros no Hub por entidade'
+          select r.entidade, count(*) filter (where r.deleted_at is null) as vivos,
+                 count(*) filter (where r.deleted_at is null and r.ativo) as ativos
+            from integracao.registro_atual r
+           where r.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__'))
+           group by 1
+           order by 1;
+          \echo 'Q6 filiais, tabelas e depósitos'
+          select f.codigo as filial, f.external_id as filial_external_id, f.padrao, f.ativo,
+                 (select count(*) from catalogo.tabela_preco_item i
+                   where i.tenant_id = f.tenant_id and i.filial_id = f.id and i.deleted_at is null) as itens_de_preco,
+                 (select count(distinct i.tabela_preco_id) from catalogo.tabela_preco_item i
+                   where i.tenant_id = f.tenant_id and i.filial_id = f.id and i.deleted_at is null) as tabelas_ligadas,
+                 (select count(*) from catalogo.deposito d
+                   where d.tenant_id = f.tenant_id and d.filial_id = f.id and d.deleted_at is null) as depositos
+            from core.filial f
+           where f.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and f.deleted_at is null
+           order by f.padrao desc, f.codigo;
           \endif
           \if :contagem_catalogo
           \echo '--- contagem do catálogo (só registros vivos)'
