@@ -1,5 +1,5 @@
 /**
- * Exemplos do OpenAPI do Hub (T-0087). Fonte única: o gerador publica estes valores, o guia (`docs/guia-api-hub.md`) usa os
+ * Exemplos do OpenAPI do Hub (T-0087). Fonte única: o gerador publica estes valores, o guia em PDF usa os
  * mesmos e `openapi.test.ts` prova que cada um passa no contrato Zod e no JSON Schema gerado.
  *
  * Dados fictícios: CNPJ 11222333000181 (formato válido, não é de empresa real), nomes genéricos, domínio example.com,

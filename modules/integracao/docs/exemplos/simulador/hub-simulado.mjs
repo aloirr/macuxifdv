@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * T-0108 — Hub de Integração SIMULADO (`/integracao/v1`), em Node puro (node:http), para o TI do cliente testar o próprio
- * cliente da API sem tocar no servidor de demonstração. Segue o guia (`../../guia-api-hub.md`) e o OpenAPI
+ * cliente da API sem tocar no servidor de demonstração. Segue o guia da API (PDF em `GET /integracao/v1/guia.pdf`) e o OpenAPI
  * (`../../openapi-hub-v1.json`): autenticação, Idempotency-Key, recusas de envelope, processamento do lote em etapas, erros por
  * linha, cursor por entidade, fila de pedidos e retorno do ERP.
  *

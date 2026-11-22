@@ -1,5 +1,5 @@
 /**
- * T-0108: o Hub simulado do kit do TI se comporta como o guia (`guia-api-hub.md`) descreve: autenticação, idempotência,
+ * T-0108: o Hub simulado do kit do TI se comporta como o guia da API em PDF descreve: autenticação, idempotência,
  * recusas de envelope, processamento do lote, erros por linha, cursor e devolução de pedidos.
  */
 import { createHash, randomUUID } from 'node:crypto';
