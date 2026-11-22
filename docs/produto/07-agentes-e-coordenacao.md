@@ -259,8 +259,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 
 ## Mapa do código (Graphify)
 Decisão do dono do produto (R-20261122-040155-alexandre, 22/11/2026): antes de abrir arquivos para achar onde algo está, consulte `graphify query "<pergunta>" --graph ../grafo-macuxifdv/graphify-out/graph.json --budget 1500` (também `explain "X"`, `path "A" "B"`, `affected "X"`, com o mesmo `--graph`). Abra só os arquivos que a consulta apontar. O mapa é montado na criação da sessão, fora do repositório, sem IA. Depois de mudar muitos arquivos, refaça com `graphify extract . --code-only --out ../grafo-macuxifdv` (~1 min). Nunca rode `graphify` sem `--out` fora do repositório (gravaria graphify-out/ dentro dele) e nunca use `graphify extract` sem `--code-only` (chamaria IA).
-- O script de instalação do ambiente Default da nuvem instala o `graphifyy[sql]==0.9.115` e monta o mapa só do código (AST local) em `../grafo-macuxifdv/graphify-out/graph.json`; vale para as sessões criadas depois de 22/11/2026 ~04h00.
-- Todo prompt de sessão nova e de subagente repete a regra acima.
+- O script de instalação do ambiente Default da nuvem instala o `graphifyy[sql]==0.9.115`; vale para as sessões criadas depois de 22/11/2026 ~04h00.
 
 ## Custos
 Gerente, engenheiro, banco e testes usam o modelo mais forte (`opus`); agentes de módulo usam `sonnet`. Para economizar, troque testes para `sonnet` ou rode no máximo 3 agentes de módulo em paralelo.
