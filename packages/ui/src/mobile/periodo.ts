@@ -94,6 +94,18 @@ export function textoDoSelo(contagem: number): string | null {
   return contagem > 9 ? '9+' : String(Math.trunc(contagem));
 }
 
+/**
+ * Destaque do `BotaoFiltro` (borda `ink` 1,5): com selo (filtros na folha) ou com `ativo` (botão Veículo com veículo
+ * escolhido, que fica sem selo: o veículo aparece na etiqueta; spec filtro-veiculo §3).
+ */
+export function destaqueDoBotaoFiltro(contagem: number | undefined, ativo: boolean | undefined): { destacado: boolean; selo: string | null } {
+  const selo = textoDoSelo(contagem ?? 0);
+  return { destacado: Boolean(selo) || Boolean(ativo), selo };
+}
+
+/** Linha de etiquetas dos filtros ativos: quebra linha quando não cabe, 8 dp entre as etiquetas e entre as linhas (sem rolagem lateral). */
+export const LINHA_ETIQUETAS = { vaoColuna: 8, vaoLinha: 8 } as const;
+
 /** Leitura do botão de filtro: "Filtrar, 1 filtro ativo" · "Filtrar". */
 export function leituraDoBotaoFiltro(rotulo: string, contagem: number): string {
   if (!Number.isFinite(contagem) || contagem <= 0) return rotulo;
