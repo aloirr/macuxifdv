@@ -1,5 +1,5 @@
 /**
- * FolhaVeiculo (RD-2573; desenho técnico docs/desenho/filtro-veiculo.md §6.3; spec docs/design/filtro-veiculo/spec.md §3, §4 e §9):
+ * FolhaVeiculo (desenho técnico docs/desenho/filtro-veiculo.md §6.3; spec docs/design/filtro-veiculo/spec.md §3, §4 e §9):
  * a fiação pura (abrir no último nível escolhido, voltar, aplicar, grade e "Ver peças").
  * O kit não importa `modules/*`: a escolha é um esboço genérico (nível → valor); o encaixe com o contrato real fica no Catálogo.
  */

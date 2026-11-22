@@ -1,6 +1,6 @@
 /**
  * Parte PURA da `FolhaVeiculo` (filtro de veículo: spec docs/design/filtro-veiculo/spec.md §4, §9 e §11; desenho técnico
- * docs/desenho/filtro-veiculo.md §6.3, RD-2573). Sem react-native: roda em Node (Vitest).
+ * docs/desenho/filtro-veiculo.md §6.3). Sem react-native: roda em Node (Vitest).
  * Só tipos estruturais e a fiação da cascata (abrir no último nível escolhido, voltar, aplicar, quando há grade e "Ver peças").
  * Quem diz os níveis, as opções, o que se preenche sozinho e os rótulos é o domain do Catálogo (pela consulta e pela `navegacao`).
  */

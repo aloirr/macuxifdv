@@ -1,5 +1,5 @@
 /**
- * `FolhaVeiculo` (RD-2573; spec docs/design/filtro-veiculo/spec.md §4 e §9; desenho técnico docs/desenho/filtro-veiculo.md §6.3):
+ * `FolhaVeiculo` (spec docs/design/filtro-veiculo/spec.md §4 e §9; desenho técnico docs/desenho/filtro-veiculo.md §6.3):
  * a folha Veículo única do Catálogo e do Novo pedido, sobre a `FolhaCascata` do kit. Só fiação e tipos estruturais (não importa
  * `modules/*`): a consulta (`consultar`), os apoios puros (`navegacao`) e os textos (`textos`) chegam do módulo.
  * Tocar avança; no último nível, aplica e fecha; "Ver peças" aplica o que já foi escolhido; o Voltar volta um nível (no 1º, fecha);
