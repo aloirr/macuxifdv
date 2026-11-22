@@ -46,6 +46,7 @@ describe('regras de fronteira (dependency-cruiser)', () => {
   // roda o CLI na coleta (fora do timeout de cada it): ~3 s por execução
   const violacao = cruzar('violacao');
   const ok = cruzar('ok');
+  const ciclo = cruzar('ciclo');
   const pares = violacao.violacoes.map((v) => `${v.rule.name}: ${v.from} → ${v.to}`);
 
   it('fixture de violação faz o depcruise FALHAR (exit = nº de erros, 8)', () => {
@@ -87,6 +88,24 @@ describe('regras de fronteira (dependency-cruiser)', () => {
       'contracts-importa-camada-interna: modules/vendedor/contracts/index.ts → modules/vendedor/web/pagina.ts',
     );
     expect(pares.some((p) => p.startsWith('domain-usa-modulo-do-node: modules/vendedor/domain/tabela.ts'))).toBe(true);
+  });
+
+  it('core/contracts importando o contracts de outro módulo é erro (ciclo do PR #636)', () => {
+    const regras = ciclo.violacoes.map((v) => `${v.rule.severity} ${v.rule.name}: ${v.from} → ${v.to}`);
+    expect(regras).toContain(
+      'error core-contracts-importa-outro-modulo: modules/core/contracts/index.ts → modules/integracao/contracts/index.ts',
+    );
+    expect(regras).toContain(
+      'error ciclo-entre-modulos: modules/core/contracts/index.ts → modules/integracao/contracts/index.ts',
+    );
+  });
+
+  it('ciclo indireto entre módulos (core/contracts → core/domain → vendedor/contracts) é erro, não aviso', () => {
+    expect(ciclo.violacoes.map((v) => `${v.rule.severity} ${v.rule.name}: ${v.from} → ${v.to}`)).toContain(
+      'error ciclo-entre-modulos: modules/core/contracts/index.ts → modules/core/domain/regra.ts',
+    );
+    expect(ciclo.violacoes.some((v) => v.rule.name === 'ciclo-entre-arquivos')).toBe(false);
+    expect(ciclo.status).toBe(3);
   });
 
   it('imports permitidos (packages, core/contracts, contracts de outro, interno do próprio) passam', () => {
