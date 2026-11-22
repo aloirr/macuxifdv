@@ -116,8 +116,11 @@ describe('corpo da Nova empresa (§4, §11.3)', () => {
   });
   it('422: administrador (RN-CORE-34 no bloco, RN-CORE-32 no campo) e problemas do plano', () => {
     expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-34', 'x'), '')).toEqual({ bloco: 'Informe o administrador da empresa.' });
+    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-34', 'x', { campo: 'admin' }), '')).toEqual({ bloco: 'Informe o administrador da empresa.' });
     expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-32', 'x', { faltas: ['numero', 'especial'] }), 'Senhaforte')).toEqual({ senha: 'Faltam um número e um caractere especial.' });
+    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-32', 'A senha não pode ser igual ao e-mail.', { faltas: [] }), 'ana@empresa.com.br')).toEqual({ senha: 'A senha não pode ser igual ao e-mail.' });
     expect(erroDoAdminNaApi(new ErroPortal(422, 'PLANO_INATIVO', 'x'), '')).toBeNull();
+    expect(erroDoAdminNaApi(new Error('x'), '')).toBeNull();
     expect(problemasDoPlano(new ErroPortal(422, 'PLANO_INATIVO', 'O plano Light não está mais à venda.', { problemas: [{ codigo: 'PLANO_INATIVO', mensagem: 'O plano Light não está mais à venda.' }] }))).toEqual([
       'O plano Light não está mais à venda.',
     ]);

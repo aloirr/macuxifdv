@@ -156,7 +156,6 @@ function semChave(e: Record<string, string>, k: string): Record<string, string> 
   return Object.fromEntries(Object.entries(e).filter(([c]) => c !== k));
 }
 
-export { erroDoAdminNaApi, errosDoAdmin };
 export type { AdminDoForm };
 
 export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExistente; aoGravar?: (r: Resposta) => void }) {

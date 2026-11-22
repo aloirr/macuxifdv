@@ -7,8 +7,7 @@
  * "Criar empresa" (decidido em 14/11). Código da licença UF + 4 dígitos sorteado e conferido com `simular` antes de gravar
  * (`lib/portal-nova-empresa.ts`). A API revalida tudo. A senha inicial só vive no estado da tela (nunca em storage, URL ou log) e é
  * limpa depois de gravar. testIDs: empresa.*.
- * Servidor sem planos (`MACUXI_PLANOS` desligado) ou catálogo vazio: a "Nova empresa" usa o passo antigo (`passo-empresa-legado.tsx`),
- * que fica enquanto o servidor estiver sem planos (passo antigo da Nova empresa e `semPlano` da `tela-empresa`).
+ * Servidor sem planos (`MACUXI_PLANOS` desligado) ou catálogo vazio: a "Nova empresa" usa o passo antigo (`passo-empresa-legado.tsx`).
  */
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent, type SelectHTMLAttributes } from 'react';

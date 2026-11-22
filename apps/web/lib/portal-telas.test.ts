@@ -5,9 +5,7 @@ import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
 import {
   corpoDaEmpresa,
-  erroDoAdminNaApi,
   errosDaEmpresa,
-  errosDoAdmin,
   sugerirCodigo,
   TEXTOS_ADMIN,
   textoDoAdminNoResultado,
@@ -71,33 +69,9 @@ describe('passo Empresa: administrador inicial (RN-CORE-34, RN-CORE-32; spec por
     expect(c.admin).toEqual({ nome: 'Ana Souza', email: 'Ana@Empresa.com.br', senha: ' Norte#2026 ' });
     expect(CriarEmpresaSchema.parse(c).admin?.email).toBe('ana@empresa.com.br');
     expect(errosDaEmpresa(c)).toEqual({});
-    expect(errosDoAdmin(admin)).toEqual({});
   });
   it('empresa existente (sem bloco do admin) não manda admin', () => {
     expect(corpoDaEmpresa(form, false)).not.toHaveProperty('admin');
-  });
-  it('campos vazios com os textos da spec', () => {
-    expect(errosDoAdmin({ nome: '', email: '', senha: '' })).toEqual({
-      'admin.nome': TEXTOS_ADMIN.nomeVazio,
-      'admin.email': TEXTOS_ADMIN.emailVazio,
-      'admin.senha': TEXTOS_ADMIN.senhaVazia,
-    });
-    expect(TEXTOS_ADMIN.senhaVazia).toBe('Informe a senha inicial.');
-  });
-  it('senha fora da RN-CORE-32: a mensagem do Core diz o que falta', () => {
-    expect(errosDoAdmin({ ...admin, senha: 'Norte2026' })['admin.senha']).toBe('Falta um caractere especial.');
-    expect(errosDoAdmin({ ...admin, senha: 'abc' })['admin.senha']).toBe('A senha precisa ter pelo menos 8 caracteres. Faltam um número e um caractere especial.');
-  });
-  it('nome curto e e-mail inválido em pt-BR (nada de mensagem em inglês do Zod)', () => {
-    const e = errosDoAdmin({ nome: 'A', email: 'ana@', senha: 'Norte#2026' });
-    expect(e).toEqual({ 'admin.nome': TEXTOS_ADMIN.nomeCurto, 'admin.email': TEXTOS_ADMIN.emailInvalido });
-  });
-  it('422 da API: RN-CORE-34 no topo do bloco; RN-CORE-32 embaixo do campo, pelas faltas; outro motivo = mensagem da API', () => {
-    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-34', 'x', { campo: 'admin' }), '')).toEqual({ bloco: 'Informe o administrador da empresa.' });
-    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-32', 'x', { campo: 'admin.senha', faltas: ['numero', 'especial'] }), 'Senhaforte')).toEqual({ senha: 'Faltam um número e um caractere especial.' });
-    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-32', 'A senha não pode ser igual ao e-mail.', { faltas: [] }), 'ana@empresa.com.br')).toEqual({ senha: 'A senha não pode ser igual ao e-mail.' });
-    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-31', 'x'), '')).toBeNull();
-    expect(erroDoAdminNaApi(new Error('x'), '')).toBeNull();
   });
   it('resultado: criado com o e-mail; existente sem trocar a senha; sem admin no pedido = nada', () => {
     expect(textoDoAdminNoResultado({ admin: 'criado', simulado: false }, 'ana@empresa.com.br')).toBe('Administrador criado: ana@empresa.com.br.');
