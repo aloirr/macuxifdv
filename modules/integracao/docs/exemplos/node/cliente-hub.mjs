@@ -2,7 +2,7 @@
 /**
  * T-0108 — Exemplo de cliente da API do Hub (`/integracao/v1`) em Node puro (fetch, Node >= 18, nenhuma dependência).
  *
- * Mostra, de ponta a ponta e seguindo o guia (`../../guia-api-hub.md`):
+ * Mostra, de ponta a ponta e seguindo o guia da API (PDF em `GET /integracao/v1/guia.pdf`):
  *   - cursor por entidade: nulo = carga inicial completa em partes; com cursor = delta;
  *   - delta paginado por cursor (keyset): páginas com (alterado_em, external_id) > cursor, ordenadas, um lote por página;
  *   - Idempotency-Key = SHA-256 do conteúdo estável do lote, SEMPRE a mesma ao repetir (rede, 429, 500, 503, com Retry-After);

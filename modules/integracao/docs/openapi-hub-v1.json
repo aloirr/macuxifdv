@@ -4,7 +4,7 @@
     "title": "Macuxi FDV — Hub de Integração (API do Conector)",
     "version": "v1",
     "summary": "API do Hub de Integração com o ERP: lotes, cursores, reconciliação, pedidos e sinal de vida.",
-    "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.md`."
+    "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API gerada no portal de configuração (aba Integração, lado \"Integração via API\"); a empresa vem da chave, nunca do corpo. Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. Guia em PDF para o TI do cliente (ordem de carga, idempotência, limites, erros e devolução de pedidos): `GET /integracao/v1/guia.pdf`."
   },
   "servers": [
     {
