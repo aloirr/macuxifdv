@@ -227,6 +227,16 @@ function render(name: IconName, c: Common) {
           <Path d="M8 5.25l8 4.5" {...c} />
         </>
       );
+    case 'carro':
+      // carro de frente: botão Veículo do Catálogo e do Novo pedido (filtro de veículo, spec docs/design/filtro-veiculo/spec.md §3)
+      return (
+        <>
+          <Path d="M4 16v-4.5l1.8-4.6A2 2 0 0 1 7.7 5.5h8.6a2 2 0 0 1 1.9 1.4l1.8 4.6V16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" {...c} />
+          <Path d="M4 11.5h16" {...c} />
+          <Path d="M7 14.25h1.5M15.5 14.25H17" {...c} />
+          <Path d="M6 17v2.5M18 17v2.5" {...c} />
+        </>
+      );
     case 'inbox':
       // caixa de entrada (notificações, recebidos)
       return (
