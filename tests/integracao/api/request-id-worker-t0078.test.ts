@@ -240,7 +240,7 @@ describe('T-0078 critério 2 — worker: request_id do envelope em toda linha do
       [40, 'consumidor falhou', 'vendedor'],
       [40, 'consumidor falhou', 'integracao'],
       [30, 'consumido', 'gestor'],
-      [50, 'evento parado: tentativas esgotadas (zere tentativas para reprocessar)', null],
+      [50, 'evento parado: tentativas esgotadas', null],
     ]);
     for (const l of linhas) {
       expect(l, JSON.stringify(l)).toMatchObject({ processo: 'despachante', tenant_id: TENANT, evento: NOME, evento_id: EVENTO_ID, request_id: REQUEST_ID });
