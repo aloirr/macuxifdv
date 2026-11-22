@@ -282,7 +282,7 @@ export function EstadoVazio({ titulo, acao, testId, semBorda = false }: { titulo
   return (
     <div
       data-testid={testId}
-      className={cx('flex flex-col items-center gap-3 px-6 py-10 text-center', !semBorda && 'rounded-2xl border border-dashed border-field')}
+      className={cx('flex flex-col items-center gap-3 px-6 py-10 text-center', !semBorda && 'rounded-2xl border border-dashed border-line')}
     >
       <span className="text-[15px] font-semibold text-ink-2">{titulo}</span>
       {acao}
