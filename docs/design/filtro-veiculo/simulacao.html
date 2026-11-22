@@ -229,7 +229,7 @@ function proximoNivel(v, depois) {
   return null;
 }
 // passa no filtro ou não (D4, spec §5): só restringe o que foi escolhido (o nível preenchido sozinho conta como escolhido);
-// o escolhido exige o dado no trecho: ano dentro da faixa (sem ano, não passa); motor e versão citados (a confirmar, §15)
+// o escolhido exige o dado no trecho: ano dentro da faixa (sem ano, não passa); motor e versão citados e iguais (D6 e D7, §15)
 function compat(p, v) {
   if (!v) return null;
   for (const a of p.apps) {

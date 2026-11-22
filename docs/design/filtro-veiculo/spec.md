@@ -3,7 +3,8 @@
 > 2026-11-21 · designer-ux · origem: auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §1 (linha §4), §2 item 5,
 > §3 (lista sem rolagem lateral) e §4 etapa 6; pedido do gerente-projetos para a aprovação do dono do produto
 > (R-20261120-230805-alexandre). D1, D2, D3 e D5 decididos (R-20261120-234013-alexandre); D4 decidido em 2026-11-21
-> (R-20261121-211000-alexandre), §5 e §15. Só desenho: sem contrato de API e sem código.
+> (R-20261121-211000-alexandre); motor, versão e nível preenchido sozinho decididos (D6 e D7, R-20261121-211200-alexandre),
+> §5 e §15. Só desenho: sem contrato de API e sem código.
 > Simulação: `simulacao.html` (abre no celular; os estados do §9 ficam em `?estado=<id>`). Prints 390 × 844, escala 2.
 > Produtos de teste: os da auditoria §5 (marca BAP, salvo indicação), com aplicações e veículos **fictícios** (premissa P1).
 > Telas que mudam: `modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx` e `produto.tsx` (modulo-catalogo); aba Itens do Novo
@@ -104,9 +105,12 @@ escolheu. A peça entra quando um trecho da aplicação cita o modelo escolhido 
 - **ano escolhido:** a faixa de ano do trecho inclui o ano. O trecho **sem ano não entra** (ex.: `VW Gol`, na Pastilha de freio
   dianteira Gol, some no Gol 2018);
 - **ano não escolhido** (`Ver peças` no nível Ano): entram todas as peças do modelo, **inclusive as sem ano**;
-- **motor e versão:** a mesma lógica. O que não foi escolhido não filtra; o que foi escolhido exige o dado no trecho (o motor
-  ou a versão citados). A confirmar com o dono do produto (§15, dúvida aberta 1);
-- o nível que a cascata **preencheu sozinha** (§4.2) conta como escolhido (premissa a confirmar, §15, dúvida aberta 2).
+- **motor e versão** (decidido, R-20261121-211200-alexandre: a mesma regra do ano; RN-CAT-22): **escolhido**, a peça precisa
+  ter o dado no trecho e ele precisa bater; o trecho sem motor ou sem versão **não entra** (ex.: o kit batente e coifa,
+  `VW Gol 2014–2019`, sem motor, some do Gol 2018 1.0). **Não escolhido**, não filtra (`Gol 2017–2019 Highline` entra no
+  Gol 2018);
+- o nível que a cascata **preencheu sozinha** (§4.2) conta como escolhido e filtra como se o vendedor tivesse tocado
+  (decidido, R-20261121-211200-alexandre).
 
 A peça aparece ou não aparece: **não há item "de conferir"**.
 - **Cartão como hoje:** sem chip `Compatível` e sem a linha `Serve em` do veículo. A lista não mistura casos, e a etiqueta
@@ -119,7 +123,7 @@ A peça aparece ou não aparece: **não há item "de conferir"**.
 ## 6. Folha Filtrar: chips com contagem
 - Grupos, nesta ordem: **Sistema · Família · Linha · Categoria** (os nomes vêm do cadastro), e depois os de hoje (Filial, quando
   houver mais de uma). O rótulo do 2º grupo sai do `rotuloDoNivel` do Catálogo (`modules/catalogo/domain/hierarquia.ts`), hoje
-  **`Grupo`**; o D1 escreve "família". Fica como dúvida aberta para o dono do produto (§15, dúvida aberta 3); a simulação ainda
+  **`Grupo`**; o D1 escreve "família". Fica como dúvida aberta para o dono do produto (§15, dúvida aberta 1); a simulação ainda
   mostra `Família`. Cada grupo em chips de marcar (`Chip` do kit, 36 dp com folga de 6 em cima e embaixo, alvo de 48; quebram linha com 12 dp
   entre as linhas, para a folga caber; nada de rolagem lateral).
 - **Contagem em cada chip:** `Suspensão 2`, o número em 400 tabular e o nome em 600. Conta as peças da **lista filtrada** de
@@ -198,7 +202,7 @@ Tokens: `colors.ink`, `ink2`, `ink3`, `line`, `lineStrong`, `accent`, `accentSof
 | folha | título `Veículo` · busca `Modelo ou montadora` · `Recentes` · `Montadora` · `Modelo` · `Ano` · `Motor` · `Versão` · `Ver peças` · `Nenhum modelo com "<texto>".` |
 | ficha | `Compatível com <modelo> <ano> <motor> <versão>` · `Leve também` |
 | sem resultado | `Nada encontrado para "<texto>"` · `Nenhum produto com esses filtros` · `Tirar o veículo` · `Limpar filtros` (com chip marcado) |
-| folha Filtrar | `Sistema` · `Grupo` (o `rotuloDoNivel`; `Família` no D1, dúvida aberta 3) · `Linha` · `Categoria` · `<nome> <n>` · leitor `<nome>, <n> peças` |
+| folha Filtrar | `Sistema` · `Grupo` (o `rotuloDoNivel`; `Família` no D1, dúvida aberta 1) · `Linha` · `Categoria` · `<nome> <n>` · leitor `<nome>, <n> peças` |
 
 Regras seguidas: uma informação, um lugar (o veículo só na etiqueta, sem chip nem `Serve em` do veículo na lista, e na ficha
 só no chip); nenhum aviso fora dos Alertas
@@ -229,11 +233,12 @@ Contrato de API e índice de veículos (engenheiro-software, modulo-catalogo), a
   aparecer". O filtro só restringe pelo que foi escolhido; a peça aparece ou não aparece, sem "de conferir", sem o chip
   `Compatível` e sem o `Serve em` do veículo na lista (§5, §8). A ficha mantém o `✓ Compatível com …` (§7).
 - **D5. BKO** (decidido, R-20261120-234013-alexandre): nada nesta etapa (§2).
+- **D6. Motor e versão** (decidido, R-20261121-211200-alexandre; RN-CAT-22): a mesma regra do ano. Campo escolhido: a peça
+  precisa ter o dado e ele precisa bater; campo não escolhido: não filtra. No Gol 2018 1.0, o kit batente e coifa
+  (`VW Gol 2014–2019`, sem motor) sai da lista e do "Leve também" (§5, §7).
+- **D7. Nível preenchido sozinho** (decidido, R-20261121-211200-alexandre; RN-CAT-22): o nível que a cascata preenche sozinha
+  (§4.2) conta como escolhido e filtra (§5).
 
-### Dúvidas abertas (para o dono do produto)
-1. **Motor e versão:** a regra do §5 aplica a eles a mesma lógica do ano (o escolhido exige o motor ou a versão citados no
-   trecho). Efeito no Gol 2018 1.0: o kit batente e coifa (`VW Gol 2014–2019`, sem motor) some da lista e do "Leve também".
-   Confirmar.
-2. **Nível preenchido sozinho** (§4.2): conta como escolhido e filtra como se o vendedor tivesse tocado. Confirmar.
-3. **Rótulo do 2º grupo da Filtrar** (§6): o `rotuloDoNivel` do Catálogo diz `Grupo`; o D1 escreve "família". Qual vale na
+### Dúvida aberta (para o dono do produto)
+1. **Rótulo do 2º grupo da Filtrar** (§6): o `rotuloDoNivel` do Catálogo diz `Grupo`; o D1 escreve "família". Qual vale na
    folha?
