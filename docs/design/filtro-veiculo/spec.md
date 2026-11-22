@@ -3,8 +3,8 @@
 > 2026-11-21 · designer-ux · origem: auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md` §1 (linha §4), §2 item 5,
 > §3 (lista sem rolagem lateral) e §4 etapa 6; pedido do gerente-projetos para a aprovação do dono do produto
 > (R-20261120-230805-alexandre). D1, D2, D3 e D5 decididos (R-20261120-234013-alexandre); D4 decidido em 2026-11-21
-> (R-20261121-211000-alexandre); motor, versão e nível preenchido sozinho decididos (D6 e D7, R-20261121-211200-alexandre),
-> §5 e §15. Só desenho: sem contrato de API e sem código.
+> (R-20261121-211000-alexandre); motor e versão decididos (D6, R-20261121-211200-alexandre); nível preenchido sozinho (D7):
+> decisão do gerente, aplicando R-20261121-211200 ('campo não escolhido não filtra'); §5 e §15. Só desenho: sem contrato de API e sem código.
 > Simulação: `simulacao.html` (abre no celular; os estados do §9 ficam em `?estado=<id>`). Prints 390 × 844, escala 2.
 > Produtos de teste: os da auditoria §5 (marca BAP, salvo indicação), com aplicações e veículos **fictícios** (premissa P1).
 > Telas que mudam: `modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx` e `produto.tsx` (modulo-catalogo); aba Itens do Novo
@@ -110,7 +110,7 @@ escolheu. A peça entra quando um trecho da aplicação cita o modelo escolhido 
   ter o dado no trecho e ele precisa bater; o trecho sem motor ou sem versão **não entra** (ex.: o kit batente e coifa,
   `VW Gol 2014–2019`, sem motor, some do Gol 2018 1.0, em que o vendedor tocou o 1.0 entre o 1.0 e o 1.6). **Não
   escolhido**, não filtra (`Gol 2017–2019 Highline` entra no Gol 2018);
-- **nível preenchido sozinho** (§4.2; decidido, R-20261121-211200-alexandre, D7): ano, motor ou versão que a cascata
+- **nível preenchido sozinho** (§4.2; D7, decisão do gerente, §15): ano, motor ou versão que a cascata
   preencheu por ter uma opção só **não conta como escolhido e não filtra**. Ex.: com um ano só do Gol
   na base, "só Gol" mostra todas as peças do Gol, inclusive as sem ano; no Civic 2008 o motor 1.8 vem sozinho, e a lista é a do Civic 2008 (entra o disco `Civic 07–11`, sem motor). Montadora e modelo preenchidos sozinhos
   são o próprio veículo e seguem nele.
