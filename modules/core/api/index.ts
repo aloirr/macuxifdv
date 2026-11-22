@@ -159,4 +159,5 @@ export { criarAutenticacao } from './autenticacao';
 export type { Autenticacao } from './autenticacao';
 /** T-0083 (RN-CORE-31): política do admin inicial, lida pelo comando `pnpm tenant:criar` (a fronteira não deixa o shell importar o domain). */
 export { normalizarEmail, validarSenhaInicial } from '../domain/usuarios';
+export { bloqueioPorTentativas } from '../domain/auth';
 export { gerarSenhaTemporaria } from '../domain/acesso-senha';

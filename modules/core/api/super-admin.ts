@@ -11,9 +11,8 @@
  * - tudo auditado em `plataforma.auditoria_plataforma` (sa_auditar), sem e-mail, senha nem token; nada disso vai a log.
  */
 import { type AcessoBanco, type AcessoPortalAutenticado, type ContextoPublico } from '@macuxi/platform-sdk';
-import { minutosRestantesDoBloqueio } from '../domain/auth';
+import { bloqueioPorTentativas } from '../domain/auth';
 import { chaveBloqueada, decidirAcessoDoLogin, expiracaoDoTokenPlataforma } from '../domain/super-admin';
-import { mensagemBloqueioPorTentativas } from '../contracts/auth';
 import { CODIGOS_PORTAL, MENSAGEM_PORTAL_SENHA_A_TROCAR, type EscolherEmpresaPortal, type LoginPortal, type SessaoPortal } from '../contracts/plataforma';
 import { erroHttp } from './erros';
 import { fabricaSuperAdminSql, type EmpresaDaSessao, type FabricaSuperAdmin, type LinhaAuditoriaAuth, type RepositorioSuperAdmin, type SessaoViva } from './super-admin-repositorio';
@@ -32,8 +31,8 @@ const MENSAGEM_CREDENCIAIS = 'E-mail ou senha incorretos. Confira e tente de nov
 const MENSAGEM_SESSAO = 'Sua sessão do portal expirou. Entre de novo.';
 /** 423 do portal (RN-CORE-31): a mensagem e `detalhes.minutos_restantes` dizem o tempo que falta, como no login do app. */
 const bloqueioPortal = (ate: Date, agora: Date) => {
-  const min = minutosRestantesDoBloqueio(ate, agora);
-  return erroHttp(423, CODIGOS_PORTAL.bloqueado, mensagemBloqueioPorTentativas(min), { minutos_restantes: min });
+  const { mensagem, detalhes } = bloqueioPorTentativas(ate, agora);
+  return erroHttp(423, CODIGOS_PORTAL.bloqueado, mensagem, detalhes);
 };
 const MENSAGEM_EMPRESA = 'Você não tem acesso a esta empresa. Escolha uma da lista.';
 
