@@ -19,21 +19,7 @@ Para o Macuxi **buscar** na API do ERP, a plataforma passa a guardar credencial 
 cliente. As duas coisas são riscos novos: vazamento da credencial e SSRF a partir da VM.
 
 ## Decisão
-As decisões do §8 do desenho, todas aceitas pelo dono do produto:
-
-| # | Decisão |
-|---|---|
-| D1 | A busca roda no **worker na nuvem**, como o Conector tipo `nuvem`. ERP só na rede do cliente fica no Conector com as views. O driver HTTP no Conector entra com o primeiro cliente que precisar. |
-| D2 | O primeiro ERP com busca por API é o do **primeiro cliente real**; sem cliente definido, **SAP B1** (Service Layer, documentação pública). |
-| D3 | Intervalo mínimo da busca: **15 min para tudo** (ADR 0022, RN-CORE-23). O pedido vai na hora, por evento, sem esperar o ciclo. |
-| D4 | O `config.` mantém **Conector \| API**, com a API dividida em "O Macuxi busca no ERP" e "O ERP envia ao Macuxi". |
-| D5 | **Sem pedido de teste** no assistente: o marco é o primeiro pedido real integrado. |
-| D6 | O painel dos 30 dias é visto pelo super-admin e, **só para leitura, pelo admin do cliente**. |
-| D7 | A chave-mestra do cofre é um **secret do environment `PRODUCAO`** no GitHub, mais o **IP fixo de saída** da VM, que o engenheiro-software confirma com a Magalu (ADR 0028). |
-| D8 | Pedido pela API **exige o campo customizado do UUID** no ERP; sem ele, o pedido vai pelo Conector com a tabela de entrada. |
-| D9 | Cada modelo de ERP fica **"beta"** até o primeiro cliente daquele ERP confirmar os itens [C]. |
-
-E a plataforma (fatia F1) passa a ter:
+Valem as decisões D1 a D9 do §8 do desenho, aceitas pelo dono do produto. O que é novo, da fatia F1 (plataforma):
 
 1. **Cofre de segredos** (`@macuxi/platform-sdk/cofre-segredos`, só Node):
    - AES-256-GCM com `node:crypto`, IV aleatório de 12 bytes por cifra e tag de 16 bytes, sem dependência nova;
@@ -46,9 +32,9 @@ E a plataforma (fatia F1) passa a ter:
      `v<n>` sai do ambiente quando a contagem por versão zerar.
 2. **Só escrita:** nenhuma rota devolve o segredo nem parte dele. Decifram só o trabalho de coleta e a rota "Testar conexão",
    em memória. O diagnóstico (ADR 0043) e o suporte não leem a tabela.
-3. **Redação do log:** `CAMINHOS_SEGREDO_LOG` no SDK (`senha`, `segredo`, `token`, `authorization`, `cookie`, `password`,
-   `appkey`, `client_secret`, `access_token`, `api_key`, `x-api-key` e o `set-cookie`, no 1º, 2º e 3º nível) entra no pino da
-   API e, agora, também no do worker, que não tinha redação.
+3. **Redação do log:** `CAMINHOS_SEGREDO_LOG` no SDK (`packages/platform-sdk/src/segredos-log.ts`, espelho da função
+   `integracao.parametros_sem_segredo` da migração 0094) entra no pino da API e, agora, também no do worker, que não tinha
+   redação. A lista da API (`CAMINHOS_REDIGIDOS_LOG`) não repete o que o SDK cobre.
 4. **Cliente HTTP de saída** (`@macuxi/platform-sdk/http-saida`, só Node), obrigatório para toda URL informada pelo cliente:
    - só `https`, sem usuário e senha na URL;
    - DNS resolvido antes, com todos os endereços conferidos; loopback, privado, CGNAT, link-local, metadados
@@ -57,10 +43,11 @@ E a plataforma (fatia F1) passa a ter:
    - a conexão vai ao endereço conferido (o `lookup` do `https.request` devolve só ele), com o SNI e o certificado do host:
      não há segunda resolução (DNS rebinding);
    - redirecionamento só para o mesmo host e porta, em `https`, reconferido; no máximo 3;
-   - 30 s no total por chamada, 60 chamadas por minuto por Conector (em memória do processo), resposta de até 20 MB;
+   - 30 s no total por chamada, 60 chamadas por minuto por Conector (em memória do processo), resposta de até 20 MB (`LIMITES_COLETA_ERP`);
    - nada é registrado; o erro (`ErroHttpSaida`) leva só o código, o host e, no limite, quanto esperar.
 5. **Piso da coleta:** `FREQUENCIA_MINIMA_COLETA_MIN` (= `INTERVALO_MINIMO_TAREFA_MIN`, 15 min) e `problemaFrequenciaColeta`
-   (múltiplo de 15, de 15 min a 7 dias); tetos em `LIMITES_COLETA_ERP`. Os parâmetros do tenant só baixam os tetos.
+   (múltiplo de 15, de 15 min a 1440 min, 1 vez por dia); tetos em `LIMITES_COLETA_ERP`. A carga completa semanal é um modo
+   à parte (§2.3 item 4), não uma frequência. Os parâmetros do tenant só baixam os tetos.
 6. **Eventos novos** do módulo integracao (registro em `.coord/contratos/eventos.md`): `integracao.coleta.solicitada@1` e
    `integracao.implantacao.marco@1`. O schema fica no `modules/integracao/contracts` (fatia F3).
 
@@ -76,6 +63,7 @@ E a plataforma (fatia F1) passa a ter:
 - **Lista de hosts permitidos por tenant em vez de lista de endereços proibidos:** o cliente cadastra a URL; a lista proibida
   cobre a rede interna sem cadastro manual. Pode ser somada depois.
 - **Exceção de 5 min para estoque (D3 b):** recusada pelo dono do produto.
+- **Cifra única com a do e-mail (`apps/api/src/email/cifra.ts`):** fica separada agora; unificar com o cofre depois.
 
 ## Consequências
 - **Operação (D7):** o secret `MACUXI_CHAVE_SEGREDOS_V1` do environment `PRODUCAO` (o GitHub guarda o nome em maiúsculas; o

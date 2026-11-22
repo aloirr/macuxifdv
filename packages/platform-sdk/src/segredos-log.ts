@@ -6,17 +6,28 @@
  * É reforço: o cliente HTTP de saída e o cofre não registram cabeçalho, corpo nem segredo.
  */
 
-/** Chaves de segredo (o pino compara a chave exata, com caixa). */
+/**
+ * Chaves de segredo (o pino compara a chave exata, com caixa). Espelho no banco: a função `integracao.parametros_sem_segredo`
+ * da migração 0094 recusa nos parâmetros do Conector `nuvem` as chaves com estes mesmos radicais (lá por regex, sem caixa).
+ * `key`, `chave`, `sessao` e `session` não aparecem em nenhum campo legítimo do log da API e do worker hoje.
+ */
 export const CAMPOS_SEGREDO_LOG: readonly string[] = [
   'senha',
   'segredo',
+  'secret',
+  'chave',
+  'key',
   'token',
+  'sessao',
+  'session',
   'authorization',
   'Authorization',
   'cookie',
   'Cookie',
   'password',
   'Password',
+  'passwd',
+  'pwd',
   'appkey',
   'appKey',
   'client_secret',
