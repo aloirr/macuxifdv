@@ -13,7 +13,7 @@
 | PNG | O que mostra |
 |---|---|
 | `01-vitrine.png` | Catálogo sem veículo: o botão Veículo entre a busca e o Filtrar |
-| `02-folha-montadora.png` | folha Veículo, 1º nível: busca de modelo, Recentes e montadoras |
+| `02-folha-montadora.png` | folha Veículo, 1º nível: busca de modelo, Recentes e montadoras (refeito pelo D7: `Civic 2008`, sem o motor que a cascata preenche sozinha) |
 | `03-folha-busca.png` | "gol" na busca da folha: o modelo direto, sem passar pela montadora |
 | `04-folha-ano.png` | nível Ano em grade de 4 colunas, sem rolagem lateral |
 | `05-folha-motor.png` | nível Motor, com a trilha `Volkswagen › Gol › 2018` |
@@ -57,7 +57,8 @@ novo (premissa P3).
 - **Exceção ao filtro padrão** (`filtro-padrao-campo/spec.md` §0): vira a 3ª peça de filtro fora da folha Filtrar, ao lado da
   busca. No balcão o veículo é o primeiro filtro, e dentro da Filtrar ele custaria um toque a mais (decisão D2).
 - **Etiqueta:** `EtiquetaFiltro` `Gol 2018 1.0 ✕`, a primeira da linha de etiquetas, sem a montadora (o modelo basta na tela; o
-  leitor de tela diz `Remover veículo Volkswagen Gol 2018 1.0`). Com versão: `Gol 2018 1.0 Trendline ✕`. O ✕ tira o veículo, e
+  leitor de tela diz `Remover veículo Volkswagen Gol 2018 1.0`). Com versão: `Gol 2018 1.0 Trendline ✕`. Só com o que o
+  vendedor tocou (§5): `Civic 2008 ✕`, sem o 1.8 que veio sozinho. O ✕ tira o veículo, e
   a lista volta à de antes. Tocar no botão Veículo de novo abre a folha no último nível escolhido.
 - **Linha de etiquetas sem rolagem lateral:** quebra em mais de uma linha quando não cabe (8 dp entre as linhas).
 - O veículo fica escolhido enquanto a tela está aberta. No pedido, vale só para aquele pedido; não entra no pedido, no PDF nem
@@ -87,8 +88,8 @@ quebra linha.
 
 - **Só aparecem as opções que existem nas aplicações** do catálogo do aparelho: nenhuma montadora, modelo ou ano sem peça.
 - **Nível com uma opção só é preenchido sozinho** e aparece na trilha em `ink2`, sem toque (como na `ListaNiveis`, T-0142): a Ford
-  só tem o EcoSport, e a folha vai direto para `Ford › EcoSport`, no Ano. **Nível sem opção é pulado** (aplicação sem motor
-  nem versão).
+  só tem o EcoSport, e a folha vai direto para `Ford › EcoSport`, no Ano. O que filtra e o que fica só na trilha está no §5
+  (D7). **Nível sem opção é pulado** (aplicação sem motor nem versão).
 - **Tocar avança** para o próximo nível (movimento lateral de 240 ms; com "reduzir movimento", só troca). No **último nível
   que existe**, tocar aplica e fecha (sem o `Ver peças`).
 - **Busca da folha:** acha modelo e montadora pelo nome e pelos apelidos (VW, GM, Chevy, MB; etapa 1 da auditoria). Cada
@@ -107,10 +108,13 @@ escolheu. A peça entra quando um trecho da aplicação cita o modelo escolhido 
 - **ano não escolhido** (`Ver peças` no nível Ano): entram todas as peças do modelo, **inclusive as sem ano**;
 - **motor e versão** (decidido, R-20261121-211200-alexandre: a mesma regra do ano; RN-CAT-22): **escolhido**, a peça precisa
   ter o dado no trecho e ele precisa bater; o trecho sem motor ou sem versão **não entra** (ex.: o kit batente e coifa,
-  `VW Gol 2014–2019`, sem motor, some do Gol 2018 1.0). **Não escolhido**, não filtra (`Gol 2017–2019 Highline` entra no
-  Gol 2018);
-- o nível que a cascata **preencheu sozinha** (§4.2) conta como escolhido e filtra como se o vendedor tivesse tocado
-  (decidido, R-20261121-211200-alexandre).
+  `VW Gol 2014–2019`, sem motor, some do Gol 2018 1.0, em que o vendedor tocou o 1.0 entre o 1.0 e o 1.6). **Não
+  escolhido**, não filtra (`Gol 2017–2019 Highline` entra no Gol 2018);
+- **nível preenchido sozinho** (§4.2; decidido, R-20261121-211200-alexandre, D7): ano, motor ou versão que a cascata
+  preencheu por ter uma opção só **não conta como escolhido e não filtra**. Fica só na trilha, fora da etiqueta. Ex.: com
+  um ano só do Gol na base, "só Gol" mostra todas as peças do Gol, inclusive as sem ano; no Civic 2008 o motor 1.8 vem
+  sozinho, e a lista é a do Civic 2008 (entra o disco `Civic 07–11`, sem motor). Montadora e modelo preenchidos sozinhos
+  são o próprio veículo e seguem nele.
 
 A peça aparece ou não aparece: **não há item "de conferir"**.
 - **Cartão como hoje:** sem chip `Compatível` e sem a linha `Serve em` do veículo. A lista não mistura casos, e a etiqueta
@@ -170,7 +174,7 @@ A peça aparece ou não aparece: **não há item "de conferir"**.
 |---|---|
 | veículo recente | **2**: Veículo, o recente |
 | modelo pela busca da folha | **3**: Veículo, `Gol` (depois de digitar), `Ver peças`; sem o ano, entram todas as peças do Gol, inclusive as sem ano (§5). Com o ano, 4 |
-| cascata até o ano | 4: Veículo, Volkswagen, Gol, 2018 (com motor e versão de uma opção só, o ano já fecha) |
+| cascata até o ano | 4: Veículo, Volkswagen, Gol, 2018 (com motor e versão de uma opção só, o ano já fecha, e eles não filtram, §5) |
 | cascata completa | até 6: + motor + versão; cada nível depois do Ano é opcional (`Ver peças`) |
 | busca por texto, sem a folha | 0 toques: `gol 2018` na busca da tela continua achando (etapas 1 a 4) |
 
@@ -229,7 +233,8 @@ Contrato de API e índice de veículos (engenheiro-software, modulo-catalogo), a
   escolhido; a peça aparece ou não aparece (§5).
 - **D5. BKO** (decidido, R-20261120-234013-alexandre): nada nesta etapa (§2).
 - **D6. Motor e versão** (decidido, R-20261121-211200-alexandre; RN-CAT-22): a mesma regra do ano (§5).
-- **D7. Nível preenchido sozinho** (decidido, R-20261121-211200-alexandre; RN-CAT-22): conta como escolhido e filtra (§5).
+- **D7. Nível preenchido sozinho** (decidido, R-20261121-211200-alexandre: "campo não escolhido não filtra"; RN-CAT-22): não conta
+  como escolhido e não filtra (§5).
 
 ### Dúvida aberta (para o dono do produto)
 1. **Rótulo do 2º grupo da Filtrar** (§6): o `rotuloDoNivel` do Catálogo diz `Grupo`; o D1 escreve "família". Qual vale na

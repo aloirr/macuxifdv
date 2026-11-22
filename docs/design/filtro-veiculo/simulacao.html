@@ -215,11 +215,15 @@ function opcoes(nivel, v) {
   if (nivel === 'mont') return [...new Set(apps.map((a) => a.mont))].sort();
   if (nivel === 'modelo') return [...new Set(apps.map((a) => a.modelo))].sort((x, y) => x.localeCompare(y));
   if (nivel === 'ano') { const s = new Set(); apps.forEach((a) => { if (a.de != null) for (let y = a.de; y <= a.ate; y++) s.add(y); }); return [...s].sort((x, y) => y - x); }
-  apps = apps.filter((a) => cobreAno(a, v.ano));
+  if (v.ano != null) apps = apps.filter((a) => cobreAno(a, v.ano));
   if (nivel === 'motor') return [...new Set(apps.flatMap((a) => a.motores))].sort();
   if (v.motor) apps = apps.filter((a) => !a.motores.length || a.motores.includes(v.motor));
   return [...new Set(apps.flatMap((a) => a.versoes))].sort();
 }
+// a escolha é o que o vendedor tocou: ano, motor e versão que a cascata preencheu sozinha ficam só na trilha e não filtram
+// (D7, spec §5); montadora e modelo automáticos seguem na escolha, porque são o próprio veículo
+const SO_TRILHA = ['ano', 'motor', 'versao'];
+const escolhaDe = (r) => Object.fromEntries(Object.entries(r).filter(([k, x]) => x != null && !(S.auto.has(k) && SO_TRILHA.includes(k))));
 function proximoNivelAntes(v, depois, ate) {
   for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.indexOf(ate); i++) if (opcoes(NIVEIS[i], v).length >= 2 && v[NIVEIS[i]] == null) return true;
   return false;
@@ -228,7 +232,7 @@ function proximoNivel(v, depois) {
   for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.length; i++) { const n = NIVEIS[i]; if (v[n] == null && opcoes(n, v).length >= 2) return n; }
   return null;
 }
-// passa no filtro ou não (D4, spec §5): só restringe o que foi escolhido (o nível preenchido sozinho conta como escolhido);
+// passa no filtro ou não (D4, spec §5): só restringe o que o vendedor escolheu (o nível preenchido sozinho não filtra, D7);
 // o escolhido exige o dado no trecho: ano dentro da faixa (sem ano, não passa); motor e versão citados e iguais (D6 e D7, §15)
 function compat(p, v) {
   if (!v) return null;
@@ -253,7 +257,7 @@ function trechoNegrito(ap, v) {
 
 // ---------- estado ----------
 const INICIAL = () => ({ tela:'vitrine', veic:null, pedidoVeic:null, folha:null, rasc:{}, nivel:'mont', bf:'', q:'', qp:'', chips:{}, soEst:false, sinal:true, carregando:false, ficha:null, voltaDe:'vitrine',
-  auto:new Set(), recentes:[{ mont:'Honda', modelo:'Civic', ano:2008, motor:'1.8' }, { mont:'Fiat', modelo:'Palio', ano:2012, motor:'1.0' }], av:false });
+  auto:new Set(), recentes:[{ mont:'Honda', modelo:'Civic', ano:2008 }, { mont:'Fiat', modelo:'Palio', ano:2012, motor:'1.0' }], av:false });
 let S = INICIAL();
 const veicAtual = () => (S.tela === 'pedido' ? S.pedidoVeic : S.veic);
 function setVeic(v) { if (S.tela === 'pedido') S.pedidoVeic = v; else S.veic = v; }
@@ -362,8 +366,8 @@ function folhaVeiculo() {
     }
   } else {
     meio += tr + `<div class="rots" id="rot-nivel" tabindex="-1">${ROT_NIVEL[n]}</div>`;
-    const ops = opcoes(n, r);
-    const ultimo = !proximoNivel({ ...r }, n) && n !== 'mont' && n !== 'modelo';
+    const ops = opcoes(n, escolhaDe(r));
+    const ultimo = !proximoNivel(escolhaDe(r), n) && n !== 'mont' && n !== 'modelo';
     if (n === 'ano') meio += `<div class="anos">${ops.map((o) => `<button class="ano" data-a="esc" data-v="${o}">${o}</button>`).join('')}</div>`;
     else meio += `<div class="lista">${ops.map((o) => `<div class="opc" data-a="esc" data-v="${esc(o)}" role="button"><div class="tx"><span class="nm">${esc(o)}</span></div>${n === 'modelo' || !ultimo ? ic('chevron', 16, '#5B6673') : ''}</div>`).join('')}</div>`;
   }
@@ -404,11 +408,11 @@ function aplicar(v) {
   S.carregando = true; render(); setTimeout(() => { S.carregando = false; render(); }, 600);
 }
 function avancar(depois) {
-  // nível com uma opção só é preenchido sozinho (aparece na trilha sem toque); sem opção, pulado
-  for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.length; i++) { const n = NIVEIS[i]; const o = opcoes(n, S.rasc); if (o.length !== 1) continue; if (n === 'modelo' || n === 'ano' || n === 'motor' || n === 'versao') { if (proximoNivelAntes(S.rasc, depois, n)) break; S.rasc[n] = o[0]; S.auto.add(n); } }
-  const prox = proximoNivel(S.rasc, depois);
+  // nível com uma opção só é preenchido sozinho (aparece na trilha sem toque; ano, motor e versão não filtram); sem opção, pulado
+  for (let i = NIVEIS.indexOf(depois) + 1; i < NIVEIS.length; i++) { const n = NIVEIS[i]; const o = opcoes(n, escolhaDe(S.rasc)); if (o.length !== 1) continue; if (n === 'modelo' || n === 'ano' || n === 'motor' || n === 'versao') { if (proximoNivelAntes(escolhaDe(S.rasc), depois, n)) break; S.rasc[n] = o[0]; S.auto.add(n); } }
+  const prox = proximoNivel(escolhaDe(S.rasc), depois);
   if (prox) { S.nivel = prox; S.av = true; render(); const r = document.getElementById('rot-nivel'); if (r) r.focus({ preventScroll: true }); }
-  else aplicar({ ...S.rasc });
+  else aplicar(escolhaDe(S.rasc));
 }
 app.addEventListener('input', (e) => {
   if (e.target.id === 'q') S.q = e.target.value; else if (e.target.id === 'qp') S.qp = e.target.value; else if (e.target.id === 'bf') S.bf = e.target.value; else return;
@@ -416,7 +420,7 @@ app.addEventListener('input', (e) => {
 });
 app.addEventListener('click', (e) => {
   const el = e.target.closest('[data-a]'); if (!el) return; const a = el.dataset.a, d = el.dataset;
-  if (a === 'abrir-veiculo') { const v = veicAtual(); S.rasc = v ? { ...v } : {}; S.bf = ''; S.nivel = v ? (['versao', 'motor', 'ano'].find((k) => v[k] != null) || 'ano') : 'mont'; S.folha = 'veiculo'; }
+  if (a === 'abrir-veiculo') { const v = veicAtual(); S.rasc = v ? { ...v } : {}; S.auto = new Set(); S.bf = ''; S.nivel = v ? (['versao', 'motor', 'ano'].find((k) => v[k] != null) || 'ano') : 'mont'; S.folha = 'veiculo'; }
   else if (a === 'abrir-filtrar') S.folha = 'filtrar';
   else if (a === 'fechar-folha') S.folha = null;
   else if (a === 'tirar-veiculo') setVeic(null);
@@ -425,7 +429,7 @@ app.addEventListener('click', (e) => {
   else if (a === 'esc-modelo-busca') { S.auto = new Set(); S.rasc = { mont: d.m, modelo: d.v }; S.bf = ''; return avancar('modelo'); }
   else if (a === 'esc') { const n = S.nivel; const val = n === 'ano' ? +d.v : d.v; const r = {}; for (const k of NIVEIS) { if (k === n) break; if (S.rasc[k] != null) r[k] = S.rasc[k]; } r[n] = val; S.rasc = r; S.auto = new Set([...S.auto].filter((k) => NIVEIS.indexOf(k) < NIVEIS.indexOf(n))); return avancar(n); }
   else if (a === 'nivel') { S.auto = new Set([...S.auto].filter((k) => NIVEIS.indexOf(k) < NIVEIS.indexOf(d.n))); S.nivel = d.n; const r = {}; for (const k of NIVEIS) { if (k === d.n) break; if (S.rasc[k] != null) r[k] = S.rasc[k]; } S.rasc = r; }
-  else if (a === 'ver-pecas') return aplicar(Object.fromEntries(Object.entries(S.rasc).filter(([k, v]) => v != null && NIVEIS.indexOf(k) < NIVEIS.indexOf(S.nivel))));
+  else if (a === 'ver-pecas') return aplicar(Object.fromEntries(Object.entries(escolhaDe(S.rasc)).filter(([k]) => NIVEIS.indexOf(k) < NIVEIS.indexOf(S.nivel))));
   else if (a === 'chip') { const s = S.chips[d.g] || (S.chips[d.g] = new Set()); s.has(d.v) ? s.delete(d.v) : s.add(d.v); }
   else if (a === 'tirar-chip') S.chips[d.g].delete(d.v);
   else if (a === 'limpar-chips') S.chips = {};
