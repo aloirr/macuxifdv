@@ -1,6 +1,7 @@
 # Desenho técnico: filtro de veículo em cascata e "Leve também" (etapa 6)
 
-> 21/11/2026 19h50 (Manaus), revisto às 21h53 (D4, RD-2571 e RD-2573) · engenheiro-software · v1.0.21, sessão S3.
+> 21/11/2026 19h50 (Manaus), revisto às 21h53 (D4, RD-2571 e RD-2573) e em 21/11/2026 22h29 (nível automático não filtra, RD-2573 feito,
+> desempenho do índice) · engenheiro-software · v1.0.21, sessão S3.
 > Fonte: spec aprovada `docs/design/filtro-veiculo/spec.md` (PR #588), auditoria `docs/modulos/catalogo/auditoria-busca-modelo-bap.md`
 > §4 etapa 6, RN-CAT-12, 15, 16, 19, 20 e 21. Decisões do dono do produto (R-20261120-234013-alexandre): D1 chips com contagem na
 > Filtrar · D2 botão Veículo entre a busca e o Filtrar · D3 "Leve também" no lugar de "Oferece junto" · D5 BKO depois ·
@@ -27,7 +28,7 @@
 | `VeiculoParcial` | os mesmos campos, todos opcionais e nuláveis, strict | o que já foi escolhido na folha |
 | `RotulosVeiculo` | `{ curto: string, completo: string }` | `curto` = etiqueta (`Gol 2018 1.0 Trendline`); `completo` = leitor de tela e ficha (`Volkswagen Gol 2018 1.0`). Montados no domain, nunca na tela |
 | `OpcaoVeiculo` | `{ valor: string, rotulo: string, apoio: string \| null }` | `apoio` = montadora na busca da folha e nos Recentes |
-| `PassoTrilha` | `{ nivel: NivelVeiculo, valor: string, rotulo: string, automatico: boolean }` | `automatico` = preenchido sozinho (nível de uma opção só), vai em `ink2` |
+| `PassoTrilha` | `{ nivel: NivelVeiculo, valor: string, rotulo: string, automatico: boolean }` | `automatico` = preenchido sozinho (nível de uma opção só), vai em `ink2`. Ano, motor e versão automáticos **não contam como escolhidos** (§1.2) |
 
 ### 1.2 Consulta nova `catalogo.veiculos@1` (`consultas.ts`, `CONSULTA_VEICULOS`)
 - **Entrada** strict: `{ escolha: VeiculoParcial = {}, busca?: string trim ≤ 60, produto_ids?: Id[] ≤ 5000, cliente_id?: Id }`.
@@ -41,7 +42,9 @@
   escolha: VeiculoParcial, rotulos: RotulosVeiculo | null, busca: OpcaoVeiculo[] | null, recentes: { veiculo: VeiculoEscolhido, rotulos: RotulosVeiculo }[] }`.
   - `disponivel` falso = o catálogo não tem veículo nas aplicações, ou ainda não está no aparelho: o botão Veículo não aparece (spec §2, §9, P3).
   - `nivel` nulo = não há mais nível a escolher (aplica e fecha). `ultimo` = tocar numa opção deste nível aplica e fecha (sem `Ver peças`).
-  - `escolha` volta com os níveis de uma opção só já preenchidos; `rotulos` é o da `escolha` (nulo sem modelo).
+  - **Nível preenchido sozinho** (decisão do gerente, R-20261121-211200): montadora e modelo de uma opção só entram na `escolha`,
+    porque são o próprio carro; ano, motor e versão de uma opção só ficam **só na trilha**, com `automatico: true`, fora da `escolha`
+    e da etiqueta, e **não filtram**. `rotulos` é o da `escolha` (nulo sem modelo).
   - `busca` só vem quando a entrada tem `busca` (modelos e montadoras pelo nome e pelos apelidos); `[]` = `Nenhum modelo com "<texto>".`
   - `recentes` (até 3) só no aparelho; a API devolve `[]` (§4.3).
 - Sem preço e sem estoque: responde a todo perfil com o Catálogo efetivo (promotor incluído).
@@ -92,8 +95,13 @@ e o atalho `construirIndiceVeiculos(produtos, aplicacoes, { anoAtual, veiculos }
 | Aparelho | em `montarProdutosLocais` (`app/lib/local.ts`), na mesma passada que já faz `definirVeiculos` com **todas** as aplicações (`todasAplicacoes`, inclusive no catálogo grande sob demanda); guardado por `definirIndiceVeiculos(produtos, indice)` / lido por `indiceVeiculosDe(produtos)` (WeakMap, como `veiculosDe`) | a lista de produtos é remontada (versão de `produto` ou `produto_conteudo` mudou, memória `lembrar` de hoje) **ou** o `anoAtual` (fuso do tenant) é outro (faixa aberta "2015+" vai até ano atual + 1) |
 | Servidor | ao lado de `veiculosDaBase` (`api/consultas-texto.ts`), na mesma memória por tenant e pela mesma "versão da carga" (contagem + `max(updated_at)` de `catalogo.produto_busca`) | versão da carga ou `anoAtual` mudou |
 
-Custo esperado: uma passada linear pelas aplicações, já feita hoje para RN-CAT-19. Nenhuma coluna, tabela, migração ou índice FTS5 novo
-(sem pedido ao `banco-dados`). Memória: só ids e listas curtas por segmento; o texto da aplicação não fica guardado no índice.
+Custo esperado: uma passada linear pelas aplicações, já feita hoje para RN-CAT-19.
+Nenhuma coluna, tabela, migração ou índice FTS5 novo (sem pedido ao `banco-dados`).
+**Desempenho (aparelho, como foi feito):** o índice é montado em `app/veiculos-consulta.ts`, logo depois da lista de produtos, em lotes
+(`construirIndiceVeiculosEmLotes`, `LOTE_MONTAGEM_INDICE = 500`), cedendo o laço a cada 500 produtos, e não trava a tela. Enquanto não
+fica pronto, `catalogo.veiculos@1` devolve `disponivel: false` (`indiceVeiculosPronto`) e o botão Veículo aparece quando a montagem
+termina. Com 20 mil produtos leva cerca de 1 s no total; o critério "+20%" (§7, item 9) é atendido em não travar a tela, não em tempo total.
+Memória: só ids e listas curtas por segmento; o texto da aplicação não fica guardado no índice.
 
 ## 3. Regra no domain (modulo-catalogo, `domain/veiculo-filtro.ts`, funções puras com teste citando RN-CAT-22)
 
@@ -101,7 +109,7 @@ Custo esperado: uma passada linear pelas aplicações, já feita hoje para RN-CA
 | Função | Entrada | Saída |
 |---|---|---|
 | `segmentosDeVeiculo(aplicacao, { anoAtual, veiculos })` | texto + nomes de veículo | `SegmentoVeiculo[]` (passo 2.1; base do índice e dos testes) |
-| `navegarCascata(indice, escolha, busca?)` | `IndiceVeiculos`, `VeiculoParcial`, texto | `{ trilha, nivel, opcoes, ultimo, escolha, rotulos, busca }` (forma da saída de `catalogo.veiculos@1`): pula nível sem opção, preenche sozinho o de uma opção, ano decrescente, o resto em ordem alfabética |
+| `navegarCascata(indice, escolha, busca?)` | `IndiceVeiculos`, `VeiculoParcial`, texto | `{ trilha, nivel, opcoes, ultimo, escolha, rotulos, busca }` (forma da saída de `catalogo.veiculos@1`): pula nível sem opção, preenche sozinho o de uma opção (ano, motor e versão automáticos só na trilha, §1.2), ano decrescente, o resto em ordem alfabética |
 | `rotulosDoVeiculo(v)` | `VeiculoParcial` | `RotulosVeiculo \| null` |
 | `compatibilidadeDoProduto(indice, produtoId, veiculo)` | índice, produto, `VeiculoEscolhido` | `{ situacao: 'compativel' \| 'nao_serve' \| 'universal', … }` (a ficha usa o trecho para o negrito) |
 | `filtrarPorVeiculo(itens, indice, veiculo)` | itens já na ordem de hoje | só os que servem, na mesma ordem |
@@ -165,21 +173,22 @@ dependency-cruiser) só deixa o Vendedor importar `modules/catalogo/contracts`; 
 (`FolhaVeiculo`, §6.3); a regra mora inteira no domain do Catálogo, então a ligação da folha nas duas telas é só fiação.
 
 ### 6.3 Uma folha Veículo só (RD-2573)
+**Feito** (designer-ux, spec 54a60b83; modulo-catalogo, 59230bb2):
 - **Kit** (`packages/ui/src/mobile/folha-veiculo.tsx`, designer-ux): `FolhaVeiculo<E, V>` com a fiação de hoje (rodada, `carregando` após 300 ms, abrir no último nível escolhido, voltar, busca, Recentes, `Ver peças`) e só tipos estruturais; não importa `modules/*`.
-- **`catalogo/contracts/veiculo.ts`** (modulo-catalogo): os apoios puros `veiculoDaEscolha`, `parcialDoVeiculo`, `escolhaAntesDoPasso`, `escolherOpcao`, `escolhaDoResultadoDaBusca`, juntos em `NAVEGACAO_VEICULO`; `ROTULO_DO_NIVEL`, `nenhumModeloCom`, `TEXTOS_VEICULO`, `leituraDoBotaoVeiculo(rotulos)` e `leituraDaEtiquetaVeiculo(rotulos)`. O Catálogo e o Vendedor passam `navegacao={NAVEGACAO_VEICULO}`, `textos={TEXTOS_VEICULO}` e o próprio `consultar`.
+- **`catalogo/contracts/veiculo.ts`** (modulo-catalogo): os apoios puros `veiculoDaEscolha`, `parcialDoVeiculo`, `escolhaAntesDoPasso`, `escolherOpcao`, `escolhaDoResultadoDaBusca`, juntos em `NAVEGACAO_VEICULO`; `ROTULO_DO_NIVEL`, `nenhumModeloCom`, `TEXTOS_VEICULO`, `leituraDoBotaoVeiculo(rotulos)`, `leituraDaEtiquetaVeiculo(rotulos)` e `textoDaBuscaComVeiculo` (com veículo, busca abaixo do mínimo vira vazia). O Catálogo e o Vendedor passam `navegacao={NAVEGACAO_VEICULO}`, `textos={TEXTOS_VEICULO}` e o próprio `consultar`.
 - **Apagam:** o Catálogo, `app/telas/veiculo.tsx` e as cópias em `app/lib/veiculo-tela.ts`; o Vendedor, `app/components/folha-veiculo-pedido.tsx` e as cópias em `app/lib/veiculo-pedido.ts`. Os testes dos apoios passam para `contracts/veiculo.test.ts`.
 
 ## 7. Critérios de aceite (verificáveis)
 **modulo-catalogo (domain, testes citando RN-CAT-22):**
 1. "VW Gol 2017–2019 1.0/1.6 Highline": entra em Gol, Gol 2018, Gol 2018 1.0 e Gol 2018 1.0 Highline; fica fora em Gol 2020, Gol 2018 1.8 e Gol 2018 Trendline.
 2. "VW Gol" (sem ano): entra em Gol e fica fora em Gol 2018; aplicação vazia = universal, fora da lista e dentro do "Leve também".
-3. Nível preenchido sozinho pela cascata (`automatico` na trilha) filtra como o escolhido: a lista usa a `escolha` devolvida pela cascata.
+3. Nível preenchido sozinho pela cascata: ano, motor e versão automáticos ficam só na trilha (`automatico`), fora da `escolha` e da etiqueta, e **não filtram** (R-20261121-211200); montadora e modelo automáticos ficam no veículo. Teste encadeado cascata → filtro.
 4. "Civic 07–11 · Fit 2003>" com Civic 2015 = fora (o "·" separa trechos, RN-CAT-16).
 5. Cascata: só opções que existem; Ford com só o EcoSport vai direto ao Ano (`automatico`); aplicação sem motor nem versão pula os níveis; ano em ordem decrescente; busca "vw"/"gol" acha Volkswagen e Gol (RN-CAT-15).
 6. A lista com veículo mantém a ordem de hoje (ranking com texto; sem texto, a da vitrine, RN-CAT-21).
 7. `contarChipsFiltrar`: contagem = produtos da lista atual; chip 0 sai salvo marcado; grupo de 1 opção sai; `Limpar` não tira o veículo.
 8. Igualdade aparelho × API (§4.2) nos itens e na ordem.
-9. Desempenho no aparelho com 20 mil produtos: montagem do índice dentro da carga atual + no máximo 20%; lista com veículo p95 < 300 ms; troca de nível da cascata < 100 ms.
+9. Desempenho no aparelho com 20 mil produtos: a montagem do índice **não trava a tela** (o "+20%" vale para não travar, não para o tempo total; §2.2); lista com veículo p95 < 300 ms; troca de nível da cascata < 100 ms.
 10. Tenant sem veículo nas aplicações: `disponivel = false`, sem botão; resultados e tempos da busca iguais aos de hoje.
 
 **modulo-catalogo (telas) e modulo-vendedor (aba Itens):**
