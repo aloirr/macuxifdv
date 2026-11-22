@@ -188,6 +188,14 @@ const L = {
 };
 const LOTES = Object.values(L);
 const CONECTORES = [{ conector_id: 'erp-matriz', versao_conector: '1.4.2' }];
+/** T-0189 (`MonitorResumo.ultima_carga_por_entidade`, campo obrigatório): o recebimento mais recente de cada entidade dos LOTES. */
+const ULTIMA_CARGA_POR_ENTIDADE = [...new Set(LOTES.map((l) => l.entidade))].map((entidade) => ({
+  entidade,
+  recebido_em: LOTES.filter((l) => l.entidade === entidade)
+    .map((l) => l.recebido_em)
+    .sort()
+    .at(-1)!,
+}));
 
 /**
  * Esperado pela regra, linha a linha e NA ORDEM da tela (com falha primeiro; depois a carga mais recente):
@@ -376,6 +384,7 @@ async function preparar(page: Page, c: Cenario = {}): Promise<Chamadas> {
         lotes_recentes: LOTES,
         conectores: CONECTORES,
         resumo_pedidos: RESUMO_PEDIDOS,
+        ultima_carga_por_entidade: ULTIMA_CARGA_POR_ENTIDADE,
       });
     }
     if (p === '/integracao/mapeamentos' && req.method() === 'GET')
@@ -853,21 +862,67 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
 });
 
 /**
- * Portal `config.` (RN-INT-15): o selo do cartão da base usa os MESMOS 5 status da tela do BKO (`rotuloDoLote` da Integração),
- * inclusive `cancelado` (lote cancelado no BKO) e "Em andamento" (o Hub segue gravando depois do prazo de espera da tela).
+ * RN-INT-15 no BKO: a Situação de cada lote no Histórico usa só os 5 status (`rotuloDoLote`), inclusive os estados brutos do Hub
+ * (`recebido`, `concluido_com_erros`, `falhou`, `cancelado`), sem os rótulos antigos. Antes esta regra era conferida no selo da carga
+ * por CSV do portal `config.`; a carga por arquivo saiu do portal (spec portal-config-enxuto §10.1) e o selo fica só no BKO.
+ * Esperado à mão: rota recebido → Em andamento; preço concluido_com_erros → Concluído com avisos; estoque falhou → Com falha e
+ * concluido → Concluído; vendedor cancelado → Cancelado.
+ */
+const CINCO_STATUS = ['Em andamento', 'Concluído', 'Concluído com avisos', 'Com falha', 'Cancelado'];
+const SITUACAO_POR_ENTIDADE: Array<[string, string[]]> = [
+  ['rota', ['Em andamento']],
+  ['preco', ['Concluído com avisos']],
+  ['estoque', ['Com falha', 'Com falha', 'Concluído']],
+  ['vendedor', ['Cancelado']],
+];
+
+test('RN-INT-15: Histórico do BKO — a Situação mostra os 5 status, sem os rótulos antigos', async ({
+  page,
+}) => {
+  const erros: string[] = [];
+  page.on('pageerror', (e) => erros.push(String(e)));
+  await preparar(page);
+  await abrirMonitor(page);
+  const vistos = new Set<string>();
+  for (const [entidade, esperado] of SITUACAO_POR_ENTIDADE) {
+    await page.getByTestId(`integracao.entidade.historico.${entidade}`).click();
+    const dialogo = page.locator('[role="dialog"]').filter({ has: page.getByTestId('integracao.historico') });
+    const linhas = dialogo.locator('[data-testid="integracao.historico.lotes"] tbody tr');
+    await expect(linhas).toHaveCount(esperado.length);
+    const situacoes: string[] = [];
+    for (let i = 0; i < esperado.length; i++)
+      situacoes.push((await linhas.nth(i).locator('td').nth(2).innerText()).trim());
+    expect(situacoes, `Situação no Histórico de ${entidade}`).toEqual(esperado);
+    for (const s of situacoes) {
+      expect(CINCO_STATUS, s).toContain(s);
+      vistos.add(s);
+    }
+    for (const velho of [
+      'Na fila',
+      'Gravando',
+      'Concluído com erros',
+      'Falhou',
+      'recebido',
+      'concluido_com_erros',
+      'falhou',
+    ])
+      expect(situacoes, velho).not.toContain(velho);
+    await dialogo.getByRole('button', { name: 'Fechar' }).click();
+    await expect(page.getByTestId('integracao.historico')).toHaveCount(0);
+  }
+  expect([...vistos].sort()).toEqual([...CINCO_STATUS].sort());
+  expect(erros).toEqual([]);
+});
+
+/**
+ * Portal `config.` (spec portal-config-enxuto §10.1 e §10.2): a página da empresa tem só as abas "Integração · Empresa", com a
+ * Integração aberta por padrão; a aba Bases (carga por CSV) e a "Integração automática" saíram. O `#bases` antigo cai na Integração,
+ * e o portal não chama mais a ordem de carga, a carga por arquivo nem a Equipe por CSV (a rota de carga segue no servidor para o BKO).
  * Host `config.localhost` (o Chromium resolve `*.localhost` para o próprio aparelho); sessão fictícia do time da Macuxi.
  */
 const TENANT_PORTAL = '0f000000-0000-4000-8000-0000000000aa';
-const BASES_PORTAL: Array<[string, string, string]> = [
-  ['filial', 'concluido', 'Concluído'],
-  ['vendedor', 'concluido_com_erros', 'Concluído com avisos'],
-  ['cliente', 'falhou', 'Com falha'],
-  ['produto', 'cancelado', 'Cancelado'],
-  ['preco', 'processando', 'Em andamento'],
-];
-const lotePortal = (i: number) => `0c000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`;
 
-test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os rótulos antigos', async ({
+test('Portal config.: abas Integração · Empresa (Integração por padrão; #bases cai nela), sem a carga por CSV', async ({
   page,
   baseURL,
 }) => {
@@ -885,9 +940,11 @@ test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os r
   });
   const erros: string[] = [];
   page.on('pageerror', (e) => erros.push(String(e)));
+  const chamadas: string[] = [];
   await page.route('**/api-proxy/**', async (route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^\/api-proxy(\/v1)?/, '');
+    chamadas.push(`${req.method()} ${p}`);
     const json = (status: number, body: unknown) =>
       route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (p === '/plataforma/empresas')
@@ -908,90 +965,52 @@ test('RN-INT-15: portal config. — o selo da carga mostra os 5 status, sem os r
           },
         ],
       });
-    if (p === '/integracao/ordem-carga')
-      return json(200, {
-        itens: BASES_PORTAL.map(([entidade], i) => ({
-          entidade,
-          posicao: i + 1,
-          opcional: false,
-          depende_de: [],
-        })),
-      });
-    if (p === '/integracao/cargas-arquivo' && req.method() === 'POST') {
-      const corpo = req.postDataJSON() as { entidade: string; modo?: string };
-      const id = lotePortal(BASES_PORTAL.findIndex(([e]) => e === corpo.entidade));
-      return json(202, {
-        lote_id: id,
-        status: 'recebido',
-        entidade: corpo.entidade,
-        modo: corpo.modo ?? 'delta',
-        recebidos: 2,
-        repetido: false,
-        consulta: `/integracao/v1/lotes/${id}`,
-        conector_id: 'portal-arquivo',
-        linhas_lidas: 2,
-        linhas_invalidas_leitura: 0,
-      });
-    }
-    if (/^\/integracao\/lotes\/[^/]+\/erros$/.test(p)) return json(200, { itens: [], total: 0 });
-    const m = p.match(/^\/integracao\/lotes\/([^/]+)$/);
-    if (m) {
-      const i = BASES_PORTAL.findIndex((_b, j) => lotePortal(j) === m[1]);
-      const [entidade, status] = BASES_PORTAL[i]!;
-      return json(200, {
-        lote_id: m[1],
-        entidade,
-        modo: 'delta',
-        status,
-        contagens: {
-          recebidas: 2,
-          duplicadas_no_lote: 0,
-          com_erro: 0,
-          novas: 2,
-          atualizadas: 0,
-          inalteradas: 0,
-          obsoletas: 0,
-        },
-        erros: [],
-        avisos: [],
-        cursor: null,
-        inativadas: 0,
-        recebido_em: AGORA,
-        concluido_em: status === 'processando' ? null : AGORA,
-      });
-    }
+    if (p === '/integracao/conectores') return json(200, { itens: [] });
     return json(404, { codigo: 'nao_encontrado', mensagem: 'Rota não simulada.' });
   });
 
-  await page.goto(`${portal}/empresas/${TENANT_PORTAL}`);
-  await expect(page.getByTestId('base-preco')).toBeVisible({ timeout: 120_000 });
-  for (const [entidade] of BASES_PORTAL) {
-    await page.getByTestId(`base-${entidade}.arquivo`).setInputFiles({
-      name: `${entidade}.csv`,
-      mimeType: 'text/csv',
-      buffer: Buffer.from('external_id,nome\nX-001,Linha um\nX-002,Linha dois\n'),
-    });
-    await expect(page.getByTestId(`base-${entidade}.importar`)).toBeEnabled();
-    await page.getByTestId(`base-${entidade}.importar`).click();
-    // "Em andamento": o Hub segue gravando além dos 15 min de espera da tela
-    // só depois da 1ª leitura do lote (fase "gravando"): antes disso a espera ainda não marcou o início
-    if (entidade === 'preco') {
-      await expect(page.getByTestId('base-preco.progresso')).toContainText('Gravando o arquivo');
-      await page.clock.fastForward('16:00');
-    }
-    await expect(page.getByTestId(`base-${entidade}.resultado`)).toBeAttached({ timeout: 60_000 });
-  }
-  for (const [entidade, , rotulo] of BASES_PORTAL) {
-    const linhas = (await page.getByTestId(`base-${entidade}`).innerText()).split('\n').map((l) => l.trim());
-    expect(linhas, `base ${entidade}`).toContain(rotulo);
-  }
-  const todas = (await page.getByTestId('empresa-pagina.bases').innerText()).split('\n').map((l) => l.trim());
-  for (const velho of ['Na fila', 'Gravando', 'Concluído com erros', 'Falhou'])
-    expect(todas, velho).not.toContain(velho);
-  // RD-0968: o cartão em andamento tem o selo e só a ação; o "Gravando no Hub…" e o aviso longo saíram
-  const preco = await page.getByTestId('base-preco').innerText();
-  expect(preco).toContain('Volte daqui a pouco para ver o resultado.');
-  for (const velho of ['Gravando no Hub', 'O Hub continua gravando'])
-    expect(preco, velho).not.toContain(velho);
+  // endereço antigo com `#bases`: abre na Integração
+  await page.goto(`${portal}/empresas/${TENANT_PORTAL}#bases`);
+  const abas = page.getByRole('tablist', { name: 'Seções da empresa' }).getByRole('tab');
+  await expect(abas).toHaveCount(2, { timeout: 120_000 });
+  expect((await abas.allInnerTexts()).map((t) => t.trim())).toEqual(['Integração', 'Empresa']);
+  await expect(page.getByTestId('empresa-pagina.aba-integracao')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'false');
+  await expect(page.getByTestId('integracao.aba')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Integração via Conector' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Integração via API' })).toBeVisible();
+
+  // o que saiu com a aba Bases e com a "Integração automática"
+  const saiu = async () => {
+    await expect(page.getByTestId('empresa-pagina.aba-bases')).toHaveCount(0);
+    await expect(page.getByTestId('empresa-pagina.bases')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Bases' })).toHaveCount(0);
+    await expect(page.locator('[data-testid^="base-"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="equipe-"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="integracao.confirmar-"]')).toHaveCount(0);
+    await expect(page.getByTestId('integracao.ja-copiei')).toHaveCount(0);
+    await expect(page.getByText('Integração automática')).toHaveCount(0);
+    await expect(page.locator('#empresa-painel-integracao input[type="file"]')).toHaveCount(0);
+  };
+  await saiu();
+
+  // aba Empresa: o `#` guarda a aba e o F5 volta nela
+  await page.getByTestId('empresa-pagina.aba-empresa').click();
+  await expect(page).toHaveURL(/#empresa$/);
+  await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'true');
+  await saiu();
+  await page.reload();
+  await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'true', {
+    timeout: 120_000,
+  });
+  await page.getByTestId('empresa-pagina.aba-integracao').click();
+  await expect(page).toHaveURL(/#integracao$/);
+  await expect(page.getByTestId('integracao.aba')).toBeVisible();
+  await saiu();
+
+  // o portal não chama mais a carga por arquivo, a ordem de carga nem a Equipe por CSV
+  expect(
+    chamadas.filter((c) => /\/integracao\/(cargas-arquivo|ordem-carga)|\/core\/equipe\//.test(c)),
+  ).toEqual([]);
   expect(erros).toEqual([]);
 });
