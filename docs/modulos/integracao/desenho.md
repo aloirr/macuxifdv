@@ -2,7 +2,7 @@
 
 > Tarefa T-0009 · módulo `integracao` · 2026-10-31 · status: revisado pelo modulo-integracao (dono) em 2026-10-31; revisão do engenheiro-software pendente
 > Escopo: núcleo do Hub em funções puras e contratos Zod. **Sem banco, sem rotas, sem Conector** nesta tarefa.
-> Requisitos: RF-INT-01 (Hub REST), RF-INT-02 (Conector), RF-INT-03 (carga por arquivo), RF-INT-04 (monitor), RF-INT-06 (reconciliação). Regras: RN-INT-01..09 (`docs/produto/03`, seção 9). Fonte do fluxo: `docs/produto/06-integracao-erp.md`.
+> Requisitos: RF-INT-01 (Hub REST), RF-INT-02 (Conector), RF-INT-03 (carga por arquivo; saiu do BKO na v1.0.22), RF-INT-04 (monitor), RF-INT-06 (reconciliação). Regras: RN-INT-01..09 (`docs/produto/03`, seção 9). Fonte do fluxo: `docs/produto/06-integracao-erp.md`.
 > Código: `modules/integracao/contracts` (formato) e `modules/integracao/domain` (decisões).
 > **T-0025 (2026-11-01)**: a especificação HTTP de cada endpoint, a autenticação por chave de Conector, os limites, a ingestão assíncrona, a trava de inativação, a fila de pedidos e as entregas por agente estão em [`hub-api.md`](hub-api.md). Onde este documento e o `hub-api.md` divergirem nas rotas (ex.: o reprocessamento passou para o BKO), vale o `hub-api.md`.
 
@@ -215,7 +215,7 @@ Pedido ao ERP e retorno (RN-INT-08):
 | `POST /integracao/v1/pedidos/{pedido_uuid}/retorno` | Conector | `RetornoErp` → `RetornoAceito` (idempotente) |
 | `POST /integracao/v1/sinal` | Conector | batimento (1 min) `SinalConector`; **responde `RespostaSinal` com a `politica_versao` (mínima/recomendada) do tenant** (T-0023) |
 
-Carga por arquivo (RF-INT-03): o BKO converte Excel/CSV em `LoteEnvelope` com o mesmo contrato; as colunas do modelo de planilha espelham os campos da seção 8.
+Carga por arquivo (RF-INT-03): **saiu do BKO na v1.0.22** (R-20261121-235000, item 5). A integração é só por Conector ou API, em todo o sistema; o BKO não recebe CSV. O `kit-thathyany` segue carregando CSV no SQL Server da empresa, de onde o Conector lê.
 
 ## 10. Eventos
 

@@ -21,9 +21,12 @@ export type EstadoLoteBko = z.infer<typeof EstadoLoteBko>;
 export const LoteResultadoBko = LoteResultado.extend({ status: EstadoLoteBko });
 export type LoteResultadoBko = z.infer<typeof LoteResultadoBko>;
 
+/** `arquivo` é valor LEGADO, só de leitura: pode haver Conector assim gravado (carga por CSV no BKO, que saiu na v1.0.22); não se cria mais. */
 export const TIPOS_CONECTOR = ['conector', 'nuvem', 'arquivo'] as const;
 export const TipoConector = z.enum(TIPOS_CONECTOR);
 export type TipoConector = z.infer<typeof TipoConector>;
+/** Tipos que o BKO aceita na CRIAÇÃO: a integração é só por Conector ou API. */
+export const TIPOS_CONECTOR_CRIAVEIS = ['conector', 'nuvem'] as const;
 
 /** Saúde do Conector no monitor (`avaliarSaudeConector`): sem sinal há 15 min ou mais é alerta (doc 06). */
 export const SAUDES_CONECTOR = ['ok', 'atrasado', 'sem_sinal', 'parado_por_versao', 'nunca_conectou', 'desativado'] as const;
@@ -47,7 +50,7 @@ export const ConectorCriar = z.object({
   /** Identificador que vai no arquivo do Conector (`hub.conectorId`) e no cabeçalho `X-Macuxi-Conector-Id`. */
   conector_id: ConectorIdentificador,
   nome: z.string().trim().min(1).max(120),
-  tipo: TipoConector.default('conector'),
+  tipo: z.enum(TIPOS_CONECTOR_CRIAVEIS, { errorMap: () => ({ message: 'tipo inválido: use "conector" ou "nuvem" (a integração é só por Conector ou API)' }) }).default('conector'),
   /** Só Conectores com `recebe_pedidos` recebem os pedidos aprovados (um por empresa em v1, P-7; padrão `true`). */
   recebe_pedidos: z.boolean().default(true),
   /** T-0114: o ERP deste Conector aceita cancelamento vindo do Macuxi (padrão desligado; sem isso nada é escrito no ERP, RN-INT-08). */

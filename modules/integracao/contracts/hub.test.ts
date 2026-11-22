@@ -8,6 +8,7 @@ import {
   CabecalhosEnvioLote,
   ChaveIdempotencia,
   ConectorCriar,
+  TipoConector,
   ConectorIdentificador,
   ErroHub,
   InativacaoLote,
@@ -199,6 +200,12 @@ describe('RN-INT-12 (proposta): parâmetros de rota e query', () => {
     expect(c.tipo).toBe('conector');
     expect(c.ips_permitidos).toEqual([]);
     expect(c.recebe_pedidos).toBe(true);
+  });
+
+  it('RF-INT-03: o BKO não cria Conector tipo "arquivo" (a carga por CSV saiu); a leitura do tipo legado continua válida', () => {
+    expect(ConectorCriar.safeParse({ conector_id: 'matriz-01', nome: 'Matriz', tipo: 'arquivo' }).success).toBe(false);
+    expect(ConectorCriar.parse({ conector_id: 'matriz-01', nome: 'Matriz', tipo: 'nuvem' }).tipo).toBe('nuvem');
+    expect(TipoConector.safeParse('arquivo').success).toBe(true);
   });
 
   it('RN-INT-01: evento interno integracao.lote.recebido@1 não leva linhas nem dado pessoal', () => {

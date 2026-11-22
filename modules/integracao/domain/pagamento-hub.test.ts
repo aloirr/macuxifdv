@@ -4,15 +4,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { CAMPO_SOMA_CONTROLE, ClientePayload, ENTIDADES, EVENTOS_ATUALIZADO, PedidoAprovadoParaFila, PagamentoErp, PedidoParaErp, VERSAO_CONTRATO } from '../contracts';
-import { colunasDaEntidade, converterCsvParaLote } from './carga-arquivo';
 import { validarLinhas } from './idempotencia';
 import { siglasDeMedidaDoRegistro, verificarMedidas } from './medidas';
 import { DEPENDENCIAS, ordenarCarga, referenciasDoRegistro, verificarReferencias } from './ordem';
-import { gerarModeloCsv } from './modelos-csv';
 import { avisoPrazoMedioDivergente, prazoMedioCalculado } from './pagamento';
 import { decidirEntradaNaFila, montarPedidoParaErp, montarSnapshotParaFila, selecionarPendentes } from './pedido-fila';
 import { exigeConector } from './pedido-versao';
-import { ordemDeCargaDoPortal } from './portal-carga';
 
 const T = '2026-11-06T12:00:00Z';
 const base = { alterado_em: T };
@@ -135,15 +132,6 @@ describe('RN-INT-04: ordem de carga das entidades de pagamento', () => {
     const e = verificarReferencias('tabela_escalonada', [{ indice: 0, external_id: 'E1', registro: { produto_external_id: 'PR9' } }], { produto: new Set(['PR1']) });
     expect(e.erros[0]).toMatchObject({ codigo: 'referencia_ausente', reprocessavel: true, campo: 'produto_external_id' });
   });
-
-  it('os cartões do portal seguem a ordem de carga (forma, prazo; produto, faixa) com as dependências', () => {
-    const passos = ordemDeCargaDoPortal();
-    const pos = (e: string) => passos.findIndex((x) => x.entidade === e);
-    expect(passos).toHaveLength(ENTIDADES.length);
-    expect(pos('forma_pagamento')).toBeLessThan(pos('prazo_pagamento'));
-    expect(pos('produto')).toBeLessThan(pos('tabela_escalonada'));
-    expect(pos('forma_pagamento')).toBeLessThan(pos('cliente'));
-  });
 });
 
 describe('RN-INT-08 / RN-VEN-24: pedido novo ao ERP leva forma, prazo e prazo médio', () => {
@@ -204,63 +192,6 @@ describe('RN-INT-08 / RN-VEN-24: pedido novo ao ERP leva forma, prazo e prazo m�
   });
 });
 
-describe('RF-INT-03: carga por arquivo (CSV) das 3 entidades e do cliente ampliado', () => {
-  const csv = (entidade: Parameters<typeof converterCsvParaLote>[0]['entidade'], texto: string) => converterCsvParaLote({ entidade, modo: 'delta', texto, agora: T });
-
-  it('forma_pagamento: CSV válido vira registros que passam no contrato', () => {
-    const r = csv('forma_pagamento', 'external_id;codigo;nome;ordem\nF1;PIX;Pix;1\nF2;BOLETO;Boleto;2');
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    const v = validarLinhas('forma_pagamento', r.registros);
-    expect(v.erros).toEqual([]);
-    expect(v.validas).toHaveLength(2);
-  });
-
-  it('prazo_pagamento: parcelas_dias numa célula (28/56) vira lista de números; 60/30 e texto viram erro legível', () => {
-    expect(colunasDaEntidade('prazo_pagamento').colunas.find((c) => c.caminho === 'parcelas_dias')).toMatchObject({ tipo: 'lista_numeros', obrigatoria: true });
-    const r = csv('prazo_pagamento', 'external_id;forma_external_id;codigo;parcelas_dias;prazo_medio_dias\nP1;F2;28-56;28/56;42\nP2;F2;AVISTA;0;0\nP3;F2;ERRADO;60/30;45\nP4;F2;TEXTO;vinte;20');
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.registros.map((x) => x.parcelas_dias)).toEqual([[28, 56], [0], [60, 30]]);
-    expect(r.linhasInvalidas).toHaveLength(1);
-    expect(r.linhasInvalidas[0]?.mensagem).toContain('Linha 5 do arquivo');
-    expect(r.linhasInvalidas[0]?.mensagem).toContain('28/56');
-    const v = validarLinhas('prazo_pagamento', r.registros);
-    expect(v.validas.map((l) => l.external_id)).toEqual(['P1', 'P2']);
-    expect(v.erros.map((e) => e.external_id)).toEqual(['P3']);
-  });
-
-  it('prazo_pagamento: arquivo sem a coluna parcelas_dias é recusado com a coluna citada', () => {
-    const r = csv('prazo_pagamento', 'external_id;forma_external_id;codigo\nP1;F2;X');
-    expect(r).toMatchObject({ ok: false, codigo: 'colunas_obrigatorias_ausentes' });
-    expect(!r.ok && r.mensagem).toContain('parcelas_dias');
-  });
-
-  it('tabela_escalonada: CSV com medida, vigência e tabela opcional passa no contrato', () => {
-    const r = csv('tabela_escalonada', 'external_id;produto_external_id;medida;quantidade_minima;preco_unidade_cents;vigencia_inicio;vigencia_fim;tabela_external_id\nE1;PR1;FD;10;950;2026-11-01;;\nE2;PR1;;50;900;2026-11-01;2026-12-31;TAB1');
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    const v = validarLinhas('tabela_escalonada', r.registros);
-    expect(v.erros).toEqual([]);
-    expect(v.validas).toHaveLength(2);
-    expect(r.registros[0]).toMatchObject({ quantidade_minima: 10, preco_unidade_cents: 950, medida: 'FD' });
-  });
-
-  it('cliente: prazo_medio_max_dias e formas_pagamento (PIX/BOLETO) entram pelo arquivo', () => {
-    const r = csv('cliente', 'external_id;razao_social;prazo_medio_max_dias;formas_pagamento\nC1;Mercado;45;PIX/BOLETO');
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    const v = validarLinhas('cliente', r.registros);
-    expect(v.erros).toEqual([]);
-    expect(v.validas[0]?.registro).toMatchObject({ prazo_medio_max_dias: 45, formas_pagamento: ['PIX', 'BOLETO'] });
-  });
-
-  it('as demais listas (contatos, oferece_junto) continuam fora do CSV', () => {
-    expect(colunasDaEntidade('cliente').listas).toContain('contatos');
-    expect(colunasDaEntidade('produto').listas).toContain('oferece_junto');
-  });
-});
-
 describe('RN-INT-15: percentual de ajuste do prazo ("% Acres.Fin." do ERP), aditivo no v1', () => {
   const prazo = { external_id: 'PRZ-1', alterado_em: T, forma_external_id: 'FPG-1', codigo: 'AVISTA', parcelas_dias: [0] };
 
@@ -287,13 +218,5 @@ describe('RN-INT-15: percentual de ajuste do prazo ("% Acres.Fin." do ERP), adit
     expect(PagamentoErp.safeParse({ ...pag, percentual_ajuste: -1.71 }).success).toBe(true);
     expect(PagamentoErp.safeParse({ ...pag, percentual_ajuste: 100 }).success).toBe(false);
     expect(PagamentoErp.safeParse({ ...pag, percentual_ajuste: 1.005 }).success).toBe(false);
-  });
-
-  it('RN-INT-15: o modelo CSV do prazo traz a coluna percentual_ajuste, opcional, de -99,99 a 99,99', () => {
-    const m = gerarModeloCsv('prazo_pagamento');
-    const c = m.campos.find((x) => x.campo === 'percentual_ajuste');
-    expect(c).toMatchObject({ obrigatorio: false });
-    expect(c?.formato).toContain('-99.99');
-    expect(c?.observacao).toContain('Acres.Fin.');
   });
 });

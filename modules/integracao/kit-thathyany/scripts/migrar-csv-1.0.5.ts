@@ -8,7 +8,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BOM_CSV } from '@macuxi/comum/csv';
 import { LIMITES_CATALOGO_PRODUTO } from '../../contracts';
-import { lerCsv } from '../../domain/carga-arquivo';
+import { lerCsv } from '../lib/csv-para-lote';
 import { completarCodigosMarcaReferencia, type ResumoCodigosMarcaReferencia } from '../../domain/marca-referencia-codigo';
 // @ts-expect-error módulo .mjs sem tipos (kit em Node puro)
 import { VERSAO_KIT, montarEntradas } from './gerar-zip.mjs';
