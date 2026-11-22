@@ -201,12 +201,20 @@ describe('nova chave e desativar (S10)', () => {
 
   it('sem bases livres: a mensagem só com a ação que libera ("Bases" ou desativar; o de arquivo, desativar)', () => {
     const lista = [conector(1, 'erp')];
-    const mensagem = 'Todas as bases já vêm de outro Conector ativo. Tire bases dele em "Bases" ou desative-o.';
+    const mensagem = 'Todas as bases já estão em outro Conector ou credencial. Tire bases dele em "Bases" ou desative-o.';
     expect(mensagemSemBases(false)).toBe(mensagem);
-    expect(mensagemSemBases(true)).toBe('Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo.');
+    expect(mensagemSemBases(true)).toBe('Todas as bases já estão em outro Conector ou credencial. Desative o Conector de arquivo.');
     const html = aba(lista);
     expect(html).toContain('data-testid="integracao.api-sem-bases"');
     expect(texto(html)).toContain(mensagem.replace(/"/g, '&quot;'));
+    expect(html).toMatch(/data-testid="integracao\.api-gerar"[^>]*disabled/);
+  });
+
+  it('sem bases livres porque estão todas numa credencial de API: o aviso não fala só de Conector', () => {
+    const html = aba([conector(2, 'erp-api', { tipo: 'nuvem', recebe_pedidos: false, entidades: [...ENTIDADES] })]);
+    expect(html).toContain('data-testid="integracao.api-sem-bases"');
+    expect(texto(html)).toContain('Todas as bases já estão em outro Conector ou credencial. Tire bases dele em &quot;Bases&quot; ou desative-o.');
+    expect(html).not.toContain('vêm de outro Conector');
     expect(html).toMatch(/data-testid="integracao\.api-gerar"[^>]*disabled/);
   });
 });
@@ -249,6 +257,16 @@ describe('Bases', () => {
     }
     expect(dialogo).toContain('<fieldset data-testid="integracao.bases"');
     expect(formulario).toContain('<fieldset data-testid="integracao.api-bases"');
+  });
+
+  it('RD: no diálogo, a legenda "Bases" fica só para o leitor de tela (o título já diz "Bases"); no formulário da API, visível', () => {
+    const dialogo = renderToStaticMarkup(<DialogoBases alvo={conector(1, 'erp')} todos={[conector(1, 'erp')]} tenant={TENANT} aoFechar={() => {}} aoGravar={() => {}} />);
+    expect(dialogo).toMatch(/<fieldset data-testid="integracao\.bases"[^>]*><legend class="sr-only">Bases<\/legend>/);
+    expect(dialogo).not.toMatch(/<legend[^>]*aria-hidden/);
+    const formulario = aba([conector(1, 'erp', { entidades: SEM_FORMA })]);
+    const legenda = formulario.match(/<fieldset data-testid="integracao\.api-bases"[^>]*><legend class="([^"]*)">Bases<\/legend>/);
+    expect(legenda?.[1]).toBeDefined();
+    expect(legenda?.[1]).not.toContain('sr-only');
   });
 
   it('sem nenhuma base marcada, "Gravar" fica desabilitado', () => {

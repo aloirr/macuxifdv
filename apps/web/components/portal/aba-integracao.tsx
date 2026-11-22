@@ -46,9 +46,13 @@ export function entidadesLivres(conectores: readonly Topologia[], ignorar?: stri
   return ENTIDADES.filter((e) => !ocupadas.has(e));
 }
 
-/** Aviso quando não sobra base livre, só com a ação que libera: "Bases" ou "Desativar" no Conector; o de arquivo só tem "Desativar". */
+/**
+ * Aviso quando não sobra base livre, só com a ação que libera: "Bases" ou "Desativar" no Conector ou na credencial de API (os dois
+ * ocupam bases); o Conector de arquivo só tem "Desativar".
+ */
 export function mensagemSemBases(temArquivo: boolean): string {
-  return temArquivo ? 'Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo.' : 'Todas as bases já vêm de outro Conector ativo. Tire bases dele em "Bases" ou desative-o.';
+  const inicio = 'Todas as bases já estão em outro Conector ou credencial.';
+  return temArquivo ? `${inicio} Desative o Conector de arquivo.` : `${inicio} Tire bases dele em "Bases" ou desative-o.`;
 }
 
 /**
@@ -158,11 +162,14 @@ function useSelecaoDeBases(bases: readonly Entidade[], padrao: readonly Entidade
   return { marcadas, mudar, limpar: () => setEscolha(null) };
 }
 
-/** "Bases": as caixas das `bases`, na ordem de carga, num `fieldset` com a legenda "Bases" (formulário da API e diálogo "Bases"). */
-export function ListaBases({ bases, marcadas, aoMudar, testId }: { bases: readonly Entidade[]; marcadas: readonly Entidade[]; aoMudar: (e: Entidade, marcada: boolean) => void; testId: string }) {
+/**
+ * "Bases": as caixas das `bases`, na ordem de carga, num `fieldset` com a legenda "Bases" (formulário da API e diálogo "Bases").
+ * `legendaOculta`: a legenda fica só para o leitor de tela (`sr-only`), quando o título do diálogo já diz "Bases".
+ */
+export function ListaBases({ bases, marcadas, aoMudar, testId, legendaOculta = false }: { bases: readonly Entidade[]; marcadas: readonly Entidade[]; aoMudar: (e: Entidade, marcada: boolean) => void; testId: string; legendaOculta?: boolean }) {
   return (
     <fieldset data-testid={testId} className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0">
-      <legend className="mb-1.5 p-0 text-[13px] font-semibold text-ink">Bases</legend>
+      <legend className={legendaOculta ? 'sr-only' : 'mb-1.5 p-0 text-[13px] font-semibold text-ink'}>Bases</legend>
       <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
         {ORDEM_CARGA_ENTIDADES.filter((e) => bases.includes(e)).map((e) => (
           <label key={e} className="flex cursor-pointer items-center gap-2.5 text-[15px]">
@@ -340,7 +347,7 @@ export function DialogoBases({ alvo, todos, tenant, aoFechar, aoGravar }: { alvo
       }
     >
       <div className="flex flex-col gap-3">
-        <ListaBases bases={bases} marcadas={selecao.marcadas} testId="integracao.bases" aoMudar={selecao.mudar} />
+        <ListaBases bases={bases} marcadas={selecao.marcadas} testId="integracao.bases" aoMudar={selecao.mudar} legendaOculta />
         {erro && (
           <div data-testid="integracao.bases-erro">
             <Notice tone="danger">{erro}</Notice>
