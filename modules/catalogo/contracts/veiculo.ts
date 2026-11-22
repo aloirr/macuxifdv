@@ -163,10 +163,6 @@ export const NAVEGACAO_VEICULO = {
   niveisComVerPecas: ['ano', 'motor', 'versao'] as readonly NivelVeiculo[],
 };
 
-export const ROTULO_DO_NIVEL: Record<NivelVeiculo, string> = { montadora: 'Montadora', modelo: 'Modelo', ano: 'Ano', motor: 'Motor', versao: 'Versão' };
-
-export const nenhumModeloCom = (texto: string): string => `Nenhum modelo com "${texto}".`;
-
 /** No formato `TextosFolhaVeiculo` do kit (mais o `botao`, do botão Veículo da tela). */
 export const TEXTOS_VEICULO = {
   botao: 'Veículo',
@@ -176,8 +172,15 @@ export const TEXTOS_VEICULO = {
   buscaLimpar: 'Limpar a busca',
   recentes: 'Recentes',
   verPecas: 'Ver peças',
-  rotuloDoNivel: ROTULO_DO_NIVEL as Readonly<Record<string, string>>,
-  nenhumModeloCom,
+  rotuloDoNivel: { montadora: 'Montadora', modelo: 'Modelo', ano: 'Ano', motor: 'Motor', versao: 'Versão' } as Readonly<Record<NivelVeiculo, string>>,
+  nenhumModeloCom: (texto: string): string => `Nenhum modelo com "${texto}".`,
+  /** Sem resultado com veículo (Catálogo e Vendedor): a ação de tirar o veículo, o título sem filtros e o título com busca. */
+  tirar: 'Tirar o veículo',
+  semFiltros: 'Nenhum produto com esses filtros',
+  nadaEncontradoPara: (texto: string): string => `Nada encontrado para "${texto}"`,
+  /** Campo de busca do Catálogo e do Vendedor com o botão Veículo visível, e a dica embaixo dele em foco e vazio (spec §3). */
+  placeholderBusca: 'Peça ou código…',
+  dicaBusca: 'Também acha por marca, aplicação e referência cruzada.',
 };
 
 /** Leitor de tela do botão Veículo: com veículo aplicado, diz qual (`rotulos` vem do domain ou da folha). */

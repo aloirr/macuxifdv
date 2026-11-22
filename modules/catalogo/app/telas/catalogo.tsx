@@ -347,9 +347,9 @@ export default function TelaCatalogo() {
             testID="catalogo-busca"
             valor={texto}
             onChange={setTexto}
-            placeholder={temVeiculos ? TEXTOS_VEICULO_CATALOGO.placeholderBusca : 'Produto, código ou aplicação'}
+            placeholder={temVeiculos ? TEXTOS_VEICULO.placeholderBusca : 'Produto, código ou aplicação'}
             rotuloAcessivel="Buscar produto"
-            {...(temVeiculos ? { dica: TEXTOS_VEICULO_CATALOGO.dicaBusca } : {})}
+            {...(temVeiculos ? { dica: TEXTOS_VEICULO.dicaBusca } : {})}
             onEnviar={() => setConsulta(texto.trim())}
             onLimpar={() => {
               setTexto('');
@@ -536,5 +536,5 @@ function VazioDaBusca({
 function VazioComVeiculo({ consulta, chipMarcado, onTirarVeiculo, onLimparFiltros }: { consulta: string; chipMarcado: boolean; onTirarVeiculo: () => void; onLimparFiltros: () => void }) {
   const v = vazioComVeiculo({ consulta, chipMarcado });
   const limpar = v.acao === 'limpar_filtros';
-  return <EstadoVazio testID="catalogo-vazio" icone="search" titulo={v.titulo} acao={{ rotulo: limpar ? TEXTOS_VEICULO_CATALOGO.limparFiltros : TEXTOS_VEICULO_CATALOGO.tirar, onPress: limpar ? onLimparFiltros : onTirarVeiculo, testID: 'catalogo-vazio-acao' }} />;
+  return <EstadoVazio testID="catalogo-vazio" icone="search" titulo={v.titulo} acao={{ rotulo: limpar ? TEXTOS_VEICULO_CATALOGO.limparFiltros : TEXTOS_VEICULO.tirar, onPress: limpar ? onLimparFiltros : onTirarVeiculo, testID: 'catalogo-vazio-acao' }} />;
 }

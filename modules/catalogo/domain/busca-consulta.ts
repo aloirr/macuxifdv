@@ -112,22 +112,22 @@ export function buscarParaConsulta(e: EntradaBuscaConsulta): BuscaProdutosSaida[
 export function buscarComTotal(e: EntradaBuscaConsulta): { itens: Array<BuscaProdutosSaida['itens'][number] & { aplicacao: string | null }>; total: number } {
   const ids = e.produtoIds ? new Set(e.produtoIds) : null;
   const universo = e.produtos.filter((p) => p.ativo && (!ids || ids.has(p.id)));
+  const aplicacaoDe = new Map(universo.map((p) => [p.id, p.aplicacao ?? '']));
   // sem texto, a lista é a das peças que citam o modelo, por nome; o filtro de veículo corre no fim, sobre a lista já ordenada
   if (e.veiculo && e.indiceVeiculos && e.q.trim() === '') {
     const doModelo = produtosDoModelo(e.indiceVeiculos, e.veiculo);
     const lista = universo
       .filter((p) => doModelo.has(p.id))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id))
-      .map((p) => ({ produto_id: p.id, nota: 0, so_aplicacao: false, serve_em: null, equivale_a: null, aplicacao: p.aplicacao ?? null }));
+      .map((p) => ({ produto_id: p.id, nota: 0, so_aplicacao: false, serve_em: null, equivale_a: null }));
     const filtrada = filtrarPorVeiculo(lista, e.indiceVeiculos, e.veiculo).slice(0, TETO_RANKING_BUSCA);
-    return { itens: filtrada.slice(0, e.limite).map((i) => ({ ...i, aplicacao: i.aplicacao || null })), total: filtrada.length };
+    return { itens: filtrada.slice(0, e.limite).map((i) => ({ ...i, aplicacao: aplicacaoDe.get(i.produto_id) || null })), total: filtrada.length };
   }
   const interpretado = interpretarConsulta(e.q, e.vocabulario ?? vocabularioDe(universo));
   // sem preço nem estoque nesta consulta: só o que é texto, marca, linha e código
   const filtros = { ...interpretado, min_price_cents: null, max_price_cents: null, stock: null, sort: null };
   const docs = universo.map((p) => docDeBusca(p, null));
   const grupos = expandirSinonimos(filtros.text, e.sinonimos);
-  const aplicacaoDe = new Map(universo.map((p) => [p.id, p.aplicacao ?? '']));
   const veiculos = e.veiculos ?? veiculosDe(e.produtos);
   const ranqueados = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: e.parametros, anoAtual: e.anoAtual, veiculos })
     .slice(0, TETO_RANKING_BUSCA)
@@ -139,7 +139,7 @@ export function buscarComTotal(e: EntradaBuscaConsulta): { itens: Array<BuscaPro
       equivale_a: r.referencia_casada === null ? null : equivaleA(r.doc.referencias[r.referencia_casada]),
     }));
   const doRanking = codigoExatoNoTopo(ranqueados, universo, e.q).slice(0, TETO_RANKING_BUSCA);
-  const todos = e.veiculo && e.indiceVeiculos ? filtrarPorVeiculo(doRanking.map((i) => ({ ...i, aplicacao: aplicacaoDe.get(i.produto_id) || null })), e.indiceVeiculos, e.veiculo) : doRanking;
+  const todos = e.veiculo && e.indiceVeiculos ? filtrarPorVeiculo(doRanking, e.indiceVeiculos, e.veiculo) : doRanking;
   return { itens: todos.slice(0, e.limite).map((i) => ({ ...i, aplicacao: aplicacaoDe.get(i.produto_id) || null })), total: todos.length };
 }
 

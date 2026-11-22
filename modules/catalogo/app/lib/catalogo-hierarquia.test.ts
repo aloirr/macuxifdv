@@ -17,7 +17,7 @@ describe('T-0173: Catálogo em grade no app', () => {
     const folha = readFileSync(join(__dirname, '..', 'telas', 'estoque-filial.tsx'), 'utf8');
     expect(folha).toContain('grupo="sistema"');
     expect(folha).toContain('testID={`catalogo-chips-${grupo}`}');
-    expect(folha).toContain('testID="catalogo-chips-categoria"');
+    expect(folha).toContain('grupo="categoria"');
     expect(fonte).not.toContain('<LinhaChips');
     expect(fonte).not.toContain('<Chip ');
   });

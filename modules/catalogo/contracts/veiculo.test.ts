@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { NavegacaoCascata, TextosFolhaVeiculo } from '@macuxi/ui/mobile';
 import {
   escolhaAntesDoPasso,
   escolhaDoResultadoDaBusca,
@@ -6,10 +7,11 @@ import {
   leituraDaEtiquetaVeiculo,
   leituraDoBotaoVeiculo,
   NAVEGACAO_VEICULO,
-  nenhumModeloCom,
   textoDaBuscaComVeiculo,
   TEXTOS_VEICULO,
   veiculoDaEscolha,
+  type VeiculoEscolhido,
+  type VeiculoParcial,
 } from './veiculo';
 
 const GOL = { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018, motor: '1.0', versao: null };
@@ -43,9 +45,16 @@ describe('RN-CAT-22: apoios da folha Veículo (o Catálogo e o Vendedor passam `
     expect(leituraDaEtiquetaVeiculo(ROTULOS)).toBe('Remover veículo Volkswagen Gol 2018 1.0');
     expect(leituraDoBotaoVeiculo(ROTULOS)).toBe('Veículo: Volkswagen Gol 2018 1.0');
     expect(leituraDoBotaoVeiculo(null)).toBe('Veículo');
-    expect(nenhumModeloCom('xyz')).toBe('Nenhum modelo com "xyz".');
     expect(TEXTOS_VEICULO.nenhumModeloCom('xyz')).toBe('Nenhum modelo com "xyz".');
     expect(TEXTOS_VEICULO.rotuloDoNivel.versao).toBe('Versão');
+    expect(TEXTOS_VEICULO.nadaEncontradoPara('traseiro')).toBe('Nada encontrado para "traseiro"');
+    expect(TEXTOS_VEICULO.placeholderBusca).toBe('Peça ou código…');
+    expect(TEXTOS_VEICULO.dicaBusca).toBe('Também acha por marca, aplicação e referência cruzada.');
+  });
+  it('RN-CAT-22: encaixe com a `FolhaVeiculo` do kit: os apoios reais cabem em `NavegacaoCascata` e `TextosFolhaVeiculo` (o typecheck é o teste)', () => {
+    const _navegacao: NavegacaoCascata<VeiculoParcial, VeiculoEscolhido> = NAVEGACAO_VEICULO;
+    const _textos: TextosFolhaVeiculo = TEXTOS_VEICULO;
+    expect([_navegacao.nivelEmGrade, _textos.titulo]).toEqual(['ano', 'Veículo']);
   });
   it('RN-CAT-22: com veículo, texto de menos de 3 caracteres vale como sem texto; sem veículo, o texto é o que veio', () => {
     expect(textoDaBuscaComVeiculo('ab', GOL)).toBe('');

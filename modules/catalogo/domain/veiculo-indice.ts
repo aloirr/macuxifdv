@@ -245,7 +245,7 @@ const cederLaco = (): Promise<void> => new Promise((r) => globalThis.setTimeout(
 
 /**
  * O mesmo índice de `construirIndiceVeiculos`, montado em pedaços de `lote` produtos com um `await` entre eles (`ceder`; por padrão um
- * `setTimeout(0)`): a tela não trava com 20 mil produtos. `aoCeder` roda a cada pedaço (teste mede o maior pedaço).
+ * `setTimeout(0)`): a tela não trava com 20 mil produtos. `ceder` roda a cada pedaço.
  */
 export async function construirIndiceVeiculosEmLotes(
   fontes: Iterable<{ id: string; aplicacao?: string | null | undefined }>,
