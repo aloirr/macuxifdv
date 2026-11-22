@@ -33,7 +33,7 @@ import pino from 'pino';
 import { criarAgendador } from './agendador';
 import type { ArmazenamentoArquivos } from './arquivos';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
-import { diagnosticosLigados, lerConfigSyncPacotes, syncPacotesLigados } from './config';
+import { CAMINHOS_REDIGIDOS_LOG, diagnosticosLigados, lerConfigSyncPacotes, syncPacotesLigados } from './config';
 import { criarWorkerDiagnosticos, SQL_EXISTE_0058, URL_PORTAL_PADRAO } from './diagnosticos-worker';
 import { criarBancoApp } from './banco';
 import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
@@ -48,7 +48,13 @@ import { criarLacoTrabalhos } from './trabalhos';
 import { expurgarRastreamento, INTERVALO_EXPURGO_MS, SQL_EXISTE_EXPURGO } from './expurgo-rastreamento';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/); fora do local não exige a senha do admin
-const log = pino({ level: process.env.MACUXI_API_LOG ?? 'info', base: { processo: 'despachante' }, serializers: { err: serializarErro } });
+// ADR 0066: a mesma redação da API (a coleta na API do ERP roda aqui, com a credencial decifrada em memória)
+const log = pino({
+  level: process.env.MACUXI_API_LOG ?? 'info',
+  base: { processo: 'despachante' },
+  redact: { paths: [...CAMINHOS_REDIGIDOS_LOG], censor: '[omitido]' },
+  serializers: { err: serializarErro },
+});
 
 // o lote fica travado no worker enquanto os handlers rodam: sem idle_in_transaction curto aqui
 // 3 conexões: o lote travado do despachante, o e-mail/diagnósticos e o laço dos trabalhos (ADR 0058)
