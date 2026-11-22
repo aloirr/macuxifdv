@@ -178,7 +178,7 @@ describe('redação do pino (ADR 0061 decisão 8, RN-CORE-13: nenhuma coordenada
   });
 });
 
-describe('redação do pino (ADR 0066, RN-INT-17 proposta: credencial do ERP na busca pela API)', () => {
+describe('redação do pino (ADR 0066, RN-INT-18 proposta: credencial do ERP na busca pela API)', () => {
   it('senha, segredo, token, authorization, cookie, appkey, sessão e set-cookie do ERP nunca saem', () => {
     let texto = '';
     const stream = new Writable({

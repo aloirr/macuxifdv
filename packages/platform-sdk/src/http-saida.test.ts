@@ -1,6 +1,6 @@
 /// <reference types="node" />
 /**
- * Cliente HTTP de saída com proteção contra SSRF (ADR 0066; desenho integracao-modelos-erp §2.5; RN-INT-16 e RN-INT-19
+ * Cliente HTTP de saída com proteção contra SSRF (ADR 0066; desenho integracao-modelos-erp §2.5; RN-INT-17 e RN-INT-20
  * propostas). Sem rede: resolver e transporte falsos; os casos do cliente padrão só exercitam a recusa antes da conexão.
  */
 import { describe, expect, it } from 'vitest';

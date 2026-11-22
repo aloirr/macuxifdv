@@ -1,6 +1,6 @@
 /**
  * Limites de plataforma da busca na API do ERP (Conector tipo `nuvem`; desenho `docs/desenho/integracao-modelos-erp.md`
- * §2.3; ADR 0066 D3; RN-INT-16 proposta). Puro TypeScript. O plano de coleta, a frequência de cada entidade e a janela de
+ * §2.3; ADR 0066 D3; RN-INT-17 proposta). Puro TypeScript. O plano de coleta, a frequência de cada entidade e a janela de
  * sobreposição são do `domain` do módulo integracao (fatia F3); aqui ficam só o piso e os tetos que a plataforma impõe.
  */
 import { INTERVALO_MINIMO_TAREFA_MIN } from './api';

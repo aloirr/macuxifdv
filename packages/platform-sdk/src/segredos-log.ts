@@ -1,5 +1,5 @@
 /**
- * Campos de segredo que nunca saem no log (desenho `docs/desenho/integracao-modelos-erp.md` §2.2; ADR 0066; RN-INT-17
+ * Campos de segredo que nunca saem no log (desenho `docs/desenho/integracao-modelos-erp.md` §2.2; ADR 0066; RN-INT-18
  * proposta): credencial do ERP na busca pela API (senha, token, `B1SESSION`, appkey) e cabeçalhos de autenticação.
  * Puro TypeScript: a API e o worker juntam estes caminhos à redação do pino (`apps/api/src/config.ts`).
  *

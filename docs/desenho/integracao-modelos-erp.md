@@ -160,11 +160,11 @@ O "driver HTTP" no Conector fica para quando aparecer um cliente com API só na 
   O worker sai por um IP fixo, publicado no assistente para a lista de IPs do cliente (D7).
 
 **RN propostas** (o gerente dá o número final):
-- RN-INT-16: Conector `nuvem` e frequência por entidade, múltipla de 15 min, de 15 min a 1 dia; a carga completa semanal à parte.
-- RN-INT-17: cofre de credenciais do ERP (só escrita, cifra por tenant, rotação).
-- RN-INT-18: pedido pela API só com o campo do UUID no ERP, com consulta antes de criar.
-- RN-INT-19: classes de falha e a parada por credencial recusada.
-- RN-INT-20: marcos e fim da implantação (§5).
+- RN-INT-17: Conector `nuvem` e frequência por entidade, múltipla de 15 min, de 15 min a 1 dia; a carga completa semanal à parte.
+- RN-INT-18: cofre de credenciais do ERP (só escrita, cifra por tenant, rotação).
+- RN-INT-19: pedido pela API só com o campo do UUID no ERP, com consulta antes de criar.
+- RN-INT-20: classes de falha e a parada por credencial recusada.
+- RN-INT-21: marcos e fim da implantação (§5).
 
 ---
 

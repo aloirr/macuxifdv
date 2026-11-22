@@ -1,7 +1,7 @@
 /// <reference types="node" />
 /**
  * Cliente HTTP de saída para URL informada pelo cliente (busca na API do ERP, Conector tipo `nuvem`; ADR 0066; desenho
- * `docs/desenho/integracao-modelos-erp.md` §2.5; RN-INT-16 e RN-INT-19 propostas). Usa `node:https` e `node:dns`: exportado
+ * `docs/desenho/integracao-modelos-erp.md` §2.5; RN-INT-17 e RN-INT-20 propostas). Usa `node:https` e `node:dns`: exportado
  * SÓ pelo subcaminho `@macuxi/platform-sdk/http-saida`.
  *
  * Proteção contra SSRF:

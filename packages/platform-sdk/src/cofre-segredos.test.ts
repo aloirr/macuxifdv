@@ -1,6 +1,6 @@
 /// <reference types="node" />
 /**
- * Cofre de segredos por tenant (ADR 0066; RN-INT-17 proposta: só escrita, cifra por tenant, rotação; RN-INT-10: credencial
+ * Cofre de segredos por tenant (ADR 0066; RN-INT-18 proposta: só escrita, cifra por tenant, rotação; RN-INT-10: credencial
  * nunca em claro no banco). As chaves dos testes são geradas aqui, aleatórias: nenhuma chave real no repositório.
  */
 import { randomBytes } from 'node:crypto';
@@ -60,7 +60,7 @@ describe('carregarChavesSegredos (MACUXI_CHAVE_SEGREDOS_v<n>)', () => {
   });
 });
 
-describe('criarCofre: AES-256-GCM com AAD tenant_id|conector_id (RN-INT-17 proposta)', () => {
+describe('criarCofre: AES-256-GCM com AAD tenant_id|conector_id (RN-INT-18 proposta)', () => {
   const cofre = criarCofre(carregarChavesSegredos({ MACUXI_CHAVE_SEGREDOS_v1: chaveB64() }));
   const aad = { tenant_id: TENANT_A, conector_id: CONECTOR_1 };
 

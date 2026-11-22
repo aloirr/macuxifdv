@@ -210,7 +210,7 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   '*.dados.login',
   // ADR 0061 decisão 8 (RN-CORE-13): nenhuma coordenada no log (`latitude`, `longitude`, `lat`, `lng`, `lon`, `coords`)
   ...CAMINHOS_COORDENADA_LOG,
-  // ADR 0066 (RN-INT-17 proposta): senha, token, chave, authorization, cookie e set-cookie (inclusive os do ERP) vêm do SDK
+  // ADR 0066 (RN-INT-18 proposta): senha, token, chave, authorization, cookie e set-cookie (inclusive os do ERP) vêm do SDK
   ...CAMINHOS_SEGREDO_LOG,
 ];
 

@@ -1,5 +1,5 @@
 /**
- * Campos de segredo na redação do log (ADR 0066; RN-INT-17 proposta). O teste com o pino real fica na API
+ * Campos de segredo na redação do log (ADR 0066; RN-INT-18 proposta). O teste com o pino real fica na API
  * (`apps/api/test/log-seguro.test.ts`).
  */
 import { describe, expect, it } from 'vitest';

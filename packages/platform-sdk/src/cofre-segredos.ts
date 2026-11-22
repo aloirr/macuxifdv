@@ -1,6 +1,6 @@
 /// <reference types="node" />
 /**
- * Cofre de segredos por tenant (ADR 0066; desenho `docs/desenho/integracao-modelos-erp.md` §2.2; RN-INT-17 proposta): guarda
+ * Cofre de segredos por tenant (ADR 0066; desenho `docs/desenho/integracao-modelos-erp.md` §2.2; RN-INT-18 proposta): guarda
  * a credencial do ERP da busca pela API (Conector tipo `nuvem`). Usa `node:crypto`: exportado SÓ pelo subcaminho
  * `@macuxi/platform-sdk/cofre-segredos` (o web e o app nunca o importam).
  *
