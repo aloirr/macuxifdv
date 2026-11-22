@@ -707,3 +707,8 @@ export const RECURSOS_VAZIOS: RecursosGuia = { logo: '' };
 export function hashDoGuia(): string {
   return createHash('sha256').update(montarHtml(secoesDoGuia(gerarOpenApiHub()), RECURSOS_VAZIOS)).digest('hex');
 }
+
+/** Decide se o PDF precisa ser regravado: sem mudança no guia, regravar só trocaria as datas do PDF e incharia o histórico. */
+export function guiaPrecisaRegravar(e: { pdfExiste: boolean; hashGravado: string | null; hashAtual: string }): boolean {
+  return !e.pdfExiste || e.hashGravado === null || e.hashGravado.trim() !== e.hashAtual;
+}

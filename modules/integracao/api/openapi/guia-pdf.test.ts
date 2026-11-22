@@ -5,7 +5,7 @@ import { ENTIDADES, ROTAS_HUB } from '../../contracts';
 import { PARAMETROS_PADRAO } from '../../domain';
 import { DEPENDENCIAS } from '../../domain/ordem';
 import { gerarOpenApiHub } from './gerar';
-import { CAMPOS_SEM_TEXTO, entradasDoSumario, hashDoGuia, LARGURA_BLOCO, montarHtml, RECURSOS_VAZIOS, secoesDoGuia } from './guia-pdf';
+import { CAMPOS_SEM_TEXTO, entradasDoSumario, guiaPrecisaRegravar, hashDoGuia, LARGURA_BLOCO, montarHtml, RECURSOS_VAZIOS, secoesDoGuia } from './guia-pdf';
 
 const doc = gerarOpenApiHub();
 const secoes = secoesDoGuia(doc);
@@ -126,5 +126,16 @@ describe('Guia da API em PDF (docs/guia-api-hub.pdf)', () => {
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     const paginas = (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length;
     expect(paginas).toBeGreaterThanOrEqual(secoes.length + 2);
+  });
+});
+
+describe('Regravação do PDF do guia', () => {
+  it('RN-INT-GUIA: não regrava o PDF quando ele existe e o hash gravado é igual ao do guia (só mudariam as datas do PDF)', () => {
+    expect(guiaPrecisaRegravar({ pdfExiste: true, hashGravado: 'abc\n', hashAtual: 'abc' })).toBe(false);
+  });
+  it('RN-INT-GUIA: regrava quando o PDF não existe, o hash não existe ou o hash mudou', () => {
+    expect(guiaPrecisaRegravar({ pdfExiste: false, hashGravado: 'abc', hashAtual: 'abc' })).toBe(true);
+    expect(guiaPrecisaRegravar({ pdfExiste: true, hashGravado: null, hashAtual: 'abc' })).toBe(true);
+    expect(guiaPrecisaRegravar({ pdfExiste: true, hashGravado: 'abd', hashAtual: 'abc' })).toBe(true);
   });
 });

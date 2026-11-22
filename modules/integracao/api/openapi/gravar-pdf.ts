@@ -5,11 +5,11 @@
  * Chromium: usa `playwright` (ou o módulo indicado em `MACUXI_PLAYWRIGHT`, caminho do pacote); `MACUXI_CHROMIUM` aponta o executável quando a versão instalada difere da do pacote. Impressão por `page.pdf()` com @page de A4.
  * Os números do sumário saem dos destinos internos da própria impressão (`paginasDosDestinos`).
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { gerarOpenApiHub } from './gerar';
-import { entradasDoSumario, hashDoGuia, montarHtml, secoesDoGuia, type RecursosGuia } from './guia-pdf';
+import { entradasDoSumario, guiaPrecisaRegravar, hashDoGuia, montarHtml, secoesDoGuia, type RecursosGuia } from './guia-pdf';
 
 const aqui = (relativo: string) => fileURLToPath(new URL(relativo, import.meta.url));
 
@@ -55,6 +55,13 @@ async function abrirChromium() {
 }
 
 async function main() {
+  const arquivoPdf = aqui('../../docs/guia-api-hub.pdf');
+  const arquivoHash = `${arquivoPdf}.sha256`;
+  const hashAtual = hashDoGuia();
+  if (!guiaPrecisaRegravar({ pdfExiste: existsSync(arquivoPdf), hashGravado: existsSync(arquivoHash) ? readFileSync(arquivoHash, 'utf8') : null, hashAtual })) {
+    console.log('guia-api-hub.pdf: guia sem mudança, PDF mantido');
+    return;
+  }
   const secoes = secoesDoGuia(gerarOpenApiHub());
   const rec = recursos();
   const browser = await abrirChromium();
@@ -73,8 +80,8 @@ async function main() {
     const pdf = await imprimir(montarHtml(secoes, rec, { paginas: Object.fromEntries(ids.map((i) => [i, paginas[i] as number])) }));
     const finais = paginasDosDestinos(pdf);
     for (const id of ids) if (finais[id] !== paginas[id]) throw new Error(`guia-pdf: o sumário previu a página ${paginas[id]} para "${id}" e o PDF a tem na ${finais[id]}`);
-    writeFileSync(aqui('../../docs/guia-api-hub.pdf'), pdf);
-    writeFileSync(aqui('../../docs/guia-api-hub.pdf.sha256'), `${hashDoGuia()}\n`, 'utf8');
+    writeFileSync(arquivoPdf, pdf);
+    writeFileSync(arquivoHash, `${hashAtual}\n`, 'utf8');
     console.log(`guia-api-hub.pdf: ${(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length} páginas`);
   } finally {
     await browser.close();
