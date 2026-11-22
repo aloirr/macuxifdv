@@ -13,8 +13,7 @@ import { criarBancoApp } from '../../../apps/api/src/banco';
 import { registroDeConsultas, transacaoTenant } from '../../../apps/api/src/outbox';
 import { esquecerMemoriaLocal } from '../../../modules/catalogo/app/lib/local';
 import { consultaBuscaProdutosAparelho, esquecerMemoriaTextos } from '../../../modules/catalogo/app/texto-consultas';
-import { consultaVeiculosAparelho, esquecerVeiculosRecentes, indiceVeiculosLocal } from '../../../modules/catalogo/app/veiculos-consulta';
-import { anoCivilNoFuso } from '../../../modules/catalogo/domain/ano-civil';
+import { consultaVeiculosAparelho, esquecerVeiculosRecentes } from '../../../modules/catalogo/app/veiculos-consulta';
 import { A, B, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
 import { ESCOLHAS, GOL_2018, LINHAS, VENDAVEIS, uuid } from '../../../modules/catalogo/fixtures/veiculo-massa';
@@ -50,10 +49,7 @@ describe.skipIf(semBanco())('T-0193 — filtro de veículo: aparelho × API sobr
   };
   const noAparelho = async (t: 'A' | 'B', consulta: 'veiculos' | 'busca', entrada: object): Promise<Saida> => {
     const [def, impl] = consulta === 'veiculos' ? [CONSULTA_VEICULOS, consultaVeiculosAparelho] : [CONSULTA_BUSCA_PRODUTOS, consultaBuscaProdutosAparelho];
-    const ctx = ctxAparelho(ap[t]);
-    // o índice de veículos do aparelho é montado em segundo plano: a consulta não o espera
-    if (consulta === 'veiculos') await indiceVeiculosLocal(ctx, anoCivilNoFuso(ctx.agora(), ap[t].sessao.tenant.fuso));
-    const saida = await (impl as unknown as { executar(e: unknown, c: ContextoConsultaAparelho): Promise<unknown> }).executar(def.entrada.parse(entrada), ctx);
+    const saida = await (impl as unknown as { executar(e: unknown, c: ContextoConsultaAparelho): Promise<unknown> }).executar(def.entrada.parse(entrada), ctxAparelho(ap[t]));
     return def.saida.parse(saida) as Saida;
   };
   const naApi = (tenant: Tenant, a: AparelhoCampo, consulta: 'veiculos' | 'busca', entrada: object): Promise<Saida> =>

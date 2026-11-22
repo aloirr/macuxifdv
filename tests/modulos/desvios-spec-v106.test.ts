@@ -42,7 +42,7 @@ function corpoDoCartaoGrade(fonte: string): string {
 const CARTAO_GRADE = corpoDoCartaoGrade(COMUM);
 
 /**
- * Grupo Categoria da `FolhaFiltroCatalogo`: o trecho do corpo (chips literais ou `GrupoDeChips`, RD-2577) que usa `onCategoria` ou `grupo="categoria"`.
+ * Grupo Categoria da `FolhaFiltroCatalogo`: o `<GrupoDeChips grupo="categoria">` do corpo (RD-2577).
  * Falha alto se a folha sumir ou o grupo não for único.
  */
 function grupoCategoriaDaFolha(fonte: string): string {
@@ -52,10 +52,10 @@ function grupoCategoriaDaFolha(fonte: string): string {
   const fim = fonte.slice(corpo).search(/\n(?:export |function |const )/);
   const grupos = fonte
     .slice(corpo, fim < 0 ? undefined : corpo + fim)
-    .split(/(?=<GrupoDeChips\b|<Text style=\{e\.grupo\}>)/)
-    .filter((g) => /\bonCategoria\b|grupo="categoria"/.test(g));
-  if (grupos.length !== 1) throw new Error(`FolhaFiltroCatalogo com ${grupos.length} grupos que usam onCategoria: atualize o caso D-V106-2`);
-  return grupos[0]!;
+    .split(/(?=<GrupoDeChips\b)/)
+    .filter((g) => g.startsWith('<GrupoDeChips') && /\bgrupo="categoria"/.test(g));
+  if (grupos.length !== 1) throw new Error(`FolhaFiltroCatalogo com ${grupos.length} GrupoDeChips da categoria: atualize o caso D-V106-2`);
+  return grupos[0]!.slice(0, grupos[0]!.indexOf('/>'));
 }
 
 /** Corpo do `GrupoDeChips` local da folha (RD-2577), de `function GrupoDeChips` à próxima declaração de topo. */
@@ -82,28 +82,19 @@ describe('D-V106-1 — subtítulo do Catálogo abaixo do título (MC-0008)', () 
 });
 
 describe('D-V106-2 — filtro sem produto sem "Ver todos" (RD-0244, catalogo-grade.md §5)', () => {
-  // R-20261120-055304 (spec campo-v1017 §4, item 11): chips na folha "Filtrar" (FolhaFiltroCatalogo, estoque-filial.tsx), literais
-  // ou pelo GrupoDeChips local (RD-2577)
+  // R-20261120-055304 (spec campo-v1017 §4, item 11): chips na folha "Filtrar" (FolhaFiltroCatalogo, estoque-filial.tsx), pelo
+  // GrupoDeChips local (RD-2577)
   it('o vazio do filtro só tem o título; o chip "Todas" da folha volta a categoria para null', () => {
     const linhaVazio = CATALOGO.split('\n').find((l) => l.includes('Nenhum produto em'));
     expect(linhaVazio, 'linha do EstadoVazio do filtro').toBeDefined();
     expect(linhaVazio).not.toContain('acao=');
     expect(CATALOGO).not.toContain('Ver todos');
     expect(CATALOGO, 'chips fora da tela').not.toMatch(/["'`>]Todas["'`<]/);
-    const grupo = grupoCategoriaDaFolha(FOLHA_FILTRO);
-    if (grupo.startsWith('<GrupoDeChips')) {
-      const tag = grupo.slice(0, grupo.indexOf('/>'));
-      expect(tag, 'GrupoDeChips da Categoria').toMatch(/\bgrupo="categoria"/);
-      expect(tag, 'GrupoDeChips da Categoria').toMatch(/\bonEscolher=\{onCategoria\}/);
-      const definicao = corpoDoGrupoDeChips(FOLHA_FILTRO);
-      const rotulo = /\brotuloTodos=(?:("[^"]*")|\{(\w+)\})/.exec(tag);
-      const padrao = /\brotuloTodos = (\w+|'[^']*')/.exec(definicao)?.[1];
-      expect(textoDe(FOLHA_FILTRO, rotulo ? rotulo[1] ?? rotulo[2] : padrao), 'rótulo do chip "todos"').toBe('Todas');
-      expect(definicao, 'chip "todos" devolve null').toMatch(/<Chip label=\{rotuloTodos\}[^>]*onPress=\{\(\) => onEscolher\(null\)\}/);
-    } else {
-      expect(grupo, 'grupo Categoria').toMatch(/>Categoria<|ROTULO_DO_GRUPO\.categoria\b/);
-      expect(grupo, '"Todas" volta a categoria para null').toMatch(/<Chip label="Todas"[^>]*onPress=\{\(\) => onCategoria\(null\)\}/);
-    }
+    const tag = grupoCategoriaDaFolha(FOLHA_FILTRO);
+    expect(tag, 'GrupoDeChips da Categoria').toMatch(/\bonEscolher=\{onCategoria\}/);
+    const rotulo = /\brotuloTodos=(?:("[^"]*")|\{(\w+)\})/.exec(tag);
+    expect(textoDe(FOLHA_FILTRO, rotulo?.[1] ?? rotulo?.[2]), 'rótulo do chip "todos"').toBe('Todas');
+    expect(corpoDoGrupoDeChips(FOLHA_FILTRO), 'chip "todos" devolve null').toMatch(/<Chip label=\{rotuloTodos\}[^>]*onPress=\{\(\) => onEscolher\(null\)\}/);
     expect(CATALOGO).toContain('onCategoria={(id) => setFiltro((f) => escolherCategoria(f, id))}');
   });
 });
