@@ -1,7 +1,7 @@
 /**
- * Carga por arquivo (RF-INT-03): CSV UTF-8 enviado pelo BKO vira o MESMO envelope canônico do lote do Hub (entidade, modo, registros,
- * linhas inválidas) e segue o pipeline de sempre (RN-INT-01/02/03/06/12). Aqui só a parte pura: ler o CSV, casar o cabeçalho com o
- * contrato da entidade, converter célula a célula, resolver o Conector do tipo `arquivo` (RN-INT-13) e montar a chave de conteúdo.
+ * Leitura de CSV do kit-thathyany: o kit carrega CSV no SQL Server da empresa e o Conector lê de lá (a carga por arquivo no BKO
+ * saiu na v1.0.22, decisão R-20261121-235000). Aqui só a parte pura: ler o CSV, casar o cabeçalho com o contrato da entidade e
+ * converter célula a célula no envelope canônico do lote (RN-INT-01/03). Serve ao gerador do kit, à migração do CSV 1.0.5 e ao teste do kit.
  *
  * Formato: UTF-8 com ou sem BOM_CSV; separador `;` ou `,` (detectado no cabeçalho); aspas duplas para texto com separador/quebra;
  * cabeçalho = nomes dos campos do contrato (`external_id`, `razao_social`, `endereco.cidade`…), sem diferenciar maiúsculas.
@@ -10,9 +10,8 @@
  */
 import { BOM_CSV } from '@macuxi/comum/csv';
 import { z } from 'zod';
-import { ENTIDADES, SCHEMA_REGISTRO, VERSAO_CONTRATO, type Entidade, type LinhaInvalidaConector, type LoteEnvelopeValido, type ModoCarga } from '../contracts';
-import { jsonCanonico } from './idempotencia';
-import { PARAMETROS_PADRAO } from './parametros';
+import { ENTIDADES, SCHEMA_REGISTRO, VERSAO_CONTRATO, type Entidade, type LinhaInvalidaConector, type LoteEnvelopeValido, type ModoCarga } from '../../contracts';
+import { PARAMETROS_PADRAO } from '../../domain/parametros';
 import { sha256Hex } from '@macuxi/platform-sdk/sha256';
 
 // ---------------------------------------------------------------------------------------------------------------- leitura do CSV
@@ -421,94 +420,11 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
   return { ok: true, separador: csv.separador, registros, linhasArquivo, linhasInvalidas: invalidas, totalLinhas: csv.linhas.length, envelope };
 }
 
-// ---------------------------------------------------------------------------------------------------------------- idempotência e sessão
-
-/** O que identifica o arquivo para a Idempotency-Key (RN-INT-12): entidade, modo e o texto normalizado (BOM_CSV, CRLF e linhas em branco no fim não contam). */
-export function conteudoCanonicoArquivo(e: { entidade: string; modo: string; texto: string; parte?: ParteArquivo }): string {
-  const csv = normalizarTextoCsv(e.texto).replace(/\s+$/, '');
-  // a parte entra no conteúdo SÓ quando há parte: o hash do envio único não muda
-  const base = { origem: 'arquivo', entidade: e.entidade, modo: e.modo, csv };
-  if (!e.parte) return jsonCanonico(base);
-  return jsonCanonico({ ...base, sessao_id: e.parte.sessaoId, parte: e.parte.parte, total_partes: e.parte.totalPartes, linha_inicial: e.parte.linhaInicial ?? null });
-}
+// ---------------------------------------------------------------------------------------------------------------- sessão
 
 /** UUID estável (formato v4) derivado da chave de idempotência: a mesma chave é a mesma sessão; arquivo igual com chave nova é sessão nova (RN-INT-06). */
 export function sessaoDoArquivo(chave: string): string {
   const h = sha256Hex(`sessao-arquivo:${chave}`);
   const variante = '89ab'[Number.parseInt(h.charAt(16), 16) % 4] as string;
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variante}${h.slice(17, 20)}-${h.slice(20, 32)}`;
-}
-
-/** Hash do conteúdo do lote do arquivo (o `hash_conteudo` do lote). */
-export const hashConteudoArquivo = (e: { entidade: string; modo: string; texto: string; parte?: ParteArquivo }): string => sha256Hex(conteudoCanonicoArquivo(e));
-
-// ---------------------------------------------------------------------------------------------------------------- erros com a linha do arquivo
-
-const JA_ANOTADA = /^Linha \d+ do arquivo:/;
-
-/**
- * O lote do arquivo guarda, junto ao staging, a linha física de cada registro (`linhas_arquivo`). Os erros e avisos do Hub vêm com o
- * índice do lote; aqui ganham "Linha N do arquivo:" para o operador achar a linha na planilha. Sem mapa (lote do Conector), nada muda.
- */
-export function anotarLinhaDoArquivo<T extends { indice: number; mensagem: string }>(itens: readonly T[], linhasArquivo: readonly number[] | null | undefined): T[] {
-  if (!linhasArquivo || linhasArquivo.length === 0) return [...itens];
-  return itens.map((i) => {
-    const n = linhasArquivo[i.indice];
-    if (n === undefined || JA_ANOTADA.test(i.mensagem)) return i;
-    return { ...i, mensagem: `Linha ${n} do arquivo: ${i.mensagem}`.slice(0, 1000) };
-  });
-}
-
-// ---------------------------------------------------------------------------------------------------------------- Conector do tipo arquivo
-
-export interface ConectorDoArquivo {
-  id: string;
-  identificador: string;
-  tipo: 'conector' | 'nuvem' | 'arquivo';
-  ativo: boolean;
-  entidades: readonly Entidade[];
-}
-
-export type ResultadoConectorArquivo =
-  | { ok: true; conector: ConectorDoArquivo }
-  | { ok: false; codigo: 'sem_conector_arquivo' | 'entidade_de_outro_conector' | 'conector_nao_encontrado' | 'conector_nao_e_arquivo' | 'conector_ambiguo'; mensagem: string };
-
-/**
- * RN-INT-13: o lote do arquivo pertence a um Conector `arquivo` ativo do tenant que recebe a entidade. Entidade que um Conector de
- * ERP (outro tipo) já recebe é recusada — cursor, reconciliação e inativação são por (Conector, entidade), e dois donos se
- * inativariam. `identificador` (opcional) escolhe o Conector quando a empresa tem mais de um de arquivo.
- */
-export function resolverConectorDoArquivo(entidade: Entidade, conectores: readonly ConectorDoArquivo[], identificador: string | null | undefined): ResultadoConectorArquivo {
-  const ativos = conectores.filter((c) => c.ativo);
-  const donoErp = ativos.find((c) => c.tipo !== 'arquivo' && c.entidades.includes(entidade));
-  const recusaDono = (c: ConectorDoArquivo): ResultadoConectorArquivo => ({
-    ok: false,
-    codigo: 'entidade_de_outro_conector',
-    mensagem: `A entidade "${entidade}" já é recebida pelo Conector "${c.identificador}" (na v1 cada entidade vem de um único Conector por empresa). Carregue "${entidade}" por ele, ou tire "${entidade}" da lista dele em Integração ERP > Conectores para passar a carregá-la por arquivo.`,
-  });
-
-  if (identificador) {
-    const escolhido = conectores.find((c) => c.identificador === identificador);
-    if (!escolhido || !escolhido.ativo) {
-      return { ok: false, codigo: 'conector_nao_encontrado', mensagem: `Não há Conector ativo com o identificador "${identificador}" nesta empresa. Confira em Integração ERP > Conectores.` };
-    }
-    if (escolhido.tipo !== 'arquivo') {
-      return { ok: false, codigo: 'conector_nao_e_arquivo', mensagem: `O Conector "${identificador}" não é do tipo arquivo. Escolha um Conector tipo arquivo ou cadastre um em Integração ERP > Conectores.` };
-    }
-    if (donoErp) return recusaDono(donoErp);
-    if (!escolhido.entidades.includes(entidade)) {
-      return { ok: false, codigo: 'entidade_de_outro_conector', mensagem: `O Conector "${identificador}" não está cadastrado para a entidade "${entidade}" (na v1 cada entidade vem de um único Conector por empresa). Inclua "${entidade}" na lista de entidades dele em Integração ERP > Conectores.` };
-    }
-    return { ok: true, conector: escolhido };
-  }
-
-  if (donoErp) return recusaDono(donoErp);
-  const doArquivo = ativos.filter((c) => c.tipo === 'arquivo' && c.entidades.includes(entidade));
-  if (doArquivo.length === 0) {
-    return { ok: false, codigo: 'sem_conector_arquivo', mensagem: `Nenhum Conector do tipo arquivo recebe a entidade "${entidade}". Cadastre um em Integração ERP > Conectores (tipo arquivo, com "${entidade}" na lista de entidades) e envie o arquivo de novo.` };
-  }
-  if (doArquivo.length > 1) {
-    return { ok: false, codigo: 'conector_ambiguo', mensagem: `Mais de um Conector do tipo arquivo recebe "${entidade}" (${doArquivo.map((c) => `"${c.identificador}"`).join(', ')}). Informe qual usar ou deixe só um deles com a entidade em Integração ERP > Conectores.` };
-  }
-  return { ok: true, conector: doArquivo[0] as ConectorDoArquivo };
 }

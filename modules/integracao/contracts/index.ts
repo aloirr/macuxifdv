@@ -10,8 +10,5 @@ export * from './conector';
 export * from './hub';
 export * from './bko';
 export * from './eventos';
-export * from './carga-arquivo';
-export * from './modelos';
-export * from './portal-carga';
 export * from './consulta-cancelamento';
 export * from './conector-download';

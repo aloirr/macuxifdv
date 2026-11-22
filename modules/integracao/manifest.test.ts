@@ -22,8 +22,9 @@ describe('manifesto da integracao', () => {
     expect(manifest.acoes['lote.reprocessar']?.perfis).toContain('analista');
   });
 
-  it('RF-INT-03: a carga por arquivo é ação de admin e analista (a rota usa essa ação; a plataforma devolve 403 aos outros perfis)', () => {
-    expect(manifest.acoes['carga.arquivo']?.perfis).toEqual(['admin', 'analista']);
+  it('RF-INT-03: a carga por arquivo saiu do BKO (integração só por Conector ou API): sem ação carga.arquivo e sem o menu', () => {
+    expect(manifest.acoes).not.toHaveProperty('carga.arquivo');
+    expect(manifest.apps.web?.menus).not.toContain('Carga por arquivo');
   });
 
   it('RN-PRO-01: nenhum perfil de campo (vendedor, promotor, supervisor, gerente) toca no Hub', () => {

@@ -28,8 +28,8 @@
 Padrão do BKO (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens e mensagens do Hub — nunca valor de linha (o payload pode ter CPF/CNPJ, §14 do hub-api). Texto que começa com `=`, `+`, `-` ou `@` ganha apóstrofo (o Excel não executa como fórmula).
 
 ## Arquivos
-- `web/index.ts` — `moduloWeb` (páginas `monitor`, `de-para` e carga por arquivo).
-- `web/components/` — `monitor-page`, `entidades-panel`, `historico-dialog`, `lote-drawer`, `autorizar-reprocessamento`, `de-para-page`, `carga-arquivo-page`.
+- `web/index.ts` — `moduloWeb` (páginas `monitor` e `de-para`).
+- `web/components/` — `monitor-page`, `entidades-panel`, `historico-dialog`, `lote-drawer`, `autorizar-reprocessamento`, `de-para-page`.
 - `web/lib/` — `apresentacao` (rótulos, tons, `podeExecutar`), `entidades` (agrupa lotes por entidade, texto da última carga, cabeçalho), `reprocessar-lotes` (reprocessa os lotes da entidade sem parar no erro de um lote; texto do resultado), `filtros-url`, `use-filtros`, `csv`, `queries`.
 - Testes: `web/lib/*.test.ts` e `web/components/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa).
 
