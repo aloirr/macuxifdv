@@ -256,6 +256,12 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `coordenada_origem`, `coordenada_precisao`, `geocodificacao_tentada_em` e `geocodificacao_chave` (backfill `'erp'`), e o
 > `macuxi_leitura` passa a SELECT por coluna nela. Detalhes no [core.md](core.md) ("0093"); teste
 > `db/testes/usuario-base-cliente-geocodificacao.db.test.ts`.
+>
+> **2026-11-22 (integração por ERP, F2; desenho aprovado em R-20261122-005500):** `0094_integracao_busca_erp` (aditiva, em
+> cima da 0093): 5 tabelas no schema `integracao` — `conector_api` (busca na API do ERP, frequência por
+> entidade com piso de 15 min por CHECK), `credencial_erp` (segredo cifrado, uma viva por Conector, **sem** `macuxi_leitura`,
+> worker e portal), `implantacao`, `implantacao_dia` (assistente e painel dos 30 dias) e `coleta_execucao`. Detalhes no
+> [integracao.md](integracao.md) ("0094"); teste `db/testes/integracao-busca-erp.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

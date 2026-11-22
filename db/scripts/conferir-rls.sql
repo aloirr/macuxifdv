@@ -19,7 +19,8 @@
 --   não seja boolean), em tabela ou view: a saída da consulta vai para o log do Actions (regra 8). E o papel: membro de
 --   qualquer papel, EXECUTE em alguma plataforma.sa_* ou em função SECURITY DEFINER além de plataforma.tenant_por_codigo(text)
 --   aparece como "(papel) macuxi_leitura". Função que retorna event_trigger (a do pgaudit do DBaaS) fica fora: SQL não a chama.
---   Exceção (0089, ADR 0061; TABELAS_SEM_LEITURA): as tabelas do rastreamento ficam SEM política e SEM grant para ele.
+--   Exceção (0089, ADR 0061; 0094; TABELAS_SEM_LEITURA): as tabelas do rastreamento e o cofre da credencial do ERP
+--   (integracao.credencial_erp) ficam SEM política e SEM grant para ele.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id), plataforma.plano não tem tenant_id (catálogo; desde a 0086 o app lê só o plano da
 -- assinatura do próprio tenant, política pelo id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
@@ -77,7 +78,8 @@ so_por_funcao (nome) as (
 ),
 sem_leitura (nome) as (
   values ('core.ponto_trajeto'),
-         ('core.ausencia_usuario')
+         ('core.ausencia_usuario'),
+         ('integracao.credencial_erp')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
