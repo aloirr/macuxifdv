@@ -1,13 +1,12 @@
 /**
  * Filtro de veículo em cascata (RN-CAT-22; spec `docs/design/filtro-veiculo/spec.md`; desenho `docs/desenho/filtro-veiculo.md` §1).
  * Consulta `catalogo.veiculos@1` (a cascata montadora › modelo › ano › motor › versão) e o aditivo de `catalogo.busca_produtos@1`
- * (`veiculo` na entrada e na saída). Tudo sai das aplicações em texto do catálogo; o veículo é só filtro: não vai ao pedido.
+ * (`veiculo` na entrada; a saída não traz campo de veículo por item: o item ou está na lista ou não está). Tudo sai das aplicações em texto do catálogo; o veículo é só filtro: não vai ao pedido.
  * A regra mora em `../domain/veiculo-*.ts`; aqui só a forma.
  */
 import { z } from 'zod';
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { Id } from '@macuxi/core/contracts';
-import { TrechoBusca, type ItemVitrine } from './busca';
 
 export const NivelVeiculo = z.enum(['montadora', 'modelo', 'ano', 'motor', 'versao']);
 export type NivelVeiculo = z.infer<typeof NivelVeiculo>;
@@ -58,14 +57,6 @@ export type OpcaoVeiculo = z.infer<typeof OpcaoVeiculo>;
 /** `automatico` = nível de uma opção só, preenchido sozinho (a tela mostra em `ink2`). */
 export const PassoTrilha = z.object({ nivel: NivelVeiculo, valor: z.string(), rotulo: z.string(), automatico: z.boolean() }).strict();
 export type PassoTrilha = z.infer<typeof PassoTrilha>;
-
-/** "Não serve" não existe no contrato: o item sai da lista. */
-export const CompatibilidadeVeiculo = z.enum(['compativel', 'conferir']);
-export type CompatibilidadeVeiculo = z.infer<typeof CompatibilidadeVeiculo>;
-
-/** `serve_em` nulo quando o trecho é só o nome do modelo (spec §5) ou quando o item é `compativel`. */
-export const ResultadoVeiculoItem = z.object({ compatibilidade: CompatibilidadeVeiculo, serve_em: TrechoBusca.nullable() }).strict();
-export type ResultadoVeiculoItem = z.infer<typeof ResultadoVeiculoItem>;
 
 export const VeiculoRecente = z.object({ veiculo: VeiculoEscolhido, rotulos: RotulosVeiculo }).strict();
 export type VeiculoRecente = z.infer<typeof VeiculoRecente>;
@@ -125,6 +116,3 @@ export type ChipFiltro = z.infer<typeof ChipFiltro>;
 /** Só os grupos com 2+ chips; chip com contagem 0 sai, salvo o marcado. */
 export const GruposFiltro = z.array(z.object({ grupo: GrupoFiltro, rotulo: z.string(), chips: z.array(ChipFiltro) }).strict());
 export type GruposFiltro = z.infer<typeof GruposFiltro>;
-
-/** O item da vitrine com o que o veículo escolhido disse dele (`veiculo` só existe com veículo escolhido). */
-export type ItemVitrineComVeiculo = ItemVitrine & { veiculo?: ResultadoVeiculoItem };

@@ -1,6 +1,6 @@
 /**
  * RN-CAT-22 / P4 (desenho `docs/desenho/filtro-veiculo.md` §4.2): a consulta do aparelho e a da API dão o MESMO resultado com veículo:
- * os itens, a ordem, a compatibilidade e o "Serve em" de `catalogo.busca_produtos@1`, e a cascata de `catalogo.veiculos@1`.
+ * os itens e a ordem de `catalogo.busca_produtos@1`, e a cascata de `catalogo.veiculos@1`.
  * O aparelho lê as linhas locais; a API, o banco falso por SQL. O ponta a ponta com Postgres é do agente testes.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -74,7 +74,7 @@ function api() {
   return { db, consultar, usuario: { perfil: 'vendedor' }, parametros: () => ({}), agora: () => new Date('2026-11-06T12:00:00Z'), fuso: () => 'America/Manaus' };
 }
 
-type Item = { veiculo: { compatibilidade: string }; aplicacao?: unknown } & Record<string, unknown>;
+type Item = { produto_id: string; aplicacao?: unknown } & Record<string, unknown>;
 type Saida = { itens: Item[]; total: number; disponivel: boolean; recentes: { veiculo: unknown; rotulos: { curto: string } }[] } & Record<string, unknown>;
 type Exec = { executar(e: unknown, c: unknown): Promise<Saida> };
 const buscaAparelho = (e: unknown) => (consultaBuscaProdutosAparelho as unknown as Exec).executar(e, aparelho());
@@ -90,7 +90,7 @@ describe('RN-CAT-22 / P4: aparelho e API dão o mesmo resultado com veículo', (
     esquecerVeiculosRecentes();
   });
 
-  it.each(ESCOLHAS.map((v, i) => [i, v] as const))('busca_produtos sem texto, veículo #%i: mesmos itens, ordem, compatibilidade e "Serve em"', async (_i, veiculo) => {
+  it.each(ESCOLHAS.map((v, i) => [i, v] as const))('busca_produtos sem texto, veículo #%i: mesmos itens e mesma ordem', async (_i, veiculo) => {
     const entrada = { q: '', veiculo, limite: 100 };
     const a = itens(await buscaAparelho(entrada));
     const b = itens(await buscaApi(entrada));
@@ -102,19 +102,30 @@ describe('RN-CAT-22 / P4: aparelho e API dão o mesmo resultado com veículo', (
     expect(itens(await buscaAparelho(entrada))).toEqual(itens(await buscaApi(entrada)));
   });
 
-  it('RN-CAT-22: o Gol 2018 traz os compatíveis antes dos de conferir, e o de conferir leva o trecho sem a montadora', async () => {
-    const r = await buscaAparelho({ q: '', veiculo: { ...GOL_2018, motor: '1.0', versao: 'Highline' }, limite: 100 });
-    const ordem = r.itens.map((i: { veiculo: { compatibilidade: string } }) => i.veiculo.compatibilidade);
-    expect(ordem.indexOf('conferir')).toBeGreaterThan(ordem.lastIndexOf('compativel'));
-    expect(ordem.filter((x: string) => x === 'compativel').length).toBeGreaterThan(0);
+  it('RN-CAT-22 (D4): com ano só entram as peças com o ano; sem ano entram todas as do modelo, inclusive a sem ano (aparelho = API)', async () => {
+    const ids = async (veiculo: VeiculoEscolhido) => {
+      const a = (await buscaAparelho({ q: '', veiculo, limite: 100 })).itens.map((i) => i.produto_id);
+      expect((await buscaApi({ q: '', veiculo, limite: 100 })).itens.map((i) => i.produto_id)).toEqual(a);
+      return a;
+    };
+    const semAno = LINHAS[7]!.id; // "VW Gol", sem ano
+    const com = await ids(GOL_2018);
+    expect(com).toHaveLength(7);
+    expect(com).not.toContain(semAno);
+    const sem = await ids({ ...GOL_2018, ano: null });
+    expect(sem).toHaveLength(9);
+    expect(sem).toContain(semAno);
+    expect(await ids({ ...GOL_2018, motor: '1.6' })).toHaveLength(4);
+    expect(await ids({ ...GOL_2018, versao: 'Trendline' })).toHaveLength(3);
+    const r = await buscaAparelho({ q: '', veiculo: GOL_2018, limite: 100 });
     expect(r.total).toBe(r.itens.length);
-    const semAno = await buscaAparelho({ q: '', veiculo: { ...GOL_2018, ano: null }, limite: 100 });
-    expect(semAno.itens.every((i: { veiculo: { compatibilidade: string } }) => i.veiculo.compatibilidade === 'conferir')).toBe(true);
   });
 
-  it('RN-CAT-22: sem veículo a busca não traz o campo veiculo (nada muda)', async () => {
-    const r = await buscaAparelho({ q: 'amortecedor', limite: 10 });
-    expect(r.itens.every((i: Record<string, unknown>) => !('veiculo' in i))).toBe(true);
+  it('RN-CAT-22: a busca não traz campo veiculo por item, com ou sem veículo', async () => {
+    for (const e of [{ q: 'amortecedor', limite: 10 }, { q: '', veiculo: GOL_2018, limite: 10 }]) {
+      const r = await buscaAparelho(e);
+      expect(r.itens.every((i: Record<string, unknown>) => !('veiculo' in i))).toBe(true);
+    }
   });
 
   it.each([

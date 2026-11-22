@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { construirIndiceVeiculos, segmentosDeVeiculo, indiceTemVeiculo, restringirIndice } from './veiculo-indice';
-import { compatibilidadeDoProduto, contarChipsFiltrar, filtrarPorVeiculo, leveTambemDoVeiculo, navegarCascata, POLITICA_CONFERIR, produtosDoModelo, rotulosDoVeiculo } from './veiculo-filtro';
+import { compatibilidadeDoProduto, contarChipsFiltrar, filtrarPorVeiculo, leveTambemDoVeiculo, navegarCascata, produtosDoModelo, rotulosDoVeiculo, SEM_DADO_PASSA_EM_MOTOR_E_VERSAO } from './veiculo-filtro';
 import { nomesDeVeiculo } from './veiculos';
 import type { VeiculoEscolhido } from '../contracts';
 
@@ -100,81 +100,68 @@ describe('RN-CAT-22: cascata', () => {
   });
 });
 
-describe('RN-CAT-22: compatível, conferir e fora', () => {
+describe('RN-CAT-22 (D4): o filtro só restringe pelo que o vendedor escolheu', () => {
   const i = indice();
-  const situacao = (id: string, v = GOL_2018) => compatibilidadeDoProduto(i, id, APLICACOES[id], v);
-  it('RN-CAT-22: Gol 2018 sem motor nem versão em "Gol 2017–2019 1.0/1.6 Highline" é conferir (versão restrita), com o trecho sem a montadora', () => {
-    const r = situacao('amortecedor');
-    expect(r.situacao).toBe('conferir');
-    expect(r.serve_em).toEqual({ texto: 'Gol 2017–2019 1.0/1.6 Highline', marcas: [[0, 3]], inclui_ano: null });
+  const situacao = (id: string, v = GOL_2018) => compatibilidadeDoProduto(i, id, v).situacao;
+  const ids = (v: VeiculoEscolhido) => filtrarPorVeiculo(Object.keys(APLICACOES).map((produto_id) => ({ produto_id })), i, v).map((x) => x.produto_id);
+  it('RN-CAT-22: com ano escolhido, só entram as peças com um trecho do modelo que inclui o ano (Gol 2018)', () => {
+    expect(ids(GOL_2018)).toEqual(['amortecedor', 'coxim', 'vela']);
+    expect(situacao('amortecedor', { ...GOL_2018, ano: 2020 })).toBe('nao_serve');
   });
-  it('RN-CAT-22: Gol 2018 1.0 Highline é compatível; Gol 2020 está fora', () => {
-    expect(situacao('amortecedor', { ...GOL_2018, motor: '1.0', versao: 'Highline' }).situacao).toBe('compativel');
-    expect(situacao('amortecedor', { ...GOL_2018, ano: 2020 }).situacao).toBe('nao_serve');
+  it('RN-CAT-22: com ano escolhido, a peça só com "VW Gol", sem ano, NÃO aparece', () => {
+    expect(situacao('pastilha')).toBe('nao_serve');
+    expect(ids(GOL_2018)).not.toContain('pastilha');
   });
-  it('RN-CAT-22: versão ou motor escolhidos que o trecho contradiz tiram o produto', () => {
-    expect(situacao('amortecedor', { ...GOL_2018, versao: 'Trendline' }).situacao).toBe('nao_serve');
-    expect(situacao('correia', { montadora: 'Ford', modelo: 'EcoSport', ano: 2014, motor: '1.0', versao: null }).situacao).toBe('nao_serve');
+  it('RN-CAT-22: sem ano escolhido, aparecem TODAS as peças do modelo, inclusive a sem ano', () => {
+    expect(ids({ ...GOL_2018, ano: null })).toEqual(['amortecedor', 'pastilha', 'coxim', 'vela', 'bomba']);
+    expect(situacao('pastilha', { ...GOL_2018, ano: null })).toBe('compativel');
   });
-  it('RN-CAT-22: aplicação sem ano ("VW Gol") é conferir e sem "Serve em" quando o trecho é só o nome do modelo', () => {
-    const r = situacao('pastilha');
-    expect(r).toMatchObject({ situacao: 'conferir', serve_em: null });
+  it('RN-CAT-22: versão não escolhida não filtra ("Gol 2017–2019 Highline" aparece em Gol 2018)', () => {
+    expect(situacao('amortecedor')).toBe('compativel');
+    expect(situacao('coxim', { ...GOL_2018, motor: '1.0' })).toBe('compativel');
   });
-  it('RN-CAT-22: aplicação vazia ou sem veículo é universal', () => {
-    expect(situacao('fluido').situacao).toBe('universal');
-    expect(situacao('motor').situacao).toBe('universal');
+  it('RN-CAT-22: versão escolhida: só as peças com aquela versão no trecho; sem versão no trecho, fora', () => {
+    expect(ids({ ...GOL_2018, versao: 'Highline' })).toEqual(['amortecedor', 'coxim']);
+    expect(situacao('amortecedor', { ...GOL_2018, versao: 'Trendline' })).toBe('nao_serve');
+    expect(situacao('vela', { ...GOL_2018, versao: 'Highline' })).toBe('nao_serve');
+    expect(ids({ ...GOL_2018, ano: null, versao: 'Trendline' })).toEqual(['coxim']);
   });
-  it('RN-CAT-22: sem ano escolhido nenhum item é compatível', () => {
-    for (const id of Object.keys(APLICACOES)) expect(situacao(id, { ...GOL_2018, ano: null }).situacao).not.toBe('compativel');
+  it('RN-CAT-22: motor não escolhido não filtra; motor escolhido exige o motor no trecho (peça sem motor fora)', () => {
+    expect(ids({ ...GOL_2018, motor: '1.0' })).toEqual(['amortecedor', 'coxim', 'vela']);
+    expect(ids({ ...GOL_2018, motor: '1.6' })).toEqual(['amortecedor']);
+    expect(ids({ ...GOL_2018, ano: 2020, motor: '1.0' })).toEqual(['vela']);
+    expect(ids({ ...GOL_2018, ano: 2020 })).toEqual(['vela', 'bomba']);
+    expect(situacao('correia', { montadora: 'Ford', modelo: 'EcoSport', ano: 2014, motor: '1.0', versao: null })).toBe('nao_serve');
   });
-  it('RN-CAT-16: "Civic 07–11 · Fit 2003>" com Civic 2015 está fora e com Civic 2009 é compatível; o outro trecho não vaza', () => {
+  it('RN-CAT-22: a regra de motor e versão sem dado mora numa constante só', () => {
+    expect(SEM_DADO_PASSA_EM_MOTOR_E_VERSAO).toBe(false);
+  });
+  it('RN-CAT-22: aplicação vazia ou sem veículo é universal e fica fora da lista filtrada', () => {
+    expect(situacao('fluido')).toBe('universal');
+    expect(situacao('motor')).toBe('universal');
+    expect(ids(GOL_2018)).not.toContain('fluido');
+  });
+  it('RN-CAT-16: "Civic 07–11 · Fit 2003>" com Civic 2015 está fora e com Civic 2009 serve; o outro trecho não vaza', () => {
     const civic: VeiculoEscolhido = { montadora: null, modelo: 'Civic', ano: 2015, motor: null, versao: null };
-    expect(situacao('filtro', civic).situacao).toBe('nao_serve');
-    expect(situacao('filtro', { ...civic, ano: 2009 }).situacao).toBe('compativel');
-    expect(situacao('filtro', { montadora: null, modelo: 'Fit', ano: 2020, motor: null, versao: null }).situacao).toBe('compativel');
-  });
-  it('RN-CAT-22: o produto fica com o melhor dos trechos (Highline 1.0 e Trendline 1.0)', () => {
-    expect(situacao('coxim', { ...GOL_2018, motor: '1.0', versao: 'Trendline' }).situacao).toBe('compativel');
-    // cada trecho restringe a versão: sem versão escolhida, nenhum cobre todas as opções
-    expect(situacao('coxim', { ...GOL_2018, motor: '1.0' }).situacao).toBe('conferir');
+    expect(situacao('filtro', civic)).toBe('nao_serve');
+    expect(situacao('filtro', { ...civic, ano: 2009 })).toBe('compativel');
+    expect(situacao('filtro', { montadora: null, modelo: 'Fit', ano: 2020, motor: null, versao: null })).toBe('compativel');
   });
   it('RN-CAT-22: a montadora escolhida diferente da escrita tira o produto', () => {
-    expect(situacao('amortecedor', { ...GOL_2018, montadora: 'Ford' }).situacao).toBe('nao_serve');
+    expect(situacao('amortecedor', { ...GOL_2018, montadora: 'Ford' })).toBe('nao_serve');
   });
-  it('RN-CAT-22: o trecho de conferir longo é cortado em 90 caracteres com o modelo à vista', () => {
-    const longa = `Gol ${'2010 '.repeat(2)}${'Highline Trendline '.repeat(8)}`;
-    const idx = construirIndiceVeiculos([{ id: 'x', aplicacao: longa }, { id: 'y', aplicacao: 'Gol 2010 Polo' }], OPC);
-    const r = compatibilidadeDoProduto(idx, 'x', longa, { montadora: null, modelo: 'Gol', ano: 2010, motor: null, versao: null });
-    expect(r.serve_em!.texto.length).toBeLessThanOrEqual(90);
-    expect(r.serve_em!.marcas).toEqual([[0, 3]]);
-  });
-});
-
-describe('RN-CAT-22: lista com veículo', () => {
-  const i = indice();
-  const itens = Object.keys(APLICACOES).map((id) => ({ produto_id: id, aplicacao: APLICACOES[id]! }));
-  it('RN-CAT-22: compatíveis primeiro e os de conferir no fim, cada grupo na ordem que veio; universais e fora saem', () => {
-    expect(POLITICA_CONFERIR).toBe('fim');
-    const r = filtrarPorVeiculo(itens, i, { ...GOL_2018, motor: '1.0', versao: 'Highline' });
-    expect(r.map((x) => [x.produto_id, x.veiculo.compatibilidade])).toEqual([
-      ['amortecedor', 'compativel'],
-      ['coxim', 'compativel'],
-      ['vela', 'compativel'],
-      ['pastilha', 'conferir'],
-    ]);
-  });
-  it('RN-CAT-22 (D4): com a política "esconder" os de conferir saem; com "fim" ficam no fim', () => {
-    const v = { ...GOL_2018, motor: '1.0', versao: 'Highline' };
-    expect(filtrarPorVeiculo(itens, i, v, 'esconder').map((x) => x.produto_id)).toEqual(['amortecedor', 'coxim', 'vela']);
-    expect(filtrarPorVeiculo(itens, i, v, 'fim').map((x) => x.produto_id)).toEqual(['amortecedor', 'coxim', 'vela', 'pastilha']);
+  it('RN-CAT-22: a ordem da lista é a que veio (sem grupos) e a saída não traz campo de veículo por item', () => {
+    const r = filtrarPorVeiculo(['vela', 'coxim', 'amortecedor'].map((produto_id) => ({ produto_id })), i, GOL_2018);
+    expect(r).toEqual([{ produto_id: 'vela' }, { produto_id: 'coxim' }, { produto_id: 'amortecedor' }]);
   });
   it('RN-CAT-22: o conjunto de partida da lista sem texto são os produtos que citam o modelo', () => {
     expect([...produtosDoModelo(i, { modelo: 'Gol' })].sort()).toEqual(['amortecedor', 'bomba', 'coxim', 'pastilha', 'vela']);
   });
-  it('RN-CAT-22 (D3): "Leve também" sem veículo é a lista de hoje; com veículo, só compatíveis e universais', () => {
-    const junto = ['bucha', 'fluido', 'vela', 'amortecedor'].map((produto_id) => ({ produto_id }));
-    expect(leveTambemDoVeiculo(junto, i, null)).toHaveLength(4);
-    expect(leveTambemDoVeiculo(junto, i, { ...GOL_2018, motor: '1.0', versao: 'Highline' }).map((x) => x.produto_id)).toEqual(['fluido', 'vela', 'amortecedor']);
+  it('RN-CAT-22 (D3): "Leve também" sem veículo é a lista de hoje; com veículo, só as que passam no filtro e as universais', () => {
+    const junto = ['bucha', 'fluido', 'vela', 'amortecedor', 'pastilha'].map((produto_id) => ({ produto_id }));
+    expect(leveTambemDoVeiculo(junto, i, null)).toHaveLength(5);
+    expect(leveTambemDoVeiculo(junto, i, GOL_2018).map((x) => x.produto_id)).toEqual(['fluido', 'vela', 'amortecedor']);
+    expect(leveTambemDoVeiculo(junto, i, { ...GOL_2018, ano: null }).map((x) => x.produto_id)).toEqual(['fluido', 'vela', 'amortecedor', 'pastilha']);
   });
 });
 

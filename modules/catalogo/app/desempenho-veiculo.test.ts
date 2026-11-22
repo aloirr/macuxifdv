@@ -90,7 +90,7 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
         if (volta > 0) lista.push(performance.now() - t);
         total += r.total;
         expect(r.items.length).toBeGreaterThan(0);
-        expect(r.items.every((i) => i.veiculo?.compatibilidade === 'compativel' || i.veiculo?.compatibilidade === 'conferir')).toBe(true);
+        expect(r.items.every((i) => !('veiculo' in i))).toBe(true);
       }
     expect(total).toBeGreaterThan(0);
 

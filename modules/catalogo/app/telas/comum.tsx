@@ -6,13 +6,12 @@ import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { ALTURA, BotaoIcone, Button, Cartao, ChipEstado, colors, fonte, Icon, type IconName, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from 'react-native';
-import type { AcaoProduto, ContextoProduto, ItemVitrine, ItemVitrineComVeiculo, MiniaturaProduto as Miniatura } from '../../contracts';
+import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
 import { rotuloPreco } from '../lib/apresentacao';
 import { AVISO_CODIGO_COPIADO, copiarCodigo, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
 import { estoqueCarregandoVisivel, LEITURA_ESTOQUE_CARREGANDO, TEXTO_ESTOQUE_CARREGANDO } from '../lib/carga-do-cartao';
 import { linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
 import { BotaoEstoquePorFilial } from './estoque-filial';
-import { partirTrecho, TEXTOS_VEICULO } from '../lib/veiculo-tela';
 import { MiniaturaProduto } from './miniatura';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
@@ -106,7 +105,7 @@ function BotoesAcaoDoCartao({ item, clienteId, acoes }: { item: ItemVitrine; cli
  * mais de uma filial). O cartão inteiro abre a ficha; o copiar e o botão de estoque não abrem. O botão da extensão `produto.acoes`
  * (de outro módulo, só dentro do fluxo dele) fica ao lado do preço.
  */
-export function CartaoGrade({ item, clienteId, miniatura = null, estoqueCarregando = false, onPress, onEstoquePorFilial }: { item: ItemVitrineComVeiculo; clienteId: string | null; miniatura?: Miniatura | null; estoqueCarregando?: boolean; onPress: () => void; onEstoquePorFilial: () => void }) {
+export function CartaoGrade({ item, clienteId, miniatura = null, estoqueCarregando = false, onPress, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; estoqueCarregando?: boolean; onPress: () => void; onEstoquePorFilial: () => void }) {
   const preco = rotuloPreco(item);
   const tag = tagDeEstoque(item);
   const linhaMarca = linhaDaMarca(item);
@@ -130,7 +129,6 @@ export function CartaoGrade({ item, clienteId, miniatura = null, estoqueCarregan
         </Text>
         <BotaoCopiarCodigo codigo={item.erp_code} />
       </View>
-      <LinhaDoVeiculo veiculo={item.veiculo} codigo={item.erp_code} />
       <View style={{ flex: 1 }} />
       {preco ? (
         <View style={g.precoLinha}>
@@ -155,25 +153,7 @@ export function CartaoGrade({ item, clienteId, miniatura = null, estoqueCarregan
   );
 }
 
-/**
- * RN-CAT-22 (spec filtro-veiculo §5): com veículo escolhido, `Compatível` (chip verde com texto) ou, nos de conferir, `Serve em:` com o
- * trecho da aplicação sem a montadora e o modelo em negrito, até 3 linhas. Sem trecho (só o nome do modelo), a linha não aparece.
- */
-function LinhaDoVeiculo({ veiculo, codigo }: { veiculo: ItemVitrineComVeiculo['veiculo']; codigo: string }) {
-  if (!veiculo) return null;
-  if (veiculo.compatibilidade === 'compativel') return <ChipEstado texto={TEXTOS_VEICULO.compativel} tom="sucesso" icone="check" pequeno testID={`catalogo-compativel-${codigo}`} />;
-  if (!veiculo.serve_em) return null;
-  const { texto, marcas } = veiculo.serve_em;
-  return (
-    <Text style={g.serveEm} numberOfLines={3} testID={`catalogo-serve-em-${codigo}`}>
-      Serve em: {partirTrecho(texto, marcas).map((x, i) => (x.marcado ? <Text key={i} style={g.serveEmModelo}>{x.texto}</Text> : x.texto))}
-    </Text>
-  );
-}
-
 const g = StyleSheet.create({
-  serveEm: { ...fonte.body, fontSize: 14, color: colors.ink2 },
-  serveEmModelo: { ...fonte.semibold, color: colors.ink },
   cartao: { flex: 1, borderRadius: 16 },
   nome: t.bodyStrong,
   marca: { ...fonte.body, fontSize: 14, color: colors.ink2, minHeight: 18 },

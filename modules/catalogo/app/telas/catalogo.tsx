@@ -15,7 +15,7 @@ import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, colors, DEFAULT_TZ
 import { useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { caminhoCatalogo, type ChipFiltro, type GrupoFiltro, type ItemVitrine, type ItemVitrineComVeiculo, type VeiculoEscolhido } from '../../contracts';
+import { caminhoCatalogo, type ChipFiltro, type GrupoFiltro, type ItemVitrine, type VeiculoEscolhido } from '../../contracts';
 import { anoCivilNoFuso } from '../../domain/ano-civil';
 import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
 import { TETO_RANKING_BUSCA } from '../../domain/busca-consulta';
@@ -47,7 +47,7 @@ class RodadaCancelada extends Error {}
 
 interface EstadoLista {
   carregando: boolean;
-  itens: ItemVitrineComVeiculo[];
+  itens: ItemVitrine[];
   total: number;
   aviso: string | null;
   /** Erro ao abrir (T-0192 §7.1): vira um só `EstadoVazio` com "Tentar de novo"; não é aviso. */
@@ -213,7 +213,7 @@ export default function TelaCatalogo() {
       const ids = doFiltro || permitidos ? new Set([...(doFiltro ?? ativos)].filter((id) => ativos.has(id) && (!permitidos || permitidos.has(id)))) : undefined;
       const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}), ...(escolha.soComEstoque ? { only_in_stock: true } : {}) };
       if (veiculo) {
-        // RN-CAT-22: o filtro de veículo é local (o catálogo está no aparelho); compatíveis antes dos de conferir, paginado sobre a lista pronta
+        // RN-CAT-22: o filtro de veículo é local (o catálogo está no aparelho); só as peças que servem no veículo (D4), paginado sobre a lista pronta
         const v = await listaComVeiculo(motor, { ...entrada, fuso, q: consulta, chips, veiculo, offline: aviso === AVISO_BUSCA_OFFLINE });
         return { itens: v.items.slice(0, limite), total: v.total, aviso: consulta ? avisoDaBusca(aviso, v.indexando) : null };
       }

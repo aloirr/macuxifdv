@@ -1,22 +1,22 @@
 /**
- * RN-CAT-22: filtro de veículo em cascata (montadora › modelo › ano › motor › versão), "compatível" e "conferir", "Leve também" e a
- * contagem dos chips da folha Filtrar. Funções puras sobre o `IndiceVeiculos` (`veiculo-indice.ts`): o mesmo resultado no aparelho
+ * RN-CAT-22 (D4): filtro de veículo em cascata (montadora › modelo › ano › motor › versão); o filtro só restringe pelo que o vendedor
+ * escolheu (a peça aparece ou não aparece, sem "de conferir"), "Leve também" e a contagem dos chips da folha Filtrar. Funções puras sobre o `IndiceVeiculos` (`veiculo-indice.ts`): o mesmo resultado no aparelho
  * (sem sinal) e na API. Spec `docs/design/filtro-veiculo/spec.md` §4 a §7; desenho `docs/desenho/filtro-veiculo.md` §3.
  */
-import type { CompatibilidadeVeiculo, GrupoFiltro, GruposFiltro, NivelVeiculo, OpcaoVeiculo, PassoTrilha, ResultadoVeiculoItem, RotulosVeiculo, TrechoBusca, VeiculoEscolhido, VeiculoParcial } from '../contracts';
+import type { GrupoFiltro, GruposFiltro, NivelVeiculo, OpcaoVeiculo, PassoTrilha, RotulosVeiculo, VeiculoEscolhido, VeiculoParcial } from '../contracts';
 import { normalizarTexto } from './texto';
 import type { EntradaVeiculo, IndiceVeiculos } from './veiculo-indice';
 
 
-/** RN-CAT-22 / D4 (pendente com o dono do produto): onde ficam os itens de conferir na lista com veículo. */
-export type PoliticaConferir = 'fim' | 'esconder';
-export const POLITICA_CONFERIR: PoliticaConferir = 'fim';
+/**
+ * RN-CAT-22 (D4, a confirmar pelo dono do produto): motor ou versão ESCOLHIDOS e o trecho sem esse dado. `false` = a peça não aparece (como
+ * no ano, que não tem esta chave: ano escolhido sempre exige o ano no trecho). Trocar aqui muda aparelho e API juntos.
+ */
+export const SEM_DADO_PASSA_EM_MOTOR_E_VERSAO = false;
 
 export const NIVEIS_VEICULO: readonly NivelVeiculo[] = ['montadora', 'modelo', 'ano', 'motor', 'versao'];
 /** Quantos resultados a busca da folha mostra. */
 export const MAXIMO_BUSCA_VEICULO = 30;
-/** Teto do trecho "Serve em" do veículo (o mesmo do `SERVE_EM_MAX`, RN-CAT-12). */
-const TRECHO_MAX = 90;
 
 const chave = (s: string | null | undefined): string | null => (s === null || s === undefined || s.trim() === '' ? null : normalizarTexto(s));
 const ptBr = (a: string, b: string) => a.localeCompare(b, 'pt-BR');
@@ -160,135 +160,47 @@ export function navegarCascata(indice: IndiceVeiculos, escolha: VeiculoParcial, 
   };
 }
 
-// ---------- compatível, conferir, não serve ----------
-export type SituacaoVeiculo = 'compativel' | 'conferir' | 'nao_serve' | 'universal';
+// ---------- serve ou não serve ----------
+export type SituacaoVeiculo = 'compativel' | 'nao_serve' | 'universal';
 
 export interface Compatibilidade {
   situacao: SituacaoVeiculo;
-  /** O trecho da aplicação que decidiu (o primeiro de conferir; o compatível não precisa dele). */
+  /** O trecho da aplicação que serve no veículo (a ficha o põe em negrito); nulo fora de `compativel`. */
   segmento: EntradaVeiculo | null;
-  serve_em: TrechoBusca | null;
 }
 
-interface ContextoCompat {
-  indice: IndiceVeiculos;
-  f: Filtro;
-  motores: readonly string[];
-  versoes: readonly string[];
+/** Nível escolhido: o trecho tem de trazer o valor; nível não escolhido não filtra. */
+const nivelPassa = <T>(escolhido: T | null, doTrecho: readonly T[], semDadoPassa: boolean): boolean => escolhido === null || (doTrecho.length === 0 ? semDadoPassa : doTrecho.includes(escolhido));
+
+/** RN-CAT-22 (D4): o trecho serve quando cada nível escolhido (ano, motor, versão) está nele. */
+function trechoServe(f: Filtro, e: EntradaVeiculo): boolean {
+  return nivelPassa(f.ano, e.anos, false) && nivelPassa(f.motor, e.motores, SEM_DADO_PASSA_EM_MOTOR_E_VERSAO) && nivelPassa(f.versao, e.versoes, SEM_DADO_PASSA_EM_MOTOR_E_VERSAO);
 }
 
-function contextoCompat(indice: IndiceVeiculos, v: VeiculoEscolhido): ContextoCompat {
-  const f = filtroDe(v);
-  return {
-    indice,
-    f,
-    motores: opcoesDoNivel(indice, 'motor', { ...f, motor: null, versao: null }),
-    versoes: opcoesDoNivel(indice, 'versao', { ...f, versao: null }),
-  };
-}
-
-const cobre = (restricao: readonly string[], opcoes: readonly string[]) => restricao.length === 0 || opcoes.every((o) => restricao.includes(o));
-
-function situacaoDaEntrada(c: ContextoCompat, e: EntradaVeiculo): 'compativel' | 'conferir' | 'nao_serve' {
-  const { f } = c;
-  if (f.ano !== null && e.anos.length > 0 && !e.anos.includes(f.ano)) return 'nao_serve';
-  if (f.motor !== null && e.motores.length > 0 && !e.motores.includes(f.motor)) return 'nao_serve';
-  if (f.versao !== null && e.versoes.length > 0 && !e.versoes.includes(f.versao)) return 'nao_serve';
-  if (f.ano === null || e.anos.length === 0) return 'conferir';
-  if (f.motor === null && !cobre(e.motores, c.motores)) return 'conferir';
-  if (f.versao === null && !cobre(e.versoes, c.versoes)) return 'conferir';
-  return 'compativel';
-}
-
-/** Posições do trecho sem a montadora, recortado em 90 caracteres, com o modelo marcado; nulo quando sobra só o nome do modelo. */
-function trechoDoVeiculo(e: EntradaVeiculo, aplicacao: string): TrechoBusca | null {
-  if (aplicacao.length < e.fim) return null;
-  let texto = aplicacao.slice(e.inicio, e.fim);
-  let ms = e.posModelo[0] - e.inicio;
-  let me = e.posModelo[1] - e.inicio;
-  if (e.posMontadora) {
-    const a = e.posMontadora[0] - e.inicio;
-    let b = e.posMontadora[1] - e.inicio;
-    while (b < texto.length && /[\s\-–:/,]/.test(texto[b]!)) b++;
-    texto = texto.slice(0, a) + texto.slice(b);
-    if (ms >= b) {
-      ms -= b - a;
-      me -= b - a;
-    }
-  }
-  const lead = /^[\s,\-–:/]+/.exec(texto)?.[0].length ?? 0;
-  texto = texto.slice(lead);
-  ms -= lead;
-  me -= lead;
-  if (ms < 0 || normalizarTexto(texto) === e.modelo) return null;
-  if (texto.length <= TRECHO_MAX) return { texto, marcas: [[ms, me]], inclui_ano: null };
-  let ini = Math.max(0, ms - 20);
-  if (ini > 0 && texto[ini - 1] !== ' ') {
-    const esp = texto.indexOf(' ', ini);
-    if (esp >= 0 && esp + 1 <= ms) ini = esp + 1;
-  }
-  const orcamento = TRECHO_MAX - (ini > 0 ? 1 : 0);
-  let fim = texto.length;
-  if (texto.length - ini > orcamento) {
-    const limite = ini + orcamento - 1;
-    fim = limite;
-    if (texto[limite] !== ' ') {
-      const esp = texto.lastIndexOf(' ', limite);
-      if (esp > ini) fim = esp;
-    }
-    while (fim > ini && texto[fim - 1] === ' ') fim--;
-  }
-  const prefixo = ini > 0 ? '…' : '';
-  const sufixo = fim < texto.length ? '…' : '';
-  const desloca = prefixo.length - ini;
-  const dentro = ms >= ini && me <= fim;
-  return { texto: `${prefixo}${texto.slice(ini, fim)}${sufixo}`, marcas: dentro ? [[ms + desloca, me + desloca]] : [], inclui_ano: null };
-}
-
-function compatibilidadeCom(c: ContextoCompat, produtoId: string, aplicacao: string | null | undefined): Compatibilidade {
-  const entradas = c.indice.doProduto.get(produtoId);
-  if (!entradas || entradas.length === 0) return { situacao: 'universal', segmento: null, serve_em: null };
-  const doModelo = new Set(entradasDoModelo(c.indice, c.f));
-  let conferir: EntradaVeiculo | null = null;
-  for (const e of entradas) {
-    if (!doModelo.has(e)) continue;
-    const s = situacaoDaEntrada(c, e);
-    if (s === 'compativel') return { situacao: 'compativel', segmento: e, serve_em: null };
-    if (s === 'conferir' && conferir === null) conferir = e;
-  }
-  if (conferir === null) return { situacao: 'nao_serve', segmento: null, serve_em: null };
-  return { situacao: 'conferir', segmento: conferir, serve_em: trechoDoVeiculo(conferir, aplicacao ?? '') };
+function compatibilidadeCom(indice: IndiceVeiculos, f: Filtro, produtoId: string): Compatibilidade {
+  const entradas = indice.doProduto.get(produtoId);
+  if (!entradas || entradas.length === 0) return { situacao: 'universal', segmento: null };
+  const doModelo = new Set(entradasDoModelo(indice, f));
+  const e = entradas.find((x) => doModelo.has(x) && trechoServe(f, x));
+  return e ? { situacao: 'compativel', segmento: e } : { situacao: 'nao_serve', segmento: null };
 }
 
 /**
- * RN-CAT-22: o produto no veículo escolhido. `compativel` = um trecho tem o ano escolhido e serve em todas as opções dos níveis não
- * escolhidos; `conferir` = cita o modelo, mas sem ano ou restringindo um nível não escolhido; `nao_serve` = o trecho contradiz o que foi
- * escolhido (ou nenhum trecho cita o modelo); `universal` = aplicação vazia ou sem nome de veículo. O produto fica com o melhor dos trechos.
+ * RN-CAT-22 (D4): o produto no veículo escolhido. `compativel` = algum trecho do modelo traz o ano, o motor e a versão ESCOLHIDOS (o que não
+ * foi escolhido não filtra); `nao_serve` = nenhum trecho serve (inclusive o trecho sem o dado escolhido); `universal` = aplicação vazia ou
+ * sem nome de veículo.
  */
-export function compatibilidadeDoProduto(indice: IndiceVeiculos, produtoId: string, aplicacao: string | null | undefined, veiculo: VeiculoEscolhido): Compatibilidade {
-  return compatibilidadeCom(contextoCompat(indice, veiculo), produtoId, aplicacao);
+export function compatibilidadeDoProduto(indice: IndiceVeiculos, produtoId: string, veiculo: VeiculoEscolhido): Compatibilidade {
+  return compatibilidadeCom(indice, filtroDe(veiculo), produtoId);
 }
 
 /**
- * RN-CAT-22: só os produtos que servem no veículo, compatíveis antes e os de conferir depois (ou sem eles, com `esconder`, D4), cada um
- * com o `veiculo` do contrato. A ordem de dentro de cada grupo é a que veio (a do ranking, ou a da vitrine). Produto universal e o que
- * não serve saem.
+ * RN-CAT-22 (D4): só os produtos que servem no veículo, na ordem que veio (a do ranking ou a da vitrine). O universal e o que não serve
+ * saem. A peça aparece ou não aparece: não há "de conferir".
  */
-export function filtrarPorVeiculo<T extends { produto_id: string; aplicacao?: string | null | undefined }>(
-  itens: readonly T[],
-  indice: IndiceVeiculos,
-  veiculo: VeiculoEscolhido,
-  politica: PoliticaConferir = POLITICA_CONFERIR,
-): (T & { veiculo: ResultadoVeiculoItem })[] {
-  const c = contextoCompat(indice, veiculo);
-  const compativeis: (T & { veiculo: ResultadoVeiculoItem })[] = [];
-  const conferir: (T & { veiculo: ResultadoVeiculoItem })[] = [];
-  for (const item of itens) {
-    const r = compatibilidadeCom(c, item.produto_id, item.aplicacao);
-    if (r.situacao === 'compativel') compativeis.push({ ...item, veiculo: { compatibilidade: 'compativel' as CompatibilidadeVeiculo, serve_em: null } });
-    else if (r.situacao === 'conferir' && politica === 'fim') conferir.push({ ...item, veiculo: { compatibilidade: 'conferir' as CompatibilidadeVeiculo, serve_em: r.serve_em } });
-  }
-  return [...compativeis, ...conferir];
+export function filtrarPorVeiculo<T extends { produto_id: string }>(itens: readonly T[], indice: IndiceVeiculos, veiculo: VeiculoEscolhido): T[] {
+  const f = filtroDe(veiculo);
+  return itens.filter((item) => compatibilidadeCom(indice, f, item.produto_id).situacao === 'compativel');
 }
 
 /** Ids dos produtos que citam o modelo (o conjunto de partida da lista sem texto); o `filtrarPorVeiculo` decide o resto. */
@@ -297,14 +209,13 @@ export function produtosDoModelo(indice: IndiceVeiculos, veiculo: VeiculoParcial
 }
 
 /**
- * RN-CAT-22 / RN-CAT-11 (D3): "Leve também". Sem veículo, a lista de hoje; com veículo, só os compatíveis e os universais (os de conferir
- * ficam de fora, spec §7).
+ * RN-CAT-22 / RN-CAT-11 (D3): "Leve também". Sem veículo, a lista de hoje; com veículo, só os que passam no filtro e os universais.
  */
 export function leveTambemDoVeiculo<T extends { produto_id: string }>(ofereceJunto: readonly T[], indice: IndiceVeiculos, veiculo: VeiculoEscolhido | null): T[] {
   if (!veiculo) return [...ofereceJunto];
-  const c = contextoCompat(indice, veiculo);
+  const f = filtroDe(veiculo);
   return ofereceJunto.filter((o) => {
-    const s = compatibilidadeCom(c, o.produto_id, '').situacao;
+    const s = compatibilidadeCom(indice, f, o.produto_id).situacao;
     return s === 'compativel' || s === 'universal';
   });
 }

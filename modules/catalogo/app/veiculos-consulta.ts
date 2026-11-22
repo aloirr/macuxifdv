@@ -4,7 +4,7 @@
  * O índice é montado uma vez por lista de produtos montada (muda com o sync) e por ano civil no fuso do tenant.
  */
 import { implementarConsultaAparelho } from '@macuxi/platform-sdk';
-import { CONSULTA_VEICULOS, type ProdutoConteudoSync, type VeiculoEscolhido, type ItemVitrineComVeiculo, type VeiculoParcial, type VeiculoRecente, type VeiculosSaida } from '../contracts';
+import { CONSULTA_VEICULOS, type ProdutoConteudoSync, type VeiculoEscolhido, type ItemVitrine, type VeiculoParcial, type VeiculoRecente, type VeiculosSaida } from '../contracts';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { apelidosDeMontadora, construirIndiceVeiculos, definirIndiceVeiculos, indiceTemVeiculo, indiceVeiculosDe, restringirIndice, type IndiceVeiculos } from '../domain/veiculo-indice';
 import { filtrarPorVeiculo, navegarCascata, produtosDoModelo, rotulosDoVeiculo } from '../domain/veiculo-filtro';
@@ -73,12 +73,12 @@ export const consultaVeiculosAparelho = implementarConsultaAparelho(CONSULTA_VEI
 
 /**
  * A lista do Catálogo com veículo (RN-CAT-22), sobre as linhas locais: a vitrine ou a busca por texto restrita aos produtos que citam o
- * modelo, depois o `filtrarPorVeiculo` (compatíveis antes dos de conferir). Até o teto de 400, como a busca; a tela pagina nela.
+ * modelo, depois o `filtrarPorVeiculo` (RN-CAT-22, D4). Até o teto de 400, como a busca; a tela pagina nela.
  */
 export async function listaComVeiculo(
   leitor: LeitorLocal,
   e: EntradaLocal & { chips?: ChipsVitrine; q: string; veiculo: VeiculoEscolhido; offline: boolean },
-): Promise<{ items: ItemVitrineComVeiculo[]; total: number; indexando: boolean }> {
+): Promise<{ items: ItemVitrine[]; total: number; indexando: boolean }> {
   const indice = await indiceVeiculosLocal(leitor, anoCivilNoFuso(new Date(e.agora), e.fuso));
   const doModelo = produtosDoModelo(indice, e.veiculo);
   const antes = e.chips?.only_product_ids;
@@ -90,5 +90,5 @@ export async function listaComVeiculo(
   const produtos = await comAplicacao(leitor, (await produtosLocais(leitor)).filter((p) => naLista.has(p.id)));
   const aplicacao = new Map(produtos.map((p) => [p.id, p.aplicacao ?? null]));
   const filtrada = filtrarPorVeiculo(r.items.map((i) => ({ ...i, produto_id: i.id, aplicacao: aplicacao.get(i.id) ?? null })), indice, e.veiculo);
-  return { items: filtrada.map(({ produto_id: _p, aplicacao: _a, ...item }) => item as ItemVitrineComVeiculo), total: filtrada.length, indexando: 'indexando' in r && r.indexando === true };
+  return { items: filtrada.map(({ produto_id: _p, aplicacao: _a, ...item }) => item as ItemVitrine), total: filtrada.length, indexando: 'indexando' in r && r.indexando === true };
 }
