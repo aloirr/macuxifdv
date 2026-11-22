@@ -14,6 +14,18 @@ import { registrarMetricasWorker } from '../src/observabilidade';
 
 const EMAIL = 'maria.pessoal@exemplo.com.br';
 
+/** Logger real da API (opcoesLogger) gravando em memória; `texto()` devolve tudo o que saiu. */
+function logEmTexto() {
+  let saida = '';
+  const stream = new Writable({
+    write(c, _e, cb) {
+      saida += String(c);
+      cb();
+    },
+  });
+  return { log: pino(opcoesLogger('trace'), stream), texto: () => saida };
+}
+
 function erroPg(code: string, mensagem: string, extra: Record<string, unknown> = {}) {
   return Object.assign(new pg.DatabaseError(mensagem, 0, 'error'), { code, ...extra });
 }
@@ -124,97 +136,59 @@ describe('logger real (opcoesLogger) e linha de métricas do worker', () => {
 
 describe('redação do pino (T-0093 §6: login do portal e admin inicial)', () => {
   it('senha, e-mail e hash do corpo do login e do passo Empresa nunca saem no log', () => {
-    let texto = '';
-    const stream = new Writable({
-      write(c, _e, cb) {
-        texto += String(c);
-        cb();
-      },
-    });
-    const log = pino(opcoesLogger('trace'), stream);
+    const { log, texto } = logEmTexto();
     log.info({ corpo: { email: EMAIL, senha: 'Segredo#2026', admin: { email: EMAIL, nome: 'Maria', senha: 'Master#2026' } } }, 'corpo');
     log.info({ email: EMAIL, senha: 'Outra#2026', senha_hash: '$argon2id$v=19$m=1,t=1,p=1$c2FsdA$aGFzaA', admin: { senha: 'X#1aaaaa' } }, 'solto');
-    expect(texto).not.toContain(EMAIL);
-    expect(texto).not.toMatch(/Segredo#2026|Master#2026|Outra#2026|X#1aaaaa|argon2id/);
-    expect(texto).toContain('[omitido]');
+    expect(texto()).not.toContain(EMAIL);
+    expect(texto()).not.toMatch(/Segredo#2026|Master#2026|Outra#2026|X#1aaaaa|argon2id/);
+    expect(texto()).toContain('[omitido]');
   });
 });
 
 describe('redação do pino (T-0094 §12: troca de senha e e-mail transacional)', () => {
   it('senha_atual, senha_nova, destinatário e senha da mensagem de e-mail nunca saem no log', () => {
-    let texto = '';
-    const stream = new Writable({
-      write(c, _e, cb) {
-        texto += String(c);
-        cb();
-      },
-    });
-    const log = pino(opcoesLogger('trace'), stream);
+    const { log, texto } = logEmTexto();
     log.info({ corpo: { codigo_empresa: 'DEMO', email: EMAIL, senha_atual: 'Temporaria#2026', senha_nova: 'Minha-Nova#2026' } }, 'troca');
     log.info({ senha_atual: 'Solta#2026a', senha_nova: 'Solta#2026b' }, 'solto');
     log.info({ m: { para: EMAIL, dados: { login: EMAIL, senha: 'Email#2026' } } }, 'mensagem');
-    expect(texto).not.toContain(EMAIL);
-    expect(texto).not.toMatch(/Temporaria#2026|Minha-Nova#2026|Solta#2026|Email#2026/);
-    expect(texto).toContain('DEMO');
+    expect(texto()).not.toContain(EMAIL);
+    expect(texto()).not.toMatch(/Temporaria#2026|Minha-Nova#2026|Solta#2026|Email#2026/);
+    expect(texto()).toContain('DEMO');
   });
 });
 
 describe('redação do pino (ADR 0061 decisão 8, RN-CORE-13: nenhuma coordenada no log)', () => {
   it('latitude, longitude e coords soltas, no 2º nível e no payload do push nunca saem', () => {
-    let texto = '';
-    const stream = new Writable({
-      write(c, _e, cb) {
-        texto += String(c);
-        cb();
-      },
-    });
-    const log = pino(opcoesLogger('trace'), stream);
+    const { log, texto } = logEmTexto();
     log.info({ latitude: -3.119027, longitude: -60.021731 }, 'solto');
     log.info({ ponto: { lat: -3.119028, lng: -60.021732, precisao_m: 12 } }, 'segundo nível');
     log.info({ item: { entidade: 'ponto_trajeto', payload: { latitude: -3.119029, longitude: -60.021733 } } }, 'push');
     log.info({ payload: { coords: { latitude: -3.11903, longitude: -60.02173 } } }, 'coords');
-    expect(texto).not.toMatch(/-3\.1190|-60\.0217/);
-    expect(texto).toContain('"precisao_m":12');
-    expect(texto).toContain('ponto_trajeto');
+    expect(texto()).not.toMatch(/-3\.1190|-60\.0217/);
+    expect(texto()).toContain('"precisao_m":12');
+    expect(texto()).toContain('ponto_trajeto');
   });
 });
 
 describe('redação do pino (ADR 0066, RN-INT-18 proposta: credencial do ERP na busca pela API)', () => {
-  it('senha, segredo, token, authorization, cookie, appkey, sessão e set-cookie do ERP nunca saem', () => {
-    let texto = '';
-    const stream = new Writable({
-      write(c, _e, cb) {
-        texto += String(c);
-        cb();
-      },
-    });
-    const log = pino(opcoesLogger('trace'), stream);
-    log.info({ segredo: 'Solto-1', token: 'Solto-2', password: 'Solto-3', cookie: 'B1SESSION=Solto-4', key: 'Solto-5', session: 'Solto-6' }, 'solto');
-    log.info({ credencial: { usuario: 'manager', Password: 'Nivel2-1', appkey: 'Nivel2-2', client_secret: 'Nivel2-3' } }, '2º nível');
-    log.info(
-      { erp: { cabecalhos: { authorization: 'Bearer Nivel3-1', Cookie: 'B1SESSION=Nivel3-2', 'x-api-key': 'Nivel3-3' }, resposta: { 'set-cookie': ['B1SESSION=Nivel3-4'] } } },
-      '3º nível',
-    );
-    expect(texto).not.toMatch(/Solto-\d|Nivel2-\d|Nivel3-\d/);
-    expect(texto).toContain('"usuario":"manager"');
-    expect(texto).toContain('[omitido]');
+  it('maiúsculas e set-cookie em lista saem como [omitido]; o usuário do ERP (não é segredo) fica', () => {
+    const { log, texto } = logEmTexto();
+    log.info({ credencial: { usuario: 'manager', Password: 'Nivel2-1' } }, '2º nível');
+    log.info({ erp: { cabecalhos: { Cookie: 'B1SESSION=Nivel3-1' }, resposta: { 'set-cookie': ['B1SESSION=Nivel3-2'] } } }, '3º nível');
+    log.info({ resposta: { 'set-cookie': ['B1SESSION=Nivel2-2', 'ROUTEID=Nivel2-3'] } }, 'set-cookie no 2º nível');
+    expect(texto()).not.toMatch(/Nivel2-\d|Nivel3-\d/);
+    expect(texto()).toContain('"usuario":"manager"');
+    expect(texto()).toContain('[omitido]');
   });
 
   it('cada campo de CAMPOS_SEGREDO_LOG (SDK) é omitido no 2º e no 3º nível, e solto quando é identificador', () => {
-    let texto = '';
-    const stream = new Writable({
-      write(c, _e, cb) {
-        texto += String(c);
-        cb();
-      },
-    });
-    const log = pino(opcoesLogger('trace'), stream);
+    const { log, texto } = logEmTexto();
     CAMPOS_SEGREDO_LOG.forEach((campo, i) => {
       if (/^[A-Za-z_$][\w$]*$/.test(campo)) log.info({ [campo]: `Vazou-${i}-a` }, 'solto');
       log.info({ x: { [campo]: `Vazou-${i}-b` } }, '2º nível');
       log.info({ x: { y: { [campo]: `Vazou-${i}-c` } } }, '3º nível');
     });
-    expect(texto).not.toMatch(/Vazou-\d+-[abc]/);
+    expect(texto()).not.toMatch(/Vazou-\d+-[abc]/);
   });
 
   it('a lista da API não repete caminho que o SDK já cobre', () => {
