@@ -141,6 +141,14 @@ export function leituraDoAtalho(rotulo: string, apoio?: string | null): string {
   return a ? `${r}. ${a}` : r;
 }
 
+/**
+ * Dica do `CampoBusca` (catalogo-campo-v2/spec.md §5; filtro-veiculo/spec.md §3): aparece só com o campo em foco e vazio
+ * e some ao digitar. Sem dica (ausente ou em branco), nunca aparece.
+ */
+export function mostrarDicaDaBusca({ dica, emFoco, valor }: { dica?: string | null; emFoco: boolean; valor: string }): boolean {
+  return Boolean((dica ?? '').trim()) && emFoco && valor.trim() === '';
+}
+
 /** Valor sem dado na `TabelaRotuloValor` (T-0141, crédito do cliente; RD-2370): travessão, nunca um "R$ 0,00" falso. */
 export const VALOR_SEM_DADO = '—';
 
