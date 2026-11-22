@@ -20,6 +20,9 @@ import { BaixarPacote } from './baixar-conector';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
+type ChaveNova = Criado['chave'];
+type Conector = ReturnType<typeof ConectorResumo.parse>;
+export type AcaoConector = 'chave' | 'desativar';
 const ListaConectores = { safeParse: (x: unknown) => ConectorResumo.array().safeParse((x as { itens?: unknown })?.itens) };
 
 const ROTULO_TIPO: Record<string, string> = { conector: 'Conector on-premise', nuvem: 'Integração em nuvem', arquivo: 'Carga por arquivo' };
@@ -30,12 +33,50 @@ export function entidadesLivres(conectores: readonly { ativo: boolean; entidades
   return ENTIDADES.filter((e) => !ocupadas.has(e));
 }
 
-function Credencial({ c, aoFechar }: { c: Criado; aoFechar: () => void }) {
+export const rotaDoConector = (id: string) => `${ROTAS_PORTAL.conectores}/${encodeURIComponent(id)}`;
+export const rotaChaveDoConector = (id: string) => `${rotaDoConector(id)}/chave`;
+
+/** Aviso quando não sobra base livre para o Conector do ERP: com o Conector de arquivo ativo, o caminho é desativá-lo. */
+export function mensagemSemBases(conectores: readonly { ativo: boolean; tipo: string; conector_id: string; entidades: readonly Entidade[] }[], temArquivo: boolean): string {
+  if (temArquivo) return 'Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.';
+  const dono = conectores.find((c) => c.ativo && c.tipo !== 'arquivo' && c.entidades.length > 0);
+  return `Todas as bases já vêm do Conector ${dono?.conector_id ?? ''}. Gere uma nova chave para ele ou desative-o.`;
+}
+
+const TEXTO_ACAO: Record<AcaoConector, { titulo: (id: string) => string; corpo: string; botao: string }> = {
+  chave: { titulo: (id) => `Gerar nova chave para o Conector ${id}?`, corpo: 'A chave atual ainda funciona por pouco tempo. Troque a chave na configuração do Conector.', botao: 'Gerar nova chave' },
+  desativar: { titulo: (id) => `Desativar o Conector ${id}?`, corpo: 'Ele para de enviar as bases e de buscar os pedidos.', botao: 'Desativar' },
+};
+
+export function DialogoConector({ alvo, acao, enviando, aoFechar, aoConfirmar }: { alvo: Conector | null; acao: AcaoConector; enviando: boolean; aoFechar: () => void; aoConfirmar: () => void }) {
+  const t = TEXTO_ACAO[acao];
+  return (
+    <Dialog
+      open={alvo !== null}
+      title={alvo ? t.titulo(alvo.conector_id) : ''}
+      onClose={aoFechar}
+      footer={
+        <>
+          <Button data-testid="integracao.acao-cancelar" onClick={aoFechar}>
+            Cancelar
+          </Button>
+          <Button variant="danger" data-testid={`integracao.acao-confirmar-${acao}`} disabled={enviando} onClick={aoConfirmar}>
+            {t.botao}
+          </Button>
+        </>
+      }
+    >
+      {t.corpo}
+    </Dialog>
+  );
+}
+
+export function Credencial({ c, aoFechar }: { c: ChaveNova; aoFechar: () => void }) {
   const toast = useToast();
   const [copiou, setCopiou] = useState(false);
   const copiar = async () => {
     try {
-      await navigator.clipboard.writeText(c.chave.chave);
+      await navigator.clipboard.writeText(c.chave);
       setCopiou(true);
       toast('success', 'Chave copiada.');
     } catch {
@@ -44,10 +85,10 @@ function Credencial({ c, aoFechar }: { c: Criado; aoFechar: () => void }) {
   };
   return (
     <div data-testid="integracao.credencial" className="flex flex-col gap-3 rounded-xl border border-accent bg-accent-soft p-4">
-      <strong className="text-[15px]">Credencial do Conector "{c.chave.conector_id}"</strong>
-      <Notice tone="warning">Esta chave aparece só agora. Copie e cole na configuração do Conector; depois desta tela ela não é mostrada de novo.</Notice>
+      <strong className="text-[15px]">Credencial do Conector "{c.conector_id}"</strong>
+      <Notice tone="warning">Copie a chave agora: ela não aparece de novo.</Notice>
       <code data-testid="integracao.chave" className="rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[13px] break-all select-all">
-        {c.chave.chave}
+        {c.chave}
       </code>
       <div className="flex flex-wrap gap-2">
         <Button data-testid="integracao.copiar" variant="primary" size="sm" onClick={() => void copiar()}>
@@ -58,7 +99,7 @@ function Credencial({ c, aoFechar }: { c: Criado; aoFechar: () => void }) {
         </Button>
       </div>
       <span className="text-[12px] text-ink-2">
-        Identificador: <span className="font-mono">{c.chave.conector_id}</span> · escopo {c.chave.escopo} · prefixo <span className="font-mono">{c.chave.prefixo}</span>
+        Identificador: <span className="font-mono">{c.conector_id}</span> · escopo {c.escopo} · prefixo <span className="font-mono">{c.prefixo}</span>
       </span>
     </div>
   );
@@ -77,6 +118,9 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
   const [enviando, setEnviando] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const [docEmBreve, setDocEmBreve] = useState(false);
+  const [alvo, setAlvo] = useState<{ conector: Conector; acao: AcaoConector } | null>(null);
+  const [novaChave, setNovaChave] = useState<ChaveNova | null>(null);
+  const [agindo, setAgindo] = useState(false);
 
   const conectores = q.data ?? [];
   const arquivo = conectores.find((c) => c.ativo && c.conector_id === CONECTOR_ARQUIVO_PORTAL.conector_id) ?? null;
@@ -88,10 +132,10 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
     setConfirmar(false);
     setErro(null);
     const entidades = desativarArquivo ? livresSemArquivo : livres;
-    if (entidades.length === 0) return setErro('Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.');
+    if (entidades.length === 0) return setErro(mensagemSemBases(conectores, arquivo !== null));
     setEnviando(true);
     try {
-      if (desativarArquivo && arquivo) await chamarPortal(`${ROTAS_PORTAL.conectores}/${encodeURIComponent(arquivo.id)}`, { metodo: 'PATCH', tenant, corpo: { ativo: false } });
+      if (desativarArquivo && arquivo) await chamarPortal(rotaDoConector(arquivo.id), { metodo: 'PATCH', tenant, corpo: { ativo: false } });
       const r = await chamarPortal(ROTAS_PORTAL.conectores, { metodo: 'POST', tenant, corpo: { conector_id: identificador.trim(), nome: nome.trim(), tipo: 'conector', recebe_pedidos: recebePedidos, entidades }, schema: ConectorCriado });
       setCriado(r);
       void qc.invalidateQueries({ queryKey: chave });
@@ -99,6 +143,22 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
       setErro(mensagemDoErro(x));
     } finally {
       setEnviando(false);
+    }
+  };
+
+  const confirmarAcao = async () => {
+    if (!alvo || agindo) return;
+    setAgindo(true);
+    try {
+      if (alvo.acao === 'chave') setNovaChave(await chamarPortal(rotaChaveDoConector(alvo.conector.id), { metodo: 'POST', tenant, corpo: {}, schema: ConectorCriado.shape.chave }));
+      else await chamarPortal(rotaDoConector(alvo.conector.id), { metodo: 'PATCH', tenant, corpo: { ativo: false } });
+      setAlvo(null);
+      void qc.invalidateQueries({ queryKey: chave });
+    } catch (x) {
+      setAlvo(null);
+      toast('danger', mensagemDoErro(x));
+    } finally {
+      setAgindo(false);
     }
   };
 
@@ -118,6 +178,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
       <Panel title="Conectores desta empresa">
         {q.isPending && <LoadingBlock label="Buscando os Conectores…" />}
         {q.isError && <ErrorBlock message={mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />}
+        {novaChave && <Credencial c={novaChave} aoFechar={() => setNovaChave(null)} />}
         {q.data && q.data.length === 0 && <span className="text-[13px] text-ink-2">Nenhum Conector ainda. A primeira importação de CSV cria o Conector de arquivo do portal.</span>}
         {q.data && q.data.length > 0 && (
           <TableScroll minWidth={640}>
@@ -129,6 +190,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
                   <th className={th}>Bases</th>
                   <th className={th}>Pedidos</th>
                   <th className={th}>Situação</th>
+                  <th className={th} />
                 </tr>
               </thead>
               <tbody>
@@ -141,6 +203,20 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
                     <td className={td}>
                       <Badge tone={c.ativo ? 'success' : 'neutral'}>{c.ativo ? 'Ativo' : 'Desativado'}</Badge>
                     </td>
+                    <td className={td}>
+                      {c.ativo && (
+                        <div className="flex flex-wrap gap-2">
+                          {c.tipo !== 'arquivo' && (
+                            <Button size="sm" data-testid={`integracao.nova-chave-${c.conector_id}`} disabled={agindo} onClick={() => setAlvo({ conector: c, acao: 'chave' })}>
+                              Gerar nova chave
+                            </Button>
+                          )}
+                          <Button size="sm" data-testid={`integracao.desativar-${c.conector_id}`} disabled={agindo} onClick={() => setAlvo({ conector: c, acao: 'desativar' })}>
+                            Desativar
+                          </Button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -151,7 +227,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
 
       <Panel title="Credencial da API do Conector do ERP">
         {criado ? (
-          <Credencial c={criado} aoFechar={() => setCriado(null)} />
+          <Credencial c={criado.chave} aoFechar={() => setCriado(null)} />
         ) : (
           <form
             className="flex flex-col gap-3"
@@ -199,6 +275,8 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
           </span>
         </div>
       </Panel>
+
+      <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmarAcao()} />
 
       <Dialog
         open={confirmar}

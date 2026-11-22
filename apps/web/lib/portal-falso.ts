@@ -750,6 +750,12 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: [...lista, novo] } });
     return json(201, { conector: novo, chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: null } });
   }
+  const chaveM = /^\/integracao\/conectores\/([^/]+)\/chave$/.exec(caminho);
+  if (metodo === 'POST' && chaveM) {
+    const c = (e.conectores[tenant] ?? []).find((x) => x.id === chaveM[1]);
+    if (!c) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
+    return json(201, { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: agoraIso(24 * 60) });
+  }
   const conectorM = /^\/integracao\/conectores\/([^/]+)$/.exec(caminho);
   if (metodo === 'PATCH' && conectorM) {
     const lista = e.conectores[tenant] ?? [];
