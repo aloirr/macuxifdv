@@ -151,7 +151,7 @@ export function AdicionaisEmLinhas({ plano, escolha, aoMudar, erros }: { plano: 
   if (lista.length === 0) return null;
   const grade = 'grid grid-cols-[18px_22px_minmax(0,1fr)_88px] items-center gap-x-2.5 px-3.5 sm:grid-cols-[18px_22px_140px_minmax(0,1fr)_88px]';
   return (
-    <div className="rounded-xl border border-field">
+    <div className="rounded-xl border border-line">
       <div aria-hidden="true" className={cx(grade, 'h-[34px] border-b border-line text-[12px] font-semibold text-ink-2')}>
         <span className="col-span-2" />
         <span className="sm:col-span-2">{TEXTOS_PLANO.adicionais}</span>
