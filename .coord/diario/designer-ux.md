@@ -187,3 +187,4 @@
 2026-11-21 — T-0191 — ícones Casa e Lápis, OpcaoCartao e largura media/media-larga do Dialog em packages/ui/src/web; spec docs/design/rotas-criar/spec.md e parecer revisao-T-0191.md sem achados em aberto (UX-11 fechado no print 07c)
 2026-11-21 — T-0192 — spec do Catálogo (catalogo-grade §7): sem o gesto de puxar, erro em EstadoVazio 'Não foi possível abrir o catálogo agora' com 'Tentar de novo', preço/estoque carregando com traço (critério por modoCarga, sync.pendentes e contagem local), sem componente novo
 2026-11-21 — T-0192 — ajuste §7.2: sem marca de preço carregando
+2026-11-22 — ERP 3A (F5/F6b) — spec do assistente da busca na API (lado API da aba Integração: Seu ERP com beta, credencial só de escrita, Testar conexão, bases e frequência, Alertas 401/403) e do painel dos 30 dias (aba Implantação: D+n, marcos, Alertas), docs/design/telas/erp-assistente.md + HTML e PNG 1280/390; sem mudança em packages/ui

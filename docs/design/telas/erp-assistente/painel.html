@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP — painel dos 30 dias (aba Implantação)</title>
+<link rel="stylesheet" href="../portal-config-enxuto/portal.css">
+<link rel="stylesheet" href="erp.css">
+</head>
+<body>
+<!-- Simulação (designer-ux, 22/11/2026). ?estado=andamento (super-admin) | cliente (admin do cliente, só leitura) | concluida
+     Dados fictícios: Distribuidora Uma Ltda, AM4821; D+0 = 10/11/2026. Spec: ../erp-assistente.md §B -->
+<div class="topo"><div class="in"><div class="marca"><img src="../../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg" alt="Macuxi Força de Vendas" width="104"><small>Portal de implantação</small></div><nav class="menu" id="menu"><a class="ativo">Empresas</a><a>Diagnósticos</a></nav><span class="sessao">Sessão até 00:56</span><span class="btn s">Sair</span></div></div>
+<main id="main"></main>
+<script>
+const I = {
+  ok: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>',
+  alerta: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.8v3.8M8 11.2v.1"/></svg>',
+};
+const estado = new URLSearchParams(location.search).get('estado') || 'andamento';
+const concluida = estado === 'concluida';
+const cliente = estado === 'cliente';
+if (cliente) document.getElementById('menu').innerHTML = '';
+const marcos = concluida
+  ? [['Primeira carga completa', '10/11'], ['Primeiro pedido integrado', '12/11'], ['Primeiro faturamento devolvido', '13/11'], ['3 reconciliações seguidas sem divergência', '15/11'], ['7 dias seguidos sem alerta', '28/11']]
+  : [['Primeira carga completa', '10/11'], ['Primeiro pedido integrado', '12/11'], ['Primeiro faturamento devolvido', '13/11'], ['3 reconciliações seguidas sem divergência', null, '2 de 3'], ['7 dias seguidos sem alerta', null, '0 de 7']];
+const li = ([n, data, parcial]) => data
+  ? `<li><span class="ic ok" role="img" aria-label="Cumprido">${I.ok}</span><span class="nome">${n}</span><span class="q ok">${data}</span></li>`
+  : `<li><span class="ic pend" role="img" aria-label="Pendente"></span><span class="nome">${n}</span><span class="q">${parcial}</span></li>`;
+const dia = concluida
+  ? `<div class="cartao"><div class="dia"><span class="n">Concluída</span><span class="selo">D+18</span><div class="datas">10/11/2026 a 28/11/2026</div></div></div>`
+  : `<div class="cartao" data-testid="implantacao.dia"><div class="dia"><span class="n">D+12 <small>de 30</small></span><div class="barra" role="progressbar" aria-label="Dia da implantação" aria-valuemin="0" aria-valuemax="30" aria-valuenow="12"><i style="width:40%"></i></div><div class="datas">Começou em 10/11/2026 · termina até 10/12/2026</div></div></div>`;
+const alertas = concluida ? '' : `<div class="cartao alertas" data-testid="implantacao.alertas"><h2>Alertas</h2>
+<div class="alerta w">${I.alerta}<span class="tx">Estoque sem carga há 2 h.</span><a class="link">Abrir no Monitor</a></div>
+<div class="alerta">${I.alerta}<span class="tx">3 pedidos recusados pelo ERP.</span><a class="link">Abrir no Monitor</a></div></div>`;
+document.getElementById('main').innerHTML = `${cliente ? '' : '<a class="link voltar">← Empresas</a>'}
+<div style="display:flex;gap:12px;align-items:center"><h1>Distribuidora Uma Ltda</h1><span class="selo">Ativa</span></div>
+<div class="sub">Código <span class="cod">AM4821</span> · CNPJ 11.222.333/0001-81 · Manaus (UTC−4)</div>
+<div class="abas"><span>Integração</span><span class="ativa">Implantação</span><span>Empresa</span></div>
+${dia}
+<div class="painel-cols${concluida ? ' uma' : ''}" style="${concluida ? 'grid-template-columns:1fr' : ''}">
+<div class="cartao" data-testid="implantacao.marcos"><h2>Marcos</h2><ul class="marcos">${marcos.map(li).join('')}</ul></div>
+${alertas}
+</div>`;
+</script>
+</body>
+</html>

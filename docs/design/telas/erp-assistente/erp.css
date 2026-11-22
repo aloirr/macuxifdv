@@ -1,0 +1,73 @@
+/* ERP: assistente da busca na API e painel dos 30 dias (designer-ux, 22/11/2026). Base: ../portal-config-enxuto/portal.css.
+   Borda de campo e de botão secundário = token `field` (#7A8593) do kit web (CLASSE_CAMPO_BASE, classesDoBotao). */
+:root { --field: #7A8593; }
+.inp, .btn:not(.p):not(.off) { border-color: var(--field); }
+.topo .btn { border-color: var(--faixaSub) !important; }
+.inp.erro { border-color: var(--danger); }
+.inp.sen { justify-content: space-between; letter-spacing: 2px; }
+.inp .olho { width: 20px; height: 20px; color: var(--ink2); }
+.inp.off { background: #ECEEF1; color: var(--placeholder); }
+.btn.carregando { background: var(--nevoa); border-color: var(--nevoa) !important; color: var(--placeholder); gap: 8px; }
+.erros { color: var(--danger); font-size: 12px; margin-top: 4px; display: flex; gap: 4px; align-items: flex-start; }
+.erros svg, .ok svg, .res svg { width: 13px; height: 13px; flex: none; margin-top: 2px; }
+.res { font-size: 13px; font-weight: 600; display: flex; gap: 6px; align-items: flex-start; }
+.res.ok { color: var(--success); }
+.res.falha { color: var(--danger); }
+.res.busca { color: var(--ink2); font-weight: 500; }
+.linha-acao { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.erps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opc { display: flex; align-items: center; gap: 12px; min-height: 52px; border: 1px solid var(--field); border-radius: 12px; padding: 8px 16px; background: #fff; }
+.opc.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.opc .bol { width: 20px; height: 20px; border-radius: 10px; border: 2px solid var(--ink2); flex: none; display: flex; align-items: center; justify-content: center; }
+.opc.on .bol { border-color: var(--ink); }
+.opc.on .bol::after { content: ''; width: 10px; height: 10px; border-radius: 5px; background: var(--ink); }
+.opc .t { display: flex; flex-direction: column; min-width: 0; }
+.opc .t b { font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.opc .t span { font-size: 13px; color: var(--ink2); }
+.salva { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; padding: 8px 8px 8px 12px; }
+.salva span { font-size: 15px; }
+.salva .btn { margin-left: auto; }
+.ip { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ink2); margin-top: 12px; }
+.ip .cod { color: var(--ink); font-size: 15px; }
+.freq th:first-child, .freq td:first-child { width: 34px; padding-right: 0; }
+.freq td { padding: 6px 10px; }
+.freq .sel { height: 38px; width: 150px; border: 1px solid var(--field); border-radius: 10px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; background: #fff; }
+.freq .sel.off { background: var(--nevoa); border-color: var(--nevoa); color: var(--placeholder); }
+.freq .apoio { font-size: 13px; color: var(--ink2); }
+.alertas { margin-bottom: 14px; }
+.alertas h2 { font-size: 17px; margin: 0 0 8px; font-weight: 700; }
+.alerta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-radius: 10px; padding: 10px 12px; background: var(--dangerBg); color: var(--danger); font-size: 15px; margin-bottom: 8px; }
+.alerta.w { background: var(--warningBg); color: var(--warning); }
+.alerta svg { width: 15px; height: 15px; flex: none; }
+.alerta .tx { flex: 1; min-width: 200px; }
+.alerta .btn { margin-left: auto; }
+/* painel */
+.dia { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.dia .n { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dia .n small { font-size: 17px; color: var(--ink2); font-weight: 600; }
+.barra { flex: 1; min-width: 220px; height: 8px; border-radius: 4px; background: var(--nevoa); overflow: hidden; }
+.barra > i { display: block; height: 8px; background: var(--accent); }
+.datas { font-size: 13px; color: var(--ink2); width: 100%; }
+.marcos { list-style: none; margin: 0; padding: 0; }
+.marcos li { display: flex; gap: 12px; align-items: center; min-height: 48px; border-bottom: 1px solid var(--line); }
+.marcos li:last-child { border-bottom: 0; }
+.marcos .ic { width: 22px; height: 22px; border-radius: 11px; flex: none; display: flex; align-items: center; justify-content: center; }
+.marcos .ic.ok { background: var(--success); color: #fff; }
+.marcos .ic.pend { border: 2px solid var(--field); }
+.marcos .ic svg { width: 13px; height: 13px; }
+.marcos .nome { flex: 1; }
+.marcos .q { font-variant-numeric: tabular-nums; font-size: 15px; color: var(--ink2); white-space: nowrap; }
+.marcos .q.ok { color: var(--success); font-weight: 600; }
+.painel-cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 767px) {
+  .erps { grid-template-columns: 1fr; }
+  .painel-cols { grid-template-columns: 1fr; }
+  .freq .sel { width: 120px; }
+  .dia .n { font-size: 28px; }
+}
+.inp { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.campo { min-width: 0; }
+.freq .sel { white-space: nowrap; }
+@media (max-width: 767px) { .freq .sel { width: 136px; } .freq th, .freq td { padding-left: 6px; padding-right: 6px; } }
+.lados > .lado { min-width: 0; }
+.inp.sen .olho { margin-left: auto; }
