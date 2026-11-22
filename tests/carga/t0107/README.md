@@ -155,7 +155,7 @@ Preparo: gerar 0,8 s; gravar 233.204 linhas 7,2 s; `analyze` 0,7 s.
 ## Parte B — roteiro do ensaio de onboarding (tenant do zero até o 1º pedido integrado)
 
 **Onde**: ambiente de ensaio (Postgres local ou banco de homologação próprio). Nunca a demo nem produção sem autorização
-escrita do Alexandre. **Dados**: só fictícios — a base deste gerador exportada para os CSVs-modelo, ou o ERP de teste.
+escrita do Alexandre. **Dados**: só fictícios — a base deste gerador carregada no ERP de teste e enviada pelo Conector.
 **Quem**: 1 pessoa operando (papel de implantador) + 1 anotando. **Registro**: para cada passo, hora de início/fim (relógio
 de parede), contagens, erros (código + mensagem da tela), prints das telas e o `requisicao_id` de qualquer erro.
 
@@ -182,13 +182,11 @@ Legenda: ⏱ medir · ✔ critério de aceite do passo · ⚠ pendência/premiss
 - ⏱ tempo até a tela de licenças mostrar os módulos. ✔ os módulos contratados ativos; os perfis de campo (vendedor) com
   catálogo e vendedor; `integracao` só no tenant e nos perfis do BKO que acompanham o monitor (admin/analista).
 
-### Passo 3 — equipe e convite de 1º acesso (T-0087, fatia E)
-- `GET /v1/core/equipe/modelo.csv` → preencher os 3 vendedores (+ supervisor, se houver) → `POST /v1/core/equipe/importacoes`
-  com `modo: conferir` (erros por linha) e depois `modo: gravar` com a `origem` do BKO (o link do convite `/convite/<token>` sai
-  UMA vez na resposta). `GET /v1/core/equipe/convites` lista; `.../convites/:usuario_id/renovar` gera outro.
-- Cada usuário abre o link e cria a senha (`POST /v1/auth/convite/aceitar`).
-- ⏱ tempo da importação; tempo médio do aceite por usuário; erros por linha. ✔ convites = usuários importados; todos aceitos;
-  login de cada vendedor funciona; nenhum convite reaproveitável (2º uso do link recusado).
+### Passo 3 — equipe e 1º acesso (T-0094)
+- BKO > Usuários: `POST /v1/core/usuarios` para os 3 vendedores (+ supervisor, se houver), com a filial de cadastro. A senha
+  inicial vai por e-mail (ou é informada no cadastro) e a troca é obrigatória no 1º uso (`POST /v1/auth/senha/trocar`).
+- ⏱ tempo do cadastro por usuário; tempo médio do 1º acesso. ✔ todos cadastrados; login de cada vendedor funciona depois
+  da troca; a senha temporária não entra de novo.
 
 ### Passo 4 — Conector e credencial
 - BKO > Integração ERP > Conectores: `POST /v1/integracao/conectores` (a chave aparece UMA vez; marcar o Conector que recebe
@@ -197,12 +195,10 @@ Legenda: ⏱ medir · ✔ critério de aceite do passo · ⚠ pendência/premiss
 - ⏱ tempo da instalação até o 1º sinal (`POST /integracao/v1/sinal`). ✔ monitor (`GET /v1/integracao/monitor`) mostra o
   Conector com sinal recente e versão; chave errada = 401 genérico.
 
-### Passo 5 — carga inicial (Hub ou arquivo)
-- Ordem das entidades: `GET /v1/integracao/ordem-carga` (vendedor → cliente → produto → preço → … como o Hub exige).
-- **Pelo Hub**: o Conector envia `POST /integracao/v1/lotes` (até 5.000 registros, `Idempotency-Key`), modo `completo`.
-- **Por arquivo** (portal/BKO, sem Conector): `GET /v1/integracao/modelos/:entidade.csv` e `.../dicionario`;
-  `POST /v1/integracao/cargas-arquivo/conferir` (sem gravar) → `POST /v1/integracao/cargas-arquivo` (arquivos grandes em
-  partes: `cargas-arquivo/sessoes/:sessao_id`); status em `GET /v1/integracao/lotes/:id`, erros em `.../erros` e `.../erros.csv`.
+### Passo 5 — carga inicial (pelo Hub)
+- Ordem das entidades: vendedor → cliente → produto → preço → … como o Hub exige.
+- O Conector envia `POST /integracao/v1/lotes` (até 5.000 registros, `Idempotency-Key`), modo `completo`. Status em
+  `GET /v1/integracao/lotes/:id` e erros em `.../erros`.
 - ⏱ tempo por entidade (envio → lote `concluido`), linhas aceitas × com erro, tempo total da carga. ✔ todos os lotes
   concluídos; erros por linha explicados (motivo legível); reenvio do mesmo lote não duplica (idempotência).
 - ⚠ Vínculo cliente → tabela de preço: na T-0032 não havia campo/rota do ERP nem do BKO para `catalogo.cliente_tabela_preco`
