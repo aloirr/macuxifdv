@@ -7,7 +7,7 @@ import pg from 'pg';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { ZodError, z } from 'zod';
-import { opcoesLogger } from '../src/config';
+import { CAMINHOS_REDIGIDOS_LOG, opcoesLogger } from '../src/config';
 import { ehErroPostgres, mensagemSegura, serializarErro } from '../src/log-seguro';
 import { registrarMetricasWorker } from '../src/observabilidade';
 
@@ -175,5 +175,31 @@ describe('redação do pino (ADR 0061 decisão 8, RN-CORE-13: nenhuma coordenada
     expect(texto).not.toMatch(/-3\.1190|-60\.0217/);
     expect(texto).toContain('"precisao_m":12');
     expect(texto).toContain('ponto_trajeto');
+  });
+});
+
+describe('redação do pino (ADR 0066, RN-INT-18 proposta: credencial do ERP na busca pela API)', () => {
+  it('senha, segredo, token, authorization, cookie, appkey, sessão e set-cookie do ERP nunca saem', () => {
+    let texto = '';
+    const stream = new Writable({
+      write(c, _e, cb) {
+        texto += String(c);
+        cb();
+      },
+    });
+    const log = pino(opcoesLogger('trace'), stream);
+    log.info({ segredo: 'Solto-1', token: 'Solto-2', password: 'Solto-3', cookie: 'B1SESSION=Solto-4', key: 'Solto-5', session: 'Solto-6' }, 'solto');
+    log.info({ credencial: { usuario: 'manager', Password: 'Nivel2-1', appkey: 'Nivel2-2', client_secret: 'Nivel2-3' } }, '2º nível');
+    log.info(
+      { erp: { cabecalhos: { authorization: 'Bearer Nivel3-1', Cookie: 'B1SESSION=Nivel3-2', 'x-api-key': 'Nivel3-3' }, resposta: { 'set-cookie': ['B1SESSION=Nivel3-4'] } } },
+      '3º nível',
+    );
+    expect(texto).not.toMatch(/Solto-\d|Nivel2-\d|Nivel3-\d/);
+    expect(texto).toContain('"usuario":"manager"');
+    expect(texto).toContain('[omitido]');
+  });
+
+  it('a lista da API não repete caminho que o SDK já cobre', () => {
+    expect(new Set(CAMINHOS_REDIGIDOS_LOG).size).toBe(CAMINHOS_REDIGIDOS_LOG.length);
   });
 });
