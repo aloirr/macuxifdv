@@ -46,3 +46,5 @@ export * from './tabela-ficha';
 export * from './nomes-de-icone';
 // v1.0.17: medidas, cores, selo e leitura do SinoNotificacoes
 export * from './sino';
+// Filtro de veículo: medidas e regras de exibição da FolhaCascata e da GradeOpcoes
+export * from './cascata';

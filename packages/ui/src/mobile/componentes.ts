@@ -167,6 +167,15 @@ export function leituraDoNivel(nome: string, contagem: number, singular = 'produ
   return `${nome.trim()}, ${textoDaContagem(n)} ${n === 1 ? singular : plural}`;
 }
 
+/** Unidade lida na contagem do `Chip` (folha Filtrar do Catálogo, spec filtro-veiculo §6). */
+export const UNIDADE_CONTAGEM_CHIP = { singular: 'peça', plural: 'peças' } as const;
+
+/** Leitura do `Chip`: sem contagem, o rótulo; com contagem, "Suspensão, 3 peças" / "Freio, 1 peça". */
+export function leituraDoChip(rotulo: string, contagem?: number | null): string {
+  if (contagem === undefined || contagem === null) return rotulo;
+  return leituraDoNivel(rotulo, contagem, UNIDADE_CONTAGEM_CHIP.singular, UNIDADE_CONTAGEM_CHIP.plural);
+}
+
 /** Respiro lateral de cada aba no modo `rolavel` das `Abas` e folga mínima ao rolar até a ativa (dp). */
 export const RESPIRO_ABA_ROLAVEL = 16;
 

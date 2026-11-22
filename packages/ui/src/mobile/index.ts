@@ -79,3 +79,7 @@ export * from './tabela-ficha-rn';
 // v1.0.17 (R-20261120-055304 item 2): SinoNotificacoes, o sino padrão de todas as telas (medidas, cores, selo e leitura em sino.ts)
 export * from './sino';
 export * from './sino-rn';
+// Filtro de veículo (spec docs/design/filtro-veiculo/spec.md §11): FolhaCascata e GradeOpcoes (o ícone `carro`, o BotaoFiltro com
+// ícone e `ativo`, a LinhaEtiquetas e o Chip com contagem ficam nos arquivos de sempre)
+export * from './cascata';
+export * from './cascata-rn';
