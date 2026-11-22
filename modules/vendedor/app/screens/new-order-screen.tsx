@@ -45,7 +45,7 @@ import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
 import { DescontoGeral } from '../components/desconto-geral';
 import { leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, NAVEGACAO_VEICULO, textoDaBuscaComVeiculo, TEXTOS_VEICULO } from '@macuxi/catalogo/contracts';
-import { chaveDoVeiculo, TEXTOS_SEM_RESULTADO_VEICULO, escopoDoCliente, modoDaListaDoPedido, type VeiculoDoPedido } from '../lib/veiculo-pedido';
+import { chaveDoVeiculo, escopoDoCliente, modoDaListaDoPedido, type VeiculoDoPedido } from '../lib/veiculo-pedido';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
 import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
@@ -841,9 +841,9 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
           <>
             {/* T-0165: Desc./Acrésc. geral no topo; os itens do pedido aparecem só no Resumo e como ✓ na lista (busca vazia) */}
             <DescontoGeral contarComOutroAjuste={(g) => linhasComOutroAjuste(chavesDasLinhas(draft.lines), draft.ajustes ?? {}, g).length} contarDiferentes={(g) => linhasDiferentesDoGeral(chavesDasLinhas(draft.lines), draft.ajustes ?? {}, g).length} semItens={chavesDasLinhas(draft.lines).length === 0} aoAplicar={aplicarGeral} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
               <View style={{ flex: 1 }}>
-                <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder={veiculoDisponivel ? 'Peça ou código…' : 'Código, descrição ou veículo'} rotuloAcessivel="Buscar produto" testID="product-search" />
+                <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder={veiculoDisponivel ? TEXTOS_VEICULO.placeholderBusca : 'Código, descrição ou veículo'} dica={veiculoDisponivel ? TEXTOS_VEICULO.dicaBusca : undefined} rotuloAcessivel="Buscar produto" testID="product-search" />
               </View>
               {veiculoDisponivel ? <BotaoFiltro icone="carro" rotulo={leituraDoBotaoVeiculo(veiculo?.rotulos ?? null)} ativo={veiculoAtivo} onPress={() => setFolhaVeiculoAberta(true)} testID="botao-veiculo" /> : null}
             </View>
@@ -857,7 +857,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
                 <EstadoVazio titulo="Busca indisponível" texto={MENSAGEM_ERRO_BUSCA} testID="busca-erro" />
               ) : veiculoAtivo && resultadosDaBusca === null ? null : results.length === 0 ? (
                 veiculoAtivo ? (
-                  <EstadoVazio icone="search" titulo={textoEfetivo ? TEXTOS_SEM_RESULTADO_VEICULO.nadaEncontrado(textoEfetivo) : TEXTOS_SEM_RESULTADO_VEICULO.semFiltros} acao={{ rotulo: TEXTOS_SEM_RESULTADO_VEICULO.tirar, onPress: () => setVeiculo(null), testID: 'tirar-veiculo' }} testID="veiculo-sem-resultado" />
+                  <EstadoVazio icone="search" titulo={textoEfetivo ? TEXTOS_VEICULO.nadaEncontradoPara(textoEfetivo) : TEXTOS_VEICULO.semFiltros} acao={{ rotulo: TEXTOS_VEICULO.tirar, onPress: () => setVeiculo(null), testID: 'tirar-veiculo' }} testID="veiculo-sem-resultado" />
                 ) : (
                   <SemResultadoDaBusca busca={query} sugestao={buscaCatalogo?.sugestao ?? null} aoBuscar={setQuery} />
                 )

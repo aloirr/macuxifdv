@@ -13,13 +13,6 @@ export interface VeiculoDoPedido {
   rotulos: RotulosVeiculo;
 }
 
-/** Textos do sem-resultado com veículo (o Catálogo não os exporta). */
-export const TEXTOS_SEM_RESULTADO_VEICULO = {
-  tirar: 'Tirar o veículo',
-  semFiltros: 'Nenhum produto com esses filtros',
-  nadaEncontrado: (texto: string): string => `Nada encontrado para "${texto}"`,
-} as const;
-
 /** O que a lista da aba mostra: os itens do pedido, as peças do veículo (sem texto) ou o resultado da busca. */
 export function modoDaListaDoPedido(e: { veiculo: boolean; texto: string }): 'itens' | 'veiculo' | 'busca' {
   if (buscaPodeComecar(e.texto)) return 'busca';
