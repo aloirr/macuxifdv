@@ -57,11 +57,11 @@ Título **"Empresas"** + **"Nova empresa"**. Sai o subtítulo "Cada empresa clie
 
 "← Empresas" · **"Nova empresa"**. Saem "Passo 1" e "Confira antes de gravar: o código da empresa não muda depois. As bases vêm nos próximos passos."
 1. **"Empresa"**: **Razão social** · **CNPJ** · **UF** (obrigatório, lista das 27, sem pré-seleção; erro **"Escolha a UF."**) · **Fuso**. Sai o campo "Código da empresa" e a ajuda dele; sai a ajuda do fuso "Datas e horários do app e do BKO aparecem neste fuso."
-2. **"Módulos e licenças"**: só o nome de cada módulo, selo **"sempre"** em Core e Integração com o ERP (fica; pergunta ao dono do produto no §10), campo **"Licenças"** (placeholder "sem limite"). Saem as 8 descrições (`ROTULO_MODULO[*].ajuda`, 10 frases).
+2. **"Módulos e licenças"**: só o nome de cada módulo contratável, campo **"Licenças"** (placeholder "sem limite"). Core e Integração com o ERP entram em toda empresa e não aparecem na lista (sem selo). Saem as 8 descrições (`ROTULO_MODULO[*].ajuda`, 10 frases).
 3. **"Administrador da empresa"**: Nome · E-mail · Senha inicial com "A senha precisa ter" ao vivo; embaixo só **"Passe esta senha ao administrador."** Saem "É o primeiro acesso da empresa. Ele cria os outros usuários no BKO." e "No primeiro acesso ao backoffice, ele cria a dele." Senha vazia ao criar: só **"Informe a senha inicial."**, com as regras neutras; o vermelho das regras volta quando há senha digitada (ajustado pelo RD-0272).
 4. **Sai o cartão "Parâmetros iniciais" inteiro** (alçadas, validade, aplicação e "Desconto que o vendedor dá sem aprovação."); o corpo vai sem `parametros`.
 
-Botão só **"Criar empresa"**/"Criando…" (sai "Conferir sem gravar": sem código digitado não há o que conferir; os erros por campo aparecem no Criar e nada é gravado com erro). Erro **"Confira os campos marcados."** Sucesso: página da empresa com aviso success fechável, uma vez: **"Empresa criada. Código da empresa: AM4821."**
+Botão só **"Criar empresa"**/"Criando…" (sai "Conferir sem gravar": sem código digitado não há o que conferir; os erros por campo aparecem no Criar e nada é gravado com erro). Erro **"Confira os campos marcados."** Sucesso: página da empresa com aviso success fechável, uma vez: **"Empresa criada."** (o código já está no cabeçalho da página, RD-2614)
 Sai: 18 frases, "Passo 1", 1 campo, 1 cartão (5 campos), 1 botão. Entra: campo UF.
 
 | Antes | Depois (com os planos do §11) |
@@ -124,7 +124,7 @@ Dois lados lado a lado, com a mesma largura (≥ 768 px), separados por uma **di
 **Esquerda — "Integração via Conector"** (passos numerados na ordem em que a pessoa age; o círculo do número em Azul noite `bg-accent`, texto branco, ajustado pelo MC-0024):
 1. **"Baixar o Conector"**: botão "Gerar o link do Conector"/"Gerando o link…" (texto atual de `TEXTOS_DOWNLOAD_CONECTOR`) → link **"Baixar {arquivo}"**, embaixo só **"38 MB"** (saem o nome do arquivo e a versão: os dois já estão no link; ajustado pelo P6 do corretor), **"O link vale até 01:30. Depois disso, gere outro."** e **"SHA-256 {hash}"**. Estados de erro do download sem mudança.
 2. **"Gerar a credencial"**: **Identificador** (começa com "erp") · **Nome** (começa com "Conector do ERP") · caixa **"Envia os pedidos aprovados ao ERP"** (marcada) · **"Gerar credencial"** (principal). O Conector leva todas as bases livres, sem lista de escolha (a escolha fica no "Bases" da linha). Chave gerada: **no lugar do formulário**, faixa de aviso (`Notice` warning do kit) com **"Copie a chave agora: ela não aparece de novo."** + chave + **"Copiar"** (secundário pequeno; vira "Copiada"), e embaixo **"Já copiei, esconder"**, que volta ao formulário (MC-0160). Saem o título interno "Credencial do Conector "erp"" e o rodapé "Identificador: erp · escopo integracao.v1 · prefixo mx_…" (ajustado pelo RD-0286 e pelo MC-0159; o "cole na configuração" já está no passo 3).
-3. **"Instalar e colar a credencial"**: lista numerada, três linhas:
+3. **"Instalar o Conector"**: lista numerada, três linhas:
    1. **"Instale o Conector no servidor do ERP."**
    2. **"Cole o identificador e a chave na configuração."**
    3. **"Inicie o serviço."**
@@ -132,7 +132,7 @@ Dois lados lado a lado, com a mesma largura (≥ 768 px), separados por uma **di
 Embaixo: **"Conectores"** — tabela **Identificador · Pedidos** ("Sim" ou "—") **· Situação** (selo "Ativo" ou "Desativado"); vazio **"Nenhum Conector."** Linha ativa: os botões pequenos vêm **numa segunda linha, embaixo dela** (cabe no lado estreito e no celular): **"Bases"** · **"Gerar nova chave"** · **"Desativar"**; o Conector de arquivo só tem "Desativar"; linha desativada, sem botões. A nova chave aparece embaixo dos botões da própria linha, com a mesma faixa de aviso do passo 2.
 - **"Bases"** abre o diálogo **"Bases do Conector {id}"** (na direita, **"Bases da credencial {id}"**): as caixas das bases livres para ele (as dele, marcadas, mais as que nenhum outro ativo recebe), na ordem de carga, em duas colunas; **"Cancelar"** · **"Gravar"** (principal; desabilitado sem nenhuma marcada; "Gravando…"). Conflito (409) mostra a mensagem da API numa faixa de erro dentro do diálogo.
 - **"Gerar nova chave"**: diálogo **"Gerar nova chave para o Conector {id}?"** (na direita, "…para a credencial {id}?"), **"A chave atual ainda funciona por pouco tempo. Troque a chave na configuração do Conector."** (na direita, "…no sistema que chama a API."), "Cancelar" · **"Gerar nova chave"** (perigo).
-- **"Desativar"**: diálogo **"Desativar o Conector {id}?"** (na direita, "Desativar a credencial {id}?"), com o que deixa de acontecer: **"Ele para de enviar as bases e de buscar os pedidos."** (sem pedidos: "Ele para de enviar as bases."); Conector de arquivo: **"A carga por CSV deixa de funcionar nesta empresa."**; credencial de API: **"As chamadas com esta chave passam a ser recusadas."**; "Cancelar" · **"Desativar"** (perigo).
+- **"Desativar"**: diálogo **"Desativar o Conector {id}?"** (na direita, "Desativar a credencial {id}?"), com o que deixa de acontecer: **"Ele para de enviar as bases e de buscar os pedidos."** (sem pedidos: "Ele para de enviar as bases."); Conector de arquivo: **"As bases dele ficam livres para outro Conector ou credencial."**; credencial de API: **"As chamadas com esta chave passam a ser recusadas."**; "Cancelar" · **"Desativar"** (perigo).
 
 **Direita — "Integração via API":** (o título do lado já diz "API"; os cartões não repetem, RD-b)
 1. **"Gerar a credencial"**: **Identificador** e **Nome** vazios, com os exemplos **"ex.: erp-api"** e **"ex.: ERP do cliente"** · **"Bases"**: caixas das bases livres (nenhum Conector ou credencial ativa as recebe), todas marcadas no começo, na ordem de carga, em duas colunas; ao menos uma · **"Envia os pedidos aprovados ao ERP"** (desmarcada) · **"Gerar credencial"** (neutro) · chave gerada com a mesma faixa de aviso, "Copiar" e "Já copiei, esconder".
@@ -156,7 +156,7 @@ No celular (abaixo de 768 px), o **"Sair"** fica na linha do logo, à direita; a
 
 
 ### 10.3 Nova empresa (§4)
-Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergunta ao dono do produto:** sem CSV, toda empresa precisa de Conector ou API; a Integração com o ERP continua "sempre"?
+Core e Integração com o ERP entram em toda empresa e não aparecem entre os módulos (sem selo "sempre"). **Pergunta ao dono do produto:** sem CSV, toda empresa precisa de Conector ou API; a Integração com o ERP continua em toda empresa?
 
 > Ver §11: com os planos, a Nova empresa não lista mais módulos; a pergunta acima passa a ser se todo plano inclui a Integração com o ERP.
 
@@ -228,7 +228,7 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 
 Envio: `POST ROTA_PORTAL_EMPRESA_COM_PLANO` (`CriarEmpresaComPlanoSchema`) com `assinatura: { plano: codigo, ciclo, adicionais: [{ adicional, quantidade }], com_teste, pedido_id }` (`pedido_id` gerado no portal).
 
-Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro geral: **"Confira os campos marcados."**
+Sucesso, como no §4: **"Empresa criada."** Erro geral: **"Confira os campos marcados."**
 
 | Depois — Nova empresa (CNPJ preenchido, PME, Promotor 3 e Pesquisa 10, total) | Depois — estados do campo CNPJ |
 |---|---|
@@ -241,7 +241,7 @@ Coluna esquerda da aba (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId
 - **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em 600, tabular). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: só o selo de alerta **"no limite"** ao lado do número; borda e número seguem iguais aos demais blocos (RD-a: uma informação, um sinal). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
 - **Admin do cliente** (decidido em 14/11): só vê; o valor e o selo do teste ficam na linha do título, sem "Trocar de plano" (o `PUT` é só do super-admin); sem o cartão Administradores.
 
-**Diálogo "Trocar de plano"** (880 px no desktop, folha de tela cheia abaixo de 768 px, planos 2 × 2):
+**Diálogo "Trocar de plano"** (880 px no desktop; abaixo de 640 px o `Dialog` vira folha de tela cheia; planos 2 × 2):
 - **4 planos** em uma linha (o mesmo seletor do Criar empresa, §11.3; licenças em duas linhas, "30 vendedores" / "3 gestores · 5 BKO"); o atual com o selo **"Atual"** (Névoa `#ECEEF1`, texto `#34404D`, MC-0039) e já selecionado.
 - **Adicionais** numa lista de uma linha por adicional: caixa · ícone · nome · preço no ciclo · campo de quantidade (só com a caixa marcada); um cabeçalho só, **"Adicionais"** e **"Quantidade"** (`aria-label` "Quantidade de {adicional}" em cada campo). Os atuais já marcados, com as quantidades atuais.
 - **Ciclo:** o alternador **Mensal / Anual** (selo "2 meses grátis") numa linha própria, logo abaixo dos Adicionais: o mesmo componente do cartão "Ciclo" do Criar empresa (§11.3), sem título e sem a caixa do teste (MC-0050).
