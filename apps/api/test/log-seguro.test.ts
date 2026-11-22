@@ -102,23 +102,11 @@ describe('serializarErro (demais erros)', () => {
 });
 
 describe('logger real (opcoesLogger) e linha de métricas do worker', () => {
-  function coletar() {
-    const linhas: string[] = [];
-    const stream = new Writable({
-      write(c: Buffer, _e, cb) {
-        linhas.push(c.toString());
-        cb();
-      },
-    });
-    return { linhas, stream };
-  }
-
   it('o pino da API usa o serializador em err', () => {
-    const c = coletar();
-    pino(opcoesLogger('trace'), c.stream).error({ err: duplicado() }, 'erro não tratado');
-    const log = c.linhas.join('');
-    expect(log).not.toContain(EMAIL);
-    expect(log).toContain('"constraint":"cliente_contato_email_key"');
+    const { log, texto } = logEmTexto();
+    log.error({ err: duplicado() }, 'erro não tratado');
+    expect(texto()).not.toContain(EMAIL);
+    expect(texto()).toContain('"constraint":"cliente_contato_email_key"');
   });
 
   it('banco fora no resumo da outbox: alerta BANCO_FALHA com a mensagem segura', async () => {
