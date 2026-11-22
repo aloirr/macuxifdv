@@ -13,7 +13,8 @@ import { criarBancoApp } from '../../../apps/api/src/banco';
 import { registroDeConsultas, transacaoTenant } from '../../../apps/api/src/outbox';
 import { esquecerMemoriaLocal } from '../../../modules/catalogo/app/lib/local';
 import { consultaBuscaProdutosAparelho, esquecerMemoriaTextos } from '../../../modules/catalogo/app/texto-consultas';
-import { consultaVeiculosAparelho, esquecerVeiculosRecentes } from '../../../modules/catalogo/app/veiculos-consulta';
+import { consultaVeiculosAparelho, esquecerVeiculosRecentes, indiceVeiculosLocal } from '../../../modules/catalogo/app/veiculos-consulta';
+import { anoCivilNoFuso } from '../../../modules/catalogo/domain/ano-civil';
 import { A, B, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
 
@@ -31,6 +32,12 @@ const APLICACOES = [
 const LINHAS = NOMES.map((nome, i) => ({ id: uuid(i + 1), sku: `T193-${i + 1}`, nome, aplicacao: APLICACOES[i]! }));
 /** Vendáveis ao cliente c1 de A (preço na tabela dele): Gol Highline (2), Civic (1) e o universal (1). */
 const VENDAVEIS = [0, 1, 12, 15].map((i) => LINHAS[i]!.id);
+/** Modelo com um ano só (2016): na cascata o ano se preenche sozinho e não filtra (R-20261121-211200). */
+const ANO_UNICO = [
+  { id: uuid(101), sku: 'T193-101', nome: 'Retentor de roda', aplicacao: 'Fiat Strada 2016 1.4' },
+  { id: uuid(102), sku: 'T193-102', nome: 'Rolamento de roda', aplicacao: 'Fiat Strada 2016 1.8' },
+  { id: uuid(103), sku: 'T193-103', nome: 'Tensor da correia', aplicacao: 'Fiat Strada' },
+];
 
 const GOL_2018: VeiculoEscolhido = { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018, motor: null, versao: null };
 const ESCOLHAS: VeiculoEscolhido[] = [
@@ -68,7 +75,10 @@ describe.skipIf(semBanco())('T-0193 — filtro de veículo: aparelho × API sobr
   };
   const noAparelho = async (t: 'A' | 'B', consulta: 'veiculos' | 'busca', entrada: object): Promise<Saida> => {
     const [def, impl] = consulta === 'veiculos' ? [CONSULTA_VEICULOS, consultaVeiculosAparelho] : [CONSULTA_BUSCA_PRODUTOS, consultaBuscaProdutosAparelho];
-    const saida = await (impl as unknown as { executar(e: unknown, c: ContextoConsultaAparelho): Promise<unknown> }).executar(def.entrada.parse(entrada), ctxAparelho(ap[t]));
+    const ctx = ctxAparelho(ap[t]);
+    // o índice de veículos do aparelho é montado em segundo plano: a consulta não o espera
+    if (consulta === 'veiculos') await indiceVeiculosLocal(ctx, anoCivilNoFuso(ctx.agora(), ap[t].sessao.tenant.fuso));
+    const saida = await (impl as unknown as { executar(e: unknown, c: ContextoConsultaAparelho): Promise<unknown> }).executar(def.entrada.parse(entrada), ctx);
     return def.saida.parse(saida) as Saida;
   };
   const naApi = (tenant: Tenant, a: AparelhoCampo, consulta: 'veiculos' | 'busca', entrada: object): Promise<Saida> =>
@@ -104,7 +114,7 @@ describe.skipIf(semBanco())('T-0193 — filtro de veículo: aparelho × API sobr
   beforeAll(async () => {
     api = await subirApi();
     const q = (sql: string, p: unknown[]) => api.admin.query(sql, p);
-    for (const l of LINHAS) {
+    for (const l of [...LINHAS, ...ANO_UNICO]) {
       // o que o Hub grava no Core e no Catálogo; produto_busca como na fixture (texto cru da aplicação)
       await q("insert into core.produto (id, tenant_id, sku, nome, marca, categoria, unidade, ativo) values ($1, $2, $3, $4, 'BAP', 'Linha', 'UN', true)", [l.id, A.tenantId, l.sku, l.nome]);
       await q('insert into catalogo.produto_conteudo (tenant_id, produto_id, aplicacoes) values ($1, $2, $3)', [A.tenantId, l.id, l.aplicacao]);
@@ -161,6 +171,15 @@ describe.skipIf(semBanco())('T-0193 — filtro de veículo: aparelho × API sobr
     expect((await iguais('A', 'veiculos', entrada)).disponivel).toBe(true);
   });
 
+  it('modelo com um ano só: o ano automático fica na trilha e não filtra; a lista do modelo é a mesma no aparelho e na API', async () => {
+    const r = await iguais('A', 'veiculos', { escolha: { montadora: 'Fiat', modelo: 'Strada' } });
+    expect((r.trilha as { nivel: string; valor: string; automatico: boolean }[]).find((p) => p.nivel === 'ano')).toMatchObject({ valor: '2016', automatico: true });
+    expect(r).toMatchObject({ nivel: 'motor', escolha: { ano: null } });
+    const strada: VeiculoEscolhido = { montadora: 'Fiat', modelo: 'Strada', ano: null, motor: null, versao: null };
+    expect((await ids(strada)).sort()).toEqual(ANO_UNICO.map((l) => l.id));
+    expect((await ids({ ...strada, ano: 2016 })).sort()).toEqual(ANO_UNICO.slice(0, 2).map((l) => l.id));
+  });
+
   describe('escopo do cliente (RN-CAT-06)', () => {
     const POR_CLIENTE = { cliente_id: A.clientes.c1 };
     const POR_IDS = { produto_ids: [LINHAS[9]!.id, LINHAS[10]!.id, LINHAS[12]!.id] };
@@ -184,14 +203,15 @@ describe.skipIf(semBanco())('T-0193 — filtro de veículo: aparelho × API sobr
       expect((await iguais('A', 'veiculos', { ...POR_CLIENTE, busca: 'ecosport' })).busca).toEqual([]);
     });
 
-    it('só a peça universal no escopo: disponivel falso nos dois', async () => {
+    it('só a peça universal no escopo: disponivel falso nos dois (com uma peça do Gol junto, verdadeiro)', async () => {
       expect((await iguais('A', 'veiculos', { produto_ids: [LINHAS[15]!.id] })).disponivel).toBe(false);
+      expect((await iguais('A', 'veiculos', { produto_ids: [LINHAS[15]!.id, LINHAS[0]!.id] })).disponivel).toBe(true);
     });
   });
 
   it('multi-tenant: B não vê o Gol de A (cascata e lista iguais no aparelho e na API de B)', async () => {
-    const r = await iguais('B', 'veiculos', { busca: 'gol' });
-    expect(r.busca ?? []).toEqual([]);
+    expect((await iguais('A', 'veiculos', { busca: 'gol' })).busca).not.toEqual([]);
+    expect(await iguais('B', 'veiculos', { busca: 'gol' })).toMatchObject({ disponivel: false, busca: null });
     expect((await iguais('B', 'busca', { q: '', veiculo: GOL_2018, limite: 100 })).itens).toEqual([]);
   });
   // DEFEITO (modulo-catalogo): nenhum código grava catalogo.produto_busca, que é o que a API lê (modules/catalogo/api/consultas-texto.ts,
