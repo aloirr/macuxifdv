@@ -20,7 +20,7 @@ const integracao = defineModule({
   versao: '1.0.0',
   depende: ['core'],
   perfis: ['admin', 'analista'],
-  acoes: { 'carga.arquivo': { perfis: ['admin'] } },
+  acoes: { 'relatorio.exportar': { perfis: ['admin'] } },
 });
 const ok = async () => 'a;b\n';
 const rota = (r: Partial<RotaModulo>): RotaModulo => ({ metodo: 'GET', caminho: 'modelos/:entidade.csv', carteira: 'nao_se_aplica', executar: ok, ...r });
@@ -32,7 +32,7 @@ describe('caminho com ponto (T-0087)', () => {
   });
 
   it('continua aceitando os caminhos de antes', () => {
-    for (const c of ['pedidos', 'pedidos/:id', 'clientes/:clienteId/pedidos', 'cargas-arquivo', 'lotes/:id/erros', 'a_b-c'])
+    for (const c of ['pedidos', 'pedidos/:id', 'clientes/:clienteId/pedidos', 'visitas-do-dia', 'lotes/:id/erros', 'a_b-c'])
       expect(caminhoDeRotaValido(c), c).toBe(true);
   });
 
