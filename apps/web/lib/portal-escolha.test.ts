@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL, SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { ImportarEquipeRespostaSchema } from '@macuxi/core/contracts';
+import { ImportarEquipeRespostaSchema, mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';
 
 import { CONTA_SENHA_A_TROCAR, CONTAS_FALSAS, responderFalso, zerarModoFalso } from './portal-falso';
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
@@ -309,7 +309,10 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect([r1.status, r2.status]).toEqual([401, 401]);
     expect(await r1.json()).toEqual(await r2.json());
     for (let i = 0; i < 4; i++) await login('ninguem@empresa.com.br');
-    expect((await login('ninguem@empresa.com.br')).status).toBe(423);
+    const r3 = await login('ninguem@empresa.com.br');
+    expect(r3.status).toBe(423);
+    // RN-CORE-31: a mesma frase do contrato do Core e os minutos que faltam em `detalhes`
+    expect(await r3.json()).toEqual({ codigo: 'BLOQUEADO', mensagem: mensagemBloqueioPorTentativas(15), detalhes: { minutos_restantes: 15 } });
   });
 
   it('T-0094: admin com a senha ainda temporária = 403 SENHA_A_TROCAR só com a senha certa; sem sessão', async () => {

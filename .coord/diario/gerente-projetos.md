@@ -437,3 +437,4 @@
 2026-11-21 — T-0189 — Início do BKO: plano, RN-CORE-64/65/66 no doc 03, decisões D0 (RN-CORE-33) e RD-2514 (rótulos nos contracts da Integração), PRs empilhados
 2026-11-21 — T-0191 — rotas do vendedor no BKO (R1 a R3 e R5): plano, RN-CORE-75 a 77 no doc 03, renumeração (T-0189→T-0191, RD-2495…2515→RD-2524…2544), porte para a worktree sobre o main 11b5990e e os 9 PRs por dono
 2026-11-21 — T-0188 a T-0192 / v1.0.17 a v1.0.20 — registro da conta reativada (R-20261121-194500): blocos "no ar" da v1.0.17 à v1.0.20 e bloco "Em aberto" no quadro; T-0188 a T-0191 concluídas com histórico; T-0192 criada (Catálogo do Campo, v1.0.20); PRs #302 (superado), #285 (quase superado) e #288 (não superado) conferidos arquivo por arquivo.
+- 2026-11-21 (Manaus) — v1.0.21: RN-CAT-22 no doc 03, T-0193 (filtro de veículo) e quadro com a v1.0.21 em andamento e o "Em aberto" atualizado.

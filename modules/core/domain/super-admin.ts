@@ -50,7 +50,7 @@ export function decidirAcessoDoLogin(contas: readonly ContaConferida[]): AcessoD
 }
 
 /** A chave do e-mail está bloqueada enquanto `bloqueadoAte` for futuro. */
-export function chaveBloqueada(bloqueadoAte: Date | null, agora: Date): boolean {
+export function chaveBloqueada(bloqueadoAte: Date | null, agora: Date): bloqueadoAte is Date {
   return bloqueadoAte !== null && bloqueadoAte.getTime() > agora.getTime();
 }
 

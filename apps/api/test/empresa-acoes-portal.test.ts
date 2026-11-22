@@ -4,6 +4,7 @@
  * com a senha do super-admin conferida de novo no limite de falhas do login do portal, a tradução dos SQLSTATE das `sa_*` e o
  * bloco `acoes` da lista de empresas. As funções `sa_*` de verdade são testadas no CI (`*.db.test.ts` do banco-dados).
  */
+import { mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';
 import {
   BackupEmpresaSchema,
   ExclusaoEmpresaSchema,
@@ -89,6 +90,7 @@ interface OpcoesMontar {
   bloqueadoAte?: Date | null;
   bloqueiaNaFalha?: boolean;
   semConta?: boolean;
+  agora?: Date;
 }
 
 function montar(op: OpcoesMontar = {}) {
@@ -139,7 +141,7 @@ function montar(op: OpcoesMontar = {}) {
       plataforma,
       fonteAcoesEmpresa: fonte,
       backupEmpresaDisponivel: op.backup ?? true,
-      relogio: () => AGORA,
+      relogio: () => op.agora ?? AGORA,
       ...(op.ligado === false ? {} : { empresaAcoesPortal: true }),
     }),
   );
@@ -261,14 +263,16 @@ describe('Portal › Ações da empresa (ADR 0052)', () => {
     expect([r2.statusCode, r2.json().codigo]).toEqual([403, 'REAUTENTICACAO_FALHOU']);
   });
 
-  it('RN-PLA-09: bloqueado (antes ou na 5ª falha) = 423 BLOQUEADO; sem segredo do portal = 503 PORTAL_INDISPONIVEL', async () => {
-    const antes = montar({ bloqueadoAte: new Date(AGORA.getTime() + 60_000) });
-    const r = await antes.app.inject({ method: 'POST', url: url('exclusao'), headers: sa, payload: corpoExclusao() });
-    expect([r.statusCode, r.json().codigo]).toEqual([423, 'BLOQUEADO']);
-    expect(antes.de('pedirExclusao')).toHaveLength(0);
+  it('RN-PLA-09 e RN-CORE-31: bloqueado (antes ou na 5ª falha) = 423 BLOQUEADO com os minutos que faltam; sem segredo do portal = 503 PORTAL_INDISPONIVEL', async () => {
+    const bloqueio = (min: number) => ({ codigo: 'BLOQUEADO', mensagem: mensagemBloqueioPorTentativas(min), detalhes: { minutos_restantes: min } });
     const quinta = montar({ bloqueiaNaFalha: true });
-    const r2 = await quinta.app.inject({ method: 'POST', url: url('exclusao'), headers: sa, payload: corpoExclusao('Errada#2026') });
-    expect([r2.statusCode, r2.json().codigo]).toEqual([423, 'BLOQUEADO']);
+    const r = await quinta.app.inject({ method: 'POST', url: url('exclusao'), headers: sa, payload: corpoExclusao('Errada#2026') });
+    expect([r.statusCode, r.json()]).toEqual([423, bloqueio(15)]);
+    const depois = montar({ bloqueadoAte: new Date(AGORA.getTime() + 900_000), agora: new Date(AGORA.getTime() + 6 * 60_000 + 30_000) });
+    const r2 = await depois.app.inject({ method: 'POST', url: url('exclusao'), headers: sa, payload: corpoExclusao() });
+    expect([r2.statusCode, r2.json()]).toEqual([423, bloqueio(9)]);
+    expect(depois.de('pedirExclusao')).toHaveLength(0);
+    expect(depois.de('tentativaFalha')).toHaveLength(0);
     vi.stubEnv('MACUXI_JWT_SEGREDO_PLATAFORMA', '');
     const sem = montar();
     const r3 = await sem.app.inject({ method: 'POST', url: url('exclusao'), headers: sa, payload: corpoExclusao() });

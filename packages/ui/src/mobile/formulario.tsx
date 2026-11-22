@@ -4,7 +4,7 @@
  * - `Abas`: abas com sublinhado Azul noite e contador opcional ("Itens (3)"); `rolavel` = faixa horizontal com nomes inteiros;
  * - `Segmentado`: escolha única em botões lado a lado (CIF/FOB, prazo, Desc./Acrésc., %/R$);
  * - `Passo`: − n + (quantidade), com digitação opcional;
- * - `CampoBusca`: busca com lupa e botão de limpar;
+ * - `CampoBusca`: busca com lupa e botão de limpar; `dica` opcional embaixo do campo em foco e vazio;
  * - `RotuloSecao`: rótulo de seção em maiúsculas, com ação opcional à direita ("Entrega · Trocar");
  * - `ChipMedida`: chip da medida ("FD c/ 12"), tocável para trocar;
  * - `BotaoIcone`: botão quadrado só com ícone (+, ⇄).
@@ -26,7 +26,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador } from './componentes';
+import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, mostrarDicaDaBusca, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador } from './componentes';
 import { Icon, type IconName } from './icon';
 import { useReduzirMovimento } from './movimento-rn';
 import { PASSO_COMPACTO, passoComTexto, SEGMENTADO_COMPACTO } from './selecao';
@@ -386,12 +386,18 @@ export function CampoBusca({
   rotuloLimpar,
   onEnviar,
   autoFocus,
+  dica,
   testID = 'busca',
 }: {
   valor: string;
   onChange: (texto: string) => void;
   /** Ex.: "Código, descrição ou veículo". */
   placeholder: string;
+  /**
+   * Linha de apoio (14 `ink2`) embaixo do campo, só com ele em foco e vazio; some ao digitar. O leitor de tela a lê como
+   * `accessibilityHint`. Diz só o que o placeholder não diz (catalogo-campo-v2/spec.md §5). Sem ela, nada muda.
+   */
+  dica?: string;
   /** Rótulo do leitor de tela; sem ele, usa o placeholder. */
   rotuloAcessivel?: string;
   /** Mostra o botão × quando há texto. Sem `rotuloLimpar` o botão não aparece. */
@@ -402,7 +408,9 @@ export function CampoBusca({
   testID?: string;
 }) {
   const mostrarLimpar = Boolean(onLimpar && rotuloLimpar && valor.length > 0);
-  return (
+  const [emFoco, setEmFoco] = useState(Boolean(autoFocus));
+  const dicaLimpa = dica?.trim() || undefined;
+  const caixa = (
     <View style={s.busca}>
       <Icon name="search" size={18} color={colors.ink3} />
       <TextInput
@@ -413,6 +421,9 @@ export function CampoBusca({
         placeholder={placeholder}
         placeholderTextColor={colors.ink3}
         accessibilityLabel={rotuloAcessivel ?? placeholder}
+        accessibilityHint={dicaLimpa}
+        onFocus={() => setEmFoco(true)}
+        onBlur={() => setEmFoco(false)}
         returnKeyType="search"
         autoCorrect={false}
         autoFocus={autoFocus}
@@ -422,6 +433,17 @@ export function CampoBusca({
         <Pressable testID={`${testID}-limpar`} accessibilityRole="button" accessibilityLabel={rotuloLimpar} onPress={onLimpar} style={({ pressed }) => [s.buscaLimpar, pressed && s.pressionado]}>
           <Icon name="close" size={16} color={colors.ink2} />
         </Pressable>
+      ) : null}
+    </View>
+  );
+  if (!dicaLimpa) return caixa;
+  return (
+    <View>
+      {caixa}
+      {mostrarDicaDaBusca({ dica: dicaLimpa, emFoco, valor }) ? (
+        <Text testID={`${testID}-dica`} style={s.buscaDica} importantForAccessibility="no" accessibilityElementsHidden>
+          {dicaLimpa}
+        </Text>
       ) : null}
     </View>
   );
@@ -590,6 +612,7 @@ const s = StyleSheet.create({
   // .search
   busca: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: ALVO_TOQUE, paddingLeft: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   buscaInput: { flex: 1, minWidth: 0, height: ALVO_TOQUE - 2, padding: 0, ...fonte.body, fontSize: 14, color: colors.ink },
+  buscaDica: { ...t.sub, lineHeight: 18, marginTop: 8 },
   buscaLimpar: { width: ALVO_TOQUE, height: ALVO_TOQUE - 2, alignItems: 'center', justifyContent: 'center' },
   // .lbl (+ link "Trocar")
   rotuloLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 20 },
