@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ConectorCriado, ConectorResumo, ENTIDADES, type Entidade } from '@macuxi/integracao/contracts';
-import { Badge, Button, Dialog, ErrorBlock, IconDownload, LoadingBlock, Notice, Panel, TableScroll, td, th, useToast } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, IconDownload, LoadingBlock, Notice, Panel, SelectField, TableScroll, td, th, useToast } from '@macuxi/ui/web';
 
 import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
@@ -31,6 +31,20 @@ const ROTULO_TIPO: Record<string, string> = { conector: 'Conector on-premise', n
 export function entidadesLivres(conectores: readonly { ativo: boolean; entidades: readonly Entidade[]; conector_id: string }[], ignorar?: string): Entidade[] {
   const ocupadas = new Set(conectores.filter((c) => c.ativo && c.conector_id !== ignorar).flatMap((c) => c.entidades));
   return ENTIDADES.filter((e) => !ocupadas.has(e));
+}
+
+/** Bases do diálogo "Bases": marcadas as do Conector; bloqueadas as que vêm de outro Conector ativo (RN-INT-13). */
+export function basesDoDialogo(conectores: readonly { ativo: boolean; entidades: readonly Entidade[]; conector_id: string }[], alvo: { conector_id: string; entidades: readonly Entidade[] }) {
+  const livres = entidadesLivres(conectores, alvo.conector_id);
+  return ENTIDADES.map((e) => ({ entidade: e, marcada: alvo.entidades.includes(e), bloqueada: !livres.includes(e) }));
+}
+
+export type TipoCredencial = 'conector' | 'nuvem';
+
+/** Corpo do POST da credencial; `null` sem base marcada (não envia). */
+export function corpoDaCredencial(p: { identificador: string; nome: string; tipo: TipoCredencial; recebePedidos: boolean; entidades: readonly Entidade[] }) {
+  if (p.entidades.length === 0) return null;
+  return { conector_id: p.identificador.trim(), nome: p.nome.trim(), tipo: p.tipo, recebe_pedidos: p.recebePedidos, entidades: [...p.entidades] };
 }
 
 export const rotaDoConector = (id: string) => `${ROTAS_PORTAL.conectores}/${encodeURIComponent(id)}`;
@@ -67,6 +81,49 @@ export function DialogoConector({ alvo, acao, enviando, aoFechar, aoConfirmar }:
       }
     >
       {t.corpo}
+    </Dialog>
+  );
+}
+
+export function DialogoBases({ alvo, conectores, enviando, erro, aoFechar, aoGravar }: { alvo: Conector | null; conectores: readonly Conector[]; enviando: boolean; erro: string | null; aoFechar: () => void; aoGravar: (entidades: Entidade[]) => void }) {
+  const [marcadas, setMarcadas] = useState<Entidade[]>(alvo ? [...alvo.entidades] : []);
+  const bases = alvo ? basesDoDialogo(conectores, alvo) : [];
+  return (
+    <Dialog
+      open={alvo !== null}
+      title={alvo ? `Bases do Conector ${alvo.conector_id}` : ''}
+      onClose={aoFechar}
+      footer={
+        <>
+          <Button data-testid="integracao.bases-cancelar" onClick={aoFechar}>
+            Cancelar
+          </Button>
+          <Button variant="primary" data-testid="integracao.bases-gravar" disabled={enviando || marcadas.length === 0} onClick={() => aoGravar(ENTIDADES.filter((e) => marcadas.includes(e)))}>
+            Gravar
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        {bases.map((b) => (
+          <label key={b.entidade} className="flex items-center gap-2.5 text-[15px]">
+            <input
+              type="checkbox"
+              data-testid={`integracao.base-${b.entidade}`}
+              className="h-4 w-4 accent-accent"
+              disabled={b.bloqueada}
+              checked={marcadas.includes(b.entidade)}
+              onChange={(e) => setMarcadas((m) => (e.target.checked ? [...m, b.entidade] : m.filter((x) => x !== b.entidade)))}
+            />
+            {CARTAO_DA_ENTIDADE[b.entidade].titulo}
+          </label>
+        ))}
+        {erro && (
+          <div data-testid="integracao.bases-erro">
+            <Notice tone="danger">{erro}</Notice>
+          </div>
+        )}
+      </div>
     </Dialog>
   );
 }
@@ -113,6 +170,10 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
   const [identificador, setIdentificador] = useState('erp');
   const [nome, setNome] = useState('Conector do ERP');
   const [recebePedidos, setRecebePedidos] = useState(true);
+  const [tipo, setTipo] = useState<TipoCredencial>('conector');
+  const [fora, setFora] = useState<Entidade[]>([]);
+  const [basesDe, setBasesDe] = useState<Conector | null>(null);
+  const [erroBases, setErroBases] = useState<string | null>(null);
   const [criado, setCriado] = useState<Criado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -126,17 +187,18 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
   const arquivo = conectores.find((c) => c.ativo && c.conector_id === CONECTOR_ARQUIVO_PORTAL.conector_id) ?? null;
   const livres = entidadesLivres(conectores);
   const livresSemArquivo = entidadesLivres(conectores, arquivo?.conector_id);
+  const marcadas = livres.filter((e) => !fora.includes(e));
 
   const gerar = async (desativarArquivo: boolean) => {
     if (enviando) return;
     setConfirmar(false);
     setErro(null);
-    const entidades = desativarArquivo ? livresSemArquivo : livres;
-    if (entidades.length === 0) return setErro(mensagemSemBases(conectores, arquivo !== null));
+    const corpo = corpoDaCredencial({ identificador, nome, tipo, recebePedidos, entidades: desativarArquivo ? livresSemArquivo : marcadas });
+    if (!corpo) return setErro(mensagemSemBases(conectores, arquivo !== null));
     setEnviando(true);
     try {
       if (desativarArquivo && arquivo) await chamarPortal(rotaDoConector(arquivo.id), { metodo: 'PATCH', tenant, corpo: { ativo: false } });
-      const r = await chamarPortal(ROTAS_PORTAL.conectores, { metodo: 'POST', tenant, corpo: { conector_id: identificador.trim(), nome: nome.trim(), tipo: 'conector', recebe_pedidos: recebePedidos, entidades }, schema: ConectorCriado });
+      const r = await chamarPortal(ROTAS_PORTAL.conectores, { metodo: 'POST', tenant, corpo, schema: ConectorCriado });
       setCriado(r);
       void qc.invalidateQueries({ queryKey: chave });
     } catch (x) {
@@ -157,6 +219,21 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
     } catch (x) {
       setAlvo(null);
       toast('danger', mensagemDoErro(x));
+    } finally {
+      setAgindo(false);
+    }
+  };
+
+  const gravarBases = async (entidades: Entidade[]) => {
+    if (!basesDe || agindo) return;
+    setAgindo(true);
+    setErroBases(null);
+    try {
+      await chamarPortal(rotaDoConector(basesDe.id), { metodo: 'PATCH', tenant, corpo: { entidades } });
+      setBasesDe(null);
+      void qc.invalidateQueries({ queryKey: chave });
+    } catch (x) {
+      setErroBases(mensagemDoErro(x));
     } finally {
       setAgindo(false);
     }
@@ -207,6 +284,15 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
                       {c.ativo && (
                         <div className="flex flex-wrap gap-2">
                           {c.tipo !== 'arquivo' && (
+                            <Button size="sm" data-testid={`integracao.bases-${c.conector_id}`} disabled={agindo} onClick={() => {
+                                setErroBases(null);
+                                setBasesDe(c);
+                              }}
+                            >
+                              Bases
+                            </Button>
+                          )}
+                          {c.tipo !== 'arquivo' && (
                             <Button size="sm" data-testid={`integracao.nova-chave-${c.conector_id}`} disabled={agindo} onClick={() => setAlvo({ conector: c, acao: 'chave' })}>
                               Gerar nova chave
                             </Button>
@@ -243,6 +329,21 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
               <Campo rotulo="Identificador do Conector" testId="integracao.identificador" value={identificador} spellCheck={false} onChange={(e) => setIdentificador(e.target.value.replace(/[^A-Za-z0-9._-]/g, ''))} ajuda="Vai no arquivo de configuração do Conector." />
               <Campo rotulo="Nome" testId="integracao.nome" value={nome} onChange={(e) => setNome(e.target.value)} />
             </div>
+            <SelectField label="Tipo" data-testid="integracao.tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoCredencial)}>
+              <option value="conector">{ROTULO_TIPO.conector}</option>
+              <option value="nuvem">{ROTULO_TIPO.nuvem}</option>
+            </SelectField>
+            {livres.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-semibold text-ink-2">Bases</span>
+                {livres.map((e) => (
+                  <label key={e} className="flex items-center gap-2.5 text-[15px]">
+                    <input type="checkbox" data-testid={`integracao.nova-base-${e}`} className="h-4 w-4 accent-accent" checked={!fora.includes(e)} onChange={(x) => setFora((f) => (x.target.checked ? f.filter((y) => y !== e) : [...f, e]))} />
+                    {CARTAO_DA_ENTIDADE[e].titulo}
+                  </label>
+                ))}
+              </div>
+            )}
             <label className="flex items-center gap-2.5 text-[15px]">
               <input type="checkbox" data-testid="integracao.recebe-pedidos" className="h-4 w-4 accent-accent" checked={recebePedidos} onChange={(e) => setRecebePedidos(e.target.checked)} />
               Este Conector leva os pedidos aprovados ao ERP
@@ -253,7 +354,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
               </div>
             )}
             <div>
-              <Button data-testid="integracao.gerar" type="submit" variant="primary" disabled={enviando || !identificador.trim() || !nome.trim() || q.isPending}>
+              <Button data-testid="integracao.gerar" type="submit" variant="primary" disabled={enviando || !identificador.trim() || !nome.trim() || q.isPending || (livres.length > 0 && marcadas.length === 0)}>
                 {enviando ? 'Gerando…' : 'Gerar credencial'}
               </Button>
             </div>
@@ -276,6 +377,8 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
         </div>
       </Panel>
 
+      <DialogoBases key={basesDe?.id ?? 'nenhum'} alvo={basesDe} conectores={conectores} enviando={agindo} erro={erroBases} aoFechar={() => setBasesDe(null)} aoGravar={(e) => void gravarBases(e)} />
+
       <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmarAcao()} />
 
       <Dialog
@@ -287,7 +390,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
             <Button data-testid="integracao.confirmar-cancelar" onClick={() => setConfirmar(false)}>
               Cancelar
             </Button>
-            <Button data-testid="integracao.confirmar-livres" onClick={() => void gerar(false)} disabled={livres.length === 0}>
+            <Button data-testid="integracao.confirmar-livres" onClick={() => void gerar(false)} disabled={marcadas.length === 0}>
               Gerar só para as bases livres
             </Button>
             <Button variant="danger" data-testid="integracao.confirmar-passar" onClick={() => void gerar(true)}>
@@ -298,7 +401,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
       >
         As bases carregadas por CSV vêm do Conector de arquivo do portal. Na v1 cada base vem de um único Conector por empresa: para o ERP
         mandar todas, o Conector de arquivo é desativado (a carga por CSV deixa de funcionar nesta empresa).
-        {livres.length > 0 && ` Sem desativar, o Conector do ERP leva só: ${livres.map((e) => CARTAO_DA_ENTIDADE[e].titulo).join(', ')}.`}
+        {marcadas.length > 0 && ` Sem desativar, o Conector do ERP leva só: ${marcadas.map((e) => CARTAO_DA_ENTIDADE[e].titulo).join(', ')}.`}
       </Dialog>
     </div>
   );
