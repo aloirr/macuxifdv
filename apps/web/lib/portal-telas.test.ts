@@ -5,7 +5,6 @@ import { ENTIDADES } from '@macuxi/integracao/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
 import { entidadesLivres } from '@/components/portal/aba-integracao';
-import { resumoDoArquivo, TEXTO_COMPLETO_COM_ERROS } from '@/components/portal/cartao-base';
 import {
   corpoDaEmpresa,
   erroDoAdminNaApi,
@@ -156,12 +155,6 @@ describe('textos do portal (revisão de UX R-20261106-023316)', () => {
     expect(celulaDoPlano({ plano: null, em_teste: true })).toEqual({ nome: '—', teste: false });
     expect(celulaDoPlano({})).toEqual({ nome: '—', teste: false });
     expect(celulaDoPlano({ plano: '  ' })).toEqual({ nome: '—', teste: false });
-  });
-  it('modo completo: arquivo e tamanho no diálogo; linhas com erro não inativam (RN-INT-06, R-20261106-030101)', () => {
-    expect(resumoDoArquivo('produtos.csv', 20000, 4)).toBe('produtos.csv, 20.000 linhas em 4 partes');
-    expect(resumoDoArquivo('rotas.csv', 1, 1)).toBe('rotas.csv, 1 linha');
-    expect(resumoDoArquivo(null, 30, 1)).toBe('30 linhas');
-    expect(TEXTO_COMPLETO_COM_ERROS).toMatch(/nada é inativado/);
   });
 });
 
