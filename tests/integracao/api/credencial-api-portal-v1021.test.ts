@@ -12,15 +12,12 @@
  *     perfil): 403 `PERFIL_SEM_ACESSO` no POST e no PATCH, e nada é gravado;
  *  C3 Integração desligada no tenant: 403 `MODULO_INATIVO` no GET, POST e PATCH do mesmo admin do portal;
  *  C4 o admin do portal de B com o cabeçalho da empresa A: nunca 200 nem a credencial de A;
- *  C5 `GET /integracao/v1/guia.pdf` sem login na API montada: 200, `application/pdf` e os bytes de `modules/integracao/docs/guia-api-hub.pdf`.
+ *  C5 `GET /integracao/v1/guia.pdf` sem login na API montada: 200 e `application/pdf` (os bytes do PDF ficam em
+ *     `modules/integracao/api/guia-pdf-rota.test.ts`).
  * Massa: a fixture traz um Conector ativo em A (16 entidades); para a credencial nova não esbarrar na RN-INT-13, o Conector da
  * fixture de A é desativado neste banco efêmero (é só deste arquivo).
- * Ordem de merge: este branch só entra no `main` depois dos PRs v1.0.21 do engenheiro-software (rota pública do guia) e do
- * modulo-integracao (filtro `tipo` e o PDF); sem pulo condicional, para a falta da rota aparecer como falha.
  */
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { ConectorCriado, ConectorResumo } from '@macuxi/integracao/contracts';
 import { estadoBanco, semBanco } from '@macuxi/db/teste/estado';
 import { PEPPER_HUB_FIXTURE } from '@macuxi/db/teste';
@@ -35,7 +32,6 @@ import { criarUsuarioNoTenant, escolherEmpresa, sessaoDoPortal } from '../apoio/
 
 const ESTADO = estadoBanco();
 const SEM_PORTAL = ESTADO.disponivel && !ESTADO.urlPortal ? 'sem MACUXI_PG_PORTAL_SENHA neste ambiente' : null;
-const RAIZ = join(__dirname, '..', '..', '..');
 
 const SEGREDO_PLATAFORMA = 'segredo-de-plataforma-do-agente-testes-v1021-com-folga';
 const P = `api${randomUUID().slice(0, 6)}`;
@@ -182,7 +178,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.21 — credencial de API (tipo
 });
 
 describe('v1.0.21 C5 — GET /integracao/v1/guia.pdf público, na API montada (sem banco)', () => {
-  it('sem login, sem licença e sem banco: 200, application/pdf e os bytes de modules/integracao/docs/guia-api-hub.pdf', async () => {
+  it('sem login, sem licença e sem banco: 200 e application/pdf', async () => {
     const app = createApp({
       modulos: MODULOS_API,
       banco: null,
@@ -195,8 +191,6 @@ describe('v1.0.21 C5 — GET /integracao/v1/guia.pdf público, na API montada (s
       const r = await app.inject({ method: 'GET', url: '/integracao/v1/guia.pdf', remoteAddress: novoIp() });
       expect(r.statusCode, r.body.slice(0, 200)).toBe(200);
       expect(r.headers['content-type']).toMatch(/^application\/pdf/);
-      const esperado = readFileSync(join(RAIZ, 'modules/integracao/docs/guia-api-hub.pdf'));
-      expect(Buffer.compare(r.rawPayload, esperado)).toBe(0);
     } finally {
       await app.close();
     }
