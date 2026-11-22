@@ -265,8 +265,8 @@ export async function blobDoPortal(caminho: string): Promise<Blob> {
 }
 
 /**
- * Baixa um documento público (sem token nem tenant), pelo caminho same-origin do `next.config.ts`. Hoje só o OpenAPI do Hub
- * (`OPENAPI_HUB`). No modo falso não há API: responde como rota ausente ("em breve").
+ * Baixa um documento público (sem token nem tenant), pelo caminho same-origin do `next.config.ts`: o OpenAPI do Hub (`OPENAPI_HUB`)
+ * e o guia da API em PDF (`GUIA_PDF_HUB`). No modo falso não há API: responde como rota ausente (`TEXTO_INDISPONIVEL`).
  */
 export async function baixarDocumentoPublico(viaProxy: string, nomePadrao: string): Promise<void> {
   if (MODO_PORTAL_FALSO) throw new ErroPortal(404, 'http_404', 'Documento ausente no modo falso.');

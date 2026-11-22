@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * Página de uma empresa no portal (T-0087; spec portal-config-enxuto §10.1): abas "Integração" (abre por padrão; Conector ou API,
- * `AbaIntegracao`) e "Empresa" (resumo + acrescentar módulos pelo passo Empresa, idempotente). Sem CSV no portal: a aba Bases saiu
+ * Página de uma empresa no portal (T-0087; spec portal-config-enxuto §5, §8, §10.1 e §11.4): cabeçalho "Código AM4821 · CNPJ … ·
+ * Manaus (UTC−4)", abas "Integração" (abre por padrão; Conector ou API, `AbaIntegracao`) e "Empresa" (`AbaEmpresa`: Plano ·
+ * Administradores, e na coluna da direita os cartões Logo, Nome fantasia e Apps). Sem CSV no portal: a aba Bases saiu
  * (R-20261114-132000). A aba fica no `#` do endereço (o F5 volta nela; o `#bases` antigo cai na Integração). testIDs: empresa-pagina.*.
  * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
- * na aba Empresa, só vê os módulos: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
- * T-0094 fatia S: na aba Empresa, o time da Macuxi vê os administradores e redefine a senha de um deles (`CartaoAdmins`).
- * T-0182: o primeiro cartão da aba Empresa é a "Logo", seguido do "Nome fantasia" (`CartoesMarca`); só o time da Macuxi grava.
- * T-0190: cartão "Apps" (depois dos módulos): link temporário do APK do Macuxi Campo e do Macuxi Gestão (`BaixarPacote`).
+ * na aba Empresa, só vê: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
+ * Empresa sem plano (ficha 404): o time da Macuxi acrescenta módulos pelo passo antigo (`semPlano`), embaixo das colunas.
+ * Logo e Nome fantasia (T-0182, `CartoesMarca`): só o time da Macuxi grava. Apps (T-0190): link temporário dos APKs (`BaixarPacote`).
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -18,13 +18,14 @@ import { Badge, cx, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel } from '
 import { mensagemDoErro } from '@/lib/portal-api';
 import { rotuloDoStatus, tomDoStatus } from '@/lib/portal-empresa-acoes';
 import { DOWNLOAD_APPS } from '@/lib/conector-download';
+import { codigoDaLicenca, mascararCnpj, rotuloCurtoDoFuso } from '@/lib/portal-formato';
+import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
+import { AbaEmpresa, AvisoEmpresaCriada } from './aba-empresa';
 import { AbaIntegracao } from './aba-integracao';
 import { BaixarPacote } from './baixar-conector';
-import { CartaoAdmins } from './cartao-admins';
-import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { MolduraPortal, useSessaoPortal } from './base';
 import { CartoesMarca } from './cartao-logo';
-import { mascararCnpj, PassoEmpresa, ROTULO_MODULO, rotuloDoFuso } from './passo-empresa';
+import { PassoEmpresa } from './passo-empresa';
 import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
 
 const ABAS = [
@@ -89,7 +90,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
             title={empresa.razao_social}
             subtitle={
               <span>
-                <span className="font-mono">{empresa.codigo}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · fuso {rotuloDoFuso(empresa.fuso)}
+                Código <span className="font-mono">{codigoDaLicenca(empresa.codigo)}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · {rotuloCurtoDoFuso(empresa.fuso)}
               </span>
             }
             badge={<Badge tone={tomDoStatus(empresa.status)}>{rotuloDoStatus(empresa.status)}</Badge>}
@@ -100,9 +101,10 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
       {empresas.isPending && <LoadingBlock label="Buscando a empresa…" />}
       {empresas.isError && <ErrorBlock message={mensagemDoErro(empresas.error)} onRetry={() => void empresas.refetch()} />}
       {empresas.isSuccess && !empresa && empresas.isFetching && <LoadingBlock label="Buscando a empresa…" />}
-      {empresas.isSuccess && !empresa && !empresas.isFetching && <Notice tone="warning">Empresa não encontrada. Volte à lista de empresas.</Notice>}
+      {empresas.isSuccess && !empresa && !empresas.isFetching && <Notice tone="warning">Empresa não encontrada.</Notice>}
       {empresa && (
         <>
+          <AvisoEmpresaCriada tenant={empresa.id} />
           <div role="tablist" aria-label="Seções da empresa" className="flex gap-1 border-b border-line">
             {ABAS.map((a) => (
               <button
@@ -129,36 +131,33 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
             </div>
           )}
           {abertas.has('empresa') && (
-            <div role="tabpanel" id="empresa-painel-empresa" aria-labelledby="empresa-aba-empresa" hidden={aba !== 'empresa'} className={aba === 'empresa' ? 'flex flex-col gap-4' : undefined}>
-              {/* T-0182: Logo (primeiro cartão) e Nome fantasia; só o time da Macuxi grava, o admin do cliente vê */}
-              <CartoesMarca tenant={empresa.id} podeGravar={timeMacuxi} />
-              <Panel title="Módulos licenciados">
-                <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-                  {empresa.modulos.map((m) => (
-                    <li key={m.modulo}>
-                      <Badge tone="neutral">
-                        {ROTULO_MODULO[m.modulo].nome}
-                        {m.licencas !== null ? ` · ${m.licencas} licenças` : ''}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
-              <Panel title="Apps">
-                <div data-testid="empresa-pagina.apps" className="flex flex-col gap-2 text-[15px]">
-                  {DOWNLOAD_APPS.map((p) => (
-                    <BaixarPacote key={p.testId} produto={p} tenant={empresa.id} />
-                  ))}
-                </div>
-              </Panel>
-              {/* T-0094 fatia S: só o time da Macuxi redefine a senha do admin (o admin do cliente usa "Esqueci a senha") */}
-              {timeMacuxi && <CartaoAdmins tenant={empresa.id} fuso={empresa.fuso} />}
-              {timeMacuxi && (
-                <PassoEmpresa
-                  existente={{ id: empresa.id, codigo: empresa.codigo, razao_social: empresa.razao_social, cnpj: empresa.cnpj, fuso: empresa.fuso, modulos: empresa.modulos }}
-                  aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })}
-                />
-              )}
+            <div role="tabpanel" id="empresa-painel-empresa" aria-labelledby="empresa-aba-empresa" hidden={aba !== 'empresa'}>
+              <AbaEmpresa
+                tenant={empresa.id}
+                fuso={empresa.fuso}
+                timeMacuxi={timeMacuxi}
+                modulos={empresa.modulos}
+                colunaDireita={
+                  <>
+                    <CartoesMarca tenant={empresa.id} podeGravar={timeMacuxi} />
+                    <Panel title="Apps">
+                      <div data-testid="empresa-pagina.apps" className="flex flex-col gap-2 text-[15px]">
+                        {DOWNLOAD_APPS.map((p) => (
+                          <BaixarPacote key={p.testId} produto={p} tenant={empresa.id} />
+                        ))}
+                      </div>
+                    </Panel>
+                  </>
+                }
+                semPlano={
+                  timeMacuxi && (
+                    <PassoEmpresa
+                      existente={{ id: empresa.id, codigo: empresa.codigo, razao_social: empresa.razao_social, cnpj: empresa.cnpj, fuso: empresa.fuso, modulos: empresa.modulos }}
+                      aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })}
+                    />
+                  )
+                }
+              />
             </div>
           )}
         </>
