@@ -228,7 +228,7 @@ const ROTULO_DO_BOTAO: Record<BotaoLogo, string> = {
 
 /**
  * Miolo do cartão "Logo", sem estado nem rede (o teste desenha os estados daqui): a caixa da pré-visualização (240 × 96, branca,
- * borda #DFE2E6, raio 12, folga 12, `contain`; vazia: tracejada #C9CED5 sobre o Pérola), os botões e a linha de baixo.
+ * borda #DFE2E6, raio 12, folga 12, `contain`; vazia: tracejada na mesma cor, sobre o Pérola), os botões e a linha de baixo.
  */
 export function VistaCartaoLogo({
   estado,
@@ -255,7 +255,7 @@ export function VistaCartaoLogo({
           data-testid="empresa-logo.caixa"
           className={cx(
             'box-border flex h-[96px] w-[240px] shrink-0 items-center justify-center rounded-xl p-3',
-            vazia ? 'border border-dashed border-field bg-ground' : 'border border-line bg-surface',
+            vazia ? 'border border-dashed border-line bg-ground' : 'border border-line bg-surface',
           )}
         >
           {imagem && !vazia && <img data-testid="empresa-logo.imagem" src={imagem} alt={alt} className="max-h-full max-w-full object-contain" />}

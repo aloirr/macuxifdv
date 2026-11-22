@@ -17,6 +17,7 @@ import {
   guardarEmpresaCriada,
   problemasDoPlano,
   retirarEmpresaCriada,
+  semChaves,
   TEXTOS_ADMIN,
   TEXTOS_NOVA_EMPRESA,
   type FormNovaEmpresa,
@@ -126,8 +127,14 @@ describe('corpo da Nova empresa (§4, §11.3)', () => {
     ]);
     expect(problemasDoPlano(new ErroPortal(422, 'RN-CORE-31', 'x'))).toBeNull();
   });
-  it('sucesso: aviso uma vez, com o código em maiúsculas', () => {
-    expect(TEXTOS_NOVA_EMPRESA.criada('am4821')).toBe('Empresa criada. Código da empresa: AM4821.');
+  it('semChaves: tira só as chaves dadas, sem mudar o original', () => {
+    const e = { cnpj: 'a', uf: 'b', 'admin.nome': 'c' };
+    expect(semChaves(e, 'cnpj', 'admin.nome')).toEqual({ uf: 'b' });
+    expect(semChaves(e)).toEqual(e);
+    expect(e).toEqual({ cnpj: 'a', uf: 'b', 'admin.nome': 'c' });
+  });
+  it('sucesso: aviso uma vez, sem o código (já está no cabeçalho, RD-2614)', () => {
+    expect(TEXTOS_NOVA_EMPRESA.criada).toBe('Empresa criada.');
     guardarEmpresaCriada('t1', 'am4821');
     expect(retirarEmpresaCriada('t1')).toBe('am4821');
     expect(retirarEmpresaCriada('t1')).toBeNull();

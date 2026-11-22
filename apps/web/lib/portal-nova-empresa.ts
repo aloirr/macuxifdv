@@ -13,7 +13,6 @@ import { faltasNaSenha, mensagemDaSenha, textoDoErroDaSenha } from '@macuxi/core
 import { AdminInicialEmpresaSchema, CriarEmpresaComPlanoSchema, type CriarEmpresaComPlanoResposta } from '@macuxi/platform-sdk';
 
 import { ErroPortal } from './portal-api';
-import { codigoDaLicenca } from './portal-formato';
 import { adicionaisDaEscolha, errosDaEscolha, mensagensDosProblemas, type EscolhaDaTela } from './portal-planos';
 
 export const TEXTOS_NOVA_EMPRESA = Object.freeze({
@@ -23,10 +22,11 @@ export const TEXTOS_NOVA_EMPRESA = Object.freeze({
   criando: 'Criando…',
   confira: 'Confira os campos marcados.',
   escolhaUf: 'Escolha a UF.',
-  criada: (codigo: string) => `Empresa criada. Código da empresa: ${codigoDaLicenca(codigo)}.`,
+  // o código já está no cabeçalho da página da empresa (RD-2614)
+  criada: 'Empresa criada.',
 });
 
-/** Textos do bloco "Administrador da empresa" (§4 item 3; RD-0272). */
+/** Textos do bloco "Administrador da empresa" (§4 item 3; RD-0272), os mesmos no passo antigo (RD-2620). */
 export const TEXTOS_ADMIN = Object.freeze({
   titulo: 'Administrador da empresa',
   passeASenha: 'Passe esta senha ao administrador.',
@@ -37,6 +37,11 @@ export const TEXTOS_ADMIN = Object.freeze({
   nomeCurto: 'Informe o nome, de 2 a 120 caracteres.',
   emailInvalido: 'Informe um e-mail válido, como nome@empresa.com.br.',
 });
+
+/** Cópia de `e` sem as chaves dadas (o erro antigo do campo some ao digitar). */
+export function semChaves(e: Record<string, string>, ...ks: string[]): Record<string, string> {
+  return Object.fromEntries(Object.entries(e).filter(([c]) => !ks.includes(c)));
+}
 
 export interface AdminDoForm {
   nome: string;
