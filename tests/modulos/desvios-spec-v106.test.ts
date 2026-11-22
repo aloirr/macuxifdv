@@ -15,7 +15,7 @@
  *   designer-ux).
  * Roteiro do aparelho: docs/testes/v1.0.6-roteiro.md.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { linhaDaMarca } from '../../modules/catalogo/app/lib/grade';
@@ -28,6 +28,10 @@ const CATALOGO = ler('modules/catalogo/app/telas/catalogo.tsx');
 const COMUM = ler('modules/catalogo/app/telas/comum.tsx');
 const FOLHA_FILTRO = ler('modules/catalogo/app/telas/estoque-filial.tsx');
 const PEDIDOS = ler('modules/vendedor/app/screens/orders-screen.tsx');
+const UI_MOBILE = readdirSync(join(RAIZ, 'packages/ui/src/mobile'))
+  .filter((f) => /\.tsx?$/.test(f) && !f.endsWith('.test.ts'))
+  .map((f) => ler(`packages/ui/src/mobile/${f}`))
+  .join('\n');
 
 /**
  * Corpo do `CartaoGrade` (de `export function CartaoGrade` até o próximo `\nexport `, ou o fim do arquivo). Falha alto se a
@@ -41,6 +45,31 @@ function corpoDoCartaoGrade(fonte: string): string {
 }
 const CARTAO_GRADE = corpoDoCartaoGrade(COMUM);
 
+/**
+ * Grupo Categoria da `FolhaFiltroCatalogo`: o trecho do corpo (chips literais ou `GrupoDeChips`, RD-2577) que usa `onCategoria`.
+ * Falha alto se a folha sumir ou o grupo não for único.
+ */
+function grupoCategoriaDaFolha(fonte: string): string {
+  const inicio = fonte.indexOf('export function FolhaFiltroCatalogo');
+  if (inicio < 0) throw new Error('estoque-filial.tsx sem `export function FolhaFiltroCatalogo`: atualize o caso D-V106-2');
+  const corpo = fonte.indexOf('}) {', inicio);
+  const fim = fonte.slice(corpo).search(/\n(?:export |function |const )/);
+  const grupos = fonte
+    .slice(corpo, fim < 0 ? undefined : corpo + fim)
+    .split(/(?=<GrupoDeChips\b|<Text style=\{e\.grupo\}>)/)
+    .filter((g) => /\bonCategoria\b/.test(g));
+  if (grupos.length !== 1) throw new Error(`FolhaFiltroCatalogo com ${grupos.length} grupos que usam onCategoria: atualize o caso D-V106-2`);
+  return grupos[0]!;
+}
+
+/** O `GrupoDeChips` do kit devolve null pela opção "todas" (quando existe). */
+function grupoDeChipsDevolveNull(ui: string): boolean {
+  const inicio = ui.search(/(?:function|const) GrupoDeChips\b/);
+  if (inicio < 0) return false;
+  const fim = ui.slice(inicio + 1).search(/\n(?:export |function )/);
+  return /\(null\)/.test(ui.slice(inicio, fim < 0 ? undefined : inicio + 1 + fim));
+}
+
 /** Mesma guarda para a tela de Pedidos: sem a constante do corte, os casos D-V106-4 não leem o que pensam ler. */
 if (!/PAGINAS_MAXIMAS_DA_CONSULTA/.test(PEDIDOS)) throw new Error('orders-screen.tsx sem PAGINAS_MAXIMAS_DA_CONSULTA: atualize os casos D-V106-4');
 
@@ -53,16 +82,20 @@ describe('D-V106-1 — subtítulo do Catálogo abaixo do título (MC-0008)', () 
 });
 
 describe('D-V106-2 — filtro sem produto sem "Ver todos" (RD-0244, catalogo-grade.md §5)', () => {
-  // R-20261120-055304 (spec campo-v1017 §4, item 11): chips na folha "Filtrar" (FolhaFiltroCatalogo, estoque-filial.tsx)
+  // R-20261120-055304 (spec campo-v1017 §4, item 11): chips na folha "Filtrar" (FolhaFiltroCatalogo, estoque-filial.tsx), literais
+  // ou pelo GrupoDeChips do kit (RD-2577)
   it('o vazio do filtro só tem o título; o chip "Todas" da folha volta a categoria para null', () => {
     const linhaVazio = CATALOGO.split('\n').find((l) => l.includes('Nenhum produto em'));
     expect(linhaVazio, 'linha do EstadoVazio do filtro').toBeDefined();
     expect(linhaVazio).not.toContain('acao=');
     expect(CATALOGO).not.toContain('Ver todos');
-    expect(CATALOGO, 'chips fora da tela').not.toContain('label="Todas"');
-    const chipTodas = FOLHA_FILTRO.split('\n').find((l) => l.includes('label="Todas"'));
-    expect(chipTodas, 'chip "Todas" na folha').toBeDefined();
-    expect(chipTodas).toContain('onPress={() => onCategoria(null)}');
+    expect(CATALOGO, 'chips fora da tela').not.toMatch(/["'`>]Todas["'`<]/);
+    const grupo = grupoCategoriaDaFolha(FOLHA_FILTRO);
+    expect(grupo, 'grupo Categoria').toMatch(/\bCategoria\b/);
+    expect(grupo, 'opção "Todas" no grupo').toMatch(/["'`>]Todas["'`<]/);
+    const passaOHandler = /=\{onCategoria\}|:\s*onCategoria\b/.test(grupo);
+    const nullMapeado = /\b(?:valor|value|id)\s*[:=]\s*\{?\s*null\b/.test(grupo) || (/<GrupoDeChips\b/.test(grupo) && grupoDeChipsDevolveNull(UI_MOBILE));
+    expect(/onCategoria\(null\)/.test(grupo) || (passaOHandler && nullMapeado), '"Todas" volta a categoria para null').toBe(true);
     expect(CATALOGO).toContain('onCategoria={(id) => setFiltro((f) => escolherCategoria(f, id))}');
   });
 });
