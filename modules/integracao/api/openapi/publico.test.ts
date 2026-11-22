@@ -18,7 +18,7 @@ describe('GET /integracao/v1/openapi.json (público)', () => {
 
   it('declarada como rota pública de documento: GET, 60/min por IP, cache de 1 h, sem token; devolve o arquivo', async () => {
     const rotas = moduloApi.rotasPublicas ?? [];
-    expect(rotas).toHaveLength(1);
+    expect(rotas.map((x) => x.caminho)).toEqual(['openapi.json', 'guia.pdf']);
     const r = rotas[0]!;
     expect(r.metodo).toBe('GET');
     expect(r.caminho).toBe('openapi.json');

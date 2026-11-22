@@ -7,6 +7,8 @@ import type { SituacaoVersaoConector } from './conector-versao';
 import { PARAMETROS_PADRAO } from './parametros';
 
 export interface ConectorParaSaude {
+  /** `nuvem` = credencial de API (o ERP chama o Hub): não manda sinal de vida. Ausente = Conector instalado no cliente. */
+  tipo?: 'conector' | 'nuvem' | 'arquivo';
   ativo: boolean;
   ultimo_sinal_em: string | null;
   parado_por_versao: boolean;
@@ -15,11 +17,13 @@ export interface ConectorParaSaude {
 /**
  * Sinal de vida a cada 1 min: `ok` até [3 min]; `atrasado` de 3 a [15 min]; `sem_sinal` a partir de 15 min (alerta no BKO, doc 06).
  * Sem sinal vence "parado por versão" (o Conector nem está no ar).
+ * RN-INT-10: a credencial de API (`tipo = 'nuvem'`) não tem sinal de vida; fica `ok` enquanto ativa e `desativado` quando revogada.
  */
 export function avaliarSaudeConector(c: ConectorParaSaude, agora: string, opcoes: { atrasadoMin?: number; alertaMin?: number } = {}): SaudeConector {
   const atrasado = opcoes.atrasadoMin ?? PARAMETROS_PADRAO.sinalAtrasadoMin;
   const alerta = opcoes.alertaMin ?? PARAMETROS_PADRAO.sinalAlertaMin;
   if (!c.ativo) return 'desativado';
+  if (c.tipo === 'nuvem') return 'ok';
   if (c.ultimo_sinal_em === null) return 'nunca_conectou';
   const minutos = (Date.parse(agora) - Date.parse(c.ultimo_sinal_em)) / 60_000;
   if (minutos >= alerta) return 'sem_sinal';

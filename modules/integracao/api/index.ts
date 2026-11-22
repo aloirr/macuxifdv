@@ -23,6 +23,7 @@ import { criarRotasConectores } from './bko-conectores';
 import { rotaDownloadConector } from './conector-download';
 import { rotaMonitor } from './bko-monitor';
 import { documentoOpenApiPublico } from './openapi/publico';
+import { rotaGuiaPdf } from './guia-pdf-rota';
 import { rotaGravarPolitica, rotaLerPolitica } from './bko-politica';
 import { consultarCursor, consultarLote, enviarLote, enviarReconciliacao } from './rotas-lotes';
 import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
@@ -66,8 +67,8 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined; 
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida],
     consultas: [consultaCancelamentoErp],
     rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo, rotaModeloCsv, rotaModeloDicionario, rotaDownloadConector],
-    // T-0092: especificação pública (sem token); ETag, 304 e Cache-Control são da plataforma
-    rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }],
+    // T-0092: especificação e guia em PDF públicos (sem token); ETag, 304 e Cache-Control são da plataforma
+    rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }, rotaGuiaPdf],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),
   });
 }

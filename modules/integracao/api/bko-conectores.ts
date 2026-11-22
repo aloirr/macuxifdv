@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type ContextoRota, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { ConectorAtualizar, ConectorCriar, type ConectorCriado, type ConectorResumo, type Entidade } from '../contracts';
+import { ConectorAtualizar, ConectorCriar, ConectoresQuery, type ConectorCriado, type ConectorResumo, type Entidade } from '../contracts';
 import { verificarTopologiaConectores, type ConectorTopologia } from '../domain';
 import { COLUNAS_CONECTOR, lerChaves, lerPolitica, montarResumo, type LinhaConector } from './bko-comum';
 import { entradaDeIpValida, gerarChave, hashDaChave, pepperValido } from './chave';
@@ -45,10 +45,15 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     acao: 'monitor.ver',
     superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
-    executar: async (ctx): Promise<{ itens: ConectorResumo[] }> =>
+    query: ConectoresQuery,
+    executar: async (ctx: ContextoRota<unknown, ConectoresQuery>): Promise<{ itens: ConectorResumo[] }> =>
       ctx.comTenant(async (db) => {
         const tenantId = ctx.usuario.tenant_id;
-        const { rows } = await db.query<LinhaConector>(`select ${COLUNAS_CONECTOR} from integracao.conector where tenant_id = $1 and deleted_at is null order by identificador`, [tenantId]);
+        const tipo = ctx.query?.tipo ?? null;
+        const { rows } = await db.query<LinhaConector>(
+          `select ${COLUNAS_CONECTOR} from integracao.conector where tenant_id = $1 and deleted_at is null and ($2::text is null or tipo = $2) order by identificador`,
+          [tenantId, tipo],
+        );
         const chaves = await lerChaves(db, tenantId, rows.map((r) => r.id));
         const politica = await lerPolitica(db, tenantId);
         const agora = ctx.agora().toISOString();

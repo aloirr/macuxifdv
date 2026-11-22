@@ -39,6 +39,10 @@ export const ListaEntidadesConector = z
   .min(1, 'escolha ao menos uma entidade para o Conector')
   .refine((l) => new Set(l).size === l.length, 'entidade repetida na lista do Conector');
 
+/** `GET /v1/integracao/conectores?tipo=`: filtro opcional (portal: `nuvem` = credenciais de API, `conector` = Conectores instalados). Sem ele, todos. */
+export const ConectoresQuery = z.object({ tipo: TipoConector.optional() });
+export type ConectoresQuery = z.infer<typeof ConectoresQuery>;
+
 export const ConectorCriar = z.object({
   /** Identificador que vai no arquivo do Conector (`hub.conectorId`) e no cabeçalho `X-Macuxi-Conector-Id`. */
   conector_id: ConectorIdentificador,

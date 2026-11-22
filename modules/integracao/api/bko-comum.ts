@@ -102,7 +102,7 @@ export function montarResumo(
     versao_conector: c.versao_conector,
     situacao_versao: situacao,
     ultimo_sinal_em: iso(c.ultimo_sinal_em),
-    saude: avaliarSaudeConector({ ativo: c.ativo, ultimo_sinal_em: iso(c.ultimo_sinal_em), parado_por_versao: c.parado_por_versao }, agora),
+    saude: avaliarSaudeConector({ tipo: c.tipo, ativo: c.ativo, ultimo_sinal_em: iso(c.ultimo_sinal_em), parado_por_versao: c.parado_por_versao }, agora),
     ...atualizacaoNoResumo(c.sinal_resumo),
     chave: atual
       ? {

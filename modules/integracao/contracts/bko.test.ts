@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuditoriaInativacao, DecidirInativacaoResposta, PendenciaInativacao, RecusaTopologiaConector } from './bko';
+import { AuditoriaInativacao, ConectoresQuery, DecidirInativacaoResposta, PendenciaInativacao, RecusaTopologiaConector } from './bko';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const pendencia = {
@@ -50,5 +50,14 @@ describe('R-155028 (🟡 2 e 3): topologia no ErroApi e inativadas na auditoria'
     expect(AuditoriaInativacao.safeParse({ ...auditoria, inativadas: 3 }).success).toBe(true);
     expect(AuditoriaInativacao.safeParse({ ...auditoria, acao: 'recusar', inativadas: null }).success).toBe(true);
     expect(AuditoriaInativacao.safeParse({ ...auditoria, inativadas: -1 }).success).toBe(false);
+  });
+});
+
+describe('RN-INT-10: filtro ?tipo= da listagem de conectores (credencial de API = tipo nuvem)', () => {
+  it('RN-INT-10: tipo é opcional (sem ele, todos) e só aceita os tipos do contrato', () => {
+    expect(ConectoresQuery.parse({})).toEqual({});
+    expect(ConectoresQuery.parse({ tipo: 'nuvem' })).toEqual({ tipo: 'nuvem' });
+    expect(ConectoresQuery.parse({ tipo: 'conector' })).toEqual({ tipo: 'conector' });
+    expect(ConectoresQuery.safeParse({ tipo: 'api' }).success).toBe(false);
   });
 });
