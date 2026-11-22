@@ -27,6 +27,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { criarBancoPortal } from '../../../apps/api/src/banco';
 import { A, B, comToken, erroDe, novoIp, poolComEncerramento, subirApi, type ApiDeTeste } from '../apoio/api';
 import { criarSuperAdmin, criarUsuarioNoTenant, entrarNoPortal, escolherEmpresa, funcoesSa, tokenForjado } from '../apoio/portal';
+import { CORPO_ROTA_ACEITA, ROTA_ACEITA_CORE } from '../apoio/rota-aceita';
 
 const SEGREDO_PLATAFORMA = 'segredo-de-plataforma-do-agente-testes-t0091-com-folga';
 /** Senhas de fixture na RN-CORE-32 (8+ com letra, número e caractere especial). */
@@ -220,7 +221,7 @@ describe.skipIf(semBanco())('T-0091/T-0093 sem o pool do portal (sem MACUXI_PG_P
       await api.app.inject({ method: 'GET', url: '/v1/plataforma/empresas', headers: comToken(cli) }),
       await api.app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comToken(sa), payload: { ...EMPRESA, modulos: [{ modulo: 'integracao' }] } }),
       await api.app.inject({ method: 'GET', url: '/v1/integracao/conectores', headers: { ...comToken(sa), [CABECALHO_TENANT_PLATAFORMA]: A.tenantId } }),
-      await api.app.inject({ method: 'GET', url: '/v1/core/equipe/modelo.csv', headers: { ...comToken(cli), [CABECALHO_TENANT_PLATAFORMA]: A.tenantId } }),
+      await api.app.inject({ method: 'POST', url: ROTA_ACEITA_CORE, payload: CORPO_ROTA_ACEITA, headers: { ...comToken(cli), [CABECALHO_TENANT_PLATAFORMA]: A.tenantId } }),
     ];
     expect(casos.map((r) => `${r.statusCode} ${erroDe(r).codigo}`)).toEqual(Array(casos.length).fill('503 PORTAL_INDISPONIVEL'));
     const n = await api.admin.query<{ n: number }>('select count(*)::int as n from plataforma.tenant where codigo = $1', [EMPRESA.codigo]);

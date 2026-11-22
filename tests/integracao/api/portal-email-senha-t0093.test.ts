@@ -12,15 +12,15 @@
  *           vendedor, de admin inativo nem de empresa suspensa;
  *  - PE-04  super-admin vê todas e tem precedência com o mesmo e-mail; com a senha da empresa, entra como cliente só nela;
  *  - PE-05  admin do cliente: só as empresas dele; rota `'aceita'` só na empresa da sessão (outra = 403, sem empresa = 409),
- *           como o usuário admin REAL (licença do perfil, autor da Equipe por CSV na auditoria); `POST /v1/plataforma/empresas`
+ *           como o usuário admin REAL (licença do perfil, autor do link do app na auditoria); `POST /v1/plataforma/empresas`
  *           = 403; trocar de empresa mata o token anterior; admin desativado ou empresa suspensa no meio da sessão = 401 na hora;
  *           admin inicial (0040, P5 da T-0094) troca a senha no BKO antes de entrar no portal;
  *  - PE-06  bloqueio por e-mail (5 falhas → 15 min), igual para e-mail inexistente; senha certa durante o bloqueio = 423; a
  *           tabela de tentativas não guarda o e-mail; o bloqueio de um e-mail não afeta outro;
  *  - PE-07  auditoria (sa.login.consulta/falha/ok, sa.sessao.aberta, sa.empresa.escolher, sa.requisicao com ator_tipo e
  *           usuario_id, sa.bloqueio) e varredura de log e auditoria sem e-mail, nome, senha, token nem chave.
- * T-0094 (0040): o convite saiu; a rota `'aceita'` de leitura do Core usada aqui é a `GET /v1/core/equipe/modelo.csv`, e a API
- * sobe com o espião da porta de e-mail (apoio/email.ts) para a Equipe por CSV gravar.
+ * A rota `'aceita'` do Core usada aqui é a `POST /v1/core/apps/download` (apoio/rota-aceita.ts; a Equipe por CSV saiu na
+ * v1.0.22), com a porta dos pacotes em memória para responder 200 sem S3.
  * Roda só com banco e o papel do portal (CI, `stack-isolado.yml`); sem eles, pula.
  */
 import crypto from 'node:crypto';
@@ -31,8 +31,8 @@ import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { A, B, comToken, erroDe, novoIp, SENHA, subirApi, type ApiDeTeste } from '../apoio/api';
-import { criarEspiaoEmail } from '../apoio/email';
-import { camposDeFilial, codigoDaFilialPadrao } from '../apoio/filial-usuario';
+import { camposDeFilial } from '../apoio/filial-usuario';
+import { CORPO_ROTA_ACEITA, PACOTES_DE_TESTE, ROTA_ACEITA_CORE } from '../apoio/rota-aceita';
 import { COM_RECEITA } from '../../modulos/apoio/estado-prs';
 import {
   auditoriaDoPortal,
@@ -86,8 +86,6 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
     multiA: '',
     multiB: '',
     rebaixadoA: '',
-    semSenhaA: '',
-    semSenhaB: '',
     tenantC: '',
   };
   let tokenSuper = '';
@@ -107,13 +105,14 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       headers: { ...comToken(token), ...(tenant ? { [CABECALHO_TENANT_PLATAFORMA]: tenant } : {}), ...(requestId ? { 'x-request-id': requestId } : {}) },
       ...(payload ? { payload } : {}),
     });
+  /** A rota `'aceita'` do Core (apoio/rota-aceita.ts) no tenant do cabeçalho. */
+  const aceita = (token: string, tenant?: string, requestId?: string) => comTenant(token, 'POST', ROTA_ACEITA_CORE, tenant, CORPO_ROTA_ACEITA, requestId);
 
   beforeAll(async () => {
     api = await subirApi({
       logger: { ...opcoesLogger('trace'), stream: { write: (s: string) => void linhasLog.push(s) } },
       plataforma: { segredo: () => SEGREDO_PLATAFORMA },
-      // T-0094: a Equipe por CSV só grava pessoa nova com e-mail (sem ele, 503 EMAIL_INDISPONIVEL)
-      email: criarEspiaoEmail(),
+      pacotes: PACOTES_DE_TESTE,
     });
     const ad = api.admin;
     const usuario = (tenantId: string, email: string, senha: string, perfil = 'admin', nome = 'Pessoa Fictícia T0093') => criarUsuarioNoTenant(ad, { tenantId, email, senha, perfil, nome });
@@ -136,12 +135,6 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
     await usuario(B.tenantId, REBAIXADO.email, REBAIXADO.senha);
     await usuario(A.tenantId, LEGADO.email, LEGADO.senha);
     await usuario(A.tenantId, BLOQUEIO.email, BLOQUEIO.senha);
-    // pessoas sem senha ("Sem senha" no BKO, T-0094) em A e B: provam o isolamento nas rotas 'aceita' do Core
-    for (const [t, chave] of [[A.tenantId, 'semSenhaA'], [B.tenantId, 'semSenhaB']] as const) {
-      const id = crypto.randomUUID();
-      await ad.query("insert into core.usuario (id, tenant_id, nome, email, perfil) values ($1, $2, 'Sem Senha Fictícia', $3, 'analista')", [id, t, `sem.senha.${chave.toLowerCase()}@exemplo.com.br`]);
-      ids[chave] = id;
-    }
     segredos.push(
       ...[SUPER, MULTI, MISTO, INATIVO, SUSPENSA, REBAIXADO, LEGADO, BLOQUEIO].flatMap((x) => [x.email, x.senha]),
       SUPER.nome,
@@ -326,7 +319,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       await api.admin.query("update plataforma.tenant set status = 'suspenso' where id = $1", [B.tenantId]);
       try {
         expect((await listar(tokenB)).statusCode).toBe(401);
-        expect((await comTenant(tokenB, 'GET', '/v1/core/equipe/modelo.csv', B.tenantId)).statusCode).toBe(401);
+        expect((await aceita(tokenB, B.tenantId)).statusCode).toBe(401);
         const depois = empresasDe(await entrarNoPortal(api, SUSPENSA.email, SUSPENSA.senha));
         expect(depois.empresas.map((e) => e.id)).toEqual([A.tenantId]);
         expect(depois.empresa?.id).toBe(A.tenantId);
@@ -413,7 +406,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       semEmpresa = s.token;
       const lista = ListaEmpresasSchema.parse((await listar(semEmpresa)).json());
       expect(lista.itens.map((e) => e.id).sort()).toEqual([A.tenantId, B.tenantId].sort());
-      const r409 = await comTenant(semEmpresa, 'GET', '/v1/core/equipe/modelo.csv', A.tenantId);
+      const r409 = await aceita(semEmpresa, A.tenantId);
       expect(r409.statusCode, r409.body).toBe(409);
       expect(erroDe(r409).codigo).toBe('EMPRESA_NAO_ESCOLHIDA');
       const criar = await api.app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comToken(semEmpresa), payload: { ...EMPRESA_C, codigo: 'cliente-t0093-x', modulos: [{ modulo: 'integracao' }] } });
@@ -440,7 +433,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       ];
       for (const [tenant, status, codigo] of casos) {
         const requestId = crypto.randomUUID();
-        const r = await comTenant(tokenA, 'GET', '/v1/core/equipe/modelo.csv', tenant, undefined, requestId);
+        const r = await aceita(tokenA, tenant, requestId);
         expect(r.statusCode, `${tenant}: ${r.body}`).toBe(status);
         if (codigo) expect(erroDe(r).codigo).toBe(codigo);
         doClienteEmA.push({ requestId, status });
@@ -454,28 +447,19 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       expect(n.rows[0]!.n).toBe(0);
     });
 
-    it('como o admin REAL de A: a Equipe por CSV grava a pessoa em A com o autor = usuário de A na auditoria; a pessoa sem senha de B não existe para ele', async () => {
-      // T-0094: o convite saiu; a prova do "usuário real" passa a ser a auditoria da Equipe por CSV (rota `superAdmin: 'aceita'`)
-      const emailB = 'sem.senha.semsenhab@exemplo.com.br';
-      const filial = await codigoDaFilialPadrao(api.admin, A.tenantId);
-      const csv = ['nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial', `Pessoa Portal Fictícia,csv.portal.t0093@exemplo.com.br,,gerente,,,,${filial}`, `Pessoa B Fictícia,${emailB},,gerente,,,,${filial}`].join('\n');
-      const conferir = await comTenant(tokenA, 'POST', '/v1/core/equipe/importacoes', A.tenantId, { csv, modo: 'conferir' });
-      expect(conferir.statusCode, conferir.body).toBe(200);
-      const plano = (conferir.json() as { plano: { email: string; acao: string; usuario_id: string | null }[] }).plano;
-      // a de B não é vista de A: para A ela seria uma pessoa NOVA (criar), nunca a de B (usuario_id nulo)
-      expect(plano.find((p) => p.email === emailB)).toMatchObject({ acao: 'criar', usuario_id: null });
+    it('como o admin REAL de A: a rota `aceita` audita em A com o autor = usuário de A (não o super-admin, nem nulo); nada cai em B', async () => {
+      // a prova do "usuário real" é a auditoria da rota `superAdmin: 'aceita'` do Core (o link do app, `core.app_download_link`)
       const requestId = crypto.randomUUID();
-      const r = await comTenant(tokenA, 'POST', '/v1/core/equipe/importacoes', A.tenantId, { csv: csv.split('\n').slice(0, 2).join('\n'), modo: 'gravar' }, requestId);
+      const r = await aceita(tokenA, A.tenantId, requestId);
       expect(r.statusCode, r.body).toBe(200);
       doClienteEmA.push({ requestId, status: 200 });
-      const novo = await api.admin.query<{ id: string; tenant_id: string }>("select id::text, tenant_id::text from core.usuario where email = 'csv.portal.t0093@exemplo.com.br'");
-      expect(novo.rows.map((x) => x.tenant_id)).toEqual([A.tenantId]);
-      const autor = await api.admin.query<{ usuario_id: string; tenant_id: string }>(
-        "select usuario_id::text, tenant_id::text from plataforma.auditoria where acao = 'usuario.criar' and entidade_id = $1",
-        [novo.rows[0]!.id],
+      const autores = await api.admin.query<{ usuario_id: string | null; tenant_id: string }>(
+        "select usuario_id::text, tenant_id::text from plataforma.auditoria where acao = 'core.app_download_link' and tenant_id in ($1, $2)",
+        [A.tenantId, B.tenantId],
       );
-      expect(autor.rows).toEqual([{ usuario_id: ids.multiA, tenant_id: A.tenantId }]);
-      segredos.push('csv.portal.t0093@exemplo.com.br', 'Pessoa Portal Fictícia');
+      // só o admin de A chamou a rota até aqui: todas as linhas são de A e do usuário real dele (o 200 do caso anterior e este)
+      expect(autores.rows.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(autores.rows.map((x) => `${x.tenant_id} ${x.usuario_id}`))).toEqual(new Set([`${A.tenantId} ${ids.multiA}`]));
     });
 
     it('trocar para B: token novo de B; o token de A morre na hora (401 em tudo); B só vê B', async () => {
@@ -484,13 +468,13 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       tokenB = empresasDe(esc).token;
       expect(claimsDe(tokenB)).toMatchObject({ tid: B.tenantId, sub: ids.multiB });
       expect((await listar(tokenA)).statusCode).toBe(401);
-      expect((await comTenant(tokenA, 'GET', '/v1/core/equipe/modelo.csv', A.tenantId)).statusCode).toBe(401);
+      expect((await aceita(tokenA, A.tenantId)).statusCode).toBe(401);
       expect((await postPortal(api, 'renovar', { token: tokenA })).statusCode).toBe(401);
       // o token sem empresa do login também não serve mais (a sessão já tem empresa)
       expect((await listar(semEmpresa)).statusCode).toBe(401);
-      const emB = await comTenant(tokenB, 'GET', '/v1/core/equipe/modelo.csv', B.tenantId);
+      const emB = await aceita(tokenB, B.tenantId);
       expect(emB.statusCode, emB.body).toBe(200);
-      expect((await comTenant(tokenB, 'GET', '/v1/core/equipe/modelo.csv', A.tenantId)).statusCode).toBe(403);
+      expect((await aceita(tokenB, A.tenantId)).statusCode).toBe(403);
       // escolher uma empresa fora da lista (C) ou inexistente = 403
       for (const t of [ids.tenantC, crypto.randomUUID()]) {
         const r = await escolherEmpresa(api, tokenB, t);
@@ -503,10 +487,10 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       const c = claimsDe(tokenB);
       for (const claims of [{ ...c, tid: ids.tenantC }, { ...c, sub: ids.multiA, tid: A.tenantId }, { ...c, tid: undefined }]) {
         const t = tokenForjado(claims, SEGREDO_PLATAFORMA);
-        expect((await comTenant(t, 'GET', '/v1/core/equipe/modelo.csv', String(claims.tid ?? B.tenantId))).statusCode).toBe(401);
+        expect((await aceita(t, String(claims.tid ?? B.tenantId))).statusCode).toBe(401);
       }
       // controle: o próprio claims re-assinado passa (o que reprova é a troca)
-      expect((await comTenant(tokenForjado(c, SEGREDO_PLATAFORMA), 'GET', '/v1/core/equipe/modelo.csv', B.tenantId)).statusCode).toBe(200);
+      expect((await aceita(tokenForjado(c, SEGREDO_PLATAFORMA), B.tenantId)).statusCode).toBe(200);
     });
 
     it('admin inicial da empresa C (criado pelo super-admin): 403 SENHA_A_TROCAR no portal (P5 da T-0094); cria a senha no BKO; entra direto em C e usa o Hub licenciado (200)', async () => {
@@ -535,9 +519,9 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
     it('admin desativado no meio da sessão = 401 na hora; no login seguinte, só a outra empresa', async () => {
       const s = empresasDe(await entrarNoPortal(api, REBAIXADO.email, REBAIXADO.senha));
       const t = empresasDe(await escolherEmpresa(api, s.token, A.tenantId)).token;
-      expect((await comTenant(t, 'GET', '/v1/core/equipe/modelo.csv', A.tenantId)).statusCode).toBe(200);
+      expect((await aceita(t, A.tenantId)).statusCode).toBe(200);
       await api.admin.query('update core.usuario set ativo = false where id = $1', [ids.rebaixadoA]);
-      expect((await comTenant(t, 'GET', '/v1/core/equipe/modelo.csv', A.tenantId)).statusCode).toBe(401);
+      expect((await aceita(t, A.tenantId)).statusCode).toBe(401);
       expect((await listar(t)).statusCode).toBe(401);
       expect((await postPortal(api, 'renovar', { token: t })).statusCode).toBe(401);
       const depois = empresasDe(await entrarNoPortal(api, REBAIXADO.email, REBAIXADO.senha));
