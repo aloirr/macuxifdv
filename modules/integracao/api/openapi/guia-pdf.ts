@@ -620,7 +620,7 @@ export function secoesDoGuia(doc: DocumentoOpenApi): SecaoGuia[] {
 const CSS = String.raw`
 @page { size: A4; margin: 20mm 16mm 20mm 16mm; @bottom-left { content: "Macuxi FDV · Guia da API de Integração · v1"; font: 400 9pt Arial, 'Liberation Sans', sans-serif; color: #4A5562; } @bottom-right { content: counter(page); font: 700 9pt Arial, 'Liberation Sans', sans-serif; color: #1E3350; } }
 @page capa { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
-:root { --texto: Arial, 'Liberation Sans', sans-serif; --mono: 'DejaVu Sans Mono', 'Liberation Mono', ui-monospace, monospace; }
+:root { --texto: Arial, 'Liberation Sans', sans-serif; --mono: ui-monospace, 'Cascadia Mono', 'Roboto Mono', Consolas, 'Courier New', 'Liberation Mono', monospace; }
 * { box-sizing: border-box; }
 html { color: #16202A; font: 400 9.4pt/1.45 var(--texto); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin: 0; }
