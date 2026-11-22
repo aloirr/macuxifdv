@@ -13,7 +13,7 @@ import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, useExtensoes, usePode } from '@macuxi/platform-sdk/react';
 import type { EquipeEmNome, MembroEquipeEmNome } from '../../contracts/extensoes';
-import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonte, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, BotaoFiltro, Card, CampoBusca, colors, EstadoVazio, EtiquetaFiltro, fonte, FolhaVeiculo, Icon, LinhaEtiquetas, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -23,7 +23,7 @@ import { botoesDoResumo, PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../doma
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasDiferentesDoGeral, type AjusteGeral } from '../../domain/desconto-geral';
 import { podeEnviarPedido } from '../../domain/quantidade';
-import { buscaPodeComecar, codigoExatoPrimeiro, paginaDaBusca, resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
+import { codigoExatoPrimeiro, paginaDaBusca, resolverBusca } from '../../domain/busca-seletor';
 import { equipeEmNomeDosMembros, opcoesEmNome, rotuloVoltarNovoPedido, vendedorPadraoEmNome } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
@@ -38,12 +38,14 @@ import { enderecoDoRascunho } from '../lib/endereco-pedido';
 import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
 import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
-import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
+import { MENSAGEM_ERRO_BUSCA, type ItemBuscaCatalogo } from '../lib/busca-catalogo';
 import { alertasDoNovoPedido, alertasNaAba, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
 import { impedeEnviarPorAlertas, soOrcamentoPorAlertas, vencidosComEfeito } from '../../domain/alertas-pedido';
 import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
 import { DescontoGeral } from '../components/desconto-geral';
+import { leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, NAVEGACAO_VEICULO, textoDaBuscaComVeiculo, TEXTOS_VEICULO } from '@macuxi/catalogo/contracts';
+import { chaveDoVeiculo, TEXTOS_SEM_RESULTADO_VEICULO, escopoDoCliente, modoDaListaDoPedido, type VeiculoDoPedido } from '../lib/veiculo-pedido';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
 import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
@@ -194,7 +196,11 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const [geralAplicado, setGeralAplicado] = useState<AjusteGeral | null>(null);
   /** T-0084 C9: resposta da busca do Catálogo para esta consulta; `null` = indisponível, vale a busca local (reserva) */
   const [erroBusca, setErroBusca] = useState(false);
-  const [buscaCatalogo, setBuscaCatalogo] = useState<{ q: string; itens: Array<{ produto_id: string; serve_em: TrechoServeEm | null }>; sugestao: string | null } | null>(null);
+  const [buscaCatalogo, setBuscaCatalogo] = useState<{ q: string; chaveVeiculo: string; itens: ItemBuscaCatalogo[]; sugestao: string | null } | null>(null);
+  // RN-CAT-22: o veículo é só filtro da tela; não entra no rascunho, no pedido, no PDF nem no ERP (P5) e não gera alerta (RN-VEN-42)
+  const [veiculo, setVeiculo] = useState<VeiculoDoPedido | null>(null);
+  const [veiculoDisponivel, setVeiculoDisponivel] = useState(false);
+  const [folhaVeiculoAberta, setFolhaVeiculoAberta] = useState(false);
   /** T-0167: páginas de 20 já à vista; volta a 1 a cada nova busca */
   const [paginasBusca, setPaginasBusca] = useState(1);
   const [sent, setSent] = useState<Sent | null>(null);
@@ -431,31 +437,50 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const buscarNoCatalogo = app.buscarProdutos;
   // até 5.000 ids: calculados uma vez por catálogo, não a cada busca
   const idsDoCatalogo = useMemo(() => (catalogBase.length <= 5000 ? catalogBase.map((p) => p.id) : null), [catalogBase]);
+  // RN-CAT-22 e RN-CAT-06: a cascata usa o mesmo escopo do cliente da busca de itens
+  const consultarVeiculosApp = app.consultarVeiculos;
+  const consultarVeiculos = useCallback<typeof consultarVeiculosApp>((e) => consultarVeiculosApp({ ...e, ...escopoDoCliente(customerId ?? undefined, idsDoCatalogo) }), [consultarVeiculosApp, customerId, idsDoCatalogo]);
+  // o botão Veículo só aparece quando o catálogo do aparelho tem veículo nas aplicações (spec §9)
   useEffect(() => {
-    const q = query.trim();
+    let vivo = true;
+    void consultarVeiculos({ escolha: {} }).then((c) => vivo && setVeiculoDisponivel(Boolean(c?.disponivel)));
+    return () => {
+      vivo = false;
+    };
+  }, [consultarVeiculos]);
+  const veiculoAtivo = veiculo !== null && veiculoDisponivel;
+  const textoEfetivo = textoDaBuscaComVeiculo(query.trim(), veiculoAtivo);
+  const modoDaLista = modoDaListaDoPedido({ veiculo: veiculoAtivo, texto: query });
+  const chaveVeiculo = chaveDoVeiculo(veiculoAtivo ? (veiculo?.veiculo ?? null) : null);
+  useEffect(() => {
     setPaginasBusca(1);
-    if (!buscaPodeComecar(q) || sent) {
+    if (modoDaLista === 'itens' || sent) {
       setBuscaCatalogo(null);
       setErroBusca(false);
       return;
     }
     let vivo = true;
     const espera = setTimeout(() => {
-      void buscarNoCatalogo(q, idsDoCatalogo, customerId ?? undefined).then((r) => {
+      void buscarNoCatalogo(textoEfetivo, idsDoCatalogo, customerId ?? undefined, veiculoAtivo ? veiculo?.veiculo : null).then((r) => {
         if (!vivo) return;
+        // sem a consulta (indisponível) não há como filtrar por veículo: tira o veículo e a tela volta à busca de hoje
+        if (r.tipo === 'reserva' && veiculoAtivo) {
+          setVeiculo(null);
+          setVeiculoDisponivel(false);
+        }
         setErroBusca(r.tipo === 'erro');
-        setBuscaCatalogo(r.tipo === 'ok' ? { q, itens: r.itens, sugestao: r.sugestao } : null);
+        setBuscaCatalogo(r.tipo === 'ok' ? { q: textoEfetivo, chaveVeiculo, itens: r.itens, sugestao: r.sugestao } : null);
       });
-    }, 250);
+    }, veiculoAtivo && !textoEfetivo ? 0 : 250);
     return () => {
       vivo = false;
       clearTimeout(espera);
     };
-  }, [query, sent, idsDoCatalogo, buscarNoCatalogo]);
+  }, [textoEfetivo, chaveVeiculo, sent, idsDoCatalogo, buscarNoCatalogo]);
   // T-0167: a lista ranqueada inteira (teto 400) vem uma vez; o app mostra 20 por vez e o código exato fica em 1º
-  const buscando = buscaPodeComecar(query);
-  const resultadosDaBusca = buscando ? (buscaCatalogo && buscaCatalogo.q === query.trim() ? resolverBusca(buscaCatalogo.itens, byId, 400) : null) : [];
-  const todosOsResultados = codigoExatoPrimeiro(resultadosDaBusca ? resultadosDaBusca.map((r) => r.produto) : buscando ? searchProducts(catalog, query, 400) : [], query);
+  const buscando = modoDaLista !== 'itens';
+  const resultadosDaBusca = buscando ? (buscaCatalogo && buscaCatalogo.q === textoEfetivo && buscaCatalogo.chaveVeiculo === chaveVeiculo ? resolverBusca(buscaCatalogo.itens, byId, 400) : null) : [];
+  const todosOsResultados = codigoExatoPrimeiro(resultadosDaBusca ? resultadosDaBusca.map((r) => r.produto) : modoDaLista === 'busca' && !veiculoAtivo ? searchProducts(catalog, query, 400) : [], query);
   const paginaBusca = paginaDaBusca(todosOsResultados.length, paginasBusca);
   const results = todosOsResultados.slice(0, paginaBusca.mostrando);
   const serveEmPorId = useMemo(() => new Map((resultadosDaBusca ?? []).flatMap((r) => (r.serveEm ? [[r.produto.id, r.serveEm] as const] : []))), [buscaCatalogo, query, byId]);
@@ -816,12 +841,26 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
           <>
             {/* T-0165: Desc./Acrésc. geral no topo; os itens do pedido aparecem só no Resumo e como ✓ na lista (busca vazia) */}
             <DescontoGeral contarComOutroAjuste={(g) => linhasComOutroAjuste(chavesDasLinhas(draft.lines), draft.ajustes ?? {}, g).length} contarDiferentes={(g) => linhasDiferentesDoGeral(chavesDasLinhas(draft.lines), draft.ajustes ?? {}, g).length} semItens={chavesDasLinhas(draft.lines).length === 0} aoAplicar={aplicarGeral} />
-            <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder={veiculoDisponivel ? 'Peça ou código…' : 'Código, descrição ou veículo'} rotuloAcessivel="Buscar produto" testID="product-search" />
+              </View>
+              {veiculoDisponivel ? <BotaoFiltro icone="carro" rotulo={leituraDoBotaoVeiculo(veiculo?.rotulos ?? null)} ativo={veiculoAtivo} onPress={() => setFolhaVeiculoAberta(true)} testID="botao-veiculo" /> : null}
+            </View>
+            {veiculoAtivo && veiculo ? (
+              <LinhaEtiquetas>
+                <EtiquetaFiltro texto={veiculo.rotulos.curto} rotuloRemover={leituraDaEtiquetaVeiculo(veiculo.rotulos)} onRemover={() => setVeiculo(null)} testID="etiqueta-veiculo" />
+              </LinhaEtiquetas>
+            ) : null}
             {buscando ? (
               erroBusca ? (
                 <EstadoVazio titulo="Busca indisponível" texto={MENSAGEM_ERRO_BUSCA} testID="busca-erro" />
-              ) : results.length === 0 ? (
-                <SemResultadoDaBusca busca={query} sugestao={buscaCatalogo?.sugestao ?? null} aoBuscar={setQuery} />
+              ) : veiculoAtivo && resultadosDaBusca === null ? null : results.length === 0 ? (
+                veiculoAtivo ? (
+                  <EstadoVazio icone="search" titulo={textoEfetivo ? TEXTOS_SEM_RESULTADO_VEICULO.nadaEncontrado(textoEfetivo) : TEXTOS_SEM_RESULTADO_VEICULO.semFiltros} acao={{ rotulo: TEXTOS_SEM_RESULTADO_VEICULO.tirar, onPress: () => setVeiculo(null), testID: 'tirar-veiculo' }} testID="veiculo-sem-resultado" />
+                ) : (
+                  <SemResultadoDaBusca busca={query} sugestao={buscaCatalogo?.sugestao ?? null} aoBuscar={setQuery} />
+                )
               ) : (
                 <>
                   <ResultadosDaBusca produtos={results} medidasDe={medidasDe} noPedido={idsNoPedido} serveEm={serveEmPorId} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
@@ -833,6 +872,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
             ) : (
               <ResultadosDaBusca produtos={produtosDoRascunho} medidasDe={medidasDe} noPedido={idsNoPedido} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
             )}
+            <FolhaVeiculo visivel={folhaVeiculoAberta} consultar={consultarVeiculos} navegacao={NAVEGACAO_VEICULO} textos={TEXTOS_VEICULO} aplicado={veiculo?.veiculo ?? null} onAplicar={(v) => { setVeiculo(v); setFolhaVeiculoAberta(false); }} onFechar={() => setFolhaVeiculoAberta(false)} />
             <VisorDeFoto uri={fotoAberta} aoFechar={() => setFotoAberta(null)} />
             <FimDaAbaItens
               sugestoes={sugestoes}
