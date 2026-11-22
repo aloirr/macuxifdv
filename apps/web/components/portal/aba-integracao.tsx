@@ -43,9 +43,18 @@ export function mensagemSemBases(conectores: readonly { ativo: boolean; tipo: st
   return `Todas as bases já vêm do Conector ${dono?.conector_id ?? ''}. Gere uma nova chave para ele ou desative-o.`;
 }
 
-const TEXTO_ACAO: Record<AcaoConector, { titulo: (id: string) => string; corpo: string; botao: string }> = {
-  chave: { titulo: (id) => `Gerar nova chave para o Conector ${id}?`, corpo: 'A chave atual ainda funciona por pouco tempo. Troque a chave na configuração do Conector.', botao: 'Gerar nova chave' },
-  desativar: { titulo: (id) => `Desativar o Conector ${id}?`, corpo: 'Ele para de enviar as bases e de buscar os pedidos.', botao: 'Desativar' },
+/**
+ * O que deixa de acontecer ao desativar: o Conector de arquivo recusa as cargas por CSV (a API só aceita lote de Conector de
+ * arquivo ativo, RN-INT-13); o do ERP para de enviar as bases e, só se recebe pedidos, de buscá-los.
+ */
+export function corpoDesativar(c: { tipo: string; recebe_pedidos: boolean }): string {
+  if (c.tipo === 'arquivo') return 'A carga por CSV deixa de funcionar nesta empresa.';
+  return c.recebe_pedidos ? 'Ele para de enviar as bases e de buscar os pedidos.' : 'Ele para de enviar as bases.';
+}
+
+const TEXTO_ACAO: Record<AcaoConector, { titulo: (id: string) => string; corpo: (c: Conector) => string; botao: string }> = {
+  chave: { titulo: (id) => `Gerar nova chave para o Conector ${id}?`, corpo: () => 'A chave atual ainda funciona por pouco tempo. Troque a chave na configuração do Conector.', botao: 'Gerar nova chave' },
+  desativar: { titulo: (id) => `Desativar o Conector ${id}?`, corpo: corpoDesativar, botao: 'Desativar' },
 };
 
 export function DialogoConector({ alvo, acao, enviando, aoFechar, aoConfirmar }: { alvo: Conector | null; acao: AcaoConector; enviando: boolean; aoFechar: () => void; aoConfirmar: () => void }) {
@@ -66,7 +75,7 @@ export function DialogoConector({ alvo, acao, enviando, aoFechar, aoConfirmar }:
         </>
       }
     >
-      {t.corpo}
+      {alvo ? t.corpo(alvo) : null}
     </Dialog>
   );
 }
@@ -78,7 +87,6 @@ export function Credencial({ c, aoFechar }: { c: ChaveNova; aoFechar: () => void
     try {
       await navigator.clipboard.writeText(c.chave);
       setCopiou(true);
-      toast('success', 'Chave copiada.');
     } catch {
       toast('warning', 'Não deu para copiar: selecione a chave e copie com Ctrl+C.');
     }
@@ -98,9 +106,6 @@ export function Credencial({ c, aoFechar }: { c: ChaveNova; aoFechar: () => void
           Já copiei, esconder
         </Button>
       </div>
-      <span className="text-[12px] text-ink-2">
-        Identificador: <span className="font-mono">{c.conector_id}</span> · escopo {c.escopo} · prefixo <span className="font-mono">{c.prefixo}</span>
-      </span>
     </div>
   );
 }
