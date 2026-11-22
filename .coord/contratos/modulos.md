@@ -226,3 +226,12 @@ Tudo aditivo ou só restringe; nenhuma versão nova de contrato. Eventos em `eve
 | `GET /v1/core/trajeto` | core | 404 `USUARIO_NAO_ENCONTRADO` para o próprio usuário | feito (v1.0.16) |
 | push de `visita` / `visita_checkout` | core | supervisor e gerente precisam de `visita.registrar_gestao` | feito (v1.0.16) |
 | decisão de aprovação | vendedor | 422 `APROVACAO_DO_PROPRIO_PEDIDO` quando o decisor é o autor | feito (v1.0.16) |
+
+## Filtro de veículo (v1.0.21, 22/11, desenho `docs/desenho/filtro-veiculo.md`): consultas do Catálogo (ADR 0012), tudo aditivo
+
+Sem ADR: consulta nova e campos opcionais; nenhuma saída muda de forma nem de sentido (desenho §1.5). Manifestos: `catalogo.ofereceConsultas += 'catalogo.veiculos@1'`; `vendedor.usaConsultas += 'catalogo.veiculos@1'`.
+
+| Consulta | Dono | API | Aparelho | Usada por | Situação |
+|---|---|---|---|---|---|
+| `catalogo.veiculos@1` (nova) | catalogo | sim (`api/consultas-texto.ts`, índice de veículos por tenant) | sim (`app/veiculos-consulta.ts`, mesmo domain `navegarCascata`) | vendedor (folha Veículo da aba Itens do Novo pedido; sem a consulta = sem botão Veículo) | **desenho** (modulo-catalogo implementa). Entrada strict `{escolha: VeiculoParcial = {}, busca? ≤ 60, produto_ids? ≤ 5000, cliente_id?}`: `produto_ids`/`cliente_id` com a mesma semântica de `busca_produtos@1` (vendáveis do cliente, RN-CAT-06). Saída `{disponivel, trilha, nivel, opcoes, ultimo, escolha, rotulos, busca, recentes}`; `recentes` só no aparelho (API = `[]`). Sem preço nem estoque; responde a todo perfil com o Catálogo efetivo. RN-CAT-22 |
+| `catalogo.busca_produtos@1` | catalogo | sim | sim | vendedor | **aditivo, mesma versão (desenho §1.3)**: entrada ganha `veiculo?: VeiculoEscolhido` e `q` passa a `default ''` com o `refine` "`q` com 1+ caractere ou `veiculo`" (entrada afrouxada); cada item ganha `veiculo?: {compatibilidade: compativel\|conferir, serve_em: TrechoBusca \| null}`, só quando a entrada traz `veiculo` |

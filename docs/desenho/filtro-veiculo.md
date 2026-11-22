@@ -32,7 +32,12 @@
 | `ResultadoVeiculoItem` | `{ compatibilidade: CompatibilidadeVeiculo, serve_em: TrechoBusca \| null }` | reusa `TrechoBusca` (`busca.ts`); `serve_em` nulo quando o trecho é só o nome do modelo (spec §5) ou quando é `compativel` |
 
 ### 1.2 Consulta nova `catalogo.veiculos@1` (`consultas.ts`, `CONSULTA_VEICULOS`)
-- **Entrada** strict: `{ escolha: VeiculoParcial = {}, busca?: string trim ≤ 60 }`.
+- **Entrada** strict: `{ escolha: VeiculoParcial = {}, busca?: string trim ≤ 60, produto_ids?: Id[] ≤ 5000, cliente_id?: Id }`.
+  - **Escopo opcional do cliente** (decisão do gerente, 22/11): `produto_ids?` e `cliente_id?` com a **mesma semântica** de
+    `catalogo.busca_produtos@1` (T-0167): `produto_ids` restringe aos produtos dados; `cliente_id` restringe aos vendáveis na
+    tabela de preço do cliente, na filial dele (RN-CAT-06), filtrados dentro da consulta. Sem os dois = o catálogo inteiro
+    (vitrine do Catálogo). A cascata, a `busca` da folha e o `disponivel` só contam as entradas do índice cujos produtos estão no
+    escopo; assim, no Novo pedido, a cascata mostra só o que se pode vender ao cliente. Os Recentes não são filtrados pelo escopo.
 - **Saída:**
   `{ disponivel: boolean, trilha: PassoTrilha[], nivel: NivelVeiculo | null, opcoes: OpcaoVeiculo[], ultimo: boolean,
   escolha: VeiculoParcial, rotulos: RotulosVeiculo | null, busca: OpcaoVeiculo[] | null, recentes: { veiculo: VeiculoEscolhido, rotulos: RotulosVeiculo }[] }`.
@@ -53,6 +58,8 @@
 - `GrupoFiltro = z.enum(['sistema', 'familia', 'linha', 'categoria'])`.
 - `ChipFiltro = { grupo: GrupoFiltro, id: string, nome: string, contagem: int ≥ 0, marcado: boolean }`.
 - `GruposFiltro = z.array(z.object({ grupo: GrupoFiltro, rotulo: string, chips: z.array(ChipFiltro) }))` (só grupos com 2+ chips).
+- **Decisão (gerente, 22/11):** Família e Linha entram nos chips da Filtrar, pelo texto literal da D1 ("sistema, família, linha e
+  categoria"); o grupo que fica vazio (nenhum chip com contagem, salvo o marcado) some da folha.
 - Hoje só a tela do Catálogo usa (sem rota nova); fica em `contracts` para a tela e a API futura terem o mesmo tipo.
 
 ### 1.5 Por que sem ADR
@@ -186,8 +193,8 @@ usuário. A API não tem recentes (devolve `[]`). Persistir no SQLite fica para 
 | Dono | Entrega |
 |---|---|
 | **designer-ux** (`packages/ui`, spec §11) | ícone **`carro`** em `nomes-de-icone.ts` e `icon.tsx` · `BotaoFiltro` ganha `icone?: NomeIcone` (padrão o de hoje) e `rotulo` acessível por prop, `ativo?: boolean` (borda `ink` 1,5 sem selo) · **`FolhaCascata`** (só apresentação) com props `visivel`, `titulo`, `trilha: {rotulo, automatico, onPress}[]`, `rotuloNivel`, `opcoes: {valor, rotulo, apoio?, temProximo}[]`, `grade?: boolean` (usa a **`GradeOpcoes`** de 4 colunas), `busca?: {valor, placeholder, onMudar, resultados, vazio}`, `recentes?`, `rodape?: {rotulo, onPress}`, `carregando?`, `onEscolher(valor)`, `onVoltar`, `onFechar` · `Chip` ganha `contagem?: number` (400 tabular, leitor `<nome>, <n> peças`) · `EtiquetaFiltro` com quebra de linha (sem rolagem lateral) |
-| **modulo-catalogo** | `contracts/veiculo.ts` (§1.1), `CONSULTA_VEICULOS` e o aditivo de `busca_produtos@1` (§1.3), `GruposFiltro` (§1.4) · `domain/veiculo-indice.ts` (§2) e `domain/veiculo-filtro.ts` (§3, com `POLITICA_CONFERIR`) · `MONTADORAS` em `montadoras.ts` · `buscarComTotal` com `veiculo` · `app/veiculos-consulta.ts` (`consultaVeiculosAparelho`) e `consultaBuscaProdutosAparelho` com veículo · `api/consultas-texto.ts` (`consultaVeiculos` e o índice por tenant) · manifesto (`ofereceConsultas`) · telas: `catalogo.tsx` (botão Veículo, etiqueta, folha, lista com chip `Compatível`/"Serve em", estados do §9, placeholder `Peça ou código…`), `estoque-filial.tsx` (Filtrar com contagem e os 4 grupos), `comum.tsx` (cartão: chip ou "Serve em" até 3 linhas), `produto.tsx` (`Compatível com …`, negrito do trecho, "Leve também" filtrado) · testes do domain e de igualdade aparelho × API |
-| **modulo-vendedor** | aba Itens do Novo pedido (spec §8): botão Veículo ao lado de `Buscar produto` só com `disponivel`; folha com a `FolhaCascata` do kit alimentada por `CONSULTA_VEICULOS`; `buscarProdutos` de `use-vendedor.ts` manda `veiculo` em `CONSULTA_BUSCA_PRODUTOS` (com e sem texto); linha 3 do produto com `ChipEstado` `Compatível` ou `Serve em:` (até 2 linhas) a partir de `item.veiculo`; sem veículo, nada muda; na `ConsultaIndisponivel` (reserva local), sem botão Veículo · manifesto `usaConsultas += 'catalogo.veiculos@1'` · importa só `@macuxi/catalogo/contracts` e `@macuxi/ui` |
+| **modulo-catalogo** | `contracts/veiculo.ts` (§1.1), `CONSULTA_VEICULOS` e o aditivo de `busca_produtos@1` (§1.3), `GruposFiltro` (§1.4) · `domain/veiculo-indice.ts` (§2) e `domain/veiculo-filtro.ts` (§3, com `POLITICA_CONFERIR`) · `MONTADORAS` em `montadoras.ts` · `buscarComTotal` com `veiculo` · `app/veiculos-consulta.ts` (`consultaVeiculosAparelho`, com o escopo do cliente do §1.2 reusando o filtro de vendáveis da `busca_produtos@1`) e `consultaBuscaProdutosAparelho` com veículo · `api/consultas-texto.ts` (`consultaVeiculos` e o índice por tenant) · manifesto (`ofereceConsultas`) · telas: `catalogo.tsx` (botão Veículo, etiqueta, folha, lista com chip `Compatível`/"Serve em", estados do §9, placeholder `Peça ou código…`), `estoque-filial.tsx` (Filtrar com contagem e os 4 grupos), `comum.tsx` (cartão: chip ou "Serve em" até 3 linhas), `produto.tsx` (`Compatível com …`, negrito do trecho, "Leve também" filtrado) · testes do domain e de igualdade aparelho × API |
+| **modulo-vendedor** | aba Itens do Novo pedido (spec §8): botão Veículo ao lado de `Buscar produto` só com `disponivel`; folha com a `FolhaCascata` do kit alimentada por `CONSULTA_VEICULOS` com o mesmo escopo do cliente que manda em `CONSULTA_BUSCA_PRODUTOS` (`cliente_id` ou `produto_ids`, §1.2); `buscarProdutos` de `use-vendedor.ts` manda `veiculo` em `CONSULTA_BUSCA_PRODUTOS` (com e sem texto); linha 3 do produto com `ChipEstado` `Compatível` ou `Serve em:` (até 2 linhas) a partir de `item.veiculo`; sem veículo, nada muda; na `ConsultaIndisponivel` (reserva local), sem botão Veículo · manifesto `usaConsultas += 'catalogo.veiculos@1'` · importa só `@macuxi/catalogo/contracts` e `@macuxi/ui` |
 | **engenheiro-software** | este desenho · registro em `.coord/contratos/modulos.md` no lote · revisão final |
 | **engenheiro-apps** | revisão técnica das telas (folha, desempenho da lista) |
 | **testes / corretor-redundancias / design-de-marca** | critérios do §7 · parecer de excesso (um lugar só para o veículo) · validação de cor e layout (verde `success` com texto) |
@@ -228,5 +235,11 @@ dependency-cruiser) só deixa o Vendedor importar `modules/catalogo/contracts`; 
 - **Dúvida 1 (spec × código):** a spec diz **Família**; a árvore chama o nível 2 de **Grupo** (`rotuloDoNivel`, RF-CAT-09). O desenho usa o
   rótulo da spec na Filtrar; o designer-ux confirma se a hierarquia também muda para "Família".
 - **Dúvida 2:** os de **conferir** no "Leve também": a spec §7 diz "compatíveis ou universais" (conferir fica fora); o desenho segue a spec.
-- **Dúvida 3:** Recentes só na memória do app (somem ao fechar). Se o dono quiser que fiquem entre aberturas, é uma tabela local nova (banco-dados).
-- **Dúvida 4:** o seletor do pedido filtra a cascata pelo catálogo inteiro, não só pelos vendáveis do cliente; o vazio do §9 cobre o caso raro.
+- **Dúvida 3, decidida (gerente, 22/11):** os Recentes ficam só na sessão (memória do app; somem ao fechar e na troca de usuário). Sem tabela local nova.
+- **Dúvida 4, decidida (gerente, 22/11):** a `catalogo.veiculos@1` ganha o escopo opcional do cliente (§1.2); no Novo pedido, a
+  cascata mostra só o que se pode vender ao cliente (RN-CAT-06).
+- **Decisão (gerente, 22/11):** Família e Linha entram nos chips da Filtrar (D1 literal) e o grupo vazio some (§1.4).
+
+### Limitação conhecida
+- Um trecho com vários modelos ("Uno 2010 a 2013, Palio 2012") só reconhece o **primeiro** modelo (Uno); o Palio desse trecho não
+  entra na cascata nem no filtro. Fica assim por decisão do gerente (22/11), coerente com a P-a (passo 3 do §2.1).
