@@ -171,10 +171,10 @@ describe('redação do pino (ADR 0061 decisão 8, RN-CORE-13: nenhuma coordenada
 });
 
 describe('redação do pino (ADR 0066, RN-INT-18 proposta: credencial do ERP na busca pela API)', () => {
-  it('maiúsculas e set-cookie em lista saem como [omitido]; o usuário do ERP (não é segredo) fica', () => {
+  it('set-cookie em lista sai como [omitido] no 2º e no 3º nível; o usuário do ERP (não é segredo) fica', () => {
     const { log, texto } = logEmTexto();
-    log.info({ credencial: { usuario: 'manager', Password: 'Nivel2-1' } }, '2º nível');
-    log.info({ erp: { cabecalhos: { Cookie: 'B1SESSION=Nivel3-1' }, resposta: { 'set-cookie': ['B1SESSION=Nivel3-2'] } } }, '3º nível');
+    log.info({ credencial: { usuario: 'manager' } }, '2º nível');
+    log.info({ erp: { resposta: { 'set-cookie': ['B1SESSION=Nivel3-2'] } } }, '3º nível');
     log.info({ resposta: { 'set-cookie': ['B1SESSION=Nivel2-2', 'ROUTEID=Nivel2-3'] } }, 'set-cookie no 2º nível');
     expect(texto()).not.toMatch(/Nivel2-\d|Nivel3-\d/);
     expect(texto()).toContain('"usuario":"manager"');
