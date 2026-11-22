@@ -27,7 +27,7 @@ const mCatalogo = defineModule({
   depende: ['core'],
   perfis: ['vendedor'],
   apps: { campo: { abas: [] } },
-  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.sugestoes_pedido@1', 'catalogo.foto_produto@1', 'catalogo.estoque_filial@1'],
+  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.veiculos@1', 'catalogo.sugestoes_pedido@1', 'catalogo.foto_produto@1', 'catalogo.estoque_filial@1'],
   // o Catálogo é quem consome a consulta (PR #503)
   usaConsultasOpcionais: ['vendedor.preco_prazo_padrao@1'],
 });

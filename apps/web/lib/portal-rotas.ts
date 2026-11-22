@@ -55,8 +55,8 @@ export const ROTAS_PORTAL = {
   /** `PATCH` (`ConectorAtualizar`; `{ ativo: false }` desativa e revoga as chaves, RN-INT-10) → `ConectorResumo`. */
   conector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}`,
   /**
-   * v1.0.21 (S10): "Gerar nova chave". `POST` sem corpo → `ConectorCriado` (premissa: o mesmo formato do cadastro, com `chave.chave`
-   * em claro UMA vez). Antes do merge responde 404 de rota e a tela mostra `TEXTO_INDISPONIVEL`.
+   * v1.0.21 (S10): "Gerar nova chave". `POST` (corpo opcional `RotacionarChaveEntrada`) → `ChaveNovaConector` (= `ConectorCriado.chave`,
+   * com a chave em claro UMA vez); a anterior convive até `anterior_valida_ate` (RN-INT-10). Servidor antigo: 404 → `TEXTO_INDISPONIVEL`.
    */
   chaveConector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}/chave`,
   /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = 'em breve'. */

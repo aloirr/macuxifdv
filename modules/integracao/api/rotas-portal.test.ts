@@ -28,7 +28,8 @@ describe('T-0087: rotas do portal aceitam o super-admin (ADR 0029)', () => {
     expect(porChave('GET', 'conectores')?.superAdmin).toBe('aceita');
     expect(porChave('POST', 'conectores')?.superAdmin).toBe('aceita');
     expect(porChave('PATCH', 'conectores/:id')?.superAdmin).toBe('aceita');
-    expect(conectores.filter((r) => r.superAdmin).length).toBe(3);
+    expect(porChave('POST', 'conectores/:id/chave')?.superAdmin).toBe('aceita');
+    expect(conectores.filter((r) => r.superAdmin).length).toBe(4);
   });
 });
 

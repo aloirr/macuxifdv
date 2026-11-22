@@ -4,13 +4,15 @@
  * anos da aplicação, código do concorrente), mas sem preço: o preço segue em `precos_cliente@1`. Por isso os filtros de preço,
  * de estoque e de ordem por preço da frase são ignorados e o documento entra sem saldo (o boost de estoque não se aplica).
  */
-import type { BuscaProdutosSaida, TextosProdutoSaida } from '../contracts';
+import { buscaPodeRodar, MINIMO_CARACTERES_BUSCA, type BuscaProdutosSaida, type TextosProdutoSaida, type VeiculoEscolhido } from '../contracts';
 import { interpretarConsulta } from './consulta';
 import type { ParametrosCatalogo } from './parametros';
 import { codigoCompacto, dentroDaDistancia, rankear, toleranciaDaPalavra } from './ranking';
 import { trechoServeEm } from './serve-em';
 import { expandirSinonimos, normalizarTexto, type SinonimoDoTenant } from './texto';
 import { veiculosDe } from './veiculos';
+import { filtrarPorVeiculo, produtosDoModelo } from './veiculo-filtro';
+import type { IndiceVeiculos } from './veiculo-indice';
 import { docDeBusca, equivaleA, vocabularioDe, type ProdutoCatalogo } from './vitrine';
 
 export interface EntradaBuscaConsulta {
@@ -26,16 +28,17 @@ export interface EntradaBuscaConsulta {
   veiculos?: ReadonlySet<string>;
   /** Vocabulário (marcas/linhas) do catálogo inteiro, quando `produtos` já é só o conjunto de candidatos da pré-seleção. */
   vocabulario?: ReturnType<typeof vocabularioDe> | undefined;
+  /** RN-CAT-22: só os produtos que servem no veículo; soma com `q`, que pode ser vazio. Pede `indiceVeiculos`. */
+  veiculo?: VeiculoEscolhido | undefined;
+  indiceVeiculos?: IndiceVeiculos | undefined;
 }
 
-/** RF-CAT-01 (T-0167): a busca só roda com 3 caracteres ou mais; com 2 letras o ranking fica pesado e o resultado, largo demais. */
-export const MINIMO_CARACTERES_BUSCA = 3;
 /** RF-CAT-01 (T-0167): itens por página do "+ Mostrar mais". */
 export const TAMANHO_PAGINA_BUSCA = 20;
 /** RF-CAT-01 (T-0167): a lista é ranqueada uma vez, até este teto; o app pagina nela sem nova consulta. */
 export const TETO_RANKING_BUSCA = 400;
 
-export const buscaPodeRodar = (q: string): boolean => q.replace(/\s+/g, '').length >= MINIMO_CARACTERES_BUSCA;
+export { buscaPodeRodar, MINIMO_CARACTERES_BUSCA };
 
 export interface PaginaDaBusca {
   mostrando: number;
@@ -109,12 +112,22 @@ export function buscarParaConsulta(e: EntradaBuscaConsulta): BuscaProdutosSaida[
 export function buscarComTotal(e: EntradaBuscaConsulta): { itens: Array<BuscaProdutosSaida['itens'][number] & { aplicacao: string | null }>; total: number } {
   const ids = e.produtoIds ? new Set(e.produtoIds) : null;
   const universo = e.produtos.filter((p) => p.ativo && (!ids || ids.has(p.id)));
+  const aplicacaoDe = new Map(universo.map((p) => [p.id, p.aplicacao ?? '']));
+  // sem texto, a lista é a das peças que citam o modelo, por nome; o filtro de veículo corre no fim, sobre a lista já ordenada
+  if (e.veiculo && e.indiceVeiculos && e.q.trim() === '') {
+    const doModelo = produtosDoModelo(e.indiceVeiculos, e.veiculo);
+    const lista = universo
+      .filter((p) => doModelo.has(p.id))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id))
+      .map((p) => ({ produto_id: p.id, nota: 0, so_aplicacao: false, serve_em: null, equivale_a: null }));
+    const filtrada = filtrarPorVeiculo(lista, e.indiceVeiculos, e.veiculo).slice(0, TETO_RANKING_BUSCA);
+    return { itens: filtrada.slice(0, e.limite).map((i) => ({ ...i, aplicacao: aplicacaoDe.get(i.produto_id) || null })), total: filtrada.length };
+  }
   const interpretado = interpretarConsulta(e.q, e.vocabulario ?? vocabularioDe(universo));
   // sem preço nem estoque nesta consulta: só o que é texto, marca, linha e código
   const filtros = { ...interpretado, min_price_cents: null, max_price_cents: null, stock: null, sort: null };
   const docs = universo.map((p) => docDeBusca(p, null));
   const grupos = expandirSinonimos(filtros.text, e.sinonimos);
-  const aplicacaoDe = new Map(universo.map((p) => [p.id, p.aplicacao ?? '']));
   const veiculos = e.veiculos ?? veiculosDe(e.produtos);
   const ranqueados = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: e.parametros, anoAtual: e.anoAtual, veiculos })
     .slice(0, TETO_RANKING_BUSCA)
@@ -125,7 +138,8 @@ export function buscarComTotal(e: EntradaBuscaConsulta): { itens: Array<BuscaPro
       serve_em: r.doc.aplicacao === '' ? null : trechoServeEm(r.doc.aplicacao, grupos, { anoAtual: e.anoAtual, veiculos }),
       equivale_a: r.referencia_casada === null ? null : equivaleA(r.doc.referencias[r.referencia_casada]),
     }));
-  const todos = codigoExatoNoTopo(ranqueados, universo, e.q).slice(0, TETO_RANKING_BUSCA);
+  const doRanking = codigoExatoNoTopo(ranqueados, universo, e.q).slice(0, TETO_RANKING_BUSCA);
+  const todos = e.veiculo && e.indiceVeiculos ? filtrarPorVeiculo(doRanking, e.indiceVeiculos, e.veiculo) : doRanking;
   return { itens: todos.slice(0, e.limite).map((i) => ({ ...i, aplicacao: aplicacaoDe.get(i.produto_id) || null })), total: todos.length };
 }
 

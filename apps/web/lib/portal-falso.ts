@@ -64,7 +64,16 @@ import {
   type LoteResultado,
 } from '@macuxi/integracao/contracts';
 
-import { CODIGOS_PORTAL, faltasNaSenha, ImportarEquipeRequestSchema, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, PerfilSchema, type ImportarEquipeResposta } from '@macuxi/core/contracts';
+import {
+  CODIGOS_PORTAL,
+  faltasNaSenha,
+  ImportarEquipeRequestSchema,
+  mensagemBloqueioPorTentativas,
+  mensagemDaSenha,
+  MENSAGEM_PORTAL_SENHA_A_TROCAR,
+  PerfilSchema,
+  type ImportarEquipeResposta,
+} from '@macuxi/core/contracts';
 
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -321,6 +330,8 @@ function adminsIniciais(): Map<string, AdminDaEmpresa[]> {
 
 /** Erros seguidos por e-mail: só na memória da aba (nem o e-mail vai ao `sessionStorage`). */
 const falhas = new Map<string, number>();
+/** RN-CORE-31: o falso não conta o tempo do bloqueio (só o `zerarModoFalso` solta); responde sempre os 15 min inteiros. */
+const MINUTOS_BLOQUEIO_FALSO = 15;
 
 const ADMINS_M = /^\/plataforma\/empresas\/([^/]+)\/admins(?:\/([^/]+)\/redefinir-senha)?$/;
 
@@ -547,7 +558,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   if (rota === `POST ${ROTAS_PORTAL.login}`) {
     const c = lerCorpo(LoginPortalSchema, corpo);
     if (c instanceof Response) return c;
-    if ((falhas.get(c.email) ?? 0) >= 5) return erro(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.');
+    if ((falhas.get(c.email) ?? 0) >= 5) return erro(423, 'BLOQUEADO', mensagemBloqueioPorTentativas(MINUTOS_BLOQUEIO_FALSO), { minutos_restantes: MINUTOS_BLOQUEIO_FALSO });
     // T-0094 (RN-CORE-34): admin do cliente com a senha master ainda por trocar; a troca é no backoffice (só para a senha certa)
     if (c.email === CONTA_SENHA_A_TROCAR && c.senha !== 'errada') return erro(403, CODIGOS_PORTAL.senhaATrocar, MENSAGEM_PORTAL_SENHA_A_TROCAR);
     const conta = CONTAS_FALSAS[c.email];
@@ -750,6 +761,13 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: [...lista, novo] } });
     return json(201, { conector: novo, chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: null } });
   }
+  const chaveM = /^\/integracao\/conectores\/([^/]+)\/chave$/.exec(caminho);
+  if (metodo === 'POST' && chaveM) {
+    const c = (e.conectores[tenant] ?? []).find((x) => x.id === chaveM[1]);
+    if (!c) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
+    if (!c.ativo) return erro(409, 'conector_inativo', `O Conector "${c.conector_id}" está desativado.`);
+    return json(201, { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: agoraIso(24 * 60) });
+  }
   const conectorM = /^\/integracao\/conectores\/([^/]+)$/.exec(caminho);
   if (metodo === 'PATCH' && conectorM) {
     const lista = e.conectores[tenant] ?? [];
@@ -758,14 +776,6 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     const nova = lista.map((x) => (x.id === conectorM[1] && typeof ativo === 'boolean' ? { ...x, ativo, saude: ativo ? x.saude : ('desativado' as const) } : x));
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
-  }
-  // v1.0.21 (S10): "Gerar nova chave" do Conector ou da credencial de API (tipo `nuvem`); a resposta é a do cadastro (`ConectorCriado`)
-  const chaveM = /^\/integracao\/conectores\/([^/]+)\/chave$/.exec(caminho);
-  if (metodo === 'POST' && chaveM) {
-    const c = (e.conectores[tenant] ?? []).find((x) => x.id === chaveM[1]);
-    if (!c) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
-    if (!c.ativo) return erro(409, 'conector_inativo', 'Este Conector está desativado.');
-    return json(201, { conector: c, chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: null } });
   }
   // T-0098: link temporário do pacote do Conector (spec portal-config-enxuto §10.2: "38 MB", validade e SHA-256); o link não abre nada
   if (rota === `POST ${ROTAS_PORTAL.conectorDownload}`) {

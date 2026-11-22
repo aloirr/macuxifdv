@@ -9,11 +9,11 @@
  * - "Integração via API": "Gerar a credencial" (botão neutro: o principal da tela é o do Conector) pela mesma rota do Conector com
  *   `tipo: 'nuvem'`, e a tabela "Credenciais" (tipo `nuvem` da mesma lista); o cartão "Guia" (botão do PDF só quando ele existir,
  *   `ENCAIXE_API_HUB.guiaPdf`; link do OpenAPI 3.1).
- * - Em cada linha ativa das duas tabelas: "Gerar nova chave" (`ROTAS_PORTAL.chaveConector`) e "Desativar" (`PATCH { ativo: false }`,
- *   com confirmação). Linha desativada: sem botões.
+ * - Em cada linha ativa das duas tabelas, numa segunda linha: "Gerar nova chave" (`ROTAS_PORTAL.chaveConector`, v1.0.21) e
+ *   "Desativar" (`PATCH { ativo: false }`), os dois com confirmação (`DialogoConector`). Linha desativada: sem botões.
  * Credencial: a chave em claro vem só na resposta do `POST` e aparece UMA vez, com "Copiar". Na v1 cada base vem de um único
- * Conector por empresa (RN-INT-13): a credencial nova leva as bases que nenhum outro ativo recebe. testIDs: integracao.* (Conector)
- * e integracao.api-* (API).
+ * Conector por empresa (RN-INT-13): a credencial nova leva as bases que nenhum outro ativo recebe; sem nenhuma livre, a tela diz
+ * qual Conector já recebe (`mensagemSemBases`) e não chama a API. testIDs: integracao.* (Conector) e integracao.api-* (API).
  */
 import { Fragment, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -28,13 +28,51 @@ import { BaixarPacote } from './baixar-conector';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
+/** A chave em claro: no cadastro (`ConectorCriado.chave`) e na nova chave (a rota devolve só este objeto). */
+type ChaveNova = Criado['chave'];
 type Resumo = ReturnType<typeof ConectorResumo.parse>;
+export type AcaoConector = 'chave' | 'desativar';
 const ListaConectores = { safeParse: (x: unknown) => ConectorResumo.array().safeParse((x as { itens?: unknown })?.itens) };
 
 /** Bases que nenhum Conector ativo recebe (as que a credencial nova pode levar sem conflito). */
 export function entidadesLivres(conectores: readonly { ativo: boolean; entidades: readonly Entidade[] }[]): Entidade[] {
   const ocupadas = new Set(conectores.filter((c) => c.ativo).flatMap((c) => c.entidades));
   return ENTIDADES.filter((e) => !ocupadas.has(e));
+}
+
+/** Aviso quando não sobra base livre para a credencial nova: com o Conector de arquivo ativo, o caminho é desativá-lo. */
+export function mensagemSemBases(conectores: readonly { ativo: boolean; tipo: string; conector_id: string; entidades: readonly Entidade[] }[], temArquivo: boolean): string {
+  if (temArquivo) return 'Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.';
+  const dono = conectores.find((c) => c.ativo && c.tipo !== 'arquivo' && c.entidades.length > 0);
+  return `Todas as bases já vêm do Conector ${dono?.conector_id ?? ''}. Gere uma nova chave para ele ou desative-o.`;
+}
+
+const TEXTO_ACAO: Record<AcaoConector, { titulo: (id: string) => string; corpo: string; botao: string }> = {
+  chave: { titulo: (id) => `Gerar nova chave para o Conector ${id}?`, corpo: 'A chave atual ainda funciona por pouco tempo. Troque a chave na configuração do Conector.', botao: 'Gerar nova chave' },
+  desativar: { titulo: (id) => `Desativar o Conector ${id}?`, corpo: 'Ele para de enviar as bases e de buscar os pedidos.', botao: 'Desativar' },
+};
+
+export function DialogoConector({ alvo, acao, enviando, aoFechar, aoConfirmar }: { alvo: Resumo | null; acao: AcaoConector; enviando: boolean; aoFechar: () => void; aoConfirmar: () => void }) {
+  const t = TEXTO_ACAO[acao];
+  return (
+    <Dialog
+      open={alvo !== null}
+      title={alvo ? t.titulo(alvo.conector_id) : ''}
+      onClose={() => !enviando && aoFechar()}
+      footer={
+        <>
+          <Button data-testid="integracao.acao-cancelar" disabled={enviando} onClick={aoFechar}>
+            Cancelar
+          </Button>
+          <Button variant="danger" data-testid={`integracao.acao-confirmar-${acao}`} disabled={enviando} onClick={aoConfirmar}>
+            {t.botao}
+          </Button>
+        </>
+      }
+    >
+      {t.corpo}
+    </Dialog>
+  );
 }
 
 /** Título do passo com o número num círculo Azul noite, texto branco (MC-0024). */
@@ -49,12 +87,13 @@ function Passo({ n, children }: { n: number; children: ReactNode }) {
   );
 }
 
-function ChaveGerada({ c, testId }: { c: Criado; testId: string }) {
+/** A chave em claro, uma vez: o aviso, a chave e "Copiar" (spec §10.2, RD-0286: sem título interno nem rodapé). */
+export function ChaveGerada({ c, testId }: { c: ChaveNova; testId: string }) {
   const toast = useToast();
   const [copiou, setCopiou] = useState(false);
   const copiar = async () => {
     try {
-      await navigator.clipboard.writeText(c.chave.chave);
+      await navigator.clipboard.writeText(c.chave);
       setCopiou(true);
       toast('success', 'Chave copiada.');
     } catch {
@@ -65,7 +104,7 @@ function ChaveGerada({ c, testId }: { c: Criado; testId: string }) {
     <div data-testid={`${testId}credencial`} role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] bg-warning-soft px-3 py-2.5 text-[13px] text-warning">
       <span className="basis-full font-semibold">Copie a chave agora: ela não aparece de novo.</span>
       <code data-testid={`${testId}chave`} className="min-w-0 flex-1 font-mono text-[13px] break-all text-ink select-all">
-        {c.chave.chave}
+        {c.chave}
       </code>
       <Button size="sm" data-testid={`${testId}copiar`} onClick={() => void copiar()}>
         {copiou ? 'Copiada' : 'Copiar'}
@@ -84,7 +123,6 @@ interface InicialCredencial {
 /** "Gerar a credencial": Identificador · Nome · "Envia os pedidos aprovados ao ERP" · "Gerar credencial" (mesmos textos nos dois lados). */
 function GerarCredencial({
   tenant,
-  rota,
   tipo,
   ocupadas,
   carregando,
@@ -94,7 +132,6 @@ function GerarCredencial({
   aoCriar,
 }: {
   tenant: string;
-  rota: string;
   tipo: TipoConector;
   ocupadas: readonly Resumo[];
   carregando: boolean;
@@ -113,11 +150,11 @@ function GerarCredencial({
   const gerar = async () => {
     if (enviando) return;
     setErro(null);
-    setEnviando(true);
-    // sem base livre, vai o padrão do contrato (todas) e a API diz no 409 qual Conector já recebe cada uma
     const livres = entidadesLivres(ocupadas);
+    if (livres.length === 0) return setErro(mensagemSemBases(ocupadas, ocupadas.some((c) => c.ativo && c.tipo === 'arquivo')));
+    setEnviando(true);
     try {
-      const r = await chamarPortal(rota, { metodo: 'POST', tenant, corpo: { conector_id: identificador.trim(), nome: nome.trim(), tipo, recebe_pedidos: recebePedidos, ...(livres.length ? { entidades: livres } : {}) }, schema: ConectorCriado });
+      const r = await chamarPortal(ROTAS_PORTAL.conectores, { metodo: 'POST', tenant, corpo: { conector_id: identificador.trim(), nome: nome.trim(), tipo, recebe_pedidos: recebePedidos, entidades: livres }, schema: ConectorCriado });
       setCriado(r);
       aoCriar();
     } catch (x) {
@@ -154,7 +191,7 @@ function GerarCredencial({
           {enviando ? 'Gerando…' : 'Gerar credencial'}
         </Button>
       </div>
-      {criado && <ChaveGerada c={criado} testId={testId} />}
+      {criado && <ChaveGerada c={criado.chave} testId={testId} />}
     </form>
   );
 }
@@ -164,16 +201,16 @@ const sem = <V,>(m: Record<string, V>, id: string): Record<string, V> => Object.
 /** Chamada ao portal (injetável nos testes). */
 type Chamar = <T>(caminho: string, o: OpcoesChamada<T>) => Promise<T>;
 
-/** "Gerar nova chave": a chave nova (uma vez) ou a frase da tela; 404 de rota = `TEXTO_INDISPONIVEL`. */
-export async function gerarNovaChave(tenant: string, id: string, chamar: Chamar = chamarPortal): Promise<{ criado: Criado } | { erro: string }> {
+/** "Gerar nova chave": `POST .../chave` → a chave nova (uma vez) ou a frase da tela; 404 de rota = `TEXTO_INDISPONIVEL`. */
+export async function gerarNovaChave(tenant: string, id: string, chamar: Chamar = chamarPortal): Promise<{ chave: ChaveNova } | { erro: string }> {
   try {
-    return { criado: await chamar(ROTAS_PORTAL.chaveConector(id), { metodo: 'POST', tenant, schema: ConectorCriado }) };
+    return { chave: await chamar(ROTAS_PORTAL.chaveConector(id), { metodo: 'POST', tenant, corpo: {}, schema: ConectorCriado.shape.chave }) };
   } catch (x) {
     return { erro: ehRotaAusente(x) ? TEXTO_INDISPONIVEL : mensagemDoErro(x) };
   }
 }
 
-/** "Desativar": `PATCH { ativo: false }`; devolve `null` ou a frase do erro. */
+/** "Desativar": `PATCH { ativo: false }` (revoga as chaves, RN-INT-10); devolve `null` ou a frase do erro. */
 export async function desativarCredencial(tenant: string, id: string, chamar: Chamar = chamarPortal): Promise<string | null> {
   try {
     await chamar(ROTAS_PORTAL.conector(id), { metodo: 'PATCH', tenant, corpo: { ativo: false }, schema: ConectorResumo });
@@ -186,35 +223,30 @@ export async function desativarCredencial(tenant: string, id: string, chamar: Ch
 /** Tabela "Conectores" / "Credenciais": Identificador · Pedidos · Situação e, com `tenant`, os botões de cada linha ativa. */
 export function ListaCredenciais({ itens, vazio, testId, tenant, aoMudar }: { itens: readonly Resumo[]; vazio: string; testId: string; tenant?: string; aoMudar?: () => void }) {
   const toast = useToast();
-  const [chaves, setChaves] = useState<Record<string, Criado>>({});
+  const [chaves, setChaves] = useState<Record<string, ChaveNova>>({});
   const [erros, setErros] = useState<Record<string, string>>({});
-  const [ocupado, setOcupado] = useState<string | null>(null);
-  const [confirmar, setConfirmar] = useState<Resumo | null>(null);
+  const [alvo, setAlvo] = useState<{ conector: Resumo; acao: AcaoConector } | null>(null);
+  const [agindo, setAgindo] = useState(false);
 
   if (itens.length === 0) return <span className="text-[13px] text-ink-2">{vazio}</span>;
 
-  const novaChave = async (c: Resumo) => {
-    if (!tenant || ocupado) return;
-    setOcupado(c.id);
+  const confirmar = async () => {
+    if (!tenant || !alvo || agindo) return;
+    const { conector: c, acao } = alvo;
+    setAgindo(true);
     setErros((m) => sem(m, c.id));
-    const r = await gerarNovaChave(tenant, c.id);
-    setOcupado(null);
-    if ('criado' in r) {
-      setChaves((m) => ({ ...m, [c.id]: r.criado }));
-      aoMudar?.();
-    } else setErros((m) => ({ ...m, [c.id]: r.erro }));
-  };
-  const desativar = async (c: Resumo) => {
-    if (!tenant || ocupado) return;
-    setOcupado(c.id);
-    const erro = await desativarCredencial(tenant, c.id);
-    setOcupado(null);
-    setConfirmar(null);
-    if (erro) toast('danger', erro);
-    else {
-      setChaves((m) => sem(m, c.id));
-      aoMudar?.();
+    if (acao === 'chave') {
+      const r = await gerarNovaChave(tenant, c.id);
+      if ('chave' in r) setChaves((m) => ({ ...m, [c.id]: r.chave }));
+      else setErros((m) => ({ ...m, [c.id]: r.erro }));
+    } else {
+      const erro = await desativarCredencial(tenant, c.id);
+      if (erro) toast('danger', erro);
+      else setChaves((m) => sem(m, c.id));
     }
+    setAgindo(false);
+    setAlvo(null);
+    aoMudar?.();
   };
   const comAcoes = tenant !== undefined;
 
@@ -241,17 +273,17 @@ export function ListaCredenciais({ itens, vazio, testId, tenant, aoMudar }: { it
                     <tr>
                       <td colSpan={3} className={cx(td, 'pt-0')}>
                         <span className="flex flex-wrap items-center gap-2">
-                          <Button size="sm" data-testid={`integracao.nova-chave.${c.id}`} disabled={ocupado !== null} onClick={() => void novaChave(c)}>
-                            {ocupado === c.id && !confirmar ? 'Gerando…' : 'Gerar nova chave'}
+                          <Button size="sm" data-testid={`integracao.nova-chave-${c.conector_id}`} disabled={agindo} onClick={() => setAlvo({ conector: c, acao: 'chave' })}>
+                            Gerar nova chave
                           </Button>
-                          <Button size="sm" data-testid={`integracao.desativar.${c.id}`} disabled={ocupado !== null} onClick={() => setConfirmar(c)}>
+                          <Button size="sm" data-testid={`integracao.desativar-${c.conector_id}`} disabled={agindo} onClick={() => setAlvo({ conector: c, acao: 'desativar' })}>
                             Desativar
                           </Button>
                           {erros[c.id] && <span className="text-[12px] text-ink-2">{erros[c.id]}</span>}
                         </span>
                         {k && (
                           <div className="mt-2">
-                            <ChaveGerada c={k} testId={`integracao.nova-chave.${c.id}.`} />
+                            <ChaveGerada c={k} testId={`integracao.nova-chave-${c.conector_id}.`} />
                           </div>
                         )}
                       </td>
@@ -263,23 +295,7 @@ export function ListaCredenciais({ itens, vazio, testId, tenant, aoMudar }: { it
           </tbody>
         </table>
       </TableScroll>
-      <Dialog
-        open={confirmar !== null}
-        title={`Desativar ${confirmar?.conector_id ?? ''}?`}
-        onClose={() => ocupado === null && setConfirmar(null)}
-        footer={
-          <>
-            <Button data-testid="integracao.desativar-cancelar" disabled={ocupado !== null} onClick={() => setConfirmar(null)}>
-              Cancelar
-            </Button>
-            <Button variant="danger" data-testid="integracao.desativar-confirmar" disabled={ocupado !== null} onClick={() => confirmar && void desativar(confirmar)}>
-              {ocupado !== null ? 'Desativando…' : 'Desativar'}
-            </Button>
-          </>
-        }
-      >
-        A chave deixa de valer.
-      </Dialog>
+      <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmar()} />
     </>
   );
 }
@@ -344,7 +360,6 @@ export function LadoApi({ tenant, q, todos, guiaPdf = ENCAIXE_API_HUB.guiaPdf, a
       <Panel title="Gerar a credencial">
         <GerarCredencial
           tenant={tenant}
-          rota={ROTAS_PORTAL.conectores}
           tipo="nuvem"
           ocupadas={todos}
           carregando={q.isPending}
@@ -384,7 +399,6 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
         <Panel title={<Passo n={2}>Gerar a credencial</Passo>}>
           <GerarCredencial
             tenant={tenant}
-            rota={ROTAS_PORTAL.conectores}
             tipo="conector"
             ocupadas={todos}
             carregando={q.isPending}

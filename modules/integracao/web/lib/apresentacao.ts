@@ -5,7 +5,7 @@
  */
 import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { formatDateTime, formatDateTimeFull, type BadgeTone } from '@macuxi/ui/web';
-import type { Entidade, EstadoLoteBko } from '../../contracts';
+import type { EstadoLoteBko } from '../../contracts';
 import { autorizarAcaoIntegracao, statusDoLote, type AcaoIntegracao, type StatusLote } from '../../domain';
 
 /** RN-INT-15: os 5 status que a pessoa vê; o estado técnico do lote vira um deles em `statusDoLote` (domain). */
@@ -29,24 +29,8 @@ const TOM_STATUS: Record<StatusLote, BadgeTone> = {
 export const rotuloDoLote = (estado: EstadoLoteBko): string => ROTULO_STATUS[statusDoLote(estado)];
 export const tomDoLote = (estado: EstadoLoteBko): BadgeTone => TOM_STATUS[statusDoLote(estado)];
 
-export const ROTULO_ENTIDADE: Record<Entidade, string> = {
-  vendedor: 'Vendedores',
-  cliente: 'Clientes',
-  produto: 'Produtos',
-  preco: 'Preços',
-  estoque: 'Estoque',
-  titulo: 'Títulos',
-  nota: 'Notas fiscais',
-  rota: 'Rotas',
-  catalogo_no: 'Árvore do catálogo',
-  produto_unidade: 'Unidades do produto',
-  cliente_endereco: 'Endereços de clientes',
-  transportadora: 'Transportadoras',
-  forma_pagamento: 'Formas de pagamento',
-  prazo_pagamento: 'Prazos de pagamento',
-  tabela_escalonada: 'Tabela escalonada',
-  filial: 'Filiais',
-};
+/** Rótulo de cada entidade: fonte única em `contracts/entidades.ts`. */
+export { ROTULO_ENTIDADE } from '../../contracts';
 
 export const ROTULO_TIPO_MAPEAMENTO: Record<'condicao_pagamento' | 'deposito' | 'status' | 'canal', string> = {
   condicao_pagamento: 'Condição de pagamento',

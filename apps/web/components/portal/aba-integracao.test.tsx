@@ -2,11 +2,12 @@
  * Aba "Integração" do portal (spec portal-config-enxuto §10.2 e §10.5), renderizada com `react-dom/server` e a lista no cache:
  * - dois lados (Conector | API) em 2 colunas ≥ 768 px com a divisória de 1 px, passos 1 a 3 e a tabela "Conectores";
  * - lado da API pela mesma rota (`tipo: 'nuvem'`): "Gerar a credencial" neutro, "Guia" (PDF só com `guiaPdf`) e "Credenciais";
- * - filtro por tipo nas duas tabelas; "Gerar nova chave" e "Desativar" só nas linhas ativas;
- * - `gerarNovaChave` (sucesso e rota ausente), `desativarCredencial` (PATCH `{ ativo: false }`) e a rota da chave no modo falso;
+ * - filtro por tipo nas duas tabelas; "Gerar nova chave" e "Desativar" só nas linhas ativas, os dois com confirmação;
+ * - `gerarNovaChave` (sucesso e rota ausente), `desativarCredencial` (PATCH `{ ativo: false }`), `mensagemSemBases` e as rotas no
+ *   modo falso;
  * - sai o que era do CSV (diálogo de passar as bases, Carga por arquivo, textos de CSV).
  */
-import { ENTIDADES, type ConectorResumo } from '@macuxi/integracao/contracts';
+import { ConectorCriado, ENTIDADES, type ConectorResumo } from '@macuxi/integracao/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -16,9 +17,10 @@ import { ErroPortal, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
 import { ENCAIXE_API_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AbaIntegracao, desativarCredencial, gerarNovaChave, LadoApi, ListaCredenciais } from './aba-integracao';
+import { AbaIntegracao, ChaveGerada, desativarCredencial, DialogoConector, gerarNovaChave, LadoApi, ListaCredenciais, mensagemSemBases } from './aba-integracao';
 
 const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
+const AVISO = 'Copie a chave agora: ela não aparece de novo.';
 const conector = (n: number, conector_id: string, x: Partial<ConectorResumo> = {}): ConectorResumo => ({
   id: `5d1e2c0a-7b3f-4a51-8c2d-0000000000${String(n).padStart(2, '0')}`,
   conector_id,
@@ -87,14 +89,15 @@ describe('AbaIntegracao', () => {
     expect(t).toContain('Credenciais Identificador Pedidos Situação erp-api — Ativo Gerar nova chave Desativar');
   });
 
-  it('botões por linha só nas ativas, com os testIDs integracao.nova-chave.<id> e integracao.desativar.<id>', () => {
-    for (const c of [lista[0], lista[2]]) {
-      expect(html).toContain(`data-testid="integracao.nova-chave.${c?.id}"`);
-      expect(html).toContain(`data-testid="integracao.desativar.${c?.id}"`);
+  it('botões por linha só nas ativas, com os testIDs integracao.nova-chave-<identificador> e integracao.desativar-<identificador>', () => {
+    for (const id of ['erp', 'erp-api']) {
+      expect(html).toContain(`data-testid="integracao.nova-chave-${id}"`);
+      expect(html).toContain(`data-testid="integracao.desativar-${id}"`);
     }
-    expect(html).not.toContain(`integracao.nova-chave.${lista[3]?.id}`);
-    expect(html).not.toContain(`integracao.desativar.${lista[3]?.id}`);
-    expect(html).not.toContain('Desativar erp'); // o diálogo só abre no clique
+    expect(html).not.toContain('integracao.nova-chave-erp-velho');
+    expect(html).not.toContain('integracao.desativar-erp-velho');
+    expect(html).not.toContain('integracao.acao-confirmar'); // a confirmação só abre no clique
+    expect(html).not.toContain('data-testid="integracao.chave"');
   });
 
   it('API: "Gerar a credencial" neutro, "Guia" com o OpenAPI e sem o botão do PDF enquanto ele não existir', () => {
@@ -143,12 +146,12 @@ describe('Gerar nova chave e Desativar', () => {
     return { pedidos, chamar };
   };
   const ID = '5d1e2c0a-7b3f-4a51-8c2d-000000000003';
-  const criado = { conector: conector(3, 'erp-api', { tipo: 'nuvem' }), chave: { conector_id: 'erp-api', escopo: 'integracao.v1', chave: 'mx_teste_0123456789abcdef0123456789abcdef', prefixo: 'mx_teste', criada_em: '2026-11-22T12:00:00.000Z', anterior_valida_ate: null } };
+  const chave = { conector_id: 'erp-api', escopo: 'integracao.v1', chave: 'mx_teste_0123456789abcdef0123456789abcdef', prefixo: 'mx_teste', criada_em: '2026-11-22T12:00:00.000Z', anterior_valida_ate: '2026-11-23T12:00:00.000Z' };
 
   it('nova chave: POST na rota da chave, com o tenant; devolve a chave para mostrar uma vez', async () => {
-    const f = falsa(() => criado);
+    const f = falsa(() => chave);
     expect(ROTAS_PORTAL.chaveConector(ID)).toBe(`/integracao/conectores/${ID}/chave`);
-    expect(await gerarNovaChave(TENANT, ID, f.chamar)).toEqual({ criado });
+    expect(await gerarNovaChave(TENANT, ID, f.chamar)).toEqual({ chave });
     expect(f.pedidos).toMatchObject([{ caminho: `/integracao/conectores/${ID}/chave`, o: { metodo: 'POST', tenant: TENANT } }]);
   });
 
@@ -164,7 +167,7 @@ describe('Gerar nova chave e Desativar', () => {
   });
 
   it('desativar: PATCH { ativo: false } na rota do Conector; erro vira a frase da tela', async () => {
-    const f = falsa(() => ({ ...criado.conector, ativo: false }));
+    const f = falsa(() => ({ ...conector(3, 'erp-api', { tipo: 'nuvem' }), ativo: false }));
     expect(await desativarCredencial(TENANT, ID, f.chamar)).toBeNull();
     expect(f.pedidos).toMatchObject([{ caminho: `/integracao/conectores/${ID}`, o: { metodo: 'PATCH', tenant: TENANT, corpo: { ativo: false } } }]);
     const r = falsa(() => {
@@ -173,11 +176,33 @@ describe('Gerar nova chave e Desativar', () => {
     expect(await desativarCredencial(TENANT, ID, r.chamar)).toBe('Conector não encontrado.');
   });
 
-  it('a confirmação do Desativar é um diálogo que só abre no clique (fechado, nada no HTML)', () => {
-    const html = renderizar(<ListaCredenciais itens={[conector(3, 'erp-api', { tipo: 'nuvem' })]} vazio="Nenhuma credencial." testId="x" tenant={TENANT} aoMudar={() => undefined} />);
-    expect(html).toContain(`data-testid="integracao.desativar.${ID}"`);
-    expect(html).not.toContain('integracao.desativar-confirmar');
-    expect(html).not.toContain('A chave deixa de valer.');
+  it('gerar nova chave pede confirmação antes; fechada, nada no HTML', () => {
+    const html = renderToStaticMarkup(<DialogoConector alvo={conector(1, 'erp')} acao="chave" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
+    expect(html).toContain('Gerar nova chave para o Conector erp?');
+    expect(html).toContain('data-testid="integracao.acao-cancelar"');
+    expect(html).toMatch(/data-testid="integracao.acao-confirmar-chave"[^>]*>Gerar nova chave</);
+    expect(renderToStaticMarkup(<DialogoConector alvo={null} acao="chave" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />)).toBe('');
+  });
+
+  it('desativar pede confirmação', () => {
+    const html = renderToStaticMarkup(<DialogoConector alvo={conector(1, 'erp')} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
+    expect(html).toContain('Desativar o Conector erp?');
+    expect(html).toMatch(/data-testid="integracao.acao-confirmar-desativar"[^>]*>Desativar</);
+  });
+
+  it('a chave nova aparece uma vez, com o aviso e "Copiar", sem título interno nem rodapé', () => {
+    const html = renderizar(<ChaveGerada c={chave} testId="integracao.nova-chave-erp-api." />);
+    expect(html.split(chave.chave)).toHaveLength(2);
+    expect(html).toContain(AVISO);
+    expect(html).toMatch(/data-testid="integracao.nova-chave-erp-api.copiar"[^>]*>Copiar</);
+    expect(html).not.toContain('ja-copiei');
+    expect(html).not.toContain('Credencial do Conector');
+  });
+
+  it('sem bases livres: a mensagem cita o Conector quando não há Conector de arquivo, e mantém a original quando há', () => {
+    const lista = [conector(1, 'thathyany-conector')];
+    expect(mensagemSemBases(lista, false)).toBe('Todas as bases já vêm do Conector thathyany-conector. Gere uma nova chave para ele ou desative-o.');
+    expect(mensagemSemBases(lista, true)).toBe('Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.');
   });
 });
 
@@ -200,19 +225,23 @@ describe('modo falso: credencial de API (tipo nuvem), nova chave e desativar', (
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('cria e lista a de tipo nuvem; gera nova chave; desativada, a nova chave é recusada', async () => {
+  it('cria e lista a de tipo nuvem; gera nova chave (só a chave, como a API); desativada, a nova chave é recusada', async () => {
     const login = (await (await responderFalso('POST', ROTAS_PORTAL.login, { email: 'time@macuxi.com.br', senha: 'Senha#Forte2026' }, {})).json()) as { token: string };
     const cab = { Authorization: `Bearer ${login.token}`, 'x-macuxi-tenant': TENANT, 'Content-Type': 'application/json' };
     const r = await responderFalso('POST', ROTAS_PORTAL.conectores, { conector_id: 'erp-api', nome: 'ERP do cliente', tipo: 'nuvem', recebe_pedidos: false }, cab);
     expect(r.status).toBe(201);
-    const { conector: c } = (await r.json()) as { conector: ConectorResumo };
+    const criado = ConectorCriado.parse(await r.json());
     const lista = (await (await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, cab)).json()) as { itens: ConectorResumo[] };
     expect(lista.itens.map((x) => [x.conector_id, x.tipo])).toEqual([['erp-api', 'nuvem']]);
-    const k = await responderFalso('POST', ROTAS_PORTAL.chaveConector(c.id), undefined, cab);
+    const k = await responderFalso('POST', ROTAS_PORTAL.chaveConector(criado.conector.id), {}, cab);
     expect(k.status).toBe(201);
-    expect(((await k.json()) as { chave: { chave: string } }).chave.chave).toMatch(/^mx_falso_/);
-    expect((await responderFalso('PATCH', ROTAS_PORTAL.conector(c.id), { ativo: false }, cab)).status).toBe(200);
-    expect((await responderFalso('POST', ROTAS_PORTAL.chaveConector(c.id), undefined, cab)).status).toBe(409);
+    const nova = ConectorCriado.shape.chave.parse(await k.json());
+    expect(nova.chave).toMatch(/^mx_falso_/);
+    expect(nova.chave).not.toBe(criado.chave.chave);
+    const d = await responderFalso('PATCH', ROTAS_PORTAL.conector(criado.conector.id), { ativo: false }, cab);
+    expect(d.status).toBe(200);
+    expect(((await d.json()) as { ativo: boolean }).ativo).toBe(false);
+    expect((await responderFalso('POST', ROTAS_PORTAL.chaveConector(criado.conector.id), {}, cab)).status).toBe(409);
   });
 });
 
