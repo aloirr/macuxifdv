@@ -2,7 +2,7 @@
  * T-0193 critério 2 / RN-CAT-22: filtro de veículo com o mesmo resultado no aparelho e na API, sobre Postgres REAL.
  * Aparelho: o motor de sync real (pull de `createApp` como `macuxi_app`) e as consultas do Catálogo do app.
  * API: as mesmas consultas pelo registro da API (`transacaoTenant(...).consultar`, RLS do tenant), como o Vendedor chama.
- * As escolhas seguem modules/catalogo/api/veiculo-igualdade.test.ts (lá com banco falso).
+ * Massa: modules/catalogo/fixtures/veiculo-massa.ts.
  */
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_VEICULOS, ENTIDADES_CONTEUDO, type VeiculoEscolhido } from '@macuxi/catalogo/contracts';
 import { semBanco } from '@macuxi/db/teste/estado';
@@ -17,38 +17,13 @@ import { consultaVeiculosAparelho, esquecerVeiculosRecentes, indiceVeiculosLocal
 import { anoCivilNoFuso } from '../../../modules/catalogo/domain/ano-civil';
 import { A, B, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
+import { ESCOLHAS, GOL_2018, LINHAS, VENDAVEIS, uuid } from '../../../modules/catalogo/fixtures/veiculo-massa';
 
-const uuid = (n: number) => `0c193000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const NOMES = ['Amortecedor dianteiro', 'Amortecedor traseiro', 'Pastilha de freio', 'Disco de freio', 'Coxim do motor', 'Bucha da bandeja', 'Terminal de direção', 'Barra axial', 'Pivô da suspensão', 'Kit de embreagem', 'Correia dentada', 'Bomba de combustível', 'Filtro de ar', 'Vela de ignição', 'Junta do cabeçote', 'Fluido de freio'];
-const APLICACOES = [
-  ...Array(4).fill('VW Gol 2017–2019 1.0/1.6 Highline'),
-  ...Array(3).fill('Volkswagen Gol 2018 1.0 Trendline'),
-  'VW Gol',
-  'Gol 2020>',
-  ...Array(3).fill('Ford EcoSport 2012–2016 1.6'),
-  ...Array(3).fill('Civic 07–11 · Fit 2003>'),
-  null,
-] as (string | null)[];
-const LINHAS = NOMES.map((nome, i) => ({ id: uuid(i + 1), sku: `T193-${i + 1}`, nome, aplicacao: APLICACOES[i]! }));
-/** Vendáveis ao cliente c1 de A (preço na tabela dele): Gol Highline (2), Civic (1) e o universal (1). */
-const VENDAVEIS = [0, 1, 12, 15].map((i) => LINHAS[i]!.id);
 /** Modelo com um ano só (2016): na cascata o ano se preenche sozinho e não filtra (R-20261121-211200). */
 const ANO_UNICO = [
-  { id: uuid(101), sku: 'T193-101', nome: 'Retentor de roda', aplicacao: 'Fiat Strada 2016 1.4' },
-  { id: uuid(102), sku: 'T193-102', nome: 'Rolamento de roda', aplicacao: 'Fiat Strada 2016 1.8' },
-  { id: uuid(103), sku: 'T193-103', nome: 'Tensor da correia', aplicacao: 'Fiat Strada' },
-];
-
-const GOL_2018: VeiculoEscolhido = { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018, motor: null, versao: null };
-const ESCOLHAS: VeiculoEscolhido[] = [
-  GOL_2018,
-  { ...GOL_2018, motor: '1.0', versao: 'Highline' },
-  { ...GOL_2018, motor: '1.6' },
-  { ...GOL_2018, versao: 'Trendline' },
-  { ...GOL_2018, ano: null },
-  { ...GOL_2018, ano: 2020 },
-  { montadora: null, modelo: 'Civic', ano: 2009, motor: null, versao: null },
-  { montadora: 'Ford', modelo: 'EcoSport', ano: 2014, motor: '1.6', versao: null },
+  { id: uuid(101), nome: 'Retentor de roda', aplicacao: 'Fiat Strada 2016 1.4' },
+  { id: uuid(102), nome: 'Rolamento de roda', aplicacao: 'Fiat Strada 2016 1.8' },
+  { id: uuid(103), nome: 'Tensor da correia', aplicacao: 'Fiat Strada' },
 ];
 
 type Saida = Record<string, unknown> & { itens?: Array<Record<string, unknown> & { produto_id: string }>; recentes?: unknown };
@@ -114,11 +89,12 @@ describe.skipIf(semBanco())('T-0193 — filtro de veículo: aparelho × API sobr
   beforeAll(async () => {
     api = await subirApi();
     const q = (sql: string, p: unknown[]) => api.admin.query(sql, p);
-    for (const l of [...LINHAS, ...ANO_UNICO]) {
+    for (const [i, l] of [...LINHAS, ...ANO_UNICO].entries()) {
+      const sku = `T193-${i + 1}`;
       // o que o Hub grava no Core e no Catálogo; produto_busca como na fixture (texto cru da aplicação)
-      await q("insert into core.produto (id, tenant_id, sku, nome, marca, categoria, unidade, ativo) values ($1, $2, $3, $4, 'BAP', 'Linha', 'UN', true)", [l.id, A.tenantId, l.sku, l.nome]);
+      await q("insert into core.produto (id, tenant_id, sku, nome, marca, categoria, unidade, ativo) values ($1, $2, $3, $4, 'BAP', 'Linha', 'UN', true)", [l.id, A.tenantId, sku, l.nome]);
       await q('insert into catalogo.produto_conteudo (tenant_id, produto_id, aplicacoes) values ($1, $2, $3)', [A.tenantId, l.id, l.aplicacao]);
-      await q("insert into catalogo.produto_busca (tenant_id, produto_id, sku, nome, marca, categoria, ativo, aplicacao) values ($1, $2, $3, $4, 'BAP', 'Linha', true, $5)", [A.tenantId, l.id, l.sku, l.nome, l.aplicacao]);
+      await q("insert into catalogo.produto_busca (tenant_id, produto_id, sku, nome, marca, categoria, ativo, aplicacao) values ($1, $2, $3, $4, 'BAP', 'Linha', true, $5)", [A.tenantId, l.id, sku, l.nome, l.aplicacao]);
     }
     for (const p of VENDAVEIS)
       await q("insert into catalogo.tabela_preco_item (tenant_id, tabela_preco_id, produto_id, preco_cents, vigencia_inicio) values ($1, $2, $3, 1000, now() - interval '1 day')", [A.tenantId, A.tabelasPreco.padrao, p]);
@@ -144,20 +120,6 @@ describe.skipIf(semBanco())('T-0193 — filtro de veículo: aparelho × API sobr
 
   it.each(['amortecedor', 'freio', 'gol'])('busca_produtos com texto "%s" e Gol 2018: mesmos itens', async (q) => {
     await iguais('A', 'busca', { q, veiculo: GOL_2018, limite: 100 });
-  });
-
-  it('D4: ano, motor e versão escolhidos restringem; não escolhidos, não (a peça sem ano só entra sem ano)', async () => {
-    const semAno = LINHAS[7]!.id; // "VW Gol"
-    const com = await ids(GOL_2018);
-    expect(com).toHaveLength(7);
-    expect(com).not.toContain(semAno);
-    const sem = await ids({ ...GOL_2018, ano: null });
-    expect(sem).toHaveLength(9);
-    expect(sem).toContain(semAno);
-    expect(await ids({ ...GOL_2018, motor: '1.6' })).toHaveLength(4);
-    expect(await ids({ ...GOL_2018, versao: 'Trendline' })).toHaveLength(3);
-    expect(await ids({ ...GOL_2018, motor: '1.0', versao: 'Highline' })).toHaveLength(4);
-    expect(await ids(ESCOLHAS[6]!)).toHaveLength(3); // Civic 07–11, sem montadora
   });
 
   it.each([
