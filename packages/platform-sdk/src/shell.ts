@@ -192,7 +192,6 @@ const TRANSICAO_GRUPO: Readonly<Record<string, Transicao>> = {
   'catalogo/catalogo': { de: ['cadastros'], para: 'produtos' },
   'catalogo/marcas': { de: ['cadastros'], para: 'produtos' },
   'catalogo/tabelas-preco': { de: ['cadastros'], para: 'produtos' },
-  'integracao/carga-arquivo': { de: ['administracao'], para: 'sistema' },
   'integracao/monitor': { de: ['administracao'], para: 'sistema' },
 };
 
@@ -241,7 +240,6 @@ const TRANSICAO_ANTERIOR: Readonly<Record<string, { de: GrupoDeclarado; para: Gr
   'catalogo/marcas': { de: 'cadastros', para: 'produtos' },
   'catalogo/tabelas-preco': { de: 'cadastros', para: 'produtos' },
   'core/produtos': { de: 'cadastros', para: 'produtos' },
-  'integracao/carga-arquivo': { de: 'administracao', para: 'sistema' },
   'integracao/monitor': { de: 'administracao', para: 'sistema' },
 };
 
