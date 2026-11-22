@@ -84,10 +84,13 @@ export const ROTAS_PORTAL = {
 export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.json', viaProxy: '/api-proxy/_publico/integracao/v1/openapi.json' });
 
 /**
- * Guia da API em PDF (spec portal-config-enxuto §10.2): caminho same-origin público (sem sessão, como o OpenAPI; R-20261121-235000).
- * Um lugar só: quando o PDF existir, preencha aqui e o cartão "Guia" mostra o botão. `null` = só o link do OpenAPI.
+ * Guia da API em PDF (spec portal-config-enxuto §10.2; desenho config-credencial-api §5): rota pública `GET /integracao/v1/guia.pdf`,
+ * sem sessão, como o OpenAPI; o navegador baixa pelo caminho same-origin que o `next.config.ts` (`PROXY_GUIA_PDF_HUB`) repassa à API.
  */
-export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: null });
+export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf', viaProxy: '/api-proxy/_publico/integracao/v1/guia.pdf' });
+
+/** O que o cartão "Guia" mostra: o botão do PDF com `guiaPdf`; `null` = só o link do OpenAPI. */
+export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: GUIA_PDF_HUB.viaProxy });
 
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];

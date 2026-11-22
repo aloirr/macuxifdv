@@ -5,10 +5,11 @@
  * R-20261114-170200): ou é Conector, ou é API, em dois lados com a mesma largura e uma divisória de 1 px no meio (`line`), com 24 px
  * de folga para cada lado; abaixo de 768 px, empilhados (Conector primeiro) com a divisória na horizontal, 24 px antes da API.
  * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar e colar a credencial) e a
- *   tabela "Conectores" (tipo `conector`).
- * - "Integração via API": "Gerar a credencial" (botão neutro: o principal da tela é o do Conector) pela mesma rota do Conector com
- *   `tipo: 'nuvem'`, e a tabela "Credenciais" (tipo `nuvem` da mesma lista); o cartão "Guia" (botão do PDF só quando ele existir,
- *   `ENCAIXE_API_HUB.guiaPdf`; link do OpenAPI 3.1).
+ *   tabela "Conectores" (`GET conectores?tipo=conector`).
+ * - "Integração via API" (desenho config-credencial-api, S6): "Gerar a credencial" (botão neutro: o principal da tela é o do
+ *   Conector) pela mesma rota do Conector com `tipo: 'nuvem'`, e a tabela "Credenciais" (`GET conectores?tipo=nuvem`); o cartão
+ *   "Guia" (botão do PDF público `ENCAIXE_API_HUB.guiaPdf`, sem sessão, como o OpenAPI; link do OpenAPI 3.1).
+ *   Servidor sem o filtro `?tipo=`: a lista vem inteira e a tela filtra pelo tipo do mesmo jeito.
  * - Em cada linha ativa das duas tabelas, numa segunda linha: "Gerar nova chave" (`ROTAS_PORTAL.chaveConector`, v1.0.21) e
  *   "Desativar" (`PATCH { ativo: false }`), os dois com confirmação (`DialogoConector`). Linha desativada: sem botões.
  * Credencial: a chave em claro vem só na resposta do `POST` e aparece UMA vez, com "Copiar". Na v1 cada base vem de um único
@@ -40,10 +41,12 @@ export function entidadesLivres(conectores: readonly { ativo: boolean; entidades
   return ENTIDADES.filter((e) => !ocupadas.has(e));
 }
 
-/** Aviso quando não sobra base livre para a credencial nova: com o Conector de arquivo ativo, o caminho é desativá-lo. */
-export function mensagemSemBases(conectores: readonly { ativo: boolean; tipo: string; conector_id: string; entidades: readonly Entidade[] }[], temArquivo: boolean): string {
-  if (temArquivo) return 'Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.';
-  const dono = conectores.find((c) => c.ativo && c.tipo !== 'arquivo' && c.entidades.length > 0);
+/**
+ * Aviso quando não sobra base livre para a credencial nova: cita o Conector (ou a credencial) que já recebe as bases. O Conector de
+ * arquivo saiu do portal (§10) e não vem nas listas por tipo; se ele ainda tiver bases, a API responde o 409 com a frase dela.
+ */
+export function mensagemSemBases(conectores: readonly { ativo: boolean; conector_id: string; entidades: readonly Entidade[] }[]): string {
+  const dono = conectores.find((c) => c.ativo && c.entidades.length > 0);
   return `Todas as bases já vêm do Conector ${dono?.conector_id ?? ''}. Gere uma nova chave para ele ou desative-o.`;
 }
 
@@ -159,7 +162,7 @@ function GerarCredencial({
     if (enviando) return;
     setErro(null);
     const livres = entidadesLivres(ocupadas);
-    if (livres.length === 0) return setErro(mensagemSemBases(ocupadas, ocupadas.some((c) => c.ativo && c.tipo === 'arquivo')));
+    if (livres.length === 0) return setErro(mensagemSemBases(ocupadas));
     setEnviando(true);
     try {
       const r = await chamarPortal(ROTAS_PORTAL.conectores, { metodo: 'POST', tenant, corpo: { conector_id: identificador.trim(), nome: nome.trim(), tipo, recebe_pedidos: recebePedidos, entidades: livres }, schema: ConectorCriado });
@@ -348,7 +351,7 @@ export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
     <Panel title="Guia">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {guiaPdf && (
-          <Button data-testid="integracao.guia" onClick={() => void baixar(guiaPdf, 'macuxi-guia-api-hub.pdf')}>
+          <Button data-testid="integracao.guia" onClick={() => void baixar(guiaPdf, 'macuxi-guia-api-v1.pdf')}>
             Baixar o guia (PDF)
           </Button>
         )}
@@ -362,7 +365,21 @@ export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
 }
 
 /** Lado "Integração via API": credenciais de tipo `nuvem` pela mesma rota do Conector (§10.2). */
-export function LadoApi({ tenant, q, todos, guiaPdf = ENCAIXE_API_HUB.guiaPdf, aoMudar }: { tenant: string; q: Consulta; todos: readonly Resumo[]; guiaPdf?: string | null; aoMudar: () => void }) {
+export function LadoApi({
+  tenant,
+  q,
+  todos,
+  carregando = q.isPending,
+  guiaPdf = ENCAIXE_API_HUB.guiaPdf,
+  aoMudar,
+}: {
+  tenant: string;
+  q: Consulta;
+  todos: readonly Resumo[];
+  carregando?: boolean;
+  guiaPdf?: string | null;
+  aoMudar: () => void;
+}) {
   return (
     <>
       <Panel title="Gerar a credencial">
@@ -370,7 +387,7 @@ export function LadoApi({ tenant, q, todos, guiaPdf = ENCAIXE_API_HUB.guiaPdf, a
           tenant={tenant}
           tipo="nuvem"
           ocupadas={todos}
-          carregando={q.isPending}
+          carregando={carregando}
           principal={false}
           inicial={{ identificador: '', nome: '', recebePedidos: false, exemplo: { identificador: 'ex.: erp-api', nome: 'ex.: ERP do cliente' } }}
           testId="integracao.api-"
@@ -385,14 +402,25 @@ export function LadoApi({ tenant, q, todos, guiaPdf = ENCAIXE_API_HUB.guiaPdf, a
   );
 }
 
+/** Chave do React Query da lista de um tipo; `chaveConectores(tenant)` sozinha (prefixo) invalida as duas. */
+export const chaveConectores = (tenant: string, tipo?: TipoConector) => (tipo ? (['portal', tenant, 'conectores', tipo] as const) : (['portal', tenant, 'conectores'] as const));
+
+/** `GET conectores?tipo=`; o filtro na tela cobre o servidor que ainda devolve a lista inteira. */
+function useConectores(tenant: string, tipo: TipoConector) {
+  return useQuery({
+    queryKey: chaveConectores(tenant, tipo),
+    queryFn: async () => (await chamarPortal(ROTAS_PORTAL.conectores, { tenant, query: { tipo }, schema: ListaConectores })).filter((c) => c.tipo === tipo),
+  });
+}
+
 export function AbaIntegracao({ tenant }: { tenant: string }) {
   const qc = useQueryClient();
-  const chave = ['portal', tenant, 'conectores'] as const;
-  const q = useQuery({ queryKey: chave, queryFn: () => chamarPortal(ROTAS_PORTAL.conectores, { tenant, schema: ListaConectores }) });
-  const todos = q.data ?? [];
-  const conectores = { ...q, data: q.data?.filter((c) => c.tipo === 'conector') };
-  const credenciais = { ...q, data: q.data?.filter((c) => c.tipo === 'nuvem') };
-  const aoMudar = () => void qc.invalidateQueries({ queryKey: chave });
+  const conectores = useConectores(tenant, 'conector');
+  const credenciais = useConectores(tenant, 'nuvem');
+  // RN-INT-13: as bases livres contam os dois lados
+  const todos = [...(conectores.data ?? []), ...(credenciais.data ?? [])];
+  const carregando = conectores.isPending || credenciais.isPending;
+  const aoMudar = () => void qc.invalidateQueries({ queryKey: chaveConectores(tenant) });
 
   return (
     <div data-testid="integracao.aba" className="grid md:grid-cols-2">
@@ -409,7 +437,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
             tenant={tenant}
             tipo="conector"
             ocupadas={todos}
-            carregando={q.isPending}
+            carregando={carregando}
             principal
             inicial={{ identificador: 'erp', nome: 'Conector do ERP', recebePedidos: true }}
             testId="integracao."
@@ -432,7 +460,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
         <h2 id="integracao-api" className="m-0 text-[20px] font-extrabold">
           Integração via API
         </h2>
-        <LadoApi tenant={tenant} q={credenciais} todos={todos} aoMudar={aoMudar} />
+        <LadoApi tenant={tenant} q={credenciais} todos={todos} carregando={carregando} aoMudar={aoMudar} />
       </section>
     </div>
   );

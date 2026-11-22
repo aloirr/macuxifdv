@@ -746,7 +746,11 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (loteM[2]) return json(200, { itens: l.resultado.erros, total: l.resultado.erros.length });
     return json(200, statusDoLote(l));
   }
-  if (rota === `GET ${ROTAS_PORTAL.conectores}`) return json(200, { itens: e.conectores[tenant] ?? [] });
+  if (rota === `GET ${ROTAS_PORTAL.conectores}`) {
+    // `?tipo=` (desenho config-credencial-api): `conector` à esquerda e `nuvem` (credencial de API) à direita da aba Integração
+    const tipo = new URLSearchParams(caminhoComQuery.split('?')[1] ?? '').get('tipo');
+    return json(200, { itens: (e.conectores[tenant] ?? []).filter((c) => !tipo || c.tipo === tipo) });
+  }
   if (rota === `POST ${ROTAS_PORTAL.conectores}`) {
     const c = lerCorpo(ConectorCriar, corpo);
     if (c instanceof Response) return c;

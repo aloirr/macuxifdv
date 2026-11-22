@@ -11,7 +11,8 @@
  * O admin do cliente vê o Plano (ou os Módulos licenciados) na largura toda, sem "Trocar de plano" e sem Administradores; a
  * `colunaDireita` vem embaixo.
  * `AvisoEmpresaCriada`: o aviso de sucesso da Nova empresa (§4), uma vez, no topo da página da empresa recém-criada.
- * testIDs: empresa-pagina.aba-empresa, empresa-pagina.coluna-direita, empresa-pagina.criada.
+ * testIDs: empresa-pagina.conteudo-empresa (o `empresa-pagina.aba-empresa` é o botão da aba), empresa-pagina.coluna-direita,
+ * empresa-pagina.criada.
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Notice } from '@macuxi/ui/web';
@@ -41,7 +42,7 @@ export function AbaEmpresa({ tenant, fuso, timeMacuxi, modulos, colunaDireita, s
   const sem = ficha.isError && fichaSemPlano(ficha.error);
   const principal = sem ? <CartaoModulosLicenciados modulos={modulos} /> : <CartaoPlano tenant={tenant} podeTrocar={timeMacuxi} largo={!timeMacuxi} />;
   return (
-    <div data-testid="empresa-pagina.aba-empresa" data-sem-plano={sem ? 'sim' : undefined} className="flex flex-col gap-4">
+    <div data-testid="empresa-pagina.conteudo-empresa" data-sem-plano={sem ? 'sim' : undefined} className="flex flex-col gap-4">
       {timeMacuxi ? (
         <div className="grid items-start gap-4 md:grid-cols-[1.25fr_1fr]">
           {principal}
