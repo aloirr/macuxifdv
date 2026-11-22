@@ -123,22 +123,28 @@ Dois lados lado a lado, com a mesma largura (≥ 768 px), separados por uma **di
 
 **Esquerda — "Integração via Conector"** (passos numerados na ordem em que a pessoa age; o círculo do número em Azul noite `bg-accent`, texto branco, ajustado pelo MC-0024):
 1. **"Baixar o Conector"**: botão "Gerar o link do Conector"/"Gerando o link…" (texto atual de `TEXTOS_DOWNLOAD_CONECTOR`) → link **"Baixar {arquivo}"**, embaixo só **"38 MB"** (saem o nome do arquivo e a versão: os dois já estão no link; ajustado pelo P6 do corretor), **"O link vale até 01:30. Depois disso, gere outro."** e **"SHA-256 {hash}"**. Estados de erro do download sem mudança.
-2. **"Gerar a credencial"**: **Identificador** · **Nome** · caixa **"Envia os pedidos aprovados ao ERP"** · **"Gerar credencial"** (principal). Chave gerada: **"Copie a chave agora: ela não aparece de novo."** + chave + **"Copiar"**. Saem o título interno "Credencial do Conector "erp"" e o rodapé "Identificador: erp · escopo integracao.v1 · prefixo mx_…" (ajustado pelo RD-0286; o "cole na configuração" já está no passo 3).
+2. **"Gerar a credencial"**: **Identificador** (começa com "erp") · **Nome** (começa com "Conector do ERP") · caixa **"Envia os pedidos aprovados ao ERP"** (marcada) · **"Gerar credencial"** (principal). O Conector leva todas as bases livres, sem lista de escolha (a escolha fica no "Bases" da linha). Chave gerada: **no lugar do formulário**, faixa de aviso (`Notice` warning do kit) com **"Copie a chave agora: ela não aparece de novo."** + chave + **"Copiar"** (secundário pequeno; vira "Copiada"), e embaixo **"Já copiei, esconder"**, que volta ao formulário (MC-0160). Saem o título interno "Credencial do Conector "erp"" e o rodapé "Identificador: erp · escopo integracao.v1 · prefixo mx_…" (ajustado pelo RD-0286 e pelo MC-0159; o "cole na configuração" já está no passo 3).
 3. **"Instalar e colar a credencial"**: lista numerada, três linhas:
    1. **"Instale o Conector no servidor do ERP."**
    2. **"Cole o identificador e a chave na configuração."**
    3. **"Inicie o serviço."**
 
-Embaixo: **"Conectores"** — tabela **Identificador · Pedidos · Situação**; vazio **"Nenhum Conector."**
+Embaixo: **"Conectores"** — tabela **Identificador · Pedidos** ("Sim" ou "—") **· Situação** (selo "Ativo" ou "Desativado"); vazio **"Nenhum Conector."** Linha ativa: os botões pequenos vêm **numa segunda linha, embaixo dela** (cabe no lado estreito e no celular): **"Bases"** · **"Gerar nova chave"** · **"Desativar"**; o Conector de arquivo só tem "Desativar"; linha desativada, sem botões. A nova chave aparece embaixo dos botões da própria linha, com a mesma faixa de aviso do passo 2.
+- **"Bases"** abre o diálogo **"Bases do Conector {id}"** (na direita, **"Bases da credencial {id}"**): as caixas das bases livres para ele (as dele, marcadas, mais as que nenhum outro ativo recebe), na ordem de carga, em duas colunas; **"Cancelar"** · **"Gravar"** (principal; desabilitado sem nenhuma marcada; "Gravando…"). Conflito (409) mostra a mensagem da API numa faixa de erro dentro do diálogo.
+- **"Gerar nova chave"**: diálogo **"Gerar nova chave para o Conector {id}?"** (na direita, "…para a credencial {id}?"), **"A chave atual ainda funciona por pouco tempo. Troque a chave na configuração do Conector."** (na direita, "…no sistema que chama a API."), "Cancelar" · **"Gerar nova chave"** (perigo).
+- **"Desativar"**: diálogo **"Desativar o Conector {id}?"** (na direita, "Desativar a credencial {id}?"), com o que deixa de acontecer: **"Ele para de enviar as bases e de buscar os pedidos."** (sem pedidos: "Ele para de enviar as bases."); Conector de arquivo: **"A carga por CSV deixa de funcionar nesta empresa."**; credencial de API: **"As chamadas com esta chave passam a ser recusadas."**; "Cancelar" · **"Desativar"** (perigo).
 
 **Direita — "Integração via API":** (o título do lado já diz "API"; os cartões não repetem, RD-b)
-1. **"Gerar a credencial"**: os mesmos campos e textos do passo 2 da esquerda — **Identificador** · **Nome** · **"Envia os pedidos aprovados ao ERP"** · **"Gerar credencial"** (neutro) · chave gerada com o mesmo aviso e "Copiar".
+1. **"Gerar a credencial"**: **Identificador** e **Nome** vazios, com os exemplos **"ex.: erp-api"** e **"ex.: ERP do cliente"** · **"Bases"**: caixas das bases livres (nenhum Conector ou credencial ativa as recebe), todas marcadas no começo, na ordem de carga, em duas colunas; ao menos uma · **"Envia os pedidos aprovados ao ERP"** (desmarcada) · **"Gerar credencial"** (neutro) · chave gerada com a mesma faixa de aviso, "Copiar" e "Já copiei, esconder".
+   - Sem base livre: no lugar das caixas, faixa de aviso **"Todas as bases já estão em outro Conector ou credencial. Tire bases dele em "Bases" ou desative-o."** (com o Conector de arquivo ativo: **"… Desative o Conector de arquivo."**), e o "Gerar credencial" fica desabilitado.
    - Decisão (caixa de pedidos fica): pela API o ERP também busca os pedidos aprovados; a caixa diz se esta credencial pode buscá-los, igual ao Conector.
    - Decisão (botão neutro): um só principal por tela; o principal fica no Conector, que é o primeiro caminho.
 2. **"Guia"**: botão **"Baixar o guia (PDF)"** + link **"Documentação (OpenAPI 3.1)"** (o link sai do lado do Conector: uma informação, um lugar).
    - Decisão: enquanto o PDF não existir, o botão **não aparece** e o cartão fica só com o link do OpenAPI. Sem "O guia chega em breve.": a pessoa não age com esse texto.
 
-Embaixo: **"Credenciais"** — tabela **Identificador · Pedidos · Situação** (a coluna Pedidos fica, porque a caixa ficou); vazio **"Nenhuma credencial."**
+Embaixo: **"Credenciais"** — a mesma tabela e os mesmos botões da linha ativa ("Bases", "Gerar nova chave", "Desativar") dos "Conectores" (a coluna Pedidos fica, porque a caixa ficou); vazio **"Nenhuma credencial."**
+
+> MC-0164 (22/11/2026): a simulação e este §10.2 passam a mostrar a aba como está implementada em `apps/web/components/portal/aba-integracao.tsx` (v1.0.23, prints `05b`, `05c` e `05d` do engenheiro-apps): chave no lugar do formulário com "Já copiei, esconder", "Bases" na credencial de API, botões da linha ativa embaixo dela e o "Guia" só com o link do OpenAPI enquanto o PDF não existe.
 
 **Sai:** o diálogo "Passar as bases ao Conector do ERP?" inteiro (título, 3 frases, botões "Gerar só para as bases livres" e "Desativar o de arquivo e passar todas"), o tipo "Carga por arquivo" (`ROTULO_TIPO.arquivo`), "Nenhum Conector ainda. A primeira importação de CSV cria o Conector de arquivo do portal.", "O guia da API (…) chega em breve neste servidor.", "Gera a chave que o Conector…" e "Vai no arquivo de configuração do Conector."
 
@@ -207,7 +213,7 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
    - Licenças: de `licencas` (vendedor, gestor, bko), singular com 1 ("1 gestor"), "BKO" invariável; tipo com 0 não aparece (o `promotor` é 0 em todos os planos); `null` = "{tipo} sem limite".
    - **Decisão (selo "2 meses grátis"):** fica **só no alternador "Anual"** do cartão Ciclo, visível nos dois ciclos; no Anual, o cartão do plano mostra só **"R$ 6.100,00/ano"**. O pedido previa o selo também no cartão; com o do alternador seriam 5 selos iguais na mesma tela (uma informação, um lugar).
 2. **"Adicionais"**: três caixas, cada uma com caixa de marcar + **ícone do módulo** + **nome** (700, Azul noite) + preço, **o mesmo em todos os planos** (ícone e nome pelo mapa único do §11.10):
-   - **"Promotor · R$ 80,00 por licença avulsa/mês"**;
+   - **"Promotor Avulso · R$ 80,00 por licença/mês"** ("avulso" só no nome, nunca no preço; `nomeDoAdicional('promotor')` do kit, R-20261122-005500-alexandre);
    - **"Pesquisa · R$ 10,00 por usuário/mês"**;
    - **"Treinamento · R$ 10,00 por usuário/mês"**.
    - **O preço segue o ciclo** (ajustado pelo P5 do corretor): no Anual, **"R$ 800,00 por licença/ano"** e **"R$ 100,00 por usuário/ano"** (`valorDaAssinatura(plano, [{ adicional, quantidade: 1 }], ciclo)`, a parcela do adicional; nunca constante na tela).
