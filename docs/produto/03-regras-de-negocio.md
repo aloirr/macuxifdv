@@ -460,7 +460,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CAT-22 Filtro de veículo** (v1.0.21; T-0193; D1 a D7: R-20261120-234013, R-20261121-211000 e R-20261121-211200)
   - **Só o que o vendedor escolheu restringe:** a peça aparece ou não aparece, sem "de conferir".
     - **Ano, motor e versão:** escolhido, a peça precisa ter o dado na aplicação e ele precisa bater. Com Gol 2018, a peça só com "VW Gol", sem ano, não aparece. Não escolhido, não filtra: com só Gol, aparecem todas as peças do modelo, inclusive as sem ano.
-    - O nível que a cascata preenche sozinha, por ter uma única opção, conta como escolhido.
+    - O nível que a cascata preenche sozinha, por ter uma única opção, não conta como escolhido e não filtra: só restringe o que o vendedor tocou.
   - **Escopo do cliente:** no pedido, a cascata, a lista e a contagem só contam os produtos vendáveis ao cliente (RN-CAT-06).
   - **Peça universal** (aplicação sem veículo): não entra na lista filtrada e aparece no "Leve também".
   - **Lista:** sem selo de compatível e sem o "Serve em" do veículo. A ficha mostra "✓ Compatível com <veículo>".
