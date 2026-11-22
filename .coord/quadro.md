@@ -6,8 +6,8 @@
 > - **No main:** #651 (registro da v1.0.17 à v1.0.20) e #652 (governança: workflow "producao — reprocessar outbox" e `contagem_integracao` no diagnóstico; frase R-20261121-211800).
 > - **PR conjunto:**
 >   - [T-0193](tarefas/T-0193.md) (filtro de veículo, RN-CAT-22);
->   - jornada "Esqueci a senha" (EJ-01 a EJ-06, do #288);
->   - aviso dos minutos do bloqueio do portal e a seção de `auth-e-licencas.md` (do #285);
+>   - jornada "Esqueci a senha" (EJ-01 a EJ-06; fecha o #288);
+>   - aviso dos minutos do bloqueio do portal e a seção de `auth-e-licencas.md` (fecha o #285);
 >   - RD-2515, `ROTULO_ENTIDADE`, regra `error` de ciclo no dependency-cruiser (RD-A do #636) e o deadlock do `empresa-acoes.db.test.ts`.
 > - **Depois do deploy:** android-build e apk-publicar da v1.0.21; reprocesso dos 36 parados da AM2808 (confirmar=false, depois confirmar=true com a aprovação do dono do produto) e o diagnóstico da AM2808 com `contagem_integracao`.
 
@@ -22,7 +22,6 @@
 >   - RD-2379, RD-2413, RD-2448 e RD-2450 (corretor-redundancias);
 >   - o 🟢 do "Enviando…", provável no #597 (engenheiro-apps);
 >   - MC-1803, o logo do e-mail (design-de-marca).
-> - **PRs antigos #285 e #288:** fecham quando o PR conjunto da v1.0.21 entrar.
 
 > **v1.0.20 no ar, servidor e APK** (21/11; R-20261121-184110 e R-20261121-194500).
 > - **No main:**
