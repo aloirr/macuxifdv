@@ -759,6 +759,11 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
   }
+  // T-0098: link temporário do pacote do Conector (spec portal-config-enxuto §10.2: "38 MB", validade e SHA-256); o link não abre nada
+  if (rota === `POST ${ROTAS_PORTAL.conectorDownload}`) {
+    const arquivo = 'macuxi-conector-1.4.0-win-x64.zip';
+    return json(200, { url: `https://pacotes.exemplo.invalid/${arquivo}`, expira_em: new Date(Date.now() + 15 * 60_000).toISOString(), versao: '1.4.0', arquivo, tamanho_bytes: 38 * 1024 * 1024, sha256: '3f9a7b2e5d81c0f4a96e2b7d3c58f01a4e9b6c2d7f3a8e15b0c4d9f62a7ec21e' });
+  }
   // ---------- Equipe por CSV (Core): linha sem e-mail ou com perfil fora da lista vira erro; cada pessoa nova recebe o acesso por e-mail
   //            (T-0094); arquivo com alguém em `@sem-email.` simula o 503 EMAIL_INDISPONIVEL no gravar
   if (rota === `GET ${ROTAS_PORTAL.equipeModeloCsv}`) {
