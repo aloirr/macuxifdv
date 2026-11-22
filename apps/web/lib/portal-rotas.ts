@@ -50,7 +50,12 @@ export const ROTAS_PORTAL = {
   lote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}`,
   errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
   errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
+  /** Conector (tipo `conector`) e credencial de API (tipo `nuvem`): `GET` lista os dois, `POST` cria com o `tipo` (`ConectorCriar`). */
   conectores: '/integracao/conectores',
+  /** `PATCH` (`ConectorAtualizar`: `{ entidades }` troca as bases; `{ ativo: false }` desativa e revoga as chaves, RN-INT-10) → `ConectorResumo`. */
+  conector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}`,
+  /** v1.0.21 (S10): "Gerar nova chave". `POST` → a chave nova (`ConectorCriado.shape.chave`, em claro UMA vez). */
+  chaveConector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}/chave`,
   /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = 'em breve'. */
   conectorDownload: '/integracao/conector/download',
   // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
@@ -68,6 +73,12 @@ export const ROTAS_PORTAL = {
  * baixa pelo caminho same-origin abaixo, que o `next.config.ts` (`PROXY_OPENAPI_HUB`) repassa à API; teste em `portal.test.ts`.
  */
 export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.json', viaProxy: '/api-proxy/_publico/integracao/v1/openapi.json' });
+
+/**
+ * Guia da API em PDF (spec portal-config-enxuto §10.2): caminho same-origin público (sem sessão, como o OpenAPI; R-20261121-235000).
+ * Um lugar só: quando o PDF existir, preencha aqui e o cartão "Guia" mostra o botão. `null` = só o link do OpenAPI.
+ */
+export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: null });
 
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];

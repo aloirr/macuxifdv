@@ -17,6 +17,7 @@ import {
   TEXTOS_ADMIN,
   textoDoAdminNoResultado,
 } from '@/components/portal/passo-empresa';
+import { abaDoEndereco } from '@/components/portal/tela-empresa';
 import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
 import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
@@ -179,7 +180,13 @@ describe('aba Integração', () => {
     for (const e of ['forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial'] as const) expect(livres).toContain(e);
     expect(livres).toEqual(ENTIDADES.filter((e) => e !== 'vendedor' && e !== 'cliente'));
     expect(livres).toHaveLength(14);
-    expect(entidadesLivres(conectores, 'implantacao-csv')).toEqual([...ENTIDADES]);
-    expect(entidadesLivres(conectores, 'implantacao-csv')).toHaveLength(16);
+    expect(entidadesLivres([])).toEqual([...ENTIDADES]);
+  });
+  it('abas Integração · Empresa: a Integração abre por padrão; o `#bases` antigo e `#` desconhecido caem nela (spec §10.1)', () => {
+    expect(abaDoEndereco('')).toBe('integracao');
+    expect(abaDoEndereco('#integracao')).toBe('integracao');
+    expect(abaDoEndereco('#empresa')).toBe('empresa');
+    expect(abaDoEndereco('#bases')).toBe('integracao');
+    expect(abaDoEndereco('#qualquer')).toBe('integracao');
   });
 });

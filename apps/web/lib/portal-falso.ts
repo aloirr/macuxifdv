@@ -56,6 +56,7 @@ import {
 } from '@macuxi/platform-sdk';
 import {
   CargaArquivoEntrada,
+  ConectorAtualizar,
   ConectorCriar,
   ConferirArquivoEntrada,
   type ConectorResumo,
@@ -765,16 +766,31 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   if (metodo === 'POST' && chaveM) {
     const c = (e.conectores[tenant] ?? []).find((x) => x.id === chaveM[1]);
     if (!c) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
+    if (!c.ativo) return erro(409, 'conector_inativo', `O Conector "${c.conector_id}" está desativado.`);
     return json(201, { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: agoraIso(24 * 60) });
   }
   const conectorM = /^\/integracao\/conectores\/([^/]+)$/.exec(caminho);
   if (metodo === 'PATCH' && conectorM) {
     const lista = e.conectores[tenant] ?? [];
     if (!lista.some((x) => x.id === conectorM[1])) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
-    const ativo = (corpo as { ativo?: boolean } | null)?.ativo;
-    const nova = lista.map((x) => (x.id === conectorM[1] && typeof ativo === 'boolean' ? { ...x, ativo, saude: ativo ? x.saude : ('desativado' as const) } : x));
+    const c = lerCorpo(ConectorAtualizar, corpo);
+    if (c instanceof Response) return c;
+    // RN-INT-13: com `entidades`, cada base só pode vir deste Conector (como a API: 409 `topologia_conflitante` com a mensagem)
+    if (c.entidades) {
+      const outros = lista.filter((x) => x.ativo && x.id !== conectorM[1]);
+      const conflito = c.entidades.map((b) => ({ b, dono: outros.find((x) => x.entidades.includes(b)) })).filter((x) => x.dono);
+      if (conflito.length) {
+        return erro(409, 'topologia_conflitante', conflito.map((x) => `A base ${x.b} já vem do Conector ${x.dono?.conector_id}.`).join(' '), { entidades_livres: c.entidades.filter((b) => !conflito.some((x) => x.b === b)) });
+      }
+    }
+    const nova = lista.map((x) => (x.id !== conectorM[1] ? x : { ...x, ...(c.entidades ? { entidades: c.entidades } : {}), ...(typeof c.ativo === 'boolean' ? { ativo: c.ativo, saude: c.ativo ? x.saude : ('desativado' as const) } : {}) }));
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
+  }
+  // T-0098: link temporário do pacote do Conector (spec portal-config-enxuto §10.2: "38 MB", validade e SHA-256); o link não abre nada
+  if (rota === `POST ${ROTAS_PORTAL.conectorDownload}`) {
+    const arquivo = 'macuxi-conector-1.4.0-win-x64.zip';
+    return json(200, { url: `https://pacotes.exemplo.invalid/${arquivo}`, expira_em: new Date(Date.now() + 15 * 60_000).toISOString(), versao: '1.4.0', arquivo, tamanho_bytes: 38 * 1024 * 1024, sha256: '3f9a7b2e5d81c0f4a96e2b7d3c58f01a4e9b6c2d7f3a8e15b0c4d9f62a7ec21e' });
   }
   // ---------- Equipe por CSV (Core): linha sem e-mail ou com perfil fora da lista vira erro; cada pessoa nova recebe o acesso por e-mail
   //            (T-0094); arquivo com alguém em `@sem-email.` simula o 503 EMAIL_INDISPONIVEL no gravar
