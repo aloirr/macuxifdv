@@ -12,9 +12,9 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent, type SelectHTMLAttributes } from 'react';
 import { UFS_BRASIL, ehUf } from '@macuxi/comum/endereco';
-import { faltasNaSenha, mensagemDaSenha, SENHA_MIN_CARACTERES } from '@macuxi/core/contracts';
+import { faltasNaSenha } from '@macuxi/core/contracts';
 import { ConsultaCnpjRespostaSchema, CriarEmpresaComPlanoRespostaSchema, type SituacaoCadastral } from '@macuxi/platform-sdk';
-import { Button, CampoSenha, CLASSE_CAMPO_ACESSO, cx, IconCheck, IconChevronDown, LoadingBlock, Notice, Panel, RegrasDaSenha, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
+import { Button, CLASSE_CAMPO_ACESSO, cx, IconCheck, IconChevronDown, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
 
 import { Campo } from '@/components/campo-acesso';
 import { chamarPortal, ehRotaAusente, mensagemDoErro, TEXTO_INDISPONIVEL } from '@/lib/portal-api';
@@ -41,8 +41,8 @@ import {
   errosDaNovaEmpresa,
   guardarEmpresaCriada,
   problemasDoPlano,
+  semChaves,
   SORTEIOS_DO_CODIGO,
-  TEXTOS_ADMIN,
   TEXTOS_NOVA_EMPRESA,
   type AdminDoForm,
   type FormNovaEmpresa,
@@ -50,13 +50,9 @@ import {
 import { ESCOLHA_VAZIA, semCatalogoDePlanos, totalDaEscolha, type EscolhaDaTela } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
+import { AdminInicial } from './admin-inicial';
 import { PassoEmpresa as PassoEmpresaLegado } from './passo-empresa-legado';
-import { principalDesabilitadoCss, SeletorPlano, usePlanos } from './seletor-plano';
-
-/** Cópia de `e` sem as chaves dadas. */
-function semChaves(e: Record<string, string>, ...ks: string[]): Record<string, string> {
-  return Object.fromEntries(Object.entries(e).filter(([c]) => !ks.includes(c)));
-}
+import { SeletorPlano, usePlanos } from './seletor-plano';
 
 /** Lista do portal (UF, Fuso) com a seta do kit (MC-0047) e o erro ligado ao campo. */
 function CampoSelecao({ rotulo, erro, testId, children, className, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { rotulo: string; erro?: string; testId: string }) {
@@ -105,7 +101,6 @@ function NovaEmpresaComPlano({ aoGravar }: { aoGravar?: () => void }) {
   const [fuso, setFuso] = useState('America/Manaus');
   const [escolha, setEscolha] = useState<EscolhaDaTela>(ESCOLHA_VAZIA);
   const [admin, setAdminForm] = useState<AdminDoForm>({ nome: '', email: '', senha: '' });
-  const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [pedidoId] = useState(() => crypto.randomUUID());
   const [erros, setErros] = useState<Record<string, string>>({});
   const [erro, setErro] = useState<string | null>(null);
@@ -300,43 +295,7 @@ function NovaEmpresaComPlano({ aoGravar }: { aoGravar?: () => void }) {
       )}
       {planos.isSuccess && <SeletorPlano planos={listaPlanos} escolha={escolha} aoMudar={mudarEscolha} erros={{ ...erros, plano: erros.plano ?? problemasPlano?.join(' ') }} />}
 
-      <Panel title={TEXTOS_ADMIN.titulo}>
-        <div data-testid="empresa.admin" className="flex flex-col gap-4">
-          {erroAdmin && (
-            <div data-testid="empresa.admin-erro">
-              <Notice tone="danger">{erroAdmin}</Notice>
-            </div>
-          )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Campo rotulo="Nome" testId="empresa.admin-nome" autoComplete="off" value={admin.nome} erro={erros['admin.nome']} onChange={(e) => setAdmin('nome', e.target.value)} />
-            <Campo rotulo="E-mail" testId="empresa.admin-email" type="email" autoComplete="off" spellCheck={false} value={admin.email} erro={erros['admin.email']} onChange={(e) => setAdmin('email', e.target.value)} />
-          </div>
-          <div className="flex w-full flex-col gap-2 sm:max-w-[calc(50%-8px)]">
-            <CampoSenha
-              id="empresa-admin-senha"
-              rotulo="Senha inicial"
-              testId="empresa.admin-senha"
-              finalidade="criacao"
-              visivel={senhaVisivel}
-              onAlternar={() => setSenhaVisivel((v) => !v)}
-              descrito="empresa-admin-senha-regras"
-              value={admin.senha}
-              erro={erros['admin.senha']}
-              onChange={(e) => setAdmin('senha', e.target.value)}
-            />
-            {/* senha vazia: só "Informe a senha inicial.", com as regras neutras; o vermelho volta com senha digitada (RD-0272) */}
-            <RegrasDaSenha
-              id="empresa-admin-senha-regras"
-              testId="empresa.admin-regras"
-              faltas={faltasDaSenha}
-              destacar={destacarSenha && admin.senha !== '' && faltasDaSenha.length > 0}
-              minimo={SENHA_MIN_CARACTERES}
-              resumo={mensagemDaSenha(faltasDaSenha, admin.senha) ?? SENHA_ATENDE_AS_REGRAS}
-            />
-            <span className="text-[12px] text-ink-2">{TEXTOS_ADMIN.passeASenha}</span>
-          </div>
-        </div>
-      </Panel>
+      <AdminInicial admin={admin} erros={erros} erroAdmin={erroAdmin} destacarSenha={destacarSenha} aoMudar={setAdmin} />
 
       {erro && (
         <div data-testid="empresa.erro">
@@ -345,11 +304,11 @@ function NovaEmpresaComPlano({ aoGravar }: { aoGravar?: () => void }) {
       )}
 
       <div className="flex flex-wrap items-center gap-5">
-        <Button data-testid="empresa.gravar" type="submit" variant="primary" className={cx('h-[52px] px-6 text-[15px]', principalDesabilitadoCss)} disabled={!podeCriar}>
+        <Button data-testid="empresa.gravar" type="submit" variant="primary" className="h-[52px] px-6 text-[15px]" disabled={!podeCriar}>
           {enviando ? TEXTOS_NOVA_EMPRESA.criando : TEXTOS_NOVA_EMPRESA.criar}
         </Button>
         {total && (
-          <span data-testid="empresa.total" className="text-[17px] font-bold tabular-nums text-ink">
+          <span data-testid="empresa.total" className="text-[17px] font-semibold tabular-nums text-ink">
             {total}
           </span>
         )}

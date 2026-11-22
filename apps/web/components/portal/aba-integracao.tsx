@@ -4,7 +4,7 @@
  * Aba "Integração" do portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §10.2; R-20261114-132000 e R-20261114-170200):
  * ou é Conector, ou é API, em dois lados com a mesma largura e uma divisória de 1 px no meio (`line`), com 24 px de folga para cada
  * lado; abaixo de 768 px, empilhados (Conector primeiro) com a divisória na horizontal, 24 px antes da API.
- * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar e colar a credencial) e a
+ * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar o Conector) e a
  *   tabela "Conectores" (tipos `conector` e `arquivo`; só o `conector` tem "Bases" e "Gerar nova chave").
  * - "Integração via API": "Gerar a credencial" (botão neutro) pela mesma rota com `tipo: 'nuvem'`, escolhendo entre as bases livres e
  *   se envia os pedidos; o cartão "Guia" (botão do PDF pela rota pública `GUIA_PDF_HUB`; link do OpenAPI 3.1) e a tabela "Credenciais".
@@ -26,7 +26,6 @@ import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
 import { ENCAIXE_API_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { BaixarPacote } from './baixar-conector';
-import { principalDesabilitadoCss } from './seletor-plano';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
@@ -63,11 +62,12 @@ export function mensagemSemBases(temArquivo: boolean): string {
 }
 
 /**
- * O que deixa de acontecer ao desativar: o Conector de arquivo recusa as cargas por CSV (a API só aceita lote de Conector de
- * arquivo ativo, RN-INT-13); o do ERP para de enviar as bases e, só se recebe pedidos, de buscá-los.
+ * O texto do "Desativar", só o que muda para quem age: o Conector de arquivo (sem CSV no portal) solta as bases dele para outro
+ * Conector ou credencial (RN-INT-13); a credencial de API passa a ser recusada; o do ERP para de enviar as bases e, só se recebe
+ * pedidos, de buscá-los.
  */
 export function corpoDesativar(c: { tipo: string; recebe_pedidos: boolean }): string {
-  if (c.tipo === 'arquivo') return 'A carga por CSV deixa de funcionar nesta empresa.';
+  if (c.tipo === 'arquivo') return 'As bases dele ficam livres para outro Conector ou credencial.';
   if (c.tipo === 'nuvem') return 'As chamadas com esta chave passam a ser recusadas.';
   return c.recebe_pedidos ? 'Ele para de enviar as bases e de buscar os pedidos.' : 'Ele para de enviar as bases.';
 }
@@ -219,7 +219,7 @@ function CaixaPedidos({ testId, marcada, bloqueada = false, aoMudar }: { testId:
 function Passo({ n, children }: { n: number; children: ReactNode }) {
   return (
     <span className="flex items-center gap-2.5">
-      <span aria-hidden="true" className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-bold text-white">
+      <span aria-hidden="true" className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-accent text-[12px] font-semibold text-white">
         {n}
       </span>
       {children}
@@ -323,7 +323,6 @@ function GerarCredencial({
           data-testid={`${testId}gerar`}
           type="submit"
           variant={principal ? 'primary' : 'secondary'}
-          className={principalDesabilitadoCss}
           disabled={enviando || !identificador.trim() || !nome.trim() || carregando || semLivres || (escolheBases && escolhidas.length === 0)}
         >
           {enviando ? 'Gerando…' : 'Gerar credencial'}
@@ -587,7 +586,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
     <div data-testid="integracao.aba" className="grid md:grid-cols-2">
       {/* divisória: filete de 1 px (`line`) no meio, da altura do lado mais alto, 24 px de folga; abaixo de 768 px, horizontal */}
       <section aria-labelledby="integracao-conector" className="flex min-w-0 flex-col gap-4 border-b border-line pb-6 md:border-r md:border-b-0 md:pr-6 md:pb-0">
-        <h2 id="integracao-conector" className="m-0 text-[20px] font-extrabold">
+        <h2 id="integracao-conector" className="m-0 text-[20px] font-bold">
           Integração via Conector
         </h2>
         <Panel title={<Passo n={1}>Baixar o Conector</Passo>}>
@@ -596,7 +595,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
         <Panel title={<Passo n={2}>Gerar a credencial</Passo>}>
           <GerarCredencial tenant={tenant} tipo="conector" todos={todos} carregando={q.isPending} principal escolheBases={false} inicial={{ identificador: 'erp', nome: 'Conector do ERP', recebePedidos: true }} testId="integracao." aoCriar={aoMudar} />
         </Panel>
-        <Panel title={<Passo n={3}>Instalar e colar a credencial</Passo>}>
+        <Panel title={<Passo n={3}>Instalar o Conector</Passo>}>
           <ol className="m-0 list-decimal space-y-0.5 pl-5 text-[15px]">
             <li>Instale o Conector no servidor do ERP.</li>
             <li>Cole o identificador e a chave na configuração.</li>
@@ -607,7 +606,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
       </section>
 
       <section aria-labelledby="integracao-api" className="flex min-w-0 flex-col gap-4 pt-6 md:pt-0 md:pl-6">
-        <h2 id="integracao-api" className="m-0 text-[20px] font-extrabold">
+        <h2 id="integracao-api" className="m-0 text-[20px] font-bold">
           Integração via API
         </h2>
         <Panel title="Gerar a credencial">

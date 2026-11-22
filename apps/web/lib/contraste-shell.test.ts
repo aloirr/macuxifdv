@@ -18,6 +18,19 @@ function arquivos(dir: string): string[] {
   });
 }
 
+/** Contraste WCAG 2.x entre duas cores #rrggbb. */
+function contraste(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+  return (x! + 0.05) / (y! + 0.05);
+}
+
 const fontes = ['app', 'components'].flatMap((d) => arquivos(join(RAIZ, d))).map((f) => ({ f: f.slice(RAIZ.length), texto: readFileSync(f, 'utf8') }));
 
 describe('shell web sem laranja cru em texto', () => {
@@ -41,6 +54,10 @@ describe('shell web sem laranja cru em texto', () => {
     const de = (f: string) => fontes.find((x) => x.f.split(sep).join('/') === f)?.texto ?? '';
     expect(de('components/marca-faixa.tsx')).toContain('bg-faixa ');
     expect(de('components/marca-faixa.tsx')).toContain('text-faixa-texto');
+    // área de proteção do logo (MC-0022, portal-config-enxuto.md §0): 104 px e 14 px de folga, também na faixa solta
+    expect(de('components/marca-faixa.tsx')).toContain('rounded-xl bg-faixa p-3.5');
+    expect(de('components/marca-faixa.tsx')).toContain('gap-3.5');
+    expect(de('components/marca-faixa.tsx')).not.toMatch(/w-\[130px\]|\b130\b/);
     expect(de('components/login-screen.tsx')).toContain('<MarcaNaFaixa area="Backoffice" />');
     expect(de('components/portal/base.tsx')).toContain('<MarcaNaFaixa area="Portal de implantação" />');
   });
@@ -68,6 +85,14 @@ describe('shell web sem laranja cru em texto', () => {
     expect(shell).not.toMatch(/accent-light/);
     expect(shell).toContain('SRC_LOGO_NEGATIVO_GRAFITE');
     expect(shell).not.toContain('Macuxi FDV');
+  });
+
+  it('borda dos campos (v1.0.25, "1 A"): --color-field #7A8593, contraste >= 3:1 no branco e no Pérola', () => {
+    const css = readFileSync(join(RAIZ, 'app/globals.css'), 'utf8').toLowerCase();
+    const field = /--color-field:\s*(#[0-9a-f]{6})/.exec(css)?.[1] ?? '';
+    expect(field).toBe('#7a8593');
+    expect(contraste(field, '#ffffff')).toBeGreaterThanOrEqual(3);
+    expect(contraste(field, '#f8f6f1')).toBeGreaterThanOrEqual(3);
   });
 
   it('as linhas do recado usam accent-ink', () => {

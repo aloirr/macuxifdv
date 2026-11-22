@@ -3,18 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
-import {
-  corpoDaEmpresa,
-  errosDaEmpresa,
-  sugerirCodigo,
-  TEXTOS_ADMIN,
-  textoDoAdminNoResultado,
-} from '@/components/portal/passo-empresa-legado';
+import { corpoDaEmpresa, errosDaEmpresa, sugerirCodigo, textoDoAdminNoResultado } from '@/components/portal/passo-empresa-legado';
 import { abaDoEndereco } from '@/components/portal/tela-empresa';
 import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
 import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
 import { ErroPortal, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_SEM_CONEXAO } from './portal-api';
+import { TEXTOS_ADMIN } from './portal-nova-empresa';
 
 const form = {
   codigo: 'distribuidora-norte',
@@ -30,7 +25,7 @@ const form = {
 };
 
 describe('passo Empresa', () => {
-  it('corpo: core e integracao sempre; licença vazia = sem limite; vírgula decimal; passa no CriarEmpresaSchema', () => {
+  it('corpo: core e integracao sempre; catálogo marcado vai (RD-2617); licença vazia = sem limite; vírgula decimal; passa no CriarEmpresaSchema', () => {
     const c = corpoDaEmpresa(form, true) as { modulos: { modulo: string; licencas: number | null }[]; parametros: Record<string, unknown>; simular: boolean };
     expect(c.modulos).toEqual([
       { modulo: 'core', licencas: null },
@@ -43,6 +38,10 @@ describe('passo Empresa', () => {
     const p = CriarEmpresaSchema.parse(c);
     expect(p.cnpj).toBe('11222333000181');
     expect(errosDaEmpresa(c)).toEqual({});
+  });
+  it('corpo: o catálogo é opcional; desmarcado, não vai (RD-2617)', () => {
+    const c = corpoDaEmpresa({ ...form, modulos: { ...form.modulos, catalogo: { marcado: false, licencas: '' } } }, false) as { modulos: { modulo: string }[] };
+    expect(c.modulos.map((m) => m.modulo)).toEqual(['core', 'vendedor', 'integracao']);
   });
   it('erros por campo: CNPJ com dígito errado e alçadas fora de ordem', () => {
     const e = errosDaEmpresa(corpoDaEmpresa({ ...form, cnpj: '11.222.333/0001-82', alcada_supervisor_pct: '20', alcada_gerente_pct: '15' }, false));
@@ -105,7 +104,8 @@ describe('entrada só com e-mail e senha (T-0093; spec portal-entrar §1 e §4)'
   it('T-0094: 403 SENHA_A_TROCAR manda criar a senha no backoffice (spec ciclo-de-senha §7), nunca a frase da API', () => {
     const e = new ErroPortal(403, 'SENHA_A_TROCAR', 'Antes de entrar no portal, crie a sua senha no backoffice com o código da empresa.');
     expect(mensagemDoLoginPortal(e)).toBe('Crie a sua senha no backoffice antes de entrar aqui.');
-    expect(TEXTOS_ADMIN.passeASenha).toBe('Passe esta senha ao administrador. No primeiro acesso ao backoffice, ele cria a dele.');
+    // um texto só nos dois passos da Nova empresa (RD-2620)
+    expect(TEXTOS_ADMIN.passeASenha).toBe('Passe esta senha ao administrador.');
   });
 });
 
