@@ -462,7 +462,7 @@ Pedido R-20261110-074414-modulo-integracao (desenho docs/desenho/T-0149.md §3.5
 
 ## 0094 — busca na API do ERP, cofre, assistente e painel dos 30 dias (`0094_integracao_busca_erp`; integração por ERP, F2)
 Desenho `docs/desenho/integracao-modelos-erp.md` §2.2–§2.5, §4, §5 e §6 (F2), aprovado em R-20261122-005500 (D1–D9). RN
-propostas no desenho: RN-INT-16, 17, 19 e 20 (o gerente dá o número final). Número provisório (segue a ordem de merge).
+propostas no desenho: RN-INT-17, 18, 20 e 21 (o gerente dá o número final). Número provisório (segue a ordem de merge).
 Aditiva: 5 tabelas e 2 funções `IMMUTABLE` de CHECK; nada que existe muda. Todas com os campos comuns, `unique (tenant_id, id)`,
 gatilho de `updated_at`, RLS forçado, `isolamento_tenant` (macuxi_app), `manutencao` (0031), FK composta
 `(tenant_id, conector_id) → conector` e fora do sync. macuxi_app: `select, insert, update` (sem DELETE). macuxi_worker e
