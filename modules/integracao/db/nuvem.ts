@@ -451,33 +451,33 @@ export const pedidoRetornoErro = integracao.table('pedido_retorno_erro', {
 
 
 // ---------------------------------------------------------------------------------------------
-// 0094 — integração por ERP (F2; desenho docs/desenho/integracao-modelos-erp.md §2.2–§2.5, §4 e §5). Dicionário:
-// docs/banco/integracao.md ("0094"). Listas abaixo = CHECKs do SQL (db/testes/integracao-busca-erp.db.test.ts compara); o
-// contrato da F3 (ModeloErp/ConfigApiErp) deve usar as mesmas.
+// 0094 — integração por ERP (F2). Regras e colunas: docs/banco/integracao.md ("0094"). Listas abaixo = CHECKs do SQL
+// (db/testes/integracao-busca-erp.db.test.ts compara).
 // ---------------------------------------------------------------------------------------------
-/** ERPs com adaptador de busca na API (F4a). WinThor fica só no Conector com views (§3.2). */
+/** ERPs com adaptador de busca na API (F4a). */
 export const ERPS_BUSCA_API = ['protheus', 'sap_b1', 'sankhya', 'senior'] as const;
-/** ERPs do passo 1 do assistente (§4); `outro` = modelo genérico ou guia da API. */
+/** ERPs do passo 1 do assistente. */
 export const ERPS_IMPLANTACAO = ['protheus', 'winthor', 'sap_b1', 'sankhya', 'senior', 'outro'] as const;
-/** Meio escolhido no passo 2 (D4): Conector, API com o Macuxi buscando, API com o ERP enviando. */
+/** Meio escolhido no passo 2 do assistente. */
 export const MEIOS_IMPLANTACAO = ['conector', 'api_busca', 'api_envia'] as const;
 export const ORIGENS_COLETA = ['agendada', 'buscar_agora', 'recarregar'] as const;
 export const ESTADOS_COLETA = ['solicitada', 'executando', 'concluida', 'falhou'] as const;
-/** Classes de falha da coleta (§2.4, RN-INT-19 proposta); só no estado `falhou`. */
+/** Classes de falha da coleta; só no estado `falhou`. */
 export const CLASSES_FALHA_COLETA = ['credencial_recusada', 'transitoria', 'formato_mudou'] as const;
-/** Piso e teto da frequência por entidade, em minutos (D3, RN-CORE-23; teto = 1 vez por dia). */
+/**
+ * Frequência por entidade, em minutos: múltiplo de 15, de 15 a 1440 (RN-CORE-23). Espelham `FREQUENCIA_MINIMA_COLETA_MIN` e
+ * `FREQUENCIA_MAXIMA_COLETA_MIN` de packages/platform-sdk/src/coleta-erp.ts; a troca pelo import fica para a F3, com os dois
+ * no main.
+ */
 export const FREQUENCIA_MINIMA_MIN = 15;
 export const FREQUENCIA_MAXIMA_MIN = 1440;
+/** Marcos do painel dos 30 dias: a coluna é `marco_<nome>_em` em `integracao.implantacao`. */
+export const MARCOS_IMPLANTACAO = ['primeira_completa', 'primeiro_pedido', 'primeiro_faturamento', 'reconciliacao', 'sem_alerta'] as const;
 
 /** bytea do Postgres (Buffer no node-postgres). */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
-/**
- * Configuração NÃO secreta da busca na API do ERP; uma viva por Conector (`conector_api_conector_uk`). `url_base` só https,
- * sem usuário/senha, query nem fragmento. `parametros` sem chave com cara de segredo (CHECK `parametros_sem_segredo`).
- * `frequencias` = {entidade: minutos} de 15 a 1440; chave ausente = padrão do doc 06 (domain). `coletas_paradas_em` = o ERP
- * recusou a credencial (401/403): nenhuma coleta até a troca.
- */
+/** Configuração NÃO secreta da busca na API do ERP; uma viva por Conector. */
 export const conectorApi = integracao.table('conector_api', {
   ...comuns(),
   conector_id: uuid('conector_id').notNull(),
@@ -489,11 +489,7 @@ export const conectorApi = integracao.table('conector_api', {
   coletas_paradas_em: quando('coletas_paradas_em'),
 });
 
-/**
- * Segredo do ERP cifrado (AES-256-GCM, AAD `tenant_id|conector_id`); uma viva por Conector. SÓ o macuxi_app lê (nem o
- * macuxi_leitura, nem o worker, nem o portal). Nenhuma rota devolve estas colunas. `cifrado`, `iv` (12) e `tag` (16) andam
- * juntos e só existem na linha viva: ao apagar (deleted_at), grave os três nulos. Rotação = update da linha viva.
- */
+/** Segredo do ERP cifrado; uma viva por Conector, só o macuxi_app lê. Ao apagar (deleted_at), grave cifrado/iv/tag nulos. */
 export const credencialErp = integracao.table('credencial_erp', {
   ...comuns(),
   conector_id: uuid('conector_id').notNull(),
@@ -505,7 +501,7 @@ export const credencialErp = integracao.table('credencial_erp', {
   atualizada_por: uuid('atualizada_por'),
 });
 
-/** Assistente (passo 1..7, erp, meio) e marcos do painel dos 30 dias; uma viva por tenant. Marco nulo = não cumprido. */
+/** Assistente e marcos do painel dos 30 dias (MARCOS_IMPLANTACAO); uma viva por tenant. Marco nulo = não cumprido. */
 export const implantacao = integracao.table('implantacao', {
   ...comuns(),
   passo: smallint('passo').notNull().default(1),
@@ -513,19 +509,15 @@ export const implantacao = integracao.table('implantacao', {
   meio: text('meio', { enum: MEIOS_IMPLANTACAO }),
   conector_id: uuid('conector_id'),
   iniciada_em: quando('iniciada_em').notNull().defaultNow(),
-  /** D+0 do painel. */
   marco_primeira_completa_em: quando('marco_primeira_completa_em'),
   marco_primeiro_pedido_em: quando('marco_primeiro_pedido_em'),
   marco_primeiro_faturamento_em: quando('marco_primeiro_faturamento_em'),
-  /** 3 reconciliações seguidas sem divergência. */
   marco_reconciliacao_em: quando('marco_reconciliacao_em'),
-  /** 7 dias seguidos sem alerta. */
   marco_sem_alerta_em: quando('marco_sem_alerta_em'),
-  /** Fim (D+30 ou todos os marcos); exige o D+0 e não é anterior a ele. */
   concluida_em: quando('concluida_em'),
 });
 
-/** Retrato diário do painel; um vivo por (tenant, implantacao, dia): upsert pela tarefa diária. */
+/** Retrato diário do painel; um vivo por (tenant, implantacao, dia). */
 export const implantacaoDia = integracao.table('implantacao_dia', {
   ...comuns(),
   implantacao_id: uuid('implantacao_id').notNull(),
@@ -539,16 +531,11 @@ export const implantacaoDia = integracao.table('implantacao_dia', {
   pedidos_rejeitados: integer('pedidos_rejeitados').notNull().default(0),
   pedidos_presos: integer('pedidos_presos').notNull().default(0),
   pedidos_retidos: integer('pedidos_retidos').notNull().default(0),
-  /** Mediana do tempo aprovação → integrado, em segundos; nula sem pedido no dia. */
   mediana_pedido_s: integer('mediana_pedido_s'),
   por_entidade: jsonb('por_entidade').$type<Record<string, Record<string, number>>>().notNull().default({}),
 });
 
-/**
- * Cada coleta (Conector, entidade) do trabalho `coletar_erp`. Uma viva (solicitada/executando) por alvo e uma executando por
- * Conector. `falha_classe` só (e sempre) no `falhou`; `iniciada_em` fora do `solicitada`; `concluida_em` só no final.
- * `erro_codigo` = código do ERP (nunca a resposta). `trabalho_id` = plataforma.trabalho (sem FK).
- */
+/** Cada coleta (Conector, entidade) do trabalho `coletar_erp`; `erro_codigo` nunca traz a resposta do ERP. */
 export const coletaExecucao = integracao.table('coleta_execucao', {
   ...comuns(),
   conector_id: uuid('conector_id').notNull(),

@@ -100,7 +100,12 @@ describe('0094 integração por ERP (estático)', () => {
     expect(valoresDoCheck('coleta_execucao_falha_classe_valida', 'falha_classe')).toEqual([...nuvemIntegracao.CLASSES_FALHA_COLETA]);
     // as entidades da função de frequência
     expect(lista(/when e\.key <> all \(array\[([^\]]*)\]\)/.exec(umaLinha)?.[1] ?? '')).toEqual([...nuvemIntegracao.ENTIDADES_BANCO]);
-    expect(umaLinha).toContain(`e.value::numeric < ${nuvemIntegracao.FREQUENCIA_MINIMA_MIN} or e.value::numeric > ${nuvemIntegracao.FREQUENCIA_MAXIMA_MIN}`);
+    expect(umaLinha).toContain(`e.value::numeric < ${nuvemIntegracao.FREQUENCIA_MINIMA_MIN} or e.value::numeric > ${nuvemIntegracao.FREQUENCIA_MAXIMA_MIN} or mod(e.value::numeric, ${nuvemIntegracao.FREQUENCIA_MINIMA_MIN}) <> 0`);
+    // termos de segredo de parametros_sem_segredo (appkey explícito; espelho de CAMPOS_SEGREDO_LOG no log)
+    const termos = (/k ~\* '\(([^)]*)\)'/.exec(umaLinha)?.[1] ?? '').split('|');
+    for (const t of ['senha', 'password', 'passwd', 'pwd', 'secret', 'segredo', 'token', 'chave', 'appkey', 'key', 'authorization', 'cookie', 'sessao', 'session']) expect(termos, t).toContain(t);
+    // marcos do painel = colunas marco_<nome>_em
+    for (const m of nuvemIntegracao.MARCOS_IMPLANTACAO) expect(umaLinha, m).toContain(` marco_${m}_em `);
     expect(nuvemIntegracao.coletaExecucao.estado.enumValues).toEqual([...nuvemIntegracao.ESTADOS_COLETA]);
     expect(nuvemIntegracao.conectorApi.erp.enumValues).toEqual([...nuvemIntegracao.ERPS_BUSCA_API]);
   });
@@ -141,13 +146,13 @@ describe.skipIf(semBanco())('0094 integração por ERP (banco, fixture)', () => 
     return e;
   };
 
-  it('conector_api: piso de 15 min e teto de 1440 por entidade, entidade conhecida, inteiro (23514); 15 e 1440 passam', async () => {
+  it('conector_api: piso de 15 min, teto de 1440 e múltiplo de 15 por entidade, entidade conhecida, inteiro (23514); 15, 60 e 1440 passam', async () => {
     await emTransacao(app, A.tenantId, async () => {
       await aposentarFixtureA();
       const ok = await q(API, [A.tenantId, A.integracao.conector, 'https://erp.exemplo.com.br:50000/b1s/v1', '{"preco": 15, "cliente": 60, "filial": 1440}', '{"CompanyDB": "SBO_TESTE"}']);
       expect(ok.rowCount).toBe(1);
       await q('update integracao.conector_api set deleted_at = now() where id = $1', [ok.rows[0].id]);
-      for (const f of ['{"estoque": 14}', '{"estoque": 5}', '{"estoque": 0}', '{"estoque": -15}', '{"titulo": 1441}', '{"estoque": 15.5}', '{"estoque": "15"}', '{"pedido": 60}', '[15]']) {
+      for (const f of ['{"estoque": 14}', '{"estoque": 5}', '{"estoque": 0}', '{"estoque": -15}', '{"titulo": 1441}', '{"estoque": 15.5}', '{"estoque": 20}', '{"cliente": 1430}', '{"estoque": "15"}', '{"pedido": 60}', '[15]']) {
         expect(await falha(API, [A.tenantId, A.integracao.conector, 'https://erp.exemplo.com.br', f, '{}']), f).toMatchObject({
           code: '23514', message: expect.stringContaining('conector_api_frequencias_validas'),
         });
@@ -161,7 +166,7 @@ describe.skipIf(semBanco())('0094 integração por ERP (banco, fixture)', () => 
       for (const url of ['http://erp.exemplo.com.br', 'https://usuario:senha@erp.exemplo.com.br', 'https://erp.exemplo.com.br/api?token=x', 'https://erp.exemplo.com.br/#a', 'ftp://erp', 'https://']) {
         expect(await falha(API, [A.tenantId, A.integracao.conector, url, '{}', '{}']), url).toMatchObject({ code: '23514', message: expect.stringContaining('conector_api_url_https') });
       }
-      for (const p of ['{"Password": "x"}', '{"senha": "x"}', '{"appkey": "x"}', '{"api_token": "x"}', '{"B1SESSION": "x"}', '[]']) {
+      for (const p of ['{"Password": "x"}', '{"senha": "x"}', '{"appkey": "x"}', '{"AppKey": "x"}', '{"sankhya_appkey": "x"}', '{"api_token": "x"}', '{"B1SESSION": "x"}', '[]']) {
         expect(await falha(API, [A.tenantId, A.integracao.conector, 'https://erp.exemplo.com.br', '{}', p]), p).toMatchObject({ code: '23514', message: expect.stringContaining('conector_api_parametros_validos') });
       }
       await q(API, [A.tenantId, A.integracao.conector, 'https://erp.exemplo.com.br', '{}', '{}']);

@@ -1,46 +1,8 @@
 -- 0094_integracao_busca_erp (up) — integração por ERP (F2): busca na API do ERP pelo worker na nuvem, cofre da credencial do
--- ERP, assistente e painel dos 30 dias. Desenho docs/desenho/integracao-modelos-erp.md (engenheiro-software, aprovado em
--- R-20261122-005500-alexandre, item 5 A: D1–D9) §2.2, §2.3, §2.4, §2.5, §4, §5 e §6 (fatia F2). RN propostas no desenho:
--- RN-INT-16 (Conector `nuvem` e frequência com piso de 15 min), RN-INT-17 (cofre só de escrita), RN-INT-19 (classes de
--- falha), RN-INT-20 (marcos da implantação); o gerente dá o número final. Migração em cima da 0093 (número provisório: segue
--- a ordem de merge). Dicionário: docs/banco/integracao.md ("0094"). Teste: db/testes/integracao-busca-erp.db.test.ts.
---
--- Migração ADITIVA: 5 tabelas novas no schema integracao e 2 funções IMMUTABLE de CHECK. Nenhuma tabela, coluna, política,
--- grant ou função existente muda. Nenhum contrato muda de versão. Todas com os campos comuns, unique (tenant_id, id),
--- gatilho de updated_at, RLS ligado e FORÇADO, isolamento_tenant ao macuxi_app e manutencao (0031); FKs compostas só dentro
--- do schema (tenant_id, conector_id) -> integracao.conector; fora do sync (TABELAS_FORA_DO_SYNC). macuxi_app: select,
--- insert e update (nenhum DELETE: desativar = deleted_at). macuxi_worker e macuxi_portal: nada (o worker roda os trabalhos
--- em comTenant com o macuxi_app, §2.5).
---
--- 1. integracao.conector_api — configuração NÃO secreta da busca na API do ERP, uma viva por Conector (tipo `nuvem`; quem
---    confere o tipo é a API, F3): erp (ERPS_BUSCA_API, os 4 adaptadores da F4a), url_base (só https, sem usuário/senha,
---    query nem fragmento na URL; até 500), usuario_erp (não é segredo: a tela mostra), parametros (objeto até 4000 bytes,
---    ex. CompanyDB; NENHUMA chave com cara de segredo: integracao.parametros_sem_segredo), frequencias (objeto
---    {entidade: minutos}: chaves em ENTIDADES_BANCO, inteiros de 15 a 1440 — piso de 15 min, D3, RN-CORE-23; chave ausente =
---    frequência padrão do doc 06, decidida no domain), coletas_paradas_em (401/403 do ERP: as coletas param até trocarem a
---    credencial, §2.4).
--- 2. integracao.credencial_erp — o segredo do ERP cifrado (AES-256-GCM no processo, AAD tenant_id|conector_id, §2.2): cifrado,
---    iv (12 bytes), tag (16 bytes), chave_versao (versão da chave-mestra MACUXI_CHAVE_SEGREDOS_v<n>), atualizada_em,
---    atualizada_por (usuário ou super-admin, sem FK: auditoria tem o resto). Uma viva por Conector (índice único parcial).
---    O segredo só existe na linha viva: apagar (deleted_at) exige cifrado, iv e tag nulos (credencial_erp_segredo_so_viva).
---    Rotação = update da linha viva na transação do "Testar conexão" (sem convivência).
---    SÓ o macuxi_app: NENHUM grant e NENHUMA política para o macuxi_leitura (consulta só leitura/diagnóstico, cuja saída vai
---    ao log do Actions; TABELAS_SEM_LEITURA), o macuxi_worker e o macuxi_portal; revoke all de public.
--- 3. integracao.implantacao — estado do assistente (§4: passo 1..7, erp, meio, conector_id) e marcos do painel dos 30 dias
---    (§5; nulo = não cumprido): marco_primeira_completa_em (D+0), marco_primeiro_pedido_em, marco_primeiro_faturamento_em,
---    marco_reconciliacao_em (3 seguidas sem divergência), marco_sem_alerta_em (7 dias seguidos), concluida_em (D+30 ou todos
---    os marcos; exige o D+0). Uma viva por tenant.
--- 4. integracao.implantacao_dia — retrato diário do painel (tarefa de 1 em 1 dia, §5): contagens do dia (não negativas),
---    minutos fora do ar (0..1440), mediana do tempo aprovação → integrado (s) e por_entidade (objeto). Uma viva por
---    (tenant, implantacao, dia): upsert idempotente.
--- 5. integracao.coleta_execucao — cada coleta (Conector, entidade) do trabalho coletar_erp (§2.3/§2.4): modo (ModoCarga),
---    origem (agendada | buscar_agora | recarregar), estado (solicitada | executando | concluida | falhou), falha_classe só no
---    falhou (credencial_recusada | transitoria | formato_mudou), http_status e erro_codigo (nunca a resposta do ERP),
---    tentativas, contagens, instantes e trabalho_id (plataforma.trabalho, sem FK). Uma viva (solicitada/executando) por
---    (Conector, entidade) e uma executando por Conector (§2.3, "1 coleta por vez por Conector").
---
--- macuxi_leitura (0078, ADR 0055): SELECT e política leitura em conector_api, implantacao, implantacao_dia e
--- coleta_execucao (nenhuma coluna sensível); credencial_erp fora (acima).
+-- ERP, assistente e painel dos 30 dias (desenho docs/desenho/integracao-modelos-erp.md, F2). Número provisório (ordem de
+-- merge). Aditiva: 5 tabelas no schema integracao (conector_api, credencial_erp, implantacao, implantacao_dia,
+-- coleta_execucao) e 2 funções IMMUTABLE de CHECK; nada que existe muda. Fonte das regras, colunas e grants:
+-- docs/banco/integracao.md ("0094"). Teste: db/testes/integracao-busca-erp.db.test.ts.
 -- Caminho de volta: 0094_integracao_busca_erp.down.sql (APAGA as 5 tabelas com tudo o que tiverem — inclusive as credenciais
 -- do ERP cifradas, que o cliente precisa redigitar depois de um novo up — e as 2 funções). Volte antes o código da API e do
 -- worker que lê ou grava essas tabelas (senão 42P01).
@@ -48,7 +10,8 @@
 -- =============================================================================================
 -- Funções dos CHECKs (IMMUTABLE, sem acesso a tabela; nulo = o CHECK deixa passar, como integracao.sem_repeticao)
 -- =============================================================================================
--- frequencias: objeto {entidade: minutos}, entidade em ENTIDADES_BANCO, minutos inteiro de 15 (piso, D3) a 1440 (1 por dia).
+-- frequencias: objeto {entidade: minutos}, entidade em ENTIDADES_BANCO, minutos inteiro múltiplo de 15 (o agendador acorda a
+-- cada 15 min, RN-CORE-23), de 15 (piso, D3) a 1440 (1 por dia).
 create function integracao.frequencias_validas(p jsonb) returns boolean
   language sql immutable parallel safe
   set search_path = pg_catalog, pg_temp
@@ -59,11 +22,12 @@ create function integracao.frequencias_validas(p jsonb) returns boolean
           where case
                   when e.key <> all (array['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial']) then true
                   when jsonb_typeof(e.value) <> 'number' then true
-                  else e.value::numeric <> trunc(e.value::numeric) or e.value::numeric < 15 or e.value::numeric > 1440
+                  else e.value::numeric <> trunc(e.value::numeric) or e.value::numeric < 15 or e.value::numeric > 1440 or mod(e.value::numeric, 15) <> 0
                 end)
   $$;
 
--- parametros: objeto sem chave (em qualquer caixa) que pareça segredo; o segredo vai cifrado em credencial_erp.
+-- parametros: objeto sem chave (em qualquer caixa) que pareça segredo; o segredo vai cifrado em credencial_erp. Espelho no
+-- log: CAMPOS_SEGREDO_LOG (packages/platform-sdk/src/segredos-log.ts).
 create function integracao.parametros_sem_segredo(p jsonb) returns boolean
   language sql immutable parallel safe
   set search_path = pg_catalog, pg_temp
@@ -71,7 +35,7 @@ create function integracao.parametros_sem_segredo(p jsonb) returns boolean
     select jsonb_typeof(p) = 'object'
        and not exists (
          select 1 from jsonb_object_keys(p) as k
-          where k ~* '(senha|password|passwd|pwd|segredo|secret|token|chave|key|cookie|authorization|sessao|session)')
+          where k ~* '(senha|password|passwd|pwd|secret|segredo|token|chave|appkey|key|authorization|cookie|sessao|session)')
   $$;
 
 -- =============================================================================================
