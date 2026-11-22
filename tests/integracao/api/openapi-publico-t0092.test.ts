@@ -49,7 +49,7 @@ function subir(o: { integracaoNoTenant: boolean }) {
 }
 
 describe('T-0092 critério 1 — GET /integracao/v1/openapi.json público na API montada com o módulo real', () => {
-  it('a Integração declara a rota pública e o createApp a monta no prefixo do Hub (não no /v1 autenticado)', async () => {
+  it('a Integração declara as rotas públicas (openapi.json e guia.pdf) e o createApp as monta no prefixo do Hub (não no /v1 autenticado)', async () => {
     const integracao = MODULOS_API.find((m) => m.manifesto.id === 'integracao');
     const publicas = integracao?.rotasPublicas?.map((r) => `${r.metodo} ${r.caminho}`) ?? [];
     expect([...publicas].sort()).toEqual(['GET guia.pdf', 'GET openapi.json']);
