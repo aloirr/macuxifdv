@@ -123,7 +123,7 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 ## 5. Tipografia
 Decisão do Alexandre de 15/11/2026 (R-20261115-110600, meta v1.0.13): a marca usa a **fonte do sistema** em todas as superfícies (BKO, portal `config.`, app Campo e app Gestão), no texto e nos títulos. Saem a Archivo e a IBM Plex, inclusive a Plex Mono. **O logo não muda:** a escrita "Macuxi" continua desenhada em Archivo ExtraBold e está em contorno nos arquivos de `ativos/` (§2.1), por isso não depende de fonte instalada.
 
-As regras de detalhe foram aprovadas pelo Alexandre em 15/11/2026 (R-20261115-155500) e valem igual em Campo, Gestão, BKO, portal `config.`, PDFs e e-mails: famílias, reserva do e-mail e o que é código em §5.1; pesos em §5.2; tamanho pelo papel do texto em §5.3.
+As regras de detalhe foram aprovadas pelo Alexandre em 15/11/2026 (R-20261115-155500) e valem igual em Campo, Gestão, BKO, portal `config.`, PDFs e e-mails: famílias, reserva do e-mail e do PDF gerado no servidor e o que é código em §5.1; pesos em §5.2; tamanho pelo papel do texto em §5.3.
 
 ### 5.1 Famílias
 | Uso | Pilha |
@@ -132,7 +132,9 @@ As regras de detalhe foram aprovadas pelo Alexandre em 15/11/2026 (R-20261115-15
 | Códigos (SKU, código do produto, do cliente e da empresa) | `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace`, sempre com `font-variant-numeric: tabular-nums` |
 
 - Nenhuma outra família e nenhuma fonte baixada ou embutida (`@font-face`, `next/font`, `expo-font`).
-- **E-mail:** os leitores de e-mail nem sempre conhecem `system-ui`, por isso só no HTML do e-mail a pilha termina em `Arial, Helvetica, sans-serif` (texto) e em `Consolas, "Courier New", monospace` (códigos). Fallback não é fonte nova: em nenhuma outra superfície.
+- **E-mail:** os leitores de e-mail nem sempre conhecem `system-ui`, por isso no HTML do e-mail a pilha termina em `Arial, Helvetica, sans-serif` (texto) e em `Consolas, "Courier New", monospace` (códigos).
+- **PDF gerado no servidor** (aprovado pelo Alexandre em 22/11/2026, horário de Manaus, R-20261122-005500-alexandre, item 1 A): no Linux do servidor, `system-ui` vira Inter, que entra no PDF como Type 3 e incha o arquivo. Por isso o PDF gerado no servidor usa `Arial, 'Liberation Sans', sans-serif` no texto e a pilha mono no código (no guia da API, `'DejaVu Sans Mono', 'Liberation Mono', ui-monospace, monospace`), com `tabular-nums`.
+- Fallback não é fonte nova: a reserva vale só no HTML do e-mail e no PDF gerado no servidor, em nenhuma outra superfície.
 - **O que é código (mono):** só o identificador que a pessoa copia, dita ou confere caractere a caractere: SKU e código do produto, código do cliente e da empresa, chave e id do Conector, senha temporária, endereço do servidor e hash. A palavra em volta fica na fonte de texto.
 - **Não é código:** CNPJ e CPF, número do pedido e da nota ("Pedido 1234" inteiro), datas, valores, quantidades e percentuais usam a fonte de texto com `tabular-nums`, para os algarismos alinharem. Vale igual no app, no BKO, no PDF e no e-mail.
 
