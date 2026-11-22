@@ -9,6 +9,7 @@
  *  - Demonstração (mock-api da Fase M): as cargas REST de `etapas.ts` alimentam o armazenamento do módulo, como antes.
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
+import { escopoDoCliente } from '../lib/veiculo-pedido';
 import { abrirFotoDoProduto, idsComFoto } from '../lib/foto-produto';
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_VEICULOS, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida, type VeiculoEscolhido, type VeiculoParcial, type VeiculosSaida } from '@macuxi/catalogo/contracts';
 import { CONSULTA_FINANCEIRO_CLIENTE, type CustomerSummary } from '@macuxi/core/contracts';
@@ -840,7 +841,7 @@ export function useVendedor() {
     async (q: string, produtoIds: string[] | null, clienteId?: string, veiculo?: VeiculoEscolhido | null): Promise<ResultadoBuscaCatalogo> => {
       if (!v1 || (!q.trim() && !veiculo)) return { tipo: 'reserva' };
       return buscarNoCatalogoComReserva(
-        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(veiculo ? { veiculo } : {}), ...(clienteId ? { cliente_id: clienteId } : produtoIds ? { produto_ids: produtoIds } : {}), limite: 100, lista_completa: true }),
+        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(veiculo ? { veiculo } : {}), ...escopoDoCliente(clienteId, produtoIds), limite: 100, lista_completa: true }),
         ehConsultaIndisponivel,
         (m, extra) => console.warn(m, extra),
       );

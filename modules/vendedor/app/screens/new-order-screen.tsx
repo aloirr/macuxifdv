@@ -13,7 +13,7 @@ import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, useExtensoes, usePode } from '@macuxi/platform-sdk/react';
 import type { EquipeEmNome, MembroEquipeEmNome } from '../../contracts/extensoes';
-import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, BotaoFiltro, Card, CampoBusca, colors, EstadoVazio, EtiquetaFiltro, fonte, Icon, LinhaEtiquetas, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, BotaoFiltro, Card, CampoBusca, colors, EstadoVazio, EtiquetaFiltro, fonte, FolhaVeiculo, Icon, LinhaEtiquetas, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -44,8 +44,8 @@ import { impedeEnviarPorAlertas, soOrcamentoPorAlertas, vencidosComEfeito } from
 import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
 import { DescontoGeral } from '../components/desconto-geral';
-import { FolhaVeiculoPedido } from '../components/folha-veiculo-pedido';
-import { chaveDoVeiculo, leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, escopoDoCliente, modoDaListaDoPedido, textoDaBuscaComVeiculo, type VeiculoDoPedido } from '../lib/veiculo-pedido';
+import { leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, NAVEGACAO_VEICULO, textoDaBuscaComVeiculo, TEXTOS_VEICULO } from '@macuxi/catalogo/contracts';
+import { chaveDoVeiculo, TEXTOS_SEM_RESULTADO_VEICULO, escopoDoCliente, modoDaListaDoPedido, type VeiculoDoPedido } from '../lib/veiculo-pedido';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
 import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
@@ -449,7 +449,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
     };
   }, [consultarVeiculos]);
   const veiculoAtivo = veiculo !== null && veiculoDisponivel;
-  const textoEfetivo = textoDaBuscaComVeiculo(query, veiculoAtivo);
+  const textoEfetivo = textoDaBuscaComVeiculo(query.trim(), veiculoAtivo);
   const modoDaLista = modoDaListaDoPedido({ veiculo: veiculoAtivo, texto: query });
   const chaveVeiculo = chaveDoVeiculo(veiculoAtivo ? (veiculo?.veiculo ?? null) : null);
   useEffect(() => {
@@ -845,11 +845,11 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
               <View style={{ flex: 1 }}>
                 <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder={veiculoDisponivel ? 'Peça ou código…' : 'Código, descrição ou veículo'} rotuloAcessivel="Buscar produto" testID="product-search" />
               </View>
-              {veiculoDisponivel ? <BotaoFiltro icone="carro" rotulo={leituraDoBotaoVeiculo(veiculo)} ativo={veiculoAtivo} onPress={() => setFolhaVeiculoAberta(true)} testID="botao-veiculo" /> : null}
+              {veiculoDisponivel ? <BotaoFiltro icone="carro" rotulo={leituraDoBotaoVeiculo(veiculo?.rotulos ?? null)} ativo={veiculoAtivo} onPress={() => setFolhaVeiculoAberta(true)} testID="botao-veiculo" /> : null}
             </View>
             {veiculoAtivo && veiculo ? (
               <LinhaEtiquetas>
-                <EtiquetaFiltro texto={veiculo.rotulos.curto} rotuloRemover={leituraDaEtiquetaVeiculo(veiculo)} onRemover={() => setVeiculo(null)} testID="etiqueta-veiculo" />
+                <EtiquetaFiltro texto={veiculo.rotulos.curto} rotuloRemover={leituraDaEtiquetaVeiculo(veiculo.rotulos)} onRemover={() => setVeiculo(null)} testID="etiqueta-veiculo" />
               </LinhaEtiquetas>
             ) : null}
             {buscando ? (
@@ -857,7 +857,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
                 <EstadoVazio titulo="Busca indisponível" texto={MENSAGEM_ERRO_BUSCA} testID="busca-erro" />
               ) : veiculoAtivo && resultadosDaBusca === null ? null : results.length === 0 ? (
                 veiculoAtivo ? (
-                  <EstadoVazio icone="search" titulo={textoEfetivo ? `Nada encontrado para "${textoEfetivo}"` : 'Nenhum produto com esses filtros'} acao={{ rotulo: 'Tirar o veículo', onPress: () => setVeiculo(null), testID: 'tirar-veiculo' }} testID="veiculo-sem-resultado" />
+                  <EstadoVazio icone="search" titulo={textoEfetivo ? TEXTOS_SEM_RESULTADO_VEICULO.nadaEncontrado(textoEfetivo) : TEXTOS_SEM_RESULTADO_VEICULO.semFiltros} acao={{ rotulo: TEXTOS_SEM_RESULTADO_VEICULO.tirar, onPress: () => setVeiculo(null), testID: 'tirar-veiculo' }} testID="veiculo-sem-resultado" />
                 ) : (
                   <SemResultadoDaBusca busca={query} sugestao={buscaCatalogo?.sugestao ?? null} aoBuscar={setQuery} />
                 )
@@ -872,7 +872,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
             ) : (
               <ResultadosDaBusca produtos={produtosDoRascunho} medidasDe={medidasDe} noPedido={idsNoPedido} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
             )}
-            <FolhaVeiculoPedido visivel={folhaVeiculoAberta} consultar={consultarVeiculos} aplicado={veiculo} onAplicar={(v) => { setVeiculo(v); setFolhaVeiculoAberta(false); }} onFechar={() => setFolhaVeiculoAberta(false)} />
+            <FolhaVeiculo visivel={folhaVeiculoAberta} consultar={consultarVeiculos} navegacao={NAVEGACAO_VEICULO} textos={TEXTOS_VEICULO} aplicado={veiculo?.veiculo ?? null} onAplicar={(v) => { setVeiculo(v); setFolhaVeiculoAberta(false); }} onFechar={() => setFolhaVeiculoAberta(false)} />
             <VisorDeFoto uri={fotoAberta} aoFechar={() => setFotoAberta(null)} />
             <FimDaAbaItens
               sugestoes={sugestoes}
