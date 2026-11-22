@@ -2,28 +2,27 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
-> **Em aberto depois da v1.0.20** (registro de 21/11, conta reativada; R-20261121-194500-alexandre). Decidido ou autorizado e ainda não feito. Horários de Manaus.
-> - **Outbox AM2808:** reprocessar os 36 parados, autorizado em R-20261121-194100 (19h40); ainda sem run de reprocesso. Opção B (R-20261121-194900): o engenheiro-software cria o workflow "producao — reprocessar outbox" (S4).
-> - **"Sem preço" AM2808:** opção A (R-20261121-194900). O modulo-integracao confere o Conector, só leitura (S4).
-> - **T-0190, operação da ADR 0065:** a 1ª publicação pelo apk-publicar está pendente com o dono do produto. A retirada de `APP_*_APK_URL` do ambiente está sem prova.
-> - **Filtro de veículo (etapa 6)** (R-20261120-230805 e R-20261120-234013): código em andamento na S3 (v1.0.21), ainda sem PR; o D4 está pendente com o dono do produto. Os veículos lidos no BKO (D5) ficam para uma etapa posterior. Dono: modulo-catalogo.
-> - **Backlog da v1.0.18, item 5** (R-20261120-142546): o #578 fechou só o 🟢 da T-0182. O resto dos 🟢 das revisões do engenheiro está em andamento na S1. Dono: engenheiro-software.
-> - **T-0189:**
->   - RD-2515 (resto): `modules/core/contracts/rota.ts:8` ainda declara `Hora` em vez de `HoraHHMM`. Dono: modulo-core, em andamento na S1.
->   - `ROTULO_ENTIDADE` duplicado em `modules/integracao/web/lib/apresentacao.ts:32` × `contracts/entidades.ts:38`. Dono: modulo-integracao, em andamento na S1.
->   - D0 (supervisor × RN-CORE-33) foi ao dono do produto, e não há prova de resposta.
-> - **RD-A do #636** (R-20261121-083400-gerente-projetos): falta a regra `error` no `packages/config/dependency-cruiser.cjs`; depois, o modulo-core apaga `modules/core/contracts/ciclo-import.test.ts`. Dono: engenheiro-software, em andamento na S1.
-> - **Pendências da v1.0.16:**
->   - RD-2379, RD-2413 e RD-2448 estão sem prova: não têm linha no `catalogo.md`, que só cita a faixa na linha 463. A RD-2450 aparece no sino do #533, e não há prova de que seja o mesmo achado. Dono: corretor-redundancias.
->   - O comentário do teste do trajeto está sem prova; o #624 reescreveu a espera desse teste. Dono: testes.
->   - Deadlock em `db/testes/empresa-acoes.db.test.ts:415`. Dono: banco-dados, em andamento na S1.
->   - SSH comum dos workflows: nenhum PR. Dono: engenheiro-software (governança).
->   - 🟢 do "Enviando…": provável no #597, sem prova de que seja o mesmo 🟢. Dono: engenheiro-apps.
->   - MC-1803 (logo do e-mail): nenhum registro em `docs/marca/`. Dono: design-de-marca.
-> - **PRs antigos abertos:**
->   - #285: faltam o aviso dos minutos do bloqueio no portal (`modules/core/api/super-admin.ts`) e a seção "Código da empresa e senha" de `docs/modulos/core/auth-e-licencas.md`. Vêm na v1.0.21 pela S1;
->   - #288: falta a jornada EJ (`tests/integracao/api/esqueci-senha-jornada.test.ts`). Vem na v1.0.21 pela S2;
->   - os dois fecham quando isso entrar.
+> **v1.0.21 em andamento** (R-20261121-200300-alexandre: tudo junto, um PR conjunto; "aprovo deploy v1.0.21" antecipado em R-20261121-214300, válido com o rito completo). Horários de Manaus.
+> - **No main:** #651 (registro da v1.0.17 à v1.0.20) e #652 (governança: workflow "producao — reprocessar outbox" e `contagem_integracao` no diagnóstico; frase R-20261121-211800).
+> - **PR conjunto:**
+>   - [T-0193](tarefas/T-0193.md) (filtro de veículo, RN-CAT-22);
+>   - jornada "Esqueci a senha" (EJ-01 a EJ-06, do #288);
+>   - aviso dos minutos do bloqueio do portal e a seção de `auth-e-licencas.md` (do #285);
+>   - RD-2515, `ROTULO_ENTIDADE`, regra `error` de ciclo no dependency-cruiser (RD-A do #636) e o deadlock do `empresa-acoes.db.test.ts`.
+> - **Depois do deploy:** android-build e apk-publicar da v1.0.21; reprocesso dos 36 parados da AM2808 (confirmar=false, depois confirmar=true com a aprovação do dono do produto) e o diagnóstico da AM2808 com `contagem_integracao`.
+
+> **Em aberto** (decidido ou autorizado e ainda não feito).
+> - **"Sem preço" AM2808** (opção A, R-20261121-194900): o Conector da AM2808 não manda preço nem estoque. O cliente precisa ativar as entidades `preco` e `estoque` no `conector.json`, com as views `vw_macuxi_preco` e `vw_macuxi_estoque` e as chaves iguais às de produto e filial, e liberar as duas entidades no cadastro do conector no BKO. A confirmação vem pelo diagnóstico com `contagem_integracao`, depois do deploy da v1.0.21. Dono: modulo-integracao, com o cliente.
+> - **T-0190:** a retirada de `APP_*_APK_URL` do ambiente está sem prova. Dono: engenheiro-software.
+> - **T-0189, D0** (supervisor × RN-CORE-33): sem prova de resposta do dono do produto.
+> - **`catalogo.busca_produtos@1` na API ignora o `cliente_id`:** o escopo do cliente só vale no aparelho; a `veiculos@1` já aplica nos dois. Dono: modulo-catalogo.
+> - **`modules/core/contracts/ciclo-import.test.ts`:** apagar depois da regra `error` do dependency-cruiser (RD-A do #636). Dono: modulo-core.
+> - **SSH comum dos workflows:** a ação `.github/actions/ssh-prod` (#652) é usada só no reprocesso; os 7 workflows antigos passam a usá-la. Dono: engenheiro-software (governança).
+> - **Pendências da v1.0.16 sem prova:**
+>   - RD-2379, RD-2413, RD-2448 e RD-2450 (corretor-redundancias);
+>   - o 🟢 do "Enviando…", provável no #597 (engenheiro-apps);
+>   - MC-1803, o logo do e-mail (design-de-marca).
+> - **PRs antigos #285 e #288:** fecham quando o PR conjunto da v1.0.21 entrar.
 
 > **v1.0.20 no ar, servidor e APK** (21/11; R-20261121-184110 e R-20261121-194500).
 > - **No main:**
@@ -356,6 +355,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0190](tarefas/T-0190.md) | Download dos APKs (Campo e Gestão) por link temporário gerado pelo BKO, como o do Conector (R-20261120-194335 e R-20261120-200027, item 5) | engenheiro-software, modulo-core, engenheiro-apps, testes | nuvem (v1.0.19 e v1.0.20) | concluida no código; a 1ª publicação pelo apk-publicar no "Em aberto" |
 | [T-0191](tarefas/T-0191.md) | BKO → Rotas: criar a rota do vendedor por proximidade a partir do endereço base (R1 a R3) e o botão Gerar coordenada pelo OpenStreetMap (R5); RN-CORE-75 a 77 | gerente-projetos, engenheiro-software, banco-dados, modulo-core, designer-ux, design-de-marca, testes, corretor-redundancias | nuvem (v1.0.19) | concluida (v1.0.19) |
 | [T-0192](tarefas/T-0192.md) | Catálogo do Campo: sem puxar para atualizar e mais rápido (melhorias A a F; RN-CAT-21) | modulo-catalogo, designer-ux, banco-dados, testes, corretor-redundancias, design-de-marca, gerente-projetos | nuvem (v1.0.20) | concluida (v1.0.20) |
+| [T-0193](tarefas/T-0193.md) | Filtro de veículo no Catálogo e no Novo pedido (etapa 6; RN-CAT-22) | engenheiro-software, designer-ux, modulo-catalogo, modulo-vendedor, testes, corretor-redundancias, design-de-marca | nuvem (v1.0.21) | em_andamento |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
 | [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | concluida no escopo da demo (apuração por tipo, push, Sincronizar, banco de testes 5434); falta o passo pnpm timers no CI (ci.yml de governança, aguarda autorização) |
