@@ -1,0 +1,92 @@
+/**
+ * Aba "Integração automática" do portal: nova chave e desativação de um Conector da lista, renderizadas com `react-dom/server`
+ * (lista no cache do React Query) e as rotas atendidas pelo modo falso (`responderFalso`).
+ */
+import { ConectorCriado, ENTIDADES, type ConectorResumo } from '@macuxi/integracao/contracts';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { beforeAll, describe, expect, it } from 'vitest';
+
+import { responderFalso } from '@/lib/portal-falso';
+import { ROTAS_PORTAL } from '@/lib/portal-rotas';
+
+import { AbaIntegracao, Credencial, DialogoConector, mensagemSemBases, rotaChaveDoConector, rotaDoConector } from './aba-integracao';
+
+const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
+const AVISO = 'Copie a chave agora: ela não aparece de novo.';
+let token = '';
+const chamar = (metodo: string, caminho: string, corpo?: unknown) =>
+  responderFalso(metodo, caminho, corpo, { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'x-macuxi-tenant': TENANT });
+
+const conector = (x: Partial<ConectorResumo>): ConectorResumo =>
+  ({ id: '7c1d2e3f-4a5b-4c6d-8e9f-000000000001', conector_id: 'thathyany-conector', nome: 'Conector', tipo: 'conector', recebe_pedidos: true, entidades: [...ENTIDADES], ativo: true, ...x }) as ConectorResumo;
+
+function renderizar(lista: ConectorResumo[]): string {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  qc.setQueryData(['portal', TENANT, 'conectores'], lista);
+  return renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <AbaIntegracao tenant={TENANT} />
+    </QueryClientProvider>,
+  );
+}
+
+beforeAll(async () => {
+  const guardado = new Map<string, string>();
+  (globalThis as { window?: unknown }).window = {
+    sessionStorage: { getItem: (k: string) => guardado.get(k) ?? null, setItem: (k: string, v: string) => void guardado.set(k, v) },
+  };
+  const login = (await (await responderFalso('POST', '/plataforma/auth/login', { email: 'admin@uma.com.br', senha: 'certa-123' }, {})).json()) as { token: string };
+  token = login.token;
+});
+
+describe('aba Integração: nova chave e desativar', () => {
+  it('cada Conector ativo tem "Gerar nova chave" e "Desativar"; o de arquivo e os desativados não ganham nova chave', () => {
+    const html = renderizar([conector({}), conector({ id: '7c1d2e3f-4a5b-4c6d-8e9f-000000000002', conector_id: 'portal-arquivo', tipo: 'arquivo', entidades: [] }), conector({ id: '7c1d2e3f-4a5b-4c6d-8e9f-000000000003', conector_id: 'velho', ativo: false })]);
+    expect(html).toContain('data-testid="integracao.nova-chave-thathyany-conector"');
+    expect(html).toContain('data-testid="integracao.desativar-thathyany-conector"');
+    expect(html).not.toContain('data-testid="integracao.nova-chave-portal-arquivo"');
+    expect(html).toContain('data-testid="integracao.desativar-portal-arquivo"');
+    expect(html).not.toContain('integracao.nova-chave-velho');
+    expect(html).not.toContain('integracao.desativar-velho');
+    expect(html).not.toContain('data-testid="integracao.chave"');
+  });
+
+  it('gerar nova chave pede confirmação antes', () => {
+    const html = renderToStaticMarkup(<DialogoConector alvo={conector({})} acao="chave" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
+    expect(html).toContain('Gerar nova chave para o Conector thathyany-conector?');
+    expect(html).toContain('data-testid="integracao.acao-cancelar"');
+    expect(html).toMatch(/data-testid="integracao.acao-confirmar-chave"[^>]*>Gerar nova chave</);
+    expect(renderToStaticMarkup(<DialogoConector alvo={null} acao="chave" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />)).toBe('');
+  });
+
+  it('a chave nova (POST .../chave com corpo vazio) aparece uma vez, com Copiar e o aviso; fechada, a aba não a mostra', async () => {
+    const criado = ConectorCriado.parse(await (await chamar('POST', ROTAS_PORTAL.conectores, { conector_id: 'erp-teste', nome: 'ERP', tipo: 'conector', recebe_pedidos: true, entidades: ['produto'] })).json());
+    const r = await chamar('POST', rotaChaveDoConector(criado.conector.id), {});
+    expect(r.status).toBe(201);
+    const nova = ConectorCriado.shape.chave.parse(await r.json());
+    expect(nova.chave).not.toBe(criado.chave.chave);
+    const html = renderToStaticMarkup(<Credencial c={nova} aoFechar={() => {}} />);
+    expect(html.split(nova.chave)).toHaveLength(2);
+    expect(html).toMatch(/data-testid="integracao.copiar"[^>]*>Copiar</);
+    expect(html).toContain(AVISO);
+    expect(html).toContain('data-testid="integracao.ja-copiei"');
+    expect(renderizar([criado.conector])).not.toContain(nova.chave);
+  });
+
+  it('desativar pede confirmação e usa o PATCH { ativo: false }', async () => {
+    const html = renderToStaticMarkup(<DialogoConector alvo={conector({})} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
+    expect(html).toContain('Desativar o Conector thathyany-conector?');
+    expect(html).toMatch(/data-testid="integracao.acao-confirmar-desativar"[^>]*>Desativar</);
+    const criado = ConectorCriado.parse(await (await chamar('POST', ROTAS_PORTAL.conectores, { conector_id: 'erp-desativar', nome: 'ERP', tipo: 'conector', recebe_pedidos: false, entidades: ['cliente'] })).json());
+    const r = await chamar('PATCH', rotaDoConector(criado.conector.id), { ativo: false });
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { ativo: boolean }).ativo).toBe(false);
+  });
+
+  it('sem bases livres: a mensagem cita o Conector quando não há Conector de arquivo, e mantém a original quando há', () => {
+    const lista = [conector({})];
+    expect(mensagemSemBases(lista, false)).toBe('Todas as bases já vêm do Conector thathyany-conector. Gere uma nova chave para ele ou desative-o.');
+    expect(mensagemSemBases(lista, true)).toBe('Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.');
+  });
+});
