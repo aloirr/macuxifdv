@@ -917,7 +917,7 @@ test('RN-INT-15: Histórico do BKO — a Situação mostra os 5 status, sem os r
 /**
  * Portal `config.` (spec portal-config-enxuto §10.1 e §10.2): a página da empresa tem só as abas "Integração · Empresa", com a
  * Integração aberta por padrão; a aba Bases (carga por CSV) e a "Integração automática" saíram. O `#bases` antigo cai na Integração,
- * e o portal não chama mais a ordem de carga, a carga por arquivo nem a Equipe por CSV (a rota de carga segue no servidor para o BKO).
+ * e o portal não chama mais a ordem de carga, a carga por arquivo nem a Equipe por CSV.
  * Host `config.localhost` (o Chromium resolve `*.localhost` para o próprio aparelho); sessão fictícia do time da Macuxi.
  */
 const TENANT_PORTAL = '0f000000-0000-4000-8000-0000000000aa';
