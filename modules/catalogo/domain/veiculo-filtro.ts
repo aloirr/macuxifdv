@@ -7,13 +7,6 @@ import type { GrupoFiltro, GruposFiltro, NivelVeiculo, OpcaoVeiculo, PassoTrilha
 import { normalizarTexto } from './texto';
 import type { EntradaVeiculo, IndiceVeiculos } from './veiculo-indice';
 
-
-/**
- * RN-CAT-22 (D4, a confirmar pelo dono do produto): motor ou versão ESCOLHIDOS e o trecho sem esse dado. `false` = a peça não aparece (como
- * no ano, que não tem esta chave: ano escolhido sempre exige o ano no trecho). Trocar aqui muda aparelho e API juntos.
- */
-export const SEM_DADO_PASSA_EM_MOTOR_E_VERSAO = false;
-
 export const NIVEIS_VEICULO: readonly NivelVeiculo[] = ['montadora', 'modelo', 'ano', 'motor', 'versao'];
 /** Quantos resultados a busca da folha mostra. */
 export const MAXIMO_BUSCA_VEICULO = 30;
@@ -169,12 +162,12 @@ export interface Compatibilidade {
   segmento: EntradaVeiculo | null;
 }
 
-/** Nível escolhido: o trecho tem de trazer o valor; nível não escolhido não filtra. */
-const nivelPassa = <T>(escolhido: T | null, doTrecho: readonly T[], semDadoPassa: boolean): boolean => escolhido === null || (doTrecho.length === 0 ? semDadoPassa : doTrecho.includes(escolhido));
+/** RN-CAT-22: nível escolhido, o trecho tem de trazer o valor (sem o dado, não passa); nível não escolhido não filtra. */
+const nivelPassa = <T>(escolhido: T | null, doTrecho: readonly T[]): boolean => escolhido === null || doTrecho.includes(escolhido);
 
 /** RN-CAT-22 (D4): o trecho serve quando cada nível escolhido (ano, motor, versão) está nele. */
 function trechoServe(f: Filtro, e: EntradaVeiculo): boolean {
-  return nivelPassa(f.ano, e.anos, false) && nivelPassa(f.motor, e.motores, SEM_DADO_PASSA_EM_MOTOR_E_VERSAO) && nivelPassa(f.versao, e.versoes, SEM_DADO_PASSA_EM_MOTOR_E_VERSAO);
+  return nivelPassa(f.ano, e.anos) && nivelPassa(f.motor, e.motores) && nivelPassa(f.versao, e.versoes);
 }
 
 function compatibilidadeCom(indice: IndiceVeiculos, f: Filtro, produtoId: string): Compatibilidade {

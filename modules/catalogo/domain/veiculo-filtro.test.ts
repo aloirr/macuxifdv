@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { construirIndiceVeiculos, segmentosDeVeiculo, indiceTemVeiculo, restringirIndice } from './veiculo-indice';
-import { compatibilidadeDoProduto, contarChipsFiltrar, filtrarPorVeiculo, leveTambemDoVeiculo, navegarCascata, produtosDoModelo, rotulosDoVeiculo, SEM_DADO_PASSA_EM_MOTOR_E_VERSAO } from './veiculo-filtro';
+import { compatibilidadeDoProduto, contarChipsFiltrar, filtrarPorVeiculo, leveTambemDoVeiculo, navegarCascata, produtosDoModelo, rotulosDoVeiculo } from './veiculo-filtro';
 import { nomesDeVeiculo } from './veiculos';
 import type { VeiculoEscolhido } from '../contracts';
 
@@ -132,9 +132,6 @@ describe('RN-CAT-22 (D4): o filtro só restringe pelo que o vendedor escolheu', 
     expect(ids({ ...GOL_2018, ano: 2020, motor: '1.0' })).toEqual(['vela']);
     expect(ids({ ...GOL_2018, ano: 2020 })).toEqual(['vela', 'bomba']);
     expect(situacao('correia', { montadora: 'Ford', modelo: 'EcoSport', ano: 2014, motor: '1.0', versao: null })).toBe('nao_serve');
-  });
-  it('RN-CAT-22: a regra de motor e versão sem dado mora numa constante só', () => {
-    expect(SEM_DADO_PASSA_EM_MOTOR_E_VERSAO).toBe(false);
   });
   it('RN-CAT-22: aplicação vazia ou sem veículo é universal e fica fora da lista filtrada', () => {
     expect(situacao('fluido')).toBe('universal');
