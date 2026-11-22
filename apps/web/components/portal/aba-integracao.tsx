@@ -20,11 +20,12 @@ import { ConectorCriado, ConectorResumo, ENTIDADES, ORDEM_CARGA_ENTIDADES, type 
 import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel, TableScroll, td, th, useToast } from '@macuxi/ui/web';
 
 import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
-import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
+import { NOME_DA_BASE } from '@/lib/portal-bases';
 import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
 import { ENCAIXE_API_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { BaixarPacote } from './baixar-conector';
+import { principalDesabilitadoCss } from './seletor-plano';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
@@ -174,7 +175,7 @@ export function ListaBases({ bases, marcadas, aoMudar, testId, legendaOculta = f
         {ORDEM_CARGA_ENTIDADES.filter((e) => bases.includes(e)).map((e) => (
           <label key={e} className="flex cursor-pointer items-center gap-2.5 text-[15px]">
             <input type="checkbox" data-testid={`${testId}.${e}`} className="h-4 w-4 shrink-0 accent-accent" checked={marcadas.includes(e)} onChange={(x) => aoMudar(e, x.target.checked)} />
-            {CARTAO_DA_ENTIDADE[e].titulo}
+            {NOME_DA_BASE[e]}
           </label>
         ))}
       </div>
@@ -293,6 +294,7 @@ function GerarCredencial({
           data-testid={`${testId}gerar`}
           type="submit"
           variant={principal ? 'primary' : 'secondary'}
+          className={principalDesabilitadoCss}
           disabled={enviando || !identificador.trim() || !nome.trim() || carregando || semLivres || (escolheBases && escolhidas.length === 0)}
         >
           {enviando ? 'Gerando…' : 'Gerar credencial'}

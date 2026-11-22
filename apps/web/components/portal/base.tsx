@@ -239,37 +239,36 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
       <div className="min-h-screen bg-ground">
         <AvisoModoFalso />
         <header className="bg-faixa">
-          <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-between gap-x-3 px-4">
-            <div className="flex flex-wrap items-center gap-x-6 self-stretch">
-              <Link href={inicio} className="no-underline" data-testid="portal.marca">
-                <Marca naBarra />
-              </Link>
-              {ehTimeMacuxi(sessao) && (
-                <nav aria-label="Portal" className="flex items-stretch gap-1 self-stretch">
-                  {MENU_TIME_MACUXI.map((i) => (
-                    <Link
-                      key={i.href}
-                      href={i.href}
-                      data-testid={i.testId}
-                      aria-current={ativo === i.href ? 'page' : undefined}
-                      className={cx(
-                        'flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-[15px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
-                        ativo === i.href ? 'border-white text-white' : 'border-transparent text-faixa-texto hover:text-white',
-                      )}
-                    >
-                      {i.rotulo}
-                    </Link>
-                  ))}
-                </nav>
-              )}
+          {/* < 768 px (spec §10.2): logo e "Sair" na 1ª linha; abas e "Sessão até" na de baixo. A partir de 768 px, tudo numa linha. */}
+          <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center gap-x-3 px-4">
+            <Link href={inicio} className="order-1 py-3 no-underline md:py-0" data-testid="portal.marca">
+              <Marca naBarra />
+            </Link>
+            <div className="order-2 ml-auto py-3 md:order-5 md:ml-0">
+              <BotaoDaFaixa testId="portal.sair" onClick={sair}>
+                Sair
+              </BotaoDaFaixa>
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-3 py-3 text-[13px] text-faixa-texto">
-              {/* o nome da empresa (contexto) vem antes do prazo da sessão (R-20261107-174216 🟢 3) */}
-              {cliente && sessao?.empresa && (
-                <span data-testid="portal.empresa-atual" title={sessao.empresa.nome} className="max-w-[220px] truncate text-[13px] font-semibold text-white">
-                  {sessao.empresa.nome}
-                </span>
-              )}
+            <div aria-hidden className="order-3 h-0 basis-full md:hidden" />
+            {ehTimeMacuxi(sessao) && (
+              <nav aria-label="Portal" className="order-4 flex items-stretch gap-1 self-stretch md:order-2 md:ml-3">
+                {MENU_TIME_MACUXI.map((i) => (
+                  <Link
+                    key={i.href}
+                    href={i.href}
+                    data-testid={i.testId}
+                    aria-current={ativo === i.href ? 'page' : undefined}
+                    className={cx(
+                      'flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-[15px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
+                      ativo === i.href ? 'border-white text-white' : 'border-transparent text-faixa-texto hover:text-white',
+                    )}
+                  >
+                    {i.rotulo}
+                  </Link>
+                ))}
+              </nav>
+            )}
+            <div className="order-5 flex min-w-0 flex-wrap items-center gap-3 py-3 text-[13px] text-faixa-texto md:order-3 md:ml-auto">
               {sessao && (
                 <span data-testid="portal.sessao-ate">Sessão até {hora(sessao.sessao_expira_em)}</span>
               )}
@@ -278,9 +277,6 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
                   Trocar de empresa
                 </BotaoDaFaixa>
               )}
-              <BotaoDaFaixa testId="portal.sair" onClick={sair}>
-                Sair
-              </BotaoDaFaixa>
             </div>
           </div>
         </header>

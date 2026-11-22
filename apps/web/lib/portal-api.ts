@@ -251,13 +251,6 @@ async function lerResposta<T>(res: Response, schema: OpcoesChamada<T>['schema'])
   return p.data;
 }
 
-/** Baixa um arquivo (CSV, JSON) de uma rota autenticada: `fetch` + `Blob`, com o nome do `Content-Disposition`. */
-export async function baixarDoPortal(caminho: string, o: { tenant?: string; nomePadrao: string }): Promise<void> {
-  const res = await enviar(caminho, { metodo: 'GET', tenant: o.tenant });
-  const blob = await res.blob();
-  downloadBlob(blob, filenameFromDisposition(res.headers.get('content-disposition'), o.nomePadrao));
-}
-
 /** Bytes de uma rota autenticada como `Blob` (o print do diagnóstico, T-0158), sem baixar: a tela mostra e abre em outra aba. */
 export async function blobDoPortal(caminho: string): Promise<Blob> {
   const res = await enviar(caminho, { metodo: 'GET' });

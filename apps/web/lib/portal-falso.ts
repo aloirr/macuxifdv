@@ -37,9 +37,6 @@ import {
   CriarEmpresaSchema,
   fimDoTeste,
   modulosDaAssinatura,
-  ROTA_PORTAL_CNPJ,
-  ROTA_PORTAL_EMPRESA_COM_PLANO,
-  ROTA_PORTAL_PLANOS,
   TrocarPlanoSchema,
   usoPorItem,
   valorDaAssinatura,
@@ -86,7 +83,7 @@ import { localIsoDate } from '@macuxi/comum/fuso';
 import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
 import { fichaExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
-import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL, semV1 } from './portal-rotas';
+import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL } from './portal-rotas';
 
 const CHAVE = 'macuxi.portal.falso';
 
@@ -798,9 +795,9 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     return json(r.status, r.resposta);
   }
   // ---------- planos (ADR 0047) e CNPJ (ADR 0048)
-  if (rota === `GET ${semV1(ROTA_PORTAL_PLANOS)}`) return json(200, { itens: [...PLANOS_EXEMPLO].sort((a, b) => a.ordem - b.ordem) });
-  if (rota === `POST ${semV1(ROTA_PORTAL_EMPRESA_COM_PLANO)}`) return responderEmpresaComPlano(sessao, e, corpo);
-  if (rota === `POST ${semV1(ROTA_PORTAL_CNPJ)}`) return responderCnpj(corpo);
+  if (rota === `GET ${ROTAS_PORTAL.planos}`) return json(200, { itens: [...PLANOS_EXEMPLO].sort((a, b) => a.ordem - b.ordem) });
+  if (rota === `POST ${ROTAS_PORTAL.empresaComPlano}`) return responderEmpresaComPlano(sessao, e, corpo);
+  if (rota === `POST ${ROTAS_PORTAL.cnpj}`) return responderCnpj(corpo);
   const assinaturaM = ASSINATURA_M.exec(caminho);
   if (assinaturaM) return responderAssinatura(metodo, decodeURIComponent(assinaturaM[1] ?? ''), sessao, e, corpo);
 

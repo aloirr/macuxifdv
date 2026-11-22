@@ -36,7 +36,9 @@ const form: FormNovaEmpresa = {
 describe('formatos do portal (RD-0263)', () => {
   it('CNPJ, fuso longo e curto, código em maiúsculas, telefone e dia civil', () => {
     expect(mascararCnpj('11222333000181')).toBe('11.222.333/0001-81');
+    expect(mascararCnpj('112223')).toBe('11.222.3');
     expect(rotuloDoFuso('America/Manaus')).toBe('Manaus (AM, RR, RO) — UTC−4');
+    expect(rotuloDoFuso('Europe/Lisbon')).toBe('Europe/Lisbon');
     expect(rotuloCurtoDoFuso('America/Manaus')).toBe('Manaus (UTC−4)');
     expect(rotuloCurtoDoFuso('America/Sao_Paulo')).toBe('São Paulo (UTC−3)');
     expect(rotuloCurtoDoFuso('Europe/Lisbon')).toBe('Europe/Lisbon');

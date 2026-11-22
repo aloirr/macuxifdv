@@ -8,12 +8,10 @@ import {
   erroDoAdminNaApi,
   errosDaEmpresa,
   errosDoAdmin,
-  mascararCnpj,
-  rotuloDoFuso,
   sugerirCodigo,
   TEXTOS_ADMIN,
   textoDoAdminNoResultado,
-} from '@/components/portal/passo-empresa';
+} from '@/components/portal/passo-empresa-legado';
 import { abaDoEndereco } from '@/components/portal/tela-empresa';
 import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
@@ -60,11 +58,9 @@ describe('passo Empresa', () => {
     expect(Object.values(e).join(' ')).not.toMatch(/must|String|Number/);
     expect(errosDaEmpresa(corpoDaEmpresa({ ...form, validade_orcamento_dias: '0' }, false))['parametros.validade_orcamento_dias']).toBe('Informe de 1 a 90 dias.');
   });
-  it('sugestão do código e máscara do CNPJ', () => {
+  it('sugestão do código', () => {
     expect(sugerirCodigo('Distribuidora São João Ltda.')).toBe('distribuidora-sao-joao');
     expect(sugerirCodigo('ACME S/A')).toBe('acme');
-    expect(mascararCnpj('11222333000181')).toBe('11.222.333/0001-81');
-    expect(mascararCnpj('112223')).toBe('11.222.3');
   });
 });
 
@@ -140,9 +136,7 @@ describe('entrada só com e-mail e senha (T-0093; spec portal-entrar §1 e §4)'
 });
 
 describe('textos do portal (revisão de UX R-20261106-023316)', () => {
-  it('fuso e situação da empresa em rótulo', () => {
-    expect(rotuloDoFuso('America/Manaus')).toBe('Manaus (AM, RR, RO) — UTC−4');
-    expect(rotuloDoFuso('Europe/Lisbon')).toBe('Europe/Lisbon');
+  it('situação da empresa em rótulo', () => {
     expect(rotuloDoStatus('ativo')).toBe('Ativa');
     expect(rotuloDoStatus('suspenso')).toBe('Inativa');
     expect(rotuloDoStatus('encerrado')).toBe('Em exclusão');

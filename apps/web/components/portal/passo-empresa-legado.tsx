@@ -1,10 +1,9 @@
 'use client';
 
 /**
- * LEGADO (spec docs/design/telas/portal-config-enxuto.md §8 e §11: o "Acrescentar módulos" sai da aba Empresa). Fica só enquanto
- * a página da empresa (`tela-empresa.tsx`) e o cartão Equipe ainda importam `PassoEmpresa` e `ROTULO_MODULO`; sai inteiro, com os
- * testes do "passo Empresa" em `lib/portal-telas.test.ts`, quando nenhum dos dois o usar. A "Nova empresa" é a `NovaEmpresa`
- * de `passo-empresa.tsx`.
+ * LEGADO (spec docs/design/telas/portal-config-enxuto.md §8 e §11: o "Acrescentar módulos" sai da aba Empresa). Fica enquanto
+ * o servidor estiver sem planos (passo antigo da Nova empresa e `semPlano` da `tela-empresa`); sai inteiro, com os testes do
+ * "passo Empresa" em `lib/portal-telas.test.ts`, quando nenhum dos dois o usar. A "Nova empresa" é a `NovaEmpresa` de `passo-empresa.tsx`.
  * Passo Empresa do portal (T-0087 §2; desenho §5.1): `POST /v1/plataforma/empresas` com `CriarEmpresaSchema` — por baixo, o
  * `tenant:criar` da T-0083 (RN-CORE-31, idempotente pelo código). "Conferir" = `simular: true` (nada é gravado). Core e
  * Integração entram sempre (marcados e travados). Empresa existente: código, razão social, CNPJ e fuso ficam travados (não mudam) e
@@ -26,7 +25,7 @@ import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { Campo } from '@/components/campo-acesso';
 
 type Resposta = ReturnType<typeof CriarEmpresaRespostaSchema.parse>;
-export interface EmpresaExistente {
+interface EmpresaExistente {
   id: string;
   codigo: string;
   razao_social: string;
@@ -35,7 +34,7 @@ export interface EmpresaExistente {
   modulos: { modulo: ModuloId; licencas: number | null }[];
 }
 
-export const MODULOS_SEMPRE: readonly ModuloId[] = ['core', 'integracao'];
+const MODULOS_SEMPRE: readonly ModuloId[] = ['core', 'integracao'];
 
 export const ROTULO_MODULO: Record<ModuloId, { nome: string; ajuda: string }> = {
   core: { nome: 'Core', ajuda: 'Usuários, clientes, produtos e permissões. Sempre entra.' },
@@ -157,7 +156,7 @@ function semChave(e: Record<string, string>, k: string): Record<string, string> 
   return Object.fromEntries(Object.entries(e).filter(([c]) => c !== k));
 }
 
-export { erroDoAdminNaApi, errosDoAdmin, FUSOS_BRASIL, mascararCnpj };
+export { erroDoAdminNaApi, errosDoAdmin };
 export type { AdminDoForm };
 
 export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExistente; aoGravar?: (r: Resposta) => void }) {

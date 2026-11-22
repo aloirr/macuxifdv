@@ -25,7 +25,7 @@ import { AbaIntegracao } from './aba-integracao';
 import { BaixarPacote } from './baixar-conector';
 import { MolduraPortal, useSessaoPortal } from './base';
 import { CartoesMarca } from './cartao-logo';
-import { PassoEmpresa } from './passo-empresa';
+import { PassoEmpresa } from './passo-empresa-legado';
 import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
 
 const ABAS = [
