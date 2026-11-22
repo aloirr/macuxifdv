@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { construirIndiceVeiculos, segmentosDeVeiculo, indiceTemVeiculo, restringirIndice } from './veiculo-indice';
-import { compatibilidadeDoProduto, contarChipsFiltrar, filtrarPorVeiculo, leveTambemDoVeiculo, navegarCascata, produtosDoModelo, rotulosDoVeiculo } from './veiculo-filtro';
+import { construirIndiceVeiculos, construirIndiceVeiculosEmLotes, segmentosDeVeiculo, indiceTemVeiculo, restringirIndice } from './veiculo-indice';
+import { compatibilidadeDoProduto, contarChipsFiltrar, filtrarPorVeiculo, leveTambemDoVeiculo, navegarCascata, produtosDoModelo, rotulosDoVeiculo, saidaDaCascata, SEM_VEICULO } from './veiculo-filtro';
 import { nomesDeVeiculo } from './veiculos';
-import type { VeiculoEscolhido } from '../contracts';
+import { veiculoDaEscolha, type VeiculoEscolhido } from '../contracts';
 
 const VEICULOS = new Set(['gol', 'polo', 'civic', 'fit', 'highline', 'trendline', 'ecosport', 'fox', 'volkswagen', 'honda', 'ford']);
 const OPC = { anoAtual: 2026, veiculos: VEICULOS };
@@ -51,6 +51,19 @@ describe('RN-CAT-22: índice de veículos', () => {
   });
 });
 
+describe('RN-CAT-22: índice montado em pedaços (a tela não trava)', () => {
+  it('RN-CAT-22: o índice em lotes é igual ao de uma passada e cede o laço entre os pedaços', async () => {
+    const fontes = Object.entries(APLICACOES).map(([id, aplicacao]) => ({ id, aplicacao }));
+    let cedeu = 0;
+    const emLotes = await construirIndiceVeiculosEmLotes(fontes, OPC, { lote: 3, ceder: async () => void cedeu++ });
+    const direto = construirIndiceVeiculos(fontes, OPC);
+    expect(cedeu).toBe(Math.floor(fontes.length / 3));
+    expect(emLotes.entradas).toEqual(direto.entradas);
+    expect([...emLotes.doModelo.keys()]).toEqual([...direto.doModelo.keys()]);
+    expect([...emLotes.modelosDaMontadora]).toEqual([...direto.modelosDaMontadora]);
+  });
+});
+
 describe('RN-CAT-22: cascata', () => {
   it('RN-CAT-22: só mostra montadoras e modelos que existem nas aplicações, em ordem alfabética', () => {
     const i = indice();
@@ -80,11 +93,12 @@ describe('RN-CAT-22: cascata', () => {
     expect(v.nivel).toBe('versao');
     expect(v.opcoes.map((o) => o.valor)).toEqual(['Highline', 'Trendline']);
     expect(v.ultimo).toBe(true);
-    // EcoSport 2014 não tem versão: nada a escolher depois do motor automático
+    // EcoSport 2014 não tem versão: nada a escolher depois do motor automático (que vai na trilha, mas não na escolha)
     const eco = navegarCascata(i, { montadora: 'Ford', modelo: 'EcoSport', ano: 2014 });
     expect(eco.nivel).toBeNull();
-    expect(eco.escolha).toMatchObject({ motor: '1.6', versao: null });
-    expect(eco.rotulos?.curto).toBe('EcoSport 2014 1.6');
+    expect(eco.trilha.find((p) => p.nivel === 'motor')).toMatchObject({ valor: '1.6', automatico: true });
+    expect(eco.escolha).toMatchObject({ motor: null, versao: null });
+    expect(eco.rotulos?.curto).toBe('EcoSport 2014');
   });
   it('RN-CAT-15: a busca da folha acha Volkswagen por "vw" e Gol por "gol", sem passar pela montadora', () => {
     const i = indice();
@@ -147,7 +161,7 @@ describe('RN-CAT-22 (D4): o filtro só restringe pelo que o vendedor escolheu', 
   it('RN-CAT-22: a montadora escolhida diferente da escrita tira o produto', () => {
     expect(situacao('amortecedor', { ...GOL_2018, montadora: 'Ford' })).toBe('nao_serve');
   });
-  it('RN-CAT-22: a ordem da lista é a que veio (sem grupos) e a saída não traz campo de veículo por item', () => {
+  it('RN-CAT-22: a ordem da lista é a que veio (sem grupos)', () => {
     const r = filtrarPorVeiculo(['vela', 'coxim', 'amortecedor'].map((produto_id) => ({ produto_id })), i, GOL_2018);
     expect(r).toEqual([{ produto_id: 'vela' }, { produto_id: 'coxim' }, { produto_id: 'amortecedor' }]);
   });
@@ -159,6 +173,58 @@ describe('RN-CAT-22 (D4): o filtro só restringe pelo que o vendedor escolheu', 
     expect(leveTambemDoVeiculo(junto, i, null)).toHaveLength(5);
     expect(leveTambemDoVeiculo(junto, i, GOL_2018).map((x) => x.produto_id)).toEqual(['fluido', 'vela', 'amortecedor']);
     expect(leveTambemDoVeiculo(junto, i, { ...GOL_2018, ano: null }).map((x) => x.produto_id)).toEqual(['fluido', 'vela', 'amortecedor', 'pastilha']);
+  });
+});
+
+describe('RN-CAT-22: as opções de um nível só levam a peças que passam no filtro', () => {
+  const base = { 'a': 'VW Gol 2018 1.0', 'b': 'VW Gol 1.6', 'c': 'VW Gol' };
+  const i = construirIndiceVeiculos(Object.entries(base).map(([id, aplicacao]) => ({ id, aplicacao })), OPC);
+  const gol2018 = { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018 };
+  it('RN-CAT-22: com Gol 2018, o Motor oferece só 1.0 (o trecho "Gol 1.6" não tem ano e não passa no filtro)', () => {
+    const r = navegarCascata(i, gol2018);
+    expect(r.opcoes.map((o) => o.valor).concat(r.trilha.filter((p) => p.nivel === 'motor').map((p) => p.valor))).toEqual(['1.0']);
+    const lista = (v: VeiculoEscolhido) => filtrarPorVeiculo(Object.keys(base).map((produto_id) => ({ produto_id })), i, v).map((x) => x.produto_id);
+    expect(lista({ ...gol2018, motor: '1.0', versao: null })).toEqual(['a']);
+    expect(lista({ ...gol2018, motor: '1.6', versao: null })).toEqual([]); // a opção 1.6 não é mais oferecida: a lista nunca fica vazia por ela
+  });
+  it('RN-CAT-22: toda opção oferecida em qualquer nível leva a pelo menos uma peça', () => {
+    const ids = Object.keys(base).map((produto_id) => ({ produto_id }));
+    for (const ano of [null, 2018, 2020]) {
+      const r = navegarCascata(i, { montadora: 'Volkswagen', modelo: 'Gol', ...(ano ? { ano } : {}) });
+      if (!r.nivel || r.nivel === 'ano') continue;
+      for (const o of r.opcoes) {
+        const v = veiculoDaEscolha({ ...r.escolha, [r.nivel]: o.valor })!;
+        expect(filtrarPorVeiculo(ids, i, v).length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe('RN-CAT-22: o nível que a cascata preenche sozinha não conta como escolhido (R-20261121-211200)', () => {
+  const um = construirIndiceVeiculos(['VW Gol 2018', 'VW Gol', 'VW Gol 2018 1.0'].map((aplicacao, k) => ({ id: `p${k}`, aplicacao })), OPC);
+  it('RN-CAT-22: com um ano só na base, "só Gol" mostra todas as peças do Gol (o ano automático não filtra), e o ano fica na trilha', () => {
+    const r = navegarCascata(um, { montadora: 'Volkswagen', modelo: 'Gol' });
+    expect(r.trilha.find((p) => p.nivel === 'ano')).toMatchObject({ valor: '2018', automatico: true });
+    expect(r.escolha.ano).toBeNull();
+    const v = veiculoDaEscolha(r.escolha)!;
+    expect(filtrarPorVeiculo(['p0', 'p1', 'p2'].map((produto_id) => ({ produto_id })), um, v).map((x) => x.produto_id)).toEqual(['p0', 'p1', 'p2']);
+  });
+  it('RN-CAT-22: navegarCascata → nível automático → filtrarPorVeiculo: o escolhido pelo vendedor filtra e o automático não', () => {
+    const ids = ['p0', 'p1', 'p2'].map((produto_id) => ({ produto_id }));
+    const montado = navegarCascata(um, { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018 });
+    expect(montado.trilha.find((p) => p.nivel === 'ano')).toMatchObject({ automatico: false });
+    expect(filtrarPorVeiculo(ids, um, veiculoDaEscolha(montado.escolha)!).map((x) => x.produto_id)).toEqual(['p0', 'p2']);
+    // modelo e montadora automáticos (só há o Gol) seguem na escolha: são o veículo, não um filtro a mais
+    const raiz = navegarCascata(um, {});
+    expect(raiz.escolha).toMatchObject({ montadora: 'Volkswagen', modelo: 'Gol', ano: null });
+  });
+});
+
+describe('RN-CAT-22: saidaDaCascata', () => {
+  it('RN-CAT-22: sem veículo no índice devolve SEM_VEICULO; com veículo, a cascata e os Recentes', () => {
+    expect(saidaDaCascata(construirIndiceVeiculos([{ id: 'a', aplicacao: 'universal' }], OPC), {}, [])).toBe(SEM_VEICULO);
+    const r = saidaDaCascata(indice(), { escolha: { montadora: 'Ford' } }, []);
+    expect(r).toMatchObject({ disponivel: true, nivel: 'ano', recentes: [] });
   });
 });
 

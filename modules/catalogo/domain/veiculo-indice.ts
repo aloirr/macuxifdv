@@ -6,11 +6,10 @@
  */
 import { expandirAplicacao } from './aplicacao';
 import { APELIDOS_MONTADORA, MONTADORAS } from './montadoras';
-import { SEPARADOR_SEGMENTO } from './serve-em';
+import { PALAVRA_RE, SEPARADOR_SEGMENTO } from './serve-em';
 import { normalizarTexto, palavrasInteiras } from './texto';
 import type { NomesDeVeiculo } from './veiculos';
 
-const PALAVRA_RE = /[\p{L}\p{N}]+(?:[.,][\p{N}]+)*/gu;
 const MOTOR_RE = /(?<![\p{L}\p{N}.,])(\d)[.,](\d)(?![\p{N}])/gu;
 /** Um trecho = o que fica entre dois separadores do "Serve em" (a mesma definição, em `serve-em.ts`). */
 const SEGMENTO_RE = new RegExp(`${SEPARADOR_SEGMENTO.source.replace(/^\[/, '[^')}+`, 'g');
@@ -47,11 +46,8 @@ interface MontadoraAchada {
 }
 
 let montadorasPorChave: Map<string, string> | null = null;
-/** chave normalizada (nome ou apelido, RN-CAT-15) → nome de exibição da montadora; a busca da folha usa. */
+/** chave normalizada (nome ou apelido, RN-CAT-15) → nome de exibição da montadora; a busca da folha e o índice usam. */
 export function apelidosDeMontadora(): ReadonlyMap<string, string> {
-  return mapaDeMontadoras();
-}
-function mapaDeMontadoras(): Map<string, string> {
   if (montadorasPorChave) return montadorasPorChave;
   const m = new Map<string, string>();
   const porNome = new Map(MONTADORAS.map((n) => [normalizarTexto(n), n]));
@@ -81,7 +77,7 @@ function ehVeiculo(veiculos: ReadonlySet<string>, palavra: string): boolean {
 
 /** A montadora cujo nome ou apelido é a(s) palavra(s) de `i`: tenta duas palavras ("land rover") antes de uma. */
 function montadoraEm(ws: readonly { chave: string }[], i: number): { achada: MontadoraAchada; palavras: number } | null {
-  const m = mapaDeMontadoras();
+  const m = apelidosDeMontadora();
   if (i + 1 < ws.length) {
     const dupla = `${ws[i]!.chave} ${ws[i + 1]!.chave}`;
     const nome = m.get(dupla);
@@ -105,7 +101,7 @@ export function segmentosDeVeiculo(aplicacao: string | null | undefined, opcoes:
     const fim = inicio + seg.length;
     const ws: { chave: string; ini: number; fim: number; raw: string }[] = [];
     for (const m of seg.matchAll(PALAVRA_RE)) {
-      const chave = palavrasInteiras(m[0])[0];
+      const chave = palavrasInteiras(m[0], false)[0]; // com memória: as mesmas palavras se repetem em milhares de aplicações
       if (chave) ws.push({ chave, ini: inicio + m.index!, fim: inicio + m.index! + m[0].length, raw: m[0] });
     }
     let montadora: MontadoraAchada | null = null;
@@ -163,8 +159,6 @@ export interface IndiceVeiculos {
   doModelo: ReadonlyMap<string, readonly EntradaVeiculo[]>;
   /** produto → entradas (ausente = universal). */
   doProduto: ReadonlyMap<string, readonly EntradaVeiculo[]>;
-  /** Modelos achados sem nenhuma montadora na base (só a busca da folha os acha). */
-  modelosSemMontadora: readonly string[];
 }
 
 /**
@@ -174,10 +168,14 @@ export interface IndiceVeiculos {
  */
 export function restringirIndice(indice: IndiceVeiculos, escopo: ReadonlySet<string>): IndiceVeiculos {
   const entradas = indice.entradas.filter((e) => escopo.has(e.produto));
+  return { anoAtual: indice.anoAtual, entradas, nomes: indice.nomes, ...mapasDoIndice(entradas) };
+}
+
+/** Os três mapas do índice (montadora → modelos, modelo → entradas, produto → entradas) sobre as `entradas`; uma passada, sem copiar listas. */
+function mapasDoIndice(entradas: readonly EntradaVeiculo[]): Pick<IndiceVeiculos, 'modelosDaMontadora' | 'doModelo' | 'doProduto'> {
   const modelosDaMontadora = new Map<string, Set<string>>();
   const doModelo = new Map<string, EntradaVeiculo[]>();
   const doProduto = new Map<string, EntradaVeiculo[]>();
-  const semMontadora = new Set<string>();
   const juntar = <K>(m: Map<K, EntradaVeiculo[]>, k: K, e: EntradaVeiculo) => {
     const l = m.get(k);
     if (l) l.push(e);
@@ -188,19 +186,11 @@ export function restringirIndice(indice: IndiceVeiculos, escopo: ReadonlySet<str
       let s = modelosDaMontadora.get(e.montadora);
       if (!s) modelosDaMontadora.set(e.montadora, (s = new Set()));
       s.add(e.modelo);
-    } else semMontadora.add(e.modelo);
+    }
     juntar(doModelo, e.modelo, e);
     juntar(doProduto, e.produto, e);
   }
-  return {
-    anoAtual: indice.anoAtual,
-    entradas,
-    nomes: indice.nomes,
-    modelosDaMontadora: new Map([...modelosDaMontadora].map(([k, v]) => [k, [...v]])),
-    doModelo,
-    doProduto,
-    modelosSemMontadora: [...semMontadora],
-  };
+  return { modelosDaMontadora: new Map([...modelosDaMontadora].map(([k, v]) => [k, [...v]])), doModelo, doProduto };
 }
 
 /** O catálogo tem veículo nas aplicações (o botão Veículo aparece). */
@@ -245,29 +235,30 @@ export class ConstrutorIndiceVeiculos {
     }
     for (const n of MONTADORAS) nomes.set(normalizarTexto(n), n);
 
-    const modelosDaMontadora = new Map<string, Set<string>>();
-    const doModelo = new Map<string, EntradaVeiculo[]>();
-    const doProduto = new Map<string, EntradaVeiculo[]>();
-    const semMontadora = new Set<string>();
-    for (const e of entradas) {
-      if (e.montadora) {
-        let s = modelosDaMontadora.get(e.montadora);
-        if (!s) modelosDaMontadora.set(e.montadora, (s = new Set()));
-        s.add(e.modelo);
-      } else semMontadora.add(e.modelo);
-      doModelo.set(e.modelo, [...(doModelo.get(e.modelo) ?? []), e]);
-      doProduto.set(e.produto, [...(doProduto.get(e.produto) ?? []), e]);
-    }
-    return {
-      anoAtual: this.opcoes.anoAtual,
-      entradas,
-      nomes,
-      modelosDaMontadora: new Map([...modelosDaMontadora].map(([k, v]) => [k, [...v]])),
-      doModelo,
-      doProduto,
-      modelosSemMontadora: [...semMontadora],
-    };
+    return { anoAtual: this.opcoes.anoAtual, entradas, nomes, ...mapasDoIndice(entradas) };
   }
+}
+
+/** Fontes por pedaço da montagem assíncrona: cada pedaço leva poucos ms (a tela cede o laço entre eles). */
+export const LOTE_MONTAGEM_INDICE = 500;
+const cederLaco = (): Promise<void> => new Promise((r) => globalThis.setTimeout(r, 0));
+
+/**
+ * O mesmo índice de `construirIndiceVeiculos`, montado em pedaços de `lote` produtos com um `await` entre eles (`ceder`; por padrão um
+ * `setTimeout(0)`): a tela não trava com 20 mil produtos. `aoCeder` roda a cada pedaço (teste mede o maior pedaço).
+ */
+export async function construirIndiceVeiculosEmLotes(
+  fontes: Iterable<{ id: string; aplicacao?: string | null | undefined }>,
+  opcoes: OpcoesSegmentos,
+  { lote = LOTE_MONTAGEM_INDICE, ceder = cederLaco }: { lote?: number; ceder?: () => Promise<void> } = {},
+): Promise<IndiceVeiculos> {
+  const c = new ConstrutorIndiceVeiculos(opcoes);
+  let n = 0;
+  for (const f of fontes) {
+    c.acrescentar(f.id, f.aplicacao);
+    if (++n % lote === 0) await ceder();
+  }
+  return c.concluir();
 }
 
 /** Atalho: o índice de uma lista de produtos ativos com a aplicação. */

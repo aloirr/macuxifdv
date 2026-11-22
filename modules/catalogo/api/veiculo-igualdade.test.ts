@@ -6,9 +6,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { ContextoConsultaAparelho } from '@macuxi/platform-sdk';
 import type { VeiculoEscolhido } from '../contracts';
-import { esquecerMemoriaLocal } from '../app/lib/local';
+import { esquecerMemoriaLocal, type LeitorLocal } from '../app/lib/local';
 import { esquecerMemoriaTextos, consultaBuscaProdutosAparelho } from '../app/texto-consultas';
-import { consultaVeiculosAparelho, esquecerVeiculosRecentes } from '../app/veiculos-consulta';
+import { consultaVeiculosAparelho, esquecerVeiculosRecentes, indiceVeiculosLocal } from '../app/veiculos-consulta';
 import { consultaBuscaProdutos, consultaVeiculos } from './consultas-texto';
 
 const uuid = (n: number) => `0ca00000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -79,7 +79,14 @@ type Saida = { itens: Item[]; total: number; disponivel: boolean; recentes: { ve
 type Exec = { executar(e: unknown, c: unknown): Promise<Saida> };
 const buscaAparelho = (e: unknown) => (consultaBuscaProdutosAparelho as unknown as Exec).executar(e, aparelho());
 const buscaApi = (e: unknown) => (consultaBuscaProdutos as unknown as Exec).executar(e, api());
-const cascataAparelho = (e: unknown, escopo = false) => (consultaVeiculosAparelho as unknown as Exec).executar(e, aparelho(escopo));
+const executarVeiculosAparelho = (e: unknown, ctx: ContextoConsultaAparelho) => (consultaVeiculosAparelho as unknown as Exec).executar(e, ctx);
+/** A consulta do aparelho não espera a montagem do índice: ela dispara a montagem, a espera aqui (como a tela, que pergunta de novo) e responde. */
+async function cascataAparelho(e: unknown, escopo = false): Promise<Saida> {
+  const ctx = aparelho(escopo);
+  await executarVeiculosAparelho(e, ctx);
+  await indiceVeiculosLocal(ctx as unknown as LeitorLocal, 2026);
+  return executarVeiculosAparelho(e, ctx);
+}
 const cascataApi = (e: unknown) => (consultaVeiculos as unknown as Exec).executar(e, api());
 const itens = (r: Saida) => r.itens.map(({ aplicacao: _a, ...x }) => x);
 
@@ -151,6 +158,13 @@ describe('RN-CAT-22 / P4: aparelho e API dão o mesmo resultado com veículo', (
     expect(r.recentes).toHaveLength(3);
     expect(r.recentes[0]!.veiculo).toEqual(ESCOLHAS[3]);
     expect(r.recentes[0]!.rotulos.curto).toBe('Gol 2020');
+  });
+
+  it('RN-CAT-22: enquanto o índice não está pronto, a consulta do aparelho não espera e devolve disponivel = false; pronto, devolve a cascata', async () => {
+    const ctx = aparelho();
+    expect(await executarVeiculosAparelho({}, ctx)).toMatchObject({ disponivel: false, nivel: null, opcoes: [] });
+    await indiceVeiculosLocal(ctx as unknown as LeitorLocal, 2026);
+    expect(await executarVeiculosAparelho({}, ctx)).toMatchObject({ disponivel: true, nivel: 'montadora' });
   });
 
   it('RN-CAT-22: tenant sem veículo nas aplicações: disponivel = false (sem o botão)', async () => {

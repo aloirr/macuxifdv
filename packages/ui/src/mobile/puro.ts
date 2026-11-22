@@ -48,3 +48,5 @@ export * from './nomes-de-icone';
 export * from './sino';
 // Filtro de veículo: medidas e regras de exibição da FolhaCascata e da GradeOpcoes
 export * from './cascata';
+// RD-2573: tipos e fiação pura da FolhaVeiculo
+export * from './folha-veiculo-estado';

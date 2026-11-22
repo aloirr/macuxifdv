@@ -138,7 +138,7 @@ export const BuscaProdutosEntradaSchema = z
   .object({
     /** Vazio só quando vem `veiculo` (RN-CAT-22): a lista é a das peças do veículo. */
     q: z.string().trim().max(200).default(''),
-    /** RN-CAT-22 (aditivo): só os produtos que servem no veículo (ano, motor e versão só filtram se escolhidos, RN-CAT-22); soma com `q`. */
+    /** RN-CAT-22 (aditivo): só os produtos que servem no veículo (ano, motor e versão só filtram se escolhidos); soma com `q`. */
     veiculo: VeiculoEscolhido.optional(),
     produto_ids: z.array(Id).max(5000).optional(),
     /** T-0167: no lugar dos até 5.000 `produto_ids`, só os vendáveis na tabela de preço deste cliente (RN-CAT-06), filtrados dentro da consulta. */

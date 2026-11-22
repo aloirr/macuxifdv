@@ -12,7 +12,6 @@ import { rotuloDoNivel } from '../../domain/hierarquia';
 import type { GrupoDeClassificacao } from '../../domain/veiculo-filtro';
 
 /** Os quatro grupos da folha Filtrar, do 1º ao 4º nível da árvore do ERP (RN-CAT-22, D1): sistema, família, linha e categoria. */
-export type GrupoDaGrade = GrupoFiltro;
 export interface FiltroDaGrade {
   sistemaId: string | null;
   familiaId: string | null;
@@ -22,7 +21,7 @@ export interface FiltroDaGrade {
 export const SEM_FILTRO: FiltroDaGrade = { sistemaId: null, familiaId: null, linhaId: null, categoriaId: null };
 
 /** Ordem da folha e campo de cada grupo; o nome vem do cadastro (`rotuloDoNivel`: Sistema, Grupo, Linha; do 4º nível em diante, Categoria). */
-export const GRUPOS_DA_GRADE: readonly { grupo: GrupoDaGrade; rotulo: string; campo: keyof FiltroDaGrade }[] = [
+export const GRUPOS_DA_GRADE: readonly { grupo: GrupoFiltro; rotulo: string; campo: keyof FiltroDaGrade }[] = [
   { grupo: 'sistema', rotulo: rotuloDoNivel(1), campo: 'sistemaId' },
   { grupo: 'familia', rotulo: rotuloDoNivel(2), campo: 'familiaId' },
   { grupo: 'linha', rotulo: rotuloDoNivel(3), campo: 'linhaId' },

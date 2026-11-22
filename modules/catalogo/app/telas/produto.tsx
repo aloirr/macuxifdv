@@ -22,7 +22,7 @@ import { chipDoEstoque } from '../../domain/estoque-campo';
 import { filialDeCadastroLocal, fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { indiceVeiculosLocal } from '../veiculos-consulta';
-import { partirTrecho, TEXTOS_VEICULO, textoDaFichaCompativel, veiculoDaTela } from '../lib/veiculo-tela';
+import { partirTrecho, TEXTOS_VEICULO_CATALOGO, textoDaFichaCompativel, veiculoDaTela } from '../lib/veiculo-tela';
 import { BotoesAcao } from './comum';
 import { BotaoPorFilialDaFicha, FolhaEstoquePorFilial } from './estoque-filial';
 
@@ -207,7 +207,7 @@ export default function TelaProduto() {
 
       {catalogo && leveTambem.length > 0 ? (
         <Card style={s.card} testID="produto-oferece-junto">
-          <SectionHeader title={TEXTOS_VEICULO.leveTambem} />
+          <SectionHeader title={TEXTOS_VEICULO_CATALOGO.leveTambem} />
           {leveTambem.map((o, i) => {
             const e = estadoOfereceJunto({ online: ambiente.online(), fichaNoAparelho: estado.noAparelho });
             const ultima = i === leveTambem.length - 1;
