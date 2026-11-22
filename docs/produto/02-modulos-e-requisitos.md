@@ -131,7 +131,7 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 
 - **RF-INT-01 (P0)** Hub REST de integração (`/integracao/v1`) com contratos canônicos por entidade, carga em lote, delta por cursor, idempotência e OpenAPI publicado.
 - **RF-INT-02 (P0)** Conector Macuxi on-premise (serviço Windows) que lê views SQL do ERP e envia delta ao Hub por HTTPS de saída; recebe pedidos aprovados e grava em tabela de entrada do ERP ou chama a API do ERP.
-- **RF-INT-03 (P0)** Carga por arquivo (Excel/CSV no BKO ou SFTP) como alternativa e para implantação.
+- ~~**RF-INT-03 (P0)** Carga por arquivo (Excel/CSV no BKO ou SFTP) como alternativa e para implantação.~~ **Retirado na v1.0.22** (R-20261121-235000-alexandre, item 5): a integração entra só pelo Conector ou pela API (`/integracao/v1`), em todo o sistema (BKO e portal config.).
 - **RF-INT-04 (P0)** Monitor no BKO: últimos lotes, linhas ok/erro, reprocessar, saúde do Conector. 🖥️
 - **RF-INT-05 (P1)** Adaptadores nuvem-a-nuvem para ERPs que têm API própria.
 - **RF-INT-06 (P1)** Reconciliação diária (contagens e totais por entidade) com alerta de divergência.
