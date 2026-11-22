@@ -48,7 +48,6 @@ export const ROTAS_PORTAL = {
   /** ADR 0048: `POST { cnpj }` → dados da Receita (`ConsultaCnpjRespostaSchema`). */
   cnpj: semV1(ROTA_PORTAL_CNPJ),
   // Integração (com `x-macuxi-tenant`)
-  ordemCarga: '/integracao/ordem-carga',
   /** Conector (tipo `conector`) e credencial de API (tipo `nuvem`): `GET` lista os dois, `POST` cria com o `tipo` (`ConectorCriar`). */
   conectores: '/integracao/conectores',
   /** `PATCH` (`ConectorAtualizar`: `{ entidades }` troca as bases; `{ ativo: false }` desativa e revoga as chaves, RN-INT-10) → `ConectorResumo`. */
@@ -68,19 +67,13 @@ export const ROTAS_PORTAL = {
 export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.json', viaProxy: '/api-proxy/_publico/integracao/v1/openapi.json' });
 
 /**
- * Guia da API em PDF (spec portal-config-enxuto §10.2): caminho same-origin público (sem sessão, como o OpenAPI; R-20261121-235000).
- * Um lugar só: quando o PDF existir, preencha aqui e o cartão "Guia" mostra o botão. `null` = só o link do OpenAPI.
+ * Guia da API em PDF (spec portal-config-enxuto §10.2): rota pública `GET /integracao/v1/guia.pdf` (S6, v1.0.23), sem sessão, como o
+ * OpenAPI (R-20261121-235000); o navegador baixa pelo caminho same-origin que o `next.config.ts` (`PROXY_GUIA_PDF_HUB`) repassa à API.
  */
-export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: null });
-
-/** Rota pública do guia PDF do Hub (`GET /integracao/v1/guia.pdf`, sem sessão, como o OpenAPI) e o caminho same-origin do `next.config.ts` (`PROXY_GUIA_PDF_HUB`). */
 export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf', viaProxy: '/api-proxy/_publico/integracao/v1/guia.pdf' });
+
+/** O que o cartão "Guia" mostra: o botão do PDF com `guiaPdf`; `null` = só o link do OpenAPI. */
+export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: GUIA_PDF_HUB.viaProxy });
 
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];
-
-/**
- * Identificador do antigo Conector de arquivo do portal (R-20261106-011153). A carga por arquivo saiu do `config.` (v1.0.21; spec
- * portal-config-enxuto §10); fica só o identificador que `aba-integracao.tsx` ainda lê, até ela deixar de ler. Depois, apagar.
- */
-export const CONECTOR_ARQUIVO_PORTAL = Object.freeze({ conector_id: 'implantacao-csv' });

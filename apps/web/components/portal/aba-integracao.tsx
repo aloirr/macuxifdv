@@ -7,7 +7,7 @@
  * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar e colar a credencial) e a
  *   tabela "Conectores" (tipos `conector` e `arquivo`; só o `conector` tem "Bases" e "Gerar nova chave").
  * - "Integração via API": "Gerar a credencial" (botão neutro) pela mesma rota com `tipo: 'nuvem'`, escolhendo entre as bases livres e
- *   se envia os pedidos; o cartão "Guia" (botão do PDF só com `ENCAIXE_API_HUB.guiaPdf`; link do OpenAPI 3.1) e a tabela "Credenciais".
+ *   se envia os pedidos; o cartão "Guia" (botão do PDF pela rota pública `GUIA_PDF_HUB`; link do OpenAPI 3.1) e a tabela "Credenciais".
  * - Linha ativa: "Bases" (`PATCH { entidades }`, só as bases livres para ele) e "Gerar nova chave" (`POST ROTAS_PORTAL.chaveConector`)
  *   fora do de arquivo; "Desativar" (`PATCH { ativo: false }`); nova chave e desativar com confirmação, no texto do tipo (Conector ou
  *   credencial de API). Linha desativada: sem botões.
@@ -443,7 +443,7 @@ export function ListaConectores({
   );
 }
 
-/** Cartão "Guia": o botão do PDF só quando ele existir (`guiaPdf`); o link do OpenAPI 3.1 sempre (uma informação, um lugar). */
+/** Cartão "Guia": o botão do PDF (`guiaPdf`, rota pública, sem sessão); o link do OpenAPI 3.1 sempre (uma informação, um lugar). */
 export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
   const toast = useToast();
   const [indisponivel, setIndisponivel] = useState(false);
@@ -461,7 +461,7 @@ export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
     <Panel title="Guia">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {guiaPdf && (
-          <Button data-testid="integracao.guia" onClick={() => void baixar(guiaPdf, 'macuxi-guia-api-hub.pdf')}>
+          <Button data-testid="integracao.guia" onClick={() => void baixar(guiaPdf, 'macuxi-guia-api-v1.pdf')}>
             Baixar o guia (PDF)
           </Button>
         )}

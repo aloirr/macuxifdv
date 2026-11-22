@@ -86,10 +86,9 @@ import { localIsoDate } from '@macuxi/comum/fuso';
 import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
 import { fichaExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
-import { ROTAS_PORTAL, semV1 } from './portal-rotas';
+import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL, semV1 } from './portal-rotas';
 
 const CHAVE = 'macuxi.portal.falso';
-const ORDEM: Entidade[] = ['vendedor', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 
 interface EmpresaFalsa {
   id: string;
@@ -816,9 +815,6 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (tenant !== sessao.empresa) return erro(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha outra.');
   }
   if (!tenant || !e.empresas.some((x) => x.id === tenant)) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
-  if (rota === `GET ${ROTAS_PORTAL.ordemCarga}`) {
-    return json(200, { itens: ORDEM.map((entidade, i) => ({ entidade, posicao: i + 1, opcional: entidade === 'titulo' || entidade === 'nota', depende_de: [] })) });
-  }
   if (rota === `GET ${ROTAS_PORTAL.conectores}`) {
     // `?tipo=` (desenho config-credencial-api): `conector` à esquerda e `nuvem` (credencial de API) à direita da aba Integração
     const tipo = new URLSearchParams(caminhoComQuery.split('?')[1] ?? '').get('tipo');
@@ -873,6 +869,41 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
 }
 
 /** Para os testes e para "recomeçar" o modo falso. */
+/** PDF mínimo válido (uma página, uma linha), para o "Baixar o guia (PDF)" baixar um arquivo de verdade no modo falso. */
+function pdfDeExemplo(texto: string): string {
+  const objetos = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${`BT /F1 14 Tf 72 770 Td (${texto}) Tj ET`.length} >>\nstream\nBT /F1 14 Tf 72 770 Td (${texto}) Tj ET\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const posicoes = objetos.map((o, i) => {
+    const pos = pdf.length;
+    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+    return pos;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objetos.length + 1}\n0000000000 65535 f \n${posicoes.map((p) => `${String(p).padStart(10, '0')} 00000 n \n`).join('')}`;
+  return `${pdf}trailer\n<< /Size ${objetos.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+}
+
+/**
+ * Documentos públicos do Hub no modo falso (sem sessão, como na API): o guia da API em PDF (`GUIA_PDF_HUB`) e o OpenAPI (`OPENAPI_HUB`),
+ * com o nome que a API manda no `Content-Disposition`; outro caminho = rota ausente.
+ */
+export function documentoPublicoFalso(viaProxy: string): Response {
+  if (viaProxy === GUIA_PDF_HUB.viaProxy) {
+    return new Response(pdfDeExemplo('Macuxi - Guia da API do Hub (modo falso)'), { status: 200, headers: { 'content-type': 'application/pdf', 'content-disposition': 'attachment; filename="macuxi-guia-api-v1.pdf"' } });
+  }
+  if (viaProxy === OPENAPI_HUB.viaProxy) {
+    const doc = { openapi: '3.1.0', info: { title: 'Macuxi Hub de Integração (modo falso)', version: '1' }, paths: {} };
+    return new Response(JSON.stringify(doc, null, 2), { status: 200, headers: { 'content-type': 'application/json', 'content-disposition': 'attachment; filename="macuxi-openapi-hub-v1.json"' } });
+  }
+  return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
+}
+
 export function zerarModoFalso() {
   falhas.clear();
   adminsFalsos.clear();

@@ -282,19 +282,19 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect(itensDaEscolha(s0).map((i) => i.nome)).toEqual(['Atacado Norte S.A.', 'Comercial Boa Vista Ltda']);
     const [a, b] = s0.empresas;
     if (!a || !b) throw new Error('sessão sem as duas empresas');
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s0, { 'x-macuxi-tenant': a.id }))).status).toBe(409);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s0, { 'x-macuxi-tenant': a.id }))).status).toBe(409);
 
     const s1 = await sessaoDe(await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: a.id }, com(s0)));
     expect(s1.empresa?.id).toBe(a.id);
     expect(s1.token).not.toBe(s0.token);
     expect((await responderFalso('POST', ROTAS_PORTAL.renovar, undefined, com(s0))).status).toBe(401);
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s1, { 'x-macuxi-tenant': a.id }))).status).toBe(200);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s1, { 'x-macuxi-tenant': a.id }))).status).toBe(200);
     // outra empresa da lista sem escolher de novo: 403
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s1, { 'x-macuxi-tenant': b.id }))).status).toBe(403);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s1, { 'x-macuxi-tenant': b.id }))).status).toBe(403);
 
     const s2 = await sessaoDe(await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: b.id }, com(s1)));
     expect(s2.empresa?.id).toBe(b.id);
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s2, { 'x-macuxi-tenant': a.id }))).status).toBe(403);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s2, { 'x-macuxi-tenant': a.id }))).status).toBe(403);
     // empresa fora da lista: 403 na escolha
     expect((await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: '0b6f1a52-5c1e-4c4e-9a43-000000000099' }, com(s2))).status).toBe(403);
     // o admin do cliente não cria empresa nem vê as dos outros

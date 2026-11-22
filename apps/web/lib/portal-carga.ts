@@ -1,10 +1,6 @@
-/**
- * Resto da carga por arquivo do portal (v1.0.21; spec portal-config-enxuto §10 e §12: nenhum CSV fica no `config.`). Fica só o
- * nome de cada base, que `tela-empresa.tsx` e `aba-integracao.tsx` ainda importam; depois que saírem, apagar este arquivo.
- */
 import type { Entidade } from '@macuxi/integracao/contracts';
 
-/** Nome de cada base (T-0087 §3). */
+/** Nome de cada base do Hub, como a aba Integração do portal mostra nas Bases de um Conector e de uma credencial de API. */
 export const CARTAO_DA_ENTIDADE: Record<Entidade, { titulo: string }> = {
   vendedor: { titulo: 'Vendedores do ERP' },
   catalogo_no: { titulo: 'Árvore do catálogo' },

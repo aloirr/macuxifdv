@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErroPortal, lerErroDaApi, mensagemDoErro, type OpcoesChamada } from '@/lib/portal-api';
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
-import { ENCAIXE_API_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { ENCAIXE_API_HUB, GUIA_PDF_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { AbaIntegracao, CartaoGuia, corpoDaCredencial, corpoDesativar, criarCredencial, Credencial, DialogoBases, DialogoConector, entidadesLivres, ListaBases, mensagemSemBases, patchConector, type Chamar } from './aba-integracao';
 
@@ -108,13 +108,13 @@ describe('aba Integração em dois lados', () => {
     expect(conectores).not.toContain('erp-api');
   });
 
-  it('API: bases livres marcadas, "Envia os pedidos" desmarcada, botão neutro, Guia só com o OpenAPI e "Credenciais" com as de tipo nuvem', () => {
-    expect(ENCAIXE_API_HUB).toEqual({ guiaPdf: null });
+  it('API: bases livres marcadas, "Envia os pedidos" desmarcada, botão neutro, Guia com o PDF e o OpenAPI e "Credenciais" com as de tipo nuvem', () => {
+    expect(ENCAIXE_API_HUB).toEqual({ guiaPdf: GUIA_PDF_HUB.viaProxy });
     expect(html).toMatch(/data-testid="integracao\.api-recebe-pedidos"(?![^>]*checked)/);
     expect(html).toMatch(/data-testid="integracao\.recebe-pedidos"[^>]*checked/);
     expect(html).not.toMatch(/bg-accent text-white[^"]*" data-testid="integracao\.api-gerar"/);
     expect(html).toContain('data-testid="integracao.openapi"');
-    expect(html).not.toContain('Baixar o guia (PDF)');
+    expect(html).toMatch(/data-testid="integracao\.guia"[^>]*>Baixar o guia \(PDF\)</);
     const credenciais = html.slice(html.indexOf('data-testid="integracao.api-credenciais"'));
     expect(credenciais).toContain('>erp-api<');
     expect(credenciais).not.toMatch(/>erp<|velho|implantacao-csv/);
