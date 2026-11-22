@@ -2,7 +2,9 @@
 
 Aprovado pelo dono do produto em 22/11/2026 (R-20261122-005500-alexandre): D1–D9 conforme as recomendações; codificação na v1.0.23
 
-- **Autor:** engenheiro-software · **Data:** 22/11/2026 (Manaus) · **Situação:** aprovado
+- **Autor:** engenheiro-software · **Data:** 22/11/2026 (Manaus) · **Situação:** aprovado; codificação em andamento (F0–F2).
+  F0 e F1 no branch `nuvem/v1025-erp-engenheiro-software`: ADR 0066, eventos no registro (`@1`, padrão do registro), cofre,
+  redação do log, cliente HTTP de saída e piso da coleta no `platform-sdk`
 - **Pedido:** R-20261111-194840-alexandre. Aprovação para começar o desenho: R-20261121-234000-alexandre, item 3.
 - **Premissa de origem:** o recado R-20261111-194840-alexandre **não foi lido na íntegra**. A sessão da nuvem recebe 403 no
   repositório de recados. Este desenho parte do resumo do gerente-projetos:

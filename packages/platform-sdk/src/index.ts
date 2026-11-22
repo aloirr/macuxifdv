@@ -51,3 +51,5 @@ export * from './empresa-logo';
 export * from './app-versao';
 export * from './privacidade-localizacao';
 export * from './geocodificador';
+export * from './segredos-log';
+export * from './coleta-erp';

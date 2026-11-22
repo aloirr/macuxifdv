@@ -7,7 +7,7 @@
  * - no ambiente local a API sobe com aviso e o login responde 503 `AUTENTICACAO_INDISPONIVEL` (ninguém autentica).
  */
 
-import { CAMINHOS_COORDENADA_LOG } from '@macuxi/platform-sdk';
+import { CAMINHOS_COORDENADA_LOG, CAMINHOS_SEGREDO_LOG } from '@macuxi/platform-sdk';
 import { serializarErro, type ErroDeLog } from './log-seguro';
 
 /** Chave liga/desliga do ambiente: só `1`/`true`/`sim` liga; ausente ou outro valor = desligado. */
@@ -167,7 +167,7 @@ export function lerTrustProxy(env: NodeJS.ProcessEnv): boolean | string[] | ((en
  * (`log-seguro.ts`, T-0078 D-L1a): erro do Postgres sai só com SQLSTATE, `constraint` e nomes de tabela/coluna — nunca
  * `detail`, `where`, `parameters` nem a mensagem com valores da linha.
  */
-export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
+export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [...new Set([
   'headers.authorization',
   'headers.cookie',
   'headers["x-macuxi-conector-id"]',
@@ -230,7 +230,10 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   '*.dados.login',
   // ADR 0061 decisão 8 (RN-CORE-13): nenhuma coordenada no log (`latitude`, `longitude`, `lat`, `lng`, `lon`, `coords`)
   ...CAMINHOS_COORDENADA_LOG,
-];
+  // ADR 0066 (RN-INT-17 proposta): credencial do ERP da busca pela API (senha, token, appkey, cookie de sessão) no 1º, 2º e
+  // 3º nível; o cliente HTTP de saída e o cofre não registram nada disso, isto é reforço
+  ...CAMINHOS_SEGREDO_LOG,
+])];
 
 export function opcoesLogger(nivel: string) {
   return {
