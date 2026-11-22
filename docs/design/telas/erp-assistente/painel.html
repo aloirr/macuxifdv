@@ -28,8 +28,8 @@ const li = ([n, data, parcial]) => data
   ? `<li><span class="ic ok" role="img" aria-label="Cumprido">${I.ok}</span><span class="nome">${n}</span><span class="q ok">${data}</span></li>`
   : `<li><span class="ic pend" role="img" aria-label="Pendente"></span><span class="nome">${n}</span><span class="q">${parcial}</span></li>`;
 const dia = concluida
-  ? `<div class="cartao"><div class="dia"><span class="n">Concluída</span><span class="selo">D+18</span><div class="datas">10/11/2026 a 28/11/2026</div></div></div>`
-  : `<div class="cartao" data-testid="implantacao.dia"><div class="dia"><span class="n">D+12 <small>de 30</small></span><div class="barra" role="progressbar" aria-label="Dia da implantação" aria-valuemin="0" aria-valuemax="30" aria-valuenow="12"><i style="width:40%"></i></div><div class="datas">Começou em 10/11/2026 · termina até 10/12/2026</div></div></div>`;
+  ? `<div class="cartao"><div class="dia"><span class="n">Concluída</span><span class="selo">D+18</span></div></div>`
+  : `<div class="cartao" data-testid="implantacao.dia"><div class="dia"><span class="n">D+12 <small>de 30</small></span><div class="barra" role="progressbar" aria-label="Dia da implantação" aria-valuemin="0" aria-valuemax="30" aria-valuenow="12"><i style="width:40%"></i></div><div class="datas">Termina até 10/12/2026</div></div></div>`;
 const alertas = concluida ? '' : `<div class="cartao alertas" data-testid="implantacao.alertas"><h2>Alertas</h2>
 <div class="alerta w">${I.alerta}<span class="tx">Estoque sem carga há 2 h.</span><a class="link">Abrir no Monitor</a></div>
 <div class="alerta">${I.alerta}<span class="tx">3 pedidos recusados pelo ERP.</span><a class="link">Abrir no Monitor</a></div></div>`;

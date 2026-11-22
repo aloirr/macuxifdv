@@ -6,7 +6,7 @@
 .inp.erro { border-color: var(--danger); }
 .inp.sen { justify-content: space-between; letter-spacing: 2px; }
 .inp .olho { width: 20px; height: 20px; color: var(--ink2); }
-.inp.off { background: #ECEEF1; color: var(--placeholder); }
+.inp.off { background: var(--nevoa); color: var(--placeholder); }
 .btn.carregando { background: var(--nevoa); border-color: var(--nevoa) !important; color: var(--placeholder); gap: 8px; }
 .erros { color: var(--danger); font-size: 12px; margin-top: 4px; display: flex; gap: 4px; align-items: flex-start; }
 .erros svg, .ok svg, .res svg { width: 13px; height: 13px; flex: none; margin-top: 2px; }

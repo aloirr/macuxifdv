@@ -16,6 +16,7 @@
 <div style="display:flex;gap:12px;align-items:center"><h1>Distribuidora Uma Ltda</h1><span class="selo">Ativa</span></div>
 <div class="sub">Código <span class="cod">AM4821</span> · CNPJ 11.222.333/0001-81 · Manaus (UTC−4)</div>
 <div class="abas" id="abas"><span class="ativa">Integração</span><span>Empresa</span></div>
+<div id="alertas"></div>
 <div class="lados">
 <section class="lado"><h2 class="lado-tit">Integração via Conector</h2>
 <div class="cartao passo"><h2><span class="num">1</span>Baixar o Conector</h2><span class="btn">Gerar o link do Conector</span></div>
@@ -71,11 +72,10 @@ function cartaoCredencial() {
     c += `<div class="campos" style="margin-top:14px">${campo('Banco da empresa', v[1] || 'ex.: SBO_EMPRESA', { vazio: !v[1], erro: estado === 'erro' ? 'Informe o banco da empresa.' : null })}${campo('Usuário', v[2], { vazio: v[2].startsWith('ex.') })}</div>`;
     if (!salva) c += `<div style="margin-top:14px">${campo('Senha', v[3] || '', { sen: true, erro: estado === 'erro' ? 'Informe a senha.' : null })}</div>`;
   }
-  if (salva) c += `<div class="salva" style="margin-top:14px" data-testid="erp.credencial-salva"><span>Credencial salva em 22/11/2026 às 14:32</span>${estado === 'parado' ? '' : '<span class="btn s">Trocar credencial</span>'}</div>`;
+  if (salva) c += `<div class="salva" style="margin-top:14px" data-testid="erp.credencial-salva"><span>Credencial salva em 21/11/2026 às 14:32</span>${estado === 'parado' ? '' : '<span class="btn s">Trocar credencial</span>'}</div>`;
   c += `<div class="ip">Libere este IP no ERP: <span class="cod">203.0.113.10</span><span class="btn s">Copiar</span></div>`;
   let res = '';
   if (estado === 'testando') res = `<span class="res busca">${I.giro}Testando…</span>`;
-  if (estado === 'ok') res = `<span class="res ok">${I.ok}Conexão OK.</span>`;
   if (estado === 'falhou') res = `<span class="res falha">${I.alerta}O ERP recusou o usuário ou a senha. Confira e teste de novo.</span>`;
   const btn = estado === 'testando' ? `<span class="btn carregando">Testando…</span>` : `<span class="btn">Testar conexão</span>`;
   const acao = estado === 'parado' ? '' : `<div class="linha-acao">${btn}${estado === 'testando' ? '' : res}</div>`;
@@ -88,18 +88,17 @@ const BASES = [
   ['Tabelas de preço', '15 min'], ['Estoque', '15 min'], ['Títulos', '1 h'], ['Notas e histórico', '15 min'],
 ];
 function cartaoBases() {
-  const linhas = BASES.map(([b, f]) => `<tr><td><span class="chk on"></span></td><td>${b}</td><td><div class="sel">${f}${I.seta}</div></td></tr>`).join('');
+  const linhas = BASES.map(([b, f]) => `<tr><td><span class="chk on"></span></td><td>${b}</td><td><div class="sel">${f}${I.seta}</div></td></tr>`).join('')
+    + `<tr data-testid="erp.pedidos"><td><span class="chk on"></span></td><td>Pedidos aprovados</td><td class="apoio">Envio ao ERP</td></tr>`;
   return `<div class="cartao passo"><h2><span class="num">3</span>Bases e frequência</h2>
 <table class="freq"><tr><th></th><th>Base</th><th>Frequência</th></tr>${linhas}</table>
-<div class="caixa" style="margin-top:10px"><span class="chk on"></span>Envia os pedidos aprovados ao ERP</div>
 <div class="linha-acao"><span class="btn">Gravar</span></div></div>`;
 }
 
 function cartaoViews() {
   const nome = ERPS.find((e) => e[0] === escolhido)[1];
   return `<div class="cartao passo"><h2><span class="num">2</span>Views do ${nome.replace('TOTVS ', '')}</h2>
-<a class="link" style="font-size:15px">Baixar as views do ${nome.replace('TOTVS ', '')} (.sql)</a>
-<div class="dado">Siga a Integração via Conector.</div></div>`;
+<a class="link" style="font-size:15px">Baixar as views do ${nome.replace('TOTVS ', '')} (.sql)</a></div>`;
 }
 
 function alertas() {
@@ -107,7 +106,8 @@ function alertas() {
   return `<div class="alertas" data-testid="erp.alertas"><h2>Alertas</h2><div class="alerta">${I.alerta}<span class="tx">O ERP recusou a credencial em 22/11 às 09:15. As buscas estão paradas.</span><span class="btn s">Trocar credencial</span></div></div>`;
 }
 
-let html = `<h2 class="lado-tit">Integração via API</h2>` + alertas() + cartaoErp();
+document.getElementById('alertas').innerHTML = alertas();
+let html = `<h2 class="lado-tit">Integração via API</h2>` + cartaoErp();
 if (escolhido === 'protheus' || escolhido === 'winthor' || escolhido === 'senior') html += cartaoViews();
 else if (escolhido) {
   html += cartaoCredencial();

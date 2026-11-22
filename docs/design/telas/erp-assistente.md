@@ -13,8 +13,9 @@
 ## Regras aplicadas
 1. Cartão = título + ação; nada do que o sistema faz por trás (cifra, recifra, carga semanal, tentativas 1-2-4-8-16 min).
 2. Uma informação, um lugar: a data da credencial só na linha "Credencial salva…"; o "Trocar credencial" num lugar por estado.
-3. Aviso só na área **"Alertas"** (topo do lado API e do painel), com a ação ao lado; resultado de teste e erro de campo ficam
-   junto do botão ou do campo, como os estados do CNPJ (`portal-config-enxuto.md` §11.2).
+3. Aviso só na área **"Alertas"**, com a ação ao lado: na aba Integração, no topo da aba, acima das duas colunas (Conector e
+   API), em todas as larguras; no painel, como em §B.3. Resultado de teste e erro de campo ficam junto do botão ou do campo,
+   como os estados do CNPJ (`portal-config-enxuto.md` §11.2).
 4. Um só principal por tela: continua o "Gerar credencial" do Conector (§10.2). Tudo aqui é neutro (secundário).
 5. Cor sempre com texto ou rótulo de acessibilidade.
 
@@ -24,7 +25,8 @@ O lado esquerdo (Conector) fica como está. O lado direito passa a começar pelo
 Abaixo de 768 px, empilhado como hoje: Conector primeiro, API depois.
 
 ### A.0 Alertas (só quando há)
-Primeiro bloco do lado API, título **"Alertas"**. Hoje um alerta só:
+Primeiro bloco da aba Integração, acima das duas colunas (Conector e API), em todas as larguras (abaixo de 768 px também
+fica antes do Conector), título **"Alertas"**. Sem alerta aberto o bloco não existe. Hoje um alerta só:
 
 | Quando | Texto | Ação |
 |---|---|---|
@@ -55,8 +57,7 @@ Escolha única em cartões de 52 px (`GrupoOpcoesCartao` + `OpcaoCartao`), duas 
   "Cancelar" · **"Trocar"** (perigo).
 
 ### A.2 Cartão "2 Views do {ERP}" (Protheus, WinThor, Senior)
-Link **"Baixar as views do {ERP} (.sql)"** (`db/conector/modelos/<erp>.sql`, F4b) e, embaixo, **"Siga a Integração via
-Conector."** Nada mais. Sem o arquivo no servidor (404): **"Ainda não disponível neste servidor."** (constante única, §0).
+Só o link **"Baixar as views do {ERP} (.sql)"** (`db/conector/modelos/<erp>.sql`, F4b). Nada mais. Sem o arquivo no servidor (404): **"Ainda não disponível neste servidor."** (constante única, §0).
 
 ### A.3 Cartão "2 Credencial do ERP" (SAP B1, Sankhya)
 Campos (`CampoFormulario` + `CLASSE_CAMPO`; segredo em `CampoSenha` com `finalidade="criacao"` para o navegador não preencher
@@ -82,7 +83,7 @@ reabre os campos de segredo vazios com **"Cancelar"**; a credencial antiga vale 
 | Preenchendo | campos, IP, "Testar conexão" habilitado | — |
 | Erro de validação (no toque em "Testar conexão") | borda `danger` + erro embaixo do campo, nada é enviado | **"Use um endereço https da internet."** (sem https, IP privado, `localhost`, usuário na URL) · **"Informe o banco da empresa."** · **"Informe o usuário."** · **"Informe a senha."** · **"Informe a appkey."** |
 | Testando | botão "Testando…" desabilitado com indicador | — |
-| Teste OK | ✓ verde + texto; o segredo vira a linha "Credencial salva…"; aparece o cartão 3 | **"Conexão OK."** |
+| Teste OK | o segredo vira a linha "Credencial salva em {dd/mm/aaaa} às {hh:mm}", que é o resultado do teste (sem texto ao lado do botão); aparece o cartão 3 | — |
 | Teste falhou | ícone + texto `danger` ao lado do botão; nada é gravado | ver tabela abaixo |
 | 401/403 parado | área "Alertas" (A.0) | — |
 
@@ -96,7 +97,7 @@ Motivos do teste que falhou (uma frase, com a ação):
 | 429 | **"O ERP pediu para esperar. Teste de novo em {n} min."** |
 | Endereço recusado pela API (SSRF) | o mesmo erro de campo "Use um endereço https da internet." |
 | Base sem um campo do modelo | uma linha por base: **"{Base}: falta o campo {campo} no ERP."** |
-| Campo do UUID do pedido ausente (D8) | não é falha: o teste passa e a caixa de pedidos do cartão 3 fica desabilitada (A.4) |
+| Campo do UUID do pedido ausente (D8) | não é falha: o teste passa e a caixa da linha "Pedidos aprovados" do cartão 3 fica desabilitada (A.4) |
 
 O teste nunca mostra dado lido do ERP (§4 do desenho).
 
@@ -107,8 +108,10 @@ Tabela **[caixa] · Base · Frequência**, na ordem de carga, com os nomes de `N
   desenho: preço, estoque e notas 15 min; cliente, endereço, produto, unidade e título 1 h; o resto 1 vez por dia.
 - Base desmarcada: a frequência fica desabilitada com "—".
 - Base que já vem de outro Conector (RN-INT-13): caixa desabilitada e, embaixo do nome, **"No Conector {id}"**.
-- **"Envia os pedidos aprovados ao ERP"** (marcada). Sem o campo do UUID no ERP (D8): desabilitada, com **"Falta o campo
-  {campo} no ERP."** embaixo (`U_MXUUID` no SAP B1, `AD_MXUUID` na Sankhya).
+- Última linha da tabela: **[caixa] · "Pedidos aprovados" · "Envio ao ERP"** (no lugar da frequência, texto de apoio, sem
+  `select`; caixa marcada). Sem o campo do UUID no ERP (D8): caixa desabilitada, com **"Falta o campo {campo} no ERP."**
+  embaixo dessa linha (`U_MXUUID` no SAP B1, `AD_MXUUID` na Sankhya). O rótulo "Envia os pedidos aprovados ao ERP" fica só
+  no cartão 2 do Conector.
 - **"Gravar"** (secundário) → "Gravando…" → ao lado, **"Gravado."** em `success`, que some na próxima mudança. Sem nenhuma
   base marcada, "Gravar" desabilitado.
 - Sai da tela (fica na spec e na API): a carga completa semanal, a janela de sobreposição e os limites de coleta.
@@ -135,8 +138,8 @@ Aba nova na página da empresa, entre "Integração" e "Empresa": **"Integraçã
 carga completa (D+0) em diante; antes disso não existe. "Integração" continua abrindo por padrão. Super-admin e admin do
 cliente veem **a mesma tela** (D6); não há botão de editar nela, então o admin do cliente só lê (RN-INT-21).
 
-1. **Cartão do dia:** **"D+{n}"** grande + **"de 30"**, barra de progresso (n/30) e, embaixo, **"Começou em {dd/mm/aaaa} ·
-   termina até {dd/mm/aaaa}"**. Concluída: **"Concluída"** + selo **"D+{n}"** e **"{início} a {fim}"**, sem barra.
+1. **Cartão do dia:** **"D+{n}"** grande + **"de 30"**, barra de progresso (n/30) e, embaixo, **"Termina até
+   {dd/mm/aaaa}"**. Concluída: só **"Concluída"** + selo **"D+{n}"**, sem barra e sem datas.
 2. **"Marcos"** (esquerda, 1,25 : 1): cinco linhas, na ordem: **Primeira carga completa · Primeiro pedido integrado ·
    Primeiro faturamento devolvido · 3 reconciliações seguidas sem divergência · 7 dias seguidos sem alerta**. Cumprido: ✓
    verde (`role="img" aria-label="Cumprido"`) e a data **"dd/mm"** em `success`. Pendente: círculo vazio
