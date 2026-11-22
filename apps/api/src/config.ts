@@ -7,7 +7,7 @@
  * - no ambiente local a API sobe com aviso e o login responde 503 `AUTENTICACAO_INDISPONIVEL` (ninguém autentica).
  */
 
-import { CAMINHOS_COORDENADA_LOG } from '@macuxi/platform-sdk';
+import { CAMINHOS_COORDENADA_LOG, CAMINHOS_SEGREDO_LOG } from '@macuxi/platform-sdk';
 import { serializarErro, type ErroDeLog } from './log-seguro';
 
 /** Chave liga/desliga do ambiente: só `1`/`true`/`sim` liga; ausente ou outro valor = desligado. */
@@ -168,36 +168,21 @@ export function lerTrustProxy(env: NodeJS.ProcessEnv): boolean | string[] | ((en
  * `detail`, `where`, `parameters` nem a mensagem com valores da linha.
  */
 export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
-  'headers.authorization',
-  'headers.cookie',
   'headers["x-macuxi-conector-id"]',
   'headers["x-macuxi-conector-versao"]',
-  'cabecalhos.authorization',
-  // T-0087: `ctx.cabecalhos` das rotas públicas registrado por engano (o objeto já se serializa censurado; isto é reforço)
-  '*.cabecalhos.authorization',
-  'cabecalhos.cookie',
   'cabecalhos["x-macuxi-conector-id"]',
-  'req.headers.authorization',
-  'req.headers.cookie',
-  // T-0117 (ADR 0038): o token de renovação do BKO vai em cookie; nem o `Set-Cookie` nem o campo do corpo saem no log
-  'headers["set-cookie"]',
-  'res.headers["set-cookie"]',
+  // T-0117 (ADR 0038): o token de renovação do BKO vai em cookie; o `Set-Cookie` sai pelo SDK (ADR 0066) e o campo do corpo aqui
   'refresh_token',
   '*.refresh_token',
   'req.headers["x-macuxi-conector-id"]',
-  'authorization',
-  'chave',
   // ADR 0029 (T-0087): segredos do super-admin, se alguém registrar o corpo por engano (o Core não registra)
-  'senha',
   'convite',
   // `codigo` solto fica de fora: é o código de erro dos logs (ex.: `modulo_inativo`); o TOTP só vem no corpo
   'codigo_recuperacao',
   'codigos_recuperacao',
   'segredo_base32',
   'otpauth_uri',
-  'token',
   'desafio',
-  'corpo.senha',
   'corpo.convite',
   'corpo.codigo',
   'corpo.codigo_recuperacao',
@@ -205,13 +190,10 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   // T-0093 (desenho §6): senha e e-mail do login do portal e do admin inicial no passo Empresa, se alguém registrar o corpo
   'email',
   'corpo.email',
-  '*.senha',
   '*.email',
   'senha_hash',
   '*.senha_hash',
-  'admin.senha',
   'admin.email',
-  'corpo.admin.senha',
   'corpo.admin.email',
   // T-0094 (desenho §12, fatia S): "Crie sua senha" (`senha_atual`, `senha_nova`) e o e-mail transacional (`para`), se alguém
   // registrar o corpo ou a mensagem por engano (o Core e a porta do e-mail não registram)
@@ -224,12 +206,12 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   'para',
   '*.para',
   '*.login',
-  'dados.senha',
-  '*.dados.senha',
   'dados.login',
   '*.dados.login',
   // ADR 0061 decisão 8 (RN-CORE-13): nenhuma coordenada no log (`latitude`, `longitude`, `lat`, `lng`, `lon`, `coords`)
   ...CAMINHOS_COORDENADA_LOG,
+  // ADR 0066 (RN-INT-18 proposta): senha, token, chave, authorization, cookie e set-cookie (inclusive os do ERP) vêm do SDK
+  ...CAMINHOS_SEGREDO_LOG,
 ];
 
 export function opcoesLogger(nivel: string) {
