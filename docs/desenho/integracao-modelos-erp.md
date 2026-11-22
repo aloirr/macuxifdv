@@ -1,6 +1,8 @@
 # Desenho — Modelos de integração por ERP, busca na API do ERP, assistente e painel dos 30 dias
 
-- **Autor:** engenheiro-software · **Data:** 22/11/2026 (Manaus) · **Situação:** proposta, aguarda as decisões do §8
+Aprovado pelo dono do produto em 22/11/2026 (R-20261122-005500-alexandre): D1–D9 conforme as recomendações; codificação na v1.0.23
+
+- **Autor:** engenheiro-software · **Data:** 22/11/2026 (Manaus) · **Situação:** aprovado
 - **Pedido:** R-20261111-194840-alexandre. Aprovação para começar o desenho: R-20261121-234000-alexandre, item 3.
 - **Premissa de origem:** o recado R-20261111-194840-alexandre **não foi lido na íntegra**. A sessão da nuvem recebe 403 no
   repositório de recados. Este desenho parte do resumo do gerente-projetos:
@@ -16,8 +18,7 @@
   - a T-0164 (Excel) foi cancelada.
 - **Base:** RF-INT-01, 02, 04, 05 e 06; RN-INT-01 a 14; RN-CORE-23 e 39; ADR 0006, 0007, 0013, 0016, 0022, 0025, 0028, 0029,
   0040, 0043 e 0058; doc 06.
-- **Escopo:** só o desenho. Nenhum código, migração, contrato ou tela muda nesta frente. O código começa com o ok do dono do
-  produto.
+- **Escopo:** só o desenho. Nenhum código, migração, contrato ou tela muda nesta frente.
 
 ---
 
@@ -416,15 +417,15 @@ assistente e o painel. Base de 105 h, mais 15% = **≈ 121 h**. Cada adaptador s
 
 | # | Decisão | Opções | Recomendação |
 |---|---|---|---|
-| D1 | Onde roda a busca na API do ERP | (a) worker na nuvem; (b) Conector com driver HTTP; (c) os dois já | **(a)**. ERP só na rede do cliente fica no Conector com as views. O (b) entra com o primeiro cliente que precisar. |
-| D2 | Primeiro ERP com busca por API | o ERP do primeiro cliente real; SAP B1 (API pública mais estável); Sankhya (forte em distribuição) | **O ERP do primeiro cliente real.** Sem cliente definido, **SAP B1**: o Service Layer tem documentação pública e não exige contrato com o fabricante para o desenho. |
-| D3 | Intervalo mínimo da busca | (a) 15 min para tudo (ADR 0022, RN-CORE-23); (b) exceção de 5 min para estoque | **(a)**. O pedido vai na hora, por evento, e não espera o ciclo. |
-| D4 | Como o `config.` apresenta os meios | (a) Conector \| API, com a API dividida em "Macuxi busca" e "ERP envia"; (b) três opções lado a lado | **(a)**. Mantém o "via Conector \| via API" da v1.0.22. |
-| D5 | Pedido de teste no assistente | (a) criar um pedido de teste no ERP; (b) não criar e acompanhar o primeiro pedido real no painel | **(b)**. Pedido de teste no ERP vira nota ou estoque reservado por engano. |
-| D6 | Quem vê o painel dos 30 dias | (a) só o super-admin do Macuxi; (b) também o admin do cliente, só leitura | **(b)**. O cliente vê o mesmo que o suporte. |
-| D7 | Chave-mestra do cofre e IP de saída | chave gerada na VM (como o pepper; perder a VM obriga cada cliente a redigitar a credencial) × secret do ambiente `PRODUCAO` no GitHub; IP fixo de saída da VM publicado ao cliente | **Secret do `PRODUCAO`**, mais o IP fixo da VM, que o engenheiro-software confirma com a Magalu (ADR 0028). |
-| D8 | Pedido pela API sem campo do UUID no ERP | (a) exigir o campo customizado; (b) aceitar sem ele, com risco de pedido duplicado | **(a)**. Sem o campo, o pedido vai pelo Conector com a tabela de entrada. |
-| D9 | Validação dos modelos | (a) cada modelo fica "beta" até o primeiro cliente daquele ERP confirmar os itens [C]; (b) contratar parceiro de cada ERP antes | **(a)**. O custo do parceiro entra só se o primeiro cliente travar. |
+| D1 | Onde roda a busca na API do ERP | (a) worker na nuvem; (b) Conector com driver HTTP; (c) os dois já | **decidido: (a) worker na nuvem**. ERP só na rede do cliente fica no Conector com as views. O (b) entra com o primeiro cliente que precisar. |
+| D2 | Primeiro ERP com busca por API | o ERP do primeiro cliente real; SAP B1 (API pública mais estável); Sankhya (forte em distribuição) | **decidido: o ERP do primeiro cliente real.** Sem cliente definido, **SAP B1**: o Service Layer tem documentação pública e não exige contrato com o fabricante para o desenho. |
+| D3 | Intervalo mínimo da busca | (a) 15 min para tudo (ADR 0022, RN-CORE-23); (b) exceção de 5 min para estoque | **decidido: (a) 15 min para tudo**. O pedido vai na hora, por evento, e não espera o ciclo. |
+| D4 | Como o `config.` apresenta os meios | (a) Conector \| API, com a API dividida em "Macuxi busca" e "ERP envia"; (b) três opções lado a lado | **decidido: (a) Conector \| API**. Mantém o "via Conector \| via API" da v1.0.22. |
+| D5 | Pedido de teste no assistente | (a) criar um pedido de teste no ERP; (b) não criar e acompanhar o primeiro pedido real no painel | **decidido: (b) sem pedido de teste**. Pedido de teste no ERP vira nota ou estoque reservado por engano. |
+| D6 | Quem vê o painel dos 30 dias | (a) só o super-admin do Macuxi; (b) também o admin do cliente, só leitura | **decidido: (b) também o admin do cliente, só leitura**. O cliente vê o mesmo que o suporte. |
+| D7 | Chave-mestra do cofre e IP de saída | chave gerada na VM (como o pepper; perder a VM obriga cada cliente a redigitar a credencial) × secret do ambiente `PRODUCAO` no GitHub; IP fixo de saída da VM publicado ao cliente | **decidido: secret do `PRODUCAO`**, mais o IP fixo da VM, que o engenheiro-software confirma com a Magalu (ADR 0028). |
+| D8 | Pedido pela API sem campo do UUID no ERP | (a) exigir o campo customizado; (b) aceitar sem ele, com risco de pedido duplicado | **decidido: (a) exigir o campo customizado**. Sem o campo, o pedido vai pelo Conector com a tabela de entrada. |
+| D9 | Validação dos modelos | (a) cada modelo fica "beta" até o primeiro cliente daquele ERP confirmar os itens [C]; (b) contratar parceiro de cada ERP antes | **decidido: (a) "beta" até o primeiro cliente confirmar**. O custo do parceiro entra só se o primeiro cliente travar. |
 
 ---
 
