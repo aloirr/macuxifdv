@@ -42,7 +42,7 @@
 | **modulo-gestor** | App Gestão, painéis, alertas, aprovações, pedido em nome (via extensão) | — |
 | **modulo-pesquisa** | Construtor, público-alvo, resposta offline, resultados | — |
 | **modulo-treinamento** | Trilhas, quiz, gamificação, ranking | — |
-| **modulo-integracao** | Hub REST, Conector, carga por arquivo, monitor | — |
+| **modulo-integracao** | Hub REST, Conector, monitor | — |
 
 **Fronteira entre os dois engenheiros** (decisão do Alexandre, R-20261101-073742):
 - Dependência nova, ponto de extensão de UI no SDK, mudança no CI ou na raiz: o engenheiro-apps pede por recado ao engenheiro-software; ADR de UI ele redige como proposta e o engenheiro-software registra em `docs/decisoes/`.
