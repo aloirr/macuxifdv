@@ -459,3 +459,28 @@ Pedido R-20261110-074414-modulo-integracao (desenho docs/desenho/T-0149.md §3.5
   fila e libera o "um processando"); nenhuma view nem as views-modelo do Conector leem `lote.status`.
 - Nenhum dado muda no up; idempotente. **Volta:** o down recusa (P0001) se houver lote `cancelado`; antes, mude-os (ex.:
   para `falhou`, ver o cabeçalho do down). Teste: `db/testes/lote-cancelado.db.test.ts`.
+
+## 0094 — busca na API do ERP, cofre, assistente e painel dos 30 dias (`0094_integracao_busca_erp`; integração por ERP, F2)
+Desenho `docs/desenho/integracao-modelos-erp.md` §2.2–§2.5, §4, §5 e §6 (F2), aprovado em R-20261122-005500 (D1–D9). RN
+propostas no desenho: RN-INT-16, 17, 19 e 20 (o gerente dá o número final). Número provisório (segue a ordem de merge).
+Aditiva: 5 tabelas e 2 funções `IMMUTABLE` de CHECK; nada que existe muda. Todas com os campos comuns, `unique (tenant_id, id)`,
+gatilho de `updated_at`, RLS forçado, `isolamento_tenant` (macuxi_app), `manutencao` (0031), FK composta
+`(tenant_id, conector_id) → conector` e fora do sync. macuxi_app: `select, insert, update` (sem DELETE). macuxi_worker e
+macuxi_portal: nada (o trabalho roda em `comTenant` com o macuxi_app, §2.5). Listas = constantes de
+`modules/integracao/db/nuvem.ts` (o contrato da F3 deve usar as mesmas).
+
+| Tabela | Colunas próprias | Regras (CHECK / índice) |
+|---|---|---|
+| `conector_api` (uma viva por Conector, `conector_api_conector_uk`) | `conector_id`, `erp` (`ERPS_BUSCA_API`: protheus, sap_b1, sankhya, senior), `url_base`, `usuario_erp` (não é segredo), `parametros` jsonb, `frequencias` jsonb, `coletas_paradas_em` | URL só `https://`, sem usuário/senha, query nem fragmento, até 500. `parametros`: objeto até 4000 bytes, nenhuma chave com cara de segredo (`integracao.parametros_sem_segredo`: senha, password, pwd, segredo, secret, token, chave, key, cookie, authorization, sessao, session). `frequencias` = `{entidade: minutos}`, entidade em `ENTIDADES_BANCO`, **inteiro de 15 a 1440** (`integracao.frequencias_validas`; D3, RN-CORE-23); chave ausente = frequência padrão do doc 06 (domain). `coletas_paradas_em` = 401/403 do ERP (§2.4). |
+| `credencial_erp` (uma viva por Conector, `credencial_erp_conector_uk`) | `conector_id`, `cifrado`, `iv` (12 bytes), `tag` (16 bytes) bytea, `chave_versao` smallint ≥ 1, `atualizada_em`, `atualizada_por` (uuid sem FK) | AES-256-GCM no processo (AAD `tenant_id\|conector_id`). Os três bytea juntos (`credencial_erp_segredo_tudo_ou_nada`) e **só na linha viva** (`credencial_erp_segredo_so_viva`: apagar = `deleted_at` com os três nulos). Rotação = update da linha viva. **Só o macuxi_app**: sem grant nem política para `macuxi_leitura` (`TABELAS_SEM_LEITURA`, conferir-rls.sql), worker e portal; `revoke all ... from public`; a migração confere no catálogo (42501). O `pg_dump` leva só o cifrado (a chave-mestra fica no `.env`). |
+| `implantacao` (uma viva por tenant, `implantacao_viva_uk`) | `passo` 1..7, `erp` (`ERPS_IMPLANTACAO`: os 5 + `outro`), `meio` (`MEIOS_IMPLANTACAO`: conector, api_busca, api_envia), `conector_id` (nulo até o passo 3), `iniciada_em`, `marco_primeira_completa_em` (D+0), `marco_primeiro_pedido_em`, `marco_primeiro_faturamento_em`, `marco_reconciliacao_em`, `marco_sem_alerta_em`, `concluida_em` | Marco nulo = não cumprido. `concluida_em` exige o D+0 e não é anterior a ele. |
+| `implantacao_dia` (um vivo por tenant, implantação e dia, `implantacao_dia_uk`) | `implantacao_id`, `dia` (date, fuso do tenant), `minutos_fora_do_ar` 0..1440, `lotes_concluidos`, `lotes_com_erro`, `divergencias`, `alertas`, `pedidos_integrados`, `pedidos_rejeitados`, `pedidos_presos`, `pedidos_retidos`, `mediana_pedido_s`, `por_entidade` jsonb | Contagens ≥ 0; `por_entidade` objeto até 16000 bytes. Upsert pela tarefa diária. |
+| `coleta_execucao` | `conector_id`, `entidade` (`ENTIDADES_BANCO`), `modo` (`ModoCarga`), `origem` (agendada, buscar_agora, recarregar), `estado` (solicitada, executando, concluida, falhou), `falha_classe` (credencial_recusada, transitoria, formato_mudou), `http_status`, `erro_codigo` (≤ 100; nunca a resposta do ERP), `tentativas` 0..100, `paginas`, `linhas`, `lotes`, `solicitada_em`, `iniciada_em`, `concluida_em`, `proxima_tentativa_em`, `trabalho_id` (plataforma.trabalho, sem FK) | `falha_classe` só e sempre no `falhou`; `iniciada_em` fora do `solicitada`; `concluida_em` só em `concluida`/`falhou`. Uma viva (solicitada/executando) por (Conector, entidade) (`coleta_execucao_viva_uk`) e uma `executando` por Conector (`coleta_execucao_executando_uk`). Última por entidade: `coleta_execucao_ultima_ix`. |
+
+- **Volume:** `conector_api`, `credencial_erp` e `implantacao` ~1 por tenant; `implantacao_dia` ≤ 31 por implantação;
+  `coleta_execucao` ~16 entidades × até 96 por dia por Conector (≈ 1.500/dia, ≈ 550 mil/ano no pior caso): a retenção
+  entra com o trabalho da F3 (pendência).
+- **Fixture dois-tenants:** 1 linha por tabela em cada tenant (A: SAP B1 com implantação no passo 7; B: Sankhya parado por
+  credencial, passo 3). O cifrado da fixture é texto fixo de teste.
+- **Volta:** o down apaga as 5 tabelas (inclusive as credenciais: o cliente redigita depois de um novo up) e as 2 funções.
+  Teste: `db/testes/integracao-busca-erp.db.test.ts`.

@@ -242,6 +242,12 @@ const G = {
   documento_cliente: 0x7b,
   documento_permissao: 0x7c,
   documento_excecao: 0x7d,
+  // 0094 (integração por ERP, F2): busca na API do ERP, cofre, assistente, painel dos 30 dias e coletas
+  conector_api: 0x7e,
+  credencial_erp: 0x7f,
+  implantacao: 0x80,
+  implantacao_dia: 0x81,
+  coleta_execucao: 0x82,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -696,6 +702,12 @@ const ORDEM_T0032 = [
   'integracao.pedido_fila_erp',
   'integracao.pedido_retorno',
   'integracao.pedido_retorno_erro',
+  // 0094 (integração por ERP, F2)
+  'integracao.conector_api',
+  'integracao.credencial_erp',
+  'integracao.implantacao',
+  'integracao.implantacao_dia',
+  'integracao.coleta_execucao',
 ] as const;
 type TabelaT0032 = (typeof ORDEM_T0032)[number];
 
@@ -1924,6 +1936,28 @@ function dadosT0032(hojeA: string): Pick<DadosFixture, TabelaT0032> {
     'integracao.pedido_retorno_erro': [
       descartado(a('pedido_retorno_erro', 1), tA, retA, 'sequencia_inexistente', 'itens_faturados[1].sequencia', 'A sequência 9 não existe no pedido enviado ao ERP. Confira a consulta de itens da nota no Conector.'),
       descartado(b('pedido_retorno_erro', 1), tB, retB, 'produto_divergente', 'itens_faturados[1].produto_external_id', 'O produto "PRD-9" da sequência 9 não é o que foi enviado ao ERP.'),
+    ],
+    // 0094 (integração por ERP, F2): A busca no SAP B1 com a implantação concluída; B no Sankhya, implantação no passo 3.
+    // O "segredo" é um texto fixo de teste (não decifra com chave nenhuma): só ocupa as colunas no formato do GCM.
+    'integracao.conector_api': [
+      { id: a('conector_api', 1), tenant_id: tA, conector_id: IA.conector, erp: 'sap_b1', url_base: 'https://erp-alfa.exemplo.com.br:50000/b1s/v1', usuario_erp: 'macuxi.leitura', parametros: { CompanyDB: 'SBO_ALFA' }, frequencias: { preco: 15, cliente: 60, filial: 1440 }, coletas_paradas_em: null, ...comuns },
+      { id: b('conector_api', 1), tenant_id: tB, conector_id: IB.conector, erp: 'sankhya', url_base: 'https://api.exemplo.com.br', usuario_erp: null, parametros: {}, frequencias: {}, coletas_paradas_em: T('11:00:00'), ...comuns },
+    ],
+    'integracao.credencial_erp': [
+      { id: a('credencial_erp', 1), tenant_id: tA, conector_id: IA.conector, cifrado: Buffer.from('fixture-cifrado-alfa'), iv: Buffer.alloc(12, 0xa1), tag: Buffer.alloc(16, 0xa2), chave_versao: 1, atualizada_em: T('09:00:00'), atualizada_por: A.usuarios.admin, ...comuns },
+      { id: b('credencial_erp', 1), tenant_id: tB, conector_id: IB.conector, cifrado: Buffer.from('fixture-cifrado-beta'), iv: Buffer.alloc(12, 0xb1), tag: Buffer.alloc(16, 0xb2), chave_versao: 1, atualizada_em: T('09:00:00'), atualizada_por: B.usuarios.admin, ...comuns },
+    ],
+    'integracao.implantacao': [
+      { id: a('implantacao', 1), tenant_id: tA, passo: 7, erp: 'sap_b1', meio: 'api_busca', conector_id: IA.conector, iniciada_em: T('08:00:00'), marco_primeira_completa_em: T('10:05:00'), marco_primeiro_pedido_em: T('11:00:00'), marco_primeiro_faturamento_em: T('12:00:00'), marco_reconciliacao_em: null, marco_sem_alerta_em: null, concluida_em: null, ...comuns },
+      { id: b('implantacao', 1), tenant_id: tB, passo: 3, erp: 'sankhya', meio: 'api_busca', conector_id: IB.conector, iniciada_em: T('08:00:00'), marco_primeira_completa_em: null, marco_primeiro_pedido_em: null, marco_primeiro_faturamento_em: null, marco_reconciliacao_em: null, marco_sem_alerta_em: null, concluida_em: null, ...comuns },
+    ],
+    'integracao.implantacao_dia': [
+      { id: a('implantacao_dia', 1), tenant_id: tA, implantacao_id: a('implantacao', 1), dia: diaOperacao, minutos_fora_do_ar: 0, lotes_concluidos: 3, lotes_com_erro: 1, divergencias: 0, alertas: 1, pedidos_integrados: 1, pedidos_rejeitados: 0, pedidos_presos: 0, pedidos_retidos: 0, mediana_pedido_s: 120, por_entidade: { produto: { lotes_concluidos: 1, lotes_com_erro: 1 } }, ...comuns },
+      { id: b('implantacao_dia', 1), tenant_id: tB, implantacao_id: b('implantacao', 1), dia: diaOperacao, minutos_fora_do_ar: 30, lotes_concluidos: 0, lotes_com_erro: 0, divergencias: 0, alertas: 0, pedidos_integrados: 0, pedidos_rejeitados: 0, pedidos_presos: 0, pedidos_retidos: 0, mediana_pedido_s: null, por_entidade: {}, ...comuns },
+    ],
+    'integracao.coleta_execucao': [
+      { id: a('coleta_execucao', 1), tenant_id: tA, conector_id: IA.conector, entidade: 'preco', modo: 'delta', origem: 'agendada', estado: 'concluida', falha_classe: null, http_status: 200, erro_codigo: null, tentativas: 1, paginas: 2, linhas: 150, lotes: 1, solicitada_em: T('12:00:00'), iniciada_em: T('12:00:01'), concluida_em: T('12:00:09'), proxima_tentativa_em: null, trabalho_id: null, ...comuns },
+      { id: b('coleta_execucao', 1), tenant_id: tB, conector_id: IB.conector, entidade: 'cliente', modo: 'delta', origem: 'agendada', estado: 'falhou', falha_classe: 'credencial_recusada', http_status: 401, erro_codigo: null, tentativas: 1, paginas: 0, linhas: 0, lotes: 0, solicitada_em: T('11:00:00'), iniciada_em: T('11:00:01'), concluida_em: T('11:00:02'), proxima_tentativa_em: null, trabalho_id: null, ...comuns },
     ],
   };
 }
