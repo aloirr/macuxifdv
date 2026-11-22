@@ -436,3 +436,4 @@
 2026-11-20 06h00 — RD-2477 a RD-2483 corrigidos no lote doc2 com as decisões de R-20261120-055501-alexandre (desconto refeito conta na alçada; item guarda o preço final). T-0188 aberta.
 2026-11-21 — T-0189 — Início do BKO: plano, RN-CORE-64/65/66 no doc 03, decisões D0 (RN-CORE-33) e RD-2514 (rótulos nos contracts da Integração), PRs empilhados
 2026-11-21 — T-0191 — rotas do vendedor no BKO (R1 a R3 e R5): plano, RN-CORE-75 a 77 no doc 03, renumeração (T-0189→T-0191, RD-2495…2515→RD-2524…2544), porte para a worktree sobre o main 11b5990e e os 9 PRs por dono
+2026-11-21 — T-0188 a T-0192 / v1.0.17 a v1.0.20 — registro da conta reativada (R-20261121-194500): blocos "no ar" da v1.0.17 à v1.0.20 e bloco "Em aberto" no quadro; T-0188 a T-0191 concluídas com histórico; T-0192 criada (Catálogo do Campo, v1.0.20); PRs #302 (superado), #285 (quase superado) e #288 (não superado) conferidos arquivo por arquivo.
