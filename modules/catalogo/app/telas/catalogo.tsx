@@ -15,15 +15,15 @@ import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, colors, DEFAULT_TZ
 import { useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { caminhoCatalogo, type ChipFiltro, type ItemVitrine, type ItemVitrineComVeiculo, type VeiculoEscolhido } from '../../contracts';
+import { caminhoCatalogo, type ChipFiltro, type GrupoFiltro, type ItemVitrine, type ItemVitrineComVeiculo, type VeiculoEscolhido } from '../../contracts';
 import { anoCivilNoFuso } from '../../domain/ano-civil';
-import { filhosDe, montarArvore, produtosDoNo, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
+import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
 import { TETO_RANKING_BUSCA } from '../../domain/busca-consulta';
 import { contarChipsFiltrar } from '../../domain/veiculo-filtro';
 import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, mesmoValor, reaproveitarItens, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
+import { chipsDaGrade, classificacaoDaGrade, emLinhas, escolherCategoria, escolherFamilia, escolherLinha, escolherSistema, filtroDoNo, noDoFiltro, produtosDoFiltro, mesmoValor, reaproveitarItens, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
 import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
 import { cargaDoEstoque } from '../lib/carga-do-cartao';
 import { buscaComSinal, modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
@@ -87,7 +87,9 @@ export default function TelaCatalogo() {
   const [veiculo, setVeiculo] = useState<VeiculoEscolhido | null>(null);
   const [folhaVeiculo, setFolhaVeiculo] = useState(false);
   const [temVeiculos, setTemVeiculos] = useState(false);
-  const [contados, setContados] = useState<{ sistemas: ChipFiltro[]; categorias: ChipFiltro[] } | null>(null);
+  // RN-CAT-22: dentro do pedido a cascata só conta o que se pode vender ao cliente (a mesma lista da tabela dele)
+  const [escopoPedido, setEscopoPedido] = useState<ReadonlySet<string> | null>(null);
+  const [contados, setContados] = useState<Record<GrupoFiltro, ChipFiltro[]> | null>(null);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
@@ -103,13 +105,13 @@ export default function TelaCatalogo() {
   useEffect(() => {
     if (!motor || naCarga) return setTemVeiculos(false);
     let vivo = true;
-    void cascataLocal(motor, {}, anoCivilNoFuso(relogioReal().agora(), fuso))
+    void cascataLocal(motor, { escopo: escopoPedido }, anoCivilNoFuso(relogioReal().agora(), fuso))
       .then((c) => vivo && setTemVeiculos(c.disponivel))
       .catch(() => vivo && setTemVeiculos(false));
     return () => {
       vivo = false;
     };
-  }, [motor, naCarga, fuso, sync.sincronizado_em]);
+  }, [motor, naCarga, fuso, sync.sincronizado_em, escopoPedido]);
   useEffect(() => {
     if (!temVeiculos) setVeiculo(null);
   }, [temVeiculos]);
@@ -120,6 +122,17 @@ export default function TelaCatalogo() {
 
   // spec §3 e §4: filiais de venda (filtro e folha), todas as do tenant (nomes) e a de cadastro (faixa), das linhas locais
   const usuarioId = usuario?.id ?? null;
+  useEffect(() => {
+    if (!motor || naCarga || !dentroDoPedido) return setEscopoPedido(null);
+    let vivo = true;
+    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId, usuarioId, filtroFilial: escolha.filial, noId: null, soDaTabelaDoCliente: true };
+    void produtosDaNavegacao(motor, entrada)
+      .then((ids) => vivo && setEscopoPedido(ids ?? null))
+      .catch(() => vivo && setEscopoPedido(null));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, naCarga, dentroDoPedido, clienteId, perfil, parametrosCrus, usuarioId, escolha.filial, sync.sincronizado_em]);
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
@@ -272,9 +285,9 @@ export default function TelaCatalogo() {
             : (await vitrineLocal(motor, { ...entrada, chips, limit: TETO_RANKING_BUSCA, offset: 0 })).items;
         base = new Set(itens.map((i) => i.id));
       } else base = new Set([...ativos].filter((id) => !permitidos || permitidos.has(id)));
-      const opcoes = (paiId: string | null) => filhosDe(a.arvore, paiId).map((n) => ({ id: n.id, nome: n.nome, produtos: produtosDoNo(a.arvore, a.vinculos, n.id) }));
-      const grupo = (g: 'sistema' | 'categoria', pai: string | null, marcado: string | null) => contarChipsFiltrar(base, [{ grupo: g, rotulo: g === 'sistema' ? 'Sistema' : 'Categoria', opcoes: pai !== null || g === 'sistema' ? opcoes(pai) : [] }], { [g]: marcado })[0]?.chips ?? [];
-      if (vivo) setContados({ sistemas: grupo('sistema', null, filtro.sistemaId), categorias: filtro.sistemaId ? grupo('categoria', filtro.sistemaId, filtro.categoriaId) : [] });
+      const grupos = contarChipsFiltrar(base, classificacaoDaGrade(a.arvore, a.vinculos, filtro), { sistema: filtro.sistemaId, familia: filtro.familiaId, linha: filtro.linhaId, categoria: filtro.categoriaId }, { cruzar: false });
+      const chipsDe = (g: GrupoFiltro) => grupos.find((x) => x.grupo === g)?.chips ?? [];
+      if (vivo) setContados({ sistema: chipsDe('sistema'), familia: chipsDe('familia'), linha: chipsDe('linha'), categoria: chipsDe('categoria') });
     })().catch(() => vivo && setContados(null));
     return () => {
       vivo = false;
@@ -288,18 +301,20 @@ export default function TelaCatalogo() {
   const abrirFolhaDeEstoque = useCallback((item: ItemVitrine) => setItemDaFolha(item), []);
   const comFiltro = !naCarga && (filtroLigado(filtro) || escolhaLigada(escolha));
   const opcoesFilial = useMemo(() => opcoesDoFiltroFilial({ proprias: filiais.venda, filiais: filiais.todas }), [filiais]);
-  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha, sistemaId: filtro.sistemaId, categoriaId: filtro.categoriaId });
+  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha, sistemaId: filtro.sistemaId, familiaId: filtro.familiaId, linhaId: filtro.linhaId, categoriaId: filtro.categoriaId });
   const subtitulo = subtituloComFilial(filiais.cadastro?.nome ?? null);
   const folhaDoItem = itemDaFolha?.availability
     ? dadosDaFolha({ availability: itemDaFolha.availability, cargaEm: sync.sincronizado_em, filialCadastro: filiais.cadastro?.id ?? null, agora: relogioReal().agora().toISOString(), fuso })
     : null;
-  const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
+  const nomeDoFiltro = arvore?.arvore.nos.get(noDoFiltro(filtro) ?? '')?.nome ?? '';
   const nomeDoNo = (id: string | null) => (id ? (arvore?.arvore.nos.get(id)?.nome ?? '') : '');
   // chips da folha: com a contagem pronta, só os que têm peça (e o grupo só com 2 ou mais); sem ela, os de sempre
   const comContagem = (nos: readonly { id: string; nome: string; codigo: string }[], c: ChipFiltro[] | undefined) =>
     c ? c.flatMap((x) => { const n = nos.find((y) => y.id === x.id); return n ? [{ ...n, contagem: x.contagem }] : []; }) : nos;
-  const sistemasDaFolha = comContagem(chips.sistemas, contados?.sistemas);
-  const categoriasDaFolha = comContagem(chips.categorias, contados?.categorias);
+  const sistemasDaFolha = comContagem(chips.sistemas, contados?.sistema);
+  const familiasDaFolha = comContagem(chips.familias, contados?.familia);
+  const linhasDaFolha = comContagem(chips.linhas, contados?.linha);
+  const categoriasDaFolha = comContagem(chips.categorias, contados?.categoria);
   const tirarVeiculo = () => setVeiculo(null);
   const cabecalho = {
     titulo: 'Catálogo',
@@ -329,6 +344,7 @@ export default function TelaCatalogo() {
             onChange={setTexto}
             placeholder={temVeiculos ? TEXTOS_VEICULO.placeholderBusca : 'Produto, código ou aplicação'}
             rotuloAcessivel="Buscar produto"
+            {...(temVeiculos ? { dica: TEXTOS_VEICULO.dicaBusca } : {})}
             onEnviar={() => setConsulta(texto.trim())}
             onLimpar={() => {
               setTexto('');
@@ -345,6 +361,8 @@ export default function TelaCatalogo() {
         <LinhaEtiquetas testID="catalogo-etiquetas">
           {veiculo ? <EtiquetaFiltro testID="catalogo-etiqueta-veiculo" texto={textoDaEtiquetaVeiculo(veiculo)} onRemover={tirarVeiculo} rotuloRemover={leituraDaEtiquetaVeiculo(veiculo)} /> : null}
           {filtro.sistemaId ? <EtiquetaFiltro testID="catalogo-etiqueta-sistema" texto={nomeDoNo(filtro.sistemaId)} onRemover={() => setFiltro(SEM_FILTRO)} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.sistemaId)}`} /> : null}
+          {filtro.familiaId ? <EtiquetaFiltro testID="catalogo-etiqueta-familia" texto={nomeDoNo(filtro.familiaId)} onRemover={() => setFiltro((f) => escolherFamilia(f, null))} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.familiaId)}`} /> : null}
+          {filtro.linhaId ? <EtiquetaFiltro testID="catalogo-etiqueta-linha" texto={nomeDoNo(filtro.linhaId)} onRemover={() => setFiltro((f) => escolherLinha(f, null))} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.linhaId)}`} /> : null}
           {filtro.categoriaId ? <EtiquetaFiltro testID="catalogo-etiqueta-categoria" texto={nomeDoNo(filtro.categoriaId)} onRemover={() => setFiltro((f) => escolherCategoria(f, null))} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.categoriaId)}`} /> : null}
           {resumo.filial ? (
             <EtiquetaFiltro
@@ -426,10 +444,16 @@ export default function TelaCatalogo() {
           setFiltro(SEM_FILTRO);
         }}
         sistemas={sistemasDaFolha}
+        familias={familiasDaFolha}
+        linhas={linhasDaFolha}
         categorias={categoriasDaFolha}
         sistemaId={filtro.sistemaId}
+        familiaId={filtro.familiaId}
+        linhaId={filtro.linhaId}
         categoriaId={filtro.categoriaId}
         onSistema={(id) => setFiltro((f) => escolherSistema(f, id))}
+        onFamilia={(id) => setFiltro((f) => escolherFamilia(f, id))}
+        onLinha={(id) => setFiltro((f) => escolherLinha(f, id))}
         onCategoria={(id) => setFiltro((f) => escolherCategoria(f, id))}
       />
       {motor ? (
@@ -438,6 +462,7 @@ export default function TelaCatalogo() {
           leitor={motor}
           fuso={fuso}
           aplicado={veiculo}
+          escopo={escopoPedido}
           onAplicar={(v) => {
             lembrarVeiculo(v);
             setVeiculo(v);
@@ -464,11 +489,11 @@ const CartaoDaLista = memo(function CartaoDaLista({ item, clienteId, miniatura, 
 const SEM_ESCOLHA: EscolhaFiltro = { filial: null, soComEstoque: false };
 /** Filial escolhida (inclusive "Suas filiais") ou "Ocultar" ligados: a busca é local, que sabe filtrar por filial e estoque. */
 const escolhaLigada = (e: EscolhaFiltro) => e.filial !== null || e.soComEstoque;
-const filtroLigado = (f: FiltroDaGrade) => f.sistemaId !== null || f.categoriaId !== null;
+const filtroLigado = (f: FiltroDaGrade) => noDoFiltro(f) !== null;
 
 const s = StyleSheet.create({
   linha: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
-  linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  linhaBusca: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
 });
 
 function VazioDaBusca({

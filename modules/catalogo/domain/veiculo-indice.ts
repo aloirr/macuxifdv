@@ -167,6 +167,42 @@ export interface IndiceVeiculos {
   modelosSemMontadora: readonly string[];
 }
 
+/**
+ * RN-CAT-22: o índice só com as entradas dos produtos de `escopo` (os vendáveis ao cliente, RN-CAT-06, ou os `produto_ids` pedidos).
+ * A cascata, a busca da folha e o "tem veículo" passam a contar só o que se pode vender; o aparelho e a API usam esta mesma função.
+ * `nomes` é o mesmo (a grafia de exibição não muda com o escopo).
+ */
+export function restringirIndice(indice: IndiceVeiculos, escopo: ReadonlySet<string>): IndiceVeiculos {
+  const entradas = indice.entradas.filter((e) => escopo.has(e.produto));
+  const modelosDaMontadora = new Map<string, Set<string>>();
+  const doModelo = new Map<string, EntradaVeiculo[]>();
+  const doProduto = new Map<string, EntradaVeiculo[]>();
+  const semMontadora = new Set<string>();
+  const juntar = <K>(m: Map<K, EntradaVeiculo[]>, k: K, e: EntradaVeiculo) => {
+    const l = m.get(k);
+    if (l) l.push(e);
+    else m.set(k, [e]);
+  };
+  for (const e of entradas) {
+    if (e.montadora) {
+      let s = modelosDaMontadora.get(e.montadora);
+      if (!s) modelosDaMontadora.set(e.montadora, (s = new Set()));
+      s.add(e.modelo);
+    } else semMontadora.add(e.modelo);
+    juntar(doModelo, e.modelo, e);
+    juntar(doProduto, e.produto, e);
+  }
+  return {
+    anoAtual: indice.anoAtual,
+    entradas,
+    nomes: indice.nomes,
+    modelosDaMontadora: new Map([...modelosDaMontadora].map(([k, v]) => [k, [...v]])),
+    doModelo,
+    doProduto,
+    modelosSemMontadora: [...semMontadora],
+  };
+}
+
 /** O catálogo tem veículo nas aplicações (o botão Veículo aparece). */
 export const indiceTemVeiculo = (i: IndiceVeiculos): boolean => i.entradas.length > 0;
 

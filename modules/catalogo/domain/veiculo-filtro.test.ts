@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { construirIndiceVeiculos, segmentosDeVeiculo, indiceTemVeiculo } from './veiculo-indice';
+import { construirIndiceVeiculos, segmentosDeVeiculo, indiceTemVeiculo, restringirIndice } from './veiculo-indice';
 import { compatibilidadeDoProduto, contarChipsFiltrar, filtrarPorVeiculo, leveTambemDoVeiculo, navegarCascata, POLITICA_CONFERIR, produtosDoModelo, rotulosDoVeiculo } from './veiculo-filtro';
 import { nomesDeVeiculo } from './veiculos';
 import type { VeiculoEscolhido } from '../contracts';
@@ -194,5 +194,51 @@ describe('RN-CAT-22 (D1): chips da Filtrar com contagem', () => {
     expect(r.find((g) => g.grupo === 'sistema')!.chips.find((c) => c.id === 's3')).toMatchObject({ contagem: 0, marcado: true });
     const so = contarChipsFiltrar(['a', 'b', 'c', 'd'], grupos, { sistema: 's1' });
     expect(so.find((g) => g.grupo === 'categoria')!.chips.map((c) => [c.nome, c.contagem])).toEqual([['Amortecedor', 2], ['Bucha', 1]]);
+  });
+  it('RN-CAT-22: em cascata (cruzar: false) o marcado mais fundo não zera os irmãos dos grupos de cima', () => {
+    const cascata = [
+      { grupo: 'sistema' as const, rotulo: 'Sistema', opcoes: [{ id: 's1', nome: 'Suspensão', produtos: new Set(['a', 'b']) }, { id: 's2', nome: 'Freio', produtos: new Set(['c']) }] },
+      { grupo: 'familia' as const, rotulo: 'Grupo', opcoes: [{ id: 'f1', nome: 'Dianteira', produtos: new Set(['a']) }, { id: 'f2', nome: 'Traseira', produtos: new Set(['b']) }] },
+    ];
+    const marcados = { sistema: 's1', familia: 'f1' };
+    expect(contarChipsFiltrar(['a', 'b', 'c'], cascata, marcados).map((g) => g.grupo)).toEqual(['familia']);
+    const r = contarChipsFiltrar(['a', 'b', 'c'], cascata, marcados, { cruzar: false });
+    expect(r.map((g) => g.grupo)).toEqual(['sistema', 'familia']);
+    expect(r[0]!.chips.map((c) => [c.nome, c.contagem, c.marcado])).toEqual([['Suspensão', 2, true], ['Freio', 1, false]]);
+    expect(r[1]!.chips.map((c) => [c.nome, c.contagem, c.marcado])).toEqual([['Dianteira', 1, true], ['Traseira', 1, false]]);
+  });
+});
+
+describe('RN-CAT-22: escopo do cliente (só o que se pode vender a ele)', () => {
+  const dentro = new Set(['amortecedor', 'correia']); // Gol Highline e EcoSport
+  it('RN-CAT-22: a cascata só mostra o que existe nos produtos do escopo', () => {
+    expect(navegarCascata(restringirIndice(indice(), dentro), {}).opcoes.map((o) => o.valor).sort()).toEqual(['Ford', 'Volkswagen']);
+    const sem = navegarCascata(restringirIndice(indice(), new Set(['correia'])), {});
+    expect(sem.trilha.map((p) => [p.nivel, p.valor, p.automatico])).toEqual([['montadora', 'Ford', true], ['modelo', 'EcoSport', true]]);
+    expect(navegarCascata(restringirIndice(indice(), new Set(['amortecedor'])), {}).trilha[0]).toMatchObject({ valor: 'Volkswagen', automatico: true });
+  });
+  it('RN-CAT-22: a busca da folha só acha modelo que tem produto no escopo', () => {
+    const r = restringirIndice(indice(), dentro);
+    expect(navegarCascata(r, {}, 'civic').busca).toEqual([]);
+    expect(navegarCascata(r, {}, 'gol').busca!.map((o) => o.rotulo)).toEqual(['Gol']);
+    expect(navegarCascata(indice(), {}, 'civic').busca!.length).toBeGreaterThan(0);
+  });
+  it('RN-CAT-22: disponivel só conta o escopo (escopo sem nenhum produto com veículo = sem o botão)', () => {
+    expect(indiceTemVeiculo(restringirIndice(indice(), dentro))).toBe(true);
+    expect(indiceTemVeiculo(restringirIndice(indice(), new Set(['fluido', 'motor'])))).toBe(false);
+    expect(indiceTemVeiculo(restringirIndice(indice(), new Set()))).toBe(false);
+  });
+  it('RN-CAT-22: produtosDoModelo e a compatibilidade ignoram o que está fora do escopo', () => {
+    const r = restringirIndice(indice(), new Set(['amortecedor', 'vela']));
+    expect([...produtosDoModelo(r, { modelo: 'Gol' })].sort()).toEqual(['amortecedor', 'vela']);
+    expect(produtosDoModelo(indice(), { modelo: 'Gol' }).size).toBeGreaterThan(2);
+  });
+  it('RN-CAT-22: o índice original não muda e os nomes de exibição são os mesmos', () => {
+    const i = indice();
+    const antes = i.entradas.length;
+    const r = restringirIndice(i, dentro);
+    expect(i.entradas).toHaveLength(antes);
+    expect(r.nomes).toBe(i.nomes);
+    expect(r.entradas.every((e) => dentro.has(e.produto))).toBe(true);
   });
 });

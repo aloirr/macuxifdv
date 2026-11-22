@@ -6,13 +6,14 @@
 import { implementarConsultaAparelho } from '@macuxi/platform-sdk';
 import { CONSULTA_VEICULOS, type ProdutoConteudoSync, type VeiculoEscolhido, type ItemVitrineComVeiculo, type VeiculoParcial, type VeiculoRecente, type VeiculosSaida } from '../contracts';
 import { anoCivilNoFuso } from '../domain/ano-civil';
-import { apelidosDeMontadora, construirIndiceVeiculos, definirIndiceVeiculos, indiceTemVeiculo, indiceVeiculosDe, type IndiceVeiculos } from '../domain/veiculo-indice';
+import { apelidosDeMontadora, construirIndiceVeiculos, definirIndiceVeiculos, indiceTemVeiculo, indiceVeiculosDe, restringirIndice, type IndiceVeiculos } from '../domain/veiculo-indice';
 import { filtrarPorVeiculo, navegarCascata, produtosDoModelo, rotulosDoVeiculo } from '../domain/veiculo-filtro';
 import { TETO_RANKING_BUSCA } from '../domain/busca-consulta';
 import type { ChipsVitrine } from '../domain/vitrine';
 import { veiculosDe } from '../domain/veiculos';
 import { cargaOnlineDoShell } from './lib/carga-online';
 import { portaDaCarga } from './lib/consultas-online';
+import { escopoLocal } from './escopo-cliente';
 import { buscarLocal, comAplicacao, produtosLocais, vitrineLocal, type EntradaLocal, type LeitorLocal } from './lib/local';
 
 export const MAXIMO_RECENTES = 3;
@@ -48,9 +49,13 @@ export async function indiceVeiculosLocal(leitor: LeitorLocal, anoAtual: number)
 
 const SEM_VEICULO: VeiculosSaida = { disponivel: false, trilha: [], nivel: null, opcoes: [], ultimo: false, escolha: {}, rotulos: null, busca: null, recentes: [] };
 
-/** A cascata sobre as linhas locais (a consulta e a folha do Catálogo usam a mesma). */
-export async function cascataLocal(leitor: LeitorLocal, entrada: { escolha?: VeiculoParcial | undefined; busca?: string | undefined }, anoAtual: number): Promise<VeiculosSaida> {
-  const indice = await indiceVeiculosLocal(leitor, anoAtual);
+/**
+ * A cascata sobre as linhas locais (a consulta e a folha do Catálogo usam a mesma). `escopo` (RN-CAT-22): só os produtos dele contam
+ * para as opções, a busca e `disponivel`; os Recentes não são filtrados.
+ */
+export async function cascataLocal(leitor: LeitorLocal, entrada: { escolha?: VeiculoParcial | undefined; busca?: string | undefined; escopo?: ReadonlySet<string> | null | undefined }, anoAtual: number): Promise<VeiculosSaida> {
+  const todo = await indiceVeiculosLocal(leitor, anoAtual);
+  const indice = entrada.escopo ? restringirIndice(todo, entrada.escopo) : todo;
   if (!indiceTemVeiculo(indice)) return SEM_VEICULO;
   return { disponivel: true, ...navegarCascata(indice, entrada.escolha ?? {}, entrada.busca, apelidosDeMontadora()), recentes: recentesDeVeiculos() };
 }
@@ -62,7 +67,8 @@ export const consultaVeiculosAparelho = implementarConsultaAparelho(CONSULTA_VEI
   } catch {
     return SEM_VEICULO;
   }
-  return cascataLocal(ctx, entrada, anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso));
+  const escopo = await escopoLocal(ctx, entrada);
+  return cascataLocal(ctx, { ...entrada, escopo }, anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso));
 });
 
 /**

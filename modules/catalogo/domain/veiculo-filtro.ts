@@ -320,15 +320,17 @@ export interface GrupoDeClassificacao {
  * RN-CAT-22 (D1): os chips da folha Filtrar com a contagem. `produtos` = ids da lista de agora ANTES dos grupos (veículo, busca e
  * `Só com estoque` já aplicados); cada grupo conta aplicando os OUTROS grupos marcados. Chip com 0 sai, salvo o marcado; grupo com uma
  * opção só sai. `marcados` = grupo → id do chip marcado.
+ * `cruzar: false` (grupos em cascata da árvore, cada um com as opções do que está marcado acima): o marcado de um grupo não corta a contagem dos
+ * outros, senão o marcado mais fundo zeraria os irmãos dos grupos de cima e o grupo sumiria da folha.
  */
-export function contarChipsFiltrar(produtos: Iterable<string>, classificacao: readonly GrupoDeClassificacao[], marcados: Partial<Record<GrupoFiltro, string | null>>): GruposFiltro {
+export function contarChipsFiltrar(produtos: Iterable<string>, classificacao: readonly GrupoDeClassificacao[], marcados: Partial<Record<GrupoFiltro, string | null>>, { cruzar = true }: { cruzar?: boolean } = {}): GruposFiltro {
   const base = [...produtos];
   const saida: GruposFiltro = [];
   for (const g of classificacao) {
     let lista = base;
     for (const outro of classificacao) {
       const id = marcados[outro.grupo];
-      if (outro.grupo === g.grupo || !id) continue;
+      if (!cruzar || outro.grupo === g.grupo || !id) continue;
       const alvo = outro.opcoes.find((o) => o.id === id);
       if (alvo) lista = lista.filter((p) => alvo.produtos.has(p));
     }

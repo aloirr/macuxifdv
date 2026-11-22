@@ -35,20 +35,34 @@ const ESCOLHAS: VeiculoEscolhido[] = [
   { montadora: 'Ford', modelo: 'EcoSport', ano: 2014, motor: '1.6', versao: null },
 ];
 
-function aparelho() {
+const CLIENTE = '0ca00000-0000-4000-8000-0000000c1e01';
+const TABELA = '0ca00000-0000-4000-8000-0000000007ab';
+/** Os produtos que o cliente pode comprar (têm preço na tabela dele): Gol Highline (2), Civic (1) e o fluido universal (1). */
+const VENDAVEIS = [0, 1, 12, 15].map((i) => LINHAS[i]!.id);
+
+function aparelho(escopo = false) {
   const tabelas: Record<string, unknown[]> = {
+    ...(escopo
+      ? {
+          cliente_tabela_preco: [{ id: uuid(2001), ...base, cliente_id: CLIENTE, tabela_preco_id: TABELA }],
+          tabela_preco: [{ id: TABELA, ...base, codigo: 'T1', nome: 'Tabela 1', ativo: true }],
+          tabela_preco_item: VENDAVEIS.map((produto_id, k) => ({ id: uuid(3000 + k), ...base, tabela_preco_id: TABELA, produto_id, preco_cents: 1000, vigencia_inicio: null, vigencia_fim: null })),
+        }
+      : {}),
     produto: LINHAS.map((l, i) => ({ id: l.id, ...base, sku: `SK-${i + 1}`, ean: null, nome: l.nome, marca: 'BAP', categoria: 'Linha', unidade: 'UN', ativo: true })),
     produto_atributo: [],
     produto_conteudo: LINHAS.map((l, i) => ({ id: uuid(1000 + i), ...base, produto_id: l.id, aplicacao: l.aplicacao || null, campanha: false })),
     produto_referencia: [],
     sinonimo: [],
   };
-  return { linhas: async (e: string) => tabelas[e] ?? [], versaoLinhas: () => 1, agora: () => new Date('2026-11-06T12:00:00Z'), usuario: () => null, parametros: () => ({}) } as unknown as ContextoConsultaAparelho;
+  return { linhas: async (e: string) => tabelas[e] ?? [], versaoLinhas: () => 1, agora: () => new Date('2026-11-06T12:00:00Z'), usuario: () => (escopo ? { perfil: 'vendedor', fuso: 'America/Manaus' } : null), parametros: () => ({}) } as unknown as ContextoConsultaAparelho;
 }
 
 function api() {
   const db = {
     query: async (sql: string) => {
+      if (/from catalogo\.cliente_tabela_preco/.test(sql)) return { rows: [{ tabela_preco_id: TABELA }] };
+      if (/from catalogo\.tabela_preco_item/.test(sql)) return { rows: VENDAVEIS.map((produto_id) => ({ produto_id, preco_cents: 1000, vigencia_inicio: null, vigencia_fim: null })) };
       if (/count\(\*\)/.test(sql)) return { rows: [{ n: String(LINHAS.length), ate: '2026-10-01' }] };
       if (/select b\.nome/.test(sql)) return { rows: LINHAS.map((l) => ({ nome: l.nome, aplicacao: l.aplicacao || null, descricao: null })) };
       if (/select produto_id, aplicacao from/.test(sql)) return { rows: LINHAS.map((l) => ({ produto_id: l.id, aplicacao: l.aplicacao || null })) };
@@ -56,7 +70,8 @@ function api() {
       return { rows: [] };
     },
   };
-  return { db, parametros: () => ({}), agora: () => new Date('2026-11-06T12:00:00Z'), fuso: () => 'America/Manaus' };
+  const consultar = async () => ({ padrao_id: uuid(9), filiais: [], clientes: [] });
+  return { db, consultar, usuario: { perfil: 'vendedor' }, parametros: () => ({}), agora: () => new Date('2026-11-06T12:00:00Z'), fuso: () => 'America/Manaus' };
 }
 
 type Item = { veiculo: { compatibilidade: string }; aplicacao?: unknown } & Record<string, unknown>;
@@ -64,7 +79,7 @@ type Saida = { itens: Item[]; total: number; disponivel: boolean; recentes: { ve
 type Exec = { executar(e: unknown, c: unknown): Promise<Saida> };
 const buscaAparelho = (e: unknown) => (consultaBuscaProdutosAparelho as unknown as Exec).executar(e, aparelho());
 const buscaApi = (e: unknown) => (consultaBuscaProdutos as unknown as Exec).executar(e, api());
-const cascataAparelho = (e: unknown) => (consultaVeiculosAparelho as unknown as Exec).executar(e, aparelho());
+const cascataAparelho = (e: unknown, escopo = false) => (consultaVeiculosAparelho as unknown as Exec).executar(e, aparelho(escopo));
 const cascataApi = (e: unknown) => (consultaVeiculos as unknown as Exec).executar(e, api());
 const itens = (r: Saida) => r.itens.map(({ aplicacao: _a, ...x }) => x);
 
@@ -131,5 +146,51 @@ describe('RN-CAT-22 / P4: aparelho e API dão o mesmo resultado com veículo', (
     const vazio = { ...aparelho(), linhas: async (e: string) => (e === 'produto_conteudo' ? [] : await (aparelho() as unknown as { linhas(e: string): Promise<unknown[]> }).linhas(e)) } as unknown as ContextoConsultaAparelho;
     const r = await (consultaVeiculosAparelho as unknown as Exec).executar({}, vazio);
     expect(r).toMatchObject({ disponivel: false, opcoes: [], nivel: null });
+  });
+
+  describe('escopo do cliente em catalogo.veiculos@1', () => {
+    const POR_CLIENTE = { cliente_id: CLIENTE };
+    const POR_IDS = { produto_ids: [LINHAS[9]!.id, LINHAS[10]!.id, LINHAS[12]!.id] };
+    const sem = ({ recentes: _r, ...x }: Saida) => x;
+
+    it.each([
+      ['cliente', POR_CLIENTE, {}],
+      ['cliente', POR_CLIENTE, { escolha: { montadora: 'Volkswagen' } }],
+      ['cliente', POR_CLIENTE, { escolha: { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018 } }],
+      ['cliente', POR_CLIENTE, { busca: 'gol' }],
+      ['cliente', POR_CLIENTE, { busca: 'ecosport' }],
+      ['produto_ids', POR_IDS, {}],
+      ['produto_ids', POR_IDS, { busca: 'civic' }],
+    ])('RN-CAT-22: escopo por %s, entrada %j: a mesma cascata no aparelho e na API', async (_n, escopo, resto) => {
+      const entrada = { ...resto, ...escopo };
+      const a = sem(await cascataAparelho(entrada, true));
+      const b = sem(await cascataApi(entrada));
+      expect(a).toEqual(b);
+    });
+
+    it('RN-CAT-22: com o cliente, só aparece o que se pode vender a ele (o Ford fora da tabela some; o Gol Highline fica)', async () => {
+      const r = await cascataAparelho(POR_CLIENTE, true);
+      expect(r.disponivel).toBe(true);
+      expect((r.trilha as { nivel: string; valor: string; automatico: boolean }[]).map((p) => [p.nivel, p.valor, p.automatico])).toEqual([['montadora', 'Volkswagen', true], ['modelo', 'Gol', true]]);
+      expect((await cascataAparelho({ ...POR_CLIENTE, busca: 'ecosport' }, true)).busca).toEqual([]);
+      expect(((await cascataAparelho({ busca: 'ecosport' })).busca as unknown[]).length).toBeGreaterThan(0);
+    });
+
+    it('RN-CAT-22: cliente sem produto vendável com veículo = disponivel falso, igual no aparelho e na API', async () => {
+      const so = { produto_ids: [LINHAS[15]!.id] };
+      expect(sem(await cascataAparelho(so, true))).toEqual(sem(await cascataApi(so)));
+      expect((await cascataAparelho(so, true)).disponivel).toBe(false);
+    });
+
+    it('RN-CAT-22: os Recentes não são filtrados pelo escopo', async () => {
+      await buscaAparelho({ q: '', veiculo: { montadora: 'Ford', modelo: 'EcoSport', ano: 2014, motor: '1.6', versao: null }, limite: 10 });
+      const r = await cascataAparelho(POR_CLIENTE, true);
+      expect(r.recentes.map((x) => x.rotulos.curto)).toEqual(['EcoSport 2014 1.6']);
+    });
+
+    it('RN-CAT-22: produto_ids vale mais que cliente_id (a mesma regra de catalogo.busca_produtos@1)', async () => {
+      const a = sem(await cascataAparelho({ ...POR_IDS, ...POR_CLIENTE }, true));
+      expect(a).toEqual(sem(await cascataAparelho(POR_IDS, true)));
+    });
   });
 });

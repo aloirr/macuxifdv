@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { montarArvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, reaproveitarItens, rotuloAcessivelDoCartao, tagDeEstoque } from './grade';
+import { chipsDaGrade, classificacaoDaGrade, emLinhas, escolherCategoria, escolherFamilia, escolherLinha, escolherSistema, filtroDoNo, GRUPOS_DA_GRADE, SEM_FILTRO, produtosDoFiltro, linhaDaMarca, precoDoCartao, reaproveitarItens, rotuloAcessivelDoCartao, tagDeEstoque } from './grade';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
+import { rotuloDoNivel } from '../../domain/hierarquia';
+import { contarChipsFiltrar } from '../../domain/veiculo-filtro';
 
 const no = (id: string, pai: string | null, nivel: number, nome: string): NoCatalogo => ({ id, pai_id: pai, nivel, codigo: id, nome, ordem: 0, ativo: true });
-const arvore = montarArvore([no('S1', null, 1, 'Mercearia'), no('S2', null, 1, 'Bebidas'), no('C1', 'S1', 2, 'Açúcar'), no('C2', 'S1', 2, 'Café'), no('G1', 'C1', 3, 'Refinado')]);
+const arvore = montarArvore([no('S1', null, 1, 'Mercearia'), no('S2', null, 1, 'Bebidas'), no('C1', 'S1', 2, 'Açúcar'), no('C2', 'S1', 2, 'Café'), no('G1', 'C1', 3, 'Refinado'), no('K1', 'G1', 4, 'Cristal')]);
 const vinculos: VinculoProdutoNo[] = [
   { produto_id: 'p1', no_id: 'G1' },
   { produto_id: 'p2', no_id: 'C2' },
   { produto_id: 'p3', no_id: 'S2' },
+  { produto_id: 'p4', no_id: 'K1' },
 ];
 const disp = (band: 'disponivel' | 'baixo' | 'sem_estoque', quantity: number | null, filiais = 1) => ({
   price_stock_visible: true,
@@ -16,28 +19,54 @@ const disp = (band: 'disponivel' | 'baixo' | 'sem_estoque', quantity: number | n
 });
 
 describe('Catálogo em grade (T-0173)', () => {
-  it('T-0173: sistemas são o 1º nível e as categorias só aparecem depois de escolher o sistema', () => {
-    expect(chipsDaGrade(arvore, { sistemaId: null, categoriaId: null }).categorias).toEqual([]);
-    expect(chipsDaGrade(arvore, { sistemaId: 'S1', categoriaId: null }).categorias.map((n) => n.nome)).toEqual(['Açúcar', 'Café']);
-    expect(chipsDaGrade(arvore, { sistemaId: null, categoriaId: null }).sistemas).toHaveLength(2);
+  it('T-0173: sistemas são o 1º nível e cada grupo seguinte só aparece depois de escolher o de cima', () => {
+    expect(chipsDaGrade(arvore, SEM_FILTRO).familias).toEqual([]);
+    expect(chipsDaGrade(arvore, { ...SEM_FILTRO, sistemaId: 'S1' }).familias.map((n) => n.nome)).toEqual(['Açúcar', 'Café']);
+    expect(chipsDaGrade(arvore, SEM_FILTRO).sistemas).toHaveLength(2);
+    expect(chipsDaGrade(arvore, { ...SEM_FILTRO, sistemaId: 'S1' }).linhas).toEqual([]);
+    expect(chipsDaGrade(arvore, { ...SEM_FILTRO, sistemaId: 'S1', familiaId: 'C1' }).linhas.map((n) => n.nome)).toEqual(['Refinado']);
+    expect(chipsDaGrade(arvore, { ...SEM_FILTRO, sistemaId: 'S1', familiaId: 'C1', linhaId: 'G1' }).categorias.map((n) => n.nome)).toEqual(['Cristal']);
   });
 
-  it('T-0173: trocar de sistema volta a categoria para Todas; o mesmo sistema mantém', () => {
-    expect(escolherSistema({ sistemaId: 'S1', categoriaId: 'C1' }, 'S2')).toEqual({ sistemaId: 'S2', categoriaId: null });
-    expect(escolherSistema({ sistemaId: 'S1', categoriaId: 'C1' }, 'S1').categoriaId).toBe('C1');
-    expect(escolherCategoria({ sistemaId: 'S1', categoriaId: null }, 'C2')).toEqual({ sistemaId: 'S1', categoriaId: 'C2' });
+  it('RN-CAT-22: os quatro grupos seguem a ordem Sistema · Família · Linha · Categoria, com os nomes do cadastro (rotuloDoNivel)', () => {
+    expect(GRUPOS_DA_GRADE.map((g) => g.grupo)).toEqual(['sistema', 'familia', 'linha', 'categoria']);
+    expect(GRUPOS_DA_GRADE.map((g) => g.rotulo)).toEqual([rotuloDoNivel(1), rotuloDoNivel(2), rotuloDoNivel(3), 'Categoria']);
   });
 
-  it('T-0173: nível abaixo da categoria entra na grade da categoria; sem filtro não restringe', () => {
-    expect([...produtosDoFiltro(arvore, vinculos, { sistemaId: 'S1', categoriaId: 'C1' })!]).toEqual(['p1']);
-    expect([...produtosDoFiltro(arvore, vinculos, { sistemaId: 'S1', categoriaId: null })!].sort()).toEqual(['p1', 'p2']);
-    expect(produtosDoFiltro(arvore, vinculos, { sistemaId: null, categoriaId: null })).toBeUndefined();
+  it('T-0173: trocar de grupo de cima volta os de baixo para Todos; o mesmo valor mantém', () => {
+    const cheio = { sistemaId: 'S1', familiaId: 'C1', linhaId: 'G1', categoriaId: 'K1' };
+    expect(escolherSistema(cheio, 'S2')).toEqual({ ...SEM_FILTRO, sistemaId: 'S2' });
+    expect(escolherSistema(cheio, 'S1')).toEqual(cheio);
+    expect(escolherFamilia(cheio, 'C2')).toEqual({ sistemaId: 'S1', familiaId: 'C2', linhaId: null, categoriaId: null });
+    expect(escolherLinha(cheio, 'G2')).toEqual({ ...cheio, linhaId: 'G2', categoriaId: null });
+    expect(escolherCategoria(cheio, 'K2')).toEqual({ ...cheio, categoriaId: 'K2' });
+    expect(escolherFamilia(cheio, null)).toEqual({ ...SEM_FILTRO, sistemaId: 'S1' });
   });
 
-  it('T-0173: abrir com filtro (?no=) marca sistema e categoria; nó desconhecido abre sem filtro', () => {
-    expect(filtroDoNo(arvore, 'G1')).toEqual({ sistemaId: 'S1', categoriaId: 'C1' });
-    expect(filtroDoNo(arvore, 'S2')).toEqual({ sistemaId: 'S2', categoriaId: null });
-    expect(filtroDoNo(arvore, 'x')).toEqual({ sistemaId: null, categoriaId: null });
+  it('T-0173: o nível mais fundo escolhido manda na lista; sem filtro não restringe', () => {
+    expect([...produtosDoFiltro(arvore, vinculos, { ...SEM_FILTRO, sistemaId: 'S1', familiaId: 'C1' })!].sort()).toEqual(['p1', 'p4']);
+    expect([...produtosDoFiltro(arvore, vinculos, { ...SEM_FILTRO, sistemaId: 'S1' })!].sort()).toEqual(['p1', 'p2', 'p4']);
+    expect(produtosDoFiltro(arvore, vinculos, SEM_FILTRO)).toBeUndefined();
+  });
+
+  it('T-0173: abrir com filtro (?no=) marca o caminho até o nó; nó desconhecido abre sem filtro', () => {
+    expect(filtroDoNo(arvore, 'G1')).toEqual({ sistemaId: 'S1', familiaId: 'C1', linhaId: 'G1', categoriaId: null });
+    expect(filtroDoNo(arvore, 'S2')).toEqual({ ...SEM_FILTRO, sistemaId: 'S2' });
+    expect(filtroDoNo(arvore, 'x')).toEqual(SEM_FILTRO);
+  });
+
+  it('RN-CAT-22 (D1): a classificação dos quatro grupos conta a lista de agora; grupo vazio ou de uma opção só some', () => {
+    const base = ['p1', 'p2', 'p3', 'p4'];
+    const dois = contarChipsFiltrar(base, classificacaoDaGrade(arvore, vinculos, SEM_FILTRO), {}, { cruzar: false });
+    expect(dois.map((g) => g.grupo)).toEqual(['sistema']);
+    expect(dois[0]!.chips.map((c) => [c.nome, c.contagem])).toEqual([['Bebidas', 1], ['Mercearia', 3]]);
+    const f = { ...SEM_FILTRO, sistemaId: 'S1' };
+    const comS1 = contarChipsFiltrar(base, classificacaoDaGrade(arvore, vinculos, f), { sistema: 'S1' }, { cruzar: false });
+    expect(comS1.map((g) => [g.grupo, g.rotulo])).toEqual([['sistema', 'Sistema'], ['familia', 'Grupo']]);
+    expect(comS1[1]!.chips.map((c) => [c.nome, c.contagem])).toEqual([['Açúcar', 2], ['Café', 1]]);
+    // Açúcar escolhido: só a Linha "Refinado" (uma opção) = o grupo some
+    const g = { ...f, familiaId: 'C1' };
+    expect(contarChipsFiltrar(base, classificacaoDaGrade(arvore, vinculos, g), { sistema: 'S1', familia: 'C1' }, { cruzar: false }).map((x) => x.grupo)).toEqual(['sistema', 'familia']);
   });
 
   it('spec §3 (catálogo v2): "Estoque: N" em duas cores, verde acima de 0 e vermelho em 0; sem saldo recebido = 0', () => {

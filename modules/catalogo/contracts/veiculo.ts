@@ -6,6 +6,7 @@
  */
 import { z } from 'zod';
 import { definirConsulta } from '@macuxi/platform-sdk';
+import { Id } from '@macuxi/core/contracts';
 import { TrechoBusca, type ItemVitrine } from './busca';
 
 export const NivelVeiculo = z.enum(['montadora', 'modelo', 'ano', 'motor', 'versao']);
@@ -69,7 +70,19 @@ export type ResultadoVeiculoItem = z.infer<typeof ResultadoVeiculoItem>;
 export const VeiculoRecente = z.object({ veiculo: VeiculoEscolhido, rotulos: RotulosVeiculo }).strict();
 export type VeiculoRecente = z.infer<typeof VeiculoRecente>;
 
-export const VeiculosEntradaSchema = z.object({ escolha: VeiculoParcial.default({}), busca: z.string().trim().max(60).optional() }).strict();
+export const VeiculosEntradaSchema = z
+  .object({
+    escolha: VeiculoParcial.default({}),
+    busca: z.string().trim().max(60).optional(),
+    /**
+     * Escopo opcional (aditivo, mesma semântica de `catalogo.busca_produtos@1`): `produto_ids` restringe aos produtos dados; `cliente_id`
+     * restringe aos vendáveis na tabela de preço do cliente (RN-CAT-06, RN-CAT-22), filtrados dentro da consulta. Com os dois, vale
+     * `produto_ids`. Sem nenhum = o catálogo inteiro. A cascata, a `busca` e `disponivel` só contam o que está no escopo; os Recentes não.
+     */
+    produto_ids: z.array(Id).max(5000).optional(),
+    cliente_id: Id.optional(),
+  })
+  .strict();
 export type VeiculosEntrada = z.infer<typeof VeiculosEntradaSchema>;
 
 export const VeiculosSaidaSchema = z.object({

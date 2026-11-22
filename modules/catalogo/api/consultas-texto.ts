@@ -16,7 +16,8 @@ import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_TEXTOS_PRODUTO, CONSULTA_VEICULOS, type VeiculosSaida } from '../contracts';
 import { buscaPodeRodar, buscarComTotal, textosParaConsulta } from '../domain/busca-consulta';
 import { navegarCascata } from '../domain/veiculo-filtro';
-import { apelidosDeMontadora, construirIndiceVeiculos, indiceTemVeiculo, type IndiceVeiculos } from '../domain/veiculo-indice';
+import { escopoDaApi } from './escopo-cliente';
+import { apelidosDeMontadora, construirIndiceVeiculos, indiceTemVeiculo, restringirIndice, type IndiceVeiculos } from '../domain/veiculo-indice';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { parametrosDoTenant } from '../domain/parametros';
@@ -114,7 +115,10 @@ async function indiceDaBase(db: Db, tenant: string | undefined, anoAtual: number
 
 /** `catalogo.veiculos@1` na API: a mesma cascata do aparelho, sem Recentes (`[]`). Sem preço nem estoque: responde a todo perfil. */
 export const consultaVeiculos = implementarConsulta(CONSULTA_VEICULOS, async (entrada, ctx): Promise<VeiculosSaida> => {
-  const indice = await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoCivilNoFuso(ctx.agora(), ctx.fuso?.()));
+  const todo = await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoCivilNoFuso(ctx.agora(), ctx.fuso?.()));
+  // RN-CAT-22: com escopo (`produto_ids` ou `cliente_id`), só o que se pode vender conta; as mesmas funções do aparelho
+  const escopo = await escopoDaApi(ctx, entrada);
+  const indice = escopo ? restringirIndice(todo, escopo) : todo;
   if (!indiceTemVeiculo(indice)) return { disponivel: false, trilha: [], nivel: null, opcoes: [], ultimo: false, escolha: {}, rotulos: null, busca: null, recentes: [] };
   return { disponivel: true, ...navegarCascata(indice, entrada.escolha ?? {}, entrada.busca, apelidosDeMontadora()), recentes: [] };
 });
