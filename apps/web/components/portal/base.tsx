@@ -43,9 +43,26 @@ import {
   type SessaoPortal,
 } from '@/lib/portal-sessao';
 
-/** Marca do portal: o logo negativo na faixa Azul noite (T-0172). */
-export function Marca() {
-  return <MarcaNaFaixa area="Portal de implantação" />;
+/** Marca do portal: o logo negativo na faixa Azul noite (T-0172); `naBarra` no cabeçalho, que já é a faixa. */
+export function Marca({ naBarra }: { naBarra?: boolean }) {
+  return naBarra ? <MarcaNaFaixa area="Portal de implantação" naBarra /> : <MarcaNaFaixa area="Portal de implantação" />;
+}
+
+/**
+ * Botão do cabeçalho na faixa Azul noite (MC-0023, docs/design/telas/portal-config-enxuto.md §0): borda `faixa-texto`, fundo
+ * transparente e texto branco (12,77:1 na faixa), foco branco. Botão próprio: o `Button` secundário do kit tem fundo `surface`.
+ */
+function BotaoDaFaixa({ testId, onClick, children }: { testId: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-faixa-texto bg-transparent px-3 text-[13px] font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+    >
+      {children}
+    </button>
+  );
 }
 
 /** Link com cara de botão (sem `<button>` dentro de `<a>`); o principal em Azul noite, como o `Button` (MC-0021). */
@@ -354,11 +371,11 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
     <GuardaPortal>
       <div className="min-h-screen bg-ground">
         <AvisoModoFalso />
-        <header className="border-b border-line bg-surface">
-          <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-6">
+        <header className="bg-faixa">
+          <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-between gap-x-3 px-4">
+            <div className="flex flex-wrap items-center gap-x-6 self-stretch">
               <Link href={inicio} className="no-underline" data-testid="portal.marca" onClick={navegar(inicio)}>
-                <Marca />
+                <Marca naBarra />
               </Link>
               {ehTimeMacuxi(sessao) && (
                 <nav aria-label="Portal" className="flex items-stretch gap-1 self-stretch">
@@ -370,8 +387,8 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
                       aria-current={ativo === i.href ? 'page' : undefined}
                       onClick={navegar(i.href)}
                       className={cx(
-                        '-mb-3 flex min-h-11 items-center border-b-2 px-3 pb-3 text-[15px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                        ativo === i.href ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink',
+                        'flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-[15px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
+                        ativo === i.href ? 'border-white text-white' : 'border-transparent text-faixa-texto hover:text-white',
                       )}
                     >
                       {i.rotulo}
@@ -380,10 +397,10 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
                 </nav>
               )}
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-3 text-[13px] text-ink-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-3 py-3 text-[13px] text-faixa-texto">
               {/* o nome da empresa (contexto) vem antes do prazo da sessão (R-20261107-174216 🟢 3) */}
               {cliente && sessao?.empresa && (
-                <span data-testid="portal.empresa-atual" title={sessao.empresa.nome} className="max-w-[220px] truncate text-[13px] font-semibold text-ink">
+                <span data-testid="portal.empresa-atual" title={sessao.empresa.nome} className="max-w-[220px] truncate text-[13px] font-semibold text-white">
                   {sessao.empresa.nome}
                 </span>
               )}
@@ -394,13 +411,13 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
                 </span>
               )}
               {podeTrocarDeEmpresa(sessao) && (
-                <Button data-testid="portal.trocar-empresa" size="sm" className="min-h-11" onClick={trocar}>
+                <BotaoDaFaixa testId="portal.trocar-empresa" onClick={trocar}>
                   Trocar de empresa
-                </Button>
+                </BotaoDaFaixa>
               )}
-              <Button data-testid="portal.sair" size="sm" className="min-h-11" onClick={sair}>
+              <BotaoDaFaixa testId="portal.sair" onClick={sair}>
                 Sair
-              </Button>
+              </BotaoDaFaixa>
             </div>
           </div>
         </header>

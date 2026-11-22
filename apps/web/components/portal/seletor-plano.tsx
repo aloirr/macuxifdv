@@ -5,12 +5,12 @@
  * docs/design/telas/portal-config-enxuto.md §11.3 e §11.4): um componente só, usado no Criar empresa (`SeletorPlano`: cartões
  * "Plano", "Adicionais" e "Ciclo") e no diálogo "Trocar de plano" (`EscolhaDoPlano` com `atual`, `AdicionaisEmLinhas` e
  * `AlternadorCiclo`). Planos: cartões de escolha única, só os ativos na `ordem` do catálogo, valor grande e "/mês" pequeno.
- * Adicionais: caixa + ícone + nome do kit + preço no ciclo + Quantidade, uma linha por adicional, em duas colunas. Ciclo:
+ * Adicionais: caixa + ícone + nome (`nomeDoAdicionalNoPortal`) + preço no ciclo + Quantidade, uma linha por adicional, em duas colunas. Ciclo:
  * Mensal/Anual com o selo "2 meses grátis". Números só do catálogo (`lib/portal-planos.ts`). testIDs: empresa.plano-*, empresa.adicional-*, empresa.ciclo-*, empresa.teste.
  */
 import { useQuery } from '@tanstack/react-query';
 import { CICLOS, ListaPlanosSchema, type Adicional, type Ciclo, type Plano } from '@macuxi/platform-sdk';
-import { Badge, cx, iconeDoAdicional, nomeDoAdicional, Panel } from '@macuxi/ui/web';
+import { Badge, cx, iconeDoAdicional, Panel } from '@macuxi/ui/web';
 
 import { chamarPortal } from '@/lib/portal-api';
 
@@ -19,6 +19,7 @@ import {
   comAdicional,
   licencasDoPlano,
   licencasDoPlanoEmDuasLinhas,
+  nomeDoAdicionalNoPortal,
   planosVisiveis,
   precoDoAdicional,
   precoDoPlanoEmPartes,
@@ -125,7 +126,7 @@ function CampoQuantidade({ a, valor, erro, aoMudar }: { a: Adicional; valor: str
   return (
     <input
       data-testid={`empresa.adicional-${a}-qtd`}
-      aria-label={TEXTOS_PLANO.quantidadeDe(nomeDoAdicional(a))}
+      aria-label={TEXTOS_PLANO.quantidadeDe(nomeDoAdicionalNoPortal(a))}
       aria-invalid={erro ? true : undefined}
       inputMode="numeric"
       className={qtdCss}
@@ -167,14 +168,14 @@ export function AdicionaisEmLinhas({ plano, escolha, aoMudar, erros }: { plano: 
                 <input
                   type="checkbox"
                   data-testid={`empresa.adicional-${a}`}
-                  aria-label={nomeDoAdicional(a)}
+                  aria-label={nomeDoAdicionalNoPortal(a)}
                   className={caixaCss}
                   checked={q !== undefined}
                   onChange={(e) => aoMudar(comAdicional(escolha, a, e.target.checked ? '1' : undefined))}
                 />
                 <IconeDoAdicional a={a} />
                 <span className="flex min-w-0 flex-col">
-                  <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicional(a)}</span>
+                  <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicionalNoPortal(a)}</span>
                   <span className="text-[13px] text-ink-2 sm:hidden">{preco}</span>
                 </span>
                 <span className="hidden text-[13px] text-ink-2 sm:block">{preco}</span>
@@ -222,7 +223,7 @@ export function SeletorPlano({ planos, escolha, aoMudar, erros }: { planos: read
                     <label className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5">
                       <input type="checkbox" data-testid={`empresa.adicional-${a}`} className={caixaCss} checked={marcado} onChange={(e) => aoMudar(comAdicional(escolha, a, e.target.checked ? '1' : undefined))} />
                       <IconeDoAdicional a={a} />
-                      <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicional(a)}</span>
+                      <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicionalNoPortal(a)}</span>
                       <span className="text-[13px] text-ink-2">{precoDoAdicional(plano, a, escolha.ciclo)}</span>
                     </label>
                     {marcado && (

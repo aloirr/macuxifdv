@@ -2,7 +2,8 @@
  * Planos e licenças no portal `config.` (ADR 0047; spec docs/design/telas/portal-config-enxuto.md §11.3 e §11.4). Puro, para teste.
  * Os números (preço, licenças, meses grátis, dias de teste) vêm só do catálogo (`PlanoSchema`, dado do banco); as contas e as
  * regras são as do SDK (`valorDaAssinatura` RN-PLA-06, `conferirTrocaDePlano` RN-PLA-05, `usoPorItem`). Dinheiro formatado a
- * partir de centavos. Nome e ícone dos adicionais: o mapa único do kit (`nomeDoAdicional`, MC-0042), nunca rótulo solto na tela.
+ * partir de centavos. Nome e ícone dos adicionais: o mapa único do kit (`nomeDoAdicional`, MC-0042), nunca rótulo solto na tela;
+ * o nome do Promotor no portal sai de `nomeDoAdicionalNoPortal` ("Promotor Avulso", dono do produto, 22/11/2026).
  */
 import { formatBRL } from '@macuxi/comum/money';
 import {
@@ -106,12 +107,21 @@ export function adicionaisAVenda(plano: Plano): Adicional[] {
 }
 
 /**
- * Preço de um adicional no ciclo (P5: segue o ciclo, pela parcela do `valorDaAssinatura`): "R$ 80,00 por licença avulsa/mês"
- * (Promotor) ou "R$ 100,00 por usuário/ano" (Pesquisa, Treinamento).
+ * Nome do adicional no portal (Nova empresa, cartão Plano, diálogo Trocar de plano): o do kit, com o Promotor como "Promotor
+ * Avulso", o nome da tela aprovada docs/design/planos-assinatura/02-nova-empresa.png (dono do produto, 22/11/2026).
+ * Sobreposição local até o kit (`nomeDoAdicional`, packages/ui) trazer o nome; aí esta função volta a ser só o kit.
+ */
+export function nomeDoAdicionalNoPortal(adicional: string): string {
+  return adicional === 'promotor' ? 'Promotor Avulso' : nomeDoAdicional(adicional);
+}
+
+/**
+ * Preço de um adicional no ciclo (P5: segue o ciclo, pela parcela do `valorDaAssinatura`): "R$ 80,00 por licença/mês"
+ * (Promotor; o "Avulso" já está no nome, tela 02 aprovada) ou "R$ 100,00 por usuário/ano" (Pesquisa, Treinamento).
  */
 export function precoDoAdicional(plano: Plano, adicional: Adicional, ciclo: Ciclo): string {
   const um = valorDaAssinatura(plano, [{ adicional, quantidade: 1 }], ciclo).por_ciclo_centavos - valorDaAssinatura(plano, [], ciclo).por_ciclo_centavos;
-  return `${formatBRL(um)} por ${adicional === 'promotor' ? 'licença avulsa' : 'usuário'}${sufixo(ciclo)}`;
+  return `${formatBRL(um)} por ${adicional === 'promotor' ? 'licença' : 'usuário'}${sufixo(ciclo)}`;
 }
 
 /** Escolha da tela: plano (código), ciclo, adicionais marcados com a quantidade digitada, teste. */
@@ -174,12 +184,12 @@ export function totalDaEscolha(planos: readonly Plano[], e: EscolhaDaTela): stri
   return v === null ? null : TEXTOS_PLANO.total(valorPorCiclo(v, e.ciclo));
 }
 
-/** Nome do item no bloco de licenças (§11.8): "Vendedor", "Gestor", "BKO"; os adicionais pelo mapa único do kit. */
+/** Nome do item no bloco de licenças (§11.8): "Vendedor", "Gestor", "BKO"; os adicionais pelo nome do portal ("Promotor Avulso"). */
 export function rotuloDoItem(item: ItemContado): string {
   if (item === 'vendedor') return 'Vendedor';
   if (item === 'gestor') return 'Gestor';
   if (item === 'bko') return 'BKO';
-  return nomeDoAdicional(item);
+  return nomeDoAdicionalNoPortal(item);
 }
 
 export interface BlocoDaFicha {

@@ -9,6 +9,7 @@ import { ErroPortal } from './portal-api';
 import { fichaExemplo, planoExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
 import {
   fichaSemPlano,
+  nomeDoAdicionalNoPortal,
   precoDoPlanoEmPartes,
   semCatalogoDePlanos,
   adicionaisDaEscolha,
@@ -54,12 +55,15 @@ describe('cartões do plano (§11.3)', () => {
     expect(planosVisiveis(lista).map((p) => p.codigo)).toEqual(['pme', 'corporate']);
     expect(planosVisiveis(lista, 'light').map((p) => p.codigo)).toEqual(['light', 'pme', 'corporate']);
   });
-  it('P5: preço do adicional segue o ciclo', () => {
+  it('nome do adicional no portal: Promotor Avulso (tela 02 aprovada); Pesquisa e Treinamento pelo kit; id desconhecido volta como veio', () => {
+    expect(['promotor', 'pesquisa', 'treinamento', 'outro'].map(nomeDoAdicionalNoPortal)).toEqual(['Promotor Avulso', 'Pesquisa', 'Treinamento', 'outro']);
+  });
+  it('P5: preço do adicional segue o ciclo; "avulsa" só no nome do Promotor, não no preço', () => {
     const pme = planoExemplo('pme');
-    expect(precoDoAdicional(pme, 'promotor', 'mensal')).toBe('R$ 80,00 por licença avulsa/mês');
+    expect(precoDoAdicional(pme, 'promotor', 'mensal')).toBe('R$ 80,00 por licença/mês');
     expect(precoDoAdicional(pme, 'pesquisa', 'mensal')).toBe('R$ 10,00 por usuário/mês');
     expect(precoDoAdicional(pme, 'treinamento', 'anual')).toBe('R$ 100,00 por usuário/ano');
-    expect(precoDoAdicional(pme, 'promotor', 'anual')).toBe('R$ 800,00 por licença avulsa/ano');
+    expect(precoDoAdicional(pme, 'promotor', 'anual')).toBe('R$ 800,00 por licença/ano');
   });
 });
 
@@ -94,7 +98,7 @@ describe('aba Empresa: cartão "Plano {nome}" (§11.4)', () => {
       'Vendedor 14 de 20',
       'Gestor 2 de 2 no limite',
       'BKO 1 de 3',
-      'Promotor 3 de 3 no limite',
+      'Promotor Avulso 3 de 3 no limite',
       'Pesquisa 6 de 10',
     ]);
     expect(b.filter((x) => x.adicional).map((x) => x.item)).toEqual(['promotor', 'pesquisa']);
