@@ -7,6 +7,8 @@
  * - Refresh rotativo: cada refresh só vale UMA vez. Apresentar de novo um refresh já usado indica cópia/roubo e
  *   derruba a família inteira (todos os refresh descendentes do mesmo login).
  */
+import { mensagemBloqueioPorTentativas } from '../contracts/auth';
+
 export const MAX_FALHAS_LOGIN = 5;
 export const BLOQUEIO_LOGIN_MINUTOS = 15;
 export const ACESSO_MINUTOS = 15;
@@ -45,6 +47,12 @@ export function registrarFalhaDeLogin(atual: { falhas: number; bloqueioAte: Date
 /** RN-CORE-01: minutos que faltam para o fim do bloqueio por tentativas, arredondados para cima (mínimo 1 enquanto bloqueado). */
 export function minutosRestantesDoBloqueio(bloqueioAte: Date, agora: Date): number {
   return Math.max(1, Math.ceil((bloqueioAte.getTime() - agora.getTime()) / 60_000));
+}
+
+/** RN-CORE-31 e RN-CORE-01: mensagem e `detalhes.minutos_restantes` do 423 por tentativas (login do app e reautenticação do portal). */
+export function bloqueioPorTentativas(bloqueioAte: Date, agora: Date): { mensagem: string; detalhes: { minutos_restantes: number } } {
+  const minutos = minutosRestantesDoBloqueio(bloqueioAte, agora);
+  return { mensagem: mensagemBloqueioPorTentativas(minutos), detalhes: { minutos_restantes: minutos } };
 }
 
 /** Senha certa: zera a contagem e o bloqueio temporário. */

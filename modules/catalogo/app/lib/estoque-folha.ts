@@ -48,19 +48,19 @@ export function opcoesDoFiltroFilial(e: { proprias: readonly string[]; filiais: 
 }
 
 export interface ResumoDoFiltro {
-  /** Número do selo do botão: sistema, categoria e filial escolhida fora do padrão (a chave "Só com estoque" fica fora). */
+  /** Número do selo do botão: sistema, família, linha, categoria e filial escolhida fora do padrão (a chave "Só com estoque" fica fora). */
   contagem: number;
   /** Etiqueta removível da filial escolhida; nulo no padrão ("Suas filiais") e quando o grupo Filial não existe. */
   filial: RotuloChipFiliais | null;
 }
 
 /** spec §4: o que o botão e a etiqueta de filial do Catálogo mostram, a partir das opções do grupo Filial e da escolha da folha. */
-export function resumoDoFiltro(e: { opcoes: readonly OpcaoFiltroFilial[]; escolha: { filial: string | null }; sistemaId: string | null; categoriaId: string | null }): ResumoDoFiltro {
+export function resumoDoFiltro(e: { opcoes: readonly OpcaoFiltroFilial[]; escolha: { filial: string | null }; sistemaId: string | null; familiaId?: string | null; linhaId?: string | null; categoriaId: string | null }): ResumoDoFiltro {
   const propriasOpcoes = e.opcoes.filter((o) => o.valor !== 'todas');
   const escolhida = e.escolha.filial && e.escolha.filial !== 'todas' ? (propriasOpcoes.find((o) => o.valor === e.escolha.filial)?.rotulo ?? null) : null;
   const chip = e.opcoes.length === 0 ? null : rotuloChipFiliais({ nomesProprias: propriasOpcoes.map((o) => o.rotulo), escolhida });
   const filial = chip?.removivel ? chip : null;
-  return { contagem: (filial ? 1 : 0) + (e.sistemaId ? 1 : 0) + (e.categoriaId ? 1 : 0), filial };
+  return { contagem: (filial ? 1 : 0) + (e.sistemaId ? 1 : 0) + (e.familiaId ? 1 : 0) + (e.linhaId ? 1 : 0) + (e.categoriaId ? 1 : 0), filial };
 }
 
 /** Subtítulo da faixa do Catálogo: "Sua filial: Boa Vista"; sem filial de cadastro, nenhum. Sem contagem de produtos. */

@@ -16,7 +16,7 @@ Desenho: `docs/desenho/T-0093.md` §2–§4 e §8 · regras: RN-CORE-31, RN-CORE
 
 ## Regras
 - Único segredo: `MACUXI_JWT_SEGREDO_PLATAFORMA` (≥ 32); falta = 503. Sem `MACUXI_CHAVE_TOTP` nem `MACUXI_SUPERADMIN_CONVITE`.
-- Bloqueio: 5 falhas seguidas na chave `HMAC-SHA256(segredo, "portal.login:" + e-mail)` = 15 min, conferido antes de tudo; o e-mail não vai à tabela de tentativas.
+- Bloqueio: 5 falhas seguidas na chave `HMAC-SHA256(segredo, "portal.login:" + e-mail)` = 15 min, conferido antes de tudo; o e-mail não vai à tabela de tentativas. A resposta 423 diz os minutos que faltam (`detalhes.minutos_restantes`; `minutosRestantesDoBloqueio`, arredondado para cima, mínimo 1).
 - Login: `sa_contas_para_login` (até 20), senhas conferidas em paralelo (`Promise.all`); sem conta, `gastarTempoDeSenha` uma vez, para igualar o custo.
   Precedência do super-admin; admin do cliente só recebe as empresas em que a senha conferiu (`decidirAcessoDoLogin`, no domain).
 - Token: JWT HS256, `aud=macuxi-plataforma`, `amr=["pwd"]`, `typ` `sa`|`cli`, 15 min, teto de 8 h. `sub` = super-admin | usuário da empresa | `sid` (sem

@@ -13,8 +13,11 @@
  * catálogo inteiro a cada chamada. A guarda disso está em tests/modulos/defeitos-corretor-r173739.test.ts (D3).
  */
 import { implementarConsulta } from '@macuxi/platform-sdk';
-import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_TEXTOS_PRODUTO } from '../contracts';
-import { buscarParaConsulta, textosParaConsulta } from '../domain/busca-consulta';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_TEXTOS_PRODUTO, CONSULTA_VEICULOS, textoDaBuscaComVeiculo, type VeiculosSaida } from '../contracts';
+import { buscarComTotal, textosParaConsulta } from '../domain/busca-consulta';
+import { saidaDaCascata } from '../domain/veiculo-filtro';
+import { escopoDaApi } from './escopo-cliente';
+import { construirIndiceVeiculos, restringirIndice, type IndiceVeiculos } from '../domain/veiculo-indice';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { parametrosDoTenant } from '../domain/parametros';
@@ -67,10 +70,16 @@ const VEICULOS_DO_TENANT = new Map<string, { versao: string; veiculos: NomesDeVe
  * tenant e vale enquanto a "versão da carga" (quantos produtos ativos e a última alteração) for a mesma; a versão é uma leitura agregada
  * barata, e a base só é relida quando ela muda. Sem tenant no contexto (teste), calcula sem guardar.
  */
-async function veiculosDaBase(db: { query: (sql: string, valores?: unknown[]) => Promise<{ rows: unknown[] }> }, tenant: string | undefined): Promise<NomesDeVeiculo> {
+type Db = { query: (sql: string, valores?: unknown[]) => Promise<{ rows: unknown[] }> };
+
+/** A "versão da carga": quantos produtos ativos e a última alteração. */
+async function versaoDaCarga(db: Db): Promise<string> {
   const v = await db.query('select count(*)::text as n, coalesce(max(updated_at)::text, \'\') as ate from catalogo.produto_busca where deleted_at is null and ativo');
   const linha = (v.rows[0] ?? {}) as { n?: string; ate?: string };
-  const versao = `${linha.n ?? ''}|${linha.ate ?? ''}`;
+  return `${linha.n ?? ''}|${linha.ate ?? ''}`;
+}
+
+async function veiculosDaBase(db: Db, tenant: string | undefined, versao: string): Promise<NomesDeVeiculo> {
   const guardado = tenant ? VEICULOS_DO_TENANT.get(tenant) : undefined;
   if (guardado && guardado.versao === versao) return guardado.veiculos;
   const r = await db.query('select b.nome, b.aplicacao, c.descricao from catalogo.produto_busca b left join catalogo.produto_conteudo c on c.produto_id = b.produto_id and c.deleted_at is null where b.deleted_at is null and b.ativo');
@@ -82,6 +91,33 @@ async function veiculosDaBase(db: { query: (sql: string, valores?: unknown[]) =>
   }
   return veiculos;
 }
+
+const INDICE_DO_TENANT = new Map<string, { versao: string; anoAtual: number; indice: IndiceVeiculos }>();
+
+/** RN-CAT-22: o índice de veículos da base ativa do tenant, pela "versão da carga" (lida uma vez pelo chamador) e pelo ano civil (a faixa aberta "2015+" muda com ele). */
+async function indiceDaBase(db: Db, tenant: string | undefined, anoAtual: number, versao: string): Promise<IndiceVeiculos> {
+  const guardado = tenant ? INDICE_DO_TENANT.get(tenant) : undefined;
+  if (guardado && guardado.versao === versao && guardado.anoAtual === anoAtual) return guardado.indice;
+  const r = await db.query('select produto_id, aplicacao from catalogo.produto_busca where deleted_at is null and ativo');
+  const indice = construirIndiceVeiculos(
+    (r.rows as Array<{ produto_id: string; aplicacao: string | null }>).map((x) => ({ id: x.produto_id, aplicacao: x.aplicacao })),
+    { anoAtual, veiculos: await veiculosDaBase(db, tenant, versao) },
+  );
+  if (tenant) {
+    INDICE_DO_TENANT.delete(tenant);
+    INDICE_DO_TENANT.set(tenant, { versao, anoAtual, indice });
+    if (INDICE_DO_TENANT.size > MAXIMO_TENANTS_EM_MEMORIA) INDICE_DO_TENANT.delete(INDICE_DO_TENANT.keys().next().value!);
+  }
+  return indice;
+}
+
+/** `catalogo.veiculos@1` na API: a mesma cascata do aparelho, sem Recentes (`[]`). Sem preço nem estoque: responde a todo perfil. */
+export const consultaVeiculos = implementarConsulta(CONSULTA_VEICULOS, async (entrada, ctx): Promise<VeiculosSaida> => {
+  const todo = await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoCivilNoFuso(ctx.agora(), ctx.fuso?.()), await versaoDaCarga(ctx.db));
+  // RN-CAT-22: com escopo (`produto_ids` ou `cliente_id`), só o que se pode vender conta; as mesmas funções do aparelho
+  const escopo = await escopoDaApi(ctx, entrada);
+  return saidaDaCascata(escopo ? restringirIndice(todo, escopo) : todo, entrada, []);
+});
 
 export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
   const r = await ctx.db.query(
@@ -109,18 +145,22 @@ export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS
     vendas: 0,
   }));
   const sinonimos = (s.rows as Array<{ termo: string; sinonimos: string[]; ativo: boolean }>).map((x) => ({ term: x.termo, synonyms: x.sinonimos, active: x.ativo }));
-  return {
-    itens: buscarParaConsulta({
-      produtos,
-      q: entrada.q,
-      produtoIds: entrada.produto_ids,
-      limite: entrada.limite,
-      sinonimos,
-      veiculos: await veiculosDaBase(ctx.db, ctx.usuario?.tenant_id),
-      parametros: parametrosDoTenant(ctx.parametros()),
-      anoAtual: anoCivilNoFuso(ctx.agora(), ctx.fuso?.()),
-    }),
-  };
+  const anoAtual = anoCivilNoFuso(ctx.agora(), ctx.fuso?.());
+  const q = textoDaBuscaComVeiculo(entrada.q, entrada.veiculo);
+  const versao = await versaoDaCarga(ctx.db);
+  const indiceVeiculos = entrada.veiculo ? await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoAtual, versao) : undefined;
+  const { itens } = buscarComTotal({
+    produtos,
+    q,
+    produtoIds: entrada.produto_ids,
+    limite: entrada.limite,
+    sinonimos,
+    veiculos: await veiculosDaBase(ctx.db, ctx.usuario?.tenant_id, versao),
+    parametros: parametrosDoTenant(ctx.parametros()),
+    anoAtual,
+    ...(entrada.veiculo && indiceVeiculos ? { veiculo: entrada.veiculo, indiceVeiculos } : {}),
+  });
+  return { itens: itens.map(({ aplicacao: _aplicacao, ...resto }) => resto) };
 });
 
 /** `catalogo.foto_produto@1` na API (T-0148): só `tem_foto` (foto principal viva); quem baixa a foto é o aparelho, `uri` sempre nulo. */

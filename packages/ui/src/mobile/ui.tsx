@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
 import { alturaMinimaCabecalho, CABECALHO, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
-import { formaDoBadge, layoutCarregando, type LinhasBadge, rotuloDoVoltar, tocarNoVoltar } from './componentes';
+import { formaDoBadge, layoutCarregando, leituraDoChip, type LinhasBadge, rotuloDoVoltar, textoDaContagem, tocarNoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
@@ -278,18 +278,37 @@ export function Badge({ label, tone, fg, bg, style, linhas = 1 }: { label: strin
 /**
  * Chip de escolha (prazo, transportadora, filtro). `rotuloAcessivel` é o que o leitor de tela lê quando o rótulo visível é
  * abreviado ("28 d" → "28 dias"); sem ele, lê o `label` (T-0072, revisão de UX do novo pedido).
+ * `contagem` (folha Filtrar do Catálogo, spec filtro-veiculo §6): o número depois do nome, em 400 tabular ("Suspensão 3", nome
+ * em 600); o leitor lê "Suspensão, 3 peças".
  */
-export function Chip({ label, active, onPress, testID, rotuloAcessivel }: { label: string; active: boolean; onPress: () => void; testID?: string; rotuloAcessivel?: string }) {
+export function Chip({
+  label,
+  active,
+  onPress,
+  testID,
+  rotuloAcessivel,
+  contagem,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  testID?: string;
+  rotuloAcessivel?: string;
+  /** Quantas peças o chip tem na lista de agora; sem ela, o chip de sempre. */
+  contagem?: number;
+}) {
+  const cor = { color: active ? CORES_CHIP.ativo.texto : CORES_CHIP.inativo.texto };
   return (
     <Pressionavel
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={rotuloAcessivel ?? label}
+      accessibilityLabel={rotuloAcessivel ?? leituraDoChip(label, contagem)}
       accessibilityState={{ selected: active }}
       onPress={onPress}
       hitSlop={{ top: 6, bottom: 6 }}
-      style={[styles.chip, active ? styles.chipOn : styles.chipOff]}>
-      <Text style={[styles.chipText, { color: active ? CORES_CHIP.ativo.texto : CORES_CHIP.inativo.texto }]}>{label}</Text>
+      style={[styles.chip, contagem !== undefined && styles.chipComContagem, active ? styles.chipOn : styles.chipOff]}>
+      <Text style={[styles.chipText, cor]}>{label}</Text>
+      {contagem !== undefined ? <Text style={[styles.chipContagem, cor]}>{textoDaContagem(contagem)}</Text> : null}
     </Pressionavel>
   );
 }
@@ -451,6 +470,8 @@ export const styles = StyleSheet.create({
   chipOn: { backgroundColor: CORES_CHIP.ativo.fundo, borderColor: CORES_CHIP.ativo.borda },
   chipOff: { backgroundColor: CORES_CHIP.inativo.fundo, borderColor: CORES_CHIP.inativo.borda },
   chipText: { ...fonte.semibold, fontSize: 14 },
+  chipComContagem: { flexDirection: 'row', gap: 6 },
+  chipContagem: { ...fonte.body, fontSize: 14, fontVariant: ['tabular-nums'] },
   banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: radius.cartao, paddingVertical: 12, paddingHorizontal: 14 },
   bannerText: { flex: 1, ...fonte.body, fontSize: 14, lineHeight: 17.5 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },

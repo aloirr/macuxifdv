@@ -121,11 +121,13 @@ export interface AcaoTexto {
 export function Folha({
   visivel,
   onFechar,
+  onVoltar,
   rotuloFechar,
   titulo,
   fechar,
   rotuloAcessivel,
   rodape,
+  rodapeFixo,
   rolavel,
   evitarTeclado,
   children,
@@ -133,6 +135,8 @@ export function Folha({
 }: {
   visivel: boolean;
   onFechar: () => void;
+  /** Voltar do Android; sem ela, fecha (`onFechar`). A folha de níveis volta um nível (`FolhaCascata`). */
+  onVoltar?: () => void;
   /** Rótulo do fundo escurecido para o leitor de tela (toque fora fecha). */
   rotuloFechar: string;
   /** Título visível ("Salvar pedido"); opcional. */
@@ -146,6 +150,11 @@ export function Folha({
   rotuloAcessivel?: string;
   /** Ação de texto centralizada no fim (ex.: "Voltar"). */
   rodape?: AcaoTexto;
+  /**
+   * Área fixa no pé da folha, fora da rolagem, com traço `lineSoft` em cima (ex.: o principal "Ver peças" da `FolhaCascata`,
+   * 52 dp, largura toda). Sem a prop, nada muda.
+   */
+  rodapeFixo?: ReactNode;
   /** Altura máxima com rolagem do conteúdo (lista longa, checkout com muitas etapas). Sem a prop, a folha cresce com o conteúdo. */
   rolavel?: boolean;
   /** Folha com campo de texto: sobe com o teclado e leva o campo com foco à vista. Liga `rolavel`. */
@@ -165,7 +174,7 @@ export function Folha({
   // com o teclado aberto, ele já cobre a área segura de baixo: o respiro volta ao mínimo
   const respiroBaixo = teclado.cobertura > 0 ? 12 : 22 + insets.bottom;
   return (
-    <Modal visible={montado} transparent animationType="none" onRequestClose={onFechar} statusBarTranslucent>
+    <Modal visible={montado} transparent animationType="none" onRequestClose={onVoltar ?? onFechar} statusBarTranslucent>
       <Animated.View style={[s.fundo, { opacity: progresso }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onFechar} accessibilityRole="button" accessibilityLabel={rotuloFechar} testID={`${testID}-fundo`} />
       </Animated.View>
@@ -214,6 +223,7 @@ export function Folha({
         ) : (
           children
         )}
+        {rodapeFixo ? <View style={s.rodapeFixo}>{rodapeFixo}</View> : null}
         {rodape ? (
           <Pressionavel testID={rodape.testID ?? `${testID}-rodape`} accessibilityRole="button" onPress={rodape.onPress} escala={false} style={s.rodape}>
             <Text style={s.rodapeTexto}>{rodape.rotulo}</Text>
@@ -371,6 +381,8 @@ const s = StyleSheet.create({
   rolagemConteudo: { gap: 9 },
   rodape: { minHeight: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   rodapeTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
+  /** pé fixo (`.pe` da simulação do filtro de veículo): traço em cima, 10 dp de respiro acima do botão */
+  rodapeFixo: { borderTopWidth: 1, borderTopColor: colors.lineSoft, marginHorizontal: -16, paddingHorizontal: 16, paddingTop: 10 },
   // .opt / .ic
   opcao: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minHeight: 56, paddingVertical: 11, paddingHorizontal: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   icone: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
