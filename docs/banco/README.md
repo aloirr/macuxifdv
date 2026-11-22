@@ -258,7 +258,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `db/testes/usuario-base-cliente-geocodificacao.db.test.ts`.
 >
 > **2026-11-22 (integração por ERP, F2; desenho aprovado em R-20261122-005500):** `0094_integracao_busca_erp` (aditiva, em
-> cima da 0093; número provisório): 5 tabelas no schema `integracao` — `conector_api` (busca na API do ERP, frequência por
+> cima da 0093): 5 tabelas no schema `integracao` — `conector_api` (busca na API do ERP, frequência por
 > entidade com piso de 15 min por CHECK), `credencial_erp` (segredo cifrado, uma viva por Conector, **sem** `macuxi_leitura`,
 > worker e portal), `implantacao`, `implantacao_dia` (assistente e painel dos 30 dias) e `coleta_execucao`. Detalhes no
 > [integracao.md](integracao.md) ("0094"); teste `db/testes/integracao-busca-erp.db.test.ts`.
