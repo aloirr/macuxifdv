@@ -40,6 +40,16 @@ function recusarTopologia(r: ReturnType<typeof verificarTopologiaConectores>): v
   if (!r.ok) throw new ErroHttpModulo(409, 'topologia_conflitante', r.mensagem, { conflitos: r.conflitos, entidades_livres: r.entidades_livres });
 }
 
+/** Segredo do servidor para gerar chave de Conector; sem ele a rota responde 503. */
+function exigirPepper(o: { pepper: () => string | undefined }, ctx: Pick<ContextoRota<unknown>, 'log'>): string {
+  const pepper = o.pepper();
+  if (!pepperValido(pepper)) {
+    ctx.log.error({ motivo: 'sem_pepper' }, 'MACUXI_HUB_CHAVE_PEPPER ausente ou curto: não é possível gerar chave de Conector');
+    throw new ErroHttpModulo(503, 'servico_indisponivel', 'O Hub não está configurado para gerar chaves de Conector (falta o segredo do servidor). Avise o suporte do Macuxi.');
+  }
+  return pepper;
+}
+
 export function criarRotasConectores(o: { pepper: () => string | undefined }): RotaModulo[] {
   const listar: RotaModulo = {
     metodo: 'GET',
@@ -67,11 +77,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     corpo: ConectorCriar,
     status: 201,
     executar: async (ctx: ContextoRota<ConectorCriar>): Promise<ConectorCriado> => {
-      const pepper = o.pepper();
-      if (!pepperValido(pepper)) {
-        ctx.log.error({ motivo: 'sem_pepper' }, 'MACUXI_HUB_CHAVE_PEPPER ausente ou curto: não é possível gerar chave de Conector');
-        throw new ErroHttpModulo(503, 'servico_indisponivel', 'O Hub não está configurado para gerar chaves de Conector (falta o segredo do servidor). Avise o suporte do Macuxi.');
-      }
+      const pepper = exigirPepper(o, ctx);
       const c = ctx.corpo;
       conferirIps(c.ips_permitidos);
       const tenantId = ctx.usuario.tenant_id;
@@ -173,11 +179,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     corpo: RotacionarChaveEntrada.optional(),
     status: 201,
     executar: async (ctx: ContextoRota<RotacionarChaveEntrada | undefined, unknown, z.infer<typeof Params>>): Promise<ChaveNovaConector> => {
-      const pepper = o.pepper();
-      if (!pepperValido(pepper)) {
-        ctx.log.error({ motivo: 'sem_pepper' }, 'MACUXI_HUB_CHAVE_PEPPER ausente ou curto: não é possível gerar chave de Conector');
-        throw new ErroHttpModulo(503, 'servico_indisponivel', 'O Hub não está configurado para gerar chaves de Conector (falta o segredo do servidor). Avise o suporte do Macuxi.');
-      }
+      const pepper = exigirPepper(o, ctx);
       const tenantId = ctx.usuario.tenant_id;
       const agora = ctx.agora().toISOString();
       const parametros = lerParametrosHub(ctx.parametros(), ctx.log);
@@ -198,16 +200,16 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
         );
         const ref = (r: (typeof rows)[number] | undefined): ChaveRef | null =>
           r ? { id: r.id, prefixo: r.prefixo, criada_em: r.created_at.toISOString(), expira_em: r.expira_em?.toISOString() ?? null, revogada_em: null, anterior_valida_ate: r.anterior_valida_ate?.toISOString() ?? null } : null;
+        const atualAntiga = rows.find((x) => x.papel === 'atual');
         const k = gerarChave();
         const idNova = randomUUID();
         const r = rotacionarChaves(
-          { atual: ref(rows.find((x) => x.papel === 'atual')), anterior: ref(rows.find((x) => x.papel === 'anterior')) },
+          { atual: ref(atualAntiga), anterior: ref(rows.find((x) => x.papel === 'anterior')) },
           { id: idNova, prefixo: k.prefixo },
           agora,
           { convivenciaMin: ctx.corpo?.convivencia_min ?? parametros.convivenciaChaveMin, convivenciaMaxMin: parametros.convivenciaChaveMaxMin },
         );
         if (!r.ok) throw new ErroRegraNegocio('RN-INT-10', r.mensagem);
-        const atualAntiga = rows.find((x) => x.papel === 'atual');
         // ordem importa por causa do índice único (conector, papel) das não revogadas: libera 'anterior', rebaixa a 'atual' e só então insere
         for (const idRev of r.revogadas) {
           await db.query(`update integracao.credencial set revogada_em = $3, revogada_por = $4, motivo_revogacao = 'Chave trocada' where tenant_id = $1 and id = $2`, [tenantId, idRev, agora, ctx.superAdmin ? null : ctx.usuario.id]);

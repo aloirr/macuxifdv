@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 import { DataHoraUtc, Uuid } from './base';
-import { AtualizacaoConector, PoliticaVersaoConector } from './conector';
+import { AtualizacaoConector, ChaveConectorCriada, PoliticaVersaoConector } from './conector';
 import { ConectorIdentificador } from './hub';
 import { ENTIDADES, Entidade } from './entidades';
 import { ESTADOS_LOTE, LinhaErro, LoteResultado } from './lote';
@@ -133,15 +133,8 @@ export const ConectorResumo = z.object({
 });
 export type ConectorResumo = z.infer<typeof ConectorResumo>;
 
-/** Chave em claro, devolvida uma única vez ao criar o Conector ou gerar chave nova (`POST /v1/integracao/conectores/{id}/chave`). */
-export const ChaveNovaConector = z.object({
-  conector_id: ConectorIdentificador,
-  escopo: z.literal('integracao.v1'),
-  chave: z.string().min(32),
-  prefixo: z.string().min(4).max(12),
-  criada_em: DataHoraUtc,
-  anterior_valida_ate: DataHoraUtc.nullish(),
-});
+/** Chave em claro (a mesma `ChaveConectorCriada`, sem `tenant_id`), devolvida uma única vez ao criar o Conector ou gerar chave nova (`POST /v1/integracao/conectores/{id}/chave`). */
+export const ChaveNovaConector = ChaveConectorCriada.omit({ tenant_id: true });
 export type ChaveNovaConector = z.infer<typeof ChaveNovaConector>;
 
 /** Criar Conector devolve o resumo e a chave em claro (uma única vez). */
