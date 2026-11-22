@@ -11,16 +11,19 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, colors, DEFAULT_TZ, Empty, EstadoVazio, EtiquetaFiltro, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, TEXTO_CATALOGO_CARREGANDO, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, BotaoFiltro, CampoBusca, CatalogoCarregando, colors, DEFAULT_TZ, Empty, EstadoVazio, EtiquetaFiltro, LinhaEtiquetas, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, TEXTO_CATALOGO_CARREGANDO, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { caminhoCatalogo, type ItemVitrine } from '../../contracts';
+import { caminhoCatalogo, type ChipFiltro, type GrupoFiltro, type ItemVitrine, type VeiculoEscolhido } from '../../contracts';
+import { anoCivilNoFuso } from '../../domain/ano-civil';
 import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
+import { TETO_RANKING_BUSCA } from '../../domain/busca-consulta';
+import { contarChipsFiltrar } from '../../domain/veiculo-filtro';
 import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, mesmoValor, reaproveitarItens, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
+import { chipsDaGrade, classificacaoDaGrade, emLinhas, escolherCategoria, escolherFamilia, escolherLinha, escolherSistema, filtroDoNo, noDoFiltro, produtosDoFiltro, mesmoValor, reaproveitarItens, SEM_FILTRO, type FiltroDaGrade } from '../lib/grade';
 import { dadosDaFolha, opcoesDoFiltroFilial, resumoDoFiltro, subtituloComFilial } from '../lib/estoque-folha';
 import { cargaDoEstoque } from '../lib/carga-do-cartao';
 import { buscaComSinal, modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
@@ -28,10 +31,13 @@ import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, estoqueLocalDosProdutos, filialDeCadastroLocal, filiaisDoUsuarioLocal, filiaisLocais, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
+import { cascataLocal, lembrarVeiculo, listaComVeiculo } from '../veiculos-consulta';
+import { definirVeiculoDaTela, leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, TEXTOS_VEICULO, textoDaEtiquetaVeiculo, vazioComVeiculo } from '../lib/veiculo-tela';
 import { irParaProduto } from '../rotas';
 import { CartaoGrade } from './comum';
 import { ChaveSoComEstoque, FolhaEstoquePorFilial, FolhaFiltroCatalogo, type EscolhaFiltro } from './estoque-filial';
 import { useMiniaturasDosItens } from './miniatura';
+import { FolhaVeiculoCatalogo } from './veiculo';
 
 const ESPERA_DIGITACAO_MS = 350;
 const ARVORE_VAZIA: Arvore = montarArvore([]);
@@ -77,6 +83,13 @@ export default function TelaCatalogo() {
   // "Tentar de novo" refaz só a carga da lista (o efeito de baixo), sem sincronizar
   const [tentativa, setTentativa] = useState(0);
   const [sugestao, setSugestao] = useState<string | null>(null);
+  // RN-CAT-22: o veículo escolhido (um só, enquanto a tela está aberta), a folha dele e se o catálogo do aparelho tem veículo nas aplicações (P3)
+  const [veiculo, setVeiculo] = useState<VeiculoEscolhido | null>(null);
+  const [folhaVeiculo, setFolhaVeiculo] = useState(false);
+  const [temVeiculos, setTemVeiculos] = useState(false);
+  // RN-CAT-22: dentro do pedido a cascata só conta o que se pode vender ao cliente (a mesma lista da tabela dele)
+  const [escopoPedido, setEscopoPedido] = useState<ReadonlySet<string> | null>(null);
+  const [contados, setContados] = useState<Record<GrupoFiltro, ChipFiltro[]> | null>(null);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
@@ -86,10 +99,40 @@ export default function TelaCatalogo() {
   const estoqueCarregando = cargaDoEstoque(sync, modoCarga);
   const noInicial = params.no ? String(params.no) : null;
 
-  useEffect(() => setLimite(PAGINA_DA_BUSCA), [filtro, escolha, consulta]);
+  useEffect(() => setLimite(PAGINA_DA_BUSCA), [filtro, escolha, consulta, veiculo]);
+
+  // o botão Veículo só aparece com o catálogo no aparelho e veículo nas aplicações; a ficha lê o veículo daqui
+  useEffect(() => {
+    if (!motor || naCarga) return setTemVeiculos(false);
+    let vivo = true;
+    void cascataLocal(motor, { escopo: escopoPedido }, anoCivilNoFuso(relogioReal().agora(), fuso))
+      .then((c) => vivo && setTemVeiculos(c.disponivel))
+      .catch(() => vivo && setTemVeiculos(false));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, naCarga, fuso, sync.sincronizado_em, escopoPedido]);
+  useEffect(() => {
+    if (!temVeiculos) setVeiculo(null);
+  }, [temVeiculos]);
+  useEffect(() => {
+    definirVeiculoDaTela(veiculo);
+    return () => definirVeiculoDaTela(null);
+  }, [veiculo]);
 
   // spec §3 e §4: filiais de venda (filtro e folha), todas as do tenant (nomes) e a de cadastro (faixa), das linhas locais
   const usuarioId = usuario?.id ?? null;
+  useEffect(() => {
+    if (!motor || naCarga || !dentroDoPedido) return setEscopoPedido(null);
+    let vivo = true;
+    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId, usuarioId, filtroFilial: escolha.filial, noId: null, soDaTabelaDoCliente: true };
+    void produtosDaNavegacao(motor, entrada)
+      .then((ids) => vivo && setEscopoPedido(ids ?? null))
+      .catch(() => vivo && setEscopoPedido(null));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, naCarga, dentroDoPedido, clienteId, perfil, parametrosCrus, usuarioId, escolha.filial, sync.sincronizado_em]);
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
@@ -169,6 +212,11 @@ export default function TelaCatalogo() {
       aindaVale();
       const ids = doFiltro || permitidos ? new Set([...(doFiltro ?? ativos)].filter((id) => ativos.has(id) && (!permitidos || permitidos.has(id)))) : undefined;
       const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}), ...(escolha.soComEstoque ? { only_in_stock: true } : {}) };
+      if (veiculo) {
+        // RN-CAT-22: o filtro de veículo é local (o catálogo está no aparelho); só as peças que servem no veículo (D4), paginado sobre a lista pronta
+        const v = await listaComVeiculo(motor, { ...entrada, fuso, q: consulta, chips, veiculo, offline: aviso === AVISO_BUSCA_OFFLINE });
+        return { itens: v.items.slice(0, limite), total: v.total, aviso: consulta ? avisoDaBusca(aviso, v.indexando) : null };
+      }
       const r = consulta ? await buscarLocal(motor, { ...entrada, fuso, q: consulta, chips, limit: limite, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: limite, offset: 0 });
       // índice em reconstrução (T-0088): sem erro; junta com o aviso de sem sinal numa frase só (some quando o índice fica pronto)
       const organizando = 'indexando' in r && r.indexando === true;
@@ -194,7 +242,7 @@ export default function TelaCatalogo() {
           }
         }
       } else if (!consulta) r = await local(null);
-      else if (!ambiente.online() || filtroLigado(filtro) || escolhaLigada(escolha) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
+      else if (!ambiente.online() || veiculo !== null || filtroLigado(filtro) || escolhaLigada(escolha) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
       else {
         const c = await buscaComSinal(() => daApi('busca'), ehSemConexao, AVISO_BUSCA_OFFLINE);
         if (c.origem === 'aparelho') r = await local(c.aviso);
@@ -216,7 +264,35 @@ export default function TelaCatalogo() {
       vivo = false;
     };
     // `arvore` fica fora: ela só muda junto com `cargaDaArvore`, que já dispara a rodada
-  }, [motor, cargaDaArvore, arvoreDoSync, sync.sincronizado_em, filtro, escolha, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, modoCarga, usuarioId, tentativa, estoqueCarregando]);
+  }, [motor, cargaDaArvore, arvoreDoSync, sync.sincronizado_em, filtro, escolha, consulta, veiculo, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, modoCarga, usuarioId, tentativa, estoqueCarregando]);
+
+  // RN-CAT-22 (D1): com a folha Filtrar aberta, a contagem de cada chip sobre a lista de agora (veículo, busca e `Só com estoque`)
+  useEffect(() => {
+    if (!folhaFiltro || !motor || !arvore || naCarga) return setContados(null);
+    let vivo = true;
+    const a = arvore;
+    void (async () => {
+      const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId, usuarioId, filtroFilial: escolha.filial, fuso };
+      const permitidos = dentroDoPedido ? await produtosDaNavegacao(motor, { ...entrada, noId: null, soDaTabelaDoCliente: true }) : undefined;
+      const ativos = idsAtivos(await produtosLocais(motor));
+      let base: Set<string>;
+      if (veiculo || consulta || escolha.soComEstoque) {
+        const chips = { ...(permitidos ? { only_product_ids: permitidos } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}), ...(escolha.soComEstoque ? { only_in_stock: true } : {}) };
+        const itens = veiculo
+          ? (await listaComVeiculo(motor, { ...entrada, q: consulta, chips, veiculo, offline: false })).items
+          : consulta
+            ? (await buscarLocal(motor, { ...entrada, q: consulta, chips, limit: TETO_RANKING_BUSCA, offset: 0, offline: false })).items
+            : (await vitrineLocal(motor, { ...entrada, chips, limit: TETO_RANKING_BUSCA, offset: 0 })).items;
+        base = new Set(itens.map((i) => i.id));
+      } else base = new Set([...ativos].filter((id) => !permitidos || permitidos.has(id)));
+      const grupos = contarChipsFiltrar(base, classificacaoDaGrade(a.arvore, a.vinculos, filtro), { sistema: filtro.sistemaId, familia: filtro.familiaId, linha: filtro.linhaId, categoria: filtro.categoriaId }, { cruzar: false });
+      const chipsDe = (g: GrupoFiltro) => grupos.find((x) => x.grupo === g)?.chips ?? [];
+      if (vivo) setContados({ sistema: chipsDe('sistema'), familia: chipsDe('familia'), linha: chipsDe('linha'), categoria: chipsDe('categoria') });
+    })().catch(() => vivo && setContados(null));
+    return () => {
+      vivo = false;
+    };
+  }, [folhaFiltro, motor, arvore, naCarga, veiculo, consulta, escolha, filtro, dentroDoPedido, clienteId, perfil, parametrosCrus, usuarioId, fuso]);
 
   const chips = useMemo(() => chipsDaGrade(naCarga ? ARVORE_VAZIA : (arvore?.arvore ?? ARVORE_VAZIA), filtro), [arvore, filtro, naCarga]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
@@ -225,12 +301,21 @@ export default function TelaCatalogo() {
   const abrirFolhaDeEstoque = useCallback((item: ItemVitrine) => setItemDaFolha(item), []);
   const comFiltro = !naCarga && (filtroLigado(filtro) || escolhaLigada(escolha));
   const opcoesFilial = useMemo(() => opcoesDoFiltroFilial({ proprias: filiais.venda, filiais: filiais.todas }), [filiais]);
-  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha, sistemaId: filtro.sistemaId, categoriaId: filtro.categoriaId });
+  const resumo = resumoDoFiltro({ opcoes: opcoesFilial, escolha, sistemaId: filtro.sistemaId, familiaId: filtro.familiaId, linhaId: filtro.linhaId, categoriaId: filtro.categoriaId });
   const subtitulo = subtituloComFilial(filiais.cadastro?.nome ?? null);
   const folhaDoItem = itemDaFolha?.availability
     ? dadosDaFolha({ availability: itemDaFolha.availability, cargaEm: sync.sincronizado_em, filialCadastro: filiais.cadastro?.id ?? null, agora: relogioReal().agora().toISOString(), fuso })
     : null;
-  const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
+  const nomeDoFiltro = arvore?.arvore.nos.get(noDoFiltro(filtro) ?? '')?.nome ?? '';
+  const nomeDoNo = (id: string | null) => (id ? (arvore?.arvore.nos.get(id)?.nome ?? '') : '');
+  // chips da folha: com a contagem pronta, só os que têm peça (e o grupo só com 2 ou mais); sem ela, os de sempre
+  const comContagem = (nos: readonly { id: string; nome: string; codigo: string }[], c: ChipFiltro[] | undefined) =>
+    c ? c.flatMap((x) => { const n = nos.find((y) => y.id === x.id); return n ? [{ ...n, contagem: x.contagem }] : []; }) : nos;
+  const sistemasDaFolha = comContagem(chips.sistemas, contados?.sistema);
+  const familiasDaFolha = comContagem(chips.familias, contados?.familia);
+  const linhasDaFolha = comContagem(chips.linhas, contados?.linha);
+  const categoriasDaFolha = comContagem(chips.categorias, contados?.categoria);
+  const tirarVeiculo = () => setVeiculo(null);
   const cabecalho = {
     titulo: 'Catálogo',
     ...(subtitulo ? { subtitulo } : {}),
@@ -257,8 +342,9 @@ export default function TelaCatalogo() {
             testID="catalogo-busca"
             valor={texto}
             onChange={setTexto}
-            placeholder="Produto, código ou aplicação"
+            placeholder={temVeiculos ? TEXTOS_VEICULO.placeholderBusca : 'Produto, código ou aplicação'}
             rotuloAcessivel="Buscar produto"
+            {...(temVeiculos ? { dica: TEXTOS_VEICULO.dicaBusca } : {})}
             onEnviar={() => setConsulta(texto.trim())}
             onLimpar={() => {
               setTexto('');
@@ -267,18 +353,26 @@ export default function TelaCatalogo() {
             rotuloLimpar="Limpar a busca"
           />
         </View>
+        {temVeiculos ? <BotaoFiltro testID="catalogo-veiculo" icone="carro" rotulo={leituraDoBotaoVeiculo(veiculo)} ativo={veiculo !== null} onPress={() => setFolhaVeiculo(true)} /> : null}
         <BotaoFiltro testID="catalogo-filtro" contagem={resumo.contagem} rotulo="Filtrar" onPress={() => setFolhaFiltro(true)} />
       </View>
       <ChaveSoComEstoque ligada={escolha.soComEstoque} onMudar={(v) => setEscolha((e) => ({ ...e, soComEstoque: v }))} />
-      {resumo.filial ? (
-        <View style={s.etiquetas} testID="catalogo-etiquetas">
-          <EtiquetaFiltro
-            testID="catalogo-etiqueta-filial"
-            texto={resumo.filial.texto}
-            onRemover={() => setEscolha((e) => ({ ...e, filial: null }))}
-            rotuloRemover={`Remover filtro ${resumo.filial.texto}`}
-          />
-        </View>
+      {veiculo || resumo.filial || filtro.sistemaId ? (
+        <LinhaEtiquetas testID="catalogo-etiquetas">
+          {veiculo ? <EtiquetaFiltro testID="catalogo-etiqueta-veiculo" texto={textoDaEtiquetaVeiculo(veiculo)} onRemover={tirarVeiculo} rotuloRemover={leituraDaEtiquetaVeiculo(veiculo)} /> : null}
+          {filtro.sistemaId ? <EtiquetaFiltro testID="catalogo-etiqueta-sistema" texto={nomeDoNo(filtro.sistemaId)} onRemover={() => setFiltro(SEM_FILTRO)} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.sistemaId)}`} /> : null}
+          {filtro.familiaId ? <EtiquetaFiltro testID="catalogo-etiqueta-familia" texto={nomeDoNo(filtro.familiaId)} onRemover={() => setFiltro((f) => escolherFamilia(f, null))} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.familiaId)}`} /> : null}
+          {filtro.linhaId ? <EtiquetaFiltro testID="catalogo-etiqueta-linha" texto={nomeDoNo(filtro.linhaId)} onRemover={() => setFiltro((f) => escolherLinha(f, null))} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.linhaId)}`} /> : null}
+          {filtro.categoriaId ? <EtiquetaFiltro testID="catalogo-etiqueta-categoria" texto={nomeDoNo(filtro.categoriaId)} onRemover={() => setFiltro((f) => escolherCategoria(f, null))} rotuloRemover={`Remover filtro ${nomeDoNo(filtro.categoriaId)}`} /> : null}
+          {resumo.filial ? (
+            <EtiquetaFiltro
+              testID="catalogo-etiqueta-filial"
+              texto={resumo.filial.texto}
+              onRemover={() => setEscolha((e) => ({ ...e, filial: null }))}
+              rotuloRemover={`Remover filtro ${resumo.filial.texto}`}
+            />
+          ) : null}
+        </LinhaEtiquetas>
       ) : null}
 
       {lista.aviso === TEXTO_CATALOGO_CARREGANDO ? <CatalogoCarregando /> : null}
@@ -293,7 +387,9 @@ export default function TelaCatalogo() {
         <EstadoVazio testID="catalogo-erro" icone="alert" titulo="Não foi possível abrir o catálogo agora" acao={{ rotulo: 'Tentar de novo', onPress: () => setTentativa((n) => n + 1), testID: 'catalogo-erro-acao' }} />
       ) : null}
       {!erroAoAbrir && !lista.carregando && lista.itens.length === 0 && lista.aviso !== TEXTO_CATALOGO_CARREGANDO ? (
-        consulta ? (
+        veiculo ? (
+          <VazioComVeiculo consulta={consulta} chipMarcado={comFiltro && filtroLigado(filtro)} onTirarVeiculo={tirarVeiculo} onLimparFiltros={() => setFiltro(SEM_FILTRO)} />
+        ) : consulta ? (
           <VazioDaBusca
             consulta={consulta}
             filtroLigado={comFiltro}
@@ -347,13 +443,34 @@ export default function TelaCatalogo() {
           setEscolha((e) => ({ ...SEM_ESCOLHA, soComEstoque: e.soComEstoque }));
           setFiltro(SEM_FILTRO);
         }}
-        sistemas={chips.sistemas}
-        categorias={chips.categorias}
+        sistemas={sistemasDaFolha}
+        familias={familiasDaFolha}
+        linhas={linhasDaFolha}
+        categorias={categoriasDaFolha}
         sistemaId={filtro.sistemaId}
+        familiaId={filtro.familiaId}
+        linhaId={filtro.linhaId}
         categoriaId={filtro.categoriaId}
         onSistema={(id) => setFiltro((f) => escolherSistema(f, id))}
+        onFamilia={(id) => setFiltro((f) => escolherFamilia(f, id))}
+        onLinha={(id) => setFiltro((f) => escolherLinha(f, id))}
         onCategoria={(id) => setFiltro((f) => escolherCategoria(f, id))}
       />
+      {motor ? (
+        <FolhaVeiculoCatalogo
+          visivel={folhaVeiculo}
+          leitor={motor}
+          fuso={fuso}
+          aplicado={veiculo}
+          escopo={escopoPedido}
+          onAplicar={(v) => {
+            lembrarVeiculo(v);
+            setVeiculo(v);
+            setFolhaVeiculo(false);
+          }}
+          onFechar={() => setFolhaVeiculo(false)}
+        />
+      ) : null}
       <FolhaEstoquePorFilial visivel={itemDaFolha !== null} onFechar={() => setItemDaFolha(null)} dados={folhaDoItem} />
     </Screen>
   );
@@ -372,12 +489,11 @@ const CartaoDaLista = memo(function CartaoDaLista({ item, clienteId, miniatura, 
 const SEM_ESCOLHA: EscolhaFiltro = { filial: null, soComEstoque: false };
 /** Filial escolhida (inclusive "Suas filiais") ou "Ocultar" ligados: a busca é local, que sabe filtrar por filial e estoque. */
 const escolhaLigada = (e: EscolhaFiltro) => e.filial !== null || e.soComEstoque;
-const filtroLigado = (f: FiltroDaGrade) => f.sistemaId !== null || f.categoriaId !== null;
+const filtroLigado = (f: FiltroDaGrade) => noDoFiltro(f) !== null;
 
 const s = StyleSheet.create({
   linha: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
-  linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  linhaBusca: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
 });
 
 function VazioDaBusca({
@@ -411,4 +527,11 @@ function VazioDaBusca({
       acao={{ rotulo: v.rotuloAcao, onPress: v.caso === 'filtro' ? onLimparFiltros : onLimparBusca, testID: 'catalogo-vazio-acao' }}
     />
   );
+}
+
+/** RN-CAT-22 (spec §9): com veículo, o vazio não traz apoio (o veículo já está na etiqueta); a ação é `Tirar o veículo` ou, com chip marcado, `Limpar filtros`. */
+function VazioComVeiculo({ consulta, chipMarcado, onTirarVeiculo, onLimparFiltros }: { consulta: string; chipMarcado: boolean; onTirarVeiculo: () => void; onLimparFiltros: () => void }) {
+  const v = vazioComVeiculo({ consulta, chipMarcado });
+  const limpar = v.acao === 'limpar_filtros';
+  return <EstadoVazio testID="catalogo-vazio" icone="search" titulo={v.titulo} acao={{ rotulo: limpar ? TEXTOS_VEICULO.limparFiltros : TEXTOS_VEICULO.tirar, onPress: limpar ? onLimparFiltros : onTirarVeiculo, testID: 'catalogo-vazio-acao' }} />;
 }

@@ -9,7 +9,7 @@ import { tokensDeBusca } from './texto';
 
 export const SERVE_EM_MAX = 90;
 const MAX_MARCAS = 20;
-const SEPARADOR_SEGMENTO = /[;|•·\r\n]/;
+export const SEPARADOR_SEGMENTO = /[;|•·\r\n]/;
 const PALAVRA_RE = /[\p{L}\p{N}]+(?:[.,][\p{N}]+)*/gu;
 
 interface Palavra {

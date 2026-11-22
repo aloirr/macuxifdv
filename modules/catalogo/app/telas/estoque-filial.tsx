@@ -5,7 +5,8 @@
  */
 import { Botao, Button, Chip, colors, Folha, fonte, Icon, type } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import type { ItemVitrine } from '../../contracts';
+import type { GrupoFiltro, ItemVitrine } from '../../contracts';
+import { GRUPOS_DA_GRADE } from '../lib/grade';
 import { mostraEstoquePorFilial, TITULO_FOLHA_ESTOQUE, type DadosDaFolha, type OpcaoFiltroFilial } from '../lib/estoque-folha';
 
 /** Botão só com o ícone `pacote`, à direita do "Estoque: N" no cartão: 32 dp, borda `lineStrong`, alvo de 48 dp (spec §3); só com mais de uma filial. */
@@ -60,6 +61,8 @@ interface NoDoFiltro {
   id: string;
   nome: string;
   codigo: string;
+  /** RN-CAT-22 (D1): quantas peças da lista de agora o chip tem; ausente = ainda não contada (sem número). */
+  contagem?: number;
 }
 
 /** Chave "Só com estoque" logo abaixo da busca (RN-CAT-05: o estoque é visível a todo perfil): 48 dp, desligada mostra com e sem estoque. */
@@ -72,7 +75,10 @@ export function ChaveSoComEstoque({ ligada, onMudar }: { ligada: boolean; onMuda
   );
 }
 
-/** Folha "Filtrar" do Catálogo: sistema e categoria (chips), grupo Filial (quando há o que escolher). O "Só com estoque" fica na chave da tela. */
+const TODAS = 'Todas';
+const ROTULO_DO_GRUPO = Object.fromEntries(GRUPOS_DA_GRADE.map((g) => [g.grupo, g.rotulo])) as Record<GrupoFiltro, string>;
+
+/** Folha "Filtrar" do Catálogo: sistema, família, linha e categoria (chips), grupo Filial (quando há o que escolher). O "Só com estoque" fica na chave da tela. */
 export function FolhaFiltroCatalogo({
   visivel,
   onFechar,
@@ -81,10 +87,16 @@ export function FolhaFiltroCatalogo({
   onEscolher,
   onLimpar,
   sistemas,
+  familias,
+  linhas,
   categorias,
   sistemaId,
+  familiaId,
+  linhaId,
   categoriaId,
   onSistema,
+  onFamilia,
+  onLinha,
   onCategoria,
 }: {
   visivel: boolean;
@@ -94,32 +106,40 @@ export function FolhaFiltroCatalogo({
   onEscolher: (e: EscolhaFiltro) => void;
   onLimpar: () => void;
   sistemas: readonly NoDoFiltro[];
+  familias: readonly NoDoFiltro[];
+  linhas: readonly NoDoFiltro[];
   categorias: readonly NoDoFiltro[];
   sistemaId: string | null;
+  familiaId: string | null;
+  linhaId: string | null;
   categoriaId: string | null;
   onSistema: (id: string | null) => void;
+  onFamilia: (id: string | null) => void;
+  onLinha: (id: string | null) => void;
   onCategoria: (id: string | null) => void;
 }) {
   return (
     <Folha visivel={visivel} onFechar={onFechar} titulo="Filtrar" fechar={{ rotulo: 'Fechar', testID: 'catalogo-filtro-fechar' }} rotuloFechar="Fechar filtro" rolavel testID="catalogo-filtro">
       {sistemas.length > 0 ? (
         <View testID="catalogo-chips-sistema">
-          <Text style={e.grupo}>Sistema</Text>
+          <Text style={e.grupo}>{ROTULO_DO_GRUPO.sistema}</Text>
           <View style={e.chips}>
             <Chip label="Todos" active={sistemaId === null} onPress={() => onSistema(null)} testID="catalogo-chip-sistema-todos" />
             {sistemas.map((n) => (
-              <Chip key={n.id} label={n.nome} active={sistemaId === n.id} onPress={() => onSistema(n.id)} testID={`catalogo-chip-sistema-${n.codigo}`} />
+              <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={sistemaId === n.id} onPress={() => onSistema(n.id)} testID={`catalogo-chip-sistema-${n.codigo}`} />
             ))}
           </View>
         </View>
       ) : null}
+      <GrupoDeChips grupo="familia" nos={familias} marcado={familiaId} onEscolher={onFamilia} />
+      <GrupoDeChips grupo="linha" nos={linhas} marcado={linhaId} onEscolher={onLinha} />
       {categorias.length > 0 ? (
         <View testID="catalogo-chips-categoria">
-          <Text style={e.grupo}>Categoria</Text>
+          <Text style={e.grupo}>{ROTULO_DO_GRUPO.categoria}</Text>
           <View style={e.chips}>
             <Chip label="Todas" active={categoriaId === null} onPress={() => onCategoria(null)} testID="catalogo-chip-categoria-todas" />
             {categorias.map((n) => (
-              <Chip key={n.id} label={n.nome} active={categoriaId === n.id} onPress={() => onCategoria(n.id)} testID={`catalogo-chip-categoria-${n.codigo}`} />
+              <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={categoriaId === n.id} onPress={() => onCategoria(n.id)} testID={`catalogo-chip-categoria-${n.codigo}`} />
             ))}
           </View>
         </View>
@@ -135,6 +155,22 @@ export function FolhaFiltroCatalogo({
       <Botao nivel="neutro" rotulo="Limpar" onPress={onLimpar} testID="catalogo-filtro-limpar" />
       <Botao nivel="principal" rotulo="Ver produtos" onPress={onFechar} testID="catalogo-filtro-ver" />
     </Folha>
+  );
+}
+
+/** Grupo de chips de um nível da árvore (família, linha): "Todas" e os nós com a contagem; vazio = o grupo não aparece. */
+function GrupoDeChips({ grupo, nos, marcado, onEscolher }: { grupo: 'familia' | 'linha'; nos: readonly NoDoFiltro[]; marcado: string | null; onEscolher: (id: string | null) => void }) {
+  if (nos.length === 0) return null;
+  return (
+    <View testID={`catalogo-chips-${grupo}`}>
+      <Text style={e.grupo}>{ROTULO_DO_GRUPO[grupo]}</Text>
+      <View style={e.chips}>
+        <Chip label={TODAS} active={marcado === null} onPress={() => onEscolher(null)} testID={`catalogo-chip-${grupo}-todas`} />
+        {nos.map((n) => (
+          <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={marcado === n.id} onPress={() => onEscolher(n.id)} testID={`catalogo-chip-${grupo}-${n.codigo}`} />
+        ))}
+      </View>
+    </View>
   );
 }
 
