@@ -6,6 +6,7 @@
 > - **No main:** #651 (registro da v1.0.17 à v1.0.20) e #652 (governança: workflow "producao — reprocessar outbox" e `contagem_integracao` no diagnóstico; frase R-20261121-211800).
 > - **PR conjunto:**
 >   - [T-0193](tarefas/T-0193.md) (filtro de veículo, RN-CAT-22);
+>   - [T-0194](tarefas/T-0194.md) (portal config. enxuto; R-20261121-232500);
 >   - jornada "Esqueci a senha" (EJ-01 a EJ-06; fecha o #288);
 >   - aviso dos minutos do bloqueio do portal e a seção de `auth-e-licencas.md` (fecha o #285);
 >   - RD-2515, `ROTULO_ENTIDADE`, regra `error` de ciclo no dependency-cruiser (RD-A do #636) e o deadlock do `empresa-acoes.db.test.ts`.
@@ -355,6 +356,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0191](tarefas/T-0191.md) | BKO → Rotas: criar a rota do vendedor por proximidade a partir do endereço base (R1 a R3) e o botão Gerar coordenada pelo OpenStreetMap (R5); RN-CORE-75 a 77 | gerente-projetos, engenheiro-software, banco-dados, modulo-core, designer-ux, design-de-marca, testes, corretor-redundancias | nuvem (v1.0.19) | concluida (v1.0.19) |
 | [T-0192](tarefas/T-0192.md) | Catálogo do Campo: sem puxar para atualizar e mais rápido (melhorias A a F; RN-CAT-21) | modulo-catalogo, designer-ux, banco-dados, testes, corretor-redundancias, design-de-marca, gerente-projetos | nuvem (v1.0.20) | concluida (v1.0.20) |
 | [T-0193](tarefas/T-0193.md) | Filtro de veículo no Catálogo e no Novo pedido (etapa 6; RN-CAT-22) | engenheiro-software, designer-ux, modulo-catalogo, modulo-vendedor, testes, corretor-redundancias, design-de-marca | nuvem (v1.0.21) | em_andamento |
+| [T-0194](tarefas/T-0194.md) | Portal config. enxuto: Integração via Conector \| via API, aba Empresa, fim do CSV e da Equipe, guia da API em PDF | engenheiro-apps, modulo-integracao, engenheiro-software, designer-ux, testes, corretor-redundancias, design-de-marca | nuvem (v1.0.21) | em_andamento |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
 | [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | concluida no escopo da demo (apuração por tipo, push, Sincronizar, banco de testes 5434); falta o passo pnpm timers no CI (ci.yml de governança, aguarda autorização) |
