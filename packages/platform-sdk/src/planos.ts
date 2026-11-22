@@ -11,7 +11,7 @@
  * Nada aqui vai a log: não há dado pessoal.
  */
 import { z } from 'zod';
-import { MODULOS, type ModuloId, type Perfil } from './nomes';
+import { MODULOS, MODULOS_SEMPRE, type ModuloId, type Perfil } from './nomes';
 import { CriarEmpresaSchema, Dia } from './plataforma';
 
 // ---------- rotas do portal (`/v1/plataforma/*`) ----------
@@ -238,7 +238,7 @@ export function licencasContratadas(plano: Plano, adicionais: readonly Adicional
 
 /** Módulos que a assinatura liga no tenant: core e integracao sempre, os do plano e os adicionais contratados (RN-PLA-01). */
 export function modulosDaAssinatura(plano: Plano, adicionais: readonly AdicionalContratado[]): ModuloId[] {
-  const ligados = new Set<ModuloId>(['core', 'integracao', ...plano.modulos, ...adicionais.map((a) => a.adicional)]);
+  const ligados = new Set<ModuloId>([...MODULOS_SEMPRE, ...plano.modulos, ...adicionais.map((a) => a.adicional)]);
   return MODULOS.filter((m) => ligados.has(m));
 }
 

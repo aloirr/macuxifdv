@@ -6,6 +6,9 @@
 export const MODULOS = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const;
 export type ModuloId = (typeof MODULOS)[number];
 
+/** Módulos ligados em todo tenant: core (RN-CORE-31) e integracao (o portal carrega as bases pelo Hub; RN-PLA-01). */
+export const MODULOS_SEMPRE = ['core', 'integracao'] as const satisfies readonly ModuloId[];
+
 export const PERFIS = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 export type Perfil = (typeof PERFIS)[number];
 

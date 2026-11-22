@@ -14,7 +14,9 @@
     "./sqlite-node": "./src/sqlite/driver-node.ts",
     "./tentativas-portal": "./src/tentativas-portal.ts",
     "./geocodificador-nominatim": "./src/geocodificador-nominatim.ts",
-    "./sha256": "./src/sha256.ts"
+    "./sha256": "./src/sha256.ts",
+    "./cofre-segredos": "./src/cofre-segredos.ts",
+    "./http-saida": "./src/http-saida.ts"
   },
   "scripts": {
     "lint": "eslint src",

@@ -37,6 +37,7 @@ import {
   fusoDoTenantOuPadrao,
   linhasDosParametrosIniciais,
   ListaEmpresasDoBancoSchema,
+  MODULOS_SEMPRE,
   planoDeOnboardingSemAdmin,
   type AcessoBanco,
   type AcessoPortalAutenticado,
@@ -343,9 +344,6 @@ async function exigirCnpjAtivo(req: FastifyRequest, consulta: ConsultaCnpj, cnpj
   throw new ErroHttp(503, CODIGOS_CNPJ.fonteFora, 'A consulta à Receita está fora do ar e a empresa não foi criada. Tente de novo em instantes.');
 }
 
-/** Módulos que o portal liga sempre: core (RN-CORE-31) e integracao (o portal carrega as bases pelo Hub). */
-export const MODULOS_SEMPRE_NO_PORTAL: readonly ModuloId[] = ['core', 'integracao'];
-
 /** O que `criarEmpresaNoPortal` precisa (o mesmo de `registrarRotasPlataforma`). */
 export type DepsCriarEmpresa = Pick<DepsRotasPlataforma, 'manifestos' | 'acesso' | 'fonte' | 'senha'>;
 
@@ -362,7 +360,7 @@ export async function criarEmpresaNoPortal(
   conferirCnpj?: () => Promise<void>,
 ): Promise<{ status: 200 | 201; resposta: z.output<typeof CriarEmpresaRespostaSchema> }> {
   const senha = dep.senha ?? senhaDoCore;
-  const pedidos = new Set<ModuloId>([...MODULOS_SEMPRE_NO_PORTAL, ...e.modulos.map((m) => m.modulo)]);
+  const pedidos = new Set<ModuloId>([...MODULOS_SEMPRE, ...e.modulos.map((m) => m.modulo)]);
   const licencas = Object.fromEntries(e.modulos.filter((m) => m.licencas !== null).map((m) => [m.modulo, m.licencas as number]));
   const plano = planoDeOnboardingSemAdmin({ codigo: e.codigo, nome: e.razao_social, documento: e.cnpj, fuso: e.fuso, modulos: [...pedidos], licencas }, dep.manifestos);
   if (!plano.ok) {
