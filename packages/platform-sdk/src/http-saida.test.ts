@@ -217,6 +217,22 @@ describe('criarClienteHttpSaida: limites', () => {
     expect(e.retentavel).toBe(true);
   });
 
+  it('o prazo cobre o DNS: consulta que não volta dá TEMPO_ESGOTADO e não chega ao transporte', async () => {
+    let transportou = false;
+    const cliente = criarClienteHttpSaida({
+      timeoutMs: 20,
+      resolver: () => new Promise<EnderecoResolvido[]>(() => {}),
+      transporte: async () => {
+        transportou = true;
+        return ok();
+      },
+    });
+    const e = await erroDe(cliente.requisitar({ url: 'https://erp.exemplo.com.br/' }));
+    expect(e.codigo).toBe('TEMPO_ESGOTADO');
+    expect(e.retentavel).toBe(true);
+    expect(transportou).toBe(false);
+  });
+
   it('o erro não traz caminho, query, cabeçalho nem corpo: só código e host', async () => {
     const cliente = criarClienteHttpSaida({
       resolver: async () => [PUBLICO],

@@ -7,6 +7,7 @@ import pg from 'pg';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { ZodError, z } from 'zod';
+import { CAMPOS_SEGREDO_LOG } from '@macuxi/platform-sdk';
 import { CAMINHOS_REDIGIDOS_LOG, opcoesLogger } from '../src/config';
 import { ehErroPostgres, mensagemSegura, serializarErro } from '../src/log-seguro';
 import { registrarMetricasWorker } from '../src/observabilidade';
@@ -197,6 +198,23 @@ describe('redação do pino (ADR 0066, RN-INT-18 proposta: credencial do ERP na 
     expect(texto).not.toMatch(/Solto-\d|Nivel2-\d|Nivel3-\d/);
     expect(texto).toContain('"usuario":"manager"');
     expect(texto).toContain('[omitido]');
+  });
+
+  it('cada campo de CAMPOS_SEGREDO_LOG (SDK) é omitido no 2º e no 3º nível, e solto quando é identificador', () => {
+    let texto = '';
+    const stream = new Writable({
+      write(c, _e, cb) {
+        texto += String(c);
+        cb();
+      },
+    });
+    const log = pino(opcoesLogger('trace'), stream);
+    CAMPOS_SEGREDO_LOG.forEach((campo, i) => {
+      if (/^[A-Za-z_$][\w$]*$/.test(campo)) log.info({ [campo]: `Vazou-${i}-a` }, 'solto');
+      log.info({ x: { [campo]: `Vazou-${i}-b` } }, '2º nível');
+      log.info({ x: { y: { [campo]: `Vazou-${i}-c` } } }, '3º nível');
+    });
+    expect(texto).not.toMatch(/Vazou-\d+-[abc]/);
   });
 
   it('a lista da API não repete caminho que o SDK já cobre', () => {

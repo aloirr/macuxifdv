@@ -12,7 +12,7 @@
  *   não há segunda resolução entre a conferência e a conexão (DNS rebinding);
  * - redirecionamento só para o mesmo host e porta, em `https`, e passa de novo por toda a conferência; no máximo 3.
  *
- * Limites: 30 s no total por chamada (com os redirecionamentos), 60 chamadas por minuto por Conector (`chaveLimite`, em
+ * Limites: 30 s no total por chamada (com o DNS e os redirecionamentos), 60 chamadas por minuto por Conector (`chaveLimite`, em
  * memória do processo), resposta de até 20 MB. Nada é registrado: nem URL, nem cabeçalho, nem corpo. O erro leva só o código,
  * o host e o status.
  */
@@ -227,7 +227,7 @@ export const transporteHttpsPadrao: TransporteHttpSaida = (p) =>
 // ---------- cliente ----------
 
 export interface OpcoesClienteHttpSaida {
-  /** Total por chamada, com os redirecionamentos (padrão 30 s). */
+  /** Total por chamada, com o DNS e os redirecionamentos (padrão 30 s). */
   timeoutMs?: number;
   /** Chamadas por minuto por `chaveLimite` (padrão 60, por Conector). */
   limitePorMinuto?: number;
@@ -290,17 +290,26 @@ export function criarClienteHttpSaida(opcoes: OpcoesClienteHttpSaida = {}): Clie
     chamadas.set(chave, recentes);
   };
 
-  const conferirDestino = async (url: URL): Promise<EnderecoResolvido> => {
+  /** O prazo da chamada também cobre o DNS: a consulta corre contra o mesmo sinal e perde quando ele dispara. */
+  const resolverNoPrazo = (host: string, url: URL, sinal: AbortSignal): Promise<EnderecoResolvido[]> => {
+    if (sinal.aborted) return Promise.reject(new ErroHttpSaida('TEMPO_ESGOTADO', url.host));
+    let soltar = () => {};
+    const esgotou = new Promise<never>((_, rejeitar) => {
+      const aoAbortar = () => rejeitar(new ErroHttpSaida('TEMPO_ESGOTADO', url.host));
+      sinal.addEventListener('abort', aoAbortar, { once: true });
+      soltar = () => sinal.removeEventListener('abort', aoAbortar);
+    });
+    const consulta = resolver(host).catch(() => {
+      throw new ErroHttpSaida(sinal.aborted ? 'TEMPO_ESGOTADO' : 'DNS_FALHOU', url.host);
+    });
+    return Promise.race([consulta, esgotou]).finally(soltar);
+  };
+
+  const conferirDestino = async (url: URL, sinal: AbortSignal): Promise<EnderecoResolvido> => {
     const host = url.hostname.replace(/^\[|\]$/g, '');
     let enderecos: EnderecoResolvido[];
     if (isIP(host)) enderecos = [{ address: host, family: isIP(host) === 6 ? 6 : 4 }];
-    else {
-      try {
-        enderecos = await resolver(host);
-      } catch {
-        throw new ErroHttpSaida('DNS_FALHOU', url.host);
-      }
-    }
+    else enderecos = await resolverNoPrazo(host, url, sinal);
     if (enderecos.length === 0) throw new ErroHttpSaida('DNS_FALHOU', url.host);
     if (enderecos.some((e) => enderecoIpBloqueado(e.address))) throw new ErroHttpSaida('DESTINO_BLOQUEADO', url.host);
     return enderecos[0]!;
@@ -317,7 +326,7 @@ export function criarClienteHttpSaida(opcoes: OpcoesClienteHttpSaida = {}): Clie
       const relogio = setTimeout(() => controle.abort(), timeoutMs);
       try {
         for (let salto = 0; ; salto++) {
-          const endereco = await conferirDestino(url);
+          const endereco = await conferirDestino(url, controle.signal);
           if (controle.signal.aborted) throw new ErroHttpSaida('TEMPO_ESGOTADO', url.host);
           contar(chave, url.host);
           let resposta: RespostaHttpSaida;
