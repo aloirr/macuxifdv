@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { nadaEncontradoPara, partirTrecho, textoDaFichaCompativel, vazioComVeiculo } from './veiculo-tela';
+import { nadaEncontradoPara } from '../../contracts';
+import { partirTrecho, textoDaFichaCompativel, vazioComVeiculo } from './veiculo-tela';
 
 const GOL = { montadora: 'Volkswagen', modelo: 'Gol', ano: 2018, motor: '1.0', versao: null };
 

@@ -39,7 +39,7 @@ const EM_MONTAGEM = new WeakMap<readonly object[], Map<number, Promise<IndiceVei
 async function montarIndice(leitor: LeitorLocal, produtos: readonly ProdutoCatalogo[], anoAtual: number): Promise<IndiceVeiculos> {
   const aplicacoes = new Map<string, string>();
   for (const c of await leitor.linhas<ProdutoConteudoSync & { deleted_at: string | null }>('produto_conteudo')) if (!c.deleted_at && c.aplicacao) aplicacoes.set(c.produto_id, c.aplicacao);
-  // em pedaços, cedendo o laço entre eles: com 20 mil produtos a montagem leva cerca de 2 s e não pode travar a tela
+  // em pedaços, cedendo o laço entre eles: com 20 mil produtos a montagem sai em lotes de 500, sem travar a tela, em cerca de 1 s (varia com o aparelho)
   const indice = await construirIndiceVeiculosEmLotes(
     produtos.filter((p) => p.ativo).map((p) => ({ id: p.id, aplicacao: aplicacoes.get(p.id) ?? p.aplicacao })),
     { anoAtual, veiculos: veiculosDe(produtos) },

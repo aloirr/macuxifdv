@@ -536,5 +536,5 @@ function VazioDaBusca({
 function VazioComVeiculo({ consulta, chipMarcado, onTirarVeiculo, onLimparFiltros }: { consulta: string; chipMarcado: boolean; onTirarVeiculo: () => void; onLimparFiltros: () => void }) {
   const v = vazioComVeiculo({ consulta, chipMarcado });
   const limpar = v.acao === 'limpar_filtros';
-  return <EstadoVazio testID="catalogo-vazio" icone="search" titulo={v.titulo} acao={{ rotulo: limpar ? TEXTOS_VEICULO_CATALOGO.limparFiltros : TEXTOS_VEICULO_CATALOGO.tirar, onPress: limpar ? onLimparFiltros : onTirarVeiculo, testID: 'catalogo-vazio-acao' }} />;
+  return <EstadoVazio testID="catalogo-vazio" icone="search" titulo={v.titulo} acao={{ rotulo: limpar ? TEXTOS_VEICULO_CATALOGO.limparFiltros : TEXTOS_VEICULO.tirar, onPress: limpar ? onLimparFiltros : onTirarVeiculo, testID: 'catalogo-vazio-acao' }} />;
 }

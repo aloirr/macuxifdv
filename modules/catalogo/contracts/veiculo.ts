@@ -167,6 +167,8 @@ export const ROTULO_DO_NIVEL: Record<NivelVeiculo, string> = { montadora: 'Monta
 
 export const nenhumModeloCom = (texto: string): string => `Nenhum modelo com "${texto}".`;
 
+export const nadaEncontradoPara = (texto: string): string => `Nada encontrado para "${texto}"`;
+
 /** No formato `TextosFolhaVeiculo` do kit (mais o `botao`, do botão Veículo da tela). */
 export const TEXTOS_VEICULO = {
   botao: 'Veículo',
@@ -178,6 +180,10 @@ export const TEXTOS_VEICULO = {
   verPecas: 'Ver peças',
   rotuloDoNivel: ROTULO_DO_NIVEL as Readonly<Record<string, string>>,
   nenhumModeloCom,
+  /** Sem resultado com veículo (Catálogo e Vendedor): a ação de tirar o veículo, o título sem filtros e o título com busca. */
+  tirar: 'Tirar o veículo',
+  semFiltros: 'Nenhum produto com esses filtros',
+  nadaEncontradoPara,
 };
 
 /** Leitor de tela do botão Veículo: com veículo aplicado, diz qual (`rotulos` vem do domain ou da folha). */

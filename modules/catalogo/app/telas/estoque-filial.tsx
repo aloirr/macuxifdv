@@ -121,19 +121,9 @@ export function FolhaFiltroCatalogo({
   return (
     <Folha visivel={visivel} onFechar={onFechar} titulo="Filtrar" fechar={{ rotulo: 'Fechar', testID: 'catalogo-filtro-fechar' }} rotuloFechar="Fechar filtro" rolavel testID="catalogo-filtro">
       <GrupoDeChips grupo="sistema" nos={sistemas} marcado={sistemaId} onEscolher={onSistema} rotuloTodos="Todos" />
-      <GrupoDeChips grupo="familia" nos={familias} marcado={familiaId} onEscolher={onFamilia} />
-      <GrupoDeChips grupo="linha" nos={linhas} marcado={linhaId} onEscolher={onLinha} />
-      {categorias.length > 0 ? (
-        <View testID="catalogo-chips-categoria">
-          <Text style={e.grupo}>{ROTULO_DO_GRUPO.categoria}</Text>
-          <View style={e.chips}>
-            <Chip label="Todas" active={categoriaId === null} onPress={() => onCategoria(null)} testID="catalogo-chip-categoria-todas" />
-            {categorias.map((n) => (
-              <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={categoriaId === n.id} onPress={() => onCategoria(n.id)} testID={`catalogo-chip-categoria-${n.codigo}`} />
-            ))}
-          </View>
-        </View>
-      ) : null}
+      <GrupoDeChips grupo="familia" nos={familias} marcado={familiaId} onEscolher={onFamilia} rotuloTodos={TODAS} />
+      <GrupoDeChips grupo="linha" nos={linhas} marcado={linhaId} onEscolher={onLinha} rotuloTodos={TODAS} />
+      <GrupoDeChips grupo="categoria" nos={categorias} marcado={categoriaId} onEscolher={onCategoria} rotuloTodos={TODAS} />
       {opcoes.length > 0 ? (
         <View>
           <Text style={e.grupo}>Filial</Text>
@@ -149,7 +139,7 @@ export function FolhaFiltroCatalogo({
 }
 
 /** Grupo de chips de um nível da árvore: "Todos"/"Todas" (`rotuloTodos`) e os nós com a contagem; vazio = o grupo não aparece. */
-function GrupoDeChips({ grupo, nos, marcado, onEscolher, rotuloTodos = TODAS }: { grupo: GrupoFiltro; nos: readonly NoDoFiltro[]; marcado: string | null; onEscolher: (id: string | null) => void; rotuloTodos?: string }) {
+function GrupoDeChips({ grupo, nos, marcado, onEscolher, rotuloTodos }: { grupo: GrupoFiltro; nos: readonly NoDoFiltro[]; marcado: string | null; onEscolher: (id: string | null) => void; rotuloTodos: string }) {
   if (nos.length === 0) return null;
   return (
     <View testID={`catalogo-chips-${grupo}`}>
