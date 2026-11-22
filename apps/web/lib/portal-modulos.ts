@@ -3,10 +3,8 @@
  * Integração entram sempre e somem das listas do portal; o Catálogo é opcional: aparece para escolher (Nova empresa sem planos e
  * "Acrescentar módulos") e no cartão "Módulos licenciados", e só vai no corpo quando marcado.
  */
+import { MODULOS_SEMPRE } from '@macuxi/platform-sdk';
 import { infoDoModulo, MODULOS_NATIVOS, modulosContrataveis, type InfoDoModulo } from '@macuxi/ui/web';
-
-/** Os módulos que entram em toda empresa e não aparecem em lista: o único lugar do filtro. */
-export const MODULOS_SEMPRE = ['core', 'integracao'] as const;
 
 export const ehModuloSempre = (id: string): boolean => (MODULOS_SEMPRE as readonly string[]).includes(id);
 

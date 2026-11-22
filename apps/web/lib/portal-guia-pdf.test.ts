@@ -9,7 +9,7 @@ vi.mock('@macuxi/platform-sdk/web', async (original) => ({
 
 import { baixarDocumentoPublico } from './portal-api';
 import { documentoPublicoFalso } from './portal-falso';
-import { ENCAIXE_API_HUB, GUIA_PDF_HUB, OPENAPI_HUB } from './portal-rotas';
+import { GUIA_PDF_HUB, OPENAPI_HUB } from './portal-rotas';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -20,8 +20,7 @@ describe('guia da API em PDF', () => {
   it('o botão baixa da rota pública same-origin, sem token nem tenant, com o nome da API', async () => {
     const fetchFalso = vi.fn(async () => new Response('%PDF-1.4', { status: 200, headers: { 'content-type': 'application/pdf', 'content-disposition': 'attachment; filename="macuxi-guia-api-v1.pdf"' } }));
     vi.stubGlobal('fetch', fetchFalso);
-    expect(ENCAIXE_API_HUB.guiaPdf).toBe('/api-proxy/_publico/integracao/v1/guia.pdf');
-    await baixarDocumentoPublico(ENCAIXE_API_HUB.guiaPdf ?? '', 'outro.pdf');
+    await baixarDocumentoPublico(GUIA_PDF_HUB.viaProxy, 'outro.pdf');
     expect(fetchFalso).toHaveBeenCalledWith(GUIA_PDF_HUB.viaProxy, { method: 'GET', cache: 'no-store', credentials: 'omit' });
     expect(baixados).toEqual([{ nome: 'macuxi-guia-api-v1.pdf', tipo: 'application/pdf' }]);
   });

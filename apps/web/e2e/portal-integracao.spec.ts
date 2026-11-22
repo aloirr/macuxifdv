@@ -12,6 +12,16 @@ import { expect, test, type Page } from '@playwright/test';
 const PRINTS = fileURLToPath(new URL('../docs/prints/portal-config-enxuto', import.meta.url));
 const SEM_FORMA = ['filial', 'vendedor', 'catalogo_no', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 
+/** Entra como o time da Macuxi, sem o indicador do next dev nos prints. */
+async function entrarComoTime(page: Page) {
+  await page.goto('/entrar');
+  await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
+  await page.getByTestId('entrar.senha').fill('certa-123');
+  await page.getByTestId('entrar.entrar').click();
+  await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
+}
+const semIndicador = (page: Page) => page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
+
 async function estado(page: Page) {
   return page.evaluate(() => {
     for (let i = 0; i < sessionStorage.length; i++) {
@@ -32,8 +42,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('entrar.senha').fill('certa-123');
     await page.getByTestId('entrar.entrar').click();
     await expect(page.getByTestId('integracao.aba')).toBeVisible({ timeout: 60000 });
-    // o indicador do next dev não entra nos prints
-    await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
+    await semIndicador(page);
     await expect(page.getByText('Nenhum Conector.')).toBeVisible();
 
     // começo: o Conector com todas as bases e os pedidos
@@ -171,13 +180,9 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
   test(`aba Empresa com plano, time da Macuxi (${largura} px)`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    await page.goto('/entrar');
-    await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
-    await page.getByTestId('entrar.senha').fill('certa-123');
-    await page.getByTestId('entrar.entrar').click();
-    await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
+    await entrarComoTime(page);
     await page.goto('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000001#empresa');
-    await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
+    await semIndicador(page);
     const conteudo = page.getByTestId('empresa-pagina.conteudo-empresa');
     await expect(conteudo).toBeVisible({ timeout: 60000 });
     await expect(conteudo).not.toHaveAttribute('data-sem-plano', 'sim');
@@ -187,16 +192,6 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await ctx.close();
   });
 }
-
-/** Entra como o time da Macuxi, sem o indicador do next dev nos prints. */
-async function entrarComoTime(page: Page) {
-  await page.goto('/entrar');
-  await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
-  await page.getByTestId('entrar.senha').fill('certa-123');
-  await page.getByTestId('entrar.entrar').click();
-  await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
-}
-const semIndicador = (page: Page) => page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
 
 for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
   test(`Trocar de plano no Dialog do kit (${largura} px)`, async ({ browser }) => {

@@ -72,8 +72,5 @@ export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.js
  */
 export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf', viaProxy: '/api-proxy/_publico/integracao/v1/guia.pdf' });
 
-/** O que o cartão "Guia" mostra: o botão do PDF com `guiaPdf`; `null` = só o link do OpenAPI. */
-export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: GUIA_PDF_HUB.viaProxy });
-
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];

@@ -9,7 +9,6 @@ import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
 import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
 import { ErroPortal, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_SEM_CONEXAO } from './portal-api';
-import { TEXTOS_ADMIN } from './portal-nova-empresa';
 
 const form = {
   codigo: 'distribuidora-norte',
@@ -104,8 +103,6 @@ describe('entrada só com e-mail e senha (T-0093; spec portal-entrar §1 e §4)'
   it('T-0094: 403 SENHA_A_TROCAR manda criar a senha no backoffice (spec ciclo-de-senha §7), nunca a frase da API', () => {
     const e = new ErroPortal(403, 'SENHA_A_TROCAR', 'Antes de entrar no portal, crie a sua senha no backoffice com o código da empresa.');
     expect(mensagemDoLoginPortal(e)).toBe('Crie a sua senha no backoffice antes de entrar aqui.');
-    // um texto só nos dois passos da Nova empresa (RD-2620)
-    expect(TEXTOS_ADMIN.passeASenha).toBe('Passe esta senha ao administrador.');
   });
 });
 

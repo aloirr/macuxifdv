@@ -23,7 +23,7 @@ import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel, Tab
 import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
 import { NOME_DA_BASE } from '@/lib/portal-bases';
 import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
-import { ENCAIXE_API_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { BaixarPacote } from './baixar-conector';
 import { Campo } from '@/components/campo-acesso';
@@ -507,8 +507,15 @@ export function ListaConectores({
   );
 }
 
-/** Cartão "Guia": o botão do PDF (`guiaPdf`, rota pública, sem sessão); o link do OpenAPI 3.1 sempre (uma informação, um lugar). */
-export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
+/** Erro ao baixar um documento do Guia: rota ausente (404) = `TEXTO_INDISPONIVEL` ao lado dos botões; o resto vai num aviso. */
+export function erroDoGuia(x: unknown): { indisponivel: true } | { tom: 'warning' | 'danger'; mensagem: string } {
+  if (ehRotaAusente(x)) return { indisponivel: true };
+  if (x instanceof ErroPortal && x.status === 429) return { tom: 'warning', mensagem: 'Muitos downloads seguidos deste endereço. Espere um minuto e tente de novo.' };
+  return { tom: 'danger', mensagem: mensagemDoErro(x) };
+}
+
+/** Cartão "Guia": o botão do PDF e o link do OpenAPI 3.1 (rotas públicas, sem sessão). */
+export function CartaoGuia() {
   const toast = useToast();
   const [indisponivel, setIndisponivel] = useState(false);
   const baixar = async (caminho: string, nome: string) => {
@@ -516,19 +523,17 @@ export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
       // documentos públicos (T-0092): sem token e sem tenant
       await baixarDocumentoPublico(caminho, nome);
     } catch (x) {
-      if (ehRotaAusente(x)) setIndisponivel(true);
-      else if (x instanceof ErroPortal && x.status === 429) toast('warning', 'Muitos downloads seguidos deste endereço. Espere um minuto e tente de novo.');
-      else toast('danger', mensagemDoErro(x));
+      const r = erroDoGuia(x);
+      if ('indisponivel' in r) setIndisponivel(true);
+      else toast(r.tom, r.mensagem);
     }
   };
   return (
     <Panel title="Guia">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {guiaPdf && (
-          <Button data-testid="integracao.guia" onClick={() => void baixar(guiaPdf, 'macuxi-guia-api-v1.pdf')}>
-            Baixar o guia (PDF)
-          </Button>
-        )}
+        <Button data-testid="integracao.guia" onClick={() => void baixar(GUIA_PDF_HUB.viaProxy, 'macuxi-guia-api-v1.pdf')}>
+          Baixar o guia (PDF)
+        </Button>
         <Button variant="link" data-testid="integracao.openapi" onClick={() => void baixar(OPENAPI_HUB.viaProxy, 'macuxi-openapi-hub-v1.json')}>
           Documentação (OpenAPI 3.1)
         </Button>
@@ -538,7 +543,7 @@ export function CartaoGuia({ guiaPdf }: { guiaPdf: string | null }) {
   );
 }
 
-export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { tenant: string; guiaPdf?: string | null }) {
+export function AbaIntegracao({ tenant }: { tenant: string }) {
   const qc = useQueryClient();
   const toast = useToast();
   const chave = ['portal', tenant, 'conectores'] as const;
@@ -622,7 +627,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
             aoCriar={aoMudar}
           />
         </Panel>
-        <CartaoGuia guiaPdf={guiaPdf} />
+        <CartaoGuia />
         <Panel title="Credenciais">{lista(todos.filter((c) => c.tipo === 'nuvem'), 'Nenhuma credencial.', 'integracao.api-credenciais')}</Panel>
       </section>
 

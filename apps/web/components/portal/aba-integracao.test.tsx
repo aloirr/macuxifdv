@@ -13,9 +13,9 @@ import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ErroPortal, lerErroDaApi, mensagemDoErro, type OpcoesChamada } from '@/lib/portal-api';
+import { ErroPortal, lerErroDaApi, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
-import { ENCAIXE_API_HUB, GUIA_PDF_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import {
   AbaIntegracao,
@@ -27,6 +27,7 @@ import {
   DialogoBases,
   DialogoConector,
   entidadesLivres,
+  erroDoGuia,
   ListaBases,
   mensagemSemBases,
   outroRecebePedidos,
@@ -126,7 +127,6 @@ describe('aba Integração em dois lados', () => {
   });
 
   it('API: bases livres marcadas, "Envia os pedidos" desmarcada, botão neutro, Guia com o PDF e o OpenAPI e "Credenciais" com as de tipo nuvem', () => {
-    expect(ENCAIXE_API_HUB).toEqual({ guiaPdf: GUIA_PDF_HUB.viaProxy });
     expect(html).toMatch(/data-testid="integracao\.api-recebe-pedidos"(?![^>]*checked)/);
     expect(html).toMatch(/data-testid="integracao\.recebe-pedidos"[^>]*checked/);
     expect(html).not.toMatch(/bg-accent text-white[^"]*" data-testid="integracao\.api-gerar"/);
@@ -162,9 +162,11 @@ describe('aba Integração em dois lados', () => {
     for (const velho of ['Conector instalado', 'arquivo de configuração', 'Credencial da API do Conector', 'Conector do ERP']) expect(api, velho).not.toContain(velho);
   });
 
-  it('Guia: o botão do PDF só quando ele existir', () => {
-    expect(renderToStaticMarkup(<CartaoGuia guiaPdf="/guia.pdf" />)).toContain('Baixar o guia (PDF)');
-    expect(renderToStaticMarkup(<CartaoGuia guiaPdf={null} />)).not.toContain('Baixar o guia (PDF)');
+  it('Guia: o botão do PDF sempre; 404 mostra TEXTO_INDISPONIVEL', () => {
+    const guia = renderToStaticMarkup(<CartaoGuia />);
+    expect(guia).toMatch(/data-testid="integracao\.guia"[^>]*>Baixar o guia \(PDF\)</);
+    expect(guia).not.toContain(TEXTO_INDISPONIVEL);
+    expect(erroDoGuia(lerErroDaApi(404, { codigo: 'NAO_ENCONTRADO', mensagem: 'Rota não encontrada.' }))).toEqual({ indisponivel: true });
   });
 });
 
