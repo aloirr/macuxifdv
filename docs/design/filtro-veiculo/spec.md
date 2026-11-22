@@ -111,9 +111,8 @@ escolheu. A peça entra quando um trecho da aplicação cita o modelo escolhido 
   `VW Gol 2014–2019`, sem motor, some do Gol 2018 1.0, em que o vendedor tocou o 1.0 entre o 1.0 e o 1.6). **Não
   escolhido**, não filtra (`Gol 2017–2019 Highline` entra no Gol 2018);
 - **nível preenchido sozinho** (§4.2; decidido, R-20261121-211200-alexandre, D7): ano, motor ou versão que a cascata
-  preencheu por ter uma opção só **não conta como escolhido e não filtra**. Fica só na trilha, fora da etiqueta. Ex.: com
-  um ano só do Gol na base, "só Gol" mostra todas as peças do Gol, inclusive as sem ano; no Civic 2008 o motor 1.8 vem
-  sozinho, e a lista é a do Civic 2008 (entra o disco `Civic 07–11`, sem motor). Montadora e modelo preenchidos sozinhos
+  preencheu por ter uma opção só **não conta como escolhido e não filtra**. Ex.: com um ano só do Gol
+  na base, "só Gol" mostra todas as peças do Gol, inclusive as sem ano; no Civic 2008 o motor 1.8 vem sozinho, e a lista é a do Civic 2008 (entra o disco `Civic 07–11`, sem motor). Montadora e modelo preenchidos sozinhos
   são o próprio veículo e seguem nele.
 
 A peça aparece ou não aparece: **não há item "de conferir"**.
@@ -233,7 +232,7 @@ Contrato de API e índice de veículos (engenheiro-software, modulo-catalogo), a
   escolhido; a peça aparece ou não aparece (§5).
 - **D5. BKO** (decidido, R-20261120-234013-alexandre): nada nesta etapa (§2).
 - **D6. Motor e versão** (decidido, R-20261121-211200-alexandre; RN-CAT-22): a mesma regra do ano (§5).
-- **D7. Nível preenchido sozinho** (decidido, R-20261121-211200-alexandre: "campo não escolhido não filtra"; RN-CAT-22): não conta
+- **D7. Nível preenchido sozinho** (decisão do gerente, aplicando R-20261121-211200 ('campo não escolhido não filtra'); RN-CAT-22): não conta
   como escolhido e não filtra (§5).
 
 ### Dúvida aberta (para o dono do produto)
