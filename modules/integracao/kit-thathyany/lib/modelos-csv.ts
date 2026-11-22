@@ -1,9 +1,9 @@
 /**
- * Modelos de arquivo da carga por CSV (RF-INT-03): para cada entidade, um CSV de exemplo (2 linhas válidas) e o dicionário de campos,
+ * Modelos de CSV do kit-thathyany (carregam no SQL Server da empresa; o Conector lê de lá): para cada entidade, um CSV de exemplo (2 linhas válidas) e o dicionário de campos,
  * ambos GERADOS de `SCHEMA_REGISTRO` (ou do schema passado): colunas, ordem, obrigatoriedade, tipos e limites vêm do contrato, nunca de
  * lista manual. Só os VALORES de exemplo realistas vêm de um mapa por nome de campo; campo sem exemplo no mapa recebe um gerado do tipo.
  *
- * Formato do arquivo (o que o parser de `carga-arquivo.ts` lê sem ambiguidade):
+ * Formato do arquivo (o que o parser de `csv-para-lote.ts` lê sem ambiguidade):
  *  - UTF-8 com BOM_CSV (o Excel pt-BR só reconhece acentos assim) e separador `;` (o `,` é o decimal do Excel pt-BR);
  *  - quebras CRLF: é o que o Excel/Bloco de Notas do Windows (o ambiente de quem prepara a planilha) grava, e o RFC 4180; o parser normaliza
  *    CRLF e LF igual, então a escolha só afeta quem abre o arquivo;
@@ -14,17 +14,46 @@
  */
 import { BOM_CSV } from '@macuxi/comum/csv';
 import { z } from 'zod';
-import { SCHEMA_REGISTRO, type CampoDicionario, type DicionarioModelo, type Entidade } from '../contracts';
-import { defDe, desembrulhar, estruturaDoSchema } from './carga-arquivo';
-import { ordemDeCargaDoPortal } from './portal-carga';
+import { ORDEM_CARGA_ENTIDADES, SCHEMA_REGISTRO, type Entidade } from '../../contracts';
+import { DEPENDENCIAS } from '../../domain/ordem';
+import { defDe, desembrulhar, estruturaDoSchema } from './csv-para-lote';
+
+export interface CampoDicionario {
+  /** Nome da coluna no cabeçalho (`external_id`, `endereco.cidade`…). */
+  campo: string;
+  /** O arquivo precisa ter a coluna e a célula preenchida. */
+  obrigatorio: boolean;
+  tipo: 'texto' | 'número' | 'sim/não' | 'data' | 'data-hora' | 'centavos' | 'enum' | 'lista de números' | 'lista de textos';
+  /** Máximo de caracteres (texto); `null` = sem limite declarado. */
+  tamanho_max: number | null;
+  /** Regra do valor em português ("AAAA-MM-DD", "8, 12, 13 ou 14 dígitos", opções do enum, "inteiro de 1 a 8"). */
+  formato: string | null;
+  /** Exemplo exatamente como aparece no CSV. */
+  exemplo: string;
+  /** Observação (valor assumido quando vazio, regra entre campos). */
+  observacao: string | null;
+}
+
+export interface DicionarioModelo {
+  entidade: Entidade;
+  /** Nome do arquivo do modelo (`cliente.csv`). */
+  arquivo: string;
+  /** Posição (1 = primeira) na ordem de carga do Hub. */
+  ordem: number;
+  /** Entidades que devem ser carregadas antes (dependências diretas, RN-INT-04). */
+  depende_de: Entidade[];
+  /** Pode ficar para depois (título, nota): a operação do vendedor não depende dela. */
+  opcional: boolean;
+  campos: CampoDicionario[];
+}
 
 const CRLF = '\r\n';
 const SEPARADOR = ';';
 
 // ---------------------------------------------------------------------------------------------------------------- ordem de carga
 
-/** Entidades na ordem de carga inicial (RN-INT-04): a MESMA do portal (`ordemDeCargaDoPortal`), sem segunda lista. */
-export const ENTIDADES_ORDEM_CARGA: readonly Entidade[] = ordemDeCargaDoPortal().map((i) => i.entidade);
+/** Entidades na ordem de carga inicial (RN-INT-04): a lista única do contrato (`ORDEM_CARGA_ENTIDADES`), sem segunda lista. */
+export const ENTIDADES_ORDEM_CARGA: readonly Entidade[] = ORDEM_CARGA_ENTIDADES;
 
 export interface ResumoModelo {
   entidade: Entidade;
@@ -35,7 +64,9 @@ export interface ResumoModelo {
   opcional: boolean;
 }
 export const nomeArquivoModelo = (entidade: Entidade): string => `${entidade}.csv`;
-export const RESUMO_MODELOS: readonly ResumoModelo[] = ordemDeCargaDoPortal().map((i) => ({ entidade: i.entidade, arquivo: nomeArquivoModelo(i.entidade), ordem: i.posicao, depende_de: [...i.depende_de], opcional: i.opcional }));
+/** Títulos e notas: a empresa pode começar sem eles. */
+const ENTIDADES_OPCIONAIS_CARGA: readonly Entidade[] = ['titulo', 'nota'];
+export const RESUMO_MODELOS: readonly ResumoModelo[] = ORDEM_CARGA_ENTIDADES.map((entidade, i) => ({ entidade, arquivo: nomeArquivoModelo(entidade), ordem: i + 1, depende_de: [...DEPENDENCIAS[entidade]], opcional: ENTIDADES_OPCIONAIS_CARGA.includes(entidade) }));
 
 // ---------------------------------------------------------------------------------------------------------------- exemplos
 

@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 import { DataHoraUtc, Uuid } from './base';
-import { AtualizacaoConector, PoliticaVersaoConector } from './conector';
+import { AtualizacaoConector, ChaveConectorCriada, PoliticaVersaoConector } from './conector';
 import { ConectorIdentificador } from './hub';
 import { ENTIDADES, Entidade } from './entidades';
 import { ESTADOS_LOTE, LinhaErro, LoteResultado } from './lote';
@@ -21,9 +21,12 @@ export type EstadoLoteBko = z.infer<typeof EstadoLoteBko>;
 export const LoteResultadoBko = LoteResultado.extend({ status: EstadoLoteBko });
 export type LoteResultadoBko = z.infer<typeof LoteResultadoBko>;
 
+/** `arquivo` é valor LEGADO, só de leitura: pode haver Conector assim gravado (carga por CSV no BKO, que saiu na v1.0.22); não se cria mais. */
 export const TIPOS_CONECTOR = ['conector', 'nuvem', 'arquivo'] as const;
 export const TipoConector = z.enum(TIPOS_CONECTOR);
 export type TipoConector = z.infer<typeof TipoConector>;
+/** Tipos que o BKO aceita na CRIAÇÃO: a integração é só por Conector ou API. */
+export const TIPOS_CONECTOR_CRIAVEIS = ['conector', 'nuvem'] as const;
 
 /** Saúde do Conector no monitor (`avaliarSaudeConector`): sem sinal há 15 min ou mais é alerta (doc 06). */
 export const SAUDES_CONECTOR = ['ok', 'atrasado', 'sem_sinal', 'parado_por_versao', 'nunca_conectou', 'desativado'] as const;
@@ -39,11 +42,15 @@ export const ListaEntidadesConector = z
   .min(1, 'escolha ao menos uma entidade para o Conector')
   .refine((l) => new Set(l).size === l.length, 'entidade repetida na lista do Conector');
 
+/** `GET /v1/integracao/conectores?tipo=`: filtro opcional (portal: `nuvem` = credenciais de API, `conector` = Conectores instalados). Sem ele, todos. */
+export const ConectoresQuery = z.object({ tipo: TipoConector.optional() });
+export type ConectoresQuery = z.infer<typeof ConectoresQuery>;
+
 export const ConectorCriar = z.object({
   /** Identificador que vai no arquivo do Conector (`hub.conectorId`) e no cabeçalho `X-Macuxi-Conector-Id`. */
   conector_id: ConectorIdentificador,
   nome: z.string().trim().min(1).max(120),
-  tipo: TipoConector.default('conector'),
+  tipo: z.enum(TIPOS_CONECTOR_CRIAVEIS, { errorMap: () => ({ message: 'tipo inválido: use "conector" ou "nuvem" (a integração é só por Conector ou API)' }) }).default('conector'),
   /** Só Conectores com `recebe_pedidos` recebem os pedidos aprovados (um por empresa em v1, P-7; padrão `true`). */
   recebe_pedidos: z.boolean().default(true),
   /** T-0114: o ERP deste Conector aceita cancelamento vindo do Macuxi (padrão desligado; sem isso nada é escrito no ERP, RN-INT-08). */
@@ -133,15 +140,8 @@ export const ConectorResumo = z.object({
 });
 export type ConectorResumo = z.infer<typeof ConectorResumo>;
 
-/** Chave em claro, devolvida uma única vez ao criar o Conector ou gerar chave nova (`POST /v1/integracao/conectores/{id}/chave`). */
-export const ChaveNovaConector = z.object({
-  conector_id: ConectorIdentificador,
-  escopo: z.literal('integracao.v1'),
-  chave: z.string().min(32),
-  prefixo: z.string().min(4).max(12),
-  criada_em: DataHoraUtc,
-  anterior_valida_ate: DataHoraUtc.nullish(),
-});
+/** Chave em claro (a mesma `ChaveConectorCriada`, sem `tenant_id`), devolvida uma única vez ao criar o Conector ou gerar chave nova (`POST /v1/integracao/conectores/{id}/chave`). */
+export const ChaveNovaConector = ChaveConectorCriada.omit({ tenant_id: true }).extend({ conector_id: ConectorIdentificador });
 export type ChaveNovaConector = z.infer<typeof ChaveNovaConector>;
 
 /** Criar Conector devolve o resumo e a chave em claro (uma única vez). */

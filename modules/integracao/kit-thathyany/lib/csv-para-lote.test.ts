@@ -1,17 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { SCHEMA_REGISTRO } from '../contracts';
-import {
-  anotarLinhaDoArquivo,
-  colunasDaEntidade,
-  conteudoCanonicoArquivo,
-  converterCsvParaLote,
-  lerCsv,
-  resolverConectorDoArquivo,
-  sessaoDoArquivo,
-  type ConectorDoArquivo,
-} from './carga-arquivo';
-import { validarLinhas } from './idempotencia';
-import { validarEnvelope } from './envelope';
+import { SCHEMA_REGISTRO } from '../../contracts';
+import { colunasDaEntidade, converterCsvParaLote, lerCsv, sessaoDoArquivo } from './csv-para-lote';
+import { validarLinhas } from '../../domain/idempotencia';
+import { validarEnvelope } from '../../domain/envelope';
 
 const AGORA = '2026-11-02T12:00:00.000Z';
 const conv = (texto: string, extra: Partial<Parameters<typeof converterCsvParaLote>[0]> = {}) =>
@@ -261,85 +252,60 @@ describe('RF-INT-03: CSV vira o envelope canônico do lote', () => {
   });
 });
 
-describe('RF-INT-03 / RN-INT-12: idempotência do arquivo', () => {
-  it('RN-INT-12: o conteúdo canônico ignora BOM, CRLF e linhas em branco no fim — o mesmo arquivo salvo de outro jeito tem o mesmo hash', () => {
-    const a = conteudoCanonicoArquivo({ entidade: 'vendedor', modo: 'delta', texto: '﻿external_id;nome\r\nV1;Ana\r\n\r\n' });
-    const b = conteudoCanonicoArquivo({ entidade: 'vendedor', modo: 'delta', texto: 'external_id;nome\nV1;Ana' });
-    expect(a).toBe(b);
+describe('RF-INT-03: carga por arquivo (CSV) das 3 entidades e do cliente ampliado', () => {
+  const T = '2026-11-06T12:00:00Z';
+  const csv = (entidade: Parameters<typeof converterCsvParaLote>[0]['entidade'], texto: string) => converterCsvParaLote({ entidade, modo: 'delta', texto, agora: T });
+
+  it('forma_pagamento: CSV válido vira registros que passam no contrato', () => {
+    const r = csv('forma_pagamento', 'external_id;codigo;nome;ordem\nF1;PIX;Pix;1\nF2;BOLETO;Boleto;2');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const v = validarLinhas('forma_pagamento', r.registros);
+    expect(v.erros).toEqual([]);
+    expect(v.validas).toHaveLength(2);
   });
 
-  it('RN-INT-12: entidade, modo ou qualquer célula diferente muda o conteúdo canônico (conteúdo diferente com a mesma chave = 409)', () => {
-    const base = conteudoCanonicoArquivo({ entidade: 'vendedor', modo: 'delta', texto: 'external_id;nome\nV1;Ana' });
-    expect(conteudoCanonicoArquivo({ entidade: 'vendedor', modo: 'completo', texto: 'external_id;nome\nV1;Ana' })).not.toBe(base);
-    expect(conteudoCanonicoArquivo({ entidade: 'cliente', modo: 'delta', texto: 'external_id;nome\nV1;Ana' })).not.toBe(base);
-    expect(conteudoCanonicoArquivo({ entidade: 'vendedor', modo: 'delta', texto: 'external_id;nome\nV1;Ana B' })).not.toBe(base);
+  it('prazo_pagamento: parcelas_dias numa célula (28/56) vira lista de números; 60/30 e texto viram erro legível', () => {
+    expect(colunasDaEntidade('prazo_pagamento').colunas.find((c) => c.caminho === 'parcelas_dias')).toMatchObject({ tipo: 'lista_numeros', obrigatoria: true });
+    const r = csv('prazo_pagamento', 'external_id;forma_external_id;codigo;parcelas_dias;prazo_medio_dias\nP1;F2;28-56;28/56;42\nP2;F2;AVISTA;0;0\nP3;F2;ERRADO;60/30;45\nP4;F2;TEXTO;vinte;20');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.registros.map((x) => x.parcelas_dias)).toEqual([[28, 56], [0], [60, 30]]);
+    expect(r.linhasInvalidas).toHaveLength(1);
+    expect(r.linhasInvalidas[0]?.mensagem).toContain('Linha 5 do arquivo');
+    expect(r.linhasInvalidas[0]?.mensagem).toContain('28/56');
+    const v = validarLinhas('prazo_pagamento', r.registros);
+    expect(v.validas.map((l) => l.external_id)).toEqual(['P1', 'P2']);
+    expect(v.erros.map((e) => e.external_id)).toEqual(['P3']);
   });
 
-  it('RN-INT-06: a sessão do arquivo depende da CHAVE (arquivo igual reenviado com chave nova é outra sessão, que inativa de novo) e é um UUID estável', () => {
-    const a = sessaoDoArquivo('chave-abc-0123456789');
-    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-    expect(sessaoDoArquivo('chave-abc-0123456789')).toBe(a);
-    expect(sessaoDoArquivo('chave-abc-9876543210')).not.toBe(a);
-  });
-});
-
-describe('RF-INT-03: erros com o número da linha do arquivo', () => {
-  it('RF-INT-03: erro do Hub (índice no lote) ganha o prefixo "Linha N do arquivo:" com a linha física do arquivo; índice sem mapa fica como está', () => {
-    const r = anotarLinhaDoArquivo([{ indice: 0, mensagem: 'razão social é obrigatória' }, { indice: 1, mensagem: 'x' }, { indice: 9, mensagem: 'sem mapa' }], [2, 7]);
-    expect(r.map((x) => x.mensagem)).toEqual(['Linha 2 do arquivo: razão social é obrigatória', 'Linha 7 do arquivo: x', 'sem mapa']);
+  it('prazo_pagamento: arquivo sem a coluna parcelas_dias é recusado com a coluna citada', () => {
+    const r = csv('prazo_pagamento', 'external_id;forma_external_id;codigo\nP1;F2;X');
+    expect(r).toMatchObject({ ok: false, codigo: 'colunas_obrigatorias_ausentes' });
+    expect(!r.ok && r.mensagem).toContain('parcelas_dias');
   });
 
-  it('RF-INT-03: mensagem que já tem o prefixo não é anotada duas vezes (reprocessar o lote)', () => {
-    const r = anotarLinhaDoArquivo([{ indice: 0, mensagem: 'Linha 2 do arquivo: erro' }], [2]);
-    expect(r[0]?.mensagem).toBe('Linha 2 do arquivo: erro');
+  it('tabela_escalonada: CSV com medida, vigência e tabela opcional passa no contrato', () => {
+    const r = csv('tabela_escalonada', 'external_id;produto_external_id;medida;quantidade_minima;preco_unidade_cents;vigencia_inicio;vigencia_fim;tabela_external_id\nE1;PR1;FD;10;950;2026-11-01;;\nE2;PR1;;50;900;2026-11-01;2026-12-31;TAB1');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const v = validarLinhas('tabela_escalonada', r.registros);
+    expect(v.erros).toEqual([]);
+    expect(v.validas).toHaveLength(2);
+    expect(r.registros[0]).toMatchObject({ quantidade_minima: 10, preco_unidade_cents: 950, medida: 'FD' });
   });
 
-  it('RF-INT-03: sem mapa de linhas (lote do Conector) nada muda', () => {
-    const itens = [{ indice: 0, mensagem: 'a' }];
-    expect(anotarLinhaDoArquivo(itens, undefined)).toEqual(itens);
-  });
-});
-
-describe('RN-INT-13: Conector do tipo arquivo que recebe a entidade', () => {
-  const c = (extra: Partial<ConectorDoArquivo> = {}): ConectorDoArquivo => ({ id: 'u1', identificador: 'planilha-01', tipo: 'arquivo', ativo: true, entidades: ['vendedor', 'cliente'], ...extra });
-  const erp: ConectorDoArquivo = { id: 'u2', identificador: 'matriz-01', tipo: 'conector', ativo: true, entidades: ['vendedor', 'produto'] };
-
-  it('RN-INT-13: usa o único Conector arquivo ativo que recebe a entidade', () => {
-    expect(resolverConectorDoArquivo('cliente', [c(), erp], null)).toEqual({ ok: true, conector: c() });
+  it('cliente: prazo_medio_max_dias e formas_pagamento (PIX/BOLETO) entram pelo arquivo', () => {
+    const r = csv('cliente', 'external_id;razao_social;prazo_medio_max_dias;formas_pagamento\nC1;Mercado;45;PIX/BOLETO');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const v = validarLinhas('cliente', r.registros);
+    expect(v.erros).toEqual([]);
+    expect(v.validas[0]?.registro).toMatchObject({ prazo_medio_max_dias: 45, formas_pagamento: ['PIX', 'BOLETO'] });
   });
 
-  it('RN-INT-13: entidade que é de um Conector de ERP (outro tipo) é recusada dizendo QUEM a recebe e o que fazer', () => {
-    const r = resolverConectorDoArquivo('produto', [c(), erp], null);
-    expect(r).toMatchObject({ ok: false, codigo: 'entidade_de_outro_conector' });
-    if (!r.ok) {
-      expect(r.mensagem).toMatch(/matriz-01/);
-      expect(r.mensagem).toMatch(/produto/);
-    }
-  });
-
-  it('RN-INT-13: se o Conector arquivo também lista a entidade, ele só vale quando for o dono (o outro Conector ativo a recebe = recusa)', () => {
-    const r = resolverConectorDoArquivo('vendedor', [c(), erp], null);
-    // topologia inconsistente (dois ativos com vendedor): a carga não escolhe no escuro
-    expect(r).toMatchObject({ ok: false, codigo: 'entidade_de_outro_conector' });
-  });
-
-  it('RN-INT-13: sem nenhum Conector de arquivo para a entidade, a mensagem manda cadastrar um (tipo arquivo, com a entidade)', () => {
-    const r = resolverConectorDoArquivo('titulo', [c(), erp], null);
-    expect(r).toMatchObject({ ok: false, codigo: 'sem_conector_arquivo' });
-    if (!r.ok) expect(r.mensagem).toMatch(/Integração ERP > Conectores/);
-    expect(resolverConectorDoArquivo('cliente', [], null)).toMatchObject({ ok: false, codigo: 'sem_conector_arquivo' });
-  });
-
-  it('RN-INT-13: Conector inativo não conta; conector escolhido que não existe, não é do tipo arquivo ou não recebe a entidade é recusado', () => {
-    expect(resolverConectorDoArquivo('cliente', [c({ ativo: false })], null)).toMatchObject({ ok: false, codigo: 'sem_conector_arquivo' });
-    expect(resolverConectorDoArquivo('cliente', [c()], 'nao-existe')).toMatchObject({ ok: false, codigo: 'conector_nao_encontrado' });
-    expect(resolverConectorDoArquivo('vendedor', [c(), erp], 'matriz-01')).toMatchObject({ ok: false, codigo: 'conector_nao_e_arquivo' });
-    expect(resolverConectorDoArquivo('produto', [c()], 'planilha-01')).toMatchObject({ ok: false, codigo: 'entidade_de_outro_conector' });
-  });
-
-  it('RN-INT-13: dois Conectores arquivo para a mesma entidade (topologia quebrada) pedem o identificador explícito', () => {
-    const outro = c({ id: 'u3', identificador: 'planilha-02' });
-    expect(resolverConectorDoArquivo('cliente', [c(), outro], null)).toMatchObject({ ok: false, codigo: 'conector_ambiguo' });
-    expect(resolverConectorDoArquivo('cliente', [c(), outro], 'planilha-02')).toMatchObject({ ok: true });
+  it('as demais listas (contatos, oferece_junto) continuam fora do CSV', () => {
+    expect(colunasDaEntidade('cliente').listas).toContain('contatos');
+    expect(colunasDaEntidade('produto').listas).toContain('oferece_junto');
   });
 });

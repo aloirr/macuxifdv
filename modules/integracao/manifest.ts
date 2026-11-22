@@ -5,7 +5,7 @@ export const manifest = defineModule({
   versao: '0.8.0',
   depende: ['core'],
   perfis: ['admin', 'analista'],
-  apps: { web: { menus: ['Integração ERP', 'Carga por arquivo', 'Integração'] }, conector: {} },
+  apps: { web: { menus: ['Integração ERP', 'Integração'] }, conector: {} },
   publica: [
     'integracao.cliente.atualizado@1',
     'integracao.produto.atualizado@1',
@@ -47,7 +47,7 @@ export const manifest = defineModule({
   consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1'],
   // T-0025: ações do BKO (ADR 0004). As rotas do Hub para o Conector (`/integracao/v1`) NÃO usam perfil: autenticam por chave de
   // API do Conector (RN-INT-10) e o escopo é fixo `integracao.v1`. P-3 (T-0031): Conector, chave de API e política de versão só
-  // admin; confirmar/recusar a inativação em massa admin ou analista, com auditoria; carga por arquivo admin ou analista. A mesma tabela está em domain/permissoes.ts.
+  // admin; confirmar/recusar a inativação em massa admin ou analista, com auditoria. A mesma tabela está em domain/permissoes.ts.
   acoes: {
     'monitor.ver': { perfis: ['admin', 'analista'], descricao: 'Ver conectores, lotes, erros por linha, reconciliações e a fila de pedidos do ERP' },
     'lote.reprocessar': { perfis: ['admin', 'analista'], descricao: 'Reprocessar as linhas reprocessáveis de um lote (referencia_ausente, falha_processamento)' },
@@ -55,7 +55,6 @@ export const manifest = defineModule({
     'mapeamento.editar': { perfis: ['admin', 'analista'], descricao: 'Editar o de-para de códigos (condição de pagamento, depósito, status)' },
     'conector.gerenciar': { perfis: ['admin'], descricao: 'Cadastrar Conector, gerar/rotacionar/revogar a chave de API e definir a política de versão' },
     'inativacao.decidir': { perfis: ['admin', 'analista'], descricao: 'Confirmar ou recusar a inativação em massa de uma carga completa, com auditoria (RN-INT-06, P-3)' },
-    'carga.arquivo': { perfis: ['admin', 'analista'], descricao: 'Enviar carga por arquivo CSV (RF-INT-03): vira um lote do Conector tipo arquivo e segue o mesmo pipeline do Hub' },
   },
 });
 

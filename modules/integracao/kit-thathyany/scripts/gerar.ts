@@ -11,7 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CAMPOS_OBRIGATORIOS_FILIAL } from '@macuxi/core/contracts';
-import { ENTIDADES_ORDEM_CARGA, dicionarioDaEntidade, gerarModeloCsv } from '../../domain/modelos-csv';
+import { ENTIDADES_ORDEM_CARGA, dicionarioDaEntidade, gerarModeloCsv } from '../lib/modelos-csv';
 import type { CampoDicionario } from '../../contracts/modelos';
 import { EXTERNAL_ID_MAX, LIMITES_CATALOGO_PRODUTO, LIMITES_REFERENCIA } from '../../contracts';
 

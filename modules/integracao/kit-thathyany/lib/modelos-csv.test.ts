@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ENTIDADES, ORDEM_CARGA_ENTIDADES, SCHEMA_REGISTRO, Texto, VendedorPayload, type Entidade } from '../contracts';
-import { converterCsvParaLote, lerCsv } from './carga-arquivo';
-import { validarEnvelope } from './envelope';
-import { ordemDeCargaDoPortal } from './portal-carga';
+import { ENTIDADES, ORDEM_CARGA_ENTIDADES, SCHEMA_REGISTRO, Texto, VendedorPayload, type Entidade } from '../../contracts';
+import { converterCsvParaLote, lerCsv } from './csv-para-lote';
+import { validarEnvelope } from '../../domain/envelope';
 import { dicionarioDaEntidade, ENTIDADES_ORDEM_CARGA, gerarModeloCsv, RESUMO_MODELOS } from './modelos-csv';
 
 const AGORA = '2026-11-06T12:00:00.000Z';
@@ -99,12 +98,10 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
     expect(lido.linhas[0]?.celulas[i]).toBe('Zé; "o" Rápido');
   });
 
-  it('RN-INT-04: a ordem de carga é a lista única ORDEM_CARGA_ENTIDADES, com os mesmos opcional/depende_de do portal', () => {
-    const portal = ordemDeCargaDoPortal();
+  it('RN-INT-04: a ordem de carga é a lista única ORDEM_CARGA_ENTIDADES, com opcional/depende_de do Hub', () => {
     expect([...ENTIDADES_ORDEM_CARGA]).toEqual([...ORDEM_CARGA_ENTIDADES]);
-    expect(RESUMO_MODELOS.map((r) => ({ entidade: r.entidade, ordem: r.ordem, depende_de: r.depende_de, opcional: r.opcional }))).toEqual(
-      portal.map((i) => ({ entidade: i.entidade, ordem: i.posicao, depende_de: i.depende_de, opcional: i.opcional })),
-    );
+    expect(RESUMO_MODELOS.map((r) => r.ordem)).toEqual(ORDEM_CARGA_ENTIDADES.map((_, i) => i + 1));
+    expect(RESUMO_MODELOS.filter((r) => r.opcional).map((r) => r.entidade)).toEqual(['titulo', 'nota']);
     const cli = RESUMO_MODELOS.find((r) => r.entidade === 'cliente');
     expect(cli).toMatchObject({ arquivo: 'cliente.csv', depende_de: ['vendedor', 'forma_pagamento', 'filial'], opcional: false });
   });
@@ -148,5 +145,15 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
     const preco = col('tabela_escalonada', 'preco_unidade_cents').map(Number);
     expect(qtd[1]).toBeGreaterThan(qtd[0] as number);
     expect(preco[1]).toBeLessThanOrEqual(preco[0] as number);
+  });
+});
+
+describe('RN-INT-15: modelo do prazo', () => {
+  it('RN-INT-15: o modelo CSV do prazo traz a coluna percentual_ajuste, opcional, de -99,99 a 99,99', () => {
+    const m = gerarModeloCsv('prazo_pagamento');
+    const c = m.campos.find((x) => x.campo === 'percentual_ajuste');
+    expect(c).toMatchObject({ obrigatorio: false });
+    expect(c?.formato).toContain('-99.99');
+    expect(c?.observacao).toContain('Acres.Fin.');
   });
 });

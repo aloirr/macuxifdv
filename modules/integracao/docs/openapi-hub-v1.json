@@ -1046,7 +1046,7 @@
                     }
                   },
                   "concluido_com_erros": {
-                    "summary": "Concluído com erros por linha (reprocessavel: true = o Hub tenta de novo pelo BKO)",
+                    "summary": "Concluído com erros por linha (reprocessavel: true = o Macuxi tenta a linha de novo sozinho)",
                     "value": {
                       "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
                       "entidade": "preco",
