@@ -60,7 +60,8 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Azul claro | `#9AA3B0` | azul sobre o grafite |
 | Azul suave | `#DFE2E6` | fundo do chip e do cartão em destaque; linha (divisória e borda do cartão) |
 | Névoa | `#ECEEF1` | linha suave, chip neutro, botão desabilitado, avatar, fundo do mapa |
-| Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite; borda forte (campo, linha forte, borda do mapa e caixas do PDF) |
+| Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite, texto e contorno de botão sobre o escuro e caixas do PDF |
+| Campo | `#7A8593` | borda de componente no fundo claro (campo, rádio, caixa de marcar, botão de contorno, chave) |
 | Azul médio | `#5B7FA6` | só série de gráfico. **Nunca texto nem botão** |
 | Cinza série | `#8B96A3` | série "outros" dos gráficos e desabilitado do BKO |
 | Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração. Exceções sem texto visível: o lápis do item já adicionado no Novo pedido e o ✓ de campo validado (veja abaixo) |
@@ -89,7 +90,11 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Azul noite na Névoa | 10,99 |
 | Azul suave no branco (linha, enfeite) | 1,30 |
 | Névoa no branco (enfeite) | 1,16 |
-| `#C9CED5` no branco (borda) | 1,58 |
+| `#C9CED5` no branco (caixa do PDF) | 1,58 |
+| `#C9CED5` no grafite (contorno do botão secundário) | 10,42 |
+| Campo no branco (borda de componente) | 3,75 |
+| Campo no Pérola (borda de componente) | 3,47 |
+| Campo na Névoa (borda de componente) | 3,22 |
 | sol laranja no branco (gráfico) | 4,60 |
 | `#4A5562` no branco (gráfico) | 7,59 |
 | Azul médio no branco (gráfico) | 4,17 |
@@ -98,7 +103,7 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | `#1D6B4F` no `#E2F1EA` (ícone) | 5,51 |
 | `#1D6B4F` no branco (borda do lápis) | 6,43 |
 
-**Neutros de interface** (decisão do Alexandre, 14/11/2026, MC-0004 B): linha, campo, chip e fundo do mapa usam só os neutros do Azul suave acima (`#DFE2E6`, `#ECEEF1` e `#C9CED5`). Saem os esverdeados `#E1E4DE`, `#ECEEE9`, `#E6E9E2`, `#C9CEC6`, `#D6DAD1` e `#E9ECE6`, em tokens, CSS e PDF.
+**Neutros de interface** (decisão do Alexandre, 14/11/2026, MC-0004 B): linha, chip e fundo do mapa usam só os neutros do Azul suave acima (`#DFE2E6`, `#ECEEF1` e `#C9CED5`). Saem os esverdeados `#E1E4DE`, `#ECEEE9`, `#E6E9E2`, `#C9CEC6`, `#D6DAD1` e `#E9ECE6`, em tokens, CSS e PDF.
 
 **Séries de gráfico** (decisão do Alexandre, 14/11/2026, MC-0014 A): ordem fixa Azul noite `#1E3350`, Sol laranja `#C2540A`, `#4A5562` e Azul médio `#5B7FA6`; "outros" em `#8B96A3`. Com mais de 4 séries, a cor repete e o número ou o rótulo no marcador distingue.
 
@@ -132,7 +137,8 @@ As regras de detalhe foram aprovadas pelo Alexandre em 15/11/2026 (R-20261115-15
 | Códigos (SKU, código do produto, do cliente e da empresa) | `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace`, sempre com `font-variant-numeric: tabular-nums` |
 
 - Nenhuma outra família e nenhuma fonte baixada ou embutida (`@font-face`, `next/font`, `expo-font`).
-- **E-mail:** os leitores de e-mail nem sempre conhecem `system-ui`, por isso só no HTML do e-mail a pilha termina em `Arial, Helvetica, sans-serif` (texto) e em `Consolas, "Courier New", monospace` (códigos). Fallback não é fonte nova: em nenhuma outra superfície.
+- **E-mail:** os leitores de e-mail nem sempre conhecem `system-ui`, por isso só no HTML do e-mail a pilha termina em `Arial, Helvetica, sans-serif` (texto) e em `Consolas, "Courier New", monospace` (códigos). Fallback não é fonte nova: em nenhuma outra superfície, salvo o PDF gerado no servidor (abaixo).
+- **PDF gerado no servidor** (decisão do Alexandre de 22/11/2026, R-20261122-005500-alexandre, item 1): o servidor não tem a fonte do sistema do aparelho, por isso a reserva do texto é **Arial / Liberation Sans**, na pilha `Arial, 'Liberation Sans', sans-serif` (a Liberation Sans tem as medidas da Arial e é a que o Linux tem). Hoje isso vale para o Guia da API em PDF (`modules/integracao/api/openapi/guia-pdf.ts`, impresso no Chromium sem tela). O PDF do pedido, do orçamento e do catálogo é montado no aparelho ou no navegador e segue a pilha do sistema (`packages/comum/src/fonte.ts`). Pesos, tamanhos (§5.2 e §5.3) e cores não mudam. Como no e-mail, a reserva não é fonte nova.
 - **O que é código (mono):** só o identificador que a pessoa copia, dita ou confere caractere a caractere: SKU e código do produto, código do cliente e da empresa, chave e id do Conector, senha temporária, endereço do servidor e hash. A palavra em volta fica na fonte de texto.
 - **Não é código:** CNPJ e CPF, número do pedido e da nota ("Pedido 1234" inteiro), datas, valores, quantidades e percentuais usam a fonte de texto com `tabular-nums`, para os algarismos alinharem. Vale igual no app, no BKO, no PDF e no e-mail.
 
@@ -177,7 +183,7 @@ O tamanho segue o **papel** do texto, não o tamanho antigo: o mesmo papel tem o
 - A web é pensada para **1366×768**.
 - Os tokens ficam em `packages/ui` e em `apps/web/app/globals.css` (designer-ux), com esta mesma escala. Fora dela, nenhum tamanho solto.
 - Um tamanho antigo que caia entre dois degraus vai para o degrau do seu papel (o 14 antigo da web vira 15 se for texto, campo, botão ou célula, e 13 se for secundário). O logo não entra na escala.
-- **PDF e e-mail:** fonte do sistema, os quatro pesos do §5.2 e nada abaixo de 12 px. A escala da web serve de referência; o total do pedido no PDF pode passar de 24 px, por ser o número que o cliente procura primeiro.
+- **PDF e e-mail:** fonte do sistema (no PDF gerado no servidor, a reserva Arial / Liberation Sans do §5.1), os quatro pesos do §5.2 e nada abaixo de 12 px. A escala da web serve de referência; o total do pedido no PDF pode passar de 24 px, por ser o número que o cliente procura primeiro.
 
 ## 6. Ícones do app
 | App | Fundo | Símbolo | Arquivos |

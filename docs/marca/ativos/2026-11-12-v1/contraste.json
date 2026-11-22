@@ -4,6 +4,7 @@
     "azulClaro": "#9AA3B0",
     "azulSuave": "#DFE2E6",
     "claroNoAzul": "#C9CED5",
+    "campo": "#7A8593",
     "perola": "#F8F6F1",
     "branco": "#FFFFFF",
     "grafite": "#16202A",
@@ -130,6 +131,38 @@
       "fg": "#1E3350",
       "bg": "#F8F6F1",
       "razao": 11.82,
+      "minimo": 3,
+      "passa": true
+    },
+    {
+      "uso": "texto claro no grafite (contorno do botão secundário)",
+      "fg": "#C9CED5",
+      "bg": "#16202A",
+      "razao": 10.42,
+      "minimo": 3,
+      "passa": true
+    },
+    {
+      "uso": "Campo no branco (borda de componente)",
+      "fg": "#7A8593",
+      "bg": "#FFFFFF",
+      "razao": 3.75,
+      "minimo": 3,
+      "passa": true
+    },
+    {
+      "uso": "Campo no Pérola (borda de componente)",
+      "fg": "#7A8593",
+      "bg": "#F8F6F1",
+      "razao": 3.47,
+      "minimo": 3,
+      "passa": true
+    },
+    {
+      "uso": "Campo na Névoa (borda de componente)",
+      "fg": "#7A8593",
+      "bg": "#ECEEF1",
+      "razao": 3.22,
       "minimo": 3,
       "passa": true
     }
