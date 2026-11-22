@@ -7,7 +7,7 @@
  * A montagem dos produtos é a da aba Catálogo (`lib/local.ts`), sem a leitura do concorrente.
  */
 import { implementarConsultaAparelho, type ContextoConsultaAparelho } from '@macuxi/platform-sdk';
-import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO, type ProdutoConteudoSync, type ProdutoReferenciaSync, type Referencia } from '../contracts';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO, textoDaBuscaComVeiculo, type ProdutoConteudoSync, type ProdutoReferenciaSync, type Referencia } from '../contracts';
 import { interpretarConsulta } from '../domain/consulta';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { buscaPodeRodar, buscarComTotal, sugerirTermo, TETO_RANKING_BUSCA, textosParaConsulta } from '../domain/busca-consulta';
@@ -119,8 +119,7 @@ export async function sugestaoDaBuscaLocal(leitor: LeitorLocal, q: string): Prom
 }
 
 export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
-  // RN-CAT-22: com veículo, texto de menos de 3 caracteres vale como sem texto (a lista é a das peças do veículo)
-  const q = entrada.veiculo && !buscaPodeRodar(entrada.q) ? '' : entrada.q;
+  const q = textoDaBuscaComVeiculo(entrada.q, entrada.veiculo);
   // RF-CAT-01 (T-0167): abaixo de 3 caracteres a consulta não roda
   if (!entrada.veiculo && !buscaPodeRodar(q)) return { itens: [], total: 0, sugestao: null };
   // ADR 0054: catálogo ainda carregando = API (com o preço do cliente); depois da carga, aparelho. O veículo só existe no aparelho (spec §9)

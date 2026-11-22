@@ -13,11 +13,11 @@
  * catálogo inteiro a cada chamada. A guarda disso está em tests/modulos/defeitos-corretor-r173739.test.ts (D3).
  */
 import { implementarConsulta } from '@macuxi/platform-sdk';
-import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_TEXTOS_PRODUTO, CONSULTA_VEICULOS, type VeiculosSaida } from '../contracts';
-import { buscaPodeRodar, buscarComTotal, textosParaConsulta } from '../domain/busca-consulta';
-import { navegarCascata } from '../domain/veiculo-filtro';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_TEXTOS_PRODUTO, CONSULTA_VEICULOS, textoDaBuscaComVeiculo, type VeiculosSaida } from '../contracts';
+import { buscarComTotal, textosParaConsulta } from '../domain/busca-consulta';
+import { saidaDaCascata } from '../domain/veiculo-filtro';
 import { escopoDaApi } from './escopo-cliente';
-import { apelidosDeMontadora, construirIndiceVeiculos, indiceTemVeiculo, restringirIndice, type IndiceVeiculos } from '../domain/veiculo-indice';
+import { construirIndiceVeiculos, restringirIndice, type IndiceVeiculos } from '../domain/veiculo-indice';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { parametrosDoTenant } from '../domain/parametros';
@@ -79,8 +79,7 @@ async function versaoDaCarga(db: Db): Promise<string> {
   return `${linha.n ?? ''}|${linha.ate ?? ''}`;
 }
 
-async function veiculosDaBase(db: Db, tenant: string | undefined): Promise<NomesDeVeiculo> {
-  const versao = await versaoDaCarga(db);
+async function veiculosDaBase(db: Db, tenant: string | undefined, versao: string): Promise<NomesDeVeiculo> {
   const guardado = tenant ? VEICULOS_DO_TENANT.get(tenant) : undefined;
   if (guardado && guardado.versao === versao) return guardado.veiculos;
   const r = await db.query('select b.nome, b.aplicacao, c.descricao from catalogo.produto_busca b left join catalogo.produto_conteudo c on c.produto_id = b.produto_id and c.deleted_at is null where b.deleted_at is null and b.ativo');
@@ -95,15 +94,14 @@ async function veiculosDaBase(db: Db, tenant: string | undefined): Promise<Nomes
 
 const INDICE_DO_TENANT = new Map<string, { versao: string; anoAtual: number; indice: IndiceVeiculos }>();
 
-/** RN-CAT-22: o índice de veículos da base ativa do tenant, pela mesma "versão da carga" e pelo ano civil (a faixa aberta "2015+" muda com ele). */
-async function indiceDaBase(db: Db, tenant: string | undefined, anoAtual: number): Promise<IndiceVeiculos> {
-  const versao = await versaoDaCarga(db);
+/** RN-CAT-22: o índice de veículos da base ativa do tenant, pela "versão da carga" (lida uma vez pelo chamador) e pelo ano civil (a faixa aberta "2015+" muda com ele). */
+async function indiceDaBase(db: Db, tenant: string | undefined, anoAtual: number, versao: string): Promise<IndiceVeiculos> {
   const guardado = tenant ? INDICE_DO_TENANT.get(tenant) : undefined;
   if (guardado && guardado.versao === versao && guardado.anoAtual === anoAtual) return guardado.indice;
   const r = await db.query('select produto_id, aplicacao from catalogo.produto_busca where deleted_at is null and ativo');
   const indice = construirIndiceVeiculos(
     (r.rows as Array<{ produto_id: string; aplicacao: string | null }>).map((x) => ({ id: x.produto_id, aplicacao: x.aplicacao })),
-    { anoAtual, veiculos: await veiculosDaBase(db, tenant) },
+    { anoAtual, veiculos: await veiculosDaBase(db, tenant, versao) },
   );
   if (tenant) {
     INDICE_DO_TENANT.delete(tenant);
@@ -115,12 +113,10 @@ async function indiceDaBase(db: Db, tenant: string | undefined, anoAtual: number
 
 /** `catalogo.veiculos@1` na API: a mesma cascata do aparelho, sem Recentes (`[]`). Sem preço nem estoque: responde a todo perfil. */
 export const consultaVeiculos = implementarConsulta(CONSULTA_VEICULOS, async (entrada, ctx): Promise<VeiculosSaida> => {
-  const todo = await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoCivilNoFuso(ctx.agora(), ctx.fuso?.()));
+  const todo = await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoCivilNoFuso(ctx.agora(), ctx.fuso?.()), await versaoDaCarga(ctx.db));
   // RN-CAT-22: com escopo (`produto_ids` ou `cliente_id`), só o que se pode vender conta; as mesmas funções do aparelho
   const escopo = await escopoDaApi(ctx, entrada);
-  const indice = escopo ? restringirIndice(todo, escopo) : todo;
-  if (!indiceTemVeiculo(indice)) return { disponivel: false, trilha: [], nivel: null, opcoes: [], ultimo: false, escolha: {}, rotulos: null, busca: null, recentes: [] };
-  return { disponivel: true, ...navegarCascata(indice, entrada.escolha ?? {}, entrada.busca, apelidosDeMontadora()), recentes: [] };
+  return saidaDaCascata(escopo ? restringirIndice(todo, escopo) : todo, entrada, []);
 });
 
 export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
@@ -150,16 +146,16 @@ export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS
   }));
   const sinonimos = (s.rows as Array<{ termo: string; sinonimos: string[]; ativo: boolean }>).map((x) => ({ term: x.termo, synonyms: x.sinonimos, active: x.ativo }));
   const anoAtual = anoCivilNoFuso(ctx.agora(), ctx.fuso?.());
-  // RN-CAT-22: com veículo, texto de menos de 3 caracteres vale como sem texto (o mesmo do aparelho)
-  const q = entrada.veiculo && !buscaPodeRodar(entrada.q) ? '' : entrada.q;
-  const indiceVeiculos = entrada.veiculo ? await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoAtual) : undefined;
+  const q = textoDaBuscaComVeiculo(entrada.q, entrada.veiculo);
+  const versao = await versaoDaCarga(ctx.db);
+  const indiceVeiculos = entrada.veiculo ? await indiceDaBase(ctx.db, ctx.usuario?.tenant_id, anoAtual, versao) : undefined;
   const { itens } = buscarComTotal({
     produtos,
     q,
     produtoIds: entrada.produto_ids,
     limite: entrada.limite,
     sinonimos,
-    veiculos: await veiculosDaBase(ctx.db, ctx.usuario?.tenant_id),
+    veiculos: await veiculosDaBase(ctx.db, ctx.usuario?.tenant_id, versao),
     parametros: parametrosDoTenant(ctx.parametros()),
     anoAtual,
     ...(entrada.veiculo && indiceVeiculos ? { veiculo: entrada.veiculo, indiceVeiculos } : {}),

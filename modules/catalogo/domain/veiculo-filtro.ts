@@ -3,9 +3,9 @@
  * escolheu (a peça aparece ou não aparece, sem "de conferir"), "Leve também" e a contagem dos chips da folha Filtrar. Funções puras sobre o `IndiceVeiculos` (`veiculo-indice.ts`): o mesmo resultado no aparelho
  * (sem sinal) e na API. Spec `docs/design/filtro-veiculo/spec.md` §4 a §7; desenho `docs/desenho/filtro-veiculo.md` §3.
  */
-import type { GrupoFiltro, GruposFiltro, NivelVeiculo, OpcaoVeiculo, PassoTrilha, RotulosVeiculo, VeiculoEscolhido, VeiculoParcial } from '../contracts';
+import type { GrupoFiltro, GruposFiltro, NivelVeiculo, OpcaoVeiculo, PassoTrilha, RotulosVeiculo, VeiculoEscolhido, VeiculoParcial, VeiculoRecente, VeiculosSaida } from '../contracts';
 import { normalizarTexto } from './texto';
-import type { EntradaVeiculo, IndiceVeiculos } from './veiculo-indice';
+import { apelidosDeMontadora, indiceTemVeiculo, type EntradaVeiculo, type IndiceVeiculos } from './veiculo-indice';
 
 export const NIVEIS_VEICULO: readonly NivelVeiculo[] = ['montadora', 'modelo', 'ano', 'motor', 'versao'];
 /** Quantos resultados a busca da folha mostra. */
@@ -32,10 +32,18 @@ function entradasDoModelo(i: IndiceVeiculos, f: Filtro): readonly EntradaVeiculo
   return (i.doModelo.get(f.modelo) ?? []).filter((e) => f.montadora === null || e.montadora === null || e.montadora === f.montadora);
 }
 
-const comAno = (e: EntradaVeiculo, ano: number | null) => ano === null || e.anos.length === 0 || e.anos.includes(ano);
-const comMotor = (e: EntradaVeiculo, motor: string | null) => motor === null || e.motores.length === 0 || e.motores.includes(motor);
+/** RN-CAT-22: nível escolhido, o trecho tem de trazer o valor (sem o dado, não passa); nível não escolhido não filtra. */
+const nivelPassa = <T>(escolhido: T | null, doTrecho: readonly T[]): boolean => escolhido === null || doTrecho.includes(escolhido);
 
-/** Opções (chaves) de um nível, dado o que foi escolhido nos níveis ANTERIORES a ele. */
+/** O trecho passa em cada nível ESCOLHIDO (ano, motor, versão), menos em `exceto` (o nível cujas opções se listam). */
+function passaNosEscolhidos(f: Filtro, e: EntradaVeiculo, exceto?: NivelVeiculo): boolean {
+  return (exceto === 'ano' || nivelPassa(f.ano, e.anos)) && (exceto === 'motor' || nivelPassa(f.motor, e.motores)) && (exceto === 'versao' || nivelPassa(f.versao, e.versoes));
+}
+
+/**
+ * Opções (chaves) de um nível, dado o que foi escolhido: só aparece opção que leva a alguma peça, com o MESMO predicado do filtro
+ * (`nivelPassa`): o trecho sem o ano (ou sem o motor) escolhido não alimenta as opções dos níveis seguintes.
+ */
 function opcoesDoNivel(i: IndiceVeiculos, nivel: NivelVeiculo, f: Filtro): string[] {
   switch (nivel) {
     case 'montadora':
@@ -45,11 +53,11 @@ function opcoesDoNivel(i: IndiceVeiculos, nivel: NivelVeiculo, f: Filtro): strin
       return [...modelos].sort((a, b) => ptBr(nomeDe(i, a), nomeDe(i, b)));
     }
     case 'ano':
-      return [...new Set(entradasDoModelo(i, f).flatMap((e) => e.anos))].sort((a, b) => b - a).map(String);
+      return [...new Set(entradasDoModelo(i, f).filter((e) => passaNosEscolhidos(f, e, 'ano')).flatMap((e) => e.anos))].sort((a, b) => b - a).map(String);
     case 'motor':
-      return [...new Set(entradasDoModelo(i, f).filter((e) => comAno(e, f.ano)).flatMap((e) => e.motores))].sort((a, b) => Number(a) - Number(b));
+      return [...new Set(entradasDoModelo(i, f).filter((e) => passaNosEscolhidos(f, e, 'motor')).flatMap((e) => e.motores))].sort((a, b) => Number(a) - Number(b));
     case 'versao':
-      return [...new Set(entradasDoModelo(i, f).filter((e) => comAno(e, f.ano) && comMotor(e, f.motor)).flatMap((e) => e.versoes))].sort((a, b) => ptBr(nomeDe(i, a), nomeDe(i, b)));
+      return [...new Set(entradasDoModelo(i, f).filter((e) => passaNosEscolhidos(f, e, 'versao')).flatMap((e) => e.versoes))].sort((a, b) => ptBr(nomeDe(i, a), nomeDe(i, b)));
   }
 }
 
@@ -100,6 +108,9 @@ function buscarNaCascata(i: IndiceVeiculos, texto: string, apelidos: ReadonlyMap
  */
 export function navegarCascata(indice: IndiceVeiculos, escolha: VeiculoParcial, busca?: string, apelidos: ReadonlyMap<string, string> = new Map()): NavegacaoVeiculo {
   const f = filtroDe(escolha);
+  // RN-CAT-22 (R-20261121-211200): o nível de uma opção só entra na trilha (`automatico`), mas só o que o vendedor escolheu filtra; montadora e
+  // modelo automáticos são o veículo (sem eles não há lista), então seguem na escolha. `mostrado` = o que a trilha exibe.
+  const mostrado: Filtro = { ...f };
   const autos = new Set<NivelVeiculo>();
   let nivel: NivelVeiculo | null = null;
   let opcoes: string[] = [];
@@ -108,8 +119,9 @@ export function navegarCascata(indice: IndiceVeiculos, escolha: VeiculoParcial, 
     const o = opcoesDoNivel(indice, n, f);
     if (o.length === 0) continue;
     if (o.length === 1) {
-      if (n === 'ano') f.ano = Number(o[0]);
-      else f[n] = o[0]!;
+      if (n === 'ano') mostrado.ano = Number(o[0]);
+      else mostrado[n] = o[0]!;
+      if (n === 'montadora' || n === 'modelo') f[n] = o[0]!;
       autos.add(n);
       continue;
     }
@@ -120,8 +132,7 @@ export function navegarCascata(indice: IndiceVeiculos, escolha: VeiculoParcial, 
   const valorDe = (n: NivelVeiculo, c: string | number | null): string | null => (c === null ? null : n === 'ano' || n === 'motor' ? String(c) : nomeDe(indice, c as string));
   const trilha: PassoTrilha[] = [];
   for (const n of NIVEIS_VEICULO) {
-    const c = f[n];
-    const v = valorDe(n, c);
+    const v = valorDe(n, mostrado[n]);
     if (v !== null) trilha.push({ nivel: n, valor: v, rotulo: v, automatico: autos.has(n) });
   }
   const sai: VeiculoParcial = {
@@ -153,6 +164,18 @@ export function navegarCascata(indice: IndiceVeiculos, escolha: VeiculoParcial, 
   };
 }
 
+/** A saída de `catalogo.veiculos@1` quando o catálogo (ou o escopo) não tem veículo: o botão Veículo não aparece. */
+export const SEM_VEICULO: VeiculosSaida = { disponivel: false, trilha: [], nivel: null, opcoes: [], ultimo: false, escolha: {}, rotulos: null, busca: null, recentes: [] };
+
+/**
+ * A resposta de `catalogo.veiculos@1` sobre um índice (já restrito ao escopo): a mesma no aparelho e na API. Sem veículo no índice,
+ * `SEM_VEICULO`; `recentes` só o aparelho tem (a API passa `[]`).
+ */
+export function saidaDaCascata(indice: IndiceVeiculos, entrada: { escolha?: VeiculoParcial | undefined; busca?: string | undefined }, recentes: VeiculoRecente[]): VeiculosSaida {
+  if (!indiceTemVeiculo(indice)) return SEM_VEICULO;
+  return { disponivel: true, ...navegarCascata(indice, entrada.escolha ?? {}, entrada.busca, apelidosDeMontadora()), recentes };
+}
+
 // ---------- serve ou não serve ----------
 export type SituacaoVeiculo = 'compativel' | 'nao_serve' | 'universal';
 
@@ -162,19 +185,11 @@ export interface Compatibilidade {
   segmento: EntradaVeiculo | null;
 }
 
-/** RN-CAT-22: nível escolhido, o trecho tem de trazer o valor (sem o dado, não passa); nível não escolhido não filtra. */
-const nivelPassa = <T>(escolhido: T | null, doTrecho: readonly T[]): boolean => escolhido === null || doTrecho.includes(escolhido);
-
-/** RN-CAT-22 (D4): o trecho serve quando cada nível escolhido (ano, motor, versão) está nele. */
-function trechoServe(f: Filtro, e: EntradaVeiculo): boolean {
-  return nivelPassa(f.ano, e.anos) && nivelPassa(f.motor, e.motores) && nivelPassa(f.versao, e.versoes);
-}
-
 function compatibilidadeCom(indice: IndiceVeiculos, f: Filtro, produtoId: string): Compatibilidade {
   const entradas = indice.doProduto.get(produtoId);
   if (!entradas || entradas.length === 0) return { situacao: 'universal', segmento: null };
   const doModelo = new Set(entradasDoModelo(indice, f));
-  const e = entradas.find((x) => doModelo.has(x) && trechoServe(f, x));
+  const e = entradas.find((x) => doModelo.has(x) && passaNosEscolhidos(f, x));
   return e ? { situacao: 'compativel', segmento: e } : { situacao: 'nao_serve', segmento: null };
 }
 

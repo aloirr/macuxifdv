@@ -120,17 +120,7 @@ export function FolhaFiltroCatalogo({
 }) {
   return (
     <Folha visivel={visivel} onFechar={onFechar} titulo="Filtrar" fechar={{ rotulo: 'Fechar', testID: 'catalogo-filtro-fechar' }} rotuloFechar="Fechar filtro" rolavel testID="catalogo-filtro">
-      {sistemas.length > 0 ? (
-        <View testID="catalogo-chips-sistema">
-          <Text style={e.grupo}>{ROTULO_DO_GRUPO.sistema}</Text>
-          <View style={e.chips}>
-            <Chip label="Todos" active={sistemaId === null} onPress={() => onSistema(null)} testID="catalogo-chip-sistema-todos" />
-            {sistemas.map((n) => (
-              <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={sistemaId === n.id} onPress={() => onSistema(n.id)} testID={`catalogo-chip-sistema-${n.codigo}`} />
-            ))}
-          </View>
-        </View>
-      ) : null}
+      <GrupoDeChips grupo="sistema" nos={sistemas} marcado={sistemaId} onEscolher={onSistema} rotuloTodos="Todos" />
       <GrupoDeChips grupo="familia" nos={familias} marcado={familiaId} onEscolher={onFamilia} />
       <GrupoDeChips grupo="linha" nos={linhas} marcado={linhaId} onEscolher={onLinha} />
       {categorias.length > 0 ? (
@@ -158,14 +148,14 @@ export function FolhaFiltroCatalogo({
   );
 }
 
-/** Grupo de chips de um nível da árvore (família, linha): "Todas" e os nós com a contagem; vazio = o grupo não aparece. */
-function GrupoDeChips({ grupo, nos, marcado, onEscolher }: { grupo: 'familia' | 'linha'; nos: readonly NoDoFiltro[]; marcado: string | null; onEscolher: (id: string | null) => void }) {
+/** Grupo de chips de um nível da árvore: "Todos"/"Todas" (`rotuloTodos`) e os nós com a contagem; vazio = o grupo não aparece. */
+function GrupoDeChips({ grupo, nos, marcado, onEscolher, rotuloTodos = TODAS }: { grupo: GrupoFiltro; nos: readonly NoDoFiltro[]; marcado: string | null; onEscolher: (id: string | null) => void; rotuloTodos?: string }) {
   if (nos.length === 0) return null;
   return (
     <View testID={`catalogo-chips-${grupo}`}>
       <Text style={e.grupo}>{ROTULO_DO_GRUPO[grupo]}</Text>
       <View style={e.chips}>
-        <Chip label={TODAS} active={marcado === null} onPress={() => onEscolher(null)} testID={`catalogo-chip-${grupo}-todas`} />
+        <Chip label={rotuloTodos} active={marcado === null} onPress={() => onEscolher(null)} testID={`catalogo-chip-${grupo}-${rotuloTodos.toLowerCase()}`} />
         {nos.map((n) => (
           <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={marcado === n.id} onPress={() => onEscolher(n.id)} testID={`catalogo-chip-${grupo}-${n.codigo}`} />
         ))}

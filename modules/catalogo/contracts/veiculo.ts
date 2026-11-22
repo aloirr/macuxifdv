@@ -116,3 +116,77 @@ export type ChipFiltro = z.infer<typeof ChipFiltro>;
 /** Só os grupos com 2+ chips; chip com contagem 0 sai, salvo o marcado. */
 export const GruposFiltro = z.array(z.object({ grupo: GrupoFiltro, rotulo: z.string(), chips: z.array(ChipFiltro) }).strict());
 export type GruposFiltro = z.infer<typeof GruposFiltro>;
+
+// ---------- apoios puros da folha Veículo (RD-2573): o Catálogo e o Vendedor passam `NAVEGACAO_VEICULO` e `TEXTOS_VEICULO` à `FolhaVeiculo` do kit ----------
+
+/** A escolha da folha (só o que já tem) vira veículo quando há modelo. */
+export function veiculoDaEscolha(p: VeiculoParcial): VeiculoEscolhido | null {
+  if (!p.modelo) return null;
+  return { montadora: p.montadora ?? null, modelo: p.modelo, ano: p.ano ?? null, motor: p.motor ?? null, versao: p.versao ?? null };
+}
+
+export const parcialDoVeiculo = (v: VeiculoEscolhido): VeiculoParcial => ({ ...v });
+
+/** Voltar pela trilha: os passos ANTES do `indice` (os automáticos voltam sozinhos na consulta seguinte). */
+export function escolhaAntesDoPasso(trilha: readonly PassoTrilha[], indice: number): VeiculoParcial {
+  const escolha: VeiculoParcial = {};
+  for (const p of trilha.slice(0, Math.max(0, indice))) {
+    // RN-CAT-22: ano, motor e versão preenchidos sozinhos não viram escolha (só o escolhido filtra); montadora e modelo seguem
+    if (p.automatico && (p.nivel === 'ano' || p.nivel === 'motor' || p.nivel === 'versao')) continue;
+    if (p.nivel === 'ano') escolha.ano = Number(p.valor);
+    else escolha[p.nivel] = p.valor;
+  }
+  return escolha;
+}
+
+/** Escolhe a opção `valor` do `nivel` sobre a escolha de agora. */
+export function escolherOpcao(escolha: VeiculoParcial, nivel: NivelVeiculo, valor: string): VeiculoParcial {
+  return nivel === 'ano' ? { ...escolha, ano: Number(valor) } : { ...escolha, [nivel]: valor };
+}
+
+/** O que a busca da folha escolheu: montadora leva ao Modelo; modelo (com a montadora do apoio) leva ao Ano. */
+export function escolhaDoResultadoDaBusca(r: OpcaoVeiculo): VeiculoParcial {
+  return r.nivel === 'montadora' ? { montadora: r.valor } : { ...(r.apoio ? { montadora: r.apoio } : {}), modelo: r.valor };
+}
+
+/** No formato `NavegacaoCascata` do kit (`@macuxi/ui/mobile`), sem importá-lo: o contrato é só estrutural. */
+export const NAVEGACAO_VEICULO = {
+  vazia: {} as VeiculoParcial,
+  doVeiculo: parcialDoVeiculo,
+  veiculoDe: veiculoDaEscolha,
+  antesDoPasso: escolhaAntesDoPasso,
+  escolher: escolherOpcao,
+  daBusca: escolhaDoResultadoDaBusca,
+  /** Grade de 4 colunas só no Ano. */
+  nivelEmGrade: 'ano' as const,
+  /** Níveis com o principal "Ver peças" no pé, fora o último (lá, tocar já aplica e fecha). */
+  niveisComVerPecas: ['ano', 'motor', 'versao'] as readonly NivelVeiculo[],
+};
+
+export const ROTULO_DO_NIVEL: Record<NivelVeiculo, string> = { montadora: 'Montadora', modelo: 'Modelo', ano: 'Ano', motor: 'Motor', versao: 'Versão' };
+
+export const nenhumModeloCom = (texto: string): string => `Nenhum modelo com "${texto}".`;
+
+/** No formato `TextosFolhaVeiculo` do kit (mais o `botao`, do botão Veículo da tela). */
+export const TEXTOS_VEICULO = {
+  botao: 'Veículo',
+  titulo: 'Veículo',
+  fechar: 'Fechar',
+  buscaPlaceholder: 'Modelo ou montadora',
+  buscaLimpar: 'Limpar a busca',
+  recentes: 'Recentes',
+  verPecas: 'Ver peças',
+  rotuloDoNivel: ROTULO_DO_NIVEL as Readonly<Record<string, string>>,
+  nenhumModeloCom,
+};
+
+/** Leitor de tela do botão Veículo: com veículo aplicado, diz qual (`rotulos` vem do domain ou da folha). */
+export const leituraDoBotaoVeiculo = (r: RotulosVeiculo | null): string => (r ? `Veículo: ${r.completo}` : TEXTOS_VEICULO.botao);
+export const leituraDaEtiquetaVeiculo = (r: RotulosVeiculo): string => `Remover veículo ${r.completo}`;
+
+/** RF-CAT-01 (T-0167): a busca só roda com 3 caracteres ou mais; com 2 letras o ranking fica pesado e o resultado, largo demais. */
+export const MINIMO_CARACTERES_BUSCA = 3;
+export const buscaPodeRodar = (q: string): boolean => q.replace(/\s+/g, '').length >= MINIMO_CARACTERES_BUSCA;
+
+/** RN-CAT-22: com veículo, texto de menos de 3 caracteres vale como sem texto (a lista é a das peças do veículo); sem veículo, o texto é o que veio. */
+export const textoDaBuscaComVeiculo = (q: string, veiculo: unknown): string => (veiculo && !buscaPodeRodar(q) ? '' : q);
