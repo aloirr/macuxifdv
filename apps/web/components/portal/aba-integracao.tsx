@@ -50,6 +50,17 @@ export function corpoDaCredencial(p: { identificador: string; nome: string; tipo
 export const rotaDoConector = (id: string) => `${ROTAS_PORTAL.conectores}/${encodeURIComponent(id)}`;
 export const rotaChaveDoConector = (id: string) => `${rotaDoConector(id)}/chave`;
 
+/** Outro Conector ativo já recebe os pedidos (só um por empresa na v1, P-7). */
+export function outroRecebePedidos(conectores: readonly { ativo: boolean; recebe_pedidos: boolean; conector_id: string }[], ignorar: string): boolean {
+  return conectores.some((c) => c.ativo && c.recebe_pedidos && c.conector_id !== ignorar);
+}
+
+/** Reativar: PATCH { ativo: true, entidades, recebe_pedidos } e, em seguida, a chave nova (desativar revogou as chaves). */
+export async function reativarConector(id: string, corpo: { entidades: Entidade[]; recebe_pedidos: boolean }, tenant: string, chamar: typeof chamarPortal = chamarPortal): Promise<ChaveNova> {
+  await chamar(rotaDoConector(id), { metodo: 'PATCH', tenant, corpo: { ativo: true, ...corpo } });
+  return chamar(rotaChaveDoConector(id), { metodo: 'POST', tenant, corpo: {}, schema: ConectorCriado.shape.chave });
+}
+
 /** Aviso quando não sobra base livre para o Conector do ERP: com o Conector de arquivo ativo, o caminho é desativá-lo. */
 export function mensagemSemBases(conectores: readonly { ativo: boolean; tipo: string; conector_id: string; entidades: readonly Entidade[] }[], temArquivo: boolean): string {
   if (temArquivo) return 'Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.';
@@ -85,9 +96,22 @@ export function DialogoConector({ alvo, acao, enviando, aoFechar, aoConfirmar }:
   );
 }
 
-export function DialogoBases({ alvo, conectores, enviando, erro, aoFechar, aoGravar }: { alvo: Conector | null; conectores: readonly Conector[]; enviando: boolean; erro: string | null; aoFechar: () => void; aoGravar: (entidades: Entidade[]) => void }) {
+type CorpoBases = { entidades: Entidade[]; recebe_pedidos: boolean };
+
+function CaixaPedidos({ marcada, bloqueada, aoMudar }: { marcada: boolean; bloqueada: boolean; aoMudar: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2.5 text-[15px]">
+      <input type="checkbox" data-testid="integracao.dialogo-recebe-pedidos" className="h-4 w-4 accent-accent" disabled={bloqueada} checked={marcada} onChange={(e) => aoMudar(e.target.checked)} />
+      Recebe pedidos
+    </label>
+  );
+}
+
+export function DialogoBases({ alvo, conectores, enviando, erro, aoFechar, aoGravar }: { alvo: Conector | null; conectores: readonly Conector[]; enviando: boolean; erro: string | null; aoFechar: () => void; aoGravar: (corpo: CorpoBases) => void }) {
   const [marcadas, setMarcadas] = useState<Entidade[]>(alvo ? [...alvo.entidades] : []);
+  const [pedidos, setPedidos] = useState(alvo?.recebe_pedidos ?? false);
   const bases = alvo ? basesDoDialogo(conectores, alvo) : [];
+  const pedidosBloqueado = alvo ? !alvo.recebe_pedidos && outroRecebePedidos(conectores, alvo.conector_id) : false;
   return (
     <Dialog
       open={alvo !== null}
@@ -98,7 +122,7 @@ export function DialogoBases({ alvo, conectores, enviando, erro, aoFechar, aoGra
           <Button data-testid="integracao.bases-cancelar" onClick={aoFechar}>
             Cancelar
           </Button>
-          <Button variant="primary" data-testid="integracao.bases-gravar" disabled={enviando || marcadas.length === 0} onClick={() => aoGravar(ENTIDADES.filter((e) => marcadas.includes(e)))}>
+          <Button variant="primary" data-testid="integracao.bases-gravar" disabled={enviando || marcadas.length === 0} onClick={() => aoGravar({ entidades: ENTIDADES.filter((e) => marcadas.includes(e)), recebe_pedidos: pedidos })}>
             Gravar
           </Button>
         </>
@@ -118,8 +142,50 @@ export function DialogoBases({ alvo, conectores, enviando, erro, aoFechar, aoGra
             {CARTAO_DA_ENTIDADE[b.entidade].titulo}
           </label>
         ))}
+        <CaixaPedidos marcada={pedidos} bloqueada={pedidosBloqueado} aoMudar={setPedidos} />
         {erro && (
           <div data-testid="integracao.bases-erro">
+            <Notice tone="danger">{erro}</Notice>
+          </div>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+/** Reativar um Conector desativado: marcadas as bases que nenhum Conector ativo recebe; "Recebe pedidos" só se nenhum outro ativo recebe. */
+export function DialogoReativar({ alvo, conectores, enviando, erro, aoFechar, aoReativar }: { alvo: Conector | null; conectores: readonly Conector[]; enviando: boolean; erro: string | null; aoFechar: () => void; aoReativar: (corpo: CorpoBases) => void }) {
+  const livres = alvo ? entidadesLivres(conectores, alvo.conector_id) : [];
+  const pedidosBloqueado = alvo ? outroRecebePedidos(conectores, alvo.conector_id) : false;
+  const [marcadas, setMarcadas] = useState<Entidade[]>(livres);
+  const [pedidos, setPedidos] = useState(!!alvo?.recebe_pedidos && !pedidosBloqueado);
+  return (
+    <Dialog
+      open={alvo !== null}
+      title={alvo ? `Reativar o Conector ${alvo.conector_id}?` : ''}
+      onClose={aoFechar}
+      footer={
+        <>
+          <Button data-testid="integracao.reativar-cancelar" onClick={aoFechar}>
+            Cancelar
+          </Button>
+          <Button variant="primary" data-testid="integracao.reativar-confirmar" disabled={enviando || marcadas.length === 0} onClick={() => aoReativar({ entidades: ENTIDADES.filter((e) => marcadas.includes(e)), recebe_pedidos: pedidos && !pedidosBloqueado })}>
+            Reativar
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        {livres.length === 0 && <Notice tone="warning">Todas as bases já vêm de outro Conector ativo. Tire bases dele em "Bases" antes de reativar.</Notice>}
+        {livres.map((e) => (
+          <label key={e} className="flex items-center gap-2.5 text-[15px]">
+            <input type="checkbox" data-testid={`integracao.reativar-base-${e}`} className="h-4 w-4 accent-accent" checked={marcadas.includes(e)} onChange={(x) => setMarcadas((m) => (x.target.checked ? [...m, e] : m.filter((y) => y !== e)))} />
+            {CARTAO_DA_ENTIDADE[e].titulo}
+          </label>
+        ))}
+        <CaixaPedidos marcada={pedidos && !pedidosBloqueado} bloqueada={pedidosBloqueado} aoMudar={setPedidos} />
+        {erro && (
+          <div data-testid="integracao.reativar-erro">
             <Notice tone="danger">{erro}</Notice>
           </div>
         )}
@@ -174,6 +240,8 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
   const [fora, setFora] = useState<Entidade[]>([]);
   const [basesDe, setBasesDe] = useState<Conector | null>(null);
   const [erroBases, setErroBases] = useState<string | null>(null);
+  const [reativarDe, setReativarDe] = useState<Conector | null>(null);
+  const [erroReativar, setErroReativar] = useState<string | null>(null);
   const [criado, setCriado] = useState<Criado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -224,12 +292,27 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
     }
   };
 
-  const gravarBases = async (entidades: Entidade[]) => {
+  const reativar = async (corpo: CorpoBases) => {
+    if (!reativarDe || agindo) return;
+    setAgindo(true);
+    setErroReativar(null);
+    try {
+      setNovaChave(await reativarConector(reativarDe.id, corpo, tenant));
+      setReativarDe(null);
+    } catch (x) {
+      setErroReativar(mensagemDoErro(x));
+    } finally {
+      void qc.invalidateQueries({ queryKey: chave });
+      setAgindo(false);
+    }
+  };
+
+  const gravarBases = async (corpo: CorpoBases) => {
     if (!basesDe || agindo) return;
     setAgindo(true);
     setErroBases(null);
     try {
-      await chamarPortal(rotaDoConector(basesDe.id), { metodo: 'PATCH', tenant, corpo: { entidades } });
+      await chamarPortal(rotaDoConector(basesDe.id), { metodo: 'PATCH', tenant, corpo });
       setBasesDe(null);
       void qc.invalidateQueries({ queryKey: chave });
     } catch (x) {
@@ -301,6 +384,15 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
                             Desativar
                           </Button>
                         </div>
+                      )}
+                      {!c.ativo && c.tipo !== 'arquivo' && (
+                        <Button size="sm" data-testid={`integracao.reativar-${c.conector_id}`} disabled={agindo} onClick={() => {
+                            setErroReativar(null);
+                            setReativarDe(c);
+                          }}
+                        >
+                          Reativar
+                        </Button>
                       )}
                     </td>
                   </tr>
@@ -378,6 +470,8 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
       </Panel>
 
       <DialogoBases key={basesDe?.id ?? 'nenhum'} alvo={basesDe} conectores={conectores} enviando={agindo} erro={erroBases} aoFechar={() => setBasesDe(null)} aoGravar={(e) => void gravarBases(e)} />
+
+      <DialogoReativar key={reativarDe?.id ?? 'nenhum'} alvo={reativarDe} conectores={conectores} enviando={agindo} erro={erroReativar} aoFechar={() => setReativarDe(null)} aoReativar={(c) => void reativar(c)} />
 
       <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmarAcao()} />
 
