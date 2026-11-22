@@ -11,7 +11,9 @@
  * - tudo auditado em `plataforma.auditoria_plataforma` (sa_auditar), sem e-mail, senha nem token; nada disso vai a log.
  */
 import { type AcessoBanco, type AcessoPortalAutenticado, type ContextoPublico } from '@macuxi/platform-sdk';
+import { minutosRestantesDoBloqueio } from '../domain/auth';
 import { chaveBloqueada, decidirAcessoDoLogin, expiracaoDoTokenPlataforma } from '../domain/super-admin';
+import { mensagemBloqueioPorTentativas } from '../contracts/auth';
 import { CODIGOS_PORTAL, MENSAGEM_PORTAL_SENHA_A_TROCAR, type EscolherEmpresaPortal, type LoginPortal, type SessaoPortal } from '../contracts/plataforma';
 import { erroHttp } from './erros';
 import { fabricaSuperAdminSql, type EmpresaDaSessao, type FabricaSuperAdmin, type LinhaAuditoriaAuth, type RepositorioSuperAdmin, type SessaoViva } from './super-admin-repositorio';
@@ -27,8 +29,12 @@ export interface DepsSuperAdmin {
 }
 
 const MENSAGEM_CREDENCIAIS = 'E-mail ou senha incorretos. Confira e tente de novo.';
-const MENSAGEM_BLOQUEADO = 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.';
 const MENSAGEM_SESSAO = 'Sua sessão do portal expirou. Entre de novo.';
+/** 423 do portal (RN-CORE-31): a mensagem e `detalhes.minutos_restantes` dizem o tempo que falta, como no login do app. */
+const bloqueioPortal = (ate: Date, agora: Date) => {
+  const min = minutosRestantesDoBloqueio(ate, agora);
+  return erroHttp(423, CODIGOS_PORTAL.bloqueado, mensagemBloqueioPorTentativas(min), { minutos_restantes: min });
+};
 const MENSAGEM_EMPRESA = 'Você não tem acesso a esta empresa. Escolha uma da lista.';
 
 /** Prefixo do IP para a auditoria (LGPD): IPv4 /24, IPv6 /48. */
@@ -110,10 +116,10 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
 
     // RN-CORE-31: bloqueado = 423 para QUALQUER senha e QUALQUER e-mail (existente ou não), sem conferir nem contar
     const estado = await repo.tentativaEstado(chave);
-    if (chaveBloqueada(estado.bloqueado_ate, agora)) {
+    if (estado.bloqueado_ate && chaveBloqueada(estado.bloqueado_ate, agora)) {
       await gastar(ctx.corpo.senha);
       await auditar(repo, ctx, 'sa.login.falha', 423, rota, ANONIMO, { motivo: 'bloqueado' });
-      throw erroHttp(423, CODIGOS_PORTAL.bloqueado, MENSAGEM_BLOQUEADO);
+      throw bloqueioPortal(estado.bloqueado_ate, agora);
     }
 
     const contas = await repo.contasParaLogin(ctx.corpo.email);
@@ -130,9 +136,9 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     }
     if (!decidido) {
       const r = await repo.tentativaFalha(chave);
-      const bloqueou = chaveBloqueada(r.bloqueado_ate, agora);
+      const bloqueou = r.bloqueado_ate !== null && chaveBloqueada(r.bloqueado_ate, agora);
       await auditar(repo, ctx, 'sa.login.falha', bloqueou ? 423 : 401, rota, ANONIMO, { motivo: 'credenciais', falhas: r.falhas });
-      if (bloqueou) throw erroHttp(423, CODIGOS_PORTAL.bloqueado, MENSAGEM_BLOQUEADO);
+      if (r.bloqueado_ate && bloqueou) throw bloqueioPortal(r.bloqueado_ate, agora);
       throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
     }
 
