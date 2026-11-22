@@ -48,6 +48,7 @@ describe('regras de fronteira (dependency-cruiser)', () => {
   const ok = cruzar('ok');
   const ciclo = cruzar('ciclo');
   const pares = violacao.violacoes.map((v) => `${v.rule.name}: ${v.from} → ${v.to}`);
+  const regrasCiclo = ciclo.violacoes.map((v) => `${v.rule.severity} ${v.rule.name}: ${v.from} → ${v.to}`);
 
   it('fixture de violação faz o depcruise FALHAR (exit = nº de erros, 8)', () => {
     expect(violacao.status).toBe(8);
@@ -91,17 +92,16 @@ describe('regras de fronteira (dependency-cruiser)', () => {
   });
 
   it('core/contracts importando o contracts de outro módulo é erro (ciclo do PR #636)', () => {
-    const regras = ciclo.violacoes.map((v) => `${v.rule.severity} ${v.rule.name}: ${v.from} → ${v.to}`);
-    expect(regras).toContain(
+    expect(regrasCiclo).toContain(
       'error core-contracts-importa-outro-modulo: modules/core/contracts/index.ts → modules/integracao/contracts/index.ts',
     );
-    expect(regras).toContain(
+    expect(regrasCiclo).toContain(
       'error ciclo-entre-modulos: modules/core/contracts/index.ts → modules/integracao/contracts/index.ts',
     );
   });
 
   it('ciclo indireto entre módulos (core/contracts → core/domain → vendedor/contracts) é erro, não aviso', () => {
-    expect(ciclo.violacoes.map((v) => `${v.rule.severity} ${v.rule.name}: ${v.from} → ${v.to}`)).toContain(
+    expect(regrasCiclo).toContain(
       'error ciclo-entre-modulos: modules/core/contracts/index.ts → modules/core/domain/regra.ts',
     );
     expect(ciclo.violacoes.some((v) => v.rule.name === 'ciclo-entre-arquivos')).toBe(false);
