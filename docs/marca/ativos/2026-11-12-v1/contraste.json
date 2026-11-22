@@ -135,6 +135,14 @@
       "passa": true
     },
     {
+      "uso": "texto claro no grafite (contorno do botão secundário)",
+      "fg": "#C9CED5",
+      "bg": "#16202A",
+      "razao": 10.42,
+      "minimo": 3,
+      "passa": true
+    },
+    {
       "uso": "Campo no branco (borda de componente)",
       "fg": "#7A8593",
       "bg": "#FFFFFF",
