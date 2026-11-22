@@ -52,7 +52,7 @@ function BlocosDeLicencas({ ficha, largo }: { ficha: FichaAssinatura; largo: boo
     <ul className={cx('m-0 grid list-none grid-cols-2 gap-2.5 p-0', largo ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-3')}>
       {blocosDaFicha(ficha).map((b) => (
         <li key={b.item} data-testid={`empresa-plano.uso-${b.item}`} className="flex min-w-0 flex-col justify-center gap-1 rounded-xl border border-line px-3 py-2.5">
-          <span className={cx('flex min-h-[22px] items-center gap-2 text-[13px] leading-tight', b.adicional ? 'font-bold text-accent-ink' : 'font-semibold text-ink-2')}>
+          <span className={cx('flex min-h-[22px] items-center gap-2 text-[13px] leading-tight', b.adicional ? 'font-semibold text-accent-ink' : 'font-semibold text-ink-2')}>
             {b.adicional && <IconeDoAdicional a={b.item} />}
             <span className="min-w-0">{b.rotulo}</span>
           </span>
@@ -75,7 +75,7 @@ function BlocosDeLicencas({ ficha, largo }: { ficha: FichaAssinatura; largo: boo
 function ValorETeste({ ficha }: { ficha: FichaAssinatura }) {
   return (
     <>
-      <span data-testid="empresa-plano.valor" className="text-[17px] font-bold tabular-nums text-ink">
+      <span data-testid="empresa-plano.valor" className="text-[17px] font-semibold tabular-nums text-ink">
         {valorPorCiclo(ficha.valor.por_ciclo_centavos, ficha.valor.ciclo)}
       </span>
       {emTeste(ficha) && ficha.teste_ate && (
@@ -201,7 +201,7 @@ export function DialogoTrocarPlano({ tenant, ficha, aoFechar, aoTrocar }: { tena
       footer={
         <>
           {total && (
-            <span data-testid="empresa-plano.total" className="mr-auto self-center text-[17px] font-bold tabular-nums text-ink">
+            <span data-testid="empresa-plano.total" className="mr-auto self-center text-[17px] font-semibold tabular-nums text-ink">
               {total}
             </span>
           )}

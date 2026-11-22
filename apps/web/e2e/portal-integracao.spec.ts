@@ -2,7 +2,8 @@
  * e2e do portal config. no modo falso (spec portal-config-enxuto §10.2 e §11): aba Integração em dois lados (Conector | API), o caso
  * do ERP (Bases do Conector e credencial de API), "Envia os pedidos" no diálogo "Bases", "Reativar" com a chave nova, o guia da API em
  * PDF, a aba Empresa com plano, o "Trocar de plano" no Dialog do kit (RD-2616), a empresa sem plano só com o "Acrescentar módulos" no
- * cartão "Módulos licenciados" (RD-2613) e a Nova empresa preenchida; refaz os prints 03b, 05b, 05c, 05d, 05e, 06a, 06b e 06d em
+ * cartão "Módulos licenciados" (RD-2613), o Catálogo opcional (RD-2617), a Nova empresa preenchida e a marca com área de proteção
+ * em Entrar e Escolha a empresa (MC-0022); refaz os prints 01, 03b, 05b, 05c, 05d, 05e, 06a, 06b, 06d e 09 em
  * 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
  */
 import { fileURLToPath } from 'node:url';
@@ -238,9 +239,11 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     const conteudo = page.getByTestId('empresa-pagina.conteudo-empresa');
     await expect(conteudo).toHaveAttribute('data-sem-plano', 'sim', { timeout: 60000 });
     await expect(page.getByTestId('empresa-pagina.modulos')).toHaveText('Vendedor · 10 licenças');
-    for (const m of ['gestor', 'pesquisa', 'promotor', 'treinamento']) await expect(page.getByTestId(`empresa.modulo-${m}`)).toBeVisible();
+    // o Catálogo é opcional: entra na lista, desmarcado; Core e Integração não aparecem (RD-2617)
+    for (const m of ['catalogo', 'gestor', 'pesquisa', 'promotor', 'treinamento']) await expect(page.getByTestId(`empresa.modulo-${m}`)).toBeVisible();
+    await expect(page.getByTestId('empresa.modulo-catalogo')).not.toBeChecked();
     await expect(page.getByTestId('empresa.gravar')).toHaveText('Acrescentar módulos');
-    for (const t of ['empresa.razao-social', 'empresa.admin', 'empresa.conferir', 'empresa.modulo-vendedor', 'empresa.modulo-core']) await expect(page.getByTestId(t)).toHaveCount(0);
+    for (const t of ['empresa.razao-social', 'empresa.admin', 'empresa.conferir', 'empresa.modulo-vendedor', 'empresa.modulo-core', 'empresa.modulo-integracao']) await expect(page.getByTestId(t)).toHaveCount(0);
     await expect(conteudo).not.toContainText('Administrador da empresa');
     await expect(page.getByTestId('empresa-pagina.apps')).toBeVisible();
     await page.screenshot({ path: `${PRINTS}/06a-aba-empresa-sem-plano${nome}.png`, fullPage: true });
@@ -271,6 +274,27 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       await expect(page.getByTestId('empresa.total')).toContainText('/ano');
       await page.screenshot({ path: `${PRINTS}/03b-nova-empresa-anual.png`, fullPage: true });
     }
+    await ctx.close();
+  });
+}
+
+for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
+  test(`Entrar e Escolha a empresa: logo a 104 px com 14 px de folga (MC-0022) (${largura} px)`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 800 : 844 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    await page.goto('/entrar');
+    await semIndicador(page);
+    const logo = page.getByAltText('Macuxi Força de Vendas');
+    await expect(logo).toBeVisible({ timeout: 60000 });
+    expect((await logo.boundingBox())?.width).toBe(104);
+    await page.screenshot({ path: `${PRINTS}/01-entrar${nome}.png` });
+    await page.getByTestId('entrar.email').fill('admin@duas.com.br');
+    await page.getByTestId('entrar.senha').fill('certa-123');
+    await page.getByTestId('entrar.entrar').click();
+    await expect(page.getByTestId('escolher.lista')).toBeVisible({ timeout: 60000 });
+    await semIndicador(page);
+    expect((await page.getByAltText('Macuxi Força de Vendas').boundingBox())?.width).toBe(104);
+    await page.screenshot({ path: `${PRINTS}/09-escolher-empresa${nome}.png` });
     await ctx.close();
   });
 }

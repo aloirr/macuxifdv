@@ -16,7 +16,7 @@ const form = {
   razao_social: 'Distribuidora Norte Ltda',
   cnpj: '11.222.333/0001-81',
   fuso: 'America/Manaus',
-  modulos: { vendedor: { marcado: true, licencas: '12' }, catalogo: { marcado: false, licencas: '' }, promotor: { marcado: false, licencas: '5' } },
+  modulos: { vendedor: { marcado: true, licencas: '12' }, catalogo: { marcado: true, licencas: '' }, promotor: { marcado: false, licencas: '5' } },
   alcada_vendedor_pct: '5',
   alcada_supervisor_pct: '10,5',
   alcada_gerente_pct: '15',
@@ -25,7 +25,7 @@ const form = {
 };
 
 describe('passo Empresa', () => {
-  it('corpo: os nativos (core, catalogo e integracao) sempre; licença vazia = sem limite; vírgula decimal; passa no CriarEmpresaSchema', () => {
+  it('corpo: core e integracao sempre; catálogo marcado vai (RD-2617); licença vazia = sem limite; vírgula decimal; passa no CriarEmpresaSchema', () => {
     const c = corpoDaEmpresa(form, true) as { modulos: { modulo: string; licencas: number | null }[]; parametros: Record<string, unknown>; simular: boolean };
     expect(c.modulos).toEqual([
       { modulo: 'core', licencas: null },
@@ -38,6 +38,10 @@ describe('passo Empresa', () => {
     const p = CriarEmpresaSchema.parse(c);
     expect(p.cnpj).toBe('11222333000181');
     expect(errosDaEmpresa(c)).toEqual({});
+  });
+  it('corpo: o catálogo é opcional; desmarcado, não vai (RD-2617)', () => {
+    const c = corpoDaEmpresa({ ...form, modulos: { ...form.modulos, catalogo: { marcado: false, licencas: '' } } }, false) as { modulos: { modulo: string }[] };
+    expect(c.modulos.map((m) => m.modulo)).toEqual(['core', 'vendedor', 'integracao']);
   });
   it('erros por campo: CNPJ com dígito errado e alçadas fora de ordem', () => {
     const e = errosDaEmpresa(corpoDaEmpresa({ ...form, cnpj: '11.222.333/0001-82', alcada_supervisor_pct: '20', alcada_gerente_pct: '15' }, false));

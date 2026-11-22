@@ -47,7 +47,7 @@ type Erros = Readonly<Record<string, string | undefined>>;
 function PrecoDoPlano({ plano, ciclo }: { plano: Plano; ciclo: Ciclo }) {
   const { valor, sufixo } = precoDoPlanoEmPartes(plano, ciclo);
   return (
-    <span data-testid={`empresa.plano-${plano.codigo}-preco`} className="text-[20px] leading-tight font-bold whitespace-nowrap tabular-nums text-ink">
+    <span data-testid={`empresa.plano-${plano.codigo}-preco`} className="text-[20px] leading-tight font-semibold whitespace-nowrap tabular-nums text-ink">
       {valor}
       <span className="text-[13px] font-semibold text-ink-2">{sufixo}</span>
     </span>
@@ -112,7 +112,7 @@ export function AlternadorCiclo({ ciclo, mesesGratis, aoMudar }: { ciclo: Ciclo;
             <input type="radio" name="ciclo" value={c} checked={on} onChange={() => aoMudar(c)} className="sr-only" />
             {c === 'mensal' ? TEXTOS_PLANO.mensal : TEXTOS_PLANO.anual}
             {c === 'anual' && mesesGratis > 0 && (
-              <span className={cx('rounded-md px-1.5 py-0.5 text-[12px] font-bold text-accent-ink', on ? 'bg-white' : 'bg-accent-soft')}>{TEXTOS_PLANO.mesesGratis(mesesGratis)}</span>
+              <span className={cx('rounded-md px-1.5 py-0.5 text-[12px] font-semibold text-accent-ink', on ? 'bg-white' : 'bg-accent-soft')}>{TEXTOS_PLANO.mesesGratis(mesesGratis)}</span>
             )}
           </label>
         );
@@ -175,7 +175,7 @@ export function AdicionaisEmLinhas({ plano, escolha, aoMudar, erros }: { plano: 
                 />
                 <IconeDoAdicional a={a} />
                 <span className="flex min-w-0 flex-col">
-                  <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicionalNoPortal(a)}</span>
+                  <span className="text-[15px] font-semibold text-accent-ink">{nomeDoAdicionalNoPortal(a)}</span>
                   <span className="text-[13px] text-ink-2 sm:hidden">{preco}</span>
                 </span>
                 <span className="hidden text-[13px] text-ink-2 sm:block">{preco}</span>
@@ -223,7 +223,7 @@ export function SeletorPlano({ planos, escolha, aoMudar, erros }: { planos: read
                     <label className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5">
                       <input type="checkbox" data-testid={`empresa.adicional-${a}`} className={caixaCss} checked={marcado} onChange={(e) => aoMudar(comAdicional(escolha, a, e.target.checked ? '1' : undefined))} />
                       <IconeDoAdicional a={a} />
-                      <span className="text-[15px] font-bold text-accent-ink">{nomeDoAdicionalNoPortal(a)}</span>
+                      <span className="text-[15px] font-semibold text-accent-ink">{nomeDoAdicionalNoPortal(a)}</span>
                       <span className="text-[13px] text-ink-2">{precoDoAdicional(plano, a, escolha.ciclo)}</span>
                     </label>
                     {marcado && (

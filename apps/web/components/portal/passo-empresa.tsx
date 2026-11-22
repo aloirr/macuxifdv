@@ -309,7 +309,7 @@ function NovaEmpresaComPlano({ aoGravar }: { aoGravar?: () => void }) {
           {enviando ? TEXTOS_NOVA_EMPRESA.criando : TEXTOS_NOVA_EMPRESA.criar}
         </Button>
         {total && (
-          <span data-testid="empresa.total" className="text-[17px] font-bold tabular-nums text-ink">
+          <span data-testid="empresa.total" className="text-[17px] font-semibold tabular-nums text-ink">
             {total}
           </span>
         )}

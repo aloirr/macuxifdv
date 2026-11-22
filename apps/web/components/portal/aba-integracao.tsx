@@ -220,7 +220,7 @@ function CaixaPedidos({ testId, marcada, bloqueada = false, aoMudar }: { testId:
 function Passo({ n, children }: { n: number; children: ReactNode }) {
   return (
     <span className="flex items-center gap-2.5">
-      <span aria-hidden="true" className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-bold text-white">
+      <span aria-hidden="true" className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-accent text-[12px] font-semibold text-white">
         {n}
       </span>
       {children}
@@ -588,7 +588,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
     <div data-testid="integracao.aba" className="grid md:grid-cols-2">
       {/* divisória: filete de 1 px (`line`) no meio, da altura do lado mais alto, 24 px de folga; abaixo de 768 px, horizontal */}
       <section aria-labelledby="integracao-conector" className="flex min-w-0 flex-col gap-4 border-b border-line pb-6 md:border-r md:border-b-0 md:pr-6 md:pb-0">
-        <h2 id="integracao-conector" className="m-0 text-[20px] font-extrabold">
+        <h2 id="integracao-conector" className="m-0 text-[20px] font-bold">
           Integração via Conector
         </h2>
         <Panel title={<Passo n={1}>Baixar o Conector</Passo>}>
@@ -608,7 +608,7 @@ export function AbaIntegracao({ tenant, guiaPdf = ENCAIXE_API_HUB.guiaPdf }: { t
       </section>
 
       <section aria-labelledby="integracao-api" className="flex min-w-0 flex-col gap-4 pt-6 md:pt-0 md:pl-6">
-        <h2 id="integracao-api" className="m-0 text-[20px] font-extrabold">
+        <h2 id="integracao-api" className="m-0 text-[20px] font-bold">
           Integração via API
         </h2>
         <Panel title="Gerar a credencial">

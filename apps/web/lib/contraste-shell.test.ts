@@ -41,6 +41,10 @@ describe('shell web sem laranja cru em texto', () => {
     const de = (f: string) => fontes.find((x) => x.f.split(sep).join('/') === f)?.texto ?? '';
     expect(de('components/marca-faixa.tsx')).toContain('bg-faixa ');
     expect(de('components/marca-faixa.tsx')).toContain('text-faixa-texto');
+    // área de proteção do logo (MC-0022, portal-config-enxuto.md §0): 104 px e 14 px de folga, também na faixa solta
+    expect(de('components/marca-faixa.tsx')).toContain('rounded-xl bg-faixa p-3.5');
+    expect(de('components/marca-faixa.tsx')).toContain('gap-3.5');
+    expect(de('components/marca-faixa.tsx')).not.toMatch(/w-\[130px\]|\b130\b/);
     expect(de('components/login-screen.tsx')).toContain('<MarcaNaFaixa area="Backoffice" />');
     expect(de('components/portal/base.tsx')).toContain('<MarcaNaFaixa area="Portal de implantação" />');
   });

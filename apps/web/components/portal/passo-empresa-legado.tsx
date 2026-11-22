@@ -5,8 +5,8 @@
  * o servidor estiver sem planos (passo antigo da Nova empresa e `semPlano` da `tela-empresa`); sai inteiro, com os testes do
  * "passo Empresa" em `lib/portal-telas.test.ts`, quando nenhum dos dois o usar. A "Nova empresa" é a `NovaEmpresa` de `passo-empresa.tsx`.
  * Passo Empresa do portal (T-0087 §2; desenho §5.1): `POST /v1/plataforma/empresas` com `CriarEmpresaSchema` — por baixo, o
- * `tenant:criar` da T-0083 (RN-CORE-31, idempotente pelo código). Os nativos do kit (`MODULOS_NATIVOS`: Catálogo, Core e
- * Integração) entram sempre e não aparecem na lista. A API revalida tudo (dependências entre módulos, RN-CORE-03). testIDs: empresa.*.
+ * `tenant:criar` da T-0083 (RN-CORE-31, idempotente pelo código). Core e Integração entram sempre e não aparecem na
+ * lista; o Catálogo é opcional (RD-2617, `lib/portal-modulos`). A API revalida tudo (dependências entre módulos, RN-CORE-03). testIDs: empresa.*.
  * - Empresa nova (servidor sem planos): Empresa, Administrador (`AdminInicial`, RN-CORE-34), Módulos e licenças, Parâmetros
  *   iniciais, "Conferir sem gravar" (`simular: true`) e "Criar empresa". A senha só vive no estado da tela e é limpa depois de gravar.
  * - Empresa existente sem plano (RD-2613): só as caixas dos módulos ainda não licenciados e "Acrescentar módulos", dentro do cartão
@@ -16,10 +16,11 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { faltasNaSenha } from '@macuxi/core/contracts';
 import { CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
-import { Button, CLASSE_CAMPO_BASE, cx, MODULOS_NATIVOS, modulosContrataveis, nomeDoModulo, Notice, Panel, parseDecimalInput, SelectField } from '@macuxi/ui/web';
+import { Button, CLASSE_CAMPO_BASE, cx, nomeDoModulo, Notice, Panel, parseDecimalInput, SelectField } from '@macuxi/ui/web';
 
 import { chamarPortal, mensagemDoErro } from '@/lib/portal-api';
 import { FUSOS_BRASIL, mascararCnpj } from '@/lib/portal-formato';
+import { ehModuloSempre, modulosDoPortal } from '@/lib/portal-modulos';
 import { erroDoAdminNaApi, errosDoAdmin, semChaves, type AdminDoForm } from '@/lib/portal-nova-empresa';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { Campo } from '@/components/campo-acesso';
@@ -36,11 +37,8 @@ interface EmpresaExistente {
   modulos: { modulo: ModuloId; licencas: number | null }[];
 }
 
-/** Os nativos do kit (Catálogo, Core e Integração): entram sempre e não aparecem em lista. */
-const MODULOS_SEMPRE: readonly ModuloId[] = MODULOS.filter((m) => (MODULOS_NATIVOS as readonly string[]).includes(m));
-
-/** Os módulos que aparecem para escolher: os contratáveis do kit (nome e frase de valor), em ordem alfabética. */
-const ESCOLHIVEIS = modulosContrataveis(MODULOS);
+/** Os módulos que aparecem para escolher: todos menos Core e Integração (RD-2617), com o nome do kit, em ordem alfabética. */
+const ESCOLHIVEIS = modulosDoPortal(MODULOS);
 
 interface Form {
   codigo: string;
@@ -77,7 +75,7 @@ const num = (s: string): number | undefined => {
 
 /** Monta o corpo do `POST /plataforma/empresas` a partir do formulário (vazio = padrão do schema). */
 export function corpoDaEmpresa(f: Form, simular: boolean): unknown {
-  const modulos = MODULOS.filter((m) => MODULOS_SEMPRE.includes(m) || f.modulos[m]?.marcado).map((m) => {
+  const modulos = MODULOS.filter((m) => ehModuloSempre(m) || f.modulos[m]?.marcado).map((m) => {
     const l = f.modulos[m]?.licencas.trim() ?? '';
     return { modulo: m, licencas: l === '' ? null : Number(l) };
   });
@@ -150,7 +148,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
     modulos: Object.fromEntries(
       MODULOS.map((m) => {
         const atual = existente?.modulos.find((x) => x.modulo === m);
-        return [m, { marcado: MODULOS_SEMPRE.includes(m) || !!atual, licencas: atual?.licencas != null ? String(atual.licencas) : '' }];
+        return [m, { marcado: ehModuloSempre(m) || !!atual, licencas: atual?.licencas != null ? String(atual.licencas) : '' }];
       }),
     ),
     alcada_vendedor_pct: '5',
@@ -363,8 +361,8 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
 
 function ResultadoEmpresa({ r, emailAdmin }: { r: Resposta; emailAdmin: string | null }) {
   const admin = textoDoAdminNoResultado(r, emailAdmin);
-  // os nativos entram em toda empresa e não aparecem em lista (kit `MODULOS_NATIVOS`)
-  const adicionados = r.modulos_adicionados.filter((m) => !MODULOS_SEMPRE.includes(m));
+  // Core e Integração entram em toda empresa e não aparecem em lista (RD-2617)
+  const adicionados = r.modulos_adicionados.filter((m) => !ehModuloSempre(m));
   return (
     <div data-testid="empresa.resultado">
       <Notice tone={r.simulado ? 'info' : 'success'}>
