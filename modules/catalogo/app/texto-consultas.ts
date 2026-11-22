@@ -16,8 +16,10 @@ import { normalizarTexto } from '../domain/texto';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { parametrosDoTenant } from '../domain/parametros';
 import { veiculosDe } from '../domain/veiculos';
+import { produtosDoModelo } from '../domain/veiculo-filtro';
+import { indiceVeiculosLocal, lembrarVeiculo } from './veiculos-consulta';
 import type { ProdutoCatalogo } from '../domain/vitrine';
-import { cargaOnlineDoShell } from './lib/carga-online';
+import { cargaOnlineDoShell, consultaIndisponivel } from './lib/carga-online';
 import { buscaProdutosOnline, portaDaCarga, textosProdutoOnline } from './lib/consultas-online';
 import { comAplicacao, contextoLocal, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
 
@@ -125,35 +127,43 @@ async function soVendaveisDoCliente(ctx: ContextoConsultaAparelho, clienteId: st
 }
 
 export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
+  // RN-CAT-22: com veículo, texto de menos de 3 caracteres vale como sem texto (a lista é a das peças do veículo)
+  const q = entrada.veiculo && !buscaPodeRodar(entrada.q) ? '' : entrada.q;
   // RF-CAT-01 (T-0167): abaixo de 3 caracteres a consulta não roda
-  if (!buscaPodeRodar(entrada.q)) return { itens: [], total: 0, sugestao: null };
-  // ADR 0054: catálogo ainda carregando = API (com o preço do cliente); depois da carga, aparelho
+  if (!entrada.veiculo && !buscaPodeRodar(q)) return { itens: [], total: 0, sugestao: null };
+  // ADR 0054: catálogo ainda carregando = API (com o preço do cliente); depois da carga, aparelho. O veículo só existe no aparelho (spec §9)
   const online = portaDaCarga('catalogo.busca_produtos@1', cargaOnlineDoShell());
+  if (online && entrada.veiculo) throw consultaIndisponivel('catalogo.busca_produtos@1');
   if (online) return buscaProdutosOnline(online, entrada);
   // dependência inativa lança ConsultaIndisponivel (o Vendedor cai no plano B do seletor); Error de programação sobe
   const leitor: LeitorLocal = ctx;
   const todos = await produtosLocais(leitor, { lerConcorrente: false });
   const sinonimos = await sinonimosLocais(leitor);
+  const anoAtual = anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso);
+  const indiceVeiculos = entrada.veiculo ? await indiceVeiculosLocal(leitor, anoAtual) : undefined;
+  if (entrada.veiculo) lembrarVeiculo(entrada.veiculo);
   // mesma pré-seleção da aba (FTS5, ≤ 400 candidatos); sem SQLite (`sem_busca`) ou catálogo pequeno = varredura, sem erro
   const vocabulario = vocabularioMemorizado(todos);
-  const filtros = interpretarConsulta(entrada.q, vocabulario);
+  const filtros = interpretarConsulta(q, vocabulario);
   const veiculos = veiculosDe(todos);
-  const candidatos = entrada.produto_ids ? null : await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, todos.length, undefined, veiculos);
+  const doVeiculo = entrada.veiculo && indiceVeiculos && q === '' ? produtosDoModelo(indiceVeiculos, entrada.veiculo) : null;
+  const candidatos = entrada.produto_ids || doVeiculo ? null : await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, todos.length, undefined, veiculos);
   const idsPedidos = entrada.produto_ids ? new Set(entrada.produto_ids) : null;
-  let base = candidatos ? todos.filter((p) => candidatos.has(p.id)) : idsPedidos ? todos.filter((p) => idsPedidos.has(p.id)) : todos;
+  let base = candidatos ? todos.filter((p) => candidatos.has(p.id)) : idsPedidos ? todos.filter((p) => idsPedidos.has(p.id)) : doVeiculo ? todos.filter((p) => doVeiculo.has(p.id)) : todos;
   // o filtro do que o cliente pode comprar corre sobre os candidatos (preço lido só deles), não sobre os 20 mil
   if (entrada.cliente_id && !idsPedidos) base = await soVendaveisDoCliente(ctx, entrada.cliente_id, base);
   const produtos = await comAplicacao(leitor, base);
   const { itens, total } = buscarComTotal({
     produtos,
-    q: entrada.q,
+    q,
     produtoIds: entrada.produto_ids,
     limite: entrada.lista_completa ? TETO_RANKING_BUSCA : entrada.limite,
     sinonimos,
     vocabulario,
     veiculos,
     parametros: parametrosDoTenant(ctx.parametros()),
-    anoAtual: anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso),
+    anoAtual,
+    ...(entrada.veiculo && indiceVeiculos ? { veiculo: entrada.veiculo, indiceVeiculos } : {}),
   });
-  return { itens, total, sugestao: total === 0 ? sugerirTermo(entrada.q, termosDoCatalogo(todos)) : null };
+  return { itens, total, sugestao: total === 0 && q !== '' ? sugerirTermo(q, termosDoCatalogo(todos)) : null };
 });

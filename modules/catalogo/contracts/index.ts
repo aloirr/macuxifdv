@@ -58,6 +58,7 @@ export type MixSuggestion = z.infer<typeof MixSuggestion>;
 export * from './busca';
 export * from './linhas-preco';
 export * from './consultas';
+export * from './veiculo';
 export * from './sync';
 export * from './entidades';
 export * from './rotas';

@@ -60,6 +60,8 @@ interface NoDoFiltro {
   id: string;
   nome: string;
   codigo: string;
+  /** RN-CAT-22 (D1): quantas peças da lista de agora o chip tem; ausente = ainda não contada (sem número). */
+  contagem?: number;
 }
 
 /** Chave "Só com estoque" logo abaixo da busca (RN-CAT-05: o estoque é visível a todo perfil): 48 dp, desligada mostra com e sem estoque. */
@@ -108,7 +110,7 @@ export function FolhaFiltroCatalogo({
           <View style={e.chips}>
             <Chip label="Todos" active={sistemaId === null} onPress={() => onSistema(null)} testID="catalogo-chip-sistema-todos" />
             {sistemas.map((n) => (
-              <Chip key={n.id} label={n.nome} active={sistemaId === n.id} onPress={() => onSistema(n.id)} testID={`catalogo-chip-sistema-${n.codigo}`} />
+              <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={sistemaId === n.id} onPress={() => onSistema(n.id)} testID={`catalogo-chip-sistema-${n.codigo}`} />
             ))}
           </View>
         </View>
@@ -119,7 +121,7 @@ export function FolhaFiltroCatalogo({
           <View style={e.chips}>
             <Chip label="Todas" active={categoriaId === null} onPress={() => onCategoria(null)} testID="catalogo-chip-categoria-todas" />
             {categorias.map((n) => (
-              <Chip key={n.id} label={n.nome} active={categoriaId === n.id} onPress={() => onCategoria(n.id)} testID={`catalogo-chip-categoria-${n.codigo}`} />
+              <Chip key={n.id} label={n.nome} {...(n.contagem !== undefined ? { contagem: n.contagem } : {})} active={categoriaId === n.id} onPress={() => onCategoria(n.id)} testID={`catalogo-chip-categoria-${n.codigo}`} />
             ))}
           </View>
         </View>

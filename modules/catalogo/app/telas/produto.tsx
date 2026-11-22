@@ -10,7 +10,10 @@ import { Badge, CatalogoCarregando, Card, ChipEstado, colors, DEFAULT_TZ, Empty,
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { caminhoCatalogo, type FichaProduto } from '../../contracts';
+import { caminhoCatalogo, type FichaProduto, type VeiculoEscolhido } from '../../contracts';
+import { anoCivilNoFuso } from '../../domain/ano-civil';
+import { compatibilidadeDoProduto, leveTambemDoVeiculo } from '../../domain/veiculo-filtro';
+import type { IndiceVeiculos } from '../../domain/veiculo-indice';
 import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { modoDaCarga } from '../lib/carga-online';
 import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
@@ -18,6 +21,8 @@ import { dadosDaFolha } from '../lib/estoque-folha';
 import { chipDoEstoque } from '../../domain/estoque-campo';
 import { filialDeCadastroLocal, fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
+import { indiceVeiculosLocal } from '../veiculos-consulta';
+import { partirTrecho, TEXTOS_VEICULO, textoDaFichaCompativel, veiculoDaTela } from '../lib/veiculo-tela';
 import { BotoesAcao } from './comum';
 import { BotaoPorFilialDaFicha, FolhaEstoquePorFilial } from './estoque-filial';
 
@@ -48,6 +53,20 @@ export default function TelaProduto() {
       vivo = false;
     };
   }, [motor, usuario?.id, sync.sincronizado_em]);
+
+  // RN-CAT-22: o veículo escolhido no Catálogo (a ficha não tem etiqueta própria): `Compatível com …`, o trecho em negrito e o "Leve também" dele
+  const [veic, setVeic] = useState<{ veiculo: VeiculoEscolhido; indice: IndiceVeiculos } | null>(null);
+  useEffect(() => {
+    const v = veiculoDaTela();
+    if (!motor || !v) return setVeic(null);
+    let vivo = true;
+    void indiceVeiculosLocal(motor, anoCivilNoFuso(relogioReal().agora(), fuso))
+      .then((indice) => vivo && setVeic({ veiculo: v, indice }))
+      .catch(() => vivo && setVeic(null));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, fuso, id, sync.sincronizado_em]);
 
   useEffect(() => {
     let vivo = true;
@@ -112,13 +131,17 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
+  const compat = veic ? compatibilidadeDoProduto(veic.indice, id, aplicacao, veic.veiculo) : null;
+  const trechoDoVeiculo: [number, number][] = compat?.segmento ? [[compat.segmento.inicio, compat.segmento.fim]] : [];
+  const leveTambem = catalogo ? (veic ? leveTambemDoVeiculo(catalogo.oferece_junto, veic.indice, veic.veiculo) : catalogo.oferece_junto) : [];
   // spec §2 e §3: `Estoque: N` exato (sem o "999+" do cartão); as linhas por filial e o "Atualizado às" ficam só na folha (§2.1)
   const estoque = item.availability ? chipDoEstoque(item.availability, false) : null;
   const folha = item.availability ? dadosDaFolha({ availability: item.availability, cargaEm: sync.sincronizado_em, filialCadastro, agora: relogioReal().agora().toISOString(), fuso }) : null;
   return (
     <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
-      {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (
+      {item.is_campaign || compat?.situacao === 'compativel' || (catalogo && catalogo.etiquetas.length > 0) ? (
         <View style={{ gap: 4 }}>
+          {compat?.situacao === 'compativel' && veic ? <ChipEstado texto={textoDaFichaCompativel(veic.veiculo)} tom="sucesso" icone="check" testID="produto-compativel" /> : null}
           {item.is_campaign ? <Badge label="Destaque" tone="accent" style={{ alignSelf: 'flex-start' }} /> : null}
           {catalogo && catalogo.etiquetas.length > 0 ? (
             <View style={s.etiquetas} testID="produto-etiquetas">
@@ -172,7 +195,7 @@ export default function TelaProduto() {
         <Card style={s.card} testID="produto-aplicacao">
           <SectionHeader title="Aplicação" />
           <Text style={t.body} numberOfLines={recolher ? LINHAS_APLICACAO_RECOLHIDA : undefined}>
-            {aplicacao}
+            {trechoDoVeiculo.length > 0 ? partirTrecho(aplicacao, trechoDoVeiculo).map((x, i) => (x.marcado ? <Text key={i} style={t.bodyStrong}>{x.texto}</Text> : x.texto)) : aplicacao}
           </Text>
           {aplicacaoPrecisaRecolher(aplicacao) ? (
             <Pressable accessibilityRole="button" accessibilityLabel={aplicacaoAberta ? 'Ver menos da aplicação' : 'Ver mais da aplicação'} onPress={() => setAplicacaoAberta((v) => !v)} style={s.verMais}>
@@ -182,12 +205,12 @@ export default function TelaProduto() {
         </Card>
       ) : null}
 
-      {catalogo && catalogo.oferece_junto.length > 0 ? (
+      {catalogo && leveTambem.length > 0 ? (
         <Card style={s.card} testID="produto-oferece-junto">
-          <SectionHeader title="Oferece junto" />
-          {catalogo.oferece_junto.map((o, i) => {
+          <SectionHeader title={TEXTOS_VEICULO.leveTambem} />
+          {leveTambem.map((o, i) => {
             const e = estadoOfereceJunto({ online: ambiente.online(), fichaNoAparelho: estado.noAparelho });
-            const ultima = i === catalogo.oferece_junto.length - 1;
+            const ultima = i === leveTambem.length - 1;
             return (
               <Pressable
                 key={o.produto_id}
