@@ -1,10 +1,8 @@
 /** T-0087/T-0093: partes puras das telas do portal (passo Empresa com o administrador inicial, entrada, aba Integração). */
 import { describe, expect, it } from 'vitest';
 import { mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
-import { ENTIDADES } from '@macuxi/integracao/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
-import { entidadesLivres } from '@/components/portal/aba-integracao';
 import { resumoDoArquivo, TEXTO_COMPLETO_COM_ERROS } from '@/components/portal/cartao-base';
 import {
   corpoDaEmpresa,
@@ -167,21 +165,6 @@ describe('textos do portal (revisão de UX R-20261106-023316)', () => {
 });
 
 describe('aba Integração', () => {
-  it('bases livres: as que nenhum outro Conector ativo recebe', () => {
-    const conectores = [
-      { conector_id: 'implantacao-csv', ativo: true, entidades: ['vendedor', 'cliente'] as const },
-      { conector_id: 'velho', ativo: false, entidades: ['produto'] as const },
-    ].map((c) => ({ ...c, entidades: [...c.entidades] }));
-    const livres = entidadesLivres(conectores);
-    expect(livres).not.toContain('vendedor');
-    expect(livres).not.toContain('cliente');
-    expect(livres).toContain('produto');
-    // T-0089: as bases de pagamento e a escalonada também ficam livres para o Conector do ERP
-    for (const e of ['forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial'] as const) expect(livres).toContain(e);
-    expect(livres).toEqual(ENTIDADES.filter((e) => e !== 'vendedor' && e !== 'cliente'));
-    expect(livres).toHaveLength(14);
-    expect(entidadesLivres([])).toEqual([...ENTIDADES]);
-  });
   it('abas Integração · Empresa: a Integração abre por padrão; o `#bases` antigo e `#` desconhecido caem nela (spec §10.1)', () => {
     expect(abaDoEndereco('')).toBe('integracao');
     expect(abaDoEndereco('#integracao')).toBe('integracao');

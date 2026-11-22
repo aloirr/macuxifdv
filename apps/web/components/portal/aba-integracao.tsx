@@ -37,8 +37,8 @@ const ListaDaApi = { safeParse: (x: unknown) => ConectorResumo.array().safeParse
 export type Chamar = <T>(caminho: string, o: OpcoesChamada<T>) => Promise<T>;
 
 /** Bases que nenhum outro Conector ativo recebe (as que a credencial nova pode levar sem conflito). */
-export function entidadesLivres(conectores: readonly Topologia[], ignorar?: string): Entidade[] {
-  const ocupadas = new Set(conectores.filter((c) => c.ativo && c.conector_id !== ignorar).flatMap((c) => c.entidades));
+export function entidadesLivres(conectores: readonly Topologia[]): Entidade[] {
+  const ocupadas = new Set(conectores.filter((c) => c.ativo).flatMap((c) => c.entidades));
   return ENTIDADES.filter((e) => !ocupadas.has(e));
 }
 
@@ -49,11 +49,9 @@ export function donosDasBases(conectores: readonly Topologia[], ignorar: string)
   return donos;
 }
 
-/** Aviso quando não sobra base livre: com o Conector de arquivo ativo, o caminho é desativá-lo. */
-export function mensagemSemBases(conectores: readonly { ativo: boolean; tipo: string; conector_id: string; entidades: readonly Entidade[] }[], temArquivo: boolean): string {
-  if (temArquivo) return 'Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo para passar as bases ao ERP.';
-  const dono = conectores.find((c) => c.ativo && c.tipo !== 'arquivo' && c.entidades.length > 0);
-  return `Todas as bases já vêm do Conector ${dono?.conector_id ?? ''}. Gere uma nova chave para ele ou desative-o.`;
+/** Aviso quando não sobra base livre, só com a ação que libera: "Bases" ou "Desativar" no Conector; o de arquivo só tem "Desativar". */
+export function mensagemSemBases(temArquivo: boolean): string {
+  return temArquivo ? 'Todas as bases já vêm de outro Conector ativo. Desative o Conector de arquivo.' : 'Todas as bases já vêm de outro Conector ativo. Tire bases dele em "Bases" ou desative-o.';
 }
 
 /**
@@ -120,20 +118,21 @@ export function Credencial({ c, aoFechar, testId = 'integracao.' }: { c: ChaveNo
     }
   };
   return (
-    <div data-testid={`${testId}credencial`} className="flex flex-col gap-3 rounded-xl border border-accent bg-accent-soft p-4">
-      <strong className="text-[15px]">Credencial do Conector "{c.conector_id}"</strong>
-      <Notice tone="warning">Copie a chave agora: ela não aparece de novo.</Notice>
-      <code data-testid={`${testId}chave`} className="rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[13px] break-all select-all">
-        {c.chave}
-      </code>
-      <div className="flex flex-wrap gap-2">
-        <Button data-testid={`${testId}copiar`} variant="primary" size="sm" onClick={() => void copiar()}>
-          {copiou ? 'Copiada' : 'Copiar'}
-        </Button>
-        <Button size="sm" data-testid={`${testId}ja-copiei`} onClick={aoFechar}>
-          Já copiei, esconder
-        </Button>
-      </div>
+    <div data-testid={`${testId}credencial`} className="flex flex-col items-start gap-2">
+      <Notice tone="warning" className="w-full">
+        <span className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <span>Copie a chave agora: ela não aparece de novo.</span>
+          <code data-testid={`${testId}chave`} className="min-w-0 font-mono text-[13px] break-all text-ink select-all">
+            {c.chave}
+          </code>
+          <Button data-testid={`${testId}copiar`} size="sm" onClick={() => void copiar()}>
+            {copiou ? 'Copiada' : 'Copiar'}
+          </Button>
+        </span>
+      </Notice>
+      <Button size="sm" data-testid={`${testId}ja-copiei`} onClick={aoFechar}>
+        Já copiei, esconder
+      </Button>
     </div>
   );
 }
@@ -224,7 +223,7 @@ function GerarCredencial({
 
   const livres = entidadesLivres(todos);
   const escolhidas = escolheBases ? livres.filter((e) => !desmarcadas.has(e)) : livres;
-  const semBases = mensagemSemBases(todos, todos.some((c) => c.ativo && c.tipo === 'arquivo'));
+  const semBases = mensagemSemBases(todos.some((c) => c.ativo && c.tipo === 'arquivo'));
   const semLivres = escolheBases && !carregando && livres.length === 0;
 
   const gerar = async () => {
