@@ -72,11 +72,31 @@ module.exports = {
       to: { dependencyTypes: ['core'] },
     },
     {
+      name: 'core-contracts-importa-outro-modulo',
+      severity: 'error',
+      comment:
+        'modules/core/contracts é a raiz do grafo de contracts: todo módulo importa core/contracts, então core/contracts ' +
+        'importar o contracts de outro módulo fecha um ciclo (PR #636, Entidade de integracao/contracts). ' +
+        'Precisa do tipo? Use um tipo aberto em core/contracts ou peça ao Core para expor o conceito (recado).',
+      from: { path: '^modules/core/contracts/' },
+      to: { path: '^modules/', pathNot: '^modules/core/' },
+    },
+    {
+      name: 'ciclo-entre-modulos',
+      severity: 'error',
+      comment:
+        'Dependência circular que atravessa a fronteira de um módulo ou pacote (ex.: core → integracao/contracts → ' +
+        'core/contracts): a ordem de carga dos ES modules quebra em tempo de execução. Quebre levando o trecho comum ' +
+        'para o contracts do módulo de baixo ou para packages/*.',
+      from: { path: '^(modules|packages)/([^/]+)/' },
+      to: { circular: true, via: { pathNot: '^$1/$2/' } },
+    },
+    {
       name: 'ciclo-entre-arquivos',
       severity: 'warn',
-      comment: 'Dependência circular: quebre extraindo o trecho comum.',
-      from: { path: '^(modules|packages)/' },
-      to: { circular: true },
+      comment: 'Dependência circular dentro do mesmo módulo ou pacote: quebre extraindo o trecho comum.',
+      from: { path: '^(modules|packages)/([^/]+)/' },
+      to: { circular: true, viaOnly: { path: '^$1/$2/' } },
     },
   ],
   options: {
