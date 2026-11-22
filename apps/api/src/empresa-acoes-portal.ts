@@ -13,6 +13,7 @@
  * no `onResponse` (`marcarPortal`). Ligado só com `empresaAcoesPortal` (`MACUXI_EMPRESA_ACOES=1` no `servidor.ts`).
  * Sem dado pessoal no log: só ids e códigos. A senha da confirmação nunca volta, nunca vai a log nem ao banco.
  */
+import { bloqueioPorTentativas } from '@macuxi/core/api';
 import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { verificarSenha } from '@macuxi/db';
 import {
@@ -177,7 +178,8 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
 
   /**
    * Confirmação forte da exclusão (ADR 0052 §3.2): a senha do super-admin DA SESSÃO, no mesmo limite de falhas do login do
-   * portal (5 seguidas = 423 por 15 min). Senha errada = 403 `REAUTENTICACAO_FALHOU`.
+   * portal (5 seguidas = 423 `BLOQUEADO` com a mesma mensagem e `detalhes.minutos_restantes` do login, RN-CORE-31). Senha
+   * errada = 403 `REAUTENTICACAO_FALHOU`.
    */
   const reautenticar = async (quem: AcessoPortalAutenticado, senha: string): Promise<void> => {
     const segredo = dep.segredoPlataforma();
@@ -186,11 +188,15 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
     const conta = await chamar(() => fonte.reautenticar(quem.sessao_id, dep.acesso));
     if (!conta) throw erroDaAcao(403, C.reautenticacaoFalhou);
     const chave = chaveDeTentativaDoPortal(segredo, conta.email);
-    const bloqueada = (e: EstadoTentativaPortal) => e.bloqueado_ate !== null && e.bloqueado_ate.getTime() > relogio().getTime();
-    const bloqueio = () => new ErroHttp(423, CODIGOS_PORTAL.bloqueado, 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.');
-    if (bloqueada(await fonte.tentativaEstado(chave, dep.acesso))) throw bloqueio();
+    const exigirLivre = (e: EstadoTentativaPortal): void => {
+      const agora = relogio();
+      if (e.bloqueado_ate === null || e.bloqueado_ate.getTime() <= agora.getTime()) return;
+      const { mensagem, detalhes } = bloqueioPorTentativas(e.bloqueado_ate, agora);
+      throw new ErroHttp(423, CODIGOS_PORTAL.bloqueado, mensagem, detalhes);
+    };
+    exigirLivre(await fonte.tentativaEstado(chave, dep.acesso));
     if (!(await conferirSenha(senha, conta.senha_hash))) {
-      if (bloqueada(await fonte.tentativaFalha(chave, dep.acesso))) throw bloqueio();
+      exigirLivre(await fonte.tentativaFalha(chave, dep.acesso));
       throw erroDaAcao(403, C.reautenticacaoFalhou);
     }
     await fonte.tentativaSucesso(chave, dep.acesso);
