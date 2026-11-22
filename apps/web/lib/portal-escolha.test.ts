@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL, SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { ImportarEquipeRespostaSchema, mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';
+import { mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';
 
 import { CONTA_SENHA_A_TROCAR, CONTAS_FALSAS, responderFalso, zerarModoFalso } from './portal-falso';
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
@@ -320,26 +320,6 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect(r.status).toBe(403);
     expect(((await r.json()) as { codigo: string }).codigo).toBe('SENHA_A_TROCAR');
     expect((await login(CONTA_SENHA_A_TROCAR, 'errada')).status).toBe(401);
-  });
-
-  it('T-0094: Equipe por CSV sem convite; acessos enviados por e-mail; 503 EMAIL_INDISPONIVEL antes de gravar', async () => {
-    const s = await sessaoDe(await login('admin@uma.com.br'));
-    const tenant = s.empresa?.id ?? '';
-    const cab = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos';
-    const importar = (csv: string, modo: 'conferir' | 'gravar') => responderFalso('POST', ROTAS_PORTAL.equipeImportacoes, { csv, modo }, com(s, { 'x-macuxi-tenant': tenant }));
-    const csv = [cab, 'Ana,ana@x.com.br,,supervisor,,,', 'Bia,bia@x.com.br,,vendedor,ana@x.com.br,,', ''].join('\n');
-    const r = ImportarEquipeRespostaSchema.parse(await (await importar(csv, 'gravar')).json());
-    expect(r).toMatchObject({ gravado: true, acessos_enviados: 2, email_acesso: 'enfileirado' });
-    expect(r).not.toHaveProperty('convites');
-    // de novo: ninguém novo, nenhum acesso
-    expect(ImportarEquipeRespostaSchema.parse(await (await importar(csv, 'gravar')).json())).toMatchObject({ acessos_enviados: 0, email_acesso: null });
-    const semEmail = [cab, 'Caio,caio@sem-email.com.br,,vendedor,,,', ''].join('\n');
-    expect((await importar(semEmail, 'conferir')).status).toBe(200);
-    const g = await importar(semEmail, 'gravar');
-    expect(g.status).toBe(503);
-    expect(((await g.json()) as { codigo: string }).codigo).toBe('EMAIL_INDISPONIVEL');
-    // a lista da equipe fica na memória: nada de e-mail no sessionStorage
-    expect(st.valores().join(' ')).not.toMatch(/ana@|bia@|caio@/);
   });
 
   it('nada de senha nem de e-mail no sessionStorage (sessão salva e estado do modo falso)', async () => {

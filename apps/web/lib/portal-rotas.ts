@@ -3,7 +3,6 @@
  * Todos relativos ao `/v1` da API (o navegador chama `/api-proxy<caminho>`, o proxy same-origin do Next). Um lugar só: se um
  * caminho mudar, muda aqui.
  */
-import type { Entidade } from '@macuxi/integracao/contracts';
 import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, rotaPortalAssinatura, ROTA_PORTAL_CNPJ, ROTA_PORTAL_EMPRESA_COM_PLANO, ROTA_PORTAL_FRASES_CARGA, ROTA_PORTAL_PLANOS } from '@macuxi/platform-sdk';
 
 /** Caminho do SDK (`/v1/...`) relativo ao `/v1`, como o portal e o `api()` do BKO chamam. */
@@ -50,12 +49,6 @@ export const ROTAS_PORTAL = {
   cnpj: semV1(ROTA_PORTAL_CNPJ),
   // Integração (com `x-macuxi-tenant`)
   ordemCarga: '/integracao/ordem-carga',
-  cargaArquivo: '/integracao/cargas-arquivo',
-  conferirArquivo: '/integracao/cargas-arquivo/conferir',
-  sessaoArquivo: (sessaoId: string) => `/integracao/cargas-arquivo/sessoes/${encodeURIComponent(sessaoId)}`,
-  lote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}`,
-  errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
-  errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
   /** Conector (tipo `conector`) e credencial de API (tipo `nuvem`): `GET` lista os dois, `POST` cria com o `tipo` (`ConectorCriar`). */
   conectores: '/integracao/conectores',
   /** `PATCH` (`ConectorAtualizar`: `{ entidades }` troca as bases; `{ ativo: false }` desativa e revoga as chaves, RN-INT-10) → `ConectorResumo`. */
@@ -64,14 +57,8 @@ export const ROTAS_PORTAL = {
   chaveConector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}/chave`,
   /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = 'em breve'. */
   conectorDownload: '/integracao/conector/download',
-  // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
-  equipeModeloCsv: '/core/equipe/modelo.csv',
-  equipeImportacoes: '/core/equipe/importacoes',
   /** T-0190: link temporário do APK do Campo ou do Gestão (`{ variante }`); auditado na API. Só admin e super-admin. */
   appDownload: '/core/apps/download',
-  // N1 (PR #97, nuvem): até o merge respondem 404 e o portal mostra "em breve"
-  modeloCsv: (e: Entidade) => `/integracao/modelos/${e}.csv`,
-  dicionario: (e: Entidade) => `/integracao/modelos/${e}.json`,
 } as const;
 
 /**
@@ -92,10 +79,8 @@ export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf'
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];
 
-/** Identificador do Conector tipo arquivo que o portal cria na primeira importação (R-20261106-011153). */
-export const CONECTOR_ARQUIVO_PORTAL = Object.freeze({
-  conector_id: 'implantacao-csv',
-  nome: 'Carga por arquivo (implantação)',
-  tipo: 'arquivo' as const,
-  recebe_pedidos: false,
-});
+/**
+ * Identificador do antigo Conector de arquivo do portal (R-20261106-011153). A carga por arquivo saiu do `config.` (v1.0.21; spec
+ * portal-config-enxuto §10); fica só o identificador que `aba-integracao.tsx` ainda lê, até ela deixar de ler. Depois, apagar.
+ */
+export const CONECTOR_ARQUIVO_PORTAL = Object.freeze({ conector_id: 'implantacao-csv' });
