@@ -67,4 +67,13 @@ describe('RN-CORE-01: tempo restante do bloqueio por tentativas', () => {
     expect(minutosRestantesDoBloqueio(new Date(agora.getTime() + 14 * 60_000 + 1_000), agora)).toBe(15);
     expect(minutosRestantesDoBloqueio(new Date(agora.getTime() + 1_000), agora)).toBe(1);
   });
+
+  it('RN-CORE-31 e RN-CORE-01: bloqueioPorTentativas traz a mensagem e detalhes.minutos_restantes', async () => {
+    const { bloqueioPorTentativas } = await import('./auth');
+    const { mensagemBloqueioPorTentativas } = await import('../contracts/auth');
+    const agora = new Date('2026-11-14T20:00:00Z');
+    const r = bloqueioPorTentativas(new Date(agora.getTime() + 14 * 60_000 + 1_000), agora);
+    expect(r).toEqual({ mensagem: mensagemBloqueioPorTentativas(15), detalhes: { minutos_restantes: 15 } });
+    expect(bloqueioPorTentativas(new Date(agora.getTime() - 5_000), agora).detalhes.minutos_restantes).toBe(1);
+  });
 });
