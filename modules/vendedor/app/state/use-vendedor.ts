@@ -852,7 +852,7 @@ export function useVendedor() {
    * `disponivel` falso (catálogo sem veículo nas aplicações) também some com o botão.
    */
   const consultarVeiculos = useCallback(
-    async (entrada: { escolha: VeiculoParcial; busca?: string }): Promise<VeiculosSaida | null> => {
+    async (entrada: { escolha: VeiculoParcial; busca?: string; produto_ids?: string[]; cliente_id?: string }): Promise<VeiculosSaida | null> => {
       if (!v1) return null;
       try {
         return await ambiente.consultar(CONSULTA_VEICULOS, entrada);

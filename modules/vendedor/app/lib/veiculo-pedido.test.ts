@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { buscarNoCatalogoComReserva } from './busca-catalogo';
+import * as apoio from './veiculo-pedido';
+
 import {
   escolhaAntesDoPasso,
   escolhaDoResultadoDaBusca,
   escolherOpcao,
   leituraDaEtiquetaVeiculo,
   leituraDoBotaoVeiculo,
-  linhaDoVeiculoNoItem,
+  escopoDoCliente,
   modoDaListaDoPedido,
   textoDaBuscaComVeiculo,
   veiculoDaEscolha,
@@ -35,19 +38,24 @@ describe('RN-CAT-22 (aba Itens): lista com e sem veículo', () => {
   });
 });
 
-describe('RN-CAT-22 (aba Itens): linha 3 do produto', () => {
-  it('compatível vira o chip "Compatível"', () => {
-    expect(linhaDoVeiculoNoItem({ compatibilidade: 'compativel', serve_em: null })).toEqual({ tipo: 'compativel' });
+describe('RN-CAT-22 e RN-CAT-06 (aba Itens): escopo do cliente na cascata', () => {
+  it('com cliente, a cascata leva o mesmo cliente_id da busca de itens', () => {
+    expect(escopoDoCliente('c1', ['a', 'b'])).toEqual({ cliente_id: 'c1' });
   });
-  it('de conferir leva o trecho "Serve em"', () => {
-    const trecho = { texto: 'Gol 2017–2019', marcas: [[0, 3]] as [number, number][], inclui_ano: null };
-    expect(linhaDoVeiculoNoItem({ compatibilidade: 'conferir', serve_em: trecho })).toEqual({ tipo: 'serve_em', trecho });
+  it('sem cliente, leva os mesmos produto_ids da busca; sem nenhum dos dois, não leva escopo', () => {
+    expect(escopoDoCliente(undefined, ['a', 'b'])).toEqual({ produto_ids: ['a', 'b'] });
+    expect(escopoDoCliente(undefined, null)).toEqual({});
   });
-  it('de conferir com o trecho só do modelo (serve_em nulo) não tem linha 3', () => {
-    expect(linhaDoVeiculoNoItem({ compatibilidade: 'conferir', serve_em: null })).toBeNull();
+});
+
+describe('RN-CAT-22 (aba Itens): a lista filtrada não tem a linha 3', () => {
+  it('o apoio da linha 3 (Compatível / Serve em do veículo) não existe mais', () => {
+    expect('linhaDoVeiculoNoItem' in apoio).toBe(false);
+    expect('compativel' in apoio.TEXTOS_VEICULO_PEDIDO).toBe(false);
   });
-  it('sem veículo na consulta, nenhuma linha 3', () => {
-    expect(linhaDoVeiculoNoItem(undefined)).toBeNull();
+  it('o item da busca guarda só o "Serve em" do texto, sem dado do veículo', async () => {
+    const r = await buscarNoCatalogoComReserva(async () => ({ itens: [{ produto_id: 'p1', serve_em: null, veiculo: { compatibilidade: 'compativel' } } as never] }), () => false, () => undefined);
+    expect(r).toEqual({ tipo: 'ok', itens: [{ produto_id: 'p1', serve_em: null }], total: 1, sugestao: null });
   });
 });
 

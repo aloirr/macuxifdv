@@ -5,12 +5,11 @@
  * A lista é feita para receber a busca paginada da T-0167: recebe só a página que o pai monta e não conhece a consulta.
  */
 import type { Product } from '@macuxi/catalogo/contracts';
-import { Balao, Botao, BotaoEditar, ChipEstado, colors, fonte, Icon } from '@macuxi/ui/mobile';
+import { Balao, Botao, BotaoEditar, colors, fonte, Icon } from '@macuxi/ui/mobile';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TrechoServeEm } from '../../domain/busca-seletor';
 import { semResultadoDaBusca } from '../lib/textos-pedido';
-import { TEXTOS_VEICULO_PEDIDO, type LinhaDoVeiculo } from '../lib/veiculo-pedido';
 import { nomeComMarca } from '../lib/detalhe-pedido';
 import { linhaDoProdutoNaLista } from '../lib/item-popup';
 import type { UnidadeDaTela } from '../lib/novo-pedido';
@@ -21,7 +20,6 @@ export function ResultadosDaBusca({
   medidasDe,
   noPedido,
   serveEm,
-  veiculo,
   aoAdicionar,
   comFoto,
   aoAbrirFoto,
@@ -32,8 +30,6 @@ export function ResultadosDaBusca({
   /** produtos que já estão no pedido: o botão vira o lápis Editar */
   noPedido: ReadonlySet<string>;
   serveEm?: ReadonlyMap<string, TrechoServeEm>;
-  /** RN-CAT-22: só com veículo escolhido; a linha 3 (`Compatível` ou `Serve em:`) toma o lugar do "Serve em" do texto buscado */
-  veiculo?: ReadonlyMap<string, LinhaDoVeiculo>;
   aoAdicionar: (produtoId: string) => void;
   comFoto?: ReadonlySet<string>;
   aoAbrirFoto?: (produtoId: string) => void;
@@ -41,8 +37,7 @@ export function ResultadosDaBusca({
   return (
     <View style={s.cartao} testID="resultados-busca">
       {produtos.map((p, i) => {
-        const linhaVeiculo = veiculo?.get(p.id);
-        const trecho = veiculo ? undefined : serveEm?.get(p.id);
+        const trecho = serveEm?.get(p.id);
         const descricao2 = (p.applications ?? '').trim();
         const linha2 = linhaDoProdutoNaLista(p, medidasDe(p.id));
         const jaNoPedido = noPedido.has(p.id);
@@ -61,8 +56,6 @@ export function ResultadosDaBusca({
                   {`   Emb. ${linha2.emb}   Est. ${linha2.estoque}`}
                 </Text>
                 {trecho ? <ServeEm trecho={trecho} codigo={p.erp_code} /> : null}
-                {linhaVeiculo?.tipo === 'compativel' ? <ChipEstado texto={TEXTOS_VEICULO_PEDIDO.compativel} tom="sucesso" icone="check" pequeno style={{ alignSelf: 'flex-start' }} testID={`compativel-${p.erp_code}`} /> : null}
-                {linhaVeiculo?.tipo === 'serve_em' ? <ServeEm trecho={linhaVeiculo.trecho} codigo={p.erp_code} /> : null}
                 {p.price_cents === null ? (
                   <Text style={s.semPreco} testID={`sem-preco-${p.erp_code}`}>
                     Sem preço para este cliente

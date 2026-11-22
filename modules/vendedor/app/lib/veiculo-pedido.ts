@@ -1,12 +1,11 @@
 /**
- * Apoio puro do filtro de veículo na aba Itens do Novo pedido (RN-CAT-22; spec `docs/design/filtro-veiculo/spec.md` §3, §5 e §8). A regra
- * (compatível, conferir, cascata) é do domain do Catálogo e chega pelas consultas `catalogo.veiculos@1` e `catalogo.busca_produtos@1`;
+ * Apoio puro do filtro de veículo na aba Itens do Novo pedido (RN-CAT-22; spec `docs/design/filtro-veiculo/spec.md` §3, §5 e §8; sem linha 3). A regra
+ * (cascata e filtro) é do domain do Catálogo e chega pelas consultas `catalogo.veiculos@1` e `catalogo.busca_produtos@1`;
  * aqui só se decide a lista e se montam os textos. O veículo é estado da tela: não entra no rascunho, no pedido, no PDF nem no ERP (P5).
  */
 import type { NivelVeiculo, PassoTrilha, RotulosVeiculo, VeiculoEscolhido, VeiculoParcial, VeiculosSaida } from '@macuxi/catalogo/contracts';
 
 import { buscaPodeComecar } from '../../domain/busca-seletor';
-import type { TrechoServeEm } from '../../domain/busca-seletor';
 
 /** O veículo aplicado e os rótulos que a consulta devolveu junto (a tela não monta rótulo). */
 export interface VeiculoDoPedido {
@@ -22,7 +21,6 @@ export const TEXTOS_VEICULO_PEDIDO = {
   buscaLimpar: 'Limpar a busca',
   recentes: 'Recentes',
   verPecas: 'Ver peças',
-  compativel: 'Compatível',
 } as const;
 
 export const ROTULO_DO_NIVEL: Record<NivelVeiculo, string> = { montadora: 'Montadora', modelo: 'Modelo', ano: 'Ano', motor: 'Motor', versao: 'Versão' };
@@ -43,13 +41,9 @@ export function textoDaBuscaComVeiculo(texto: string, comVeiculo: boolean): stri
   return comVeiculo && !buscaPodeComecar(t) ? '' : t;
 }
 
-export type LinhaDoVeiculo = { tipo: 'compativel' } | { tipo: 'serve_em'; trecho: TrechoServeEm };
-
-/** Linha 3 do produto (só com veículo): `Compatível`, ou `Serve em:` nos de conferir; sem linha quando o trecho é só o nome do modelo. */
-export function linhaDoVeiculoNoItem(v: { compatibilidade: 'compativel' | 'conferir'; serve_em: TrechoServeEm | null } | undefined): LinhaDoVeiculo | null {
-  if (!v) return null;
-  if (v.compatibilidade === 'compativel') return { tipo: 'compativel' };
-  return v.serve_em ? { tipo: 'serve_em', trecho: v.serve_em } : null;
+/** RN-CAT-22 e RN-CAT-06: o escopo de venda do cliente, o MESMO na busca de itens e na cascata (botão, opções, busca da folha e lista). */
+export function escopoDoCliente(clienteId: string | undefined, produtoIds: string[] | null): { cliente_id?: string; produto_ids?: string[] } {
+  return clienteId ? { cliente_id: clienteId } : produtoIds ? { produto_ids: produtoIds } : {};
 }
 
 /** A escolha da folha (só o que já tem) vira veículo quando há modelo. */

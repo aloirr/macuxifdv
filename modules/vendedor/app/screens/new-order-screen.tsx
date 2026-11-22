@@ -45,7 +45,7 @@ import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
 import { DescontoGeral } from '../components/desconto-geral';
 import { FolhaVeiculoPedido } from '../components/folha-veiculo-pedido';
-import { chaveDoVeiculo, leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, linhaDoVeiculoNoItem, modoDaListaDoPedido, textoDaBuscaComVeiculo, type LinhaDoVeiculo, type VeiculoDoPedido } from '../lib/veiculo-pedido';
+import { chaveDoVeiculo, leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, escopoDoCliente, modoDaListaDoPedido, textoDaBuscaComVeiculo, type VeiculoDoPedido } from '../lib/veiculo-pedido';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
 import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
@@ -437,7 +437,9 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const buscarNoCatalogo = app.buscarProdutos;
   // até 5.000 ids: calculados uma vez por catálogo, não a cada busca
   const idsDoCatalogo = useMemo(() => (catalogBase.length <= 5000 ? catalogBase.map((p) => p.id) : null), [catalogBase]);
-  const consultarVeiculos = app.consultarVeiculos;
+  // RN-CAT-22 e RN-CAT-06: a cascata usa o mesmo escopo do cliente da busca de itens
+  const consultarVeiculosApp = app.consultarVeiculos;
+  const consultarVeiculos = useCallback<typeof consultarVeiculosApp>((e) => consultarVeiculosApp({ ...e, ...escopoDoCliente(customerId ?? undefined, idsDoCatalogo) }), [consultarVeiculosApp, customerId, idsDoCatalogo]);
   // o botão Veículo só aparece quando o catálogo do aparelho tem veículo nas aplicações (spec §9)
   useEffect(() => {
     let vivo = true;
@@ -481,15 +483,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const todosOsResultados = codigoExatoPrimeiro(resultadosDaBusca ? resultadosDaBusca.map((r) => r.produto) : modoDaLista === 'busca' && !veiculoAtivo ? searchProducts(catalog, query, 400) : [], query);
   const paginaBusca = paginaDaBusca(todosOsResultados.length, paginasBusca);
   const results = todosOsResultados.slice(0, paginaBusca.mostrando);
-  const linhaDoVeiculoPorId = useMemo(() => {
-    const m = new Map<string, LinhaDoVeiculo>();
-    if (!veiculoAtivo || !buscaCatalogo) return m;
-    for (const i of buscaCatalogo.itens) {
-      const l = linhaDoVeiculoNoItem(i.veiculo);
-      if (l) m.set(i.produto_id, l);
-    }
-    return m;
-  }, [buscaCatalogo, veiculoAtivo]);
   const serveEmPorId = useMemo(() => new Map((resultadosDaBusca ?? []).flatMap((r) => (r.serveEm ? [[r.produto.id, r.serveEm] as const] : []))), [buscaCatalogo, query, byId]);
   // T-0084 §12 (RN-VEN-19): lê a aplicação só dos itens visíveis (≤ 40) e dos do rascunho
   const idsComTexto = [...new Set([...results.map((p) => p.id), ...Object.keys(draft.lines).filter((k) => (draft.lines[k] ?? 0) > 0).map((k) => lerChaveDaLinha(k).product_id)])];
@@ -870,7 +863,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
                 )
               ) : (
                 <>
-                  <ResultadosDaBusca produtos={results} medidasDe={medidasDe} noPedido={idsNoPedido} serveEm={serveEmPorId} {...(veiculoAtivo ? { veiculo: linhaDoVeiculoPorId } : {})} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
+                  <ResultadosDaBusca produtos={results} medidasDe={medidasDe} noPedido={idsNoPedido} serveEm={serveEmPorId} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
                   <MostrarMais pagina={paginaBusca} aoMostrarMais={() => setPaginasBusca((n) => n + 1)} />
                 </>
               )
