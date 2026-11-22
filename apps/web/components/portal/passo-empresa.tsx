@@ -47,7 +47,6 @@ import {
   type AdminDoForm,
   type FormNovaEmpresa,
 } from '@/lib/portal-nova-empresa';
-import { principalDesabilitadoCss } from '@/lib/portal-estilos';
 import { ESCOLHA_VAZIA, semCatalogoDePlanos, totalDaEscolha, type EscolhaDaTela } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
@@ -305,7 +304,7 @@ function NovaEmpresaComPlano({ aoGravar }: { aoGravar?: () => void }) {
       )}
 
       <div className="flex flex-wrap items-center gap-5">
-        <Button data-testid="empresa.gravar" type="submit" variant="primary" className={cx('h-[52px] px-6 text-[15px]', principalDesabilitadoCss)} disabled={!podeCriar}>
+        <Button data-testid="empresa.gravar" type="submit" variant="primary" className="h-[52px] px-6 text-[15px]" disabled={!podeCriar}>
           {enviando ? TEXTOS_NOVA_EMPRESA.criando : TEXTOS_NOVA_EMPRESA.criar}
         </Button>
         {total && (

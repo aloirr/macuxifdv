@@ -30,7 +30,6 @@ import {
   TEXTOS_LOGO,
   type BotaoLogo,
 } from '@/lib/portal-logo';
-import { principalDesabilitadoCss } from '@/lib/portal-estilos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { useUrlDoBlob } from '@/lib/url-do-blob';
 
@@ -357,7 +356,7 @@ function CartaoNomeFantasia({ tenant, marca, podeGravar }: { tenant: string; mar
             setErro(null);
           }}
         />
-        <Button type="submit" variant="primary" data-testid="empresa-nome-fantasia.salvar" className={principalDesabilitadoCss} disabled={salvando || !nomeMudou(nome, marca.nome_fantasia)}>
+        <Button type="submit" variant="primary" data-testid="empresa-nome-fantasia.salvar" disabled={salvando || !nomeMudou(nome, marca.nome_fantasia)}>
           {salvando ? TEXTOS_LOGO.salvando : TEXTOS_LOGO.salvar}
         </Button>
       </form>

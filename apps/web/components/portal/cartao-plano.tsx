@@ -14,7 +14,6 @@ import { FichaAssinaturaSchema, type FichaAssinatura, type Plano } from '@macuxi
 import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
 
 import { chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL } from '@/lib/portal-api';
-import { principalDesabilitadoCss } from '@/lib/portal-estilos';
 import { diaCivil } from '@/lib/portal-formato';
 import {
   blocosDaFicha,
@@ -147,8 +146,8 @@ export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: str
 
 /**
  * Diálogo "Trocar de plano" (§11.4): os planos (o atual com "Atual" e já escolhido), os adicionais em linhas, o alternador
- * Mensal/Anual numa linha própria (MC-0050) e o rodapé só com Total, "Cancelar" e "Trocar para {plano}". O `Dialog` do kit (RD-2616),
- * na maior largura que ele tem (`larga`, 720 px; os 880 px da spec ficam com o kit), folha abaixo de 640 px; Esc e "Cancelar" fecham
+ * Mensal/Anual numa linha própria (MC-0050) e o rodapé só com Total, "Cancelar" e "Trocar para {plano}". O `Dialog` do kit (RD-2616)
+ * na largura `extra-larga` (880 px, os 4 planos numa linha), folha abaixo de 640 px; Esc e "Cancelar" fecham
  * sem gravar (não durante o envio) e o kit prende o Tab. Plano abaixo do uso (RN-PLA-05): as frases do contrato embaixo dos planos e
  * o principal desabilitado; a API revalida (422).
  */
@@ -196,7 +195,7 @@ export function DialogoTrocarPlano({ tenant, ficha, aoFechar, aoTrocar }: { tena
     <Dialog
       open
       title={TEXTOS_PLANO.trocar}
-      largura="larga"
+      largura="extra-larga"
       onClose={fechar}
       footer={
         <>
@@ -208,7 +207,7 @@ export function DialogoTrocarPlano({ tenant, ficha, aoFechar, aoTrocar }: { tena
           <Button data-testid="empresa-plano.cancelar" onClick={fechar} disabled={enviando}>
             {TEXTOS_PLANO.cancelar}
           </Button>
-          <Button variant="primary" data-testid="empresa-plano.confirmar" className={principalDesabilitadoCss} disabled={!pode} onClick={() => void trocar()}>
+          <Button variant="primary" data-testid="empresa-plano.confirmar" disabled={!pode} onClick={() => void trocar()}>
             {mudou && plano ? TEXTOS_PLANO.trocarPara(plano.nome) : TEXTOS_PLANO.trocar}
           </Button>
         </>

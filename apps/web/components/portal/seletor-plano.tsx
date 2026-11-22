@@ -55,12 +55,12 @@ function PrecoDoPlano({ plano, ciclo }: { plano: Plano; ciclo: Ciclo }) {
 }
 
 /**
- * Os cartões de plano (rádio). `atual` = plano de hoje, com o selo "Atual" e as licenças em duas linhas, e os planos sempre 2 × 2
- * (diálogo "Trocar de plano", §11.4: a largura do `Dialog` do kit não cabe 4 preços numa linha).
+ * Os cartões de plano (rádio): 4 numa linha a partir de 768 px e 2 × 2 abaixo (§11.3 e §11.4). `atual` = plano de hoje, com o
+ * selo "Atual" e as licenças em duas linhas (diálogo "Trocar de plano", `Dialog` `extra-larga`, RD-2616).
  */
 export function EscolhaDoPlano({ planos, escolha, aoMudar, erro, atual }: { planos: readonly Plano[]; escolha: EscolhaDaTela; aoMudar: (e: EscolhaDaTela) => void; erro?: string; atual?: string }) {
   return (
-    <div role="radiogroup" aria-label={TEXTOS_PLANO.plano} aria-invalid={erro ? true : undefined} className={cx('grid grid-cols-2 gap-3', atual === undefined && 'md:grid-cols-4')}>
+    <div role="radiogroup" aria-label={TEXTOS_PLANO.plano} aria-invalid={erro ? true : undefined} className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {planosVisiveis(planos, atual).map((p) => {
         const on = escolha.plano === p.codigo;
         const [linha1, linha2] = licencasDoPlanoEmDuasLinhas(p);

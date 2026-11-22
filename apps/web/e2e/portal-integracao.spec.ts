@@ -221,6 +221,8 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       await dialogo.getByTestId('empresa.plano-light').click();
       await expect(dialogo.getByTestId('empresa-plano.erro')).toContainText('Inative');
       await expect(dialogo.getByTestId('empresa-plano.confirmar')).toBeDisabled();
+      // o fim da transição de cor do principal (de habilitado para o desabilitado do kit) antes do print
+      await page.waitForTimeout(400);
       await page.screenshot({ path: `${PRINTS}/06d-trocar-plano-abaixo-do-uso.png` });
     }
     // Esc fecha sem gravar

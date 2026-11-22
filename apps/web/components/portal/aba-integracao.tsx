@@ -23,7 +23,6 @@ import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel, Tab
 import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
 import { NOME_DA_BASE } from '@/lib/portal-bases';
 import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
-import { principalDesabilitadoCss } from '@/lib/portal-estilos';
 import { ENCAIXE_API_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { BaixarPacote } from './baixar-conector';
@@ -324,7 +323,6 @@ function GerarCredencial({
           data-testid={`${testId}gerar`}
           type="submit"
           variant={principal ? 'primary' : 'secondary'}
-          className={principalDesabilitadoCss}
           disabled={enviando || !identificador.trim() || !nome.trim() || carregando || semLivres || (escolheBases && escolhidas.length === 0)}
         >
           {enviando ? 'Gerando…' : 'Gerar credencial'}

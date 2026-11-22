@@ -200,4 +200,19 @@ describe('diálogo "Trocar de plano" (§11.4)', () => {
     const confirmar = html.slice(html.indexOf('data-testid="empresa-plano.confirmar"'));
     expect(confirmar.slice(0, confirmar.indexOf('</button>'))).toMatch(/disabled=""[^>]*>Trocar de plano$/);
   });
+
+  it('Dialog extra-larga (880 px) com os 4 planos numa linha a partir de 768 px e 2 × 2 abaixo (RD-2616)', () => {
+    const html = renderizar(<DialogoTrocarPlano tenant={TENANT} ficha={ficha} aoFechar={() => undefined} aoTrocar={() => undefined} />);
+    expect(html).toContain('sm:max-w-[880px]');
+    expect(html).toContain('class="grid grid-cols-2 gap-3 md:grid-cols-4"');
+  });
+
+  it('principal desabilitado só com o desabilitado do kit (Névoa e texto de apoio), sem classe própria do portal', () => {
+    const html = renderizar(<DialogoTrocarPlano tenant={TENANT} ficha={ficha} aoFechar={() => undefined} aoTrocar={() => undefined} />);
+    const confirmar = html.slice(html.lastIndexOf('<button', html.indexOf('data-testid="empresa-plano.confirmar"')));
+    const tag = confirmar.slice(0, confirmar.indexOf('>'));
+    expect(tag).toContain('disabled:bg-neutral-soft');
+    expect(tag).toContain('disabled:text-texto-apoio');
+    expect(tag).not.toContain('!');
+  });
 });
