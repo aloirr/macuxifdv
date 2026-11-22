@@ -98,8 +98,9 @@ describe('Guia da API em PDF (docs/guia-api-hub.pdf)', () => {
     for (const b of blocos) for (const linha of b.split('\n')) expect(linha.length, linha).toBeLessThanOrEqual(LARGURA_BLOCO);
   });
 
-  it('código de erro só quebra depois de "_" (<wbr>), nunca no meio da palavra', () => {
-    expect(html).toContain('<code>referencia_<wbr>ausente</code>');
+  it('código de erro nas tabelas de colunas fixas não tem ponto de quebra (nunca parte no meio)', () => {
+    expect(html).toContain('<code>referencia_ausente</code>');
+    expect(html).not.toContain('<code>referencia_<wbr>ausente</code>');
   });
 
   it('todo campo de tabela tem explicação em português', () => {

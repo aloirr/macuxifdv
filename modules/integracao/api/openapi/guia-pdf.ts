@@ -46,8 +46,8 @@ const p = (s: string) => `<p>${md(s)}</p>`;
 const ul = (itens: readonly string[]) => `<ul>${itens.map((i) => `<li>${md(i)}</li>`).join('')}</ul>`;
 const ol = (itens: readonly string[]) => `<ol>${itens.map((i) => `<li>${md(i)}</li>`).join('')}</ol>`;
 const aviso = (s: string) => `<div class="aviso">${md(s)}</div>`;
-/** Linha de bloco de código acima de 95 caracteres: quebra nos espaços, com recuo de mais 2 (só na exibição; o texto no PDF é o mesmo). */
-export const LARGURA_BLOCO = 95;
+/** Linha de bloco de código acima de `LARGURA_BLOCO` caracteres: quebra nos espaços, com recuo de mais 2 (só na exibição; o texto no PDF é o mesmo). */
+export const LARGURA_BLOCO = 88;
 function quebrarLinha(linha: string): string[] {
   if (linha.length <= LARGURA_BLOCO) return [linha];
   const recuo = ' '.repeat((/^ */.exec(linha)?.[0].length ?? 0) + 2);
@@ -77,6 +77,8 @@ const tabela = (cabecalho: readonly string[], linhas: readonly (readonly string[
     .join('')}</tbody></table>`;
 /** Código de erro: só quebra depois de `_` (nunca no meio de uma palavra). */
 const cod = (s: string) => `<code>${esc(s).replaceAll('_', '_<wbr>')}</code>`;
+/** Código sem ponto de quebra: nas tabelas de colunas fixas ele nunca parte. */
+const codSimples = (s: string) => `<code>${esc(s)}</code>`;
 const milhar = (n: number) => n.toLocaleString('pt-BR', { useGrouping: true, minimumGroupingDigits: 1 } as Intl.NumberFormatOptions);
 /** Permite quebrar um código só depois de `_`, `.` ou `]` (nunca no meio de uma palavra). */
 const comQuebras = (html: string) => html.replace(/<code>([^<]*)<\/code>/g, (_m, c: string) => `<code>${c.replaceAll('_', '_<wbr>')}</code>`);
@@ -268,7 +270,7 @@ function descricaoSemRegra(descricao: string, regra: string): string {
 const tabelaCampos = (linhas: readonly LinhaCampo[]) =>
   tabela(
     ['Campo', 'Tipo', 'Obrig.', 'Descrição', 'Regra'],
-    linhas.map((l) => [`<code>${esc(l.campo).replace(/([.\]])/g, '$1<wbr>')}</code>`, esc(l.tipo), esc(l.obrigatorio), comQuebras(md(descricaoSemRegra(l.descricao, l.regra))), comQuebras(md(l.regra))]),
+    linhas.map((l) => [`<code>${esc(l.campo).replace(/([.\]])/g, '$1<wbr>')}</code>`, esc(l.tipo), esc(l.obrigatorio), comQuebras(md(descricaoSemRegra(l.descricao, l.regra))), md(l.regra)]),
     'campos',
   );
 
@@ -367,7 +369,7 @@ function secaoRota(ctx: Contexto, caminho: string, metodo: string, op: Json, ind
       for (const c of (lista[2] as string).matchAll(/`([a-z_]+)`/g)) if (!proprios.includes(c[1] as string) && !comuns.has(c[1] as string)) proprios.push(c[1] as string);
       quando = `${lista[1]}. ${lista[3]}`;
     }
-    especificos.push([`<strong>${st}</strong>`, proprios.map(cod).join(' '), md(QUANDO_STATUS[`${id}:${st}`] ?? quando)]);
+    especificos.push([`<strong>${st}</strong>`, proprios.map(codSimples).join(' '), md(QUANDO_STATUS[`${id}:${st}`] ?? quando)]);
   }
   if (especificos.length) partes.push('<h3>Outros status desta rota</h3>', tabela(['HTTP', 'Códigos', 'Quando'], especificos, 'compacta status'));
 
@@ -490,7 +492,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
         [cod('X-Macuxi-Conector-Versao'), md('opcional: versão do seu software (`1.2.1`). Abaixo da mínima da empresa, as rotas de dados respondem `426`.')],
         [cod('Content-Type'), md('`application/json` nos `POST`')],
       ],
-      'compacta',
+      'compacta param',
     ),
     p(`A empresa vem da chave: nunca envie \`tenant_id\`. Os exemplos \`curl\` do guia usam estas variáveis; para testar a credencial, rode o curl da ${secaoDe('consultar_cursor')}: \`200\` confirma a chave. Falhas: Seção 7.`),
     pre(`export HUB="https://api.macuxifdv.com.br${BASE}"\nexport MACUXI_CHAVE="<chave de API>"\nexport MACUXI_CONECTOR="erp-matriz"\nH_AUTH=(-H "Authorization: Bearer $MACUXI_CHAVE" -H "X-Macuxi-Conector-Id: $MACUXI_CONECTOR")`),
@@ -586,10 +588,10 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
     p('Todo erro tem o corpo `{ "codigo", "mensagem", "detalhes"?, "requisicao_id" }`. As recusas de lote e de retorno acrescentam `erros[]` (`codigo`, `campo`, `mensagem`).'),
     json(exemploErro),
     '<h3>O que fazer por status HTTP</h3>',
-    tabela(['HTTP', 'Códigos', 'O que fazer'], ACAO_STATUS.map((a) => [`<strong>${a.status}</strong>`, a.codigos.startsWith('Em cada') ? esc(a.codigos) : a.codigos.split(', ').map(cod).join(' '), md(a.acao)]), 'compacta status'),
+    tabela(['HTTP', 'Códigos', 'O que fazer'], ACAO_STATUS.map((a) => [`<strong>${a.status}</strong>`, a.codigos.startsWith('Em cada') ? esc(a.codigos) : a.codigos.split(', ').map(codSimples).join(' '), md(a.acao)]), 'compacta status'),
     '<h3>Erros por linha</h3>',
     p('Um lote aceito (`202`) pode ter linhas com erro. Elas não travam o lote: as válidas são aplicadas e o lote termina `concluido_com_erros`. `GET /lotes/{id}` lista cada erro com `indice`, `external_id`, `codigo`, `campo`, `mensagem` e `reprocessavel`.'),
-    tabela(['Código da linha', 'Significado', 'Reprocessável'], CODIGOS_ERRO_LINHA.map((c) => [cod(c), md(CODIGOS_LINHA[c]), ehReprocessavel(c) ? 'sim' : 'não']), 'compacta linhas'),
+    tabela(['Código da linha', 'Significado', 'Reprocessável'], CODIGOS_ERRO_LINHA.map((c) => [codSimples(c), md(CODIGOS_LINHA[c]), ehReprocessavel(c) ? 'sim' : 'não']), 'compacta linhas'),
     p('`reprocessavel: true`: o Macuxi tenta a linha de novo sozinho. Nas demais, corrija na origem e reenvie o registro com `alterado_em` atualizado.'),
   ].join('\n');
 
@@ -638,7 +640,7 @@ th { background: #1E3350; color: #fff; text-align: left; font-weight: 700; paddi
 td { padding: 3px 6px; border-bottom: 1px solid #DFE2E6; vertical-align: top; }
 tr { break-inside: avoid; } thead { display: table-header-group; }
 table.campos { table-layout: fixed; }
-table.campos th:nth-child(1) { width: 25%; } table.campos th:nth-child(2) { width: 18%; } table.campos th:nth-child(3) { width: 7%; } table.campos th:nth-child(4) { width: 28%; } table.campos th:nth-child(5) { width: 22%; }
+table.campos th:nth-child(1) { width: 29%; } table.campos th:nth-child(2) { width: 17%; } table.campos th:nth-child(3) { width: 7%; } table.campos th:nth-child(4) { width: 26%; } table.campos th:nth-child(5) { width: 21%; }
 table.campos code { font-size: 9pt; }
 table.compacta code { overflow-wrap: normal; }
 table.status code, table.param code, table.linhas code { white-space: nowrap; overflow-wrap: normal; }
