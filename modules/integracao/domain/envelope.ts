@@ -11,7 +11,7 @@ import { validarVersaoContrato } from './versao';
 export interface OpcoesEnvelope {
   limiteRegistros?: number;
   versoesSuportadas?: readonly string[];
-  /** P-6 (T-0027): entidades do Conector autenticado; omitido = não confere (testes e carga por arquivo). */
+  /** P-6 (T-0027): entidades do Conector autenticado; omitido = não confere (testes). */
   entidadesDoConector?: readonly Entidade[];
 }
 

@@ -24,6 +24,30 @@ describe('RF-INT-04/doc 06: saúde do Conector no monitor', () => {
   });
 });
 
+describe('RN-INT-10: credencial de API (tipo nuvem) não manda sinal de vida', () => {
+  const api = (extra = {}) => ({ tipo: 'nuvem' as const, ativo: true, ultimo_sinal_em: null, parado_por_versao: false, ...extra });
+
+  it('RN-INT-10: credencial de API ativa fica ok, mesmo sem nunca ter enviado sinal e mesmo com sinal antigo (nunca sem_sinal nem nunca_conectou)', () => {
+    expect(avaliarSaudeConector(api(), t0)).toBe('ok');
+    expect(avaliarSaudeConector(api({ ultimo_sinal_em: t0 }), min(t0, 600))).toBe('ok');
+  });
+
+  it('RN-INT-10: credencial de API revogada (inativa) fica desativada', () => {
+    expect(avaliarSaudeConector(api({ ativo: false }), t0)).toBe('desativado');
+  });
+
+  it('RN-INT-10: o Conector instalado (tipo conector ou sem tipo) segue com a regra do sinal de vida', () => {
+    expect(avaliarSaudeConector({ ...api(), tipo: 'conector' }, t0)).toBe('nunca_conectou');
+    expect(avaliarSaudeConector({ ...api(), tipo: 'arquivo' }, t0)).toBe('nunca_conectou');
+  });
+
+  it('RN-INT-10: sem alerta de sem sinal nem de nunca conectou para a credencial de API', () => {
+    const vazio = { agora: t0, lotesFalhosUltimas24h: [], pendenciasInativacao: [], reconciliacoesDivergentes: [], pedidos: { presos: [], retidos: [] } };
+    expect(montarAlertasMonitor({ ...vazio, conectores: [{ ...conector({ ultimo_sinal_em: null }), tipo: 'nuvem' as const }] })).toEqual([]);
+    expect(montarAlertasMonitor({ ...vazio, conectores: [{ ...conector({ ultimo_sinal_em: null }), tipo: 'conector' as const }] }).map((a) => a.codigo)).toEqual(['conector_nunca_conectou']);
+  });
+});
+
 describe('RF-INT-04/06: alertas do monitor em português com a ação seguinte', () => {
   const vazio = { agora: t0, conectores: [], lotesFalhosUltimas24h: [], pendenciasInativacao: [], reconciliacoesDivergentes: [], pedidos: { presos: [], retidos: [] } };
 

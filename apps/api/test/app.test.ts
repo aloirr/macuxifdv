@@ -482,7 +482,7 @@ describe('trustProxy (túnel da demo, T-0026): limite das rotas públicas por IP
 describe('limite de corpo por rota (limiteCorpoBytes; T-0032 carga por arquivo, PR #66)', () => {
   const MIB = 1024 * 1024;
   let executou = 0;
-  /** Rota de exemplo que recebe um CSV como texto no JSON, como a `POST /v1/integracao/cargas-arquivo`. */
+  /** Rota de exemplo que recebe um CSV como texto no JSON. */
   const rotaArquivo = (limiteCorpoBytes: number, caminho = 'importacoes'): RotaModulo => ({
     metodo: 'POST',
     caminho,

@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * "Escolha a empresa" (T-0093; ADR 0031; spec docs/design/portal-entrar.md §2): admin do cliente com 2+ empresas, depois do login
+ * "Escolha a empresa" (T-0093; ADR 0031; spec docs/design/portal-entrar.md §2 e portal-config-enxuto.md §2, sem a instrução e com
+ * o código da licença em maiúsculas): admin do cliente com 2+ empresas, depois do login
  * (`empresa: null`) e no "Trocar de empresa". A lista é a da sessão (`sessao.empresas`, só as em que a senha conferiu), na ordem
  * da API. Tocar numa empresa → `POST /v1/plataforma/auth/empresa { tenant_id }` → sessão nova (o token anterior morre) → página
  * da empresa. A empresa atual leva o selo "Atual" e volta para ela sem novo pedido. Sem digitar a senha de novo.
@@ -17,6 +18,7 @@ import { SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { Badge, Button, cx, IconChevronRight, LoadingBlock, Notice } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro, sairDoPortal } from '@/lib/portal-api';
+import { codigoDaLicenca } from '@/lib/portal-formato';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import {
   apagarRetornoPortal,
@@ -43,7 +45,6 @@ import { MolduraEstreita, useSessaoPortal } from './base';
 
 export const TEXTOS_ESCOLHER = Object.freeze({
   titulo: 'Escolha a empresa',
-  instrucao: 'Seu acesso vale para estas empresas.',
   atual: 'Atual',
   entrando: 'Entrando…',
   sair: 'Sair',
@@ -162,10 +163,7 @@ export function TelaEscolherEmpresa() {
   return (
     <MolduraEstreita testId="escolher.tela">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="m-0 text-[24px] font-bold">{TEXTOS_ESCOLHER.titulo}</h1>
-          <span className="text-[13px] text-ink-2">{TEXTOS_ESCOLHER.instrucao}</span>
-        </div>
+        <h1 className="m-0 text-[24px] font-bold">{TEXTOS_ESCOLHER.titulo}</h1>
         {aviso && (
           <div data-testid="escolher.aviso">
             <Notice tone="info">{aviso}</Notice>
@@ -197,7 +195,7 @@ export function TelaEscolherEmpresa() {
                     <span className="truncate text-[15px] font-semibold text-ink">{e.nome}</span>
                     {e.atual && <Badge tone="neutral">{TEXTOS_ESCOLHER.atual}</Badge>}
                   </span>
-                  <span className="text-[12px] text-ink-2">{e.codigo}</span>
+                  <span className="font-mono text-[13px] text-ink-2">{codigoDaLicenca(e.codigo)}</span>
                 </span>
                 {escolhendo === e.id ? (
                   <span className="text-[13px] font-semibold text-ink-2">{TEXTOS_ESCOLHER.entrando}</span>

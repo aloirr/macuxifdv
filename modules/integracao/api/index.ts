@@ -2,7 +2,7 @@
  * API do módulo Integracao.
  *  - Hub `/integracao/v1` (chamado pelo Conector, chave de API por Conector, sem JWT): `conector` do `ModuloApi` (ADR 0013), ids e
  *    caminhos de `ROTAS_HUB`. Cada rota tem a regra no `domain`; aqui só SQL no schema `integracao`, transação e evento.
- *  - BKO `/v1/integracao/*` (JWT, perfil por ação do manifesto): monitor, Conectores, decisão da inativação em massa e carga por arquivo (RF-INT-03).
+ *  - BKO `/v1/integracao/*` (JWT, perfil por ação do manifesto): monitor, Conectores, decisão da inativação em massa e consulta de lotes.
  * O pepper da chave (`MACUXI_HUB_CHAVE_PEPPER`) é lido a cada chamada; ausente ou curto = 503 (falha fechada).
  */
 import { definirApiConector, definirModuloApi, type ContextoConector, type ModuloApi, type RotaConector } from '@macuxi/platform-sdk';
@@ -15,14 +15,14 @@ import { rotaApagarMapeamento, rotaGravarMapeamento, rotaListarMapeamentos, rota
 import { consumidorPedidoAprovado, consumidorPedidoCancelado, consumidorPedidoStatusAlterado } from './consumidores-pedido';
 import { consultaCancelamentoErp } from './consulta-cancelamento';
 import { criarAutenticacaoHub, type ConectorHub } from './autenticacao';
-import { rotaCargaArquivo, rotaConferirArquivo, rotaErrosLote, rotaErrosLoteCsv, rotaLote, rotaOrdemCarga, rotaProgressoSessaoArquivo } from './bko-carga-arquivo';
-import { rotaModeloCsv, rotaModeloDicionario } from './bko-modelos';
+import { rotaErrosLote, rotaLote } from './bko-lotes-consulta';
 import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarLimiteTentativas, criarRotaReprocessarLote, rotaCancelarLote, rotaCodigosMacuxi, rotaListarAutorizadores, verificadorSenhaIndisponivel, type VerificadorSenha } from './bko-lotes-acoes';
 import { criarRotasConectores } from './bko-conectores';
 import { rotaDownloadConector } from './conector-download';
 import { rotaMonitor } from './bko-monitor';
 import { documentoOpenApiPublico } from './openapi/publico';
+import { rotaGuiaPdf } from './guia-pdf-rota';
 import { rotaGravarPolitica, rotaLerPolitica } from './bko-politica';
 import { consultarCursor, consultarLote, enviarLote, enviarReconciliacao } from './rotas-lotes';
 import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
@@ -65,9 +65,9 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined; 
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida],
     consultas: [consultaCancelamentoErp],
-    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo, rotaModeloCsv, rotaModeloDicionario, rotaDownloadConector],
-    // T-0092: especificação pública (sem token); ETag, 304 e Cache-Control são da plataforma
-    rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }],
+    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaLote, rotaErrosLote, rotaDownloadConector],
+    // T-0092: especificação e guia em PDF públicos (sem token); ETag, 304 e Cache-Control são da plataforma
+    rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }, rotaGuiaPdf],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),
   });
 }

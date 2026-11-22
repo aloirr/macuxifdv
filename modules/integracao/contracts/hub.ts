@@ -128,8 +128,9 @@ export const QueryConsultaLote = z.object({
 
 /** `GET /pedidos/pendentes?limite=`. */
 export const LIMITE_PEDIDOS_POLL_PADRAO = 50;
+export const LIMITE_PEDIDOS_POLL_MAX = 100;
 export const QueryPedidosPendentes = z.object({
-  limite: z.coerce.number().int().min(1).max(100).default(LIMITE_PEDIDOS_POLL_PADRAO),
+  limite: z.coerce.number().int().min(1).max(LIMITE_PEDIDOS_POLL_MAX).default(LIMITE_PEDIDOS_POLL_PADRAO),
 });
 
 /** Resposta de `POST /reconciliacoes` (200; reenviar o mesmo dia substitui o anterior). O Conector não lê o corpo, só o status. */

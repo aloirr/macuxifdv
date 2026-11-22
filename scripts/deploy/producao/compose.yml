@@ -85,6 +85,8 @@ services:
       MACUXI_API_POOL: '10'
       MACUXI_API_POOL_PORTAL: '2'
       MACUXI_TRUST_PROXY: uniquelocal
+      # ADR 0047: planos e licenças do portal ligados na v1.0.24 (ordem do dono do produto, 22/11/2026)
+      MACUXI_PLANOS: '1'
     ports:
       - '127.0.0.1:8100:8100'
     volumes:

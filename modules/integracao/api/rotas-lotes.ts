@@ -65,7 +65,7 @@ const aceito = (l: { lote_id: string; entidade: string; modo: string; recebidas:
 type DbTenant = Parameters<Parameters<Ctx['comTenant']>[0]>[0];
 type TxTenant = Parameters<Parameters<Ctx['comTenant']>[0]>[1];
 
-/** Tudo de que o registro de um lote precisa, venha ele do Conector (`POST /lotes`) ou de um arquivo do BKO (RF-INT-03). */
+/** Tudo de que o registro de um lote precisa, venha ele do Conector (`POST /lotes`). */
 export interface EntradaGravarLote {
   tenantId: string;
   /** Conector dono do lote: `id` (uuid) e `identificador` (slug, vai no evento). */
@@ -78,8 +78,6 @@ export interface EntradaGravarLote {
   versaoConector: string | null;
   bytes: number;
   agora: Date;
-  /** Conteúdo extra do staging (ex.: `origem` e `linhas_arquivo` da carga por arquivo), ao lado de registros e linhas inválidas. */
-  stagingExtra?: Record<string, unknown>;
   log: { info(obj: Record<string, unknown>, msg: string): void };
 }
 
@@ -165,7 +163,7 @@ export async function gravarLote(db: DbTenant, tx: TxTenant, e: EntradaGravarLot
   await db.query(`insert into integracao.lote_staging (tenant_id, lote_id, corpo) values ($1, $2, $3::jsonb)`, [
     e.tenantId,
     loteId,
-    JSON.stringify({ registros: env.registros, linhas_invalidas: env.linhas_invalidas ?? [], linhas_invalidas_omitidas: env.linhas_invalidas_omitidas ?? 0, ...(e.stagingExtra ?? {}) }),
+    JSON.stringify({ registros: env.registros, linhas_invalidas: env.linhas_invalidas ?? [], linhas_invalidas_omitidas: env.linhas_invalidas_omitidas ?? 0 }),
   ]);
   await tx.publicar(
     EVENTO_LOTE_RECEBIDO,

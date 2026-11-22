@@ -67,7 +67,7 @@ interface LinhaLote {
 
 interface CorpoStaging {
   registros?: unknown[];
-  /** Carga por arquivo (RF-INT-03): linha física do arquivo de cada item de `registros`; os erros e avisos ganham "Linha N do arquivo:". */
+  /** Lote legado de arquivo (carga por CSV do BKO, que saiu na v1.0.22): linha física do arquivo de cada item de `registros`; os erros e avisos ganham "Linha N do arquivo:". */
   linhas_arquivo?: number[];
   linhas_invalidas?: LinhaInvalidaConector[];
   linhas_invalidas_omitidas?: number;
@@ -442,7 +442,7 @@ async function fecharSessaoSeCompleta(
   );
   let estado: SessaoCargaEstado = novaSessao(sessaoId, lote.entidade, iso(sessao.iniciada_em));
   for (const x of partes) estado = registrarParte(estado, { parte: x.sessao_parte, ultimo: x.sessao_ultimo === true, status: x.status });
-  // mesma fonte da rota da carga em partes (bko-carga-arquivo): o parâmetro do tenant, com o padrão só como reserva
+  // o parâmetro do tenant, com o padrão só como reserva
   const parametros = lerParametrosHub(typeof ctx.parametros === 'function' ? ctx.parametros() : {}, ctx.log);
   const situacao = situacaoSessao(estado, p.agora, { ttlMin: parametros.ttlSessaoMin });
   if (situacao === 'aberta') return;

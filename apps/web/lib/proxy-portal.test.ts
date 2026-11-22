@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
 
-import nextConfig, { PROXY_OPENAPI_HUB } from '../next.config';
+import nextConfig, { PROXY_GUIA_PDF_HUB, PROXY_OPENAPI_HUB } from '../next.config';
 import { config as configDoProxy, proxy } from '../proxy';
 import { destinoNoPortal } from './portal';
 import { caminhoDeRetornoSeguro } from './portal-sessao';
@@ -44,19 +44,21 @@ describe('T-0091: proxy no host config.', () => {
       expect(reescritoPara(proxy(pedido(host, '/login')))).toBeNull();
     }
   });
-  it('openapi.json do Hub: o proxy não reescreve (nem roda: matcher exclui api-proxy) e o rewrite do next.config leva à API', async () => {
+  it('openapi.json e guia.pdf do Hub: o proxy não reescreve (nem roda: matcher exclui api-proxy) e o rewrite do next.config leva à API', async () => {
     const matcher = new RegExp(`^${configDoProxy.matcher[0]}$`);
-    expect(matcher.test(PROXY_OPENAPI_HUB)).toBe(false);
     expect(matcher.test('/entrar')).toBe(true);
-    for (const host of PORTAIS) {
-      expect(destinoNoPortal(host, PROXY_OPENAPI_HUB)).toBeNull();
-      expect(reescritoPara(proxy(pedido(host, PROXY_OPENAPI_HUB)))).toBeNull();
-    }
     const rewrites = await (nextConfig.rewrites as () => Promise<{ source: string; destination: string }[]>)();
-    // a regra não depende de host (sem `has`)
-    const doc = rewrites.find((r) => r.source === PROXY_OPENAPI_HUB) as { has?: unknown } | undefined;
-    expect(doc).toBeDefined();
-    expect(doc?.has).toBeUndefined();
+    for (const caminho of [PROXY_OPENAPI_HUB, PROXY_GUIA_PDF_HUB]) {
+      expect(matcher.test(caminho)).toBe(false);
+      for (const host of PORTAIS) {
+        expect(destinoNoPortal(host, caminho)).toBeNull();
+        expect(reescritoPara(proxy(pedido(host, caminho)))).toBeNull();
+      }
+      // a regra não depende de host (sem `has`)
+      const doc = rewrites.find((r) => r.source === caminho) as { has?: unknown } | undefined;
+      expect(doc).toBeDefined();
+      expect(doc?.has).toBeUndefined();
+    }
   });
   it('retorno depois do login: os caminhos da lista branca abrem páginas do portal', () => {
     const aceitos = ['/empresas', '/empresas/nova', '/empresas/0b6f2a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b#integracao'];

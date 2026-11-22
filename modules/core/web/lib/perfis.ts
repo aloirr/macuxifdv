@@ -86,7 +86,6 @@ const LINHAS: readonly DefLinha[] = [
   I('plano-rv-ver', 'metas', 'Ver o plano de RV', ['plano_rv.ver']),
   I('plano-rv-editar', 'metas', 'Editar o plano de RV', ['plano_rv.editar']),
   I('monitor-ver', 'integracao', 'Ver o monitor', ['monitor.ver']),
-  I('carga-arquivo', 'integracao', 'Carga por arquivo e modelos CSV', ['carga.arquivo'], 'Enviar arquivos CSV e baixar os modelos.'),
 ];
 
 /** Rótulos curtos das chaves que ficam em "Outras permissões" (spec §5.13). */

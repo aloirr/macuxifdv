@@ -3,8 +3,7 @@
  * Todos relativos ao `/v1` da API (o navegador chama `/api-proxy<caminho>`, o proxy same-origin do Next). Um lugar só: se um
  * caminho mudar, muda aqui.
  */
-import type { Entidade } from '@macuxi/integracao/contracts';
-import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, ROTA_PORTAL_FRASES_CARGA } from '@macuxi/platform-sdk';
+import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, rotaPortalAssinatura, ROTA_PORTAL_CNPJ, ROTA_PORTAL_EMPRESA_COM_PLANO, ROTA_PORTAL_FRASES_CARGA, ROTA_PORTAL_PLANOS } from '@macuxi/platform-sdk';
 
 /** Caminho do SDK (`/v1/...`) relativo ao `/v1`, como o portal e o `api()` do BKO chamam. */
 export const semV1 = (caminho: string) => caminho.replace(/^\/v1(?=\/)/, '');
@@ -42,25 +41,23 @@ export const ROTAS_PORTAL = {
   logoDaEmpresa: (tenantId: string) => semV1(rotaLogoEmpresa(encodeURIComponent(tenantId))),
   /** Item 15 (v1.0.17): `PUT { ocultar }` oculta a logomarca do Macuxi no app e no BKO; só o time da Macuxi; responde a marca. */
   ocultarMarcaMacuxi: (tenantId: string) => semV1(rotaOcultarMarcaMacuxi(encodeURIComponent(tenantId))),
+  /** ADR 0047 (atrás de `MACUXI_PLANOS`; desligado = 404): catálogo (`ListaPlanosSchema`), criar com plano e a ficha/troca. */
+  planos: semV1(ROTA_PORTAL_PLANOS),
+  empresaComPlano: semV1(ROTA_PORTAL_EMPRESA_COM_PLANO),
+  assinatura: (tenantId: string) => semV1(rotaPortalAssinatura(encodeURIComponent(tenantId))),
+  /** ADR 0048: `POST { cnpj }` → dados da Receita (`ConsultaCnpjRespostaSchema`). */
+  cnpj: semV1(ROTA_PORTAL_CNPJ),
   // Integração (com `x-macuxi-tenant`)
-  ordemCarga: '/integracao/ordem-carga',
-  cargaArquivo: '/integracao/cargas-arquivo',
-  conferirArquivo: '/integracao/cargas-arquivo/conferir',
-  sessaoArquivo: (sessaoId: string) => `/integracao/cargas-arquivo/sessoes/${encodeURIComponent(sessaoId)}`,
-  lote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}`,
-  errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
-  errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
+  /** Conector (tipo `conector`) e credencial de API (tipo `nuvem`): `GET` lista os dois, `POST` cria com o `tipo` (`ConectorCriar`). */
   conectores: '/integracao/conectores',
+  /** `PATCH` (`ConectorAtualizar`: `{ entidades }` troca as bases; `{ ativo: false }` desativa e revoga as chaves, RN-INT-10) → `ConectorResumo`. */
+  conector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}`,
+  /** v1.0.21 (S10): "Gerar nova chave". `POST` → a chave nova (`ConectorCriado.shape.chave`, em claro UMA vez). */
+  chaveConector: (id: string) => `/integracao/conectores/${encodeURIComponent(id)}/chave`,
   /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = 'em breve'. */
   conectorDownload: '/integracao/conector/download',
-  // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
-  equipeModeloCsv: '/core/equipe/modelo.csv',
-  equipeImportacoes: '/core/equipe/importacoes',
   /** T-0190: link temporário do APK do Campo ou do Gestão (`{ variante }`); auditado na API. Só admin e super-admin. */
   appDownload: '/core/apps/download',
-  // N1 (PR #97, nuvem): até o merge respondem 404 e o portal mostra "em breve"
-  modeloCsv: (e: Entidade) => `/integracao/modelos/${e}.csv`,
-  dicionario: (e: Entidade) => `/integracao/modelos/${e}.json`,
 } as const;
 
 /**
@@ -69,13 +66,14 @@ export const ROTAS_PORTAL = {
  */
 export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.json', viaProxy: '/api-proxy/_publico/integracao/v1/openapi.json' });
 
+/**
+ * Guia da API em PDF (spec portal-config-enxuto §10.2): rota pública `GET /integracao/v1/guia.pdf` (S6, v1.0.23), sem sessão, como o
+ * OpenAPI (R-20261121-235000); o navegador baixa pelo caminho same-origin que o `next.config.ts` (`PROXY_GUIA_PDF_HUB`) repassa à API.
+ */
+export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf', viaProxy: '/api-proxy/_publico/integracao/v1/guia.pdf' });
+
+/** O que o cartão "Guia" mostra: o botão do PDF com `guiaPdf`; `null` = só o link do OpenAPI. */
+export const ENCAIXE_API_HUB: Readonly<{ guiaPdf: string | null }> = Object.freeze({ guiaPdf: GUIA_PDF_HUB.viaProxy });
+
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];
-
-/** Identificador do Conector tipo arquivo que o portal cria na primeira importação (R-20261106-011153). */
-export const CONECTOR_ARQUIVO_PORTAL = Object.freeze({
-  conector_id: 'implantacao-csv',
-  nome: 'Carga por arquivo (implantação)',
-  tipo: 'arquivo' as const,
-  recebe_pedidos: false,
-});

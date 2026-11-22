@@ -959,6 +959,13 @@ export interface CacheRotaPublica {
 export const CACHE_ROTA_PUBLICA_MAX_SEGUNDOS = 86_400;
 
 /**
+ * v1.0.21 (desenho config-credencial-api §5): tipos binários do documento público com `cache` (`RotaPublica.tipoConteudo`).
+ * Lista fechada: nada que o navegador renderize como página ou script (a API é servida pela origem do BKO e do portal).
+ */
+export const TIPOS_DOCUMENTO_PUBLICO_BINARIO = ['application/pdf'] as const;
+export type TipoDocumentoPublicoBinario = (typeof TIPOS_DOCUMENTO_PUBLICO_BINARIO)[number];
+
+/**
  * Rota SEM token. Duas formas:
  * - Core (login, refresh; RN da T-0002 §6 item 4): montada em `/v1/<caminho>`. Nunca devolva dado do tenant (nome, fuso)
  *   antes de validar a senha.
@@ -989,9 +996,18 @@ export interface RotaPublica<
   /**
    * T-0092: documento público com cache HTTP e ETag (ver `CacheRotaPublica`). Obrigatório em rota pública de módulo que não
    * é o core. Com `cache`, `executar` devolve o documento: `string` (enviada como está, ex.: JSON já formatado) ou objeto
-   * (serializado com `JSON.stringify`); o tipo é sempre `application/json; charset=utf-8`.
+   * (serializado com `JSON.stringify`); o tipo é `application/json; charset=utf-8`, salvo com `tipoConteudo`.
    */
   cache?: CacheRotaPublica;
+  /**
+   * v1.0.21: documento público BINÁRIO (só com `cache`; ex.: `application/pdf` do guia do Hub). O `executar` devolve
+   * `Uint8Array`/`Buffer` (outra coisa = 500, erro de programação); a API responde com esse tipo, `nosniff`, o mesmo
+   * `Cache-Control`/ETag (hash dos bytes)/304 do `cache` e sempre `Content-Disposition: attachment; filename="<nomeArquivo>"`.
+   * Ausente = JSON, como antes.
+   */
+  tipoConteudo?: TipoDocumentoPublicoBinario;
+  /** Nome do arquivo baixado; obrigatório com `tipoConteudo` e só com ele. Só `NOME_ARQUIVO_ROTA_RE`, sem dado pessoal. */
+  nomeArquivo?: string;
   /**
    * T-0117 (ADR 0038): token de renovação do BKO em cookie httpOnly. Só no core, só `POST`. Com o cabeçalho
    * `X-Macuxi-CSRF: 1`, a API lê o cookie para `corpo.refresh_token` (`renovar`/`encerrar`), tira o `refresh_token` da
@@ -1015,10 +1031,10 @@ export function caminhoDaRotaPublica(modulo: string, caminho: string): string {
  */
 export function problemasRotaPublica(
   modulo: string,
-  r: Pick<RotaPublica, 'metodo' | 'caminho' | 'conexao' | 'cache' | 'corpo' | 'status' | 'cookieSessao'>,
+  r: Pick<RotaPublica, 'metodo' | 'caminho' | 'conexao' | 'cache' | 'corpo' | 'status' | 'cookieSessao' | 'tipoConteudo' | 'nomeArquivo'>,
 ): string[] {
   const rotulo = `${r.metodo} ${caminhoDaRotaPublica(modulo, r.caminho)}`;
-  const p = [...problemasConexaoRotaPublica(modulo, r), ...problemasCookieSessao(modulo, rotulo, r)];
+  const p = [...problemasConexaoRotaPublica(modulo, r), ...problemasCookieSessao(modulo, rotulo, r), ...problemasDocumentoBinario(rotulo, r)];
   if (modulo !== 'core' && r.cache === undefined) p.push(`${rotulo}: rota pública fora do core só serve documento com cache (T-0092)`);
   if (r.cache === undefined) return p;
   const s = r.cache?.maxAgeSegundos;
@@ -1028,6 +1044,21 @@ export function problemasRotaPublica(
   if (r.corpo !== undefined) p.push(`${rotulo}: rota com cache não recebe corpo`);
   if (r.status !== undefined && r.status !== 200) p.push(`${rotulo}: rota com cache responde 200 (ou 304)`);
   if (r.conexao !== undefined) p.push(`${rotulo}: rota com cache não usa a conexão do portal`);
+  return p;
+}
+
+/** `tipoConteudo`/`nomeArquivo` da rota pública (v1.0.21): binário só com `cache`, com nome válido; nome só com tipo. */
+function problemasDocumentoBinario(rotulo: string, r: Pick<RotaPublica, 'cache' | 'tipoConteudo' | 'nomeArquivo'>): string[] {
+  const p: string[] = [];
+  if (r.tipoConteudo === undefined) {
+    if (r.nomeArquivo !== undefined) p.push(`${rotulo}: nomeArquivo só com tipoConteudo`);
+    return p;
+  }
+  if (!(TIPOS_DOCUMENTO_PUBLICO_BINARIO as readonly string[]).includes(r.tipoConteudo))
+    p.push(`${rotulo}: tipoConteudo ${String(r.tipoConteudo)} fora de ${TIPOS_DOCUMENTO_PUBLICO_BINARIO.join(', ')}`);
+  if (r.cache === undefined) p.push(`${rotulo}: tipoConteudo só em documento com cache`);
+  if (typeof r.nomeArquivo !== 'string' || !NOME_ARQUIVO_ROTA_RE.test(r.nomeArquivo))
+    p.push(`${rotulo}: nomeArquivo obrigatório com tipoConteudo (letras sem acento, dígitos, ponto, _ e -; até 100)`);
   return p;
 }
 

@@ -28,7 +28,7 @@ O **Core** vem sempre; os demais são **instaláveis/desinstaláveis por tenant,
 | **Gestor** | Gestão, Web | Tudo dos seus vendedores/promotores: painéis, ranking, mapa de visitas, alertas, aprovações e **pedido em nome do vendedor** |
 | **Pesquisa** | Campo (responder), Web (criar e analisar) | Questionários cadastrados no BKO, público-alvo, obrigatórios no check-in ou avulsos, offline |
 | **Treinamento** | Campo e Gestão (aprender/ranking), Web (conteúdo) | Jornada gamificada: trilhas, lições, quizzes, XP, níveis, medalhas, ranking por equipe |
-| **Integração** (plataforma) | Web (monitor), Conector | Hub REST de integração, Conector on-premise, cargas por arquivo, devolução de pedidos ao ERP |
+| **Integração** (plataforma) | Web (monitor), Conector | Hub REST de integração, Conector on-premise, devolução de pedidos ao ERP |
 
 ### Sugestões incorporadas à sua estrutura
 1. **Core separado dos módulos**: rota, visita, carteira e Cliente 360 são usados por vendedor, promotor e gestor; se ficassem no módulo Vendedor, o Promotor dependeria dele.

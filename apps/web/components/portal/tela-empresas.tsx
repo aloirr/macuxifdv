@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Empresas do portal (T-0087): lista (`GET /v1/plataforma/empresas`) e "Nova empresa" (passo Empresa). testIDs: empresas.*.
+ * Empresas do portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §3, §4 e §11.5): lista (`GET /v1/plataforma/empresas`,
+ * Empresa · Código · CNPJ · Plano · Situação · Criada em; o código da licença em maiúsculas) e "Nova empresa". testIDs: empresas.*.
  * ADR 0052 (spec portal-config-enxuto §15): com o bloco `acoes` na resposta, a lista ganha a coluna Backup e o menu "⋯" com
  * Backup, Inativar/Reativar e Excluir (`empresas-acoes.tsx`). Sem o bloco (servidor sem `MACUXI_EMPRESA_ACOES`), fica como era.
  * T-0093 (RN-CORE-33): as duas páginas são só do time da Macuxi; o admin do cliente vai para a página da empresa dele (ou para a
@@ -16,11 +17,14 @@ import { Badge, ErrorBlock, LoadingBlock, PageHeader, Panel, TableScroll, td, th
 
 import { chamarPortal, mensagemDoErro } from '@/lib/portal-api';
 import { ACOMPANHAR_ACAO_MS, rotuloDoStatus, TEXTOS_EMPRESA_ACOES, tomDoStatus, type EmpresaResumo } from '@/lib/portal-empresa-acoes';
+import { codigoDaLicenca, mascararCnpj } from '@/lib/portal-formato';
+import { TEXTOS_NOVA_EMPRESA } from '@/lib/portal-nova-empresa';
+import { TEXTOS_PLANO } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { LinkBotao, MolduraPortal, useSessaoPortal } from './base';
 import { CelulaBackup, MenuDaEmpresa, useAcoesDasEmpresas } from './empresas-acoes';
-import { mascararCnpj, PassoEmpresa } from './passo-empresa';
+import { NovaEmpresa } from './passo-empresa';
 
 export const CHAVE_EMPRESAS = ['portal', 'empresas'] as const;
 
@@ -49,7 +53,7 @@ function CelulaPlano({ empresa }: { empresa: EmpresaResumo }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       {nome}
-      {teste && <Badge tone="neutral">teste</Badge>}
+      {teste && <Badge tone="neutral">{TEXTOS_PLANO.teste}</Badge>}
     </span>
   );
 }
@@ -75,7 +79,14 @@ export function TelaEmpresas() {
     <MolduraPortal
       titulo={
         pode ? (
-          <PageHeader title="Empresas" subtitle="Cada empresa cliente é um tenant. Crie a empresa e carregue as bases dela, na ordem dos cartões." actions={<LinkBotao href="/empresas/nova" testId="empresas.nova" primario>Nova empresa</LinkBotao>} />
+          <PageHeader
+            title="Empresas"
+            actions={
+              <LinkBotao href="/empresas/nova" testId="empresas.nova" primario>
+                {TEXTOS_NOVA_EMPRESA.titulo}
+              </LinkBotao>
+            }
+          />
         ) : undefined
       }
     >
@@ -94,13 +105,9 @@ export function ListaEmpresas() {
       <div className="flex flex-col gap-3">
         {acoes.topo}
         <Panel>
-          <div data-testid="empresas.vazio" className="flex flex-col items-start gap-3 py-4">
-            <span className="text-[15px] font-semibold">Nenhuma empresa ainda.</span>
-            <span className="text-[13px] text-ink-2">Comece pela empresa cliente: razão social, CNPJ, fuso, módulos e os parâmetros iniciais.</span>
-            <LinkBotao href="/empresas/nova" primario>
-              Cadastrar a primeira empresa
-            </LinkBotao>
-          </div>
+          <span data-testid="empresas.vazio" className="py-4 text-[15px] text-ink-2">
+            Nenhuma empresa ainda.
+          </span>
         </Panel>
       </div>
     );
@@ -132,7 +139,7 @@ export function ListaEmpresas() {
                       {e.razao_social}
                     </Link>
                   </td>
-                  <td className={`${td} font-mono whitespace-nowrap`}>{e.codigo}</td>
+                  <td className={`${td} font-mono whitespace-nowrap`}>{codigoDaLicenca(e.codigo)}</td>
                   <td className={`${td} whitespace-nowrap tabular-nums`}>{e.cnpj ? mascararCnpj(e.cnpj) : '—'}</td>
                   <td className={td}>
                     <CelulaPlano empresa={e} />
@@ -164,10 +171,10 @@ export function TelaNovaEmpresa() {
   return (
     <MolduraPortal
       voltar={{ href: '/empresas', rotulo: 'Empresas' }}
-      titulo={pode ? <PageHeader eyebrow="Passo 1" title="Nova empresa" subtitle="Confira antes de gravar: o código da empresa não muda depois. As bases vêm nos próximos passos." /> : undefined}
+      titulo={pode ? <PageHeader title={TEXTOS_NOVA_EMPRESA.titulo} /> : undefined}
     >
       {/* A lista em cache ainda não tem a empresa nova: invalida antes de ir à página dela (sem o aviso "não encontrada"). */}
-      {pode ? <PassoEmpresa aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })} /> : <AbrindoAEmpresa />}
+      {pode ? <NovaEmpresa aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })} /> : <AbrindoAEmpresa />}
     </MolduraPortal>
   );
 }

@@ -133,6 +133,59 @@ describe('documento público de módulo (T-0092)', () => {
   });
 });
 
+describe('documento público binário: PDF (v1.0.21, GET /integracao/v1/guia.pdf)', () => {
+  const PDF = Buffer.from('%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\n%%EOF\n', 'latin1');
+  const URL_PDF = '/integracao/v1/guia.pdf';
+  const guia = (r: Partial<RotaPublica> = {}): RotaPublica => ({
+    metodo: 'GET',
+    caminho: 'guia.pdf',
+    limite: { max: 60, janelaMs: 60_000 },
+    cache: { maxAgeSegundos: 3600 },
+    tipoConteudo: 'application/pdf',
+    nomeArquivo: 'macuxi-guia-api-v1.pdf',
+    executar: async () => PDF,
+    ...r,
+  });
+
+  it('200 sem token: bytes do PDF, application/pdf, attachment com o nome, nosniff, cache público de 1 h e ETag dos bytes', async () => {
+    const { app } = montar([guia()]);
+    const r = await app.inject({ method: 'GET', url: URL_PDF });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.rawPayload.equals(PDF)).toBe(true);
+    expect(r.headers['content-type']).toBe('application/pdf');
+    expect(r.headers['content-disposition']).toBe('attachment; filename="macuxi-guia-api-v1.pdf"');
+    expect(r.headers['x-content-type-options']).toBe('nosniff');
+    expect(r.headers['cache-control']).toBe('public, max-age=3600');
+    expect(r.headers.etag).toBe(etagDoCorpo(PDF));
+    const n = await app.inject({ method: 'GET', url: URL_PDF, headers: { 'if-none-match': r.headers.etag as string } });
+    expect([n.statusCode, n.body, n.headers['cache-control']]).toEqual([304, '', 'public, max-age=3600']);
+  });
+
+  it('Uint8Array também vale; ETag igual ao do Buffer com os mesmos bytes', async () => {
+    const { app } = montar([guia({ executar: async () => new Uint8Array(PDF) })]);
+    const r = await app.inject({ method: 'GET', url: URL_PDF });
+    expect([r.statusCode, r.rawPayload.equals(PDF), r.headers.etag]).toEqual([200, true, etagDoCorpo(PDF)]);
+  });
+
+  it('o JSON da mesma montagem não muda: tipo JSON, sem Content-Disposition', async () => {
+    const { app } = montar([guia()]);
+    const r = await app.inject({ method: 'GET', url: URL_DOC });
+    expect([r.statusCode, r.body, r.headers['content-type']]).toEqual([200, DOCUMENTO, 'application/json; charset=utf-8']);
+    expect(r.headers['content-disposition']).toBeUndefined();
+  });
+
+  it('executar que não devolve bytes = 500 ERRO_INTERNO (erro de programação)', async () => {
+    const { app } = montar([guia({ executar: async () => 'texto' })]);
+    const r = await app.inject({ method: 'GET', url: URL_PDF });
+    expect([r.statusCode, r.json().codigo]).toEqual([500, 'ERRO_INTERNO']);
+  });
+
+  it('createApp recusa PDF sem nomeArquivo, mesmo em fixture sem definirModuloApi', () => {
+    const semNome = { ...integracaoReal, rotasPublicas: [{ ...guia(), nomeArquivo: undefined }] } as ModuloApi;
+    expect(() => createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ integracao: semNome }) }))).toThrow(/nomeArquivo obrigatório/);
+  });
+});
+
 describe('cache-publico (T-0092)', () => {
   it('corpo: string como está; objeto em JSON; vazio = {}', () => {
     expect(corpoDoDocumento('{"a":1}\n')).toBe('{"a":1}\n');

@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL, SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { ImportarEquipeRespostaSchema, mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';
+import { mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';
 
 import { CONTA_SENHA_A_TROCAR, CONTAS_FALSAS, responderFalso, zerarModoFalso } from './portal-falso';
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
@@ -282,19 +282,19 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect(itensDaEscolha(s0).map((i) => i.nome)).toEqual(['Atacado Norte S.A.', 'Comercial Boa Vista Ltda']);
     const [a, b] = s0.empresas;
     if (!a || !b) throw new Error('sessão sem as duas empresas');
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s0, { 'x-macuxi-tenant': a.id }))).status).toBe(409);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s0, { 'x-macuxi-tenant': a.id }))).status).toBe(409);
 
     const s1 = await sessaoDe(await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: a.id }, com(s0)));
     expect(s1.empresa?.id).toBe(a.id);
     expect(s1.token).not.toBe(s0.token);
     expect((await responderFalso('POST', ROTAS_PORTAL.renovar, undefined, com(s0))).status).toBe(401);
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s1, { 'x-macuxi-tenant': a.id }))).status).toBe(200);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s1, { 'x-macuxi-tenant': a.id }))).status).toBe(200);
     // outra empresa da lista sem escolher de novo: 403
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s1, { 'x-macuxi-tenant': b.id }))).status).toBe(403);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s1, { 'x-macuxi-tenant': b.id }))).status).toBe(403);
 
     const s2 = await sessaoDe(await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: b.id }, com(s1)));
     expect(s2.empresa?.id).toBe(b.id);
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s2, { 'x-macuxi-tenant': a.id }))).status).toBe(403);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s2, { 'x-macuxi-tenant': a.id }))).status).toBe(403);
     // empresa fora da lista: 403 na escolha
     expect((await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: '0b6f1a52-5c1e-4c4e-9a43-000000000099' }, com(s2))).status).toBe(403);
     // o admin do cliente não cria empresa nem vê as dos outros
@@ -320,26 +320,6 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect(r.status).toBe(403);
     expect(((await r.json()) as { codigo: string }).codigo).toBe('SENHA_A_TROCAR');
     expect((await login(CONTA_SENHA_A_TROCAR, 'errada')).status).toBe(401);
-  });
-
-  it('T-0094: Equipe por CSV sem convite; acessos enviados por e-mail; 503 EMAIL_INDISPONIVEL antes de gravar', async () => {
-    const s = await sessaoDe(await login('admin@uma.com.br'));
-    const tenant = s.empresa?.id ?? '';
-    const cab = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos';
-    const importar = (csv: string, modo: 'conferir' | 'gravar') => responderFalso('POST', ROTAS_PORTAL.equipeImportacoes, { csv, modo }, com(s, { 'x-macuxi-tenant': tenant }));
-    const csv = [cab, 'Ana,ana@x.com.br,,supervisor,,,', 'Bia,bia@x.com.br,,vendedor,ana@x.com.br,,', ''].join('\n');
-    const r = ImportarEquipeRespostaSchema.parse(await (await importar(csv, 'gravar')).json());
-    expect(r).toMatchObject({ gravado: true, acessos_enviados: 2, email_acesso: 'enfileirado' });
-    expect(r).not.toHaveProperty('convites');
-    // de novo: ninguém novo, nenhum acesso
-    expect(ImportarEquipeRespostaSchema.parse(await (await importar(csv, 'gravar')).json())).toMatchObject({ acessos_enviados: 0, email_acesso: null });
-    const semEmail = [cab, 'Caio,caio@sem-email.com.br,,vendedor,,,', ''].join('\n');
-    expect((await importar(semEmail, 'conferir')).status).toBe(200);
-    const g = await importar(semEmail, 'gravar');
-    expect(g.status).toBe(503);
-    expect(((await g.json()) as { codigo: string }).codigo).toBe('EMAIL_INDISPONIVEL');
-    // a lista da equipe fica na memória: nada de e-mail no sessionStorage
-    expect(st.valores().join(' ')).not.toMatch(/ana@|bia@|caio@/);
   });
 
   it('nada de senha nem de e-mail no sessionStorage (sessão salva e estado do modo falso)', async () => {

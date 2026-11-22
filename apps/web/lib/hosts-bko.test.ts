@@ -5,8 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import nextConfig, { hostDaOrigem, hostsDoBko, origemDaApi, PROXY_OPENAPI_HUB } from '../next.config';
-import { OPENAPI_HUB } from './portal-rotas';
+import nextConfig, { hostDaOrigem, hostsDoBko, origemDaApi, PROXY_GUIA_PDF_HUB, PROXY_OPENAPI_HUB } from '../next.config';
+import { ENCAIXE_API_HUB, GUIA_PDF_HUB, OPENAPI_HUB } from './portal-rotas';
 
 const FIXOS = ['bko.macuxifdv.com.br', 'config.macuxifdv.com.br'];
 
@@ -44,6 +44,14 @@ describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
     // o botão do portal (aba Integração) usa o mesmo caminho
     expect(OPENAPI_HUB.viaProxy).toBe(PROXY_OPENAPI_HUB);
     expect(rewrites[doc]?.destination.endsWith(OPENAPI_HUB.rotaNaApi)).toBe(true);
+    // v1.0.21: o guia da API em PDF, público como o OpenAPI, também antes da geral e com o caminho do botão "Baixar o guia (PDF)"
+    const guia = rewrites.findIndex((r) => r.source === PROXY_GUIA_PDF_HUB);
+    expect(guia).toBeGreaterThanOrEqual(0);
+    expect(guia).toBeLessThan(rewrites.findIndex((r) => r.source === '/api-proxy/:path*'));
+    expect(GUIA_PDF_HUB.viaProxy).toBe(PROXY_GUIA_PDF_HUB);
+    expect(ENCAIXE_API_HUB.guiaPdf).toBe(PROXY_GUIA_PDF_HUB);
+    expect(rewrites[guia]?.destination).toMatch(/:\d+\/integracao\/v1\/guia\.pdf$/);
+    expect(rewrites[guia]?.destination.endsWith(GUIA_PDF_HUB.rotaNaApi)).toBe(true);
   });
   it('origem da API sem o /v1 (rotas públicas de módulo)', () => {
     expect(origemDaApi('http://api:8100/v1')).toBe('http://api:8100');

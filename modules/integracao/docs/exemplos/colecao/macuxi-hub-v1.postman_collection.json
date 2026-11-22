@@ -1673,7 +1673,7 @@
                   "body": "{\n  \"lote_id\": \"5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\",\n  \"entidade\": \"produto\",\n  \"modo\": \"delta\",\n  \"status\": \"concluido\",\n  \"contagens\": {\n    \"recebidas\": 1,\n    \"duplicadas_no_lote\": 0,\n    \"com_erro\": 0,\n    \"novas\": 1,\n    \"atualizadas\": 0,\n    \"inalteradas\": 0,\n    \"obsoletas\": 0\n  },\n  \"erros\": [],\n  \"avisos\": [],\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"P000045\"\n  },\n  \"erros_total\": 0,\n  \"erros_omitidos\": 0,\n  \"inativadas\": 0,\n  \"recebido_em\": \"2026-11-05T13:46:01Z\",\n  \"concluido_em\": \"2026-11-05T13:46:04Z\"\n}"
                 },
                 {
-                  "name": "200 — concluido_com_erros: Concluído com erros por linha (reprocessavel: true = o Hub tenta de novo pelo BKO)",
+                  "name": "200 — concluido_com_erros: Concluído com erros por linha (reprocessavel: true = o Macuxi tenta a linha de novo sozinho)",
                   "status": "OK",
                   "code": 200,
                   "_postman_previewlanguage": "json",
