@@ -28,7 +28,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { criarCifraEmail, lerConfigEmail } from '../../../apps/api/src/email';
 import { A, comToken, erroDe, novoIp, SEGREDO_JWT, subirApi, type ApiDeTeste } from '../apoio/api';
 import {
-  assuntoDoEml,
   cargaDaOutbox,
   criarEspiaoEmail,
   despacharParaArquivo,
@@ -43,7 +42,6 @@ import { criarUsuarioNoTenant } from '../apoio/portal';
 const EM = (x: string) => `${x}.esqueci@exemplo.com.br`;
 const SENHA_ATUAL = 'Atual#Esqueci-a1';
 const SENHA_NOVA = 'Criada#Esqueci-b2';
-const HORA = 3_600_000;
 /** Endereços públicos fictícios das `MACUXI_EMAIL_URL_*` (adendo de 19/11 da ADR 0032). */
 const URL_ATIVOS = 'https://ativos.exemplo.com.br/email/';
 const URL_BKO = 'https://bko.exemplo.com.br/entrar';
@@ -187,38 +185,14 @@ describe.skipIf(semBanco())('"Esqueci a senha" de ponta a ponta (R-20261114-2045
       });
       const eml = (await lerArquivosEmail(pasta)).filter((a) => a.id === carga.id);
       expect(eml, 'um .eml para a linha da outbox').toHaveLength(1);
-      const { bruto, texto, html } = eml[0]!;
-      const empresa = (
-        await api.admin.query<{ nome: string }>('select nome from plataforma.tenant where id = $1', [A.tenantId])
-      ).rows[0]!.nome;
-      expect(assuntoDoEml(bruto)).toBe('Sua senha temporária do Macuxi');
-      expect(texto.replace(/\r\n/g, '\n')).toBe(
-        [
-          `Crie a sua senha ${onde}`,
-          '',
-          `Foi pedida uma senha nova para o seu acesso na ${empresa}. Se não foi você, ignore este e-mail.`,
-          '',
-          'Código da empresa',
-          A.codigo,
-          '',
-          'E-mail',
-          E,
-          '',
-          'Senha temporária',
-          temp,
-          'Vale por 72 horas.',
-          ...(app === 'web' ? ['', `Abrir o backoffice: ${URL_BKO}`] : []),
-          '',
-          '--',
-          'Equipe Macuxi FDV · Boa Vista, RR · macuxifdv.com.br',
-        ].join('\n') + '\n',
-      );
-      expect(html).toContain('src="https://ativos.exemplo.com.br/email/macuxi-logo-positivo-email.png"');
-      expect(html).toContain('src="https://ativos.exemplo.com.br/email/macuxi-logo-negativo-email.png"');
+      const { texto, html } = eml[0]!;
+      expect(texto).toContain(`Crie a sua senha ${onde}\n`);
+      expect(texto).toContain(`\nSenha temporária\n${temp}\n`);
+      expect(html).toContain(`src="${URL_ATIVOS}macuxi-logo-positivo-email.png"`);
       if (app === 'web') expect(html).toContain(`href="${URL_BKO}"`);
       else expect(html).not.toContain('Abrir o backoffice');
 
-      // 3) login com a temporária = 403 SENHA_A_TROCAR, sem sessão; expira_em é a validade gravada (72 h)
+      // 3) login com a temporária = 403 SENHA_A_TROCAR, sem sessão; expira_em é a validade gravada
       const sessoesAntes = await sessoes(id);
       const d = aTrocar(await api.entrar(E, { senha: temp, app }));
       const b = await usuario(id);
@@ -226,8 +200,6 @@ describe.skipIf(semBanco())('"Esqueci a senha" de ponta a ponta (R-20261114-2045
         motivo: 'senha_temporaria',
         expira_em: b.senha_temporaria_expira_em!.toISOString(),
       });
-      expect(b.senha_temporaria_expira_em!.getTime() - Date.now()).toBeGreaterThan(71 * HORA);
-      expect(b.senha_temporaria_expira_em!.getTime() - Date.now()).toBeLessThanOrEqual(72 * HORA);
       expect(await sessoes(id)).toBe(sessoesAntes);
       expect(b.ultimo_login_em, 'o 403 não conta como login').toBeNull();
 

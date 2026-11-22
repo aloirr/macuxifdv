@@ -5,9 +5,8 @@
  * os pontos pelo `push` do transporte, fora da fila do motor → `POST /v1/sync/push` do `createApp` REAL (Postgres como
  * macuxi_app, fixture dois-tenants) → `core.ponto_trajeto`.
  *
- * Relógio: rotas e rotina no instante fixo ENVIO (qua 18/11/2026 11h em Manaus, dia útil) só durante `enviar()`, que espera o
- * `motor.enviar()` e depois a rotina (`pontosDoTrajeto()`, pois o `enviar` do motor volta sem esperar os pontos) antes de soltar
- * o relógio; o login segue o relógio real. O `rastreamento` do tenant A fica ligado com expediente de 00:00 a 23:59 todo dia.
+ * Relógio: rotas e rotina no instante fixo ENVIO (qua 18/11/2026 11h em Manaus, dia útil) só durante `enviar()`; o login segue
+ * o relógio real.
  * Cenários E-01, E-02 e E-06.
  */
 import { ENTIDADE_PONTO_TRAJETO, PARAMETROS_RASTREAMENTO_PADRAO, TRAJETO_DIAS_MAX, type PontoTrajeto } from '@macuxi/core/contracts';
