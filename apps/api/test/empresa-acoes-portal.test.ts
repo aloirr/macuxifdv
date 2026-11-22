@@ -268,7 +268,6 @@ describe('Portal › Ações da empresa (ADR 0052)', () => {
     const quinta = montar({ bloqueiaNaFalha: true });
     const r = await quinta.app.inject({ method: 'POST', url: url('exclusao'), headers: sa, payload: corpoExclusao('Errada#2026') });
     expect([r.statusCode, r.json()]).toEqual([423, bloqueio(15)]);
-    expect(r.json().mensagem).toBe('Muitas tentativas. Tente de novo em 15 minutos.');
     const depois = montar({ bloqueadoAte: new Date(AGORA.getTime() + 900_000), agora: new Date(AGORA.getTime() + 6 * 60_000 + 30_000) });
     const r2 = await depois.app.inject({ method: 'POST', url: url('exclusao'), headers: sa, payload: corpoExclusao() });
     expect([r2.statusCode, r2.json()]).toEqual([423, bloqueio(9)]);

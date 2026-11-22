@@ -13,7 +13,7 @@
  * no `onResponse` (`marcarPortal`). Ligado só com `empresaAcoesPortal` (`MACUXI_EMPRESA_ACOES=1` no `servidor.ts`).
  * Sem dado pessoal no log: só ids e códigos. A senha da confirmação nunca volta, nunca vai a log nem ao banco.
  */
-import { bloqueioPorTentativas } from '@macuxi/core/api';
+import { exigirChaveLivre } from '@macuxi/core/api';
 import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { verificarSenha } from '@macuxi/db';
 import {
@@ -188,15 +188,9 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
     const conta = await chamar(() => fonte.reautenticar(quem.sessao_id, dep.acesso));
     if (!conta) throw erroDaAcao(403, C.reautenticacaoFalhou);
     const chave = chaveDeTentativaDoPortal(segredo, conta.email);
-    const exigirLivre = (e: EstadoTentativaPortal): void => {
-      const agora = relogio();
-      if (e.bloqueado_ate === null || e.bloqueado_ate.getTime() <= agora.getTime()) return;
-      const { mensagem, detalhes } = bloqueioPorTentativas(e.bloqueado_ate, agora);
-      throw new ErroHttp(423, CODIGOS_PORTAL.bloqueado, mensagem, detalhes);
-    };
-    exigirLivre(await fonte.tentativaEstado(chave, dep.acesso));
+    exigirChaveLivre((await fonte.tentativaEstado(chave, dep.acesso)).bloqueado_ate, relogio());
     if (!(await conferirSenha(senha, conta.senha_hash))) {
-      exigirLivre(await fonte.tentativaFalha(chave, dep.acesso));
+      exigirChaveLivre((await fonte.tentativaFalha(chave, dep.acesso)).bloqueado_ate, relogio());
       throw erroDaAcao(403, C.reautenticacaoFalhou);
     }
     await fonte.tentativaSucesso(chave, dep.acesso);
