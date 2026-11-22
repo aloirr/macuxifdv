@@ -16,7 +16,7 @@ import { ErroPortal, lerErroDaApi, mensagemDoErro, type OpcoesChamada } from '@/
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
 import { ENCAIXE_API_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AbaIntegracao, CartaoGuia, corpoDesativar, criarCredencial, Credencial, DialogoBases, DialogoConector, donosDasBases, entidadesLivres, gravarBases, mensagemSemBases, type Chamar } from './aba-integracao';
+import { AbaIntegracao, CartaoGuia, corpoDaCredencial, corpoDesativar, criarCredencial, Credencial, DialogoBases, DialogoConector, entidadesLivres, ListaBases, mensagemSemBases, patchConector, type Chamar } from './aba-integracao';
 
 const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const AVISO = 'Copie a chave agora: ela não aparece de novo.';
@@ -120,9 +120,9 @@ describe('aba Integração em dois lados', () => {
     expect(credenciais).not.toMatch(/>erp<|velho|implantacao-csv/);
   });
 
-  it('linha ativa: Bases só no Conector do ERP; nova chave fora do de arquivo; desativada sem botões', () => {
+  it('linha ativa: Bases e nova chave fora do de arquivo (Conector e credencial de API); desativada sem botões', () => {
     expect(html).toContain('data-testid="integracao.bases-erp"');
-    expect(html).not.toContain('data-testid="integracao.bases-erp-api"');
+    expect(html).toContain('data-testid="integracao.bases-erp-api"');
     expect(html).not.toContain('data-testid="integracao.bases-implantacao-csv"');
     expect(html).toContain('data-testid="integracao.nova-chave-erp"');
     expect(html).toContain('data-testid="integracao.nova-chave-erp-api"');
@@ -132,8 +132,14 @@ describe('aba Integração em dois lados', () => {
     expect(html).not.toContain('data-testid="integracao.chave"');
   });
 
-  it('sem a aba Bases e sem o diálogo de passar as bases', () => {
-    for (const velho of ['integracao.confirmar', 'Passar as bases', 'chega em breve', 'Gera a chave', 'Vai no arquivo de configuração', 'Carga por arquivo']) expect(html, velho).not.toContain(velho);
+  it('sem a aba Bases, sem o diálogo de passar as bases (RD-2608) e sem seletor de Tipo: o tipo é fixo por lado', () => {
+    for (const velho of ['integracao.confirmar', 'Passar as bases', 'Gerar só para as bases', 'Sem desativar', 'integracao.tipo', 'chega em breve', 'Gera a chave', 'Vai no arquivo de configuração', 'Carga por arquivo'])
+      expect(html, velho).not.toContain(velho);
+  });
+
+  it('lado da API: nenhum texto do Conector', () => {
+    const api = texto(html.slice(html.indexOf('integracao-api"')));
+    for (const velho of ['Conector instalado', 'arquivo de configuração', 'Credencial da API do Conector', 'Conector do ERP']) expect(api, velho).not.toContain(velho);
   });
 
   it('Guia: o botão do PDF só quando ele existir', () => {
@@ -143,9 +149,21 @@ describe('aba Integração em dois lados', () => {
 });
 
 describe('nova chave e desativar (S10)', () => {
+  it('credencial de API: título e corpo no texto dela, sem "Conector"', () => {
+    const api = conector(3, 'erp-api', { tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] });
+    const chave = texto(renderToStaticMarkup(<DialogoConector alvo={api} acao="chave" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />));
+    expect(chave).toContain('Gerar nova chave para a credencial erp-api?');
+    expect(chave).toContain('Troque a chave no sistema que chama a API.');
+    const desativar = texto(renderToStaticMarkup(<DialogoConector alvo={api} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />));
+    expect(desativar).toContain('Desativar a credencial erp-api?');
+    expect(desativar).toContain('As chamadas com esta chave passam a ser recusadas.');
+    for (const t of [chave, desativar]) expect(t).not.toContain('Conector');
+  });
+
   it('gerar nova chave pede confirmação antes', () => {
     const html = renderToStaticMarkup(<DialogoConector alvo={conector(1, 'erp')} acao="chave" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
     expect(html).toContain('Gerar nova chave para o Conector erp?');
+    expect(html).toContain('Troque a chave na configuração do Conector.');
     expect(html).toContain('data-testid="integracao.acao-cancelar"');
     expect(html).toMatch(/data-testid="integracao.acao-confirmar-chave"[^>]*>Gerar nova chave</);
     expect(renderToStaticMarkup(<DialogoConector alvo={null} acao="chave" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />)).toBe('');
@@ -154,6 +172,7 @@ describe('nova chave e desativar (S10)', () => {
   it('a chave nova (POST .../chave) aparece uma vez, com Copiar e o aviso; desativado, a nova chave é recusada', async () => {
     const f = await portalFalso();
     const criado = await criarCredencial(TENANT, { conector_id: 'erp-teste', nome: 'ERP', tipo: 'conector', recebe_pedidos: true, entidades: ['produto'] }, f.chamar);
+    expect(f.pedidos).toHaveLength(1);
     const r = await responderFalso('POST', ROTAS_PORTAL.chaveConector(criado.conector.id), {}, f.cab);
     expect(r.status).toBe(201);
     const nova = ConectorCriado.shape.chave.parse(await r.json());
@@ -192,18 +211,44 @@ describe('nova chave e desativar (S10)', () => {
   });
 });
 
-describe('Bases do Conector', () => {
-  it('as dele marcadas; as de outro Conector ativo desabilitadas, com o identificador dele; os 16 rótulos sem lista própria', () => {
-    const erp = conector(1, 'erp', { entidades: SEM_FORMA });
+describe('Bases', () => {
+  it('RD-2609: o diálogo lista só as bases livres para ele (as dele e as de ninguém), as dele marcadas; nada de base de outro Conector', () => {
+    const erp = conector(1, 'erp', { entidades: SEM_FORMA.filter((e) => e !== 'produto') });
     const api = conector(2, 'erp-api', { tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] });
-    expect(donosDasBases([erp, api, conector(3, 'velho', { ativo: false })], 'erp')).toEqual({ forma_pagamento: 'erp-api' });
-    const html = renderToStaticMarkup(<DialogoBases alvo={erp} todos={[erp, api]} tenant={TENANT} aoFechar={() => {}} aoGravar={() => {}} />);
+    const todos = [erp, api, conector(3, 'velho', { ativo: false })];
+    expect(entidadesLivres(todos, 'erp')).toEqual(ENTIDADES.filter((e) => e !== 'forma_pagamento'));
+    expect(entidadesLivres(todos)).toEqual<Entidade[]>(['produto']);
+    const html = renderToStaticMarkup(<DialogoBases alvo={erp} todos={todos} tenant={TENANT} aoFechar={() => {}} aoGravar={() => {}} />);
     expect(html).toContain('Bases do Conector erp');
-    for (const e of SEM_FORMA) expect(html).toMatch(new RegExp(`data-testid="integracao\\.bases\\.${e}"[^>]*checked`));
-    expect(html).toMatch(/data-testid="integracao\.bases\.forma_pagamento"[^>]*disabled/);
-    expect(texto(html)).toContain('Formas de pagamento · erp-api');
-    expect(html.match(/type="checkbox"/g)).toHaveLength(ENTIDADES.length);
-    expect(html).not.toMatch(/data-testid="integracao\.bases-gravar"[^>]*disabled/);
+    expect(html.match(/type="checkbox"/g)).toHaveLength(ENTIDADES.length - 1);
+    expect(html).not.toContain('integracao.bases.forma_pagamento');
+    expect(html).not.toContain('erp-api');
+    expect(html).not.toContain('disabled=""');
+    for (const e of erp.entidades) expect(html).toMatch(new RegExp(`data-testid="integracao\\.bases\\.${e}"[^>]*checked`));
+    expect(html).toMatch(/data-testid="integracao\.bases\.produto"(?![^>]*checked)/);
+  });
+
+  it('a credencial de API também tem "Bases", com o título dela', () => {
+    const api = conector(2, 'erp-api', { tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] });
+    const html = renderToStaticMarkup(<DialogoBases alvo={api} todos={[conector(1, 'erp', { entidades: SEM_FORMA }), api]} tenant={TENANT} aoFechar={() => {}} aoGravar={() => {}} />);
+    expect(html).toContain('Bases da credencial erp-api');
+    expect(html.match(/data-testid="integracao\.bases\.[a-z_]+"/g)).toEqual(['data-testid="integracao.bases.forma_pagamento"']);
+  });
+
+  it('RD-2610: uma ListaBases no diálogo e no formulário da API, num fieldset com a legenda "Bases"', () => {
+    const html = renderToStaticMarkup(<ListaBases bases={['forma_pagamento', 'produto']} marcadas={['produto']} testId="x" aoMudar={() => {}} />);
+    expect(html).toMatch(/^<fieldset data-testid="x"[^>]*><legend[^>]*>Bases<\/legend>/);
+    expect(html.match(/type="checkbox"/g)).toHaveLength(2);
+    expect(html).toMatch(/data-testid="x\.produto"[^>]*checked/);
+    expect(html).toMatch(/data-testid="x\.forma_pagamento"(?![^>]*checked)/);
+    const dialogo = renderToStaticMarkup(<DialogoBases alvo={conector(1, 'erp')} todos={[conector(1, 'erp')]} tenant={TENANT} aoFechar={() => {}} aoGravar={() => {}} />);
+    const formulario = aba([conector(1, 'erp', { entidades: SEM_FORMA })]);
+    for (const h of [dialogo, formulario]) {
+      expect(h.match(/<legend[^>]*>Bases<\/legend>/g)).toHaveLength(1);
+      expect(h).not.toMatch(/<span[^>]*>Bases<\/span>/);
+    }
+    expect(dialogo).toContain('<fieldset data-testid="integracao.bases"');
+    expect(formulario).toContain('<fieldset data-testid="integracao.api-bases"');
   });
 
   it('sem nenhuma base marcada, "Gravar" fica desabilitado', () => {
@@ -213,14 +258,26 @@ describe('Bases do Conector', () => {
     expect(html).toMatch(/data-testid="integracao\.bases-gravar"[^>]*disabled/);
   });
 
+  it('corpo da credencial: identificador e nome aparados; sem base não envia', () => {
+    expect(corpoDaCredencial({ identificador: ' erp-api ', nome: 'ERP ', tipo: 'nuvem', recebePedidos: false, entidades: ['forma_pagamento'] })).toEqual({ conector_id: 'erp-api', nome: 'ERP', tipo: 'nuvem', recebe_pedidos: false, entidades: ['forma_pagamento'] });
+    expect(corpoDaCredencial({ identificador: 'erp', nome: 'ERP', tipo: 'conector', recebePedidos: true, entidades: [] })).toBeNull();
+  });
+
   it('409 topologia_conflitante: a tela mostra a mensagem da API', async () => {
     const f = await portalFalso();
     const a = await criarCredencial(TENANT, { conector_id: 'a', nome: 'A', tipo: 'conector', recebe_pedidos: true, entidades: ['produto'] }, f.chamar);
     await criarCredencial(TENANT, { conector_id: 'b', nome: 'B', tipo: 'nuvem', recebe_pedidos: false, entidades: ['cliente'] }, f.chamar);
-    const erro = await gravarBases(TENANT, a.conector.id, ['produto', 'cliente'], f.chamar).catch((x: unknown) => x);
+    const erro = await patchConector(TENANT, a.conector.id, { entidades: ['produto', 'cliente'] }, f.chamar).catch((x: unknown) => x);
     expect(erro).toBeInstanceOf(ErroPortal);
     expect((erro as ErroPortal).codigo).toBe('topologia_conflitante');
     expect(mensagemDoErro(erro)).toBe('A base cliente já vem do Conector b.');
+  });
+
+  it('RD-2612: desativar pelo mesmo PATCH', async () => {
+    const f = await portalFalso();
+    const a = await criarCredencial(TENANT, { conector_id: 'a', nome: 'A', tipo: 'conector', recebe_pedidos: true, entidades: ['produto'] }, f.chamar);
+    expect((await patchConector(TENANT, a.conector.id, { ativo: false }, f.chamar)).ativo).toBe(false);
+    expect(f.pedidos[1]).toEqual({ caminho: `/integracao/conectores/${a.conector.id}`, metodo: 'PATCH', corpo: { ativo: false } });
   });
 });
 
@@ -234,7 +291,7 @@ describe('caso real: o ERP passa "Formas de pagamento" do Conector à API', () =
     expect(aba(lista)).toContain('data-testid="integracao.api-sem-bases"');
 
     // Bases do Conector: desmarca "Formas de pagamento" e grava
-    await gravarBases(TENANT, erp.conector.id, SEM_FORMA, f.chamar);
+    await patchConector(TENANT, erp.conector.id, { entidades: SEM_FORMA }, f.chamar);
     lista = await f.listar();
     expect(entidadesLivres(lista)).toEqual<Entidade[]>(['forma_pagamento']);
 
