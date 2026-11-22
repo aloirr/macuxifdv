@@ -17,6 +17,10 @@
  * `depois-02b` (ativa com backup, ativa sem backup, inativa com backup em andamento, anterior à inativação, vencido e válido).
  * O backup leva 6 s; o da Atacado Norte sempre falha. A exclusão leva 6 s; a senha `errada` dá 403 `REAUTENTICACAO_FALHOU`.
  * A liberação do Excluir é a `conferirExclusao` do SDK, a mesma da API.
+ * Planos e licenças (ADR 0047): catálogo de `portal-planos.fixture.ts`; a Distribuidora Uma (PME em teste, 14 vendedores em uso)
+ * recusa a troca para o Light (422 `PLANO_ABAIXO_DO_USO`); a Mercado Caracaraí não tem plano (404 `SEM_ASSINATURA`).
+ * CNPJ pela Receita (ADR 0048): todo CNPJ válido é encontrado e ativo, menos os gatilhos de `CNPJS_GATILHO_FALSO`
+ * (não encontrado = 404, Receita fora = 503, baixado = encontrado, mas o criar responde 422 `CNPJ_INATIVO`).
  */
 import {
   CODIGOS_ACOES_EMPRESA,
@@ -24,7 +28,29 @@ import {
   MENSAGEM_EXCLUSAO_NAO_ENCONTRADA,
   MENSAGEM_SO_SUPER_ADMIN_ACOES,
   conferirLogo,
+  CODIGOS_CNPJ,
+  ConsultaCnpjPedidoSchema,
+  ConsultaCnpjRespostaSchema,
+  conferirEscolhaDePlano,
+  conferirTrocaDePlano,
+  CriarEmpresaComPlanoSchema,
   CriarEmpresaSchema,
+  fimDoTeste,
+  modulosDaAssinatura,
+  ROTA_PORTAL_CNPJ,
+  ROTA_PORTAL_EMPRESA_COM_PLANO,
+  ROTA_PORTAL_PLANOS,
+  TrocarPlanoSchema,
+  usoPorItem,
+  valorDaAssinatura,
+  type AdicionalContratado,
+  type Ciclo,
+  type ConsultaCnpjResposta,
+  type CriarEmpresa,
+  type FichaAssinatura,
+  type ItemContado,
+  type ProblemaDePlano,
+  type SituacaoCadastral,
   ExcluirEmpresaSchema,
   PedirBackupEmpresaSchema,
   codigoDeConfirmacaoConfere,
@@ -55,10 +81,12 @@ import {
   type RedefinirSenhaAdminResposta,
 } from '@macuxi/platform-sdk';
 import { ConectorCriar, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
+import { localIsoDate } from '@macuxi/comum/fuso';
 
 import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
-import { ROTAS_PORTAL } from './portal-rotas';
+import { fichaExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
+import { ROTAS_PORTAL, semV1 } from './portal-rotas';
 
 const CHAVE = 'macuxi.portal.falso';
 const ORDEM: Entidade[] = ['vendedor', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
@@ -79,6 +107,21 @@ interface EmpresaFalsa {
   inativada_em?: string | null;
   backups?: BackupFalso[];
   exclusao?: ExclusaoFalsa | null;
+  /** ADR 0047: assinatura (sem = 404 `SEM_ASSINATURA`, como as empresas de antes dos planos). */
+  assinatura?: AssinaturaFalsa | null;
+}
+/** Assinatura falsa: o que a `sa_*` guarda, mais o uso por item (a API conta os usuários; aqui fixo). */
+interface AssinaturaFalsa {
+  plano: string;
+  ciclo: Ciclo;
+  adicionais: AdicionalContratado[];
+  teste_ate: string | null;
+  paga: boolean;
+  em_uso: Partial<Record<ItemContado, number>>;
+  desde: string;
+  atualizada_em: string;
+  /** Último `pedido_id` gravado (repetir = mesma resposta, nada muda). */
+  pedido_id: string | null;
 }
 /** Backup falso: termina em `termina_em` (ms) como `pronto`, ou `falhou` com `falha`. */
 interface BackupFalso {
@@ -108,6 +151,18 @@ interface Estado {
 }
 
 /** Empresas dos admins do cliente falsos (ids fixos: o F5 e os testes acham as mesmas). */
+const assinaturaFalsa = (plano: string, x: Partial<AssinaturaFalsa> = {}): AssinaturaFalsa => ({
+  plano,
+  ciclo: 'mensal',
+  adicionais: [],
+  teste_ate: null,
+  paga: true,
+  em_uso: { vendedor: 3, gestor: 1, bko: 1 },
+  desde: '2026-11-01T12:00:00.000Z',
+  atualizada_em: '2026-11-01T12:00:00.000Z',
+  pedido_id: null,
+  ...x,
+});
 const EMPRESAS_DOS_CLIENTES: EmpresaFalsa[] = [
   { id: '0b6f1a52-5c1e-4c4e-9a43-000000000001', codigo: 'distribuidora-uma', razao_social: 'Distribuidora Uma Ltda', cnpj: '11222333000181', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 10 }, { modulo: 'integracao', licencas: null }], plano: 'PME', em_teste: false },
   { id: '0b6f1a52-5c1e-4c4e-9a43-000000000002', codigo: 'atacado-norte', razao_social: 'Atacado Norte S.A.', cnpj: '04252011000110', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-02T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 25 }, { modulo: 'integracao', licencas: null }], plano: 'Light', em_teste: false },
@@ -141,12 +196,32 @@ function empresasIniciais(): EmpresaFalsa[] {
   const agora = Date.now();
   const [uma, norte, boaVista] = EMPRESAS_DOS_CLIENTES as [EmpresaFalsa, EmpresaFalsa, EmpresaFalsa];
   return [
-    { ...uma, inativada_em: null, backups: [backupFalso(1, 20 * HORA, 5 * 60_000, false)] },
-    { ...norte, inativada_em: null, backups: [] },
-    { ...boaVista, status: 'suspenso', inativada_em: iso(agora - 2 * DIA), backups: [{ ...backupFalso(2, 5 * 60_000, 2 * HORA, true) }] },
-    { ...empresaDoTime(1, 'RR4410', 'Mercado Caracaraí Ltda', '19131243000197', '2026-10-29'), inativada_em: iso(agora - DIA), backups: [backupFalso(3, 3 * DIA, 10 * 60_000, false)] },
-    { ...empresaDoTime(2, 'AM5173', 'Solimões Ltda', '45997418000153', '2026-10-27'), inativada_em: iso(agora - 20 * DIA), backups: [backupFalso(4, 9 * DIA, 10 * 60_000, true)] },
-    { ...empresaDoTime(3, 'AM2290', 'Mercantil Rio Branco Ltda', '07526557000100', '2026-10-28'), inativada_em: iso(agora - 2 * DIA), backups: [backupFalso(5, DIA, 10 * 60_000, true)] },
+    {
+      ...uma,
+      inativada_em: null,
+      backups: [backupFalso(1, 20 * HORA, 5 * 60_000, false)],
+      assinatura: assinaturaFalsa('pme', {
+        adicionais: [
+          { adicional: 'promotor', quantidade: 3 },
+          { adicional: 'pesquisa', quantidade: 10 },
+        ],
+        teste_ate: localIsoDate(agora + 5 * DIA, uma.fuso),
+        paga: false,
+        em_uso: { vendedor: 14, gestor: 2, bko: 1, promotor: 3, pesquisa: 6 },
+      }),
+    },
+    { ...norte, inativada_em: null, backups: [], assinatura: assinaturaFalsa('light', { em_uso: { vendedor: 8, gestor: 1, bko: 1 } }) },
+    {
+      ...boaVista,
+      status: 'suspenso',
+      inativada_em: iso(agora - 2 * DIA),
+      backups: [{ ...backupFalso(2, 5 * 60_000, 2 * HORA, true) }],
+      assinatura: assinaturaFalsa('enterprise', { teste_ate: localIsoDate(agora + 10 * DIA, boaVista.fuso), paga: false }),
+    },
+    // sem plano: a ficha responde 404 `SEM_ASSINATURA` (aba Empresa com os "Módulos licenciados")
+    { ...empresaDoTime(1, 'RR4410', 'Mercado Caracaraí Ltda', '19131243000197', '2026-10-29'), plano: null, inativada_em: iso(agora - DIA), backups: [backupFalso(3, 3 * DIA, 10 * 60_000, false)] },
+    { ...empresaDoTime(2, 'AM5173', 'Solimões Ltda', '45997418000153', '2026-10-27'), inativada_em: iso(agora - 20 * DIA), backups: [backupFalso(4, 9 * DIA, 10 * 60_000, true)], assinatura: assinaturaFalsa('light') },
+    { ...empresaDoTime(3, 'AM2290', 'Mercantil Rio Branco Ltda', '07526557000100', '2026-10-28'), inativada_em: iso(agora - 2 * DIA), backups: [backupFalso(5, DIA, 10 * 60_000, true)], assinatura: assinaturaFalsa('light') },
   ];
 }
 
@@ -187,7 +262,9 @@ function ultimoBackup(x: EmpresaFalsa): BackupEmpresa | null {
 
 /** Item da lista como a API (`EmpresaResumoSchema` com o bloco `acoes`). */
 function resumoDaEmpresa(x: EmpresaFalsa) {
-  const { inativada_em = null, backups: _b, exclusao: _x, ...resto } = x;
+  const { inativada_em = null, backups: _b, exclusao: _x, assinatura: a, ...resto } = x;
+  // o nome do plano e o selo "teste" saem da assinatura, como a API
+  const doPlano = a ? { plano: PLANOS_EXEMPLO.find((p) => p.codigo === a.plano)?.nome ?? null, em_teste: a.teste_ate !== null && !a.paga } : {};
   const ultimo = ultimoBackup(x);
   const regra = conferirExclusao(
     { id: x.id, status: x.status as StatusEmpresa, inativada_em: inativada_em ? new Date(inativada_em) : null },
@@ -195,7 +272,7 @@ function resumoDaEmpresa(x: EmpresaFalsa) {
     new Date(),
   );
   const acoes: AcoesDaEmpresa = { inativada_em, motivo_inativacao: null, ultimo_backup: ultimo, exclusao: exclusaoDaApi(x), exclusao_bloqueada: regra.ok ? null : regra.codigo };
-  return { ...resto, acoes };
+  return { ...resto, ...doPlano, acoes };
 }
 
 /** Frase de cada recusa: a mesma tabela do SDK que a API usa (`MENSAGENS_ACOES_EMPRESA`; RD-0407, RD-0429). */
@@ -418,6 +495,165 @@ function responderFrases(metodo: string, id: string | undefined, sessao: SessaoF
   return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
 }
 
+// ---------------------------------------------------------------------------------------------------------- planos (ADR 0047)
+
+const ASSINATURA_M = /^\/plataforma\/empresas\/([^/]+)\/assinatura$/;
+const SEM_ASSINATURA = () => erro(404, 'SEM_ASSINATURA', 'Esta empresa ainda não tem plano.');
+const PLANO_DESCONHECIDO = () => erro(422, 'PLANO_DESCONHECIDO', 'Plano não encontrado no catálogo.', { campo: 'plano' });
+
+/** 422 com a lista de problemas (RN-PLA-05), como o `recusar` da API: o código e a frase do primeiro, todos em `detalhes`. */
+function recusarPlano(problemas: readonly ProblemaDePlano[]): Response {
+  const [primeiro] = problemas;
+  return erro(422, primeiro?.codigo ?? 'VALIDACAO', primeiro?.mensagem ?? 'Plano inválido.', { problemas: problemas.map((p) => ({ ...p })) });
+}
+
+/** Ficha como a API monta (`fichaExemplo`: licenças na ordem de `ITENS_CONTADOS`, valor pelo `valorDaAssinatura`). */
+function fichaDaEmpresa(x: EmpresaFalsa, a: AssinaturaFalsa): FichaAssinatura {
+  return {
+    ...fichaExemplo({ tenant_id: x.id, plano: a.plano, ciclo: a.ciclo, adicionais: a.adicionais, emUso: a.em_uso, teste_ate: a.teste_ate, paga: a.paga }),
+    desde: a.desde,
+    atualizada_em: a.atualizada_em,
+  };
+}
+
+/** `GET|PUT /plataforma/empresas/:id/assinatura`: ler = time da Macuxi ou o admin da própria empresa; trocar = só o time. */
+function responderAssinatura(metodo: string, tenant: string, sessao: SessaoFalsa, e: Estado, corpo: unknown): Response {
+  if (metodo !== 'GET' && metodo !== 'PUT') return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
+  if (sessao.tipo === 'admin_cliente' && sessao.empresa !== tenant) return erro(403, 'PERFIL_SEM_ACESSO', 'Você só vê o plano da sua empresa.');
+  if (metodo === 'PUT' && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi troca o plano.');
+  const x = e.empresas.find((y) => y.id === tenant && !excluida(y));
+  const atual = x?.assinatura;
+  if (!x || !atual) return SEM_ASSINATURA();
+  if (metodo === 'GET') return json(200, fichaDaEmpresa(x, atual));
+  const t = lerCorpo(TrocarPlanoSchema, corpo);
+  if (t instanceof Response) return t;
+  // mesmo pedido = mesma resposta, nada muda (idempotente)
+  if (atual.pedido_id === t.pedido_id) return json(200, fichaDaEmpresa(x, atual));
+  const novo = PLANOS_EXEMPLO.find((p) => p.codigo === t.plano);
+  if (!novo) return PLANO_DESCONHECIDO();
+  // RN-PLA-05 pela regra do SDK, a mesma da API (ex.: Light com 14 vendedores em uso = PLANO_ABAIXO_DO_USO)
+  const problemas = conferirTrocaDePlano(novo, t.adicionais, usoPorItem(fichaDaEmpresa(x, atual).licencas).emUso);
+  if (problemas.length > 0) return recusarPlano(problemas);
+  const nova: AssinaturaFalsa = { ...atual, plano: novo.codigo, ciclo: t.ciclo, adicionais: t.adicionais, atualizada_em: agoraIso(), pedido_id: t.pedido_id };
+  const modulos = modulosDaAssinatura(novo, t.adicionais).map((modulo) => ({ modulo, licencas: null }));
+  gravar({ ...e, empresas: e.empresas.map((y) => (y.id === tenant ? { ...y, assinatura: nova, modulos } : y)) });
+  return json(200, fichaDaEmpresa(x, nova));
+}
+
+// ---------------------------------------------------------------------------------------------------------- CNPJ (ADR 0048)
+
+/**
+ * CNPJs-gatilho do modo falso (fictícios, com os dígitos verificadores certos). Qualquer outro CNPJ válido é encontrado e ativo,
+ * com dados fictícios; dígito errado = 400 `CNPJ_INVALIDO`.
+ * - `naoEncontrado` 99.000.001/0001-01: 404 `CNPJ_NAO_ENCONTRADO`;
+ * - `receitaFora` 99.000.002/0001-48: 503 `CNPJ_FONTE_FORA`;
+ * - `baixado` 99.000.003/0001-92: encontrado com a situação `baixada`; criar a empresa com ele = 422 `CNPJ_INATIVO`.
+ */
+export const CNPJS_GATILHO_FALSO = Object.freeze({ naoEncontrado: '99000001000101', receitaFora: '99000002000148', baixado: '99000003000192' });
+
+const situacaoFalsa = (cnpj: string): SituacaoCadastral => (cnpj === CNPJS_GATILHO_FALSO.baixado ? 'baixada' : 'ativa');
+
+function consultaFalsa(cnpj: string): ConsultaCnpjResposta {
+  return ConsultaCnpjRespostaSchema.parse({
+    cnpj,
+    razao_social: `Empresa Fictícia ${cnpj.slice(0, 8)} Ltda`,
+    nome_fantasia: 'Empresa Fictícia',
+    endereco: { logradouro: 'Rua Fictícia', numero: '100', complemento: 'Sala 2', bairro: 'Centro' },
+    municipio: 'Manaus',
+    uf: 'AM',
+    cep: '69000000',
+    situacao_cadastral: situacaoFalsa(cnpj),
+    cnae_principal: { codigo: '4639701', descricao: 'Comércio atacadista de produtos alimentícios em geral' },
+    telefone: '9232320000',
+    email: 'contato@empresa-ficticia.com.br',
+    fonte: 'brasilapi',
+  });
+}
+
+function responderCnpj(corpo: unknown): Response {
+  const p = ConsultaCnpjPedidoSchema.safeParse(corpo);
+  if (!p.success) return erro(400, CODIGOS_CNPJ.invalido, 'CNPJ inválido: confira os dígitos.');
+  const { cnpj } = p.data;
+  if (cnpj === CNPJS_GATILHO_FALSO.naoEncontrado)
+    return erro(404, CODIGOS_CNPJ.naoEncontrado, 'CNPJ não encontrado na Receita Federal. Confira o número ou preencha os dados à mão.');
+  if (cnpj === CNPJS_GATILHO_FALSO.receitaFora) return erro(503, CODIGOS_CNPJ.fonteFora, 'A consulta à Receita está fora do ar. Preencha os dados à mão ou tente de novo em instantes.');
+  return json(200, consultaFalsa(cnpj));
+}
+
+// ---------------------------------------------------------------------------------------------------------- criar empresa
+
+type CriacaoFalsa = { status: 200 | 201; estado: Estado; existente: EmpresaFalsa | undefined; resposta: { tenant_id: string | null; codigo: string; resultado: string; modulos_adicionados: string[]; parametros_gravados: string[]; avisos: string[]; admin: 'criado' | 'existente' | null; simulado: boolean } };
+
+/** O passo Empresa como a API (`POST /plataforma/empresas` e o `empresas-com-plano`): RN-CORE-34, RN-CORE-32 e idempotente pelo código. */
+function criarEmpresaFalsa(e: Estado, c: CriarEmpresa): CriacaoFalsa | Response {
+  const existente = e.empresas.find((x) => x.codigo === c.codigo);
+  // RN-CORE-34 e RN-CORE-32 como a API: empresa nova sem admin = 422; senha fora da regra do Core = 422 com as faltas
+  if (!existente && !c.admin) return erro(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
+  if (!existente && c.admin) {
+    const faltas = faltasNaSenha(c.admin.senha);
+    const m = mensagemDaSenha(faltas, c.admin.senha);
+    if (m) return erro(422, 'RN-CORE-32', m, { campo: 'admin.senha', faltas });
+  }
+  if (!existente && situacaoFalsa(c.cnpj) !== 'ativa')
+    return erro(422, CODIGOS_CNPJ.inativo, `Este CNPJ não está ativo na Receita (situação: ${situacaoFalsa(c.cnpj)}). A empresa não foi criada.`, { campo: 'cnpj', situacao_cadastral: situacaoFalsa(c.cnpj) });
+  const modulos = [...new Map([{ modulo: 'core', licencas: null }, { modulo: 'integracao', licencas: null }, ...c.modulos].map((m) => [m.modulo, m])).values()];
+  const adicionados = modulos.filter((m) => !existente?.modulos.some((x) => x.modulo === m.modulo)).map((m) => m.modulo);
+  const resposta: CriacaoFalsa['resposta'] = {
+    tenant_id: c.simular ? (existente?.id ?? null) : (existente?.id ?? crypto.randomUUID()),
+    codigo: c.codigo,
+    resultado: existente ? (adicionados.length ? 'atualizado' : 'sem_mudanca') : 'criado',
+    modulos_adicionados: adicionados,
+    parametros_gravados: existente ? [] : linhasDosParametrosIniciais(c.parametros).map((l) => l.chave),
+    avisos: existente ? ['A empresa já existe: razão social e fuso não mudam.'] : [],
+    admin: existente ? (c.admin ? 'existente' : null) : 'criado',
+    simulado: c.simular,
+  };
+  if (c.simular) return { status: 200, estado: e, existente, resposta };
+  const lista = existente
+    ? e.empresas.map((x) => (x.id === existente.id ? { ...x, modulos: [...x.modulos, ...modulos.filter((m) => adicionados.includes(m.modulo))] } : x))
+    : [...e.empresas, { id: resposta.tenant_id as string, codigo: c.codigo, razao_social: c.razao_social, cnpj: c.cnpj, fuso: c.fuso, status: 'ativo', criada_em: agoraIso(), modulos }];
+  // o admin inicial da empresa nova entra na lista de admins (só na memória), com a troca pendente (RN-CORE-34)
+  if (!existente && c.admin && resposta.tenant_id) {
+    adminsFalsos.set(resposta.tenant_id, [
+      { usuario_id: crypto.randomUUID(), nome: c.admin.nome, email: c.admin.email, ativo: true, bloqueado: false, tem_senha: true, trocar_senha: true, senha_expira_em: null, entra_no_portal: true },
+    ]);
+  }
+  return { status: 201, estado: { ...e, empresas: lista }, existente, resposta };
+}
+
+/** `POST /plataforma/empresas-com-plano` (só o time): o passo Empresa com os módulos do plano (RN-PLA-01) e a assinatura. */
+function responderEmpresaComPlano(sessao: SessaoFalsa, e: Estado, corpo: unknown): Response {
+  if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
+  const c = lerCorpo(CriarEmpresaComPlanoSchema, corpo);
+  if (c instanceof Response) return c;
+  const { assinatura: escolha, ...empresa } = c;
+  const plano = PLANOS_EXEMPLO.find((p) => p.codigo === escolha.plano);
+  if (!plano) return PLANO_DESCONHECIDO();
+  const problemas = conferirEscolhaDePlano(plano, escolha.adicionais);
+  if (problemas.length > 0) return recusarPlano(problemas);
+  const modulos = modulosDaAssinatura(plano, escolha.adicionais).map((modulo) => ({ modulo, licencas: null }));
+  const r = criarEmpresaFalsa(e, { ...empresa, modulos });
+  if (r instanceof Response) return r;
+  const testeAte = escolha.com_teste ? fimDoTeste(localIsoDate(new Date(), empresa.fuso), plano.dias_teste) : null;
+  let assinatura: 'criada' | 'existente' | 'simulada' = 'simulada';
+  let testeGravado = testeAte;
+  let estado = r.estado;
+  if (!c.simular) {
+    const ja = r.existente?.assinatura;
+    if (ja) {
+      assinatura = 'existente';
+      testeGravado = ja.teste_ate;
+    } else {
+      assinatura = 'criada';
+      const nova = assinaturaFalsa(plano.codigo, { ciclo: escolha.ciclo, adicionais: escolha.adicionais, teste_ate: testeAte, paga: testeAte === null, em_uso: { bko: 1 }, desde: agoraIso(), atualizada_em: agoraIso(), pedido_id: escolha.pedido_id });
+      estado = { ...estado, empresas: estado.empresas.map((x) => (x.id === r.resposta.tenant_id ? { ...x, assinatura: nova } : x)) };
+    }
+    gravar(estado);
+  }
+  const { modulos_adicionados: _m, parametros_gravados: _p, ...resto } = r.resposta;
+  return json(r.status, { ...resto, assinatura, teste_ate: testeGravado, valor: valorDaAssinatura(plano, escolha.adicionais, escolha.ciclo) });
+}
+
 const vazio = (): Estado => ({ sessoes: {}, empresas: empresasIniciais(), conectores: {} });
 
 function ler(): Estado {
@@ -557,41 +793,17 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const c = lerCorpo(CriarEmpresaSchema, corpo);
     if (c instanceof Response) return c;
-    const jaExiste = e.empresas.some((x) => x.codigo === c.codigo);
-    // RN-CORE-34 e RN-CORE-32 como a API: empresa nova sem admin = 422; senha fora da regra do Core = 422 com as faltas
-    if (!jaExiste && !c.admin) return erro(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
-    if (!jaExiste && c.admin) {
-      const faltas = faltasNaSenha(c.admin.senha);
-      const m = mensagemDaSenha(faltas, c.admin.senha);
-      if (m) return erro(422, 'RN-CORE-32', m, { campo: 'admin.senha', faltas });
-    }
-    const modulos = [...new Map([{ modulo: 'core', licencas: null }, { modulo: 'integracao', licencas: null }, ...c.modulos].map((m) => [m.modulo, m])).values()];
-    const existente = e.empresas.find((x) => x.codigo === c.codigo);
-    const adicionados = modulos.filter((m) => !existente?.modulos.some((x) => x.modulo === m.modulo)).map((m) => m.modulo);
-    const resposta = {
-      tenant_id: c.simular ? (existente?.id ?? null) : (existente?.id ?? crypto.randomUUID()),
-      codigo: c.codigo,
-      resultado: existente ? (adicionados.length ? 'atualizado' : 'sem_mudanca') : 'criado',
-      modulos_adicionados: adicionados,
-      parametros_gravados: existente ? [] : linhasDosParametrosIniciais(c.parametros).map((l) => l.chave),
-      avisos: existente ? ['A empresa já existe: razão social e fuso não mudam.'] : [],
-      admin: existente ? (c.admin ? 'existente' : null) : 'criado',
-      simulado: c.simular,
-    };
-    if (!c.simular) {
-      const lista = existente
-        ? e.empresas.map((x) => (x.id === existente.id ? { ...x, modulos: [...x.modulos, ...modulos.filter((m) => adicionados.includes(m.modulo))] } : x))
-        : [...e.empresas, { id: resposta.tenant_id as string, codigo: c.codigo, razao_social: c.razao_social, cnpj: c.cnpj, fuso: c.fuso, status: 'ativo', criada_em: agoraIso(), modulos }];
-      gravar({ ...e, empresas: lista });
-      // o admin inicial da empresa nova entra na lista de admins (só na memória), com a troca pendente (RN-CORE-34)
-      if (!existente && c.admin && resposta.tenant_id) {
-        adminsFalsos.set(resposta.tenant_id, [
-          { usuario_id: crypto.randomUUID(), nome: c.admin.nome, email: c.admin.email, ativo: true, bloqueado: false, tem_senha: true, trocar_senha: true, senha_expira_em: null, entra_no_portal: true },
-        ]);
-      }
-    }
-    return json(c.simular ? 200 : 201, resposta);
+    const r = criarEmpresaFalsa(e, c);
+    if (r instanceof Response) return r;
+    if (!c.simular) gravar(r.estado);
+    return json(r.status, r.resposta);
   }
+  // ---------- planos (ADR 0047) e CNPJ (ADR 0048)
+  if (rota === `GET ${semV1(ROTA_PORTAL_PLANOS)}`) return json(200, { itens: [...PLANOS_EXEMPLO].sort((a, b) => a.ordem - b.ordem) });
+  if (rota === `POST ${semV1(ROTA_PORTAL_EMPRESA_COM_PLANO)}`) return responderEmpresaComPlano(sessao, e, corpo);
+  if (rota === `POST ${semV1(ROTA_PORTAL_CNPJ)}`) return responderCnpj(corpo);
+  const assinaturaM = ASSINATURA_M.exec(caminho);
+  if (assinaturaM) return responderAssinatura(metodo, decodeURIComponent(assinaturaM[1] ?? ''), sessao, e, corpo);
 
   const adminsM = ADMINS_M.exec(caminho);
   if (adminsM) return responderAdmins(metodo, decodeURIComponent(adminsM[1] ?? ''), adminsM[2] ? decodeURIComponent(adminsM[2]) : undefined, sessao, e, corpo);
