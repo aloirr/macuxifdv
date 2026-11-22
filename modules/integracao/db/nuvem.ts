@@ -18,7 +18,6 @@
  * bigint lido como number; no `pg` cru o int8 e o numeric chegam como string (converta no repositório).
  */
 import { bigint, boolean, customType, date, inet, integer, jsonb, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { FREQUENCIA_MAXIMA_COLETA_MIN, FREQUENCIA_MINIMA_COLETA_MIN } from '@macuxi/platform-sdk';
 import {
   CODIGOS_ERRO_LINHA,
   ENTIDADES,
@@ -465,12 +464,6 @@ export const ORIGENS_COLETA = ['agendada', 'buscar_agora', 'recarregar'] as cons
 export const ESTADOS_COLETA = ['solicitada', 'executando', 'concluida', 'falhou'] as const;
 /** Classes de falha da coleta; só no estado `falhou`. */
 export const CLASSES_FALHA_COLETA = ['credencial_recusada', 'transitoria', 'formato_mudou'] as const;
-/**
- * Frequência por entidade, em minutos: múltiplo de 15, de 15 a 1440 (RN-CORE-23). Vêm de @macuxi/platform-sdk (fonte única);
- * o CHECK do SQL é conferido contra estes valores em db/testes/integracao-busca-erp.db.test.ts.
- */
-export const FREQUENCIA_MINIMA_MIN = FREQUENCIA_MINIMA_COLETA_MIN;
-export const FREQUENCIA_MAXIMA_MIN = FREQUENCIA_MAXIMA_COLETA_MIN;
 /** Marcos do painel dos 30 dias: a coluna é `marco_<nome>_em` em `integracao.implantacao`. */
 export const MARCOS_IMPLANTACAO = ['primeira_completa', 'primeiro_pedido', 'primeiro_faturamento', 'reconciliacao', 'sem_alerta'] as const;
 

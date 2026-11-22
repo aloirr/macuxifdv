@@ -12,6 +12,7 @@
  */
 import pg from 'pg';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { FREQUENCIA_MAXIMA_COLETA_MIN, FREQUENCIA_MINIMA_COLETA_MIN } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ModoCarga } from '../../modules/integracao/contracts';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
@@ -100,7 +101,7 @@ describe('0094 integração por ERP (estático)', () => {
     expect(valoresDoCheck('coleta_execucao_falha_classe_valida', 'falha_classe')).toEqual([...nuvemIntegracao.CLASSES_FALHA_COLETA]);
     // as entidades da função de frequência
     expect(lista(/when e\.key <> all \(array\[([^\]]*)\]\)/.exec(umaLinha)?.[1] ?? '')).toEqual([...nuvemIntegracao.ENTIDADES_BANCO]);
-    expect(umaLinha).toContain(`e.value::numeric < ${nuvemIntegracao.FREQUENCIA_MINIMA_MIN} or e.value::numeric > ${nuvemIntegracao.FREQUENCIA_MAXIMA_MIN} or mod(e.value::numeric, ${nuvemIntegracao.FREQUENCIA_MINIMA_MIN}) <> 0`);
+    expect(umaLinha).toContain(`e.value::numeric < ${FREQUENCIA_MINIMA_COLETA_MIN} or e.value::numeric > ${FREQUENCIA_MAXIMA_COLETA_MIN} or mod(e.value::numeric, ${FREQUENCIA_MINIMA_COLETA_MIN}) <> 0`);
     // termos de segredo de parametros_sem_segredo (appkey explícito; espelho de CAMPOS_SEGREDO_LOG no log)
     const termos = (/k ~\* '\(([^)]*)\)'/.exec(umaLinha)?.[1] ?? '').split('|');
     for (const t of ['senha', 'password', 'passwd', 'pwd', 'secret', 'segredo', 'token', 'chave', 'appkey', 'key', 'authorization', 'cookie', 'sessao', 'session']) expect(termos, t).toContain(t);
