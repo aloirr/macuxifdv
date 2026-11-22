@@ -9,8 +9,9 @@ import { tokensDeBusca } from './texto';
 
 export const SERVE_EM_MAX = 90;
 const MAX_MARCAS = 20;
-const SEPARADOR_SEGMENTO = /[;|•·\r\n]/;
-const PALAVRA_RE = /[\p{L}\p{N}]+(?:[.,][\p{N}]+)*/gu;
+export const SEPARADOR_SEGMENTO = /[;|•·\r\n]/;
+/** Uma palavra do texto (letras e números; "1.0" e "2,5" ficam inteiros). Usada também pelo índice de veículos. */
+export const PALAVRA_RE = /[\p{L}\p{N}]+(?:[.,][\p{N}]+)*/gu;
 
 interface Palavra {
   inicio: number;
