@@ -18,13 +18,13 @@
 | `04-folha-ano.png` | nível Ano em grade de 4 colunas, sem rolagem lateral |
 | `05-folha-motor.png` | nível Motor, com a trilha `Volkswagen › Gol › 2018` |
 | `06-folha-versao.png` | nível Versão, o último: tocar aplica e fecha |
-| `07-vitrine-veiculo.png` | Gol 2018 1.0, a lista inteira (print alto): só as peças que passam no filtro, sem chip nem "Serve em" (refeito pelo D4) |
+| `07-vitrine-veiculo.png` | Gol 2018 1.0, a lista inteira (print alto): só as peças que passam no filtro (§5; refeito pelo D4) |
 | `08-filtrar-contagem.png` | folha Filtrar com os chips e a contagem da lista filtrada do Gol 2018 1.0 (refeito pelo D4) |
 | `09-ficha.png` | ficha inteira (print alto): "✓ Compatível com Gol 2018 1.0", a aplicação com o trecho em negrito e "Leve também" só com o filtro de óleo (refeito pelo D4: sem a bucha do Polo Classic e sem o kit batente, que não cita o motor) |
 | `10-sem-resultado.png` | "traseiro" no Gol 2018 1.0: nada serve; ação `Tirar o veículo` |
 | `11-sem-sinal.png` | a mesma lista sem sinal: só a barra de status muda (refeito pelo D4) |
 | `12-carregando.png` | a lista enquanto o filtro roda |
-| `13-pedido.png` | aba Itens do Novo pedido com o veículo: as peças que passam no filtro, com as duas linhas de hoje (sem o Desc./Acrésc. geral, que não muda; refeito pelo D4) |
+| `13-pedido.png` | aba Itens do Novo pedido com o veículo: busca e botão Veículo como o §3 e as peças que passam no filtro (§8; sem o Desc./Acrésc. geral, que não muda) |
 | `14-sem-resultado-filtro.png` | Gol 2018 1.0 com o chip `Elétrica` marcado: nada serve; ação `Limpar filtros`, que mantém o veículo |
 
 ## 1. O que o vendedor faz
@@ -45,7 +45,7 @@ veículo ("amortecedor" + Gol 2018 1.0).
 O botão Veículo só aparece quando o catálogo do aparelho tem veículo lido das aplicações. Tenant sem autopeças não vê nada
 novo (premissa P3).
 
-## 3. Botão Veículo e etiqueta (vitrine e seletor)
+## 3. Botão Veículo e etiqueta (vitrine, seletor e Novo pedido)
 - **Linha de cima:** `CampoBusca` + **botão Veículo** + `BotaoFiltro`, nessa ordem, 8 dp entre eles. A busca fica com 238 dp no
   aparelho de 390 e com 208 no de 360, e o texto cabe em 186 e 156 dp. Por isso, **só com o botão Veículo**, o placeholder vira
   `Peça ou código…` (o de hoje, `Código, marca, descrição…`, é cortado), e a dica do campo em foco vira
@@ -148,13 +148,11 @@ A peça aparece ou não aparece: **não há item "de conferir"**.
 - O principal da ficha continua um só (`Adicionar ao orçamento`).
 
 ## 8. Novo pedido, aba Itens (modulo-vendedor)
-- Linha da busca: `CampoBusca` `Buscar produto` + botão Veículo (§3). As etiquetas, abaixo dela. Os Alertas continuam no topo
-  (RN-VEN-42); o veículo **não gera alerta** nenhum.
+- Linha da busca como o §3; a linha do produto, a de hoje (§5). As etiquetas, abaixo da busca. Os Alertas continuam no
+  topo (RN-VEN-42); o veículo **não gera alerta** nenhum.
 - **Com veículo e sem texto:** a lista mostra as peças do veículo (no lugar dos itens do pedido); tirar o veículo volta aos itens
   do pedido (`pedido-v4.md` §5.3).
-- Com veículo, entram as peças pela mesma regra do §5 (a peça aparece ou não aparece), na ordem de hoje.
-- Linha do produto: as duas linhas de hoje, **sem linha 3** com veículo: sem chip `Compatível` e sem o `Serve em` do veículo
-  (a etiqueta já diz o veículo, §5). O `Serve em` da busca por texto (`catalogo-aplicacao.md` §1.3, RN-CAT-12) continua.
+- Com veículo, entram as peças pela regra do §5, na ordem de hoje.
 - O `+`, o lápis e o `Mostrar mais` não mudam. O principal da tela continua o `Avançar`.
 
 ## 9. Estados
@@ -196,7 +194,7 @@ Tokens: `colors.ink`, `ink2`, `ink3`, `line`, `lineStrong`, `accent`, `accentSof
 ## 12. Textos (todos)
 | Lugar | Texto |
 |---|---|
-| busca da tela, só com o botão Veículo | placeholder `Peça ou código…` · dica `Também acha por marca, aplicação e referência cruzada.` |
+| busca do Catálogo e do Novo pedido, só com o botão Veículo | placeholder `Peça ou código…` · dica `Também acha por marca, aplicação e referência cruzada.` |
 | botão (leitor de tela) | `Veículo` · `Veículo: <montadora> <modelo> <ano> <motor> <versão>` |
 | etiqueta | `<modelo> <ano> <motor> <versão>` · leitor `Remover veículo <montadora> <modelo> …` |
 | folha | título `Veículo` · busca `Modelo ou montadora` · `Recentes` · `Montadora` · `Modelo` · `Ano` · `Motor` · `Versão` · `Ver peças` · `Nenhum modelo com "<texto>".` |
@@ -204,8 +202,7 @@ Tokens: `colors.ink`, `ink2`, `ink3`, `line`, `lineStrong`, `accent`, `accentSof
 | sem resultado | `Nada encontrado para "<texto>"` · `Nenhum produto com esses filtros` · `Tirar o veículo` · `Limpar filtros` (com chip marcado) |
 | folha Filtrar | `Sistema` · `Grupo` (o `rotuloDoNivel`; `Família` no D1, dúvida aberta 1) · `Linha` · `Categoria` · `<nome> <n>` · leitor `<nome>, <n> peças` |
 
-Regras seguidas: uma informação, um lugar (o veículo só na etiqueta, sem chip nem `Serve em` do veículo na lista, e na ficha
-só no chip); nenhum aviso fora dos Alertas
+Regras seguidas: uma informação, um lugar (§5); nenhum aviso fora dos Alertas
 (RN-VEN-42: o veículo não gera aviso); nenhum texto sobre o que o sistema faz por trás (sem "lido da aplicação", "no aparelho",
 "sem internet funciona").
 
@@ -228,16 +225,11 @@ Contrato de API e índice de veículos (engenheiro-software, modulo-catalogo), a
   busca (§3).
 - **D3. "Oferece junto" passa a se chamar "Leve também"** (decidido, R-20261120-234013-alexandre) na ficha, com ou sem
   veículo (§7).
-- **D4. Itens sem o dado do que foi escolhido** (decidido, R-20261121-211000-alexandre): o texto do dono do produto é "se ele
-  pesquisasse com o ano, as pecas sem ano não apareceriam. Mas se ele pesquisou sem ano, todas, mesmos as sem anos devem
-  aparecer". O filtro só restringe pelo que foi escolhido; a peça aparece ou não aparece, sem "de conferir", sem o chip
-  `Compatível` e sem o `Serve em` do veículo na lista (§5, §8). A ficha mantém o `✓ Compatível com …` (§7).
+- **D4. Itens sem o dado do que foi escolhido** (decidido, R-20261121-211000-alexandre): o filtro só restringe pelo que foi
+  escolhido; a peça aparece ou não aparece (§5).
 - **D5. BKO** (decidido, R-20261120-234013-alexandre): nada nesta etapa (§2).
-- **D6. Motor e versão** (decidido, R-20261121-211200-alexandre; RN-CAT-22): a mesma regra do ano. Campo escolhido: a peça
-  precisa ter o dado e ele precisa bater; campo não escolhido: não filtra. No Gol 2018 1.0, o kit batente e coifa
-  (`VW Gol 2014–2019`, sem motor) sai da lista e do "Leve também" (§5, §7).
-- **D7. Nível preenchido sozinho** (decidido, R-20261121-211200-alexandre; RN-CAT-22): o nível que a cascata preenche sozinha
-  (§4.2) conta como escolhido e filtra (§5).
+- **D6. Motor e versão** (decidido, R-20261121-211200-alexandre; RN-CAT-22): a mesma regra do ano (§5).
+- **D7. Nível preenchido sozinho** (decidido, R-20261121-211200-alexandre; RN-CAT-22): conta como escolhido e filtra (§5).
 
 ### Dúvida aberta (para o dono do produto)
 1. **Rótulo do 2º grupo da Filtrar** (§6): o `rotuloDoNivel` do Catálogo diz `Grupo`; o D1 escreve "família". Qual vale na

@@ -333,7 +333,7 @@ function telaPedido() {
   else { const l = filtrar(); corpo = l.length ? `<div class="res">${l.map((x) => linhaPedido(x, false)).join('')}</div>` : vazioSemResultado(); }
   return `${status()}<div class="fx"><span class="v" data-a="ir-vitrine">${ic('voltar', 20)}Pedidos</span><span class="t">Novo pedido</span><span class="s">Auto Peças Raimundo</span></div>
   <div class="abas"><div>Venda</div><div class="on">Itens</div><div>Entrega</div><div>Resumo</div></div>
-  <div class="corpo">${linhaBusca('Buscar produto', S.qp, 'qp')}${etiquetas()}${corpo}</div>
+  <div class="corpo">${linhaBusca('Peça ou código…', S.qp, 'qp')}${etiquetas()}${corpo}</div>
   <div class="rodape-p"><button class="btn">Avançar</button></div>`;
 }
 function linhaPedido({ p }, noPedido) {
