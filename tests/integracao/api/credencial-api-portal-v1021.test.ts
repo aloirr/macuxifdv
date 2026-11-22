@@ -12,7 +12,7 @@
  *     perfil): 403 `PERFIL_SEM_ACESSO` no POST e no PATCH, e nada é gravado;
  *  C3 Integração desligada no tenant: 403 `MODULO_INATIVO` no GET, POST e PATCH do mesmo admin do portal;
  *  C4 o admin do portal de B com o cabeçalho da empresa A: nunca 200 nem a credencial de A;
- *  C6 `GET /integracao/v1/guia.pdf` sem login na API montada: 200, `application/pdf` e os bytes de `modules/integracao/docs/guia-api-hub.pdf`.
+ *  C5 `GET /integracao/v1/guia.pdf` sem login na API montada: 200, `application/pdf` e os bytes de `modules/integracao/docs/guia-api-hub.pdf`.
  * Massa: a fixture traz um Conector ativo em A (16 entidades); para a credencial nova não esbarrar na RN-INT-13, o Conector da
  * fixture de A é desativado neste banco efêmero (é só deste arquivo).
  * Ordem de merge: este branch só entra no `main` depois dos PRs v1.0.21 do engenheiro-software (rota pública do guia) e do
@@ -181,7 +181,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.21 — credencial de API (tipo
   });
 });
 
-describe('v1.0.21 C6 — GET /integracao/v1/guia.pdf público, na API montada (sem banco)', () => {
+describe('v1.0.21 C5 — GET /integracao/v1/guia.pdf público, na API montada (sem banco)', () => {
   it('sem login, sem licença e sem banco: 200, application/pdf e os bytes de modules/integracao/docs/guia-api-hub.pdf', async () => {
     const app = createApp({
       modulos: MODULOS_API,
