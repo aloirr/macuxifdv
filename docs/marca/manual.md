@@ -60,7 +60,8 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Azul claro | `#9AA3B0` | azul sobre o grafite |
 | Azul suave | `#DFE2E6` | fundo do chip e do cartão em destaque; linha (divisória e borda do cartão) |
 | Névoa | `#ECEEF1` | linha suave, chip neutro, botão desabilitado, avatar, fundo do mapa |
-| Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite; borda forte (campo, linha forte, borda do mapa e caixas do PDF) |
+| Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite, texto sobre o escuro e caixas do PDF |
+| Campo | `#7A8593` | borda de componente (campo, rádio, caixa de marcar, botão de contorno, chave) |
 | Azul médio | `#5B7FA6` | só série de gráfico. **Nunca texto nem botão** |
 | Cinza série | `#8B96A3` | série "outros" dos gráficos e desabilitado do BKO |
 | Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração. Exceções sem texto visível: o lápis do item já adicionado no Novo pedido e o ✓ de campo validado (veja abaixo) |
@@ -89,7 +90,10 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Azul noite na Névoa | 10,99 |
 | Azul suave no branco (linha, enfeite) | 1,30 |
 | Névoa no branco (enfeite) | 1,16 |
-| `#C9CED5` no branco (borda) | 1,58 |
+| `#C9CED5` no branco (caixa do PDF) | 1,58 |
+| Campo no branco (borda de componente) | 3,75 |
+| Campo no Pérola (borda de componente) | 3,47 |
+| Campo na Névoa (borda de componente) | 3,22 |
 | sol laranja no branco (gráfico) | 4,60 |
 | `#4A5562` no branco (gráfico) | 7,59 |
 | Azul médio no branco (gráfico) | 4,17 |
@@ -98,7 +102,7 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | `#1D6B4F` no `#E2F1EA` (ícone) | 5,51 |
 | `#1D6B4F` no branco (borda do lápis) | 6,43 |
 
-**Neutros de interface** (decisão do Alexandre, 14/11/2026, MC-0004 B): linha, campo, chip e fundo do mapa usam só os neutros do Azul suave acima (`#DFE2E6`, `#ECEEF1` e `#C9CED5`). Saem os esverdeados `#E1E4DE`, `#ECEEE9`, `#E6E9E2`, `#C9CEC6`, `#D6DAD1` e `#E9ECE6`, em tokens, CSS e PDF.
+**Neutros de interface** (decisão do Alexandre, 14/11/2026, MC-0004 B): linha, chip e fundo do mapa usam só os neutros do Azul suave acima (`#DFE2E6`, `#ECEEF1` e `#C9CED5`). Saem os esverdeados `#E1E4DE`, `#ECEEE9`, `#E6E9E2`, `#C9CEC6`, `#D6DAD1` e `#E9ECE6`, em tokens, CSS e PDF.
 
 **Séries de gráfico** (decisão do Alexandre, 14/11/2026, MC-0014 A): ordem fixa Azul noite `#1E3350`, Sol laranja `#C2540A`, `#4A5562` e Azul médio `#5B7FA6`; "outros" em `#8B96A3`. Com mais de 4 séries, a cor repete e o número ou o rótulo no marcador distingue.
 
