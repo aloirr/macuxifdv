@@ -1,0 +1,88 @@
+name: producao — reprocessar outbox
+
+# Reprocesso único dos eventos parados da outbox de UMA empresa. Regras, autorização e saídas: docs/desenho/outbox-parada-v1014.md, §7. Rode primeiro com confirmar=false.
+
+on:
+  workflow_dispatch:
+    inputs:
+      empresa:
+        description: código da empresa (ex. AM2808)
+        required: true
+        default: AM2808
+      confirmar:
+        description: reprocessar de verdade (desmarcado = só a lista, sem mudar nada)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  reprocessar:
+    name: reprocessar outbox (${{ inputs.confirmar && 'de verdade' || 'só leitura' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: PRODUCAO
+    steps:
+      - name: entradas
+        env:
+          EMPRESA: ${{ inputs.empresa }}
+        run: |
+          [[ "$EMPRESA" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$EMPRESA" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
+      - name: chave SSH
+        id: chave
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: preparar
+          chave: ${{ secrets.PROD_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          conhecidos: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+
+      - name: reprocessar-outbox na VM
+        timeout-minutes: 10
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          EMPRESA: ${{ inputs.empresa }}
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          args=(--empresa "$EMPRESA")
+          [ "$CONFIRMAR" = true ] && args+=(--confirmar)
+          cli=apps/api/src/cli/reprocessar-outbox.ts
+          # contêiner descartável do serviço worker (mesma imagem e mesmo ambiente do despachante no ar), sem dependências
+          remoto='set -euo pipefail; cd /opt/macuxi; dc() { docker compose --env-file .env --env-file imagens.env "$@"; };'
+          remoto+=" dc run --rm -T --no-deps --entrypoint test worker -f $cli"
+          remoto+=' || { echo "a imagem no ar ainda não tem a CLI reprocessar-outbox: faça antes o deploy da v1.0.21" >&2; exit 9; };'
+          remoto+=" dc run --rm -T --no-deps worker node --import tsx $cli $(printf '%q ' "${args[@]}")"
+          set +e
+          ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee saida.txt
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "### reprocessar outbox · $EMPRESA ($([ "$CONFIRMAR" = true ] && echo 'de verdade' || echo 'só leitura'))"
+            echo '```'
+            cat saida.txt
+            echo '```'
+            echo "saída: $status (0 ok · 1 erro · 2 uso · 3 empresa não encontrada · 5 acima do teto, nada mudou · 9 sem deploy · 255 falha do SSH)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: limpar o runner
+        if: ${{ always() && steps.chave.outcome != 'skipped' }}
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: limpar
+          arquivos: saida.txt

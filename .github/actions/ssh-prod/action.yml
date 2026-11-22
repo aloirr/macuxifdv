@@ -1,0 +1,62 @@
+name: ssh-prod
+description: >-
+  Chave SSH da VM de produção no runner (host "prod" no ~/.ssh/config) e a limpeza dela. Ação composta não tem
+  post-step: o job chama a ação duas vezes, com acao=preparar (passo com id) antes do SSH e com acao=limpar no
+  último passo, com if: always() && steps.<id>.outcome != 'skipped' (limpa mesmo com falha; sem o preparar, não há
+  o que limpar nem o checkout da ação). Precisa do checkout antes (uses: ./.github/actions/ssh-prod).
+
+inputs:
+  acao:
+    description: 'preparar (grava a chave, o known_hosts e o host "prod") ou limpar (apaga tudo do ~/.ssh e os arquivos extras).'
+    required: true
+  chave:
+    description: secrets.PROD_SSH_KEY (só em acao=preparar).
+    required: false
+    default: ''
+  host:
+    description: secrets.PROD_HOST (só em acao=preparar).
+    required: false
+    default: ''
+  conhecidos:
+    description: secrets.PROD_SSH_KNOWN_HOSTS (só em acao=preparar; vazio = ssh-keyscan do host).
+    required: false
+    default: ''
+  arquivos:
+    description: arquivos do job apagados junto em acao=limpar (separados por espaço, relativos ao diretório de trabalho).
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: chave SSH
+      if: ${{ inputs.acao == 'preparar' }}
+      shell: bash
+      env:
+        CHAVE: ${{ inputs.chave }}
+        HOST: ${{ inputs.host }}
+        CONHECIDOS: ${{ inputs.conhecidos }}
+      run: |
+        install -d -m 700 ~/.ssh
+        printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+        chmod 600 ~/.ssh/prod
+        if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+        else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+        printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
+        chmod 600 ~/.ssh/config
+
+    - name: limpar o runner
+      if: ${{ inputs.acao == 'limpar' }}
+      shell: bash
+      env:
+        ARQUIVOS: ${{ inputs.arquivos }}
+      run: |
+        read -r -a extras <<< "$ARQUIVOS"
+        rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts "${extras[@]}"
+
+    - name: ação desconhecida
+      if: ${{ inputs.acao != 'preparar' && inputs.acao != 'limpar' }}
+      shell: bash
+      run: |
+        echo "::error::ssh-prod: acao deve ser preparar ou limpar"
+        exit 1

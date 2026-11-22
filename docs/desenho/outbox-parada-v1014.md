@@ -47,8 +47,7 @@ Rode o workflow do §6 e leia o resultado assim:
 **Agora, operação:**
 1. Corrigir a causa da raiz, pela `classe_erro` da primeira linha. Na fila do Hub, outra saída é cancelar o lote raiz pelo monitor
    (Cancelar lote, RN-INT-15).
-2. Só depois, voltar os eventos parados a zero tentativas, **começando pelo mais antigo** (o despachante segue a ordem de
-   `ocorrido_em`). Pushes antigos (§3) não valem a reentrega, e o Alexandre decide se eles ficam parados.
+2. Só depois, reprocessar os eventos parados pelo §7. Pushes antigos (§3) não valem a reentrega, e o Alexandre decide se eles ficam parados.
 
 **No código (próxima versão, por recado a cada dono):**
 - **modulo-integracao** (`aplicar-lote.ts`): a espera `mesma_entidade_em_andamento` não pode gastar tentativas sem teto. Proposta:
@@ -64,7 +63,44 @@ Rode o workflow do §6 e leia o resultado assim:
 1. Actions › `producao — diagnóstico da outbox (só leitura)` › Run workflow.
 2. Em "Use workflow from", escolha a **tag da versão publicada** (ex. `v1.0.17`), não o `main`.
 3. Em `empresas`, o código da empresa (ex. `thathyany`).
+   Para lotes, conectores, cursores, Hub e filiais, marque `contagem_integracao`.
 4. Aprove o environment `PRODUCAO`.
 5. No fim do resumo, em "Desligar o LOGIN", confira "NOLOGIN"; se houver erro, ali está o que rodar.
 
 Leia o resultado pelo §4.
+
+## 7. Reprocesso dos parados (v1.0.21; R-20261121-194900-alexandre)
+> engenheiro-software, 21/11/2026 (Manaus). Workflow `producao-reprocessar-outbox.yml`. Caso da AM2808: 36 eventos
+> (2 `integracao.catalogo_no.atualizado@1`, classe `catalogo: SQLSTATE 23505, catalogo_no_codigo_uk`; 34
+> `integracao.produto.atualizado@1`, classe `catalogo: ReferenciaAusenteErp`), run 44958892233.
+
+**Por que não o reprocesso de lote do BKO.** `criarRotaReprocessarLote` (`modules/integracao/api/bko-lotes-acoes.ts`) reabre um
+**lote** (`integracao.lote` volta a `recebido` e o `integracao.lote.recebido@1` sai de novo). Os 36 não são lotes: são eventos de
+consumidor (Catálogo) que o Hub já publicou. Reaplicar o lote não os reentrega: a rota só aceita lote Com falha ou Concluído com
+avisos, e as linhas iguais ao Hub viram "inalteradas", sem evento novo. O caminho que de fato reaplica um evento parado é o
+**despachante** (`apps/api/src/despachante.ts`, `entregar`): os mesmos consumidores, a mesma licença do tenant e a mesma
+idempotência por `plataforma.evento_consumo` (o Core, que já consumiu o produto, não repete). Por isso o reprocesso é
+`Despachante.reprocessarParados`, que chama esse `entregar`. Nenhum caminho de outro dono mudou.
+
+**Senha do autorizador → aprovação do Alexandre.** No BKO, quem não tem `lote.reprocessar` informa a senha de um autorizador
+(RN-INT-16). No workflow não há usuário do BKO: o job roda no environment `PRODUCAO` e só começa com a aprovação do Alexandre.
+O registro é o próprio run (quem disparou, quem aprovou, SHA e saída).
+
+**Como roda.** CLI `apps/api/src/cli/reprocessar-outbox.ts` num contêiner descartável do serviço `worker` (mesma imagem e mesmo
+ambiente do despachante no ar: `macuxi_worker` + `macuxi_app`, nunca o admin), pela mesma chave SSH do
+`producao-diagnostico-outbox.yml`. Nenhum segredo novo e nenhum SQL à mão.
+- `confirmar=false` (padrão): só a lista dos parados da empresa (contagem por evento e classe do erro), sem payload e sem
+  gravar nada.
+- `confirmar=true`: cada parado é tentado **uma vez**, do mais antigo para o mais novo (os 2 nós antes dos 34 produtos).
+  Publicou: sai da outbox. Falhou: `tentativas` vai de 10 para 11, `ultimo_erro` é gravado e o log mostra a classe nova.
+- Teto de 100 eventos por empresa, contado antes de ler qualquer payload: acima disso nada muda (saída 5).
+
+**Idempotência.** A lista pega só `publicado_em` nulo e `tentativas >= 10` daquela empresa; entram os de `tentativas = 10`. Com `confirmar=true`, cada evento roda na **própria transação**: trava a linha com `for no key update skip locked` só se ela ainda estiver parada, entrega e grava o resultado no mesmo commit. Se a rodada cair no meio, os já tentados ficam publicados ou com `tentativas = 11`, e nenhuma rodada seguinte os tenta (os de 11 aparecem como "já reprocessados antes e parados de novo"); o despachante também não, porque só pega `< 10`. O alerta OUTBOX_PARADA continua contando o evento (`>= 10`). O `concurrency: producao-vm` impede duas rodadas juntas, e a trava por evento impede a mesma tentativa duas vezes.
+
+**Log.** Só contagens, ids técnicos, nomes de evento e classes de erro (a mesma classe do diagnóstico, `classeDoErro`). Nunca o
+payload nem a mensagem. O log técnico do despachante sai sem o campo `erro`.
+
+**Antes de rodar na AM2808.** A causa dos 2 nós (mesmo código sob pais diferentes) sai com a migração 0092 (código único entre
+irmãos, `catalogo_no_pai_codigo_uk`, RN-CAT-18), já no `main`. Rode o reprocesso **depois** do deploy da v1.0.21; antes dele o
+workflow para com a saída 9 (a imagem no ar não tem a CLI). Sequência: `confirmar=false`, conferir 36 e as duas classes, depois
+`confirmar=true`. Sem a 0092 no banco, os 2 nós param de novo e os 34 produtos também (uma tentativa só).

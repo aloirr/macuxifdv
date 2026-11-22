@@ -20,7 +20,7 @@
  *   4. todos os consumidores ok → `publicado_em`; alguma falha → `tentativas + 1`, `ultimo_erro` e espera crescente
  *      (`esperaPadrao`) antes da próxima tentativa; os que já tinham consumido não repetem (passo 3). O evento em espera
  *      sai do lote e os outros (de qualquer tenant) seguem. Com `tentativas >= maxTentativas` o evento para (fica
- *      pendente para análise; para reprocessar, zere `tentativas` como administrador).
+ *      pendente para análise). Reprocesso dos parados: `reprocessarParados` (docs/desenho/outbox-parada-v1014.md, §7).
  * A ordem entre eventos não é garantida quando há retentativa: o consumidor usa `envelope.ocorrido_em`.
  * `ctx.consultar` (ADR 0012; T-0060): consulta a outro módulo na transação do consumo, só as `usaConsultas` do módulo
  * consumidor; a implementação recebe o usuário de sistema (`USUARIO_SISTEMA_ID`, perfil admin, efetivos do tenant).
@@ -46,6 +46,7 @@ import { ErroPapelBanco } from './banco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
 import { mensagemSegura } from './log-seguro';
 import { publicadorTenant, registroDeConsultas, transacaoTenant } from './outbox';
+import { classeDoErro, ErroTetoReprocesso, selecionarParados, TETO_REPROCESSO, type ResultadoReprocesso } from './reprocessar-outbox';
 import { consumidoresDoModulo } from './trabalhos';
 
 export interface OpcoesDespachante {
@@ -107,8 +108,10 @@ interface LinhaEvento {
 }
 
 // Só as colunas com grant para o worker (migração 0003). `deleted_at` não é lida: evento não se apaga.
+const COLUNAS_EVENTO = 'id, tenant_id, nome, modulo, payload, ocorrido_em, tentativas, usuario_id, request_id';
+
 const SQL_LOTE = `
-  select id, tenant_id, nome, modulo, payload, ocorrido_em, tentativas, usuario_id, request_id
+  select ${COLUNAS_EVENTO}
     from plataforma.evento
    where publicado_em is null
      and nome = any($1::text[])
@@ -134,6 +137,35 @@ interface TenantDoCiclo {
 
 /** Sem `detail`/valores do erro do Postgres (T-0078 D-L1a): vai para o log e para a coluna de erro da outbox. */
 const mensagemDe = (e: unknown): string => mensagemSegura(e).slice(0, MAX_ERRO);
+
+function envelopeDe(l: LinhaEvento): EnvelopeEvento {
+  return {
+    evento_id: l.id,
+    nome: l.nome,
+    origem: l.modulo as ModuloId,
+    tenant_id: l.tenant_id,
+    usuario_id: l.usuario_id,
+    request_id: l.request_id,
+    ocorrido_em: l.ocorrido_em.toISOString(),
+    payload: l.payload,
+  };
+}
+
+type ClienteWorker = Pick<pg.ClientBase, 'query'>;
+
+/** Todos os consumidores ativos ok: sai da outbox. */
+async function marcarPublicado(c: ClienteWorker, id: string): Promise<void> {
+  await c.query('update plataforma.evento set publicado_em = now(), tentativas = tentativas + 1, ultimo_erro = null where id = $1', [id]);
+}
+
+/** Alguma falha: `tentativas + 1` e `ultimo_erro`; devolve as tentativas depois da soma. */
+async function marcarFalha(c: ClienteWorker, id: string, falhas: readonly string[]): Promise<number> {
+  const r = await c.query<{ tentativas: number }>('update plataforma.evento set tentativas = tentativas + 1, ultimo_erro = $2 where id = $1 returning tentativas', [
+    id,
+    falhas.join(' | ').slice(0, MAX_ERRO),
+  ]);
+  return r.rows[0]!.tentativas;
+}
 
 /** Falha fechada na subida: a conexão do despachante tem de ser o `macuxi_worker`, sem SUPERUSER nem BYPASSRLS. */
 export async function verificarPapelWorker(pool: Pick<pg.Pool, 'query'>): Promise<void> {
@@ -303,16 +335,7 @@ export function criarDespachante(op: OpcoesDespachante) {
       resumo.lidos = linhas.length;
       const tenantsDoCiclo = new Map<string, TenantDoCiclo>();
       for (const l of linhas) {
-        const env: EnvelopeEvento = {
-          evento_id: l.id,
-          nome: l.nome,
-          origem: l.modulo as ModuloId,
-          tenant_id: l.tenant_id,
-          usuario_id: l.usuario_id,
-          request_id: l.request_id,
-          ocorrido_em: l.ocorrido_em.toISOString(),
-          payload: l.payload,
-        };
+        const env = envelopeDe(l);
         let falhas: string[];
         try {
           let t = tenantsDoCiclo.get(l.tenant_id);
@@ -327,20 +350,15 @@ export function criarDespachante(op: OpcoesDespachante) {
           falhas = [`licencas: ${mensagemDe(e)}`];
         }
         if (falhas.length === 0) {
-          await c.query('update plataforma.evento set publicado_em = now(), tentativas = tentativas + 1, ultimo_erro = null where id = $1', [l.id]);
+          await marcarPublicado(c, l.id);
           resumo.publicados += 1;
           continue;
         }
-        const t = (
-          await c.query<{ tentativas: number }>(
-            'update plataforma.evento set tentativas = tentativas + 1, ultimo_erro = $2 where id = $1 returning tentativas',
-            [l.id, falhas.join(' | ').slice(0, MAX_ERRO)],
-          )
-        ).rows[0]!.tentativas;
+        const t = await marcarFalha(c, l.id, falhas);
         resumo.comFalha += 1;
         const campos = { tenant_id: l.tenant_id, evento: l.nome, evento_id: l.id, request_id: l.request_id, tentativas: t };
         if (t >= maxTentativas) {
-          log.error(campos, 'evento parado: tentativas esgotadas (zere tentativas para reprocessar)');
+          log.error(campos, 'evento parado: tentativas esgotadas');
         } else {
           emEspera.set(l.id, agoraMs + espera(t));
           log.warn({ ...campos, espera_ms: espera(t) }, 'evento volta depois da espera');
@@ -356,10 +374,91 @@ export function criarDespachante(op: OpcoesDespachante) {
     }
   }
 
+  /**
+   * Reprocesso único dos parados de um tenant (desenho, §7). A lista sai sem payload e sem gravar nada; com `confirmar`,
+   * cada evento roda na própria transação do `macuxi_worker` (trava `skip locked` só se ainda estiver parado, entrega e
+   * marca), e o que já foi confirmado não volta a ser tentado mesmo se a rodada cair no meio.
+   */
+  async function reprocessarParados(o: { tenantId: string; confirmar: boolean; teto?: number }): Promise<ResultadoReprocesso> {
+    const teto = o.teto ?? TETO_REPROCESSO;
+    const c0 = await op.worker.connect();
+    let lista: { id: string; nome: string; tentativas: number }[];
+    try {
+      lista = (
+        await c0.query<{ id: string; nome: string; tentativas: number }>(
+          `select id, nome, tentativas from plataforma.evento
+            where publicado_em is null and tenant_id = $1 and nome = any($2::text[]) and tentativas >= $3
+            order by ocorrido_em, id`,
+          [o.tenantId, nomes, maxTentativas],
+        )
+      ).rows;
+    } finally {
+      c0.release();
+    }
+    const { reprocessar, jaTentados } = selecionarParados(lista, maxTentativas);
+    if (reprocessar.length > teto) throw new ErroTetoReprocesso(reprocessar.length, teto);
+    const erros = new Map<string, string | null>();
+    if (reprocessar.length > 0) {
+      const r = await op.app.comTenant(o.tenantId, (db) =>
+        db.query<{ id: string; ultimo_erro: string | null }>('select id, ultimo_erro from plataforma.evento where id = any($1::uuid[])', [reprocessar.map((e) => e.id)]),
+      );
+      for (const l of r.rows) erros.set(l.id, l.ultimo_erro);
+    }
+    const resultado: ResultadoReprocesso = {
+      modo: o.confirmar ? 'reprocessado' : 'leitura',
+      maxTentativas,
+      selecionados: reprocessar.map((e) => ({ evento_id: e.id, nome: e.nome, classe: classeDoErro(erros.get(e.id) ?? null) })),
+      ja_tentados: jaTentados.length,
+      itens: [],
+    };
+    if (!o.confirmar || reprocessar.length === 0) return resultado;
+
+    const t = await tenantDoCiclo(o.tenantId);
+    for (const s of reprocessar) {
+      const c = await op.worker.connect();
+      try {
+        await c.query('begin');
+        const l = (
+          await c.query<LinhaEvento>(
+            `select ${COLUNAS_EVENTO} from plataforma.evento
+              where id = $1 and tenant_id = $2 and publicado_em is null and tentativas = $3
+              for no key update skip locked`,
+            [s.id, o.tenantId, maxTentativas],
+          )
+        ).rows[0];
+        // outra rodada pegou ou já resolveu este evento: não tenta de novo
+        if (!l) {
+          await c.query('rollback');
+          continue;
+        }
+        const { falhas } = await entregar(envelopeDe(l), t);
+        const campos = { tenant_id: l.tenant_id, evento: l.nome, evento_id: l.id, request_id: l.request_id };
+        if (falhas.length === 0) {
+          await marcarPublicado(c, l.id);
+          await c.query('commit');
+          log.info({ ...campos, reprocesso: 'publicado' }, 'evento parado reprocessado e publicado');
+          resultado.itens.push({ evento_id: l.id, nome: l.nome, resultado: 'publicado', classe_depois: null });
+          continue;
+        }
+        await marcarFalha(c, l.id, falhas);
+        await c.query('commit');
+        log.error({ ...campos, reprocesso: 'parado_de_novo' }, 'evento reprocessado parou de novo (não é tentado outra vez)');
+        resultado.itens.push({ evento_id: l.id, nome: l.nome, resultado: 'parado_de_novo', classe_depois: classeDoErro(falhas.join(' | ')) });
+      } catch (e) {
+        await c.query('rollback').catch(() => undefined);
+        throw e;
+      } finally {
+        c.release();
+      }
+    }
+    return resultado;
+  }
+
   return {
     /** Eventos que têm consumidor instalado (os outros ficam na outbox). */
     eventos: (): readonly string[] => nomes,
     ciclo,
+    reprocessarParados,
     /** Ids em espera (testes e diagnóstico). */
     emEspera: (): ReadonlyMap<string, number> => emEspera,
     /**
