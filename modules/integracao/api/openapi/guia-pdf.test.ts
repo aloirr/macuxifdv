@@ -5,7 +5,7 @@ import { ENTIDADES, ROTAS_HUB } from '../../contracts';
 import { PARAMETROS_PADRAO } from '../../domain';
 import { DEPENDENCIAS } from '../../domain/ordem';
 import { gerarOpenApiHub } from './gerar';
-import { CAMPOS_SEM_TEXTO, entradasDoSumario, hashDoGuia, montarHtml, RECURSOS_VAZIOS, secoesDoGuia } from './guia-pdf';
+import { CAMPOS_SEM_TEXTO, entradasDoSumario, hashDoGuia, LARGURA_BLOCO, montarHtml, RECURSOS_VAZIOS, secoesDoGuia } from './guia-pdf';
 
 const doc = gerarOpenApiHub();
 const secoes = secoesDoGuia(doc);
@@ -92,10 +92,10 @@ describe('Guia da API em PDF (docs/guia-api-hub.pdf)', () => {
     for (const fora of [/SHA-256 do arquivo/, /politica_versao\.pacote/, /atualizacao\./, /Quem usa o Conector Macuxi/]) expect(texto, String(fora)).not.toMatch(fora);
   });
 
-  it('nenhuma linha de bloco de código passa de 95 caracteres (senão perde a indentação ao quebrar)', () => {
+  it('nenhuma linha de bloco de código passa da largura do bloco (senão perde a indentação ao quebrar)', () => {
     const blocos = [...html.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/g)].map((m) => (m[1] as string).replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&'));
     expect(blocos.length).toBeGreaterThan(20);
-    for (const b of blocos) for (const linha of b.split('\n')) expect(linha.length, linha).toBeLessThanOrEqual(95);
+    for (const b of blocos) for (const linha of b.split('\n')) expect(linha.length, linha).toBeLessThanOrEqual(LARGURA_BLOCO);
   });
 
   it('código de erro só quebra depois de "_" (<wbr>), nunca no meio da palavra', () => {

@@ -25,7 +25,7 @@ function recursos(): RecursosGuia {
  * Página (de 1 em diante) onde começa cada destino interno (`id` das seções e dos grupos). Lê os destinos nomeados (`/Dests`) e a
  * árvore de páginas do PDF do Chromium: assim o sumário usa a paginação real da impressão final.
  */
-export function paginasDosDestinos(pdf: Buffer): Record<string, number> {
+function paginasDosDestinos(pdf: Buffer): Record<string, number> {
   const texto = pdf.toString('latin1');
   const objetos = new Map<string, string>();
   for (const m of texto.matchAll(/(?:^|\n)(\d+) 0 obj\s*([\s\S]*?)\bendobj/g)) objetos.set(m[1] as string, m[2] as string);

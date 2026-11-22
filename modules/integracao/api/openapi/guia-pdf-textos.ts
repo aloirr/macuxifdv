@@ -3,7 +3,7 @@
  * Os JSON de exemplo, os tipos, os limites e os status vêm do OpenAPI (`gerar.ts`); aqui ficam só as explicações em português.
  * Regras do texto (corretor): só o que o integrador usa para agir; nada de como o sistema funciona por dentro; uma informação, um lugar.
  */
-import { ENTIDADES, LIMITE_LINHAS_INVALIDAS_PADRAO, type Entidade } from '../../contracts';
+import { ENTIDADES, LIMITE_LINHAS_INVALIDAS_PADRAO, LIMITE_PEDIDOS_POLL_PADRAO, type CodigoErroLinha, type Entidade } from '../../contracts';
 
 /** Texto único para "uma das N entidades" (N vem do contrato). */
 export const UMA_DAS_ENTIDADES = `uma das ${ENTIDADES.length} entidades`;
@@ -29,7 +29,7 @@ export interface PassoRota {
 
 export const TEXTO_ROTA: Record<string, PassoRota> = {
   enviar_lote: {
-    serve: 'Envia ao Macuxi um lote com os registros de UMA entidade (clientes, produtos, preços...). A resposta é imediata; o processamento acontece depois.',
+    serve: 'Envia ao Macuxi um lote com os registros de uma só entidade (clientes, produtos, preços...). A resposta é imediata; o processamento acontece depois.',
     quando: 'Na carga inicial (modo completo) e a cada alteração do ERP (modo delta).',
     passos: [
       'Consulte `GET /cursores/{entidade}` para saber de onde continuar.',
@@ -76,7 +76,7 @@ export const TEXTO_ROTA: Record<string, PassoRota> = {
     serve: 'Entrega os pedidos aprovados no Macuxi para o seu sistema gravar no ERP.',
     quando: 'A cada poucos segundos ou minutos. Só o Conector com permissão de receber pedidos usa esta rota; os demais recebem `403`.',
     passos: [
-      'Chame `GET /pedidos/pendentes?limite=50`.',
+      `Chame \`GET /pedidos/pendentes?limite=${LIMITE_PEDIDOS_POLL_PADRAO}\`.`,
       'Para cada pedido, grave no ERP de forma idempotente pelo `pedido_uuid` (guarde o UUID no pedido do ERP).',
       'Devolva o resultado de cada pedido com `POST /pedidos/{pedido_uuid}/retorno` no prazo (Seção 6).',
       'Trate `cancelamentos[]`: pedidos já entregues que o Macuxi cancelou.',
@@ -148,15 +148,6 @@ export const ENTIDADE_TEXTO: Record<Entidade, { titulo: string; sobre: string; n
   estoque: { titulo: 'Estoque', sobre: 'Saldo do produto por depósito.', nota: 'Um registro por depósito e produto; `saldo` em unidades base.' },
   tabela_escalonada: { titulo: 'Tabela escalonada', sobre: 'Preço por faixa de quantidade do produto.', nota: '`filial_external_id` ausente ou nulo: a faixa vale para todas as filiais.' },
 };
-
-/** Ordem sugerida para a primeira carga (RN-INT-04). */
-export const SEQUENCIA_PRIMEIRA_CARGA: readonly Entidade[][] = [
-  ['vendedor', 'filial', 'catalogo_no', 'transportadora', 'forma_pagamento'],
-  ['cliente', 'produto', 'prazo_pagamento'],
-  ['rota', 'titulo', 'nota', 'cliente_endereco', 'produto_unidade'],
-  ['preco', 'estoque'],
-  ['tabela_escalonada'],
-];
 
 /** Significado dos campos. Chave `Schema.campo` vale antes de `campo`. */
 export const DESCRICAO_CAMPO: Record<string, string> = {
@@ -489,25 +480,25 @@ export const TEXTO_ENUM: Record<string, Record<string, string>> = {
   },
 };
 
-/** Códigos de erro por linha (`erros[].codigo`): significado e se o Macuxi reprocessa sozinho. */
-export const CODIGOS_LINHA: readonly { codigo: string; significado: string; reprocessavel: boolean }[] = [
-  { codigo: 'referencia_ausente', significado: 'Cita um `external_id` ainda não carregado (ex.: o produto de um preço). Envie o alvo; a linha é reprocessada quando o lote dele terminar.', reprocessavel: true },
-  { codigo: 'falha_processamento', significado: 'Falha ao aplicar a linha. Nada a corrigir no dado.', reprocessavel: true },
-  { codigo: 'campo_obrigatorio', significado: 'Campo obrigatório ausente.', reprocessavel: false },
-  { codigo: 'tipo_invalido', significado: 'O valor não é do tipo esperado (ex.: texto onde vai número).', reprocessavel: false },
-  { codigo: 'formato_invalido', significado: 'Formato fora do padrão (data, CNPJ, e-mail...).', reprocessavel: false },
-  { codigo: 'valor_fora_da_faixa', significado: 'Número ou tamanho fora dos limites do campo.', reprocessavel: false },
-  { codigo: 'valor_nao_permitido', significado: 'Valor fora da lista permitida.', reprocessavel: false },
-  { codigo: 'regra_invalida', significado: 'Combinação de campos inválida (ex.: `vigencia_fim` antes de `vigencia_inicio`).', reprocessavel: false },
-  { codigo: 'registro_invalido', significado: 'A linha não é um objeto JSON válido.', reprocessavel: false },
-  { codigo: 'external_id_invalido', significado: '`external_id` ausente, vazio ou acima do limite (Seção 6).', reprocessavel: false },
-  { codigo: 'campo_desconhecido', significado: 'Campo que o contrato não tem.', reprocessavel: false },
-];
+/** Significado de cada código de erro por linha (`erros[].codigo`); o código e o "reprocessável" vêm do contrato e do domain. */
+export const CODIGOS_LINHA: Record<CodigoErroLinha, string> = {
+  referencia_ausente: 'Cita um `external_id` ainda não carregado (ex.: o produto de um preço). Envie o alvo; a linha é reprocessada quando o lote dele terminar.',
+  falha_processamento: 'Falha ao aplicar a linha. Nada a corrigir no dado.',
+  campo_obrigatorio: 'Campo obrigatório ausente.',
+  tipo_invalido: 'O valor não é do tipo esperado (ex.: texto onde vai número).',
+  formato_invalido: 'Formato fora do padrão (data, CNPJ, e-mail...).',
+  valor_fora_da_faixa: 'Número ou tamanho fora dos limites do campo.',
+  valor_nao_permitido: 'Valor fora da lista permitida.',
+  regra_invalida: 'Combinação de campos inválida (ex.: `vigencia_fim` antes de `vigencia_inicio`).',
+  registro_invalido: 'A linha não é um objeto JSON válido.',
+  external_id_invalido: '`external_id` ausente, vazio ou acima do limite (Seção 6).',
+  campo_desconhecido: 'Campo que o contrato não tem.',
+};
 
 /** O que fazer em cada status HTTP (códigos específicos de cada rota estão na seção da rota). */
 export const ACAO_STATUS: readonly { status: string; codigos: string; acao: string }[] = [
   { status: '400', codigos: 'requisicao_invalida, envelope_invalido, chave_idempotencia_invalida', acao: 'Corrija: `detalhes.problemas[]` aponta o campo. Repetir igual dá o mesmo erro.' },
-  { status: '401', codigos: 'credencial_invalida', acao: 'Confira a chave e o identificador do Conector. Se a chave foi perdida, o administrador gira a chave no BKO.' },
+  { status: '401', codigos: 'credencial_invalida', acao: 'Confira a chave e o identificador do Conector; chave perdida: Passo 1.' },
   { status: '403', codigos: 'acesso_negado, modulo_inativo', acao: 'Conector desativado, IP fora da lista, rota não permitida (pedidos exigem a permissão de receber pedidos) ou módulo Integração desligado. Fale com o administrador da empresa.' },
   { status: '404', codigos: 'lote_nao_encontrado, entidade_desconhecida', acao: 'Confira o identificador. Lote inexistente: reenvie com a mesma `Idempotency-Key`.' },
   { status: '409', codigos: 'chave_idempotencia_reutilizada', acao: 'A chave já foi usada com outro conteúdo. Gere uma chave nova.' },

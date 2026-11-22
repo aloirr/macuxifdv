@@ -5,11 +5,11 @@
  * Marca: `docs/marca/manual.md` (Azul noite, Pérola; fonte do sistema, pesos 400 a 700, nada abaixo de 12 px = 9 pt).
  */
 import { createHash } from 'node:crypto';
-import { ENTIDADES, EXTERNAL_ID_MAX, LIMITE_ERROS_RESPOSTA_MAX, LIMITE_ERROS_RESPOSTA_PADRAO, LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, type Entidade } from '../../contracts';
-import { PARAMETROS_PADRAO } from '../../domain';
+import { CODIGOS_ERRO_LINHA, ENTIDADES, EXTERNAL_ID_MAX, ORDEM_CARGA_ENTIDADES, LIMITE_ERROS_RESPOSTA_MAX, LIMITE_ERROS_RESPOSTA_PADRAO, LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, type Entidade } from '../../contracts';
+import { ehReprocessavel, PARAMETROS_PADRAO } from '../../domain';
 import { DEPENDENCIAS } from '../../domain/ordem';
 import { gerarOpenApiHub, type DocumentoOpenApi } from './gerar';
-import { ACAO_STATUS, CODIGOS_LINHA, DESCRICAO_CAMPO, ENTIDADE_TEXTO, QUANDO_STATUS, RESUMO_ROTA, SEQUENCIA_PRIMEIRA_CARGA, SUCESSO_ROTA, TEXTO_ENUM, TEXTO_ROTA, TITULO_ROTA, UMA_DAS_ENTIDADES } from './guia-pdf-textos';
+import { ACAO_STATUS, CODIGOS_LINHA, DESCRICAO_CAMPO, ENTIDADE_TEXTO, QUANDO_STATUS, RESUMO_ROTA, SUCESSO_ROTA, TEXTO_ENUM, TEXTO_ROTA, TITULO_ROTA, UMA_DAS_ENTIDADES } from './guia-pdf-textos';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -29,7 +29,7 @@ export interface SecaoGuia {
   html: string;
 }
 
-export interface LinhaCampo {
+interface LinhaCampo {
   campo: string;
   tipo: string;
   obrigatorio: string;
@@ -41,14 +41,14 @@ export interface LinhaCampo {
 
 const esc = (s: string): string => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 /** `código` e **negrito** em texto simples. */
-export const md = (s: string): string => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+const md = (s: string): string => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 const p = (s: string) => `<p>${md(s)}</p>`;
 const ul = (itens: readonly string[]) => `<ul>${itens.map((i) => `<li>${md(i)}</li>`).join('')}</ul>`;
 const ol = (itens: readonly string[]) => `<ol>${itens.map((i) => `<li>${md(i)}</li>`).join('')}</ol>`;
 const aviso = (s: string) => `<div class="aviso">${md(s)}</div>`;
 /** Linha de bloco de código acima de 95 caracteres: quebra nos espaços, com recuo de mais 2 (só na exibição; o texto no PDF é o mesmo). */
 export const LARGURA_BLOCO = 95;
-export function quebrarLinha(linha: string): string[] {
+function quebrarLinha(linha: string): string[] {
   if (linha.length <= LARGURA_BLOCO) return [linha];
   const recuo = ' '.repeat((/^ */.exec(linha)?.[0].length ?? 0) + 2);
   const saida: string[] = [];
@@ -222,7 +222,7 @@ function analisar(ctx: Contexto, bruto: Json, k: string, prefixoPai: string): Fo
 /** Campos que ficaram sem explicação (o teste exige lista vazia). */
 export const CAMPOS_SEM_TEXTO = new Set<string>();
 
-export function achatarCampos(ctx: Contexto, schemaNome: string, schema: Json, prefixo = '', requeridosForcados?: Set<string>, profundidade = 0): LinhaCampo[] {
+function achatarCampos(ctx: Contexto, schemaNome: string, schema: Json, prefixo = '', requeridosForcados?: Set<string>, profundidade = 0): LinhaCampo[] {
   const props = (schema['properties'] ?? {}) as Record<string, Json>;
   const requeridos = requeridosForcados ?? new Set((schema['required'] ?? []) as string[]);
   const linhas: LinhaCampo[] = [];
@@ -255,7 +255,7 @@ export function achatarCampos(ctx: Contexto, schemaNome: string, schema: Json, p
 }
 
 /** O que a coluna Regra já diz não se repete na Descrição (uma informação, um lugar). */
-export function descricaoSemRegra(descricao: string, regra: string): string {
+function descricaoSemRegra(descricao: string, regra: string): string {
   let d = descricao;
   if (regra.includes('em centavos')) d = d.replace(/,? em centavos/g, '');
   if (regra.includes('AAAA-MM-DD')) d = d.replace(/\s*\(`?AAAA-MM-DD`?\)/g, '');
@@ -444,7 +444,9 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
   for (const [caminho, ops] of Object.entries(doc.paths)) for (const [metodo, op] of Object.entries(ops)) rotas.push({ id: (op as Json)['operationId'], metodo, caminho });
   const servidor = ((doc.servers[0] as Json)['url'] as string).replace('{servidor}', '<servidor>');
   const exLote = (doc.paths['/lotes']?.['post'] as Json)['requestBody'].content['application/json'].examples as Record<string, { value: unknown }>;
-  const sequencia = SEQUENCIA_PRIMEIRA_CARGA.map((g) => g.map((e) => `\`${e}\``).join(', '));
+  // Grupos da primeira carga: nível de dependência (DEPENDENCIAS), na ordem única do contrato (RN-INT-04).
+  const nivel = (e: Entidade): number => Math.max(-1, ...DEPENDENCIAS[e].map(nivel)) + 1;
+  const sequencia = [...new Set(ORDEM_CARGA_ENTIDADES.map(nivel))].sort((a, b) => a - b).map((n) => ORDEM_CARGA_ENTIDADES.filter((e) => nivel(e) === n).map((e) => `\`${e}\``).join(', '));
   const exemploErro = (((doc.paths['/lotes']?.['post'] as Json)['responses']['422'] as Json)['content']['application/json'].examples as Record<string, { value: unknown }>)['sessao_ausente']?.value;
 
   const secaoDe = (id: string) => `Seção 8.${rotas.findIndex((r) => r.id === id) + 1}`;
@@ -477,7 +479,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
   const passo = [
     '<h3>Passo 1. Obter a credencial</h3>',
     p('O administrador da empresa abre o portal de configuração (`config.macuxifdv.com.br`), na aba **Integração**, lado **Integração via API**, e escolhe **Gerar credencial**: informa um identificador (por exemplo `erp-matriz`) e o nome, e marca **Envia os pedidos aprovados ao ERP** se esta credencial vai buscar os pedidos. A chave aparece **uma única vez**: guarde-a em um cofre de segredos.'),
-    p(`Se perder a chave, o administrador gira a chave no BKO. A anterior continua valendo por uma janela de convivência (padrão ${pp.convivenciaChaveMin / 60} horas, até ${pp.convivenciaChaveMaxMin / 1440} dias) para você trocar sem parar a integração.`),
+    p(`Se perder a chave, o administrador gera uma chave nova no portal de configuração. A anterior continua valendo por uma janela de convivência (padrão ${pp.convivenciaChaveMin / 60} horas, até ${pp.convivenciaChaveMaxMin / 1440} dias) para você trocar sem parar a integração.`),
     '<h3>Passo 2. Autenticar</h3>',
     p('Toda chamada leva estes cabeçalhos:'),
     tabela(
@@ -587,7 +589,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
     tabela(['HTTP', 'Códigos', 'O que fazer'], ACAO_STATUS.map((a) => [`<strong>${a.status}</strong>`, a.codigos.startsWith('Em cada') ? esc(a.codigos) : a.codigos.split(', ').map(cod).join(' '), md(a.acao)]), 'compacta status'),
     '<h3>Erros por linha</h3>',
     p('Um lote aceito (`202`) pode ter linhas com erro. Elas não travam o lote: as válidas são aplicadas e o lote termina `concluido_com_erros`. `GET /lotes/{id}` lista cada erro com `indice`, `external_id`, `codigo`, `campo`, `mensagem` e `reprocessavel`.'),
-    tabela(['Código da linha', 'Significado', 'Reprocessável'], CODIGOS_LINHA.map((c) => [cod(c.codigo), md(c.significado), c.reprocessavel ? 'sim' : 'não']), 'compacta linhas'),
+    tabela(['Código da linha', 'Significado', 'Reprocessável'], CODIGOS_ERRO_LINHA.map((c) => [cod(c), md(CODIGOS_LINHA[c]), ehReprocessavel(c) ? 'sim' : 'não']), 'compacta linhas'),
     p('`reprocessavel: true`: o Macuxi tenta a linha de novo sozinho. Nas demais, corrija na origem e reenvie o registro com `alterado_em` atualizado.'),
   ].join('\n');
 
@@ -614,9 +616,9 @@ export function secoesDoGuia(doc: DocumentoOpenApi): SecaoGuia[] {
 }
 
 const CSS = String.raw`
-@page { size: A4; margin: 20mm 16mm 20mm 16mm; @bottom-left { content: "Macuxi FDV · Guia da API de Integração · v1"; font: 400 9pt Arial, 'Liberation Sans', sans-serif; color: #4A5562; } @bottom-right { content: counter(page); font: 600 9pt system-ui, 'Segoe UI', Roboto, Arial, sans-serif; color: #1E3350; } }
+@page { size: A4; margin: 20mm 16mm 20mm 16mm; @bottom-left { content: "Macuxi FDV · Guia da API de Integração · v1"; font: 400 9pt Arial, 'Liberation Sans', sans-serif; color: #4A5562; } @bottom-right { content: counter(page); font: 700 9pt Arial, 'Liberation Sans', sans-serif; color: #1E3350; } }
 @page capa { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
-:root { --texto: Arial, 'Liberation Sans', sans-serif; --mono: ui-monospace, 'Cascadia Mono', 'Roboto Mono', monospace; }
+:root { --texto: Arial, 'Liberation Sans', sans-serif; --mono: 'DejaVu Sans Mono', 'Liberation Mono', ui-monospace, monospace; }
 * { box-sizing: border-box; }
 html { color: #16202A; font: 400 9.4pt/1.45 var(--texto); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin: 0; }
@@ -632,13 +634,14 @@ pre { font: 500 9pt/1.4 var(--mono); background: #F8F6F1; border: 1px solid #C9C
 pre.curto { break-inside: avoid; }
 .legenda { font-size: 9pt; color: #4A5562; margin: 8px 0 3px; break-after: avoid; }
 table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9pt; }
-th { background: #1E3350; color: #fff; text-align: left; font-weight: 600; padding: 4px 6px; }
+th { background: #1E3350; color: #fff; text-align: left; font-weight: 700; padding: 4px 6px; }
 td { padding: 3px 6px; border-bottom: 1px solid #DFE2E6; vertical-align: top; }
 tr { break-inside: avoid; } thead { display: table-header-group; }
 table.campos { table-layout: fixed; }
-table.campos th:nth-child(1) { width: 30%; } table.campos th:nth-child(2) { width: 13%; } table.campos th:nth-child(3) { width: 7%; } table.campos th:nth-child(4) { width: 28%; } table.campos th:nth-child(5) { width: 22%; }
+table.campos th:nth-child(1) { width: 25%; } table.campos th:nth-child(2) { width: 18%; } table.campos th:nth-child(3) { width: 7%; } table.campos th:nth-child(4) { width: 28%; } table.campos th:nth-child(5) { width: 22%; }
 table.campos code { font-size: 9pt; }
 table.compacta code { overflow-wrap: normal; }
+table.status code, table.param code, table.linhas code { white-space: nowrap; overflow-wrap: normal; }
 table.status { table-layout: fixed; } table.status th:nth-child(1) { width: 8%; } table.status th:nth-child(2) { width: 38%; }
 table.linhas { table-layout: fixed; } table.linhas th:nth-child(1) { width: 32%; } table.linhas th:nth-child(3) { width: 16%; }
 table.rotas th:nth-child(3), table.rotas td:nth-child(3) { width: 9%; } tr.grupo-rotas td { background: #F8F6F1; font: 700 9pt var(--texto); color: #1E3350; }
@@ -649,7 +652,7 @@ table.param td:nth-child(1), table.param td:nth-child(2) { white-space: nowrap; 
 .metodo.get { background: #4A5562; }
 .aviso { background: #DFE2E6; border-left: 4px solid #1E3350; padding: 6px 10px; margin: 0 0 9px; }
 .fluxo { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 10px 0 6px; }
-.caixa { flex: 1; text-align: center; background: #F8F6F1; border: 1px solid #C9CED5; border-radius: 6px; padding: 12px 6px; font-weight: 600; }
+.caixa { flex: 1; text-align: center; background: #F8F6F1; border: 1px solid #C9CED5; border-radius: 6px; padding: 12px 6px; font-weight: 700; }
 .caixa.destaque { background: #1E3350; color: #fff; border-color: #1E3350; } .caixa.destaque code { background: transparent; color: #C9CED5; }
 .seta { text-align: center; font-size: 9pt; color: #4A5562; width: 150px; }
 section.sec { break-before: page; }
@@ -661,11 +664,11 @@ section.sec { break-before: page; }
 .toc { break-before: page; }
 .toc a { color: inherit; text-decoration: none; }
 .toc .l { display: flex; align-items: baseline; gap: 6px; padding: 1.6px 0; }
-.toc .l .t { flex: 0 1 auto; } .toc .l .pt { flex: 1; border-bottom: 1px dotted #C9CED5; transform: translateY(-3px); } .toc .l .pg { font-weight: 600; color: #1E3350; }
+.toc .l .t { flex: 0 1 auto; } .toc .l .pt { flex: 1; border-bottom: 1px dotted #C9CED5; transform: translateY(-3px); } .toc .l .pg { font-weight: 700; color: #1E3350; }
 .toc .g { font: 700 9.6pt var(--texto); color: #1E3350; margin-top: 7px; } .toc .f { padding-left: 16px; font-size: 9pt; }
 `;
 
-export interface OpcoesMontagem {
+interface OpcoesMontagem {
   /** Página inicial de cada id do sumário; sem ela, os números ficam em branco (base do teste de deriva). */
   paginas?: Record<string, number>;
 }
@@ -696,10 +699,10 @@ export function entradasDoSumario(secoes: readonly SecaoGuia[]): string[] {
   return secoes.flatMap((s) => [...(s.grupo ? [s.grupo.id] : []), s.id]);
 }
 
-/** Conteúdo base (sem fontes nem logo) usado no teste de deriva do PDF. */
+/** Conteúdo base (sem logo) usado no teste de deriva do PDF. */
 export const RECURSOS_VAZIOS: RecursosGuia = { logo: '' };
 
-/** Hash do HTML base (sem fontes e sem numeração do sumário): muda quando o OpenAPI ou os textos mudam. */
+/** Hash do HTML base (sem numeração do sumário): muda quando o OpenAPI ou os textos mudam. */
 export function hashDoGuia(): string {
   return createHash('sha256').update(montarHtml(secoesDoGuia(gerarOpenApiHub()), RECURSOS_VAZIOS)).digest('hex');
 }

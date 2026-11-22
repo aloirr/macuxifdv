@@ -6,7 +6,7 @@
 import type { ZodError, ZodIssue } from 'zod';
 import { EXTERNAL_ID_MAX, type CodigoErroLinha, type ContagensLote, type EstadoLote, type LinhaErro } from '../contracts';
 
-const REPROCESSAVEIS: ReadonlySet<CodigoErroLinha> = new Set<CodigoErroLinha>(['referencia_ausente', 'falha_processamento']);
+export const REPROCESSAVEIS: ReadonlySet<CodigoErroLinha> = new Set<CodigoErroLinha>(['referencia_ausente', 'falha_processamento']);
 
 /** Reprocessável = basta tentar de novo (a dependência chegou / falha transitória). Os demais exigem reenvio corrigido. */
 export function ehReprocessavel(codigo: CodigoErroLinha): boolean {
