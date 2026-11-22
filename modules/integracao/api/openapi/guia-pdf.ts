@@ -75,7 +75,7 @@ const tabela = (cabecalho: readonly string[], linhas: readonly (readonly string[
   `<table class="${classe}"><thead><tr>${cabecalho.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${linhas
     .map((l) => `<tr>${l.map((c) => `<td>${c}</td>`).join('')}</tr>`)
     .join('')}</tbody></table>`;
-/** Código de erro: só quebra depois de `_` (nunca no meio de uma palavra). */
+/** Código (valor, parâmetro, rota): só quebra depois de `_` (nunca no meio de uma palavra). */
 const cod = (s: string) => `<code>${esc(s).replaceAll('_', '_<wbr>')}</code>`;
 /** Código sem ponto de quebra: nas tabelas de colunas fixas ele nunca parte. */
 const codSimples = (s: string) => `<code>${esc(s)}</code>`;
@@ -270,7 +270,7 @@ function descricaoSemRegra(descricao: string, regra: string): string {
 const tabelaCampos = (linhas: readonly LinhaCampo[]) =>
   tabela(
     ['Campo', 'Tipo', 'Obrig.', 'Descrição', 'Regra'],
-    linhas.map((l) => [`<code>${esc(l.campo).replace(/([.\]])/g, '$1<wbr>')}</code>`, esc(l.tipo), esc(l.obrigatorio), comQuebras(md(descricaoSemRegra(l.descricao, l.regra))), md(l.regra)]),
+    linhas.map((l) => [`<code>${esc(l.campo).replace(/([.\]])/g, '$1<wbr>')}</code>`, esc(l.tipo), esc(l.obrigatorio), comQuebras(md(descricaoSemRegra(l.descricao, l.regra))), comQuebras(md(l.regra))]),
     'campos',
   );
 
@@ -643,7 +643,7 @@ table.campos { table-layout: fixed; }
 table.campos th:nth-child(1) { width: 29%; } table.campos th:nth-child(2) { width: 17%; } table.campos th:nth-child(3) { width: 7%; } table.campos th:nth-child(4) { width: 26%; } table.campos th:nth-child(5) { width: 21%; }
 table.campos code { font-size: 9pt; }
 table.compacta code { overflow-wrap: normal; }
-table.status code, table.param code, table.linhas code { white-space: nowrap; overflow-wrap: normal; }
+table.param code { white-space: nowrap; overflow-wrap: normal; }
 table.status { table-layout: fixed; } table.status th:nth-child(1) { width: 8%; } table.status th:nth-child(2) { width: 38%; }
 table.linhas { table-layout: fixed; } table.linhas th:nth-child(1) { width: 32%; } table.linhas th:nth-child(3) { width: 16%; }
 table.rotas th:nth-child(3), table.rotas td:nth-child(3) { width: 9%; } tr.grupo-rotas td { background: #F8F6F1; font: 700 9pt var(--texto); color: #1E3350; }

@@ -2,13 +2,13 @@
  * O que o monitor do BKO mostra (RF-INT-04, RF-INT-06): saúde de cada Conector e os alertas, com a causa e a ação seguinte em
  * português. As consultas ficam na API; aqui só a classificação.
  */
-import type { AlertaMonitor, Entidade, SaudeConector } from '../contracts';
+import type { AlertaMonitor, Entidade, SaudeConector, TipoConector } from '../contracts';
 import type { SituacaoVersaoConector } from './conector-versao';
 import { PARAMETROS_PADRAO } from './parametros';
 
 export interface ConectorParaSaude {
   /** `nuvem` = credencial de API (o ERP chama o Hub): não manda sinal de vida. Ausente = Conector instalado no cliente. */
-  tipo?: 'conector' | 'nuvem' | 'arquivo';
+  tipo?: TipoConector;
   ativo: boolean;
   ultimo_sinal_em: string | null;
   parado_por_versao: boolean;

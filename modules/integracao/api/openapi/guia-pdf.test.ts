@@ -98,9 +98,15 @@ describe('Guia da API em PDF (docs/guia-api-hub.pdf)', () => {
     for (const b of blocos) for (const linha of b.split('\n')) expect(linha.length, linha).toBeLessThanOrEqual(LARGURA_BLOCO);
   });
 
-  it('código de erro nas tabelas de colunas fixas não tem ponto de quebra (nunca parte no meio)', () => {
+  it('código de erro nas tabelas de status e de linhas não tem ponto de quebra; nas demais só quebra depois de `_`', () => {
     expect(html).toContain('<code>referencia_ausente</code>');
-    expect(html).not.toContain('<code>referencia_<wbr>ausente</code>');
+    for (const classe of ['status', 'linhas']) {
+      const tabela = html.match(new RegExp(`<table class="[^"]*\\b${classe}\\b[^"]*">[\\s\\S]*?</table>`))?.[0] ?? '';
+      expect(tabela, classe).not.toBe('');
+      expect(tabela, classe).not.toContain('<wbr>');
+    }
+    const codigos = [...html.matchAll(/<code>([^<]*)<\/code>/g)].map((m) => m[1] as string);
+    for (const c of codigos) expect(c.replace(/[_.\]]<wbr>/g, ''), c).not.toContain('<wbr>');
   });
 
   it('todo campo de tabela tem explicação em português', () => {
