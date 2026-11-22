@@ -25,6 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import manifest from '../manifest';
 import { ClienteCondicaoSyncSchema, CondicaoPagamentoSyncSchema, OrderDetail, PedidoEventoSyncSchema, PedidoItemSyncSchema, PedidoSyncSchema } from '../contracts';
 import { entidadePedido } from '../contracts/entidades';
+import { STATUS_QUE_PESAM_NO_CREDITO } from '../contracts/credito-disponivel';
 import { responderFiliais } from './filial-simulada';
 import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRecusarPedido, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
 import { provedoresSyncVendedor } from './sync';
@@ -583,11 +584,12 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
         }
         return (await lerPedido(id(n))).p.status;
       };
-      // o disponível do ERP ainda desconta os pedidos do cliente aprovados e não faturados (de outros testes deste arquivo)
-      const pesando = Number((await comTenant(pool, A.tenantId, async (c) => (await c.query("select coalesce(sum(total_cents), 0)::text as s from vendedor.pedido where cliente_id = $1 and deleted_at is null and status in ('approved','sent_to_erp')", [A.clientes.c1])).rows[0])).s);
-      expect(await enviar(61, pesando + total - 1)).toBe('pending_approval');
-      const r62 = await enviar(62, pesando + total);
-      expect(r62).toBe('approved');
+      // o disponível do ERP ainda desconta os pedidos do cliente que pesam no crédito (mesma lista da regra, inclusive 'integrated'),
+      // vindos de outros testes ou arquivos: o peso é lido na hora de cada envio, nunca presumido
+      const pesando = async () =>
+        Number((await comTenant(pool, A.tenantId, async (c) => (await c.query("select coalesce(sum(total_cents), 0)::text as s from vendedor.pedido where cliente_id = $1 and deleted_at is null and status = any($2::text[])", [A.clientes.c1, [...STATUS_QUE_PESAM_NO_CREDITO]])).rows[0])).s);
+      expect(await enviar(61, (await pesando()) + total - 1)).toBe('pending_approval');
+      expect(await enviar(62, (await pesando()) + total)).toBe('approved');
     });
 
     it('RN-VEN-13: consulta financeira ausente (cliente sem linha) é sem limite informado: a prazo vai para crédito', async () => {
