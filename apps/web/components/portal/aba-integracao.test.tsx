@@ -17,7 +17,7 @@ import { ErroPortal, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
 import { ENCAIXE_API_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AbaIntegracao, ChaveGerada, desativarCredencial, DialogoConector, gerarNovaChave, LadoApi, ListaCredenciais, mensagemSemBases } from './aba-integracao';
+import { AbaIntegracao, ChaveGerada, corpoDesativar, desativarCredencial, DialogoConector, gerarNovaChave, LadoApi, ListaCredenciais, mensagemSemBases } from './aba-integracao';
 
 const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const AVISO = 'Copie a chave agora: ela não aparece de novo.';
@@ -188,6 +188,16 @@ describe('Gerar nova chave e Desativar', () => {
     const html = renderToStaticMarkup(<DialogoConector alvo={conector(1, 'erp')} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
     expect(html).toContain('Desativar o Conector erp?');
     expect(html).toMatch(/data-testid="integracao.acao-confirmar-desativar"[^>]*>Desativar</);
+    expect(html).toContain('Ele para de enviar as bases e de buscar os pedidos.');
+  });
+
+  it('o texto de desativar diz o que de fato para: bases e pedidos, só as bases, ou a carga por CSV', () => {
+    expect(corpoDesativar({ tipo: 'conector', recebe_pedidos: true })).toBe('Ele para de enviar as bases e de buscar os pedidos.');
+    expect(corpoDesativar({ tipo: 'conector', recebe_pedidos: false })).toBe('Ele para de enviar as bases.');
+    expect(corpoDesativar({ tipo: 'arquivo', recebe_pedidos: false })).toBe('A carga por CSV deixa de funcionar nesta empresa.');
+    const html = renderToStaticMarkup(<DialogoConector alvo={conector(2, 'implantacao-csv', { tipo: 'arquivo', recebe_pedidos: false })} acao="desativar" enviando={false} aoFechar={() => {}} aoConfirmar={() => {}} />);
+    expect(html).toContain('A carga por CSV deixa de funcionar nesta empresa.');
+    expect(html).not.toContain('pedidos');
   });
 
   it('a chave nova aparece uma vez, com o aviso e "Copiar", sem título interno nem rodapé', () => {
@@ -197,6 +207,8 @@ describe('Gerar nova chave e Desativar', () => {
     expect(html).toMatch(/data-testid="integracao.nova-chave-erp-api.copiar"[^>]*>Copiar</);
     expect(html).not.toContain('ja-copiei');
     expect(html).not.toContain('Credencial do Conector');
+    expect(html).not.toContain('escopo');
+    expect(html).not.toContain('prefixo');
   });
 
   it('sem bases livres: a mensagem cita o Conector quando não há Conector de arquivo, e mantém a original quando há', () => {
