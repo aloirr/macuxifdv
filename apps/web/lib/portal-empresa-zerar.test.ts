@@ -2,25 +2,40 @@
  * "Zerar dados" (ADR 0068; RN-PLA-12): liberação do item do menu e do botão, frases de recusa e de falha (`mensagemDoZerar` do SDK),
  * caminho das rotas e o modo falso (prévia, pedido idempotente, andamento até concluir, recusas).
  */
-import { CODIGOS_ZERAR_EMPRESA as Z, ENTIDADES_ZERAR, PreviaZerarEmpresaSchema, ZerarEmpresaSchema, mensagemDoZerar, type PreviaZerarEmpresa, type ZerarEmpresa } from '@macuxi/platform-sdk';
+import { CODIGOS_ZERAR_EMPRESA as Z, ENTIDADES_ZERAR, PreviaZerarSchema, ZerarEmpresaSchema, mensagemDoZerar, type PreviaZerar, type ZerarEmpresa } from '@macuxi/platform-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErroPortal, MENSAGEM_PADRAO } from './portal-api';
-import { andamentoDoZerar, comandosDeReenvio, erroDoZerar, fraseDoZerar, rotaDoZerar, rotulosDasEntidades, zerarJaRodando, zerarLiberado, zerarLigadoNoMenu } from './portal-empresa-zerar';
-import { entidadesZeradasFalso, limparZerarFalso, responderZerarFalso } from './portal-falso-zerar';
+import {
+  andamentoDoZerar,
+  comandosDeReenvio,
+  erroDoZerar,
+  fraseDaPreviaFalha,
+  fraseDoZerar,
+  previaCalculando,
+  rotaDoZerar,
+  rotulosDasEntidades,
+  TEXTOS_ZERAR,
+  zerarJaRodando,
+  zerarLiberado,
+  zerarLigadoNoMenu,
+} from './portal-empresa-zerar';
+import { entidadesZeradasFalso, limparZerarFalso, PREVIA_FALSA_MS, responderZerarFalso } from './portal-falso-zerar';
 
 const T = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
-const previa = (x: Partial<PreviaZerarEmpresa> = {}): PreviaZerarEmpresa => ({
-  tenant_id: T,
-  codigo: 'AM2290',
+const previa = (x: Partial<PreviaZerar> = {}): PreviaZerar => ({
+  id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000010',
+  situacao: 'pronta',
   entidades: null,
+  linhas: [{ ordem: 0, tabela: 'core.cliente', modo: 'soft', linhas: 10 }],
   entidades_afetadas: ['cliente'],
-  contado_em: '2026-11-23T12:00:00.000Z',
-  total_linhas: 10,
-  tabelas: [{ tabela: 'core.cliente', modo: 'soft', linhas: 10 }],
+  total: 10,
   bloqueio: null,
+  erro_codigo: null,
+  criado_em: '2026-11-23T12:00:00.000Z',
   ...x,
 });
+const calculando = previa({ situacao: 'em_andamento', linhas: null, entidades_afetadas: null, total: null });
 const zerar = (x: Partial<ZerarEmpresa> = {}): ZerarEmpresa => ({
   id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000009',
   tenant_id: T,
@@ -44,16 +59,28 @@ describe('liberação (RN-PLA-12)', () => {
     expect(zerarLigadoNoMenu({ backupLigado: false, situacaoLigada: true })).toBe(false);
     expect(zerarLigadoNoMenu({ backupLigado: true, situacaoLigada: false })).toBe(false);
   });
-  it('botão: prévia sem bloqueio, alguma linha, código conferindo (sem diferença de maiúsculas) e senha', () => {
-    expect(zerarLiberado(previa(), ' am2290 ', 'x')).toBe(true);
-    expect(zerarLiberado(undefined, 'AM2290', 'x')).toBe(false);
-    expect(zerarLiberado(previa(), 'AM229', 'x')).toBe(false);
-    expect(zerarLiberado(previa(), 'AM2290', '')).toBe(false);
-    expect(zerarLiberado(previa({ bloqueio: Z.backupEmAndamento }), 'AM2290', 'x')).toBe(false);
-    expect(zerarLiberado(previa({ total_linhas: 0, tabelas: [] }), 'AM2290', 'x')).toBe(false);
+  it('botão: prévia pronta sem bloqueio, alguma linha, código da empresa conferindo (sem diferença de maiúsculas) e senha', () => {
+    expect(zerarLiberado(previa(), 'AM2290', ' am2290 ', 'x')).toBe(true);
+    expect(zerarLiberado(undefined, 'AM2290', 'AM2290', 'x')).toBe(false);
+    expect(zerarLiberado(calculando, 'AM2290', 'AM2290', 'x')).toBe(false);
+    expect(zerarLiberado(previa({ situacao: 'falhou', linhas: null, entidades_afetadas: null, total: null, erro_codigo: 'ZERAR_PREVIA_FALHOU' }), 'AM2290', 'AM2290', 'x')).toBe(false);
+    expect(zerarLiberado(previa(), 'AM2290', 'AM229', 'x')).toBe(false);
+    expect(zerarLiberado(previa(), 'AM2290', 'AM2290', '')).toBe(false);
+    expect(zerarLiberado(previa({ bloqueio: Z.backupEmAndamento }), 'AM2290', 'AM2290', 'x')).toBe(false);
+    expect(zerarLiberado(previa({ total: 0, linhas: [] }), 'AM2290', 'AM2290', 'x')).toBe(false);
+  });
+  it('prévia: calculando só em andamento; falha com a frase do worker', () => {
+    expect(previaCalculando(calculando)).toBe(true);
+    expect(previaCalculando(previa())).toBe(false);
+    expect(previaCalculando(undefined)).toBe(false);
+    expect(fraseDaPreviaFalha(previa({ situacao: 'falhou', erro_codigo: 'ZERAR_PREVIA_FALHOU' }))).toBe('Não foi possível calcular o que sai. Tente de novo.');
+  });
+  it('"Mantém" da empresa inteira: administradores, não usuários (a rotina apaga os não administradores)', () => {
+    expect(TEXTOS_ZERAR.ficam).toBe('Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.');
   });
   it('zerar já em andamento (outra aba): o diálogo vai direto ao andamento', () => {
     expect(zerarJaRodando(previa({ bloqueio: Z.zerarEmAndamento }))).toBe(true);
+    expect(zerarJaRodando(previa({ situacao: 'em_andamento', bloqueio: Z.zerarEmAndamento }))).toBe(false);
     expect(zerarJaRodando(previa({ bloqueio: Z.backupEmAndamento }))).toBe(false);
     expect(zerarJaRodando(undefined)).toBe(false);
   });
@@ -90,6 +117,7 @@ describe('frases (uma tabela só: `mensagemDoZerar`)', () => {
   });
   it('rotas do SDK sem o /v1', () => {
     expect(rotaDoZerar('previa', T)).toBe(`/plataforma/empresas/${T}/zerar/previa`);
+    expect(rotaDoZerar('previaLer', T, 'p1')).toBe(`/plataforma/empresas/${T}/zerar/previa/p1`);
     expect(rotaDoZerar('zerar', T)).toBe(`/plataforma/empresas/${T}/zerar`);
   });
 });
@@ -97,20 +125,42 @@ describe('frases (uma tabela só: `mensagemDoZerar`)', () => {
 describe('modo falso', () => {
   const empresa = { id: T, codigo: 'AM2290', status: 'suspenso', backupEmAndamento: false };
   const ler = async (r: Response) => ({ status: r.status, corpo: (await r.json()) as Record<string, unknown> });
+  /** Pede a prévia, espera o worker falso e devolve a pronta. */
+  const contar = async (x: typeof empresa, entidades?: string[]) => {
+    const id = crypto.randomUUID();
+    const pedida = await ler(responderZerarFalso('POST', x, true, { id, ...(entidades ? { entidades } : {}) }));
+    expect(pedida.status).toBe(202);
+    expect(PreviaZerarSchema.parse(pedida.corpo).situacao).toBe('em_andamento');
+    vi.advanceTimersByTime(PREVIA_FALSA_MS);
+    return PreviaZerarSchema.parse((await ler(responderZerarFalso('GET', x, true, undefined, id))).corpo);
+  };
   beforeEach(() => {
     limparZerarFalso();
     vi.useFakeTimers({ now: new Date('2026-11-23T12:00:00.000Z') });
   });
   afterEach(() => vi.useRealTimers());
 
-  it('prévia no schema do SDK; sem dados e com backup rodando', async () => {
-    const p = PreviaZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', empresa, true, undefined))).corpo);
-    expect(p.total_linhas).toBeGreaterThan(0);
-    expect(p.bloqueio).toBeNull();
-    const vazia = PreviaZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', { ...empresa, codigo: 'atacado-norte' }, true, undefined))).corpo);
-    expect(vazia.total_linhas).toBe(0);
-    const comBackup = PreviaZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', { ...empresa, backupEmAndamento: true }, true, undefined))).corpo);
-    expect(comBackup.bloqueio).toBe(Z.backupEmAndamento);
+  it('prévia: pedida em andamento, pronta depois, no schema do SDK; o mesmo id devolve a mesma; sem dados e com backup rodando', async () => {
+    const id = '7c0d5e1a-2b4f-4c6d-8e9f-000000000020';
+    expect(PreviaZerarSchema.parse((await ler(responderZerarFalso('POST', empresa, true, { id }))).corpo).situacao).toBe('em_andamento');
+    expect(PreviaZerarSchema.parse((await ler(responderZerarFalso('GET', empresa, true, undefined, id))).corpo).situacao).toBe('em_andamento');
+    vi.advanceTimersByTime(PREVIA_FALSA_MS);
+    const p = PreviaZerarSchema.parse((await ler(responderZerarFalso('POST', empresa, true, { id }))).corpo);
+    expect([p.id, p.situacao, p.bloqueio]).toEqual([id, 'pronta', null]);
+    expect(p.total).toBeGreaterThan(0);
+    expect(p.linhas?.some((l) => l.tabela === 'core.usuario')).toBe(true);
+    expect((await contar({ ...empresa, codigo: 'atacado-norte' })).total).toBe(0);
+    expect((await contar({ ...empresa, backupEmAndamento: true })).bloqueio).toBe(Z.backupEmAndamento);
+    expect((await contar({ ...empresa, status: 'encerrado' })).bloqueio).toBe(Z.exclusaoEmAndamento);
+  });
+  it('prévia: id de outra empresa = 409 ID_EM_USO; id desconhecido = 404; corpo fora do schema = 400', async () => {
+    const id = '7c0d5e1a-2b4f-4c6d-8e9f-000000000021';
+    await ler(responderZerarFalso('POST', empresa, true, { id }));
+    const outra = await ler(responderZerarFalso('POST', { ...empresa, id: '0b6f1a52-5c1e-4c4e-9a43-000000000002' }, true, { id }));
+    expect([outra.status, outra.corpo.codigo]).toEqual([409, Z.idEmUso]);
+    const nenhuma = await ler(responderZerarFalso('GET', empresa, true, undefined, '7c0d5e1a-2b4f-4c6d-8e9f-000000000099'));
+    expect([nenhuma.status, nenhuma.corpo.codigo]).toEqual([404, Z.previaNaoEncontrada]);
+    expect((await ler(responderZerarFalso('POST', empresa, true, { id: crypto.randomUUID(), entidades: ['nada'] }))).status).toBe(400);
   });
   it('pedido: recusas, 202 idempotente, em andamento e concluído 6 s depois; a prévia fica vazia', async () => {
     const id = '7c0d5e1a-2b4f-4c6d-8e9f-000000000001';
@@ -123,30 +173,29 @@ describe('modo falso', () => {
     expect((await ler(responderZerarFalso('POST', empresa, false, { id, codigo_confirmacao: 'AM2290', senha: 'x' }))).status).toBe(202);
     const outro = await ler(responderZerarFalso('POST', empresa, false, { id: crypto.randomUUID(), codigo_confirmacao: 'AM2290', senha: 'x' }));
     expect([outro.status, outro.corpo.codigo]).toEqual([409, Z.zerarEmAndamento]);
-    expect(PreviaZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', empresa, true, undefined))).corpo).bloqueio).toBe(Z.zerarEmAndamento);
+    expect((await contar(empresa)).bloqueio).toBe(Z.zerarEmAndamento);
     vi.advanceTimersByTime(6_000);
     const fim = ZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', empresa, false, undefined))).corpo);
     expect(fim.situacao).toBe('concluido');
     expect(fim.linhas_apagadas).toBeGreaterThan(0);
-    expect(PreviaZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', empresa, true, undefined))).corpo).total_linhas).toBe(0);
+    expect((await contar(empresa)).total).toBe(0);
   });
   it('por entidade: a prévia leva a cascata (cliente → endereços); o concluído traz o lote e as afetadas; a entidade fica vazia', async () => {
-    const p = PreviaZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', empresa, true, undefined, '/x?entidades=cliente'))).corpo);
+    const p = await contar(empresa, ['cliente']);
     expect(p.entidades).toEqual(['cliente']);
     expect(p.entidades_afetadas).toEqual(['cliente', 'cliente_endereco']);
-    expect(p.tabelas.map((t) => t.tabela)).toEqual(['core.cliente', 'core.cliente_endereco', 'integracao.registro_atual']);
-    expect((await ler(responderZerarFalso('GET', empresa, true, undefined, '/x?entidades=nada'))).status).toBe(400);
+    expect(p.linhas?.map((t) => t.tabela)).toEqual(['core.cliente', 'core.cliente_endereco', 'integracao.registro_atual']);
     const id = '7c0d5e1a-2b4f-4c6d-8e9f-000000000002';
     expect((await ler(responderZerarFalso('POST', empresa, false, { id, codigo_confirmacao: 'AM2290', senha: 'x', entidades: ['cliente'] }))).status).toBe(202);
     vi.advanceTimersByTime(6_000);
     const fim = ZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', empresa, false, undefined))).corpo);
     expect([fim.entidades, fim.entidades_afetadas, fim.linhas_apagadas]).toEqual([['cliente'], ['cliente', 'cliente_endereco'], 1180 + 1300 + 2550]);
-    expect(fim.lote).toBe('20261123T120000Z-7c0d5e1a');
+    expect(fim.lote).toBe('20261123T120001Z-7c0d5e1a'); // pedido depois do 1 s da prévia
     expect(entidadesZeradasFalso(T)).toEqual(new Set(['cliente', 'cliente_endereco']));
-    const depois = PreviaZerarEmpresaSchema.parse((await ler(responderZerarFalso('GET', empresa, true, undefined, '/x?entidades=cliente'))).corpo);
-    expect([depois.total_linhas, depois.entidades_afetadas]).toEqual([0, ['cliente']]);
+    const depois = await contar(empresa, ['cliente']);
+    expect([depois.total, depois.entidades_afetadas]).toEqual([0, ['cliente']]);
   });
   it('empresa inexistente: 404', async () => {
-    expect((await ler(responderZerarFalso('GET', null, true, undefined))).status).toBe(404);
+    expect((await ler(responderZerarFalso('POST', null, true, { id: crypto.randomUUID() }))).status).toBe(404);
   });
 });

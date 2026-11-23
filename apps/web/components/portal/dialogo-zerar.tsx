@@ -3,15 +3,24 @@
 /**
  * "Zerar dados" (pedido do dono do produto na v1.0.31; ADR 0068; desenho docs/desenho/empresa-zerar.md; RN-PLA-12), no padrão do
  * Excluir: primeiro a prévia do que sai, por grupo (`resumirPreviaPorGrupo` do SDK); depois o código da empresa e a senha de quem
- * pede. "Zerar dados" só com a prévia sem bloqueio, o código conferindo e a senha preenchida. O pedido roda no worker (202): o
- * diálogo passa ao andamento e consulta a cada 5 s até concluir ou falhar. Frases das recusas e das falhas: `mensagemDoZerar`.
+ * pede. A prévia é trabalho do worker (desenho §3.1): o diálogo a pede ao abrir, com um id gerado aqui, e a lê a cada
+ * `CONSULTA_PREVIA_ZERAR_MS` até `pronta` ou `falhou`. "Zerar dados" só com a prévia pronta e sem bloqueio, o código conferindo e a
+ * senha preenchida. O pedido roda no worker (202): o diálogo passa ao andamento e consulta a cada 5 s até concluir ou falhar.
+ * Frases das recusas e das falhas: `mensagemDoZerar`.
  * A senha vai só no corpo do pedido e sai do estado ao enviar e ao fechar.
  * `entidades` (aba Integração, desenho §6.4): a prévia e o pedido levam só elas; a prévia diz as que a cascata leva junto. No
  * concluído, o lote (chave do `restaurar`) e o `conector carga-completa` de cada entidade afetada, para o ERP reenviar.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { mensagemDoZerar, resumirPreviaPorGrupo, type EntidadeZerar, type PreviaZerarEmpresa, type ZerarEmpresa } from '@macuxi/platform-sdk';
+import {
+  CONSULTA_PREVIA_ZERAR_MS,
+  mensagemDoZerar,
+  resumirPreviaPorGrupo,
+  type EntidadeZerar,
+  type PreviaZerar,
+  type ZerarEmpresa,
+} from '@macuxi/platform-sdk';
 import { Button, CampoSenha, CLASSE_CAMPO, Dialog, ErrorBlock, LoadingBlock, Notice, cx, formatInt } from '@macuxi/ui/web';
 
 import { ACOMPANHAR_ACAO_MS } from '@/lib/portal-empresa-acoes';
@@ -19,10 +28,13 @@ import {
   andamentoDoZerar,
   comandosDeReenvio,
   erroDoZerar,
+  fraseDaPreviaFalha,
   fraseDoZerar,
   lerPreviaZerar,
   lerZerar,
+  pedirPreviaZerar,
   pedirZerar,
+  previaCalculando,
   rotulosDasEntidades,
   TEXTOS_ZERAR as T,
   zerarJaRodando,
@@ -42,6 +54,35 @@ const tituloDo = (empresa: EmpresaDoZerar, entidades: readonly EntidadeZerar[] |
     ? (andamento ? T.tituloAndamentoEntidades : T.tituloEntidades)(rotulosDasEntidades(entidades), empresa.razao_social)
     : (andamento ? T.tituloAndamento : T.titulo)(empresa.razao_social);
 
+/**
+ * Prévia do worker: pede com um id gerado aqui e lê pelo id a cada `CONSULTA_PREVIA_ZERAR_MS` até `pronta` ou `falhou`. `refazer`
+ * pede outra (id novo: o mesmo id devolveria a mesma prévia falha). Sai do cache ao fechar, para a próxima abertura contar de novo.
+ */
+function usePreviaZerar(tenant: string, entidades: readonly EntidadeZerar[] | undefined) {
+  const id = useRef(crypto.randomUUID());
+  const pedida = useRef<string | null>(null);
+  const previa = useQuery({
+    queryKey: chavePreviaZerar(tenant, entidades),
+    queryFn: async () => {
+      const atual = id.current;
+      if (pedida.current === atual) return lerPreviaZerar(tenant, atual);
+      const p = await pedirPreviaZerar(tenant, atual, entidades);
+      pedida.current = atual;
+      return p;
+    },
+    // timer-permitido: ver CONSULTA_PREVIA_ZERAR_MS
+    refetchInterval: (q) => (previaCalculando(q.state.data) ? CONSULTA_PREVIA_ZERAR_MS : false),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const refazer = () => {
+    id.current = crypto.randomUUID();
+    void previa.refetch();
+  };
+  return { previa, refazer };
+}
+
 export function DialogoZerar({
   empresa,
   entidades,
@@ -59,7 +100,7 @@ export function DialogoZerar({
   inicial?: { fase?: 'confirmar' | 'andamento'; codigo?: string; senha?: string; erro?: ErroDoPedido };
 }) {
   const [fase, setFase] = useState(inicial?.fase ?? 'confirmar');
-  const previa = useQuery({ queryKey: chavePreviaZerar(empresa.id, entidades), queryFn: () => lerPreviaZerar(empresa.id, entidades), retry: false, staleTime: 0 });
+  const { previa, refazer } = usePreviaZerar(empresa.id, entidades);
   const rodando = zerarJaRodando(previa.data);
   useEffect(() => {
     if (rodando) setFase('andamento');
@@ -68,7 +109,7 @@ export function DialogoZerar({
   return fase === 'andamento' ? (
     <Andamento empresa={empresa} titulo={tituloDo(empresa, entidades, true)} aoFechar={aoFechar} aoTerminar={aoTerminar} />
   ) : (
-    <Confirmar empresa={empresa} entidades={entidades} previa={previa} aoFechar={aoFechar} aoPedir={() => setFase('andamento')} inicial={inicial} />
+    <Confirmar empresa={empresa} entidades={entidades} previa={previa} refazer={refazer} aoFechar={aoFechar} aoPedir={() => setFase('andamento')} inicial={inicial} />
   );
 }
 
@@ -76,13 +117,15 @@ function Confirmar({
   empresa,
   entidades,
   previa,
+  refazer,
   aoFechar,
   aoPedir,
   inicial,
 }: {
   empresa: EmpresaDoZerar;
   entidades?: readonly EntidadeZerar[];
-  previa: UseQueryResult<PreviaZerarEmpresa>;
+  previa: UseQueryResult<PreviaZerar>;
+  refazer: () => void;
   aoFechar: () => void;
   aoPedir: () => void;
   inicial?: { codigo?: string; senha?: string; erro?: ErroDoPedido };
@@ -95,13 +138,17 @@ function Confirmar({
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<ErroDoPedido | null>(inicial?.erro ?? null);
-  const p = previa.data;
-  const grupos = p ? resumirPreviaPorGrupo(p.tabelas) : [];
+  // só a prévia pronta conta; em andamento é o giro, e a falha, a frase do worker
+  const p = previa.data?.situacao === 'pronta' ? previa.data : undefined;
+  const falhou = previa.data?.situacao === 'falhou' ? previa.data : undefined;
+  const calculando = previa.isPending || previaCalculando(previa.data);
+  const total = p?.total ?? 0;
+  const grupos = p ? resumirPreviaPorGrupo(p.linhas ?? []) : [];
   const bloqueio = p?.bloqueio ? mensagemDoZerar(p.bloqueio) : null;
-  const pedeConfirmacao = !!p && !bloqueio && p.total_linhas > 0;
+  const pedeConfirmacao = !!p && !bloqueio && total > 0;
   const senhaErrada = !!erro?.senha;
   // "Leva junto:" só as que a cascata leva além das pedidas, que já estão no título (revisão v1.0.31, R2-5)
-  const levaJunto = entidades?.length && p ? p.entidades_afetadas.filter((e) => !entidades.includes(e)) : [];
+  const levaJunto = entidades?.length && p ? (p.entidades_afetadas ?? []).filter((e) => !entidades.includes(e)) : [];
 
   const zerar = async () => {
     setEnviando(true);
@@ -138,7 +185,7 @@ function Confirmar({
             {pedeConfirmacao ? T.cancelar : T.fechar}
           </Button>
           {pedeConfirmacao && (
-            <Button variant="danger" data-testid="empresa-acao.confirmar" disabled={enviando || !zerarLiberado(p, codigo, senha)} onClick={() => void zerar()}>
+            <Button variant="danger" data-testid="empresa-acao.confirmar" disabled={enviando || !zerarLiberado(p, empresa.codigo, codigo, senha)} onClick={() => void zerar()}>
               {enviando ? T.zerando : T.zerar}
             </Button>
           )}
@@ -146,10 +193,19 @@ function Confirmar({
       }
     >
       <div data-testid="empresa-zerar.dialogo" className="flex flex-col gap-3">
-        {previa.isPending && <LoadingBlock label={T.contando} />}
-        {previa.isError && <ErrorBlock message={fraseDoZerar(previa.error)} onRetry={() => void previa.refetch()} />}
-        {p && p.total_linhas === 0 && <p className="m-0" data-testid="empresa-zerar.vazio">{T.nadaASair}</p>}
-        {p && p.total_linhas > 0 && !bloqueio && (
+        {calculando && !previa.isError && (
+          <div data-testid="empresa-zerar.calculando">
+            <LoadingBlock label={T.contando} />
+          </div>
+        )}
+        {previa.isError && <ErrorBlock message={fraseDoZerar(previa.error)} onRetry={refazer} />}
+        {falhou && !previa.isError && (
+          <div data-testid="empresa-zerar.previa-falhou">
+            <ErrorBlock message={fraseDaPreviaFalha(falhou)} onRetry={refazer} />
+          </div>
+        )}
+        {p && total === 0 && <p className="m-0" data-testid="empresa-zerar.vazio">{T.nadaASair}</p>}
+        {p && total > 0 && !bloqueio && (
           <>
             <div className="flex flex-col gap-1">
               <p className="m-0 text-[13px] font-semibold text-ink">{T.sai}</p>
@@ -171,7 +227,7 @@ function Confirmar({
             {!entidades?.length && <p className="m-0 text-ink-2">{T.ficam}</p>}
           </>
         )}
-        {bloqueio && p && p.total_linhas > 0 && (
+        {bloqueio && p && total > 0 && (
           <div data-testid="empresa-zerar.bloqueio">
             <Notice tone="warning">{bloqueio}</Notice>
           </div>

@@ -1,29 +1,31 @@
 /**
- * "Zerar dados" no modo falso do portal (ADR 0068; desenho docs/desenho/empresa-zerar.md §3 e §4.3): `GET …/zerar/previa[?entidades=]`,
- * `POST …/zerar` e `GET …/zerar` como a API, contra os schemas do SDK, para o e2e e os prints. A empresa inteira (menu ⋯) ou só
- * algumas entidades (aba Integração), com a cascata de exemplo (`cliente` leva `cliente_endereco`). Liberação pela `conferirZerar`
- * do SDK e frases pela `mensagemDoZerar`. O pedido termina 6 s depois; senha `errada` = 403. Estado só na memória da aba; o monitor
- * falso (`portal-falso-monitor.ts`) lê daqui o que já foi zerado.
+ * "Zerar dados" no modo falso do portal (ADR 0068; desenho docs/desenho/empresa-zerar.md §3, §3.1 e §4.3): `POST …/zerar/previa`,
+ * `GET …/zerar/previa/:previa_id`, `POST …/zerar` e `GET …/zerar` como a API, contra os schemas do SDK, para o e2e e os prints. A
+ * empresa inteira (menu ⋯) ou só algumas entidades (aba Integração), com a cascata de exemplo (`cliente` leva `cliente_endereco`).
+ * A prévia fica pronta `PREVIA_FALSA_MS` depois de pedida; o bloqueio é fixo (`bloqueioFalso`: a regra de verdade é a
+ * `plataforma.zerar_bloqueado` do banco) e as frases vêm da `mensagemDoZerar`. O pedido termina 6 s depois; senha `errada` = 403.
+ * Estado só na memória da aba; o monitor falso (`portal-falso-monitor.ts`) lê daqui o que já foi zerado.
  */
 import {
   CODIGOS_ZERAR_EMPRESA as Z,
   ENTIDADES_ZERAR,
+  PedirPreviaZerarSchema,
   PedirZerarEmpresaSchema,
-  PreviaZerarQuerySchema,
   codigoDeConfirmacaoConfere,
-  conferirZerar,
   linhasQueSaem,
   mensagemDoZerar,
   normalizarEntidadesZerar,
   type EntidadeZerar,
+  type CodigoZerarEmpresa,
   type LinhaLimpeza,
-  type PreviaZerarEmpresa,
-  type StatusEmpresa,
+  type PreviaZerar,
   type ZerarEmpresa,
 } from '@macuxi/platform-sdk';
 
-/** `/plataforma/empresas/:id/zerar` e `/plataforma/empresas/:id/zerar/previa` (caminho relativo ao `/v1`). */
-export const ZERAR_FALSO_M = /^\/plataforma\/empresas\/([^/]+)\/zerar(\/previa)?$/;
+/** `/plataforma/empresas/:id/zerar`, `…/zerar/previa` e `…/zerar/previa/:previa_id` (caminho relativo ao `/v1`). */
+export const ZERAR_FALSO_M = /^\/plataforma\/empresas\/([^/]+)\/zerar(\/previa)?(?:\/([^/]+))?$/;
+/** A prévia falsa fica pronta este tanto depois de pedida (a tela lê a cada `CONSULTA_PREVIA_ZERAR_MS`). */
+export const PREVIA_FALSA_MS = 1_000;
 
 /** O que o falso precisa da empresa (o resto do estado fica em `portal-falso.ts`). */
 export interface EmpresaParaZerar {
@@ -44,6 +46,7 @@ const TABELAS_EXEMPLO: readonly LinhaLimpeza[] = [
   { tabela: 'core.cliente_endereco', modo: 'soft', linhas: 1310 },
   { tabela: 'core.cliente', modo: 'soft', linhas: 1240 },
   { tabela: 'core.produto', modo: 'soft', linhas: 860 },
+  { tabela: 'core.usuario', modo: 'soft', linhas: 18 },
   { tabela: 'integracao.registro_atual', modo: 'fisico', linhas: 6200 },
   { tabela: 'integracao.lote', modo: 'fisico', linhas: 48 },
   { tabela: 'plataforma.evento', modo: 'fisico', linhas: 900 },
@@ -87,10 +90,13 @@ interface ZerarFalso {
 }
 /** Pedidos por empresa, do mais antigo para o mais recente. */
 const pedidos = new Map<string, ZerarFalso[]>();
+/** Prévias pedidas, pelo id (o tenant fica junto: id de outra empresa = 409 `ID_EM_USO`). */
+const previas = new Map<string, { tenant: string; entidades: EntidadeZerar[] | null; criado_em: number }>();
 
 /** Volta ao começo (testes). */
 export function limparZerarFalso() {
   pedidos.clear();
+  previas.clear();
 }
 
 const json = (status: number, corpo: unknown) => new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } });
@@ -138,68 +144,72 @@ function contagemPorEntidade(tenant: string, pedidas: readonly EntidadeZerar[]):
   return { tabelas, afetadas: normalizarEntidadesZerar([...pedidas, ...comDados]) };
 }
 
-function previaDe(x: EmpresaParaZerar, entidades: EntidadeZerar[] | null): PreviaZerarEmpresa {
+/** Bloqueio fixo do falso (a regra de verdade é a `plataforma.zerar_bloqueado`): exclusão, zerar ou backup no ar. */
+function bloqueioFalso(x: EmpresaParaZerar): CodigoZerarEmpresa | null {
   const z = ultimo(x.id);
-  const emAndamento = !!z && !concluido(z);
+  if (x.status === 'encerrado') return Z.exclusaoEmAndamento;
+  if (z && !concluido(z)) return Z.zerarEmAndamento;
+  return x.backupEmAndamento ? Z.backupEmAndamento : null;
+}
+
+/** A conta de agora: as tabelas que sairiam e as entidades afetadas. */
+function contar(x: EmpresaParaZerar, entidades: EntidadeZerar[] | null): { tabelas: LinhaLimpeza[]; afetadas: EntidadeZerar[] } {
+  if (entidades) return contagemPorEntidade(x.id, entidades);
   const inteiraZerada = (pedidos.get(x.id) ?? []).some((p) => p.entidades === null);
-  const porEntidade = entidades ? contagemPorEntidade(x.id, entidades) : null;
-  const tabelas = porEntidade ? porEntidade.tabelas : inteiraZerada || SEM_DADOS.has(x.codigo) ? [] : [...TABELAS_EXEMPLO];
-  const total = linhasQueSaem(tabelas);
-  const afetadas = porEntidade ? porEntidade.afetadas : total > 0 ? [...ENTIDADES_ZERAR] : [];
-  const regra = conferirZerar(
-    { status: x.status as StatusEmpresa },
-    { zerar_em_andamento: emAndamento, backup_em_andamento: x.backupEmAndamento, exclusao_em_andamento: false, hub_processando: false },
-    total,
-  );
-  return {
-    tenant_id: x.id,
-    codigo: x.codigo,
-    entidades,
-    entidades_afetadas: afetadas,
-    contado_em: iso(Date.now()),
-    total_linhas: total,
-    tabelas,
-    bloqueio: regra.ok ? null : regra.codigo,
-  };
+  const tabelas = inteiraZerada || SEM_DADOS.has(x.codigo) ? [] : [...TABELAS_EXEMPLO];
+  return { tabelas, afetadas: linhasQueSaem(tabelas) > 0 ? [...ENTIDADES_ZERAR] : [] };
 }
 
-/** `?entidades=` da prévia pelo schema do SDK; fora do formato = 400. */
-function entidadesDaQuery(caminhoComQuery: string): EntidadeZerar[] | null | Response {
-  const bruto = new URLSearchParams(caminhoComQuery.split('?')[1] ?? '').get('entidades');
-  const q = PreviaZerarQuerySchema.safeParse(bruto === null ? {} : { entidades: bruto });
-  if (!q.success) return json(400, { codigo: 'VALIDACAO', mensagem: q.error.issues[0]?.message ?? 'Dados inválidos.' });
-  return q.data.entidades;
+function previaDaApi(x: EmpresaParaZerar, id: string, agora = Date.now()): PreviaZerar {
+  const p = previas.get(id) as { entidades: EntidadeZerar[] | null; criado_em: number };
+  const base = { id, entidades: p.entidades, criado_em: iso(p.criado_em), erro_codigo: null };
+  if (agora < p.criado_em + PREVIA_FALSA_MS) return { ...base, situacao: 'em_andamento', linhas: null, entidades_afetadas: null, total: null, bloqueio: null };
+  const { tabelas, afetadas } = contar(x, p.entidades);
+  const linhas = tabelas.map((t, ordem) => ({ ordem, ...t }));
+  return { ...base, situacao: 'pronta', linhas, entidades_afetadas: afetadas, total: linhasQueSaem(tabelas), bloqueio: bloqueioFalso(x) };
 }
 
-/** Responde as rotas do zerar. `empresa` = null: 404. Só o time da Macuxi (o chamador confere o perfil antes). */
-export function responderZerarFalso(metodo: string, empresa: EmpresaParaZerar | null, previa: boolean, corpo: unknown, caminhoComQuery = ''): Response {
+/**
+ * Responde as rotas do zerar. `empresa` = null: 404. Só o time da Macuxi (o chamador confere o perfil antes). `previaId`: o
+ * `:previa_id` de `…/zerar/previa/:previa_id`.
+ */
+export function responderZerarFalso(metodo: string, empresa: EmpresaParaZerar | null, previa: boolean, corpo: unknown, previaId?: string): Response {
   if (!empresa) return recusa(404, Z.naoEncontrada);
-  if (previa && metodo === 'GET') {
-    const entidades = entidadesDaQuery(caminhoComQuery);
-    return entidades instanceof Response ? entidades : json(200, previaDe(empresa, entidades));
+  if (previa && previaId !== undefined && metodo === 'GET') {
+    return previas.get(previaId)?.tenant === empresa.id ? json(200, previaDaApi(empresa, previaId)) : recusa(404, Z.previaNaoEncontrada);
   }
-  if (!previa && metodo === 'GET') {
+  if (previa && previaId === undefined && metodo === 'POST') {
+    const c = PedirPreviaZerarSchema.safeParse(corpo);
+    if (!c.success) return json(400, { codigo: 'VALIDACAO', mensagem: c.error.issues[0]?.message ?? 'Dados inválidos.' });
+    const ja = previas.get(c.data.id);
+    if (ja && ja.tenant !== empresa.id) return recusa(409, Z.idEmUso);
+    if (!ja) previas.set(c.data.id, { tenant: empresa.id, entidades: c.data.entidades, criado_em: Date.now() });
+    return json(202, previaDaApi(empresa, c.data.id));
+  }
+  if (previa || previaId !== undefined) return json(404, { codigo: 'NAO_ENCONTRADO', mensagem: 'Rota não encontrada.' });
+  if (metodo === 'GET') {
     const z = ultimo(empresa.id);
     return z ? json(200, zerarDaApi(empresa.id, z)) : recusa(404, Z.zerarNaoEncontrado);
   }
-  if (!previa && metodo === 'POST') {
+  if (metodo === 'POST') {
     const c = PedirZerarEmpresaSchema.safeParse(corpo);
     if (!c.success) return json(400, { codigo: 'VALIDACAO', mensagem: c.error.issues[0]?.message ?? 'Dados inválidos.' });
     const mesmo = (pedidos.get(empresa.id) ?? []).find((z) => z.id === c.data.id);
     if (mesmo) return json(202, zerarDaApi(empresa.id, mesmo));
-    const p = previaDe(empresa, c.data.entidades);
-    if (p.bloqueio) return recusa(p.bloqueio === Z.volumeAlto ? 422 : 409, p.bloqueio);
+    const bloqueio = bloqueioFalso(empresa);
+    if (bloqueio) return recusa(409, bloqueio);
     if (c.data.senha === 'errada') return recusa(403, Z.reautenticacaoFalhou);
     if (!codigoDeConfirmacaoConfere(c.data.codigo_confirmacao, empresa.codigo)) return recusa(422, Z.codigoNaoConfere);
+    const conta = contar(empresa, c.data.entidades);
     const agora = Date.now();
     const z: ZerarFalso = {
       id: c.data.id,
       codigo: empresa.codigo,
       entidades: c.data.entidades,
-      afetadas: p.entidades_afetadas,
+      afetadas: conta.afetadas,
       pedido_em: iso(agora),
       termina_em: agora + 6_000,
-      contagem: p.tabelas,
+      contagem: conta.tabelas,
     };
     pedidos.set(empresa.id, [...(pedidos.get(empresa.id) ?? []), z]);
     return json(202, zerarDaApi(empresa.id, z));

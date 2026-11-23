@@ -1,6 +1,6 @@
 /**
  * e2e do "Zerar dados" (ADR 0068; RN-PLA-12) no portal config., modo falso: o item no menu "⋯" ao lado do Excluir, o diálogo com a
- * prévia por grupo, o código e a senha, o andamento e o concluído; e, na aba Integração (desenho §6.4), a seção Monitor com o
+ * prévia calculando (o worker conta) e depois por grupo, o código e a senha, o andamento e o concluído; e, na aba Integração (desenho §6.4), a seção Monitor com o
  * "Zerar dados" no "⋯" de cada entidade da "Dados no Hub", o "Leva junto:" da cascata e o resultado com o lote e os comandos de reenvio. Prints em
  * docs/prints/zerar-dados, 1280 e 390 px (escala 2).
  * Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
@@ -35,7 +35,14 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.screenshot({ animations: 'disabled', path: `${PRINTS}/01-menu${nome}.png` });
 
     await page.getByTestId('empresas.zerar-AM2290').click();
+    // a prévia é do worker: o giro até ficar pronta, sem campos nem confirmar
+    await expect(page.getByTestId('empresa-zerar.calculando')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('empresa-zerar.codigo')).toHaveCount(0);
+    await expect(page.getByTestId('empresa-acao.confirmar')).toHaveCount(0);
+    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/02-calculando${nome}.png` });
     await expect(page.getByTestId('empresa-zerar.previa')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('empresa-zerar.grupo-usuarios')).toHaveText('Usuários não administradores18');
+    await expect(page.getByRole('dialog')).toContainText('Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.');
     await expect(page.getByTestId('empresa-acao.confirmar')).toBeDisabled();
     await page.getByTestId('empresa-zerar.codigo').fill('am2290');
     await page.getByTestId('empresa-zerar.senha').fill('certa-123');
@@ -46,7 +53,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('empresa-zerar.andamento')).toContainText('Em andamento…');
     await page.screenshot({ animations: 'disabled', path: `${PRINTS}/03-andamento${nome}.png` });
 
-    await expect(page.getByTestId('empresa-zerar.concluido')).toHaveText('20.119 linhas apagadas.', { timeout: 20000 });
+    await expect(page.getByTestId('empresa-zerar.concluido')).toHaveText('20.137 linhas apagadas.', { timeout: 20000 });
     await page.screenshot({ animations: 'disabled', path: `${PRINTS}/04-concluido${nome}.png` });
 
     // a empresa sem dados: só a linha e "Fechar"

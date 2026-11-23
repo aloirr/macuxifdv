@@ -2,13 +2,14 @@
  * "Zerar dados" (ADR 0068; RN-PLA-12): item no menu "⋯" ao lado do Excluir e o diálogo (prévia por grupo, código e senha, bloqueio,
  * andamento), renderizados com `react-dom/server` e o cache do React Query semeado com as respostas do modo falso.
  */
-import { CODIGOS_ZERAR_EMPRESA as Z, ENTIDADES_ZERAR, ListaEmpresasSchema, PreviaZerarEmpresaSchema, mensagemDoZerar, type AcoesDaEmpresa, type EntidadeZerar, type PreviaZerarEmpresa, type ZerarEmpresa } from '@macuxi/platform-sdk';
+import { CODIGOS_ZERAR_EMPRESA as Z, ENTIDADES_ZERAR, ListaEmpresasSchema, PreviaZerarSchema, mensagemDoZerar, type AcoesDaEmpresa, type EntidadeZerar, type PreviaZerar, type ZerarEmpresa } from '@macuxi/platform-sdk';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { responderFalso } from '@/lib/portal-falso';
+import { PREVIA_FALSA_MS } from '@/lib/portal-falso-zerar';
 import type { EmpresaResumo } from '@/lib/portal-empresa-acoes';
 
 import { chavePreviaZerar, chaveZerar, DialogoZerar } from './dialogo-zerar';
@@ -35,9 +36,22 @@ const porCodigo = (c: string) => {
   if (!e) throw new Error(`sem ${c}`);
   return e;
 };
-const previaFalsa = async (e: Empresa) => PreviaZerarEmpresaSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa`)).json());
+/** Prévia do modo falso: pede (em andamento) e lê depois de `PREVIA_FALSA_MS` (pronta). */
+async function previaFalsa(e: Empresa, entidades?: EntidadeZerar[]): Promise<{ calculando: PreviaZerar; pronta: PreviaZerar }> {
+  const id = crypto.randomUUID();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    const calculando = PreviaZerarSchema.parse(await (await chamar('POST', `/plataforma/empresas/${e.id}/zerar/previa`, { id, ...(entidades ? { entidades } : {}) })).json());
+    vi.setSystemTime(Date.now() + PREVIA_FALSA_MS);
+    const pronta = PreviaZerarSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa/${id}`)).json());
+    return { calculando, pronta };
+  } finally {
+    vi.useRealTimers();
+  }
+}
+const pronta = async (e: Empresa, entidades?: EntidadeZerar[]) => (await previaFalsa(e, entidades)).pronta;
 
-function com(cache: { previa?: PreviaZerarEmpresa; zerar?: ZerarEmpresa; tenant: string; entidades?: EntidadeZerar[] }, filho: ReactNode): string {
+function com(cache: { previa?: PreviaZerar; zerar?: ZerarEmpresa; tenant: string; entidades?: EntidadeZerar[] }, filho: ReactNode): string {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, refetchInterval: false } } });
   if (cache.previa) qc.setQueryData(chavePreviaZerar(cache.tenant, cache.entidades), cache.previa);
   if (cache.zerar) qc.setQueryData(chaveZerar(cache.tenant), cache.zerar);
@@ -45,15 +59,49 @@ function com(cache: { previa?: PreviaZerarEmpresa; zerar?: ZerarEmpresa; tenant:
 }
 
 describe('diálogo Zerar dados', () => {
+  it('calculando: só o giro e "Fechar", sem prévia, campos nem confirmar', async () => {
+    const e = porCodigo('AM2290');
+    const { calculando } = await previaFalsa(e);
+    expect(calculando.situacao).toBe('em_andamento');
+    const html = com({ previa: calculando, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
+    expect(html).toContain('data-testid="empresa-zerar.calculando"');
+    expect(html).toContain('Contando os dados…');
+    expect(html).not.toContain('empresa-zerar.previa"');
+    expect(html).not.toContain('empresa-zerar.codigo');
+    expect(html).not.toContain('empresa-acao.confirmar');
+    expect(html).toContain('>Fechar</button>');
+  });
+  it('prévia que falhou no worker: a frase do SDK com "Tentar de novo", sem campos', () => {
+    const e = porCodigo('AM2290');
+    const falhou: PreviaZerar = {
+      id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000010',
+      situacao: 'falhou',
+      entidades: null,
+      linhas: null,
+      entidades_afetadas: null,
+      total: null,
+      bloqueio: null,
+      erro_codigo: 'ZERAR_PREVIA_FALHOU',
+      criado_em: '2026-11-23T12:00:00.000Z',
+    };
+    const html = com({ previa: PreviaZerarSchema.parse(falhou), tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
+    expect(html).toContain('data-testid="empresa-zerar.previa-falhou"');
+    expect(html).toContain('Não foi possível calcular o que sai. Tente de novo.');
+    expect(html).not.toContain('empresa-zerar.calculando');
+    expect(html).not.toContain('empresa-zerar.codigo');
+    expect(html).not.toContain('empresa-acao.confirmar');
+  });
   it('prévia por grupo (rótulos do SDK, números pt-BR), o que fica, código e senha; botão desligado até conferir', async () => {
     const e = porCodigo('AM2290');
-    const previa = await previaFalsa(e);
+    const previa = await pronta(e);
     const html = com({ previa, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain('Zerar dados de Mercantil Rio Branco Ltda?');
     expect(html).toContain('>Apaga:</p>');
     expect(html).toMatch(/empresa-zerar\.grupo-cadastros.*<dt[^>]*>Cadastros<\/dt><dd[^>]*>7\.530<\/dd>/);
     expect(html).toMatch(/empresa-zerar\.grupo-pedidos.*>Pedidos<\/dt><dd[^>]*>2\.792</);
-    expect(html).toContain('Mantém: empresa, plano, usuários, perfis, parâmetros e conectores.');
+    expect(html).toMatch(/empresa-zerar\.grupo-usuarios.*>Usuários não administradores<\/dt><dd[^>]*>18</);
+    expect(html).toContain('Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.');
+    expect(html).not.toContain('empresa-zerar.calculando');
     expect(html).toContain('>Cancelar</button>');
     expect(html).toContain('<span class="font-mono font-medium">AM2290</span> para confirmar');
     expect(html).toContain('data-testid="empresa-zerar.senha.olho"');
@@ -64,7 +112,7 @@ describe('diálogo Zerar dados', () => {
   });
   it('bloqueio da prévia: só a frase do SDK em aviso, sem prévia, "Mantém", campos nem confirmar; botão "Fechar"', async () => {
     const e = porCodigo('AM2290');
-    const previa = { ...(await previaFalsa(e)), bloqueio: Z.backupEmAndamento };
+    const previa = { ...(await pronta(e)), bloqueio: Z.backupEmAndamento };
     const html = com({ previa, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain(`data-testid="empresa-zerar.bloqueio"`);
     expect(html).toContain(mensagemDoZerar(Z.backupEmAndamento) ?? '?');
@@ -78,13 +126,13 @@ describe('diálogo Zerar dados', () => {
   });
   it('sem dados: uma linha e só "Fechar"; o vazio vence o bloqueio', async () => {
     const e = porCodigo('atacado-norte');
-    const html = com({ previa: await previaFalsa(e), tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
+    const html = com({ previa: await pronta(e), tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain('Não há dados para zerar.');
     expect(html).not.toContain('empresa-zerar.previa');
     expect(html).not.toContain('empresa-acao.confirmar');
     expect(html).toContain('>Fechar</button>');
     const vazioBloqueado = com(
-      { previa: { ...(await previaFalsa(e)), bloqueio: Z.backupEmAndamento }, tenant: e.id },
+      { previa: { ...(await pronta(e)), bloqueio: Z.backupEmAndamento }, tenant: e.id },
       <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />,
     );
     expect(vazioBloqueado).toContain('Não há dados para zerar.');
@@ -93,7 +141,7 @@ describe('diálogo Zerar dados', () => {
   it('senha errada: a frase no campo senha, sem bloco à parte', async () => {
     const e = porCodigo('AM2290');
     const texto = mensagemDoZerar(Z.reautenticacaoFalhou) ?? '?';
-    const html = com({ previa: await previaFalsa(e), tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ codigo: 'AM2290', erro: { texto, senha: true } }} />);
+    const html = com({ previa: await pronta(e), tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ codigo: 'AM2290', erro: { texto, senha: true } }} />);
     expect(html).toMatch(/aria-invalid="true"/);
     expect(html).toContain(texto);
     expect(html).not.toContain('empresa-acao.erro');
@@ -137,13 +185,14 @@ describe('diálogo Zerar dados', () => {
 describe('diálogo Zerar dados por entidade (aba Integração)', () => {
   it('título com a entidade, "Leva junto:" só com a cascata, sem o "Mantém"; concluído com o lote e um comando por entidade afetada', async () => {
     const e = porCodigo('AM2290');
-    const previa = PreviaZerarEmpresaSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa?entidades=cliente`)).json());
+    const previa = await pronta(e, ['cliente']);
     const html = com({ previa, tenant: e.id, entidades: ['cliente'] }, <DialogoZerar empresa={e} entidades={['cliente']} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain('Zerar Clientes de Mercantil Rio Branco Ltda?');
     expect(html).toMatch(/empresa-zerar\.entidades.*text-\[13px\] font-semibold text-ink">Leva junto:<\/p><p class="m-0 text-ink-2">Endereços de clientes<\/p>/);
     expect(html).not.toContain('Mantém:');
+    expect(html).not.toContain('empresa-zerar.grupo-usuarios');
     expect(html).toContain('empresa-zerar.codigo');
-    const previaPreco = PreviaZerarEmpresaSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa?entidades=preco`)).json());
+    const previaPreco = await pronta(e, ['preco']);
     const semCascata = com({ previa: previaPreco, tenant: e.id, entidades: ['preco'] }, <DialogoZerar empresa={e} entidades={['preco']} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(previaPreco.entidades_afetadas).toEqual(['preco']);
     expect(semCascata).not.toContain('Leva junto:');

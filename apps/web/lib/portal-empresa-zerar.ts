@@ -1,19 +1,20 @@
 /**
  * "Zerar dados" da empresa no portal `config.` (pedido do dono do produto na v1.0.31; ADR 0068; desenho
  * docs/desenho/empresa-zerar.md; RN-PLA-12). Textos, liberação do botão e as três chamadas. Regra, códigos e frases só do SDK
- * (`empresa-zerar.ts`): o bloqueio vem pronto da prévia (a API calcula com `conferirZerar`); aqui só se junta com o que foi digitado.
+ * (`empresa-zerar.ts`): o bloqueio vem pronto na prévia (o banco calcula com a `plataforma.zerar_bloqueado`); aqui só se junta com o
+ * que foi digitado. A prévia é trabalho do worker: a tela pede (`pedirPreviaZerar`) e lê (`lerPreviaZerar`) até `pronta` ou `falhou`.
  */
 import { ROTULO_ENTIDADE } from '@macuxi/integracao/contracts';
 import {
   CODIGOS_ZERAR_EMPRESA,
   ENTIDADES_ZERAR,
-  PreviaZerarEmpresaSchema,
+  PreviaZerarSchema,
   ROTAS_ZERAR_EMPRESA,
   ZerarEmpresaSchema,
   codigoDeConfirmacaoConfere,
   mensagemDoZerar,
   type EntidadeZerar,
-  type PreviaZerarEmpresa,
+  type PreviaZerar,
   type ZerarEmpresa,
 } from '@macuxi/platform-sdk';
 import { formatInt } from '@macuxi/ui/web';
@@ -32,7 +33,8 @@ export const TEXTOS_ZERAR = Object.freeze({
   contando: 'Contando os dados…',
   sai: 'Apaga:',
   nadaASair: 'Não há dados para zerar.',
-  ficam: 'Mantém: empresa, plano, usuários, perfis, parâmetros e conectores.',
+  /** Só no zerar da empresa inteira, que apaga os usuários não administradores (grupo `usuarios` no "Apaga:"). */
+  ficam: 'Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.',
   sufixoCodigo: 'para confirmar',
   senha: 'Sua senha',
   cancelar: 'Cancelar',
@@ -57,9 +59,12 @@ export function comandosDeReenvio(afetadas: readonly EntidadeZerar[] | null | un
   return afetadas.map((e) => `conector carga-completa ${e}`);
 }
 
-/** Caminho (relativo ao `/v1`, como o `ROTAS_PORTAL`) de uma rota do zerar. */
-export function rotaDoZerar(rota: keyof typeof ROTAS_ZERAR_EMPRESA, tenantId: string): string {
-  return ROTAS_ZERAR_EMPRESA[rota].replace(/^\/v1/, '').replace(':tenant_id', encodeURIComponent(tenantId));
+/** Caminho (relativo ao `/v1`, como o `ROTAS_PORTAL`) de uma rota do zerar; `previaId` só na `previaLer`. */
+export function rotaDoZerar(rota: keyof typeof ROTAS_ZERAR_EMPRESA, tenantId: string, previaId = ''): string {
+  return ROTAS_ZERAR_EMPRESA[rota]
+    .replace(/^\/v1/, '')
+    .replace(':tenant_id', encodeURIComponent(tenantId))
+    .replace(':previa_id', encodeURIComponent(previaId));
 }
 
 /** Item "Zerar dados" do menu "⋯": desligado na empresa em exclusão, com backup rodando ou com outro pedido da linha no ar. */
@@ -67,13 +72,29 @@ export function zerarLigadoNoMenu(est: Pick<EstadoDasAcoes, 'backupLigado' | 'si
   return est.backupLigado && est.situacaoLigada;
 }
 
-/** "Zerar dados" liga só com a prévia sem bloqueio, alguma linha a sair, o código conferindo e a senha preenchida (RN-PLA-12). */
-export function zerarLiberado(previa: PreviaZerarEmpresa | undefined, codigoDigitado: string, senha: string): boolean {
-  return !!previa && previa.bloqueio === null && previa.total_linhas > 0 && !!senha && codigoDeConfirmacaoConfere(codigoDigitado, previa.codigo);
+/**
+ * "Zerar dados" liga só com a prévia `pronta`, sem bloqueio, alguma linha a sair, o código da empresa conferindo e a senha
+ * preenchida (RN-PLA-12).
+ */
+export function zerarLiberado(previa: PreviaZerar | undefined, codigoEmpresa: string, codigoDigitado: string, senha: string): boolean {
+  return (
+    previa?.situacao === 'pronta' &&
+    previa.bloqueio === null &&
+    (previa.total ?? 0) > 0 &&
+    !!senha &&
+    codigoDeConfirmacaoConfere(codigoDigitado, codigoEmpresa)
+  );
 }
 
+/** A prévia ainda está sendo contada pelo worker: a tela lê de novo a cada `CONSULTA_PREVIA_ZERAR_MS`. */
+export const previaCalculando = (previa: PreviaZerar | undefined): boolean => previa?.situacao === 'em_andamento';
+
 /** O zerar desta empresa já roda (outra aba, outra pessoa): o diálogo vai direto ao andamento. */
-export const zerarJaRodando = (previa: PreviaZerarEmpresa | undefined): boolean => previa?.bloqueio === CODIGOS_ZERAR_EMPRESA.zerarEmAndamento;
+export const zerarJaRodando = (previa: PreviaZerar | undefined): boolean =>
+  previa?.situacao === 'pronta' && previa.bloqueio === CODIGOS_ZERAR_EMPRESA.zerarEmAndamento;
+
+/** Frase da prévia que falhou no worker (`erro_codigo`, pela `mensagemDoZerar`). */
+export const fraseDaPreviaFalha = (previa: PreviaZerar): string => mensagemDoZerar(previa.erro_codigo ?? '') ?? mensagemDoErro(null);
 
 /** Frase de um código do zerar: a tabela do SDK (`mensagemDoZerar`); fora dela, a frase da API. */
 export function fraseDoZerar(e: unknown): string {
@@ -96,9 +117,16 @@ export function andamentoDoZerar(z: ZerarEmpresa | undefined): { tom: 'andamento
 
 // ---------------------------------------------------------------------------------------------------------------- chamadas
 
-/** `GET …/zerar/previa[?entidades=a,b]`: contagem por tabela do que sai e o bloqueio atual. Sem `entidades`: a empresa inteira. */
-export const lerPreviaZerar = (tenantId: string, entidades?: readonly EntidadeZerar[]): Promise<PreviaZerarEmpresa> =>
-  chamarPortal(rotaDoZerar('previa', tenantId), { schema: PreviaZerarEmpresaSchema, query: { entidades: entidades?.length ? entidades.join(',') : undefined } });
+/**
+ * `POST …/zerar/previa` (202): o worker conta o que sai e o bloqueio. `id` gerado na tela (o mesmo id devolve a mesma prévia);
+ * sem `entidades`: a empresa inteira.
+ */
+export const pedirPreviaZerar = (tenantId: string, id: string, entidades?: readonly EntidadeZerar[]): Promise<PreviaZerar> =>
+  chamarPortal(rotaDoZerar('previa', tenantId), { metodo: 'POST', corpo: { id, ...(entidades?.length ? { entidades } : {}) }, schema: PreviaZerarSchema });
+
+/** `GET …/zerar/previa/:previa_id`: a prévia pedida, em andamento, pronta ou falha. */
+export const lerPreviaZerar = (tenantId: string, previaId: string): Promise<PreviaZerar> =>
+  chamarPortal(rotaDoZerar('previaLer', tenantId, previaId), { schema: PreviaZerarSchema });
 
 /** `POST …/zerar` (202). `id` gerado na tela: repetir o mesmo devolve o mesmo pedido. A senha vai só no corpo. */
 export const pedirZerar = (

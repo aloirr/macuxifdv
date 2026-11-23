@@ -812,7 +812,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   const zerarM = ZERAR_FALSO_M.exec(caminho);
   const paraZerar = zerarM && e.empresas.find((y) => y.id === decodeURIComponent(zerarM[1] ?? '') && !excluida(y));
   if (zerarM && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES);
-  if (zerarM) return responderZerarFalso(metodo, paraZerar ? { ...paraZerar, backupEmAndamento: ultimoBackup(paraZerar)?.situacao === 'em_andamento' } : null, !!zerarM[2], corpo, caminhoComQuery);
+  if (zerarM) return responderZerarFalso(metodo, paraZerar ? { ...paraZerar, backupEmAndamento: ultimoBackup(paraZerar)?.situacao === 'em_andamento' } : null, !!zerarM[2], corpo, zerarM[3] ? decodeURIComponent(zerarM[3]) : undefined);
   if (rota === `POST ${ROTAS_PORTAL.empresas}`) {
     if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const c = lerCorpo(CriarEmpresaSchema, corpo);
