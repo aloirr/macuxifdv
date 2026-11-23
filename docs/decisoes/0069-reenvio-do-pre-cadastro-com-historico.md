@@ -13,6 +13,11 @@
   dados com o que o ERP mandou (o ERP manda)" → item 10 e item 8 revisto; (b) aceita: a lista única pode marcar como incompletos
   clientes do ERP; (c) aceita: empresa sem parâmetro passa a exigir IE (CNPJ) e endereço no pré-cadastro; (d) aceita: a correção pelo
   BKO é só para analista e admin. O receptor do push (item 3) vai na v1.0.29, sem hotfix na v1.0.28.
+- **Segunda rodada, decidida** (23/11/2026, "1 B / 2 A / 3 A", pelo gerente-projetos): (1) **B** — **todo cliente ganha Código FDV**,
+  inclusive o que vem direto do ERP: o cliente novo gravado pelo consumidor da carga do ERP e a carga inicial dos clientes que já
+  existem, em todas as empresas (migração 0098); gerado pelo banco, 5 dígitos, contador por empresa, nunca reaproveitado → item 10 e
+  D.7 reescritos; (2) **A** — depois da aprovação, os dados do ERP chegam pela carga normal de clientes e sobrescrevem os do vendedor
+  (como já estava no item 10); (3) **A** — os duplicados que a v1.0.28 já criou não são tratados agora (consequências).
 - **Substitui**: o item 7 da ADR 0067 (reenvio após recusa = cliente novo). Os itens 1 a 6 da ADR 0067 seguem valendo, com o item 4
   (parâmetro próprio do pré-cadastro) trocado pelo item 6 abaixo e o item 6 (motivo só ao vendedor) ampliado pelo item 7 abaixo.
 
@@ -169,16 +174,38 @@ ver e corrigir recusados no BKO é só para analista e admin; supervisor e geren
 Hoje (base c460e92) o cliente tem um código só: o **Código ERP** é `core.cliente.external_id` (0002; único vivo por tenant,
 `cliente_external_uk`), nulo no pré-cadastro até o retorno `vinculado`. **Não existe Código FDV de cliente**: o `id` é UUID gerado no
 aparelho (não é código para pessoa) e o `codigo_fdv` que existe é só do usuário (`core.usuario.codigo_fdv`, 0080, RN-CORE-59).
-- **Código FDV** = coluna nova **`core.cliente.codigo_fdv text`**, no mesmo molde da RN-CORE-59: gerado pelo banco em sequência por
-  empresa, só dígitos, mínimo 5 (`00001`…, `100000` depois de `99999`), único entre os vivos do tenant, só de leitura e nunca
-  reaproveitado. Contador próprio `core.cliente_codigo_fdv_contador` (não divide a numeração com o usuário). Gatilhos: emitir (BEFORE
-  INSERT, só quando `origem_cadastro <> 'erp'` e o código vem nulo; informado = fica, para backup e para o item 4) e somente leitura
-  (BEFORE UPDATE, 23514 → 422 `CODIGO_FDV_SOMENTE_LEITURA`). O domain reaproveita `formatarCodigoFdv` e `validarCodigoFdv`
-  (`modules/core/domain/codigo-fdv.ts`).
-- **Quem tem**: todo cliente que nasce no FDV (pré-cadastro do Campo ou do BKO), na hora em que o **servidor** o recebe. O aparelho não
-  tem como gerar um número sequencial offline: até o primeiro sync o app mostra o cliente sem o Código FDV, e o pull traz o código. Os
-  clientes que vêm do ERP ficam com `codigo_fdv` nulo (sem carga para eles: seriam dezenas de milhares de linhas andando no pull, sem
-  uso pedido). Carga só dos pré-cadastros vivos que já existem, em ordem de `created_at, id`.
+- **Código FDV** = coluna nova **`core.cliente.codigo_fdv text`**, no mesmo molde da RN-CORE-59 (0080): gerado pelo banco em sequência
+  por empresa, só dígitos, 5 dígitos (`00001`…`99999`), único entre os vivos do tenant, só de leitura e nunca reaproveitado. Contador
+  próprio `core.cliente_codigo_fdv_contador` (não divide a numeração com o usuário).
+- **Quem tem (decisão 1 B)**: **todo cliente vivo**, qualquer que seja a origem (`campo`, `bko` ou `erp`). Não há mais exceção por
+  origem: o CHECK `cliente_codigo_fdv_origem` da versão anterior desta ADR sai, e entra o CHECK `cliente_codigo_fdv_vivo`
+  (`deleted_at is not null or codigo_fdv is not null`): cliente vivo sem código é erro de banco (23514), não estado possível.
+- **Gatilho no insert de qualquer origem**: `cliente_codigo_fdv_emitir` (BEFORE INSERT) numera todo insert com `codigo_fdv` nulo — o
+  pré-cadastro da rota do BKO, o receptor do push do Campo e o cliente novo do `consumidorClienteDoErp`. O código informado fica (backup
+  da 0072 e herança do item 4), sobe o contador para `greatest(atual, n)` e passa pelo CHECK de formato e pelo índice único, como na 0080.
+  `cliente_codigo_fdv_somente_leitura` (BEFORE UPDATE): mudar o código = 23514 → 422 `CODIGO_FDV_SOMENTE_LEITURA`; o apagado sem
+  código que volta a vivo ganha o próximo número no mesmo update (como o usuário na 0080).
+- **Upsert da carga do ERP sem gastar número**: o consumidor grava com `insert ... on conflict (tenant_id, external_id) do update`, e o
+  BEFORE INSERT roda antes de o Postgres descobrir o conflito. Sem cuidado, cada carga de um cliente que já existe queimaria um número
+  (buraco a cada minuto do Conector; o contador chegaria a 99999 em semanas). Por isso o gatilho, quando o insert traz `external_id`,
+  **primeiro procura o vivo com o mesmo `(tenant_id, external_id)`** (índice `cliente_external_uk`): achou → não emite (o insert vira o
+  update, que não mexe no código); não achou → emite. Corrida entre duas cargas do mesmo cliente novo perde no máximo um número (buraco
+  aceito, nunca repete). Se o vivo some entre a procura e o conflito, o insert chega sem código, o CHECK `cliente_codigo_fdv_vivo` o
+  recusa e a outbox repete (RN-INT-04). O consumidor não muda.
+- **Carga inicial (backfill), em todas as empresas**: na 0098, os clientes **vivos** de cada tenant recebem `00001`… em ordem
+  determinística de **`created_at, id`** (o `id` desempata as linhas da mesma carga do ERP, que têm o mesmo `created_at`), num update só,
+  antes de criar os gatilhos (o somente leitura recusaria o update). O contador de cada tenant termina no maior número emitido; tenant
+  sem cliente vivo fica sem linha e nasce no primeiro insert.
+- **Apagados (decisão de desenho, coerente com a 0080)**: os clientes apagados antes da 0098 **ficam sem código** e não consomem
+  número. Não aparecem em tela nem no pull, e numerá-los gastaria a faixa de 5 dígitos com linhas mortas. O apagado depois da 0098
+  guarda o código (fica fora da unicidade dos vivos e o número continua contado; nunca volta a ser emitido). O apagado antigo que
+  voltar a vivo ganha o próximo número.
+- **Acima de 99999 (decisão de desenho, igual à 0080)**: não há teto. O 100.000º cliente da empresa recebe `100000`, depois `100001`…
+  (`lpad(n, greatest(5, dígitos de n), '0')`; o CHECK de formato da 0080 aceita 6 ou mais dígitos sem zero à esquerda). "5 dígitos" é o
+  mínimo, não o máximo; nada é recusado nem reaproveitado. O domain usa `formatarCodigoFdv` e `validarCodigoFdv`
+  (`modules/core/domain/codigo-fdv.ts`), que já seguem essa regra.
+- **Quando aparece**: o pré-cadastro recebe o código quando o **servidor** o recebe (o aparelho não gera número sequencial offline: até
+  o primeiro sync o app mostra o cliente sem ele, e o pull traz o código); o cliente do ERP recebe o código quando a carga o grava.
 - **Substituição do APK v1.0.28 (item 4)**: o `id` novo X herda o `codigo_fdv` do recusado Y (Y é apagado antes e o índice único só olha
   os vivos). O código acompanha a linhagem, como o histórico.
 - **Código ERP** = `external_id`, em branco até o retorno `vinculado` (item 8), que o preenche. Sem coluna nova.
@@ -288,7 +315,7 @@ export const EVENTO_CLIENTE_PRE_CADASTRO_REVISADO = definirEvento('core.cliente.
   `camposExigidosDasLinhas(linhas)` para o app ler o pull `parametro` (mesmo molde de `obrigatoriosPreCadastroDasLinhas`).
 - `sync.ts` (`ClienteSyncSchema`, aditivos opcionais): `revisao_cadastro: z.number().int().min(1).nullable().optional()`,
   `erros_recusa: ErrosCampoCadastroSchema.nullable().optional()` (mesma regra de visibilidade do `motivo_recusa`),
-  `codigo_fdv: z.string().nullable().optional()` (item 10; ausente = emissor antigo).
+  `codigo_fdv: z.string().nullable().optional()` (item 10; vem em todo cliente, de qualquer origem; ausente = emissor antigo).
 - Item 10 (aditivos): `codigo_fdv: z.string().nullable()` em `PreCadastroClienteSaidaSchema` (nulo só se a migração não entrou),
   `PreCadastroAtualSchema` (+ `external_id`), `RecusadoItemSchema` e `ClientePreCadastroParaErpSchema`; no contrato do Cliente 360
   (app e BKO) `codigo_fdv` ao lado do `external_id`. `PreCadastroClienteSchema` e `CorrecaoPreCadastroSchema` seguem `.strict()` sem o
@@ -340,7 +367,9 @@ Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas p
 - Item 10: `consumidorClienteDoErp` usa `decidirDocumentoDoErp` (pré-cadastro sem código com o mesmo documento →
   `ReferenciaAusenteErp('cliente_pre_cadastro')`); o insert do pré-cadastro (rota e receptor) grava `coordenada_origem = 'manual'` quando
   vem coordenada; a substituição do item 4 copia o `codigo_fdv` de Y para X; selects do pull, do Cliente 360, da lista de recusados e da
-  consulta do Hub incluem `codigo_fdv`; 23514 `cliente_codigo_fdv_somente_leitura` → 422 `CODIGO_FDV_SOMENTE_LEITURA`.
+  consulta do Hub incluem `codigo_fdv`; 23514 `cliente_codigo_fdv_somente_leitura` → 422 `CODIGO_FDV_SOMENTE_LEITURA`. O
+  `consumidorClienteDoErp` não muda por causa do código (o gatilho numera o cliente novo do ERP e não gasta número no upsert de quem já
+  existe); um 23514 `cliente_codigo_fdv_vivo` nele é corrida e segue o caminho de erro da outbox (repete).
 
 ### D. Banco — banco-dados (migração `0098_core_integracao_pre_cadastro_revisao`, número provisório pela ordem de merge; se a ADR 0068 levar a 0098, esta vira a próxima livre)
 1. `core.cliente`:
@@ -374,14 +403,29 @@ Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas p
 5. Caminho de volta (`.down.sql`): apaga a tabela de tentativas e as colunas novas (o histórico e os erros se perdem; os parâmetros
    ficam). Volte antes o código do Core e do Hub que lê as colunas (senão 42703/42P01).
 6. Dicionários: `docs/banco/core.md` e `docs/banco/integracao.md` ("0098"); `modules/core/db/nuvem.ts` e `modules/integracao/db/nuvem.ts`.
-7. Código FDV do cliente (item 10), na mesma 0098 (ainda não está no `main`), no molde da 0080: `core.cliente.codigo_fdv text` com o
-   CHECK de formato da 0080 (`cliente_codigo_fdv_formato`), `cliente_codigo_fdv_origem` (`codigo_fdv is null or origem_cadastro <>
-   'erp'`), índice único `(tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null`; `core.cliente_codigo_fdv_contador`
-   (uma linha por tenant, nunca diminui, piso pelo maior código gravado, RLS, só o gatilho grava, fora do sync em `db/src/excecoes.ts`,
-   na ordem do backup da 0072); função SECURITY DEFINER dos gatilhos `cliente_codigo_fdv_emitir` (só `origem_cadastro <> 'erp'` e
-   código nulo) e `cliente_codigo_fdv_somente_leitura` (23514); carga dos pré-cadastros vivos por `created_at, id` (anda o
-   `updated_at`: o pull leva o código); grant de SELECT da coluna ao `macuxi_leitura`; o `.down.sql` apaga tudo (perde os códigos).
-   Se uma view do Conector (`db/conector/`) passar a expor o código, sai no PR conjunto do kit (R-20261115-171000); esta ADR não pede.
+7. Código FDV do cliente (item 10, decisão 1 B), na mesma 0098 (ainda não está no `main`), no molde da 0080, nesta ordem:
+   a. `core.cliente.codigo_fdv text` (sem default) com o CHECK de formato da 0080 (`cliente_codigo_fdv_formato`, a mesma regex: 5
+      dígitos `00001`–`99999` ou 6+ sem zero à esquerda) e o índice único `cliente_codigo_fdv_uk (tenant_id, codigo_fdv) where
+      deleted_at is null and codigo_fdv is not null`. **Sem** o CHECK `cliente_codigo_fdv_origem` da versão anterior.
+   b. `core.cliente_codigo_fdv_contador` (uma linha por tenant, id por `uuid_de_chave`, nunca diminui, piso pelo maior código gravado,
+      vivo ou apagado, RLS enable + force + `isolamento_tenant` + `manutencao`, `macuxi_app` só select, `macuxi_leitura` select; fora do
+      sync em `db/src/excecoes.ts`; na 1ª leva da ordem do backup da 0072).
+   c. Carga inicial de **todos os clientes vivos de todas as empresas** (`deleted_at is null`, qualquer `origem_cadastro`):
+      `row_number() over (partition by tenant_id order by created_at, id)`, gravado com `lpad(n, greatest(5, dígitos de n), '0')`, num
+      update só; apagados ficam nulos; o contador de cada tenant nasce no maior `n` (tenant sem vivo: sem linha). O `updated_at` dos
+      vivos anda (o pull leva o código). O update roda pelo dono da migração, sem outbox: nenhum evento é publicado.
+   d. CHECK `cliente_codigo_fdv_vivo` (`deleted_at is not null or codigo_fdv is not null`), criado depois da carga.
+   e. Função SECURITY DEFINER `core.cliente_codigo_fdv()` (search_path fixo, sem EXECUTE a ninguém) e os gatilhos
+      `cliente_codigo_fdv_emitir` (BEFORE INSERT: código informado → fica e sobe o contador; código nulo com `external_id` e vivo com o
+      mesmo `(tenant_id, external_id)` → não emite; senão emite, com a linha do contador travada até o fim da transação) e
+      `cliente_codigo_fdv_somente_leitura` (BEFORE UPDATE: mudar = 23514 hint RN-CORE-78; apagado sem código que volta a vivo ganha o
+      próximo número). Os gatilhos rodam antes do `cliente_updated_at` e não mexem nele.
+   f. Grant de SELECT da coluna ao `macuxi_leitura`; o `.down.sql` apaga gatilhos, função, CHECKs, índice, contador e coluna (perde os
+      códigos; volte antes o código do Core e do Hub que lê a coluna).
+   Volume: o backfill escreve uma vez cada cliente vivo (dezenas de milhares por empresa grande) e cada aparelho puxa a carteira inteira
+   de novo no primeiro sync depois do deploy; o banco-dados mede o tempo da 0098 na base de teste com o volume da maior empresa e o
+   informa na entrega. Se uma view do Conector (`db/conector/`) passar a expor o código, sai no PR conjunto do kit (R-20261115-171000);
+   esta ADR não pede.
 
 ### E. Integração — modulo-integracao
 - `contracts/cliente-erp.ts`: `ErroCampoRetornoCliente = z.object({ campo: z.string().trim().min(1).max(60), codigo:
@@ -424,8 +468,12 @@ Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas p
 - Integração (`modules/integracao/api/clientes-erp.db.test.ts`): reabertura da mesma linha (`rejeitado → pendente`, `revisao + 1`,
   `tentativas = 0`); `vinculado` não reabre; `GET /pendentes` com `revisao` e `hash`; retorno obsoleto (200, sem publicar); fato novo
   na mesma revisão (200, publica); `revisao_desconhecida`; erros mascarados e fora do log.
-- Item 10: Código FDV emitido no recebimento (rota e push), em sequência sem repetir em inserts concorrentes do mesmo tenant, nulo no
-  cliente do ERP, herdado por X na substituição, só de leitura (23514 → 422); `vinculado` sobre `recusado` grava e limpa motivo e erros;
+- Item 10: Código FDV emitido no recebimento (rota e push) e no cliente novo da carga do ERP, em sequência sem repetir em inserts
+  concorrentes do mesmo tenant; upsert da carga sobre cliente que já existe não gasta número (dez cargas seguidas do mesmo cliente =
+  contador parado); backfill em dois tenants com ordem `created_at, id` (empate de `created_at` desempatado pelo `id`), apagados nulos,
+  contador no maior número; `100000` depois de `99999` (contador posto em 99999 no teste); `cliente_codigo_fdv_vivo` recusa vivo sem
+  código; apagado antigo que volta a vivo ganha número; restauração do backup em qualquer ordem; herdado por X na substituição, só
+  de leitura (23514 → 422); `vinculado` sobre `recusado` grava e limpa motivo e erros;
   carga do ERP com o documento de um pré-cadastro sem código repete (`ReferenciaAusenteErp`) e, depois do `vinculado`, sobrescreve o
   próprio pré-cadastro (sem duplicar), mantendo `codigo_fdv`, `origem_cadastro` e a coordenada `manual` quando o ERP não manda
   coordenada; Hub: `vinculado` sobre `rejeitado` da mesma revisão = 200 e `codigo_fdv` em `GET /clientes/pendentes`.
@@ -441,25 +489,34 @@ código. O BKO não mostra nenhum: o cabeçalho do Cliente 360 mostra razão soc
 A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar layout):
 - App, ficha do cliente: o subtítulo passa a mostrar os dois códigos com rótulo (ex.: "FDV 00012 · ERP C5007"; sem o que não existe);
   a busca da carteira casa também pelo Código FDV (`clienteCasaBusca` recebe `codigo_fdv`); o banco local do aparelho guarda a coluna.
+  Como todo cliente tem Código FDV (decisão 1 B), o rótulo "FDV" aparece em todos; "ERP" só onde há `external_id`.
 - App, pré-cadastro e "Corrigir e reenviar": mostra o Código FDV depois do sync (antes dele, nada).
 - BKO, Cliente 360 (cabeçalho), Carteira (linha) e a lista e o formulário dos recusados: os dois códigos; o Código ERP vazio aparece
   como "Aguardando o ERP" só onde o status do pré-cadastro já é mostrado (uma informação, um lugar).
 - Fora da sessão D: `modules/vendedor/app/lib/pull.ts` e `catalog.ts` (modulo-vendedor) se a busca do pedido também usar o Código FDV.
 
 ### I. Impacto nos commits já feitos (v1.0.29)
-- **banco-dados 619cd07** (`0098`): acrescentar o item D.7 (coluna, CHECKs, índice, contador, gatilhos, carga, grant, down) na própria
-  0098, com testes em `db/testes/cliente-pre-cadastro-revisao.db.test.ts` (ou arquivo próprio), `db/src/excecoes.ts` (contador),
-  ordem do backup, `modules/core/db/nuvem.ts`, `docs/banco/core.md` e a fixture `dois-tenants` (pré-cadastros com código). O resto da
-  0098 não muda (a conferência fica só informativa e ganha a contagem dos duplicados da v1.0.28: pré-cadastros vivos sem código com
-  auditoria `cliente.vinculo_erp_recusado` de resultado `codigo_em_uso`).
-- **modulo-core 7eaf9ab + 30e5847** (contratos, domain e API): contratos com `codigo_fdv` (A); `decidirVinculoErp` revista e
-  `decidirDocumentoDoErp` nova, com testes (B); consumidor do retorno (grava sobre `recusado`, limpa motivo e erros, tentativas
-  `aceito`), `consumidorClienteDoErp` (esperar o vínculo), `coordenada_origem = 'manual'` no insert do pré-cadastro, herança do código na
-  substituição, `codigo_fdv` nos selects do pull, Cliente 360, recusados e consulta do Hub, 422 `CODIGO_FDV_SOMENTE_LEITURA` (C).
+- **banco-dados 619cd07** (`0098`): acrescentar o item D.7 inteiro (a–f: coluna, CHECK de formato, índice único, contador, carga de
+  **todos os vivos de todas as empresas** por `created_at, id`, CHECK `cliente_codigo_fdv_vivo`, função e gatilhos com a procura por
+  `external_id` antes de emitir, grant, down) na própria 0098, **sem** o CHECK `cliente_codigo_fdv_origem`; testes em
+  `db/testes/cliente-codigo-fdv.db.test.ts` (lista do item G), `db/src/excecoes.ts` (contador), ordem do backup da 0072,
+  `modules/core/db/nuvem.ts`, `docs/banco/core.md` e a fixture `dois-tenants` (todo cliente vivo com código, inclusive os do ERP);
+  tempo da 0098 medido com o volume da maior empresa. O resto da 0098 não muda. A conferência segue só informativa, com a contagem
+  dos duplicados da v1.0.28 (pré-cadastros vivos sem código do ERP com auditoria `cliente.vinculo_erp_recusado` de resultado
+  `codigo_em_uso`), sem correção (decisão 3 A).
+- **modulo-core 7eaf9ab + 30e5847** (contratos, domain e API): contratos com `codigo_fdv` em todo cliente (A); `decidirVinculoErp`
+  revista e `decidirDocumentoDoErp` nova, com testes (B); consumidor do retorno (grava sobre `recusado`, limpa motivo e erros,
+  tentativas `aceito`), `consumidorClienteDoErp` (esperar o vínculo; nada a mudar pelo código, o gatilho numera), `coordenada_origem =
+  'manual'` no insert do pré-cadastro, herança do código na substituição, `codigo_fdv` nos selects do pull (todo cliente), Cliente
+  360, carteira do BKO, recusados e consulta do Hub, 422 `CODIGO_FDV_SOMENTE_LEITURA` (C); teste de banco do cliente novo do ERP com
+  código e da carga repetida sem gastar número (G).
 - **modulo-integracao 6082aec**: `aplicarRetornoCliente` aceita `vinculado` sobre `rejeitado` da mesma revisão (teste que hoje espera
-  `transicao_invalida` muda); `ClienteParaErp.codigo_fdv` na seleção e no `GET /clientes/pendentes`; hub-api.md, OpenAPI, exemplos,
-  coleções e guia PDF (com o `.sha256`) refeitos. O `vinculado` de revisão antiga já está como decidido.
-- **Sessão D** (app e BKO do Core): seção H.
+  `transicao_invalida` muda); `ClienteParaErp.codigo_fdv` na seleção e no `GET /clientes/pendentes` (sempre preenchido para o
+  pré-cadastro vivo; segue `nullable().optional()` no contrato, aditivo na v1); hub-api.md, OpenAPI, exemplos, coleções e guia PDF (com
+  o `.sha256`) refeitos. A decisão 1 B não muda nada no Hub além disso (o ERP não recebe o Código FDV dos clientes que ele mesmo
+  mandou). O `vinculado` de revisão antiga já está como decidido.
+- **Sessão D** (app e BKO do Core): seção H, com o Código FDV em todo cliente (ficha, busca e carteira do app; Cliente 360, carteira e
+  recusados do BKO); o banco local do aparelho ganha a coluna e o primeiro sync depois do deploy traz a carteira inteira com o código.
 
 ## Alternativas
 - **Mapear o `id` novo do APK v1.0.28 para o original (alias X → Y)**: mantém o `id` original, mas quebra o que o vendedor fez offline
@@ -476,8 +533,13 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   descartada (item 10).
 - **Código FDV gerado no aparelho** (prefixo do aparelho + sequência local): existiria offline, mas não seria sequencial por empresa
   nem do formato da RN-CORE-59; descartada.
-- **Código FDV também para os clientes do ERP**: anda o `updated_at` de todo o cadastro (pull inteiro de novo) sem uso pedido; fica
-  para quando o dono do produto pedir.
+- **Código FDV só para os pré-cadastros** (versão anterior desta ADR): evitava o pull inteiro de novo, mas deixava parte dos clientes
+  sem o código; o dono do produto escolheu todo cliente (decisão 1 B).
+- **Numerar também os clientes apagados no backfill**: gastaria a faixa de 5 dígitos com linhas que ninguém vê; descartada (como a 0080).
+- **Teto em 99999 (recusar o 100.000º cliente)**: pararia o cadastro e a carga do ERP de uma empresa grande; descartada em favor dos 6
+  dígitos da 0080.
+- **Trocar o upsert do `consumidorClienteDoErp` por "update, senão insert"** para não gastar número: mesma proteção, mas só nesse
+  caminho e com código a mais no Core; a procura no gatilho protege qualquer upsert por `external_id`.
 - **Adotar o pré-cadastro pelo documento na carga do ERP** (sem esperar o `vinculado`): o Hub não saberia e continuaria oferecendo a
   linha ao ERP (cliente criado duas vezes) sem um evento novo do Core para a Integração; descartada em favor de esperar o vínculo.
 
@@ -487,12 +549,20 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   parâmetro mantém o formulário antigo coerente com a API. O espelho e o caminho de substituição saem com a versão mínima > 1.0.28.
 - Com o receptor do push no ar, os pré-cadastros represados nos aparelhos v1.0.28 chegam juntos no primeiro sync depois do deploy.
 - Decididos pelo dono do produto (23/11/2026): os efeitos da lista única (item 6), a correção só por analista e admin (item 7) e os dois
-  códigos com "o ERP manda" (item 10), do qual decorre o `vinculado` de revisão antiga e sobre `rejeitado` valer (item 8).
+  códigos com "o ERP manda" (item 10), do qual decorre o `vinculado` de revisão antiga e sobre `rejeitado` valer (item 8); na segunda
+  rodada ("1 B / 2 A / 3 A"), o Código FDV em todo cliente, os dados do ERP pela carga normal e os duplicados da v1.0.28 fora desta
+  versão. Decididos no desenho (engenheiro-software): apagados sem código, sem teto acima de 99999 e backfill por `created_at, id`.
 - Depois do vínculo, o que o vendedor digitou é sobrescrito pela carga do ERP (só a coordenada `manual` fica quando o ERP não manda
   coordenada, RN-CORE-77). Entre o vínculo e a carga, o cliente mostra os dados do vendedor.
-- O Código FDV só existe depois que o servidor recebe o pré-cadastro; offline o app mostra o cliente sem ele.
-- Os duplicados que a v1.0.28 já criou (carga antes do vínculo: cliente do ERP sem documento + pré-cadastro em `codigo_em_uso`) não são
-  corrigidos por esta ADR; o banco-dados lista quantos há na consulta de conferência e o gerente leva ao dono do produto.
+- Todo cliente vivo tem Código FDV (decisão 1 B). O do pré-cadastro só existe depois que o servidor o recebe (offline o app mostra o
+  cliente sem ele); o do ERP nasce quando a carga o grava.
+- O backfill da 0098 escreve uma vez cada cliente vivo de todas as empresas: o primeiro sync depois do deploy traz a carteira inteira
+  de novo a cada aparelho (uma vez só). A numeração dos clientes antigos segue a ordem de entrada no FDV (`created_at, id`), não a do
+  código do ERP.
+- Clientes apagados antes da 0098 ficam sem código; a empresa que passar de 99999 clientes segue em `100000` (sem teto).
+- Os duplicados que a v1.0.28 já criou (carga antes do vínculo: cliente do ERP sem documento + pré-cadastro em `codigo_em_uso`) **não
+  são tratados agora** (decisão 3 A); o banco-dados só os conta na consulta de conferência. Cada um ganha o próprio Código FDV no
+  backfill.
 - Ordem do lote: migração 0098 → Core (contratos, domain, API, receptor, BKO, app) e Integração juntos → BKO web no mesmo deploy (a rota
   `parametros/pre-cadastro` sai).
 
@@ -503,9 +573,11 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   Parâmetros › Clientes, mas não tira a razão social nem o CNPJ/CPF. **É a mesma lista do pré-cadastro (RN-CORE-79).** A verificação
   roda na integração (Hub), na edição pelo BKO, na sincronização e no pré-cadastro, e mora no `domain` do Core.
 - **RN-CORE-78 Pré-cadastro de cliente** (revista na v1.0.29): o FDV só faz o pré-cadastro e quem aprova é o ERP. O cadastro feito no
-  Campo ou no BKO chega como pendente e entra na fila do ERP assim que o servidor o recebe. **O cliente tem dois códigos**: o Código FDV,
-  gerado pelo sistema quando o servidor recebe o pré-cadastro (sequência da empresa, como o do usuário na RN-CORE-59, só de leitura), e o
-  Código ERP, em branco até o ERP aprovar. O ERP devolve o código ou a recusa com motivo e, se quiser, os erros por campo; o mesmo código
+  Campo ou no BKO chega como pendente e entra na fila do ERP assim que o servidor o recebe. **Todo cliente tem Código FDV**, venha do
+  pré-cadastro ou do ERP: gerado pelo sistema quando o servidor recebe o pré-cadastro ou quando a carga do ERP grava o cliente novo, em
+  sequência da empresa com 5 dígitos (00001…; depois de 99999 vem 100000), como o do usuário na RN-CORE-59; só de leitura e nunca
+  reaproveitado, nem de cliente apagado. Os clientes que já existiam receberam o código pela ordem de entrada no FDV. O pré-cadastro
+  tem também o Código ERP, em branco até o ERP aprovar. O ERP devolve o código ou a recusa com motivo e, se quiser, os erros por campo; o mesmo código
   é idempotente, outro código é conflito e código já usado por outro cliente é recusado. **Aprovado, o ERP manda**: o código do ERP é
   gravado (mesmo que o cadastro estivesse recusado ou numa revisão mais nova) e os demais dados passam a ser os que o ERP manda na carga
   de clientes, por cima do que foi digitado; o Código FDV e o histórico ficam.
@@ -523,5 +595,6 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   com motivo e, opcionalmente, os erros por campo, como o retorno de pedidos da RN-INT-08. O reenvio reabre a mesma linha da fila (de
   rejeitado para pendente, com a revisão nova). O retorno informa a revisão: recusa de revisão antiga não vale sobre a nova; o código do
   ERP vale sempre, mesmo de revisão antiga ou depois de uma recusa (o ERP manda), e os dados do cliente passam a vir da carga de
-  clientes do ERP; até o código chegar, a carga que traz o mesmo CPF/CNPJ espera e não cria outro cliente. Recusa nova na mesma revisão,
+  clientes do ERP, que sobrescreve o que o vendedor digitou; o cliente novo que a carga do ERP grava recebe o Código FDV
+  (RN-CORE-78), e a carga de um cliente que já existe não o muda; até o código chegar, a carga que traz o mesmo CPF/CNPJ espera e não cria outro cliente. Recusa nova na mesma revisão,
   com outro motivo ou outros erros, é um fato novo. Só o Conector que recebe pedidos usa essas rotas. Motivo e erros nunca vão a log.
