@@ -40,13 +40,13 @@ export const manifest = defineModule({
   // RN-CORE-19: core.medidas@1 diz quais siglas de medida do lote existem/estão ativas (sigla desconhecida = referencia_ausente)
   // RN-CORE-39: core.filiais@1 confere o filial_external_id do vendedor (inexistente = referencia_ausente reprocessável)
   // T-0173 (RN-INT-16): core.usuarios_com_acao@1 lista quem pode autorizar o reprocessamento (quem tem lote.reprocessar pela permissão efetiva, sem e-mail); core.credencial_conferir@1 confere a senha
-  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1', 'core.filiais@1', 'core.usuarios_com_acao@1', 'core.credencial_conferir@1', 'core.clientes_aprovados_sem_erp@1'],
+  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1', 'core.filiais@1', 'core.usuarios_com_acao@1', 'core.credencial_conferir@1', 'core.clientes_pre_cadastro_sem_erp@1'],
   // T-0173: vendedor.formas_pagamento@1 traz os códigos de condição de pagamento do Macuxi para o De-para (Vendedor desligado = lista indisponível)
   usaConsultasOpcionais: ['vendedor.formas_pagamento@1'],
   // T-0114: o Vendedor pergunta se o ERP aceita o cancelamento de pedido já enviado (saída { aceita })
   ofereceConsultas: ['integracao.cancelamento_erp@1'],
   // vendedor.pedido.aprovado@1 traz o pedido pronto para a fila do ERP; status_alterado@1 retira da fila (cancelado/devolvido antes da 1ª entrega)
-  consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1', 'core.cliente.aprovado@1'],
+  consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1', 'core.cliente.pre_cadastrado@1'],
   // T-0025: ações do BKO (ADR 0004). As rotas do Hub para o Conector (`/integracao/v1`) NÃO usam perfil: autenticam por chave de
   // API do Conector (RN-INT-10) e o escopo é fixo `integracao.v1`. P-3 (T-0031): Conector, chave de API e política de versão só
   // admin; confirmar/recusar a inativação em massa admin ou analista, com auditoria. A mesma tabela está em domain/permissoes.ts.

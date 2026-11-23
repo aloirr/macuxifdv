@@ -251,7 +251,7 @@ export const ROTAS_HUB: readonly RotaHub[] = [
     id: 'clientes_pendentes',
     metodo: 'GET',
     caminho: '/clientes/pendentes',
-    resumo: 'Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).',
+    resumo: 'Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).',
     cabecalhos: CabecalhosConector,
     query: QueryClientesPendentes,
     sucesso: { status: 200, schema: ClientesPendentes },

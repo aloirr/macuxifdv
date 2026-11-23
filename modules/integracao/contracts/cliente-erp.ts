@@ -1,6 +1,6 @@
 /**
- * Cliente novo (pré-cadastro aprovado no BKO) oferecido ao ERP e retorno do código (RN-INT-22, RF-CORE-10; padrão da RN-INT-08).
- *  - `GET /clientes/pendentes`: o Hub entrega os aprovados sem código do ERP e marca como `enviado`.
+ * Cliente novo (pré-cadastro recebido, sem código) oferecido ao ERP e retorno do código (RN-INT-22, RF-CORE-10; padrão da RN-INT-08).
+ *  - `GET /clientes/pendentes`: o Hub entrega os pré-cadastros sem código do ERP e marca como `enviado`.
  *  - `POST /clientes/{cliente_uuid}/retorno`: o Conector devolve o `external_id` (cliente criado no ERP) ou a rejeição. Idempotente.
  * Aditivo no v1 (RN-INT-09): Conector antigo não chama estas rotas.
  */
@@ -9,10 +9,10 @@ import { DataHoraUtc, ExternalId, LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_P
 
 const TextoNulo = z.string().max(200).nullable();
 
-/** Cliente aprovado para o ERP gravar (campos canônicos do cadastro; `cliente_uuid` é o id do Macuxi, a chave de idempotência). */
+/** Pré-cadastro para o ERP gravar (campos canônicos do cadastro; `cliente_uuid` é o id do Macuxi, a chave de idempotência). */
 export const ClienteParaErp = z.object({
   cliente_uuid: Uuid,
-  aprovado_em: DataHoraUtc,
+  recebido_em: DataHoraUtc,
   razao_social: z.string().min(1).max(200),
   nome_fantasia: TextoNulo,
   documento: TextoNulo,

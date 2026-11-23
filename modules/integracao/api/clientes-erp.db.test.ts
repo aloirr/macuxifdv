@@ -20,7 +20,7 @@ const AGORA = new Date();
 const ID_A = A.integracao.identificador;
 
 const cli = (id: string, razao: string) => ({
-  cliente_id: id, aprovado_em: new Date(AGORA.getTime() - 60_000).toISOString(), razao_social: razao, nome_fantasia: null, documento: null, inscricao_estadual: null, telefone: null, email: null,
+  cliente_id: id, recebido_em: new Date(AGORA.getTime() - 60_000).toISOString(), razao_social: razao, nome_fantasia: null, documento: null, inscricao_estadual: null, telefone: null, email: null,
   logradouro: null, numero: null, complemento: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null, filial_external_id: null,
 });
 
@@ -64,7 +64,7 @@ describe.skipIf(semBanco())('Integração RN-INT-22 × Postgres', () => {
     await pool?.end();
   });
 
-  it('RN-INT-22: o cliente aprovado entra pendente uma só vez (reentrega do evento não duplica) e fica só no tenant dele', async () => {
+  it('RN-INT-22: o pré-cadastro entra pendente uma só vez (reentrega do evento não duplica) e fica só no tenant dele', async () => {
     const id = novoId();
     await aprovar(A.tenantId, [cli(id, 'Mercadinho A')]);
     await aprovar(A.tenantId, [cli(id, 'Mercadinho A (de novo)')]);

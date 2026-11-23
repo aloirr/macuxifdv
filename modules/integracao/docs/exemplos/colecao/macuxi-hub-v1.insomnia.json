@@ -881,14 +881,14 @@
       "_type": "request_group",
       "parentId": "wrk_macuxi_hub_v1",
       "name": "Clientes novos",
-      "description": "Pré-cadastros de cliente aprovados no BKO para criar no ERP e retorno do código do ERP (RN-INT-22)."
+      "description": "Pré-cadastros de cliente recebidos, ainda sem código, para criar no ERP e retorno do código do ERP (RN-INT-22)."
     },
     {
       "_id": "req_clientes_pendentes",
       "_type": "request",
       "parentId": "fld_clientes novos",
-      "name": "Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22)",
-      "description": "**GET /clientes/pendentes** — Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
+      "name": "Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22)",
+      "description": "**GET /clientes/pendentes** — Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
       "method": "GET",
       "url": "{{ _.base_url }}/clientes/pendentes",
       "parameters": [
@@ -921,7 +921,7 @@
       "_type": "request",
       "parentId": "fld_clientes novos",
       "name": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição — vinculado",
-      "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `vinculado` (Cliente criado no ERP (informe o código)).",
+      "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `vinculado` (Cliente criado no ERP (informe o código)).",
       "method": "POST",
       "url": "{{ _.base_url }}/clientes/{{ _.cliente_uuid }}/retorno",
       "parameters": [],
@@ -954,7 +954,7 @@
       "_type": "request",
       "parentId": "fld_clientes novos",
       "name": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição — rejeitado_erp",
-      "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o cadastro (o motivo é obrigatório)).",
+      "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o cadastro (o motivo é obrigatório)).",
       "method": "POST",
       "url": "{{ _.base_url }}/clientes/{{ _.cliente_uuid }}/retorno",
       "parameters": [],

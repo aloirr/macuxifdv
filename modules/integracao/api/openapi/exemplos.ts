@@ -523,11 +523,11 @@ export const EXEMPLOS_RETORNO_CLIENTE: readonly Exemplo<z.input<typeof RetornoCl
 ];
 
 export const EXEMPLOS_CLIENTES_PENDENTES: readonly Exemplo<z.output<typeof ClientesPendentes>>[] = [
-  ex('com_cliente', 'Um cliente novo aprovado (o Hub o marca como enviado ao entregar)', {
+  ex('com_cliente', 'Um pré-cadastro novo (o Hub o marca como enviado ao entregar)', {
     clientes: [
       {
         cliente_uuid: CLIENTE_UUID_EXEMPLO,
-        aprovado_em: '2026-11-23T13:40:00Z',
+        recebido_em: '2026-11-23T13:40:00Z',
         razao_social: 'Mercadinho Boa Vista Ltda',
         nome_fantasia: 'Boa Vista',
         documento: '12345678000190',
@@ -662,7 +662,7 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
     403: [ex('acesso_negado', 'Conector que não recebe pedidos aprovados também não recebe clientes novos', erro('acesso_negado', 'Este Conector não recebe clientes novos (na v1 só o Conector que recebe os pedidos aprovados também recebe os clientes). Ajuste em Integração ERP > Conectores.'))],
     400: [ex('requisicao_invalida', 'Corpo fora do contrato (ou cliente_uuid do caminho diferente do corpo)', erro('requisicao_invalida', 'Dados inválidos em corpo.', { detalhes: { problemas: [{ caminho: 'corpo.external_id', mensagem: 'informe o código do cliente no ERP' }] } }))],
     422: [
-      ex('cliente_desconhecido', 'O Hub não conhece o cliente', recusa('cliente_desconhecido', null, 'O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.')),
+      ex('cliente_desconhecido', 'O Hub não conhece o cliente', recusa('cliente_desconhecido', null, 'O Hub não conhece este cliente. Só cliente entregue ao Conector recebe retorno.')),
       ex('external_id_divergente', 'O mesmo cliente já tem outro código no ERP', recusa('external_id_divergente', 'external_id', 'O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.')),
     ],
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
