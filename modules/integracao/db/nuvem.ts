@@ -429,6 +429,12 @@ export const clienteFilaErp = integracao.table('cliente_fila_erp', {
   conector_id: uuid('conector_id'),
   /** Motivo da rejeição do ERP (mascarado pelo Conector, nunca em log). */
   motivo: text('motivo'),
+  /** 0098 (v1.0.30, ADR 0069, RN-INT-22): revisão do pré-cadastro na linha (>= 1); a revisão nova reabre a mesma linha. */
+  revisao: integer('revisao').notNull().default(1),
+  /** 0098: sha256 hex do canônico da revisão; nulo nas linhas de antes da 0098. Sem SELECT do macuxi_leitura; nunca em log. */
+  hash: text('hash'),
+  /** 0098: erros por campo da rejeição ([{campo, codigo, mensagem}], até 50), só com estado 'rejeitado'. Sem macuxi_leitura; nunca em log. */
+  erros: jsonb('erros').$type<{ campo: string; codigo: string; mensagem: string }[]>(),
 });
 
 /** Trilha de retorno aceito e não repetido; único (tenant, pedido, status, nota_numero, nota_serie) com nulos iguais. Só insert. */

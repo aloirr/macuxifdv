@@ -52,6 +52,7 @@ import { expandirDestinatarios, type CandidatoDestinatario } from '../domain/tar
 import { prazoAceito, situacaoTarefa } from '../domain/tarefas/situacao';
 import { auditar } from './auditoria';
 import { dependenciasDoContexto, lerEstadoDeLicencas } from './licencas';
+import { aceito, rejeitado, idDivergente } from './push-resposta';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const IdParam = z.object({ id: z.string().uuid() }).strict();
@@ -526,8 +527,6 @@ export const rotasDeTarefas: RotaModulo[] = [
 // Push `tarefa_conclusao` (aparelho)
 // ---------------------------------------------------------------------------------------------------------------------
 
-const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
-const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 
 const MENSAGEM_CONCLUSAO: Record<string, string> = {
   [ERROS_TAREFA.naoEncontrada]: 'Tarefa não encontrada. Atualize a lista de tarefas.',
@@ -559,7 +558,7 @@ export async function receberConclusoesTarefa(ctx: ContextoBase, itens: readonly
       continue;
     }
     if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) {
-      saida.push(rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id do item da fila não confere com o id do payload.'));
+      saida.push(idDivergente(item.id));
       continue;
     }
     // a API sempre revalida o comando (a plataforma já parseia; aqui vale também para quem chama o provedor direto)

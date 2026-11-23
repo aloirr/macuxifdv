@@ -102,3 +102,21 @@ export function planejarClienteDoErp(evento: EventoClienteAtualizado, exigidos: 
   const { completo, campos_faltantes } = cadastroCompleto({ ...linha, complemento: nulo(e.complemento) }, exigidos);
   return { tipo: 'upsert', linha: { ...linha, cadastro_incompleto: !completo, cadastro_campos_faltantes: campos_faltantes } };
 }
+
+/** Quem já tem o CPF/CNPJ que a carga do ERP traz (outro cliente vivo do tenant). */
+export interface DonoDoDocumento {
+  origem_cadastro: string;
+  external_id: string | null;
+}
+export type DecisaoDocumentoDoErp = 'seguir' | 'esperar_vinculo' | 'sem_documento';
+
+/**
+ * RN-CORE-78, RN-INT-04 (ADR 0069 item 10): carga do ERP com um CPF/CNPJ que já está noutro cliente. Pré-cadastro (Campo ou BKO) ainda
+ * sem código = o ERP está criando esse cliente: espera o vínculo (`ReferenciaAusenteErp`, a outbox repete) em vez de duplicar; depois do
+ * vínculo o upsert pelo código atualiza o próprio pré-cadastro. Outro dono = a carga entra sem documento (cadastro incompleto), como antes.
+ */
+export function decidirDocumentoDoErp(dono: DonoDoDocumento | null, externalIdDoEvento: string): DecisaoDocumentoDoErp {
+  if (!dono || dono.external_id === externalIdDoEvento) return 'seguir';
+  if (dono.origem_cadastro !== 'erp' && dono.external_id === null) return 'esperar_vinculo';
+  return 'sem_documento';
+}

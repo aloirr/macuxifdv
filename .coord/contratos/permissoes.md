@@ -35,3 +35,8 @@ As 3 ações (`trajeto.ver_equipe`, `rastreamento.configurar` e `ausencia.cadast
 
 ### Supervisor em campo no Gestão (T-0187, ADR 0063, desenho `docs/desenho/T-0187.md` §2; a declarar pelo modulo-core no manifesto)
 Ação nova `visita.registrar_gestao` (chave `core.visita.registrar_gestao`), fábrica supervisor e gerente, área Clientes: rota, check-in e checkout no Gestão. Sem ela, o push de visita de supervisor ou gerente volta `rejeitado` com `PERFIL_SEM_ACESSO`. As demais ações do desenho §2 já existem.
+
+### Pré-cadastro recusado e campos obrigatórios (v1.0.30, ADR 0069; declaradas no manifesto do core)
+- **Novas:** `cliente.pre_cadastro_recusados` (analista, admin): lista e detalhe dos recusados pelo ERP, com motivo, erros por campo e histórico das revisões. `cliente.pre_cadastro_corrigir` (analista, admin): corrigir no BKO e reenviar como revisão nova.
+- **Trocadas:** `parametro.campos_obrigatorios` (analista, admin) e `parametro.campos_obrigatorios_editar` (só admin) no lugar de `parametro.pre_cadastro` e `parametro.pre_cadastro_editar` (v1.0.28), com a lista única de Parâmetros › Clientes (RN-CORE-16, RN-CORE-79).
+- `cliente.pre_cadastrar` continua; passa a cobrir também a correção do recusado da própria carteira pelo app (RN-CORE-78).

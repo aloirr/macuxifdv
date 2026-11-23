@@ -3,9 +3,12 @@
  *  - `GET /clientes/pendentes`: `for update skip locked`, `pendente → enviado`, reentrega do `enviado` vencido; só o Conector que recebe pedidos.
  *  - `POST /clientes/{uuid}/retorno`: uma transação; grava o código (`external_id`) ou a rejeição na fila, idempotente, e publica
  *    `integracao.cliente.retorno_erp@1` (o Core consome e grava o código).
+ *  - v1.0.30 (ADR 0069): o GET entrega `revisao` e `hash` das colunas; o retorno informa a revisão (recusa de revisão antiga = 200
+ *    `obsoleto`, sem gravar; código de revisão antiga vale) e, na recusa, os erros por campo (mascarados no domain). Motivo, erros e hash
+ *    nunca vão a log.
  */
 import { ErroConector, type ContextoConector } from '@macuxi/platform-sdk';
-import { type ClientesPendentes, ParamsCliente, type QueryClientesPendentes, type RetornoCliente, type RetornoClienteAceito } from '../contracts';
+import { type ClientesPendentes, type ErroCampoRetornoCliente, ParamsCliente, type QueryClientesPendentes, type RetornoCliente, type RetornoClienteAceito } from '../contracts';
 import { aplicarRetornoCliente, selecionarClientesPendentes, type ClienteNaFila } from '../domain';
 import type { ConectorHub } from './autenticacao';
 import { iso } from './bko-comum';
@@ -24,6 +27,9 @@ export interface LinhaClienteFila {
   external_id: string | null;
   motivo: string | null;
   deleted_at: Date | string | null;
+  revisao: number;
+  hash: string | null;
+  erros: ErroCampoRetornoCliente[] | null;
 }
 
 export const clienteNaFila = (l: LinhaClienteFila): ClienteNaFila => ({
@@ -36,9 +42,12 @@ export const clienteNaFila = (l: LinhaClienteFila): ClienteNaFila => ({
   external_id: l.external_id,
   motivo: l.motivo,
   removido_em: iso(l.deleted_at),
+  revisao: l.revisao,
+  hash: l.hash,
+  erros: l.erros,
 });
 
-const COLUNAS = 'cliente_uuid, estado, payload, recebido_em, enviado_em, tentativas, external_id, motivo, deleted_at';
+const COLUNAS = 'cliente_uuid, estado, payload, recebido_em, enviado_em, tentativas, external_id, motivo, deleted_at, revisao, hash, erros';
 
 const acessoNegado = () =>
   new ErroConector(403, { codigo: 'acesso_negado', mensagem: 'Este Conector não recebe clientes novos (na v1 só o Conector que recebe os pedidos aprovados também recebe os clientes). Ajuste em Integração ERP > Conectores.' });
@@ -87,13 +96,21 @@ export async function retornoCliente(ctx: Ctx<RetornoCliente, unknown, ReturnTyp
     const linha = rows[0] ? clienteNaFila(rows[0]) : null;
     const r = aplicarRetornoCliente(linha, retorno);
     if (!r.ok) throw new ErroConector(422, { codigo: r.codigo, mensagem: r.mensagem, erros: r.erros });
-    if (!r.repetido) {
+    if (r.gravar) {
       await db.query(
-        'update integracao.cliente_fila_erp set estado = $3, external_id = $4, motivo = $5, conector_id = $6 where tenant_id = $1 and cliente_uuid = $2',
-        [ctx.tenantId, retorno.cliente_uuid, r.atualizacao.estado, r.atualizacao.external_id, r.atualizacao.motivo, ctx.conector.id],
+        'update integracao.cliente_fila_erp set estado = $3, external_id = $4, motivo = $5, erros = $6::jsonb, conector_id = $7 where tenant_id = $1 and cliente_uuid = $2',
+        [ctx.tenantId, retorno.cliente_uuid, r.atualizacao.estado, r.atualizacao.external_id, r.atualizacao.motivo, r.atualizacao.erros ? JSON.stringify(r.atualizacao.erros) : null, ctx.conector.id],
       );
     }
     if (r.publicar) await tx.publicar(EVENTO_CLIENTE_RETORNO_ERP, r.evento, retorno.cliente_uuid);
-    return { cliente_uuid: retorno.cliente_uuid, estado: r.repetido ? linha!.estado : r.atualizacao.estado, repetido: r.repetido };
+    // sem motivo, erros nem hash (regra 8)
+    ctx.log.info({ cliente_uuid: retorno.cliente_uuid, revisao: r.evento.revisao, status: retorno.status, repetido: r.repetido, obsoleto: r.obsoleto }, 'retorno do cliente aplicado');
+    return {
+      cliente_uuid: retorno.cliente_uuid,
+      estado: r.gravar ? r.atualizacao.estado : linha!.estado,
+      repetido: r.repetido,
+      revisao: r.revisao,
+      ...(r.obsoleto ? { obsoleto: true as const } : {}),
+    };
   });
 }
