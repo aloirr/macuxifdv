@@ -78,7 +78,7 @@ describe.skipIf(semBanco())('v1.0.30 — reenvio do pré-cadastro com histórico
   let erpA: ReturnType<typeof conectorSimulado>;
   let erpB: ReturnType<typeof conectorSimulado>;
   const log = coletor();
-  const tk = { adminA: '', analistaA: '', vendedor1A: '', vendedor2A: '', supervisorA: '', gerenteA: '', adminB: '' };
+  const tk = { adminA: '', analistaA: '', vendedor1A: '', vendedor2A: '', supervisorA: '', gerenteA: '', promotorA: '', adminB: '' };
   const pepperAntes = process.env.MACUXI_HUB_CHAVE_PEPPER;
   // fluxo principal (cliente Y1 do vendedor-1) e o do APK v1.0.28 (Y2 → X2)
   const Y1 = randomUUID();
@@ -146,6 +146,7 @@ describe.skipIf(semBanco())('v1.0.30 — reenvio do pré-cadastro com histórico
     tk.vendedor2A = (await api.sessao('vendedor2@exemplo.com.br', A)).access_token;
     tk.supervisorA = (await api.sessao('supervisor@exemplo.com.br', A)).access_token;
     tk.gerenteA = (await api.sessao('gerente@exemplo.com.br', A)).access_token;
+    tk.promotorA = (await api.sessao('promotor@exemplo.com.br', A)).access_token;
     tk.adminB = (await api.sessao('admin.b@exemplo.com.br', B)).access_token;
     for (const [t, token] of [[A, tk.adminA], [B, tk.adminB]] as const) {
       expect((await licenca(api, token, 'tenant', 'integracao', true)).statusCode, `licença integracao em ${t.codigo}`).toBe(200);
@@ -260,7 +261,7 @@ describe.skipIf(semBanco())('v1.0.30 — reenvio do pré-cadastro com histórico
     const c = (await cliente(Y1))!;
     const revisao = c.revisao_cadastro;
     // perfis: só analista e admin
-    for (const [nome, token] of [['vendedor', tk.vendedor1A], ['supervisor', tk.supervisorA], ['gerente', tk.gerenteA]] as const) {
+    for (const [nome, token] of [['vendedor', tk.vendedor1A], ['supervisor', tk.supervisorA], ['gerente', tk.gerenteA], ['promotor', tk.promotorA]] as const) {
       for (const op of [
         { method: 'GET' as const, url: '/v1/core/clientes/pre-cadastro/recusados' },
         { method: 'GET' as const, url: `/v1/core/clientes/${Y1}/pre-cadastro/historico` },
