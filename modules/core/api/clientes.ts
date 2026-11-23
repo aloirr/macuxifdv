@@ -34,7 +34,7 @@ function hojeDoTenant(ctx: ContextoBase): string {
   return dataLocal(ctx.agora(), ctx.fuso());
 }
 
-const COLUNAS_BUSCA = ['c.razao_social', 'c.nome_fantasia', 'c.external_id'].map(sqlBuscaNormalizada);
+const COLUNAS_BUSCA = ['c.razao_social', 'c.nome_fantasia', 'c.external_id', 'c.codigo_fdv'].map(sqlBuscaNormalizada);
 const escaparLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 async function listarClientesOnline(ctx: ContextoBase, q: z.output<typeof ClienteListaQuerySchema>): Promise<ClienteListaResposta> {
@@ -61,7 +61,7 @@ async function listarClientesOnline(ctx: ContextoBase, q: z.output<typeof Client
     if (q.com_vencidos) onde.push(q.com_vencidos === 'true' ? `${vencidos} > 0` : `${vencidos} = 0`);
     const r = await db.query<Record<string, unknown>>(
       `select c.id, c.documento, c.razao_social, c.nome_fantasia, c.segmento, c.cidade, c.uf, c.ativo,
-              coalesce(f.bloqueado, false) as bloqueado, ${vencidos} as vencidos_qtd
+              coalesce(f.bloqueado, false) as bloqueado, ${vencidos} as vencidos_qtd, c.codigo_fdv, c.external_id
          from core.cliente c left join core.cliente_financeiro f on f.cliente_id = c.id and f.deleted_at is null
         where ${onde.join(' and ')}
         order by lower(coalesce(nullif(c.nome_fantasia, ''), c.razao_social)), c.id

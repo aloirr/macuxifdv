@@ -79,6 +79,7 @@ describe.skipIf(semBanco())('Core × Postgres: BKO dos pré-cadastros recusados 
         erros: [{ campo: 'inscricao_estadual', codigo: 'IE_INVALIDA', mensagem: 'IE não confere.' }],
         situacao: 'recusado',
         codigo_fdv: expect.stringMatching(/^\d{5,}$/),
+        external_id: null,
       });
       expect(JSON.stringify(r)).not.toContain(DOCS[ID1]);
       expect(r.proximo_cursor).toBeNull();
@@ -98,7 +99,14 @@ describe.skipIf(semBanco())('Core × Postgres: BKO dos pré-cadastros recusados 
       expect(reenviados.itens).toMatchObject([{ cliente_id: ID1, revisao: 2, situacao: 'reenviado', motivo: 'IE inválida.' }]);
       // aprovado pelo ERP depois de recusado = aceito
       await t.q("update core.cliente set status_cadastro = 'aprovado', aprovado_em = now(), external_id = 'ERP-9' where id = $1", [ID1]);
-      expect((await bko(t, 'GET', 'clientes/pre-cadastro/recusados', ANALISTA, { query: { situacao: 'aceito' } })).itens.map((i: { cliente_id: string }) => i.cliente_id)).toEqual([ID1]);
+      await t.q("update core.cliente_pre_cadastro_tentativa set resultado = 'aceito', respondido_em = now() where cliente_id = $1 and revisao = 2", [ID1]);
+      expect((await bko(t, 'GET', 'clientes/pre-cadastro/recusados', ANALISTA, { query: { situacao: 'aceito' } })).itens).toMatchObject([{ cliente_id: ID1, external_id: 'ERP-9' }]);
+      // o histórico mostra o Código ERP só na tentativa aceita
+      const h = await bko(t, 'GET', 'clientes/:id/pre-cadastro/historico', ANALISTA, { params: { id: ID1 } });
+      expect(h.tentativas.map((x: { revisao: number; resultado: string; external_id: string | null }) => [x.revisao, x.resultado, x.external_id])).toEqual([
+        [2, 'aceito', 'ERP-9'],
+        [1, 'recusado', null],
+      ]);
     });
   });
 

@@ -271,6 +271,12 @@ export const TentativaPreCadastroSchema = z.object({
   erros: ErrosCampoCadastroSchema,
   /** Id do recusado substituído pelo APK v1.0.28 (`id` novo com o mesmo CPF/CNPJ). */
   cliente_id_original: Uuid.nullable(),
+  /**
+   * v1.0.30 (aditivo): Código ERP com que a tentativa foi aceita. A tentativa não guarda o código: vem o `external_id` atual do cliente
+   * quando `resultado = 'aceito'` (o vínculo com o ERP não muda depois de gravado: código diferente é conflito, `decidirVinculoErp`);
+   * nulo nas demais e no aceito sem código.
+   */
+  external_id: z.string().nullish(),
 });
 export type TentativaPreCadastro = z.infer<typeof TentativaPreCadastroSchema>;
 /** `GET /v1/core/clientes/:id/pre-cadastro/historico`. */
@@ -302,8 +308,9 @@ export const RecusadoItemSchema = z.object({
   motivo: z.string().max(500).nullable(),
   erros: ErrosCampoCadastroSchema,
   situacao: SituacaoRecusadoSchema,
-  /** v1.0.30 (ADR 0069 item 10, aditivo). */
+  /** v1.0.30 (ADR 0069 item 10, aditivos): Código FDV e Código ERP (`external_id`, o atual do cliente; nulo antes do aceito). */
   codigo_fdv: CodigoFdvClienteSchema.nullish(),
+  external_id: z.string().nullish(),
 });
 export type RecusadoItem = z.infer<typeof RecusadoItemSchema>;
 export const RecusadosSaidaSchema = z.object({ itens: z.array(RecusadoItemSchema).max(200), proximo_cursor: z.string().nullable() });

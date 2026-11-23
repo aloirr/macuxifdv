@@ -49,6 +49,7 @@ interface LinhaRecusado {
   status_cadastro: StatusCadastro | null;
   revisao_cadastro: number;
   codigo_fdv: string | null;
+  external_id: string | null;
   motivo_recusa: string | null;
   erros_recusa: unknown;
   atualizado_em: Date | string;
@@ -78,6 +79,7 @@ function paraItem(l: LinhaRecusado, situacao: SituacaoRecusado): RecusadoItem {
     erros: errosRecusaSeguros(situacao === 'recusado' ? l.erros_recusa : l.t_erros),
     situacao,
     codigo_fdv: l.codigo_fdv,
+    external_id: l.external_id,
   };
 }
 
@@ -113,7 +115,7 @@ export async function listarRecusados(db: ClienteBanco, entrada: RecusadosEntrad
   // O filtro do vivo vale para `c` (os laterais só expõem as colunas que selecionam).
   const linhas = (
     await db.query<LinhaRecusado>(
-      `select c.id, c.razao_social, c.documento, c.status_cadastro, c.revisao_cadastro, c.codigo_fdv, c.motivo_recusa, c.erros_recusa, c.updated_at as atualizado_em,
+      `select c.id, c.razao_social, c.documento, c.status_cadastro, c.revisao_cadastro, c.codigo_fdv, c.external_id, c.motivo_recusa, c.erros_recusa, c.updated_at as atualizado_em,
               t.revisao as t_revisao, t.respondido_em as t_respondido_em, t.motivo as t_motivo, t.erros as t_erros,
               v.id as vendedor_id, v.nome as vendedor_nome
          from core.cliente c
@@ -171,7 +173,7 @@ interface LinhaTentativa {
 }
 
 async function lerHistorico(db: ClienteBanco, id: string): Promise<HistoricoPreCadastro> {
-  const atual = (await db.query<{ revisao_cadastro: number }>(`select revisao_cadastro from core.cliente where id = $1 and ${PRE_CADASTRO_VIVO}`, [id])).rows[0];
+  const atual = (await db.query<{ revisao_cadastro: number; external_id: string | null }>(`select revisao_cadastro, external_id from core.cliente where id = $1 and ${PRE_CADASTRO_VIVO}`, [id])).rows[0];
   if (!atual) throw naoEncontrado();
   const linhas = (
     await db.query<LinhaTentativa>(
@@ -198,6 +200,7 @@ async function lerHistorico(db: ClienteBanco, id: string): Promise<HistoricoPreC
       motivo: t.motivo,
       erros: errosRecusaSeguros(t.erros),
       cliente_id_original: t.cliente_id_original,
+      external_id: t.resultado === 'aceito' ? atual.external_id : null,
     })),
   });
 }
