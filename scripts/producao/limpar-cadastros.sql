@@ -32,7 +32,7 @@ select :'modo' = 'apagar' as gravar \gset
 select r_tabela as tabela, r_modo as modo, r_linhas as linhas
   from plataforma.limpar_cadastros(:'tenant'::uuid, :'lote', string_to_array(nullif(:'entidades', ''), ','), :'gravar'::boolean)
  where r_linhas > 0 order by r_ordem;
-select count(*) as linhas_na_copia_de_seguranca from plataforma.limpeza_copia where lote = :'lote' and tenant_id = :'tenant';
+select count(*) as linhas_na_copia_de_seguranca from plataforma.limpeza_copia where lote = :'lote' and empresa_id = :'tenant';
 
 \echo
 \echo 'o que fica (vivos depois da limpeza)'

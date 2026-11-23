@@ -68,7 +68,7 @@ tabelas_diferentes() { q "select coalesce(string_agg(a.tabela, ',' order by a.ta
 limpar() { montar limpar | psql -X -q -d "$BANCO" -v empresa="$1" -v modo="$2" -v lote="$3" -v entidades="${4:-}" -f - ; }
 restaurar() { montar restaurar | psql -X -q -d "$BANCO" -v empresa="$1" -v lote="$2" -f - ; }
 descartar() { montar descartar | psql -X -q -d "$BANCO" -v empresa="$1" -v lote="$2" -f - ; }
-tem_backup() { q "select count(*) > 0 from plataforma.limpeza_copia where tenant_id = '$ALFA'"; }
+tem_backup() { q "select count(*) > 0 from plataforma.limpeza_copia where empresa_id = '$ALFA'"; }
 # consulta no contexto do tenant alfa (RLS: o admin sem BYPASSRLS vê pela política manutencao)
 qa() { printf "select set_config('app.tenant_id', '%s', false) <> '' as ok \\gset\n%s\n" "$ALFA" "$1" | psql -X -q -At -v ON_ERROR_STOP=1 -d "$BANCO" -f -; }
 
@@ -90,8 +90,10 @@ grep -q 'vendedor.pedido *| soft' "$tmp/simular.txt" && ok "simular lista os ped
 limpar alfa simular 20261123T190010Z produto > "$tmp/simular-produto.txt" || nok "simular por entidade saiu com erro"
 foto simulado_produto "$ALFA"
 igual "simular por entidade não muda o alfa" "$(tabelas_diferentes simulado_produto antes "$ALFA")" ""
+# só a seção "o que sai" (a "o que fica" sempre lista core.cliente e core.produto)
+sed -n '/^o que sai/,/^o que fica/p' "$tmp/simular-produto.txt" > "$tmp/sai-produto.txt"
 igual "simular produto lista core.produto e não core.cliente" \
-  "$(grep -q 'core.produto *| soft' "$tmp/simular-produto.txt" && ! grep -q 'core.cliente *|' "$tmp/simular-produto.txt" && echo sim)" sim
+  "$(grep -q 'core.produto *| soft' "$tmp/sai-produto.txt" && ! grep -q 'core.cliente *|' "$tmp/sai-produto.txt" && echo sim)" sim
 set +e; limpar alfa simular 20261123T190020Z nao_existe > "$tmp/entidade.txt" 2>&1; st=$?; set -e
 igual "entidade fora da lista para" "$([ $st -ne 0 ] && echo sim)" sim
 
@@ -187,7 +189,7 @@ igual "cliente do app vivo; macuxierp ativo" \
   "$(qa "select (select count(*) from core.cliente where tenant_id = '$ALFA' and deleted_at is null and razao_social = 'Cliente do app') || '/' ||
                (select count(*) from integracao.conector where tenant_id = '$ALFA' and identificador = 'macuxierp' and ativo and deleted_at is null)")" 1/1
 igual "geracao_base girada" "$([ "$(qa "select geracao_base from plataforma.tenant where id = '$ALFA'")" != "$g0" ] && echo sim)" sim
-igual "cópia de segurança com as linhas do lote" "$(q "select count(*) > 0 from plataforma.limpeza_copia where lote = '20261123T190200Z' and tenant_id = '$ALFA'")" t
+igual "cópia de segurança com as linhas do lote" "$(q "select count(*) > 0 from plataforma.limpeza_copia where lote = '20261123T190200Z' and empresa_id = '$ALFA'")" t
 igual "cópia de segurança sem acesso do macuxi_app/leitura" "$(q "select has_table_privilege('macuxi_app', 'plataforma.limpeza_copia', 'select') or has_table_privilege('macuxi_leitura', 'plataforma.limpeza_copia', 'select')")" f
 igual "apagar termina com o commit" "$(tail -n 1 "$tmp/apagar.txt")" "APAGADO: transação confirmada"
 
@@ -198,7 +200,7 @@ foto restaurado "$ALFA"
 igual "restaurar devolve o alfa (tabelas diferentes)" "$(tabelas_diferentes restaurado antes "$ALFA")" "plataforma.sync_pacote"
 
 echo '--- 5. arquivo do lote, descartar e empresa inexistente'
-# o arquivo da VM (montar-limpeza.sh arquivo, como no workflow) e a volta do resumo (\copy from pstdin)
+# o arquivo da VM (montar-limpeza.sh arquivo, como no workflow: as 6 colunas do #675) e a volta (\copy numa temporária + INSERT)
 montar arquivo | psql -X -d "$BANCO" -v empresa=alfa -v lote=20261123T190200Z -f - > "$tmp/lote.copy"
 linhas="$(q "select count(*) from plataforma.limpeza_copia where lote = '20261123T190200Z'")"
 igual "arquivo do lote com só as linhas do lote" "$(wc -l < "$tmp/lote.copy" | tr -d ' ')" "$linhas"
@@ -210,7 +212,9 @@ for modo in limpar_inexistente restaurar descartar; do
 done
 descartar alfa 20261123T190200Z > "$tmp/descartar.txt" || nok "descartar saiu com erro"
 igual "descartar apaga as linhas do lote" "$(q "select count(*) from plataforma.limpeza_copia where lote = '20261123T190200Z'")" 0
-psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -c '\copy plataforma.limpeza_copia from pstdin' < "$tmp/lote.copy"
+# COPY FROM não entra em tabela com RLS (o admin do DBaaS não tem BYPASSRLS): tabela temporária e INSERT (o mesmo do workflow)
+psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -c 'create temp table c (lote text, empresa_id uuid, tabela text, modo text, linha jsonb, copiado_em timestamptz)' \
+  -c '\copy c from pstdin' -c 'insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha, copiado_em) select * from c' < "$tmp/lote.copy"
 igual "o arquivo do lote volta para a tabela" "$(q "select count(*) from plataforma.limpeza_copia where lote = '20261123T190200Z'")" "$linhas"
 descartar alfa 20261123T190200Z > /dev/null
 

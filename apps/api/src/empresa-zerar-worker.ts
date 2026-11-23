@@ -4,11 +4,13 @@
  * de 30 s; aqui a transação do zerar ganha 15 min por `set local`).
  *
  * Zerar (a cada 10 s): `pegar_zerar()` reserva um pedido `em_andamento` (skip locked, concessão de 10 min) e, numa transação,
- * `executar_zerar(id)` confere de novo e roda a `plataforma.limpar_cadastros(tenant, lote, entidades)` (a mesma do workflow
+ * `executar_zerar(id)` confere de novo (exclusão, outro zerar, backup e lote do Hub: fecha `falhou` com o código e devolve o
+ * zerar, sem erro e sem mudar nada) e roda a `plataforma.limpar_cadastros(tenant, lote, entidades)` (a mesma do workflow
  * `producao-limpar-cadastros.yml`: soft delete no domínio, físico no Hub, cópia em `plataforma.limpeza_copia`) e fecha
- * `concluido`. Escrita concorrente (23503, 40001, 40P01, 55P03) = ROLLBACK e nova tentativa (2 s, 5 s); na `TENTATIVAS_ZERAR`ª,
+ * `concluido` com a contagem e as `entidades_afetadas`. Escrita concorrente (23503, 40001, 40P01, 55P03) = ROLLBACK e nova tentativa (2 s, 5 s); na `TENTATIVAS_ZERAR`ª,
  * `fechar_zerar(id, 'ZERAR_CONCORRENCIA')`. Recusa com código do contrato no `hint` (lote do Hub em processamento, volume alto)
- * = `fechar_zerar(id, <código>)` sem nova tentativa. Outro erro = `fechar_zerar(id, 'ZERAR_FALHOU')`. Falha = nada mudou.
+ * no meio da limpeza (55000 `ZERAR_HUB_PROCESSANDO`, 22023 `ZERAR_VOLUME_ALTO`) = `fechar_zerar(id, <código>)` sem nova
+ * tentativa. Outro erro (23505 lote repetido, por exemplo) = `fechar_zerar(id, 'ZERAR_FALHOU')`. Falha = nada mudou.
  *
  * Descarte (de hora em hora): `expurgar_zerar(limite)` apaga a cópia dos zerar do portal vencidos (7 dias) e marca
  * `expurgado_em`. Não há bytes a remover: o zerar é soft delete (as fotos e os pacotes ficam no armazenamento, como em
@@ -80,7 +82,7 @@ export function criarWorkerZerar(op: OpcoesWorkerZerar) {
     }
   }
 
-  /** Um pedido reservado: executa com as tentativas e fecha. `null` = não havia pedido. */
+  /** Um pedido reservado: executa com as tentativas e fecha. `null` = não havia pedido; `falhou` também quando a `executar_zerar` recusou. */
   async function ciclo(): Promise<'concluido' | 'falhou' | null> {
     const job = (await op.pool.query<{ id: string | null; empresa_id: string | null }>(SQL_PEGAR_ZERAR)).rows[0];
     if (!job?.id) return null;
@@ -89,12 +91,18 @@ export function criarWorkerZerar(op: OpcoesWorkerZerar) {
       try {
         const r = ZerarEmpresaSchema.safeParse(await tentar(job.id));
         const z = r.success ? r.data : null;
+        if (z?.situacao === 'falhou') {
+          // a executar_zerar conferiu de novo e recusou (exclusão, outro zerar, backup ou Hub): fechou com o código, nada mudou
+          log.warn({ ...base, tentativa, situacao: z.situacao, erro_codigo: z.erro_codigo }, 'zerar dados recusado; nada foi apagado');
+          return 'falhou';
+        }
         log.info(
           {
             ...base,
             tentativa,
             situacao: z?.situacao ?? null,
             entidades: z?.entidades ?? null,
+            entidades_afetadas: z?.entidades_afetadas ?? null,
             linhas_apagadas: z?.linhas_apagadas ?? null,
             tabelas: z?.contagem?.length ?? null,
           },

@@ -48,7 +48,9 @@ do $$ begin raise exception 'empresa não encontrada (código errado ou empresa 
 select id as tenant from plataforma.tenant_por_codigo(:'empresa') \gset
 ENTRADAS
 if [ "$1" = arquivo ]; then
-  echo "copy (select * from plataforma.limpeza_copia where lote = :'lote' and tenant_id = :'tenant') to stdout;"
+  # as 6 colunas da cópia do #675, na mesma ordem (o tenant fica em empresa_id na 0099); a volta do arquivo (COPY FROM não entra
+  # em tabela com RLS) passa por uma temporária: o comando está no resumo do workflow
+  echo "copy (select lote, empresa_id as tenant_id, tabela, modo, linha, copiado_em from plataforma.limpeza_copia where lote = :'lote' and empresa_id = :'tenant') to stdout;"
 else
   cat "${arquivos[@]}"
 fi

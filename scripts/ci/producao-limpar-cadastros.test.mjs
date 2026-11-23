@@ -32,7 +32,12 @@ test('workflow: frase de confirmação no apagar, no restaurar e no descartar; b
   assert.ok(backup > 0 && backup < wf.indexOf('name: ${{ inputs.modo }} na VM'), 'o backup do banco vem antes do apagar');
   // o arquivo na VM leva só as linhas do lote (montar-limpeza.sh arquivo)
   assert.match(wf, /bash scripts\/producao\/montar-limpeza\.sh arquivo > arquivo\.sql/);
-  assert.match(montar('arquivo'), /\ncopy \(select \* from plataforma\.limpeza_copia where lote = :'lote' and tenant_id = :'tenant'\) to stdout;\n$/);
+  // as 6 colunas do #675 (tenant em empresa_id na 0099); a volta passa por uma temporária (COPY FROM não entra em tabela com RLS)
+  assert.match(
+    montar('arquivo'),
+    /\ncopy \(select lote, empresa_id as tenant_id, tabela, modo, linha, copiado_em from plataforma\.limpeza_copia where lote = :'lote' and empresa_id = :'tenant'\) to stdout;\n$/,
+  );
+  assert.match(wf, /-c '\\\\copy c from pstdin' -c 'insert into plataforma\.limpeza_copia \(lote, empresa_id, tabela, modo, linha, copiado_em\) select \* from c'/);
 });
 
 test('workflow: segredos só pelo environment, chave apagada no fim, sem docker no runner', () => {
