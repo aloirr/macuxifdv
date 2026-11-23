@@ -40,7 +40,7 @@ export function textoDeInicio(grafo) {
 }
 
 // Começo de comando: início, nova linha, ; & || ( $( ` ou do/then/else; depois, sudo, time, env ou VAR=valor.
-const COMECO = String.raw`(?:^|[\n;&(\x60]|\|\||\$\(|\b(?:do|then|else)\s)\s*(?:(?:sudo|time|env)\s+|\w+=\S*\s+)*`;
+const COMECO = String.raw`(?:^|[\n;&(\x60]|\|\||\$\(|\b(?:do|then|else)\s)[ \t]*(?:(?:sudo|time|env)\s+|\w+=\S*\s+)*`;
 const BUSCA = new RegExp(`${COMECO}(?:git(?:\\s+-C\\s+\\S+)?\\s+grep|grep|rg|find)\\s`);
 
 /** Bash que busca arquivo: um comando que começa com grep, rg, find ou git grep (o `| grep` que filtra saída não conta). */
@@ -48,10 +48,13 @@ export const bashBuscaArquivo = (comando) => typeof comando === 'string' && BUSC
 
 export const TEXTO_LEMBRETE = `Antes de buscar: ${CONSULTA}`;
 
-/** O lembrete sai em Grep, Glob e Bash de busca até a sessão rodar o graphify (marcador por sessão no tmp). */
+// Consulta ao mapa: o graphify com um subcomando (vale também "$(…)/bin/graphify" query); citar o nome não conta.
+const USA_GRAPHIFY = /\bgraphify["']?\s+(?:query|explain|path|affected|extract)\b/;
+
+/** `marcador`: arquivo no tmp, por sessão e por agente, criado quando um Bash consulta o mapa. */
 export function lembrete(entrada, marcador) {
   const comando = entrada?.tool_input?.command;
-  if (entrada?.tool_name === 'Bash' && typeof comando === 'string' && /\bgraphify\b/.test(comando)) {
+  if (entrada?.tool_name === 'Bash' && typeof comando === 'string' && USA_GRAPHIFY.test(comando)) {
     writeFileSync(marcador, '');
     return null;
   }
@@ -75,8 +78,8 @@ async function principal(modo) {
   let txt = '';
   for await (const parte of process.stdin) txt += parte;
   const entrada = JSON.parse(txt);
-  const sessao = String(entrada?.session_id ?? 'sem-sessao').replace(/[^\w-]/g, '');
-  responder('PreToolUse', lembrete(entrada, join(tmpdir(), `macuxi-graphify-usado-${sessao}`)));
+  const nome = [entrada?.session_id, entrada?.agent_id].map((x) => String(x ?? '').replace(/[^\w-]/g, '') || 'sem-id').join('-');
+  responder('PreToolUse', lembrete(entrada, join(tmpdir(), `macuxi-graphify-usado-${nome}`)));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

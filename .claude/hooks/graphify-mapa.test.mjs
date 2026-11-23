@@ -58,7 +58,10 @@ test('lembrete: Grep, Glob e Bash de busca até a sessão rodar o graphify; depo
   assert.equal(lembrete({ tool_name: 'Read' }, marcador), null);
   assert.equal(lembrete({ tool_name: 'Grep' }, marcador), TEXTO_LEMBRETE);
   assert.equal(lembrete({ tool_name: 'Bash', tool_input: { command: 'rg x' } }, marcador), TEXTO_LEMBRETE);
-  assert.equal(lembrete({ tool_name: 'Bash', tool_input: { command: 'graphify query "x" --graph g | grep y' } }, marcador), null);
+  for (const c of ['ls ../grafo-macuxifdv/graphify-out', 'grep -n graphify CLAUDE.md', 'node --test .claude/hooks/graphify-mapa.test.mjs'])
+    assert.equal(lembrete({ tool_name: 'Bash', tool_input: { command: c } }, marcador), c.startsWith('grep') ? TEXTO_LEMBRETE : null, c);
+  assert.equal(existsSync(marcador), false);
+  assert.equal(lembrete({ tool_name: 'Bash', tool_input: { command: '"$(python3 -m site --user-base)/bin/graphify" query "x" --graph g | grep y' } }, marcador), null);
   assert.equal(existsSync(marcador), true);
   assert.equal(lembrete({ tool_name: 'Glob' }, marcador), null);
 });
