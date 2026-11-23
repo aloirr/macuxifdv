@@ -181,7 +181,6 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
   const duplicado = decidirDocumentoDuplicado(iguais);
   if (duplicado.bloqueia) throw erroPreCadastro('DOCUMENTO_JA_CADASTRADO');
   const substituido = duplicado.substituir;
-  // RN-CORE-04 (ADR 0069 §3): só substitui o recusado quem o tem na carteira ou gravou uma tentativa dele; fora disso, 403 sem gravar nada
   if (substituido) await exigirCarteiraOuAutoria(db, ctx, substituido.id);
   const antes = substituido ? (await db.query<DadosPreCadastro>(`select ${SELECT_DADOS} from core.cliente where id = $1`, [substituido.id])).rows[0] : undefined;
   const revisao = substituido ? substituido.revisao + 1 : 1;
