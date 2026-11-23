@@ -22,7 +22,7 @@ export const consumidorClienteRetornoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoClienteRetornoErp,
   async executar(p, ctx: ContextoConsumo) {
     if (p.status === 'rejeitado_erp') {
-      await auditarSistema(ctx, 'cliente.rejeitado_erp', p.cliente_id, { cliente_id: p.cliente_id, status: 'rejeitado_erp' });
+      await auditarSistema(ctx, 'cliente.rejeitado_erp', p.cliente_id, {});
       return;
     }
     const codigo = p.external_id?.trim();
@@ -33,13 +33,13 @@ export const consumidorClienteRetornoErp: ConsumidorEvento = definirConsumidor({
     if (d.acao === 'nada') return;
     if (d.acao === 'recusar') {
       if (d.resultado === 'conflito' || d.resultado === 'codigo_em_uso') {
-        await auditarSistema(ctx, 'cliente.vinculo_erp_recusado', p.cliente_id, { cliente_id: p.cliente_id, external_id: codigo, resultado: d.resultado });
+        await auditarSistema(ctx, 'cliente.vinculo_erp_recusado', p.cliente_id, { external_id: codigo, resultado: d.resultado });
       }
       ctx.log.warn({ cliente_id: p.cliente_id, resultado: d.resultado }, 'retorno do ERP do cliente não gravado');
       return;
     }
     await ctx.db.query('update core.cliente set external_id = $2 where id = $1', [p.cliente_id, codigo]);
-    await auditarSistema(ctx, 'cliente.vincular_erp', p.cliente_id, { cliente_id: p.cliente_id, external_id: codigo });
+    await auditarSistema(ctx, 'cliente.vincular_erp', p.cliente_id, { external_id: codigo });
     await ctx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: p.cliente_id, campos: ['external_id'], origem: 'erp', ...(await carteiraDoEvento(ctx.db, p.cliente_id)) }, p.cliente_id);
   },
 });
