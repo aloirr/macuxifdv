@@ -16,7 +16,7 @@
  * `expurgado_em`. Não há bytes a remover: o zerar é soft delete (as fotos e os pacotes ficam no armazenamento, como em
  * qualquer linha apagada).
  *
- * Contrato assumido das funções da 0099 (banco-dados): `pegar_zerar()` → (id, empresa_id) ou nenhuma linha/linha nula;
+ * Contrato assumido das funções da 0100 (banco-dados): `pegar_zerar()` → (id, empresa_id) ou nenhuma linha/linha nula;
  * `executar_zerar(uuid)` → jsonb `ZerarEmpresa`; `fechar_zerar(uuid, text)` com o `erro_codigo`; `expurgar_zerar(integer)` →
  * quantos zerar tiveram a cópia descartada.
  *
@@ -28,7 +28,7 @@ import pg from 'pg';
 import { iniciarLaco } from './laco';
 import { mensagemSegura } from './log-seguro';
 
-export const SQL_EXISTE_0099 =
+export const SQL_EXISTE_0100 =
   "select to_regprocedure('plataforma.pegar_zerar()') is not null and to_regprocedure('plataforma.executar_zerar(uuid)') is not null and to_regprocedure('plataforma.expurgar_zerar(integer)') is not null as ok";
 export const SQL_PEGAR_ZERAR = 'select id, empresa_id from plataforma.pegar_zerar()';
 export const SQL_EXECUTAR_ZERAR = 'select plataforma.executar_zerar($1) as r';
@@ -177,17 +177,17 @@ export function criarWorkerZerar(op: OpcoesWorkerZerar) {
   };
 }
 
-/** Entrada do `worker.ts`: pool próprio de 1 conexão do `macuxi_worker`. Desligado (sem erro) enquanto a 0099 não estiver no banco. */
+/** Entrada do `worker.ts`: pool próprio de 1 conexão do `macuxi_worker`. Desligado (sem erro) enquanto a 0100 não estiver no banco. */
 export async function iniciarZerarEmpresa(
   urlWorker: string,
   log: LogRota,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ parar(): Promise<void> } | undefined> {
   const pool = new pg.Pool({ connectionString: urlWorker, max: 1, options: '-c statement_timeout=30000' });
-  const existe = await pool.query<{ ok: boolean }>(SQL_EXISTE_0099).catch(() => null);
+  const existe = await pool.query<{ ok: boolean }>(SQL_EXISTE_0100).catch(() => null);
   if (!existe?.rows[0]?.ok) {
     await pool.end();
-    log.info({ tipo: 'zerar' }, 'zerar dados desligado: falta a migração 0099 no banco');
+    log.info({ tipo: 'zerar' }, 'zerar dados desligado: falta a migração 0100 no banco');
     return undefined;
   }
   const w = criarWorkerZerar({ pool, log });

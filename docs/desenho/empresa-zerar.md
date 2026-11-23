@@ -4,10 +4,10 @@
   - "coloque um botão ao lado do excluir chamado 'zerar dados'. vou clicar lá para zerar os dados";
   - "Na verdade, na integração dentro de config, deve ter uma opção de zerar os dados por entidade. acho que fica melhor. então alem do zerar tudo ao lado de excluir, crie o botão zerar dados ao lado de cada entidade no config. a tela do config deve ter a mesma aba Integração FDV que o BKO tem, mas com mais detalhes e tambem a opção de reprocessar e zerar dados".
 - **Decisão**: ADR 0068 (proposta). **Contrato**: `packages/platform-sdk/src/empresa-zerar.ts`. **Base**: ADR 0052, ADR 0029 §5 e a rotina do PR #675 (`scripts/producao/limpar-cadastros-rotina.sql` no squash f2556d68, que saiu na §8).
-- **Autor**: engenheiro-software. **Tarefa**: o gerente atribui o número. **Migração**: 0099.
+- **Autor**: engenheiro-software. **Tarefa**: o gerente atribui o número. **Migração**: 0100.
 
 ## 1. Uma regra só, no banco
-A regra do que sai mora numa função só: **`plataforma.limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null, p_exigir_hub_parado boolean default true)`**, na migração 0099.
+A regra do que sai mora numa função só: **`plataforma.limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null, p_exigir_hub_parado boolean default true)`**, na migração 0100.
 - O corpo é o da `pg_temp.macuxi_limpar_cadastros` do #675, promovido a função `SECURITY DEFINER`, com as mudanças da §4.1 e o parâmetro `p_entidades` (`null` = a empresa inteira, igual ao #675).
 - Devolve `(r_ordem, r_tabela, r_modo, r_linhas)`: só nomes de tabela, o modo e contagens.
 - Não abre nem fecha transação: quem chama decide entre COMMIT (gravar) e ROLLBACK (simular).
@@ -26,11 +26,11 @@ Por que no banco:
 3. Duas cópias (a `pg_temp` do workflow e uma do portal) divergiriam na primeira mudança. A `rotina.sql` saiu (§8).
 
 ## 2. Cópia e volta: decisão
-**Uma tabela de cópia só: `plataforma.limpeza_copia`**, criada pela 0099 com as **mesmas colunas e na mesma ordem** da `public.macuxi_limpeza_backup` do #675: `lote`, `tenant_id`, `tabela`, `modo`, `linha jsonb`, `copiado_em`.
+**Uma tabela de cópia só: `plataforma.limpeza_copia`**, criada pela 0100 com as **mesmas colunas e na mesma ordem** da `public.macuxi_limpeza_backup` do #675: `lote`, `tenant_id`, `tabela`, `modo`, `linha jsonb`, `copiado_em`.
 - A mesma ordem mantém o arquivo `.copy` da VM compatível com `\copy plataforma.limpeza_copia from …`.
-- A 0099 move para ela as linhas da `public.macuxi_limpeza_backup`, se a tabela existir (o workflow pode ter rodado antes da v1.0.31), e apaga a `public`.
+- A 0100 move para ela as linhas da `public.macuxi_limpeza_backup`, se a tabela existir (o workflow pode ter rodado antes da v1.0.31), e apaga a `public`.
 - RLS ligado e forçado, só a política `manutencao`, nenhum grant. É exceção da regra 5, como as tabelas da 0072, e vai ao `docs/banco/rls.md`.
-- Sai a `zerar_empresa_copia` da 0099 atual. Sai também a `zerar_empresa_objeto`: o zerar é soft delete, as fotos e os pacotes ficam no armazenamento como em qualquer linha apagada e não há bytes a remover.
+- Sai a `zerar_empresa_copia` da 0100 atual. Sai também a `zerar_empresa_objeto`: o zerar é soft delete, as fotos e os pacotes ficam no armazenamento como em qualquer linha apagada e não há bytes a remover.
 
 **Volta**:
 - `plataforma.restaurar_limpeza(p_tenant, p_lote)`: o corpo do `limpar-cadastros-restaurar.sql` do #675 promovido. Só o dono roda, pelo workflow (modo `restaurar`). Marca `desfeito_em` no zerar do portal com o mesmo lote.
@@ -74,7 +74,7 @@ Workflow psql (admin): plataforma.limpar_cadastros(tenant, lote, entidades, grav
   - a assinatura da §1;
   - `security definer`, com dono o migrador (o admin do DBaaS, o mesmo que roda o workflow);
   - `set search_path = pg_catalog, pg_temp`, e todo nome qualificado;
-  - `revoke all … from public`, sem EXECUTE para nenhum papel da aplicação. Só as funções `SECURITY DEFINER` da 0099 (mesmo dono) e o admin chamam.
+  - `revoke all … from public`, sem EXECUTE para nenhum papel da aplicação. Só as funções `SECURITY DEFINER` da 0100 (mesmo dono) e o admin chamam.
 - **b. Lote**: o lote aceita o sufixo da §2.
 - **c. Cópia**: vai para `plataforma.limpeza_copia`. Sai o `create table if not exists` de dentro da função.
 - **d. Trava e Hub em processamento**:
@@ -108,8 +108,8 @@ As raízes são as linhas vivas do tenant **com `external_id`**, como no #675.
 | `cliente` · `cliente_endereco` | `core.cliente` · `core.cliente_endereco` |
 | `rota` · `titulo` · `nota` | `core.rota` · `core.titulo` · `core.nota_erp` |
 
-Hub da entidade (físico):
-- linhas de `integracao.lote`, `sessao_carga`, `registro_atual`, `cursor_entidade`, `reconciliacao`, `coleta_execucao`, `pendencia_inativacao` e `inativacao_auditoria` com `entidade = any(p_entidades)`;
+Hub da entidade (físico), de **toda entidade afetada** (as pedidas e as que caíram pela cascata, a lista `entidades_afetadas` da §4.3):
+- linhas de `integracao.lote`, `sessao_carga`, `registro_atual`, `cursor_entidade`, `reconciliacao`, `coleta_execucao`, `pendencia_inativacao` e `inativacao_auditoria` com `entidade` na lista;
 - `lote_staging`, `lote_linha_erro` e `sessao_carga_recebido` pelo `lote_id` ou `sessao_id` dessas linhas.
 
 O banco-dados confere a coluna de cada tabela na 0097.
@@ -120,21 +120,21 @@ O banco-dados confere a coluna de cada tabela na 0097.
 |---|---|---|
 | Raízes | as do #675: as 11 tabelas do ERP, **todos os pedidos** e os usuários não administradores | só as das entidades pedidas (§4.2) |
 | Cascata (FK, nome de coluna, `plataforma.arquivo`, posse × autoria) | a do #675 | a mesma, mais **"pedido inteiro"**: se um `vendedor.pedido_item` sai, o pedido dele sai também (e a cascata segue), para não sobrar pedido sem item |
-| Hub (físico) | `c_hub` inteiro do tenant + filas pela cascata | o Hub das entidades pedidas (§4.2). Além disso, as linhas de `registro_atual` cujo (`entidade`, `external_id`) é de uma linha que saiu pela cascata: sem isso, o hash faria o reenvio da entidade dependente sair "inalterado" |
+| Hub (físico) | `c_hub` inteiro do tenant + filas pela cascata | o Hub de **toda entidade afetada** (§4.2): as pedidas e as que caíram pela cascata perdem lote, `registro_atual` e cursor. Sem isso, o reenvio delta da entidade dependente (ex.: título, nota e endereço ao zerar cliente) voltaria repetido ou "inalterado" |
 | Derivados (`gestor.alerta`, `core.indicador_diario`, `gestor.projecao_fato`) | saem (#675) | só pela cascata |
 | Filiais (`external_id` sai) | sim | só com `filial` na lista |
 | Outbox não publicada | `integracao.%` e as de registro que sai | só as de registro que sai (os lotes que saem estão nele) |
 | `sync_pacote` pronto → substituído e `girar_geracao_base` | sim | sim |
 
-**`entidades_afetadas`**: as entidades cujas raízes do mapa tiveram linhas `soft` no resultado, mais as pedidas, na ordem de carga. Exemplo: zerar `cliente` derruba os endereços, e a lista vira `cliente` e `cliente_endereco`. A prévia e o job devolvem a lista, e a tela pede o reenvio de todas.
+**`entidades_afetadas`**: as entidades cujas raízes do mapa tiveram linhas `soft` no resultado, mais as pedidas, na ordem de carga. Exemplo: zerar `cliente` derruba os endereços, os títulos e as notas, e a lista vira `cliente`, `cliente_endereco`, `titulo` e `nota`. A prévia e o job devolvem a lista, e a tela pede o reenvio de todas.
 
 **Fica** (`c_fica` do #675):
 - a empresa, o plano, as licenças, os administradores, os perfis e os parâmetros;
 - os conectores, as credenciais, os mapeamentos e a auditoria.
 
-## 5. Banco (0099, banco-dados): reaproveita × sai
+## 5. Banco (0100, banco-dados): reaproveita × sai
 
-| Da 0099 atual (08e779289) | Destino |
+| Da versão anterior da migração (08e779289) | Destino |
 |---|---|
 | `plataforma.zerar_empresa` (job, único parcial `em_andamento`, concessão, `tentativas`) | **fica**, com mudanças nas colunas e nos checks (ver abaixo) |
 | `sa_previa_zerar`, `sa_pedir_zerar`, `sa_ler_zerar` | **ficam**, com assinatura nova (ver abaixo) |
@@ -163,7 +163,7 @@ A lista de `sa_*` não muda de nome. Muda a assinatura de duas, e o PR conjunto 
 
 **Testes de banco** (`*.db.test.ts`, na sessão), com dois tenants:
 - inteira = o comportamento do teste do #675 (`scripts/producao/teste/limpar-cadastros.teste.sh`), sem mexer no outro tenant;
-- por entidade (`cliente`): clientes, endereços e os pedidos deles saem; os produtos ficam; o `registro_atual` sai de `cliente` e dos endereços derrubados; o Hub de `produto` fica; `entidades_afetadas = {cliente, cliente_endereco}`;
+- por entidade (`cliente`): clientes, endereços, títulos, notas e os pedidos deles saem; os produtos ficam; lote, `registro_atual` e cursor saem de `cliente` e de toda entidade derrubada pela cascata; o Hub de `produto` e de `rota` fica; `entidades_afetadas = {cliente, cliente_endereco, titulo, nota}`;
 - `produto`: o pedido com item do produto sai inteiro;
 - `filial` sozinha: só o `external_id` sai;
 - a prévia não muda nada (o hash por tabela fica igual) e bate com a contagem do executar;
@@ -238,15 +238,15 @@ As duas só para o super-admin. Em `GET /v1/integracao/*`, o admin do cliente qu
 - `montar-limpeza.sh`:
   - o modo `limpar` deixa de concatenar a rotina;
   - o modo `arquivo` lê a `plataforma.limpeza_copia`;
-  - todos os modos conferem a 0099 (a `limpeza_copia` e as três funções) antes de ler a empresa.
+  - todos os modos conferem a 0100 (a `limpeza_copia` e as três funções) antes de ler a empresa.
 - `limpar-cadastros-restaurar.sql` e `-descartar.sql` viraram uma chamada a `restaurar_limpeza` e `descartar_limpeza`.
-- **`limpar-cadastros-rotina.sql` saiu.** O `teste/limpar-cadastros.teste.sh` migra até a 0099, chama as funções e confere o banco sem a 0099. O `scripts/ci/producao-limpar-cadastros.test.mjs` confere que nenhum roteiro escreve direto em tabela.
+- **`limpar-cadastros-rotina.sql` saiu.** O `teste/limpar-cadastros.teste.sh` migra até a 0100, chama as funções e confere o banco sem a 0100. O `scripts/ci/producao-limpar-cadastros.test.mjs` confere que nenhum roteiro escreve direto em tabela.
 
 **Workflow × deploy: decisão.** A rotina sai do `main` agora, sem esperar o deploy da v1.0.31.
 - O workflow roda só numa tag e usa os `scripts/producao` daquela tag.
 - Tag anterior à v1.0.31: continua com a `pg_temp` dela.
-- Tag v1.0.31 ou posterior num banco ainda sem a 0099: o `montar-limpeza.sh` para logo depois das entradas, com "o banco ainda não tem a migração 0099 (plataforma.limpar_cadastros): faça antes o deploy da v1.0.31 ou rode o workflow numa tag anterior (nada mudou)", saída 3, antes de abrir transação.
-- Manter a rotina até o deploy deixaria duas cópias da regra no `main` (a `pg_temp` e a 0099). Elas divergiriam (§1, item 3), e o PR que a tirasse seria mais um passo a lembrar.
+- Tag v1.0.31 ou posterior num banco ainda sem a 0100: o `montar-limpeza.sh` para logo depois das entradas, com "o banco ainda não tem a migração 0100 (plataforma.limpar_cadastros): faça antes o deploy da v1.0.31 ou rode o workflow numa tag anterior (nada mudou)", saída 3, antes de abrir transação.
+- Manter a rotina até o deploy deixaria duas cópias da regra no `main` (a `pg_temp` e a 0100). Elas divergiriam (§1, item 3), e o PR que a tirasse seria mais um passo a lembrar.
 
 ## 9. Códigos
 `CODIGOS_ZERAR_EMPRESA`:
@@ -279,7 +279,7 @@ Nos dois casos:
 
 | Dono | O que faz |
 |---|---|
-| **banco-dados** | Refaz a 0099 pela §5 (corpo do #675 promovido, §4), com os testes da §5, no PR conjunto `alexandre/migracao-zerar`; `docs/banco/plataforma.md` e `rls.md` |
+| **banco-dados** | Refaz a 0100 pela §5 (corpo do #675 promovido, §4), com os testes da §5, no PR conjunto `alexandre/migracao-zerar`; `docs/banco/plataforma.md` e `rls.md` |
 | **engenheiro-software** | §6.1 (feito); §8 depois do merge do #675; linha do evento em `.coord/contratos/eventos.md`; revisão final |
 | **modulo-integracao** | §6.4: `superAdmin: 'aceita'` em `rotaMonitor` e no reprocessar lote (com teste); a rota `monitor/detalhes` e o contrato `MonitorDetalhes`; em `modules/integracao/web`, as consultas do monitor recebem o cliente HTTP por parâmetro (o BKO passa `api`, o portal passa `chamarPortal` com o tenant), e o painel de entidades aceita ações extras por linha (`acoesDaEntidade?: (e) => ReactNode`) sem duplicar o componente |
 | **engenheiro-apps** | Na aba Integração do portal, a seção "Monitor" com o painel do módulo, os detalhes e, por entidade, "Reprocessar" (`reprocessarLotes`) e "Zerar dados". O `dialogo-zerar` ganha a prop `entidades`, que leva a prévia e o POST. O resultado mostra o lote e "Rode `conector carga-completa <e>` para: …" com as `entidades_afetadas`. O modo falso do portal ganha as respostas novas. Item "Zerar dados" do menu ⋯ como está |

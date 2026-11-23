@@ -18,17 +18,17 @@
 - A ADR 0052 pôs Inativar, Backup e Excluir no portal. O worker do backup (cifra, S3) não existe, e a exclusão nunca libera.
 
 ## Decisão
-1. **Uma função**: `plataforma.limpar_cadastros(p_tenant, p_lote, p_entidades text[] default null, p_exigir_hub_parado default true)`, na migração 0099. É o corpo do #675 promovido a `SECURITY DEFINER`, sem EXECUTE para papel da aplicação.
-   - A prévia do portal roda a função numa subtransação desfeita. O worker roda e confirma. O workflow passa a chamá-la, e a `rotina.sql` saiu. Numa tag da v1.0.31 em diante, banco sem a 0099 faz o workflow parar antes de mudar qualquer coisa (desenho §8).
+1. **Uma função**: `plataforma.limpar_cadastros(p_tenant, p_lote, p_entidades text[] default null, p_exigir_hub_parado default true)`, na migração 0100. É o corpo do #675 promovido a `SECURITY DEFINER`, sem EXECUTE para papel da aplicação.
+   - A prévia do portal roda a função numa subtransação desfeita. O worker roda e confirma. O workflow passa a chamá-la, e a `rotina.sql` saiu. Numa tag da v1.0.31 em diante, banco sem a 0100 faz o workflow parar antes de mudar qualquer coisa (desenho §8).
    - `p_entidades = null` é o comportamento do #675.
 2. **Por entidade**: `p_entidades` traz uma ou mais das 16 entidades do Hub (`ENTIDADES_ZERAR` no SDK = `ORDEM_CARGA_ENTIDADES` do módulo, conferido em teste). O mapa entidade → raízes fica numa função do banco.
    - Saem as raízes da entidade, a cascata e o Hub dela (lotes, staging, erros, sessões, `registro_atual` e cursor).
    - Duas regras a mais. Um pedido com item que sai sai inteiro. O `registro_atual` das linhas dependentes também sai, para o reenvio não sair "inalterado".
    - A prévia e o resultado trazem as `entidades_afetadas`.
-3. **Uma cópia**: `plataforma.limpeza_copia`, com as colunas da `public.macuxi_limpeza_backup` do #675, que a 0099 move e apaga.
+3. **Uma cópia**: `plataforma.limpeza_copia`, com as colunas da `public.macuxi_limpeza_backup` do #675, que a 0100 move e apaga.
    - A volta é `restaurar_limpeza` e `descartar_limpeza`, as mesmas do workflow.
    - No portal, a cópia fica 7 dias e o worker a descarta.
-4. **Reaproveita da 0099 atual** o job `zerar_empresa`, as três `sa_*` (com `entidades`), `pegar_zerar`, `executar_zerar` e `fechar_zerar`.
+4. **Reaproveita da 0100 atual** o job `zerar_empresa`, as três `sa_*` (com `entidades`), `pegar_zerar`, `executar_zerar` e `fechar_zerar`.
    - **Sai**: `zerar_tenant` e as funções dele, a `zerar_empresa_copia`, a `zerar_empresa_objeto` e a extração do laço da 0032 (a `excluir_tenant` fica como está).
 5. **Reprocessar** por entidade é o que o BKO já faz (RN-INT-15): os lotes da entidade com falha ou com avisos voltam à fila.
    - A rota e o monitor do módulo abrem ao super-admin pela ADR 0029 §5 (`superAdmin: 'aceita'`). Os detalhes a mais (cursor, erros por código, sinal do conector) vêm de uma rota nova do módulo, só do super-admin.
@@ -48,5 +48,5 @@
 - **Usuários**: no inteiro e na entidade `vendedor`, os usuários que não são administradores saem, como no #675. O ERP os recria sem senha, e o acesso volta pelo convite.
 - **Linhas apagadas no banco**: o soft delete deixa as linhas no banco, e as fotos e os pacotes ficam no armazenamento, como em qualquer linha apagada.
 - **Retenção**: a cópia fica 7 dias no banco (portal).
-- **Workflow**: muda depois do merge do #675, na mesma tag da 0099.
+- **Workflow**: muda depois do merge do #675, na mesma tag da 0100.
 - **`sa_*`**: a assinatura de duas muda. A migração e o teste da lista vão juntos no PR conjunto `alexandre/migracao-zerar`.

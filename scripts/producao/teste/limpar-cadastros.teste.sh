@@ -4,8 +4,8 @@
 #   bash db/scripts/pg-local.sh && eval "$(bash db/scripts/pg-local.sh --env)"
 #   MACUXI_PG_PORTA=5433 pnpm --filter @macuxi/db admin-sem-superusuario     (uma vez por servidor)
 #   bash scripts/producao/teste/limpar-cadastros.teste.sh
-# Os roteiros só chamam as funções da 0099 (plataforma.limpar_cadastros, restaurar_limpeza e descartar_limpeza; ADR 0068).
-# Confere antes que um banco sem a 0099 para com mensagem clara. Depois cria o banco macuxi_limpeza_teste, migra (com a 0099),
+# Os roteiros só chamam as funções da 0100 (plataforma.limpar_cadastros, restaurar_limpeza e descartar_limpeza; ADR 0068).
+# Confere antes que um banco sem a 0100 para com mensagem clara. Depois cria o banco macuxi_limpeza_teste, migra (com a 0100),
 # carrega a fixture dois-tenants e os dados das duas origens (kit e macuxierp) nos dois tenants, e confere: simular (inteira e
 # por entidade) não muda nada; entidade fora da lista para; apagar com lote do Hub em processamento aborta; apagar limpa o alfa e
 # mantém empresa, administradores, perfis de acesso, licenças, parâmetros, conectores, credenciais, filiais e o tenant beta;
@@ -32,14 +32,14 @@ igual() { if [ "$2" = "$3" ]; then ok "$1"; else nok "$1 (esperado '$3', veio '$
   || { echo "o admin do teste precisa ser sem SUPERUSER e sem BYPASSRLS (rode o admin-sem-superusuario na 5433)"; exit 1; }
 montar() { bash "$raiz/scripts/producao/montar-limpeza.sh" "$1"; }
 
-echo '--- 0. banco sem a 0099'
-psql -X -q -d postgres -c "drop database if exists ${BANCO}_sem0099" -c "create database ${BANCO}_sem0099" >/dev/null 2>&1
+echo '--- 0. banco sem a 0100'
+psql -X -q -d postgres -c "drop database if exists ${BANCO}_sem0100" -c "create database ${BANCO}_sem0100" >/dev/null 2>&1
 for modo in limpar restaurar descartar arquivo; do
-  set +e; montar "$modo" | psql -X -q -d "${BANCO}_sem0099" -v empresa=alfa -v modo=simular -v lote=20261123T185900Z -f - > "$tmp/sem0099.txt" 2>&1; st=$?; set -e
-  igual "$modo sem a 0099 para com 'o banco ainda não tem a migração 0099'" \
-    "$([ $st -ne 0 ] && grep -q 'o banco ainda não tem a migração 0099' "$tmp/sem0099.txt" && echo sim)" sim
+  set +e; montar "$modo" | psql -X -q -d "${BANCO}_sem0100" -v empresa=alfa -v modo=simular -v lote=20261123T185900Z -f - > "$tmp/sem0100.txt" 2>&1; st=$?; set -e
+  igual "$modo sem a 0100 para com 'o banco ainda não tem a migração 0100'" \
+    "$([ $st -ne 0 ] && grep -q 'o banco ainda não tem a migração 0100' "$tmp/sem0100.txt" && echo sim)" sim
 done
-psql -X -q -d postgres -c "drop database if exists ${BANCO}_sem0099" >/dev/null
+psql -X -q -d postgres -c "drop database if exists ${BANCO}_sem0100" >/dev/null
 
 psql -X -q -d postgres -c "drop database if exists $BANCO" -c "create database $BANCO" >/dev/null 2>&1
 (cd "$raiz/db" && npx tsx scripts/banco.ts migrar up --banco "$BANCO" >/dev/null && npx tsx scripts/banco.ts fixture dois-tenants --banco "$BANCO" >/dev/null)

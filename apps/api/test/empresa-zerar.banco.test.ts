@@ -1,5 +1,5 @@
 /**
- * "Zerar dados" da empresa × Postgres real (ADR 0068; desenho docs/desenho/empresa-zerar.md §3 e §5; RN-PLA-12; migração 0099), de
+ * "Zerar dados" da empresa × Postgres real (ADR 0068; desenho docs/desenho/empresa-zerar.md §3 e §5; RN-PLA-12; migração 0100), de
  * ponta a ponta: rotas do portal (`macuxi_portal`, sa_*) → worker (`macuxi_worker`: pegar_zerar, executar_zerar, fechar_zerar) →
  * concluído. Confere: só o super-admin; prévia sem mudar nada e igual ao executado; pedido idempotente pelo id e um em andamento
  * por empresa; recusa na conferência do worker (lote do Hub em processamento) fecha `falhou` com o código e nada muda; ficam

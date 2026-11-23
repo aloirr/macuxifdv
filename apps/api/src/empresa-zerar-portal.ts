@@ -4,7 +4,7 @@
  *   GET  /v1/plataforma/empresas/:tenant_id/zerar/previa[?entidades=a,b]  200 PreviaZerarEmpresa (o que muda + bloqueio)
  *   POST /v1/plataforma/empresas/:tenant_id/zerar         202 ZerarEmpresa (senha do super-admin conferida de novo; id do portal)
  *   GET  /v1/plataforma/empresas/:tenant_id/zerar         200 ZerarEmpresa (o mais recente) · 404 ZERAR_NAO_ENCONTRADO
- * Tudo pelo banco do portal (`macuxi_portal`), só pelas `sa_*` da 0099, que conferem a sessão, revalidam a regra na transação
+ * Tudo pelo banco do portal (`macuxi_portal`), só pelas `sa_*` da 0100, que conferem a sessão, revalidam a regra na transação
  * (`conferirZerar` do SDK) e auditam (`tenant.zerar_pedido`). A prévia e o worker (`empresa-zerar-worker.ts`) rodam a MESMA
  * `plataforma.limpar_cadastros`. Ligado com as ações da empresa (`MACUXI_EMPRESA_ACOES=1`). Sem dado pessoal no log; a senha e
  * o código digitado nunca vão a log nem voltam.
@@ -32,7 +32,7 @@ import { conferirRetorno as conferir, exigirSuperAdmin, traduzirErroSa } from '.
 const Z = CODIGOS_ZERAR_EMPRESA;
 
 /**
- * Acesso às `sa_*` do zerar (0099; testes injetam a sua). Devolvem o jsonb cru; a rota confere pelo contrato do SDK.
+ * Acesso às `sa_*` do zerar (0100; testes injetam a sua). Devolvem o jsonb cru; a rota confere pelo contrato do SDK.
  * `entidades`: `null` = a empresa inteira.
  */
 export interface FonteZerarEmpresa {

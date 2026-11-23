@@ -5,8 +5,8 @@ name: producao — limpar cadastros de uma empresa
 # cópia do lote e o arquivo).
 # Travas: só manual, environment PRODUCAO, só numa tag, fila producao-vm, frase de confirmação no apagar, no restaurar e no
 # descartar; psql pelo pgcliente da VM (o runner não tem docker).
-# Regra: plataforma.limpar_cadastros, restaurar_limpeza e descartar_limpeza da migração 0099 (ADR 0068), a mesma do "Zerar
-# dados" do portal. Vale da v1.0.31 em diante: banco sem a 0099 para na conferência do montar-limpeza.sh, sem mudar nada.
+# Regra: plataforma.limpar_cadastros, restaurar_limpeza e descartar_limpeza da migração 0100 (ADR 0068), a mesma do "Zerar
+# dados" do portal. Vale da v1.0.31 em diante: banco sem a 0100 para na conferência do montar-limpeza.sh, sem mudar nada.
 # Teste: bash scripts/producao/teste/limpar-cadastros.teste.sh.
 
 on:

@@ -1,5 +1,5 @@
 -- Limpeza de UMA empresa: workflow .github/workflows/producao-limpar-cadastros.yml, montado por montar-limpeza.sh (preâmbulo
--- psql e conferência de lote, empresa e 0099 antes deste arquivo). A regra é a plataforma.limpar_cadastros da 0099, a mesma
+-- psql e conferência de lote, empresa e 0100 antes deste arquivo). A regra é a plataforma.limpar_cadastros da 0100, a mesma
 -- do "Zerar dados" do portal (ADR 0068, docs/desenho/empresa-zerar.md §4).
 -- Variáveis (psql -v): empresa (código), modo (simular | apagar), lote (carimbo UTC AAAAMMDDTHHMMSSZ) e entidades (opcional:
 -- lista por vírgula; vazia = a empresa inteira; entidade fora da lista para a função com 22023).

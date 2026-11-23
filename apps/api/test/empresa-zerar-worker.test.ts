@@ -1,6 +1,6 @@
 /**
  * Worker do "Zerar dados" (ADR 0068; desenho docs/desenho/empresa-zerar.md §3 e §5) sem banco real: o pool falso responde às
- * funções da 0099 (`pegar_zerar`, `executar_zerar`, `fechar_zerar`, `expurgar_zerar`). A regra do que sai
+ * funções da 0100 (`pegar_zerar`, `executar_zerar`, `fechar_zerar`, `expurgar_zerar`). A regra do que sai
  * (`plataforma.limpar_cadastros`), a cópia e o restaurar são testados nos `*.db.test.ts` do banco-dados.
  */
 import { CODIGOS_ZERAR_EMPRESA, ERROS_WORKER_ZERAR, TENTATIVAS_ZERAR, type LogRota } from '@macuxi/platform-sdk';

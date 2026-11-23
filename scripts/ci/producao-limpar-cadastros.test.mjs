@@ -1,7 +1,7 @@
 // node --test scripts/ci/*.test.mjs. Confere, sem banco e sem segredo, as travas do producao-limpar-cadastros.yml e que os roteiros
-// só chamam as funções da 0099 (ADR 0068: uma regra só, no banco). O teste de banco (simular, apagar, por entidade, restaurar,
-// descartar, reenvio e banco sem a 0099) é o scripts/producao/teste/limpar-cadastros.teste.sh, no Postgres local da sessão; o
-// da regra em si fica nos testes da 0099 (db/).
+// só chamam as funções da 0100 (ADR 0068: uma regra só, no banco). O teste de banco (simular, apagar, por entidade, restaurar,
+// descartar, reenvio e banco sem a 0100) é o scripts/producao/teste/limpar-cadastros.teste.sh, no Postgres local da sessão; o
+// da regra em si fica nos testes da 0100 (db/).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -32,7 +32,7 @@ test('workflow: frase de confirmação no apagar, no restaurar e no descartar; b
   assert.ok(backup > 0 && backup < wf.indexOf('name: ${{ inputs.modo }} na VM'), 'o backup do banco vem antes do apagar');
   // o arquivo na VM leva só as linhas do lote (montar-limpeza.sh arquivo)
   assert.match(wf, /bash scripts\/producao\/montar-limpeza\.sh arquivo > arquivo\.sql/);
-  // as 6 colunas do #675 (tenant em empresa_id na 0099); a volta passa por uma temporária (COPY FROM não entra em tabela com RLS)
+  // as 6 colunas do #675 (tenant em empresa_id na 0100); a volta passa por uma temporária (COPY FROM não entra em tabela com RLS)
   assert.match(
     montar('arquivo'),
     /\ncopy \(select lote, empresa_id as tenant_id, tabela, modo, linha, copiado_em from plataforma\.limpeza_copia where lote = :'lote' and empresa_id = :'tenant'\) to stdout;\n$/,
@@ -63,20 +63,20 @@ test('montar-limpeza.sh: o preâmbulo psql sai uma vez, antes do roteiro', () =>
     assert.equal(sql.split('\\set VERBOSITY terse').length, 2, modo);
   }
   for (const t of [limpar, restaurar, descartar]) assert.doesNotMatch(t, /\\set (ON_ERROR_STOP|QUIET|VERBOSITY)/);
-  // a conferência de lote, 0099 e empresa sai uma vez, do montar, em todos os modos, e a da 0099 vem antes de tudo o que lê
+  // a conferência de lote, 0100 e empresa sai uma vez, do montar, em todos os modos, e a da 0100 vem antes de tudo o que lê
   for (const modo of ['limpar', 'restaurar', 'descartar', 'arquivo']) {
     const sql = montar(modo);
     assert.equal(sql.split('empresa não encontrada').length, 2, modo);
-    assert.equal(sql.split('o banco ainda não tem a migração 0099').length, 2, modo);
-    assert.ok(sql.indexOf('as tem_0099') < sql.indexOf('tenant_por_codigo'), modo);
+    assert.equal(sql.split('o banco ainda não tem a migração 0100').length, 2, modo);
+    assert.ok(sql.indexOf('as tem_0100') < sql.indexOf('tenant_por_codigo'), modo);
   }
-  assert.match(montar('limpar'), /p\.proname in \('limpar_cadastros', 'restaurar_limpeza', 'descartar_limpeza'\)\) as tem_0099 \\gset/);
+  assert.match(montar('limpar'), /p\.proname in \('limpar_cadastros', 'restaurar_limpeza', 'descartar_limpeza'\)\) as tem_0100 \\gset/);
   assert.match(montar('limpar'), /to_regclass\('plataforma\.limpeza_copia'\) is not null/);
   assert.match(montar('limpar'), /:'lote' ~ '\^\[0-9\]\{8\}T\[0-9\]\{6\}Z\(-\[0-9a-f\]\{8\}\)\?\$'/);
-  for (const t of [limpar, restaurar, descartar]) assert.doesNotMatch(t, /entradas_ok|achou|tenant_por_codigo|tem_0099/);
+  for (const t of [limpar, restaurar, descartar]) assert.doesNotMatch(t, /entradas_ok|achou|tenant_por_codigo|tem_0100/);
 });
 
-test('uma regra só: os roteiros chamam as funções da 0099, sem rotina própria nem a cópia antiga', () => {
+test('uma regra só: os roteiros chamam as funções da 0100, sem rotina própria nem a cópia antiga', () => {
   assert.equal(existsSync(new URL('../producao/limpar-cadastros-rotina.sql', import.meta.url)), false);
   const pasta = new URL('../producao/', import.meta.url);
   const todos = [wf, ...readdirSync(pasta).filter((f) => /\.(sql|sh)$/.test(f)).map((f) => readFileSync(new URL(f, pasta), 'utf8'))];
