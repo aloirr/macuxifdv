@@ -49,7 +49,7 @@ decidida pela licença do tenant (RN-CORE-27: Início, painel de metas, RV, Faro
 | `core.cadastro_cliente@1` | core | sim | não | integracao (consumidor A7 de `integracao.lote.recebido@1`, aviso `cadastro_incompleto`, RN-INT-14) | implementada (T-0060); `ctx.consultar` no consumidor (SDK, 2026-11-02) |
 | `core.medidas@1` | core | sim | não (o app lê a entidade `medida` do pull) | integracao (A7: sigla não cadastrada ou inativa = `referencia_ausente`, RN-CORE-19; `usaConsultas` em `modules/integracao/manifest.ts:37`) | **implementada (T-0063, `70b69992`; idempotência `1ef97f04`)**: contrato `CONSULTA_MEDIDAS` em `modules/core/contracts/consultas.ts:138`, implementação `consultaMedidas` em `modules/core/api/medidas.ts:183`, `ofereceConsultas` do Core. Desenho original: T-0061 §4.1 (2026-11-02). Conferência T-0110 N7 / T-0122 (2026-11-09) |
 | `pesquisa.etapas_checkout@1` | pesquisa | sim | não (o Campo usa a extensão `visita.etapas_checkout`) | core (`visita_checkout`, baixa por `pesquisa.resposta.registrada@1` e alerta, T-0039 §2) em `usaConsultasOpcionais` (ADR 0019); sem a Pesquisa = sem etapa | ligada no Core em 2026-11-05 (`modules/core/api/etapas-checkout.ts`) |
-| `core.clientes_pre_cadastro_sem_erp@1` | core | sim | não | integracao (envio ao ERP dos pré-cadastros pendentes que ainda não têm `external_id`) | **v1.0.28 (ADR 0067), substitui `core.clientes_aprovados_sem_erp@1`** (retirada sem nova versão: interna, publicada um dia). Só leitura; entrada `{limite 1..500 = 100, depois_de: UUID \| null}` strict; saída `{clientes: ClientePreCadastroParaErp[] ≤ 500, proximo}`: `status_cadastro = 'pendente'`, sem `external_id`, ordem `(created_at, id)`, `recebido_em` (= `created_at`) no lugar de `aprovado_em`. A volta do código ou da recusa chega pelo evento `integracao.cliente.retorno_erp@1` (ADR 0012 §5) |
+| `core.clientes_pre_cadastro_sem_erp@1` | core | sim | não | integracao (envio ao ERP dos pré-cadastros pendentes que ainda não têm `external_id`) | v1.0.28. Substitui `core.clientes_aprovados_sem_erp@1` (ADR 0067). Só leitura; entrada `{limite 1..500 = 100, depois_de: UUID \| null}` strict; saída `{clientes: ClientePreCadastroParaErp[] ≤ 500, proximo}`: `status_cadastro = 'pendente'`, sem `external_id`, ordem `(created_at, id)`, `recebido_em` (= `created_at`) no lugar de `aprovado_em`. A volta do código ou da recusa chega pelo evento `integracao.cliente.retorno_erp@1` (ADR 0012 §5) |
 | `vendedor.pedidos_da_meta@1` | vendedor | sim | não | core (painel de metas, RN-CORE-21) em `usaConsultasOpcionais` (ADR 0019); sem o Vendedor, cai no `indicador_diario` | oferecida pelo Vendedor; Core religa pelo campo novo (2026-11-03) |
 
 ## T-0089 (desenho 06/11): pagamento por forma e prazo, escalonada e crédito no Novo pedido
@@ -239,8 +239,7 @@ Sem ADR: consulta nova e campos opcionais; nenhuma saída muda de forma nem de s
 
 ## Pré-cadastro sem aprovação no FDV (v1.0.28, 23/11, ADR 0067): o ERP aprova
 
-Decisão do dono do produto (23/11/2026): o FDV só faz o pré-cadastro; quem aprova é o ERP. Retiradas sem nova versão (internas,
-publicadas há um dia): evento `core.cliente.aprovado@1`, consulta `core.clientes_aprovados_sem_erp@1`, ação `cliente.aprovar_cadastro`
+Decisão do dono do produto (23/11/2026): o FDV só faz o pré-cadastro; quem aprova é o ERP. Retirados (ADR 0067): evento `core.cliente.aprovado@1`, consulta `core.clientes_aprovados_sem_erp@1`, ação `cliente.aprovar_cadastro`
 e a rota `POST /v1/core/clientes/:id/cadastro` (`DecidirCadastroClienteSchema`). Schemas em `modules/core/contracts/cliente-pre-cadastro.ts`.
 
 | Contrato | Dono | Mudança | Compatibilidade / situação |
