@@ -226,3 +226,69 @@ Os 🟢 da rodada 1 também foram resolvidos: `warn` de "fora do contrato", `ID_
 - **Listas:** `funcoes-sa.ts`, `estatico.test.ts` e `excecoes.ts` (`zerar_previa` só por função, sem `tenant_id`) e a `conferir-rls.sql` foram atualizados.
 - **Fronteiras:** sem mudança. O `apps/web` usa só `@macuxi/platform-sdk` e `@macuxi/integracao/contracts`.
 - **Logs:** a prévia registra só ids, situação, total, tabelas, bloqueio e `erro_codigo`. A mensagem do banco só aparece sem SQLSTATE, via `mensagemSegura`.
+
+# Rodada 3 — 23/11/2026, ~19h50 (Manaus)
+
+Diffs revistos contra os SHAs da rodada 2 e contra o `origin/main` 918ba20d0 (v1.0.30, já com a sessão C):
+- banco-dados 098a4d8f1 (antes 36d958549);
+- engenheiro-software 88510349b (antes 6ccd07e32);
+- engenheiro-apps df8aef9a8 (antes 5e46817be; contém o 88510349b por merge);
+- testes `nuvem/v1031-zerar-testes` 10ad063f5 (antes 5a54d2876; o mais novo do remoto às 19h44);
+- modulo-integracao c32abc632 (sem mudança).
+
+Revisão de leitura, sem rodar testes nesta sessão. As medições citadas são dos donos.
+
+**Veredito: sem 🔴 no código.** Fica o 🔴 3 da rodada 1 como **condição de merge** (não de código), agora mais concreto: a sessão C entrou no `main` sem o `{ ate: VERSAO }`. O lote sai com os 2 🟡 abaixo fechados e a condição cumprida.
+
+## Os achados da rodada 2
+
+1. 🔴 **testes, prévia antiga**: **resolvido** no 10ad063f5.
+   - `tests/integracao/api/zerar-dados-v1031.test.ts` usa `POST …/zerar/previa` (202), o `cicloPrevia` do worker real e `GET …/zerar/previa/:previa_id` (`:168-182`), com 403 do admin do cliente e 404 `ZERAR_PREVIA_NAO_ENCONTRADA`, inclusive o id de outra empresa (`:406-412`).
+   - Z-09 (`:647`) cobre o teto de 3 tentativas da prévia e do zerar, com a auditoria. Z-10 cobre a trava só da empresa, com duas conexões.
+   - `tests/integracao/banco/conformidade.test.ts:170-178` tem as 42 `sa_*` sem a `sa_previa_zerar`, e `:232` em diante, as 6 do worker.
+   - O reteste rodou na junção com os SHAs da rodada 2 (36d958549, 6ccd07e32, 5e46817be). O que sobra está no 🟡 1 abaixo.
+2. 🔴 3 da rodada 1, **ordem de merge com a sessão C** (banco-dados + gerente): **continua como condição de merge, não de código.**
+   - O `origin/main` 918ba20d0 (#677) já tem a 0098 e a 0099, e `db/testes/resumo-outbox-vivos.db.test.ts:140` e `:154` seguem com `migrarUp(c)` sem `ate`.
+   - O branch do banco-dados (098a4d8f1) não contém o 918ba20d0.
+   - **Condição:**
+     - o banco-dados traz o `main` para o branch e põe `{ ate: VERSAO }` nas duas linhas, no mesmo PR da 0100;
+     - resolve os conflitos que o testes já viu (`db/testes/estatico.test.ts`, `docs/banco/README.md`);
+     - roda `db/testes` inteiro na sessão antes do push. O número 0100 continua livre no `main`.
+3. 🟡 **ADR e desenho sem o `p_simular`** (eu): **resolvido** no 88510349b.
+   - `docs/decisoes/0068-zerar-dados-da-empresa.md:21` traz o 5º parâmetro, e `:22` explica o simular.
+   - `:43` troca a alternativa rejeitada pela "execução inteira desfeita".
+   - `docs/desenho/empresa-zerar.md:10`, `:72` e `:82` batem com a 0100.
+4. 🟡 **modo na prévia e lista repetida no SDK** (banco-dados + eu): **resolvido.**
+   - O `v_linhas` da `executar_previa_zerar` traz `'modo', l.r_modo` (`0100…up.sql:903`). A `v_lista` saiu, e as `entidades_afetadas` saem do mesmo `v_linhas` (`:921`).
+   - `LinhaPreviaZerarSchema` exige `modo` (`packages/platform-sdk/src/empresa-zerar.ts:266-268`), e `MODOS_QUE_SAEM` (`:102`) é a única lista do SDK. A `TABELAS_QUE_NAO_SAEM` saiu.
+   - O teste de banco confere a prévia e o executado por `tabela modo linhas` (`db/testes/empresa-zerar.db.test.ts:637-639`).
+   - Os portais falsos e os testes da API e da web passaram a mandar `modo`. Não sobrou nenhuma linha de prévia sem `modo` nos branches de código.
+5. 🟡 **prazo da prévia na tela** (engenheiro-apps): **resolvido** no df8aef9a8.
+   - `PRAZO_PREVIA_ZERAR_MS` de 2 min fica em `apps/web/components/portal/dialogo-zerar.tsx:60`, contado do pedido.
+   - Quando o prazo vence, a consulta para (`:82`) e um disparo único acorda a tela (`:93`). A tela mostra a frase que já existia para `ZERAR_FALHOU` (`mensagemDaPreviaZerar`), com "Tentar de novo", que pede a prévia com id novo e reabre o prazo. Não há texto novo.
+   - O teste está em `dialogo-zerar.test.tsx:74`.
+   - A medida de 23 s para 2 milhões de linhas fica bem dentro dos 2 min.
+6. 🟢 **medir perto de 2 milhões** (banco-dados): **resolvido.** Com 1.999.963 linhas, o zerar levou 1 min 27 s (dentro dos 15 min do worker) e a prévia, 23 s. A medida está registrada na ADR, no desenho e em `docs/banco/plataforma.md`.
+7. 🟢 **`cursores[].external_id`** (modulo-integracao): **aberto**, sem mudança no c32abc632. Não segura o lote.
+
+## Rodada 3 — 🟡 corrigir
+
+1. **testes**: o reteste ainda não usa o `modo` e não rodou nos SHAs finais.
+   - `tests/integracao/api/zerar-dados-v1031.test.ts:612-614` guarda uma terceira cópia da lista das tabelas que não saem (`ficamNaEmpresa`: `core.filial`, `plataforma.sync_pacote`, `plataforma.tenant`). O `:185` ainda diz "a prévia não tem o modo".
+   - Com o `modo` obrigatório, o valor × regra passa a ser `total = soma das linhas com modo em MODOS_QUE_SAEM` (importado do SDK). "Prévia = executado" passa a comparar `tabela|modo|linhas`.
+   - O doc `docs/testes/v1031-zerar-dados.md` precisa citar a junção com 098a4d8f1, 88510349b, df8aef9a8 e c32abc632 sobre o `main` 918ba20d0.
+   - É o reteste curto em andamento: o 🟡 cai quando o SHA novo chegar ao remoto com esses pontos.
+2. **gerente-projetos**, abertos desde a rodada 1:
+   - a reserva da ADR 0068 no `.coord/quadro.md` do `origin/main`, que continua sem ela. A 0068 segue livre em `docs/decisoes/`, e a 0069 já existe;
+   - o PR conjunto `alexandre/migracao-*` da lista de `sa_*` (0100 + `conformidade.test.ts`).
+
+## Conferido sem achado (rodada 3)
+
+- **Prazo da prévia:**
+  - com o POST preso, `isPending` também conta para o prazo;
+  - um erro de rede tem precedência (`!previa.isError`);
+  - uma prévia que fica pronta depois do prazo não é relida, e a tela segue na falha até "Tentar de novo".
+- **Cancelamento por `statement_timeout`:** o 57014 não cai no `when others` (`0100…up.sql:913`) e volta pelo teto de 3. A tela já desistiu aos 2 min, e com 23 s no limite de volume o caso fica remoto.
+- **`entidades_afetadas_limpeza`:** lê só `tabela`, `modo` e `linhas`. A chave `ordem` a mais no jsonb não muda o resultado.
+- **Workflow:** `scripts/producao/limpar-cadastros.sql:33` passa `gravar` como `p_exigir_hub_parado` e fica no `p_simular` padrão (false). Simular = execução desfeita, igual ao #675, sem trava do Hub. Coerente com o desenho §3.
+- **Fronteiras, logs e contrato:** sem mudança fora do `modo`. `PreviaZerarSchema` continua `.strict()`, e a soma é conferida pelo `MODOS_QUE_SAEM`.
