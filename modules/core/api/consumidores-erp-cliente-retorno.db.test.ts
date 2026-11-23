@@ -95,7 +95,9 @@ describe.skipIf(semBanco())('Core × Postgres: retorno do ERP do cliente novo (R
       await t.entregar(retorno(C1, 'rejeitado_erp', null, 'Documento inválido no ERP'));
       expect(await codigoDe(t.q, C1)).toBeNull();
       expect(t.publicar).not.toHaveBeenCalled();
-      expect((await t.q("select 1 from plataforma.auditoria where entidade_id = $1 and acao = 'cliente.rejeitado_erp'", [C1])).length).toBe(1);
+      const aud = await t.q("select depois::text as depois from plataforma.auditoria where entidade_id = $1 and acao = 'cliente.rejeitado_erp'", [C1]);
+      expect(aud.length).toBe(1);
+      expect(String(aud[0]?.depois)).not.toContain('Documento inválido');
     });
   });
 

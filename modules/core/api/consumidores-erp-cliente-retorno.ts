@@ -9,29 +9,26 @@ import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type Context
 import { EVENTO_CLIENTE_ATUALIZADO } from '../contracts';
 import { EVENTO_CLIENTE_RETORNO_ERP } from '../../integracao/contracts';
 import { decidirVinculoErp } from '../domain';
+import { auditar } from './auditoria';
 import { carteiraDoEvento } from './rotas';
 
 export const EventoIntegracaoClienteRetornoErp = eventoTolerante(EVENTO_CLIENTE_RETORNO_ERP);
 
-async function auditarSistema(ctx: ContextoConsumo, acao: string, clienteId: string, depois: Record<string, unknown>): Promise<void> {
-  await ctx.db.query(
-    `insert into plataforma.auditoria (tenant_id, usuario_id, modulo, acao, entidade, entidade_id, antes, depois, request_id)
-     values (plataforma.tenant_atual(), null, 'core', $1, 'cliente', $2, null, $3::jsonb, $4)`,
-    [acao, clienteId, JSON.stringify({ ...depois, regra: 'RN-CORE-78', ator: 'hub' }), ctx.envelope.evento_id],
-  );
+function auditarSistema(ctx: ContextoConsumo, acao: string, clienteId: string, depois: Record<string, unknown>): Promise<void> {
+  return auditar(ctx.db, { usuario: { id: null }, requestId: ctx.envelope.evento_id }, { acao, entidade: 'cliente', entidadeId: clienteId, antes: null, depois: { ...depois, regra: 'RN-CORE-78', ator: 'hub' } });
 }
 
 export const consumidorClienteRetornoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoClienteRetornoErp,
   async executar(p, ctx: ContextoConsumo) {
     if (p.status === 'rejeitado_erp') {
-      await auditarSistema(ctx, 'cliente.rejeitado_erp', p.cliente_id, { cliente_id: p.cliente_id, motivo: p.motivo });
+      await auditarSistema(ctx, 'cliente.rejeitado_erp', p.cliente_id, { cliente_id: p.cliente_id, status: 'rejeitado_erp' });
       return;
     }
     const codigo = p.external_id?.trim();
     if (!codigo) return; // contrato exige o código em 'vinculado'; sem ele não há o que gravar
     const cliente = (await ctx.db.query<{ aprovado: boolean; external_id: string | null }>('select aprovado_em is not null as aprovado, external_id from core.cliente where id = $1 and deleted_at is null for update', [p.cliente_id])).rows[0] ?? null;
-    const emUso = (await ctx.db.query('select 1 from core.cliente where external_id = $1 and id <> $2 and deleted_at is null limit 1', [codigo, p.cliente_id])).rows.length > 0;
+    const emUso = cliente?.external_id === null && (await ctx.db.query('select 1 from core.cliente where external_id = $1 and id <> $2 and deleted_at is null limit 1', [codigo, p.cliente_id])).rows.length > 0;
     const d = decidirVinculoErp(cliente, codigo, emUso);
     if (d.acao === 'nada') return;
     if (d.acao === 'recusar') {
