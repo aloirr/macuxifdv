@@ -68,7 +68,7 @@ export const REGISTROS_FALSOS: Readonly<Partial<Record<EntidadeZerar, { ativos: 
 
 /** Tabela do domínio de cada entidade com dados no falso (a regra de verdade é a `plataforma.limpar_cadastros`, desenho §4.2). */
 const TABELA_DA_ENTIDADE: Readonly<Partial<Record<EntidadeZerar, string>>> = {
-  vendedor: 'core.vendedor',
+  vendedor: 'core.usuario',
   produto: 'core.produto',
   preco: 'catalogo.tabela_preco_item',
   estoque: 'catalogo.estoque',
@@ -165,7 +165,7 @@ function previaDaApi(x: EmpresaParaZerar, id: string, agora = Date.now()): Previ
   const base = { id, entidades: p.entidades, criado_em: iso(p.criado_em), erro_codigo: null };
   if (agora < p.criado_em + PREVIA_FALSA_MS) return { ...base, situacao: 'em_andamento', linhas: null, entidades_afetadas: null, total: null, bloqueio: null };
   const { tabelas, afetadas } = contar(x, p.entidades);
-  const linhas = tabelas.map((t, ordem) => ({ ordem, ...t }));
+  const linhas = tabelas.map((t, ordem) => ({ ordem, tabela: t.tabela, linhas: t.linhas }));
   return { ...base, situacao: 'pronta', linhas, entidades_afetadas: afetadas, total: linhasQueSaem(tabelas), bloqueio: bloqueioFalso(x) };
 }
 

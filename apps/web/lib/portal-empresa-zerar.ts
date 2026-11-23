@@ -12,6 +12,7 @@ import {
   ROTAS_ZERAR_EMPRESA,
   ZerarEmpresaSchema,
   codigoDeConfirmacaoConfere,
+  mensagemDaPreviaZerar,
   mensagemDoZerar,
   type EntidadeZerar,
   type PreviaZerar,
@@ -93,8 +94,8 @@ export const previaCalculando = (previa: PreviaZerar | undefined): boolean => pr
 export const zerarJaRodando = (previa: PreviaZerar | undefined): boolean =>
   previa?.situacao === 'pronta' && previa.bloqueio === CODIGOS_ZERAR_EMPRESA.zerarEmAndamento;
 
-/** Frase da prévia que falhou no worker (`erro_codigo`, pela `mensagemDoZerar`). */
-export const fraseDaPreviaFalha = (previa: PreviaZerar): string => mensagemDoZerar(previa.erro_codigo ?? '') ?? mensagemDoErro(null);
+/** Frase da prévia que falhou no worker (`erro_codigo`, pela `mensagemDaPreviaZerar`). */
+export const fraseDaPreviaFalha = (previa: PreviaZerar): string => mensagemDaPreviaZerar(previa.erro_codigo ?? '') ?? mensagemDoErro(null);
 
 /** Frase de um código do zerar: a tabela do SDK (`mensagemDoZerar`); fora dela, a frase da API. */
 export function fraseDoZerar(e: unknown): string {

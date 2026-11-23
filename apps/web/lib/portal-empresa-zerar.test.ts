@@ -27,7 +27,7 @@ const previa = (x: Partial<PreviaZerar> = {}): PreviaZerar => ({
   id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000010',
   situacao: 'pronta',
   entidades: null,
-  linhas: [{ ordem: 0, tabela: 'core.cliente', modo: 'soft', linhas: 10 }],
+  linhas: [{ ordem: 0, tabela: 'core.cliente', linhas: 10 }],
   entidades_afetadas: ['cliente'],
   total: 10,
   bloqueio: null,
@@ -63,7 +63,7 @@ describe('liberação (RN-PLA-12)', () => {
     expect(zerarLiberado(previa(), 'AM2290', ' am2290 ', 'x')).toBe(true);
     expect(zerarLiberado(undefined, 'AM2290', 'AM2290', 'x')).toBe(false);
     expect(zerarLiberado(calculando, 'AM2290', 'AM2290', 'x')).toBe(false);
-    expect(zerarLiberado(previa({ situacao: 'falhou', linhas: null, entidades_afetadas: null, total: null, erro_codigo: 'ZERAR_PREVIA_FALHOU' }), 'AM2290', 'AM2290', 'x')).toBe(false);
+    expect(zerarLiberado(previa({ situacao: 'falhou', linhas: null, entidades_afetadas: null, total: null, erro_codigo: 'ZERAR_FALHOU' }), 'AM2290', 'AM2290', 'x')).toBe(false);
     expect(zerarLiberado(previa(), 'AM2290', 'AM229', 'x')).toBe(false);
     expect(zerarLiberado(previa(), 'AM2290', 'AM2290', '')).toBe(false);
     expect(zerarLiberado(previa({ bloqueio: Z.backupEmAndamento }), 'AM2290', 'AM2290', 'x')).toBe(false);
@@ -73,7 +73,7 @@ describe('liberação (RN-PLA-12)', () => {
     expect(previaCalculando(calculando)).toBe(true);
     expect(previaCalculando(previa())).toBe(false);
     expect(previaCalculando(undefined)).toBe(false);
-    expect(fraseDaPreviaFalha(previa({ situacao: 'falhou', erro_codigo: 'ZERAR_PREVIA_FALHOU' }))).toBe('Não foi possível calcular o que sai. Tente de novo.');
+    expect(fraseDaPreviaFalha(previa({ situacao: 'falhou', erro_codigo: 'ZERAR_FALHOU' }))).toBe('Não foi possível contar os dados. Tente de novo.');
   });
   it('"Mantém" da empresa inteira: administradores, não usuários (a rotina apaga os não administradores)', () => {
     expect(TEXTOS_ZERAR.ficam).toBe('Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.');

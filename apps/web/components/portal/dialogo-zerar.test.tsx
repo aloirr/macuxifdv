@@ -81,12 +81,12 @@ describe('diálogo Zerar dados', () => {
       entidades_afetadas: null,
       total: null,
       bloqueio: null,
-      erro_codigo: 'ZERAR_PREVIA_FALHOU',
+      erro_codigo: 'ZERAR_FALHOU',
       criado_em: '2026-11-23T12:00:00.000Z',
     };
     const html = com({ previa: PreviaZerarSchema.parse(falhou), tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain('data-testid="empresa-zerar.previa-falhou"');
-    expect(html).toContain('Não foi possível calcular o que sai. Tente de novo.');
+    expect(html).toContain('Não foi possível contar os dados. Tente de novo.');
     expect(html).not.toContain('empresa-zerar.calculando');
     expect(html).not.toContain('empresa-zerar.codigo');
     expect(html).not.toContain('empresa-acao.confirmar');
