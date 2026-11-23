@@ -1426,7 +1426,7 @@ cópia (portal: 7 dias, `expurgar_zerar`; workflow: descarte manual). `TABELAS_S
 | empresa_id | uuid not null | o tenant (sem FK) |
 | entidades | text[] | nulo = a empresa inteira; senão ≥ 1, sem repetição, na ordem de carga |
 | situacao | text not null default `em_andamento` | `em_andamento` → `pronta` \| `falhou` |
-| resultado | jsonb | só e sempre na `pronta`: `{linhas: [{ordem, tabela, linhas}], entidades_afetadas: [...], total}` |
+| resultado | jsonb | só e sempre na `pronta`: `{linhas: [{ordem, tabela, modo, linhas}], entidades_afetadas: [...], total}` |
 | erro_codigo | text | `^[A-Z][A-Z0-9_]{1,59}$`, só e sempre em `falhou` (`ZERAR_FALHOU`, `TENANT_NAO_ENCONTRADO`) |
 | tentativas, bloqueado_ate | integer, timestamptz | worker (concessão de 2 min; teto 3, depois `falhou` `ZERAR_FALHOU`) |
 | expira_em | timestamptz not null default now() + 1 hora | vencida: a leitura não acha e o `pegar_previa_zerar` apaga |
@@ -1443,9 +1443,13 @@ Sessão inválida = 28000; admin do cliente = 42501; o código do contrato vai n
 | `sa_pedir_zerar(p_sid uuid, p_tenant uuid, p_id uuid, p_codigo text, p_entidades text[] default null)` | `ZerarEmpresa` em andamento (o mesmo id devolve o mesmo), sem recontar; auditoria `tenant.zerar_pedido` `{zerar_id, lote, entidades}` | P0002; 55000 `EXCLUSAO_EM_ANDAMENTO`, `ZERAR_EM_ANDAMENTO`, `BACKUP_EM_ANDAMENTO`, `ZERAR_HUB_PROCESSANDO`; 22023 `ZERAR_CODIGO_NAO_CONFERE` e entidades; 23505 id de outra empresa |
 | `sa_ler_zerar(p_sid uuid, p_tenant uuid)` | `ZerarEmpresa` mais recente ou null | — |
 
-`PreviaZerarEmpresa` (`zerar_previa_json`, interna): `{ id, situacao, entidades, linhas: [{ordem, tabela, linhas}],
+`PreviaZerarEmpresa` (`zerar_previa_json`, interna): `{ id, situacao, entidades, linhas: [{ordem, tabela, modo, linhas}],
 entidades_afetadas, total, bloqueio, erro_codigo, criado_em }`. `linhas` (só as com contagem, na ordem do executar),
 `entidades_afetadas` e `total` (soft + físico = o `linhas_apagadas` do executar) só na `pronta`; `bloqueio` calculado na leitura.
+`modo` é o do resumo da `limpar_cadastros` (o mesmo da `contagem` do zerar): saem `soft` e `fisico` (somam o `total`); não saem
+`filial` (`core.filial` perde só o `external_id`), `sync_pacote` (`plataforma.sync_pacote` vira `substituido`) e `girar`
+(`plataforma.tenant`, nova geração da base). Medida (23/11/2026, Postgres 16 local): ~2 milhões de linhas (1.999.963) no
+`executar_zerar` em 1 min 27 s; a prévia (simular) em 23 s.
 
 `zerar_bloqueado(p_tenant, p_zerar, p_total)` (interna) é a fonte única do bloqueio (RN-PLA-12): exclusão (ou `encerrado`), zerar,
 backup, lote do Hub em `processando`, volume acima de 2 milhões. Chega à tela pelo `bloqueio` da prévia e pelo `erro_codigo` do

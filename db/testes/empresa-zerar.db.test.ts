@@ -329,7 +329,7 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
   const limpar = (tenant: string, lote: string, entidades: string[] | null, exigir = true, simular = false) =>
     q<Linha>('select * from plataforma.limpar_cadastros($1, $2, $3::text[], $4, $5)', [tenant, lote, entidades, exigir, simular]);
   type Previa = {
-    id: string; situacao: string; entidades: string[] | null; linhas: { ordem: number; tabela: string; linhas: number }[] | null;
+    id: string; situacao: string; entidades: string[] | null; linhas: { ordem: number; tabela: string; modo: string; linhas: number }[] | null;
     entidades_afetadas: string[] | null; total: number | null; bloqueio: string | null; erro_codigo: string | null; criado_em: string;
   };
   const pedirPrevia = (sid: string, tenant: string, idPrevia: string, entidades: string[] | null = null) =>
@@ -608,6 +608,10 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
       expect(previa).toMatchObject({ situacao: 'pronta', entidades: ['cliente', 'cliente_endereco'], entidades_afetadas: ['cliente', 'cliente_endereco', 'titulo'], bloqueio: null, erro_codigo: null });
       expect(previa.linhas!.length).toBeGreaterThan(3);
       expect(previa.linhas!.every((t) => t.linhas > 0 && Number.isInteger(t.ordem) && /^[a-z_]+\.[a-z_]+$/.test(t.tabela))).toBe(true);
+      // modo em cada linha (o do resumo): soft e fisico somam o total; filial, sync_pacote e girar não saem
+      expect(previa.linhas!.every((t) => ['soft', 'fisico', 'filial', 'sync_pacote', 'girar'].includes(t.modo))).toBe(true);
+      expect(previa.linhas!.find((t) => t.tabela === 'plataforma.tenant')).toMatchObject({ modo: 'girar', linhas: 1 });
+      expect(previa.total).toBe(previa.linhas!.filter((t) => t.modo === 'soft' || t.modo === 'fisico').reduce((a, t) => a + t.linhas, 0));
       expect(previa.total).toBeGreaterThan(0);
 
       // Hub processando: 409 no pedido e bloqueio na leitura da prévia (zerar_bloqueado, agora); código errado 422
@@ -630,9 +634,9 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
       expect((await comoPapel(admin, 'macuxi_worker', 'select id, empresa_id from plataforma.pegar_zerar()')).rows).toEqual([]);
       type Feito = { situacao: string; contagem: unknown[]; linhas_apagadas: number; entidades_afetadas: string[] | null; lote: string };
       const feito = await worker<Feito>('select plataforma.executar_zerar($1) as r', [id(1)]);
-      // a prévia bate com o executado: as mesmas tabelas, na mesma ordem, com as mesmas linhas; total = linhas_apagadas
+      // a prévia bate com o executado: as mesmas tabelas, na mesma ordem, com o mesmo modo e as mesmas linhas; total = linhas_apagadas
       expect(feito).toMatchObject({ situacao: 'concluido', linhas_apagadas: previa.total, entidades_afetadas: previa.entidades_afetadas, lote: pedido.lote });
-      expect((feito.contagem as { tabela: string; linhas: number }[]).map((x) => `${x.tabela} ${x.linhas}`)).toEqual(previa.linhas!.map((x) => `${x.tabela} ${x.linhas}`));
+      expect((feito.contagem as { tabela: string; modo: string; linhas: number }[]).map((x) => `${x.tabela} ${x.modo} ${x.linhas}`)).toEqual(previa.linhas!.map((x) => `${x.tabela} ${x.modo} ${x.linhas}`));
       // a prévia pedida depois: o zerar já foi (bloqueio null; os números agora são os do que sobrou)
       expect((await lerPrevia(sid, A.tenantId, id(11)))!.bloqueio).toBeNull();
       expect(await worker('select plataforma.executar_zerar($1) as r', [id(1)])).toEqual(feito);

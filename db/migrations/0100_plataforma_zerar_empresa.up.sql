@@ -656,8 +656,9 @@ create function plataforma.zerar_empresa_json(z plataforma.zerar_empresa)
   $$;
 revoke all on function plataforma.zerar_empresa_json(plataforma.zerar_empresa) from public;
 
--- PreviaZerarEmpresa: { id, situacao, entidades, linhas: [{ordem, tabela, linhas}], entidades_afetadas, total, bloqueio,
--- erro_codigo, criado_em }. linhas, entidades_afetadas e total só na pronta; bloqueio = zerar_bloqueado agora (com o total, se
+-- PreviaZerarEmpresa: { id, situacao, entidades, linhas: [{ordem, tabela, modo, linhas}], entidades_afetadas, total, bloqueio,
+-- erro_codigo, criado_em }. modo = o do resumo da limpar_cadastros: soft e fisico saem (somam o total); filial (perde só o
+-- external_id), sync_pacote (vira substituido) e girar (plataforma.tenant) não saem. linhas, entidades_afetadas e total só na pronta; bloqueio = zerar_bloqueado agora (com o total, se
 -- houver), em qualquer situação.
 create function plataforma.zerar_previa_json(p plataforma.zerar_previa)
   returns jsonb
@@ -882,7 +883,6 @@ create function plataforma.executar_previa_zerar(p_previa uuid)
   as $$
 declare
   v_p plataforma.zerar_previa;
-  v_lista jsonb;
   v_linhas jsonb;
   v_total bigint;
 begin
@@ -900,12 +900,10 @@ begin
   end if;
   -- subtransação: conta e desfaz (as tabelas temporárias saem; as variáveis ficam)
   begin
-    select coalesce(jsonb_agg(jsonb_build_object('tabela', l.r_tabela, 'modo', l.r_modo, 'linhas', l.r_linhas)
-                              order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
-           coalesce(jsonb_agg(jsonb_build_object('ordem', l.r_ordem, 'tabela', l.r_tabela, 'linhas', l.r_linhas)
+    select coalesce(jsonb_agg(jsonb_build_object('ordem', l.r_ordem, 'tabela', l.r_tabela, 'modo', l.r_modo, 'linhas', l.r_linhas)
                               order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
            coalesce(sum(l.r_linhas) filter (where l.r_modo in ('soft', 'fisico')), 0)::bigint
-      into v_lista, v_linhas, v_total
+      into v_linhas, v_total
       from plataforma.limpar_cadastros(v_p.empresa_id, to_char(now() at time zone 'UTC', 'YYYYMMDD"T"HH24MISS"Z"') || '-'
                                        || left(v_p.id::text, 8), v_p.entidades, false, true) l;
     raise exception 'prévia desfeita' using errcode = 'MXZ99';
@@ -920,7 +918,7 @@ begin
   update plataforma.zerar_previa
      set situacao = 'pronta', bloqueado_ate = null,
          resultado = jsonb_build_object('linhas', v_linhas, 'total', v_total,
-                                        'entidades_afetadas', to_jsonb(plataforma.entidades_afetadas_limpeza(v_lista, v_p.entidades)))
+                                        'entidades_afetadas', to_jsonb(plataforma.entidades_afetadas_limpeza(v_linhas, v_p.entidades)))
    where id = p_previa
   returning * into v_p;
   return plataforma.zerar_previa_json(v_p);
