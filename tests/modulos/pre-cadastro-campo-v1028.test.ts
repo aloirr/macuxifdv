@@ -5,9 +5,9 @@
  * API pelo contrato (push idempotente pelo UUID; pull de `cliente` com `status_cadastro`/`motivo_recusa`/`external_id`) → lista
  * (`sobreporPreCadastros` + `listarClientesLocais` + `situacaoDoCliente`/`situacaoNaLinha` + `seloDoPreCadastro`, a mesma composição
  * de `usar-clientes-locais.ts` e de `LinhaCliente` em `telas/clientes.tsx`).
- * A API real (rota de push, revalidação 422, `status_cadastro` no pull) é da sessão A e não está neste lote: aqui o servidor é o do
- * contrato. Matriz: offline → reconexão; reenvio duplicado; recusado → "Corrigir e reenviar" com o mesmo id; código do ERP; parâmetro
- * de obrigatórios com e sem linha; CNPJ com dígito errado; valor × regra do selo em cada status.
+ * O servidor é o do contrato (a rota real de push e a revalidação 422 têm os testes de banco do Core). Matriz: offline → reconexão;
+ * reenvio duplicado; 422 da API → "Corrigir e reenviar" que substitui o item da fila; recusado pelo ERP → correção com o mesmo id;
+ * código do ERP; parâmetro de obrigatórios com e sem linha; CNPJ com dígito errado; perfil; valor × regra do selo em cada status.
  */
 import { manifest as manifestCore } from '@macuxi/core/manifest';
 import { criarArmazenamentoEmMemoria, criarClienteHttp, criarMotorSync, criarRegistroSync, ErroSemConexao, type ItemPush, type LinhaSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
@@ -15,12 +15,11 @@ import { ROTULO_AGUARDANDO_ERP, ROTULO_RECUSADO_ERP, seloDoPreCadastro } from '@
 import { describe, expect, it } from 'vitest';
 
 import { PreCadastroClienteSchema, type ClienteSync, type ParametroSync, type PreCadastroCliente } from '../../modules/core/contracts';
-import { situacaoDoCliente, situacaoDoPreCadastro, situacaoNaLinha } from '../../modules/core/domain';
+import { podePreCadastrarCliente, situacaoDoCliente, situacaoDoPreCadastro, situacaoNaLinha } from '../../modules/core/domain';
 import { listarClientesLocais } from '../../modules/core/app/lib/cliente360-local';
 import { entidadesCliente } from '../../modules/core/app/lib/entidades-cliente';
 import { entidadesRota } from '../../modules/core/app/lib/entidades-rota';
 import { ENTIDADE_PRE_CADASTRO, obrigatoriosDasLinhas, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente, type ValoresPreCadastro } from '../../modules/core/app/lib/pre-cadastro-local';
-import { caminhoDaRota } from '../../apps/mobile/src/lib/pre-cadastro-cliente';
 
 const U = (n: number) => `0c028000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const AGORA = '2026-11-23T14:00:00.000Z';
@@ -37,7 +36,7 @@ function montar(parametro?: unknown) {
   let ativado = false;
   let relogio = Date.parse(AGORA);
   const instante = () => new Date((relogio += 1000)).toISOString();
-  const servidor = { recebidos: new Map<string, PreCadastroCliente>(), recebimentos: 0, decisao: new Map<string, Decisao>() };
+  const servidor = { recebidos: new Map<string, PreCadastroCliente>(), recebimentos: 0, decisao: new Map<string, Decisao>(), recusa422: new Map<string, string>() };
   const registro = criarRegistroSync([manifestCore]);
   for (const e of [...entidadesCliente, ...entidadesRota]) if (!registro.entidade(e.nome)) registro.registrar(e);
   const linhaCliente = (p: PreCadastroCliente, d: Decisao | undefined): ClienteSync => ({
@@ -64,6 +63,12 @@ function montar(parametro?: unknown) {
         return itens.map((i) => {
           servidor.recebimentos += 1;
           const p = PreCadastroClienteSchema.parse(i.payload); // o servidor recebe o contrato estrito
+          // revalidação da API (422): uma vez por id; o item fica `falhou` no aparelho
+          const recusa = servidor.recusa422.get(p.id);
+          if (recusa) {
+            servidor.recusa422.delete(p.id);
+            return { id: i.id, status: 'rejeitado', codigo: 'VALIDACAO', mensagem: recusa };
+          }
           // reenvio da correção (mesmo id): substitui e volta a pendente; o mesmo payload repetido não duplica
           servidor.recebidos.set(p.id, p);
           if (servidor.decisao.get(p.id)?.status === 'recusado') servidor.decisao.delete(p.id);
@@ -108,12 +113,11 @@ function montar(parametro?: unknown) {
   return { motor, servidor, lista, obrigatorios, salvar, sincronizar };
 }
 
-describe('v1.0.28 pré-cadastro no Campo: rota (critério 1)', () => {
-  it('RN-CORE-78: o endereço do Core (/m/novo-cliente) vira a página "novo-cliente" do shell; endereço fora da convenção não registra rota', () => {
-    // a restrição por variante/perfil da página é coberta com o shell real em apps/mobile/src/lib/pre-cadastro-cliente.test.ts
-    expect(caminhoDaRota('/m/novo-cliente')).toBe('novo-cliente');
-    expect(caminhoDaRota('/m/novo-cliente?clienteId=x')).toBeUndefined();
-    expect(caminhoDaRota('/novo-cliente')).toBeUndefined();
+describe('v1.0.28 pré-cadastro no Campo: perfil (critério 1)', () => {
+  it('RN-CORE-78 e RN-PRO-01: só o vendedor pré-cadastra; promotor, gestão e sem perfil não', () => {
+    // a página `novo-cliente` (perfis: ['vendedor']) e o botão das duas listas usam esta checagem: novo-cliente.layout.test.ts
+    expect(podePreCadastrarCliente('vendedor')).toBe(true);
+    for (const p of ['promotor', 'supervisor', 'gerente', 'admin'] as const) expect(podePreCadastrarCliente(p), p).toBe(false);
   });
 });
 
@@ -184,6 +188,28 @@ describe('v1.0.28 pré-cadastro no Campo: offline → fila → ERP (motor real)'
     t.servidor.decisao.set(ID, { status: 'aprovado', codigo: 'ERP-000123' });
     await t.sincronizar();
     expect(await t.lista()).toEqual([{ id: ID, nome: 'Mercado Boa Vista', situacao: 'em_dia', selo: null, motivo: null, status: 'aprovado' }]);
+  });
+});
+
+describe('v1.0.28 pré-cadastro no Campo: 422 da API (defeito corrigido)', () => {
+  it('RN-CORE-78: o item que a API recusou (422) sai de "Aguardando ERP" com a mensagem; a correção SUBSTITUI o item da fila e o reenvio é aceito', async () => {
+    const t = montar();
+    await t.salvar(VALORES);
+    t.servidor.recusa422.set(ID, 'Inscrição estadual inválida para AM');
+    await t.sincronizar();
+    expect(t.motor.estado().fila.map((i) => [i.id, i.situacao])).toEqual([[ID, 'falhou']]);
+    const [linha] = await t.lista();
+    expect(linha).toMatchObject({ id: ID, status: 'recusado', motivo: 'Inscrição estadual inválida para AM' });
+    expect(linha?.selo).not.toBe(ROTULO_AGUARDANDO_ERP);
+
+    // "Corrigir e reenviar": mesmo id, o item parado vira pendente com o payload novo (um item só na fila)
+    expect(await t.salvar({ ...VALORES, razao_social: 'Mercado Boa Vista Ltda' })).toEqual({ ok: true, id: ID });
+    expect(t.motor.estado().fila.map((i) => [i.id, i.situacao, (i.payload as PreCadastroCliente).razao_social])).toEqual([[ID, 'pendente', 'Mercado Boa Vista Ltda']]);
+    expect(await t.lista()).toEqual([{ id: ID, nome: 'Mercado Boa Vista Ltda', situacao: 'pre_cadastro', selo: ROTULO_AGUARDANDO_ERP, motivo: null, status: 'pendente' }]);
+
+    await t.sincronizar();
+    expect(t.motor.estado().fila).toEqual([]);
+    expect([...t.servidor.recebidos.values()].map((p) => [p.id, p.razao_social, p.documento])).toEqual([[ID, 'Mercado Boa Vista Ltda', '11222333000181']]);
   });
 });
 
