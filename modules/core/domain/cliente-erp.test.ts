@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { completarCnpj } from '@macuxi/comum/documento';
-import { planejarClienteDoErp, type EventoClienteAtualizado } from './cliente-erp';
+import { decidirDocumentoDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from './cliente-erp';
 import { CAMPOS_CADASTRO_PADRAO } from './cadastro';
 
 const CNPJ = completarCnpj('112223330001');
@@ -66,5 +66,23 @@ describe('RN-CORE-16/17: cliente do ERP vira core.cliente com o cadastro mínimo
 
   it('RN-INT-02: reentrega do mesmo evento dá o mesmo plano (idempotente)', () => {
     expect(planejarClienteDoErp(evento(), CAMPOS_CADASTRO_PADRAO)).toEqual(planejarClienteDoErp(evento(), CAMPOS_CADASTRO_PADRAO));
+  });
+});
+
+describe('decidirDocumentoDoErp (v1.0.30, ADR 0069 item 10)', () => {
+  it('RN-CORE-78: documento sem outro dono segue gravando', () => {
+    expect(decidirDocumentoDoErp(null, 'C-1')).toBe('seguir');
+  });
+  it('RN-CORE-78: o próprio cliente (mesmo código do ERP) segue gravando', () => {
+    expect(decidirDocumentoDoErp({ origem_cadastro: 'campo', external_id: 'C-1' }, 'C-1')).toBe('seguir');
+  });
+  it('RN-INT-04: pré-cadastro do Campo ou do BKO ainda sem código com o mesmo documento espera o vínculo, sem duplicar', () => {
+    expect(decidirDocumentoDoErp({ origem_cadastro: 'campo', external_id: null }, 'C-1')).toBe('esperar_vinculo');
+    expect(decidirDocumentoDoErp({ origem_cadastro: 'bko', external_id: null }, 'C-1')).toBe('esperar_vinculo');
+  });
+  it('RN-CORE-78: outro cliente do ERP ou pré-cadastro já vinculado a outro código fica com o documento; a carga entra sem documento', () => {
+    expect(decidirDocumentoDoErp({ origem_cadastro: 'erp', external_id: 'C-2' }, 'C-1')).toBe('sem_documento');
+    expect(decidirDocumentoDoErp({ origem_cadastro: 'erp', external_id: null }, 'C-1')).toBe('sem_documento');
+    expect(decidirDocumentoDoErp({ origem_cadastro: 'campo', external_id: 'C-2' }, 'C-1')).toBe('sem_documento');
   });
 });

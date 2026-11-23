@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CODIGOS_CODIGO_FDV, formatarCodigoFdv, recusarCodigoFdvNoCorpo, validarCodigoFdv } from './codigo-fdv';
+import { CODIGO_FDV_SOMENTE_LEITURA } from '../contracts/cliente-pre-cadastro';
+import { formatarCodigoFdv, recusarCodigoFdvNoCorpo, validarCodigoFdv } from './codigo-fdv';
 
 describe('RN-CORE-59: Código FDV (código próprio do Macuxi, gerado, só de leitura)', () => {
   it('RN-CORE-59: formata em 5 dígitos, sem prefixo, e cresce passando de 99999', () => {
@@ -35,7 +36,7 @@ describe('RN-CORE-59: Código FDV (código próprio do Macuxi, gerado, só de le
     expect(recusarCodigoFdvNoCorpo({ codigo_fdv: undefined })).toBeNull();
     for (const valor of ['00001', null, '', 7]) {
       const e = recusarCodigoFdvNoCorpo({ codigo_fdv: valor });
-      expect(e?.codigo).toBe(CODIGOS_CODIGO_FDV.somenteLeitura);
+      expect(e?.codigo).toBe(CODIGO_FDV_SOMENTE_LEITURA);
       expect(e?.campo).toBe('codigo_fdv');
       expect(e?.mensagem).toMatch(/gerado pelo sistema/);
     }

@@ -496,6 +496,10 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       const cart = await chamar('GET', 'usuarios/:id/clientes', supervisor, { params: { id: U.vendedor1 } });
       expect(cart.itens.map((c: { id: string }) => c.id).sort()).toEqual([C.c1, C.c3].sort());
       expect(cart.itens[0]).toMatchObject({ papel: 'vendedor', carteira_id: expect.any(String) });
+      // v1.0.30 (ADR 0069 item 10): a Carteira do BKO mostra os dois códigos do cliente
+      const c1 = await comTenant(pool, A.tenantId, async (c) => (await c.query<{ codigo_fdv: string; external_id: string | null }>('select codigo_fdv, external_id from core.cliente where id = $1', [C.c1])).rows[0]!);
+      expect(cart.itens.find((c: { id: string }) => c.id === C.c1)).toMatchObject({ codigo_fdv: c1.codigo_fdv, external_id: c1.external_id });
+      expect(c1.codigo_fdv).toMatch(/^\d{5,}$/);
       await expect(chamar('GET', 'usuarios/:id/clientes', supervisor, { params: { id: U.vendedor2 } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
     });
 
