@@ -1366,7 +1366,7 @@ Idempotente. Volte antes o código do Core e do Hub que lê ou grava `motivo_rec
 ## 0098 — revisões do pré-cadastro (`0098_core_integracao_pre_cadastro_revisao`; v1.0.29, ADR 0069, RN-CORE-16, RN-CORE-78 e RN-CORE-79 revistas)
 O recusado pelo ERP é corrigido e reenviado **no mesmo cliente** (mesmo `id`), como uma revisão nova, com histórico. Em cima da
 0097 (número provisório; segue a ordem de merge). Muda `core.cliente`, cria `core.cliente_pre_cadastro_tentativa`, acrescenta
-colunas à `integracao.cliente_fila_erp` (ver [integracao.md](integracao.md), "0098") e unifica o parâmetro de campos obrigatórios.
+colunas à `integracao.cliente_fila_erp` (ver [integracao.md](integracao.md), "0098"), unifica o parâmetro de campos obrigatórios e cria o Código FDV do cliente (`codigo_fdv` e `core.cliente_codigo_fdv_contador`).
 
 | Coluna de `core.cliente` | Tipo | Regra |
 |---|---|---|
@@ -1418,10 +1418,38 @@ razão social e documento sempre; ordem canônica — o `camposExigidos` do doma
 - **Conferência antes do deploy:** `db/scripts/conferencia-0098.sql` (rode ANTES da 0098, só leitura; sai o código do tenant e
   nomes de campo): caso (a) campos do pré-cadastro fora da lista da RN-CORE-16, que passam a valer no cadastro completo dos clientes
   do ERP (RN-CORE-17); (b) tenant sem nenhuma das chaves (o pré-cadastro passa a exigir IE para CNPJ e endereço); (c) os demais com
-  campo novo no pré-cadastro. O gerente leva o resultado ao dono do produto antes do "aprovo deploy".
+  campo novo no pré-cadastro. Só informativa (ver "Duplicados da v1.0.28" abaixo).
 - **Tenant novo depois da 0098:** sem as linhas (vale o padrão); o espelho só nasce no primeiro `PUT` de Parâmetros › Clientes.
+- **Duplicados da v1.0.28** (ADR 0069 item 10): a mesma conferência traz uma 2ª consulta, por tenant, `duplicados_v1028` = pré-cadastros
+  vivos ainda sem Código ERP com auditoria `cliente.vinculo_erp_recusado` de resultado `codigo_em_uso` (a carga do ERP chegou antes do
+  vínculo e criou outro cliente). A ADR não os corrige. **A conferência é só informativa** (não é condição do "aprovo deploy"): o
+  gerente informa o resultado ao dono do produto.
+
+### Código FDV do cliente (ADR 0069 item 10; molde da 0080, RN-CORE-59)
+O cliente tem **dois códigos**: o **Código ERP** (`external_id`, nulo no pré-cadastro até o retorno `vinculado`) e o **Código FDV**,
+gerado pelo banco quando o **servidor** recebe o pré-cadastro (o aparelho não numera offline; o pull leva o código).
+
+| Objeto | Regra |
+|---|---|
+| `core.cliente.codigo_fdv text` | `00001`… por tenant (5 dígitos ou mais, sem prefixo; `100000` depois de `99999`), só de leitura, nunca reaproveitado. Nulo nos clientes do ERP (sem carga para eles) e nos pré-cadastros apagados antes da 0098. CHECK `cliente_codigo_fdv_formato` (a mesma regex da `usuario_codigo_fdv_formato`) e `cliente_codigo_fdv_origem` (`codigo_fdv is null or origem_cadastro <> 'erp'`). Vai no pull; SELECT do `macuxi_leitura` |
+| `cliente_codigo_fdv_uk` | único `(tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null`; cobre a busca pelo código |
+| `core.cliente_codigo_fdv_contador` | uma linha por tenant (`cliente_codigo_fdv_contador_tenant_uk`; id = `uuid_de_chave('<tenant>:core.cliente_codigo_fdv_contador')`), `ultimo_sequencial bigint >= 0` = maior número emitido. **Numeração própria** (não divide com o usuário). Colunas-padrão, RLS forçado, `isolamento_tenant` + `manutencao` + `leitura`; `macuxi_app` e `macuxi_leitura` só **select**. Fora do sync (`db/src/excecoes.ts`) |
+| `cliente_codigo_fdv_contador_nao_diminui` | gatilho BEFORE UPDATE do contador: diminuir ou trocar de tenant = 23514, constraint de mesmo nome |
+| `cliente_codigo_fdv_contador_piso` | gatilho BEFORE INSERT do contador: nasce no mínimo no maior Código FDV de cliente já gravado no tenant (vivo ou apagado) |
+| `core.cliente_codigo_fdv()` | função dos 2 gatilhos abaixo, SECURITY DEFINER, `search_path = pg_catalog, core, plataforma, pg_temp`, sem EXECUTE a ninguém |
+| `cliente_codigo_fdv_emitir` | BEFORE INSERT em `core.cliente`: só com `origem_cadastro <> 'erp'` e código nulo -> próximo número do contador (inserts concorrentes do mesmo tenant numeram em fila, sem repetir). Código informado fica (backup, carga técnica e a **substituição do APK v1.0.28**: o id novo X herda o código do recusado Y, apagado antes) e o contador que existe sobe para `greatest(atual, n)`. Insert que cai no `ON CONFLICT` consome o número (buraco aceito) |
+| `cliente_codigo_fdv_somente_leitura` | BEFORE UPDATE em `core.cliente`: mudar `codigo_fdv` = **SQLSTATE 23514**, **constraint `cliente_codigo_fdv_somente_leitura`**, coluna `codigo_fdv`, hint `RN-CORE-59` -> o Core mapeia para 422 `CODIGO_FDV_SOMENTE_LEITURA`. Só o pré-cadastro apagado sem código que volta a vivo ganha número num update |
+
+- **Carga:** os pré-cadastros **vivos** (`origem_cadastro <> 'erp'`), por tenant, em ordem de `created_at, id`, recebem `00001`…; o
+  contador termina no maior emitido (tenant sem pré-cadastro vivo fica sem linha até o 1º). O `updated_at` anda: o pull leva o código.
+- **Backup e restauração** (0072, `ordem_do_backup`): o contador só tem FK para `plataforma.tenant` e sai antes de `core.cliente`; a
+  restauração dá certo em qualquer ordem com os gatilhos ligados, como na 0080 (não desligue os do contador).
+- **Fixture dois-tenants:** os clientes da fixture vêm do ERP (sem código); o contador de A e de B nasce em 0 (id determinístico,
+  `ultimo_sequencial` preservado na recarga). Os testes criam os pré-cadastros dentro de transação desfeita.
+- **Drizzle:** `cliente.codigo_fdv` e `clienteCodigoFdvContador` em `modules/core/db/nuvem.ts`.
 
 Volta: `0098_core_integracao_pre_cadastro_revisao.down.sql` (apaga a tabela de tentativas e `revisao_cadastro` e `erros_recusa`,
 com os CHECKs e o SELECT por coluna do `macuxi_leitura` — o histórico, os hashes e os erros por campo se perdem; os parâmetros ficam
-como a 0098 deixou, válidos para o código da v1.0.28). Idempotente. Volte antes o código do Core e do Hub que lê a tabela ou as
+como a 0098 deixou, válidos para o código da v1.0.28) e o Código FDV do cliente (gatilhos, função, contador, índice, CHECKs e
+coluna: **perde os códigos**; reaplicar renumera os pré-cadastros vivos por `created_at, id`). Idempotente. Volte antes o código do Core e do Hub que lê a tabela ou as
 colunas (senão 42P01/42703). Teste: `db/testes/cliente-pre-cadastro-revisao.db.test.ts`.

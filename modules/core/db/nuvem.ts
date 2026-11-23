@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: ponto_trajeto e ausencia_usuario; 0090: forma de pagamento e NF em nota_erp e titulo, documento_tipo, documento_cliente, documento_permissao e documento_excecao; 0098: cliente.revisao_cadastro e erros_recusa e cliente_pre_cadastro_tentativa), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: ponto_trajeto e ausencia_usuario; 0090: forma de pagamento e NF em nota_erp e titulo, documento_tipo, documento_cliente, documento_permissao e documento_excecao; 0098: cliente.revisao_cadastro, erros_recusa e codigo_fdv, cliente_pre_cadastro_tentativa e cliente_codigo_fdv_contador), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -242,6 +242,19 @@ export const cliente = core.table('cliente', {
    * motivo_recusa (pull só ao vendedor do cliente; nunca em log nem na auditoria; sem SELECT do macuxi_leitura).
    */
   erros_recusa: jsonb('erros_recusa').$type<{ campo: string; codigo: string; mensagem: string }[]>(),
+  /**
+   * Código FDV do cliente (0098, ADR 0069 item 10, molde da RN-CORE-59): 00001… por tenant, gerado pelo banco quando o servidor
+   * recebe o pré-cadastro (gatilho cliente_codigo_fdv_emitir) e só de leitura (cliente_codigo_fdv_somente_leitura, 23514). Nulo
+   * nos clientes do ERP (o Código ERP é o external_id). Somente leitura — nunca grave (só a substituição do APK v1.0.28 copia o do
+   * recusado para o id novo, no insert).
+   */
+  codigo_fdv: text('codigo_fdv'),
+});
+
+/** Contador do Código FDV do cliente (0098, ADR 0069 item 10): uma linha por tenant, o maior número emitido; só o gatilho grava. Fora do sync. */
+export const clienteCodigoFdvContador = core.table('cliente_codigo_fdv_contador', {
+  ...comuns(),
+  ultimo_sequencial: bigint('ultimo_sequencial', { mode: 'number' }).notNull().default(0),
 });
 
 /** Origens e resultados da tentativa do pré-cadastro (CHECKs da 0098; espelho de OrigemTentativaSchema e ResultadoTentativaSchema). */

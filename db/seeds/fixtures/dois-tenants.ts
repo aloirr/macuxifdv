@@ -763,6 +763,8 @@ export const ORDEM_TABELAS = [
   // 0056 (T-0149): filiais além da padrão (a padrão vem do gatilho tenant_semear_filial), antes da FK cliente_filial_fk
   'core.filial',
   'core.cliente',
+  // 0098 (ADR 0069 item 10): contador do Código FDV do cliente; os clientes da fixture vêm do ERP (sem código), então nasce em 0
+  'core.cliente_codigo_fdv_contador',
   'core.carteira',
   'core.dispositivo',
   'core.sessao',
@@ -1239,6 +1241,11 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'core.usuario_codigo_fdv_contador': [
       { id: idDeChave(`${tA}:core.usuario_codigo_fdv_contador`), tenant_id: tA, ultimo_sequencial: 8, external_id: null },
       { id: idDeChave(`${tB}:core.usuario_codigo_fdv_contador`), tenant_id: tB, ultimo_sequencial: 2, external_id: null },
+    ],
+    // 0098 (ADR 0069 item 10): mesmo id determinístico do gatilho cliente_codigo_fdv_emitir; nenhum pré-cadastro na fixture (0)
+    'core.cliente_codigo_fdv_contador': [
+      { id: idDeChave(`${tA}:core.cliente_codigo_fdv_contador`), tenant_id: tA, ultimo_sequencial: 0, external_id: null },
+      { id: idDeChave(`${tB}:core.cliente_codigo_fdv_contador`), tenant_id: tB, ultimo_sequencial: 0, external_id: null },
     ],
     'plataforma.usuario_modulo': [
       { id: a('usuario_modulo', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor2, modulo: 'teste', efeito: 'remover', motivo: 'fixture: exceção que remove teste (S0-042)', external_id: null },
@@ -2216,7 +2223,7 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
       const preservar =
         tabela === 'core.usuario'
           ? comCodigoFdv ? ['senha_hash', 'codigo_fdv'] : ['senha_hash']
-          : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : tabela === 'core.usuario_codigo_fdv_contador' ? ['ultimo_sequencial'] : [];
+          : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : tabela === 'core.usuario_codigo_fdv_contador' || tabela === 'core.cliente_codigo_fdv_contador' ? ['ultimo_sequencial'] : [];
       // 0077: o backfill (empresa com uma filial) pode já ter dado a filial a usuários da fixture com outro id (banco que desceu e
       // subiu com os dados); sai o vínculo de id diferente para o da fixture entrar sem 23505 (usuario_filial_uk). A conferência
       // adiada usuario_filial_inclui_cadastro roda no COMMIT, com o vínculo da fixture já gravado.

@@ -121,6 +121,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'vendedor.numeracao_pedido',
   /** Contador do Código FDV (0080, T-0175, RN-CORE-59): uma linha por tenant, só o gatilho de core.usuario grava; o código vai no usuário. */
   'core.usuario_codigo_fdv_contador',
+  /** Contador do Código FDV do cliente (0098, ADR 0069 item 10): uma linha por tenant, só o gatilho de core.cliente grava; o código vai no cliente. */
+  'core.cliente_codigo_fdv_contador',
   /** Cota de IA por usuário/dia (0013, RN-CAT-03): só o servidor usa (catalogo.debitar_cota_ia). */
   'catalogo.uso_ia',
   /** Log de busca (0013, RF-CAT-07): só o BKO lê (termos sem resultado). */

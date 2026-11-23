@@ -1,8 +1,10 @@
--- Conferência da 0098_core_integracao_pre_cadastro_revisao (ADR 0069 item 6: uma lista só de campos obrigatórios). Rode ANTES da
--- 0098 (depois dela o espelho já está gravado em todo tenant e o caso (b) some). Só leitura; rode como administrador do banco (vê
--- todos os tenants) ou como macuxi_app com app.tenant_id (vê só o tenant). Sai só o código do tenant e nomes de campo (nenhum dado
--- pessoal). Dicionário: docs/banco/core.md ("0098"). O gerente leva o resultado ao dono do produto antes do "aprovo deploy".
+-- Conferência da 0098_core_integracao_pre_cadastro_revisao (ADR 0069 itens 6 e 10). SÓ INFORMATIVA: não é condição do "aprovo
+-- deploy"; o gerente informa o resultado ao dono do produto. Rode ANTES da 0098 (depois dela o espelho já está gravado em todo tenant
+-- e o caso (b) some). Só leitura; rode como administrador do banco (vê todos os tenants) ou como macuxi_app com app.tenant_id (vê só
+-- o tenant). Sai só o código do tenant, nomes de campo e contagens (nenhum dado pessoal). Dicionário: docs/banco/core.md ("0098").
+-- Duas consultas: (1) o que muda nos campos obrigatórios (item 6); (2) duplicados da v1.0.28 (item 10).
 --
+-- (1)
 -- Mesmas regras da migração: E = lista efetiva da RN-CORE-16 (códigos conhecidos de cliente.campos_obrigatorios; nenhum = o
 -- padrão; razão social e documento sempre); P = cliente.pre_cadastro.obrigatorios válido (inválido = vazio) com endereco expandido;
 -- antes, o pré-cadastro exigia razão social, documento e P; depois exige (E ∪ P) menos complemento e geolocalização.
@@ -94,3 +96,18 @@ select r.codigo as tenant,
   from resumo r
  where r.novos_no_cadastro_completo is not null or r.novos_no_pre_cadastro is not null
  order by r.codigo;
+
+-- (2) Duplicados da v1.0.28 (ADR 0069 item 10): a carga do ERP chegou antes do vínculo e criou outro cliente com o código, e o
+-- 'vinculado' do pré-cadastro caiu em codigo_em_uso. Conta, por tenant, os pré-cadastros vivos ainda sem Código ERP com essa
+-- auditoria (cliente.vinculo_erp_recusado, resultado codigo_em_uso). A ADR não os corrige; o gerente leva a contagem ao dono do
+-- produto. Sai só o código do tenant e a contagem.
+select t.codigo as tenant, count(distinct c.id)::int as duplicados_v1028
+  from core.cliente c
+  join plataforma.tenant t on t.id = c.tenant_id
+ where c.origem_cadastro <> 'erp' and c.deleted_at is null and c.external_id is null
+   and exists (
+     select 1 from plataforma.auditoria a
+      where a.tenant_id = c.tenant_id and a.entidade_id = c.id and a.acao = 'cliente.vinculo_erp_recusado'
+        and a.depois ->> 'resultado' = 'codigo_em_uso')
+ group by t.codigo
+ order by t.codigo;

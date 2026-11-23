@@ -286,7 +286,10 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > linha por revisão, com hash, origem, quem corrigiu, resultado, motivo e erros por campo; alias `cliente_id_original`; carga das
 > existentes; fora do sync); `integracao.cliente_fila_erp` ganha `revisao`, `hash` e `erros`; o parâmetro
 > `cliente.campos_obrigatorios` vira a lista única (E ∪ P) e `cliente.pre_cadastro.obrigatorios` fica como espelho do APK v1.0.28.
-> Conferência antes do deploy: `db/scripts/conferencia-0098.sql`. Detalhes no [core.md](core.md) e no
+> Código FDV do cliente (ADR 0069 item 10, molde da 0080): `core.cliente.codigo_fdv` gerado pelo banco no insert do pré-cadastro
+> (nulo no cliente do ERP), contador próprio `core.cliente_codigo_fdv_contador`, gatilhos `cliente_codigo_fdv_emitir` e
+> `cliente_codigo_fdv_somente_leitura` (23514), único `cliente_codigo_fdv_uk` entre os vivos, carga dos pré-cadastros vivos.
+> Conferência (só informativa, com os duplicados da v1.0.28): `db/scripts/conferencia-0098.sql`. Detalhes no [core.md](core.md) e no
 > [integracao.md](integracao.md) ("0098"); teste `db/testes/cliente-pre-cadastro-revisao.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
