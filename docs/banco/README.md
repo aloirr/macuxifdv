@@ -267,6 +267,11 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > em cima da 0094; número provisório): `core.cliente` ganha `origem_cadastro` (`'erp'` por default), `status_cadastro`,
 > `aprovado_em` e `aprovado_por`, 5 CHECKs e o índice parcial `cliente_aprovado_sem_erp_ix` (fila do Hub: aprovados sem
 > `external_id`). Detalhes no [core.md](core.md) ("0095"); teste `db/testes/cliente-cadastro-aprovacao.db.test.ts`.
+>
+> **2026-11-23 (v1.0.27, RF-CORE-10, item d):** `0096_integracao_cliente_fila_erp` (aditiva, em cima da 0095; número
+> provisório): `integracao.cliente_fila_erp`, a fila do pré-cadastro aprovado para o ERP no padrão da `pedido_fila_erp` (único
+> por `cliente_uuid`, estados pendente/enviado/vinculado/rejeitado, índice do poll `cliente_fila_erp_poll_ix`, RLS e grants
+> iguais). Detalhes no [integracao.md](integracao.md) ("0096"); teste `db/testes/cliente-fila-erp.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

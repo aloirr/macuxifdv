@@ -485,3 +485,31 @@ macuxi_portal: nada (o trabalho roda em `comTenant` com o macuxi_app, §2.5). ma
   credencial, passo 3). O cifrado da fixture é texto fixo de teste.
 - **Volta:** o down apaga as 5 tabelas (inclusive as credenciais: o cliente redigita depois de um novo up) e as 2 funções.
   Teste: `db/testes/integracao-busca-erp.db.test.ts`.
+
+## 0096 — fila do pré-cadastro de cliente aprovado para o ERP (`0096_integracao_cliente_fila_erp`; v1.0.27, RF-CORE-10)
+Decisão do gerente (v1.0.27, item d): o Hub entrega ao ERP o cliente de pré-cadastro (Campo ou BKO) aprovado pelo mesmo padrão
+dos pedidos (`pedido_fila_erp` e a consulta `pedidos_pendentes`). Número provisório (ordem de merge). Aditiva: 1 tabela; nada
+que existe muda. O Hub não lê `core.cliente` (0095): a linha entra pelo evento do Core com o cadastro canônico em `payload`.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| campos comuns | | `id`, `tenant_id`, `created_at`, `updated_at` (gatilho), `deleted_at` (remoção; sem DELETE), `external_id` |
+| `cliente_uuid` | uuid not null | id do cliente no Core; **único por tenant** (`cliente_fila_erp_cliente_uk`) = idempotência da entrada |
+| `payload` | jsonb not null | cadastro canônico; objeto (`cliente_fila_erp_payload_objeto`) |
+| `aprovado_em` | timestamptz not null | ordem do poll |
+| `estado` | text not null default `pendente` | `ESTADOS_CLIENTE_ERP_BANCO`: pendente, enviado, vinculado, rejeitado; `enviado` exige `enviado_em` (`cliente_fila_erp_enviado_coerente`) |
+| `enviado_em` | timestamptz | última retirada pelo Conector |
+| `tentativas` | integer not null default 0 | ≥ 0 |
+| `conector_id` | uuid | Conector que retirou; FK composta `(tenant_id, conector_id) → conector` |
+| `motivo` | text | rejeição do ERP (mascarada pelo Conector, nunca em log) |
+
+- **Poll:** `where estado = 'pendente' or (estado = 'enviado' and enviado_em < now() - timeout) order by aprovado_em limit N
+  for update skip locked`, pelo índice parcial `cliente_fila_erp_poll_ix (tenant_id, aprovado_em) where estado in ('pendente',
+  'enviado') and deleted_at is null` (EXPLAIN no teste).
+- **RLS e grants (iguais aos da `pedido_fila_erp`):** RLS forçado; `isolamento_tenant` (macuxi_app: `select, insert, update`),
+  `manutencao` (macuxi_manutencao) e `leitura` (macuxi_leitura: `select` de todas as colunas no próprio tenant). Worker e portal:
+  nada. Fora do sync (`db/src/excecoes.ts`).
+- **Drizzle:** `clienteFilaErp` em `modules/integracao/db/nuvem.ts`.
+- **Fixture dois-tenants:** A com um pendente (cliente c3); B com um rejeitado.
+- **Volta:** `0096_integracao_cliente_fila_erp.down.sql` apaga a tabela (os aprovados ainda não vinculados precisam ser
+  reenfileirados depois de um novo up). Teste: `db/testes/cliente-fila-erp.db.test.ts`.
