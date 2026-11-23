@@ -55,3 +55,31 @@
 - **Efeitos no BKO:** `MonitorPage` mantém a checagem `monitor.ver`, o cabeçalho e o `data-testid="pagina-integracao-monitor-conteudo"`;
   as rotas seguem só em `/v1/integracao/*`; nenhuma regra de negócio nova na tela (reprocessável e em andamento vêm do `domain`).
   Lint, typecheck, 444 testes do `apps/web` e os 16 e2e do portal verdes com o merge do `c065ba26e`.
+
+## Rodada 2 — `31faad3d7` (23/11/2026, Manaus)
+
+Merge do `31faad3d7` no `nuvem/v1030-zerar-engenheiro-apps`; prints 05–07 refeitos (1280 e 390 px, escala 2). O e2e do portal
+(`apps/web/e2e/portal-zerar.spec.ts`) passa a medir, nas duas larguras, a largura do texto "Endereços de clientes" (Range) contra a
+largura útil da célula da Entidade na "Cargas recentes" e na "Dados no Hub".
+
+### Resultado: nenhum 🔴 · 1 🟡 novo · os 5 achados da rodada 1 fechados
+
+- **1 🟡 (R3-1, nome cortado) — fechado.** A 390 px a Entidade da "Cargas recentes" tem 158 px úteis e o texto mede 156,3 px
+  (na "Dados no Hub", 237 px úteis). O 05-celular e o 06-celular mostram "Endereços de clientes" inteiro.
+- **2 🟢 (provider duplo) — fechado.** `MonitorPage` sem provider próprio; `useMonitor(cliente)` no cabeçalho, um só provider (o do painel).
+- **3 🟢 (chave do `sync-auto-min`) — fechado.** `qk.syncAutoMin(escopo)`; `intervaloMs` documentado como obrigatório fora do BKO.
+- **4 🟢 (`replaceState` no updater) — fechado.** Efeito sobre os filtros (`urlComFiltros`), com teste.
+- **5 🟢 (invalidação do de-para) — fechado.** Invalida o monitor do escopo do cliente (`chavesAposMapeamento`), com teste.
+
+### 🟡 novo — corrigir
+
+6. `modules/integracao/web/components/entidades-panel.tsx:60` — **a 94 px o selo "Com falha" passou a ser cortado.** Medido no
+   navegador: o selo tem **74,16 px** (não 74, arredondamento meu na rodada 1), a célula tem 94 − 20 = 74 px úteis, o `truncate`
+   da célula entra e aparece um "··" vermelho logo depois de "Com falha" em Produtos e Preços, nas duas larguras (05-monitor e
+   05-monitor-celular; `scrollWidth` 107 × `clientWidth` 94). Correção: `largura: '95px'` (75 px úteis ≥ 74,16; a Entidade fica com
+   157 px úteis ≥ 156,3, folga de 0,7 px) e, no teste do painel, travar Situação ≥ 75. Folga tão curta depende da fonte; se o
+   designer-ux quiser margem, o ganho vem do ⋯ (`LARGURA_COLUNA_ACOES = 52` em `packages/ui/src/web/tabela-dados.ts:22`). Pronto
+   quando o 05/05-celular mostrar "Com falha" sem o "··" e "Endereços de clientes" inteiro; o engenheiro-apps refaz os prints e
+   acrescenta ao e2e a mesma medição na célula da Situação.
+
+Lint, typecheck, 444 testes do `apps/web` e os 16 e2e do portal verdes com o merge do `31faad3d7`.

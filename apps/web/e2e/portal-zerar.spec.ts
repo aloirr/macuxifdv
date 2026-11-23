@@ -83,6 +83,18 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       const caixa = await monitor.getByTestId(t).boundingBox();
       expect(caixa && caixa.x + caixa.width).toBeLessThanOrEqual(largura);
     }
+    // o nome mais longo ("Endereços de clientes") cabe inteiro na célula da Entidade (truncate sem reticências)
+    for (const t of ['integracao.monitor.entidades', 'integracao.entidades']) {
+      const celula = monitor.getByTestId(t).locator('td', { hasText: /^Endereços de clientes$/ }).first();
+      await expect(celula).toBeVisible();
+      const { texto, util } = await celula.evaluate((el) => {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        const st = getComputedStyle(el);
+        return { texto: r.getBoundingClientRect().width, util: el.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight) };
+      });
+      expect(texto).toBeLessThanOrEqual(util);
+    }
     // "Zerar dados" num lugar só: o "⋯" da "Dados no Hub" (com ou sem lote recente); o "⋯" do painel tem Reprocessar e Histórico
     await expect(monitor.getByTestId('integracao.entidades.acoes.produto')).toBeVisible();
     await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.estoque')).toBeVisible();
