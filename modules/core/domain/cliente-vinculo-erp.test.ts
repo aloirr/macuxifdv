@@ -34,3 +34,27 @@ describe('decidirRecusaErp', () => {
     expect(decidirRecusaErp(null)).toEqual({ acao: 'nada', resultado: 'nao_encontrado' });
   });
 });
+
+describe('decidirRecusaErp com revisão e erros (v1.0.29, ADR 0069)', () => {
+  const e1 = { campo: 'cep', codigo: 'INVALIDO', mensagem: 'CEP não existe' };
+  const e2 = { campo: 'ie', codigo: 'FALTA', mensagem: 'Informe a IE' };
+  const rec = { status_cadastro: 'recusado', external_id: null, revisao_cadastro: 2, motivo_recusa: 'Dados inválidos', erros_recusa: [e1, e2] } as const;
+  it('RN-CORE-78: recusa de revisão anterior não vale sobre a nova', () => {
+    expect(decidirRecusaErp({ ...pend, revisao_cadastro: 2 }, { revisao: 1, motivo: 'x', erros: [] })).toEqual({ acao: 'nada', resultado: 'revisao_antiga' });
+  });
+  it('RN-CORE-78: revisão maior que a do cliente é desconhecida e não grava', () => {
+    expect(decidirRecusaErp({ ...pend, revisao_cadastro: 2 }, { revisao: 3, motivo: 'x', erros: [] })).toEqual({ acao: 'nada', resultado: 'revisao_desconhecida' });
+  });
+  it('RN-CORE-78: revisão atual (ou ausente) em cliente pendente grava', () => {
+    expect(decidirRecusaErp({ ...pend, revisao_cadastro: 2 }, { revisao: 2, motivo: 'x', erros: [] })).toEqual({ acao: 'gravar' });
+    expect(decidirRecusaErp({ ...pend, revisao_cadastro: 2 }, { motivo: 'x', erros: [] })).toEqual({ acao: 'gravar' });
+    expect(decidirRecusaErp(pend, { revisao: 1, motivo: 'x', erros: [] })).toEqual({ acao: 'gravar' });
+  });
+  it('RN-INT-22: já recusado na mesma revisão com o mesmo motivo e os mesmos erros (em qualquer ordem) é repetição', () => {
+    expect(decidirRecusaErp(rec, { revisao: 2, motivo: ' Dados inválidos ', erros: [e2, e1] })).toEqual({ acao: 'nada', resultado: 'ja_recusado' });
+  });
+  it('RN-INT-22: já recusado na mesma revisão com outro motivo ou outros erros é fato novo e grava', () => {
+    expect(decidirRecusaErp(rec, { revisao: 2, motivo: 'Outro motivo', erros: [e1, e2] })).toEqual({ acao: 'gravar' });
+    expect(decidirRecusaErp(rec, { revisao: 2, motivo: 'Dados inválidos', erros: [e1] })).toEqual({ acao: 'gravar' });
+  });
+});

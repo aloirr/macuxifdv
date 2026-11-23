@@ -3,7 +3,7 @@
  * sincronização usam as mesmas. Entrada própria do domain (`DadosCadastro`), a lista de campos vem de contracts/cadastro (fonte única).
  */
 import { cnpjValido, cpfValido, tipoDocumento } from '@macuxi/comum';
-import { CAMPOS_CADASTRO_CLIENTE, CAMPOS_CADASTRO_PADRAO, type CampoCadastroCliente } from '../contracts/cadastro';
+import { CAMPOS_CADASTRO_CLIENTE, CAMPOS_CADASTRO_FIXOS, CAMPOS_CADASTRO_PADRAO, PARAMETRO_CAMPOS_OBRIGATORIOS, type CampoCadastroCliente } from '../contracts/cadastro';
 
 // A lista de campos mora em contracts (fonte única); o domain reexporta.
 export { CAMPOS_CADASTRO_CLIENTE, CAMPOS_CADASTRO_PADRAO };
@@ -52,7 +52,6 @@ export interface ResultadoCadastro {
 }
 
 const UFS = new Set(['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']);
-const CAMPOS_FIXOS: readonly CampoCadastroCliente[] = ['razao_social', 'documento'];
 
 /**
  * RN-CORE-16: lista efetiva do tenant a partir do parâmetro `cliente_campos_obrigatorios`. Ausente, inválido ou vazio =
@@ -63,8 +62,18 @@ export function camposExigidos(parametro: unknown): CampoCadastroCliente[] {
   const conhecidos = new Set<string>(CAMPOS_CADASTRO_CLIENTE);
   const lista = Array.isArray(parametro) ? parametro.filter((c): c is CampoCadastroCliente => typeof c === 'string' && conhecidos.has(c)) : [];
   const base = lista.length > 0 ? lista : CAMPOS_CADASTRO_PADRAO;
-  const conjunto = new Set<string>([...base, ...CAMPOS_FIXOS]);
+  const conjunto = new Set<string>([...base, ...CAMPOS_CADASTRO_FIXOS]);
   return CAMPOS_CADASTRO_CLIENTE.filter((c) => conjunto.has(c));
+}
+
+/**
+ * RN-CORE-16 e RN-CORE-79: lista efetiva lida das linhas da entidade de sync `parametro` (o app, offline). Sem linha viva do módulo
+ * `core` vale o padrão; mesma regra de `camposExigidos`.
+ */
+export function camposExigidosDasLinhas(
+  linhas: readonly { modulo: string; chave: string; valor?: unknown; deleted_at?: string | null }[],
+): CampoCadastroCliente[] {
+  return camposExigidos(linhas.find((x) => x.modulo === 'core' && x.chave === PARAMETRO_CAMPOS_OBRIGATORIOS && !x.deleted_at)?.valor);
 }
 
 const preenchido = (v: string | null | undefined): v is string => typeof v === 'string' && v.trim() !== '';

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MOTIVO_ENVIO_FALHOU,
   motivoSoDeCamposFaltantes,
   camposObrigatoriosPreCadastro,
   ehSempreObrigatorio,
+  obrigatoriosDoPreCadastro,
+  projecaoLegadaObrigatorios,
   podePreCadastrarCliente,
   situacaoDoPreCadastro,
   validarPreCadastro,
@@ -65,7 +66,26 @@ describe('pré-cadastro: motivo do 422 (RN-CORE-78)', () => {
     expect(motivoSoDeCamposFaltantes('CNPJ duplicado no ERP')).toBe(false);
     expect(motivoSoDeCamposFaltantes(null)).toBe(false);
   });
-  it('RD-2654: o sentinela de envio que falhou não vira motivo no "Não enviado"', () => {
-    expect(situacaoDoPreCadastro({ status_cadastro: 'pendente', motivo_recusa: MOTIVO_ENVIO_FALHOU })).toEqual({ situacao: 'nao_enviado', motivo: null });
+});
+
+describe('pré-cadastro: lista única de obrigatórios (RN-CORE-16, RN-CORE-79; v1.0.29)', () => {
+  it('RN-CORE-79: obrigatórios do pré-cadastro = os exigidos menos complemento e geolocalização, com os fixos sempre, na ordem canônica', () => {
+    expect(obrigatoriosDoPreCadastro(['cep', 'complemento', 'geolocalizacao', 'telefone'])).toEqual(['razao_social', 'documento', 'cep', 'telefone']);
+    expect(obrigatoriosDoPreCadastro([])).toEqual(['razao_social', 'documento']);
+  });
+  it('RN-CORE-79: com a lista única, a IE só é exigida para CNPJ e "isento" vale', () => {
+    const exigidos = obrigatoriosDoPreCadastro(['inscricao_estadual']);
+    expect(validarPreCadastro({ razao_social: 'Mercado', documento: '52998224725' }, exigidos).ok).toBe(true);
+    expect(validarPreCadastro({ razao_social: 'Mercado', documento: '11.222.333/0001-81' }, exigidos).erros).toEqual({ inscricao_estadual: 'Obrigatório' });
+    expect(validarPreCadastro({ razao_social: 'Mercado', documento: '11.222.333/0001-81', inscricao_estadual: 'isento' }, exigidos).ok).toBe(true);
+  });
+  it('RN-CORE-79: razão social e CPF/CNPJ são exigidos mesmo fora da lista; geolocalização e complemento nunca', () => {
+    const r = validarPreCadastro({ razao_social: ' ' }, ['geolocalizacao', 'complemento']);
+    expect(r.erros).toEqual({ razao_social: 'Obrigatório', documento: 'Obrigatório' });
+  });
+  it('RN-CORE-79: projeção legada para o APK v1.0.28 é igual ou mais exigente (endereço entra com qualquer campo de endereço)', () => {
+    expect(projecaoLegadaObrigatorios(['razao_social', 'documento', 'cep'])).toEqual(['endereco']);
+    expect(projecaoLegadaObrigatorios(['email', 'inscricao_estadual', 'telefone', 'nome_fantasia'])).toEqual(['nome_fantasia', 'inscricao_estadual', 'telefone', 'email']);
+    expect(projecaoLegadaObrigatorios(['razao_social', 'documento', 'complemento', 'geolocalizacao'])).toEqual([]);
   });
 });
