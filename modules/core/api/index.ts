@@ -20,6 +20,7 @@ import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
 import { consultaCadastroCliente, consultaCadastroResumo, consultaCalendarioMetas, consultaFinanceiroCliente, consultaProdutosPorSku, consultaPromotorVePedidos, consultaUsuariosResumo } from './consultas';
+import { consultaClientesAprovadosSemErp, rotasDeClienteCadastro } from './cliente-cadastro';
 import { consultaProdutividadeEquipe, registrarContatoDoAparelho } from './produtividade-equipe';
 import { consumidorPushNotificacao } from './consumidores';
 import { consumidoresDoErp } from './consumidores-erp';
@@ -77,12 +78,12 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   return definirModuloApi({
     manifesto: manifest,
     guardaArquivo: guardaArquivoDocumento,
-    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeAppsDownload, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeCriarRotaEBase, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeInicioBko, ...rotasDeParametrosHorarioCarga, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDeCliente360V2, ...rotasDeCarteiraDoCliente, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
+    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeAppsDownload, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeClientes, ...rotasDeClienteCadastro, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeCriarRotaEBase, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeInicioBko, ...rotasDeParametrosHorarioCarga, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDeCliente360V2, ...rotasDeCarteiraDoCliente, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170, ...provedoresSyncTrajeto],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe, consultaCredencialConferir, consultaUsuariosComAcao, consultaTrajetoDoDia],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaFiliais, consultaFiliaisDoUsuario, consultaPromotorVePedidos, consultaUsuariosResumo, consultaCalendarioMetas, consultaProdutosPorSku, consultaProdutividadeEquipe, consultaCredencialConferir, consultaUsuariosComAcao, consultaTrajetoDoDia, consultaClientesAprovadosSemErp],
     // T-0180 (ADR 0059 §5): último contato do aparelho, chamado pela API depois do novidades e do push (melhor esforço)
     contatoDoAparelho: registrarContatoDoAparelho,
     rotasPublicas: [
