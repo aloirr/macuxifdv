@@ -7,6 +7,7 @@
  * nova. O retorno aceita `revisao` (ausente = a atual) e, em `rejeitado_erp`, `erros` por campo.
  */
 import { z } from 'zod';
+import { CodigoFdvClienteSchema, ERRO_CAMPO_LIMITES, ERROS_RECUSA_MAX } from '@macuxi/core/contracts';
 import { DataHoraUtc, ExternalId, LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, Uuid, VERSAO_CONTRATO } from './base';
 
 const TextoNulo = z.string().max(200).nullable();
@@ -14,20 +15,15 @@ const TextoNulo = z.string().max(200).nullable();
 /** Revisão do pré-cadastro (1 na primeira; sobe a cada reenvio do cadastro corrigido). */
 export const RevisaoCliente = z.number().int().positive();
 
-/** Limites do erro por campo da recusa do ERP (ADR 0069 §8): itens por retorno e tamanho de cada texto. */
-export const LIMITES_ERRO_RETORNO_CLIENTE = { itens: 50, campo: 60, codigo: 60, mensagem: 300 } as const;
-const L = LIMITES_ERRO_RETORNO_CLIENTE;
+const L = ERRO_CAMPO_LIMITES;
 
-/** Erro por campo da recusa do ERP (RN-INT-22): `campo` canônico do `ClienteParaErp` ou o nome que o ERP usa. */
+/** Erro por campo da recusa do ERP (RN-INT-22, ADR 0069 §8; limites do core): `campo` canônico do `ClienteParaErp` ou o nome que o ERP usa. */
 export const ErroCampoRetornoCliente = z.object({
   campo: z.string().trim().min(1).max(L.campo),
   codigo: z.string().trim().min(1).max(L.codigo),
   mensagem: z.string().trim().min(1).max(L.mensagem),
 });
 export type ErroCampoRetornoCliente = z.infer<typeof ErroCampoRetornoCliente>;
-
-/** Código FDV do cliente (ADR 0069 §10): só dígitos, 5 ou mais (zeros à esquerda). */
-export const CodigoFdv = z.string().regex(/^[0-9]{5,}$/);
 
 /** Pré-cadastro para o ERP gravar (campos canônicos do cadastro; `cliente_uuid` é o id do Macuxi, a chave de idempotência). */
 export const ClienteParaErp = z.object({
@@ -54,7 +50,7 @@ export const ClienteParaErp = z.object({
    * Código FDV do cliente (v1.0.30, ADR 0069 §10): número do Macuxi, só dígitos (5 ou mais, zeros à esquerda), para o ERP guardar como
    * referência. `null` nos clientes que entraram antes da v1.0.30. O código do cliente no ERP continua sendo o `external_id` do retorno.
    */
-  codigo_fdv: CodigoFdv.nullable().optional(),
+  codigo_fdv: CodigoFdvClienteSchema.nullable().optional(),
   /** Revisão dos dados (v1.0.30): sobe quando o cadastro recusado é corrigido e reenviado. Devolva-a no retorno. */
   revisao: RevisaoCliente.optional(),
   /** sha256 (hex minúsculo) dos dados desta revisão; nulo nos clientes que entraram antes da v1.0.30. */
@@ -88,7 +84,7 @@ export const RetornoCliente = z
     /** Revisão recebida em `GET /clientes/pendentes`; ausente = a revisão atual do cliente. */
     revisao: RevisaoCliente.optional(),
     /** Só em `rejeitado_erp`: o que o ERP recusou, campo a campo (até 50). */
-    erros: z.array(ErroCampoRetornoCliente).min(1).max(L.itens).optional(),
+    erros: z.array(ErroCampoRetornoCliente).min(1).max(ERROS_RECUSA_MAX).optional(),
     ocorrido_em: DataHoraUtc,
   })
   .superRefine((r, ctx) => {

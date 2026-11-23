@@ -6,7 +6,8 @@
  *    aceita sem reaplicar; recusa de revisão antiga é obsoleta; o código do ERP vale sempre, de revisão antiga ou sobre a recusa.
  */
 import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
-import { CodigoFdv, LIMITES_ERRO_RETORNO_CLIENTE, type ErroCampoRetornoCliente } from '../contracts';
+import { CodigoFdvClienteSchema, ERRO_CAMPO_LIMITES, ERROS_RECUSA_MAX } from '@macuxi/core/contracts';
+import type { ErroCampoRetornoCliente } from '../contracts';
 import { aplicarTimeoutEnvio } from './estados';
 import { PARAMETROS_PADRAO } from './parametros';
 
@@ -38,9 +39,9 @@ export interface EntregaCliente {
   tentativa: number;
 }
 
-/** `CodigoFdv` do contrato; ausente (payload anterior à v1.0.30) ou fora do formato = null. */
+/** `CodigoFdvClienteSchema` do contrato do core; ausente (payload anterior à v1.0.30) ou fora do formato = null. */
 export function codigoFdvOuNulo(v: unknown): string | null {
-  const r = CodigoFdv.safeParse(v);
+  const r = CodigoFdvClienteSchema.safeParse(v);
   return r.success ? r.data : null;
 }
 
@@ -80,11 +81,11 @@ export function decidirEntradaClienteNaFila(atual: { revisao: number; estado: Es
   return 'nada';
 }
 
-/** Erros do ERP prontos para gravar (ADR 0069 §8): `trim`, sem dado pessoal e nos limites do contrato. */
+/** Erros do ERP prontos para gravar (ADR 0069 §8): `trim`, sem dado pessoal e nos limites do contrato do core. */
 export function errosRetornoSeguros(erros: readonly ErroCampoRetornoCliente[] | null | undefined): ErroCampoRetornoCliente[] {
-  const L = LIMITES_ERRO_RETORNO_CLIENTE;
+  const L = ERRO_CAMPO_LIMITES;
   const seguro = (t: string, max: number) => mascararDadoPessoal(t.trim()).slice(0, max);
-  return (erros ?? []).slice(0, L.itens).map((e) => ({
+  return (erros ?? []).slice(0, ERROS_RECUSA_MAX).map((e) => ({
     campo: seguro(e.campo, L.campo),
     codigo: seguro(e.codigo, L.codigo),
     mensagem: seguro(e.mensagem, L.mensagem),

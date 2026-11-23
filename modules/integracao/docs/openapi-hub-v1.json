@@ -3369,7 +3369,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^[0-9]{5,}$"
+                "pattern": "^\\d{5,}$"
               },
               {
                 "type": "null"

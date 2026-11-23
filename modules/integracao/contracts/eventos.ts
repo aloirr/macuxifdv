@@ -3,10 +3,11 @@
  * Registro: `.coord/contratos/eventos.md`. Mudança incompatível = nova versão + ADR (RN-INT-09).
  */
 import { z } from 'zod';
+import { ERROS_RECUSA_MAX } from '@macuxi/core/contracts';
 import { definirEvento, type DefinicaoEvento } from '@macuxi/platform-sdk/eventos';
 import { DataHoraUtc, Uuid } from './base';
 import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from './entidades';
-import { ErroCampoRetornoCliente, LIMITES_ERRO_RETORNO_CLIENTE, RevisaoCliente, StatusRetornoCliente } from './cliente-erp';
+import { ErroCampoRetornoCliente, RevisaoCliente, StatusRetornoCliente } from './cliente-erp';
 import { EstadoLote, ModoCarga } from './lote';
 import { EstadoPedidoErp, ItemFaturado, NotaRetorno } from './pedido';
 
@@ -115,7 +116,7 @@ export const ClienteRetornoErpEvento = z.object({
   motivo: z.string().max(1000).nullable(),
   ocorrido_em: DataHoraUtc,
   revisao: RevisaoCliente.optional(),
-  erros: z.array(ErroCampoRetornoCliente).max(LIMITES_ERRO_RETORNO_CLIENTE.itens).optional(),
+  erros: z.array(ErroCampoRetornoCliente).max(ERROS_RECUSA_MAX).optional(),
 });
 export type ClienteRetornoErpEvento = z.infer<typeof ClienteRetornoErpEvento>;
 
