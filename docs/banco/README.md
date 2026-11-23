@@ -280,12 +280,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `integracao.cliente_fila_erp.aprovado_em` vira `recebido_em`. Detalhes no [core.md](core.md) e no
 > [integracao.md](integracao.md) ("0097"); teste `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
 >
-> **2026-11-23 (v1.0.30, ADR 0068, RN-PLA-12; "Zerar dados" da empresa no portal):** `0099_plataforma_zerar_empresa` (em cima da
-> 0098; número provisório): `plataforma.zerar_empresa`, `zerar_empresa_copia` e `zerar_empresa_objeto` (sem `tenant_id`, só por
-> função); o conjunto que sai é derivado do catálogo (toda tabela com `tenant_id` menos `tabelas_mantidas_no_zerar()`; filial,
-> filial do usuário e arquivo parciais), com cópia de 7 dias e `restaurar_zerar`; 3 `sa_*` do portal (41 no total), 5 funções do
-> worker e a `zerar_tenant_manual` do workflow; o laço de ordem por FK da 0032 vira `apagar_em_ordem_fk` (a `excluir_tenant`
-> passa a chamá-lo). Detalhes no [plataforma.md](plataforma.md) e no [rls.md](rls.md); teste `db/testes/empresa-zerar.db.test.ts`.
+> **2026-11-23 (v1.0.31, ADR 0068, RN-PLA-12; "Zerar dados" da empresa, inteira ou por entidade):** `0099_plataforma_zerar_empresa`
+> (em cima da 0098; número provisório): uma regra só, `plataforma.limpar_cadastros(tenant, lote, entidades, exigir_hub_parado)`
+> = a rotina do #675 promovida a SECURITY DEFINER (a empresa inteira dá o mesmo resultado) mais o modo por entidade
+> (`mapa_limpeza_entidades()`); a cópia única `plataforma.limpeza_copia` (recebe as linhas da `public.macuxi_limpeza_backup`),
+> `restaurar_limpeza` e `descartar_limpeza`; o job `plataforma.zerar_empresa` (lote, entidades, contagem em lista); 3 `sa_*` do
+> portal (41 no total) e 4 funções do worker. A `excluir_tenant` fica como na 0032. Detalhes no [plataforma.md](plataforma.md) e no
+> [rls.md](rls.md); teste `db/testes/empresa-zerar.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

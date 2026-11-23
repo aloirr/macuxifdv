@@ -569,60 +569,54 @@ export const empresaExcluida = plataforma.table('empresa_excluida', {
 });
 
 /**
- * Zerar dados da empresa (0099, ADR 0068, RN-PLA-12): o job (id do portal ou gerado pelo workflow), em_andamento -> concluido |
- * falhou; um em andamento por empresa. empresa_id SEM FK e sem tenant_id: sobrevive à exclusão e ao próprio zerar (exceção à
- * regra 5). A cópia fica até copia_expira_em (7 dias); expurgado_em = a cópia sumiu (expurgo ou desfazer). Só por função.
+ * Zerar dados da empresa (0099, ADR 0068, RN-PLA-12): o job do portal (id do portal), em_andamento -> concluido | falhou; um em
+ * andamento por empresa. empresa_id SEM FK e sem tenant_id: sobrevive à exclusão (exceção à regra 5, como as 0072). A cópia das
+ * linhas fica em limpeza_copia (pelo lote) até copia_expira_em (7 dias); expurgado_em = a cópia saiu. Só por função.
  */
 export const zerarEmpresa = plataforma.table('zerar_empresa', {
   id: uuid('id').primaryKey(),
   empresa_id: uuid('empresa_id').notNull(),
   codigo: text('codigo').notNull(),
-  origem: text('origem', { enum: ['portal', 'workflow'] }).notNull(),
+  /** Chave da cópia: carimbo UTC do pedido + '-' + 8 primeiros dígitos do id (LOTE_LIMPEZA_FORMATO). */
+  lote: text('lote').notNull().unique(),
+  /** Nulo = a empresa inteira; senão as entidades do ERP, na ordem de carga (ENTIDADES_ZERAR). */
+  entidades: text('entidades').array(),
+  /** Entidades com linhas que saíram (o ERP reenvia todas); só no concluído. */
+  entidades_afetadas: text('entidades_afetadas').array(),
   situacao: text('situacao', { enum: ['em_andamento', 'concluido', 'falhou'] }).notNull().default('em_andamento'),
   pedido_em: timestamp('pedido_em', { withTimezone: true }).notNull().defaultNow(),
   concluido_em: timestamp('concluido_em', { withTimezone: true }),
   linhas_apagadas: bigint('linhas_apagadas', { mode: 'number' }),
-  /** Linhas apagadas por tabela ({"core.cliente": 120}). */
-  contagem: jsonb('contagem').$type<Record<string, number>>(),
+  /** Lista LinhaLimpeza ([{ tabela, modo, linhas }]) da limpar_cadastros. */
+  contagem: jsonb('contagem').$type<{ tabela: string; modo: string; linhas: number }[]>(),
   copia_expira_em: timestamp('copia_expira_em', { withTimezone: true }),
   expurgado_em: timestamp('expurgado_em', { withTimezone: true }),
-  /** Desfeito pela plataforma.restaurar_zerar (a cópia some na hora). */
+  /** Desfeito pela plataforma.restaurar_limpeza (workflow) com o lote deste zerar. */
   desfeito_em: timestamp('desfeito_em', { withTimezone: true }),
   erro_codigo: text('erro_codigo'),
   /** Vezes que o worker pegou o job (pegar_zerar). */
   tentativas: integer('tentativas').notNull().default(0),
   /** Concessão do worker (10 min). */
   bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
-  /** Nulo na origem workflow. */
-  super_admin_id: uuid('super_admin_id'),
+  super_admin_id: uuid('super_admin_id').notNull(),
   sessao_id: uuid('sessao_id'),
   ...auditaveis(),
 });
 
 /**
- * Cópia do zerar (0099): cada linha apagada (delete), o "antes" das colunas alteradas das linhas que ficam (update, com
- * colunas) e as linhas que o zerar criou (insert). Some no expurgo ou no desfazer. Só por função.
+ * Cópia da limpeza (0099): cada linha que a plataforma.limpar_cadastros muda, por lote (portal e workflow). As 6 primeiras
+ * colunas = as da public.macuxi_limpeza_backup do #675, na mesma ordem; depois as comuns. Sem tenant_id nem FK (sobrevive à
+ * exclusão, como as 0072; sai pelo descarte ou pelo expurgo). Só por função (RLS forçado, sem grant).
  */
-export const zerarEmpresaCopia = plataforma.table('zerar_empresa_copia', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  zerar_id: uuid('zerar_id').notNull(),
-  /** Passo da ordem de FK em que a linha saiu (0 = antes do laço). */
-  ordem: integer('ordem').notNull(),
+export const limpezaCopia = plataforma.table('limpeza_copia', {
+  lote: text('lote').notNull(),
+  /** O tenant, sem FK (na public do #675 a coluna se chamava tenant_id). */
+  empresa_id: uuid('empresa_id').notNull(),
   tabela: text('tabela').notNull(),
-  acao: text('acao', { enum: ['delete', 'update', 'insert'] }).notNull(),
-  colunas: text('colunas').array(),
+  modo: text('modo', { enum: ['soft', 'fisico', 'filial', 'sync_pacote'] }).notNull(),
   linha: jsonb('linha').$type<Record<string, unknown>>().notNull(),
-  ...auditaveis(),
-});
-
-/** Chave no armazenamento cujos bytes o zerar tira só no expurgo (0099). Só por função. */
-export const zerarEmpresaObjeto = plataforma.table('zerar_empresa_objeto', {
+  copiado_em: timestamp('copiado_em', { withTimezone: true }).notNull().defaultNow(),
   id: uuid('id').primaryKey().defaultRandom(),
-  zerar_id: uuid('zerar_id').notNull(),
-  armazenamento: text('armazenamento', { enum: ['arquivos', 'sync_pacotes'] }).notNull(),
-  chave: text('chave').notNull(),
-  /** Tipo do arquivo (mime), para a miniatura; nulo nos pacotes. */
-  tipo: text('tipo'),
   ...auditaveis(),
 });
 

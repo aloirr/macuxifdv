@@ -334,8 +334,6 @@ describe.skipIf(semBanco())('0032 excluir_tenant sem superusuário (banco efême
         await c.query(`grant usage on schema ${schemas.join(', ')} to ${papel}`);
         await c.query(`grant select, insert, update, delete on all tables in schema ${schemas.join(', ')} to ${papel}`);
         await c.query(`grant execute on function plataforma.excluir_tenant(uuid, text) to ${papel}`);
-        // 0099 (ADR 0068): o laço de ordem por FK saiu para funções comuns (SECURITY INVOKER, só do dono), que a excluir_tenant chama
-        await c.query(`grant execute on function plataforma.tabelas_com_tenant(), plataforma.passos_em_ordem_fk(oid[]), plataforma.apagar_em_ordem_fk(uuid, jsonb, uuid) to ${papel}`);
         await c.query("update plataforma.tenant set status = 'encerrado' where id = $1", [A.tenantId]);
         await c.query(`set local role ${papel}`);
         const s = await c.query<{ s: string; bypass: boolean }>(
