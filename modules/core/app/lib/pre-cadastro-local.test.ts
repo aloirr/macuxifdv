@@ -2,10 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ClienteSync } from '../../contracts';
 import { situacaoDoPreCadastro } from '../../domain';
 import { ROTULO_PRE_CADASTRO_NAO_ENVIADO, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
-import { clienteComDocumento, ENTIDADE_PRE_CADASTRO, entidadePreCadastro, montarPreCadastro, obrigatoriosDasLinhas, idDoReenvio, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente } from './pre-cadastro-local';
+import { clienteComDocumento, correcaoDoCliente, ENTIDADE_PRE_CADASTRO, entidadePreCadastro, montarPreCadastro, obrigatoriosDasLinhas, salvarPreCadastro, sobreporPreCadastros } from './pre-cadastro-local';
 
 const ID = '3f1c2a52-3c1e-4f0a-9d49-7c4a5c0e1a11';
-const ID_NOVO = '9a8b7c6d-1111-4222-8333-444455556666';
 const valores = { documento: '11.222.333/0001-81', razao_social: 'Mercado Boa Vista', telefone: '(92) 99999-0000' };
 const motorFalso = () => {
   const fila = new Map<string, unknown>();
@@ -29,10 +28,10 @@ const linhaCliente = (o: Partial<ClienteSync>): ClienteSync => ({
 });
 
 describe('pré-cadastro no aparelho (RN-CORE-78, RN-CORE-79)', () => {
-  it('RN-CORE-79: os obrigatórios vêm do parâmetro sincronizado e os sempre obrigatórios ficam', () => {
-    const linhas = [{ modulo: 'core', chave: 'cliente.pre_cadastro.obrigatorios', valor: ['telefone'] }];
+  it('RN-CORE-79: os obrigatórios vêm da lista única sincronizada (RN-CORE-16), com os sempre obrigatórios e sem complemento nem geolocalização', () => {
+    const linhas = [{ modulo: 'core', chave: 'cliente.campos_obrigatorios', valor: ['telefone', 'complemento', 'geolocalizacao'] }];
     expect(obrigatoriosDasLinhas(linhas)).toEqual(['razao_social', 'documento', 'telefone']);
-    expect(obrigatoriosDasLinhas([])).toEqual(['razao_social', 'documento']);
+    expect(obrigatoriosDasLinhas([])).toEqual(['razao_social', 'documento', 'inscricao_estadual', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'cep']);
   });
 
   it('RN-CORE-78: enfileira o pré-cadastro com o id do aparelho, origem campo e documento só com dígitos, e dispara o envio online', async () => {
@@ -109,19 +108,47 @@ describe('pré-cadastro no aparelho (RN-CORE-78, RN-CORE-79)', () => {
     expect(ruim).toMatchObject({ ok: false, erros: { documento: expect.any(String) } });
   });
 
-  it('RN-CORE-78: o cliente da fila aparece na hora, sem código, como pendente; o reenviado substitui o recusado', () => {
+  it('RN-CORE-78: o cliente da fila aparece na hora, sem código, como pendente', () => {
     const novo = sobreporPreCadastros([], [{ payload: { id: ID, origem: 'campo', razao_social: 'Novo', documento: '11222333000181' } }], '2026-11-23T10:00:00Z');
-    expect(novo).toHaveLength(1);
-    expect(novo[0]).toMatchObject({ id: ID, external_id: null, status_cadastro: 'pendente', razao_social: 'Novo' });
-    const recusado = linhaCliente({ status_cadastro: 'recusado', motivo_recusa: 'CNPJ duplicado' });
-    const reenviado = sobreporPreCadastros([recusado], [{ payload: { id: ID, origem: 'campo', razao_social: 'Corrigido', documento: '11222333000181' } }], '2026-11-23T10:00:00Z');
-    expect(reenviado).toHaveLength(1);
-    expect(reenviado[0]).toMatchObject({ status_cadastro: 'pendente', motivo_recusa: null, razao_social: 'Corrigido' });
+    expect(novo).toEqual([expect.objectContaining({ id: ID, external_id: null, status_cadastro: 'pendente', razao_social: 'Novo' })]);
+  });
+
+  it('RN-CORE-78: a correção do recusado (mesmo id) ocupa a linha dele: pendente, sem motivo nem erros, na mesma revisão até o pull', () => {
+    const recusado = linhaCliente({ status_cadastro: 'recusado', motivo_recusa: 'CNPJ duplicado', revisao_cadastro: 2, erros_recusa: [{ campo: 'cep', codigo: 'CEP', mensagem: 'CEP não existe' }] });
+    const payload = { id: ID, origem: 'campo', razao_social: 'Corrigido', documento: '11222333000181', revisao_base: 2 };
+    expect(sobreporPreCadastros([recusado], [{ payload }], '2026-11-23T10:00:00Z')).toEqual([
+      expect.objectContaining({ id: ID, status_cadastro: 'pendente', motivo_recusa: null, erros_recusa: null, revisao_cadastro: 2, razao_social: 'Corrigido' }),
+    ]);
     expect(sobreporPreCadastros([recusado], [], 'x')).toEqual([recusado]);
   });
 
-  it('RN-CORE-78: a correção abre o formulário preenchido', () => {
-    expect(valoresDoCliente(linhaCliente({ cidade: 'Manaus', uf: 'AM' }))).toMatchObject({ razao_social: 'Mercado Boa Vista', cidade: 'Manaus', uf: 'AM', email: '' });
+  it('RN-CORE-78: a correção do recusado pelo ERP abre preenchida, com a revisão vista e os erros por campo na coluna exata', () => {
+    const recusado = linhaCliente({ status_cadastro: 'recusado', revisao_cadastro: 3, cidade: 'Manaus', uf: 'AM', latitude: '-3.1', longitude: -60, erros_recusa: [{ campo: 'cep', codigo: 'CEP', mensagem: 'CEP não existe' }, { campo: 'regime', codigo: 'X', mensagem: 'Fora do formulário' }] });
+    const c = correcaoDoCliente([recusado], [], ID);
+    expect(c?.valores).toMatchObject({ razao_social: 'Mercado Boa Vista', cidade: 'Manaus', uf: 'AM', email: '' });
+    expect(c?.base).toEqual({ revisao_base: 3, latitude: -3.1, longitude: -60 });
+    expect(c?.erros).toEqual({ cep: 'CEP não existe' });
+    // linha antiga, sem revisão: o recusado é a revisão 1
+    expect(correcaoDoCliente([linhaCliente({ status_cadastro: 'recusado' })], [], ID)?.base.revisao_base).toBe(1);
+    expect(correcaoDoCliente([], [], ID)).toBeNull();
+  });
+
+  it('RN-CORE-78: o "Não enviado" reabre o payload da fila com a revisão dele; se o servidor tem revisão mais nova, vale a do servidor', () => {
+    const payload = { id: ID, origem: 'campo', razao_social: 'Da fila', documento: '11222333000181', revisao_base: 2 };
+    const doServidor = (revisao: number) => linhaCliente({ status_cadastro: 'recusado', revisao_cadastro: revisao, razao_social: 'Do servidor' });
+    expect(correcaoDoCliente([doServidor(2)], [{ payload, situacao: 'falhou' }], ID)).toMatchObject({ valores: { razao_social: 'Da fila' }, base: { revisao_base: 2 }, erros: {} });
+    expect(correcaoDoCliente([doServidor(3)], [{ payload, situacao: 'falhou' }], ID)).toMatchObject({ valores: { razao_social: 'Do servidor' }, base: { revisao_base: 3 } });
+    // cadastro novo que não chegou ao servidor: segue sem revisão (é criação)
+    const { revisao_base: _, ...criacao } = payload;
+    expect(correcaoDoCliente([], [{ payload: criacao, situacao: 'falhou' }], ID)?.base.revisao_base).toBeNull();
+  });
+
+  it('RN-CORE-78: a correção vai com o mesmo id e a revisao_base; a criação vai sem revisão', async () => {
+    const m = motorFalso();
+    await salvarPreCadastro(m as never, { id: ID, valores, obrigatorios: ['razao_social', 'documento'], online: false, base: { revisao_base: 2, latitude: -3.1, longitude: -60 } });
+    expect(m.fila.get(ID)).toMatchObject({ id: ID, revisao_base: 2, latitude: -3.1, longitude: -60 });
+    const criacao = montarPreCadastro(ID, valores);
+    expect(criacao.ok && 'revisao_base' in criacao.payload).toBe(false);
   });
 
   it('RN-CORE-79: CNPJ/CPF de cliente que já está na carteira é achado pelos dígitos (e a própria correção não conta)', () => {
@@ -129,20 +156,5 @@ describe('pré-cadastro no aparelho (RN-CORE-78, RN-CORE-79)', () => {
     expect(clienteComDocumento([c], '11.222.333/0001-81')?.id).toBe(ID);
     expect(clienteComDocumento([c], '11.222.333/0001-81', ID)).toBeNull();
     expect(clienteComDocumento([c], '123')).toBeNull();
-  });
-
-  it('RN-CORE-78: o reenvio após recusa do ERP nasce com id novo; o "Não enviado" e o cadastro novo mantêm o id', () => {
-    const gerar = () => ID_NOVO;
-    expect(idDoReenvio('recusado_erp', ID, gerar)).toBe(ID_NOVO);
-    expect(idDoReenvio('nao_enviado', ID, gerar)).toBe(ID);
-    expect(idDoReenvio(null, undefined, gerar)).toBe(ID_NOVO);
-  });
-
-  it('RN-CORE-78: com o reenvio de id novo, a linha recusada do mesmo documento sai da lista até o servidor substituí-la', () => {
-    const m = montarPreCadastro(ID_NOVO, valores);
-    if (!m.ok) throw new Error('payload');
-    const recusado = { ...sobreporPreCadastros([], [{ payload: m.payload }], '2026-11-23T10:00:00Z')[0]!, id: ID, status_cadastro: 'recusado' as const, motivo_recusa: 'CNPJ inválido' };
-    const lista = sobreporPreCadastros([recusado], [{ payload: m.payload }], '2026-11-23T10:00:00Z');
-    expect(lista.map((c) => c.id)).toEqual([ID_NOVO]);
   });
 });

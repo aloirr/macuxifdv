@@ -1,5 +1,6 @@
 /** Carteira N:N (cliente × usuário × papel) e lista de clientes (desenho T-0016 §3.1). */
 import { z } from 'zod';
+import { CodigoFdvClienteSchema } from './cliente-pre-cadastro';
 
 const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -41,6 +42,9 @@ export const ClienteListaItemSchema = z
     ativo: z.boolean(),
     bloqueado: z.boolean(),
     vencidos_qtd: z.number().int(),
+    /** v1.0.30 (ADR 0069 item 10, aditivos): os dois códigos do cliente, Código FDV e Código ERP (`external_id`, nulo antes do vínculo). */
+    codigo_fdv: CodigoFdvClienteSchema.nullish(),
+    external_id: z.string().nullish(),
   })
   .strict();
 export type ClienteListaItem = z.infer<typeof ClienteListaItemSchema>;
@@ -60,3 +64,32 @@ export const ClientePagamentoPutSchema = z
   })
   .strict();
 export type ClientePagamentoPut = z.infer<typeof ClientePagamentoPutSchema>;
+
+/**
+ * Item de `GET /v1/core/usuarios/:id/clientes` (BKO: Carteira do usuário e "adicionar da carteira" do editor de rota): só os vínculos
+ * vigentes. Sem `.strict()`: a rota é anterior ao contrato e os campos novos entram sem quebrar quem lê.
+ */
+export const CarteiraDoUsuarioItemSchema = z.object({
+  id: z.string().uuid(),
+  nome: z.string(),
+  razao_social: z.string(),
+  /** Código ERP; nulo antes do vínculo com o ERP. */
+  external_id: z.string().nullish(),
+  /** v1.0.30 (ADR 0069 item 10, aditivo): Código FDV do cliente. */
+  codigo_fdv: CodigoFdvClienteSchema.nullish(),
+  documento: z.string().nullish(),
+  cidade: z.string().nullable(),
+  bairro: z.string().nullable(),
+  lat: z.number().nullable(),
+  lng: z.number().nullable(),
+  ultima_compra_em: Data.nullable(),
+  carteira_id: z.string().uuid().optional(),
+  papel: z.enum(['vendedor', 'promotor']).optional(),
+  frequencia_semanas: z.number().int().nullable(),
+  dia_semana: z.number().int().nullable(),
+  /** RN-CORE-16: cliente sem os campos mínimos do tenant (pedido só como orçamento). */
+  cadastro_incompleto: z.boolean().optional(),
+});
+export type CarteiraDoUsuarioItem = z.infer<typeof CarteiraDoUsuarioItemSchema>;
+export const CarteiraDoUsuarioRespostaSchema = z.object({ itens: z.array(CarteiraDoUsuarioItemSchema) });
+export type CarteiraDoUsuarioResposta = z.infer<typeof CarteiraDoUsuarioRespostaSchema>;

@@ -279,6 +279,24 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > (`cliente_aprovado_sem_erp_ix` → `cliente_pre_cadastro_fila_ix`, pendentes sem código por `(created_at, id)`);
 > `integracao.cliente_fila_erp.aprovado_em` vira `recebido_em`. Detalhes no [core.md](core.md) e no
 > [integracao.md](integracao.md) ("0097"); teste `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
+>
+> **2026-11-23 (v1.0.30, ADR 0069; RN-CORE-16, RN-CORE-78, RN-CORE-79 e RN-INT-22 revistas):**
+> `0098_core_integracao_pre_cadastro_revisao` (em cima da 0097; número provisório): `core.cliente` ganha `revisao_cadastro` (1 em
+> todo pré-cadastro) e `erros_recusa` (só com `'recusado'`, sem `macuxi_leitura`); nova `core.cliente_pre_cadastro_tentativa` (uma
+> linha por revisão, com hash, origem, quem corrigiu, resultado, motivo e erros por campo; alias `cliente_id_original`; carga das
+> existentes; fora do sync); `integracao.cliente_fila_erp` ganha `revisao`, `hash` e `erros`; o parâmetro
+> `cliente.campos_obrigatorios` vira a lista única (E ∪ P) e `cliente.pre_cadastro.obrigatorios` fica como espelho do APK v1.0.28.
+> Código FDV do cliente (ADR 0069 item 10 e D.7, decisão 1 B, molde da 0080): todo cliente vivo tem `core.cliente.codigo_fdv`
+> (CHECK `cliente_codigo_fdv_vivo`), gerado pelo banco no insert de qualquer origem (o upsert da carga do ERP sobre o vivo que já
+> existe não gasta número), contador próprio `core.cliente_codigo_fdv_contador`, gatilhos `cliente_codigo_fdv_emitir` e
+> `cliente_codigo_fdv_somente_leitura` (23514), único `cliente_codigo_fdv_uk` entre os vivos, carga de todos os clientes vivos.
+> Conferência (só informativa, com os duplicados da v1.0.28): `db/scripts/conferencia-0098.sql`. Detalhes no [core.md](core.md) e no
+> [integracao.md](integracao.md) ("0098"); testes `db/testes/cliente-pre-cadastro-revisao.db.test.ts` e `db/testes/cliente-codigo-fdv.db.test.ts`.
+>
+> **2026-11-23 (v1.0.30, saúde da outbox depois da limpeza da AM2808):** `0099_plataforma_resumo_outbox_vivos` (em cima da 0098;
+> número provisório): `plataforma.resumo_outbox` deixa de contar o evento apagado (`deleted_at`) em pendentes, parados e mais
+> antigo, e o `macuxi_worker` ganha `select (deleted_at)` em `plataforma.evento`. Detalhes no [plataforma.md](plataforma.md)
+> (evento); teste `db/testes/resumo-outbox-vivos.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

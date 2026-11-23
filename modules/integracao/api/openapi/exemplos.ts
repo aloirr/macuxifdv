@@ -520,6 +520,18 @@ export const EXEMPLOS_PEDIDOS_PENDENTES: readonly Exemplo<z.output<typeof Pedido
 export const EXEMPLOS_RETORNO_CLIENTE: readonly Exemplo<z.input<typeof RetornoCliente>>[] = [
   ex('vinculado', 'Cliente criado no ERP (informe o código)', { versao_contrato: 'v1', cliente_uuid: CLIENTE_UUID_EXEMPLO, status: 'vinculado', external_id: 'C-004512', ocorrido_em: '2026-11-23T14:02:00Z' }),
   ex('rejeitado_erp', 'ERP recusou o cadastro (o motivo é obrigatório)', { versao_contrato: 'v1', cliente_uuid: CLIENTE_UUID_EXEMPLO, status: 'rejeitado_erp', motivo: 'CNPJ já cadastrado com outro código', ocorrido_em: '2026-11-23T14:02:00Z' }),
+  ex('rejeitado_com_erros', 'ERP recusou a revisão 2, com os erros por campo (opcionais)', {
+    versao_contrato: 'v1',
+    cliente_uuid: CLIENTE_UUID_EXEMPLO,
+    status: 'rejeitado_erp',
+    motivo: 'Cadastro incompleto',
+    revisao: 2,
+    erros: [
+      { campo: 'inscricao_estadual', codigo: 'IE_INVALIDA', mensagem: 'Inscrição estadual inválida para RR' },
+      { campo: 'cep', codigo: 'CEP_INEXISTENTE', mensagem: 'CEP não encontrado na base dos Correios' },
+    ],
+    ocorrido_em: '2026-11-23T14:02:00Z',
+  }),
 ];
 
 export const EXEMPLOS_CLIENTES_PENDENTES: readonly Exemplo<z.output<typeof ClientesPendentes>>[] = [
@@ -544,6 +556,9 @@ export const EXEMPLOS_CLIENTES_PENDENTES: readonly Exemplo<z.output<typeof Clien
         latitude: null,
         longitude: null,
         filial_external_id: null,
+        codigo_fdv: '00012',
+        revisao: 1,
+        hash: '3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5',
         tentativa: 1,
       },
     ],
@@ -552,8 +567,9 @@ export const EXEMPLOS_CLIENTES_PENDENTES: readonly Exemplo<z.output<typeof Clien
 ];
 
 export const EXEMPLOS_RETORNO_CLIENTE_ACEITO: readonly Exemplo<z.output<typeof RetornoClienteAceito>>[] = [
-  ex('vinculado', 'Retorno aplicado', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: false }),
-  ex('repetido', 'Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: true }),
+  ex('vinculado', 'Retorno aplicado', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: false, revisao: 1 }),
+  ex('repetido', 'Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: true, revisao: 1 }),
+  ex('obsoleto', 'Recusa obsoleta', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'pendente', repetido: false, revisao: 3, obsoleto: true }),
 ];
 
 export const EXEMPLOS_RETORNO_ACEITO: readonly Exemplo<z.output<typeof RetornoAceito>>[] = [
@@ -664,6 +680,7 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
     422: [
       ex('cliente_desconhecido', 'O Hub não conhece o cliente', recusa('cliente_desconhecido', null, 'O Hub não conhece este cliente. Só cliente entregue ao Conector recebe retorno.')),
       ex('external_id_divergente', 'O mesmo cliente já tem outro código no ERP', recusa('external_id_divergente', 'external_id', 'O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.')),
+      ex('revisao_desconhecida', 'Revisão maior que a atual do cliente', recusa('revisao_desconhecida', 'revisao', 'O retorno informa a revisão 4, mas a revisão atual deste cliente é 3. Devolva a revisão recebida em GET /clientes/pendentes.')),
     ],
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },

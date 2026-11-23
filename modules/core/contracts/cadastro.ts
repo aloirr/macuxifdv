@@ -38,6 +38,26 @@ export const CAMPOS_CADASTRO_PADRAO: readonly CampoCadastroCliente[] = [
   'cep',
 ];
 
-/** plataforma.parametro (core, 'cliente.campos_obrigatorios'); sem `documento` o domain acrescenta. */
+/** Sempre obrigatórios (RN-CORE-16 e RN-CORE-79): o tenant não pode tirá-los, nem do cadastro nem do pré-cadastro. */
+export const CAMPOS_CADASTRO_FIXOS = ['razao_social', 'documento'] as const;
+
+/**
+ * plataforma.parametro (core, 'cliente.campos_obrigatorios'); sem os fixos o domain acrescenta. Lista única do cadastro e do
+ * pré-cadastro desde a v1.0.30 (ADR 0069).
+ */
 export const PARAMETRO_CAMPOS_OBRIGATORIOS = 'cliente.campos_obrigatorios';
 export const ParametroCamposObrigatorios = z.array(CampoCadastroCliente).min(1).max(CAMPOS_CADASTRO_CLIENTE.length);
+
+/**
+ * `GET|PUT /v1/core/parametros/campos-obrigatorios` (Parâmetros › Clientes, RN-CORE-16/79). O GET devolve a lista efetiva, já com
+ * os fixos; o PUT aceita sem eles e o servidor acrescenta.
+ */
+export const ParametroCamposObrigatoriosClienteSchema = z
+  .object({
+    obrigatorios: z
+      .array(CampoCadastroCliente)
+      .max(CAMPOS_CADASTRO_CLIENTE.length)
+      .refine((v) => new Set(v).size === v.length, 'Campo repetido na lista de obrigatórios.'),
+  })
+  .strict();
+export type ParametroCamposObrigatoriosCliente = z.infer<typeof ParametroCamposObrigatoriosClienteSchema>;

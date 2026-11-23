@@ -13,7 +13,7 @@ import { consumidorLoteRecebido } from './aplicar-lote';
 import { consumidorMarcaDesconhecida } from './consumidor-marca-desconhecida';
 import { rotaApagarMapeamento, rotaGravarMapeamento, rotaListarMapeamentos, rotaReprocessarRetidos } from './bko-mapeamento';
 import { consumidorPedidoAprovado, consumidorPedidoCancelado, consumidorPedidoStatusAlterado } from './consumidores-pedido';
-import { consumidorClientePreCadastrado } from './consumidores-cliente';
+import { consumidorClientePreCadastrado, consumidorClientePreCadastroRevisado } from './consumidores-cliente';
 import { consultaCancelamentoErp } from './consulta-cancelamento';
 import { criarAutenticacaoHub, type ConectorHub } from './autenticacao';
 import { rotaErrosLote, rotaLote } from './bko-lotes-consulta';
@@ -67,7 +67,7 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined; 
   return definirModuloApi({
     manifesto: manifest,
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
-    consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida, consumidorClientePreCadastrado],
+    consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida, consumidorClientePreCadastrado, consumidorClientePreCadastroRevisado],
     consultas: [consultaCancelamentoErp],
     rotas: [rotaMonitor, rotaMonitorDetalhes, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaLote, rotaErrosLote, rotaDownloadConector],
     // T-0092: especificação e guia em PDF públicos (sem token); ETag, 304 e Cache-Control são da plataforma
