@@ -188,10 +188,15 @@ aparelho (não é código para pessoa) e o `codigo_fdv` que existe é só do usu
 - **Upsert da carga do ERP sem gastar número**: o consumidor grava com `insert ... on conflict (tenant_id, external_id) do update`, e o
   BEFORE INSERT roda antes de o Postgres descobrir o conflito. Sem cuidado, cada carga de um cliente que já existe queimaria um número
   (buraco a cada minuto do Conector; o contador chegaria a 99999 em semanas). Por isso o gatilho, quando o insert traz `external_id`,
-  **primeiro procura o vivo com o mesmo `(tenant_id, external_id)`** (índice `cliente_external_uk`): achou → não emite (o insert vira o
-  update, que não mexe no código); não achou → emite. Corrida entre duas cargas do mesmo cliente novo perde no máximo um número (buraco
-  aceito, nunca repete). Se o vivo some entre a procura e o conflito, o insert chega sem código, o CHECK `cliente_codigo_fdv_vivo` o
-  recusa e a outbox repete (RN-INT-04). O consumidor não muda.
+  **primeiro procura o vivo com o mesmo `(tenant_id, external_id)`** (índice `cliente_external_uk`): achou → não emite, **copia o código
+  do vivo para a linha proposta** e trava o vivo com `for no key update` até o fim da transação; não achou → emite. A cópia é
+  obrigatória: o Postgres confere os CHECKs (`ExecConstraints`) **antes** de detectar o conflito do `on conflict`, e com o código nulo o
+  `cliente_codigo_fdv_vivo` recusaria toda carga repetida do ERP. O conflito troca a linha proposta pelo update, que não mexe no código:
+  não gasta número e o código do vivo não muda. A trava é a mesma que o update do conflito pega; com ela o vivo não pode ser apagado
+  entre a procura e o conflito, então a linha proposta nunca é gravada com o código dele (a ressalva da versão anterior, "o vivo some e
+  a outbox repete", deixa de existir). Corrida entre duas cargas do mesmo cliente novo grava um cliente só e perde no máximo um número
+  (buraco aceito, nunca repete). O consumidor não muda. (Desvio do banco-dados em 266cece, aceito pelo engenheiro-software: a versão
+  anterior deste item mandava deixar o código nulo.)
 - **Carga inicial (backfill), em todas as empresas**: na 0098, os clientes **vivos** de cada tenant recebem `00001`… em ordem
   determinística de **`created_at, id`** (o `id` desempata as linhas da mesma carga do ERP, que têm o mesmo `created_at`), num update só,
   antes de criar os gatilhos (o somente leitura recusaria o update). O contador de cada tenant termina no maior número emitido; tenant
@@ -416,15 +421,20 @@ Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas p
       vivos anda (o pull leva o código). O update roda pelo dono da migração, sem outbox: nenhum evento é publicado.
    d. CHECK `cliente_codigo_fdv_vivo` (`deleted_at is not null or codigo_fdv is not null`), criado depois da carga.
    e. Função SECURITY DEFINER `core.cliente_codigo_fdv()` (search_path fixo, sem EXECUTE a ninguém) e os gatilhos
-      `cliente_codigo_fdv_emitir` (BEFORE INSERT: código informado → fica e sobe o contador; código nulo com `external_id` e vivo com o
-      mesmo `(tenant_id, external_id)` → não emite; senão emite, com a linha do contador travada até o fim da transação) e
-      `cliente_codigo_fdv_somente_leitura` (BEFORE UPDATE: mudar = 23514 hint RN-CORE-78; apagado sem código que volta a vivo ganha o
-      próximo número). Os gatilhos rodam antes do `cliente_updated_at` e não mexem nele.
+      `cliente_codigo_fdv_emitir` (BEFORE INSERT: código informado → fica e sobe o contador; linha inserida já apagada e sem código
+      (backup) → fica sem código; código nulo com `external_id` e vivo com o mesmo `(tenant_id, external_id)` → não emite: **copia o
+      código do vivo** para a linha proposta e trava o vivo com `for no key update` até o fim da transação, porque o CHECK
+      `cliente_codigo_fdv_vivo` é conferido antes do conflito do `on conflict` (item 10); senão emite, com a linha do contador travada
+      até o fim da transação) e `cliente_codigo_fdv_somente_leitura` (BEFORE UPDATE: mudar = 23514 hint RN-CORE-78; apagado sem código
+      que volta a vivo ganha o próximo número). O contador que diminui (`cliente_codigo_fdv_contador_nao_diminui`) também sai com 23514
+      e hint RN-CORE-78. Os gatilhos rodam antes do `cliente_updated_at` e não mexem nele.
    f. Grant de SELECT da coluna ao `macuxi_leitura`; o `.down.sql` apaga gatilhos, função, CHECKs, índice, contador e coluna (perde os
       códigos; volte antes o código do Core e do Hub que lê a coluna).
    Volume: o backfill escreve uma vez cada cliente vivo (dezenas de milhares por empresa grande) e cada aparelho puxa a carteira inteira
-   de novo no primeiro sync depois do deploy; o banco-dados mede o tempo da 0098 na base de teste com o volume da maior empresa e o
-   informa na entrega. Se uma view do Conector (`db/conector/`) passar a expor o código, sai no PR conjunto do kit (R-20261115-171000);
+   de novo no primeiro sync depois do deploy. Medido pelo banco-dados (23/11/2026, Postgres 16 local, fsync desligado): **12,3 s** a
+   0098 inteira com 240 mil clientes vivos (200 mil numa empresa); em produção conte com mais. Durante esse tempo os clientes vivos
+   ficam travados para escrita (o update roda na transação da migração): a 0098 roda na janela do deploy, **com a carga do ERP
+   parada** (Consequências, plano de deploy). Depois dela, o upsert da carga sobre cliente que já existe custa ~0,75 ms por linha. Se uma view do Conector (`db/conector/`) passar a expor o código, sai no PR conjunto do kit (R-20261115-171000);
    esta ADR não pede.
 
 ### E. Integração — modulo-integracao
@@ -470,9 +480,10 @@ Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas p
   na mesma revisão (200, publica); `revisao_desconhecida`; erros mascarados e fora do log.
 - Item 10: Código FDV emitido no recebimento (rota e push) e no cliente novo da carga do ERP, em sequência sem repetir em inserts
   concorrentes do mesmo tenant; upsert da carga sobre cliente que já existe não gasta número (dez cargas seguidas do mesmo cliente =
-  contador parado); backfill em dois tenants com ordem `created_at, id` (empate de `created_at` desempatado pelo `id`), apagados nulos,
+  contador parado, código do vivo igual ao de antes); carga do mesmo cliente com o vivo apagado em outra transação espera a trava e
+  não grava a linha proposta com o código dele; linha inserida já apagada e sem código fica sem código; backfill em dois tenants com ordem `created_at, id` (empate de `created_at` desempatado pelo `id`), apagados nulos,
   contador no maior número; `100000` depois de `99999` (contador posto em 99999 no teste); `cliente_codigo_fdv_vivo` recusa vivo sem
-  código; apagado antigo que volta a vivo ganha número; restauração do backup em qualquer ordem; herdado por X na substituição, só
+  código; apagado antigo que volta a vivo ganha número; hint `RN-CORE-78` no 23514 do somente leitura e do contador que diminui; restauração do backup em qualquer ordem; herdado por X na substituição, só
   de leitura (23514 → 422); `vinculado` sobre `recusado` grava e limpa motivo e erros;
   carga do ERP com o documento de um pré-cadastro sem código repete (`ReferenciaAusenteErp`) e, depois do `vinculado`, sobrescreve o
   próprio pré-cadastro (sem duplicar), mantendo `codigo_fdv`, `origem_cadastro` e a coordenada `manual` quando o ERP não manda
@@ -565,6 +576,12 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   backfill.
 - Ordem do lote: migração 0098 → Core (contratos, domain, API, receptor, BKO, app) e Integração juntos → BKO web no mesmo deploy (a rota
   `parametros/pre-cadastro` sai).
+- **Plano de deploy da 0098**: o backfill trava para escrita todos os clientes vivos durante a migração (12,3 s com 240 mil clientes na
+  base de teste; mais em produção). Ela roda **na janela do deploy, com a carga do ERP parada** (Conector sem enviar clientes e fila do
+  Hub sem consumir), e a carga volta depois de a 0098 terminar. O push do Campo e o BKO que gravam cliente nesse intervalo esperam
+  a migração terminar.
+- O upsert da carga do ERP sobre cliente que já existe passa a travar o vivo (`for no key update`) desde o gatilho até o fim da
+  transação — a mesma trava que o update do conflito já pegava; custo medido ~0,75 ms por linha.
 
 ## Texto proposto das RN (o gerente-projetos aplica no doc 03)
 - **RN-CORE-16 Cadastro completo** (revista na v1.0.30): o cliente só fica **ativo para faturamento** quando todos os campos da lista
