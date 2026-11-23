@@ -2,7 +2,7 @@
 
 - **Status**: proposta (o número 0069 vale depois de conferido no `.coord/quadro.md` pelo gerente-projetos; livre no `origin/main` c460e92).
 - **Data**: 2026-11-23 (Manaus)
-- **Versão**: v1.0.29. Regras: RN-CORE-16 (revista), RN-CORE-78 (revista), RN-CORE-79 (revista), RN-INT-22 (revista); RN-CORE-59 e RN-CORE-77 como referência (item 10).
+- **Versão**: v1.0.30. Regras: RN-CORE-16 (revista), RN-CORE-78 (revista), RN-CORE-79 (revista), RN-INT-22 (revista); RN-CORE-59 e RN-CORE-77 como referência (item 10).
 - **Autor**: engenheiro-software
 - **Origem**: decisões do dono do produto R-20261123-141413 e R-20261123-142306 (reenvio = o mesmo pré-cadastro corrigido, com histórico;
   API do Core para o BKO corrigir os recusados; uma lista só de campos obrigatórios; Hub reabre a mesma linha da fila, com `revisao`,
@@ -12,7 +12,7 @@
   pré-cadastro gera o código FDV; o código ERP fica em branco; ao voltar aprovado do ERP, preenche o código ERP e atualiza os demais
   dados com o que o ERP mandou (o ERP manda)" → item 10 e item 8 revisto; (b) aceita: a lista única pode marcar como incompletos
   clientes do ERP; (c) aceita: empresa sem parâmetro passa a exigir IE (CNPJ) e endereço no pré-cadastro; (d) aceita: a correção pelo
-  BKO é só para analista e admin. O receptor do push (item 3) vai na v1.0.29, sem hotfix na v1.0.28.
+  BKO é só para analista e admin. O receptor do push (item 3) vai na v1.0.30, sem hotfix na v1.0.28.
 - **Segunda rodada, decidida** (23/11/2026, "1 B / 2 A / 3 A", pelo gerente-projetos): (1) **B** — **todo cliente ganha Código FDV**,
   inclusive o que vem direto do ERP: o cliente novo gravado pelo consumidor da carga do ERP e a carga inicial dos clientes que já
   existem, em todas as empresas (migração 0098); gerado pelo banco, 5 dígitos, contador por empresa, nunca reaproveitado → item 10 e
@@ -262,7 +262,7 @@ export const PreCadastroClienteSaidaSchema = z.object({          // revisto: + r
 
 export const TentativaPreCadastroSchema = z.object({
   revisao: RevisaoCadastroSchema,
-  hash: HashPreCadastroSchema.nullable(),                       // nulo = tentativa anterior à v1.0.29 (migração)
+  hash: HashPreCadastroSchema.nullable(),                       // nulo = tentativa anterior à v1.0.30 (migração)
   origem: OrigemTentativaSchema,
   corrigido_por: z.object({ id: Uuid, nome: z.string(), perfil: z.string() }).nullable(),
   enviado_em: z.string().datetime(),
@@ -306,7 +306,7 @@ export const EVENTO_CLIENTE_PRE_CADASTRO_REVISADO = definirEvento('core.cliente.
 
 // ClientePreCadastroParaErpSchema (saída de core.clientes_pre_cadastro_sem_erp@1): + revisao: RevisaoCadastroSchema, + hash: HashPreCadastroSchema
 ```
-- Saem de uso no app v1.0.29 e ficam só para o espelho legado (marcar `@deprecated`, remover com a versão mínima > 1.0.28):
+- Saem de uso no app v1.0.30 e ficam só para o espelho legado (marcar `@deprecated`, remover com a versão mínima > 1.0.28):
   `PARAMETRO_PRE_CADASTRO_OBRIGATORIOS`, `CAMPOS_PRE_CADASTRO_CONFIGURAVEIS`, `ObrigatoriosPreCadastroSchema`,
   `obrigatoriosPreCadastroDasLinhas`. Sai `ParametroPreCadastroSchema` (a rota sai).
 - `cadastro.ts`: `export const CAMPOS_CADASTRO_FIXOS = ['razao_social', 'documento'] as const` (o domain deixa de ter a cópia
@@ -495,7 +495,7 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   como "Aguardando o ERP" só onde o status do pré-cadastro já é mostrado (uma informação, um lugar).
 - Fora da sessão D: `modules/vendedor/app/lib/pull.ts` e `catalog.ts` (modulo-vendedor) se a busca do pedido também usar o Código FDV.
 
-### I. Impacto nos commits já feitos (v1.0.29)
+### I. Impacto nos commits já feitos
 - **banco-dados 619cd07** (`0098`): acrescentar o item D.7 inteiro (a–f: coluna, CHECK de formato, índice único, contador, carga de
   **todos os vivos de todas as empresas** por `created_at, id`, CHECK `cliente_codigo_fdv_vivo`, função e gatilhos com a procura por
   `external_id` antes de emitir, grant, down) na própria 0098, **sem** o CHECK `cliente_codigo_fdv_origem`; testes em
@@ -567,12 +567,12 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   `parametros/pre-cadastro` sai).
 
 ## Texto proposto das RN (o gerente-projetos aplica no doc 03)
-- **RN-CORE-16 Cadastro completo** (revista na v1.0.29): o cliente só fica **ativo para faturamento** quando todos os campos da lista
+- **RN-CORE-16 Cadastro completo** (revista na v1.0.30): o cliente só fica **ativo para faturamento** quando todos os campos da lista
   `cliente.campos_obrigatorios` da empresa estão preenchidos e válidos. Padrão: razão social; CNPJ ou CPF com dígito verificador válido;
   inscrição estadual ou "isento" (só para CNPJ); logradouro, número, bairro, município, UF e CEP. A empresa acrescenta ou tira campos em
   Parâmetros › Clientes, mas não tira a razão social nem o CNPJ/CPF. **É a mesma lista do pré-cadastro (RN-CORE-79).** A verificação
   roda na integração (Hub), na edição pelo BKO, na sincronização e no pré-cadastro, e mora no `domain` do Core.
-- **RN-CORE-78 Pré-cadastro de cliente** (revista na v1.0.29): o FDV só faz o pré-cadastro e quem aprova é o ERP. O cadastro feito no
+- **RN-CORE-78 Pré-cadastro de cliente** (revista na v1.0.30): o FDV só faz o pré-cadastro e quem aprova é o ERP. O cadastro feito no
   Campo ou no BKO chega como pendente e entra na fila do ERP assim que o servidor o recebe. **Todo cliente tem Código FDV**, venha do
   pré-cadastro ou do ERP: gerado pelo sistema quando o servidor recebe o pré-cadastro ou quando a carga do ERP grava o cliente novo, em
   sequência da empresa com 5 dígitos (00001…; depois de 99999 vem 100000), como o do usuário na RN-CORE-59; só de leitura e nunca
@@ -587,10 +587,10 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
   vendendo para o cliente pendente ou recusado. O motivo e os erros vão ao vendedor do cliente e a quem corrige no BKO, nunca a log nem
   à auditoria. Até a versão mínima do Campo passar de 1.0.28, o cadastro novo com o CPF/CNPJ de um recusado (app antigo) assume o
   histórico do recusado como a revisão seguinte.
-- **RN-CORE-79 Campos obrigatórios do pré-cadastro** (revista na v1.0.29): o pré-cadastro exige os campos da lista única de Parâmetros ›
+- **RN-CORE-79 Campos obrigatórios do pré-cadastro** (revista na v1.0.30): o pré-cadastro exige os campos da lista única de Parâmetros ›
   Clientes (RN-CORE-16), menos complemento e geolocalização; razão social e CPF/CNPJ são sempre obrigatórios. A inscrição estadual só é
   exigida para CNPJ ("isento" vale). A regra vale no app offline e a API revalida; a mudança é auditada.
-- **RN-INT-22 Cliente novo para o ERP** (revista na v1.0.29): o Hub oferece ao ERP, em `/integracao/v1`, os pré-cadastros pendentes ainda
+- **RN-INT-22 Cliente novo para o ERP** (revista na v1.0.30): o Hub oferece ao ERP, em `/integracao/v1`, os pré-cadastros pendentes ainda
   sem código, em ordem de chegada, cada um com o Código FDV, a revisão e o hash dos dados, e recebe de volta o código do ERP ou a recusa
   com motivo e, opcionalmente, os erros por campo, como o retorno de pedidos da RN-INT-08. O reenvio reabre a mesma linha da fila (de
   rejeitado para pendente, com a revisão nova). O retorno informa a revisão: recusa de revisão antiga não vale sobre a nova; o código do
