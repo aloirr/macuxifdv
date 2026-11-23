@@ -222,15 +222,18 @@ export const cliente = core.table('cliente', {
   geocodificacao_tentada_em: timestamp('geocodificacao_tentada_em', { withTimezone: true }),
   /** Hash do endereço e do CEP tentados (mesma chave = JA_TENTADO). Sensível pelo nome: fora do SELECT do macuxi_leitura. */
   geocodificacao_chave: text('geocodificacao_chave'),
-  // --- 0095 (v1.0.27, RF-CORE-10): origem, status e aprovação do cadastro (pré-cadastro aprovado vai ao ERP pelo Hub). Fora do pull. ---
+  // --- 0095/0097 (RF-CORE-10, RN-CORE-78): origem e status do pré-cadastro (vai ao ERP pelo Hub; o ERP aprova ou recusa). ---
   /** Origem do cadastro; quem já existia é 'erp' (default). */
   origem_cadastro: text('origem_cadastro', { enum: ['erp', 'campo', 'bko'] }).notNull().default('erp'),
   /** Nulo se e só se origem_cadastro = 'erp' (cliente_status_cadastro_origem). */
   status_cadastro: text('status_cadastro', { enum: ['pendente', 'aprovado', 'recusado'] }),
-  /** Aprovação no BKO (UTC); com aprovado_por, só com status 'aprovado'. Fila do Hub: cliente_aprovado_sem_erp_ix. */
+  /** 0097 (v1.0.28, RN-CORE-78): quando o ERP aprovou (UTC; retorno 'vinculado'), só com status 'aprovado'. aprovado_por saiu na 0097. */
   aprovado_em: timestamp('aprovado_em', { withTimezone: true }),
-  /** core.usuario.id de quem aprovou (sem FK). */
-  aprovado_por: uuid('aprovado_por'),
+  /**
+   * 0097 (v1.0.28, RN-CORE-78): motivo da recusa do ERP, até 500 caracteres e só com status 'recusado'. Vai no pull; nunca em log
+   * nem na auditoria; sem SELECT do macuxi_leitura. Fila do ERP: cliente_pre_cadastro_fila_ix (pendentes sem external_id).
+   */
+  motivo_recusa: text('motivo_recusa'),
 });
 
 /**

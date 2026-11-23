@@ -6,6 +6,8 @@
  * - poll pelo índice parcial cliente_fila_erp_poll_ix (pendentes e enviados vencidos, na ordem da aprovação, skip locked);
  * - isolamento: o macuxi_app de um tenant não lê nem grava a fila do outro; macuxi_leitura só lê o próprio tenant;
  * - up/down: a 0096 só acrescenta; o down volta exatamente ao catálogo da anterior.
+ * Depois da 0097 (v1.0.28, cliente-pre-cadastro-erp.db.test.ts): aprovado_em virou recebido_em. O bloco "banco" confere o
+ * estado ATUAL (todas as migrações); o estático e o up/down, o texto e o catálogo da 0096.
  */
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -31,8 +33,11 @@ const COLUNAS = [
   'id', 'tenant_id', 'cliente_uuid', 'payload', 'aprovado_em', 'estado', 'enviado_em', 'tentativas', 'conector_id', 'motivo',
   'created_at', 'updated_at', 'deleted_at', 'external_id',
 ];
-const POLL =
+/** Nomes depois da 0097 (aprovado_em -> recebido_em): o do Drizzle e o do banco atual. */
+const COLUNAS_ATUAIS = COLUNAS.map((c) => (c === 'aprovado_em' ? 'recebido_em' : c));
+const POLL_0096 =
   "select id from integracao.cliente_fila_erp where tenant_id = $1 and deleted_at is null and (estado = 'pendente' or (estado = 'enviado' and enviado_em < now() - interval '10 minutes')) order by aprovado_em limit 50 for update skip locked";
+const POLL = POLL_0096.replace('order by aprovado_em', 'order by recebido_em');
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 
@@ -52,7 +57,7 @@ describe('0096 fila do cliente para o ERP (estático)', () => {
     const leitura = /grant select \(([^)]*)\) on integracao\.cliente_fila_erp to macuxi_leitura;/.exec(up)![1]!.split(',').map((x) => x.trim());
     expect(leitura.sort()).toEqual(COLUNAS.filter((c) => c !== 'payload' && c !== 'motivo').sort());
     expect(up).not.toMatch(/grant [^;]*\bdelete\b|to macuxi_(worker|portal)|\bcore\./);
-    expect(Object.keys(nuvemIntegracao.clienteFilaErp).filter((k) => COLUNAS.includes(k)).sort()).toEqual([...COLUNAS].sort());
+    expect(Object.keys(nuvemIntegracao.clienteFilaErp).filter((k) => COLUNAS_ATUAIS.includes(k)).sort()).toEqual([...COLUNAS_ATUAIS].sort());
     expect(TABELAS_FORA_DO_SYNC).toContain(TABELA);
   });
 
@@ -61,7 +66,7 @@ describe('0096 fila do cliente para o ERP (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0096 fila do cliente para o ERP (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0096 fila do cliente para o ERP (banco, fixture dois-tenants, estado depois da 0097)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -75,19 +80,19 @@ describe.skipIf(semBanco())('0096 fila do cliente para o ERP (banco, fixture doi
   const comoLeitura = (t: string, sql: string, p: unknown[] = []) => comoPapel<Record<string, unknown>>(admin, 'macuxi_leitura', sql, p, t).then((r) => r.rows);
   const CLI_A = '96000000-0000-4000-8000-00000000000a';
   const CLI_B = '96000000-0000-4000-8000-00000000000b';
-  const inserir = 'insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, aprovado_em) values ($1, $2, $3, now()) returning id';
+  const inserir = 'insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, recebido_em) values ($1, $2, $3, now()) returning id';
 
   it('CHECKs, unique (tenant_id, cliente_uuid) e conector do mesmo tenant', async () => {
     await emTransacao(admin, null, async () => {
       await admin.query(inserir, [A.tenantId, CLI_A, { nome: 'A' }]);
       const ins = (cols: string, vals: string, p: unknown[] = []) =>
-        erroNoSavepoint(admin, `insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, aprovado_em${cols}) values ($1, $2, '{}', now()${vals})`, [A.tenantId, ...p]);
+        erroNoSavepoint(admin, `insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, recebido_em${cols}) values ($1, $2, '{}', now()${vals})`, [A.tenantId, ...p]);
       expect((await ins('', '', [CLI_A]))?.code).toBe('23505');
       expect(await ins('', '', [CLI_B])).toBeNull(); // outro cliente do mesmo tenant entra
       expect((await ins(', estado', ", 'integrado'", [crypto.randomUUID()]))?.code).toBe('23514');
       expect((await ins(', estado', ", 'enviado'", [crypto.randomUUID()]))?.code).toBe('23514'); // enviado sem enviado_em
       expect((await ins(', tentativas', ', -1', [crypto.randomUUID()]))?.code).toBe('23514');
-      expect((await erroNoSavepoint(admin, "insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, aprovado_em) values ($1, $2, '[]', now())", [A.tenantId, crypto.randomUUID()]))?.code).toBe('23514');
+      expect((await erroNoSavepoint(admin, "insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, recebido_em) values ($1, $2, '[]', now())", [A.tenantId, crypto.randomUUID()]))?.code).toBe('23514');
       expect((await ins(', conector_id', ', $3', [crypto.randomUUID(), B.integracao.conector]))?.code).toBe('23503');
       for (const e of nuvemIntegracao.ESTADOS_CLIENTE_ERP_BANCO) expect(await ins(', estado, enviado_em', `, '${e}', now()`, [crypto.randomUUID()]), e).toBeNull();
       // o mesmo cliente_uuid em outro tenant não colide
@@ -101,7 +106,7 @@ describe.skipIf(semBanco())('0096 fila do cliente para o ERP (banco, fixture doi
       const [b] = (await admin.query<{ id: string }>(inserir, [B.tenantId, CLI_B, { nome: 'B' }])).rows;
       expect(await comoApp(A.tenantId, 'select id from integracao.cliente_fila_erp where id = $1', [b!.id])).toEqual([]);
       expect(await comoApp(A.tenantId, "update integracao.cliente_fila_erp set estado = 'rejeitado' where id = $1 returning id", [b!.id])).toEqual([]);
-      expect((await erroDe(comoApp(A.tenantId, "insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, aprovado_em) values ($1, gen_random_uuid(), '{}', now())", [B.tenantId])))?.code).toBe('42501');
+      expect((await erroDe(comoApp(A.tenantId, "insert into integracao.cliente_fila_erp (tenant_id, cliente_uuid, payload, recebido_em) values ($1, gen_random_uuid(), '{}', now())", [B.tenantId])))?.code).toBe('42501');
       const poll = async (t: string) => (await comoApp(A.tenantId, POLL, [t])).map((r) => r['id']);
       expect(await poll(A.tenantId)).toContain(a!.id);
       expect(await poll(B.tenantId)).toEqual([]);
@@ -145,7 +150,7 @@ describe.skipIf(semBanco())('0096 fila do cliente para o ERP (up/down, banco ef�
       expect(novos).toContain(`rel ${TABELA} r rls=true force=true`);
       expect(novos.filter((x) => x.startsWith('idx ')).some((x) => x.includes(INDICE))).toBe(true);
       await c.query('set enable_seqscan = off');
-      const plano = await c.query(`explain ${POLL.replace('$1', "'00000000-0000-0000-0000-000000000001'")}`);
+      const plano = await c.query(`explain ${POLL_0096.replace('$1', "'00000000-0000-0000-0000-000000000001'")}`);
       expect(plano.rows.map((r: Record<string, string>) => r['QUERY PLAN']).join('\n')).toContain(INDICE);
       await c.query('reset enable_seqscan');
       expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${VERSAO}_${m96.nome}`]);

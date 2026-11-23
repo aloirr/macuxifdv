@@ -411,16 +411,17 @@ export const pedidoFilaErp = integracao.table('pedido_fila_erp', {
 });
 
 /**
- * 0096 (v1.0.27, RF-CORE-10): pré-cadastro de cliente aprovado esperando o ERP, no padrão da pedido_fila_erp. Entra pelo evento
- * do Core (o Hub não lê core.cliente); payload = cadastro canônico. Único (tenant_id, cliente_uuid). 'enviado' => enviado_em.
- * Poll: `where estado = 'pendente' or (estado = 'enviado' and enviado_em < $vencido) order by aprovado_em limit N
+ * 0096 (v1.0.27, RF-CORE-10) e 0097 (v1.0.28, RN-INT-22): pré-cadastro de cliente esperando o ERP, no padrão da pedido_fila_erp.
+ * Entra pelo evento do Core (o Hub não lê core.cliente); payload = cadastro canônico. Único (tenant_id, cliente_uuid).
+ * 'enviado' => enviado_em. recebido_em (era aprovado_em até a 0097) = quando o Core recebeu o pré-cadastro.
+ * Poll: `where estado = 'pendente' or (estado = 'enviado' and enviado_em < $vencido) order by recebido_em limit N
  * for update skip locked` (índice parcial cliente_fila_erp_poll_ix). Sem DELETE (remoção por deleted_at).
  */
 export const clienteFilaErp = integracao.table('cliente_fila_erp', {
   ...comuns(),
   cliente_uuid: uuid('cliente_uuid').notNull(),
   payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
-  aprovado_em: quando('aprovado_em').notNull(),
+  recebido_em: quando('recebido_em').notNull(),
   estado: text('estado', { enum: ESTADOS_CLIENTE_ERP_BANCO }).notNull().default('pendente'),
   enviado_em: quando('enviado_em'),
   tentativas: integer('tentativas').notNull().default(0),

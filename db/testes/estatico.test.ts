@@ -154,6 +154,13 @@ function tabelasCriadas(): Map<string, string> {
   for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column (?:if not exists )?([a-z_][a-z0-9_]*) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
     mapa.set(m[1]!, `${mapa.get(m[1]!) ?? ''}\n  ${m[2]!} ${m[3]!}`);
   }
+  // 0097: a primeira coluna que sai (drop column) e a primeira renomeada (rename column); nenhuma volta depois com o mesmo nome
+  for (const m of /^alter table ([a-z_]+\.[a-z_]+) drop column (?:if exists )?([a-z_][a-z0-9_]*);/gm[Symbol.matchAll](sqlUp)) {
+    mapa.set(m[1]!, (mapa.get(m[1]!) ?? '').replace(new RegExp(`^ {2}${m[2]!} .*$`, 'm'), ''));
+  }
+  for (const m of /^alter table ([a-z_]+\.[a-z_]+) rename column ([a-z_][a-z0-9_]*) to ([a-z_][a-z0-9_]*);/gm[Symbol.matchAll](sqlUp)) {
+    mapa.set(m[1]!, (mapa.get(m[1]!) ?? '').replace(new RegExp(`^ {2}${m[2]!} `, 'm'), `  ${m[3]!} `));
+  }
   return mapa;
 }
 
@@ -241,6 +248,7 @@ describe('migrações (estático)', () => {
     expect(nomes[90]).toBe('0091_plataforma_tenant_ocultar_marca_macuxi'); // item 15 do Campo v1.0.16: plataforma.tenant.ocultar_marca_macuxi (not null default false), sa_gravar_ocultar_marca no portal (só super-admin) e ocultar_marca_macuxi no jsonb da marca (tenant-ocultar-marca.db.test.ts)
     expect(nomes[92]).toBe('0093_core_usuario_base_cliente_geocodificacao'); // T-0191 (Rotas, RN-CORE-75 a 77): casa_* e base_* em core.usuario e coordenada_origem, coordenada_precisao, geocodificacao_tentada_em e geocodificacao_chave em core.cliente, com CHECKs, backfill 'erp' e SELECT por coluna do macuxi_leitura em core.cliente (usuario-base-cliente-geocodificacao.db.test.ts)
     expect(nomes[93]).toBe('0094_integracao_busca_erp'); // integração por ERP (F2): conector_api, credencial_erp (sem macuxi_leitura), implantacao, implantacao_dia e coleta_execucao, piso de 15 min na frequência (integracao-busca-erp.db.test.ts)
+    expect(nomes[96]).toBe('0097_core_cliente_pre_cadastro_erp'); // v1.0.28 (RN-CORE-78, RN-INT-22): core.cliente sem aprovado_por, com motivo_recusa (até 500, só com 'recusado', sem macuxi_leitura) e o índice cliente_pre_cadastro_fila_ix; cliente_fila_erp.aprovado_em vira recebido_em (cliente-pre-cadastro-erp.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
