@@ -55,7 +55,27 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/graphify-mapa.mjs inicio",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
+      {
+        "matcher": "Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/graphify-mapa.mjs lembrete"
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
