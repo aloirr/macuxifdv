@@ -24,7 +24,7 @@ import * as appPromotor from '@macuxi/promotor/app';
 import * as appTreinamento from '@macuxi/treinamento/app';
 import * as appVendedor from '@macuxi/vendedor/app';
 
-import { TELAS_PRE_CADASTRO_CLIENTE } from '../components/pre-cadastro-cliente';
+import { TELA_PRE_CADASTRO_CLIENTE } from '../components/pre-cadastro-cliente';
 import { MANIFESTOS_INSTALADOS } from './instalados';
 import { comPreCadastroCliente } from './pre-cadastro-cliente';
 import { comSyncT0170 } from './sync-t0170';
@@ -35,7 +35,7 @@ export type ComponenteTela = ComponentType;
 function registroApp(manifesto: Manifesto, exportado: unknown): ModuloShell<ComponenteTela> {
   const m = (exportado as { moduloApp?: ModuloShell<ComponenteTela> } | undefined)?.moduloApp;
   if (m && m.manifesto.id !== manifesto.id) throw new Error(`moduloApp de ${manifesto.id} aponta para ${m.manifesto.id}`);
-  return comPreCadastroCliente(comSyncT0170(m ?? { manifesto, paginas: [] }), TELAS_PRE_CADASTRO_CLIENTE);
+  return comPreCadastroCliente(comSyncT0170(m ?? { manifesto, paginas: [] }), TELA_PRE_CADASTRO_CLIENTE);
 }
 
 /** Telas de cada módulo (o módulo sem `app/` exporta `{}`). */
