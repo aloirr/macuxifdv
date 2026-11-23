@@ -523,3 +523,4 @@ export * from './trajeto-formato';
 export * from './rastreamento-portao';
 export * from './equipe-codigos';
 export * from './cliente-aprovado';
+export * from './cliente-pre-cadastro';

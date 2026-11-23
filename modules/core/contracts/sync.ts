@@ -52,6 +52,9 @@ export const ClienteSyncSchema = z
     formas_pagamento: z.array(z.string().min(1).max(20)).max(20).nullable().optional(),
     /** T-0115 / RN-PES-05 (aditivo): canal do cliente (lista do tenant, vem do ERP); a Pesquisa o usa no público-alvo. Ausente = linha/emissor antigo. */
     canal: z.string().max(60).nullable().optional(),
+    /** v1.0.28 / RN-CORE-78 (aditivo): situação do pré-cadastro (o ERP aprova) e motivo da recusa do ERP (até 500; só com 'recusado'). Ausente = linha/emissor antigo. */
+    status_cadastro: z.enum(['pendente', 'aprovado', 'recusado']).optional(),
+    motivo_recusa: z.string().max(500).nullable().optional(),
   })
   .strict();
 export type ClienteSync = z.infer<typeof ClienteSyncSchema>;
