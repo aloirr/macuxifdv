@@ -3,6 +3,7 @@
  * Puro (sem react-native): monta o payload do push, enfileira no sync de forma idempotente (o UUID nasce no aparelho e o
  * reenvio da correção usa o mesmo id) e sobrepõe a fila às linhas do pull, para o cliente novo aparecer na hora, offline.
  */
+import { somenteDigitos } from '@macuxi/comum';
 import { definirEntidadeSync, type MotorSync } from '@macuxi/platform-sdk';
 import {
   obrigatoriosPreCadastroDasLinhas,
@@ -35,9 +36,10 @@ export function obrigatoriosDasLinhas(linhas: Parameters<typeof obrigatoriosPreC
 }
 
 const ouNulo = (v: string | undefined): string | null => (v && v.trim() !== '' ? v.trim() : null);
+const somenteDigitosOuNulo = (v: string | undefined): string | null => (ouNulo(v) === null ? null : somenteDigitos(v));
 
-/** Monta e valida o payload com o schema do contrato; `null` quando algo não passa (a tela já mostrou a falta no campo). */
-export function montarPreCadastro(id: string, valores: ValoresPreCadastro): PreCadastroCliente | null {
+/** Monta e valida o payload com o schema do contrato (o documento vai só com dígitos); sem sucesso, a mensagem do schema por campo. */
+export function montarPreCadastro(id: string, valores: ValoresPreCadastro): { ok: true; payload: PreCadastroCliente } | { ok: false; erros: Record<string, string> } {
   const r = PreCadastroClienteSchema.safeParse({
     id,
     origem: 'campo',
@@ -45,31 +47,38 @@ export function montarPreCadastro(id: string, valores: ValoresPreCadastro): PreC
     nome_fantasia: ouNulo(valores.nome_fantasia),
     documento: valores.documento ?? '',
     inscricao_estadual: ouNulo(valores.inscricao_estadual),
-    telefone: ouNulo(valores.telefone)?.replace(/\D/g, '') ?? null,
+    telefone: somenteDigitosOuNulo(valores.telefone),
     email: ouNulo(valores.email),
     logradouro: ouNulo(valores.logradouro),
     numero: ouNulo(valores.numero),
     bairro: ouNulo(valores.bairro),
     cidade: ouNulo(valores.cidade),
     uf: ouNulo(valores.uf),
-    cep: ouNulo(valores.cep)?.replace(/\D/g, '') ?? null,
+    cep: somenteDigitosOuNulo(valores.cep),
   });
-  return r.success ? r.data : null;
+  if (r.success) return { ok: true, payload: r.data };
+  const erros: Record<string, string> = {};
+  for (const i of r.error.issues) erros[String(i.path[0] ?? 'documento')] ??= i.message;
+  return { ok: false, erros };
 }
 
 export type ResultadoSalvarPreCadastro = { ok: true; id: string } | { ok: false; erros: Record<string, string> };
 
-/** Valida (domain + schema) e enfileira. Mesmo `id` = mesmo item (o motor não enfileira duas vezes): o reenvio da correção é idempotente. */
+/** Valida (domain + schema) e enfileira. Mesmo `id` = mesmo item: o reenvio da correção substitui o item da fila (inclusive o que falhou), sem duplicar. */
 export async function salvarPreCadastro(
-  motor: Pick<MotorSync, 'enfileirar' | 'enviar'>,
+  motor: Pick<MotorSync, 'enfileirar' | 'alterar' | 'pendentes' | 'enviar'>,
   entrada: { id: string; valores: ValoresPreCadastro; obrigatorios: readonly CampoPreCadastro[]; online: boolean },
 ): Promise<ResultadoSalvarPreCadastro> {
   const v = validarPreCadastro(entrada.valores, entrada.obrigatorios);
   if (!v.ok) return { ok: false, erros: v.erros };
-  const payload = montarPreCadastro(entrada.id, entrada.valores);
-  if (!payload) return { ok: false, erros: { documento: 'CPF ou CNPJ inválido' } };
+  const m = montarPreCadastro(entrada.id, entrada.valores);
+  if (!m.ok) return m;
+  const { payload } = m;
   const nome = payload.nome_fantasia?.trim() || payload.razao_social;
-  await motor.enfileirar({ id: payload.id, entidade: ENTIDADE_PRE_CADASTRO, payload, rotulo: `Novo cliente · ${nome}` });
+  const rotulo = `Novo cliente · ${nome}`;
+  // o `enfileirar` ignora id que já está na fila: a correção de um item parado (falhou no 422) o ALTERA, que o devolve a pendente
+  if (motor.pendentes(ENTIDADE_PRE_CADASTRO).some((i) => i.id === payload.id)) await motor.alterar(payload.id, { payload, rotulo });
+  else await motor.enfileirar({ id: payload.id, entidade: ENTIDADE_PRE_CADASTRO, payload, rotulo });
   // o envio sai em segundo plano: a tela fecha na hora e a fila reenvia sozinha quando houver sinal
   if (entrada.online) void motor.enviar().catch(() => undefined);
   return { ok: true, id: payload.id };
@@ -78,7 +87,12 @@ export async function salvarPreCadastro(
 /** Item da fila como o `motor.sobreposicao` entrega (só o que esta função lê). */
 export interface ItemPreCadastroPendente {
   payload: unknown;
+  situacao?: string;
+  ultimo_erro?: string;
 }
+
+/** Texto da correção quando o servidor recusou o envio sem dizer o motivo. */
+export const MOTIVO_ENVIO_FALHOU = 'Não foi possível enviar o cadastro. Corrija e reenvie.';
 
 /**
  * Sobrepõe a fila às linhas do pull: o pré-cadastro novo entra como cliente "pendente" sem código; o reenviado substitui a
@@ -91,6 +105,8 @@ export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: re
     if (!p.success) continue;
     const d = p.data;
     const antigo = clientes.find((c) => c.id === d.id);
+    // item que falhou na API (422): sai de "Aguardando ERP" e vira "Corrigir e reenviar", com a mensagem do servidor
+    const falhou = i.situacao === 'falhou';
     novos.set(d.id, {
       id: d.id,
       updated_at: agora,
@@ -112,8 +128,8 @@ export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: re
       longitude: d.longitude ?? null,
       ativo: true,
       inscricao_estadual: d.inscricao_estadual ?? null,
-      status_cadastro: 'pendente',
-      motivo_recusa: null,
+      status_cadastro: falhou ? 'recusado' : 'pendente',
+      motivo_recusa: falhou ? i.ultimo_erro?.trim() || MOTIVO_ENVIO_FALHOU : null,
     });
   }
   if (novos.size === 0) return [...clientes];
@@ -141,9 +157,9 @@ export function valoresDoCliente(c: ClienteSync): ValoresPreCadastro {
 
 /** "Já é cliente": outro cliente da carteira com o mesmo CNPJ/CPF (comparação só pelos dígitos). */
 export function clienteComDocumento(clientes: readonly ClienteSync[], documento: string, exceto?: string): ClienteSync | null {
-  const d = documento.replace(/\D/g, '');
+  const d = somenteDigitos(documento);
   if (d.length !== 11 && d.length !== 14) return null;
-  return clientes.find((c) => c.deleted_at === null && c.id !== exceto && (c.documento ?? '').replace(/\D/g, '') === d) ?? null;
+  return clientes.find((c) => c.deleted_at === null && c.id !== exceto && somenteDigitos(c.documento) === d) ?? null;
 }
 
 /** Aviso "Cliente salvo" que a lista mostra ao voltar do formulário (a tela do formulário já fechou): uso único. */

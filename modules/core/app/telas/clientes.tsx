@@ -5,6 +5,7 @@
  * carteira vazia mostra só "Sua carteira está vazia." (RD-0501, RD-0504). Regras no domain (`filtro-padrao.ts`).
  */
 import { AvisoRodape, Botao, BotaoFiltro, CabecalhoTela, CampoBusca, Chip, ChipEstado, EstadoVazio, EtiquetaFiltro, colors, Icon, radius, seloDoPreCadastro, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -42,12 +43,15 @@ interface Situacao<F extends string> {
 const SITUACOES_FASE_M: ReadonlyArray<Situacao<CustomerFilter>> = CUSTOMER_FILTERS.map((f) => (f.id === 'overdue' ? { ...f, garante: 'devendo' } : f));
 
 export interface PropsTelaClientes {
-  /** Abre o formulário "Novo cliente" (pré-cadastro). O botão só aparece quando a prop vem e o perfil é o do vendedor (RN-CORE-78). */
+  /** Abre o formulário "Novo cliente" (pré-cadastro). O botão aparece só quando a prop vem e o usuário pode pré-cadastrar (RN-CORE-78); a checagem é uma, em `TelaClientes`. */
   aoNovoCliente?: () => void;
 }
 
-export function TelaClientes({ aoNovoCliente }: PropsTelaClientes = {}) {
+export function TelaClientes({ aoNovoCliente: abrirFormulario }: PropsTelaClientes = {}) {
   const core = useCore();
+  const { motor } = useMotorSync();
+  const perfil = motor?.ambiente.usuario()?.perfil;
+  const aoNovoCliente = perfil && podePreCadastrarCliente(perfil) ? abrirFormulario : undefined;
   const customers = core.estado.clientes;
   const params = useLocalSearchParams<{ filter?: string }>();
   const [query, setQuery] = useState('');
@@ -125,7 +129,7 @@ function ListaLocal({ dados, hoje, aoNovoCliente }: { dados: ClientesLocais; hoj
       query={query}
       setQuery={setQuery}
       linha={(item, first, last, garantidas) => <LinhaLocal c={item} hoje={hoje} first={first} last={last} garantidas={garantidas} />}
-      aoNovoCliente={podePreCadastrarCliente(dados.perfil) ? aoNovoCliente : undefined}
+      aoNovoCliente={aoNovoCliente}
     />
   );
 }

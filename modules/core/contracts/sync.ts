@@ -11,6 +11,7 @@ import { EtapasPendentesSchema } from './etapas-pendencia';
 import { ModuloIdSchema } from './modulos';
 import { FilialDadosFiscaisSchema } from './filial';
 import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
+import { StatusCadastroSchema } from './cliente-pre-cadastro';
 import { MinutoDoDiaSchema } from './jornada';
 import { HoraHHMM as Hora } from './hora';
 
@@ -53,7 +54,7 @@ export const ClienteSyncSchema = z
     /** T-0115 / RN-PES-05 (aditivo): canal do cliente (lista do tenant, vem do ERP); a Pesquisa o usa no público-alvo. Ausente = linha/emissor antigo. */
     canal: z.string().max(60).nullable().optional(),
     /** v1.0.28 / RN-CORE-78 (aditivo): situação do pré-cadastro (o ERP aprova) e motivo da recusa do ERP (até 500; só com 'recusado'). Ausente = linha/emissor antigo. */
-    status_cadastro: z.enum(['pendente', 'aprovado', 'recusado']).optional(),
+    status_cadastro: StatusCadastroSchema.nullable().optional(),
     motivo_recusa: z.string().max(500).nullable().optional(),
   })
   .strict();

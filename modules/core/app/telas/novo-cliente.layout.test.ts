@@ -5,15 +5,17 @@ const ler = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const tela = ler('./novo-cliente.tsx');
 
 describe('tela Novo cliente (pré-cadastro; RN-CORE-78 e RN-CORE-79)', () => {
-  it('RN-CORE-78: o index do app exporta TelaNovoClientePreCadastro com aoConcluir e clienteId', () => {
-    expect(ler('../index.ts')).toContain("export { TelaNovoClientePreCadastro, type PropsTelaNovoClientePreCadastro } from './telas/novo-cliente'");
-    expect(tela).toMatch(/aoConcluir\?: \(\) => void;/);
+  it('RN-CORE-78: o Core registra a página novo-cliente só no Campo, só para o vendedor, com a ação cliente.pre_cadastrar', () => {
+    const index = ler('../index.ts');
+    expect(index).toMatch(/id: 'novo-cliente', caminho: 'novo-cliente'[^}]*apps: \['campo'\], perfis: \['vendedor'\], acao: 'cliente\.pre_cadastrar'[^}]*PaginaNovoCliente/);
+    expect(tela).toContain('PARAM_CLIENTE_ID');
     expect(tela).toMatch(/clienteId\?: string;/);
   });
-  it('RN-CORE-78: o perfil é revalidado na tela e o promotor não vê o botão da lista', () => {
-    expect(tela).toContain('podePreCadastrarCliente(perfil)');
+  it('RN-CORE-78: sem usuário ou sem perfil de vendedor a tela não abre, e a lista decide o botão numa checagem só', () => {
+    expect(tela).toContain('if (!perfil || !podePreCadastrarCliente(perfil)) return null;');
+    expect(tela).not.toContain("?? 'vendedor'");
     const lista = ler('./clientes.tsx');
-    expect(lista).toContain('podePreCadastrarCliente(dados.perfil) ? aoNovoCliente : undefined');
+    expect(lista.match(/podePreCadastrarCliente\(/g)).toHaveLength(1);
     expect(lista).toContain('aoNovoCliente ? <Botao');
   });
   it('RN-CORE-79: salva pela fila do sync (lib), com o UUID do aparelho, e lê os obrigatórios do parâmetro local', () => {

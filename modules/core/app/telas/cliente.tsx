@@ -204,7 +204,8 @@ export function TelaCliente() {
     : null;
 
   // v1.0.28 / RN-CORE-78: recusado pelo ERP, o motivo e a correção ficam na área de alertas
-  const recusa = ficha && situacaoDoPreCadastro(ficha.cliente).situacao === 'recusado_erp' ? situacaoDoPreCadastro(ficha.cliente) : null;
+  const situacaoPre = ficha ? situacaoDoPreCadastro(ficha.cliente) : null;
+  const recusa = situacaoPre?.situacao === 'recusado_erp' ? situacaoPre : null;
   const itensAbas = abasDoApp(locais.perfil, locais.verPedidos);
   const abaAtiva: AbaFicha = itensAbas.some((a) => a.id === aba) ? aba : 'resumo';
 

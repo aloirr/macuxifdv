@@ -14,12 +14,15 @@ export function abrirRota(): void {
   router.navigate('/m/rota' as never);
 }
 
+/** Rota da lista de Clientes (fallback dos botões Voltar). */
+export const ROTA_CLIENTES = '/m/clientes';
 export function abrirClientes(filtro?: string): void {
-  router.navigate((filtro ? `/m/clientes?filter=${encodeURIComponent(filtro)}` : '/m/clientes') as never);
+  router.navigate((filtro ? `${ROTA_CLIENTES}?filter=${encodeURIComponent(filtro)}` : ROTA_CLIENTES) as never);
 }
 
-/** Rota do formulário "Novo cliente" (pré-cadastro, v1.0.28); com `clienteId` é "Corrigir e reenviar". A rota do shell monta `TelaNovoClientePreCadastro`. */
+/** Página `novo-cliente` do Core (pré-cadastro, v1.0.28); com o parâmetro `clienteId` na query é "Corrigir e reenviar". */
 export const ROTA_NOVO_CLIENTE = '/m/novo-cliente';
+export const PARAM_CLIENTE_ID = 'clienteId' as const;
 export function abrirNovoCliente(clienteId?: string): void {
-  router.navigate((clienteId ? `${ROTA_NOVO_CLIENTE}?clienteId=${encodeURIComponent(clienteId)}` : ROTA_NOVO_CLIENTE) as never);
+  router.navigate((clienteId ? `${ROTA_NOVO_CLIENTE}?${PARAM_CLIENTE_ID}=${encodeURIComponent(clienteId)}` : ROTA_NOVO_CLIENTE) as never);
 }

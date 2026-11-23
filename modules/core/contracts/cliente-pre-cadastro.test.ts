@@ -7,7 +7,7 @@ import {
   EVENTO_CLIENTE_PRE_CADASTRADO,
   ObrigatoriosPreCadastroSchema,
   PARAMETRO_PRE_CADASTRO_OBRIGATORIOS,
-  ParametroPreCadastroPutSchema,
+  ParametroPreCadastroSchema,
   PreCadastroClienteSchema,
   ROTULOS_CAMPOS_PRE_CADASTRO,
   obrigatoriosPreCadastroDasLinhas,
@@ -40,7 +40,7 @@ describe('pré-cadastro', () => {
     expect(ObrigatoriosPreCadastroSchema.safeParse(['email', 'endereco']).success).toBe(true);
     expect(ObrigatoriosPreCadastroSchema.safeParse(['email', 'email']).success).toBe(false);
     expect(ObrigatoriosPreCadastroSchema.safeParse(['razao_social']).success).toBe(false);
-    expect(ParametroPreCadastroPutSchema.safeParse({ obrigatorios: ['telefone'], x: 1 }).success).toBe(false);
+    expect(ParametroPreCadastroSchema.safeParse({ obrigatorios: ['telefone'], x: 1 }).success).toBe(false);
   });
   it('RN-CORE-79: obrigatoriosPreCadastroDasLinhas usa o padrão (nenhum) sem linha viva ou com valor inválido', () => {
     const k = PARAMETRO_PRE_CADASTRO_OBRIGATORIOS;

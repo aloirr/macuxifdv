@@ -1,19 +1,20 @@
 /**
  * Novo cliente / Corrigir cliente (v1.0.28; RF-CORE-10, RN-CORE-78 e RN-CORE-79; docs/design/telas/campo-cliente-pre-cadastro.md).
  * Offline: obrigatórios vindos do parâmetro sincronizado, UUID gerado no aparelho, escrita na fila do sync (`cliente_pre_cadastro`).
- * Quem aprova é o ERP; o Core só pré-cadastra. A API revalida os obrigatórios. Só o vendedor vê esta tela (o promotor e a gestão não).
+ * Quem aprova é o ERP; o Core só pré-cadastra. A API revalida os obrigatórios. A página `novo-cliente` do `moduloApp` só existe para o vendedor.
  */
 import { AvisoRodape, Botao, CabecalhoTela, CampoEscolha, CampoTexto, colors, Folha, Icon, RotuloSecao, faltaVisivel, type as t, useAvisoRodape, type FaltaDoCampo } from '@macuxi/ui/mobile';
+import { somenteDigitos } from '@macuxi/comum';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
 import { useBloquearSaida, useMotorSync } from '@macuxi/platform-sdk/react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 
 import type { ClienteSync, ParametroSync } from '../../contracts';
 import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../contracts';
-import { ehSempreObrigatorio, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
-import { abrirCliente } from '../lib/navegacao';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
+import { abrirCliente, PARAM_CLIENTE_ID, ROTA_CLIENTES } from '../lib/navegacao';
 import {
   avisarClienteSalvo,
   clienteComDocumento,
@@ -54,21 +55,18 @@ const CAMPO_DA_COLUNA: Record<Coluna, keyof typeof ROTULOS_CAMPOS_PRE_CADASTRO> 
 const vazioDoFormulario = (): ValoresPreCadastro => Object.fromEntries(COLUNAS_FORMULARIO.map((c) => [c, ''])) as ValoresPreCadastro;
 const novoUuid = (): string => globalThis.crypto.randomUUID();
 
-export function TelaNovoClientePreCadastro({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) {
-  const { motor } = useMotorSync();
-  const perfil = motor?.ambiente.usuario()?.perfil ?? 'vendedor';
-  // RN-CORE-78: revalida o perfil na tela (o botão da lista já não aparece para o promotor)
-  if (!podePreCadastrarCliente(perfil)) return <SemPermissao aoVoltar={aoConcluir} />;
-  return <Formulario aoConcluir={aoConcluir} clienteId={clienteId} />;
+/** A página do shell (`/m/novo-cliente`): lê `clienteId` da query (a correção do recusado) e monta a tela. */
+export function PaginaNovoCliente() {
+  const params = useLocalSearchParams<{ [K in typeof PARAM_CLIENTE_ID]?: string }>();
+  return <TelaNovoClientePreCadastro clienteId={params[PARAM_CLIENTE_ID] || undefined} />;
 }
 
-function SemPermissao({ aoVoltar }: { aoVoltar?: () => void }) {
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.ground }} testID="novo-cliente-sem-permissao">
-      <CabecalhoTela titulo="Novo cliente" voltar={{ label: 'Clientes', fallback: '/m/clientes', aoVoltar }} />
-      <Text style={[t.body, { padding: 20 }]}>Seu perfil não pré-cadastra clientes. Peça ao seu gestor.</Text>
-    </View>
-  );
+export function TelaNovoClientePreCadastro({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) {
+  const { motor } = useMotorSync();
+  const perfil = motor?.ambiente.usuario()?.perfil;
+  // RN-CORE-78: sem usuário, ou com perfil que não pré-cadastra, a tela não abre (a página já é só do vendedor; a API revalida)
+  if (!perfil || !podePreCadastrarCliente(perfil)) return null;
+  return <Formulario aoConcluir={aoConcluir} clienteId={clienteId} />;
 }
 
 function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) {
@@ -85,6 +83,8 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
   const [obrigatorios, setObrigatorios] = useState(() => obrigatoriosDasLinhas([]));
   const [carteira, setCarteira] = useState<readonly ClienteSync[]>([]);
   const [motivo, setMotivo] = useState<string | null>(null);
+  // faltas que só o schema do contrato pega ao salvar (a tela não volta em silêncio)
+  const [errosSalvar, setErrosSalvar] = useState<Record<string, string>>({});
   const rolagem = useRef<ScrollView>(null);
   const posicoes = useRef<Partial<Record<Coluna, number>>>({});
 
@@ -112,21 +112,22 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
   const faltas = useMemo(() => {
     const r = validarPreCadastro(valores, obrigatorios).erros;
     if (duplicado) r.documento = 'Já é cliente';
-    return r;
-  }, [valores, obrigatorios, duplicado]);
+    return { ...errosSalvar, ...r };
+  }, [valores, obrigatorios, duplicado, errosSalvar]);
 
   const falta = (c: Coluna): string | null => {
     const texto = faltas[c];
     if (!texto) return null;
-    const f: FaltaDoCampo = { texto, quando: texto === 'Obrigatório' ? 'vazio' : 'invalido' };
+    const f: FaltaDoCampo = { texto, quando: texto === FALTA_OBRIGATORIO_PRE_CADASTRO ? 'vazio' : 'invalido' };
     return faltaVisivel(f, { tentou, saiu: saiu.has(c) });
   };
   const exigido = (c: Coluna) => obrigatorios.includes(CAMPO_DA_COLUNA[c]);
   const mudar = (c: Coluna) => (texto: string) => {
     setAlterado(true);
+    setErrosSalvar({});
     setValores((v) => ({ ...v, [c]: texto }));
   };
-  const sair = () => (aoConcluir ? aoConcluir() : router.canGoBack() ? router.back() : router.replace('/m/clientes' as never));
+  const sair = () => (aoConcluir ? aoConcluir() : router.canGoBack() ? router.back() : router.replace(ROTA_CLIENTES as never));
   // RN-VEN-38: a folha "Descartar o cadastro?" vale no Voltar do cabeçalho, no Voltar do Android e na barra inferior;
   // `destino` é o que acontece se o usuário descartar (sair da tela, ou seguir para o cliente existente)
   const destino = useRef<() => void>(sair);
@@ -140,7 +141,7 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
   const aoVoltar = () => pedirSaida(sair);
   const marcarSaida = (c: Coluna) => () => setSaiu((s) => new Set(s).add(c));
 
-  const cpf = (valores.documento ?? '').replace(/\D/g, '').length <= 11;
+  const cpf = somenteDigitos(valores.documento).length <= 11;
   const campoTexto = (c: Coluna, rotulo: string, extra: Partial<React.ComponentProps<typeof CampoTexto>> = {}) => (
     <View key={c} onLayout={(e) => (posicoes.current[c] = e.nativeEvent.layout.y)}>
       <CampoTexto
@@ -168,7 +169,12 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
     const r = await salvarPreCadastro(motor, { id, valores, obrigatorios, online: motor.ambiente.online() }).catch(() => null);
     setSalvando(false);
     if (!r) return aviso.mostrar({ texto: 'Não foi possível salvar. Toque em Salvar de novo.', tom: 'erro' });
-    if (!r.ok) return;
+    if (!r.ok) {
+      setErrosSalvar(r.erros);
+      const primeira = COLUNAS_FORMULARIO.find((c) => r.erros[c]);
+      if (primeira) rolagem.current?.scrollTo({ y: Math.max(0, (posicoes.current[primeira] ?? 0) - 12), animated: true });
+      return aviso.mostrar({ texto: 'Confira os campos marcados e toque em Salvar de novo.', tom: 'erro' });
+    }
     // desmarca o formulário antes de sair: o bloqueio de saída não pergunta depois de salvar
     salvo.current = true;
     setAlterado(false);
@@ -178,7 +184,7 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }} testID="tela-novo-cliente">
-      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} voltar={{ label: 'Clientes', fallback: '/m/clientes', aoVoltar }} />
+      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0}>
       <ScrollView ref={rolagem} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 24 }}>
         {motivo ? (
@@ -187,7 +193,7 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
             <Text style={[t.sub, { flex: 1, color: colors.danger }]}>{motivo}</Text>
           </View>
         ) : null}
-        {campoTexto('documento', ehSempreObrigatorio('documento') ? 'CNPJ ou CPF' : ROTULOS_CAMPOS_PRE_CADASTRO.documento, { mascara: 'documento' })}
+        {campoTexto('documento', ROTULOS_CAMPOS_PRE_CADASTRO.documento, { mascara: 'documento' })}
         {duplicado ? (
           <Pressable testID="novo-cliente-abrir-existente" accessibilityRole="link" onPress={() => pedirSaida(() => abrirCliente(duplicado.id, 'Clientes'))} style={{ minHeight: 48, justifyContent: 'center' }}>
             <Text style={[t.bodyStrong, { color: colors.accent }]}>Abrir</Text>
