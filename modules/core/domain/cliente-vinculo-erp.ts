@@ -8,7 +8,7 @@ import { motivoRecusaCortado } from './cliente-pre-cadastro';
 export interface ClienteParaVinculo {
   status_cadastro: StatusCadastro | null;
   external_id: string | null;
-  /** v1.0.29 (ADR 0069): revisão atual do pré-cadastro; ausente ou nula = 1. */
+  /** v1.0.30 (ADR 0069): revisão atual do pré-cadastro; ausente ou nula = 1. */
   revisao_cadastro?: number | null;
 }
 export type DecisaoVinculoErp =
@@ -36,7 +36,7 @@ export type DecisaoRecusaErp =
   | { acao: 'gravar' }
   | { acao: 'nada'; resultado: 'nao_encontrado' | 'ja_recusado' | 'ja_vinculado' | 'revisao_antiga' | 'revisao_desconhecida' };
 
-/** Cliente para a recusa (v1.0.29, ADR 0069): revisão e a recusa já gravada são opcionais (ausente = revisão 1, sem erros). */
+/** Cliente para a recusa (v1.0.30, ADR 0069): revisão e a recusa já gravada são opcionais (ausente = revisão 1, sem erros). */
 export interface ClienteParaRecusa extends ClienteParaVinculo {
   revisao_cadastro?: number | null;
   motivo_recusa?: string | null;

@@ -285,10 +285,13 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     });
   });
 
-  it('RN-CORE-78 (ADR 0069 item 10): pull e Cliente 360 levam o Código FDV; motivo e erros da recusa só ao vendedor', async () => {
+  it('RN-CORE-78 (ADR 0069 item 10, decisão 1 B): pull e Cliente 360 levam o Código FDV em todo cliente, inclusive o do ERP; motivo e erros da recusa só ao vendedor', async () => {
     await emTransacao(pool, async (t) => {
       const { codigo_fdv } = await post(t, VENDEDOR, pre(ID1));
       await recusar(t, ID1);
+      // cliente do ERP na carteira do vendedor: o banco numera também este insert (decisão 1 B)
+      await t.q("insert into core.cliente (id, tenant_id, razao_social, external_id, origem_cadastro) values ($1, plataforma.tenant_atual(), 'Cliente do ERP', 'C-ERP-1', 'erp')", [ID3]);
+      await t.q("insert into core.carteira (tenant_id, cliente_id, usuario_id, papel) values (plataforma.tenant_atual(), $1, $2, 'vendedor')", [ID3, VENDEDOR.id]);
       const puxar = provedoresSyncCore.find((p) => p.entidade.nome === 'cliente')!.puxar!;
       const linhas = (await puxar(t.ctx(VENDEDOR), { desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 500 })) as unknown as Array<Record<string, unknown>>;
       expect(linhas.find((l) => l.id === ID1)).toMatchObject({ codigo_fdv, external_id: null, motivo_recusa: expect.any(String), erros_recusa: [{ campo: 'inscricao_estadual' }] });
@@ -297,6 +300,13 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
         (await get.executar({ ...t.ctx(u, { params: { id: ID1 } }), params: { id: ID1 }, usuariosVisiveis: async () => 'tenant' } as never)) as { cliente: Record<string, unknown> };
       expect((await ficha(VENDEDOR)).cliente).toMatchObject({ codigo_fdv, external_id: null, motivo_recusa: expect.any(String) });
       expect((await ficha(ADMIN)).cliente).toMatchObject({ codigo_fdv, motivo_recusa: null, erros_recusa: null });
+      // o cliente do ERP também traz o Código FDV, no pull e no Cliente 360
+      const erp = linhas.find((l) => l.id === ID3);
+      expect(erp).toMatchObject({ external_id: 'C-ERP-1', codigo_fdv: FDV });
+      expect(erp!.codigo_fdv).not.toBe(codigo_fdv);
+      for (const l of linhas) expect(l.codigo_fdv).toEqual(FDV);
+      const fichaErp = (await get.executar({ ...t.ctx(VENDEDOR, { params: { id: ID3 } }), params: { id: ID3 }, usuariosVisiveis: async () => 'tenant' } as never)) as { cliente: Record<string, unknown> };
+      expect(fichaErp.cliente).toMatchObject({ external_id: 'C-ERP-1', codigo_fdv: erp!.codigo_fdv });
     });
   });
 

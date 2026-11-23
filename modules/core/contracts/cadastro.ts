@@ -43,7 +43,7 @@ export const CAMPOS_CADASTRO_FIXOS = ['razao_social', 'documento'] as const;
 
 /**
  * plataforma.parametro (core, 'cliente.campos_obrigatorios'); sem os fixos o domain acrescenta. Lista única do cadastro e do
- * pré-cadastro desde a v1.0.29 (ADR 0069).
+ * pré-cadastro desde a v1.0.30 (ADR 0069).
  */
 export const PARAMETRO_CAMPOS_OBRIGATORIOS = 'cliente.campos_obrigatorios';
 export const ParametroCamposObrigatorios = z.array(CampoCadastroCliente).min(1).max(CAMPOS_CADASTRO_CLIENTE.length);

@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { leituraDosCodigos, textoDosCodigos } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 import type { ClienteSync } from '../../contracts';
 import { ROTULO_BUSCA_CLIENTE } from '../../domain';
@@ -21,10 +20,7 @@ describe('códigos do cliente no app: Código ERP e Código FDV pelo kit (ADR 00
     const c = cliente({ external_id: 'C5007', codigo_fdv: '00012' });
     expect(subtituloDaFicha(c)).toBe('Centro · Boa Vista/RR');
     expect(codigosDaFicha(c)).toEqual({ erp: 'C5007', fdv: '00012' });
-    expect(textoDosCodigos(codigosDaFicha(c))).toBe('ERP C5007 · FDV 00012');
-    expect(leituraDosCodigos(codigosDaFicha(c), subtituloDaFicha(c))).toBe('Código ERP C5007, Código FDV 00012, Centro · Boa Vista/RR');
-    expect(textoDosCodigos(codigosDaFicha(cliente({ codigo_fdv: '00012' })))).toBe('FDV 00012');
-    expect(textoDosCodigos(codigosDaFicha(cliente({})))).toBe('');
+    expect(codigosDaFicha(cliente({ codigo_fdv: '00012' }))).toEqual({ erp: null, fdv: '00012' });
     const tela = ler('../telas/cliente.tsx');
     expect(tela).toContain('codigos={ficha ? codigosDaFicha(ficha.cliente) : undefined}');
   });
@@ -47,10 +43,10 @@ describe('códigos do cliente no app: Código ERP e Código FDV pelo kit (ADR 00
     expect(sobreposto!.codigo_fdv).toBe('00012');
   });
 
-  it('RN-CORE-78: a correção do pré-cadastro mostra só "FDV nnnnn" pelo kit, abaixo do título (nada no Novo cliente nem sem código)', () => {
+  it('RN-CORE-78: a correção do pré-cadastro mostra só "FDV nnnnn" no subtítulo do cabeçalho (nada no corpo, nada no Novo cliente nem sem código)', () => {
     const tela = ler('../telas/novo-cliente.tsx');
-    expect(tela).toContain('<CodigosCliente fdv={codigoFdv} style={t.sub} testID="novo-cliente-codigo" />');
+    expect(tela).toContain("<CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} codigos={{ fdv: codigoFdv }} ");
     expect(tela).toContain('setCodigoFdv(atual.codigo_fdv ?? null)');
-    expect(tela).not.toMatch(/codigos=|erp=/);
+    expect(tela).not.toMatch(/CodigosCliente|erp:|erp=/);
   });
 });

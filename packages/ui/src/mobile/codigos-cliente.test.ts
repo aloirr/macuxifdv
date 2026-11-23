@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { leituraDosCodigos, partesDosCodigos, textoDosCodigos } from './codigos-cliente';
+import { leituraDosCodigos, partesDosCodigos, textoDosCodigos } from '../comum/codigos-cliente';
 import * as puro from './puro';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
@@ -28,7 +28,7 @@ describe('códigos do cliente (codigos-do-cliente.md §2)', () => {
   it('valor em fonte.mono, sigla no estilo do texto; CabecalhoTela aceita `codigos`; puro reexporta', () => {
     const rn = ler('./codigos-cliente-rn.tsx');
     expect(rn).toContain('fonte.mono.fontFamily');
-    expect(rn).toContain('accessibilityLabel={leitura}');
+    expect(rn).not.toContain('export function CodigosCliente');
     const ui = ler('./ui.tsx');
     expect(ui).toContain('codigos?: CodigosDoCliente');
     expect(ui).toContain('leituraDosCodigos(codigos, subtitulo)');

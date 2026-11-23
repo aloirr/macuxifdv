@@ -205,7 +205,7 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
     });
   });
 
-  describe('cliente com dois códigos: pré-cadastro e carga do ERP (v1.0.29, ADR 0069 item 10)', () => {
+  describe('cliente com dois códigos: pré-cadastro e carga do ERP (v1.0.30, ADR 0069 item 10)', () => {
     const PRE = '0e510000-0000-4000-8000-000000000001';
     const preCadastro = (t: Teste) =>
       t.q(
@@ -251,6 +251,22 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
         // o ERP com coordenada a substitui
         await t.entregar('integracao.cliente.atualizado@1', cliente('C-T66', { latitude: 2.9, longitude: -60.7, alterado_em: '2026-11-04T11:00:00Z' }));
         expect((await doPre(t))[0]).toMatchObject({ coordenada_origem: 'erp', codigo_fdv: antes!.codigo_fdv });
+      });
+    });
+
+    it('RN-CORE-78 (decisão 1 B): cliente novo do ERP ganha Código FDV; a carga repetida não muda o código nem gasta número', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        const codigo = async (ext: string) => (await t.q<{ codigo_fdv: string | null }>('select codigo_fdv from core.cliente where external_id = $1 and deleted_at is null', [ext]))[0]?.codigo_fdv;
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor());
+        await t.entregar('integracao.cliente.atualizado@1', cliente());
+        const primeiro = await codigo('C-T66');
+        expect(primeiro).toMatch(/^\d{5,}$/);
+        await t.entregar('integracao.cliente.atualizado@1', cliente('C-T66', { razao_social: 'Mercado Renomeado', alterado_em: '2026-11-04T11:00:00Z' }));
+        await t.entregar('integracao.cliente.atualizado@1', cliente('C-T66', { razao_social: 'Mercado Renomeado', alterado_em: '2026-11-04T11:00:00Z' }));
+        expect(await codigo('C-T66')).toBe(primeiro);
+        // o próximo cliente novo leva o número seguinte: as cargas repetidas não queimaram número
+        await t.entregar('integracao.cliente.atualizado@1', cliente('C-T66-N', { documento: CNPJ2 }));
+        expect(Number(await codigo('C-T66-N'))).toBe(Number(primeiro) + 1);
       });
     });
 

@@ -60,7 +60,7 @@ describe.skipIf(semBanco())('Core × Postgres: retorno do ERP do cliente novo (R
     ocorrido_em: '2026-11-23T12:00:00Z',
     ...extras,
   });
-  /** Pré-cadastro na revisão `rev` (v1.0.29), com uma tentativa por revisão: as anteriores recusadas, a atual conforme o status. */
+  /** Pré-cadastro na revisão `rev` (v1.0.30), com uma tentativa por revisão: as anteriores recusadas, a atual conforme o status. */
   const comRevisoes = async (q: (s: string, v?: unknown[]) => Promise<unknown[]>, id: string, status: StatusCadastro, rev: number) => {
     await q(novo(id, status));
     await q(`update core.cliente set revisao_cadastro = ${rev} where id = '${id}'`);

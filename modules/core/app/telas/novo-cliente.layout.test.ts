@@ -62,7 +62,7 @@ describe('tela Novo cliente (pré-cadastro; RN-CORE-78 e RN-CORE-79)', () => {
     expect(tela.indexOf('novo-cliente-salvar')).toBeLessThan(tela.indexOf('</KeyboardAvoidingView>'));
   });
   it('RN-CORE-78: o "Próximo" não quebra na UF: a Cidade fecha o teclado e a Inscrição é o último campo', () => {
-    expect(tela).toMatch(/'cidade', 'Cidade', \{[^}]*returnKeyType: 'done'/);
-    expect(tela).toMatch(/inscricao_estadual, \{ returnKeyType: 'done' \}/);
+    expect(tela).toMatch(/'cidade', \{[^}]*returnKeyType: 'done'/);
+    expect(tela).toMatch(/'inscricao_estadual', \{ returnKeyType: 'done' \}/);
   });
 });

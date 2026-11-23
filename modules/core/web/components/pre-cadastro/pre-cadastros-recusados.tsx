@@ -22,7 +22,6 @@ import {
   formatDateTimeFull,
   IconAlert,
   LoadingBlock,
-  type MascaraCampo,
   Notice,
   propsDoInputComMascara,
   SelectField,
@@ -30,51 +29,41 @@ import {
   useToast,
 } from '@macuxi/ui/web';
 import type { HistoricoPreCadastro, PreCadastroAtual, RecusadoItem } from '../../../contracts';
-import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../../contracts';
-import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, ROTULO_BUSCA_CLIENTE, validarPreCadastro } from '../../../domain';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, validarPreCadastro } from '../../../domain';
 import { CodigosDoCliente, textoDosCodigosDoCliente } from '../codigos-cliente';
 import {
-  buscaParaApi,
   colunaExigida,
-  corpoDaCorrecao,
-  erroDoReenvio,
   errosDaRecusaPorColuna,
-  LIMPAR_FILTROS_RECUSADOS,
   primeiraColunaMarcada,
   rotuloDoCampo,
+  valoresDosDados,
+  type ColunaFormulario,
+  type ValoresPreCadastro,
+} from '../../../app/lib/pre-cadastro-formulario';
+import {
+  buscaDoQDaUrl,
+  buscaParaApi,
+  corpoDaCorrecao,
+  erroDoReenvio,
+  GRADE_DA_CORRECAO,
+  LIMPAR_FILTROS_RECUSADOS,
+  ORDEM_DA_GRADE,
+  ROTULO_BUSCA_RECUSADOS,
   seloDaSituacao,
-  situacaoDoHistorico,
+  situacaoDaGaveta,
   SITUACOES_RECUSADO,
   temFiltroRecusados,
   tentativasEmOrdem,
   textoDeQuemCorrigiuAntes,
   textoDeQuemEnviou,
   textoDoResultado,
-  valoresDosDados,
-  type ColunaFormulario,
   type FiltrosRecusados,
-  type ValoresPreCadastro,
 } from '../../lib/pre-cadastro';
 import { useMe } from '../../lib/queries';
 import { CHAVE_CAMPOS_OBRIGATORIOS, CHAVE_RECUSADOS, criarApiCamposObrigatorios, criarApiRecusados, type ApiRecusados } from './api';
 
 const P = 'core.pre_cadastros';
 
-/** Rótulo, largura (de 6 colunas) e máscara ao digitar (a do Campo) de cada campo do formulário, na ordem da spec §4. */
-const GRADE: readonly { coluna: ColunaFormulario; rotulo: string; largura: string; mascara?: MascaraCampo }[] = [
-  { coluna: 'documento', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.documento, largura: 'col-span-3', mascara: 'documento' },
-  { coluna: 'inscricao_estadual', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.inscricao_estadual, largura: 'col-span-3' },
-  { coluna: 'razao_social', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.razao_social, largura: 'col-span-6' },
-  { coluna: 'nome_fantasia', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.nome_fantasia, largura: 'col-span-6' },
-  { coluna: 'telefone', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.telefone, largura: 'col-span-3', mascara: 'telefone' },
-  { coluna: 'email', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.email, largura: 'col-span-3' },
-  { coluna: 'cep', rotulo: rotuloDoCampo('cep'), largura: 'col-span-3', mascara: 'cep' },
-  { coluna: 'bairro', rotulo: rotuloDoCampo('bairro'), largura: 'col-span-3' },
-  { coluna: 'logradouro', rotulo: rotuloDoCampo('logradouro'), largura: 'col-span-4' },
-  { coluna: 'numero', rotulo: rotuloDoCampo('numero'), largura: 'col-span-2' },
-  { coluna: 'cidade', rotulo: rotuloDoCampo('cidade'), largura: 'col-span-4' },
-  { coluna: 'uf', rotulo: rotuloDoCampo('uf'), largura: 'col-span-2' },
-];
 const ANTES_DO_ENDERECO: ColunaFormulario = 'cep';
 
 export interface PropsPreCadastrosRecusados {
@@ -95,14 +84,23 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
   const [busca, setBusca] = useState(filtros.q);
   const [aberto, setAberto] = useState<RecusadoItem | null>(null);
 
+  // o último `q` que o próprio campo mandou à URL: o eco dele não volta ao campo (apagaria o que foi digitado durante a espera)
+  const qEnviado = useRef(filtros.q);
   // busca ao digitar, com espera de 300 ms (§P4)
   useEffect(() => {
     if (busca.trim() === filtros.q) return;
-    const t = setTimeout(() => mudar({ q: busca.trim() || null }), 300);
+    const t = setTimeout(() => {
+      qEnviado.current = busca.trim();
+      mudar({ q: busca.trim() || null });
+    }, 300);
     return () => clearTimeout(t);
   }, [busca]);
   // o `q` da URL mudou por fora (voltar, limpar filtros): o campo acompanha
-  useEffect(() => setBusca((b) => (b.trim() === filtros.q ? b : filtros.q)), [filtros.q]);
+  useEffect(() => {
+    const novo = buscaDoQDaUrl(filtros.q, qEnviado.current);
+    qEnviado.current = filtros.q;
+    if (novo !== null) setBusca(novo);
+  }, [filtros.q]);
 
   const lista = useInfiniteQuery({
     queryKey: [...CHAVE_RECUSADOS, 'lista', { situacao: filtros.situacao, q: filtros.q }],
@@ -145,7 +143,7 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
   return (
     <div className="flex flex-col gap-4">
       <FilterBar>
-        <CampoBusca rotulo={ROTULO_BUSCA_CLIENTE} className="sm:w-[340px]" value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid={`${P}.filtro.busca`} />
+        <CampoBusca rotulo={ROTULO_BUSCA_RECUSADOS} className="sm:w-[340px]" value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid={`${P}.filtro.busca`} />
         <SelectField label="Situação" value={filtros.situacao} onChange={(e) => mudar({ situacao: e.target.value === 'recusado' ? null : e.target.value })} data-testid={`${P}.filtro.situacao`}>
           {SITUACOES_RECUSADO.map((s) => (
             <option key={s.id} value={s.id}>
@@ -185,8 +183,8 @@ function GavetaDoPreCadastro({ item, api, fuso, aoFechar }: { item: RecusadoItem
   const [enviando, setEnviando] = useState(false);
   const qc = useQueryClient();
   const historico = useQuery({ queryKey: [...CHAVE_RECUSADOS, 'historico', item.cliente_id], queryFn: () => api.historico(item.cliente_id) });
-  // a situação vem do histórico, não da linha da lista (alguém pode ter corrigido depois que a lista carregou)
-  const situacao = historico.data ? situacaoDoHistorico(historico.data) : null;
+  // a situação vem do histórico (alguém pode ter corrigido depois que a lista carregou); até ele chegar, ou se falhar, a da linha
+  const situacao = situacaoDaGaveta(item.situacao, historico.data);
   const selo = situacao ? seloDaSituacao(situacao) : null;
   const recusado = situacao === 'recusado';
 
@@ -337,7 +335,7 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
   const rolarAte = (c: ColunaFormulario | null) => {
     if (c) raiz.current?.querySelector(`[data-testid="${P}.form.campo.${c}"]`)?.scrollIntoView({ block: 'center' });
   };
-  useEffect(() => rolarAte(primeiraColunaMarcada(marcas)), []);
+  useEffect(() => rolarAte(primeiraColunaMarcada(marcas, ORDEM_DA_GRADE)), []);
 
   // sem a lista do parâmetro (sem permissão de ler), só os sempre obrigatórios; a API revalida
   const lista = exigidos ?? obrigatoriosDoPreCadastro([]);
@@ -376,7 +374,7 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
       // campos marcados no formulário dizem o que fazer; o texto do 422 repetiria a marca
       if (Object.keys(r.erros).length > 0) {
         setMarcas(r.erros);
-        rolarAte(primeiraColunaMarcada(r.erros));
+        rolarAte(primeiraColunaMarcada(r.erros, ORDEM_DA_GRADE));
         // a lista da empresa mudou: relê para a validação local seguir a nova
         void qc.invalidateQueries({ queryKey: CHAVE_CAMPOS_OBRIGATORIOS });
         return;
@@ -400,7 +398,7 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
       onSubmit={(e) => {
         e.preventDefault();
         setTentou(true);
-        const primeira = primeiraColunaMarcada(validacao);
+        const primeira = primeiraColunaMarcada(validacao, ORDEM_DA_GRADE);
         if (primeira) return rolarAte(primeira);
         reenviar.mutate();
       }}
@@ -411,10 +409,10 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
         </Notice>
       )}
       <div className="grid grid-cols-6 gap-3">
-        {GRADE.map(({ coluna, rotulo, largura, mascara }) => (
+        {GRADE_DA_CORRECAO.map(({ coluna, largura, mascara }) => (
           <div key={coluna} className={largura}>
             {coluna === ANTES_DO_ENDERECO && <span className="mb-2 block text-[12px] font-semibold tracking-wide text-ink-2 uppercase">Endereço</span>}
-            <CampoFormulario rotulo={coluna === 'razao_social' && pessoaFisica ? 'Nome' : rotulo} opcional={!colunaExigida(valores, lista, coluna)} erro={erroDe(coluna)}>
+            <CampoFormulario rotulo={coluna === 'razao_social' && pessoaFisica ? 'Nome' : rotuloDoCampo(coluna)} opcional={!colunaExigida(valores, lista, coluna)} erro={erroDe(coluna)}>
               {coluna === 'uf' ? (
                 <select
                   className={CLASSE_CAMPO}

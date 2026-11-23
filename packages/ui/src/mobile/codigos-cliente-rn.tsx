@@ -1,11 +1,12 @@
 /**
  * v1.0.30 (docs/design/telas/codigos-do-cliente.md §2 e §3): `ERP C5007 · FDV 00012` no app, valor em `fonte.mono` e sigla
- * no estilo do texto em volta. Não é selo (código é identificação, não estado). Partes puras em `codigos-cliente.ts`.
+ * no estilo do texto em volta. Não é selo (código é identificação, não estado). Partes puras em `codigos-cliente.ts`. Os códigos
+ * aparecem no `CabecalhoTela` (`codigos`), nunca numa linha solta no corpo (§3.3).
  */
 import { Fragment } from 'react';
-import { Text, type StyleProp, type TextStyle } from 'react-native';
+import { Text, type TextStyle } from 'react-native';
 
-import { leituraDosCodigos, partesDosCodigos, SEPARADOR_CODIGOS, type CodigosDoCliente } from './codigos-cliente';
+import { partesDosCodigos, SEPARADOR_CODIGOS, type CodigosDoCliente } from '../comum/codigos-cliente';
 import { fonte } from './theme';
 
 /**
@@ -27,26 +28,6 @@ export function TrechosDosCodigos({ codigos, testID }: { codigos: CodigosDoClien
         </Fragment>
       ))}
     </>
-  );
-}
-
-export interface PropsCodigosCliente extends CodigosDoCliente {
-  /** Estilo do texto em volta (ex.: `type.sub` abaixo do título do formulário). A sigla usa este estilo; o valor, a mono. */
-  style?: StyleProp<TextStyle>;
-  testID?: string;
-}
-
-/**
- * Linha solta com os códigos (ex.: `FDV 00012` abaixo do título de "Corrigir e reenviar"). Lê `Código FDV 00012`.
- * Nada quando os dois códigos estão vazios.
- */
-export function CodigosCliente({ erp, fdv, style, testID }: PropsCodigosCliente) {
-  const leitura = leituraDosCodigos({ erp, fdv });
-  if (!leitura) return null;
-  return (
-    <Text style={style} numberOfLines={1} accessible accessibilityLabel={leitura} testID={testID}>
-      <TrechosDosCodigos codigos={{ erp, fdv }} testID={testID} />
-    </Text>
   );
 }
 

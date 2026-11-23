@@ -1,7 +1,7 @@
 /**
  * v1.0.30 (docs/design/telas/codigos-do-cliente.md §2): os códigos do cliente na tela, `ERP C5007 · FDV 00012`.
  * Ordem fixa (ERP, depois FDV); sigla sempre antes do valor; código vazio não aparece (nem sigla, nem traço).
- * Leitor de tela: `Código ERP C5007, Código FDV 00012`. Puro: roda em Node e é reexportado por `@macuxi/ui/mobile/puro`.
+ * Leitor de tela: `Código ERP C5007, Código FDV 00012`. Puro: roda em Node e é reexportado por `@macuxi/ui/mobile`, `@macuxi/ui/mobile/puro` e `@macuxi/ui/web`.
  */
 
 /** Os dois códigos como a tela recebe (o módulo traduz `external_id` e `codigo_fdv`). */

@@ -5,7 +5,7 @@
  * O payload vem do `contracts` do Integracao (`EVENTO_ERP_CLIENTE_ATUALIZADO`), com leitura tolerante (T-0024).
  * T-0066: depois do cadastro, aplica carteira (`vendedor_external_id`), contatos e financeiro (limite, bloqueio) do mesmo
  * payload (`consumidores-erp-cliente-extras.ts`). Vendedor ainda ausente = `ReferenciaAusenteErp` (a outbox repete, RN-INT-04).
- * v1.0.29 (ADR 0069 item 10, "o ERP manda"): depois do vínculo, a carga sobrescreve os dados que o vendedor digitou no pré-cadastro
+ * v1.0.30 (ADR 0069 item 10, "o ERP manda"): depois do vínculo, a carga sobrescreve os dados que o vendedor digitou no pré-cadastro
  * (upsert pelo código), mantendo Código FDV, origem, revisões e a coordenada 'manual' quando o ERP não manda coordenada (RN-CORE-77).
  * Antes do vínculo, a carga com o CPF/CNPJ de um pré-cadastro sem código espera (`decidirDocumentoDoErp`), sem duplicar o cliente.
  */

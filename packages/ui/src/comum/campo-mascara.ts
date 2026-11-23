@@ -42,9 +42,14 @@ const PADRAO = {
 /** Máximo de dígitos de cada máscara. */
 export const DIGITOS_DA_MASCARA: Record<MascaraCampo, number> = { documento: 14, cep: 8, telefone: 11 };
 
+/** Telefone colado com o DDI do Brasil ("+55 (92) 99123-4567"): o 55 sai antes de encaixar; sem ele, o corte levaria o fim. */
+function semDdi(mascara: MascaraCampo, d: string): string {
+  return mascara === 'telefone' && d.length > DIGITOS_DA_MASCARA.telefone && d.startsWith('55') ? d.slice(2) : d;
+}
+
 /** "11222333000181" → "11.222.333/0001-81"; "6905" → "6905"; "929" → "(92) 9". Aceita texto já formatado. */
 export function aplicarMascara(mascara: MascaraCampo, texto: string | null | undefined): string {
-  const d = digitos(texto ?? '').slice(0, DIGITOS_DA_MASCARA[mascara]);
+  const d = semDdi(mascara, digitos(texto ?? '')).slice(0, DIGITOS_DA_MASCARA[mascara]);
   if (mascara === 'cep') return encaixar(d, PADRAO.cep);
   if (mascara === 'telefone') return encaixar(d, d.length > 10 ? PADRAO.celular : PADRAO.fixo);
   return encaixar(d, d.length > 11 ? PADRAO.cnpj : PADRAO.cpf);

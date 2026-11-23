@@ -4,7 +4,7 @@
  *  - Consulta `core.clientes_pre_cadastro_sem_erp@1`: pendentes sem `external_id`, com os campos canônicos do cadastro (RN-CORE-16).
  *  - Parâmetro `cliente.pre_cadastro.obrigatorios`: quais campos configuráveis a empresa exige (RN-CORE-79). Razão social e documento são sempre obrigatórios.
  *  - O código do ERP volta pelo evento de retorno do Hub (`integracao.cliente.retorno_erp@1`), não por consulta (ADR 0012 §5).
- *  - v1.0.29 (ADR 0069): o recusado é corrigido no mesmo cliente como revisão nova (`revisao_base`), com histórico de tentativas, lista
+ *  - v1.0.30 (ADR 0069): o recusado é corrigido no mesmo cliente como revisão nova (`revisao_base`), com histórico de tentativas, lista
  *    de recusados do BKO e o evento `core.cliente.pre_cadastro_revisado@1`. Os obrigatórios passam a vir da lista única de Parâmetros ›
  *    Clientes (`cliente.campos_obrigatorios`, RN-CORE-16); a chave antiga fica só como espelho para o APK v1.0.28.
  */
@@ -24,9 +24,10 @@ export const RevisaoCadastroSchema = z.number().int().min(1);
 /** sha256 do `canonicalPreCadastro` (domain), em hexadecimal minúsculo. Nunca vai a log. */
 export const HashPreCadastroSchema = z.string().regex(/^[0-9a-f]{64}$/);
 /**
- * Código FDV do cliente (v1.0.29, ADR 0069 item 10; molde da RN-CORE-59): gerado pelo banco quando o servidor recebe o pré-cadastro, em
- * sequência por empresa, só dígitos, no mínimo 5 (`00001`…; `100000` depois de `99999`), só de leitura. Nulo = cliente do ERP. O Código
- * ERP é o `external_id`.
+ * Código FDV do cliente (v1.0.30, ADR 0069 item 10, decisão 1 B; molde da RN-CORE-59): todo cliente vivo tem, qualquer que seja a
+ * origem (pré-cadastro do Campo ou do BKO e cliente novo da carga do ERP). Gerado pelo banco no insert, em sequência por empresa, só
+ * dígitos, no mínimo 5 (`00001`…; `100000` depois de `99999`), só de leitura e nunca reaproveitado; a carga repetida do ERP mantém o
+ * código. Nos contratos fica `nullish` só para o aparelho antes do 1º sync e o emissor antigo. O Código ERP é o `external_id`.
  */
 export const CodigoFdvClienteSchema = z.string().regex(/^\d{5,}$/);
 export const OrigemTentativaSchema = z.enum(['campo', 'bko']);
@@ -82,7 +83,7 @@ export const MENSAGENS_ERRO_PRE_CADASTRO: Record<Exclude<CodigoErroPreCadastro, 
 export const CAMPOS_PRE_CADASTRO_SEMPRE = CAMPOS_CADASTRO_FIXOS;
 /**
  * Campos que a empresa podia marcar como obrigatórios na chave antiga (v1.0.28). Padrão: nenhum.
- * @deprecated v1.0.29 (ADR 0069): só para o espelho legado do APK v1.0.28 (`projecaoLegadaObrigatorios`); sai com a versão mínima > 1.0.28.
+ * @deprecated v1.0.30 (ADR 0069): só para o espelho legado do APK v1.0.28 (`projecaoLegadaObrigatorios`); sai com a versão mínima > 1.0.28.
  */
 export const CAMPOS_PRE_CADASTRO_CONFIGURAVEIS = ['nome_fantasia', 'inscricao_estadual', 'telefone', 'email', 'endereco'] as const;
 export type CampoPreCadastroSempre = (typeof CAMPOS_PRE_CADASTRO_SEMPRE)[number];
@@ -116,12 +117,12 @@ export const COLUNAS_DO_CAMPO_PRE_CADASTRO: Record<CampoPreCadastro, readonly st
 
 /**
  * Chave em `plataforma.parametro` (modulo `core`); valor = array de campos configuráveis, sem repetição.
- * @deprecated v1.0.29 (ADR 0069): espelho legado para o APK v1.0.28; a lista única é `PARAMETRO_CAMPOS_OBRIGATORIOS` (contracts/cadastro).
+ * @deprecated v1.0.30 (ADR 0069): espelho legado para o APK v1.0.28; a lista única é `PARAMETRO_CAMPOS_OBRIGATORIOS` (contracts/cadastro).
  */
 export const PARAMETRO_PRE_CADASTRO_OBRIGATORIOS = 'cliente.pre_cadastro.obrigatorios';
 
 export const CampoPreCadastroConfiguravelSchema = z.enum(CAMPOS_PRE_CADASTRO_CONFIGURAVEIS);
-/** @deprecated v1.0.29 (ADR 0069): só para o espelho legado do APK v1.0.28. */
+/** @deprecated v1.0.30 (ADR 0069): só para o espelho legado do APK v1.0.28. */
 export const ObrigatoriosPreCadastroSchema = z
   .array(CampoPreCadastroConfiguravelSchema)
   .max(CAMPOS_PRE_CADASTRO_CONFIGURAVEIS.length)
@@ -130,7 +131,7 @@ export const ObrigatoriosPreCadastroSchema = z
 /**
  * Obrigatórios efetivos a partir das linhas da entidade de sync `parametro` (`motor.linhas('parametro')`): sem linha viva do módulo
  * `core`, ou valor inválido, vale o padrão (nenhum configurável). Mesmo molde de `paradoMinDasLinhas`.
- * @deprecated v1.0.29 (ADR 0069): o app lê `camposExigidosDasLinhas` (domain/cadastro); fica até a versão mínima > 1.0.28.
+ * @deprecated v1.0.30 (ADR 0069): o app lê `camposExigidosDasLinhas` (domain/cadastro); fica até a versão mínima > 1.0.28.
  */
 export function obrigatoriosPreCadastroDasLinhas(
   linhas: readonly { modulo: string; chave: string; valor?: unknown; deleted_at?: string | null }[],
@@ -142,7 +143,7 @@ export function obrigatoriosPreCadastroDasLinhas(
 
 /**
  * `GET|PUT /v1/core/parametros/pre-cadastro` (ação `parametro.pre_cadastro`).
- * @deprecated v1.0.29 (ADR 0069): a rota sai, trocada por `parametros/campos-obrigatorios` (`ParametroCamposObrigatoriosClienteSchema`).
+ * @deprecated v1.0.30 (ADR 0069): a rota sai, trocada por `parametros/campos-obrigatorios` (`ParametroCamposObrigatoriosClienteSchema`).
  */
 export const ParametroPreCadastroSchema = z.object({ obrigatorios: ObrigatoriosPreCadastroSchema }).strict();
 export type ParametroPreCadastro = z.infer<typeof ParametroPreCadastroSchema>;
@@ -185,10 +186,10 @@ export const ClientePreCadastroParaErpSchema = z.object({
   longitude: z.number().nullable(),
   /** Código da filial no ERP (external_id da filial), quando houver. */
   filial_external_id: Texto,
-  /** v1.0.29 (ADR 0069, aditivo): revisão atual e hash dos dados dela. Ausente = emissor antigo. */
+  /** v1.0.30 (ADR 0069, aditivo): revisão atual e hash dos dados dela. Ausente = emissor antigo. */
   revisao: RevisaoCadastroSchema.optional(),
   hash: HashPreCadastroSchema.optional(),
-  /** v1.0.29 (ADR 0069 item 10, aditivo): Código FDV, para o ERP guardar a referência do FDV. Fora do hash. */
+  /** v1.0.30 (ADR 0069 item 10, aditivo): Código FDV, para o ERP guardar a referência do FDV. Fora do hash. */
   codigo_fdv: CodigoFdvClienteSchema.nullish(),
 });
 export type ClientePreCadastroParaErp = z.infer<typeof ClientePreCadastroParaErpSchema>;
@@ -229,7 +230,7 @@ export const PreCadastroClienteSchema = z
     latitude: z.number().min(-90).max(90).nullish(),
     longitude: z.number().min(-180).max(180).nullish(),
     filial_id: Uuid.nullish(),
-    /** v1.0.29 (RN-CORE-78): revisão que a pessoa viu ao corrigir o recusado. Ausente = criação (o APK v1.0.28 nunca manda). */
+    /** v1.0.30 (RN-CORE-78): revisão que a pessoa viu ao corrigir o recusado. Ausente = criação (o APK v1.0.28 nunca manda). */
     revisao_base: RevisaoCadastroSchema.nullish(),
     /** Só de leitura (ADR 0069 item 10): aceito no schema só para a API recusar com 422 `CODIGO_FDV_SOMENTE_LEITURA` (o `.strict()` daria 400). */
     codigo_fdv: z.unknown().optional(),
@@ -249,7 +250,7 @@ export const PreCadastroClienteSaidaSchema = z.object({
   status_cadastro: StatusCadastroSchema,
   revisao: RevisaoCadastroSchema,
   ja_existia: z.boolean(),
-  /** v1.0.29 (ADR 0069 item 10, aditivo): Código FDV gerado pelo banco; nulo só se a migração não entrou. */
+  /** v1.0.30 (ADR 0069 item 10, aditivo): Código FDV gerado pelo banco; nulo só se a migração não entrou. */
   codigo_fdv: CodigoFdvClienteSchema.nullish(),
 });
 export type PreCadastroClienteSaida = z.infer<typeof PreCadastroClienteSaidaSchema>;
@@ -257,7 +258,7 @@ export type PreCadastroClienteSaida = z.infer<typeof PreCadastroClienteSaidaSche
 /** Uma tentativa (revisão) do pré-cadastro: só nomes de campo, nunca valores. */
 export const TentativaPreCadastroSchema = z.object({
   revisao: RevisaoCadastroSchema,
-  /** Nulo = tentativa anterior à v1.0.29 (carga da migração). */
+  /** Nulo = tentativa anterior à v1.0.30 (carga da migração). */
   hash: HashPreCadastroSchema.nullable(),
   origem: OrigemTentativaSchema,
   corrigido_por: z.object({ id: Uuid, nome: z.string(), perfil: z.string() }).nullable(),
@@ -300,7 +301,7 @@ export const RecusadoItemSchema = z.object({
   motivo: z.string().max(500).nullable(),
   erros: ErrosCampoCadastroSchema,
   situacao: SituacaoRecusadoSchema,
-  /** v1.0.29 (ADR 0069 item 10, aditivo). */
+  /** v1.0.30 (ADR 0069 item 10, aditivo). */
   codigo_fdv: CodigoFdvClienteSchema.nullish(),
 });
 export type RecusadoItem = z.infer<typeof RecusadoItemSchema>;
@@ -310,7 +311,7 @@ export type RecusadosSaida = z.infer<typeof RecusadosSaidaSchema>;
 /** `GET /v1/core/clientes/:id/pre-cadastro`: dados atuais para o formulário de correção (documento completo: quem corrige precisa). */
 export const PreCadastroAtualSchema = CorrecaoPreCadastroSchema.omit({ revisao_base: true, codigo_fdv: true }).extend({
   id: Uuid,
-  /** v1.0.29 (ADR 0069 item 10, aditivos): os dois códigos do cliente (FDV e ERP), só de leitura. */
+  /** v1.0.30 (ADR 0069 item 10, aditivos): os dois códigos do cliente (FDV e ERP), só de leitura. */
   codigo_fdv: CodigoFdvClienteSchema.nullish(),
   external_id: z.string().nullish(),
   revisao: RevisaoCadastroSchema,

@@ -56,10 +56,10 @@ export const ClienteSyncSchema = z
     /** v1.0.28 / RN-CORE-78 (aditivo): situação do pré-cadastro (o ERP aprova) e motivo da recusa do ERP (até 500; só com 'recusado'). Ausente = linha/emissor antigo. */
     status_cadastro: StatusCadastroSchema.nullable().optional(),
     motivo_recusa: z.string().max(500).nullable().optional(),
-    /** v1.0.29 / RN-CORE-78 (ADR 0069, aditivo): revisão do pré-cadastro (nulo = cliente do ERP) e erros por campo da recusa (mesma visibilidade do `motivo_recusa`). */
+    /** v1.0.30 / RN-CORE-78 (ADR 0069, aditivo): revisão do pré-cadastro (nulo = cliente do ERP) e erros por campo da recusa (mesma visibilidade do `motivo_recusa`). */
     revisao_cadastro: RevisaoCadastroSchema.nullable().optional(),
     erros_recusa: ErrosCampoCadastroSchema.nullable().optional(),
-    /** v1.0.29 / RN-CORE-78 (ADR 0069 item 10, aditivo): Código FDV do pré-cadastro (nulo = cliente do ERP; ausente = emissor antigo). O Código ERP é o `external_id`. */
+    /** v1.0.30 / RN-CORE-78 (ADR 0069 item 10, aditivo): Código FDV, em todo cliente, inclusive o do ERP (decisão 1 B; ausente = emissor antigo). O Código ERP é o `external_id`. */
     codigo_fdv: CodigoFdvClienteSchema.nullish(),
   })
   .strict();

@@ -21,7 +21,7 @@ export type DadosPreCadastro = Readonly<Record<string, string | number | null | 
 const vazio = (v: unknown): boolean => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
 
 /**
- * @deprecated v1.0.29 (ADR 0069): trocada por `obrigatoriosDoPreCadastro` + `validarPreCadastro` (lista única da RN-CORE-16); sai junto com a rota antiga.
+ * @deprecated v1.0.30 (ADR 0069): trocada por `obrigatoriosDoPreCadastro` + `validarPreCadastro` (lista única da RN-CORE-16); sai junto com a rota antiga.
  * Campos obrigatórios que faltam (sempre os dois travados + os configurados), na ordem de `CAMPOS_PRE_CADASTRO_*`.
  * `endereco` falta se qualquer coluna do grupo (logradouro, número, bairro, cidade, UF, CEP) estiver vazia.
  */

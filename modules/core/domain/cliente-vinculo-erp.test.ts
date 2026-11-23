@@ -44,7 +44,7 @@ describe('decidirRecusaErp', () => {
   });
 });
 
-describe('decidirRecusaErp com revisão e erros (v1.0.29, ADR 0069)', () => {
+describe('decidirRecusaErp com revisão e erros (v1.0.30, ADR 0069)', () => {
   const e1 = { campo: 'cep', codigo: 'INVALIDO', mensagem: 'CEP não existe' };
   const e2 = { campo: 'ie', codigo: 'FALTA', mensagem: 'Informe a IE' };
   const rec = { status_cadastro: 'recusado', external_id: null, revisao_cadastro: 2, motivo_recusa: 'Dados inválidos', erros_recusa: [e1, e2] } as const;

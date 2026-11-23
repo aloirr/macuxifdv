@@ -1,7 +1,7 @@
 /**
  * Pré-cadastro de cliente no Campo (v1.0.28; RN-CORE-78 e RN-CORE-79): funções puras para o formulário offline e para a API revalidar.
  * Os campos e os rótulos são os dos contratos (`cliente-pre-cadastro`); CNPJ/CPF e CEP vêm de `@macuxi/comum` (fonte única do dígito verificador).
- * Uma regra, um lugar (v1.0.29, ADR 0069): os obrigatórios vêm da lista única da RN-CORE-16 (`camposExigidos`, `cadastroCompleto` em
+ * Uma regra, um lugar (v1.0.30, ADR 0069): os obrigatórios vêm da lista única da RN-CORE-16 (`camposExigidos`, `cadastroCompleto` em
  * `cadastro.ts`); aqui ficam só o recorte do pré-cadastro, os formatos e a projeção para o APK v1.0.28.
  */
 import { cepValido, cnpjValido, cpfValido, somenteDigitos } from '@macuxi/comum';
@@ -22,7 +22,7 @@ const ORDEM: readonly CampoPreCadastro[] = [...CAMPOS_PRE_CADASTRO_SEMPRE, ...CA
 
 /**
  * RN-CORE-79: obrigatórios efetivos = sempre obrigatórios ∪ os do parâmetro, sem repetir, na ordem canônica.
- * @deprecated v1.0.29 (ADR 0069): use `obrigatoriosDoPreCadastro(camposExigidos(parametro))`; sai com a versão mínima > 1.0.28.
+ * @deprecated v1.0.30 (ADR 0069): use `obrigatoriosDoPreCadastro(camposExigidos(parametro))`; sai com a versão mínima > 1.0.28.
  */
 export function camposObrigatoriosPreCadastro(doParametro: readonly CampoPreCadastroConfiguravel[]): CampoPreCadastro[] {
   const conjunto = new Set<string>([...CAMPOS_PRE_CADASTRO_SEMPRE, ...doParametro]);

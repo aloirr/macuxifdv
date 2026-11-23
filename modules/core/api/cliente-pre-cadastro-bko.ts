@@ -1,5 +1,5 @@
 /**
- * BKO: pré-cadastros recusados pelo ERP (v1.0.29, ADR 0069 §7; RN-CORE-78, RN-CORE-79). Analista e admin listam os recusados, veem os
+ * BKO: pré-cadastros recusados pelo ERP (v1.0.30, ADR 0069 §7; RN-CORE-78, RN-CORE-79). Analista e admin listam os recusados, veem os
  * dados atuais e o histórico das revisões e corrigem (revisão nova, origem `bko`, pela mesma função do push e do POST:
  * `gravarPreCadastro`, que revalida tudo pelo domain).
  *  - `GET clientes/pre-cadastro/recusados` (`cliente.pre_cadastro_recusados`): só clientes com ao menos uma recusa; situação pelo
