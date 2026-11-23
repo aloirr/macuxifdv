@@ -1,6 +1,40 @@
 # Revisão de UX — "Zerar dados" no portal `config.` (v1.0.31)
 
-> Lote renumerado de v1.0.30 para **v1.0.31**. A rodada 2 (seção "Monitor" e "Zerar dados" por entidade) vem primeiro; a rodada 1 (menu e diálogo da empresa inteira) segue abaixo, como registro.
+> Lote renumerado de v1.0.30 para **v1.0.31**. A rodada 3 (reteste) vem primeiro; depois, a rodada 2 (seção "Monitor" e "Zerar dados" por entidade) e a rodada 1 (menu e diálogo da empresa inteira), como registro.
+
+# Rodada 3 — reteste dos ajustes R2-1 a R2-7
+
+**Revisado:** SHA `78f30c70a` (branch `nuvem/v1030-zerar-engenheiro-apps`, com o merge do `7b96e4cc6`), diff `ad16c5a86..78f30c70a`: `apps/web/components/portal/{secao-monitor,dialogo-zerar}.tsx`, `apps/web/lib/{portal-monitor,portal-empresa-zerar}.ts`; painel `7b96e4cc6` (branch `nuvem/v1031-zerar-modulo-integracao`): `modules/integracao/web/components/{monitor-painel,entidades-panel}.tsx`, `modules/integracao/web/lib/entidades.ts` (`menuDaEntidade`); prints `apps/web/docs/prints/zerar-dados/` 05 a 07, desktop e `-celular`.
+**Data:** 23/11/2026 · designer-ux.
+
+## Veredito (rodada 3)
+
+**Aprovado com 1 ajuste.** R2-1 a R2-7 foram aplicados como especificados. O R3-1 (nome cortado em "Cargas recentes" no celular) segura o lote.
+
+| # | Onde | Situação |
+|---|---|---|
+| R2-1 | `secao-monitor.tsx:77`; `monitor-painel.tsx` e `entidades-panel.tsx` sem `acoesDaEntidade` | 🟢 "Zerar dados" só na "Dados no Hub". O painel voltou a ser o do BKO, sem largura condicional (print 05). |
+| R2-2 | `secao-monitor.tsx:53-63`, `:80`; `portal-monitor.ts:36` | 🟢 "Zerar dados" no "⋯", item vermelho, em toda entidade com dados; Filiais (sem dados) fica sem "⋯". Colunas 200 / 200 (prior. 2) / 150 (prior. 2). Saíram `botaoZerar`, coluna `acoes` e `zerarNoDetalhe`. |
+| R2-3 | `entidades-panel.tsx:59-78`; `entidades.ts:97-118` | 🟢 Reprocessar (só com falha, desligado durante o envio) e "Histórico (n)" no "⋯". "Última carga" prior. 3; "Linhas integradas" prior. 2. Nenhum principal na tabela. No celular: Entidade, Situação e "⋯". |
+| R2-4 | `secao-monitor.tsx:55`; `portal-monitor.ts:54-59` | 🟢 Coluna `Corrigir no ERP`, célula `3 · campo_obrigatorio`, `—` sem erro da classe. "a reprocessar" saiu. |
+| R2-5 | `dialogo-zerar.tsx:104`, `:165-170`; `portal-empresa-zerar.ts:31` | 🟢 `Leva junto:` só com a cascata ("Endereços de clientes", print 06); some quando não há cascata (teste com Preços). |
+| R2-6 | `secao-monitor.tsx:48` | 🟢 "Último sinal" prior. 2: no celular ficam Conector e Situação. |
+| R2-7 | `monitor-painel.tsx:20`; `secao-monitor.tsx:77` | 🟢 Título `Cargas recentes` no portal; no BKO o quadro segue sem título. |
+
+## Pontos julgados
+
+- **"Corrigir no ERP" some no celular (prioridade 3): fica assim (🟢).** Ela aparece no quadro de 1.024 px para cima (print 05: 1.088 px). A ação é corrigir o cadastro no ERP, e isso não se faz pelo celular. No celular, o selo "Com falha" de "Cargas recentes" já aponta a entidade com problema. Subir para prioridade 1 poria uma terceira coluna em 324 px e cortaria o nome da entidade também na "Dados no Hub".
+- **Nome cortado em "Cargas recentes" no celular ("Endereços de cli…", 05, 06 e 07-celular): 🟡 obrigatório (R3-1).** O nome da entidade é a chave da linha e diz onde o "⋯" vai agir; cortado, o usuário não sabe de qual linha é o menu. **Minha posição sobre a largura:** não dar largura fixa à Entidade. Ela fica com o que sobra, e uma largura fixa empurraria "Última carga" no desktop. O que se ajusta é a Situação, que tem 120 px para um selo de ~84 px com o respiro ("Com falha"). Com **96 px**, a Entidade passa de ~152 px para ~176 px em 390 px, o suficiente para "Endereços de clientes" (~176 px com o respiro). Se o print refeito ainda cortar, o designer-ux abre no lote seguinte, em `packages/ui`, a opção de quebrar a linha na coluna (a `TabelaDados` corta todas as células hoje). Vale também para o BKO e passa pelo design-de-marca.
+
+## Achado (rodada 3)
+
+| # | Grav. | Dono | Onde (SHA 7b96e4cc6) | Ajuste |
+|---|---|---|---|---|
+| R3-1 | 🟡 obrig. | modulo-integracao | `modules/integracao/web/components/entidades-panel.tsx:60` | `largura: '120px'` → **`largura: '96px'`** na coluna Situação. Pronto quando o 05-celular refeito mostrar "Endereços de clientes" inteiro em "Cargas recentes". O engenheiro-apps refaz os prints 05 a 07 `-celular`, que voltam para o corretor-redundancias e para o design-de-marca. |
+
+Sem achado de texto: "Cargas recentes", "Corrigir no ERP", "Leva junto:", "Reprocessar", "Histórico (n)" e "Zerar dados" ficam como estão. Cada informação aparece num lugar só: falha e Reprocessar no painel; registros, cursor, o que corrigir no ERP e Zerar dados na "Dados no Hub".
+
+---
 
 # Rodada 2 — seção "Monitor" da aba Integração e "Zerar dados" por entidade
 
