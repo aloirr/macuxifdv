@@ -98,7 +98,7 @@ export const TEXTO_ROTA: Record<string, PassoRota> = {
     exemplosExtraSaida: ['itens_descartados'],
   },
   clientes_pendentes: {
-    serve: 'Entrega os clientes novos (pré-cadastro) aprovados no BKO do Macuxi para o seu sistema criar no ERP.',
+    serve: 'Entrega os clientes novos (pré-cadastro) recebidos pelo Macuxi, ainda sem código, para o seu sistema criar no ERP.',
     quando: 'A cada poucos minutos. Só o Conector com permissão de receber pedidos usa esta rota; os demais recebem `403`.',
     passos: [
       'Chame `GET /clientes/pendentes`.',
@@ -346,6 +346,7 @@ export const DESCRICAO_CAMPO: Record<string, string> = {
   ocorrido_em: 'Instante do fato no ERP.',
   'ClientesPendentes.clientes': 'Clientes novos para criar no ERP (lista vazia é normal).',
   'ClienteParaErp.cliente_uuid': 'Identificador do cliente no Macuxi. Chave de idempotência da criação no ERP.',
+  'ClienteParaErp.recebido_em': 'Instante em que o Macuxi recebeu o pré-cadastro (ordem de entrega).',
   'ClienteParaErp.tentativa': 'Quantas vezes o cliente saiu. Maior que 1 = reenvio por falta de retorno no prazo.',
   'RetornoCliente.cliente_uuid': 'O `cliente_uuid` recebido em `GET /clientes/pendentes` (o mesmo do caminho).',
   'RetornoCliente.status': '`vinculado` (cliente criado no ERP, com o código em `external_id`) ou `rejeitado_erp` (com o `motivo`).',

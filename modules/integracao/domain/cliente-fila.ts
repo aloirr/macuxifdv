@@ -1,6 +1,6 @@
 /**
  * Fila do cliente novo para o ERP (RN-INT-22; mesmo padrão da fila de pedidos, RN-INT-08). Funções puras; a API revalida.
- *  - `selecionarClientesPendentes`: pendentes e `enviado` vencidos, por ordem de aprovação; cada entrega conta uma tentativa.
+ *  - `selecionarClientesPendentes`: pendentes e `enviado` vencidos, por ordem de chegada; cada entrega conta uma tentativa.
  *  - `aplicarRetornoCliente`: `vinculado` (código do ERP) ou `rejeitado_erp`; repetição idêntica é aceita sem reaplicar.
  */
 import { aplicarTimeoutEnvio } from './estados';
@@ -12,7 +12,7 @@ export interface ClienteNaFila<P = Record<string, unknown>> {
   cliente_uuid: string;
   estado: EstadoClienteNaFila;
   payload: P;
-  aprovado_em: string;
+  recebido_em: string;
   enviado_em: string | null;
   tentativas: number;
   external_id: string | null;
@@ -32,10 +32,14 @@ export function selecionarClientesPendentes<P>(fila: readonly ClienteNaFila<P>[]
     .filter((c) => c.removido_em === null && (c.estado === 'pendente' || c.estado === 'enviado'))
     .map((c) => ({ c, t: aplicarTimeoutEnvio({ estado: c.estado as 'pendente' | 'enviado', enviado_em: c.enviado_em, tentativas: c.tentativas }, agora, { timeoutMin: opcoes.timeoutMin }) }))
     .filter((x) => x.t.estado === 'pendente')
-    .sort((a, b) => Date.parse(a.c.aprovado_em) - Date.parse(b.c.aprovado_em) || (a.c.cliente_uuid < b.c.cliente_uuid ? -1 : a.c.cliente_uuid > b.c.cliente_uuid ? 1 : 0))
+    .sort((a, b) => Date.parse(a.c.recebido_em) - Date.parse(b.c.recebido_em) || (a.c.cliente_uuid < b.c.cliente_uuid ? -1 : a.c.cliente_uuid > b.c.cliente_uuid ? 1 : 0))
     .slice(0, limite);
   return {
-    entregar: candidatos.map(({ c }) => ({ ...c.payload, tentativa: c.tentativas + 1 })),
+    // payload antigo (v1.0.27) trazia `aprovado_em`: sai e a coluna `recebido_em` é a fonte do campo público
+    entregar: candidatos.map(({ c }) => {
+      const { aprovado_em: _antigo, ...payload } = c.payload as Record<string, unknown>;
+      return { ...payload, recebido_em: c.recebido_em, tentativa: c.tentativas + 1 } as unknown as P & { tentativa: number };
+    }),
     atualizacoes: candidatos.map(({ c }) => ({ cliente_uuid: c.cliente_uuid, estado: 'enviado' as const, enviado_em: agora, tentativas: c.tentativas + 1 })),
     reenviados: candidatos.filter(({ t }) => t.reenviado).map(({ c }) => c.cliente_uuid),
   };
@@ -65,7 +69,7 @@ export type ResultadoRetornoCliente =
 const falha = (codigo: CodigoFalhaRetornoCliente, campo: string | null, mensagem: string): ResultadoRetornoCliente => ({ ok: false, codigo, mensagem, erros: [{ codigo, campo, mensagem }] });
 
 export function aplicarRetornoCliente(fila: Pick<ClienteNaFila, 'estado' | 'external_id' | 'removido_em'> | null, retorno: RetornoClienteEntrada): ResultadoRetornoCliente {
-  if (!fila || fila.removido_em !== null) return falha('cliente_desconhecido', null, 'O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.');
+  if (!fila || fila.removido_em !== null) return falha('cliente_desconhecido', null, 'O Hub não conhece este cliente. Só cliente entregue ao Conector recebe retorno.');
   const codigo = retorno.status === 'vinculado' ? (retorno.external_id ?? '').trim() : null;
   const motivo = retorno.status === 'rejeitado_erp' ? (retorno.motivo ?? '').trim() : null;
   const estado = retorno.status === 'vinculado' ? ('vinculado' as const) : ('rejeitado' as const);

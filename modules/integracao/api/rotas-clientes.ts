@@ -18,7 +18,7 @@ export interface LinhaClienteFila {
   cliente_uuid: string;
   estado: ClienteNaFila['estado'];
   payload: Record<string, unknown>;
-  aprovado_em: Date | string;
+  recebido_em: Date | string;
   enviado_em: Date | string | null;
   tentativas: number;
   external_id: string | null;
@@ -30,7 +30,7 @@ export const clienteNaFila = (l: LinhaClienteFila): ClienteNaFila => ({
   cliente_uuid: l.cliente_uuid,
   estado: l.estado,
   payload: l.payload,
-  aprovado_em: iso(l.aprovado_em)!,
+  recebido_em: iso(l.recebido_em)!,
   enviado_em: iso(l.enviado_em),
   tentativas: l.tentativas,
   external_id: l.external_id,
@@ -38,7 +38,7 @@ export const clienteNaFila = (l: LinhaClienteFila): ClienteNaFila => ({
   removido_em: iso(l.deleted_at),
 });
 
-const COLUNAS = 'cliente_uuid, estado, payload, aprovado_em, enviado_em, tentativas, external_id, motivo, deleted_at';
+const COLUNAS = 'cliente_uuid, estado, payload, recebido_em, enviado_em, tentativas, external_id, motivo, deleted_at';
 
 const acessoNegado = () =>
   new ErroConector(403, { codigo: 'acesso_negado', mensagem: 'Este Conector não recebe clientes novos (na v1 só o Conector que recebe os pedidos aprovados também recebe os clientes). Ajuste em Integração ERP > Conectores.' });
@@ -54,7 +54,7 @@ export async function clientesPendentes(ctx: Ctx<unknown, QueryClientesPendentes
       `select ${COLUNAS} from integracao.cliente_fila_erp
         where tenant_id = $1 and deleted_at is null
           and (estado = 'pendente' or (estado = 'enviado' and enviado_em <= $2::timestamptz - ($3::float8 * interval '1 minute')))
-        order by aprovado_em, cliente_uuid
+        order by recebido_em, cliente_uuid
         limit $4
         for update skip locked`,
       [ctx.tenantId, agora, parametros.timeoutEnvioMin, limite],
