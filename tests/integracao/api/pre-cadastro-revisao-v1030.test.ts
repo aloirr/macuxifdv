@@ -274,26 +274,20 @@ describe.skipIf(semBanco())('v1.0.30 — reenvio do pré-cadastro com histórico
   });
 
   /**
-   * DEFEITO v1.0.30 (revisão do testes, 23/11/2026): `POST /v1/core/clientes/pre-cadastro` tem `carteira: 'nao_se_aplica'`
-   * (modules/core/api/cliente-cadastro.ts:24) e repassa o `revisao_base` a `gravarPreCadastro` (pre-cadastro-receber.ts:139): o
-   * vendedor-2 corrige pela rota o recusado da carteira do vendedor-1 (200, revisão 3), o que o push recusa com FORA_DA_CARTEIRA
-   * (ADR 0069 §3). `it.fails` até a correção do modulo-core; quando a rota recusar, este caso fica vermelho e vira `it`.
+   * Defeito da revisão do testes (23/11/2026), corrigido no modulo-core (5b122e9): a rota `POST /v1/core/clientes/pre-cadastro`
+   * com `revisao_base` passa a conferir a carteira como o push (ADR 0069 §3): fora da carteira = 403 FORA_DA_CARTEIRA, sem gravar.
    */
-  it.fails('a + c (escopo de carteira). DEFEITO: a rota POST com revisao_base não pode corrigir o recusado da carteira de outro vendedor', async () => {
+  it('a + c (escopo de carteira). a rota POST com revisao_base não corrige o recusado da carteira de outro vendedor (403 FORA_DA_CARTEIRA)', async () => {
     const corpo = pre(Y1, DOC_Y1, { revisao_base: 2, inscricao_estadual: '041234567', numero: '300' });
     const r = await postar(tk.vendedor2A, corpo);
-    expect(r.statusCode, `vendedor-2 corrigiu pelo POST o recusado da carteira do vendedor-1: ${r.body}`).not.toBe(200);
+    expect(r.statusCode, `vendedor-2 corrigiu pelo POST o recusado da carteira do vendedor-1: ${r.body}`).toBe(403);
+    expect(erroDe(r).codigo).toBe('FORA_DA_CARTEIRA');
     expect(await cliente(Y1)).toMatchObject({ status_cadastro: 'recusado', revisao_cadastro: 2 });
   });
 
   it('c. BKO: perfis, lista mascarada, histórico, correção origem bko, situações e tenant B', async () => {
-    const c = await cliente(Y1);
-    if (c!.status_cadastro !== 'recusado') {
-      // enquanto o defeito da rota existir, o caso anterior leva o cliente à revisão 3: a recusa volta para seguir
-      await despachar();
-      await erpRecusa(Y1, c!.revisao_cadastro, 'Endereço não encontrado');
-    }
-    const revisao = (await cliente(Y1))!.revisao_cadastro;
+    const c = (await cliente(Y1))!;
+    const revisao = c.revisao_cadastro;
     // perfis: só analista e admin
     for (const [nome, token] of [['vendedor', tk.vendedor1A], ['supervisor', tk.supervisorA], ['gerente', tk.gerenteA]] as const) {
       for (const op of [
