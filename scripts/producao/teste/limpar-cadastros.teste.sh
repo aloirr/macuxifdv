@@ -4,8 +4,10 @@
 #   bash db/scripts/pg-local.sh && eval "$(bash db/scripts/pg-local.sh --env)"
 #   MACUXI_PG_PORTA=5433 pnpm --filter @macuxi/db admin-sem-superusuario     (uma vez por servidor)
 #   bash scripts/producao/teste/limpar-cadastros.teste.sh
-# Cria o banco macuxi_limpeza_teste, migra, carrega a fixture dois-tenants e os dados das duas origens (kit e macuxierp) nos
-# dois tenants, e confere: simular não muda nada; apagar com lote do Hub em processamento aborta; apagar limpa o alfa e
+# Os roteiros só chamam as funções da 0099 (plataforma.limpar_cadastros, restaurar_limpeza e descartar_limpeza; ADR 0068).
+# Confere antes que um banco sem a 0099 para com mensagem clara. Depois cria o banco macuxi_limpeza_teste, migra (com a 0099),
+# carrega a fixture dois-tenants e os dados das duas origens (kit e macuxierp) nos dois tenants, e confere: simular (inteira e
+# por entidade) não muda nada; entidade fora da lista para; apagar com lote do Hub em processamento aborta; apagar limpa o alfa e
 # mantém empresa, administradores, perfis de acesso, licenças, parâmetros, conectores, credenciais, filiais e o tenant beta;
 # os demais usuários saem e o reenvio do vendedor pelo ERP o recria; restaurar
 # devolve o alfa; descartar apaga a cópia; depois de apagar de novo, a carga nova do ERP entra.
@@ -28,18 +30,30 @@ igual() { if [ "$2" = "$3" ]; then ok "$1"; else nok "$1 (esperado '$3', veio '$
 
 [ "$(psql -X -At -d postgres -c "select not rolsuper and not rolbypassrls from pg_roles where rolname = current_user")" = t ] \
   || { echo "o admin do teste precisa ser sem SUPERUSER e sem BYPASSRLS (rode o admin-sem-superusuario na 5433)"; exit 1; }
+montar() { bash "$raiz/scripts/producao/montar-limpeza.sh" "$1"; }
+
+echo '--- 0. banco sem a 0099'
+psql -X -q -d postgres -c "drop database if exists ${BANCO}_sem0099" -c "create database ${BANCO}_sem0099" >/dev/null 2>&1
+for modo in limpar restaurar descartar arquivo; do
+  set +e; montar "$modo" | psql -X -q -d "${BANCO}_sem0099" -v empresa=alfa -v modo=simular -v lote=20261123T185900Z -f - > "$tmp/sem0099.txt" 2>&1; st=$?; set -e
+  igual "$modo sem a 0099 para com 'o banco ainda não tem a migração 0099'" \
+    "$([ $st -ne 0 ] && grep -q 'o banco ainda não tem a migração 0099' "$tmp/sem0099.txt" && echo sim)" sim
+done
+psql -X -q -d postgres -c "drop database if exists ${BANCO}_sem0099" >/dev/null
+
 psql -X -q -d postgres -c "drop database if exists $BANCO" -c "create database $BANCO" >/dev/null 2>&1
 (cd "$raiz/db" && npx tsx scripts/banco.ts migrar up --banco "$BANCO" >/dev/null && npx tsx scripts/banco.ts fixture dois-tenants --banco "$BANCO" >/dev/null)
 for t in "$ALFA" "$BETA"; do psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -v tenant="$t" -f "$raiz/scripts/producao/teste/limpar-cadastros-dados.sql"; done
 
 # hash por tabela e tenant (sem updated_at, geracao_base e sessao_versao, que a limpeza e a restauração andam de propósito;
-# a sessao_versao do vendedor que sai é conferida à parte)
+# a sessao_versao do vendedor que sai é conferida à parte; sem a plataforma.limpeza_copia, conferida à parte)
 q "create function public.teste_hash(p_tenant uuid) returns table (tabela text, hash text) language plpgsql as \$f\$
 declare r record; h text; begin
   for r in select n.nspname || '.' || c.relname as nome, exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' and not a.attisdropped) as tem_tenant,
                   n.nspname || '.' || c.relname = 'plataforma.tenant' as eh_tenant
              from pg_class c join pg_namespace n on n.oid = c.relnamespace
-            where c.relkind = 'r' and n.nspname in ('core','catalogo','vendedor','promotor','pesquisa','treinamento','gestor','integracao','plataforma') loop
+            where c.relkind = 'r' and n.nspname in ('core','catalogo','vendedor','promotor','pesquisa','treinamento','gestor','integracao','plataforma')
+              and (n.nspname, c.relname) <> ('plataforma', 'limpeza_copia') loop
     if r.eh_tenant then
       execute format('select md5(coalesce(string_agg((to_jsonb(t) - ''updated_at'' - ''geracao_base'')::text, ''|'' order by t.id), '''')) from %s t where t.id = %L', r.nome, p_tenant) into h;
     elsif r.tem_tenant then
@@ -51,11 +65,10 @@ create table public.teste_foto (nome text, tenant uuid, tabela text, hash text);
 foto() { q "insert into public.teste_foto select '$1', '$2', tabela, hash from public.teste_hash('$2')" >/dev/null; }
 tabelas_diferentes() { q "select coalesce(string_agg(a.tabela, ',' order by a.tabela), '') from public.teste_foto a join public.teste_foto b on b.nome = '$2' and b.tenant = a.tenant and b.tabela = a.tabela
                where a.nome = '$1' and a.tenant = '$3' and a.hash is distinct from b.hash"; }
-montar() { bash "$raiz/scripts/producao/montar-limpeza.sh" "$1"; }
-limpar() { montar limpar | psql -X -q -d "$BANCO" -v empresa="$1" -v modo="$2" -v lote="$3" -f - ; }
+limpar() { montar limpar | psql -X -q -d "$BANCO" -v empresa="$1" -v modo="$2" -v lote="$3" -v entidades="${4:-}" -f - ; }
 restaurar() { montar restaurar | psql -X -q -d "$BANCO" -v empresa="$1" -v lote="$2" -f - ; }
 descartar() { montar descartar | psql -X -q -d "$BANCO" -v empresa="$1" -v lote="$2" -f - ; }
-tem_backup() { q "select to_regclass('public.macuxi_limpeza_backup') is not null"; }
+tem_backup() { q "select count(*) > 0 from plataforma.limpeza_copia where tenant_id = '$ALFA'"; }
 # consulta no contexto do tenant alfa (RLS: o admin sem BYPASSRLS vê pela política manutencao)
 qa() { printf "select set_config('app.tenant_id', '%s', false) <> '' as ok \\gset\n%s\n" "$ALFA" "$1" | psql -X -q -At -v ON_ERROR_STOP=1 -d "$BANCO" -f -; }
 
@@ -74,11 +87,18 @@ igual "simular não muda o beta" "$(tabelas_diferentes simulado antes "$BETA")" 
 igual "simular não deixa cópia de segurança" "$(tem_backup)" f
 igual "simular termina com o ROLLBACK" "$(tail -n 1 "$tmp/simular.txt")" "SIMULADO: ROLLBACK, nada mudou"
 grep -q 'vendedor.pedido *| soft' "$tmp/simular.txt" && ok "simular lista os pedidos" || nok "simular sem os pedidos"
+limpar alfa simular 20261123T190010Z produto > "$tmp/simular-produto.txt" || nok "simular por entidade saiu com erro"
+foto simulado_produto "$ALFA"
+igual "simular por entidade não muda o alfa" "$(tabelas_diferentes simulado_produto antes "$ALFA")" ""
+igual "simular produto lista core.produto e não core.cliente" \
+  "$(grep -q 'core.produto *| soft' "$tmp/simular-produto.txt" && ! grep -q 'core.cliente *|' "$tmp/simular-produto.txt" && echo sim)" sim
+set +e; limpar alfa simular 20261123T190020Z nao_existe > "$tmp/entidade.txt" 2>&1; st=$?; set -e
+igual "entidade fora da lista para" "$([ $st -ne 0 ] && echo sim)" sim
 
 echo '--- 2. apagar com lote em processamento'
 qa "update integracao.lote set status = 'processando' where tenant_id = '$ALFA' and chave_idempotencia = 'chave-erp-produto-0001'" >/dev/null
 set +e; limpar alfa apagar 20261123T190100Z > "$tmp/processando.txt" 2>&1; st=$?; set -e
-igual "apagar com lote processando sai com erro" "$([ $st -ne 0 ] && grep -q 'lote do Hub em processamento nesta empresa' "$tmp/processando.txt" && echo sim)" sim
+igual "apagar com lote processando sai com erro" "$([ $st -ne 0 ] && grep -q 'em processamento' "$tmp/processando.txt" && echo sim)" sim
 qa "update integracao.lote set status = 'concluido_com_erros' where tenant_id = '$ALFA' and chave_idempotencia = 'chave-erp-produto-0001'" >/dev/null
 foto abortado "$ALFA"
 igual "apagar abortado não muda o alfa" "$(tabelas_diferentes abortado antes "$ALFA")" ""
@@ -167,8 +187,8 @@ igual "cliente do app vivo; macuxierp ativo" \
   "$(qa "select (select count(*) from core.cliente where tenant_id = '$ALFA' and deleted_at is null and razao_social = 'Cliente do app') || '/' ||
                (select count(*) from integracao.conector where tenant_id = '$ALFA' and identificador = 'macuxierp' and ativo and deleted_at is null)")" 1/1
 igual "geracao_base girada" "$([ "$(qa "select geracao_base from plataforma.tenant where id = '$ALFA'")" != "$g0" ] && echo sim)" sim
-igual "cópia de segurança com as linhas do lote" "$(q "select count(*) > 0 from public.macuxi_limpeza_backup where lote = '20261123T190200Z' and tenant_id = '$ALFA'")" t
-igual "cópia de segurança sem acesso do macuxi_app/leitura" "$(q "select has_table_privilege('macuxi_app', 'public.macuxi_limpeza_backup', 'select') or has_table_privilege('macuxi_leitura', 'public.macuxi_limpeza_backup', 'select')")" f
+igual "cópia de segurança com as linhas do lote" "$(q "select count(*) > 0 from plataforma.limpeza_copia where lote = '20261123T190200Z' and tenant_id = '$ALFA'")" t
+igual "cópia de segurança sem acesso do macuxi_app/leitura" "$(q "select has_table_privilege('macuxi_app', 'plataforma.limpeza_copia', 'select') or has_table_privilege('macuxi_leitura', 'plataforma.limpeza_copia', 'select')")" f
 igual "apagar termina com o commit" "$(tail -n 1 "$tmp/apagar.txt")" "APAGADO: transação confirmada"
 
 echo '--- 4. restaurar'
@@ -180,7 +200,7 @@ igual "restaurar devolve o alfa (tabelas diferentes)" "$(tabelas_diferentes rest
 echo '--- 5. arquivo do lote, descartar e empresa inexistente'
 # o arquivo da VM (montar-limpeza.sh arquivo, como no workflow) e a volta do resumo (\copy from pstdin)
 montar arquivo | psql -X -d "$BANCO" -v empresa=alfa -v lote=20261123T190200Z -f - > "$tmp/lote.copy"
-linhas="$(q "select count(*) from public.macuxi_limpeza_backup where lote = '20261123T190200Z'")"
+linhas="$(q "select count(*) from plataforma.limpeza_copia where lote = '20261123T190200Z'")"
 igual "arquivo do lote com só as linhas do lote" "$(wc -l < "$tmp/lote.copy" | tr -d ' ')" "$linhas"
 limpar_inexistente() { limpar "$1" simular "$2"; }
 for modo in limpar_inexistente restaurar descartar; do
@@ -189,9 +209,9 @@ for modo in limpar_inexistente restaurar descartar; do
     "$([ $st -ne 0 ] && grep -q 'empresa não encontrada' "$tmp/inexistente.txt" && echo sim)" sim
 done
 descartar alfa 20261123T190200Z > "$tmp/descartar.txt" || nok "descartar saiu com erro"
-igual "descartar apaga as linhas do lote" "$(q "select count(*) from public.macuxi_limpeza_backup where lote = '20261123T190200Z'")" 0
-psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -c '\copy public.macuxi_limpeza_backup from pstdin' < "$tmp/lote.copy"
-igual "o arquivo do lote volta para a tabela" "$(q "select count(*) from public.macuxi_limpeza_backup where lote = '20261123T190200Z'")" "$linhas"
+igual "descartar apaga as linhas do lote" "$(q "select count(*) from plataforma.limpeza_copia where lote = '20261123T190200Z'")" 0
+psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -c '\copy plataforma.limpeza_copia from pstdin' < "$tmp/lote.copy"
+igual "o arquivo do lote volta para a tabela" "$(q "select count(*) from plataforma.limpeza_copia where lote = '20261123T190200Z'")" "$linhas"
 descartar alfa 20261123T190200Z > /dev/null
 
 echo '--- 6. apagar de novo e a carga nova do ERP entra'

@@ -122,6 +122,7 @@ import { registrarRotaAppVersao, urlApiPublicaDoAmbiente, versoesAppDoAmbiente, 
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
+import { registrarRotasZerarEmpresa, type FonteZerarEmpresa } from './empresa-zerar-portal';
 import { registrarSync } from './sync';
 import { registrarSyncPacotes, syncPacotesDoAmbiente, type OpcoesSyncPacotes } from './sync-pacotes';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
@@ -234,6 +235,8 @@ export interface OpcoesApp {
   empresaAcoesPortal?: boolean;
   /** ADR 0052: fonte das funções `sa_*` da 0072 (padrão: `fonteAcoesEmpresaNoBanco`). Testes injetam a sua. */
   fonteAcoesEmpresa?: FonteAcoesEmpresa;
+  /** ADR 0068: fonte das `sa_*` do Zerar dados (0099; padrão: `fonteZerarEmpresaNoBanco`). Testes injetam a sua. */
+  fonteZerarEmpresa?: FonteZerarEmpresa;
   /** ADR 0052: bucket S3 e `MACUXI_BACKUP_EMPRESA_CHAVE` configurados (falso = 503 `BACKUP_INDISPONIVEL`). Padrão: falso. */
   backupEmpresaDisponivel?: boolean;
   /** Rodapé legal (docs/design/telas/rodape-legal.md §3.4): fonte das funções dos dados legais (padrão: `fonteDadosLegaisNoBanco`). Testes injetam a sua. */
@@ -701,6 +704,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       segredoPlataforma: () => process.env.MACUXI_JWT_SEGREDO_PLATAFORMA,
       relogio,
     });
+    registrarRotasZerarEmpresa(app, { acesso: acessoPortal, ...(op.fonteZerarEmpresa ? { fonte: op.fonteZerarEmpresa } : {}), ...(op.fonteAcoesEmpresa ? { reautenticacao: op.fonteAcoesEmpresa } : {}), autenticar: autenticarDoPortal, validar, segredoPlataforma: () => process.env.MACUXI_JWT_SEGREDO_PLATAFORMA, relogio }); // ADR 0068
   }
 
   // T-0158 (ADR 0043): Portal › Diagnósticos, só super-admin, no banco do portal; desligado por padrão

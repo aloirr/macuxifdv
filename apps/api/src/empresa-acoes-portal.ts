@@ -167,21 +167,21 @@ export async function acoesDasEmpresas(
   return new Map(lista.itens.map(({ tenant_id, ...acoes }) => [tenant_id, acoes]));
 }
 
-export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesEmpresa): void {
-  const fonte = dep.fonte ?? fonteAcoesEmpresaNoBanco;
+/** Parte da fonte que confere a senha do super-admin (a mesma do login do portal). */
+export type FonteReautenticar = Pick<FonteAcoesEmpresa, 'reautenticar' | 'tentativaEstado' | 'tentativaFalha' | 'tentativaSucesso'>;
+
+/**
+ * Confirmação forte (ADR 0052 §3.2; também o Zerar, ADR 0068): a senha do super-admin DA SESSÃO, no mesmo limite de falhas do
+ * login do portal (5 seguidas = 423 `BLOQUEADO` com a mesma mensagem e `detalhes.minutos_restantes` do login, RN-CORE-31).
+ * Senha errada = 403 `REAUTENTICACAO_FALHOU`.
+ */
+export function criarReautenticar(
+  dep: Pick<DepsAcoesEmpresa, 'acesso' | 'segredoPlataforma' | 'conferirSenha' | 'relogio'>,
+  fonte: FonteReautenticar,
+): (quem: AcessoPortalAutenticado, senha: string) => Promise<void> {
   const conferirSenha = dep.conferirSenha ?? verificarSenha;
   const relogio = dep.relogio ?? (() => new Date());
-
-  /** Só super-admin (RN-PLA-07); o admin do cliente recebe 403 `PERFIL_SEM_ACESSO`. */
-  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGEM_SO_SUPER_ADMIN_ACOES);
-  const empresa = (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id;
-
-  /**
-   * Confirmação forte da exclusão (ADR 0052 §3.2): a senha do super-admin DA SESSÃO, no mesmo limite de falhas do login do
-   * portal (5 seguidas = 423 `BLOQUEADO` com a mesma mensagem e `detalhes.minutos_restantes` do login, RN-CORE-31). Senha
-   * errada = 403 `REAUTENTICACAO_FALHOU`.
-   */
-  const reautenticar = async (quem: AcessoPortalAutenticado, senha: string): Promise<void> => {
+  return async (quem, senha) => {
     const segredo = dep.segredoPlataforma();
     if (!segredo || segredo.length < 32)
       throw new ErroHttp(503, CODIGOS_PORTAL.indisponivel, 'O acesso ao portal está indisponível no momento. Avise o suporte da Macuxi.');
@@ -195,6 +195,16 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
     }
     await fonte.tentativaSucesso(chave, dep.acesso);
   };
+}
+
+export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesEmpresa): void {
+  const fonte = dep.fonte ?? fonteAcoesEmpresaNoBanco;
+
+  /** Só super-admin (RN-PLA-07); o admin do cliente recebe 403 `PERFIL_SEM_ACESSO`. */
+  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGEM_SO_SUPER_ADMIN_ACOES);
+  const empresa = (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id;
+
+  const reautenticar = criarReautenticar(dep, fonte);
 
   app.post(ROTAS_ACOES_EMPRESA.inativar, async (req) => {
     const tenantId = empresa(req);

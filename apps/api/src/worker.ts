@@ -46,6 +46,7 @@ import { armazenamentoPacotesSyncDoAmbiente } from './sync-pacotes';
 import { criarGeradorPacotes, criarRepositorioPacotesSql } from './sync-pacotes-gerador';
 import { criarLacoTrabalhos } from './trabalhos';
 import { expurgarRastreamento, INTERVALO_EXPURGO_MS, SQL_EXISTE_EXPURGO } from './expurgo-rastreamento';
+import { iniciarZerarEmpresa } from './empresa-zerar-worker';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/); fora do local não exige a senha do admin
 // ADR 0066: a mesma redação da API (a coleta na API do ERP roda aqui, com a credencial decifrada em memória)
@@ -93,8 +94,10 @@ async function principal(): Promise<void> {
   const pacotesSync = await iniciarPacotesSync();
   const trabalhos = await iniciarTrabalhos();
   const expurgo = await iniciarExpurgoRastreamento();
+  const zerar = await iniciarZerarEmpresa(urlWorker(cfg), log); // ADR 0068
   const encerrar = async () => {
     expurgo?.parar();
+    await zerar?.parar();
     if (timerMetricas) clearInterval(timerMetricas);
     await trabalhos?.parar();
     await agendamento?.parar();
