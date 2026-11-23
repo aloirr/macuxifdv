@@ -147,7 +147,7 @@ const RECUSADOS = LINHAS.filter((l) => l[5] === 'recusado').length;
 const abas = (n) =>
   `<div class="abas" role="tablist" aria-label="Clientes"><span class="aba" role="tab" aria-selected="false">Farol</span><span class="aba ativa" role="tab" aria-selected="true">Pré-cadastros recusados${n ? ` (${n})` : ''}</span></div>`;
 const filtros = (situacao) =>
-  `<div class="filtros"><span class="sel busca" aria-label="Buscar">${lupa}Código, CNPJ ou nome</span>
+  `<div class="filtros"><span class="sel busca" aria-label="Buscar">${lupa}Razão social ou CPF/CNPJ</span>
   <label class="f">Situação<span class="sel">${situacao}${baixo}</span></label></div>`;
 const tabela = (linhas, marcada = -1) =>
   `<section class="quadro" style="padding:8px 16px"><table><colgroup><col style="width:92px"><col style="width:190px"><col><col style="width:128px"><col style="width:168px"><col style="width:220px"><col style="width:118px"></colgroup>
