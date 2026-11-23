@@ -11,7 +11,7 @@ import { EtapasPendentesSchema } from './etapas-pendencia';
 import { ModuloIdSchema } from './modulos';
 import { FilialDadosFiscaisSchema } from './filial';
 import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
-import { ErrosCampoCadastroSchema, RevisaoCadastroSchema, StatusCadastroSchema } from './cliente-pre-cadastro';
+import { CodigoFdvClienteSchema, ErrosCampoCadastroSchema, RevisaoCadastroSchema, StatusCadastroSchema } from './cliente-pre-cadastro';
 import { MinutoDoDiaSchema } from './jornada';
 import { HoraHHMM as Hora } from './hora';
 
@@ -59,6 +59,8 @@ export const ClienteSyncSchema = z
     /** v1.0.29 / RN-CORE-78 (ADR 0069, aditivo): revisão do pré-cadastro (nulo = cliente do ERP) e erros por campo da recusa (mesma visibilidade do `motivo_recusa`). */
     revisao_cadastro: RevisaoCadastroSchema.nullable().optional(),
     erros_recusa: ErrosCampoCadastroSchema.nullable().optional(),
+    /** v1.0.29 / RN-CORE-78 (ADR 0069 item 10, aditivo): Código FDV do pré-cadastro (nulo = cliente do ERP; ausente = emissor antigo). O Código ERP é o `external_id`. */
+    codigo_fdv: CodigoFdvClienteSchema.nullish(),
   })
   .strict();
 export type ClienteSync = z.infer<typeof ClienteSyncSchema>;

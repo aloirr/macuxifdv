@@ -1,6 +1,6 @@
 /**
  * RF-CORE-10 × Postgres real (fixture dois-tenants, papel macuxi_app, RLS; colunas das migrações 0095, 0097 e 0098): pré-cadastro
- * (obrigatórios da lista única, evento, tentativa), revisão do recusado no mesmo cliente, substituição pelo id novo do APK v1.0.28,
+ * (obrigatórios da lista única, evento, tentativa, Código FDV gerado pelo banco e só de leitura, coordenada 'manual'), revisão do recusado no mesmo cliente, substituição pelo id novo do APK v1.0.28,
  * 23505 em corrida, receptor do push, parâmetro unificado e consulta do Hub (RN-CORE-16, RN-CORE-78, RN-CORE-79, RN-INT-22; ADR 0069).
  * Cada caso roda numa transação desfeita no fim (as corridas usam duas conexões e apagam o que gravaram). Pula sem Postgres.
  */
@@ -11,8 +11,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EVENTO_CLIENTE_ATUALIZADO, EVENTO_CLIENTE_PRE_CADASTRADO, EVENTO_CLIENTE_PRE_CADASTRO_REVISADO, MENSAGENS_ERRO_PRE_CADASTRO, type ClientesPreCadastroSemErpSaida } from '../contracts';
 import { A, B, emTransacao, ENDERECO_COMPLETO, recusar, type Ambiente } from './apoio-teste-pre-cadastro';
 import { consultaClientesPreCadastroSemErp, rotasDeClienteCadastro } from './cliente-cadastro';
+import { rotasDeClientes } from './clientes';
 import { rotasDeParametrosCamposObrigatorios } from './parametros-campos-obrigatorios';
 import { hashPreCadastro, receberPreCadastros } from './pre-cadastro-receber';
+import { provedoresSyncCore } from './sync';
 
 const ID1 = '5a000000-0000-4000-8000-000000000001';
 const ID2 = '5a000000-0000-4000-8000-000000000002';
@@ -34,6 +36,7 @@ const tentativas = (t: Ambiente, id: string) =>
   );
 /** RN-CORE-39: sem filial no pedido o banco grava a padrão; o hash é o dos dados gravados. */
 const comFilial = async (t: Ambiente, id: string, dados: Record<string, unknown>) => ({ ...dados, filial_id: (await t.q<{ filial_id: string }>('select filial_id from core.cliente where id = $1', [id]))[0]!.filial_id });
+const FDV = expect.stringMatching(/^\d{5,}$/);
 const eventos = (t: Ambiente, nome: string) => t.publicar.mock.calls.filter((c) => (c[0] as { nome: string }).nome === nome);
 
 describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-78, RN-INT-22, ADR 0069)', () => {
@@ -51,9 +54,9 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
   it('RN-CORE-78: o pré-cadastro entra pendente na revisão 1, grava a tentativa, é idempotente pelo id e o vendedor recebe o cliente na carteira', async () => {
     await emTransacao(pool, async (t) => {
       const r1 = await post(t, VENDEDOR, pre(ID1, { documento: '11.222.333/0001-81' }));
-      expect(r1).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 1, ja_existia: false });
+      expect(r1).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 1, ja_existia: false, codigo_fdv: FDV });
       const r2 = await post(t, VENDEDOR, pre(ID1, { razao_social: 'Outro nome' }));
-      expect(r2).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 1, ja_existia: true });
+      expect(r2).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 1, ja_existia: true, codigo_fdv: r1.codigo_fdv });
       const [l] = await t.q('select razao_social, origem_cadastro, status_cadastro, revisao_cadastro, documento from core.cliente where id = $1', [ID1]);
       expect(l).toEqual({ razao_social: 'Mercado Novo', origem_cadastro: 'campo', status_cadastro: 'pendente', revisao_cadastro: 1, documento: '11222333000181' });
       expect(await t.q('select 1 from core.carteira where cliente_id = $1 and usuario_id = $2', [ID1, A.usuarios.vendedor1])).toHaveLength(1);
@@ -117,7 +120,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       await recusar(t, ID1);
       t.publicar.mockClear();
       const corrigido = pre(ID1, { revisao_base: 1, inscricao_estadual: '041234567', razao_social: 'Mercado Novo Ltda' });
-      expect(await post(t, VENDEDOR, corrigido)).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 2, ja_existia: false });
+      expect(await post(t, VENDEDOR, corrigido)).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 2, ja_existia: false, codigo_fdv: FDV });
       const [l] = await t.q('select status_cadastro, motivo_recusa, erros_recusa, revisao_cadastro, inscricao_estadual from core.cliente where id = $1', [ID1]);
       expect(l).toEqual({ status_cadastro: 'pendente', motivo_recusa: null, erros_recusa: null, revisao_cadastro: 2, inscricao_estadual: '041234567' });
       const ts = await tentativas(t, ID1);
@@ -131,7 +134,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       expect(eventos(t, EVENTO_CLIENTE_ATUALIZADO.nome)).toHaveLength(1);
       expect(eventos(t, EVENTO_CLIENTE_PRE_CADASTRADO.nome)).toHaveLength(0);
       // repetição: mesma revisão base e mesmo hash = ja_existia, sem nova revisão nem evento
-      expect(await post(t, VENDEDOR, corrigido)).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 2, ja_existia: true });
+      expect(await post(t, VENDEDOR, corrigido)).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 2, ja_existia: true, codigo_fdv: FDV });
       expect(t.publicar).toHaveBeenCalledTimes(2);
       // a mesma base com outros dados: outro corretor chegou antes
       await expect(post(t, ADMIN, pre(ID1, { revisao_base: 1, numero: '99' }))).rejects.toMatchObject({ status: 409, codigo: 'REVISAO_DESATUALIZADA', message: MENSAGENS_ERRO_PRE_CADASTRO.REVISAO_DESATUALIZADA });
@@ -156,11 +159,13 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
 
   it('RN-CORE-78 (ADR 0069 §4): o id novo do APK v1.0.28 com o documento do recusado vira o cliente vivo e herda o histórico como revisão seguinte', async () => {
     await emTransacao(pool, async (t) => {
-      await post(t, VENDEDOR, pre(ID1));
+      const { codigo_fdv: codigoY } = await post(t, VENDEDOR, pre(ID1));
       await recusar(t, ID1);
       t.publicar.mockClear();
       const r = await t.push(receberPreCadastros, VENDEDOR, [pre(ID4, { razao_social: 'Mercado Novo Ltda' })]);
       expect(r).toEqual([{ id: ID4, status: 'aceito' }]);
+      // ADR 0069 item 10: o Código FDV acompanha a linhagem (X herda o de Y)
+      expect((await t.q<{ codigo_fdv: string }>('select codigo_fdv from core.cliente where id = $1', [ID4]))[0]!.codigo_fdv).toBe(codigoY);
       expect((await t.q<{ apagado: boolean }>('select deleted_at is not null as apagado from core.cliente where id = $1', [ID1]))[0]!.apagado).toBe(true);
       expect((await t.q('select status_cadastro, revisao_cadastro from core.cliente where id = $1', [ID4]))[0]).toEqual({ status_cadastro: 'pendente', revisao_cadastro: 2 });
       expect((await tentativas(t, ID4)).map((x) => [x.revisao, x.resultado, x.cliente_id_original, x.campos_alterados])).toEqual([
@@ -251,7 +256,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
 
   it('RN-CORE-78 (ADR 0069 §5): 23505 de cliente_pkey em corrida no mesmo tenant devolve ja_existia', async () => {
     const r = await corrida({ id: ID1, documento: DOCS[ID1] }, pre(ID1));
-    expect(r).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 1, ja_existia: true });
+    expect(r).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 1, ja_existia: true, codigo_fdv: FDV });
   });
 
   it('RN-CORE-78 (ADR 0069 §5): 23505 de cliente_documento_uk em corrida dá 409 DOCUMENTO_JA_CADASTRADO', async () => {
@@ -269,6 +274,45 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     });
   });
 
+  it('RN-CORE-78 (ADR 0069 item 10): o Código FDV é gerado pelo banco e só de leitura: no corpo da rota ou do push dá 422 CODIGO_FDV_SOMENTE_LEITURA', async () => {
+    await emTransacao(pool, async (t) => {
+      await expect(post(t, ADMIN, pre(ID1, { codigo_fdv: '00001' }))).rejects.toMatchObject({ status: 422, codigo: 'CODIGO_FDV_SOMENTE_LEITURA', message: MENSAGENS_ERRO_PRE_CADASTRO.CODIGO_FDV_SOMENTE_LEITURA });
+      expect(await t.q('select 1 from core.cliente where id = $1', [ID1])).toHaveLength(0);
+      expect(await t.push(receberPreCadastros, VENDEDOR, [pre(ID1, { codigo_fdv: null })])).toMatchObject([{ id: ID1, status: 'rejeitado', codigo: 'CODIGO_FDV_SOMENTE_LEITURA' }]);
+      const a = await post(t, ADMIN, pre(ID1));
+      const b = await post(t, ADMIN, pre(ID2));
+      expect(Number(b.codigo_fdv)).toBe(Number(a.codigo_fdv) + 1);
+    });
+  });
+
+  it('RN-CORE-78 (ADR 0069 item 10): pull e Cliente 360 levam o Código FDV; motivo e erros da recusa só ao vendedor', async () => {
+    await emTransacao(pool, async (t) => {
+      const { codigo_fdv } = await post(t, VENDEDOR, pre(ID1));
+      await recusar(t, ID1);
+      const puxar = provedoresSyncCore.find((p) => p.entidade.nome === 'cliente')!.puxar!;
+      const linhas = (await puxar(t.ctx(VENDEDOR), { desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 500 })) as unknown as Array<Record<string, unknown>>;
+      expect(linhas.find((l) => l.id === ID1)).toMatchObject({ codigo_fdv, external_id: null, motivo_recusa: expect.any(String), erros_recusa: [{ campo: 'inscricao_estadual' }] });
+      const get = rotasDeClientes.find((r) => r.metodo === 'GET' && r.caminho === 'clientes/:id')!;
+      const ficha = async (u: typeof VENDEDOR | typeof ADMIN) =>
+        (await get.executar({ ...t.ctx(u, { params: { id: ID1 } }), params: { id: ID1 }, usuariosVisiveis: async () => 'tenant' } as never)) as { cliente: Record<string, unknown> };
+      expect((await ficha(VENDEDOR)).cliente).toMatchObject({ codigo_fdv, external_id: null, motivo_recusa: expect.any(String) });
+      expect((await ficha(ADMIN)).cliente).toMatchObject({ codigo_fdv, motivo_recusa: null, erros_recusa: null });
+    });
+  });
+
+  it('RN-CORE-77 (ADR 0069 item 10): a coordenada digitada no pré-cadastro e na correção grava coordenada_origem = manual; sem coordenada fica nula', async () => {
+    await emTransacao(pool, async (t) => {
+      await post(t, ADMIN, pre(ID1, { latitude: -3.1, longitude: -60.02 }));
+      await post(t, ADMIN, pre(ID2));
+      const origem = async (id: string) => (await t.q<{ coordenada_origem: string | null }>('select coordenada_origem from core.cliente where id = $1', [id]))[0]!.coordenada_origem;
+      expect(await origem(ID1)).toBe('manual');
+      expect(await origem(ID2)).toBeNull();
+      await recusar(t, ID2);
+      await post(t, ADMIN, pre(ID2, { revisao_base: 1, latitude: -3.2, longitude: -60.1 }));
+      expect(await origem(ID2)).toBe('manual');
+    });
+  });
+
   it('RN-INT-22: o Hub lê só os pendentes sem código, em ordem de chegada e paginados, com a revisão e o hash dos dados atuais', async () => {
     await emTransacao(pool, async (t) => {
       const lista = (entrada: unknown = {}): Promise<ClientesPreCadastroSemErpSaida> => consultaClientesPreCadastroSemErp.executar(consultaClientesPreCadastroSemErp.consulta.entrada.parse(entrada), { db: t.c } as never);
@@ -281,7 +325,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       const p1 = await lista({ limite: 1 });
       expect(p1.clientes).toHaveLength(1);
       expect(p1.proximo).toBe(p1.clientes[0]!.cliente_id);
-      expect(p1.clientes[0]).toMatchObject({ latitude: -3.1, longitude: -60.02, cidade: 'Manaus', recebido_em: expect.any(String), revisao: 1 });
+      expect(p1.clientes[0]).toMatchObject({ latitude: -3.1, longitude: -60.02, cidade: 'Manaus', recebido_em: expect.any(String), revisao: 1, codigo_fdv: FDV });
       expect(p1.clientes[0]!.hash).toBe(hashPreCadastro(await comFilial(t, ID2, pre(ID2, { razao_social: 'Cliente 2', latitude: -3.1, longitude: -60.02 }))));
       const p2 = await lista({ limite: 1, depois_de: p1.proximo });
       expect(p2.clientes.map((x) => x.cliente_id)).toEqual([ID1]);

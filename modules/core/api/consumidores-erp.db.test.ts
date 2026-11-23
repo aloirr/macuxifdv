@@ -205,6 +205,65 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
     });
   });
 
+  describe('cliente com dois códigos: pré-cadastro e carga do ERP (v1.0.29, ADR 0069 item 10)', () => {
+    const PRE = '0e510000-0000-4000-8000-000000000001';
+    const preCadastro = (t: Teste) =>
+      t.q(
+        `insert into core.cliente (id, tenant_id, razao_social, documento, origem_cadastro, status_cadastro, revisao_cadastro, latitude, longitude, coordenada_origem)
+         values ($1, plataforma.tenant_atual(), 'Digitado pelo vendedor', $2, 'campo', 'pendente', 1, 2.82, -60.67, 'manual')`,
+        [PRE, CNPJ1],
+      );
+    const doPre = (t: Teste) =>
+      t.q<{ external_id: string | null; razao_social: string; origem_cadastro: string; revisao_cadastro: number; codigo_fdv: string | null; latitude: string; coordenada_origem: string; status_cadastro: string }>(
+        'select external_id, razao_social, origem_cadastro, revisao_cadastro, codigo_fdv, latitude::text, coordenada_origem, status_cadastro from core.cliente where id = $1',
+        [PRE],
+      );
+
+    it('RN-INT-04: carga do ERP com o CPF/CNPJ de um pré-cadastro ainda sem código espera o vínculo (referência ausente) e não duplica o cliente', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor());
+        await preCadastro(t);
+        await expect(t.entregar('integracao.cliente.atualizado@1', cliente())).rejects.toBeInstanceOf(ReferenciaAusenteErp);
+        expect(await t.q("select 1 from core.cliente where external_id = 'C-T66'")).toHaveLength(0);
+        expect(t.publicar).not.toHaveBeenCalled();
+      });
+    });
+
+    it('RN-CORE-78: depois do vínculo, a carga do ERP sobrescreve os dados digitados e mantém Código FDV, origem, revisão e a coordenada manual (RN-CORE-77)', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor());
+        await preCadastro(t);
+        const [antes] = await doPre(t);
+        expect(antes!.codigo_fdv).toMatch(/^\d{5,}$/);
+        await t.q("update core.cliente set external_id = 'C-T66', status_cadastro = 'aprovado', aprovado_em = '2026-11-04T12:00:00Z' where id = $1", [PRE]);
+        await t.entregar('integracao.cliente.atualizado@1', cliente());
+        expect(await t.q("select 1 from core.cliente where documento = $1 and deleted_at is null", [CNPJ1])).toHaveLength(1);
+        expect((await doPre(t))[0]).toEqual({
+          external_id: 'C-T66',
+          razao_social: 'Mercado do Teste',
+          origem_cadastro: 'campo',
+          revisao_cadastro: 1,
+          codigo_fdv: antes!.codigo_fdv,
+          latitude: '2.820000',
+          coordenada_origem: 'manual',
+          status_cadastro: 'aprovado',
+        });
+        // o ERP com coordenada a substitui
+        await t.entregar('integracao.cliente.atualizado@1', cliente('C-T66', { latitude: 2.9, longitude: -60.7, alterado_em: '2026-11-04T11:00:00Z' }));
+        expect((await doPre(t))[0]).toMatchObject({ coordenada_origem: 'erp', codigo_fdv: antes!.codigo_fdv });
+      });
+    });
+
+    it('RN-CORE-78: documento de outro cliente do ERP segue como antes: a carga entra sem documento', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor());
+        await t.entregar('integracao.cliente.atualizado@1', cliente());
+        await t.entregar('integracao.cliente.atualizado@1', cliente('C-T66-B'));
+        expect((await t.q<{ documento: string | null }>("select documento from core.cliente where external_id = 'C-T66-B'"))[0]?.documento).toBeNull();
+      });
+    });
+  });
+
   describe('T-0095: guarda de ordem e desligamento no BKO', () => {
     const ANTIGO = '2026-11-04T09:00:00Z';
     const NOVO = '2026-11-04T11:00:00Z';

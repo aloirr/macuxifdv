@@ -35,7 +35,7 @@ export const consultaClientesPreCadastroSemErp = implementarConsulta(CONSULTA_CL
   const param = (v: unknown) => `$${valores.push(v)}`;
   const depois = entrada.depois_de ? `and (c.created_at, c.id) > (select created_at, id from core.cliente where id = ${param(entrada.depois_de)})` : '';
   const r = await ctx.db.query<Omit<ClientePreCadastroParaErp, 'recebido_em' | 'hash'> & { recebido_em: Date | string; filial_id: string | null }>(
-    `select c.id as cliente_id, c.created_at as recebido_em, coalesce(c.revisao_cadastro, 1) as revisao, c.filial_id, c.razao_social, c.nome_fantasia, c.documento, c.inscricao_estadual, c.telefone, c.email,
+    `select c.id as cliente_id, c.created_at as recebido_em, coalesce(c.revisao_cadastro, 1) as revisao, c.codigo_fdv, c.filial_id, c.razao_social, c.nome_fantasia, c.documento, c.inscricao_estadual, c.telefone, c.email,
             c.logradouro, c.numero, null::text as complemento, c.bairro, c.cidade, c.uf, c.cep,
             c.latitude::float8 as latitude, c.longitude::float8 as longitude, f.external_id as filial_external_id
        from core.cliente c left join core.filial f on f.id = c.filial_id and f.deleted_at is null
@@ -43,7 +43,7 @@ export const consultaClientesPreCadastroSemErp = implementarConsulta(CONSULTA_CL
       order by c.created_at, c.id limit ${param(entrada.limite + 1)}`,
     valores,
   );
-  // ADR 0069 §C: o hash é o dos dados atuais, que são os da revisão atual; sai só para o Hub, nunca a log.
-  const pagina = r.rows.slice(0, entrada.limite).map(({ filial_id, recebido_em, ...l }) => ({ ...l, recebido_em: new Date(recebido_em).toISOString(), hash: hashPreCadastro({ ...l, filial_id }) }));
+  // ADR 0069 §C: o hash é o dos dados atuais, que são os da revisão atual; sai só para o Hub, nunca a log. O Código FDV fica fora do hash.
+  const pagina = r.rows.slice(0, entrada.limite).map(({ filial_id, recebido_em, codigo_fdv, ...l }) => ({ ...l, codigo_fdv, recebido_em: new Date(recebido_em).toISOString(), hash: hashPreCadastro({ ...l, filial_id }) }));
   return { clientes: pagina, proximo: r.rows.length > entrada.limite ? pagina[pagina.length - 1]!.cliente_id : null };
 });

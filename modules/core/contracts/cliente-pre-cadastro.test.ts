@@ -3,6 +3,7 @@ import {
   CAMPOS_PRE_CADASTRO_CONFIGURAVEIS,
   CAMPOS_PRE_CADASTRO_SEMPRE,
   CODIGOS_ERRO_PRE_CADASTRO,
+  CodigoFdvClienteSchema,
   CONSULTA_CLIENTES_PRE_CADASTRO_SEM_ERP,
   ClientePreCadastradoSchema,
   ClientePreCadastroParaErpSchema,
@@ -29,6 +30,7 @@ import {
   ROTULOS_CAMPOS_PRE_CADASTRO,
   obrigatoriosPreCadastroDasLinhas,
 } from './cliente-pre-cadastro';
+import { ClienteSyncSchema } from './sync';
 
 const id = '11111111-1111-4111-8111-111111111111';
 
@@ -129,5 +131,41 @@ describe('pré-cadastro: revisão e histórico (v1.0.29, ADR 0069)', () => {
     expect(HTTP_ERRO_PRE_CADASTRO.REVISAO_DESATUALIZADA).toBe(409);
     expect(HTTP_ERRO_PRE_CADASTRO.CADASTRO_NAO_RECUSADO).toBe(422);
     expect(MENSAGENS_ERRO_PRE_CADASTRO.REVISAO_DESATUALIZADA).toMatch(/Recarregue/);
+  });
+});
+
+describe('Código FDV do cliente (v1.0.29, ADR 0069 item 10)', () => {
+  const H = 'a'.repeat(64);
+  const base = { id, updated_at: '2026-11-23T12:00:00.000Z', deleted_at: null, external_id: null, documento: null, razao_social: 'X', nome_fantasia: null, segmento: null, telefone: null, email: null, logradouro: null, numero: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null, ativo: true };
+  it('RN-CORE-78: o Código FDV do cliente é só dígitos, no mínimo 5 (00001...; 100000 depois de 99999)', () => {
+    expect(CodigoFdvClienteSchema.safeParse('00001').success).toBe(true);
+    expect(CodigoFdvClienteSchema.safeParse('100000').success).toBe(true);
+    for (const v of ['0001', '0000A', ' 00001', '']) expect(CodigoFdvClienteSchema.safeParse(v).success).toBe(false);
+  });
+  it('RN-CORE-78: pull e Cliente 360 levam o codigo_fdv (aditivo: ausente = emissor antigo; nulo = cliente do ERP)', () => {
+    expect(ClienteSyncSchema.safeParse(base).success).toBe(true);
+    expect(ClienteSyncSchema.safeParse({ ...base, codigo_fdv: null }).success).toBe(true);
+    expect(ClienteSyncSchema.parse({ ...base, codigo_fdv: '00042' }).codigo_fdv).toBe('00042');
+    expect(ClienteSyncSchema.safeParse({ ...base, codigo_fdv: '42' }).success).toBe(false);
+  });
+  it('RN-CORE-78: lista de recusados, dados atuais (com o código do ERP), resposta da gravação e consulta do Hub levam o codigo_fdv', () => {
+    const item = { cliente_id: id, revisao: 1, documento_mascarado: null, razao_social: 'X', vendedor: null, recusado_em: '2026-11-23T13:00:00.000Z', motivo: null, erros: [], situacao: 'recusado' };
+    expect(RecusadosSaidaSchema.parse({ itens: [{ ...item, codigo_fdv: '00007' }], proximo_cursor: null }).itens[0]!.codigo_fdv).toBe('00007');
+    expect(RecusadosSaidaSchema.safeParse({ itens: [item], proximo_cursor: null }).success).toBe(true);
+    const atual = { razao_social: 'X', documento: '11222333000181', id, revisao: 1, status_cadastro: 'recusado', motivo: null, erros: [] };
+    expect(PreCadastroAtualSchema.parse({ ...atual, codigo_fdv: '00007', external_id: null })).toMatchObject({ codigo_fdv: '00007', external_id: null });
+    expect(PreCadastroAtualSchema.safeParse({ ...atual, codigo_fdv: 'x' }).success).toBe(false);
+    expect(PreCadastroClienteSaidaSchema.safeParse({ id, status_cadastro: 'pendente', revisao: 1, ja_existia: false, codigo_fdv: '00007' }).success).toBe(true);
+    const c = { cliente_id: id, recebido_em: '2026-11-23T12:00:00.000Z', razao_social: 'X', nome_fantasia: null, documento: null, inscricao_estadual: null, telefone: null, email: null, logradouro: null, numero: null, complemento: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null, filial_external_id: null, revisao: 1, hash: H };
+    expect(ClientePreCadastroParaErpSchema.safeParse({ ...c, codigo_fdv: '00007' }).success).toBe(true);
+    expect(ClientePreCadastroParaErpSchema.safeParse({ ...c, codigo_fdv: '7' }).success).toBe(false);
+  });
+  it('RN-CORE-78: codigo_fdv no corpo da gravação passa pelo schema só para a API recusar com 422 CODIGO_FDV_SOMENTE_LEITURA', () => {
+    const corpo = { id, origem: 'bko', razao_social: 'X', documento: '11222333000181', codigo_fdv: '00001' };
+    expect(PreCadastroClienteSchema.safeParse(corpo).success).toBe(true);
+    expect(CorrecaoPreCadastroSchema.safeParse({ razao_social: 'X', documento: '11222333000181', revisao_base: 1, codigo_fdv: '00001' }).success).toBe(true);
+    expect(CODIGOS_ERRO_PRE_CADASTRO).toContain('CODIGO_FDV_SOMENTE_LEITURA');
+    expect(HTTP_ERRO_PRE_CADASTRO.CODIGO_FDV_SOMENTE_LEITURA).toBe(422);
+    expect(MENSAGENS_ERRO_PRE_CADASTRO.CODIGO_FDV_SOMENTE_LEITURA).toMatch(/Tire o campo/);
   });
 });
