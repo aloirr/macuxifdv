@@ -569,7 +569,7 @@ export const EXEMPLOS_CLIENTES_PENDENTES: readonly Exemplo<z.output<typeof Clien
 export const EXEMPLOS_RETORNO_CLIENTE_ACEITO: readonly Exemplo<z.output<typeof RetornoClienteAceito>>[] = [
   ex('vinculado', 'Retorno aplicado', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: false, revisao: 1 }),
   ex('repetido', 'Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: true, revisao: 1 }),
-  ex('obsoleto', 'Recusa de uma revisão anterior: aceita sem gravar (vale a revisão nova)', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'pendente', repetido: false, revisao: 3, obsoleto: true }),
+  ex('obsoleto', 'Recusa obsoleta', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'pendente', repetido: false, revisao: 3, obsoleto: true }),
 ];
 
 export const EXEMPLOS_RETORNO_ACEITO: readonly Exemplo<z.output<typeof RetornoAceito>>[] = [

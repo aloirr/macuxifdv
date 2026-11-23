@@ -132,4 +132,8 @@ describe('RN-INT-22: revisão do pré-cadastro (ADR 0069)', () => {
     expect(errosRetornoSeguros(Array.from({ length: 60 }, (_, i) => ({ campo: `c${i}`, codigo: 'X', mensagem: 'm' })))).toHaveLength(50);
     expect(errosRetornoSeguros(undefined)).toEqual([]);
   });
+  it('RN-INT-22: campo, código e mensagem do erro do ERP saem sem dado pessoal', () => {
+    const [e] = errosRetornoSeguros([{ campo: ' fulano@x.com.br ', codigo: '123.456.789-09', mensagem: 'Fone (92) 99123-4567 inválido' }]);
+    expect(e).toEqual({ campo: '[e-mail]', codigo: '[cpf]', mensagem: 'Fone [telefone] inválido' });
+  });
 });

@@ -114,7 +114,6 @@ export const TEXTO_ROTA: Record<string, PassoRota> = {
     passos: [
       'Use no caminho o `cliente_uuid` recebido em `GET /clientes/pendentes`; o corpo repete o mesmo valor.',
       'Criado: envie `status: vinculado` e o código do ERP em `external_id`. Recusado: `status: rejeitado_erp`, o `motivo` e, se tiver, os `erros` por campo.',
-      'Informe a `revisao` recebida. Recusa de uma revisão anterior volta `obsoleto: true` e não muda nada.',
       'O código do ERP vale sempre: envie `vinculado` mesmo depois de ter recusado o cadastro ou para uma revisão anterior.',
       'Depois do vínculo o mesmo cliente chega nos lotes de `cliente` com este mesmo `external_id`.',
     ],
@@ -353,7 +352,7 @@ export const DESCRICAO_CAMPO: Record<string, string> = {
   'ClienteParaErp.cliente_uuid': 'Identificador do cliente no Macuxi. Chave de idempotência da criação no ERP.',
   'ClienteParaErp.recebido_em': 'Instante em que o Macuxi recebeu o pré-cadastro (ordem de entrega).',
   'ClienteParaErp.codigo_fdv': 'Código FDV do cliente no Macuxi (5 dígitos ou mais). Nulo nos clientes anteriores à v1.0.30.',
-  'ClienteParaErp.revisao': 'Revisão dos dados. Sobe quando o cadastro recusado é corrigido e reenviado; devolva-a no retorno.',
+  'ClienteParaErp.revisao': 'Revisão dos dados (1 na primeira).',
   'ClienteParaErp.hash': 'sha256 dos dados desta revisão. Nulo nos clientes anteriores à v1.0.30.',
   'ClienteParaErp.tentativa': 'Quantas vezes esta revisão saiu. Maior que 1 = reenvio por falta de retorno no prazo.',
   'RetornoCliente.cliente_uuid': 'O `cliente_uuid` recebido em `GET /clientes/pendentes` (o mesmo do caminho).',

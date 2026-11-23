@@ -8,8 +8,8 @@
  *    nunca vão a log.
  */
 import { ErroConector, type ContextoConector } from '@macuxi/platform-sdk';
-import { type ClientesPendentes, ParamsCliente, type QueryClientesPendentes, type RetornoCliente, type RetornoClienteAceito } from '../contracts';
-import { aplicarRetornoCliente, selecionarClientesPendentes, type ClienteNaFila, type ErroRetornoCliente } from '../domain';
+import { type ClientesPendentes, type ErroCampoRetornoCliente, ParamsCliente, type QueryClientesPendentes, type RetornoCliente, type RetornoClienteAceito } from '../contracts';
+import { aplicarRetornoCliente, selecionarClientesPendentes, type ClienteNaFila } from '../domain';
 import type { ConectorHub } from './autenticacao';
 import { iso } from './bko-comum';
 import { EVENTO_CLIENTE_RETORNO_ERP } from './eventos';
@@ -29,7 +29,7 @@ export interface LinhaClienteFila {
   deleted_at: Date | string | null;
   revisao: number;
   hash: string | null;
-  erros: ErroRetornoCliente[] | null;
+  erros: ErroCampoRetornoCliente[] | null;
 }
 
 export const clienteNaFila = (l: LinhaClienteFila): ClienteNaFila => ({

@@ -6,21 +6,11 @@
  *    aceita sem reaplicar; recusa de revisão antiga é obsoleta; o código do ERP vale sempre, de revisão antiga ou sobre a recusa.
  */
 import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
+import { CodigoFdv, LIMITES_ERRO_RETORNO_CLIENTE, type ErroCampoRetornoCliente } from '../contracts';
 import { aplicarTimeoutEnvio } from './estados';
 import { PARAMETROS_PADRAO } from './parametros';
 
 export type EstadoClienteNaFila = 'pendente' | 'enviado' | 'vinculado' | 'rejeitado';
-
-/** Erro por campo devolvido pelo ERP (RN-INT-22): o formato do `ErroCampoRetornoCliente` do contrato. */
-export interface ErroRetornoCliente {
-  campo: string;
-  codigo: string;
-  mensagem: string;
-}
-
-/** Limites do erro por campo gravado (ADR 0069 §8): até 50 itens e mensagem de até 300 caracteres. */
-export const ERROS_RETORNO_CLIENTE_MAX = 50;
-export const MENSAGEM_ERRO_RETORNO_MAX = 300;
 
 export interface ClienteNaFila<P = Record<string, unknown>> {
   cliente_uuid: string;
@@ -37,7 +27,7 @@ export interface ClienteNaFila<P = Record<string, unknown>> {
   /** sha256 dos dados da revisão (nulo nas linhas anteriores à v1.0.30). */
   hash: string | null;
   /** Erros por campo da última rejeição (só com estado `rejeitado`). */
-  erros: ErroRetornoCliente[] | null;
+  erros: ErroCampoRetornoCliente[] | null;
 }
 
 /** Campos que o Hub acrescenta a cada cliente entregue (ADR 0069 §8 e §10). */
@@ -48,9 +38,10 @@ export interface EntregaCliente {
   tentativa: number;
 }
 
-/** Código FDV do cliente (ADR 0069 §10): só dígitos, 5 ou mais (zeros à esquerda); ausente (payload anterior à v1.0.30) ou fora do formato = null. */
+/** `CodigoFdv` do contrato; ausente (payload anterior à v1.0.30) ou fora do formato = null. */
 export function codigoFdvOuNulo(v: unknown): string | null {
-  return typeof v === 'string' && /^[0-9]{5,}$/.test(v) ? v : null;
+  const r = CodigoFdv.safeParse(v);
+  return r.success ? r.data : null;
 }
 
 export interface SelecaoClientes<P> {
@@ -89,22 +80,24 @@ export function decidirEntradaClienteNaFila(atual: { revisao: number; estado: Es
   return 'nada';
 }
 
-/** Erros do ERP prontos para gravar (ADR 0069 §8): `trim`, mensagem sem dado pessoal e cortada em 300, até 50 itens. */
-export function errosRetornoSeguros(erros: readonly ErroRetornoCliente[] | null | undefined): ErroRetornoCliente[] {
-  return (erros ?? []).slice(0, ERROS_RETORNO_CLIENTE_MAX).map((e) => ({
-    campo: e.campo.trim(),
-    codigo: e.codigo.trim(),
-    mensagem: mascararDadoPessoal(e.mensagem.trim()).slice(0, MENSAGEM_ERRO_RETORNO_MAX),
+/** Erros do ERP prontos para gravar (ADR 0069 §8): `trim`, sem dado pessoal e nos limites do contrato. */
+export function errosRetornoSeguros(erros: readonly ErroCampoRetornoCliente[] | null | undefined): ErroCampoRetornoCliente[] {
+  const L = LIMITES_ERRO_RETORNO_CLIENTE;
+  const seguro = (t: string, max: number) => mascararDadoPessoal(t.trim()).slice(0, max);
+  return (erros ?? []).slice(0, L.itens).map((e) => ({
+    campo: seguro(e.campo, L.campo),
+    codigo: seguro(e.codigo, L.codigo),
+    mensagem: seguro(e.mensagem, L.mensagem),
   }));
 }
 
-const chaveErro = (e: ErroRetornoCliente) => JSON.stringify([e.campo, e.codigo, e.mensagem]);
-const chavesOrdenadas = (erros: readonly ErroRetornoCliente[] | null) => (erros ?? []).map(chaveErro).sort();
+const chaveErro = (e: ErroCampoRetornoCliente) => JSON.stringify([e.campo, e.codigo, e.mensagem]);
+const chavesOrdenadas = (erros: readonly ErroCampoRetornoCliente[] | null) => (erros ?? []).map(chaveErro).sort();
 
 /** RN-INT-22: duas recusas são a mesma quando o motivo (sem espaços nas pontas) e os erros (em qualquer ordem) são iguais. Nulo = sem erros. */
 export function iguaisErrosRetorno(
-  a: { motivo: string | null; erros: readonly ErroRetornoCliente[] | null },
-  b: { motivo: string | null; erros: readonly ErroRetornoCliente[] | null },
+  a: { motivo: string | null; erros: readonly ErroCampoRetornoCliente[] | null },
+  b: { motivo: string | null; erros: readonly ErroCampoRetornoCliente[] | null },
 ): boolean {
   if ((a.motivo ?? '').trim() !== (b.motivo ?? '').trim()) return false;
   const ea = chavesOrdenadas(a.erros);
@@ -119,7 +112,7 @@ export interface RetornoClienteEntrada {
   motivo?: string | null;
   /** Revisão a que o retorno se refere; ausente = a revisão atual da linha (Conector antigo). */
   revisao?: number | null;
-  erros?: readonly ErroRetornoCliente[] | null;
+  erros?: readonly ErroCampoRetornoCliente[] | null;
   ocorrido_em: string;
 }
 
@@ -132,7 +125,7 @@ export interface EventoRetornoCliente {
   motivo: string | null;
   ocorrido_em: string;
   revisao: number;
-  erros?: ErroRetornoCliente[];
+  erros?: ErroCampoRetornoCliente[];
 }
 
 export type ResultadoRetornoCliente =
@@ -144,7 +137,7 @@ export type ResultadoRetornoCliente =
       obsoleto: boolean;
       /** Grava a `atualizacao` na linha. */
       gravar: boolean;
-      atualizacao: { estado: 'vinculado' | 'rejeitado'; external_id: string | null; motivo: string | null; erros: ErroRetornoCliente[] | null };
+      atualizacao: { estado: 'vinculado' | 'rejeitado'; external_id: string | null; motivo: string | null; erros: ErroCampoRetornoCliente[] | null };
       /** Só o retorno novo publica `integracao.cliente.retorno_erp@1`. */
       publicar: boolean;
       evento: EventoRetornoCliente;

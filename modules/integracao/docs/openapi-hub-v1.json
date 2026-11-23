@@ -2323,7 +2323,7 @@
                     }
                   },
                   "obsoleto": {
-                    "summary": "Recusa de uma revisão anterior: aceita sem gravar (vale a revisão nova)",
+                    "summary": "Recusa obsoleta",
                     "value": {
                       "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
                       "estado": "pendente",

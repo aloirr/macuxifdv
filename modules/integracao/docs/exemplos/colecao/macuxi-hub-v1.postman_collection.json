@@ -2554,7 +2554,7 @@
                   "body": "{\n  \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n  \"estado\": \"vinculado\",\n  \"repetido\": true,\n  \"revisao\": 1\n}"
                 },
                 {
-                  "name": "200 — obsoleto: Recusa de uma revisão anterior: aceita sem gravar (vale a revisão nova)",
+                  "name": "200 — obsoleto: Recusa obsoleta",
                   "status": "OK",
                   "code": 200,
                   "_postman_previewlanguage": "json",
