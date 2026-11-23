@@ -17,7 +17,7 @@ import {
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { dataLocal, motivoRecusaVisivel, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, palavrasDaBusca, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, sqlBuscaNormalizada } from '../domain';
+import { dataLocal, perfilVeRecusa, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, palavrasDaBusca, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, sqlBuscaNormalizada } from '../domain';
 import { auditar } from './auditoria';
 import { lerHierarquiaDoTenant } from './hierarquia-leitura';
 import { lerPromotorVePedidos } from './promotor-pedidos';
@@ -85,8 +85,8 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
     if (!linhaCliente) throw naoEncontrado();
     // RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor (a mesma regra do pull).
     const recusa = linhaCliente as { motivo_recusa?: string | null; erros_recusa?: unknown };
-    const veRecusa = motivoRecusaVisivel(ctx.usuario.perfil, '') !== null;
-    const cliente = { ...linhaCliente, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, recusa.motivo_recusa), erros_recusa: veRecusa ? (recusa.erros_recusa ?? null) : null };
+    const veRecusa = perfilVeRecusa(ctx.usuario.perfil);
+    const cliente = { ...linhaCliente, motivo_recusa: veRecusa ? (recusa.motivo_recusa ?? null) : null, erros_recusa: veRecusa ? (recusa.erros_recusa ?? null) : null };
     const hoje = hojeDoTenant(ctx);
     const contatos = await linhas(t.cliente_contato, 'cliente_id = $1', 'principal desc, nome, id');
     const [financeiro = null] = await linhas(t.cliente_financeiro, 'cliente_id = $1', 'id');

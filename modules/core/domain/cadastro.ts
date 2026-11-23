@@ -61,8 +61,12 @@ const UFS = new Set(['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
 export function camposExigidos(parametro: unknown): CampoCadastroCliente[] {
   const conhecidos = new Set<string>(CAMPOS_CADASTRO_CLIENTE);
   const lista = Array.isArray(parametro) ? parametro.filter((c): c is CampoCadastroCliente => typeof c === 'string' && conhecidos.has(c)) : [];
-  const base = lista.length > 0 ? lista : CAMPOS_CADASTRO_PADRAO;
-  const conjunto = new Set<string>([...base, ...CAMPOS_CADASTRO_FIXOS]);
+  return comFixos(lista.length > 0 ? lista : CAMPOS_CADASTRO_PADRAO);
+}
+
+/** RN-CORE-16: a lista com razão social e CPF/CNPJ sempre (o tenant não os tira), sem repetir, na ordem canônica. */
+export function comFixos(campos: readonly CampoCadastroCliente[]): CampoCadastroCliente[] {
+  const conjunto = new Set<CampoCadastroCliente>([...CAMPOS_CADASTRO_FIXOS, ...campos]);
   return CAMPOS_CADASTRO_CLIENTE.filter((c) => conjunto.has(c));
 }
 

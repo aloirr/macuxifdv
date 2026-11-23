@@ -26,9 +26,8 @@ import { avaliarCheckin, checkinPermitido, avaliarCheckoutTolerante, dataLocal, 
 
 import { verificadorPorConsulta, type VerificarEtapas } from './etapas-checkout';
 import { gravarEtapasDoCheckout } from './etapas-pendencia';
+import { aceito, rejeitado, idDivergente, MENSAGEM_FORA_DA_CARTEIRA } from './push-resposta';
 
-const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
-const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 const iso = (d: Date | string): string => new Date(d).toISOString();
 
 /** Parâmetro `core.checkin.raio_m` (plataforma.parametro); inválido ou ausente = 200 m. */
@@ -51,7 +50,7 @@ async function porItem(
       continue;
     }
     if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) {
-      saida.push(rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id do item da fila não confere com o id do payload.'));
+      saida.push(idDivergente(item.id));
       continue;
     }
     // RN-CORE-13 (T-0187): supervisor e gerente só registram visita com a ação `visita.registrar_gestao`
@@ -100,7 +99,7 @@ export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPus
     const ja = (await db.query<{ usuario_id: string; cliente_id: string }>('select usuario_id, cliente_id from core.visita where id = $1', [p.id])).rows[0];
     if (ja) return ja.usuario_id === eu && ja.cliente_id === p.cliente_id ? aceito(item.id) : rejeitado(item.id, 'ID_EM_USO', 'Este identificador de visita já pertence a outro registro.');
     // 2) escopo (RN-CORE-04): promotor e vendedor só a própria carteira
-    if (visiveis !== 'tenant' && !visiveis.has(p.cliente_id)) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.');
+    if (visiveis !== 'tenant' && !visiveis.has(p.cliente_id)) return rejeitado(item.id, 'FORA_DA_CARTEIRA', MENSAGEM_FORA_DA_CARTEIRA);
     const cli = (await db.query<{ lat: number | null; lng: number | null }>('select latitude::float8 as lat, longitude::float8 as lng from core.cliente where id = $1 and deleted_at is null', [p.cliente_id])).rows[0];
     if (!cli) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Cliente não encontrado. Atualize os dados e tente de novo.');
     // 3) RN-CORE-52: fora da rota do dia, só com a ação no perfil (o dia é o do check-in, no fuso do tenant)

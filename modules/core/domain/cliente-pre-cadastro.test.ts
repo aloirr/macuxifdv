@@ -2,34 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { MARCADOR_DADO_PESSOAL } from '@macuxi/comum';
 import {
   camposAlteradosPreCadastro,
-  camposFaltantesPreCadastro,
   canonicalPreCadastro,
   decidirConflitoUnicidade,
   decidirDocumentoDuplicado,
   decidirReenvioPreCadastro,
   errosRecusaSeguros,
   motivoRecusaCortado,
-  motivoRecusaVisivel,
+  perfilVeRecusa,
   situacaoDoRecusado,
 } from './cliente-pre-cadastro';
-
-const completo = { razao_social: 'Mercado X', documento: '12345678000195', nome_fantasia: 'X', inscricao_estadual: '1', telefone: '9', email: 'a@b.c', logradouro: 'Rua', numero: '1', bairro: 'Centro', cidade: 'Manaus', uf: 'AM', cep: '69000000' };
-
-describe('camposFaltantesPreCadastro', () => {
-  it('RN-CORE-79: razão social e CPF/CNPJ são sempre obrigatórios, mesmo sem parâmetro', () => {
-    expect(camposFaltantesPreCadastro({ razao_social: ' ', documento: null }, [])).toEqual(['razao_social', 'documento']);
-    expect(camposFaltantesPreCadastro({ razao_social: 'X', documento: '12345678901' }, [])).toEqual([]);
-  });
-  it('RN-CORE-79: só os configurados pela empresa entram, na ordem fixa', () => {
-    const d = { razao_social: 'X', documento: '12345678901' };
-    expect(camposFaltantesPreCadastro(d, ['email', 'telefone'])).toEqual(['telefone', 'email']);
-    expect(camposFaltantesPreCadastro(completo, ['nome_fantasia', 'inscricao_estadual', 'telefone', 'email', 'endereco'])).toEqual([]);
-  });
-  it('RN-CORE-79: endereço obrigatório falta se qualquer campo do grupo estiver vazio', () => {
-    expect(camposFaltantesPreCadastro({ ...completo, cep: '' }, ['endereco'])).toEqual(['endereco']);
-    expect(camposFaltantesPreCadastro({ ...completo, cep: '' }, [])).toEqual([]);
-  });
-});
 
 describe('motivoRecusaCortado', () => {
   it('RN-CORE-78: o motivo do ERP é guardado até 500 caracteres e vazio vira nulo', () => {
@@ -57,11 +38,10 @@ describe('decidirDocumentoDuplicado', () => {
   });
 });
 
-describe('motivoRecusaVisivel', () => {
-  it('RN-CORE-78: o motivo da recusa só vai ao vendedor; os demais perfis recebem nulo', () => {
-    expect(motivoRecusaVisivel('vendedor', 'CNPJ inativo')).toBe('CNPJ inativo');
-    for (const p of ['promotor', 'supervisor', 'gerente', 'analista', 'admin']) expect(motivoRecusaVisivel(p, 'CNPJ inativo')).toBeNull();
-    expect(motivoRecusaVisivel('vendedor', undefined)).toBeNull();
+describe('perfilVeRecusa', () => {
+  it('RN-CORE-78: só o vendedor vê o motivo e os erros por campo da recusa do ERP', () => {
+    expect(perfilVeRecusa('vendedor')).toBe(true);
+    for (const p of ['promotor', 'supervisor', 'gerente', 'analista', 'admin']) expect(perfilVeRecusa(p)).toBe(false);
   });
 });
 
@@ -92,6 +72,17 @@ describe('canonicalPreCadastro (hash v1)', () => {
       }),
     ) as Record<string, unknown>;
     expect(c).toMatchObject({ razao_social: 'Mercado Ação', documento: '12345678000195', cep: '69000000', telefone: '92999990000', uf: 'AM', email: 'loja@exemplo.com', inscricao_estadual: 'ISENTO', nome_fantasia: null, bairro: null, latitude: -3.123457, longitude: -60, filial_id: FILIAL.toLowerCase() });
+  });
+  it('RN-CORE-78 (ADR 0069 §2): a coordenada arredonda em 6 casas como o numeric(9, 6) do Postgres, o meio para longe do zero', () => {
+    const coord = (v: unknown) => (JSON.parse(canonicalPreCadastro({ latitude: v as number })) as { latitude: number | null }).latitude;
+    expect(coord(-3.1234565)).toBe(-3.123457);
+    expect(coord(3.1234565)).toBe(3.123457);
+    expect(coord('-60.0000005')).toBe(-60.000001);
+    expect(coord(-0.0000004)).toBe(0);
+    expect(coord(-3.1234564999)).toBe(-3.123456);
+    expect(coord(-3.12)).toBe(-3.12);
+    expect(coord(1e-7)).toBe(0);
+    expect(coord('abc')).toBeNull();
   });
   it('RN-CORE-78: fica fora do hash o que não é dado do cliente (id, origem, revisao_base)', () => {
     const d = { razao_social: 'X', documento: '12345678901' };

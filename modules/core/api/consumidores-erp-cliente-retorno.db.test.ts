@@ -174,12 +174,16 @@ describe.skipIf(semBanco())('Core × Postgres: retorno do ERP do cliente novo (R
       await comRevisoes(t.q, C1, 'pendente', 2);
       await t.entregar(retorno(C1, 'rejeitado_erp', null, 'antiga', { revisao: 1, erros: [] }));
       expect((await linha(t.q, C1)).status_cadastro).toBe('pendente');
-      const erros = [{ campo: 'cep', codigo: 'INVALIDO', mensagem: `CEP não existe ${'y'.repeat(400)}` }];
+      // o contrato do Hub limita a mensagem a 300 (ele corta antes de publicar): aqui vale o limite e a máscara do dado pessoal; o corte
+      // acima de 300 é a defesa de `errosRecusaSeguros`, coberta no teste do domain (evento fora do contrato não chega ao consumidor)
+      const mensagem = `CEP não existe, contato loja@exemplo.com ${'y'.repeat(300)}`.slice(0, 300);
+      const erros = [{ campo: 'cep', codigo: 'INVALIDO', mensagem }];
       await t.entregar(retorno(C1, 'rejeitado_erp', null, 'Dados inválidos', { revisao: 2, erros }), 'ev-2');
       await t.entregar(retorno(C1, 'rejeitado_erp', null, 'Dados inválidos', { revisao: 2, erros }), 'ev-3');
       const cli = (await t.q<{ status_cadastro: string; motivo_recusa: string; erros_recusa: Array<{ mensagem: string }> }>(`select status_cadastro, motivo_recusa, erros_recusa from core.cliente where id = '${C1}'`))[0]!;
       expect(cli).toMatchObject({ status_cadastro: 'recusado', motivo_recusa: 'Dados inválidos' });
       expect(cli.erros_recusa[0]!.mensagem.length).toBeLessThanOrEqual(300);
+      expect(cli.erros_recusa[0]!.mensagem).not.toContain('loja@exemplo.com');
       const [t1, t2] = await tentativas(t.q, C1);
       expect(t1).toMatchObject({ revisao: 1, resultado: 'recusado', motivo: 'recusa antiga' });
       expect(t2).toMatchObject({ revisao: 2, resultado: 'recusado', motivo: 'Dados inválidos', respondido_em: expect.any(String) });

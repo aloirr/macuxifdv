@@ -11,9 +11,8 @@ import { ErroHttpModulo, type ContextoBase, type ItemPush, type Perfil, type Res
 import type { ClienteFotoPush } from '../contracts';
 import { ERROS_FOTO_PDV } from '../contracts';
 import { idDoPayloadConfere, perfisDeLeitura, podeEnviarFoto } from '../domain';
+import { aceito, rejeitado, idDivergente, MENSAGEM_FORA_DA_CARTEIRA } from './push-resposta';
 
-const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
-const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 
 interface TipoLinha {
   id: string;
@@ -33,7 +32,7 @@ export async function receberFotosPdv(ctx: ContextoBase, itens: readonly ItemPus
       continue;
     }
     if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) {
-      saida.push(rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id do item da fila não confere com o id do payload.'));
+      saida.push(idDivergente(item.id));
       continue;
     }
     const p = item.payload as ClienteFotoPush;
@@ -44,7 +43,7 @@ export async function receberFotosPdv(ctx: ContextoBase, itens: readonly ItemPus
           await db.query('select pg_advisory_xact_lock(hashtext($1))', [`cliente_foto:${p.id}`]);
           const ja = (await db.query<{ cliente_id: string; foto_tipo_id: string; enviado_por: string }>('select cliente_id, foto_tipo_id, enviado_por from core.cliente_foto where id = $1', [p.id])).rows[0];
           if (ja) return ja.enviado_por === eu && ja.cliente_id === p.cliente_id && ja.foto_tipo_id === p.foto_tipo_id ? aceito(item.id) : rejeitado(item.id, 'ID_EM_USO', 'Este identificador de foto já pertence a outro registro.');
-          if (visiveis !== 'tenant' && !visiveis.has(p.cliente_id)) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.');
+          if (visiveis !== 'tenant' && !visiveis.has(p.cliente_id)) return rejeitado(item.id, 'FORA_DA_CARTEIRA', MENSAGEM_FORA_DA_CARTEIRA);
           const cli = (await db.query('select 1 from core.cliente where id = $1 and deleted_at is null', [p.cliente_id])).rows[0];
           if (!cli) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Cliente não encontrado. Atualize os dados e tente de novo.');
           const tipo = (await db.query<TipoLinha>('select id, sensivel, fachada, ativo from core.foto_tipo where id = $1 and deleted_at is null', [p.foto_tipo_id])).rows[0];

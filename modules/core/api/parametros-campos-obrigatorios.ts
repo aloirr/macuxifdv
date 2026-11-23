@@ -9,27 +9,18 @@
  */
 import type { RotaModulo } from '@macuxi/platform-sdk';
 import {
-  CAMPOS_CADASTRO_CLIENTE,
-  CAMPOS_CADASTRO_FIXOS,
   PARAMETRO_CAMPOS_OBRIGATORIOS,
   PARAMETRO_PRE_CADASTRO_OBRIGATORIOS,
   ParametroCamposObrigatoriosClienteSchema,
-  type CampoCadastroCliente,
   type ParametroCamposObrigatoriosCliente,
 } from '../contracts';
-import { camposExigidos, projecaoLegadaObrigatorios } from '../domain';
+import { camposExigidos, comFixos, projecaoLegadaObrigatorios } from '../domain';
 import { auditar } from './auditoria';
 import { gravarParametroCore, lerParametroCore } from './parametro-tenant';
 
 export const ACAO_PARAMETRO_CAMPOS_OBRIGATORIOS = 'parametro.campos_obrigatorios';
 export const ACAO_PARAMETRO_CAMPOS_OBRIGATORIOS_EDITAR = 'parametro.campos_obrigatorios_editar';
 const CAMINHO = 'parametros/campos-obrigatorios';
-
-/** RN-CORE-16: a lista gravada leva sempre os fixos, na ordem canônica (nunca vazia: vazia voltaria ao padrão). */
-function listaParaGravar(pedidos: readonly CampoCadastroCliente[]): CampoCadastroCliente[] {
-  const conjunto = new Set<CampoCadastroCliente>([...CAMPOS_CADASTRO_FIXOS, ...pedidos]);
-  return CAMPOS_CADASTRO_CLIENTE.filter((c) => conjunto.has(c));
-}
 
 export const rotasDeParametrosCamposObrigatorios: RotaModulo[] = [
   {
@@ -51,7 +42,8 @@ export const rotasDeParametrosCamposObrigatorios: RotaModulo[] = [
     carteira: 'nao_se_aplica',
     corpo: ParametroCamposObrigatoriosClienteSchema,
     executar: (ctx) => {
-      const novo = listaParaGravar((ctx.corpo as ParametroCamposObrigatoriosCliente).obrigatorios);
+      // RN-CORE-16: a lista gravada leva sempre os fixos (nunca vazia: vazia voltaria ao padrão)
+      const novo = comFixos((ctx.corpo as ParametroCamposObrigatoriosCliente).obrigatorios);
       return ctx.comTenant(async (db): Promise<ParametroCamposObrigatoriosCliente> => {
         const antes = camposExigidos((await lerParametroCore(db, PARAMETRO_CAMPOS_OBRIGATORIOS))[0]?.valor);
         if (JSON.stringify(antes) !== JSON.stringify(novo)) {

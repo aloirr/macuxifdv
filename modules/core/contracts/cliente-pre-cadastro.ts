@@ -54,9 +54,10 @@ export type ErroCampoCadastro = z.infer<typeof ErroCampoCadastroSchema>;
 export const ErrosCampoCadastroSchema = z.array(ErroCampoCadastroSchema).max(ERROS_RECUSA_MAX);
 
 /** Códigos de erro da criação e da correção do pré-cadastro (RN-CORE-78/79); também o código do item `rejeitado` no push. */
-export const CODIGOS_ERRO_PRE_CADASTRO = ['CAMPOS_OBRIGATORIOS', 'CADASTRO_NAO_RECUSADO', 'REVISAO_DESATUALIZADA', 'DOCUMENTO_JA_CADASTRADO', 'CADASTRO_INDISPONIVEL', 'NAO_ENCONTRADO', 'CODIGO_FDV_SOMENTE_LEITURA'] as const;
-export const CodigoErroPreCadastroSchema = z.enum(CODIGOS_ERRO_PRE_CADASTRO);
-export type CodigoErroPreCadastro = z.infer<typeof CodigoErroPreCadastroSchema>;
+/** Código FDV no corpo (cliente RN-CORE-78 e usuário RN-CORE-59): código único da recusa. */
+export const CODIGO_FDV_SOMENTE_LEITURA = 'CODIGO_FDV_SOMENTE_LEITURA';
+export const CODIGOS_ERRO_PRE_CADASTRO = ['CAMPOS_OBRIGATORIOS', 'CADASTRO_NAO_RECUSADO', 'REVISAO_DESATUALIZADA', 'DOCUMENTO_JA_CADASTRADO', 'CADASTRO_INDISPONIVEL', 'NAO_ENCONTRADO', CODIGO_FDV_SOMENTE_LEITURA] as const;
+export type CodigoErroPreCadastro = (typeof CODIGOS_ERRO_PRE_CADASTRO)[number];
 /** HTTP de cada código (a API responde; o receptor do push usa só o código). */
 export const HTTP_ERRO_PRE_CADASTRO: Record<CodigoErroPreCadastro, 404 | 409 | 422> = {
   CAMPOS_OBRIGATORIOS: 422,

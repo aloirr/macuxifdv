@@ -6,30 +6,12 @@ import { mascararDadoPessoal } from '@macuxi/comum';
 import {
   ERRO_CAMPO_LIMITES,
   ERROS_RECUSA_MAX,
-  CAMPOS_PRE_CADASTRO_CONFIGURAVEIS,
-  CAMPOS_PRE_CADASTRO_SEMPRE,
-  COLUNAS_DO_CAMPO_PRE_CADASTRO,
-  type CampoPreCadastro,
-  type CampoPreCadastroConfiguravel,
   type ErroCampoCadastro,
   type SituacaoRecusado,
   type StatusCadastro,
 } from '../contracts/cliente-pre-cadastro';
 
 export type DadosPreCadastro = Readonly<Record<string, string | number | null | undefined>>;
-
-const vazio = (v: unknown): boolean => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
-
-/**
- * @deprecated v1.0.30 (ADR 0069): trocada por `obrigatoriosDoPreCadastro` + `validarPreCadastro` (lista única da RN-CORE-16); sai junto com a rota antiga.
- * Campos obrigatórios que faltam (sempre os dois travados + os configurados), na ordem de `CAMPOS_PRE_CADASTRO_*`.
- * `endereco` falta se qualquer coluna do grupo (logradouro, número, bairro, cidade, UF, CEP) estiver vazia.
- */
-export function camposFaltantesPreCadastro(dados: DadosPreCadastro, obrigatorios: readonly CampoPreCadastroConfiguravel[]): CampoPreCadastro[] {
-  const exigidos = new Set<CampoPreCadastro>([...CAMPOS_PRE_CADASTRO_SEMPRE, ...obrigatorios]);
-  const ordem: CampoPreCadastro[] = [...CAMPOS_PRE_CADASTRO_SEMPRE, ...CAMPOS_PRE_CADASTRO_CONFIGURAVEIS];
-  return ordem.filter((campo) => exigidos.has(campo) && COLUNAS_DO_CAMPO_PRE_CADASTRO[campo].some((coluna) => vazio(dados[coluna])));
-}
 
 /** Motivo da recusa do ERP guardado até 500 caracteres (RN-CORE-78); vazio vira nulo. */
 export const MOTIVO_RECUSA_MAX = 500;
@@ -55,14 +37,17 @@ export function decidirDocumentoDuplicado(iguais: readonly { id: string; status_
   return { bloqueia, remover: iguais.map((c) => c.id), substituir: { id: alvo.id, revisao: alvo.revisao_cadastro ?? 1 } };
 }
 
-/** O motivo da recusa do ERP só vai ao vendedor (RN-CORE-78); os demais perfis recebem nulo. */
-export function motivoRecusaVisivel(perfil: string, motivo: string | null | undefined): string | null {
-  return perfil === 'vendedor' ? (motivo ?? null) : null;
+/** RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor. */
+export function perfilVeRecusa(perfil: string): boolean {
+  return perfil === 'vendedor';
 }
 
-/** Chaves do hash v1, em ordem lexicográfica por ponto de código (ADR 0069 §2). Mudar qualquer regra = ADR nova. */
-const CHAVES_CANONICAS = ['bairro', 'cep', 'cidade', 'documento', 'email', 'filial_id', 'inscricao_estadual', 'latitude', 'logradouro', 'longitude', 'nome_fantasia', 'numero', 'razao_social', 'telefone', 'uf'] as const;
-type ChaveCanonica = (typeof CHAVES_CANONICAS)[number];
+/**
+ * Chaves do hash v1, em ordem lexicográfica por ponto de código (ADR 0069 §2), que são também as colunas de dados do pré-cadastro em
+ * `core.cliente` (fonte única da API). Mudar qualquer regra = ADR nova.
+ */
+export const COLUNAS_DADOS_PRE_CADASTRO = ['bairro', 'cep', 'cidade', 'documento', 'email', 'filial_id', 'inscricao_estadual', 'latitude', 'logradouro', 'longitude', 'nome_fantasia', 'numero', 'razao_social', 'telefone', 'uf'] as const;
+type ChaveCanonica = (typeof COLUNAS_DADOS_PRE_CADASTRO)[number];
 const SO_DIGITOS = new Set<ChaveCanonica>(['documento', 'cep', 'telefone']);
 const MAIUSCULAS = new Set<ChaveCanonica>(['uf', 'inscricao_estadual']);
 
@@ -72,9 +57,28 @@ function texto(v: unknown): string | null {
   return t === '' ? null : t;
 }
 
+/** Casas das coordenadas no banco (`numeric(9, 6)`). */
+const CASAS_COORDENADA = 6;
+
+/**
+ * Arredonda o texto decimal em 6 casas como o `numeric(9, 6)` do Postgres: o meio vai para longe do zero (-3.1234565 -> -3.123457), sobre
+ * os dígitos do texto que chega ao banco, sem o erro do binário (`Math.round` levaria o meio negativo para +∞ e o hash divergiria do Hub).
+ */
+function arredondarComoPostgres(n: number, bruto: string): number {
+  const m = /^([+-]?)(\d*)(?:\.(\d*))?$/.exec(bruto) ?? /^(-?)(\d+)(?:\.(\d*))?$/.exec(n.toFixed(20));
+  if (!m) return n;
+  const [, sinal, inteiro = '', fracao = ''] = m;
+  if (fracao.length <= CASAS_COORDENADA) return n;
+  const escala = BigInt(`${inteiro || '0'}${fracao.slice(0, CASAS_COORDENADA)}`) + (fracao[CASAS_COORDENADA]! >= '5' ? 1n : 0n);
+  const digitos = escala.toString().padStart(CASAS_COORDENADA + 1, '0');
+  const r = Number(`${digitos.slice(0, -CASAS_COORDENADA)}.${digitos.slice(-CASAS_COORDENADA)}`);
+  return sinal === '-' && r !== 0 ? -r : r;
+}
+
 function coordenada(v: unknown): number | null {
-  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
-  return Number.isFinite(n) ? Math.round(n * 1e6) / 1e6 : null;
+  const bruto = typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '';
+  const n = bruto === '' ? NaN : Number(bruto);
+  return Number.isFinite(n) ? arredondarComoPostgres(n, bruto) : null;
 }
 
 function valorCanonico(chave: ChaveCanonica, v: unknown): string | number | null {
@@ -88,7 +92,7 @@ function valorCanonico(chave: ChaveCanonica, v: unknown): string | number | null
 }
 
 function objetoCanonico(dados: DadosPreCadastro): Record<ChaveCanonica, string | number | null> {
-  return Object.fromEntries(CHAVES_CANONICAS.map((k) => [k, valorCanonico(k, dados[k])])) as Record<ChaveCanonica, string | number | null>;
+  return Object.fromEntries(COLUNAS_DADOS_PRE_CADASTRO.map((k) => [k, valorCanonico(k, dados[k])])) as Record<ChaveCanonica, string | number | null>;
 }
 
 /**
@@ -104,7 +108,7 @@ export function canonicalPreCadastro(dados: DadosPreCadastro): string {
 export function camposAlteradosPreCadastro(antes: DadosPreCadastro, depois: DadosPreCadastro): string[] {
   const a = objetoCanonico(antes);
   const d = objetoCanonico(depois);
-  return CHAVES_CANONICAS.filter((k) => a[k] !== d[k]);
+  return COLUNAS_DADOS_PRE_CADASTRO.filter((k) => a[k] !== d[k]);
 }
 
 export type DecisaoReenvioPreCadastro =
