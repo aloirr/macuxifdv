@@ -102,9 +102,10 @@ describe('Clientes › Pré-cadastros recusados (RN-CORE-78)', () => {
     expect(erroDoReenvio(new ApiRequestError(409, 'REVISAO_DESATUALIZADA', 'x'))).toEqual({ revisaoDesatualizada: true, erros: {} });
   });
 
-  it('RN-CORE-79: 422 com erros por campo marca as colunas do formulário; outro erro não marca nada', () => {
-    const e = new ApiRequestError(422, 'CAMPOS_OBRIGATORIOS', 'Preencha o telefone.', { erros: [{ campo: 'telefone', mensagem: 'Preencha o telefone.' }, { campo: 'x' }] });
-    expect(erroDoReenvio(e)).toEqual({ revisaoDesatualizada: false, erros: { telefone: 'Preencha o telefone.' } });
+  it('RN-CORE-79: 422 CAMPOS_OBRIGATORIOS marca como "Obrigatório" as colunas de detalhes.campos; outro erro não marca nada', () => {
+    const e = new ApiRequestError(422, 'CAMPOS_OBRIGATORIOS', 'Preencha o telefone. Preencha o endereço.', { campos: ['telefone', 'cep', 'x', 1] });
+    expect(erroDoReenvio(e)).toEqual({ revisaoDesatualizada: false, erros: { telefone: 'Obrigatório', cep: 'Obrigatório' } });
+    expect(erroDoReenvio(new ApiRequestError(422, 'CADASTRO_NAO_RECUSADO', 'x'))).toEqual({ revisaoDesatualizada: false, erros: {} });
     expect(erroDoReenvio(new Error('rede'))).toEqual({ revisaoDesatualizada: false, erros: {} });
   });
 

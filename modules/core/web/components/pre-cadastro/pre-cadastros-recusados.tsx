@@ -371,11 +371,15 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
         );
         return;
       }
-      setAviso(errorMessage(e));
+      // campos marcados no formulário dizem o que fazer; o texto do 422 repetiria a marca
       if (Object.keys(r.erros).length > 0) {
         setMarcas(r.erros);
         rolarAte(primeiraColunaMarcada(r.erros));
+        // a lista da empresa mudou: relê para a validação local seguir a nova
+        void qc.invalidateQueries({ queryKey: CHAVE_CAMPOS_OBRIGATORIOS });
+        return;
       }
+      setAviso(errorMessage(e));
     },
   });
 

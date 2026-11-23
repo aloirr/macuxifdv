@@ -21,6 +21,7 @@ import {
   type SituacaoRecusado,
   type TentativaPreCadastro,
 } from '../../contracts';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO } from '../../domain';
 import { dadosDoFormulario, errosDaRecusaPorColuna, type ColunaFormulario, type ValoresPreCadastro } from '../../app/lib/pre-cadastro-formulario';
 
 // ------------------------------------------------------------ Parâmetros › Clientes › Campos obrigatórios
@@ -152,12 +153,15 @@ export function textoDeQuemCorrigiuAntes(h: HistoricoPreCadastro | undefined, fu
   return `${ultima.corrigido_por.nome} já corrigiu este pré-cadastro em ${formatDataHoraCurta(ultima.enviado_em, fuso)}.`;
 }
 
-/** Erro do reenvio: 409 de revisão desatualizada, ou erros por campo (422 com `detalhes.erros`) para marcar no formulário. */
+/**
+ * Erro do reenvio: 409 REVISAO_DESATUALIZADA, ou 422 CAMPOS_OBRIGATORIOS (a lista da empresa mudou depois que o formulário abriu): a API
+ * manda em `detalhes.campos` só as chaves das colunas, que o formulário marca como "Obrigatório", como na validação local (RN-CORE-79).
+ */
 export function erroDoReenvio(e: unknown): { revisaoDesatualizada: boolean; erros: Partial<Record<ColunaFormulario, string>> } {
   if (!(e instanceof ApiRequestError)) return { revisaoDesatualizada: false, erros: {} };
-  const lista = e.details?.erros;
-  const erros = Array.isArray(lista)
-    ? errosDaRecusaPorColuna(lista.filter((x): x is { campo: string; mensagem: string } => typeof x?.campo === 'string' && typeof x?.mensagem === 'string'))
+  const campos = e.status === 422 ? e.details?.campos : undefined;
+  const erros = Array.isArray(campos)
+    ? errosDaRecusaPorColuna(campos.filter((c): c is string => typeof c === 'string').map((campo) => ({ campo, mensagem: FALTA_OBRIGATORIO_PRE_CADASTRO })))
     : {};
   return { revisaoDesatualizada: e.status === 409 && e.code === 'REVISAO_DESATUALIZADA', erros };
 }
