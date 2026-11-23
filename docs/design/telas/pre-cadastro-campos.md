@@ -6,7 +6,7 @@
 
 ## 1. Campos
 
-Rótulos: `ROTULOS_CAMPOS_PRE_CADASTRO` em `modules/core/contracts` (fonte única; BKO, formulário do Campo e mensagens).
+Rótulos: `ROTULOS_CAMPOS_PRE_CADASTRO` em `modules/core/contracts` (fonte única; BKO e formulário do Campo).
 
 | Chave (contrato) | No parâmetro |
 |---|---|
