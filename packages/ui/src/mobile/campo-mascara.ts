@@ -64,7 +64,7 @@ export function propsDeTecladoDaMascara(mascara: MascaraCampo): {
 /** Sufixo do rótulo do campo que a empresa deixou opcional (os obrigatórios não levam marca). */
 export const SUFIXO_OPCIONAL = '(opcional)';
 
-/** TalkBack do rótulo: "Complemento, opcional" · obrigatório: só o rótulo. */
+/** TalkBack do rótulo: "Nome fantasia, opcional" · obrigatório: só o rótulo. */
 export function leituraDoRotulo(rotulo: string, opcional?: boolean): string {
   return opcional ? `${rotulo.trim()}, opcional` : rotulo.trim();
 }

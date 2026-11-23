@@ -47,14 +47,14 @@ Selo: `ChipEstado pequeno {...seloDoPreCadastro(situacao)}` no lugar do selo `pr
 |---|---|---|
 | Aguardando ERP | `Aguardando ERP` (tom `aviso`, ícone `clock`) | pode abrir pedido conforme a regra do módulo; nenhum texto extra |
 | Recusado pelo ERP | `Recusado pelo ERP` (tom `erro`, ícone `alert`) | na ficha, área **Alertas**: o motivo do ERP (texto literal, 1 a 3 linhas) e o botão secundário **Corrigir e reenviar** |
-| Falha de envio (422) | igual ao recusado | igual ao recusado: o motivo na área **Alertas** e o botão secundário **Corrigir e reenviar** |
+| Não enviado (a API recusou o envio: 422 ou 409) | `Não enviado` (tom `erro`, ícone `alert`) | na ficha, área **Alertas**: o motivo da recusa e o botão secundário **Corrigir e reenviar** |
 | Aprovado (ERP devolveu o código) | sem selo | o código aparece onde o código do cliente já aparece |
 
-- O motivo aparece na área Alertas da ficha e, na correção, só no topo do formulário. Na correção, o formulário abre preenchido e o motivo fica numa linha `danger` com ícone `alert`.
+- O motivo aparece na área Alertas da ficha e, na correção, só no topo do formulário, numa linha `danger` com ícone `alert`.
 - Reenviar = **Salvar** no formulário de correção; o selo volta a **Aguardando ERP**.
 
 ## 6. Componentes do kit (`@macuxi/ui/mobile`)
 - `CampoTexto` ganhou: `mascara?: 'documento' | 'cep' | 'telefone'` (`aoMudar` recebe o texto formatado), `opcional?: boolean`, `falta?: string | null`.
 - `RotuloCampo` ganhou `opcional?: boolean`.
-- Puros (`@macuxi/ui/mobile/puro`): `aplicarMascara`, `propsDeTecladoDaMascara`, `DIGITOS_DA_MASCARA`, `seloDoPreCadastro(situacao: 'aguardando_erp' | 'recusado_erp' | 'aprovado_erp')`, `ROTULO_AGUARDANDO_ERP`, `ROTULO_RECUSADO_ERP`, `ACAO_CORRIGIR_E_REENVIAR`.
+- Puros (`@macuxi/ui/mobile/puro`): `aplicarMascara`, `propsDeTecladoDaMascara`, `DIGITOS_DA_MASCARA`, `seloDoPreCadastro(situacao: 'aguardando_erp' | 'recusado_erp' | 'nao_enviado' | 'aprovado_erp')`, `ROTULO_AGUARDANDO_ERP`, `ROTULO_RECUSADO_ERP`, `ROTULO_NAO_ENVIADO`, `ACAO_CORRIGIR_E_REENVIAR`.
 - Já existentes, reusar: `CampoEscolha` (UF), `ChipEstado`, `Botao`, `AvisoRodape`, `Folha`, `RotuloSecao`, `TextoDaFalta`.
