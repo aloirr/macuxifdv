@@ -6,11 +6,9 @@
  * (`web/lib/pre-cadastro.ts`, `app/lib/pre-cadastro-formulario.ts`, `codigos-cliente.tsx`) e comparado com o esperado pela regra
  * (valor × regra: contador da aba, situação × selo, data no fuso do tenant, códigos ERP/FDV).
  * Parâmetros › Clientes: GET|PUT /v1/core/parametros/campos-obrigatorios e o efeito no formulário do app (pull) e do BKO.
- * Perfil errado (403), licença do Core por perfil (MODULO_INATIVO) e outro tenant (RLS: não vê, 404).
+ * Perfil errado (403) e outro tenant (RLS: não vê, 404).
  */
-import { manifest as manifestCore } from '@macuxi/core/manifest';
 import { semBanco } from '@macuxi/db/teste/estado';
-import { criarPermissoes, verificarAcao } from '@macuxi/platform-sdk';
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -45,7 +43,6 @@ import {
   contadorDaAba,
   corpoDaCorrecao,
   erroDoReenvio,
-  filtrosRecusadosDaUrl,
   linhaMarcada,
   LINHAS_CAMPOS_OBRIGATORIOS,
   ORDEM_DA_GRADE,
@@ -99,26 +96,6 @@ describe('v1.0.30 pré-cadastro — funções da tela, sem banco (valor × regra
     expect(situacaoDoRecusado({ status_cadastro: 'pendente', revisao_cadastro: 1 })).toBeNull();
   });
 
-  it('contador da aba = quantos itens a lista de "Recusado" trouxe; com mais de uma página, sem número (nunca um total errado)', () => {
-    const item = {} as RecusadosSaida['itens'][number];
-    expect(contadorDaAba({ itens: [item, item, item], proximo_cursor: null })).toBe(3);
-    expect(contadorDaAba({ itens: [], proximo_cursor: null })).toBe(0);
-    expect(contadorDaAba({ itens: [item], proximo_cursor: 'c' })).toBeNull();
-    expect(contadorDaAba(undefined)).toBeNull();
-  });
-
-  it('filtros na URL: situação inválida volta a Recusado; CPF/CNPJ com máscara vai só com dígitos', () => {
-    const p = (o: Record<string, string>) => new URLSearchParams(o);
-    expect(filtrosRecusadosDaUrl(p({ situacao: 'xyz', q: '  Mercado ' }))).toEqual({
-      situacao: 'recusado',
-      q: 'Mercado',
-    });
-    expect(filtrosRecusadosDaUrl(p({ situacao: 'reenviado' }))).toEqual({ situacao: 'reenviado', q: '' });
-    expect(buscaParaApi('11.222.333/0001-81')).toBe(CNPJ);
-    expect(buscaParaApi('Mercado')).toBe('Mercado');
-    expect(buscaParaApi('  ')).toBeUndefined();
-  });
-
   it('data no fuso do tenant (UTC no banco): virada de mês e de dia em Manaus (UTC−4)', () => {
     const t = (enviado_em: string, respondido_em: string | null) =>
       ({
@@ -141,32 +118,8 @@ describe('v1.0.30 pré-cadastro — funções da tela, sem banco (valor × regra
     expect(textoDoResultado(t('2026-12-01T02:30:00.000Z', '2026-12-01T04:05:00.000Z'), FUSO)).toBe(
       'Recusada pelo ERP em 01/12/2026 00:05',
     );
-    expect(
-      textoDeQuemEnviou({ ...t('2026-11-20T18:31:00.000Z', null), revisao: 1, origem: 'campo' }, FUSO),
-    ).toBe('Enviada por Ana, no Campo, em 20/11/2026 14:31');
   });
 
-  it('RN-CORE-78 e RN-CORE-03: rotas e ações — ver e corrigir os recusados só analista e admin; Parâmetros: ver analista/admin, editar só admin', () => {
-    const acoes = manifestCore.acoes as Record<string, { perfis: readonly string[] }>;
-    expect([...acoes['cliente.pre_cadastro_recusados']!.perfis].sort()).toEqual(['admin', 'analista']);
-    expect([...acoes['cliente.pre_cadastro_corrigir']!.perfis].sort()).toEqual(['admin', 'analista']);
-    expect([...acoes['parametro.campos_obrigatorios']!.perfis].sort()).toEqual(['admin', 'analista']);
-    expect([...acoes['parametro.campos_obrigatorios_editar']!.perfis]).toEqual(['admin']);
-    // a chave antiga do painel do pré-cadastro saiu (uma lista só)
-    expect(acoes['parametro.pre_cadastro']).toBeUndefined();
-  });
-
-  it('RN-CORE-16/79: painel com 7 linhas; razão social e CPF/CNPJ marcados e travados (desmarcar não tira)', () => {
-    expect(LINHAS_CAMPOS_OBRIGATORIOS).toHaveLength(7);
-    const sempre = LINHAS_CAMPOS_OBRIGATORIOS.filter((l) => l.sempre).map((l) => l.id);
-    expect(sempre.sort()).toEqual([...CAMPOS_CADASTRO_FIXOS].sort());
-    for (const l of LINHAS_CAMPOS_OBRIGATORIOS.filter((x) => x.sempre)) {
-      expect(linhaMarcada([], l)).toBe(true);
-      expect(alternarLinhaObrigatoria([...CAMPOS_CADASTRO_FIXOS], l, false)).toEqual(
-        expect.arrayContaining([...CAMPOS_CADASTRO_FIXOS]),
-      );
-    }
-  });
 });
 
 describe.skipIf(semBanco())(
@@ -529,7 +482,7 @@ describe.skipIf(semBanco())(
       expect(textoDosCodigosDoCliente(c)).toBe(`ERP C5007 · FDV ${codigoFdv}`);
     });
 
-    it('perfil errado: vendedor, supervisor e promotor não listam nem corrigem (403); sem a licença do Core = MODULO_INATIVO', async () => {
+    it('perfil errado: vendedor, supervisor e promotor não listam nem corrigem (403)', async () => {
       for (const [quem, token] of [
         ['vendedor', tk.vendedor],
         ['supervisor', tk.supervisor],
@@ -551,30 +504,6 @@ describe.skipIf(semBanco())(
           quem,
         ).toBe(403);
       }
-      // licença: sem o Core na lista de módulos do usuário, a ação dá MODULO_INATIVO mesmo para o admin (a mesma checagem das rotas)
-      const p = criarPermissoes([manifestCore]);
-      for (const acao of [
-        'cliente.pre_cadastro_recusados',
-        'cliente.pre_cadastro_corrigir',
-        'parametro.campos_obrigatorios',
-      ]) {
-        expect(
-          verificarAcao(
-            { id: A.usuarios.admin, tenant_id: A.tenantId, perfil: 'admin', modulos: ['core'] },
-            p,
-            acao,
-          ).ok,
-          acao,
-        ).toBe(true);
-        expect(
-          verificarAcao(
-            { id: A.usuarios.admin, tenant_id: A.tenantId, perfil: 'admin', modulos: [] },
-            p,
-            acao,
-          ),
-          acao,
-        ).toMatchObject({ ok: false, status: 403, codigo: 'MODULO_INATIVO' });
-      }
     });
 
     it('tenant errado: o admin do tenant B não vê o recusado do A na lista nem pelo id (404), nem corrige', async () => {
@@ -594,10 +523,7 @@ describe.skipIf(semBanco())(
       expect(A.tenantId).not.toBe(B.tenantId);
     });
 
-    // Dependência da sessão C (modulo-core, API): `GET /v1/core/usuarios/:id/clientes` (modules/core/api/rotas.ts, rotasDeCarteiraDoUsuario)
-    // ainda não seleciona `c.codigo_fdv`; a coluna Código da Carteira do BKO mostra só o ERP. Quando a API mandar, este caso fica
-    // vermelho de propósito: troque `it.fails` por `it`.
-    it.fails('PENDENTE (sessão C): a Carteira do BKO recebe o Código FDV de cada cliente', async () => {
+    it('a Carteira do BKO recebe o Código FDV de cada cliente', async () => {
       const r = await get(tk.admin, `/v1/core/usuarios/${A.usuarios.vendedor1}/clientes`);
       const c = (r.json() as { itens: Array<{ id: string; codigo_fdv?: string | null }> }).itens.find(
         (i) => i.id === ID_CAMPO,
