@@ -7,17 +7,21 @@
  *   POST /v1/plataforma/empresas-com-plano                    passo Empresa com o plano (só super-admin; `simular` não grava)
  *   GET  /v1/plataforma/empresas/:tenant_id/assinatura        ficha (super-admin; admin do cliente só a da sessão)
  *   PUT  /v1/plataforma/empresas/:tenant_id/assinatura        troca de plano (só super-admin; RN-PLA-05)
+ *   POST /v1/plataforma/empresas/:tenant_id/assinatura        primeiro plano da empresa sem assinatura (só super-admin)
  * Ligado só com `planosPortal` (`MACUXI_PLANOS=1` no `servidor.ts`): desligado, as rotas nem existem (404).
  * Sem dado pessoal no log: só ids e códigos.
  */
 import { localIsoDate } from '@macuxi/comum/fuso';
 import {
+  AtribuirPlanoSchema,
   conferirEscolhaDePlano,
   conferirTrocaDePlano,
   CriarEmpresaComPlanoRespostaSchema,
   CriarEmpresaComPlanoSchema,
   FichaAssinaturaSchema,
   fimDoTeste,
+  fusoDoTenantOuPadrao,
+  ListaEmpresasDoBancoSchema,
   ITENS_CONTADOS,
   ListaPlanosSchema,
   modulosDaAssinatura,
@@ -29,6 +33,7 @@ import {
   type AcessoBanco,
   type AcessoPortalAutenticado,
   type AdicionalContratado,
+  type AtribuirPlano,
   type Ciclo,
   type CriarEmpresaComPlano,
   type FichaAssinatura,
@@ -93,6 +98,7 @@ const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
 /** Ficha como a `sa_assinatura_da_empresa` devolve: sem o `valor` (a API calcula) e as licenças em qualquer ordem. */
 const FichaCruaSchema = FichaAssinaturaSchema.omit({ valor: true, licencas: true }).extend({ licencas: z.array(UsoDeLicencaSchema) });
 const GravouSchema = z.object({ resultado: z.enum(['criada', 'existente']), teste_ate: z.string().nullable() });
+const TrocouSchema = z.object({ resultado: z.enum(['trocada', 'existente']) }).passthrough();
 
 const SEM_ASSINATURA = () => new ErroHttp(404, 'SEM_ASSINATURA', 'Esta empresa ainda não tem plano.');
 
@@ -229,6 +235,56 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
     if (quem.tipo === 'admin_cliente' && quem.empresa?.tenant_id !== tenant_id)
       throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Você só vê o plano da sua empresa.');
     return ficha(quem, tenant_id);
+  });
+
+  /**
+   * Primeiro plano de empresa que já existe sem assinatura (empresas de antes dos planos). Numa transação só do banco do portal:
+   * `sa_gravar_assinatura` (cria; a que existe não muda) e `sa_trocar_plano` com o mesmo `pedido_id`, que liga os módulos do
+   * plano no `tenant_modulo` e confere o uso (RN-PLA-05: abaixo do uso = 422 e nada fica gravado). Repetir o mesmo pedido = a
+   * troca devolve `existente` = 200 com a ficha; empresa que já tinha plano (por outro pedido) = 409 e a transação é desfeita.
+   */
+  app.post('/v1/plataforma/empresas/:tenant_id/assinatura', async (req, reply) => {
+    const { tenant_id } = dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>;
+    const quem = await exigir(req, tenant_id);
+    soSuperAdmin(quem, 'escolhe o plano');
+    const e = dep.validar(AtribuirPlanoSchema, req.body, 'corpo') as AtribuirPlano;
+    const plano = await planoPeloCodigo(quem, e.plano);
+    const problemas = conferirEscolhaDePlano(plano, e.adicionais);
+    if (problemas.length > 0) recusar(problemas);
+    const lista = ListaEmpresasDoBancoSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
+    if (!lista.success) throw new Error('sa_listar_tenants devolveu formato diferente do combinado (desenho T-0087 §4)');
+    const empresa = lista.data.itens.find((x) => x.id === tenant_id);
+    if (!empresa) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.');
+    const testeAte = e.com_teste ? fimDoTeste(localIsoDate(relogio(), fusoDoTenantOuPadrao(empresa.fuso)), plano.dias_teste) : null;
+    const entrada: EntradaAssinatura = { plano: plano.codigo, ciclo: e.ciclo, adicionais: e.adicionais, teste_ate: testeAte, paga: testeAte === null, pedido_id: e.pedido_id };
+    const troca: EntradaTrocaDePlano = { plano: plano.codigo, ciclo: e.ciclo, adicionais: e.adicionais, pedido_id: e.pedido_id, modulos: modulosDaAssinatura(plano, e.adicionais) };
+    const JA_TEM = () => new ErroHttp(409, 'ASSINATURA_EXISTENTE', 'Esta empresa já tem plano. Use Trocar de plano.');
+    const status = await dep.acesso.semTenant(async (db) => {
+      // as duas sa_* na mesma transação (a conexão aberta, sem pedir outra ao pool)
+      const naTransacao: AcessoBanco = { semTenant: (fn) => fn(db), comTenant: () => Promise.reject(new Error('sem tenant no portal')) };
+      let gravou: unknown;
+      try {
+        gravou = await fonte.gravarAssinatura(quem.sessao_id, tenant_id, entrada, naTransacao);
+      } catch (erro) {
+        traduzir(erro, true, () => new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.'));
+      }
+      const g = GravouSchema.safeParse(gravou);
+      if (!g.success) throw new Error('sa_gravar_assinatura devolveu formato diferente do combinado (ADR 0047)');
+      const nova = g.data.resultado === 'criada';
+      let trocou: unknown;
+      try {
+        trocou = await fonte.trocar(quem.sessao_id, tenant_id, troca, naTransacao);
+      } catch (erro) {
+        if (!nova) throw JA_TEM();
+        traduzir(erro, true);
+      }
+      const t = TrocouSchema.safeParse(trocou);
+      if (!t.success) throw new Error('sa_trocar_plano devolveu formato diferente do combinado (ADR 0047)');
+      // já tinha plano: só o mesmo pedido repetido (a troca já gravada) é sucesso; o resto desfaz a transação
+      if (!nova && t.data.resultado !== 'existente') throw JA_TEM();
+      return nova ? 201 : 200;
+    });
+    return reply.code(status).send(await ficha(quem, tenant_id));
   });
 
   app.put('/v1/plataforma/empresas/:tenant_id/assinatura', async (req) => {
