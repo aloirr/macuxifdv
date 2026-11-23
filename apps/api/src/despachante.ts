@@ -45,6 +45,7 @@ import type pg from 'pg';
 import { ErroPapelBanco } from './banco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
 import { mensagemSegura } from './log-seguro';
+import { FILTRO_OUTBOX_ABERTA } from './observabilidade';
 import { publicadorTenant, registroDeConsultas, transacaoTenant } from './outbox';
 import { classeDoErro, ErroTetoReprocesso, selecionarParados, TETO_REPROCESSO, type ResultadoReprocesso } from './reprocessar-outbox';
 import { consumidoresDoModulo } from './trabalhos';
@@ -115,8 +116,7 @@ const COLUNAS_EVENTO = 'id, tenant_id, nome, modulo, payload, ocorrido_em, tenta
 const SQL_LOTE = `
   select ${COLUNAS_EVENTO}
     from plataforma.evento
-   where publicado_em is null
-     and deleted_at is null
+   where ${FILTRO_OUTBOX_ABERTA}
      and nome = any($1::text[])
      and tentativas < $2
      and id <> all($3::uuid[])
@@ -390,7 +390,7 @@ export function criarDespachante(op: OpcoesDespachante) {
       lista = (
         await c0.query<{ id: string; nome: string; tentativas: number }>(
           `select id, nome, tentativas from plataforma.evento
-            where publicado_em is null and deleted_at is null and tenant_id = $1 and nome = any($2::text[]) and tentativas >= $3
+            where ${FILTRO_OUTBOX_ABERTA} and tenant_id = $1 and nome = any($2::text[]) and tentativas >= $3
             order by ocorrido_em, id`,
           [o.tenantId, nomes, maxTentativas],
         )
@@ -424,7 +424,7 @@ export function criarDespachante(op: OpcoesDespachante) {
         const l = (
           await c.query<LinhaEvento>(
             `select ${COLUNAS_EVENTO} from plataforma.evento
-              where id = $1 and tenant_id = $2 and publicado_em is null and deleted_at is null and tentativas = $3
+              where id = $1 and tenant_id = $2 and ${FILTRO_OUTBOX_ABERTA} and tentativas = $3
               for no key update skip locked`,
             [s.id, o.tenantId, maxTentativas],
           )
