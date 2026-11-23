@@ -1,13 +1,13 @@
 /**
  * Provedores de sync do Core (T-0003 Fase 2, T-0017, T-0018; desenho T-0016 §2; ADR 0009):
  * pull de `cliente`, `carteira`, `produto`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`,
- * `motivo`, `rota`, `rota_parada`, `visita`, `meta`, `indicador_diario` (T-0020) e `cliente_visita_resumo` (RN-CORE-50, view); push de `visita` (check-in) e `visita_checkout` (`visita-push.ts`).
+ * `motivo`, `rota`, `rota_parada`, `visita`, `meta`, `indicador_diario` (T-0020) e `cliente_visita_resumo` (RN-CORE-50, view); push de `visita` (check-in) e `visita_checkout` (`visita-push.ts`), `cliente_foto` e `cliente_pre_cadastro` (`pre-cadastro-receber.ts`, ADR 0069).
  * Todos: `updated_at < pedido.ate` (horizonte seguro) e `(updated_at, id) > desde`, ordenados, `limit`, `updated_at`
  * com microssegundos, removidos incluídos (`deleted_at`) e filtrados pela carteira do usuário (RN-CORE-04) quando
  * a entidade é de cliente (`escopo: 'carteira'`: a API devolve `versao_escopo` e o aparelho ressincroniza quando a
  * carteira muda) ou de usuário (`escopo: 'usuarios'`: rota, parada e visita da equipe visível, RN-CORE-04). Janelas do desenho §2 (o que sai da janela o app poda): as linhas REMOVIDAS passam sempre, para o
  * aparelho apagar. Valores em centavos saem como número (`::float8`, exato até 2^53), datas como texto.
- * Somente pull: cadastro vem do ERP/BKO (`servidor_vence`).
+ * Cadastro vindo do ERP/BKO no pull (`servidor_vence`); o pré-cadastro do Campo chega pelo push e vira pendente (RN-CORE-78).
  */
 import { sqlCodigoFdv } from './codigo-fdv';
 import { definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
@@ -20,6 +20,7 @@ import {
   PARAMETRO_PROMOTOR_VE_PEDIDOS,
   PARAMETRO_RASTREAMENTO,
   PARAMETRO_PRE_CADASTRO_OBRIGATORIOS,
+  PARAMETRO_CAMPOS_OBRIGATORIOS,
   CarteiraSyncSchema,
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
@@ -40,6 +41,7 @@ import {
   MetaSyncSchema,
   MotivoSyncSchema,
   ParametroSyncSchema,
+  PreCadastroClienteSchema,
   ProdutoSyncSchema,
   RotaParadaSyncSchema,
   RotaSyncSchema,
@@ -53,6 +55,7 @@ import { padraoDeDesconto } from './produtos';
 import { lerPromotorVePedidos } from './promotor-pedidos';
 import { receberFotosPdv } from './foto-pdv-push';
 import { receberCheckins, receberCheckouts } from './visita-push';
+import { receberPreCadastros } from './pre-cadastro-receber';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 /** Placeholder de "hoje" nas janelas: substituído pela data civil do fuso do tenant (RN-CORE-11, regra 4), nunca por `current_date` do banco (UTC). */
@@ -79,14 +82,17 @@ export interface Tabela {
   onde?: string;
 }
 
-/** Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). */
-const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO, PARAMETRO_PRE_CADASTRO_OBRIGATORIOS] as const;
+/**
+ * Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). v1.0.29 (ADR 0069 §6): a lista
+ * única dos obrigatórios (`cliente.campos_obrigatorios`) e o espelho legado do APK v1.0.28 (`cliente.pre_cadastro.obrigatorios`).
+ */
+const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO, PARAMETRO_CAMPOS_OBRIGATORIOS, PARAMETRO_PRE_CADASTRO_OBRIGATORIOS] as const;
 
 export const TABELAS_SYNC = {
   cliente: {
     tabela: 'core.cliente',
     colunas:
-      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal, filial_id, status_cadastro, motivo_recusa',
+      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal, filial_id, status_cadastro, motivo_recusa, revisao_cadastro, erros_recusa',
     colunaCliente: 'id',
   },
   carteira: {
@@ -267,8 +273,14 @@ function puxarDe(t: Tabela) {
     return ctx.comTenant(async (db) => {
       const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
       if (t.tabela === 'core.produto') return comDescontoEfetivo(linhas, await padraoDeDesconto(db));
-      // RN-CORE-78: o motivo da recusa do ERP só vai ao vendedor.
-      if (t.tabela === 'core.cliente') return linhas.map((l) => ({ ...l, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, (l as unknown as { motivo_recusa?: string | null }).motivo_recusa) }) as unknown as LinhaSync);
+      // RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor (a mesma regra, `motivoRecusaVisivel`).
+      if (t.tabela === 'core.cliente') {
+        return linhas.map((l) => {
+          const r = l as unknown as { motivo_recusa?: string | null; erros_recusa?: unknown };
+          const veRecusa = motivoRecusaVisivel(ctx.usuario.perfil, '') !== null;
+          return { ...l, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, r.motivo_recusa), erros_recusa: veRecusa ? (r.erros_recusa ?? null) : null } as unknown as LinhaSync;
+        });
+      }
       if (t.tabela !== 'core.historico_compra' || ctx.usuario.perfil !== 'promotor') return linhas;
       return perfilRecebeHistoricoDeCompra('promotor', await lerPromotorVePedidos(db)) ? linhas : ocultarHistorico(linhas);
     });
@@ -320,6 +332,18 @@ export const entidadeVisitaCheckout = definirEntidadeSync({
   schema: CheckoutVisitaSchema,
 });
 
+/**
+ * Pré-cadastro de cliente (ADR 0069 §3; RN-CORE-78): comando só de envio; o app declara a mesma entidade em
+ * app/lib/pre-cadastro-local.ts (o servidor não importa código do app). Até a v1.0.28 não havia receptor (SYNC_NAO_IMPLEMENTADO).
+ */
+export const entidadePreCadastroServidor = definirEntidadeSync({
+  nome: 'cliente_pre_cadastro',
+  modulo: 'core',
+  direcao: 'push',
+  conflito: 'app_edita_ate_status',
+  schema: PreCadastroClienteSchema,
+});
+
 export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeCliente, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente) },
   { entidade: entidadeCarteira, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.carteira) },
@@ -344,4 +368,7 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeIndicadorDiario, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.indicador_diario) },
   { entidade: entidadeVisita, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.visita), receber: receberCheckins },
   { entidade: entidadeVisitaCheckout, receber: receberCheckouts },
+  // ADR 0069 §3 (v1.0.29): receptor do pré-cadastro do Campo (criação, correção com `revisao_base` e o id novo do APK v1.0.28)
+  // chamada adiada: evita o ciclo de import pre-cadastro-receber -> rotas -> sync
+  { entidade: entidadePreCadastroServidor, receber: (ctx, itens) => receberPreCadastros(ctx, itens) },
 ];
