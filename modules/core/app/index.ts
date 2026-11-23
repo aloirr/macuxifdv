@@ -14,7 +14,8 @@ import { entidadesProduto } from './lib/entidades-produto';
 import { entidadesRastreamento } from './lib/entidades-rastreamento';
 import { entidadesRota } from './lib/entidades-rota';
 import { TelaCliente } from './telas/cliente';
-import { TelaClientes } from './telas/clientes';
+import { TelaClientesDoShell } from './telas/clientes';
+import { PaginaNovoCliente } from './telas/novo-cliente';
 import { TelaMetas } from './telas/metas';
 import { TelaNotificacoes } from './telas/notificacoes';
 import { TelaMeusModulos } from './telas/meus-modulos';
@@ -50,7 +51,9 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'rota', caminho: 'rota', titulo: TITULO_DA_ROTA, navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
     // T-0187: a mesma tela no Gestão, só com a ação `visita.registrar_gestao` (supervisor e gerente); o caminho é único no shell
     { id: 'rota-gestao', caminho: 'rota-gestao', titulo: TITULO_DA_ROTA, navegacao: 'Rota', icone: 'pin', apps: ['gestao'], acao: ACAO_VISITA_REGISTRAR_GESTAO, ordem: 20, componente: comVisitas(TelaRota) },
-    { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
+    { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientesDoShell) },
+    // v1.0.28 (RN-CORE-78): pré-cadastro de cliente só no Campo e só para o vendedor; `?clienteId=` reabre o recusado para corrigir
+    { id: 'novo-cliente', caminho: 'novo-cliente', titulo: 'Novo cliente', apps: ['campo'], perfis: ['vendedor'], acao: 'cliente.pre_cadastrar', componente: PaginaNovoCliente },
     { id: 'metas', caminho: 'metas', titulo: 'Metas', apps: ['campo'], componente: TelaMetas },
     { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
     { id: 'notificacoes', caminho: 'notificacoes', titulo: 'Notificações', apps: ['campo', 'gestao'], componente: TelaNotificacoes },
