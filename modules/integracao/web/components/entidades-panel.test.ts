@@ -32,9 +32,14 @@ describe('entidades-panel e monitor-painel: colunas, menu "⋯" e título', () =
     expect(painel).toMatch(/<Panel label=\{titulo \?\? 'Entidades'\} title=\{titulo\}>/);
   });
 
-  it('R3-1 (engenheiro-apps v1.0.31): a Situação cabe o selo mais largo ("Com falha", 74 px) + 20 px de respiro, e não mais', () => {
-    const largura = Number(/largura: '(\d+)px'/.exec(coluna('situacao'))?.[1]);
-    expect(largura).toBeGreaterThanOrEqual(74 + 20);
-    expect(largura).toBe(94);
+  it('R3-1 (engenheiro-apps v1.0.31): a 390 px, folga ≥ 4 px no selo "Com falha" e no nome mais largo da Entidade', () => {
+    const situacao = Number(/largura: '(\d+)px'/.exec(coluna('situacao'))?.[1]);
+    expect(painel).toMatch(/const SELO = '-mr-2\.5';/);
+    expect(coluna('situacao').match(/className=\{SELO\}/g)).toHaveLength(2);
+    // medidas no Chromium: selo "Com falha" 74,16 px; "Formas de pagamento" 158,48 px; tabela de 324 px a 390 px; "⋯" 52 px
+    const seloCabe = situacao - 10 - 74.16; // respiro esquerdo de 10 px; o direito fica para o selo
+    const nomeCabe = 324 - 52 - situacao - 20 - 158.48;
+    expect(seloCabe).toBeGreaterThanOrEqual(4);
+    expect(nomeCabe).toBeGreaterThanOrEqual(4);
   });
 });
