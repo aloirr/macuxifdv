@@ -2077,7 +2077,7 @@
       "get": {
         "operationId": "clientes_pendentes",
         "summary": "Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).",
-        "description": "Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+        "description": "Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz o `codigo_fdv` (Código FDV, referência do Macuxi para guardar no ERP), `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
         "tags": [
           "Clientes novos"
         ],
@@ -2138,6 +2138,7 @@
                           "latitude": null,
                           "longitude": null,
                           "filial_external_id": null,
+                          "codigo_fdv": "00012",
                           "revisao": 1,
                           "hash": "3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5",
                           "tentativa": 1
@@ -2212,7 +2213,7 @@
       "post": {
         "operationId": "retorno_cliente",
         "summary": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).",
-        "description": "Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código de revisão anterior vale. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.",
+        "description": "Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código do ERP vale sempre, mesmo de revisão anterior ou depois de uma recusa. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.",
         "tags": [
           "Clientes novos"
         ],
@@ -3358,6 +3359,17 @@
               {
                 "type": "string",
                 "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "codigo_fdv": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{5,}$"
               },
               {
                 "type": "null"

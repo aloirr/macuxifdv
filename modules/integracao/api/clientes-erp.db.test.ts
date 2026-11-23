@@ -4,7 +4,8 @@
  * Consumidores e rotas com o `comTenant` da fixture; a consulta ao Core é simulada. Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
  * Cobre: entrada idempotente na fila, retirada uma vez (skip locked) e reentrega após o timeout, retorno idempotente, vínculo recusado
  * pelo Core (conflito) vira rejeitado, 403 sem permissão e multi-tenant; v1.0.29: reenvio reabre a mesma linha, revisão antiga obsoleta,
- * código de revisão antiga vale, recusa nova na mesma revisão é fato novo, erros por campo mascarados.
+ * código de revisão antiga vale, código sobre a recusa da mesma revisão vale, recusa nova na mesma revisão é fato novo, erros por campo
+ * mascarados, Código FDV no GET.
  */
 import { randomUUID } from 'node:crypto';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
@@ -115,7 +116,7 @@ describe.skipIf(semBanco())('Integração RN-INT-22 × Postgres', () => {
     await retirar();
     const publicar = vi.fn(async () => undefined);
     await expect(retornar(B.tenantId, id, { status: 'vinculado', external_id: 'C-1' }, publicar)).rejects.toMatchObject({ status: 422, corpo: { codigo: 'cliente_desconhecido' } });
-    expect(await retornar(A.tenantId, id, { status: 'vinculado', external_id: 'C-1' }, publicar)).toEqual({ cliente_uuid: id, estado: 'vinculado', repetido: false });
+    expect(await retornar(A.tenantId, id, { status: 'vinculado', external_id: 'C-1' }, publicar)).toEqual({ cliente_uuid: id, estado: 'vinculado', repetido: false, revisao: 1 });
     expect(await fila(A.tenantId, id)).toMatchObject({ estado: 'vinculado', external_id: 'C-1' });
     expect(await retornar(A.tenantId, id, { status: 'vinculado', external_id: 'C-1' }, publicar)).toMatchObject({ repetido: true });
     await expect(retornar(A.tenantId, id, { status: 'vinculado', external_id: 'C-2' }, publicar)).rejects.toMatchObject({ status: 422, corpo: { codigo: 'external_id_divergente' } });
@@ -195,6 +196,26 @@ describe.skipIf(semBanco())('Integração RN-INT-22 × Postgres', () => {
     expect(await retornar(A.tenantId, id, { status: 'vinculado', external_id: 'K-1', revisao: 1 }, publicar)).toEqual({ cliente_uuid: id, estado: 'vinculado', repetido: false, revisao: 2 });
     expect(await fila(A.tenantId, id)).toMatchObject({ estado: 'vinculado', external_id: 'K-1', revisao: 2 });
     expect(publicar).toHaveBeenCalledWith(EVENTO_CLIENTE_RETORNO_ERP, expect.objectContaining({ cliente_id: id, status: 'vinculado', external_id: 'K-1', revisao: 1 }), id);
+  });
+
+  it('RN-INT-22: vinculado sobre rejeitado da mesma revisão = 200 (o ERP manda): grava o código, limpa motivo e erros e publica uma vez', async () => {
+    const id = novoId();
+    await rejeitadoNaRevisao1(A.tenantId, id, 'Mercadinho E');
+    const publicar = vi.fn(async () => undefined);
+    expect(await retornar(A.tenantId, id, { status: 'vinculado', external_id: 'E-1', revisao: 1 }, publicar)).toEqual({ cliente_uuid: id, estado: 'vinculado', repetido: false, revisao: 1 });
+    expect(await fila(A.tenantId, id)).toMatchObject({ estado: 'vinculado', external_id: 'E-1', revisao: 1, motivo: null, erros: null });
+    expect(await retornar(A.tenantId, id, { status: 'vinculado', external_id: 'E-1', revisao: 1 }, publicar)).toMatchObject({ repetido: true });
+    expect(publicar).toHaveBeenCalledTimes(1);
+    expect(publicar).toHaveBeenCalledWith(EVENTO_CLIENTE_RETORNO_ERP, expect.objectContaining({ cliente_id: id, status: 'vinculado', external_id: 'E-1', revisao: 1 }), id);
+  });
+
+  it('RN-INT-22: GET /clientes/pendentes entrega o codigo_fdv da consulta (ADR 0069 §10); sem ele, null', async () => {
+    const comCodigo = novoId();
+    const semCodigo = novoId();
+    await aprovar(A.tenantId, [{ ...cli(comCodigo, 'Mercadinho F'), codigo_fdv: '00042' } as ReturnType<typeof cli>, cli(semCodigo, 'Mercadinho F2')]);
+    const entregues = (await retirar()).clientes;
+    expect(entregues.find((c) => c.cliente_uuid === comCodigo)).toMatchObject({ codigo_fdv: '00042' });
+    expect(entregues.find((c) => c.cliente_uuid === semCodigo)).toMatchObject({ codigo_fdv: null });
   });
 
   it('RN-INT-22: na mesma revisão, recusa com outro motivo ou outros erros é fato novo (grava e publica); a mesma recusa é repetida; erros mascarados e fora do log', async () => {

@@ -3,7 +3,7 @@
  *  - `selecionarClientesPendentes`: pendentes e `enviado` vencidos, por ordem de chegada; cada entrega conta uma tentativa da revisão.
  *  - `decidirEntradaClienteNaFila`: o reenvio do recusado (revisão nova, ADR 0069) reabre a mesma linha; `vinculado` nunca reabre.
  *  - `aplicarRetornoCliente`: `vinculado` (código do ERP) ou `rejeitado_erp` (motivo e, opcional, erros por campo); repetição idêntica é
- *    aceita sem reaplicar; recusa de revisão antiga é obsoleta; código do ERP de revisão antiga vale.
+ *    aceita sem reaplicar; recusa de revisão antiga é obsoleta; o código do ERP vale sempre, de revisão antiga ou sobre a recusa.
  */
 import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
 import { aplicarTimeoutEnvio } from './estados';
@@ -40,8 +40,21 @@ export interface ClienteNaFila<P = Record<string, unknown>> {
   erros: ErroRetornoCliente[] | null;
 }
 
+/** Campos que o Hub acrescenta a cada cliente entregue (ADR 0069 §8 e §10). */
+export interface EntregaCliente {
+  codigo_fdv: string | null;
+  revisao: number;
+  hash: string | null;
+  tentativa: number;
+}
+
+/** Código FDV do cliente (ADR 0069 §10): só dígitos, 5 ou mais (zeros à esquerda); ausente (payload anterior à v1.0.29) ou fora do formato = null. */
+export function codigoFdvOuNulo(v: unknown): string | null {
+  return typeof v === 'string' && /^[0-9]{5,}$/.test(v) ? v : null;
+}
+
 export interface SelecaoClientes<P> {
-  entregar: (P & { revisao: number; hash: string | null; tentativa: number })[];
+  entregar: (P & EntregaCliente)[];
   atualizacoes: { cliente_uuid: string; estado: 'enviado'; enviado_em: string; tentativas: number }[];
   reenviados: string[];
 }
@@ -56,10 +69,10 @@ export function selecionarClientesPendentes<P>(fila: readonly ClienteNaFila<P>[]
     .slice(0, limite);
   return {
     // payload antigo (v1.0.27) trazia `aprovado_em`: sai e a coluna `recebido_em` é a fonte do campo público;
-    // `revisao` e `hash` vêm das colunas (ADR 0069), nunca do payload
+    // `revisao` e `hash` vêm das colunas (ADR 0069), nunca do payload; `codigo_fdv` vem do payload (consulta do Core), tolerante
     entregar: candidatos.map(({ c }) => {
-      const { aprovado_em: _antigo, revisao: _revisao, hash: _hash, ...payload } = c.payload as Record<string, unknown>;
-      return { ...payload, recebido_em: c.recebido_em, revisao: c.revisao, hash: c.hash, tentativa: c.tentativas + 1 } as unknown as P & { revisao: number; hash: string | null; tentativa: number };
+      const { aprovado_em: _antigo, revisao: _revisao, hash: _hash, codigo_fdv, ...payload } = c.payload as Record<string, unknown>;
+      return { ...payload, recebido_em: c.recebido_em, codigo_fdv: codigoFdvOuNulo(codigo_fdv), revisao: c.revisao, hash: c.hash, tentativa: c.tentativas + 1 } as unknown as P & EntregaCliente;
     }),
     atualizacoes: candidatos.map(({ c }) => ({ cliente_uuid: c.cliente_uuid, estado: 'enviado' as const, enviado_em: agora, tentativas: c.tentativas + 1 })),
     reenviados: candidatos.filter(({ t }) => t.reenviado).map(({ c }) => c.cliente_uuid),
@@ -165,13 +178,13 @@ export function aplicarRetornoCliente(
   };
 
   if (retorno.status === 'vinculado') {
-    if (fila.external_id !== null && fila.external_id === codigo && (fila.estado === 'vinculado' || fila.estado === 'rejeitado')) return aceito(true);
-    if (fila.estado === 'vinculado') return falha('external_id_divergente', 'external_id', `O cliente já tem o código ${fila.external_id} no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.`);
-    // o código vale mesmo de revisão antiga: o cliente existe no ERP (ADR 0069 §8)
-    if (antiga) return aceito(false);
-    if (fila.estado === 'pendente') return falha('cliente_nao_entregue', null, NAO_ENTREGUE);
-    if (fila.estado === 'enviado') return aceito(false);
-    return falha('transicao_invalida', 'status', 'O cliente já foi rejeitado e é um estado final. Peça ao Macuxi para reenviar o cadastro.');
+    if (fila.estado === 'vinculado') {
+      if (fila.external_id === codigo) return aceito(true);
+      return falha('external_id_divergente', 'external_id', `O cliente já tem o código ${fila.external_id} no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.`);
+    }
+    // o ERP manda (ADR 0069 §8): o código vale de revisão antiga e sobre a recusa da mesma revisão
+    if (antiga || fila.estado === 'enviado' || fila.estado === 'rejeitado') return aceito(false);
+    return falha('cliente_nao_entregue', null, NAO_ENTREGUE);
   }
   if (fila.estado === 'vinculado') return falha('transicao_invalida', 'status', 'O cliente já foi vinculado ao código do ERP; rejeitado_erp não vale depois do vínculo.');
   // recusa de revisão antiga não sobrescreve a revisão nova

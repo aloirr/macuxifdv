@@ -2295,7 +2295,7 @@
       "item": [
         {
           "name": "GET /clientes/pendentes",
-          "description": "Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+          "description": "Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz o `codigo_fdv` (Código FDV, referência do Macuxi para guardar no ERP), `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
           "item": [
             {
               "name": "Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22)",
@@ -2331,7 +2331,7 @@
                     }
                   ]
                 },
-                "description": "**GET /clientes/pendentes** — Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100."
+                "description": "**GET /clientes/pendentes** — Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz o `codigo_fdv` (Código FDV, referência do Macuxi para guardar no ERP), `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100."
               },
               "response": [
                 {
@@ -2345,7 +2345,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"clientes\": [\n    {\n      \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n      \"recebido_em\": \"2026-11-23T13:40:00Z\",\n      \"razao_social\": \"Mercadinho Boa Vista Ltda\",\n      \"nome_fantasia\": \"Boa Vista\",\n      \"documento\": \"12345678000190\",\n      \"inscricao_estadual\": null,\n      \"telefone\": \"9532212345\",\n      \"email\": null,\n      \"logradouro\": \"Av. Ene Garcez\",\n      \"numero\": \"1200\",\n      \"complemento\": null,\n      \"bairro\": \"Centro\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cep\": \"69301110\",\n      \"latitude\": null,\n      \"longitude\": null,\n      \"filial_external_id\": null,\n      \"revisao\": 1,\n      \"hash\": \"3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5\",\n      \"tentativa\": 1\n    }\n  ]\n}"
+                  "body": "{\n  \"clientes\": [\n    {\n      \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n      \"recebido_em\": \"2026-11-23T13:40:00Z\",\n      \"razao_social\": \"Mercadinho Boa Vista Ltda\",\n      \"nome_fantasia\": \"Boa Vista\",\n      \"documento\": \"12345678000190\",\n      \"inscricao_estadual\": null,\n      \"telefone\": \"9532212345\",\n      \"email\": null,\n      \"logradouro\": \"Av. Ene Garcez\",\n      \"numero\": \"1200\",\n      \"complemento\": null,\n      \"bairro\": \"Centro\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cep\": \"69301110\",\n      \"latitude\": null,\n      \"longitude\": null,\n      \"filial_external_id\": null,\n      \"codigo_fdv\": \"00012\",\n      \"revisao\": 1,\n      \"hash\": \"3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5\",\n      \"tentativa\": 1\n    }\n  ]\n}"
                 },
                 {
                   "name": "200 — vazio: Nenhum cliente novo pendente (normal)",
@@ -2482,7 +2482,7 @@
         },
         {
           "name": "POST /clientes/{cliente_uuid}/retorno",
-          "description": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código de revisão anterior vale. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.",
+          "description": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código do ERP vale sempre, mesmo de revisão anterior ou depois de uma recusa. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.",
           "item": [
             {
               "name": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição — vinculado",
@@ -2524,7 +2524,7 @@
                     "retorno"
                   ]
                 },
-                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código de revisão anterior vale. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `vinculado` (Cliente criado no ERP (informe o código))."
+                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código do ERP vale sempre, mesmo de revisão anterior ou depois de uma recusa. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `vinculado` (Cliente criado no ERP (informe o código))."
               },
               "response": [
                 {
@@ -2776,7 +2776,7 @@
                     "retorno"
                   ]
                 },
-                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código de revisão anterior vale. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o cadastro (o motivo é obrigatório))."
+                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código do ERP vale sempre, mesmo de revisão anterior ou depois de uma recusa. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o cadastro (o motivo é obrigatório))."
               },
               "response": []
             },
@@ -2820,7 +2820,7 @@
                     "retorno"
                   ]
                 },
-                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código de revisão anterior vale. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_com_erros` (ERP recusou a revisão 2, com os erros por campo (opcionais))."
+                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código do ERP vale sempre, mesmo de revisão anterior ou depois de uma recusa. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_com_erros` (ERP recusou a revisão 2, com os erros por campo (opcionais))."
               },
               "response": []
             }

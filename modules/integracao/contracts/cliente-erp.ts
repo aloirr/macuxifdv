@@ -43,6 +43,11 @@ export const ClienteParaErp = z.object({
   longitude: z.number().nullable(),
   /** Código da filial no ERP, quando houver. */
   filial_external_id: TextoNulo,
+  /**
+   * Código FDV do cliente (v1.0.29, ADR 0069 §10): número do Macuxi, só dígitos (5 ou mais, zeros à esquerda), para o ERP guardar como
+   * referência. `null` nos clientes que entraram antes da v1.0.29. O código do cliente no ERP continua sendo o `external_id` do retorno.
+   */
+  codigo_fdv: z.string().regex(/^[0-9]{5,}$/).nullable().optional(),
   /** Revisão dos dados (v1.0.29): sobe quando o cadastro recusado é corrigido e reenviado. Devolva-a no retorno. */
   revisao: RevisaoCliente.optional(),
   /** sha256 (hex minúsculo) dos dados desta revisão; nulo nos clientes que entraram antes da v1.0.29. */

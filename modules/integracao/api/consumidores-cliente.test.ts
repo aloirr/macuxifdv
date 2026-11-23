@@ -38,6 +38,12 @@ describe('RN-INT-22: core.cliente.pre_cadastrado@1 entra na fila', () => {
     expect(JSON.parse(inserts[0]!.params[2] as string)).not.toHaveProperty('revisao');
     expect(JSON.parse(inserts[0]!.params[2] as string)).not.toHaveProperty('hash');
   });
+  it('RN-INT-22: o codigo_fdv da consulta (ADR 0069 §10) fica no payload, para o GET /clientes/pendentes', async () => {
+    const c = ctx({ consultar: () => ({ clientes: [{ ...cli(C1), codigo_fdv: '00012' }], proximo: null }) });
+    await entrarClienteNaFila({ cliente_id: C1 }, c.ctx);
+    const insert = c.sqls.find((s) => /^\s*insert/i.test(s.sql));
+    expect(JSON.parse(insert!.params[2] as string)).toMatchObject({ cliente_uuid: C1, codigo_fdv: '00012' });
+  });
   it('RN-INT-22: core.cliente.pre_cadastro_revisado@1 reabre a mesma linha rejeitada (sem insert); vinculado e mesma revisão ficam como estão', async () => {
     const H = 'd'.repeat(64);
     const c = ctx({

@@ -18,7 +18,11 @@ describe('RN-INT-22: entrega ao Conector', () => {
   });
   it('RN-INT-22: payload da v1.0.27 (aprovado_em) sai com recebido_em da coluna, sem o campo antigo', () => {
     const s = selecionarClientesPendentes([linha({ payload: { cliente_uuid: U1, aprovado_em: '2026-11-20T10:00:00.000Z' } })], T0);
-    expect(s.entregar[0]).toEqual({ cliente_uuid: U1, recebido_em: '2026-11-23T10:00:00.000Z', revisao: 1, hash: null, tentativa: 1 });
+    expect(s.entregar[0]).toEqual({ cliente_uuid: U1, recebido_em: '2026-11-23T10:00:00.000Z', codigo_fdv: null, revisao: 1, hash: null, tentativa: 1 });
+  });
+  it('RN-INT-22: entrega o Código FDV do payload (ADR 0069 §10); ausente ou fora do formato sai null', () => {
+    const s = selecionarClientesPendentes([linha({ payload: { cliente_uuid: U1, codigo_fdv: '00012' } }), linha({ cliente_uuid: U2, payload: { cliente_uuid: U2, codigo_fdv: 12 } })], T0);
+    expect(s.entregar.map((c) => c.codigo_fdv)).toEqual(['00012', null]);
   });
   it('RN-INT-22: enviado antes do timeout não sai de novo; vencido volta com tentativa + 1', () => {
     expect(selecionarClientesPendentes([linha({ estado: 'enviado', enviado_em: '2026-11-23T11:55:00.000Z', tentativas: 1 })], T0).entregar).toHaveLength(0);
@@ -58,9 +62,15 @@ describe('RN-INT-22: retorno do ERP', () => {
     expect(r).toMatchObject({ ok: false, codigo: 'transicao_invalida' });
     expect(!r.ok && r.mensagem.length).toBeGreaterThan(20);
   });
-  it('RN-INT-22: vínculo recusado depois (rejeitado pelo Core) não aceita outro código', () => {
-    expect(aplicarRetornoCliente(linha({ estado: 'rejeitado', external_id: 'C-100', motivo: 'm' }), ret({ external_id: 'C-100' }))).toMatchObject({ ok: true, repetido: true, publicar: false });
-    expect(aplicarRetornoCliente(linha({ estado: 'rejeitado', external_id: 'C-100', motivo: 'm' }), ret({ external_id: 'C-300' }))).toMatchObject({ ok: false, codigo: 'transicao_invalida' });
+  it('RN-INT-22: vinculado sobre rejeitado da mesma revisão vale (o ERP manda): grava, publica e limpa motivo e erros', () => {
+    const erros = [{ campo: 'cep', codigo: 'CEP_INVALIDO', mensagem: 'CEP inválido' }];
+    const r = aplicarRetornoCliente(linha({ estado: 'rejeitado', revisao: 2, motivo: 'm', erros }), ret({ revisao: 2 }));
+    expect(r).toMatchObject({ ok: true, repetido: false, obsoleto: false, gravar: true, publicar: true, revisao: 2, atualizacao: { estado: 'vinculado', external_id: 'C-100', motivo: null, erros: null }, evento: { status: 'vinculado', external_id: 'C-100', revisao: 2 } });
+    // sem revisao no retorno (Conector antigo) = a revisão da linha: também vale
+    expect(aplicarRetornoCliente(linha({ estado: 'rejeitado', motivo: 'm' }), ret())).toMatchObject({ ok: true, gravar: true, publicar: true });
+  });
+  it('RN-INT-22: pendente da revisão atual nunca entregue segue cliente_nao_entregue, mesmo depois de rejeitado em revisão anterior', () => {
+    expect(aplicarRetornoCliente(linha({ estado: 'pendente', revisao: 2 }), ret({ revisao: 2 }))).toMatchObject({ ok: false, codigo: 'cliente_nao_entregue' });
   });
 });
 

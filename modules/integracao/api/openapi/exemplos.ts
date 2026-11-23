@@ -556,6 +556,7 @@ export const EXEMPLOS_CLIENTES_PENDENTES: readonly Exemplo<z.output<typeof Clien
         latitude: null,
         longitude: null,
         filial_external_id: null,
+        codigo_fdv: '00012',
         revisao: 1,
         hash: '3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5',
         tentativa: 1,
