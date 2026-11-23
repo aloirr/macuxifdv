@@ -70,8 +70,16 @@ APKs v1.0.28 chegam de uma vez, inclusive correções com `id` novo — por isso
 - Novo provedor em `provedoresSyncCore`: `{ entidade: entidadePreCadastroServidor, receber: receberPreCadastros }` (direção `push`,
   schema `PreCadastroClienteSchema`). Cada item roda o mesmo caminho da rota (função compartilhada, sem duplicar SQL): sem
   `revisao_base` = criação (item 4 para `id` novo com documento de recusado); com `revisao_base` = correção (item 1).
-- Permissão: ação `cliente.pre_cadastrar`; correção pelo aparelho só para cliente da carteira do vendedor (escopo de carteira; fora
-  dela = item `rejeitado` `FORA_DA_CARTEIRA`). Licença do Core pelo SDK.
+- Permissão: ação `cliente.pre_cadastrar`; licença do Core pelo SDK. Escopo de carteira (RN-CORE-04) em `gravarPreCadastro`, a mesma
+  regra no `POST clientes/pre-cadastro`, no push e no `PUT clientes/:id/pre-cadastro` do BKO; fora dele = 403 `FORA_DA_CARTEIRA`
+  (no push, item `rejeitado` `FORA_DA_CARTEIRA`), com o texto `MENSAGEM_FORA_DA_CARTEIRA` de `api/push-resposta.ts`:
+  - **correção** (`revisao_base`): só no cliente da carteira do usuário (`exigirCarteira`; analista e admin têm o tenant inteiro);
+  - **`id` que já existe** (`ja_existia`, inclusive o do 23505 `cliente_pkey`): só a quem tem o cliente na carteira ou gravou uma
+    tentativa dele (`corrigido_por` em `core.cliente_pre_cadastro_tentativa`; `exigirCarteiraOuAutoria`), para supervisor e gerente
+    que cadastraram sem receber a carteira repetirem o envio;
+  - **substituição do APK v1.0.28** (item 4, `id` novo X com o CPF/CNPJ do recusado Y): `exigirCarteiraOuAutoria(db, ctx, Y)` antes do
+    savepoint; sem carteira nem autoria sobre Y, 403 `FORA_DA_CARTEIRA` e nada muda (sem isso, quem soubesse o documento apagaria o
+    recusado de outra carteira e herdaria o histórico dele).
 - Resultado por item: `aceito` (inclusive `ja_existia`) ou `rejeitado` com o código da regra (`CAMPOS_OBRIGATORIOS`,
   `DOCUMENTO_JA_CADASTRADO`, `CADASTRO_INDISPONIVEL`, `REVISAO_DESATUALIZADA`, `CADASTRO_NAO_RECUSADO`) e a mensagem em português; o
   app mostra "Não enviado" com "Corrigir e reenviar", como hoje.
@@ -80,7 +88,7 @@ APKs v1.0.28 chegam de uma vez, inclusive correções com `id` novo — por isso
 **Decisão: o `id` novo vira o cliente vivo e herda o histórico do recusado como revisão seguinte** (a linhagem continua; o `id`
 canônico passa a ser o novo). Não mapeamos o `id` novo para o original.
 - No recebimento de um pré-cadastro com `id` novo X e o CPF/CNPJ de um recusado vivo Y (`decidirDocumentoDuplicado` →
-  `substituir: Y`), na mesma transação e nesta ordem: Y recebe `deleted_at` (libera o índice único do documento); X é inserido com
+  `remover: [Y]`, `substituir: Y`), depois de conferir carteira ou autoria sobre Y (item 3), na mesma transação e nesta ordem: Y recebe `deleted_at` (libera o índice único do documento); X é inserido com
   `revisao_cadastro = Y.revisao_cadastro + 1`; as tentativas de Y passam para X (`cliente_id = X`, `cliente_id_original = Y`); a
   tentativa nova de X é gravada; audita `cliente.recusado_substituido` (sem o motivo, como hoje); publica
   `core.cliente.pre_cadastrado@1` de X (no Hub, X é cliente novo para o ERP, com `revisao` > 1).
@@ -333,7 +341,7 @@ export const EVENTO_CLIENTE_PRE_CADASTRO_REVISADO = definirEvento('core.cliente.
 | `canonicalPreCadastro(dados: DadosPreCadastro): string` | `domain/cliente-pre-cadastro.ts` | RN-CORE-78 |
 | `camposAlteradosPreCadastro(antes: DadosPreCadastro, depois: DadosPreCadastro): string[]` (compara pelos valores canônicos; devolve nomes na ordem canônica) | idem | RN-CORE-78 |
 | `decidirReenvioPreCadastro(atual: { status_cadastro: StatusCadastro \| null; revisao_cadastro: number; hash_atual: string \| null } \| null, pedido: { revisao_base: number; hash: string }): { acao: 'nova_revisao'; revisao: number } \| { acao: 'repetido' } \| { acao: 'recusar'; http: 404 \| 409 \| 422; codigo: 'NAO_ENCONTRADO' \| 'REVISAO_DESATUALIZADA' \| 'CADASTRO_NAO_RECUSADO' }` | idem | RN-CORE-78 |
-| `decidirDocumentoDuplicado(iguais)` → `{ bloqueia: boolean; substituir: { id: string; revisao: number } \| null }` (revista: no máximo um vivo por documento, pelo índice único) | idem | RN-CORE-78 |
+| `decidirDocumentoDuplicado(iguais: readonly { id: string; status_cadastro: StatusCadastro \| null; revisao_cadastro?: number \| null }[])` → `{ bloqueia: boolean; remover: string[]; substituir: { id: string; revisao: number } \| null }` (revista: `remover` = os recusados do documento, apagados na mesma transação; `substituir` = o de maior revisão; pelo índice único há no máximo um vivo) | idem | RN-CORE-78 |
 | `decidirConflitoUnicidade(e: { restricao: string \| undefined; id: string; porId: { status_cadastro: StatusCadastro \| null; apagado: boolean } \| null; porDocumento: { id: string } \| null }): { resposta: 'ja_existia'; status_cadastro: StatusCadastro } \| { resposta: 'erro'; codigo: 'CADASTRO_INDISPONIVEL' \| 'DOCUMENTO_JA_CADASTRADO' } \| { resposta: 'relancar' }` | idem | RN-CORE-78 |
 | `situacaoDoRecusado(c: { status_cadastro: StatusCadastro \| null; revisao_cadastro: number \| null }): SituacaoRecusado` (`recusado` → recusado; `pendente` com revisão > 1 → reenviado; `aprovado` → aceito) | idem | RN-CORE-78 |
 | `errosRecusaSeguros(erros: unknown): ErroCampoCadastro[]` (valida, corta em 50 itens e 300 caracteres, `mascararDadoPessoal` na mensagem) | idem | RN-CORE-78, regra 8 |
@@ -352,7 +360,7 @@ Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas p
 | Método e caminho (`/v1/core/...`) | Ação (perfis) | Corpo / consulta | Resposta |
 |---|---|---|---|
 | `POST clientes/pre-cadastro` (revista: 23505, legado, tentativa rev. 1) | `cliente.pre_cadastrar` (como hoje) | `PreCadastroClienteSchema` | `PreCadastroClienteSaidaSchema` |
-| push `cliente_pre_cadastro` (novo receptor, item 3) | `cliente.pre_cadastrar` + carteira | `PreCadastroClienteSchema` | resultado por item |
+| push `cliente_pre_cadastro` (novo receptor, item 3) | `cliente.pre_cadastrar` + carteira (ou autoria no `ja_existia` e no recusado substituído) | `PreCadastroClienteSchema` | resultado por item |
 | `GET clientes/pre-cadastro/recusados` | `cliente.pre_cadastro_recusados` (analista, admin) | `RecusadosEntradaSchema` | `RecusadosSaidaSchema` |
 | `GET clientes/:id/pre-cadastro` | `cliente.pre_cadastro_recusados` | — | `PreCadastroAtualSchema` (404 se não for pré-cadastro; Y resolvido para X pelo alias) |
 | `GET clientes/:id/pre-cadastro/historico` | `cliente.pre_cadastro_recusados` | — | `HistoricoPreCadastroSchema` |
@@ -560,6 +568,11 @@ A fazer (texto e forma pelo designer-ux; validação do design-de-marca se mudar
 - O BKO passa a ver o motivo e os erros por campo (analista e admin); a RN-CORE-78 muda nesse ponto.
 - O APK v1.0.28 segue funcionando: o pull traz campos novos que ele ignora; a correção dele (id novo) vira a revisão seguinte; o espelho do
   parâmetro mantém o formulário antigo coerente com a API. O espelho e o caminho de substituição saem com a versão mínima > 1.0.28.
+- Consequências conhecidas do escopo de carteira (item 3), aceitas: (a) o pré-cadastro da v1.0.28 não tem tentativa com
+  `corrigido_por`; se o cliente saiu da carteira de quem o cadastrou, o reenvio (ou a substituição pelo `id` novo) recebe 403
+  `FORA_DA_CARTEIRA`, e a correção fica com o vendedor da carteira ou com analista e admin no BKO; (b) supervisor e gerente que criaram
+  o pré-cadastro repetem o envio (`ja_existia`), mas não corrigem o próprio recusado: a correção exige a carteira e, no BKO, é só de
+  analista e admin (decisão d, item 7).
 - Com o receptor do push no ar, os pré-cadastros represados nos aparelhos v1.0.28 chegam juntos no primeiro sync depois do deploy.
 - Decididos pelo dono do produto (23/11/2026): os efeitos da lista única (item 6), a correção só por analista e admin (item 7) e os dois
   códigos com "o ERP manda" (item 10), do qual decorre o `vinculado` de revisão antiga e sobre `rejeitado` valer (item 8); na segunda
