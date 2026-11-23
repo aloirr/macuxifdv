@@ -87,6 +87,9 @@ services:
       MACUXI_TRUST_PROXY: uniquelocal
       # ADR 0047: planos e licenças do portal ligados na v1.0.24 (ordem do dono do produto, 22/11/2026)
       MACUXI_PLANOS: '1'
+      # ADR 0052: Inativar/Reativar, Backup e Excluir empresa no portal ligados na v1.0.27 (migração 0072; ordem do dono do
+      # produto, 22/11/2026). Só a api lê o flag; o Backup responde 503 sem MACUXI_BACKUP_EMPRESA_CHAVE (segredos.env)
+      MACUXI_EMPRESA_ACOES: '1'
     ports:
       - '127.0.0.1:8100:8100'
     volumes:

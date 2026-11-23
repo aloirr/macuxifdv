@@ -75,3 +75,5 @@ export * from './carteira-cliente';
 export * from './rota-proximidade';
 export * from './base-vendedor';
 export * from './geocodificacao-cliente';
+export * from './cliente-vinculo-erp';
+export * from './cliente-pre-cadastro';

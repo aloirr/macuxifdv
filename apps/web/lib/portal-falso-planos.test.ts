@@ -118,6 +118,21 @@ describe('modo falso: planos e CNPJ', () => {
     expect((await chamar('PUT', ROTAS_PORTAL.assinatura(CARACARAI), { plano: 'pme', pedido_id: PEDIDO }, time)).status).toBe(404);
   });
 
+  it('POST assinatura (empresa sem plano): 201 com a ficha; mesmo pedido = 200; já tem plano = 409; admin do cliente = 403', async () => {
+    const corpo = { plano: 'pme', ciclo: 'mensal', adicionais: [], com_teste: true, pedido_id: PEDIDO };
+    const admin = await entrarComTimers('admin@uma.com.br');
+    expect((await chamar('POST', ROTAS_PORTAL.assinatura(UMA), corpo, admin)).status).toBe(403);
+    const time = await entrarComTimers('time@macuxi.com.br');
+    const r = await chamar('POST', ROTAS_PORTAL.assinatura(CARACARAI), corpo, time);
+    expect(r.status).toBe(201);
+    const f = FichaAssinaturaSchema.parse(await r.json());
+    expect([f.plano.codigo, f.teste_ate !== null]).toEqual(['pme', true]);
+    expect((await chamar('GET', ROTAS_PORTAL.assinatura(CARACARAI), null, time)).status).toBe(200);
+    expect((await chamar('POST', ROTAS_PORTAL.assinatura(CARACARAI), corpo, time)).status).toBe(200);
+    const outra = await chamar('POST', ROTAS_PORTAL.assinatura(UMA), { ...corpo, pedido_id: '9a0c1e52-5c1e-4c4e-9a43-0000000000ff' }, time);
+    expect([outra.status, (await outra.json()).codigo]).toEqual([409, 'ASSINATURA_EXISTENTE']);
+  });
+
   it('POST empresas-com-plano: simular não grava; criar grava a empresa e a ficha em teste; admin do cliente = 403', async () => {
     const time = await entrarComTimers('time@macuxi.com.br');
     const sim = await chamar('POST', ROTAS_PORTAL.empresaComPlano, corpoNova({ simular: true }), time);

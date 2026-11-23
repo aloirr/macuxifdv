@@ -97,6 +97,27 @@ export const TEXTO_ROTA: Record<string, PassoRota> = {
     exemploSaida: 'integrado',
     exemplosExtraSaida: ['itens_descartados'],
   },
+  clientes_pendentes: {
+    serve: 'Entrega os clientes novos (pré-cadastro) aprovados no BKO do Macuxi para o seu sistema criar no ERP.',
+    quando: 'A cada poucos minutos. Só o Conector com permissão de receber pedidos usa esta rota; os demais recebem `403`.',
+    passos: [
+      'Chame `GET /clientes/pendentes`.',
+      'Para cada cliente, crie no ERP de forma idempotente pelo `cliente_uuid` (guarde o UUID no cadastro do ERP).',
+      'Devolva o código gerado com `POST /clientes/{cliente_uuid}/retorno` no prazo (Seção 6).',
+    ],
+    exemploSaida: 'com_cliente',
+  },
+  retorno_cliente: {
+    serve: 'Informa ao Macuxi o código que o ERP deu ao cliente novo, ou que o ERP recusou o cadastro.',
+    quando: 'Depois de criar (ou recusar) o cliente no ERP.',
+    passos: [
+      'Use no caminho o `cliente_uuid` recebido em `GET /clientes/pendentes`; o corpo repete o mesmo valor.',
+      'Criado: envie `status: vinculado` e o código do ERP em `external_id`. Recusado: `status: rejeitado_erp` e o `motivo`.',
+      'Depois do vínculo o mesmo cliente chega nos lotes de `cliente` com este mesmo `external_id`.',
+    ],
+    exemploEntrada: 'vinculado',
+    exemploSaida: 'vinculado',
+  },
   sinal: {
     serve: 'Avisa que o seu sistema está de pé e devolve a política de versão vigente.',
     quando: 'A cada minuto.',
@@ -117,6 +138,8 @@ export const RESUMO_ROTA: Record<string, string> = {
   enviar_reconciliacao: 'Confere contagem e soma do dia com o Macuxi',
   pedidos_pendentes: 'Busca os pedidos aprovados para gravar no ERP',
   retorno_pedido: 'Devolve o status do pedido (integrado, faturado...)',
+  clientes_pendentes: 'Busca os clientes novos aprovados para criar no ERP',
+  retorno_cliente: 'Devolve o código do cliente criado no ERP',
   sinal: 'Sinal de vida e política de versão',
 };
 
@@ -127,6 +150,8 @@ export const TITULO_ROTA: Record<string, string> = {
   enviar_reconciliacao: 'Enviar reconciliação',
   pedidos_pendentes: 'Buscar pedidos pendentes',
   retorno_pedido: 'Devolver retorno do pedido',
+  clientes_pendentes: 'Buscar clientes novos pendentes',
+  retorno_cliente: 'Devolver código do cliente',
   sinal: 'Enviar sinal de vida',
 };
 
@@ -319,6 +344,13 @@ export const DESCRICAO_CAMPO: Record<string, string> = {
   'ItemFaturado.quantidade': 'Quantidade faturada, inteira, na unidade base.',
   valor_cents: 'Valor, em centavos.',
   ocorrido_em: 'Instante do fato no ERP.',
+  'ClientesPendentes.clientes': 'Clientes novos para criar no ERP (lista vazia é normal).',
+  'ClienteParaErp.cliente_uuid': 'Identificador do cliente no Macuxi. Chave de idempotência da criação no ERP.',
+  'ClienteParaErp.tentativa': 'Quantas vezes o cliente saiu. Maior que 1 = reenvio por falta de retorno no prazo.',
+  'RetornoCliente.cliente_uuid': 'O `cliente_uuid` recebido em `GET /clientes/pendentes` (o mesmo do caminho).',
+  'RetornoCliente.status': '`vinculado` (cliente criado no ERP, com o código em `external_id`) ou `rejeitado_erp` (com o `motivo`).',
+  'RetornoClienteAceito.cliente_uuid': 'Cliente do retorno.',
+  'RetornoClienteAceito.estado': 'Situação do cliente depois do retorno: `vinculado` ou `rejeitado`.',
   'RetornoErp.status': 'O que aconteceu com o pedido (valores abaixo).',
   'RetornoAceito.status': 'Situação do pedido depois do retorno.',
   itens_descartados: 'Itens faturados que não bateram com o pedido (ignorados).',
@@ -514,6 +546,7 @@ export const ACAO_STATUS: readonly { status: string; codigos: string; acao: stri
 export const QUANDO_STATUS: Record<string, string> = {
   'enviar_lote:422': 'Recusa do envelope; corrija e reenvie.',
   'retorno_pedido:422': 'Retorno recusado.',
+  'retorno_cliente:422': 'Retorno recusado.',
 };
 
 /** Texto do parágrafo de sucesso no lugar da descrição do OpenAPI (`rota`). */

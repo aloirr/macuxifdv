@@ -19,7 +19,10 @@ import { CriarEmpresaSchema, Dia } from './plataforma';
 export const ROTA_PORTAL_PLANOS = '/v1/plataforma/planos';
 /** `POST` cria a empresa já com o plano (só super-admin). */
 export const ROTA_PORTAL_EMPRESA_COM_PLANO = '/v1/plataforma/empresas-com-plano';
-/** `GET` ficha (licenças contratadas e em uso) e `PUT` troca de plano: `/v1/plataforma/empresas/:tenant_id/assinatura`. */
+/**
+ * `/v1/plataforma/empresas/:tenant_id/assinatura`: `GET` ficha (licenças contratadas e em uso), `PUT` troca de plano e `POST`
+ * primeiro plano da empresa que já existe sem assinatura (`AtribuirPlanoSchema`).
+ */
 export const rotaPortalAssinatura = (tenantId: string): string => `/v1/plataforma/empresas/${tenantId}/assinatura`;
 
 // ---------- tipos de licença ----------
@@ -139,6 +142,15 @@ export const TrocarPlanoSchema = EscolhaDePlanoSchema.extend({
   pedido_id: Uuid,
 }).strict();
 export type TrocarPlano = z.output<typeof TrocarPlanoSchema>;
+
+/**
+ * `POST /v1/plataforma/empresas/:tenant_id/assinatura` (só super-admin): o primeiro plano da empresa que já existe sem assinatura
+ * (empresas de antes dos planos). Mesmo corpo da escolha na criação (`com_teste` padrão `true`; `pedido_id` gerado no portal).
+ * Resposta: 201 `FichaAssinaturaSchema`; repetir o mesmo `pedido_id` = 200 com a ficha, nada muda; empresa que já tem plano =
+ * 409 `ASSINATURA_EXISTENTE` (a troca é pelo `PUT`); plano abaixo do uso = 422 `PLANO_ABAIXO_DO_USO` (RN-PLA-05).
+ */
+export const AtribuirPlanoSchema = EscolhaNaCriacaoSchema;
+export type AtribuirPlano = z.output<typeof AtribuirPlanoSchema>;
 
 /** Contagem de um item: contratadas (`null` = sem limite) e em uso agora. */
 export const UsoDeLicencaSchema = z.object({ item: z.enum(ITENS_CONTADOS), contratadas: Quantidade, em_uso: z.number().int().min(0) });

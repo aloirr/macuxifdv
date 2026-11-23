@@ -2,6 +2,14 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **PAUSA GERAL** (22/11/2026 ~08h, ordem do Alexandre): tudo parado até a retomada escrita dele. No ar: **v1.0.26** (08h05; #666 + #667). Sessões S17 e S18 interrompidas (o que estava feito fica nos branches `nuvem/v1027-erp-*`).
+> **v1.0.27 (só registrado, nada começa antes da retomada):**
+> - **Cliente novo para o ERP** ("2 A", 22/11): o cliente do pré-cadastro (RF-CORE-10) aprovado no BKO fica disponível na API para o ERP buscar, e o ERP devolve o código dele, como nos pedidos.
+> - **ERPs F3–F8** (D1–D9 aprovadas; ADR 0066; RN-INT-17 a 21): F3/F4 (S17) e F5/F6 (S18) começadas e pausadas; F7 simulador e F8 pareceres por fazer. Ligar a busca exige o secret `MACUXI_CHAVE_SEGREDOS_V1` no PRODUCAO e o IP fixo de saída (Alexandre).
+> - **Teste de desempenho do filtro de veículo** (`modules/catalogo/app/desempenho-veiculo.test.ts`): o teto de 900 ms falha no runner do GitHub (caiu nos liberar da v1.0.24 e da v1.0.26); separar o teto do CI do teto do aparelho. Dono: modulo-catalogo.
+> - **Borda dos campos #7A8593 no app** ("1 b", 22/11): vai no próximo APK; nenhum APK novo agora.
+> - **36 achados abertos** no catálogo de redundâncias (#667), por dono.
+
 > **v1.0.21 em andamento** (R-20261121-200300-alexandre: tudo junto, um PR conjunto; "aprovo deploy v1.0.21" antecipado em R-20261121-214300, válido com o rito completo). Horários de Manaus.
 > - **No main:** #651 (registro da v1.0.17 à v1.0.20) e #652 (governança: workflow "producao — reprocessar outbox" e `contagem_integracao` no diagnóstico; frase R-20261121-211800).
 > - **PR conjunto:**

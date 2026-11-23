@@ -5,7 +5,8 @@
  * docs/design/telas/portal-config-enxuto.md §8 e §11.4): duas colunas lado a lado (≥ 768 px), larguras 1,25 : 1; abaixo de
  * 768 px, empilhadas.
  * - Esquerda: o cartão "Plano {nome}" com "Trocar de plano". Empresa sem plano (a ficha dá 404: `SEM_ASSINATURA` ou servidor com
- *   `MACUXI_PLANOS` desligado): o cartão "Módulos licenciados" de antes, sem "Trocar de plano".
+ *   `MACUXI_PLANOS` desligado): o cartão "Módulos licenciados" de antes, sem "Trocar de plano"; com os planos ligados, o time da
+ *   Macuxi tem "Escolher plano" no título do cartão (v1.0.27; antes, com tudo licenciado, o cartão ficava sem ação nenhuma).
  * - Direita: "Administradores" e, abaixo dele, `colunaDireita` (Logo, Nome fantasia e Apps, até o designer-ux decidir o lugar).
  * - `semPlano`: só na empresa sem plano, dentro do cartão "Módulos licenciados" (o "Acrescentar módulos" do passo antigo, RD-2613).
  * O admin do cliente vê o Plano (ou os Módulos licenciados) na largura toda, sem "Trocar de plano" e sem Administradores; a
@@ -17,13 +18,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Notice } from '@macuxi/ui/web';
 
+import { ehRotaAusente } from '@/lib/portal-api';
 import type { EmpresaResumo } from '@/lib/portal-empresa-acoes';
 import { retirarEmpresaCriada, TEXTOS_NOVA_EMPRESA } from '@/lib/portal-nova-empresa';
 import { fichaSemPlano } from '@/lib/portal-planos';
 
 import { CartaoAdmins } from './cartao-admins';
 import { CartaoModulosLicenciados } from './cartao-modulos-licenciados';
-import { CartaoPlano, useFicha } from './cartao-plano';
+import { CartaoPlano, EscolherPlano, useFicha } from './cartao-plano';
 
 export interface PropsAbaEmpresa {
   tenant: string;
@@ -33,14 +35,22 @@ export interface PropsAbaEmpresa {
   modulos: EmpresaResumo['modulos'];
   /** Cartões da coluna da direita, abaixo de Administradores (Logo, Nome fantasia, Apps). */
   colunaDireita?: ReactNode;
-  /** Só na empresa sem plano: dentro do cartão "Módulos licenciados" (RD-2613). */
-  semPlano?: ReactNode;
+  /** Só na empresa sem plano: dentro do cartão "Módulos licenciados" (RD-2613); com "Escolher plano" no cartão, a ação dele é secundária. */
+  semPlano?: (comEscolher: boolean) => ReactNode;
 }
 
 export function AbaEmpresa({ tenant, fuso, timeMacuxi, modulos, colunaDireita, semPlano }: PropsAbaEmpresa) {
   const ficha = useFicha(tenant);
   const sem = ficha.isError && fichaSemPlano(ficha.error);
-  const principal = sem ? <CartaoModulosLicenciados modulos={modulos}>{semPlano}</CartaoModulosLicenciados> : <CartaoPlano tenant={tenant} podeTrocar={timeMacuxi} largo={!timeMacuxi} />;
+  // "Escolher plano" só com os planos ligados: o 404 de rota (`MACUXI_PLANOS` desligado) não tem catálogo
+  const podeEscolher = sem && timeMacuxi && !ehRotaAusente(ficha.error);
+  const principal = sem ? (
+    <CartaoModulosLicenciados modulos={modulos} acao={podeEscolher ? <EscolherPlano tenant={tenant} /> : undefined}>
+      {semPlano?.(podeEscolher)}
+    </CartaoModulosLicenciados>
+  ) : (
+    <CartaoPlano tenant={tenant} podeTrocar={timeMacuxi} largo={!timeMacuxi} />
+  );
   return (
     <div data-testid="empresa-pagina.conteudo-empresa" data-sem-plano={sem ? 'sim' : undefined} className="flex flex-col gap-4">
       {timeMacuxi ? (

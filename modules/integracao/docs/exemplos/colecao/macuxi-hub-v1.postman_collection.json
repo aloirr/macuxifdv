@@ -34,6 +34,11 @@
       "key": "pedido_uuid",
       "value": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
       "description": "UUID do pedido (`pedido_uuid` de `GET /pedidos/pendentes`)."
+    },
+    {
+      "key": "cliente_uuid",
+      "value": "",
+      "description": "UUID do cliente (`cliente_uuid` de `GET /clientes/pendentes`)."
     }
   ],
   "item": [
@@ -2285,6 +2290,475 @@
       ]
     },
     {
+      "name": "Clientes novos",
+      "description": "Pré-cadastros de cliente aprovados no BKO para criar no ERP e retorno do código do ERP (RN-INT-22).",
+      "item": [
+        {
+          "name": "GET /clientes/pendentes",
+          "description": "Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+          "item": [
+            {
+              "name": "Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/clientes/pendentes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "clientes",
+                    "pendentes"
+                  ],
+                  "query": [
+                    {
+                      "key": "limite",
+                      "value": "50",
+                      "description": "Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "**GET /clientes/pendentes** — Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100."
+              },
+              "response": [
+                {
+                  "name": "200 — com_cliente: Um cliente novo aprovado (o Hub o marca como enviado ao entregar)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"clientes\": [\n    {\n      \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n      \"aprovado_em\": \"2026-11-23T13:40:00Z\",\n      \"razao_social\": \"Mercadinho Boa Vista Ltda\",\n      \"nome_fantasia\": \"Boa Vista\",\n      \"documento\": \"12345678000190\",\n      \"inscricao_estadual\": null,\n      \"telefone\": \"9532212345\",\n      \"email\": null,\n      \"logradouro\": \"Av. Ene Garcez\",\n      \"numero\": \"1200\",\n      \"complemento\": null,\n      \"bairro\": \"Centro\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cep\": \"69301110\",\n      \"latitude\": null,\n      \"longitude\": null,\n      \"filial_external_id\": null,\n      \"tentativa\": 1\n    }\n  ]\n}"
+                },
+                {
+                  "name": "200 — vazio: Nenhum cliente novo pendente (normal)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"clientes\": []\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "POST /clientes/{cliente_uuid}/retorno",
+          "description": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.",
+          "item": [
+            {
+              "name": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição — vinculado",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n  \"status\": \"vinculado\",\n  \"external_id\": \"C-004512\",\n  \"ocorrido_em\": \"2026-11-23T14:02:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/clientes/{{cliente_uuid}}/retorno",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "clientes",
+                    "{{cliente_uuid}}",
+                    "retorno"
+                  ]
+                },
+                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `vinculado` (Cliente criado no ERP (informe o código))."
+              },
+              "response": [
+                {
+                  "name": "200 — vinculado: Retorno aplicado",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n  \"estado\": \"vinculado\",\n  \"repetido\": false\n}"
+                },
+                {
+                  "name": "200 — repetido: Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n  \"estado\": \"vinculado\",\n  \"repetido\": true\n}"
+                },
+                {
+                  "name": "400 — requisicao_invalida: Corpo fora do contrato (ou cliente_uuid do caminho diferente do corpo)",
+                  "status": "Erro",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"requisicao_invalida\",\n  \"mensagem\": \"Dados inválidos em corpo.\",\n  \"detalhes\": {\n    \"problemas\": [\n      {\n        \"caminho\": \"corpo.external_id\",\n        \"mensagem\": \"informe o código do cliente no ERP\"\n      }\n    ]\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — cliente_desconhecido: O Hub não conhece o cliente",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"cliente_desconhecido\",\n  \"mensagem\": \"O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.\",\n  \"erros\": [\n    {\n      \"codigo\": \"cliente_desconhecido\",\n      \"campo\": null,\n      \"mensagem\": \"O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — external_id_divergente: O mesmo cliente já tem outro código no ERP",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"external_id_divergente\",\n  \"mensagem\": \"O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.\",\n  \"erros\": [\n    {\n      \"codigo\": \"external_id_divergente\",\n      \"campo\": \"external_id\",\n      \"mensagem\": \"O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição — rejeitado_erp",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n  \"status\": \"rejeitado_erp\",\n  \"motivo\": \"CNPJ já cadastrado com outro código\",\n  \"ocorrido_em\": \"2026-11-23T14:02:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/clientes/{{cliente_uuid}}/retorno",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "clientes",
+                    "{{cliente_uuid}}",
+                    "retorno"
+                  ]
+                },
+                "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o cadastro (o motivo é obrigatório))."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Pedidos",
       "description": "Devolução de pedidos aprovados ao ERP e retorno do ERP (número, rejeição, faturamento, cancelamento).",
       "item": [
@@ -2335,12 +2809,12 @@
                     {
                       "key": "limite",
                       "value": "50",
-                      "description": "Quantos pedidos devolver por consulta. Padrão 50, máximo 100.",
+                      "description": "Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
                       "disabled": true
                     }
                   ]
                 },
-                "description": "**GET /pedidos/pendentes** — Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).\n\nPedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos devolver por consulta. Padrão 50, máximo 100."
+                "description": "**GET /pedidos/pendentes** — Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).\n\nPedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100."
               },
               "response": [
                 {

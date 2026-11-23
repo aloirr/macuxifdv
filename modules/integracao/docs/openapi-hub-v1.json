@@ -24,6 +24,10 @@
       "description": "Envio de dados do ERP (lotes completos e delta), consulta do resultado, cursor e reconciliação diária."
     },
     {
+      "name": "Clientes novos",
+      "description": "Pré-cadastros de cliente aprovados no BKO para criar no ERP e retorno do código do ERP (RN-INT-22)."
+    },
+    {
       "name": "Pedidos",
       "description": "Devolução de pedidos aprovados ao ERP e retorno do ERP (número, rejeição, faturamento, cancelamento)."
     },
@@ -1601,7 +1605,7 @@
             "name": "limite",
             "in": "query",
             "required": false,
-            "description": "Quantos pedidos devolver por consulta. Padrão 50, máximo 100.",
+            "description": "Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -2013,6 +2017,364 @@
                           "codigo": "numero_erp_divergente",
                           "campo": "numero_erp",
                           "mensagem": "O pedido já tem o número PV-004512 no ERP e o retorno informa outro. Confira no ERP se o pedido foi gravado duas vezes."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/clientes/pendentes": {
+      "get": {
+        "operationId": "clientes_pendentes",
+        "summary": "Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).",
+        "description": "Clientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+        "tags": [
+          "Clientes novos"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "description": "Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clientes novos para criar no ERP (a lista vazia é normal).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientesPendentes"
+                },
+                "examples": {
+                  "com_cliente": {
+                    "summary": "Um cliente novo aprovado (o Hub o marca como enviado ao entregar)",
+                    "value": {
+                      "clientes": [
+                        {
+                          "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
+                          "aprovado_em": "2026-11-23T13:40:00Z",
+                          "razao_social": "Mercadinho Boa Vista Ltda",
+                          "nome_fantasia": "Boa Vista",
+                          "documento": "12345678000190",
+                          "inscricao_estadual": null,
+                          "telefone": "9532212345",
+                          "email": null,
+                          "logradouro": "Av. Ene Garcez",
+                          "numero": "1200",
+                          "complemento": null,
+                          "bairro": "Centro",
+                          "cidade": "Boa Vista",
+                          "uf": "RR",
+                          "cep": "69301110",
+                          "latitude": null,
+                          "longitude": null,
+                          "filial_external_id": null,
+                          "tentativa": 1
+                        }
+                      ]
+                    }
+                  },
+                  "vazio": {
+                    "summary": "Nenhum cliente novo pendente (normal)",
+                    "value": {
+                      "clientes": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/clientes/{cliente_uuid}/retorno": {
+      "post": {
+        "operationId": "retorno_cliente",
+        "summary": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).",
+        "description": "Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.",
+        "tags": [
+          "Clientes novos"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          },
+          {
+            "name": "cliente_uuid",
+            "in": "path",
+            "required": true,
+            "description": "UUID do cliente (`cliente_uuid` de `GET /clientes/pendentes`).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetornoCliente"
+              },
+              "examples": {
+                "vinculado": {
+                  "summary": "Cliente criado no ERP (informe o código)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
+                    "status": "vinculado",
+                    "external_id": "C-004512",
+                    "ocorrido_em": "2026-11-23T14:02:00Z"
+                  }
+                },
+                "rejeitado_erp": {
+                  "summary": "ERP recusou o cadastro (o motivo é obrigatório)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
+                    "status": "rejeitado_erp",
+                    "motivo": "CNPJ já cadastrado com outro código",
+                    "ocorrido_em": "2026-11-23T14:02:00Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retorno aplicado (ou repetido).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetornoClienteAceito"
+                },
+                "examples": {
+                  "vinculado": {
+                    "summary": "Retorno aplicado",
+                    "value": {
+                      "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
+                      "estado": "vinculado",
+                      "repetido": false
+                    }
+                  },
+                  "repetido": {
+                    "summary": "Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)",
+                    "value": {
+                      "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
+                      "estado": "vinculado",
+                      "repetido": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo fora do contrato, ou `cliente_uuid` do caminho diferente do corpo.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroHub"
+                },
+                "examples": {
+                  "requisicao_invalida": {
+                    "summary": "Corpo fora do contrato (ou cliente_uuid do caminho diferente do corpo)",
+                    "value": {
+                      "codigo": "requisicao_invalida",
+                      "mensagem": "Dados inválidos em corpo.",
+                      "detalhes": {
+                        "problemas": [
+                          {
+                            "caminho": "corpo.external_id",
+                            "mensagem": "informe o código do cliente no ERP"
+                          }
+                        ]
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "422": {
+            "description": "Retorno recusado: `cliente_desconhecido`, `cliente_nao_entregue`, `transicao_invalida` ou `external_id_divergente`. Definitivo: o retorno não deve ser reenviado igual.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaRetornoCliente"
+                },
+                "examples": {
+                  "cliente_desconhecido": {
+                    "summary": "O Hub não conhece o cliente",
+                    "value": {
+                      "codigo": "cliente_desconhecido",
+                      "mensagem": "O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.",
+                      "erros": [
+                        {
+                          "codigo": "cliente_desconhecido",
+                          "campo": null,
+                          "mensagem": "O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "external_id_divergente": {
+                    "summary": "O mesmo cliente já tem outro código no ERP",
+                    "value": {
+                      "codigo": "external_id_divergente",
+                      "mensagem": "O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.",
+                      "erros": [
+                        {
+                          "codigo": "external_id_divergente",
+                          "campo": "external_id",
+                          "mensagem": "O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes."
                         }
                       ],
                       "requisicao_id": "req-7f3a9c2e41d8"
@@ -2770,6 +3132,212 @@
           "uf"
         ]
       },
+      "ClienteParaErp": {
+        "type": "object",
+        "properties": {
+          "cliente_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "aprovado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "razao_social": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "nome_fantasia": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inscricao_estadual": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logradouro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "numero": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "complemento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cep": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filial_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tentativa": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "cliente_uuid",
+          "aprovado_em",
+          "razao_social",
+          "nome_fantasia",
+          "documento",
+          "inscricao_estadual",
+          "telefone",
+          "email",
+          "logradouro",
+          "numero",
+          "complemento",
+          "bairro",
+          "cidade",
+          "uf",
+          "cep",
+          "latitude",
+          "longitude",
+          "filial_external_id"
+        ]
+      },
       "ClientePayload": {
         "description": "`documento` (CNPJ/CPF) é dado pessoal quando CPF: nunca aparece em log nem em mensagem de erro.",
         "type": "object",
@@ -2996,6 +3564,20 @@
           "external_id",
           "alterado_em",
           "razao_social"
+        ]
+      },
+      "ClientesPendentes": {
+        "type": "object",
+        "properties": {
+          "clientes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClienteParaErp"
+            }
+          }
+        },
+        "required": [
+          "clientes"
         ]
       },
       "CodigoErroLinha": {
@@ -3410,6 +3992,15 @@
         "required": [
           "codigo",
           "mensagem"
+        ]
+      },
+      "EstadoClienteFila": {
+        "type": "string",
+        "enum": [
+          "pendente",
+          "enviado",
+          "vinculado",
+          "rejeitado"
         ]
       },
       "EstadoLote": {
@@ -5653,6 +6244,71 @@
           "erros"
         ]
       },
+      "RecusaRetornoCliente": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "enum": [
+              "cliente_desconhecido",
+              "cliente_nao_entregue",
+              "transicao_invalida",
+              "external_id_divergente"
+            ]
+          },
+          "mensagem": {
+            "type": "string",
+            "minLength": 1
+          },
+          "erros": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "codigo": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "campo": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mensagem": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "codigo",
+                "campo",
+                "mensagem"
+              ]
+            },
+            "minItems": 1
+          },
+          "requisicao_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "codigo",
+          "mensagem",
+          "erros"
+        ]
+      },
       "ReferenciaCruzada": {
         "type": "object",
         "properties": {
@@ -5866,6 +6522,77 @@
         "required": [
           "pedido_uuid",
           "status",
+          "repetido"
+        ]
+      },
+      "RetornoCliente": {
+        "type": "object",
+        "properties": {
+          "versao_contrato": {
+            "const": "v1",
+            "type": "string"
+          },
+          "cliente_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusRetornoCliente"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ocorrido_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          }
+        },
+        "required": [
+          "versao_contrato",
+          "cliente_uuid",
+          "status",
+          "ocorrido_em"
+        ]
+      },
+      "RetornoClienteAceito": {
+        "type": "object",
+        "properties": {
+          "cliente_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoClienteFila"
+          },
+          "repetido": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cliente_uuid",
+          "estado",
           "repetido"
         ]
       },
@@ -6154,6 +6881,13 @@
           "aberto",
           "baixado",
           "cancelado"
+        ]
+      },
+      "StatusRetornoCliente": {
+        "type": "string",
+        "enum": [
+          "vinculado",
+          "rejeitado_erp"
         ]
       },
       "StatusRetornoRecebido": {

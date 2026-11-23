@@ -79,10 +79,18 @@ function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>;
       provisionados.push({ entrada, simular });
       return { tenant_id: simular ? null : NOVA, resultado: 'criado', modulos_adicionados: entrada.modulos.map((m) => m.modulo), parametros_gravados: [], avisos: [], admin: 'criado' };
     },
+    listarEmpresas: async () => ({
+      itens: [EMPRESA, OUTRA].map((id) => ({ id, codigo: 'antiga', razao_social: 'Antiga', cnpj: null, fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-01-01T00:00:00Z', modulos: [], plano: null })),
+    }),
   };
+  // como as sa_*: a assinatura que existe não muda; a troca é idempotente por pedido_id
+  let tem = false;
+  const pedidos = new Set<string>();
   const fontePlanos: FontePlanosPortal = {
     listar: async () => ({ itens: [PME, LIGHT] }),
     gravarAssinatura: async (_sid, tenant, e) => {
+      if (tem) return { resultado: 'existente', teste_ate: null };
+      tem = true;
       gravadas.push({ tenant, e });
       return { resultado: 'criada', teste_ate: e.teste_ate };
     },
@@ -90,7 +98,12 @@ function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>;
       if (op.semAssinatura) throw Object.assign(new Error('sem'), { code: 'P0002' });
       return fichaCrua(tenant, op.emUso);
     },
-    trocar: async (_sid, tenant, e) => void trocas.push({ tenant, e }),
+    trocar: async (_sid, tenant, e) => {
+      if (pedidos.has(e.pedido_id)) return { resultado: 'existente', modulos_ligados: [] };
+      pedidos.add(e.pedido_id);
+      trocas.push({ tenant, e });
+      return { resultado: 'trocada', modulos_ligados: e.modulos };
+    },
   };
   const app = createApp(
     opcoesDeTeste(undefined, {
@@ -217,5 +230,28 @@ describe('Portal › Planos e licenças (ADR 0047)', () => {
     expect(trocas).toEqual([
       { tenant: EMPRESA, e: { plano: 'pme', ciclo: 'mensal', adicionais: [{ adicional: 'promotor', quantidade: 1 }], pedido_id: PEDIDO, modulos: ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'integracao'] } },
     ]);
+  });
+
+  it('primeiro plano de empresa sem assinatura: só super-admin; 201 com a ficha; mesmo pedido = 200; já tem plano = 409', async () => {
+    const { app, gravadas, trocas } = montar();
+    const url = `/v1/plataforma/empresas/${EMPRESA}/assinatura`;
+    const corpo = { plano: 'pme', ciclo: 'anual', adicionais: [{ adicional: 'pesquisa', quantidade: 3 }], pedido_id: PEDIDO };
+    expect((await app.inject({ method: 'POST', url, headers: cli, payload: corpo })).statusCode).toBe(403);
+    expect(gravadas).toEqual([]);
+    const r = await app.inject({ method: 'POST', url, headers: sa, payload: corpo });
+    expect(r.statusCode).toBe(201);
+    expect(FichaAssinaturaSchema.safeParse(r.json()).success).toBe(true);
+    // teste de 14 dias contado no fuso da empresa; a troca no mesmo pedido liga os módulos do plano
+    expect(gravadas).toEqual([{ tenant: EMPRESA, e: { plano: 'pme', ciclo: 'anual', adicionais: [{ adicional: 'pesquisa', quantidade: 3 }], teste_ate: '2026-11-27', paga: false, pedido_id: PEDIDO } }]);
+    expect(trocas.map((t) => t.e.modulos)).toEqual([['core', 'catalogo', 'vendedor', 'gestor', 'pesquisa', 'integracao']]);
+    const de_novo = await app.inject({ method: 'POST', url, headers: sa, payload: corpo });
+    expect(de_novo.statusCode).toBe(200);
+    expect([gravadas.length, trocas.length]).toEqual([1, 1]);
+    const outro = await app.inject({ method: 'POST', url, headers: sa, payload: { ...corpo, pedido_id: '9b000000-0000-4000-8000-000000000002' } });
+    expect([outro.statusCode, outro.json().codigo]).toEqual([409, 'ASSINATURA_EXISTENTE']);
+    const fora = await app.inject({ method: 'POST', url, headers: sa, payload: { plano: 'light', adicionais: [{ adicional: 'pesquisa', quantidade: 1 }], pedido_id: PEDIDO } });
+    expect([fora.statusCode, fora.json().codigo]).toEqual([422, 'ADICIONAL_FORA_DO_PLANO']);
+    const ninguem = await app.inject({ method: 'POST', url: `/v1/plataforma/empresas/0a000000-0000-4000-8000-0000000000ff/assinatura`, headers: sa, payload: corpo });
+    expect([ninguem.statusCode, ninguem.json().codigo]).toEqual([404, 'TENANT_NAO_ENCONTRADO']);
   });
 });

@@ -1306,3 +1306,26 @@ Volta: `0093_core_usuario_base_cliente_geocodificacao.down.sql` (apaga as 22 col
 origem/precisão e as tentativas; as coordenadas dos clientes ficam — e devolve o SELECT de tabela em `core.cliente` ao
 `macuxi_leitura`). Idempotente. Volte antes o código do Core que lê ou grava. Teste:
 `db/testes/usuario-base-cliente-geocodificacao.db.test.ts`.
+
+## 0095 — origem, status e aprovação do cadastro do cliente (`0095_core_cliente_cadastro_aprovacao`; v1.0.27, RF-CORE-10, R-20261122-084146-alexandre item d)
+Migração **aditiva**, em cima da 0094 (número provisório; segue a ordem de merge): 4 colunas, 5 CHECKs e 1 índice parcial em
+`core.cliente`. O cliente de pré-cadastro (campo ou BKO) aprovado no BKO vai ao ERP pelo Hub, que devolve o `external_id`.
+Nenhuma política nova: as colunas herdam a RLS (`isolamento_tenant`) e os grants do `macuxi_app`. Fora do pull.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `origem_cadastro` | text not null default `'erp'` | `'erp'`, `'campo'` ou `'bko'` (`cliente_origem_cadastro_valida`); quem já existia fica `'erp'` pelo default, sem UPDATE e sem andar o `updated_at` |
+| `status_cadastro` | text null | `'pendente'`, `'aprovado'` ou `'recusado'` (`cliente_status_cadastro_valido`); nulo **se e só se** a origem é `'erp'` (`cliente_status_cadastro_origem`) |
+| `aprovado_em` | timestamptz null | quando o BKO aprovou (UTC) |
+| `aprovado_por` | uuid null | `core.usuario.id` de quem aprovou, sem FK (como `core.notificacao.recado_do_dia_por`, 0021) |
+
+`aprovado_em` e `aprovado_por` andam juntos (`cliente_aprovacao_par`) e só com `status_cadastro = 'aprovado'`
+(`cliente_aprovacao_status`). Índice `cliente_aprovado_sem_erp_ix (tenant_id, aprovado_em, id) where external_id is null and
+aprovado_em is not null and deleted_at is null`: a fila do Hub (aprovados ainda sem código do ERP), em ordem de aprovação e
+paginada por `(aprovado_em, id)`. A unicidade do `external_id` por tenant entre os vivos já existe (`cliente_external_uk`,
+0002): código repetido devolvido pelo Hub dá 23505. O `macuxi_leitura` (SELECT por coluna desde a 0093) recebe as 4 colunas
+(nenhuma sensível pela regra da 0078). Volume: o de `core.cliente`; a fila é pequena (dezenas por tenant).
+
+Volta: `0095_core_cliente_cadastro_aprovacao.down.sql` (apaga o índice, os CHECKs e as 4 colunas — perde a origem, o status e
+a aprovação; os clientes ficam). Idempotente. Volte antes o código do Core e do Hub que lê ou grava. Teste:
+`db/testes/cliente-cadastro-aprovacao.db.test.ts`.

@@ -7,10 +7,11 @@
  */
 import { z } from 'zod';
 import { CABECALHO_CONECTOR_ID, CABECALHO_CONECTOR_VERSAO, RespostaSinal, SinalConector } from './conector';
-import { Uuid } from './base';
+import { LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, Uuid } from './base';
 import { Entidade } from './entidades';
 import { CursorEntidade, LoteAceito, LoteEnvelope, LoteResultado, ReconciliacaoEnvio } from './lote';
 import { PedidosPendentes, RetornoAceito, RetornoErp } from './pedido';
+import { ClientesPendentes, ParamsCliente, QueryClientesPendentes, RetornoCliente, RetornoClienteAceito } from './cliente-erp';
 
 export const CABECALHO_IDEMPOTENCIA = 'Idempotency-Key';
 /** Resposta de repetição: o Hub devolve o lote que já existia para a chave (`Idempotent-Replay: true`). */
@@ -114,6 +115,16 @@ export const RecusaRetorno = z.object({
 });
 export type RecusaRetorno = z.infer<typeof RecusaRetorno>;
 
+/** Códigos de recusa do retorno do cliente (HTTP 422, definitivo; RN-INT-22). */
+export const CODIGOS_RECUSA_RETORNO_CLIENTE = ['cliente_desconhecido', 'cliente_nao_entregue', 'transicao_invalida', 'external_id_divergente'] as const;
+export const RecusaRetornoCliente = z.object({
+  codigo: z.enum(CODIGOS_RECUSA_RETORNO_CLIENTE),
+  mensagem: z.string().min(1),
+  erros: z.array(z.object({ codigo: z.string().min(1), campo: z.string().nullable(), mensagem: z.string().min(1) })).min(1),
+  requisicao_id: z.string().nullish(),
+});
+export type RecusaRetornoCliente = z.infer<typeof RecusaRetornoCliente>;
+
 /** Parâmetros de rota e query. */
 export const ParamsLote = z.object({ id: Uuid });
 export const ParamsEntidade = z.object({ entidade: Entidade });
@@ -127,8 +138,6 @@ export const QueryConsultaLote = z.object({
 });
 
 /** `GET /pedidos/pendentes?limite=`. */
-export const LIMITE_PEDIDOS_POLL_PADRAO = 50;
-export const LIMITE_PEDIDOS_POLL_MAX = 100;
 export const QueryPedidosPendentes = z.object({
   limite: z.coerce.number().int().min(1).max(LIMITE_PEDIDOS_POLL_MAX).default(LIMITE_PEDIDOS_POLL_PADRAO),
 });
@@ -237,6 +246,27 @@ export const ROTAS_HUB: readonly RotaHub[] = [
     corpo: RetornoErp,
     sucesso: { status: 200, schema: RetornoAceito },
     erros: [400, 422, 426],
+  },
+  {
+    id: 'clientes_pendentes',
+    metodo: 'GET',
+    caminho: '/clientes/pendentes',
+    resumo: 'Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).',
+    cabecalhos: CabecalhosConector,
+    query: QueryClientesPendentes,
+    sucesso: { status: 200, schema: ClientesPendentes },
+    erros: [403, 426],
+  },
+  {
+    id: 'retorno_cliente',
+    metodo: 'POST',
+    caminho: '/clientes/{cliente_uuid}/retorno',
+    resumo: 'Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).',
+    cabecalhos: CabecalhosConector,
+    params: ParamsCliente,
+    corpo: RetornoCliente,
+    sucesso: { status: 200, schema: RetornoClienteAceito },
+    erros: [400, 403, 422, 426],
   },
   {
     id: 'sinal',

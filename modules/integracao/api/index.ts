@@ -8,11 +8,12 @@
 import { definirApiConector, definirModuloApi, type ContextoConector, type ModuloApi, type RotaConector } from '@macuxi/platform-sdk';
 import type { z } from 'zod';
 import manifest from '../manifest';
-import { CabecalhosConector, ParamsLote, ParamsPedido, QueryConsultaLote, QueryPedidosPendentes, ReconciliacaoEnvio, ROTAS_HUB, RetornoErp, SinalConector } from '../contracts';
+import { CabecalhosConector, ParamsCliente, ParamsLote, ParamsPedido, QueryClientesPendentes, QueryConsultaLote, QueryPedidosPendentes, ReconciliacaoEnvio, ROTAS_HUB, RetornoCliente, RetornoErp, SinalConector } from '../contracts';
 import { consumidorLoteRecebido } from './aplicar-lote';
 import { consumidorMarcaDesconhecida } from './consumidor-marca-desconhecida';
 import { rotaApagarMapeamento, rotaGravarMapeamento, rotaListarMapeamentos, rotaReprocessarRetidos } from './bko-mapeamento';
 import { consumidorPedidoAprovado, consumidorPedidoCancelado, consumidorPedidoStatusAlterado } from './consumidores-pedido';
+import { consumidorClienteAprovado } from './consumidores-cliente';
 import { consultaCancelamentoErp } from './consulta-cancelamento';
 import { criarAutenticacaoHub, type ConectorHub } from './autenticacao';
 import { rotaErrosLote, rotaLote } from './bko-lotes-consulta';
@@ -25,6 +26,7 @@ import { documentoOpenApiPublico } from './openapi/publico';
 import { rotaGuiaPdf } from './guia-pdf-rota';
 import { rotaGravarPolitica, rotaLerPolitica } from './bko-politica';
 import { consultarCursor, consultarLote, enviarLote, enviarReconciliacao } from './rotas-lotes';
+import { clientesPendentes, retornoCliente } from './rotas-clientes';
 import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
 
 export { gerarOpenApiHub, openApiHub, type DocumentoOpenApi } from './openapi/gerar';
@@ -57,13 +59,15 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined; 
     rota({ ...doContrato('enviar_reconciliacao'), corpo: ReconciliacaoEnvio, executar: enviarReconciliacao }),
     rota({ ...doContrato('pedidos_pendentes'), query: QueryPedidosPendentes, executar: pedidosPendentes }),
     rota({ ...doContrato('retorno_pedido'), params: ParamsPedido, corpo: RetornoErp, executar: retornoPedido }),
+    rota({ ...doContrato('clientes_pendentes'), query: QueryClientesPendentes, executar: clientesPendentes }),
+    rota({ ...doContrato('retorno_cliente'), params: ParamsCliente, corpo: RetornoCliente, executar: retornoCliente }),
     rota({ ...doContrato('sinal'), corpo: SinalConector, executar: (ctx: ContextoConector<ConectorHub, SinalConector>) => sinalDeVida(ctx, auth.politicaDaRequisicao(ctx as ContextoConector<ConectorHub>)) }),
   ];
 
   return definirModuloApi({
     manifesto: manifest,
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
-    consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida],
+    consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida, consumidorClienteAprovado],
     consultas: [consultaCancelamentoErp],
     rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaLote, rotaErrosLote, rotaDownloadConector],
     // T-0092: especificação e guia em PDF públicos (sem token); ETag, 304 e Cache-Control são da plataforma

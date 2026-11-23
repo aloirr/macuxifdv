@@ -221,7 +221,7 @@ describe('RN-INT-12 (proposta): parâmetros de rota e query', () => {
 });
 
 describe('RN-INT-09: tabela de rotas do Hub', () => {
-  it('as 7 rotas do Conector, com status de sucesso e erros declarados; só o sinal é liberado abaixo da mínima', () => {
+  it('as 9 rotas do Conector, com status de sucesso e erros declarados; só o sinal é liberado abaixo da mínima', () => {
     expect(ROTAS_HUB.map((r) => `${r.metodo} ${r.caminho}`)).toEqual([
       'POST /lotes',
       'GET /lotes/{id}',
@@ -229,6 +229,8 @@ describe('RN-INT-09: tabela de rotas do Hub', () => {
       'POST /reconciliacoes',
       'GET /pedidos/pendentes',
       'POST /pedidos/{pedido_uuid}/retorno',
+      'GET /clientes/pendentes',
+      'POST /clientes/{cliente_uuid}/retorno',
       'POST /sinal',
     ]);
     expect(ROTAS_HUB.find((r) => r.id === 'enviar_lote')?.sucesso.status).toBe(202);

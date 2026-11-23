@@ -3,7 +3,7 @@
 Material para a equipe de TI do cliente que vai integrar o ERP **direto pela API** (sem o Conector Macuxi). Tudo aqui é de exemplo: nenhuma chave real, nenhum dado real.
 
 - Guia em PDF (convenções, idempotência, cursor, limites, erros, devolução de pedidos): `GET /integracao/v1/guia.pdf` ou [`../guia-api-hub.pdf`](../guia-api-hub.pdf)
-- Contrato completo (OpenAPI 3.1, 7 rotas): [`../openapi-hub-v1.json`](../openapi-hub-v1.json)
+- Contrato completo (OpenAPI 3.1, 9 rotas): [`../openapi-hub-v1.json`](../openapi-hub-v1.json)
 
 ## O que tem aqui
 

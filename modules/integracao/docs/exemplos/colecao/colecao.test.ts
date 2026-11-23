@@ -44,7 +44,7 @@ describe('Kit do TI: coleção Postman / Insomnia gerada do OpenAPI', () => {
   });
 
   it('toda rota do OpenAPI (método + caminho) aparece no Postman e no Insomnia', () => {
-    expect(ops).toHaveLength(7);
+    expect(ops).toHaveLength(9);
     for (const op of ops) {
       const rota = `${op.metodo} ${op.caminho}`;
       const caminhoPostman = (op.caminho as string).replace(/\{([^}]+)\}/g, (_, n: string) => `{{${n === 'id' ? 'lote_id' : n}}}`);
