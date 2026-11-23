@@ -1,4 +1,4 @@
-/** RN-CORE-74 (proposta): vínculo do cliente aprovado com o código do ERP. Função pura; a API revalida. */
+/** RN-CORE-78: vínculo do cliente aprovado com o código do ERP. Função pura; a API revalida. */
 export interface ClienteParaVinculo {
   aprovado: boolean;
   external_id: string | null;
