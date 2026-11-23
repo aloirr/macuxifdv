@@ -83,3 +83,21 @@ largura útil da célula da Entidade na "Cargas recentes" e na "Dados no Hub".
    acrescenta ao e2e a mesma medição na célula da Situação.
 
 Lint, typecheck, 444 testes do `apps/web` e os 16 e2e do portal verdes com o merge do `31faad3d7`.
+
+## Rodada 3 — `c32abc632` (23/11/2026, Manaus)
+
+Merge do `c32abc632` (e do `d31bca66b` do engenheiro-software: migração 0100 e cascata do Hub no desenho) no
+`nuvem/v1030-zerar-engenheiro-apps`; prints 05–07 refeitos (1280 e 390 px, escala 2), os demais restaurados. O monitor falso
+(`apps/web/lib/portal-falso-monitor.ts`) ganha um lote de "Formas de pagamento", o nome mais largo da Entidade, para a medição
+acontecer no navegador. O e2e do portal (`apps/web/e2e/portal-zerar.spec.ts`) passa a exigir, nas duas larguras, folga ≥ 4 px em
+"Endereços de clientes" (Cargas recentes e Dados no Hub) e em "Formas de pagamento" (Cargas recentes), e no selo "Com falha":
+texto sem corte (`scrollWidth` = `clientWidth`) e ≥ 4 px da borda direita da célula.
+
+### Resultado: nenhum 🔴 · nenhum 🟡 · nenhum 🟢 — aprovado
+
+- **6 🟡 (selo "Com falha" cortado) — fechado.** Situação em 89 px com o selo em `-mr-2.5`: selo de 74,16 px, 10 px da borda
+  esquerda e 4,84 px da direita, sem corte, em Produtos e Preços, a 1280 e a 390 px. O 05 e o 05-celular mostram "Com falha" sem o "··".
+- **Nomes inteiros.** A 390 px, na Cargas recentes: "Formas de pagamento" 158,48 px em 163 px úteis (folga 4,52 px) e "Endereços de
+  clientes" 156,30 px (folga 6,70 px); na Dados no Hub, 237 px úteis. A 1280 px, 443 px úteis. Sem rolagem lateral nas três tabelas.
+
+Lint, typecheck, 444 testes do `apps/web` e os 16 e2e do portal verdes com os merges do `c32abc632` e do `d31bca66b`.

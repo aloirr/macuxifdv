@@ -83,9 +83,15 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       const caixa = await monitor.getByTestId(t).boundingBox();
       expect(caixa && caixa.x + caixa.width).toBeLessThanOrEqual(largura);
     }
-    // o nome mais longo ("Endereços de clientes") cabe inteiro na célula da Entidade (truncate sem reticências)
-    for (const t of ['integracao.monitor.entidades', 'integracao.entidades']) {
-      const celula = monitor.getByTestId(t).locator('td', { hasText: /^Endereços de clientes$/ }).first();
+    // os nomes mais largos cabem inteiros na célula da Entidade (truncate sem reticências), com folga ≥ 4 px: "Endereços de
+    // clientes" (156,3 px) nas duas tabelas e "Formas de pagamento" (158,5 px) na Cargas recentes, onde sobram 163 px a 390 px
+    const nomes = [
+      ['integracao.monitor.entidades', 'Endereços de clientes'],
+      ['integracao.entidades', 'Endereços de clientes'],
+      ['integracao.entidades', 'Formas de pagamento'],
+    ] as const;
+    for (const [t, nomeEntidade] of nomes) {
+      const celula = monitor.getByTestId(t).locator('td', { hasText: new RegExp(`^${nomeEntidade}$`) }).first();
       await expect(celula).toBeVisible();
       const { texto, util } = await celula.evaluate((el) => {
         const r = document.createRange();
@@ -93,7 +99,20 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
         const st = getComputedStyle(el);
         return { texto: r.getBoundingClientRect().width, util: el.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight) };
       });
-      expect(texto).toBeLessThanOrEqual(util);
+      expect(util - texto).toBeGreaterThanOrEqual(4);
+    }
+    // o selo "Com falha" (o mais largo da Situação, 74,2 px) sai inteiro: texto sem corte e ≥ 4 px da borda direita da célula
+    const selos = monitor.getByTestId('integracao.entidades').getByText('Com falha', { exact: true });
+    await expect(selos.first()).toBeVisible();
+    for (const selo of await selos.all()) {
+      const { corte, esquerda, direita } = await selo.evaluate((el) => {
+        const s = el.getBoundingClientRect();
+        const c = el.closest('td')!.getBoundingClientRect();
+        return { corte: el.scrollWidth - el.clientWidth, esquerda: s.left - c.left, direita: c.right - s.right };
+      });
+      expect(corte).toBe(0);
+      expect(esquerda).toBeGreaterThanOrEqual(0);
+      expect(direita).toBeGreaterThanOrEqual(4);
     }
     // "Zerar dados" num lugar só: o "⋯" da "Dados no Hub" (com ou sem lote recente); o "⋯" do painel tem Reprocessar e Histórico
     await expect(monitor.getByTestId('integracao.entidades.acoes.produto')).toBeVisible();

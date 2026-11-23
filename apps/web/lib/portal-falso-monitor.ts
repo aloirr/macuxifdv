@@ -36,6 +36,7 @@ const LOTES: readonly LoteExemplo[] = [
   { id: '0b6f0c3e-0001-4a00-8000-000000000004', entidade: 'cliente_endereco', ha: 94, status: 'concluido', recebidas: 1310, com_erro: 0 },
   { id: '0b6f0c3e-0001-4a00-8000-000000000005', entidade: 'preco', ha: 120, status: 'concluido_com_erros', recebidas: 4120, com_erro: 4 },
   { id: '0b6f0c3e-0001-4a00-8000-000000000006', entidade: 'vendedor', ha: 6 * 60, status: 'concluido', recebidas: 16, com_erro: 0 },
+  { id: '0b6f0c3e-0001-4a00-8000-000000000007', entidade: 'forma_pagamento', ha: 8 * 60, status: 'concluido', recebidas: 12, com_erro: 0 },
 ];
 /** Erros por linha de cada lote com erro: código, se basta reprocessar e quantas linhas. */
 const ERROS: Readonly<Record<string, readonly { codigo: LinhaErro['codigo']; reprocessavel: boolean; linhas: number; mensagem: string; campo: string | null }[]>> = {

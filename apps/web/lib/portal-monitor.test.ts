@@ -72,7 +72,7 @@ describe('monitor falso', () => {
 
   it('monitor e detalhes nos contratos; Estoque e Títulos com dados e sem lote; o admin do cliente recebe 403', async () => {
     const m = MonitorResumo.parse((await ler(responderMonitorFalso('GET', '/integracao/monitor', T, true))).corpo);
-    expect(new Set(m.lotes_recentes.map((l) => l.entidade))).toEqual(new Set(['produto', 'cliente', 'cliente_endereco', 'preco', 'vendedor']));
+    expect(new Set(m.lotes_recentes.map((l) => l.entidade))).toEqual(new Set(['produto', 'cliente', 'cliente_endereco', 'preco', 'vendedor', 'forma_pagamento']));
     const d = MonitorDetalhes.parse((await ler(responderMonitorFalso('GET', '/integracao/monitor/detalhes', T, true))).corpo);
     expect(d.entidades.filter((x) => x.ultimo_lote === null && temDadosNoHub(x)).map((x) => x.entidade)).toEqual(['estoque', 'titulo']);
     expect(d.conectores.map((c) => [c.conector_id, c.saude])).toEqual([['erp', 'ok']]);
