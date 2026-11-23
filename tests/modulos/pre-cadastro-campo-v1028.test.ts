@@ -11,7 +11,7 @@
  */
 import { manifest as manifestCore } from '@macuxi/core/manifest';
 import { criarArmazenamentoEmMemoria, criarClienteHttp, criarMotorSync, criarRegistroSync, ErroSemConexao, type ItemPush, type LinhaSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
-import { ROTULO_AGUARDANDO_ERP, ROTULO_RECUSADO_ERP, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
+import { ACAO_CORRIGIR_E_REENVIAR, ROTULO_AGUARDANDO_ERP, ROTULO_NAO_ENVIADO, ROTULO_RECUSADO_ERP, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
 import { PreCadastroClienteSchema, type ClienteSync, type ParametroSync, type PreCadastroCliente } from '../../modules/core/contracts';
@@ -191,16 +191,17 @@ describe('v1.0.28 pré-cadastro no Campo: offline → fila → ERP (motor real)'
   });
 });
 
-describe('v1.0.28 pré-cadastro no Campo: 422 da API (defeito corrigido)', () => {
-  it('RN-CORE-78: o item que a API recusou (422) sai de "Aguardando ERP" com a mensagem; a correção SUBSTITUI o item da fila e o reenvio é aceito', async () => {
+describe('v1.0.28 pré-cadastro no Campo: 422 e módulo inativo da API → "Não enviado" (critério 7)', () => {
+  it('RN-CORE-78: o item que a API recusou (422) é "Não enviado" com a mensagem, nunca "Recusado pelo ERP"; a correção SUBSTITUI o item da fila e o reenvio é aceito', async () => {
     const t = montar();
     await t.salvar(VALORES);
     t.servidor.recusa422.set(ID, 'Inscrição estadual inválida para AM');
     await t.sincronizar();
     expect(t.motor.estado().fila.map((i) => [i.id, i.situacao])).toEqual([[ID, 'falhou']]);
     const [linha] = await t.lista();
-    expect(linha).toMatchObject({ id: ID, status: 'recusado', motivo: 'Inscrição estadual inválida para AM' });
-    expect(linha?.selo).not.toBe(ROTULO_AGUARDANDO_ERP);
+    // o cadastro não chegou ao ERP: status do contrato continua pendente, o selo diz "Não enviado" e o motivo é o do servidor
+    expect(linha).toEqual({ id: ID, nome: 'Mercado Boa Vista', situacao: 'pre_cadastro', selo: ROTULO_NAO_ENVIADO, motivo: 'Inscrição estadual inválida para AM', status: 'pendente' });
+    expect(ACAO_CORRIGIR_E_REENVIAR).toBe('Corrigir e reenviar');
 
     // "Corrigir e reenviar": mesmo id, o item parado vira pendente com o payload novo (um item só na fila)
     expect(await t.salvar({ ...VALORES, razao_social: 'Mercado Boa Vista Ltda' })).toEqual({ ok: true, id: ID });
@@ -211,6 +212,18 @@ describe('v1.0.28 pré-cadastro no Campo: 422 da API (defeito corrigido)', () =>
     expect(t.motor.estado().fila).toEqual([]);
     expect([...t.servidor.recebidos.values()].map((p) => [p.id, p.razao_social, p.documento])).toEqual([[ID, 'Mercado Boa Vista Ltda', '11222333000181']]);
   });
+
+  it('RN-CORE-78 e RN-CORE-02: item `modulo_inativo` da fila também é "Não enviado" com o motivo, nunca "Recusado pelo ERP"', async () => {
+    // O core é sempre ativo (RN-CORE-01), então a API não devolve MODULO_INATIVO ao pré-cadastro hoje, e
+    // `motor.sobreposicao()` só sobrepõe `pendente`/`falhou`: o caso fica coberto aqui na sobreposição do Core.
+    const t = montar();
+    await t.salvar(VALORES);
+    const [item] = t.motor.sobreposicao([ENTIDADE_PRE_CADASTRO]);
+    const [c] = sobreporPreCadastros([], [{ ...item!, situacao: 'modulo_inativo', ultimo_erro: 'Módulo desativado' }], AGORA);
+    expect(seloDoPreCadastro(situacaoDoPreCadastro(c!).situacao)?.texto).toBe(ROTULO_NAO_ENVIADO);
+    expect(situacaoDoPreCadastro(c!).motivo).toBe('Módulo desativado');
+    expect(c?.status_cadastro).toBe('pendente');
+  });
 });
 
 describe('v1.0.28 valor × regra do selo (critério 7)', () => {
@@ -219,6 +232,7 @@ describe('v1.0.28 valor × regra do selo (critério 7)', () => {
       [{ status_cadastro: 'pendente', external_id: null }, 'Aguardando ERP'],
       [{ status_cadastro: undefined, external_id: null }, 'Aguardando ERP'],
       [{ status_cadastro: 'recusado', external_id: null, motivo_recusa: 'x' }, 'Recusado pelo ERP'],
+      [{ status_cadastro: 'pendente', external_id: null, motivo_recusa: 'x' }, 'Não enviado'],
       [{ status_cadastro: 'aprovado', external_id: 'ERP-1' }, null],
     ] as const;
     for (const [c, rotulo] of casos) expect(seloDoPreCadastro(situacaoDoPreCadastro(c).situacao)?.texto ?? null, JSON.stringify(c)).toBe(rotulo);
