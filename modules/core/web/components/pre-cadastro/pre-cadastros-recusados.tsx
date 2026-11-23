@@ -32,8 +32,7 @@ import {
 import type { HistoricoPreCadastro, PreCadastroAtual, RecusadoItem } from '../../../contracts';
 import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../../contracts';
 import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, ROTULO_BUSCA_CLIENTE, validarPreCadastro } from '../../../domain';
-import { textoDosCodigos } from '../../../app/lib/codigos-cliente';
-import { CodigosDoCliente } from '../codigos-cliente';
+import { CodigosDoCliente, textoDosCodigosDoCliente } from '../codigos-cliente';
 import {
   buscaParaApi,
   colunaExigida,
@@ -115,7 +114,7 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
   const comFiltro = temFiltroRecusados(filtros);
 
   const colunas: ColunaDaTabela<RecusadoItem>[] = [
-    { id: 'codigo', titulo: 'Código', celula: (l) => <CodigosDoCliente cliente={l} forma="empilhado" testId={`${P}.linha.${l.cliente_id}.codigo`} />, texto: (l) => textoDosCodigos(l), largura: '92px' },
+    { id: 'codigo', titulo: 'Código', celula: (l) => <CodigosDoCliente cliente={l} forma="empilhado" testId={`${P}.linha.${l.cliente_id}.codigo`} />, texto: (l) => textoDosCodigosDoCliente(l), largura: '92px' },
     { id: 'documento', titulo: 'CPF/CNPJ', celula: (l) => <span className="tabular-nums">{l.documento_mascarado ?? '—'}</span>, texto: (l) => l.documento_mascarado ?? '', largura: '190px' },
     { id: 'razao', titulo: 'Razão social', celula: (l) => <span className="block truncate font-semibold" title={l.razao_social}>{l.razao_social}</span>, texto: (l) => l.razao_social },
     { id: 'vendedor', titulo: 'Vendedor', celula: (l) => l.vendedor?.nome ?? '—', texto: (l) => l.vendedor?.nome ?? '', largura: '128px', prioridade: 2 },

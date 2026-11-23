@@ -3,13 +3,18 @@
  * `aba-documentacao.tsx`; as abas de módulos (`cliente.abas`) são montadas pela tela da ficha (`telas/cliente.tsx`).
  */
 import type { Cliente360Local } from '../lib/cliente360-local';
-import { textoDosCodigos } from '../lib/codigos-cliente';
+import type { CodigosDoCliente } from '@macuxi/ui/mobile/puro';
 
 export function nomeDoCliente(c: Cliente360Local['cliente']): string {
   return c.nome_fantasia?.trim() || c.razao_social;
 }
 
-/** "ERP C5007 · FDV 00012 · Centro · Boa Vista/RR": códigos (os que existem), bairro e cidade, sem a rua (o endereço fica na tabela Endereços do Resumo). */
+/** "Centro · Boa Vista/RR": bairro e cidade, sem a rua (o endereço fica na tabela Endereços do Resumo). Os códigos vão no `codigos` do cabeçalho. */
 export function subtituloDaFicha(c: Cliente360Local['cliente']): string {
-  return [textoDosCodigos(c), c.bairro, c.cidade && c.uf ? `${c.cidade}/${c.uf}` : c.cidade].filter(Boolean).join(' · ');
+  return [c.bairro, c.cidade && c.uf ? `${c.cidade}/${c.uf}` : c.cidade].filter(Boolean).join(' · ');
+}
+
+/** Códigos do cliente para o `codigos` do `CabecalhoTela` (o kit monta `ERP C5007 · FDV 00012 · <subtítulo>`, codigos-do-cliente.md §3.1). */
+export function codigosDaFicha(c: Cliente360Local['cliente']): CodigosDoCliente {
+  return { erp: c.external_id, fdv: c.codigo_fdv };
 }

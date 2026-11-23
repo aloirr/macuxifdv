@@ -2,13 +2,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// as páginas do BKO importam Next/React: confere no fonte (padrão de listas-t0171.test.ts); a regra é a pura do app (codigos-cliente.test.ts)
+// as páginas do BKO importam Next/React: confere no fonte (padrão de listas-t0171.test.ts); a regra é a pura do kit (@macuxi/ui/mobile/puro)
 const ler = (rel: string) => readFileSync(join(__dirname, rel), 'utf8').replace(/\r\n/g, '\n');
 
 describe('códigos do cliente no BKO (ADR 0069 item 10, v1.0.30)', () => {
-  it('RN-CORE-78: um componente só, com a regra do app; sigla 12/500 cinza e valor mono 13 px tabular', () => {
+  it('RN-CORE-78: um componente só, com a regra do kit (nada de modules/core/app); sigla 12/500 cinza e valor mono 13 px tabular', () => {
     const c = ler('codigos-cliente.tsx');
-    expect(c).toContain("import { codigosDoCliente, type CodigosDoClienteEntrada } from '../../app/lib/codigos-cliente'");
+    expect(c).toContain("from '@macuxi/ui/mobile/puro'");
+    expect(c).toContain('partesDosCodigos(doKit(cliente))');
+    expect(c).not.toMatch(/from '\.\.\/\.\.\/app\//);
     expect(c).toContain('<span className="text-[12px] font-medium text-ink-2">{c.sigla}</span>');
     expect(c).toContain('<span className="font-mono text-[13px] text-ink tabular-nums">{c.valor}</span>');
     expect(c).toContain('<span className="sr-only">Código </span>');
@@ -34,6 +36,8 @@ describe('códigos do cliente no BKO (ADR 0069 item 10, v1.0.30)', () => {
     expect(colunas.indexOf("id: 'codigo'")).toBeLessThan(colunas.indexOf("id: 'documento'"));
     expect(colunas).toContain("largura: '92px'");
     expect(p.match(/<CodigosDoCliente cliente=\{\{ codigo_fdv: item\.codigo_fdv \}\} forma="linha"/g)).toHaveLength(2);
+    expect(p).toContain('texto: (l) => textoDosCodigosDoCliente(l)');
+    expect(p).not.toContain('app/lib/codigos-cliente');
     expect(p).toContain('<CampoBusca rotulo={ROTULO_BUSCA_CLIENTE} ');
     expect(p).not.toContain('Razão social ou CPF/CNPJ');
   });

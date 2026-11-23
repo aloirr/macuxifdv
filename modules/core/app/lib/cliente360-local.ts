@@ -6,8 +6,17 @@
  */
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, StatusCadastro, TituloSync } from '../../contracts';
-import { codigosParaBusca } from './codigos-cliente';
+import { partesDosCodigos } from '@macuxi/ui/mobile/puro';
 import { clienteCasaBusca, fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, ultimaVisitaEntre, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
+
+/**
+ * Campo de código da `clienteCasaBusca` (RN-CORE-47): os dois códigos (partes do kit, ERP e FDV) separados por espaço. Como a
+ * busca compara palavra por palavra e uma palavra nunca tem espaço, "contém" num dos códigos é o mesmo que "contém" no texto unido.
+ */
+export const codigosParaBusca = (c: { external_id?: string | null; codigo_fdv?: string | null }): string =>
+  partesDosCodigos({ erp: c.external_id, fdv: c.codigo_fdv })
+    .map((p) => p.valor)
+    .join(' ');
 
 export interface LinhasCliente {
   cliente: ClienteSync;

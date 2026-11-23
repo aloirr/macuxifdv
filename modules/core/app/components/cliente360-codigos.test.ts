@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { leituraDosCodigos, textoDosCodigos } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 import type { ClienteSync } from '../../contracts';
 import { ROTULO_BUSCA_CLIENTE } from '../../domain';
-import { subtituloDaFicha } from '../components/cliente360';
-import { listarClientesLocais } from './cliente360-local';
-import { codigosDoCliente, codigosParaBusca, textoDosCodigos } from './codigos-cliente';
-import { entidadesCliente } from './entidades-cliente';
-import { sobreporPreCadastros } from './pre-cadastro-local';
+import { listarClientesLocais } from '../lib/cliente360-local';
+import { entidadesCliente } from '../lib/entidades-cliente';
+import { sobreporPreCadastros } from '../lib/pre-cadastro-local';
+import { codigosDaFicha, subtituloDaFicha } from './cliente360';
 
 const ler = (rel: string) => readFileSync(join(__dirname, rel), 'utf8').replace(/\r\n/g, '\n');
 const ID = '3f1c2a52-3c1e-4f0a-9d49-7c4a5c0e1a11';
@@ -16,18 +16,17 @@ const cliente = (o: Partial<ClienteSync>): ClienteSync => ({
   telefone: null, email: null, logradouro: null, numero: null, bairro: 'Centro', cidade: 'Boa Vista', uf: 'RR', cep: null, latitude: null, longitude: null, ativo: true, ...o,
 });
 
-describe('códigos do cliente: Código ERP e Código FDV (ADR 0069 item 10, v1.0.30)', () => {
-  it('RN-CORE-78: sigla + valor, ERP primeiro; código vazio não aparece (sem sigla, traço ou texto)', () => {
-    expect(textoDosCodigos({ external_id: 'C5007', codigo_fdv: '00012' })).toBe('ERP C5007 · FDV 00012');
-    expect(textoDosCodigos({ external_id: null, codigo_fdv: '00012' })).toBe('FDV 00012');
-    expect(textoDosCodigos({ external_id: '  ', codigo_fdv: undefined })).toBe('');
-    expect(codigosDoCliente({ codigo_fdv: '00012', external_id: 'C5007' }).map((c) => c.sigla)).toEqual(['ERP', 'FDV']);
-  });
-
-  it('RN-CORE-78: subtítulo da ficha (Campo e Gestão) = códigos · bairro · cidade/UF; antes do 1º sync, só bairro e cidade', () => {
-    expect(subtituloDaFicha(cliente({ external_id: 'C5007', codigo_fdv: '00012' }))).toBe('ERP C5007 · FDV 00012 · Centro · Boa Vista/RR');
-    expect(subtituloDaFicha(cliente({ codigo_fdv: '00012' }))).toBe('FDV 00012 · Centro · Boa Vista/RR');
-    expect(subtituloDaFicha(cliente({}))).toBe('Centro · Boa Vista/RR');
+describe('códigos do cliente no app: Código ERP e Código FDV pelo kit (ADR 0069 item 10, v1.0.30)', () => {
+  it('RN-CORE-78: ficha (Campo e Gestão) = subtítulo só com bairro e cidade/UF + `codigos` do kit (ERP, FDV; vazio não aparece)', () => {
+    const c = cliente({ external_id: 'C5007', codigo_fdv: '00012' });
+    expect(subtituloDaFicha(c)).toBe('Centro · Boa Vista/RR');
+    expect(codigosDaFicha(c)).toEqual({ erp: 'C5007', fdv: '00012' });
+    expect(textoDosCodigos(codigosDaFicha(c))).toBe('ERP C5007 · FDV 00012');
+    expect(leituraDosCodigos(codigosDaFicha(c), subtituloDaFicha(c))).toBe('Código ERP C5007, Código FDV 00012, Centro · Boa Vista/RR');
+    expect(textoDosCodigos(codigosDaFicha(cliente({ codigo_fdv: '00012' })))).toBe('FDV 00012');
+    expect(textoDosCodigos(codigosDaFicha(cliente({})))).toBe('');
+    const tela = ler('../telas/cliente.tsx');
+    expect(tela).toContain('codigos={ficha ? codigosDaFicha(ficha.cliente) : undefined}');
   });
 
   it('RN-CORE-47: a busca da Carteira do app casa pelo Código FDV e pelo Código ERP, com o mesmo rótulo; a linha da lista não ganha código', () => {
@@ -36,14 +35,11 @@ describe('códigos do cliente: Código ERP e Código FDV (ADR 0069 item 10, v1.0
     expect(listarClientesLocais(base, '2026-11-23', { q: 'c5007' }).map((c) => c.razao_social)).toEqual(['Padaria']);
     expect(listarClientesLocais(base, '2026-11-23', { q: 'padaria 00031' })).toHaveLength(1);
     expect(listarClientesLocais(base, '2026-11-23', { q: 'padaria 00012' })).toHaveLength(0);
-    // uma palavra nunca tem espaço: unir os códigos não cria casamento entre os dois
-    expect(codigosParaBusca({ external_id: 'C5007', codigo_fdv: '00012' })).toBe('C5007 00012');
     expect(ROTULO_BUSCA_CLIENTE).toBe('Código, CNPJ ou nome');
-    const lista = ler('../telas/clientes.tsx');
-    expect(lista).not.toMatch(/codigo_fdv|textoDosCodigos/);
+    expect(ler('../telas/clientes.tsx')).not.toMatch(/codigo_fdv|textoDosCodigos|CodigosCliente/);
   });
 
-  it('RN-CORE-78: o banco local guarda o codigo_fdv do pull (dados da entidade cliente) e a correção na fila o mantém', () => {
+  it('RN-CORE-78: o banco local guarda o codigo_fdv do pull e a correção na fila o mantém', () => {
     const ent = entidadesCliente.find((e) => e.nome === 'cliente')!;
     expect((ent.schema.parse(cliente({ codigo_fdv: '00012' })) as ClienteSync).codigo_fdv).toBe('00012');
     const fila = [{ id: ID, situacao: 'pendente', payload: { id: ID, origem: 'campo', razao_social: 'Mercado Boa Vista', documento: '11222333000181' } }];
@@ -51,9 +47,10 @@ describe('códigos do cliente: Código ERP e Código FDV (ADR 0069 item 10, v1.0
     expect(sobreposto!.codigo_fdv).toBe('00012');
   });
 
-  it('RN-CORE-78: a correção do pré-cadastro mostra só "FDV nnnnn" no subtítulo (nada no Novo cliente nem sem código)', () => {
+  it('RN-CORE-78: a correção do pré-cadastro mostra só "FDV nnnnn" pelo kit, abaixo do título (nada no Novo cliente nem sem código)', () => {
     const tela = ler('../telas/novo-cliente.tsx');
-    expect(tela).toContain('subtitulo={textoDosCodigos({ codigo_fdv: codigoFdv }) || undefined}');
+    expect(tela).toContain('<CodigosCliente fdv={codigoFdv} style={t.sub} testID="novo-cliente-codigo" />');
     expect(tela).toContain('setCodigoFdv(atual.codigo_fdv ?? null)');
+    expect(tela).not.toMatch(/codigos=|erp=/);
   });
 });

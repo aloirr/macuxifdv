@@ -4,7 +4,7 @@
  * aparelho, escrita na fila do sync (`cliente_pre_cadastro`). A correção edita o MESMO cliente (mesmo id) como revisão nova.
  * Quem aprova é o ERP; o Core só pré-cadastra. A API revalida os obrigatórios. A página `novo-cliente` do `moduloApp` só existe para o vendedor.
  */
-import { AvisoRodape, Botao, CabecalhoTela, CampoEscolha, CampoTexto, colors, Folha, Icon, RotuloSecao, faltaVisivel, type as t, useAvisoRodape, type FaltaDoCampo } from '@macuxi/ui/mobile';
+import { AvisoRodape, Botao, CabecalhoTela, CampoEscolha, CodigosCliente, CampoTexto, colors, Folha, Icon, RotuloSecao, faltaVisivel, type as t, useAvisoRodape, type FaltaDoCampo } from '@macuxi/ui/mobile';
 import { somenteDigitos } from '@macuxi/comum';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
 import { useBloquearSaida, useMotorSync } from '@macuxi/platform-sdk/react';
@@ -15,7 +15,6 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text,
 import type { ClienteSync, ParametroSync } from '../../contracts';
 import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../contracts';
 import { FALTA_OBRIGATORIO_PRE_CADASTRO, motivoSoDeCamposFaltantes, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
-import { textoDosCodigos } from '../lib/codigos-cliente';
 import { abrirCliente, PARAM_CLIENTE_ID, ROTA_CLIENTES } from '../lib/navegacao';
 import {
   avisarClienteSalvo,
@@ -201,9 +200,10 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }} testID="tela-novo-cliente">
-      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} subtitulo={textoDosCodigos({ codigo_fdv: codigoFdv }) || undefined} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
+      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0}>
       <ScrollView ref={rolagem} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 24 }}>
+        <CodigosCliente fdv={codigoFdv} style={t.sub} testID="novo-cliente-codigo" />
         {motivo && !motivoNoCampo ? (
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }} testID="novo-cliente-motivo" accessibilityRole="alert">
             <Icon name="alert" size={16} color={colors.danger} />
