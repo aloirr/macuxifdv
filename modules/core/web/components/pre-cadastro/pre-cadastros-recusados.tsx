@@ -287,7 +287,7 @@ function Historico({ consulta, fuso }: { consulta: UseQueryResult<HistoricoPreCa
             {textoDoResultado(t, fuso)}
             {codigoErpDoAceite(t) && (
               <>
-                {SEPARADOR_CODIGOS}Código ERP{' '}
+                {SEPARADOR_CODIGOS}<span className="text-[12px] font-medium text-ink-2">Código ERP</span>{' '}
                 <span className="font-mono text-[13px] tabular-nums" data-testid={`${P}.tentativa.${t.revisao}.codigo-erp`}>
                   {codigoErpDoAceite(t)}
                 </span>

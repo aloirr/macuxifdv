@@ -47,7 +47,7 @@ describe('códigos do cliente no BKO (ADR 0069 item 10, v1.0.30)', () => {
     expect(p.match(/<CodigosDoCliente cliente=\{\{ codigo_fdv: item\.codigo_fdv \}\} forma="linha"/g)).toHaveLength(2);
     expect(p).toContain('texto: (l) => textoDosCodigosDoCliente(l)');
     expect(p).toContain('<CodigosDoCliente cliente={l} forma="empilhado"');
-    expect(p).toContain('{SEPARADOR_CODIGOS}Código ERP{\' \'}');
+    expect(p).toContain('{SEPARADOR_CODIGOS}<span className="text-[12px] font-medium text-ink-2">Código ERP</span>{\' \'}');
     expect(p).toMatch(/className="font-mono text-\[13px\] tabular-nums" data-testid=\{`\$\{P\}\.tentativa\.\$\{t\.revisao\}\.codigo-erp`\}/);
     expect(p).not.toContain('app/lib/codigos-cliente');
     expect(p).toContain('<CampoBusca rotulo={ROTULO_BUSCA_RECUSADOS} ');
