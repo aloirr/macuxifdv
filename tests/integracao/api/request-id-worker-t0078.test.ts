@@ -14,7 +14,6 @@
  *
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto.
  */
-import { Writable } from 'node:stream';
 import { manifest as core } from '@macuxi/core/manifest';
 import {
   defineModule,
@@ -33,21 +32,11 @@ import { z } from 'zod';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { serializarErro } from '../../../apps/api/src/log-seguro';
+import { coletor } from '../apoio/coletor-log';
 import { DADO_PESSOAL, montarApiSyncMemoria } from '../apoio/sync-memoria';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PESSOAIS = Object.values(DADO_PESSOAL);
-
-function coletor() {
-  const linhas: string[] = [];
-  const stream = new Writable({
-    write(chunk, _enc, cb) {
-      for (const l of String(chunk).split('\n')) if (l.trim()) linhas.push(l);
-      cb();
-    },
-  });
-  return { linhas, stream, json: () => linhas.map((l) => JSON.parse(l) as Record<string, unknown>) };
-}
 
 function semDadoPessoal(texto: string, extras: readonly string[] = []) {
   for (const x of [...PESSOAIS, ...extras]) expect(texto.includes(x), `vazou: ${x.slice(0, 10)}…`).toBe(false);
