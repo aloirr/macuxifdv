@@ -1,9 +1,10 @@
 name: producao — limpar cadastros de uma empresa
 
 # Modos: simular (contagens por tabela e ROLLBACK) · apagar (backup do banco inteiro antes; cópia das linhas e limpeza numa
-# transação; pg_dump da cópia na VM) · restaurar (um lote, só antes do reenvio do ERP) · descartar (apaga a cópia e o arquivo).
+# transação; as linhas do lote num arquivo na VM) · restaurar (um lote, só antes do reenvio do ERP) · descartar (apaga a
+# cópia do lote e o arquivo).
 # Travas: só manual, environment PRODUCAO, só numa tag, fila producao-vm, frase de confirmação no apagar, no restaurar e no
-# descartar; psql pelo pgcliente da VM (o runner não tem docker); log só com nomes de tabela e contagens.
+# descartar; psql pelo pgcliente da VM (o runner não tem docker).
 # Teste: bash scripts/producao/teste/limpar-cadastros.teste.sh. Regras: cabeçalho de scripts/producao/limpar-cadastros-rotina.sql.
 
 on:
@@ -133,15 +134,17 @@ jobs:
           MODO: ${{ inputs.modo }}
           LOTE: ${{ steps.entradas.outputs.lote }}
         run: |
-          arquivo="/opt/macuxi/limpeza/$EMPRESA-$LOTE.dump"
+          # só as linhas do lote (COPY em texto): o descartar apaga de fato a cópia daquele lote
+          arquivo="/opt/macuxi/limpeza/$EMPRESA-$LOTE.copy"
           a="$(printf '%q' "$arquivo")"
           if [ "$MODO" = descartar ]; then
             remoto="set -eu; if [ -f $a ]; then rm -f $a; echo 'arquivo removido: $arquivo'; else echo 'arquivo não existia: $arquivo'; fi"
           else
+            copia="\\copy (select * from public.macuxi_limpeza_backup where lote = '$LOTE' and tenant_id = (select id from plataforma.tenant_por_codigo('$EMPRESA'))) to stdout"
             remoto="set -eu; cd /opt/macuxi; umask 077; mkdir -p limpeza; chmod 700 limpeza;"
-            remoto+=" $DC pg_dump -Fc -t public.macuxi_limpeza_backup > $a;"
-            remoto+=" n=\$($DC pg_restore -l < $a | grep -c 'TABLE DATA'); [ \"\$n\" -ge 1 ] || { echo 'pg_restore -l sem TABLE DATA' >&2; exit 7; };"
-            remoto+=" echo \"arquivo: $arquivo · \$(stat -c %s $a) bytes · pg_restore -l ok\""
+            remoto+=" $DC psql -X -v ON_ERROR_STOP=1 -c $(printf '%q' "$copia") > $a;"
+            remoto+=" n=\$(wc -l < $a); [ \"\$n\" -ge 1 ] || { echo 'arquivo sem linhas' >&2; exit 7; };"
+            remoto+=" echo \"arquivo: $arquivo · \$n linhas · \$(stat -c %s $a) bytes\""
           fi
           set +e
           ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee dump.txt
@@ -150,9 +153,12 @@ jobs:
           {
             echo '```'; cat dump.txt; echo '```'
             if [ "$MODO" = apagar ]; then
+              echo "- A Gestão recomeça só com os dados novos."
               echo "- Restaurar (só antes do reenvio do ERP): modo=restaurar, lote=\`$LOTE\`, confirmar=\`RESTAURAR CADASTROS $EMPRESA $LOTE\`."
-              echo "- Sem a tabela public.macuxi_limpeza_backup, antes do restaurar, na VM: \`cd /opt/macuxi && $DC pg_restore -d macuxi < $arquivo\`"
+              echo "- Sem as linhas do lote em public.macuxi_limpeza_backup, antes do restaurar, na VM: \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c '\\copy public.macuxi_limpeza_backup from pstdin' < $arquivo\`"
               echo "- Descartar 7 dias depois de o reenvio do ERP ser confirmado: modo=descartar, lote=\`$LOTE\`, confirmar=\`DESCARTAR COPIA $EMPRESA $LOTE\`."
+            else
+              echo "- O backup diário do bucket ainda guarda essas linhas por até 30 dias (poda do backup-dbaas.sh)."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"

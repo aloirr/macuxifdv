@@ -140,9 +140,22 @@ foto restaurado "$ALFA"
 # o pacote de sync não volta de propósito (cache: o worker gera outro)
 igual "restaurar devolve o alfa (tabelas diferentes)" "$(tabelas_diferentes restaurado antes "$ALFA")" "plataforma.sync_pacote"
 
-echo '--- 5. descartar a cópia'
+echo '--- 5. arquivo do lote, descartar e empresa inexistente'
+# o mesmo \copy do passo "arquivo da cópia na VM" do workflow (só as linhas do lote) e a volta do resumo (from pstdin)
+copia="\\copy (select * from public.macuxi_limpeza_backup where lote = '20261123T190200Z' and tenant_id = (select id from plataforma.tenant_por_codigo('alfa'))) to stdout"
+psql -X -v ON_ERROR_STOP=1 -d "$BANCO" -c "$copia" > "$tmp/lote.copy"
+linhas="$(q "select count(*) from public.macuxi_limpeza_backup where lote = '20261123T190200Z'")"
+igual "arquivo do lote com só as linhas do lote" "$(wc -l < "$tmp/lote.copy" | tr -d ' ')" "$linhas"
+for modo in restaurar descartar; do
+  set +e; "$modo" nao-existe 20261123T190200Z > "$tmp/inexistente.txt" 2>&1; st=$?; set -e
+  igual "$modo com empresa inexistente para com 'empresa não encontrada'" \
+    "$([ $st -ne 0 ] && grep -q 'empresa não encontrada' "$tmp/inexistente.txt" && echo sim)" sim
+done
 descartar alfa 20261123T190200Z > "$tmp/descartar.txt" || nok "descartar saiu com erro"
 igual "descartar apaga as linhas do lote" "$(q "select count(*) from public.macuxi_limpeza_backup where lote = '20261123T190200Z'")" 0
+psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -c '\copy public.macuxi_limpeza_backup from pstdin' < "$tmp/lote.copy"
+igual "o arquivo do lote volta para a tabela" "$(q "select count(*) from public.macuxi_limpeza_backup where lote = '20261123T190200Z'")" "$linhas"
+descartar alfa 20261123T190200Z > /dev/null
 
 echo '--- 6. apagar de novo e a carga nova do ERP entra'
 limpar alfa apagar 20261123T190300Z > /dev/null || nok "2o apagar saiu com erro"

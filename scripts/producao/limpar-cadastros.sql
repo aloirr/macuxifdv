@@ -39,7 +39,6 @@ select count(*) as linhas_na_copia_de_seguranca from public.macuxi_limpeza_backu
 \echo 'o que fica (vivos depois da limpeza)'
 select x.item, x.vivos from (
   select 1 as o, 'core.filial' as item, count(*) as vivos from core.filial where tenant_id = :'tenant' and deleted_at is null
-  union all select 2, 'core.filial sem external_id (à espera do ERP)', count(*) from core.filial where tenant_id = :'tenant' and deleted_at is null and external_id is null
   union all select 3, 'core.cliente', count(*) from core.cliente where tenant_id = :'tenant' and deleted_at is null
   union all select 4, 'core.produto', count(*) from core.produto where tenant_id = :'tenant' and deleted_at is null
   union all select 5, 'catalogo.tabela_preco_item', count(*) from catalogo.tabela_preco_item where tenant_id = :'tenant' and deleted_at is null

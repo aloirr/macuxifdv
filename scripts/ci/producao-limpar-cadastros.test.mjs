@@ -31,7 +31,8 @@ test('workflow: frase de confirmação no apagar, no restaurar e no descartar; b
   assert.match(wf, /options: \[simular, apagar, restaurar, descartar\]/);
   const backup = wf.indexOf('/opt/macuxi/backup/backup-dbaas.sh');
   assert.ok(backup > 0 && backup < wf.indexOf('name: ${{ inputs.modo }} na VM'), 'o backup do banco vem antes do apagar');
-  assert.match(wf, /pg_restore -l < \$a \| grep -c 'TABLE DATA'/);
+  // o arquivo na VM leva só as linhas do lote
+  assert.match(wf, /\\copy \(select \* from public\.macuxi_limpeza_backup where lote = '\$LOTE' and tenant_id = /);
 });
 
 test('workflow: segredos só pelo environment, chave apagada no fim, sem docker no runner', () => {
@@ -52,6 +53,9 @@ test('montar-limpeza.sh: o preâmbulo psql sai uma vez, antes do roteiro', () =>
   const sql = montar('limpar');
   assert.ok(sql.indexOf('create or replace function pg_temp.macuxi_limpar_cadastros') < sql.indexOf('from pg_temp.macuxi_limpar_cadastros('));
   for (const t of [rotina, limpar, restaurar, descartar]) assert.doesNotMatch(t, /\\set (ON_ERROR_STOP|QUIET|VERBOSITY)/);
+  // restaurar e descartar: a conferência de lote e empresa sai uma vez, do montar
+  for (const modo of ['restaurar', 'descartar']) assert.equal(montar(modo).split('empresa não encontrada').length, 2, modo);
+  for (const t of [restaurar, descartar]) assert.doesNotMatch(t, /entradas_ok|tenant_por_codigo/);
 });
 
 test('rotina: físico = Hub, filas e projeção; restaurar volta o mesmo conjunto; o que fica não entra na cascata', () => {

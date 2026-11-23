@@ -4,15 +4,8 @@
 -- external_id (ou código) bate no índice único parcial e a transação inteira aborta sem mudar nada.
 -- fisico -> a linha copiada volta inteira, pais antes dos filhos · soft -> deleted_at volta ao valor copiado ·
 -- filial -> o external_id volta · sync_pacote não volta (cache: o worker gera outro) · a geracao_base gira de novo.
-select :'lote' ~ '^[0-9]{8}T[0-9]{6}Z$' and :'empresa' ~ '^([a-z0-9][a-z0-9-]{1,39}|[A-Z]{2}[0-9]{4})$' as entradas_ok \gset
-\if :entradas_ok
-\else
-do $$ begin raise exception 'entradas inválidas (lote ou empresa)'; end $$;
-\endif
-
 begin;
 set local lock_timeout = '15s';
-select id as tenant from plataforma.tenant_por_codigo(:'empresa') \gset
 select set_config('app.tenant_id', :'tenant', true) <> '' as ok, set_config('limpeza.lote', :'lote', true) <> '' as ok2 \gset
 create temp table resumo (tabela text, modo text, linhas bigint) on commit drop;
 do $$
