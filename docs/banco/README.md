@@ -279,6 +279,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > (`cliente_aprovado_sem_erp_ix` → `cliente_pre_cadastro_fila_ix`, pendentes sem código por `(created_at, id)`);
 > `integracao.cliente_fila_erp.aprovado_em` vira `recebido_em`. Detalhes no [core.md](core.md) e no
 > [integracao.md](integracao.md) ("0097"); teste `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
+>
+> **2026-11-23 (v1.0.30, ADR 0068, RN-PLA-12; "Zerar dados" da empresa no portal):** `0099_plataforma_zerar_empresa` (em cima da
+> 0098; número provisório): `plataforma.zerar_empresa`, `zerar_empresa_copia` e `zerar_empresa_objeto` (sem `tenant_id`, só por
+> função); o conjunto que sai é derivado do catálogo (toda tabela com `tenant_id` menos `tabelas_mantidas_no_zerar()`; filial,
+> filial do usuário e arquivo parciais), com cópia de 7 dias e `restaurar_zerar`; 3 `sa_*` do portal (41 no total), 5 funções do
+> worker e a `zerar_tenant_manual` do workflow; o laço de ordem por FK da 0032 vira `apagar_em_ordem_fk` (a `excluir_tenant`
+> passa a chamá-lo). Detalhes no [plataforma.md](plataforma.md) e no [rls.md](rls.md); teste `db/testes/empresa-zerar.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

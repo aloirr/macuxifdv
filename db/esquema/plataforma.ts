@@ -569,6 +569,64 @@ export const empresaExcluida = plataforma.table('empresa_excluida', {
 });
 
 /**
+ * Zerar dados da empresa (0099, ADR 0068, RN-PLA-12): o job (id do portal ou gerado pelo workflow), em_andamento -> concluido |
+ * falhou; um em andamento por empresa. empresa_id SEM FK e sem tenant_id: sobrevive à exclusão e ao próprio zerar (exceção à
+ * regra 5). A cópia fica até copia_expira_em (7 dias); expurgado_em = a cópia sumiu (expurgo ou desfazer). Só por função.
+ */
+export const zerarEmpresa = plataforma.table('zerar_empresa', {
+  id: uuid('id').primaryKey(),
+  empresa_id: uuid('empresa_id').notNull(),
+  codigo: text('codigo').notNull(),
+  origem: text('origem', { enum: ['portal', 'workflow'] }).notNull(),
+  situacao: text('situacao', { enum: ['em_andamento', 'concluido', 'falhou'] }).notNull().default('em_andamento'),
+  pedido_em: timestamp('pedido_em', { withTimezone: true }).notNull().defaultNow(),
+  concluido_em: timestamp('concluido_em', { withTimezone: true }),
+  linhas_apagadas: bigint('linhas_apagadas', { mode: 'number' }),
+  /** Linhas apagadas por tabela ({"core.cliente": 120}). */
+  contagem: jsonb('contagem').$type<Record<string, number>>(),
+  copia_expira_em: timestamp('copia_expira_em', { withTimezone: true }),
+  expurgado_em: timestamp('expurgado_em', { withTimezone: true }),
+  /** Desfeito pela plataforma.restaurar_zerar (a cópia some na hora). */
+  desfeito_em: timestamp('desfeito_em', { withTimezone: true }),
+  erro_codigo: text('erro_codigo'),
+  /** Vezes que o worker pegou o job (pegar_zerar). */
+  tentativas: integer('tentativas').notNull().default(0),
+  /** Concessão do worker (10 min). */
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  /** Nulo na origem workflow. */
+  super_admin_id: uuid('super_admin_id'),
+  sessao_id: uuid('sessao_id'),
+  ...auditaveis(),
+});
+
+/**
+ * Cópia do zerar (0099): cada linha apagada (delete), o "antes" das colunas alteradas das linhas que ficam (update, com
+ * colunas) e as linhas que o zerar criou (insert). Some no expurgo ou no desfazer. Só por função.
+ */
+export const zerarEmpresaCopia = plataforma.table('zerar_empresa_copia', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  zerar_id: uuid('zerar_id').notNull(),
+  /** Passo da ordem de FK em que a linha saiu (0 = antes do laço). */
+  ordem: integer('ordem').notNull(),
+  tabela: text('tabela').notNull(),
+  acao: text('acao', { enum: ['delete', 'update', 'insert'] }).notNull(),
+  colunas: text('colunas').array(),
+  linha: jsonb('linha').$type<Record<string, unknown>>().notNull(),
+  ...auditaveis(),
+});
+
+/** Chave no armazenamento cujos bytes o zerar tira só no expurgo (0099). Só por função. */
+export const zerarEmpresaObjeto = plataforma.table('zerar_empresa_objeto', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  zerar_id: uuid('zerar_id').notNull(),
+  armazenamento: text('armazenamento', { enum: ['arquivos', 'sync_pacotes'] }).notNull(),
+  chave: text('chave').notNull(),
+  /** Tipo do arquivo (mime), para a miniatura; nulo nos pacotes. */
+  tipo: text('tipo'),
+  ...auditaveis(),
+});
+
+/**
  * Dados legais da Macuxi (0073, rodapé legal; docs/design/telas/rodape-legal.md §3.2): UMA linha só, dado da PLATAFORMA
  * (sem tenant_id, exceção em db/src/excecoes.ts). RLS forçado sem política nem grant para os papéis da aplicação: a API lê
  * por plataforma.dados_legais_publicos() (app) e plataforma.sa_dados_legais() (portal) e grava por
