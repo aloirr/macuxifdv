@@ -7,9 +7,9 @@
  * Sem `maxLength`: o navegador cortaria o texto colado antes da máscara agir ("+55 (92) 99123-4567" perderia os últimos
  * dígitos). Quem limita é a própria `aplicarMascara`, que corta o excesso de dígitos no `onChange`.
  */
-import { aplicarMascara, DIGITOS_DA_MASCARA, type MascaraCampo } from '../comum/campo-mascara';
+import { aplicarMascara, type MascaraCampo } from '../comum/campo-mascara';
 
-export { aplicarMascara, DIGITOS_DA_MASCARA, type MascaraCampo };
+export { aplicarMascara, type MascaraCampo };
 
 /** Props do `<input>` de cada máscara: teclado numérico/telefone e o preenchimento do navegador. */
 export function propsDoInputComMascara(mascara: MascaraCampo): {

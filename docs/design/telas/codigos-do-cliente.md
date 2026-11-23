@@ -88,11 +88,11 @@ lista do `join`, como os outros itens. O selo `Bloqueado` não muda.
 
 ## 6. Busca
 - A regra continua única: `clienteCasaBusca` (`modules/core/contracts/busca-cliente.ts`) passa a receber `codigo_fdv` e a
-  comparar cada palavra também com ele (mesma regra do `external_id`: contém, sem caixa). Vale para a Carteira do app, a busca
-  do BKO e a lista dos recusados.
+  comparar cada palavra também com ele (mesma regra do `external_id`: contém, sem caixa). Vale para a Carteira do app e a busca
+  do BKO.
 - Rótulo sem mudança: **Código, CNPJ ou nome** (`ROTULO_BUSCA_CLIENTE`). Nada de "Código FDV ou ERP": "Código" cobre os dois.
-- A lista dos recusados troca o placeholder **Razão social ou CPF/CNPJ** por `ROTULO_BUSCA_CLIENTE` (a mesma regra de
-  casamento, que já inclui razão social, fantasia e documento).
+- A lista dos recusados fica fora do `clienteCasaBusca`: mantém o placeholder **Razão social ou CPF/CNPJ**
+  (`ROTULO_BUSCA_RECUSADOS`, do `modulo-core`), que é o que a API dela busca.
 - Fora da sessão D: a busca de cliente do pedido (`modules/vendedor/app/lib/catalog.ts`), pelo `modulo-vendedor`, se ele quiser
   o FDV também lá (mesmo rótulo, mesma regra).
 

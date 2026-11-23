@@ -22,8 +22,8 @@ Regras de texto: só o que o usuário usa para agir (R-20261110-192153); uma inf
 ## 2. Lista (`01-bko-recusados-lista.png`)
 Ordem na aba:
 1. **Filtros**, numa linha:
-   - `CampoBusca` 340 px, placeholder `ROTULO_BUSCA_CLIENTE` (**Código, CNPJ ou nome**), regra `clienteCasaBusca` (códigos ERP e
-     FDV, razão social, fantasia e documento por dígitos, sem precisar da máscara).
+   - `CampoBusca` 340 px, placeholder `ROTULO_BUSCA_RECUSADOS` do `modulo-core` (**Razão social ou CPF/CNPJ**), o que a API
+     busca: razão social e documento por dígitos, sem precisar da máscara.
    - `SelectField` **Situação**: Recusado (padrão) · Reenviado · Aceito · Todas.
    - Sem filtro de vendedor.
    - Os filtros vão na URL (`?situacao=&q=`), como nas outras listas.
