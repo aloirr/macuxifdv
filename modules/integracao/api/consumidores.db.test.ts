@@ -40,10 +40,10 @@ interface Capturado {
 
 describe('A7/A8: ligação no manifesto e no moduloApi', () => {
   it('manifesto declara o consumo e o moduloApi expõe os consumidores (o despachante só entrega o que está em consome)', () => {
-    for (const nome of ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1']) {
+    for (const nome of ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1', 'core.cliente.pre_cadastrado@1', 'core.cliente.pre_cadastro_revisado@1']) {
       expect(manifest.consome).toContain(nome);
     }
-    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['catalogo.referencia.marca_desconhecida@1', 'core.cliente.pre_cadastrado@1', 'integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.cancelado@1', 'vendedor.pedido.status_alterado@1']);
+    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['catalogo.referencia.marca_desconhecida@1', 'core.cliente.pre_cadastrado@1', 'core.cliente.pre_cadastro_revisado@1', 'integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.cancelado@1', 'vendedor.pedido.status_alterado@1']);
   });
 });
 

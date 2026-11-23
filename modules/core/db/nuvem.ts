@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: ponto_trajeto e ausencia_usuario; 0090: forma de pagamento e NF em nota_erp e titulo, documento_tipo, documento_cliente, documento_permissao e documento_excecao), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0076: marca_codigo do produto; 0077: usuario.filial_cadastro_id e usuario_filial; 0080: usuario.codigo_fdv e usuario_codigo_fdv_contador; 0084: almoço do usuário e usuario_contato; 0089: ponto_trajeto e ausencia_usuario; 0090: forma de pagamento e NF em nota_erp e titulo, documento_tipo, documento_cliente, documento_permissao e documento_excecao; 0098: cliente.revisao_cadastro, erros_recusa e codigo_fdv, cliente_pre_cadastro_tentativa e cliente_codigo_fdv_contador), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -234,6 +234,57 @@ export const cliente = core.table('cliente', {
    * nem na auditoria; sem SELECT do macuxi_leitura. Fila do ERP: cliente_pre_cadastro_fila_ix (pendentes sem external_id).
    */
   motivo_recusa: text('motivo_recusa'),
+  // --- 0098 (v1.0.30, ADR 0069, RN-CORE-78): revisão do pré-cadastro e erros por campo da recusa. ---
+  /** Revisão do pré-cadastro (1 no primeiro recebimento, +1 a cada reenvio; >= 1); nula nos clientes do ERP. Vai no pull. */
+  revisao_cadastro: integer('revisao_cadastro'),
+  /**
+   * Erros por campo da última recusa do ERP ([{campo, codigo, mensagem}], até 50), só com status 'recusado'. Mesmo sigilo do
+   * motivo_recusa (pull só ao vendedor do cliente; nunca em log nem na auditoria; sem SELECT do macuxi_leitura).
+   */
+  erros_recusa: jsonb('erros_recusa').$type<{ campo: string; codigo: string; mensagem: string }[]>(),
+  /**
+   * Código FDV do cliente (0098, ADR 0069 item 10 e D.7, molde da RN-CORE-59): 00001… por tenant, gerado pelo banco no insert de
+   * TODO cliente, de qualquer origem (gatilho cliente_codigo_fdv_emitir; o upsert da carga do ERP sobre o vivo que já existe não
+   * gasta número), e só de leitura (cliente_codigo_fdv_somente_leitura, 23514). Todo cliente vivo tem (cliente_codigo_fdv_vivo,
+   * 23514); nulo só no apagado antes da 0098. O Código ERP é o external_id. Somente leitura — nunca grave (só a substituição do APK
+   * v1.0.28 copia o do recusado para o id novo, no insert).
+   */
+  codigo_fdv: text('codigo_fdv'),
+});
+
+/** Contador do Código FDV do cliente (0098, ADR 0069 item 10): uma linha por tenant, o maior número emitido; só o gatilho grava. Fora do sync. */
+export const clienteCodigoFdvContador = core.table('cliente_codigo_fdv_contador', {
+  ...comuns(),
+  ultimo_sequencial: bigint('ultimo_sequencial', { mode: 'number' }).notNull().default(0),
+});
+
+/** Origens e resultados da tentativa do pré-cadastro (CHECKs da 0098; espelho de OrigemTentativaSchema e ResultadoTentativaSchema). */
+export const ORIGENS_TENTATIVA_PRE_CADASTRO_BANCO = ['campo', 'bko'] as const;
+export const RESULTADOS_TENTATIVA_PRE_CADASTRO_BANCO = ['aguardando', 'aceito', 'recusado'] as const;
+
+/**
+ * 0098 (v1.0.30, ADR 0069, RN-CORE-78): uma linha por revisão do pré-cadastro, única por (tenant_id, cliente_id, revisao). Fora do
+ * sync. hash = sha256 hex do canônico (nulo nas tentativas de antes da 0098); corrigido_por e corrigido_por_perfil juntos ou nenhum;
+ * respondido_em nulo se e só se 'aguardando'; motivo (até 500) e erros (até 50) só com 'recusado'. cliente_id_original = o recusado
+ * substituído pelo APK v1.0.28 (alias, índice cliente_pre_cadastro_tentativa_original_ix). Sem SELECT do macuxi_leitura em hash,
+ * motivo e erros; sem DELETE.
+ */
+export const clientePreCadastroTentativa = core.table('cliente_pre_cadastro_tentativa', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  revisao: integer('revisao').notNull(),
+  hash: text('hash'),
+  origem: text('origem', { enum: ORIGENS_TENTATIVA_PRE_CADASTRO_BANCO }).notNull(),
+  corrigido_por: uuid('corrigido_por'),
+  corrigido_por_perfil: text('corrigido_por_perfil'),
+  cliente_id_original: uuid('cliente_id_original'),
+  /** Só os nomes das colunas alteradas (até 20), nunca valores. */
+  campos_alterados: text('campos_alterados').array().notNull().default([]),
+  enviado_em: timestamp('enviado_em', { withTimezone: true }).notNull(),
+  resultado: text('resultado', { enum: RESULTADOS_TENTATIVA_PRE_CADASTRO_BANCO }).notNull().default('aguardando'),
+  respondido_em: timestamp('respondido_em', { withTimezone: true }),
+  motivo: text('motivo'),
+  erros: jsonb('erros').$type<{ campo: string; codigo: string; mensagem: string }[]>(),
 });
 
 /**

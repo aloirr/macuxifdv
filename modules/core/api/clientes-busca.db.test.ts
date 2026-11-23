@@ -7,7 +7,7 @@ import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ContextoBase, UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ClienteListaQuerySchema } from '../contracts';
+import { ClienteListaQuerySchema, ClienteListaRespostaSchema, type ClienteListaItem } from '../contracts';
 import { rotasDeClientes } from './clientes';
 
 const A = DOIS_TENANTS.A;
@@ -25,7 +25,7 @@ describe.skipIf(semBanco())('Core RF-CORE-02 × Postgres: busca de clientes pala
   let pool: pg.Pool;
   const gerente: UsuarioAutenticado = { id: A.usuarios.gerente, tenant_id: A.tenantId, perfil: 'gerente' };
 
-  const buscar = async (q: string): Promise<string[]> => {
+  const itensDaBusca = async (q: string): Promise<ClienteListaItem[]> => {
     const r = rotasDeClientes.find((x) => x.metodo === 'GET' && x.caminho === 'clientes')!;
     const ctx = {
       usuario: gerente,
@@ -36,9 +36,10 @@ describe.skipIf(semBanco())('Core RF-CORE-02 × Postgres: busca de clientes pala
       carteira: async () => 'tenant',
     } as unknown as ContextoBase;
     const query = ClienteListaQuerySchema.parse({ q, limite: 50 });
-    const resp = (await r.executar({ ...ctx, corpo: {}, query, params: {} } as never)) as { itens: { id: string }[] };
-    return resp.itens.map((i) => i.id).filter((x) => x.startsWith(FAIXA));
+    const resp = ClienteListaRespostaSchema.parse(await r.executar({ ...ctx, corpo: {}, query, params: {} } as never));
+    return resp.itens.filter((i) => i.id.startsWith(FAIXA));
   };
+  const buscar = async (q: string): Promise<string[]> => (await itensDaBusca(q)).map((i) => i.id);
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
@@ -57,6 +58,11 @@ describe.skipIf(semBanco())('Core RF-CORE-02 × Postgres: busca de clientes pala
     await pool.end();
   });
 
+  it('RF-CORE-02: o item traz os dois códigos e a busca casa pelo Código FDV (v1.0.30, ADR 0069 item 10)', async () => {
+    const codigo = await comTenant(pool, A.tenantId, async (c) => (await c.query<{ codigo_fdv: string }>('select codigo_fdv from core.cliente where id = $1', [id(1)])).rows[0]!.codigo_fdv);
+    expect(codigo).toMatch(/^\d{5,}$/);
+    expect(await itensDaBusca(`joao ${codigo}`)).toEqual([expect.objectContaining({ id: id(1), codigo_fdv: codigo, external_id: '0103' })]);
+  });
   it('RF-CORE-02: "JOAO 0103" acha a razão "JOÃO" de código 0103 (maiúscula acentuada, sem depender da collation)', async () => {
     expect(await buscar('JOAO 0103')).toEqual([id(1)]);
   });

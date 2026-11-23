@@ -6,7 +6,7 @@
  */
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, StatusCadastro, TituloSync } from '../../contracts';
-import { fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, ultimaVisitaEntre, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
+import { clienteCasaBusca, fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, ultimaVisitaEntre, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
 
 export interface LinhasCliente {
   cliente: ClienteSync;
@@ -144,6 +144,8 @@ export interface ItemClienteLocal extends ClienteLista {
   cadastro_incompleto: boolean;
   /** RN-CORE-47: código do ERP; vazio = Pré-Cadastro. */
   external_id: string | null;
+  /** Código FDV (ADR 0069 item 10): só para a busca; a linha da lista não mostra código (RN-CORE-47). */
+  codigo_fdv: string | null;
   /** RN-CORE-78: situação do pré-cadastro (selo da lista); ausente = linha do ERP. */
   status_cadastro?: StatusCadastro | null;
   motivo_recusa?: string | null;
@@ -179,6 +181,7 @@ export function listarClientesLocais(base: BaseLocal, hoje: string, filtro: Filt
       uf: c.uf,
       cadastro_incompleto: c.cadastro_incompleto ?? false,
       external_id: c.external_id,
+      codigo_fdv: c.codigo_fdv ?? null,
       status_cadastro: c.status_cadastro,
       motivo_recusa: c.motivo_recusa,
       ultima_visita: ultimaPorCliente.get(c.id) ?? null,
@@ -186,11 +189,12 @@ export function listarClientesLocais(base: BaseLocal, hoje: string, filtro: Filt
       vencidos_qtd: (titulosPorCliente.get(c.id) ?? []).filter((t) => situacaoTitulo(t, hoje).situacao === 'vencido').length,
       dias_sem_compra: resumoCompras(historicoPorCliente.get(c.id) ?? [], hoje).dias_sem_compra,
     }));
-  const { semCompraHa, ...resto } = filtro;
+  const { semCompraHa, q, ...resto } = filtro;
   // as linhas locais já estão no escopo do usuário (o servidor filtrou): perfil de escopo "tenant" não corta nada aqui
   const filtrados = listarClientes(itens, 'admin', { propria: new Set(), equipe: new Set(), equipesAbaixo: new Set() }, resto, {
     bloqueados: new Set(itens.filter((i) => i.bloqueado).map((i) => i.id)),
     comVencidos: new Set(itens.filter((i) => i.vencidos_qtd > 0).map((i) => i.id)),
   });
-  return filtrados.filter((i) => semCompraHa === undefined || i.dias_sem_compra === null || i.dias_sem_compra >= semCompraHa);
+  // busca: a regra única (`clienteCasaBusca`), que casa pelos dois códigos (Código ERP e Código FDV)
+  return filtrados.filter((i) => clienteCasaBusca(q, i)).filter((i) => semCompraHa === undefined || i.dias_sem_compra === null || i.dias_sem_compra >= semCompraHa);
 }
