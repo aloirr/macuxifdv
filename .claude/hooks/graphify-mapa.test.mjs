@@ -1,12 +1,12 @@
 // Testes do hook do mapa do código (graphify-mapa.mjs): `node --test .claude/hooks/graphify-mapa.test.mjs`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bashBuscaArquivo, nosMaisLigados, precisaLembrete, textoDeInicio, TEXTO_LEMBRETE } from './graphify-mapa.mjs';
+import { bashBuscaArquivo, lembrete, nosMaisLigados, textoDeInicio, TEXTO_LEMBRETE } from './graphify-mapa.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./graphify-mapa.mjs', import.meta.url));
 const GRAFO = {
@@ -18,49 +18,59 @@ const GRAFO = {
     { id: 'r', label: 'ref_vitest', file_type: 'concept', source_file: '' },
   ],
   links: [
-    { source: 'a', target: 'b' }, { source: 'a', target: 'c' }, { source: 'b', target: 'a' },
+    { source: 'a', target: 'b' }, { source: 'a', target: 'c' }, { source: 'b', target: 'a' }, { source: 'a', target: 'a' },
     { source: 'f', target: 'a' }, { source: 'f', target: 'r' }, { source: 'b', target: 'r' }, { source: 'c', target: 'r' },
   ],
 };
+const dir = mkdtempSync(join(tmpdir(), 'grafo-'));
+const grafoOk = join(dir, 'graph.json');
+writeFileSync(grafoOk, JSON.stringify(GRAFO));
+const ausente = join(dir, 'nao-existe.json');
 
-const rodar = (modo, entrada, grafo) =>
-  execFileSync('node', [SCRIPT, modo], { input: JSON.stringify(entrada), env: { ...process.env, MACUXI_GRAFO: grafo } }).toString();
+const rodar = (modo, stdin, grafo = grafoOk) => {
+  const r = spawnSync('node', [SCRIPT, modo], { input: stdin, env: { ...process.env, MACUXI_GRAFO: grafo } });
+  return { status: r.status, saida: r.stdout.toString() };
+};
+const contexto = (r) => JSON.parse(r.saida).hookSpecificOutput;
 
-test('nós mais ligados: só símbolos do código (sem arquivo nem dependência externa), pelo número de ligações', () => {
+test('símbolos mais ligados: sem nó de arquivo nem dependência externa; laço conta uma vez', () => {
   assert.deepEqual(nosMaisLigados(GRAFO, 2), [
-    { rotulo: 'semBanco()', arquivo: 'db/testes/estado.ts', ligacoes: 4 },
+    { rotulo: 'semBanco()', arquivo: 'db/testes/estado.ts', ligacoes: 5 },
     { rotulo: 'Button()', arquivo: 'packages/ui/src/botao.tsx', ligacoes: 3 },
   ]);
 });
 
-test('início com mapa traz o comando de consulta e os nós; sem mapa só avisa como montar', () => {
-  const com = textoDeInicio(GRAFO);
-  assert.match(com, /graphify query "<pergunta>" --graph \.\.\/grafo-macuxifdv\/graphify-out\/graph\.json --budget 1500/);
-  assert.match(com, /semBanco\(\) em db\/testes\/estado\.ts \(4\)/);
+test('início: comando de consulta e símbolos; mapa ausente e ilegível avisam como montar', () => {
+  assert.match(textoDeInicio(GRAFO), /graphify query "<pergunta>" --graph \.\.\/grafo-macuxifdv\/graphify-out\/graph\.json --budget 1500\nSímbolos mais ligados: semBanco\(\) \(db\/testes\/estado\.ts\);/);
   assert.match(textoDeInicio(null), /não encontrado.*graphify extract \. --code-only --out \.\.\/grafo-macuxifdv/);
+  assert.match(textoDeInicio(undefined), /ilegível/);
 });
 
-test('lembrete: Grep e Glob sempre; Bash só quando o comando busca arquivo', () => {
-  assert.equal(precisaLembrete({ tool_name: 'Grep' }), true);
-  assert.equal(precisaLembrete({ tool_name: 'Glob' }), true);
-  assert.equal(precisaLembrete({ tool_name: 'Read' }), false);
-  for (const c of ['grep -rn x modules', 'rg foo', 'find . -name "*.ts"', 'cd modules && git grep -n x', 'ls; rg x'])
+test('Bash de busca: começo de comando conta; | grep que filtra saída não', () => {
+  for (const c of ['grep -rn x modules', 'rg foo', 'find . -name "*.ts"', 'cd m && git grep -n x', 'ls; rg x', 'cd /x\ngrep -n y z',
+    'git -C /home/user/macuxifdv grep -n x', '(grep x y)', 'echo $(rg -l x)', 'for f in a; do grep x $f; done', 'sudo find / -name x', 'FOO=1 rg x'])
     assert.equal(bashBuscaArquivo(c), true, c);
-  for (const c of ['git log | grep fix', 'pnpm test', 'graphify query "x" --graph g | grep y', 'echo grep'])
-    assert.equal(bashBuscaArquivo(c), false, c);
+  for (const c of ['git log | grep fix', 'pnpm test', 'echo grep', undefined, 42]) assert.equal(bashBuscaArquivo(c), false, String(c));
 });
 
-test('hook de ponta a ponta: devolve contexto sem bloquear; sem mapa o lembrete fica calado', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'grafo-'));
-  const grafo = join(dir, 'graph.json');
-  writeFileSync(grafo, JSON.stringify(GRAFO));
-  const lembrete = JSON.parse(rodar('lembrete', { tool_name: 'Grep', tool_input: {} }, grafo));
-  assert.deepEqual(lembrete, { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: TEXTO_LEMBRETE } });
-  const inicio = JSON.parse(rodar('inicio', { hook_event_name: 'SessionStart' }, grafo));
-  assert.equal(inicio.hookSpecificOutput.hookEventName, 'SessionStart');
-  const ausente = join(dir, 'nao-existe.json');
-  assert.equal(rodar('lembrete', { tool_name: 'Grep' }, ausente), '');
-  assert.match(JSON.parse(rodar('inicio', {}, ausente)).hookSpecificOutput.additionalContext, /não encontrado/);
-  writeFileSync(grafo, '{quebrado');
-  assert.match(JSON.parse(rodar('inicio', {}, grafo)).hookSpecificOutput.additionalContext, /não encontrado/);
+test('lembrete: Grep, Glob e Bash de busca até a sessão rodar o graphify; depois fica calado', () => {
+  const marcador = join(dir, 'marcador');
+  assert.equal(lembrete({ tool_name: 'Read' }, marcador), null);
+  assert.equal(lembrete({ tool_name: 'Grep' }, marcador), TEXTO_LEMBRETE);
+  assert.equal(lembrete({ tool_name: 'Bash', tool_input: { command: 'rg x' } }, marcador), TEXTO_LEMBRETE);
+  assert.equal(lembrete({ tool_name: 'Bash', tool_input: { command: 'graphify query "x" --graph g | grep y' } }, marcador), null);
+  assert.equal(existsSync(marcador), true);
+  assert.equal(lembrete({ tool_name: 'Glob' }, marcador), null);
+});
+
+test('de ponta a ponta: exit 0 sem bloquear; sem mapa, stdin ruim ou modo errado fica calado', () => {
+  const entrada = JSON.stringify({ session_id: `teste-${process.pid}-${Date.now()}`, tool_name: 'Bash', tool_input: { command: 'grep -rn x .' } });
+  assert.deepEqual(contexto(rodar('lembrete', entrada)), { hookEventName: 'PreToolUse', additionalContext: TEXTO_LEMBRETE });
+  assert.match(contexto(rodar('inicio', '{ruim')).additionalContext, /Símbolos mais ligados/);
+  for (const [modo, stdin, grafo] of [['lembrete', '', grafoOk], ['lembrete', '{ruim', grafoOk], ['lembrete', entrada, ausente], ['outro', '{}', grafoOk]])
+    assert.deepEqual(rodar(modo, stdin, grafo), { status: 0, saida: '' }, `${modo} ${stdin}`);
+  assert.match(contexto(rodar('inicio', '', ausente)).additionalContext, /não encontrado/);
+  const quebrado = join(dir, 'quebrado.json');
+  writeFileSync(quebrado, '{quebrado');
+  assert.match(contexto(rodar('inicio', '', quebrado)).additionalContext, /ilegível/);
 });
