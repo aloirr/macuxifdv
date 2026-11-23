@@ -8,7 +8,8 @@
 --   Poll: where estado = 'pendente' or (estado = 'enviado' and enviado_em < now() - timeout) order by aprovado_em limit N
 --         for update skip locked — índice parcial cliente_fila_erp_poll_ix (tenant_id, aprovado_em) nos dois estados vivos.
 -- RLS e grants iguais aos da pedido_fila_erp: isolamento_tenant (macuxi_app: select, insert, update), manutencao
--- (macuxi_manutencao, 0031) e leitura (macuxi_leitura, select de todas as colunas, 0078). Sem DELETE (remoção por deleted_at).
+-- (macuxi_manutencao, 0031) e leitura (macuxi_leitura, 0078: SELECT por coluna, SEM payload e SEM motivo — o payload traz
+-- CPF/CNPJ, telefone, e-mail e endereço e a saída desse papel vai para o log do Actions). Sem DELETE (remoção por deleted_at).
 -- Caminho de volta: 0096_integracao_cliente_fila_erp.down.sql (APAGA a fila com tudo o que tiver; os pré-cadastros aprovados
 -- ainda não vinculados precisam ser reenfileirados depois de um novo up). Volte antes o código do Hub que lê ou grava a tabela
 -- (senão 42P01).
@@ -47,5 +48,5 @@ create policy isolamento_tenant on integracao.cliente_fila_erp for all to macuxi
   with check (tenant_id = plataforma.tenant_atual());
 create policy manutencao on integracao.cliente_fila_erp for all to macuxi_manutencao using (true) with check (true);
 grant select, insert, update on integracao.cliente_fila_erp to macuxi_app;
-grant select on integracao.cliente_fila_erp to macuxi_leitura;
+grant select (id, tenant_id, cliente_uuid, aprovado_em, estado, enviado_em, tentativas, conector_id, created_at, updated_at, deleted_at, external_id) on integracao.cliente_fila_erp to macuxi_leitura;
 create policy leitura on integracao.cliente_fila_erp for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());

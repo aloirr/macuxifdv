@@ -48,8 +48,10 @@ describe('0096 fila do cliente para o ERP (estático)', () => {
     );
     expect(up).toContain(`alter table ${TABELA} force row level security;`);
     expect(up).toContain(`grant select, insert, update on ${TABELA} to macuxi_app;`);
-    expect(up).toContain(`grant select on ${TABELA} to macuxi_leitura;`);
-    expect(up).not.toMatch(/grant [^;]*delete|to macuxi_(worker|portal)|\bcore\./);
+    expect(up).not.toContain(`grant select on ${TABELA} to macuxi_leitura;`);
+    const leitura = /grant select \(([^)]*)\) on integracao\.cliente_fila_erp to macuxi_leitura;/.exec(up)![1]!.split(',').map((x) => x.trim());
+    expect(leitura.sort()).toEqual(COLUNAS.filter((c) => c !== 'payload' && c !== 'motivo').sort());
+    expect(up).not.toMatch(/grant [^;]*\bdelete\b|to macuxi_(worker|portal)|\bcore\./);
     expect(Object.keys(nuvemIntegracao.clienteFilaErp).filter((k) => COLUNAS.includes(k)).sort()).toEqual([...COLUNAS].sort());
     expect(TABELAS_FORA_DO_SYNC).toContain(TABELA);
   });
@@ -110,6 +112,10 @@ describe.skipIf(semBanco())('0096 fila do cliente para o ERP (banco, fixture doi
       await admin.query("update integracao.cliente_fila_erp set enviado_em = now() - interval '1 hour' where id = $1", [a!.id]);
       expect(await poll(A.tenantId)).toContain(a!.id); // enviado vencido volta (reentrega)
       expect(await comoLeitura(A.tenantId, 'select id from integracao.cliente_fila_erp where id in ($1, $2)', [a!.id, b!.id])).toEqual([{ id: a!.id }]);
+      // macuxi_leitura não lê payload (CPF/CNPJ, telefone, e-mail, endereço) nem motivo: a saída dele vai para o log do Actions
+      for (const sql of ['select payload from integracao.cliente_fila_erp', 'select motivo from integracao.cliente_fila_erp', 'select * from integracao.cliente_fila_erp']) {
+        expect((await erroDe(comoLeitura(A.tenantId, sql)))?.code).toBe('42501');
+      }
       expect((await erroDe(comoApp(A.tenantId, 'delete from integracao.cliente_fila_erp where id = $1', [a!.id])))?.code).toBe('42501');
     });
   });

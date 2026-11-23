@@ -507,7 +507,8 @@ que existe muda. O Hub não lê `core.cliente` (0095): a linha entra pelo evento
   for update skip locked`, pelo índice parcial `cliente_fila_erp_poll_ix (tenant_id, aprovado_em) where estado in ('pendente',
   'enviado') and deleted_at is null` (EXPLAIN no teste).
 - **RLS e grants (iguais aos da `pedido_fila_erp`):** RLS forçado; `isolamento_tenant` (macuxi_app: `select, insert, update`),
-  `manutencao` (macuxi_manutencao) e `leitura` (macuxi_leitura: `select` de todas as colunas no próprio tenant). Worker e portal:
+  `manutencao` (macuxi_manutencao) e `leitura` (macuxi_leitura: `select` por coluna no próprio tenant, **sem `payload` e sem
+  `motivo`** — o payload traz CPF/CNPJ, telefone, e-mail e endereço, e a saída desse papel vai para o log do Actions, regra da 0078). Worker e portal:
   nada. Fora do sync (`db/src/excecoes.ts`).
 - **Drizzle:** `clienteFilaErp` em `modules/integracao/db/nuvem.ts`.
 - **Fixture dois-tenants:** A com um pendente (cliente c3); B com um rejeitado.
