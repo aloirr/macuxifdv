@@ -281,12 +281,14 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > [integracao.md](integracao.md) ("0097"); teste `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
 >
 > **2026-11-23 (v1.0.31, ADR 0068, RN-PLA-12; "Zerar dados" da empresa, inteira ou por entidade):** `0100_plataforma_zerar_empresa`
-> (em cima da 0099; número provisório): uma regra só, `plataforma.limpar_cadastros(tenant, lote, entidades, exigir_hub_parado)`
-> = a rotina do #675 promovida a SECURITY DEFINER (a empresa inteira dá o mesmo resultado) mais o modo por entidade
-> (`mapa_limpeza_entidades()`); a cópia única `plataforma.limpeza_copia` (recebe as linhas da `public.macuxi_limpeza_backup`),
-> `restaurar_limpeza` e `descartar_limpeza`; o job `plataforma.zerar_empresa` (lote, entidades, contagem em lista); 3 `sa_*` do
-> portal (41 no total) e 4 funções do worker. A `excluir_tenant` fica como na 0032. Detalhes no [plataforma.md](plataforma.md) e no
-> [rls.md](rls.md); teste `db/testes/empresa-zerar.db.test.ts`.
+> (em cima da 0099; número provisório): uma regra só, `plataforma.limpar_cadastros(tenant, lote, entidades, exigir_hub_parado,
+> simular)` = a rotina do #675 promovida a SECURITY DEFINER (a empresa inteira dá o mesmo resultado, guardado em retrato fixo no
+> teste) mais o modo por entidade (`mapa_limpeza_entidades()`) e o modo simular (só conta, sem mudar nem travar); a trava do Hub é
+> só da empresa (conector e lotes dela em `for update`); a cópia única `plataforma.limpeza_copia` (recebe as linhas da
+> `public.macuxi_limpeza_backup`), `restaurar_limpeza` e `descartar_limpeza`; o job `plataforma.zerar_empresa` (lote, entidades,
+> contagem em lista) e a prévia `plataforma.zerar_previa` (contada pelo worker, fora do pool do portal); 4 `sa_*` do portal (42 no
+> total) e 6 funções do worker, com teto de 3 vezes. A `excluir_tenant` fica como na 0032. Detalhes no
+> [plataforma.md](plataforma.md) e no [rls.md](rls.md); teste `db/testes/empresa-zerar.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

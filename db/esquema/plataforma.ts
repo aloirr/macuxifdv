@@ -594,10 +594,38 @@ export const zerarEmpresa = plataforma.table('zerar_empresa', {
   /** Desfeito pela plataforma.restaurar_limpeza (workflow) com o lote deste zerar. */
   desfeito_em: timestamp('desfeito_em', { withTimezone: true }),
   erro_codigo: text('erro_codigo'),
-  /** Vezes que o worker pegou o job (pegar_zerar). */
+  /** Vezes que o worker pegou o job (pegar_zerar; teto 3, depois falhou ZERAR_FALHOU). */
   tentativas: integer('tentativas').notNull().default(0),
   /** Concessão do worker (10 min). */
   bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  super_admin_id: uuid('super_admin_id').notNull(),
+  sessao_id: uuid('sessao_id'),
+  ...auditaveis(),
+});
+
+/**
+ * Prévia do zerar (0100, ADR 0068): pedida pelo portal (id do portal), contada pelo worker (executar_previa_zerar, a
+ * limpar_cadastros no modo simular, fora do pool do portal), em_andamento -> pronta | falhou. Vale 1 hora (expira_em); o worker
+ * pega no máximo 3 vezes. empresa_id SEM FK e sem tenant_id (como a zerar_empresa). Só por função.
+ */
+export const zerarPrevia = plataforma.table('zerar_previa', {
+  id: uuid('id').primaryKey(),
+  empresa_id: uuid('empresa_id').notNull(),
+  /** Nulo = a empresa inteira; senão as entidades do ERP, na ordem de carga (ENTIDADES_ZERAR). */
+  entidades: text('entidades').array(),
+  situacao: text('situacao', { enum: ['em_andamento', 'pronta', 'falhou'] }).notNull().default('em_andamento'),
+  /** Só na pronta: linhas [{ ordem, tabela, linhas }] (as com contagem), entidades_afetadas e total (soft + físico). */
+  resultado: jsonb('resultado').$type<{
+    linhas: { ordem: number; tabela: string; linhas: number }[];
+    entidades_afetadas: string[];
+    total: number;
+  }>(),
+  erro_codigo: text('erro_codigo'),
+  /** Vezes que o worker pegou a prévia (pegar_previa_zerar; teto 3). */
+  tentativas: integer('tentativas').notNull().default(0),
+  /** Concessão do worker (2 min). */
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
   super_admin_id: uuid('super_admin_id').notNull(),
   sessao_id: uuid('sessao_id'),
   ...auditaveis(),

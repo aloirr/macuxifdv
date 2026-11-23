@@ -2,23 +2,29 @@
 -- as rotas e o worker do zerar desligados na API (chamam funções que somem).
 -- As cópias da plataforma.limpeza_copia voltam para a public.macuxi_limpeza_backup do #675 (empresa_id -> tenant_id): o
 -- workflow producao-limpar-cadastros.yml de uma tag anterior restaura e descarta com elas. PERDE os registros de zerar do portal
--- (plataforma.zerar_empresa); as cópias dos lotes deles também vão para a public e saem pelo descarte do workflow.
+-- (plataforma.zerar_empresa) e as prévias (plataforma.zerar_previa, que valem 1 hora); as cópias dos lotes do portal também
+-- vão para a public e saem pelo descarte do workflow.
 
 -- funções do portal, do worker, da regra e internas ------------------------------------------------------------------------------
 drop function if exists plataforma.sa_ler_zerar(uuid, uuid);
 drop function if exists plataforma.sa_pedir_zerar(uuid, uuid, uuid, text, text[]);
-drop function if exists plataforma.sa_previa_zerar(uuid, uuid, text[]);
+drop function if exists plataforma.sa_ler_previa_zerar(uuid, uuid, uuid);
+drop function if exists plataforma.sa_pedir_previa_zerar(uuid, uuid, uuid, text[]);
+drop function if exists plataforma.executar_previa_zerar(uuid);
+drop function if exists plataforma.pegar_previa_zerar();
 drop function if exists plataforma.expurgar_zerar(integer);
 drop function if exists plataforma.fechar_zerar(uuid, text);
 drop function if exists plataforma.executar_zerar(uuid);
 drop function if exists plataforma.pegar_zerar();
+drop function if exists plataforma.zerar_previa_json(plataforma.zerar_previa);
 drop function if exists plataforma.zerar_empresa_json(plataforma.zerar_empresa);
 drop function if exists plataforma.zerar_bloqueado(uuid, uuid, bigint);
 drop function if exists plataforma.descartar_limpeza(uuid, text);
 drop function if exists plataforma.restaurar_limpeza(uuid, text);
-drop function if exists plataforma.limpar_cadastros(uuid, text, text[], boolean);
+drop function if exists plataforma.limpar_cadastros(uuid, text, text[], boolean, boolean);
 
 -- tabelas ------------------------------------------------------------------------------------------------------------------------
+drop table if exists plataforma.zerar_previa;
 drop table if exists plataforma.zerar_empresa;
 do $$
 begin
@@ -44,7 +50,7 @@ end
 $$;
 drop table if exists plataforma.limpeza_copia;
 
--- as do mapa por último (o check da zerar_empresa usava a entidades_limpeza_ordenadas)
+-- as do mapa por último (os checks da zerar_empresa e da zerar_previa usavam a entidades_limpeza_ordenadas)
 drop function if exists plataforma.entidades_afetadas_limpeza(jsonb, text[]);
 drop function if exists plataforma.entidades_limpeza_ordenadas(text[]);
 drop function if exists plataforma.mapa_limpeza_entidades();

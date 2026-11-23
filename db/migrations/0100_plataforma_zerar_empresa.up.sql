@@ -3,29 +3,36 @@
 -- a ordem de merge (provisório até o gerente confirmar). Dicionário: docs/banco/plataforma.md ("Zerar dados da empresa (0100)")
 -- e docs/banco/rls.md. Teste: db/testes/empresa-zerar.db.test.ts.
 --
--- UMA regra só: plataforma.limpar_cadastros(tenant, lote, entidades, exigir_hub_parado) é o corpo da
+-- UMA regra só: plataforma.limpar_cadastros(tenant, lote, entidades, exigir_hub_parado, simular) é o corpo da
 -- pg_temp.macuxi_limpar_cadastros do PR #675 (scripts/producao/limpar-cadastros-rotina.sql, f2556d68) promovido a SECURITY
--- DEFINER, com as mudanças do §4.1 do desenho: lote com o sufixo do portal; cópia em plataforma.limpeza_copia; trava e recusa
--- (55000 ZERAR_HUB_PROCESSANDO) só com exigir_hub_parado; rótulos = nome puro da tabela e o modo diz o que foi feito; e o modo
--- por entidade (p_entidades, mapa em plataforma.mapa_limpeza_entidades()). Com p_entidades nulo, o resultado é o do #675 (o
--- teste prova nos dados de scripts/producao/teste/limpar-cadastros-dados.sql). Não abre nem fecha transação: quem chama decide
--- entre COMMIT (gravar) e ROLLBACK (simular). Quem chama: a sa_previa_zerar (subtransação desfeita), a executar_zerar (worker) e
--- o workflow producao-limpar-cadastros.yml (psql do migrador).
+-- DEFINER, com as mudanças do §4.1 do desenho: lote com o sufixo do portal; cópia em plataforma.limpeza_copia; trava do Hub SÓ
+-- da empresa (o conector e os lotes dela em FOR UPDATE; o Hub das outras segue) e recusa (55000 ZERAR_HUB_PROCESSANDO) só com
+-- exigir_hub_parado; rótulos = nome puro da tabela e o modo diz o que foi feito; o modo por entidade (p_entidades, mapa em
+-- plataforma.mapa_limpeza_entidades()); e p_simular: as mesmas raízes e a mesma cascata, só contando (sem cópia, sem UPDATE,
+-- sem DELETE, sem trava). Com p_entidades nulo, o resultado é o do #675 (o teste guarda o retrato fixo dele nos dados de
+-- scripts/producao/teste/limpar-cadastros-dados.sql). Não abre nem fecha transação: quem chama decide entre COMMIT (gravar) e
+-- ROLLBACK (simular). Quem chama: a executar_previa_zerar (worker, p_simular, numa subtransação desfeita), a executar_zerar
+-- (worker) e o workflow producao-limpar-cadastros.yml (psql do migrador).
 --
 -- 1. Tabelas (RLS ligado e FORÇADO, só a política manutencao, nenhum grant: app, worker e portal 42501; só por função):
 --    - plataforma.limpeza_copia: a cópia de cada linha que a limpeza muda, por lote. As 6 primeiras colunas são as da
 --      public.macuxi_limpeza_backup do #675, na mesma ordem (o tenant em empresa_id, sem FK, como nas tabelas da 0072); depois
 --      vêm as comuns da regra 5. A migração move para ela as linhas da public.macuxi_limpeza_backup, se existir, e apaga a public;
 --    - plataforma.zerar_empresa: o job do portal (id do portal, lote, entidades), em_andamento -> concluido | falhou; um em
---      andamento por empresa; contagem = a lista LinhaLimpeza[].
---    As duas sem tenant_id nem FK (sobrevivem à excluir_tenant, como as da 0072); a cópia sai pelo descarte ou pelo expurgo.
+--      andamento por empresa; contagem = a lista LinhaLimpeza[]; no máximo 3 vezes no worker (depois falhou ZERAR_FALHOU);
+--    - plataforma.zerar_previa: a prévia pedida pelo portal e contada pelo worker (fora do pool do portal, de 10 s), em_andamento
+--      -> pronta | falhou; vale 1 hora; no máximo 3 vezes no worker.
+--    As três sem tenant_id nem FK (sobrevivem à excluir_tenant, como as da 0072); a cópia sai pelo descarte ou pelo expurgo.
 -- 2. A regra (sem EXECUTE para ninguém; só o dono): limpar_cadastros (SECURITY DEFINER), mapa_limpeza_entidades,
 --    entidades_limpeza_ordenadas e entidades_afetadas_limpeza; a volta e o descarte do workflow: restaurar_limpeza e
 --    descartar_limpeza (SECURITY INVOKER); as internas zerar_bloqueado e zerar_empresa_json.
 -- 3. Portal (SECURITY DEFINER; EXECUTE só ao macuxi_portal; sessão inválida 28000, admin do cliente 42501; código do contrato no
---    hint: 55000 = 409, 22023 = 422, P0002 = 404): sa_previa_zerar, sa_pedir_zerar e sa_ler_zerar (41 sa_* no portal).
--- 4. Worker (SECURITY DEFINER; EXECUTE só ao macuxi_worker; o tenant sai da linha do job): pegar_zerar, executar_zerar,
---    fechar_zerar e expurgar_zerar.
+--    hint: 55000 = 409, 22023 = 422, P0002 = 404): sa_pedir_previa_zerar, sa_ler_previa_zerar, sa_pedir_zerar e sa_ler_zerar
+--    (42 sa_* no portal).
+-- 4. Worker (SECURITY DEFINER; EXECUTE só ao macuxi_worker; o tenant sai da linha do job): pegar_previa_zerar,
+--    executar_previa_zerar, pegar_zerar, executar_zerar, fechar_zerar e expurgar_zerar.
+-- O bloqueio (RN-PLA-12) tem um lugar só: plataforma.zerar_bloqueado. A prévia o devolve em "bloqueio" e o zerar recusado no
+-- worker o grava em erro_codigo (sa_ler_zerar).
 -- Auditoria (plataforma.auditoria_plataforma, sem dado pessoal): tenant.zerar_pedido, tenant.zerado (detalhes = payload de
 -- plataforma.tenant.zerado@1), tenant.zerar_falhou e tenant.zerar_desfeito. A excluir_tenant fica como na 0032.
 --
@@ -180,6 +187,46 @@ alter table plataforma.zerar_empresa force row level security;
 create policy manutencao on plataforma.zerar_empresa for all to macuxi_manutencao using (true) with check (true);
 revoke all on plataforma.zerar_empresa from public, macuxi_app, macuxi_worker;
 
+-- A prévia (PreviaZerarEmpresa): pedida pelo portal (sa_pedir_previa_zerar, id do portal), contada pelo worker
+-- (executar_previa_zerar: a limpar_cadastros no modo simular) e lida pelo portal (sa_ler_previa_zerar). resultado = {linhas,
+-- entidades_afetadas, total}; o bloqueio é calculado na leitura (zerar_bloqueado). Vale 1 hora (o pegar_previa_zerar apaga as
+-- vencidas); no máximo 3 vezes no worker.
+create table plataforma.zerar_previa (
+  id              uuid primary key,
+  empresa_id      uuid not null,
+  entidades       text[],
+  situacao        text not null default 'em_andamento',
+  resultado       jsonb,
+  erro_codigo     text,
+  tentativas      integer not null default 0,
+  bloqueado_ate   timestamptz,
+  expira_em       timestamptz not null default now() + interval '1 hour',
+  super_admin_id  uuid not null,
+  sessao_id       uuid,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  deleted_at      timestamptz,
+  external_id     text,
+  constraint zerar_previa_entidades_validas check (entidades is null
+    or (cardinality(entidades) >= 1 and entidades = plataforma.entidades_limpeza_ordenadas(entidades))),
+  constraint zerar_previa_situacao_valida check (situacao in ('em_andamento', 'pronta', 'falhou')),
+  constraint zerar_previa_erro_formato check (erro_codigo is null or erro_codigo ~ '^[A-Z][A-Z0-9_]{1,59}$'),
+  constraint zerar_previa_erro_so_na_falha check ((situacao = 'falhou') = (erro_codigo is not null)),
+  constraint zerar_previa_resultado_so_pronta check ((situacao = 'pronta') = (resultado is not null)),
+  constraint zerar_previa_resultado_formato check (resultado is null or (jsonb_typeof(resultado -> 'linhas') = 'array'
+    and jsonb_typeof(resultado -> 'entidades_afetadas') = 'array' and jsonb_typeof(resultado -> 'total') = 'number')),
+  constraint zerar_previa_tentativas_positivas check (tentativas >= 0)
+);
+create index zerar_previa_empresa_ix on plataforma.zerar_previa (empresa_id, created_at desc, id);
+create index zerar_previa_fila_ix on plataforma.zerar_previa (created_at, id) where situacao = 'em_andamento';
+create index zerar_previa_expira_ix on plataforma.zerar_previa (expira_em, id);
+create trigger zerar_previa_updated_at before update on plataforma.zerar_previa
+  for each row execute function plataforma.definir_updated_at();
+alter table plataforma.zerar_previa enable row level security;
+alter table plataforma.zerar_previa force row level security;
+create policy manutencao on plataforma.zerar_previa for all to macuxi_manutencao using (true) with check (true);
+revoke all on plataforma.zerar_previa from public, macuxi_app, macuxi_worker;
+
 -- 2. A regra ----------------------------------------------------------------------------------------------------------------------
 -- Corpo da pg_temp.macuxi_limpar_cadastros do #675 (as regras do cabeçalho de scripts/producao/limpar-cadastros-rotina.sql valem
 -- aqui): RAÍZES, CASCATA (FK, nome de coluna, plataforma.arquivo pelo entidade_id, posse × autoria), FICA (c_fica e o schema
@@ -189,7 +236,7 @@ revoke all on plataforma.zerar_empresa from public, macuxi_app, macuxi_worker;
 -- staging, erros e recebidos pela cascata); o pedido que perde item sai inteiro; os derivados só pela cascata; as filiais
 -- só com filial na lista; a outbox só pelo agregado_id. Devolve (r_ordem, r_tabela, r_modo, r_linhas): só nomes e contagens.
 create function plataforma.limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null,
-                                            p_exigir_hub_parado boolean default true)
+                                            p_exigir_hub_parado boolean default true, p_simular boolean default false)
   returns table (r_ordem int, r_tabela text, r_modo text, r_linhas bigint)
   language plpgsql volatile security definer
   set search_path = pg_catalog, pg_temp
@@ -249,7 +296,14 @@ begin
   end if;
   perform set_config('app.tenant_id', p_tenant::text, true);
   if p_exigir_hub_parado then
-    lock table integracao.lote, integracao.registro_atual, integracao.sessao_carga in share row exclusive mode;
+    -- trava do Hub SÓ desta empresa (o das outras segue; antes era um lock table para todas): o conector dela em FOR UPDATE
+    -- barra lote, sessão de carga e registro novos (as FKs para integracao.conector tomam FOR KEY SHARE); os lotes dela em FOR
+    -- UPDATE barram a troca de situação (recebido -> processando, reprocessar). Com o lock_timeout do worker: 55P03 e nova
+    -- tentativa. O simular não trava nada.
+    if not p_simular then
+      perform 1 from integracao.conector c where c.tenant_id = p_tenant for update;
+      perform 1 from integracao.lote l where l.tenant_id = p_tenant for update;
+    end if;
     if exists (select 1 from integracao.lote l where l.tenant_id = p_tenant and l.status = 'processando') then
       raise exception 'lote do Hub em processamento nesta empresa: espere terminar (nada mudou)'
         using errcode = '55000', hint = 'ZERAR_HUB_PROCESSANDO';
@@ -376,13 +430,20 @@ begin
       (select string_agg(distinct a.tabela, ', ') from _limpeza_alvo a where a.tabela like 'integracao.%' and not a.tabela = any (c_fisico));
   end if;
 
-  -- 3. cópia (mesma transação) e execução
-  if exists (select 1 from plataforma.limpeza_copia b where b.lote = p_lote) then
+  -- 3. cópia (mesma transação) e execução; no simular, só a contagem do que o UPDATE e o DELETE pegariam
+  if not p_simular and exists (select 1 from plataforma.limpeza_copia b where b.lote = p_lote) then
     raise exception 'lote % já existe na cópia', p_lote using errcode = '23505';
   end if;
   for r in select x.tabela, case when x.tabela = any (c_fisico) then 'fisico' else 'soft' end as modo,
                   coalesce(array_position(c_fisico, x.tabela), 100) as ordem
              from (select distinct a.tabela from _limpeza_alvo a) x order by 3, 1 loop
+    if p_simular then
+      execute format('select count(*) from %s x where x.tenant_id = %L %s and x.id in (select a.id from _limpeza_alvo a where a.tabela = %L)',
+                     r.tabela, p_tenant, case when r.modo = 'soft' then 'and x.deleted_at is null' else '' end, r.tabela)
+        into n;
+      insert into _limpeza_resumo values (r.ordem, r.tabela, r.modo, n);
+      continue;
+    end if;
     execute format('insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha)
                     select %L, %L, %L, %L, to_jsonb(x) from %s x
                      where x.tenant_id = %L and x.id in (select a.id from _limpeza_alvo a where a.tabela = %L)',
@@ -398,44 +459,62 @@ begin
   end loop;
 
   -- usuários que saem: o token de acesso cai na próxima requisição (autenticacao.ts confere a sessao_versao)
-  update core.usuario u set sessao_versao = u.sessao_versao + 1
-   where u.tenant_id = p_tenant and u.id in (select a.id from _limpeza_alvo a where a.tabela = 'core.usuario');
+  if not p_simular then
+    update core.usuario u set sessao_versao = u.sessao_versao + 1
+     where u.tenant_id = p_tenant and u.id in (select a.id from _limpeza_alvo a where a.tabela = 'core.usuario');
+  end if;
 
   -- 4. outbox: não publicado de registro que sai e, na empresa inteira, todo o do Hub
-  insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha)
-  select p_lote, p_tenant, 'plataforma.evento', 'soft', to_jsonb(e) from plataforma.evento e
-   where e.tenant_id = p_tenant and e.publicado_em is null and e.deleted_at is null
-     and ((v_inteira and e.nome like 'integracao.%') or e.agregado_id in (select a.id from _limpeza_alvo a));
-  update plataforma.evento e set deleted_at = now(), updated_at = now()
-   where e.tenant_id = p_tenant and e.publicado_em is null and e.deleted_at is null
-     and ((v_inteira and e.nome like 'integracao.%') or e.agregado_id in (select a.id from _limpeza_alvo a));
-  get diagnostics n = row_count;
+  if p_simular then
+    select count(*) into n from plataforma.evento e
+     where e.tenant_id = p_tenant and e.publicado_em is null and e.deleted_at is null
+       and ((v_inteira and e.nome like 'integracao.%') or e.agregado_id in (select a.id from _limpeza_alvo a));
+  else
+    insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha)
+    select p_lote, p_tenant, 'plataforma.evento', 'soft', to_jsonb(e) from plataforma.evento e
+     where e.tenant_id = p_tenant and e.publicado_em is null and e.deleted_at is null
+       and ((v_inteira and e.nome like 'integracao.%') or e.agregado_id in (select a.id from _limpeza_alvo a));
+    update plataforma.evento e set deleted_at = now(), updated_at = now()
+     where e.tenant_id = p_tenant and e.publicado_em is null and e.deleted_at is null
+       and ((v_inteira and e.nome like 'integracao.%') or e.agregado_id in (select a.id from _limpeza_alvo a));
+    get diagnostics n = row_count;
+  end if;
   insert into _limpeza_resumo values (200, 'plataforma.evento', 'soft', n);
   -- 5. filiais: ficam, sem a chave do ERP (empresa inteira ou filial na lista)
   if v_inteira or 'filial' = any (v_entidades) then
-    insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha)
-    select p_lote, p_tenant, 'core.filial', 'filial', to_jsonb(f) from core.filial f
-     where f.tenant_id = p_tenant and f.deleted_at is null and f.external_id is not null;
-    update core.filial f set external_id = null where f.tenant_id = p_tenant and f.deleted_at is null and f.external_id is not null;
-    get diagnostics n = row_count;
+    if p_simular then
+      select count(*) into n from core.filial f where f.tenant_id = p_tenant and f.deleted_at is null and f.external_id is not null;
+    else
+      insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha)
+      select p_lote, p_tenant, 'core.filial', 'filial', to_jsonb(f) from core.filial f
+       where f.tenant_id = p_tenant and f.deleted_at is null and f.external_id is not null;
+      update core.filial f set external_id = null where f.tenant_id = p_tenant and f.deleted_at is null and f.external_id is not null;
+      get diagnostics n = row_count;
+    end if;
     insert into _limpeza_resumo values (201, 'core.filial', 'filial', n);
   end if;
   -- 6. pacote de sync pronto -> substituido
-  insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha)
-  select p_lote, p_tenant, 'plataforma.sync_pacote', 'sync_pacote', to_jsonb(s) from plataforma.sync_pacote s
-   where s.tenant_id = p_tenant and s.situacao = 'pronto' and s.deleted_at is null;
-  update plataforma.sync_pacote s set situacao = 'substituido', substituido_em = now()
-   where s.tenant_id = p_tenant and s.situacao = 'pronto' and s.deleted_at is null;
-  get diagnostics n = row_count;
+  if p_simular then
+    select count(*) into n from plataforma.sync_pacote s where s.tenant_id = p_tenant and s.situacao = 'pronto' and s.deleted_at is null;
+  else
+    insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha)
+    select p_lote, p_tenant, 'plataforma.sync_pacote', 'sync_pacote', to_jsonb(s) from plataforma.sync_pacote s
+     where s.tenant_id = p_tenant and s.situacao = 'pronto' and s.deleted_at is null;
+    update plataforma.sync_pacote s set situacao = 'substituido', substituido_em = now()
+     where s.tenant_id = p_tenant and s.situacao = 'pronto' and s.deleted_at is null;
+    get diagnostics n = row_count;
+  end if;
   insert into _limpeza_resumo values (202, 'plataforma.sync_pacote', 'sync_pacote', n);
   -- 7. geração da base (0022)
-  perform plataforma.girar_geracao_base(p_tenant);
+  if not p_simular then
+    perform plataforma.girar_geracao_base(p_tenant);
+  end if;
   insert into _limpeza_resumo values (203, 'plataforma.tenant', 'girar', 1);
 
   return query select s.ordem, s.tabela, s.modo, s.linhas from _limpeza_resumo s order by s.ordem, s.tabela;
 end
 $$;
-revoke all on function plataforma.limpar_cadastros(uuid, text, text[], boolean) from public;
+revoke all on function plataforma.limpar_cadastros(uuid, text, text[], boolean, boolean) from public;
 
 -- Volta de UM lote pela cópia (o limpar-cadastros-restaurar.sql do #675 promovido; workflow, modo restaurar). Na transação de
 -- quem chama: tudo volta ou nada volta. Só serve ANTES do reenvio do ERP (a linha nova com o mesmo external_id bate no índice
@@ -577,8 +656,26 @@ create function plataforma.zerar_empresa_json(z plataforma.zerar_empresa)
   $$;
 revoke all on function plataforma.zerar_empresa_json(plataforma.zerar_empresa) from public;
 
+-- PreviaZerarEmpresa: { id, situacao, entidades, linhas: [{ordem, tabela, linhas}], entidades_afetadas, total, bloqueio,
+-- erro_codigo, criado_em }. linhas, entidades_afetadas e total só na pronta; bloqueio = zerar_bloqueado agora (com o total, se
+-- houver), em qualquer situação.
+create function plataforma.zerar_previa_json(p plataforma.zerar_previa)
+  returns jsonb
+  language sql stable security invoker
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+    select jsonb_build_object(
+      'id', p.id, 'situacao', p.situacao, 'entidades', to_jsonb(p.entidades), 'linhas', p.resultado -> 'linhas',
+      'entidades_afetadas', p.resultado -> 'entidades_afetadas', 'total', p.resultado -> 'total',
+      'bloqueio', plataforma.zerar_bloqueado(p.empresa_id, null, (p.resultado ->> 'total')::bigint),
+      'erro_codigo', p.erro_codigo, 'criado_em', plataforma.instante_iso(p.created_at))
+  $$;
+revoke all on function plataforma.zerar_previa_json(plataforma.zerar_previa) from public;
+
 -- 4. Worker -----------------------------------------------------------------------------------------------------------------------
 -- Próximo zerar em andamento sem concessão viva (skip locked; concessão de 10 min); conta a tentativa. Nenhum = nenhuma linha.
+-- Teto: o pegado 3 vezes sem fechar (o processo caiu no meio: OOM, deploy) fecha falhou ZERAR_FALHOU, com auditoria; a
+-- transação do executar_zerar caiu inteira, então nada foi apagado.
 create function plataforma.pegar_zerar()
   returns table (id uuid, empresa_id uuid)
   language plpgsql volatile security definer
@@ -587,10 +684,18 @@ create function plataforma.pegar_zerar()
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_z record;
 begin
+  for v_z in select z.id, z.empresa_id, z.super_admin_id, z.sessao_id from plataforma.zerar_empresa z
+              where z.situacao = 'em_andamento' and z.tentativas >= 3 and (z.bloqueado_ate is null or z.bloqueado_ate < now())
+              for update skip locked loop
+    update plataforma.zerar_empresa z set situacao = 'falhou', erro_codigo = 'ZERAR_FALHOU', bloqueado_ate = null where z.id = v_z.id;
+    perform plataforma.sa_registrar_auditoria('super_admin', v_z.super_admin_id, null, v_z.sessao_id, v_z.empresa_id,
+      'tenant.zerar_falhou', jsonb_build_object('zerar_id', v_z.id, 'erro_codigo', 'ZERAR_FALHOU'));
+  end loop;
   select z.id into v_id
     from plataforma.zerar_empresa z
-   where z.situacao = 'em_andamento' and (z.bloqueado_ate is null or z.bloqueado_ate < now())
+   where z.situacao = 'em_andamento' and z.tentativas < 3 and (z.bloqueado_ate is null or z.bloqueado_ate < now())
    order by z.pedido_em, z.id
    limit 1
    for update skip locked;
@@ -644,7 +749,7 @@ begin
                             order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
          coalesce(sum(l.r_linhas) filter (where l.r_modo in ('soft', 'fisico')), 0)::bigint
     into v_contagem, v_total
-    from plataforma.limpar_cadastros(v_z.empresa_id, v_z.lote, v_z.entidades, true) l;
+    from plataforma.limpar_cadastros(v_z.empresa_id, v_z.lote, v_z.entidades, true, false) l;
   if v_total > 2000000 then
     raise exception 'executar_zerar: mais linhas que o limite do portal (nada mudou)' using errcode = '22023', hint = 'ZERAR_VOLUME_ALTO';
   end if;
@@ -729,10 +834,105 @@ $$;
 revoke all on function plataforma.expurgar_zerar(integer) from public;
 grant execute on function plataforma.expurgar_zerar(integer) to macuxi_worker;
 
+-- Próxima prévia em andamento, viva e sem concessão (skip locked; concessão de 2 min); conta a tentativa. Antes: apaga as
+-- vencidas (até 500) e fecha falhou ZERAR_FALHOU a pegada 3 vezes sem fechar. Nenhuma = nenhuma linha.
+create function plataforma.pegar_previa_zerar()
+  returns table (id uuid, empresa_id uuid)
+  language plpgsql volatile security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+begin
+  delete from plataforma.zerar_previa z
+   where z.id in (select x.id from plataforma.zerar_previa x where x.expira_em <= now() order by x.expira_em, x.id limit 500
+                   for update skip locked);
+  update plataforma.zerar_previa z set situacao = 'falhou', erro_codigo = 'ZERAR_FALHOU', bloqueado_ate = null
+   where z.id in (select x.id from plataforma.zerar_previa x
+                   where x.situacao = 'em_andamento' and x.tentativas >= 3 and (x.bloqueado_ate is null or x.bloqueado_ate < now())
+                   for update skip locked);
+  select z.id into v_id
+    from plataforma.zerar_previa z
+   where z.situacao = 'em_andamento' and z.tentativas < 3 and z.expira_em > now()
+     and (z.bloqueado_ate is null or z.bloqueado_ate < now())
+   order by z.created_at, z.id
+   limit 1
+   for update skip locked;
+  if v_id is null then
+    return;
+  end if;
+  return query
+    update plataforma.zerar_previa z set bloqueado_ate = now() + interval '2 minutes', tentativas = z.tentativas + 1
+     where z.id = v_id
+    returning z.id, z.empresa_id;
+end
+$$;
+revoke all on function plataforma.pegar_previa_zerar() from public;
+grant execute on function plataforma.pegar_previa_zerar() to macuxi_worker;
+
+-- Conta a prévia: a MESMA limpar_cadastros no modo simular (só conta: sem cópia, sem UPDATE, sem DELETE e sem a trava do Hub),
+-- numa subtransação desfeita, e grava pronta com {linhas, entidades_afetadas, total} (linhas = as com contagem, na ordem do
+-- executar; total = soft + físico, o linhas_apagadas do executar). Erro na contagem = falhou ZERAR_FALHOU (nada mudou); empresa
+-- que saiu = falhou TENANT_NAO_ENCONTRADO. Prévia que não está em andamento: devolve (idempotente).
+create function plataforma.executar_previa_zerar(p_previa uuid)
+  returns jsonb
+  language plpgsql volatile security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+declare
+  v_p plataforma.zerar_previa;
+  v_lista jsonb;
+  v_linhas jsonb;
+  v_total bigint;
+begin
+  select z.* into v_p from plataforma.zerar_previa z where z.id = p_previa for update;
+  if not found then
+    raise exception 'executar_previa_zerar: prévia não encontrada' using errcode = 'P0002';
+  end if;
+  if v_p.situacao <> 'em_andamento' then
+    return plataforma.zerar_previa_json(v_p);
+  end if;
+  if not exists (select 1 from plataforma.tenant t where t.id = v_p.empresa_id and t.deleted_at is null) then
+    update plataforma.zerar_previa set situacao = 'falhou', erro_codigo = 'TENANT_NAO_ENCONTRADO', bloqueado_ate = null
+     where id = p_previa returning * into v_p;
+    return plataforma.zerar_previa_json(v_p);
+  end if;
+  -- subtransação: conta e desfaz (as tabelas temporárias saem; as variáveis ficam)
+  begin
+    select coalesce(jsonb_agg(jsonb_build_object('tabela', l.r_tabela, 'modo', l.r_modo, 'linhas', l.r_linhas)
+                              order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
+           coalesce(jsonb_agg(jsonb_build_object('ordem', l.r_ordem, 'tabela', l.r_tabela, 'linhas', l.r_linhas)
+                              order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
+           coalesce(sum(l.r_linhas) filter (where l.r_modo in ('soft', 'fisico')), 0)::bigint
+      into v_lista, v_linhas, v_total
+      from plataforma.limpar_cadastros(v_p.empresa_id, to_char(now() at time zone 'UTC', 'YYYYMMDD"T"HH24MISS"Z"') || '-'
+                                       || left(v_p.id::text, 8), v_p.entidades, false, true) l;
+    raise exception 'prévia desfeita' using errcode = 'MXZ99';
+  exception
+    when sqlstate 'MXZ99' then
+      null;
+    when others then
+      update plataforma.zerar_previa set situacao = 'falhou', erro_codigo = 'ZERAR_FALHOU', bloqueado_ate = null
+       where id = p_previa returning * into v_p;
+      return plataforma.zerar_previa_json(v_p);
+  end;
+  update plataforma.zerar_previa
+     set situacao = 'pronta', bloqueado_ate = null,
+         resultado = jsonb_build_object('linhas', v_linhas, 'total', v_total,
+                                        'entidades_afetadas', to_jsonb(plataforma.entidades_afetadas_limpeza(v_lista, v_p.entidades)))
+   where id = p_previa
+  returning * into v_p;
+  return plataforma.zerar_previa_json(v_p);
+end
+$$;
+revoke all on function plataforma.executar_previa_zerar(uuid) from public;
+grant execute on function plataforma.executar_previa_zerar(uuid) to macuxi_worker;
+
 -- 3. Portal (só super-admin) ------------------------------------------------------------------------------------------------------
--- PreviaZerarEmpresaSchema: a MESMA limpar_cadastros numa subtransação desfeita (sem trava do Hub), só as linhas com contagem,
--- as entidades_afetadas e o bloqueio atual (null = liberado). Empresa inexistente = P0002; entidades inválidas = 22023.
-create function plataforma.sa_previa_zerar(p_sid uuid, p_tenant uuid, p_entidades text[] default null)
+-- Pede a prévia (id do portal; o mesmo id devolve a mesma prévia, id de outra empresa = 23505). Quem conta é o worker
+-- (executar_previa_zerar), fora do pool do portal. Empresa inexistente = P0002 TENANT_NAO_ENCONTRADO; entidades inválidas = 22023.
+create function plataforma.sa_pedir_previa_zerar(p_sid uuid, p_tenant uuid, p_id uuid, p_entidades text[] default null)
   returns jsonb
   language plpgsql volatile security definer
   set search_path = pg_catalog, plataforma, pg_temp
@@ -740,46 +940,64 @@ create function plataforma.sa_previa_zerar(p_sid uuid, p_tenant uuid, p_entidade
 declare
   v_tipo text;
   v_sa uuid;
-  v_codigo text;
-  v_tabelas jsonb;
-  v_total bigint;
-  v_agora timestamptz := now();
+  v_p plataforma.zerar_previa;
+  v_entidades text[] := plataforma.entidades_limpeza_ordenadas(p_entidades);
 begin
   select v.tipo, v.super_admin_id into v_tipo, v_sa from plataforma.sa_sessao_valida(p_sid) v;
   if v_tipo is null then
-    raise exception 'sa_previa_zerar: sessão do portal inválida' using errcode = '28000';
+    raise exception 'sa_pedir_previa_zerar: sessão do portal inválida' using errcode = '28000';
   end if;
   if v_tipo is distinct from 'super_admin' or v_sa is null then
-    raise exception 'sa_previa_zerar: só o super-admin' using errcode = '42501';
+    raise exception 'sa_pedir_previa_zerar: só o super-admin' using errcode = '42501';
   end if;
-  if p_tenant is null then
-    raise exception 'sa_previa_zerar: tenant obrigatório' using errcode = '22023';
+  if p_tenant is null or p_id is null then
+    raise exception 'sa_pedir_previa_zerar: tenant e id obrigatórios' using errcode = '22023';
   end if;
-  select t.codigo into v_codigo from plataforma.tenant t where t.id = p_tenant and t.deleted_at is null;
+  if p_entidades is not null and (cardinality(p_entidades) = 0 or cardinality(v_entidades) <> cardinality(p_entidades)) then
+    raise exception 'sa_pedir_previa_zerar: entidades inválidas: vazia, repetida ou fora da lista' using errcode = '22023';
+  end if;
+  select z.* into v_p from plataforma.zerar_previa z where z.id = p_id;
   if not found then
-    raise exception 'sa_previa_zerar: empresa não encontrada' using errcode = 'P0002', hint = 'TENANT_NAO_ENCONTRADO';
+    if not exists (select 1 from plataforma.tenant t where t.id = p_tenant and t.deleted_at is null) then
+      raise exception 'sa_pedir_previa_zerar: empresa não encontrada' using errcode = 'P0002', hint = 'TENANT_NAO_ENCONTRADO';
+    end if;
+    insert into plataforma.zerar_previa (id, empresa_id, entidades, super_admin_id, sessao_id)
+    values (p_id, p_tenant, v_entidades, v_sa, p_sid)
+    on conflict (id) do nothing;
+    select z.* into v_p from plataforma.zerar_previa z where z.id = p_id;
   end if;
-  -- subtransação: roda e desfaz (as variáveis ficam)
-  begin
-    select coalesce(jsonb_agg(jsonb_build_object('tabela', l.r_tabela, 'modo', l.r_modo, 'linhas', l.r_linhas)
-                              order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
-           coalesce(sum(l.r_linhas) filter (where l.r_modo in ('soft', 'fisico')), 0)::bigint
-      into v_tabelas, v_total
-      from plataforma.limpar_cadastros(p_tenant, to_char(v_agora at time zone 'UTC', 'YYYYMMDD"T"HH24MISS"Z"') || '-00000000',
-                                       p_entidades, false) l;
-    raise exception 'prévia desfeita' using errcode = 'MXZ99';
-  exception when sqlstate 'MXZ99' then
-    null;
-  end;
-  return jsonb_build_object('tenant_id', p_tenant, 'codigo', v_codigo,
-                            'entidades', to_jsonb(plataforma.entidades_limpeza_ordenadas(p_entidades)),
-                            'entidades_afetadas', to_jsonb(plataforma.entidades_afetadas_limpeza(v_tabelas, p_entidades)),
-                            'contado_em', plataforma.instante_iso(v_agora), 'total_linhas', v_total, 'tabelas', v_tabelas,
-                            'bloqueio', plataforma.zerar_bloqueado(p_tenant, null, v_total));
+  if v_p.empresa_id <> p_tenant then
+    raise exception 'sa_pedir_previa_zerar: o id é de uma prévia de outra empresa' using errcode = '23505';
+  end if;
+  return plataforma.zerar_previa_json(v_p);
 end
 $$;
-revoke all on function plataforma.sa_previa_zerar(uuid, uuid, text[]) from public, macuxi_app, macuxi_worker;
-grant execute on function plataforma.sa_previa_zerar(uuid, uuid, text[]) to macuxi_portal;
+revoke all on function plataforma.sa_pedir_previa_zerar(uuid, uuid, uuid, text[]) from public, macuxi_app, macuxi_worker;
+grant execute on function plataforma.sa_pedir_previa_zerar(uuid, uuid, uuid, text[]) to macuxi_portal;
+
+-- A prévia da empresa pelo id (null = nenhuma, vencida ou de outra empresa: 404 na API).
+create function plataforma.sa_ler_previa_zerar(p_sid uuid, p_tenant uuid, p_id uuid)
+  returns jsonb
+  language plpgsql volatile security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+declare
+  v_tipo text;
+  v_sa uuid;
+begin
+  select v.tipo, v.super_admin_id into v_tipo, v_sa from plataforma.sa_sessao_valida(p_sid) v;
+  if v_tipo is null then
+    raise exception 'sa_ler_previa_zerar: sessão do portal inválida' using errcode = '28000';
+  end if;
+  if v_tipo is distinct from 'super_admin' or v_sa is null then
+    raise exception 'sa_ler_previa_zerar: só o super-admin' using errcode = '42501';
+  end if;
+  return (select plataforma.zerar_previa_json(z) from plataforma.zerar_previa z
+           where z.id = p_id and z.empresa_id = p_tenant and z.expira_em > now());
+end
+$$;
+revoke all on function plataforma.sa_ler_previa_zerar(uuid, uuid, uuid) from public, macuxi_app, macuxi_worker;
+grant execute on function plataforma.sa_ler_previa_zerar(uuid, uuid, uuid) to macuxi_portal;
 
 -- RN-PLA-12: pede o zerar (id do portal; o mesmo id devolve o mesmo zerar), sem recontar. A API confere antes a senha
 -- (sa_reautenticar). Recusas com o código no hint: 55000 EXCLUSAO_EM_ANDAMENTO, ZERAR_EM_ANDAMENTO, BACKUP_EM_ANDAMENTO e
@@ -872,7 +1090,7 @@ $$;
 revoke all on function plataforma.sa_ler_zerar(uuid, uuid) from public, macuxi_app, macuxi_worker;
 grant execute on function plataforma.sa_ler_zerar(uuid, uuid) to macuxi_portal;
 
--- Conferência pelo catálogo (aborta com 42501 e nada muda): 41 sa_* só do portal; as do worker só do worker; a regra e as
+-- Conferência pelo catálogo (aborta com 42501 e nada muda): 42 sa_* só do portal; as do worker só do worker; a regra e as
 -- internas de ninguém
 do $$
 declare
@@ -891,19 +1109,21 @@ begin
   select count(*) into v_n
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'plataforma' and p.proname like 'sa\_%' and has_function_privilege('macuxi_portal', p.oid, 'execute');
-  if v_n <> 41 then
-    raise exception '0100: esperadas 41 funções sa_* executáveis pelo macuxi_portal, há %', v_n using errcode = '42501';
+  if v_n <> 42 then
+    raise exception '0100: esperadas 42 funções sa_* executáveis pelo macuxi_portal, há %', v_n using errcode = '42501';
   end if;
   select string_agg(p.oid::regprocedure::text, ', ' order by 1) into v_f
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'plataforma'
-     and p.proname in ('pegar_zerar', 'executar_zerar', 'fechar_zerar', 'expurgar_zerar', 'limpar_cadastros',
-                       'mapa_limpeza_entidades', 'entidades_limpeza_ordenadas', 'entidades_afetadas_limpeza',
-                       'restaurar_limpeza', 'descartar_limpeza', 'zerar_bloqueado', 'zerar_empresa_json')
+     and p.proname in ('pegar_zerar', 'executar_zerar', 'fechar_zerar', 'expurgar_zerar', 'pegar_previa_zerar',
+                       'executar_previa_zerar', 'limpar_cadastros', 'mapa_limpeza_entidades', 'entidades_limpeza_ordenadas',
+                       'entidades_afetadas_limpeza', 'restaurar_limpeza', 'descartar_limpeza', 'zerar_bloqueado',
+                       'zerar_empresa_json', 'zerar_previa_json')
      and (has_function_privilege('macuxi_app', p.oid, 'execute') or has_function_privilege('macuxi_portal', p.oid, 'execute')
           or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                       where a.grantee = 0 and a.privilege_type = 'EXECUTE')
-          or (p.proname not in ('pegar_zerar', 'executar_zerar', 'fechar_zerar', 'expurgar_zerar')
+          or (p.proname not in ('pegar_zerar', 'executar_zerar', 'fechar_zerar', 'expurgar_zerar', 'pegar_previa_zerar',
+                                'executar_previa_zerar')
               and has_function_privilege('macuxi_worker', p.oid, 'execute')));
   if v_f is not null then
     raise exception '0100: função do worker, da regra ou interna executável por papel errado: %', v_f using errcode = '42501';

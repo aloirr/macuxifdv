@@ -1,14 +1,16 @@
 /**
  * 0100 — "Zerar dados" da empresa (v1.0.31; ADR 0068; desenho docs/desenho/empresa-zerar.md §4, §5 e §11; RN-PLA-12).
  * Dicionário: docs/banco/plataforma.md ("Zerar dados da empresa (0100)"). O que o BANCO garante:
- * - a empresa inteira (entidades nulo) = a rotina do #675: o mesmo estado final, o mesmo resumo e a mesma cópia, nos dados de
- *   scripts/producao/teste/limpar-cadastros-dados.sql (rotina congelada em db/testes/referencia/limpar-cadastros-675.sql);
+ * - a empresa inteira (entidades nulo) = o resultado do #675 nos dados de scripts/producao/teste/limpar-cadastros-dados.sql: o
+ *   retrato fixo RETRATO_675 (ordem, tabela, modo e linhas, tirado da rotina do #675 em f2556d68) e a cópia de cada linha;
  * - por entidade: as raízes do mapa, a cascata (o pedido que perde item sai inteiro), o Hub (lote, registro_atual e cursor) de
  *   toda entidade afetada, pedida ou caída pela cascata; as entidades não afetadas intactas;
  * - ficam usuários administradores, perfis, credenciais, conectores, plano, licenças e parâmetros; o outro tenant fica intacto;
- * - só o super-admin (sa_* 28000/42501), pedido idempotente pelo id, recusas com o código do contrato no hint (55000
- *   ZERAR_HUB_PROCESSANDO, 22023); prévia = a mesma função desfeita (nada muda) e bate com o executar; tudo ou nada; cópia antes e
+ * - só o super-admin (sa_* 28000/42501), pedido e prévia idempotentes pelo id, recusas com o código do contrato no hint (55000
+ *   ZERAR_HUB_PROCESSANDO, 22023); prévia = pedida pelo portal e contada pelo worker com a mesma função no modo simular (nada
+ *   muda, nada trava) e bate com o executar; teto de 3 vezes no worker (zerar e prévia); tudo ou nada; cópia antes e
  *   restaurar_limpeza volta as contagens; expurgar_zerar só nos vencidos; app, worker e portal sem acesso às tabelas;
+ * - a trava do Hub é só da empresa que zera: o Hub da outra segue (duas conexões);
  * - up/down exato; a 0100 traz as cópias da public.macuxi_limpeza_backup e o down as devolve.
  * Estático (sempre) + banco efêmero com a fixture dois-tenants (cada caso numa transação desfeita).
  * As constantes do contrato (packages/platform-sdk/src/empresa-zerar.ts) ficam repetidas aqui até o SDK entrar no main com
@@ -50,13 +52,14 @@ const ENTIDADES_ZERAR = [
 const LIMITE_LINHAS_ZERAR = 2_000_000;
 const RETENCAO_COPIA_ZERAR_DIAS = 7;
 const SITUACOES_ZERAR = ['em_andamento', 'concluido', 'falhou'];
+const SITUACOES_PREVIA = ['em_andamento', 'pronta', 'falhou'];
 const MODOS_LIMPEZA = ['soft', 'fisico', 'filial', 'sync_pacote', 'girar'];
 const LOTE_LIMPEZA_FORMATO = /^[0-9]{8}T[0-9]{6}Z(-[0-9a-f]{8})?$/;
 
-const TABELAS = ['plataforma.zerar_empresa', 'plataforma.limpeza_copia'];
+const TABELAS = ['plataforma.zerar_empresa', 'plataforma.limpeza_copia', 'plataforma.zerar_previa'];
 /** Sem EXECUTE para ninguém (só o dono e as SECURITY DEFINER de mesmo dono): a regra, a volta, o descarte e as internas. */
 const DO_DONO = [
-  'plataforma.limpar_cadastros(uuid, text, text[], boolean)',
+  'plataforma.limpar_cadastros(uuid, text, text[], boolean, boolean)',
   'plataforma.mapa_limpeza_entidades()',
   'plataforma.entidades_limpeza_ordenadas(text[])',
   'plataforma.entidades_afetadas_limpeza(jsonb, text[])',
@@ -64,17 +67,59 @@ const DO_DONO = [
   'plataforma.descartar_limpeza(uuid, text)',
   'plataforma.zerar_bloqueado(uuid, uuid, bigint)',
   'plataforma.zerar_empresa_json(plataforma.zerar_empresa)',
+  'plataforma.zerar_previa_json(plataforma.zerar_previa)',
 ];
 /** Saíram do desenho anterior da 0100 (não podem existir). */
 const SAIRAM = [
   'zerar_tenant', 'zerar_tenant_manual', 'restaurar_zerar', 'tabelas_mantidas_no_zerar', 'alvos_do_zerar', 'previa_do_zerar',
   'objetos_do_expurgo_zerar', 'fechar_expurgo_zerar', 'tabelas_com_tenant', 'passos_em_ordem_fk', 'apagar_em_ordem_fk',
+  'sa_previa_zerar',
 ];
-/** Os dados de exemplo do #675 (kit antigo e ERP novo) e a rotina de referência. */
+/** Os dados de exemplo do #675 (kit antigo e ERP novo). */
 const DADOS_675 = readFileSync(join(PASTA_DB, '..', 'scripts', 'producao', 'teste', 'limpar-cadastros-dados.sql'), 'utf8');
-const ROTINA_675 = readFileSync(join(PASTA_DB, 'testes', 'referencia', 'limpar-cadastros-675.sql'), 'utf8');
 /** O bloco `do $$ ... end $$;` dos dados (sem os comandos do psql); lê o tenant de app.tenant_id. */
 const BLOCO_DADOS = DADOS_675.slice(DADOS_675.indexOf('do $$'), DADOS_675.lastIndexOf('end $$;') + 'end $$;'.length);
+/**
+ * Retrato fixo do resultado do #675 (pg_temp.macuxi_limpar_cadastros de f2556d68, empresa inteira) no tenant A da fixture
+ * dois-tenants com os dados acima: "ordem tabela modo linhas", na ordem do resumo. Mudança intencional da regra = este retrato
+ * muda junto, no mesmo PR. Os rótulos que o #675 punha depois do nome da tabela saíram (o modo diz o que foi feito).
+ */
+const RETRATO_675 = `
+1 integracao.inativacao_auditoria fisico 1 | 2 integracao.pendencia_inativacao fisico 2
+3 integracao.lote_linha_erro fisico 3 | 4 integracao.lote_staging fisico 1 | 5 integracao.lote fisico 5
+6 integracao.sessao_carga_recebido fisico 1 | 7 integracao.sessao_carga fisico 4 | 8 integracao.registro_atual fisico 8
+9 integracao.cursor_entidade fisico 3 | 10 integracao.reconciliacao fisico 1 | 11 integracao.coleta_execucao fisico 1
+12 gestor.projecao_fato fisico 2 | 13 integracao.cliente_fila_erp fisico 6 | 14 integracao.pedido_retorno_erro fisico 1
+15 integracao.pedido_retorno fisico 1 | 16 integracao.pedido_fila_erp fisico 1 | 100 catalogo.busca_log soft 1
+100 catalogo.catalogo_no soft 2 | 100 catalogo.deposito soft 2 | 100 catalogo.estoque_saldo soft 7
+100 catalogo.produto_atributo soft 1 | 100 catalogo.produto_busca soft 1 | 100 catalogo.produto_conteudo soft 1
+100 catalogo.produto_midia soft 1 | 100 catalogo.produto_no soft 1 | 100 catalogo.produto_referencia soft 2
+100 catalogo.produto_relacao soft 3 | 100 catalogo.tabela_escalonada soft 3 | 100 catalogo.tabela_preco soft 2
+100 catalogo.tabela_preco_item soft 7 | 100 catalogo.uso_ia soft 1 | 100 core.ausencia_usuario soft 1
+100 core.carteira soft 10 | 100 core.cliente soft 6 | 100 core.cliente_endereco soft 6 | 100 core.deslocamento_dia soft 1
+100 core.dispositivo soft 2 | 100 core.indicador_diario soft 1 | 100 core.meta soft 6 | 100 core.nota_erp soft 3
+100 core.notificacao soft 8 | 100 core.ponto_trajeto soft 1 | 100 core.produto soft 7 | 100 core.produto_unidade soft 8
+100 core.rota soft 3 | 100 core.rota_parada soft 4 | 100 core.sessao soft 2 | 100 core.tarefa_destinatario soft 1
+100 core.titulo soft 6 | 100 core.usuario soft 7 | 100 core.usuario_avatar soft 1 | 100 core.usuario_contato soft 1
+100 core.usuario_convite soft 3 | 100 core.usuario_filial soft 8 | 100 core.visita soft 5 | 100 core.visita_etapa soft 3
+100 gestor.alerta soft 1 | 100 pesquisa.resposta soft 1 | 100 pesquisa.resposta_foto soft 1
+100 pesquisa.resposta_item soft 9 | 100 plataforma.arquivo soft 3 | 100 plataforma.usuario_modulo soft 1
+100 plataforma.usuario_perfil soft 7 | 100 promotor.acao_concorrencia soft 1 | 100 promotor.checklist_resposta soft 1
+100 promotor.coleta_preco soft 2 | 100 promotor.foto_coleta soft 4 | 100 promotor.gondola_registro soft 1
+100 promotor.medicao_share soft 1 | 100 promotor.mix_obrigatorio soft 1 | 100 promotor.ponto_extra soft 1
+100 promotor.ponto_extra_negociado soft 1 | 100 promotor.produto_concorrente soft 1 | 100 promotor.ruptura_item soft 1
+100 promotor.tarefa_execucao soft 1 | 100 promotor.validade_item soft 1 | 100 promotor.visita_loja soft 1
+100 treinamento.medalha_usuario soft 1 | 100 treinamento.progresso soft 1 | 100 treinamento.tentativa soft 1
+100 treinamento.xp_lancamento soft 2 | 100 vendedor.forma_pagamento soft 3 | 100 vendedor.pedido soft 3
+100 vendedor.pedido_aprovacao soft 1 | 100 vendedor.pedido_devolucao soft 1 | 100 vendedor.pedido_evento soft 3
+100 vendedor.pedido_faturamento soft 1 | 100 vendedor.pedido_item soft 4 | 100 vendedor.prazo_pagamento soft 5
+200 plataforma.evento soft 6 | 201 core.filial filial 4 | 202 plataforma.sync_pacote sync_pacote 2
+203 plataforma.tenant girar 1
+`.trim().split(/\s*[|\n]\s*/);
+/** As colunas da public.macuxi_limpeza_backup do #675, na ordem. */
+const COLUNAS_BACKUP_675 = ['lote', 'tenant_id', 'tabela', 'modo', 'linha', 'copiado_em'];
+/** Teto de vezes que o worker pega o mesmo zerar ou a mesma prévia. */
+const TETO_TENTATIVAS = 3;
 
 describe('0100 zerar dados da empresa (estático)', () => {
   it('nome e posição: 0100_plataforma_zerar_empresa logo depois da 0099; a excluir_tenant fica a da 0032', () => {
@@ -102,19 +147,26 @@ describe('0100 zerar dados da empresa (estático)', () => {
     const colunas = (sql: string, tabela: string) =>
       new RegExp(`create table (?:if not exists )?${tabela.replace('.', '\\.')} \\(([\\s\\S]*?)\\n\\s*\\);`).exec(sql)![1]!
         .split('\n').map((l) => l.trim().split(/\s+/)[0]!).filter((c) => c && c !== 'constraint');
-    const do675 = colunas(ROTINA_675, 'public.macuxi_limpeza_backup');
-    expect(do675).toEqual(['lote', 'tenant_id', 'tabela', 'modo', 'linha', 'copiado_em']);
+    const do675 = COLUNAS_BACKUP_675;
     // a mesma ordem; o tenant vira empresa_id (sem FK, como nas tabelas da 0072)
     expect(colunas(up, 'plataforma.limpeza_copia').slice(0, 6)).toEqual(do675.map((c) => (c === 'tenant_id' ? 'empresa_id' : c)));
     expect(colunas(down, 'public.macuxi_limpeza_backup')).toEqual(do675);
     expect(up).toContain("constraint limpeza_copia_modo_valido check (modo in ('soft', 'fisico', 'filial', 'sync_pacote'))");
-    expect(ROTINA_675).toContain("modo text not null check (modo in ('soft', 'fisico', 'filial', 'sync_pacote'))");
+    expect(down).toContain("modo text not null check (modo in ('soft', 'fisico', 'filial', 'sync_pacote'))");
     expect(up).toContain('drop table public.macuxi_limpeza_backup;');
   });
 
   it('listas do contrato: situações, lote, modos, 7 dias e 2 milhões', () => {
     const lista = (re: RegExp) => [...(re.exec(up)?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
     expect(lista(/constraint zerar_empresa_situacao_valida check \(situacao in \(([^)]+)\)\)/)).toEqual(SITUACOES_ZERAR);
+    expect(lista(/constraint zerar_previa_situacao_valida check \(situacao in \(([^)]+)\)\)/)).toEqual(SITUACOES_PREVIA);
+    expect(up).toContain("expira_em       timestamptz not null default now() + interval '1 hour',");
+    for (const f of ['pegar_zerar', 'pegar_previa_zerar']) {
+      const b = bloco(up, `create function plataforma.${f}(`);
+      expect(b, f).toContain(`tentativas >= ${TETO_TENTATIVAS}`);
+      expect(b, f).toContain(`tentativas < ${TETO_TENTATIVAS}`);
+      expect(b, f).toContain("erro_codigo = 'ZERAR_FALHOU'");
+    }
     expect(up).toContain(`'${LOTE_LIMPEZA_FORMATO.source}'`);
     const modos = new Set(['soft', 'fisico', ...[...up.matchAll(/insert into _limpeza_resumo values \(\d+, '[a-z_.]+', '([a-z_]+)'/g)].map((x) => x[1]!)]);
     expect([...modos].sort()).toEqual([...MODOS_LIMPEZA].sort());
@@ -141,9 +193,9 @@ describe('0100 zerar dados da empresa (estático)', () => {
       expect(up).toContain(`revoke all on function ${f} from public, macuxi_app, macuxi_worker;`);
       expect(up).toContain(`grant execute on function ${f} to macuxi_portal;`);
     }
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(41);
+    expect(FUNCOES_SA_ATUAIS).toHaveLength(42);
     expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_ZERAR]));
-    expect(up).toContain('if v_n <> 41 then');
+    expect(up).toContain('if v_n <> 42 then');
     for (const f of FUNCOES_WORKER_ZERAR) {
       const b = bloco(up, `create function ${nomeDe(f)}(`);
       expect(b, f).toMatch(/security definer\s+set search_path = pg_catalog, plataforma, pg_temp/);
@@ -176,15 +228,15 @@ describe('0100 zerar dados da empresa (estático)', () => {
     expect(down).not.toMatch(/\bgrant\b/);
   });
 
-  it('referência do #675: a limpar_cadastros traz as mesmas listas e a mesma cascata', () => {
+  it('trava do Hub só da empresa (sem lock table); o simular não copia, não muda e não trava', () => {
     const corpo = bloco(up, 'create function plataforma.limpar_cadastros(');
-    for (const c of ['c_hub', 'c_filas', 'c_derivados', 'c_fica', 'c_nome', 'c_posse', 'c_plataforma', 'c_schemas']) {
-      const re = new RegExp(`  ${c} constant [a-z[\\]]+ := ([\\s\\S]*?);\\n`);
-      expect(re.exec(corpo)?.[1], c).toBe(re.exec(ROTINA_675)?.[1]);
-    }
-    const cascata = (s: string) => s.slice(s.indexOf('  with tabelas as ('), s.indexOf("   where x.alvo <> 'core.usuario' or x.coluna = any (c_posse);"));
-    expect(cascata(corpo).length).toBeGreaterThan(500);
-    expect(cascata(corpo)).toBe(cascata(ROTINA_675));
+    expect(corpo).not.toMatch(/\block table\b/);
+    expect(corpo).toContain('perform 1 from integracao.conector c where c.tenant_id = p_tenant for update;');
+    expect(corpo).toContain('perform 1 from integracao.lote l where l.tenant_id = p_tenant for update;');
+    expect(corpo).toMatch(/if not p_simular then\s+perform 1 from integracao\.conector/);
+    const previa = bloco(up, 'create function plataforma.executar_previa_zerar(');
+    expect(previa).toMatch(/v_p\.entidades, false, true\) l;/);
+    expect(previa).toContain("raise exception 'prévia desfeita' using errcode = 'MXZ99';");
   });
 });
 
@@ -274,8 +326,18 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
   const mudaram = (a: Retrato, d: Retrato) => Object.keys(a).filter((t) => a[t]!.hash !== d[t]?.hash).sort();
   const contagens = (r: Retrato, campo: 'vivas' | 'total') => Object.fromEntries(Object.entries(r).map(([t, v]) => [t, v[campo]]));
   type Linha = { r_ordem: number; r_tabela: string; r_modo: string; r_linhas: string };
-  const limpar = (tenant: string, lote: string, entidades: string[] | null, exigir = true) =>
-    q<Linha>('select * from plataforma.limpar_cadastros($1, $2, $3::text[], $4)', [tenant, lote, entidades, exigir]);
+  const limpar = (tenant: string, lote: string, entidades: string[] | null, exigir = true, simular = false) =>
+    q<Linha>('select * from plataforma.limpar_cadastros($1, $2, $3::text[], $4, $5)', [tenant, lote, entidades, exigir, simular]);
+  type Previa = {
+    id: string; situacao: string; entidades: string[] | null; linhas: { ordem: number; tabela: string; linhas: number }[] | null;
+    entidades_afetadas: string[] | null; total: number | null; bloqueio: string | null; erro_codigo: string | null; criado_em: string;
+  };
+  const pedirPrevia = (sid: string, tenant: string, idPrevia: string, entidades: string[] | null = null) =>
+    portal<Previa>('select plataforma.sa_pedir_previa_zerar($1, $2, $3, $4::text[]) as r', [sid, tenant, idPrevia, entidades]);
+  const lerPrevia = (sid: string, tenant: string, idPrevia: string) =>
+    portal<Previa | null>('select plataforma.sa_ler_previa_zerar($1, $2, $3) as r', [sid, tenant, idPrevia]);
+  const pegarPrevia = async () => (await comoPapel<{ id: string; empresa_id: string }>(admin, 'macuxi_worker', 'select id, empresa_id from plataforma.pegar_previa_zerar()')).rows;
+  const contarPrevia = (idPrevia: string) => worker<Previa>('select plataforma.executar_previa_zerar($1) as r', [idPrevia]);
   const soft = (l: Linha[]) => l.filter((x) => x.r_modo === 'soft' && Number(x.r_linhas) > 0).map((x) => x.r_tabela);
   const comoLista = (l: Linha[]) => JSON.stringify(l.map((x) => ({ tabela: x.r_tabela, modo: x.r_modo, linhas: Number(x.r_linhas) })));
   const afetadas = async (l: Linha[], entidades: string[]) =>
@@ -330,7 +392,8 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
     await caso(async () => {
       const cli = await abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: A.tenantId, usuario_id: A.usuarios.admin }] });
       for (const [sql, args] of [
-        ['select plataforma.sa_previa_zerar($1, $2, null) as r', [A.tenantId]],
+        ['select plataforma.sa_pedir_previa_zerar($1, $2, $3, null) as r', [A.tenantId, id(1)]],
+        ['select plataforma.sa_ler_previa_zerar($1, $2, $3) as r', [A.tenantId, id(1)]],
         ['select plataforma.sa_pedir_zerar($1, $2, $3, $4, null) as r', [A.tenantId, id(1), A.codigo]],
         ['select plataforma.sa_ler_zerar($1, $2) as r', [A.tenantId]],
       ] as const) {
@@ -338,35 +401,34 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
         expect((await falha(portal(sql, [cli.sessao_id, ...args])))?.code, sql).toBe('42501');
       }
       expect(await q('select 1 from plataforma.zerar_empresa')).toEqual([]);
+      expect(await q('select 1 from plataforma.zerar_previa')).toEqual([]);
     });
   });
 
-  it('empresa inteira = a rotina do #675: mesmo estado final, mesmo resumo e mesma cópia; mantidos e o outro tenant intactos', async () => {
+  it('empresa inteira = o retrato do #675 (resumo e cópia); o simular conta o mesmo sem mudar nada; mantidos e o outro tenant intactos', async () => {
     await caso(async () => {
-      await admin.query(ROTINA_675);
       const antesA = await retrato(A.tenantId);
       const antesB = await retrato(B.tenantId);
-      await admin.query('savepoint rotina');
-      const r675 = await q<Linha>('select * from pg_temp.macuxi_limpar_cadastros($1, $2, true)', [A.tenantId, LOTE]);
-      const depois675 = await retrato(A.tenantId);
-      const copia675 = (await q<{ l: string }>('select tabela || modo || linha::text as l from public.macuxi_limpeza_backup where lote = $1', [LOTE])).map((x) => x.l).sort();
-      await admin.query('rollback to savepoint rotina');
-      expect(await retrato(A.tenantId)).toEqual(antesA);
+      const norm = (l: Linha[]) => l.map((x) => `${x.r_ordem} ${x.r_tabela} ${x.r_modo} ${x.r_linhas}`);
+      const simulado = await limpar(A.tenantId, LOTE, null, false, true);
+      expect(mudaram(antesA, await retrato(A.tenantId))).toEqual([]);
+      expect(await q('select 1 from plataforma.limpeza_copia')).toEqual([]);
 
       const r99 = await limpar(A.tenantId, LOTE, null);
       const depois99 = await retrato(A.tenantId);
-      const copia99 = (await q<{ l: string }>('select tabela || modo || linha::text as l from plataforma.limpeza_copia where lote = $1', [LOTE])).map((x) => x.l).sort();
-      // a mesma transação (o mesmo now()): o estado final é idêntico, tabela por tabela, inclusive updated_at e deleted_at
-      expect(mudaram(depois675, depois99)).toEqual([]);
+      expect(norm(r99)).toEqual(RETRATO_675);
+      expect(norm(simulado)).toEqual(RETRATO_675);
+      // a cópia: uma linha por linha mudada, por tabela e modo (girar não copia)
+      const copia = await q<{ l: string }>("select tabela || ' ' || modo || ' ' || count(*) as l from plataforma.limpeza_copia where lote = $1 group by tabela, modo", [LOTE]);
+      expect(copia.map((x) => x.l).sort()).toEqual(RETRATO_675.map((x) => x.split(' ').slice(1).join(' ')).filter((x) => !x.includes(' girar ')).sort());
+      // o estado final: as vivas de cada tabela soft caem exatamente o que o resumo diz
+      for (const x of r99.filter((y) => y.r_modo === 'soft')) {
+        expect(antesA[x.r_tabela]!.vivas - depois99[x.r_tabela]!.vivas, x.r_tabela).toBe(Number(x.r_linhas));
+      }
+      for (const x of r99.filter((y) => y.r_modo === 'fisico')) {
+        expect(antesA[x.r_tabela]!.total - depois99[x.r_tabela]!.total, x.r_tabela).toBe(Number(x.r_linhas));
+      }
       expect(mudaram(antesA, depois99).length).toBeGreaterThan(50);
-      expect(copia99).toEqual(copia675);
-      expect(copia99.length).toBeGreaterThan(200);
-      // o resumo: os mesmos números, com o nome puro da tabela (as linhas extras do #675 traziam o rótulo depois do nome)
-      const norm = (l: Linha[]) => l.map((x) => `${x.r_ordem} ${x.r_tabela.split(' ')[0]} ${x.r_modo} ${x.r_linhas}`).sort();
-      expect(norm(r99)).toEqual(norm(r675));
-      expect(r99.filter((x) => x.r_ordem >= 200).map((x) => [x.r_tabela, x.r_modo])).toEqual([
-        ['plataforma.evento', 'soft'], ['core.filial', 'filial'], ['plataforma.sync_pacote', 'sync_pacote'], ['plataforma.tenant', 'girar'],
-      ]);
       // o que fica e o outro tenant
       expect(mudaram(antesB, await retrato(B.tenantId))).toEqual([]);
       const mudou = mudaram(antesA, depois99);
@@ -521,23 +583,37 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
     });
   });
 
-  it('portal e worker: prévia não muda nada e bate com o executar; pedido idempotente; 409 e 422; volta pela cópia', async () => {
+  it('portal e worker: prévia pedida, contada pelo worker, não muda nada e bate com o executar; idempotência; 409 e 422; volta pela cópia', async () => {
     await caso(async () => {
       const sid = await sessaoSuperAdmin();
       const antesA = await retrato(A.tenantId);
-      type Previa = { total_linhas: number; tabelas: { tabela: string; modo: string; linhas: number }[]; entidades: string[]; entidades_afetadas: string[]; bloqueio: string | null; codigo: string };
-      const previa = await portal<Previa>('select plataforma.sa_previa_zerar($1, $2, $3::text[]) as r', [sid, A.tenantId, ['cliente_endereco', 'cliente']]);
+      // a prévia: o portal pede (nada é contado no pool do portal), o worker conta, o portal lê
+      const pedida = await pedirPrevia(sid, A.tenantId, id(11), ['cliente_endereco', 'cliente']);
+      expect(pedida).toEqual({ id: id(11), situacao: 'em_andamento', entidades: ['cliente', 'cliente_endereco'], linhas: null, entidades_afetadas: null, total: null, bloqueio: null, erro_codigo: null, criado_em: pedida.criado_em });
+      expect(pedida.criado_em).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/);
+      expect(await pedirPrevia(sid, A.tenantId, id(11), null)).toEqual(pedida);
+      expect((await falha(pedirPrevia(sid, B.tenantId, id(11))))?.code).toBe('23505');
+      expect((await falha(pedirPrevia(sid, A.tenantId, id(12), ['xis'])))?.code).toBe('22023');
+      expect((await falha(pedirPrevia(sid, A.tenantId, id(12), ['cliente', 'cliente'])))?.code).toBe('22023');
+      expect(await falha(pedirPrevia(sid, '00000000-0000-4000-8000-0000000000ff', id(12)))).toEqual({ code: 'P0002', hint: 'TENANT_NAO_ENCONTRADO' });
+      expect(await lerPrevia(sid, B.tenantId, id(11))).toBeNull();
+      expect(await lerPrevia(sid, A.tenantId, id(12))).toBeNull();
+      expect(await pegarPrevia()).toEqual([{ id: id(11), empresa_id: A.tenantId }]);
+      expect(await pegarPrevia()).toEqual([]);
+      const previa = await contarPrevia(id(11));
+      expect(await contarPrevia(id(11))).toEqual(previa);
+      expect(await lerPrevia(sid, A.tenantId, id(11))).toEqual(previa);
       expect(mudaram(antesA, await retrato(A.tenantId))).toEqual([]);
       expect(await q('select 1 from plataforma.limpeza_copia')).toEqual([]);
-      expect(previa).toMatchObject({ codigo: A.codigo, entidades: ['cliente', 'cliente_endereco'], entidades_afetadas: ['cliente', 'cliente_endereco', 'titulo'], bloqueio: null });
-      expect(previa.tabelas.every((t) => t.linhas > 0 && MODOS_LIMPEZA.includes(t.modo) && /^[a-z_]+\.[a-z_]+$/.test(t.tabela))).toBe(true);
-      expect(previa.total_linhas).toBe(previa.tabelas.filter((t) => t.modo === 'soft' || t.modo === 'fisico').reduce((s, t) => s + t.linhas, 0));
-      expect((await falha(portal("select plataforma.sa_previa_zerar($1, $2, array['xis']) as r", [sid, A.tenantId])))?.code).toBe('22023');
+      expect(previa).toMatchObject({ situacao: 'pronta', entidades: ['cliente', 'cliente_endereco'], entidades_afetadas: ['cliente', 'cliente_endereco', 'titulo'], bloqueio: null, erro_codigo: null });
+      expect(previa.linhas!.length).toBeGreaterThan(3);
+      expect(previa.linhas!.every((t) => t.linhas > 0 && Number.isInteger(t.ordem) && /^[a-z_]+\.[a-z_]+$/.test(t.tabela))).toBe(true);
+      expect(previa.total).toBeGreaterThan(0);
 
-      // Hub processando: 409 no pedido e bloqueio na prévia; código errado 422
+      // Hub processando: 409 no pedido e bloqueio na leitura da prévia (zerar_bloqueado, agora); código errado 422
       await processando(A.tenantId);
       expect(await falha(portal('select plataforma.sa_pedir_zerar($1, $2, $3, $4, null) as r', [sid, A.tenantId, id(9), A.codigo]))).toEqual({ code: '55000', hint: 'ZERAR_HUB_PROCESSANDO' });
-      expect((await portal<Previa>('select plataforma.sa_previa_zerar($1, $2) as r', [sid, A.tenantId])).bloqueio).toBe('ZERAR_HUB_PROCESSANDO');
+      expect((await lerPrevia(sid, A.tenantId, id(11)))!.bloqueio).toBe('ZERAR_HUB_PROCESSANDO');
       await q("update integracao.lote set status = 'concluido_com_erros' where tenant_id = $1 and chave_idempotencia = 'chave-erp-produto-0001'", [A.tenantId]);
       expect(await falha(portal('select plataforma.sa_pedir_zerar($1, $2, $3, $4, null) as r', [sid, A.tenantId, id(9), 'outro']))).toEqual({ code: '22023', hint: 'ZERAR_CODIGO_NAO_CONFERE' });
       expect((await falha(portal("select plataforma.sa_pedir_zerar($1, $2, $3, $4, array['xis']) as r", [sid, A.tenantId, id(9), A.codigo])))?.code).toBe('22023');
@@ -552,10 +628,13 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
 
       expect((await comoPapel(admin, 'macuxi_worker', 'select id, empresa_id from plataforma.pegar_zerar()')).rows).toEqual([{ id: id(1), empresa_id: A.tenantId }]);
       expect((await comoPapel(admin, 'macuxi_worker', 'select id, empresa_id from plataforma.pegar_zerar()')).rows).toEqual([]);
-      type Feito = { situacao: string; contagem: unknown[]; linhas_apagadas: number; entidades_afetadas: string[]; lote: string };
+      type Feito = { situacao: string; contagem: unknown[]; linhas_apagadas: number; entidades_afetadas: string[] | null; lote: string };
       const feito = await worker<Feito>('select plataforma.executar_zerar($1) as r', [id(1)]);
-      expect(feito).toMatchObject({ situacao: 'concluido', linhas_apagadas: previa.total_linhas, entidades_afetadas: previa.entidades_afetadas, lote: pedido.lote });
-      expect(feito.contagem).toEqual(previa.tabelas);
+      // a prévia bate com o executado: as mesmas tabelas, na mesma ordem, com as mesmas linhas; total = linhas_apagadas
+      expect(feito).toMatchObject({ situacao: 'concluido', linhas_apagadas: previa.total, entidades_afetadas: previa.entidades_afetadas, lote: pedido.lote });
+      expect((feito.contagem as { tabela: string; linhas: number }[]).map((x) => `${x.tabela} ${x.linhas}`)).toEqual(previa.linhas!.map((x) => `${x.tabela} ${x.linhas}`));
+      // a prévia pedida depois: o zerar já foi (bloqueio null; os números agora são os do que sobrou)
+      expect((await lerPrevia(sid, A.tenantId, id(11)))!.bloqueio).toBeNull();
       expect(await worker('select plataforma.executar_zerar($1) as r', [id(1)])).toEqual(feito);
       expect(await falha(worker("select plataforma.fechar_zerar($1, 'ZERAR_FALHOU') as r", [id(1)]))).toMatchObject({ code: '55000' });
       const aud = await q<{ acao: string; detalhes: Record<string, unknown> }>("select acao, detalhes from plataforma.auditoria_plataforma where tenant_alvo_id = $1 and acao like 'tenant.zera%'", [A.tenantId]);
@@ -597,6 +676,49 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
       const antes2 = await retrato(A.tenantId);
       expect(await worker('select plataforma.executar_zerar($1) as r', [id(4)])).toMatchObject({ situacao: 'falhou', erro_codigo: 'ZERAR_HUB_PROCESSANDO' });
       expect(mudaram(antes2, await retrato(A.tenantId))).toEqual([]);
+      // o código do bloqueio (zerar_bloqueado, a fonte única) chega à tela pela sa_ler_zerar
+      expect(await portal('select plataforma.sa_ler_zerar($1, $2) as r', [sid, A.tenantId])).toMatchObject({ id: id(4), situacao: 'falhou', erro_codigo: 'ZERAR_HUB_PROCESSANDO' });
+    });
+  });
+
+  it('teto de tentativas: o zerar e a prévia pegos 3 vezes sem fechar fecham falhou ZERAR_FALHOU; prévia vencida sai', async () => {
+    await caso(async () => {
+      const sid = await sessaoSuperAdmin();
+      const vencer = (tabela: string, idJob: string) => q(`update plataforma.${tabela} set bloqueado_ate = now() - interval '1 minute' where id = $1`, [idJob]);
+      // zerar: 3 concessões vencidas (o processo caiu no meio de cada uma)
+      await portal('select plataforma.sa_pedir_zerar($1, $2, $3, $4, null) as r', [sid, A.tenantId, id(7), A.codigo]);
+      for (let n = 1; n <= TETO_TENTATIVAS; n++) {
+        expect((await comoPapel(admin, 'macuxi_worker', 'select id from plataforma.pegar_zerar()')).rows, `vez ${n}`).toEqual([{ id: id(7) }]);
+        await vencer('zerar_empresa', id(7));
+      }
+      expect((await comoPapel(admin, 'macuxi_worker', 'select id from plataforma.pegar_zerar()')).rows).toEqual([]);
+      expect(await portal('select plataforma.sa_ler_zerar($1, $2) as r', [sid, A.tenantId])).toMatchObject({ id: id(7), situacao: 'falhou', erro_codigo: 'ZERAR_FALHOU' });
+      expect(await contar("select count(*) as n from plataforma.auditoria_plataforma where tenant_alvo_id = $1 and acao = 'tenant.zerar_falhou' and detalhes ->> 'erro_codigo' = 'ZERAR_FALHOU'", [A.tenantId])).toBe(1);
+      // a empresa fica livre para outro pedido
+      expect(await portal('select plataforma.sa_pedir_zerar($1, $2, $3, $4, null) as r', [sid, A.tenantId, id(8), A.codigo])).toMatchObject({ situacao: 'em_andamento' });
+      // concessão viva: não volta antes de vencer
+      expect((await comoPapel(admin, 'macuxi_worker', 'select id from plataforma.pegar_zerar()')).rows).toEqual([{ id: id(8) }]);
+      expect((await comoPapel(admin, 'macuxi_worker', 'select id from plataforma.pegar_zerar()')).rows).toEqual([]);
+
+      // prévia: o mesmo teto
+      await pedirPrevia(sid, B.tenantId, id(13));
+      for (let n = 1; n <= TETO_TENTATIVAS; n++) {
+        expect(await pegarPrevia(), `vez ${n}`).toEqual([{ id: id(13), empresa_id: B.tenantId }]);
+        await vencer('zerar_previa', id(13));
+      }
+      expect(await pegarPrevia()).toEqual([]);
+      expect(await lerPrevia(sid, B.tenantId, id(13))).toMatchObject({ situacao: 'falhou', erro_codigo: 'ZERAR_FALHOU', linhas: null, total: null });
+      expect(await contarPrevia(id(13))).toMatchObject({ situacao: 'falhou', erro_codigo: 'ZERAR_FALHOU' });
+      // vencida (1 hora): a leitura não acha e o worker apaga
+      await pedirPrevia(sid, B.tenantId, id(14));
+      await q("update plataforma.zerar_previa set expira_em = now() - interval '1 second' where id in ($1, $2)", [id(13), id(14)]);
+      expect(await lerPrevia(sid, B.tenantId, id(14))).toBeNull();
+      expect(await pegarPrevia()).toEqual([]);
+      expect(await contar('select count(*) as n from plataforma.zerar_previa where id in ($1, $2)', [id(13), id(14)])).toBe(0);
+      // empresa que saiu entre o pedido e o worker: falhou TENANT_NAO_ENCONTRADO
+      await pedirPrevia(sid, B.tenantId, id(15), ['nota']);
+      await q('update plataforma.tenant set deleted_at = now() where id = $1', [B.tenantId]);
+      expect(await contarPrevia(id(15))).toMatchObject({ situacao: 'falhou', erro_codigo: 'TENANT_NAO_ENCONTRADO', bloqueio: 'TENANT_NAO_ENCONTRADO' });
     });
   });
 
@@ -620,6 +742,81 @@ describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixtur
       expect((await falha(worker('select plataforma.expurgar_zerar(0) as r')))?.code).toBe('22023');
       expect((await q<{ x: boolean }>('select expurgado_em is not null as x from plataforma.zerar_empresa where id = $1', [id(5)]))[0]!.x).toBe(true);
     });
+  });
+});
+
+describe.skipIf(semBanco())('0100 trava do Hub por empresa (duas conexões, dados do #675 gravados)', () => {
+  let b: BancoDeTeste;
+  const conexoes: pg.Client[] = [];
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const nova = async () => {
+    const c = new pg.Client({ connectionString: b.urlAdmin });
+    await c.connect();
+    conexoes.push(c);
+    return c;
+  };
+  beforeAll(async () => {
+    b = await criarBancoDeTeste({ preparar: (c) => carregarFixtureDosTestes(c, { agora: agoraDaFixture() }) });
+    const c = await nova();
+    for (const t of [A.tenantId, B.tenantId]) {
+      await c.query('begin');
+      await c.query("select set_config('app.tenant_id', $1, true)", [t]);
+      await c.query(BLOCO_DADOS);
+      await c.query('commit');
+    }
+  });
+  afterAll(async () => {
+    for (const c of conexoes) await c.end();
+    await b?.apagar();
+  });
+  /** O Hub numa transação curta com lock_timeout de 300 ms: null = passou; senão o SQLSTATE (55P03 = esperou a trava). */
+  async function hub(c: pg.Client, tenant: string, chave: string) {
+    const con = (await c.query<{ id: string }>("select id from integracao.conector where tenant_id = $1 and identificador = 'macuxierp'", [tenant])).rows[0]!.id;
+    const passos = {
+      lote_novo: () => c.query(`insert into integracao.lote (tenant_id, conector_id, entidade, modo, versao_contrato, chave_idempotencia, hash_conteudo, recebidas, status)
+                               values ($1, $2, 'produto', 'delta', '1', 'chave-trava-' || $3 || '-0000', repeat('d', 64), 1, 'recebido')`, [tenant, con, chave]),
+      lote_situacao: () => c.query("update integracao.lote set updated_at = now() where tenant_id = $1 and chave_idempotencia = 'chave-erp-produto-0001'", [tenant]),
+      registro_novo: () => c.query("insert into integracao.registro_atual (tenant_id, entidade, conector_id, external_id, hash, alterado_em) values ($1, 'produto', $2, $3, repeat('e', 64), now())", [tenant, con, chave]),
+      cliente: () => c.query('update core.cliente set updated_at = now() where tenant_id = $1 and external_id is not null', [tenant]),
+    };
+    const r: Record<string, string | null> = {};
+    for (const [nome, f] of Object.entries(passos)) {
+      await c.query('begin');
+      await c.query("set local lock_timeout = '300ms'");
+      try {
+        await f();
+        r[nome] = null;
+      } catch (e) {
+        r[nome] = (e as { code?: string }).code ?? 'erro';
+      }
+      await c.query('rollback');
+    }
+    return r;
+  }
+
+  it('o zerar trava o Hub só da empresa que zera; o Hub da outra segue; a prévia não trava nem a própria', async () => {
+    const zerar = await nova();
+    const outra = await nova();
+    // o zerar em andamento (transação aberta): conector e lotes da A em FOR UPDATE
+    await zerar.query('begin');
+    await zerar.query("select * from plataforma.limpar_cadastros($1, '20261123T200000Z', array['nota'], true)", [A.tenantId]);
+    expect(await hub(outra, B.tenantId, 'b-1')).toEqual({ lote_novo: null, lote_situacao: null, registro_novo: null, cliente: null });
+    const naA = await hub(outra, A.tenantId, 'a-1');
+    expect(naA).toMatchObject({ lote_novo: '55P03', lote_situacao: '55P03', registro_novo: '55P03' });
+    await zerar.query('rollback');
+    expect(await hub(outra, A.tenantId, 'a-1')).toEqual({ lote_novo: null, lote_situacao: null, registro_novo: null, cliente: null });
+
+    // a prévia (worker, transação aberta depois de contar): nada da A nem da B fica travado
+    const idPrevia = '00990099-0000-4000-8000-000000000099';
+    await zerar.query("insert into plataforma.zerar_previa (id, empresa_id, super_admin_id) values ($1, $2, gen_random_uuid())", [idPrevia, A.tenantId]);
+    await zerar.query('begin');
+    const r = (await zerar.query<{ r: { situacao: string; total: number } }>('select plataforma.executar_previa_zerar($1) as r', [idPrevia])).rows[0]!.r;
+    expect(r.situacao).toBe('pronta');
+    expect(r.total).toBeGreaterThan(100);
+    expect(await hub(outra, A.tenantId, 'a-2')).toEqual({ lote_novo: null, lote_situacao: null, registro_novo: null, cliente: null });
+    expect(await hub(outra, B.tenantId, 'b-2')).toEqual({ lote_novo: null, lote_situacao: null, registro_novo: null, cliente: null });
+    await zerar.query('commit');
   });
 });
 

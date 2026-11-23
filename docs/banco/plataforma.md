@@ -1325,30 +1325,39 @@ Teste: `db/testes/tenant-ocultar-marca.db.test.ts`.
 select plataforma.sa_gravar_ocultar_marca($1, $2, $3) as r;      -- PUT …/marca/ocultar-macuxi
 ```
 
-## Zerar dados da empresa (0100, ADR 0068) — `limpar_cadastros`, `limpeza_copia` e `zerar_empresa`. Fora do sync
+## Zerar dados da empresa (0100, ADR 0068) — `limpar_cadastros`, `limpeza_copia`, `zerar_empresa` e `zerar_previa`. Fora do sync
 Migração `0100_plataforma_zerar_empresa` (em cima da 0099; número provisório; v1.0.31). Volta: `.down.sql`, que devolve as cópias
-à `public.macuxi_limpeza_backup` do #675 e APAGA os registros de zerar do portal (desligue antes as rotas e o worker do zerar).
+à `public.macuxi_limpeza_backup` do #675 e APAGA os registros de zerar e as prévias do portal (desligue antes as rotas e o worker
+do zerar).
 Desenho `docs/desenho/empresa-zerar.md` §2, §4 e §5; contrato `packages/platform-sdk/src/empresa-zerar.ts` (RN-PLA-12). Drizzle:
-`zerarEmpresa` e `limpezaCopia` em `db/esquema/plataforma.ts`. Teste: `db/testes/empresa-zerar.db.test.ts`. A `excluir_tenant`
+`zerarEmpresa`, `zerarPrevia` e `limpezaCopia` em `db/esquema/plataforma.ts`. Teste: `db/testes/empresa-zerar.db.test.ts`. A `excluir_tenant`
 fica como na 0032.
 
-### A regra: `limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null, p_exigir_hub_parado boolean default true)`
+### A regra: `limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null, p_exigir_hub_parado boolean default true, p_simular boolean default false)`
 `returns table (r_ordem int, r_tabela text, r_modo text, r_linhas bigint)`. SECURITY DEFINER, `search_path = pg_catalog, pg_temp`,
 sem EXECUTE para ninguém (só o dono, as SECURITY DEFINER da 0100 e o migrador no workflow). Não abre nem fecha transação.
 - **Empresa inteira** (`p_entidades` nulo) = o corpo da `pg_temp.macuxi_limpar_cadastros` do PR #675
   (`scripts/producao/limpar-cadastros-rotina.sql`; as regras do cabeçalho dela valem aqui): raízes (os 11 cadastros do ERP com
   `external_id`, todos os pedidos e os usuários não administradores), cascata (FK, nome de coluna, `plataforma.arquivo` pelo
   `entidade_id`, posse × autoria), `c_fica`, soft no domínio e físico no Hub (`c_fisico`), outbox, filiais sem o `external_id`,
-  pacote de sync `substituido` e `girar_geracao_base`. O teste prova o mesmo estado final, o mesmo resumo e a mesma cópia nos
-  dados de `scripts/producao/teste/limpar-cadastros-dados.sql` (referência congelada em `db/testes/referencia/`).
+  pacote de sync `substituido` e `girar_geracao_base`. O teste guarda o retrato fixo do resultado do #675 nos dados de
+  `scripts/producao/teste/limpar-cadastros-dados.sql` (`RETRATO_675`: ordem, tabela, modo e linhas) e confere o resumo, a cópia
+  e o estado final contra ele; sem segunda cópia da rotina.
 - **Por entidade** (`p_entidades` = lista de `ENTIDADES_ZERAR`; vazia, repetida ou fora da lista = 22023): raízes = as tabelas do
   mapa (linhas vivas com `external_id`; `vendedor` = os usuários não administradores); a mesma cascata e mais "pedido inteiro"
   (o pedido que perde item sai); depois, o Hub de **toda entidade afetada** (as pedidas e as que caíram pela cascata, mesma
   regra da `entidades_afetadas_limpeza`: título, nota e endereço ao zerar cliente) — as 8 tabelas com a coluna `entidade`,
   inclusive `lote`, `registro_atual` e `cursor_entidade`; staging, erros e recebidos pela cascata; as não afetadas ficam.
   Sem isso o reenvio delta da dependente com a mesma chave voltava `repetido` e nada era recriado; derivados só pela cascata; filiais só com `filial` na lista; outbox só pelo `agregado_id`; pacote e `geracao_base` sempre.
+- **Simular** (`p_simular`): as mesmas raízes e a mesma cascata, só contando o que o UPDATE e o DELETE pegariam (sem cópia, sem
+  UPDATE, sem DELETE, sem trava, sem girar a geração); o resumo é igual ao do executado (o teste prova). Usado pela prévia.
+- **Trava do Hub só da empresa** (com `p_exigir_hub_parado`, fora do simular): `select … for update` no `integracao.conector` e
+  nos `integracao.lote` da empresa. As FKs de `lote`, `sessao_carga` e `registro_atual` para o conector tomam `FOR KEY SHARE`, que
+  espera o `FOR UPDATE`: lote, sessão e registro novos da empresa esperam; a troca de situação do lote (recebido → processando,
+  reprocessar) também. O Hub das outras empresas segue (antes era `lock table … share row exclusive`, que parava todas; o teste
+  prova com duas conexões). Sem mudar o Hub. O worker tem `lock_timeout` de 5 s: 55P03 e nova tentativa.
 - **Mudanças do §4.1** sobre o #675: lote `^[0-9]{8}T[0-9]{6}Z(-[0-9a-f]{8})?$` (22023); cópia em `limpeza_copia` (lote repetido
-  = 23505); `lock table … share row exclusive` e a recusa 55000 `ZERAR_HUB_PROCESSANDO` só com `p_exigir_hub_parado`; rótulos =
+  = 23505); a trava acima e a recusa 55000 `ZERAR_HUB_PROCESSANDO` só com `p_exigir_hub_parado`; rótulos =
   nome puro da tabela e o `r_modo` diz o que foi feito (`soft`, `fisico`, `filial` em `core.filial`, `sync_pacote`, `girar` em
   `plataforma.tenant`); tabelas temporárias `on commit drop`.
 
@@ -1404,27 +1413,55 @@ cópia (portal: 7 dias, `expurgar_zerar`; workflow: descarte manual). `TABELAS_S
 | copia_expira_em | timestamptz | `concluido_em` + 7 dias |
 | expurgado_em, desfeito_em | timestamptz | a cópia saiu (`expurgar_zerar`, `descartar_limpeza`) · restaurado (`restaurar_limpeza`) |
 | erro_codigo | text | `^[A-Z][A-Z0-9_]{1,59}$`, só e sempre em `falhou` |
-| tentativas, bloqueado_ate | integer, timestamptz | worker (concessão de 10 min) |
+| tentativas, bloqueado_ate | integer, timestamptz | worker (concessão de 10 min; teto 3, depois `falhou` `ZERAR_FALHOU`) |
 | super_admin_id not null, sessao_id | uuid | quem pediu |
 | comuns | | `created_at`, `updated_at` (gatilho), `deleted_at`, `external_id` |
 Índices: em andamento único por empresa, `(empresa_id, pedido_em desc, id)`, fila e expurgo. Poucas linhas por empresa.
 
-### Portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; 41 `sa_*`)
+**zerar_previa** — a prévia: pedida pelo portal, contada pelo worker (fora do pool do portal, de 10 s), lida pelo portal. Sem
+`tenant_id` nem FK (`TABELAS_SEM_TENANT_ID`), como a `zerar_empresa`.
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid | do portal (chave de idempotência) |
+| empresa_id | uuid not null | o tenant (sem FK) |
+| entidades | text[] | nulo = a empresa inteira; senão ≥ 1, sem repetição, na ordem de carga |
+| situacao | text not null default `em_andamento` | `em_andamento` → `pronta` \| `falhou` |
+| resultado | jsonb | só e sempre na `pronta`: `{linhas: [{ordem, tabela, linhas}], entidades_afetadas: [...], total}` |
+| erro_codigo | text | `^[A-Z][A-Z0-9_]{1,59}$`, só e sempre em `falhou` (`ZERAR_FALHOU`, `TENANT_NAO_ENCONTRADO`) |
+| tentativas, bloqueado_ate | integer, timestamptz | worker (concessão de 2 min; teto 3, depois `falhou` `ZERAR_FALHOU`) |
+| expira_em | timestamptz not null default now() + 1 hora | vencida: a leitura não acha e o `pegar_previa_zerar` apaga |
+| super_admin_id not null, sessao_id | uuid | quem pediu |
+| comuns | | `created_at`, `updated_at` (gatilho), `deleted_at`, `external_id` |
+Índices: `(empresa_id, created_at desc, id)`, fila (`em_andamento`) e `(expira_em, id)`. Poucas linhas (vivem 1 hora).
+
+### Portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; 42 `sa_*`)
 Sessão inválida = 28000; admin do cliente = 42501; o código do contrato vai no `hint`.
 | Função | Retorno | Erros |
 |---|---|---|
-| `sa_previa_zerar(p_sid uuid, p_tenant uuid, p_entidades text[] default null)` | `PreviaZerarEmpresa`: a `limpar_cadastros` numa subtransação desfeita (sem trava do Hub); `tabelas` só com linhas, `total_linhas`, `entidades`, `entidades_afetadas`, `bloqueio` | P0002 `TENANT_NAO_ENCONTRADO`; 22023 entidades |
+| `sa_pedir_previa_zerar(p_sid uuid, p_tenant uuid, p_id uuid, p_entidades text[] default null)` | `PreviaZerarEmpresa` (abaixo) em andamento; o mesmo id devolve a mesma prévia; não conta nada (quem conta é o worker) | P0002 `TENANT_NAO_ENCONTRADO`; 22023 entidades; 23505 id de outra empresa |
+| `sa_ler_previa_zerar(p_sid uuid, p_tenant uuid, p_id uuid)` | `PreviaZerarEmpresa` ou null (nenhuma, vencida ou de outra empresa) | — |
 | `sa_pedir_zerar(p_sid uuid, p_tenant uuid, p_id uuid, p_codigo text, p_entidades text[] default null)` | `ZerarEmpresa` em andamento (o mesmo id devolve o mesmo), sem recontar; auditoria `tenant.zerar_pedido` `{zerar_id, lote, entidades}` | P0002; 55000 `EXCLUSAO_EM_ANDAMENTO`, `ZERAR_EM_ANDAMENTO`, `BACKUP_EM_ANDAMENTO`, `ZERAR_HUB_PROCESSANDO`; 22023 `ZERAR_CODIGO_NAO_CONFERE` e entidades; 23505 id de outra empresa |
 | `sa_ler_zerar(p_sid uuid, p_tenant uuid)` | `ZerarEmpresa` mais recente ou null | — |
 
-`zerar_bloqueado(p_tenant, p_zerar, p_total)` (interna) = a `conferirZerar`: exclusão (ou `encerrado`), zerar, backup, lote do Hub
-em `processando`, volume acima de 2 milhões.
+`PreviaZerarEmpresa` (`zerar_previa_json`, interna): `{ id, situacao, entidades, linhas: [{ordem, tabela, linhas}],
+entidades_afetadas, total, bloqueio, erro_codigo, criado_em }`. `linhas` (só as com contagem, na ordem do executar),
+`entidades_afetadas` e `total` (soft + físico = o `linhas_apagadas` do executar) só na `pronta`; `bloqueio` calculado na leitura.
+
+`zerar_bloqueado(p_tenant, p_zerar, p_total)` (interna) é a fonte única do bloqueio (RN-PLA-12): exclusão (ou `encerrado`), zerar,
+backup, lote do Hub em `processando`, volume acima de 2 milhões. Chega à tela pelo `bloqueio` da prévia e pelo `erro_codigo` do
+zerar recusado no worker (`sa_ler_zerar`).
 
 ### Worker (SECURITY DEFINER; EXECUTE só ao `macuxi_worker`; o tenant sai da linha do job)
-- `pegar_zerar() returns table (id uuid, empresa_id uuid)` — próximo em andamento sem concessão viva (`skip locked`), 10 min,
-  `tentativas + 1`; nenhum = nenhuma linha.
+- `pegar_previa_zerar() returns table (id uuid, empresa_id uuid)` — apaga as vencidas (até 500), fecha `falhou` `ZERAR_FALHOU` a
+  pegada 3 vezes sem fechar e devolve a próxima em andamento, viva, sem concessão (`skip locked`), 2 min, `tentativas + 1`.
+- `executar_previa_zerar(p_previa uuid) returns jsonb` — a `limpar_cadastros(tenant, lote, entidades, false, true)` (simular, sem
+  trava do Hub) numa subtransação desfeita; grava `pronta` com o resultado; erro = `falhou` `ZERAR_FALHOU`; empresa que saiu =
+  `falhou` `TENANT_NAO_ENCONTRADO`; já fechada = devolve.
+- `pegar_zerar() returns table (id uuid, empresa_id uuid)` — fecha `falhou` `ZERAR_FALHOU` (auditoria `tenant.zerar_falhou`) o
+  pegado 3 vezes sem fechar (o processo caiu no meio; nada foi apagado); devolve o próximo em andamento sem concessão viva
+  (`skip locked`), 10 min, `tentativas + 1`; nenhum = nenhuma linha.
 - `executar_zerar(p_zerar uuid) returns jsonb` — reconfere (bloqueio = `falhou` com o código, nada muda, sem erro); roda a
-  `limpar_cadastros(tenant, lote, entidades, true)`; acima de 2 milhões = 22023 `ZERAR_VOLUME_ALTO` (desfaz); lote do Hub no meio
+  `limpar_cadastros(tenant, lote, entidades, true, false)`; acima de 2 milhões = 22023 `ZERAR_VOLUME_ALTO` (desfaz); lote do Hub no meio
   = 55000 `ZERAR_HUB_PROCESSANDO`; fecha `concluido` com a `contagem`, as `entidades_afetadas` e a cópia por 7 dias; auditoria
   `tenant.zerado` (payload de `plataforma.tenant.zerado@1`: `tenant_id`, `codigo`, `zerar_id`, `lote`, `entidades`,
   `linhas_apagadas`, `copia_expira_em`, `zerado_em`). Já fechado = devolve.
@@ -1434,9 +1471,12 @@ em `processando`, volume acima de 2 milhões.
 
 Consultas (referência):
 ```sql
-select plataforma.sa_previa_zerar($1, $2, $3::text[]) as r;              -- GET …/zerar/previa[?entidades=a,b]
+select plataforma.sa_pedir_previa_zerar($1, $2, $3, $4::text[]) as r;   -- POST …/zerar/previa (id do portal)
+select plataforma.sa_ler_previa_zerar($1, $2, $3) as r;                  -- GET …/zerar/previa/:id (null = 404)
 select plataforma.sa_pedir_zerar($1, $2, $3, $4, $5::text[]) as r;       -- POST …/zerar (202), depois da sa_reautenticar
 select plataforma.sa_ler_zerar($1, $2) as r;                             -- GET …/zerar (null = 404)
+select id, empresa_id from plataforma.pegar_previa_zerar();              -- worker
+select plataforma.executar_previa_zerar($1) as r;                        -- worker
 select id, empresa_id from plataforma.pegar_zerar();                     -- worker
 select plataforma.executar_zerar($1) as r;                               -- worker, numa transação de 15 min
 select plataforma.fechar_zerar($1, $2);                                  -- worker, depois do ROLLBACK

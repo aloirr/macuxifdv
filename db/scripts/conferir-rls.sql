@@ -61,7 +61,8 @@ sem_tenant_id (nome) as (
          ('plataforma.dados_legais'),
          ('plataforma.frase_carga'),
          ('plataforma.zerar_empresa'),
-         ('plataforma.limpeza_copia')
+         ('plataforma.limpeza_copia'),
+         ('plataforma.zerar_previa')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
@@ -78,7 +79,8 @@ so_por_funcao (nome) as (
          ('plataforma.dados_legais'),
          ('plataforma.frase_carga'),
          ('plataforma.zerar_empresa'),
-         ('plataforma.limpeza_copia')
+         ('plataforma.limpeza_copia'),
+         ('plataforma.zerar_previa')
 ),
 sem_leitura (nome) as (
   values ('core.ponto_trajeto'),
