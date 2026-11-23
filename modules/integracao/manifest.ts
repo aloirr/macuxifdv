@@ -27,7 +27,7 @@ export const manifest = defineModule({
     // T-0149 (RN-CORE-39, ADR 0040): filial do ERP (consumidor: core); cliente, preço, estoque e faixa ganham filial_external_id
     'integracao.filial.atualizado@1',
     'integracao.pedido.retorno_erp@1',
-    // RN-INT-22: o ERP devolveu o código do cliente novo (consumidor: o próprio módulo, que pede o vínculo ao Core)
+    // RN-INT-22: o ERP devolveu o código do cliente novo (consumidor: o Core, que grava o external_id no cliente)
     'integracao.cliente.retorno_erp@1',
     // T-0114: o ERP recusou o cancelamento devolvido pelo Hub (consumidor previsto: vendedor)
     'integracao.pedido.cancelamento_recusado@1',
