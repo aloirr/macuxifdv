@@ -2,6 +2,7 @@
 
 > 2026-11-23 · designer-ux · sessão D da v1.0.29. Decisões do dono do produto: R-20261123-141413 e R-20261123-142306.
 > Regras: RN-CORE-78 (pré-cadastro, ERP aprova ou recusa) e RN-CORE-79 (campos obrigatórios). Campo: `campo-cliente-pre-cadastro.md`.
+> Códigos do cliente (ADR 0069, item 10): `codigos-do-cliente.md`.
 > Simulações (1366×768, escala 2): `pre-cadastro-v1029/01` a `04` (gerador `pre-cadastro-v1029/gerar.mjs`). Sem cor nem token novos.
 
 Dono da tela: `modulo-core` (`modules/core/web`). Kit: `@macuxi/ui/web` (`Abas`, `CampoBusca`, `SelectField`, `TabelaDados`,
@@ -21,7 +22,8 @@ Regras de texto: só o que o usuário usa para agir (R-20261110-192153); uma inf
 ## 2. Lista (`01-bko-recusados-lista.png`)
 Ordem na aba:
 1. **Filtros**, numa linha:
-   - `CampoBusca` 340 px, placeholder **Razão social ou CPF/CNPJ** (busca por dígitos no documento, sem precisar da máscara).
+   - `CampoBusca` 340 px, placeholder `ROTULO_BUSCA_CLIENTE` (**Código, CNPJ ou nome**), regra `clienteCasaBusca` (códigos ERP e
+     FDV, razão social, fantasia e documento por dígitos, sem precisar da máscara).
    - `SelectField` **Situação**: Recusado (padrão) · Reenviado · Aceito · Todas.
    - `SelectField` **Vendedor**: Todos (padrão) e os vendedores do escopo do usuário, em ordem alfabética.
    - Os filtros vão na URL (`?situacao=&vendedor=&q=`), como nas outras listas.
@@ -29,12 +31,13 @@ Ordem na aba:
 
 | Coluna | Conteúdo | Largura |
 |---|---|---|
+| Código | `ERP C5112` em cima (só no Aceito) e `FDV 00018` embaixo; sigla 12/500 `text-ink-2`, valor mono 13 (`codigos-do-cliente.md` §2) | 92 |
 | CPF/CNPJ | `formatarDocumento` (máscara de exibição: 00.000.000/0000-00 ou 000.000.000-00), `tabular-nums` | 190 |
 | Razão social | 600, uma linha, reticências; texto inteiro no `title` | resto |
-| Vendedor | quem fez o pré-cadastro (nome do usuário do BKO, se veio do BKO) | 128 |
-| Data | data e hora da situação atual (recusa, reenvio ou aceite), `dd/mm/aaaa hh:mm` no fuso do tenant | 168 |
-| Motivo da recusa | motivo da última recusa, uma linha, reticências; inteiro no `title` e na gaveta | 220 |
-| Situação | `Badge`: **Recusado** (`danger`), **Reenviado** (`warning`), **Aceito** (`success`) | 118 |
+| Vendedor | quem fez o pré-cadastro (nome do usuário do BKO, se veio do BKO) | 120 |
+| Data | data e hora da situação atual (recusa, reenvio ou aceite), `dd/mm/aaaa hh:mm` no fuso do tenant | 160 |
+| Motivo da recusa | motivo da última recusa, uma linha, reticências; inteiro no `title` e na gaveta | 164 |
+| Situação | `Badge`: **Recusado** (`danger`), **Reenviado** (`warning`), **Aceito** (`success`) | 108 |
 
 - A linha toda abre a gaveta (§3); `cursor-pointer`, foco por teclado e `Enter`. Sem menu `⋯` na linha (a única ação está na gaveta).
 - Sem total acima da tabela (o número já está na aba). Paginação: a padrão da `TabelaDados`.
@@ -42,11 +45,12 @@ Ordem na aba:
 
 ## 3. Histórico (gaveta, `02-bko-recusados-historico.png`)
 `Drawer` (560 px) com:
-- **Título:** a razão social. **Subtítulo:** `CPF/CNPJ · Vendedor` e o `Badge` da situação.
+- **Título:** a razão social. **Subtítulo:** `FDV 00031 · CPF/CNPJ · Vendedor` e o `Badge` da situação (o Código ERP fica só no
+  cartão do aceite).
 - **Corpo:** rótulo de seção **Tentativas** e um cartão por revisão, da mais nova para a mais antiga:
   - **Revisão N** (600).
   - Quem e quando: revisão 1 = **Enviada por <nome>, no Campo|no BKO, em dd/mm/aaaa hh:mm**; da 2 em diante = **Corrigida por <nome>, no Campo|no BKO, em …**.
-  - O que o ERP fez: **Recusada pelo ERP em …** · **Aceita pelo ERP em … · código <código>** (código em mono) · **Aguardando ERP** (revisão ainda sem resposta).
+  - O que o ERP fez: **Recusada pelo ERP em …** · **Aceita pelo ERP em … · Código ERP <código>** (código em mono) · **Aguardando o ERP** (revisão ainda sem resposta).
   - Na recusa: o motivo, numa linha `danger` com ícone de alerta; abaixo, os erros por campo, um por linha:
     **<Rótulo do campo>:** <mensagem>. Rótulos de `ROTULOS_CAMPOS_PRE_CADASTRO` (e Logradouro, Número, Bairro, Cidade, UF, CEP).
   - Sem selo por cartão: a situação do pré-cadastro fica só no subtítulo.
@@ -55,7 +59,7 @@ Ordem na aba:
 
 ## 4. Editar e reenviar (mesma gaveta, `03-bko-recusados-editar.png`)
 O toque em **Editar e reenviar** troca o conteúdo da gaveta (sem abrir outra):
-- **Título:** **Editar e reenviar**. Sem subtítulo (a razão social está no formulário).
+- **Título:** **Editar e reenviar**. **Subtítulo:** `FDV 00031` (o código não é campo do formulário; a razão social já está nele).
 - **Topo do corpo:** `Notice tone="danger"` com o motivo da última recusa (texto literal). É o único aviso da gaveta.
 - **Formulário**, preenchido com a última revisão, na ordem do Campo (`campo-cliente-pre-cadastro.md` §2), em grade de 6 colunas:
   CPF/CNPJ (3) · Inscrição estadual (3) / Razão social (6) / Nome fantasia (6) / Telefone (3) · E-mail (3) /
@@ -100,7 +104,7 @@ título da gaveta de edição.
 ## 7. Premissas sobre a API (sessão C) — confirmar com o `modulo-core`
 - Consulta da lista: `GET` paginado com `situacao` (`recusado` | `reenviado` | `aceito`; sem filtro = todas), `vendedor_id`, `q`;
   cada item: `id`, `documento` (dígitos), `razao_social`, `vendedor { id, nome }`, `situacao`, `situacao_em` (UTC),
-  `motivo` (da última recusa), `revisao` (atual). Pré-cadastro nunca recusado não entra. Aceito fica 30 dias.
+  `motivo` (da última recusa), `revisao` (atual), `codigo_fdv`, `codigo_erp` (nulo até o aceite). Pré-cadastro nunca recusado não entra. Aceito fica 30 dias.
 - Contador da aba: `total` da consulta com `situacao=recusado` (ou um campo `recusados` na mesma resposta).
 - Histórico: `tentativas[]` com `revisao`, `origem` (`campo` | `bko`), `enviada_por { nome }`, `enviada_em`, `resultado`
   (`recusada` | `aceita` | `aguardando`), `respondida_em`, `motivo`, `erros[] { campo, mensagem }` e `codigo_erp` no aceite.
@@ -114,4 +118,4 @@ título da gaveta de edição.
 
 ## 8. testIDs
 `core.pre_cadastros.aba` · `.filtro.busca` · `.filtro.situacao` · `.filtro.vendedor` · `.linha.<id>` · `.vazio` ·
-`.historico` · `.tentativa.<revisao>` · `.editar` · `.form.campo.<coluna>` · `.form.aviso` · `.reenviar` · `.cancelar`.
+`.linha.<id>.codigo` · `.historico` · `.tentativa.<revisao>` · `.editar` · `.form.campo.<coluna>` · `.form.aviso` · `.reenviar` · `.cancelar`.

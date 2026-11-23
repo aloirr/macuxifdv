@@ -75,6 +75,9 @@ th{text-align:left;font-size:12px;font-weight:600;color:#4A5562;padding:8px 10px
 td{padding:0 10px;height:48px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tr:last-child td{border-bottom:0}
 tr.sel-linha td{background:#F8F6F1}
+.cod{display:flex;flex-direction:column;line-height:16px;font-size:13px}
+.cod span{white-space:nowrap}.cod small{font-size:12px;font-weight:500;color:#4A5562;margin-right:4px}
+.cod code,.dcab code{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;font-size:13px;color:#16202A}
 .nome{font-weight:600}
 .selo{display:inline-flex;align-items:center;padding:3px 8px;line-height:16px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap}
 .ok{color:#1D6B4F;background:#E2F1EA}.al{color:#7A4F00;background:#FFF1D6}.pe{color:#A8261B;background:#FDE8E6}.ne{color:#34404D;background:#ECEEF1}
@@ -130,32 +133,35 @@ const pagina = (titulo, menuAtivo, corpo, extra = '') =>
 // ---------- dados fictícios ----------
 const SELO = { recusado: ['pe', 'Recusado'], reenviado: ['al', 'Reenviado'], aceito: ['ok', 'Aceito'] };
 const LINHAS = [
-  ['45.723.174/0001-10', 'Mercadinho São Jorge Ltda', 'Carlos Lima', '23/11/2026 10:05', 'Cadastro com divergência na SEFAZ', 'recusado'],
-  ['08.114.392/0001-55', 'Comercial Rio Negro Eireli', 'Rita Alves', '23/11/2026 09:40', 'CEP não encontrado', 'reenviado'],
-  ['321.654.987-00', 'Maria do Socorro Lima', 'Carlos Lima', '22/11/2026 16:20', 'CPF com situação irregular na Receita', 'recusado'],
-  ['17.902.551/0001-03', 'Atacado Ponta Negra Ltda', 'João Mendes', '22/11/2026 11:02', 'Razão social diferente da Receita', 'aceito'],
-  ['33.408.776/0001-29', 'Panificadora Aleixo Ltda', 'Rita Alves', '21/11/2026 15:47', 'Endereço incompleto', 'recusado'],
-  ['52.660.118/0001-84', 'Distribuidora Tarumã Ltda', 'João Mendes', '20/11/2026 08:30', 'Telefone inválido', 'aceito'],
+  ['45.723.174/0001-10', 'Mercadinho São Jorge Ltda', 'Carlos Lima', '23/11/2026 10:05', 'Cadastro com divergência na SEFAZ', 'recusado', '00031', null],
+  ['08.114.392/0001-55', 'Comercial Rio Negro Eireli', 'Rita Alves', '23/11/2026 09:40', 'CEP não encontrado', 'reenviado', '00027', null],
+  ['321.654.987-00', 'Maria do Socorro Lima', 'Carlos Lima', '22/11/2026 16:20', 'CPF com situação irregular na Receita', 'recusado', '00029', null],
+  ['17.902.551/0001-03', 'Atacado Ponta Negra Ltda', 'João Mendes', '22/11/2026 11:02', 'Razão social diferente da Receita', 'aceito', '00018', 'C5112'],
+  ['33.408.776/0001-29', 'Panificadora Aleixo Ltda', 'Rita Alves', '21/11/2026 15:47', 'Endereço incompleto', 'recusado', '00024', null],
+  ['52.660.118/0001-84', 'Distribuidora Tarumã Ltda', 'João Mendes', '20/11/2026 08:30', 'Telefone inválido', 'aceito', '00011', 'C5098'],
 ];
+// Códigos do cliente (docs/design/telas/codigos-do-cliente.md): ERP em cima, FDV embaixo; código que não existe não aparece.
+const codigos = (erp, fdv) =>
+  `<div class="cod">${erp ? `<span aria-label="Código ERP ${erp}"><small>ERP</small><code>${erp}</code></span>` : ''}${fdv ? `<span aria-label="Código FDV ${fdv}"><small>FDV</small><code>${fdv}</code></span>` : ''}</div>`;
 const RECUSADOS = LINHAS.filter((l) => l[5] === 'recusado').length;
 
 const abas = (n) =>
   `<div class="abas" role="tablist" aria-label="Clientes"><span class="aba" role="tab" aria-selected="false">Farol</span><span class="aba ativa" role="tab" aria-selected="true">Pré-cadastros recusados${n ? ` (${n})` : ''}</span></div>`;
 const filtros = (situacao) =>
-  `<div class="filtros"><span class="sel busca" aria-label="Buscar">${lupa}Razão social ou CPF/CNPJ</span>
+  `<div class="filtros"><span class="sel busca" aria-label="Buscar">${lupa}Código, CNPJ ou nome</span>
   <label class="f">Situação<span class="sel">${situacao}${baixo}</span></label>
   <label class="f">Vendedor<span class="sel">Todos${baixo}</span></label></div>`;
 const tabela = (linhas, marcada = -1) =>
-  `<section class="quadro" style="padding:8px 16px"><table><colgroup><col style="width:190px"><col><col style="width:128px"><col style="width:168px"><col style="width:220px"><col style="width:118px"></colgroup>
-  <thead><tr><th>CPF/CNPJ</th><th>Razão social</th><th>Vendedor</th><th>Data</th><th>Motivo da recusa</th><th>Situação</th></tr></thead><tbody>
-  ${linhas.map(([d, r, v, dt, m, s], i) => `<tr${i === marcada ? ' class="sel-linha"' : ''}><td>${d}</td><td class="nome" title="${r}">${r}</td><td>${v}</td><td>${dt}</td><td title="${m}">${m}</td><td><span class="selo ${SELO[s][0]}">${SELO[s][1]}</span></td></tr>`).join('')}
+  `<section class="quadro" style="padding:8px 16px"><table><colgroup><col style="width:92px"><col style="width:190px"><col><col style="width:120px"><col style="width:160px"><col style="width:164px"><col style="width:108px"></colgroup>
+  <thead><tr><th>Código</th><th>CPF/CNPJ</th><th>Razão social</th><th>Vendedor</th><th>Data</th><th>Motivo da recusa</th><th>Situação</th></tr></thead><tbody>
+  ${linhas.map(([d, r, v, dt, m, s, fdv, erp], i) => `<tr${i === marcada ? ' class="sel-linha"' : ''}><td>${codigos(erp, fdv)}</td><td>${d}</td><td class="nome" title="${r}">${r}</td><td>${v}</td><td>${dt}</td><td title="${m}">${m}</td><td><span class="selo ${SELO[s][0]}">${SELO[s][1]}</span></td></tr>`).join('')}
   </tbody></table></section>`;
 const listaPagina = (situacao, linhas, marcada, nota) =>
   `<h1>Clientes</h1>${abas(RECUSADOS)}${filtros(situacao)}${tabela(linhas, marcada)}<div class="nota">${nota}</div>`;
 
 // ---------- 01: lista ----------
 const html01 = pagina('Clientes — Pré-cadastros recusados', ['Cadastros', 'Clientes'],
-  listaPagina('Todas', LINHAS, -1, '<b>Simulação.</b> Dados fictícios. Filtro Situação em "Todas" para mostrar os três selos; o padrão ao abrir é "Recusado". O número da aba conta só os recusados.'));
+  listaPagina('Todas', LINHAS, -1, '<b>Simulação.</b> Dados fictícios. Filtro Situação em "Todas" para mostrar os três selos; o padrão ao abrir é "Recusado". O número da aba conta só os recusados. Coluna Código: ERP só depois do aceite.'));
 
 // ---------- 02: histórico (gaveta) ----------
 const gaveta = (titulo, sub, corpo, rodape) =>
@@ -167,7 +173,7 @@ const hist = `<span class="rot">Tentativas</span>
   ${tentativa(1, ['Enviada por Carlos Lima, no Campo, em 22/11/2026 17:30', 'Recusada pelo ERP em 22/11/2026 18:02'], 'Endereço incompleto', [['Número', 'obrigatório']])}`;
 const html02 = pagina('Pré-cadastro — histórico', ['Cadastros', 'Clientes'],
   listaPagina('Todas', LINHAS, 0, '<b>Simulação.</b> Clique na linha abre a gaveta com as tentativas, da mais nova para a mais antiga.'),
-  gaveta('Mercadinho São Jorge Ltda', `45.723.174/0001-10 · Carlos Lima <span class="selo pe">Recusado</span>`, hist, '<span class="btn p">Editar e reenviar</span>'));
+  gaveta('Mercadinho São Jorge Ltda', `<span aria-label="Código FDV 00031">FDV <code>00031</code></span> · 45.723.174/0001-10 · Carlos Lima <span class="selo pe">Recusado</span>`, hist, '<span class="btn p">Editar e reenviar</span>'));
 
 // ---------- 03: editar e reenviar (mesma gaveta) ----------
 const c = (rot, val, span, { opcional = false, erro = null } = {}) =>
@@ -185,7 +191,7 @@ const form = `<div class="notice d" role="alert">${alerta('#A8261B')}<span>Cadas
   </div>`;
 const html03 = pagina('Pré-cadastro — editar e reenviar', ['Cadastros', 'Clientes'],
   listaPagina('Todas', LINHAS, 0, '<b>Simulação.</b> Editar e reenviar troca o conteúdo da gaveta pelo formulário, com os campos do erro já marcados. O corpo da gaveta rola; o rodapé fica fixo.'),
-  gaveta('Editar e reenviar', '', form, '<span class="btn s">Cancelar</span><span class="btn p">Reenviar</span>'));
+  gaveta('Editar e reenviar', '<span aria-label="Código FDV 00031">FDV <code>00031</code></span>', form, '<span class="btn s">Cancelar</span><span class="btn p">Reenviar</span>'));
 
 // ---------- 04: vazio (filtro padrão "Recusado") ----------
 const html04 = pagina('Clientes — Pré-cadastros recusados (vazio)', ['Cadastros', 'Clientes'],
