@@ -70,6 +70,8 @@ const SO_FIXOS = ['razao_social', 'documento'];
 const PADRAO_PRE_CADASTRO = ['razao_social', 'documento', 'inscricao_estadual', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'cep'];
 
 type Decisao = { status: 'pendente' | 'aprovado' | 'recusado'; motivo?: string; codigo?: string };
+/** O `codigo_fdv` só existe no contrato para a API recusar com 422 (ADR 0069 item 10); fora do canônico, como na API. */
+const canonicoDoContrato = ({ codigo_fdv: _ignorado, ...dados }: PreCadastroCliente): string => canonicalPreCadastro(dados);
 /** Cliente gravado no "servidor": dados da revisão atual e o canônico de cada revisão (o hash real é o sha256 dele). */
 type Gravado = { p: PreCadastroCliente; revisao: number; canonicos: Map<number, string> };
 
@@ -126,7 +128,7 @@ function montar(parametro: unknown = SO_FIXOS) {
       const textos = Object.entries(r.erros).map(([c, e]) => (e === FALTA_OBRIGATORIO_PRE_CADASTRO ? ((MENSAGENS_CAMPO_FALTANTE as Record<string, string>)[c] ?? MENSAGENS_CAMPO_FALTANTE.endereco) : `${e}.`));
       return { id: i.id, status: 'rejeitado', codigo: 'CAMPOS_OBRIGATORIOS', mensagem: [...new Set(textos)].join(' ') };
     };
-    const canonico = canonicalPreCadastro(p);
+    const canonico = canonicoDoContrato(p);
     if (p.revisao_base == null) {
       // criação: id vivo já gravado = `ja_existia: true`, SEM regravar (nem a correção, nem o status)
       if (servidor.recebidos.has(p.id) && !servidor.excluidos.has(p.id)) {
@@ -376,7 +378,7 @@ describe('v1.0.30 pré-cadastro no Campo: offline → fila → ERP (motor real)'
     const doBko = PreCadastroClienteSchema.parse({ ...g.p, origem: 'bko', nome_fantasia: 'Boa Vista', revisao_base: 1 });
     g.p = doBko;
     g.revisao = 2;
-    g.canonicos.set(2, canonicalPreCadastro(doBko));
+    g.canonicos.set(2, canonicoDoContrato(doBko));
     t.servidor.decisao.set(ID, { status: 'recusado', motivo: 'Inscrição estadual ausente' });
 
     await t.sincronizar();
