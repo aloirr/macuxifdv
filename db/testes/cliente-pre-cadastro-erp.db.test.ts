@@ -7,7 +7,9 @@
  * - fila do ERP pelo índice parcial cliente_pre_cadastro_fila_ix (pendentes sem external_id, ordem (created_at, id)); o
  *   cliente_aprovado_sem_erp_ix saiu;
  * - integracao.cliente_fila_erp.aprovado_em virou recebido_em (o índice do poll acompanha);
- * - isolamento: o macuxi_app de um tenant não lê nem grava o motivo do outro;
+ * - isolamento: o macuxi_app de um tenant não lê nem grava o motivo nem a aprovação do outro;
+ * - estado atual (todas as migrações) do que veio da 0095: origem x status, aprovado_em só com 'aprovado', external_id vivo
+ *   único por tenant, leitura do macuxi_leitura e espelho Drizzle (cliente-cadastro-aprovacao.db.test.ts só confere a 0095);
  * - up/down: o down volta exatamente ao catálogo da 0096 (aprovado_por com o UUID nulo nas linhas aprovadas) e às ACLs.
  */
 import pg from 'pg';
@@ -56,8 +58,7 @@ describe('0097 pré-cadastro para o ERP (estático)', () => {
     // nada de grant (motivo_recusa fora do macuxi_leitura), política ou tabela nova
     expect(up).not.toMatch(/\bgrant\b|\brevoke\b|create table|create policy|alter policy|row level security/i);
     const colunasCore = Object.keys(nuvemCore.cliente);
-    expect(colunasCore).toContain('motivo_recusa');
-    expect(colunasCore).toContain('aprovado_em');
+    for (const c of ['origem_cadastro', 'status_cadastro', 'aprovado_em', 'motivo_recusa']) expect(colunasCore, c).toContain(c);
     expect(colunasCore).not.toContain('aprovado_por');
     const colunasFila = Object.keys(nuvemIntegracao.clienteFilaErp);
     expect(colunasFila).toContain('recebido_em');
@@ -94,6 +95,13 @@ describe.skipIf(semBanco())('0097 pré-cadastro para o ERP (banco, fixture dois-
   const comoApp = (t: string, sql: string, p: unknown[] = []) => comoPapel<Record<string, unknown>>(admin, 'macuxi_app', sql, p, t).then((r) => r.rows);
   const cliente = (set: string, p: unknown[] = []) => erroNoSavepoint(admin, `update core.cliente set ${set} where id = '${A.clientes.c1}'`, p);
 
+  it('quem veio da fixture é do ERP, sem status, aprovação nem motivo', async () => {
+    const r = await q<{ n: number }>(
+      "select count(*)::int as n from core.cliente where origem_cadastro <> 'erp' or status_cadastro is not null or aprovado_em is not null or motivo_recusa is not null",
+    );
+    expect(r[0]!.n).toBe(0);
+  });
+
   it('catálogo atual: aprovado_por, o CHECK par e o índice antigo sumiram; recebido_em na fila', async () => {
     const r = await q<{ por: boolean; par: boolean; antigo: boolean; novo: boolean; recebido: boolean; aprovado: boolean }>(`
       select exists (select 1 from pg_attribute where attrelid = 'core.cliente'::regclass and attname = 'aprovado_por' and not attisdropped) as por,
@@ -107,6 +115,18 @@ describe.skipIf(semBanco())('0097 pré-cadastro para o ERP (banco, fixture dois-
     expect(idx[0]!.d).toContain('(tenant_id, recebido_em)');
   });
 
+  it('CHECKs da 0095 no estado atual: valores e status x origem', async () => {
+    await emTransacao(admin, null, async () => {
+      expect((await cliente("origem_cadastro = 'csv'"))?.code).toBe('23514');
+      expect((await cliente('origem_cadastro = null'))?.code).toBe('23502');
+      expect((await cliente("origem_cadastro = 'campo', status_cadastro = 'rascunho'"))?.code).toBe('23514');
+      expect((await cliente("status_cadastro = 'pendente'"))?.code).toBe('23514'); // origem erp com status
+      expect((await cliente("origem_cadastro = 'bko'"))?.code).toBe('23514'); // pré-cadastro sem status
+      for (const o of ['campo', 'bko']) for (const st of ['pendente', 'recusado', 'aprovado']) expect(await cliente(`origem_cadastro = '${o}', status_cadastro = '${st}'`), `${o} ${st}`).toBeNull();
+      expect(await cliente("origem_cadastro = 'erp', status_cadastro = null, aprovado_em = null")).toBeNull();
+    });
+  });
+
   it('CHECKs: motivo só com recusado e até 500 caracteres; aprovado_em só com aprovado', async () => {
     await emTransacao(admin, null, async () => {
       await q("update core.cliente set origem_cadastro = 'campo', status_cadastro = 'pendente', external_id = null where id = $1", [A.clientes.c1]);
@@ -116,6 +136,7 @@ describe.skipIf(semBanco())('0097 pré-cadastro para o ERP (banco, fixture dois-
       expect(await cliente("status_cadastro = 'recusado', motivo_recusa = repeat('é', 500)")).toBeNull(); // conta caracteres, não bytes
       expect(await cliente("status_cadastro = 'recusado', motivo_recusa = null")).toBeNull(); // recusa legada do BKO, sem motivo
       expect((await cliente("status_cadastro = 'pendente', aprovado_em = now()"))?.code).toBe('23514');
+      expect((await cliente("status_cadastro = 'recusado', aprovado_em = now()"))?.code).toBe('23514');
       expect(await cliente("status_cadastro = 'aprovado', aprovado_em = now(), external_id = 'ERP-97'")).toBeNull(); // sem aprovador
     });
   });
@@ -136,14 +157,27 @@ describe.skipIf(semBanco())('0097 pré-cadastro para o ERP (banco, fixture dois-
     });
   });
 
-  it('macuxi_leitura: sem SELECT em motivo_recusa; segue lendo status_cadastro e aprovado_em', async () => {
+  it('retorno do ERP: o app de B não aprova o cliente de A; A aprova e sai da fila; external_id vivo repetido dá 23505', async () => {
+    await emTransacao(admin, null, async () => {
+      await q("update core.cliente set origem_cadastro = 'campo', status_cadastro = 'pendente', external_id = null where id = $1", [A.clientes.c1]);
+      const aprovar = "update core.cliente set status_cadastro = 'aprovado', aprovado_em = now(), external_id = 'ERP-97A' where id = $1 returning status_cadastro";
+      expect(await comoApp(B.tenantId, aprovar, [A.clientes.c1])).toEqual([]);
+      expect(await comoApp(B.tenantId, 'select origem_cadastro from core.cliente where id = $1', [A.clientes.c1])).toEqual([]);
+      expect(await comoApp(A.tenantId, aprovar, [A.clientes.c1])).toEqual([{ status_cadastro: 'aprovado' }]);
+      expect((await comoApp(A.tenantId, FILA, [A.tenantId])).map((r) => r['id'])).not.toContain(A.clientes.c1);
+      expect((await erroNoSavepoint(admin, `update core.cliente set external_id = 'ERP-97A' where id = '${A.clientes.c2}'`))?.code).toBe('23505');
+    });
+  });
+
+  it('macuxi_leitura: sem SELECT em motivo_recusa; segue lendo origem_cadastro, status_cadastro e aprovado_em', async () => {
     const r = await q<{ c: string; ok: boolean }>(
       "select c, has_column_privilege('macuxi_leitura', 'core.cliente', c, 'SELECT') as ok from unnest($1::text[]) c order by c",
-      [['aprovado_em', 'motivo_recusa', 'status_cadastro']],
+      [['aprovado_em', 'motivo_recusa', 'origem_cadastro', 'status_cadastro']],
     );
     expect(r).toEqual([
       { c: 'aprovado_em', ok: true },
       { c: 'motivo_recusa', ok: false },
+      { c: 'origem_cadastro', ok: true },
       { c: 'status_cadastro', ok: true },
     ]);
     await emTransacao(admin, null, async () => {
