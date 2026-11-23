@@ -112,3 +112,117 @@ Revisão de leitura: nenhum teste rodado nesta sessão. A sessão C da v1.0.29 e
   - a rotina saiu de `scripts/producao` e a regra ficou só na 0100.
 - **Down da 0100:** devolve as cópias para a `public.macuxi_limpeza_backup` do #675 e documenta a perda dos registros do portal.
 - **Conflitos com a v1.0.29:** fora o 🔴 3, nenhum branch da v1.0.29 mexe em `apps/api/src/app.ts`, `worker.ts`, `apps/web/components/portal/aba-integracao.tsx` ou `apps/web/lib/portal-falso.ts`.
+
+---
+
+# Rodada 2 — 23/11/2026, ~19h30 (Manaus)
+
+Diffs revistos contra os SHAs da rodada 1 e contra o `origin/main` f2556d681:
+- banco-dados 36d958549 (antes 2d9578b81);
+- engenheiro-software 6ccd07e32 (antes d31bca66b);
+- engenheiro-apps 5e46817be (antes e4fc95fb6; contém o 6ccd07e32 por merge);
+- modulo-integracao c32abc632 (sem mudança);
+- testes `nuvem/v1031-zerar-testes` 5a54d2876 (o mais novo do remoto às 19h30).
+
+Revisão de leitura, sem rodar testes nesta sessão. As medições citadas são dos donos.
+
+**Veredito: com 🔴 (1), só no branch do testes.** O código do banco, da API, do SDK e do portal fica sem 🔴. O lote sai quando o testes subir o reteste no fluxo novo e o 🔴 3 da rodada 1 for cumprido na ordem de merge.
+
+## Os 🔴 da rodada 1
+
+1. **Texto do "Mantém"** (engenheiro-apps): **resolvido.**
+   - `apps/web/lib/portal-empresa-zerar.ts:38` diz "Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.", só no zerar inteiro (`dialogo-zerar.tsx`, `!entidades?.length`).
+   - O grupo "Usuários não administradores" (`core.usuario`, `usuario_perfil`, `usuario_modulo`) entra no "Apaga:" (`packages/platform-sdk/src/empresa-zerar.ts`, `GRUPOS_ZERAR` e `grupoDaTabelaZerar`).
+   - Fica a premissa da ADR 0068 (Consequências): o Alexandre ainda precisa confirmar a regra dos usuários do #675.
+2. **Prévia no pool do portal** (engenheiro-software + banco-dados): **resolvido.**
+   - A prévia virou trabalho do worker: `sa_pedir_previa_zerar` e `sa_ler_previa_zerar` só ao `macuxi_portal`, `pegar_previa_zerar` e `executar_previa_zerar` só ao `macuxi_worker`. A conferência pelo catálogo no fim da 0100 cobre as 42 `sa_*` e as 6 do worker.
+   - A `limpar_cadastros(..., p_simular)` roda as mesmas raízes e a mesma cascata, só com `count(*)`, sem cópia, sem UPDATE, sem DELETE e sem trava (`0100…up.sql:440-445` e `468-512`).
+   - O worker usa um pool próprio de 2 conexões, com `statement_timeout` de 15 min e `lock_timeout` de 5 s por `set local` (`empresa-zerar-worker.ts:90-105`).
+   - Os testes `empresa-zerar.db.test.ts:408` e `:586` mostram que o simular conta o mesmo que o executar, na empresa inteira e por entidade.
+   - Medição informada: 400 mil linhas, prévia em 1,35 s e zerar inteiro desfeito em 13,9 s. Na proporção, 2 milhões dão cerca de 70 s, dentro dos 15 min.
+3. **Ordem de merge com a sessão C** (banco-dados + gerente): **continua como condição de merge, não de código.**
+   - O branch da C (`nuvem/v1029-revisao-pre-cadastro-banco-dados` 1ea0ec192) ainda tem `migrarUp(c)` sem `ate` em `db/testes/resumo-outbox-vivos.db.test.ts:140` e `:154`.
+   - O doc do testes registra o mesmo problema como D-1 (`docs/testes/v1031-zerar-dados.md:44`).
+   - A C entra primeiro, com `{ ate: VERSAO }` nas duas linhas. Depois a 0100 vem por cima do `main`, com o número confirmado pelo gerente, e `db/testes` roda inteiro na sessão antes do push.
+
+## Os 🟡 da rodada 1
+
+- **Trava global do Hub** (banco-dados): **resolvido.**
+  - Saiu o `lock table`. Ficaram `for update` no `integracao.conector` e nos `integracao.lote` da empresa (`0100…up.sql:303-306`), e o simular não trava nada.
+  - Conferi: lote, sessão de carga, `registro_atual` e as demais tabelas do Hub têm FK `(tenant_id, conector_id)` para o conector (`0010`, `0094`, `0096`). O INSERT toma FOR KEY SHARE, que espera o FOR UPDATE.
+  - A troca de situação do lote espera o FOR UPDATE dos lotes, e o staging novo, com FK para o lote, também espera.
+  - O teste com duas conexões é o `empresa-zerar.db.test.ts:798`.
+- **Teto de tentativas** (banco-dados): **resolvido.**
+  - `pegar_zerar` fecha `falhou` `ZERAR_FALHOU` com auditoria quando `tentativas >= 3`. (`0100…up.sql:689-695`).
+  - `pegar_previa_zerar` faz o mesmo e ainda apaga as prévias vencidas.
+  - Teste: `empresa-zerar.db.test.ts:684`.
+- **Cópia da rotina do #675** (banco-dados): **resolvido.**
+  - `db/testes/referencia/limpar-cadastros-675.sql` saiu. O teste guarda o retrato fixo (`RETRATO_675`, `:408-423`).
+- **Regra em dois lugares** (engenheiro-software): **resolvido.**
+  - `conferirZerar` e `LIMITE_LINHAS_ZERAR` saíram do SDK, e o teste `empresa-zerar.test.ts:51` garante que não voltam.
+  - O bloqueio mora só na `plataforma.zerar_bloqueado`, e o portal falso devolve um bloqueio fixo.
+  - Os comentários da API, do SDK e do `apps/web/lib/portal-empresa-zerar.ts:4` foram acertados.
+- **Banco fora na subida** (engenheiro-software): **resolvido.**
+  - Com erro de conexão, a `criarConferenciaMigracao` (`empresa-zerar-worker.ts:258-276`) devolve o erro ao laço e confere de novo no ciclo seguinte. Só a função ausente desliga o zerar.
+  - Testes: `empresa-zerar-worker.test.ts:264` e `:275`.
+- **PR conjunto da lista de `sa_*`** (gerente + banco-dados + testes): **aberto.** A lista agora tem 42 (sai a `sa_previa_zerar`, entram 2) e o teste da lista é o do 🔴 abaixo.
+- **Reserva da ADR 0068 no quadro** (gerente-projetos): **aberto.** O `.coord/quadro.md` do `origin/main` continua sem a reserva.
+
+Os 🟢 da rodada 1 também foram resolvidos: `warn` de "fora do contrato", `ID_EM_USO` em `CODIGOS_ZERAR_EMPRESA`, o comentário do `apps/web` e o "0099" no doc do testes. Fica aberto o 🟢 do `modulo-integracao` (`cursores[].external_id`), sem mudança no c32abc632.
+
+## Rodada 2 — 🔴 bloqueia
+
+1. **testes**: o branch `nuvem/v1031-zerar-testes` 5a54d2876 ainda testa o fluxo da rodada 1, que não existe mais.
+   - `tests/integracao/banco/conformidade.test.ts:170` lista a `plataforma.sa_previa_zerar(p_sid, p_tenant, p_entidades)`, que a 0100 apagou. A conferência das `sa_*` cai no banco migrado.
+   - `tests/integracao/api/zerar-dados-v1031.test.ts:158`, `:351` e `:352` chamam `GET …/zerar/previa[?entidades=]`. A rota virou `POST …/zerar/previa` (202) e `GET …/zerar/previa/:previa_id`.
+   - Nas linhas `:461` e `:573`, o teste usa `pv.total_linhas`, que virou `total`, e a prévia agora só fica pronta depois do `executar_previa_zerar` do worker.
+   - **Correção:** refazer o reteste com banco-dados 36d958549 e engenheiro-apps 5e46817be, que contém o 6ccd07e32. Cobrir:
+     - a prévia pedida, contada pelo worker e lida até `pronta`;
+     - o 404 `ZERAR_PREVIA_NAO_ENCONTRADA`;
+     - o teto de 3 tentativas;
+     - a lista com 42 `sa_*` e 6 funções do worker.
+   - O e2e (`tests/e2e/bko/integracao-simples.spec.ts`) também precisa passar com a tela nova ("Contando os dados…" e depois o resumo).
+   - Se o reteste em curso já cobre tudo isso, o 🔴 cai quando o SHA novo chegar ao remoto.
+
+## Rodada 2 — 🟡 corrigir
+
+1. **engenheiro-software (eu)**: a ADR 0068 e o desenho não batem com a 0100.
+   - `docs/decisoes/0068-zerar-dados-da-empresa.md:40` rejeita o **modo "contar"** na `limpar_cadastros` ("um segundo caminho no corpo da regra"). Só que a 0100 adotou exatamente esse modo: `p_simular`, que conta sem cópia, sem UPDATE e sem DELETE, além de rodar numa subtransação desfeita.
+   - A assinatura em `:21` não traz o `p_simular`.
+   - `docs/desenho/empresa-zerar.md:72` diz que "a prévia é a mesma função desfeita" e `:82` diz que ela "roda a `limpar_cadastros` numa subtransação desfeita", sem falar do simular.
+   - **Correção:**
+     - a decisão passa a ser "mesma função, modo simular", com a garantia de igualdade nos testes `:408` e `:586` do banco;
+     - a alternativa rejeitada vira a "limpeza rodada e desfeita", que custava a cópia `to_jsonb`;
+     - a assinatura ganha o 5º parâmetro.
+2. **banco-dados + engenheiro-software**: a lista das tabelas que não saem ficou repetida.
+   - A prévia devolve `linhas` sem o `modo` (`0100…up.sql:905`). Por isso o SDK mantém uma segunda lista das tabelas que só mudam: `TABELAS_QUE_NAO_SAEM` (`packages/platform-sdk/src/empresa-zerar.ts:106`), usada no `superRefine` (`:304`) e no agrupamento.
+   - Se a `limpar_cadastros` ganhar outro modo que não apaga, o banco soma certo, mas o SDK recusa a prévia ("fora do contrato") ou agrupa errado.
+   - **Correção:**
+     - banco-dados: incluir `'modo', l.r_modo` no `v_linhas` da `executar_previa_zerar`;
+     - eu: `LinhaPreviaZerarSchema` com `modo`, e a `TABELAS_QUE_NAO_SAEM` sai.
+   - Muda o contrato, mas a 0100 ainda é provisória e não está no `main`.
+3. **engenheiro-apps + engenheiro-software**: a espera pela prévia não tem teto.
+   - `apps/web/components/portal/dialogo-zerar.tsx:74` lê a cada 2 s enquanto a prévia está `em_andamento`, sem limite.
+   - Com o worker fora (deploy, processo parado) ou com a prévia passando dos 15 min, a tela mostra "Contando os dados…" até a prévia vencer: 1 hora, e só então aparece o 404.
+   - O cancelamento por `statement_timeout` (57014) não cai no `when others` da `executar_previa_zerar` (`0100…up.sql:915`) e volta 3 vezes.
+   - **Correção:** um prazo no SDK, por exemplo `PRAZO_PREVIA_ZERAR_MS` de 2 min contado do `criado_em`. Passado o prazo, a tela mostra a frase de falha com "Tentar de novo", que pede uma prévia com id novo, como o `refazer` já faz. O texto passa pelo designer-ux e pelo corretor.
+
+## Rodada 2 — 🟢 sugestões
+
+- **banco-dados**: a medição foi feita com 400 mil linhas. Antes do build, vale uma medição perto do limite de 2 milhões, no executar, para confirmar a folga dos 15 min e o tamanho da `limpeza_copia` (desenho §3.1, linha 100: "continua valendo").
+
+## Conferido sem achado (rodada 2)
+
+- **Prévia:**
+  - idempotente pelo id, e o id de outra empresa dá 23505 → 409 `ID_EM_USO`;
+  - `sa_ler_previa_zerar` filtra empresa e validade, e a ausente dá 404;
+  - o bloqueio é calculado na leitura (`zerar_previa_json` → `zerar_bloqueado`). Com um zerar em andamento, a tela vai direto ao andamento (`zerarJaRodando`).
+- **Contrato `PreviaZerarSchema`:** `.strict()`, coerência situação × campos no `superRefine`, e `total` = soma das linhas que saem. Exceção: a lista repetida do 🟡 2.
+- **Worker:**
+  - os 3 laços (zerar, prévia, descarte) dividem 2 conexões sem aninhar `connect`;
+  - a concessão de 2 min da prévia não duplica trabalho, porque a linha fica em `for update` durante a `executar_previa_zerar` e a `pegar_previa_zerar` usa `skip locked`;
+  - a `parar()` encerra os 3 laços e o pool.
+- **Down da 0100:** apaga as 4 `sa_*`, as 6 do worker, as internas e a `zerar_previa`. As do mapa saem por último, porque os CHECKs as usam.
+- **Listas:** `funcoes-sa.ts`, `estatico.test.ts` e `excecoes.ts` (`zerar_previa` só por função, sem `tenant_id`) e a `conferir-rls.sql` foram atualizados.
+- **Fronteiras:** sem mudança. O `apps/web` usa só `@macuxi/platform-sdk` e `@macuxi/integracao/contracts`.
+- **Logs:** a prévia registra só ids, situação, total, tabelas, bloqueio e `erro_codigo`. A mensagem do banco só aparece sem SQLSTATE, via `mensagemSegura`.
