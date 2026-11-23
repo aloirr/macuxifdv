@@ -22,3 +22,12 @@ export { rotuloDoLote, tomDoLote } from './lib/apresentacao';
 
 /** RN-INT-15: "lote em andamento" é o lote que ainda pode ser cancelado; o portal usa este nome para não repetir a regra. */
 export { podeCancelarLote as loteEmAndamento } from '../domain/status-lote';
+
+/**
+ * Desenho empresa-zerar §6.4: o monitor no portal `config.` (aba Integração da empresa), com o cliente HTTP do super-admin e os botões
+ * do portal em cada entidade; o detalhe por entidade e Conector; a chave do cache para atualizar depois de reprocessar ou zerar.
+ */
+export { MonitorPainel, type MonitorPainelProps } from './components/monitor-painel';
+export { type ClienteIntegracao, type OpcoesChamadaIntegracao } from './lib/cliente';
+export { type LinhaEntidade } from './lib/entidades';
+export { chaveDoCacheIntegracao, useMonitorDetalhes } from './lib/queries';

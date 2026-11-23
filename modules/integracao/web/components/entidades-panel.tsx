@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, EstadoVazio, Panel, TabelaDados, formatDateTime, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
@@ -16,7 +16,8 @@ import { HistoricoDialog } from './historico-dialog';
 /**
  * Integração ERP (RF-INT-04): uma linha por entidade, agregando os lotes recentes. "Reprocessar" só aparece com falha reprocessável
  * (RN-INT-15) e, sem `lote.reprocessar`, pede a senha de quem autoriza (RN-INT-16); "Histórico (n)" abre os lotes da entidade.
- * A API revalida licença, perfil e tenant.
+ * `acoesDaEntidade` põe botões de quem monta o painel na mesma célula, antes do Histórico (o portal põe "Zerar dados"). A API revalida
+ * licença, perfil e tenant.
  */
 export function EntidadesPanel({
   lotes,
@@ -24,12 +25,14 @@ export function EntidadesPanel({
   mudar,
   tz,
   perfil,
+  acoesDaEntidade,
 }: {
   lotes: readonly LoteListagemItem[];
   filtros: FiltrosMonitor;
   mudar: (patch: Partial<FiltrosMonitor>) => void;
   tz: string;
   perfil: Perfil | null;
+  acoesDaEntidade?: (linha: LinhaEntidade) => ReactNode;
 }) {
   const toast = useToast();
   const reprocessar = useReprocessarLote();
@@ -59,7 +62,7 @@ export function EntidadesPanel({
     {
       id: 'acoes',
       titulo: '',
-      largura: '260px',
+      largura: acoesDaEntidade ? '380px' : '260px',
       celula: (l) => (
         <span className="flex justify-end gap-2">
           {l.comFalha && (
@@ -67,6 +70,7 @@ export function EntidadesPanel({
               Reprocessar
             </Button>
           )}
+          {acoesDaEntidade?.(l)}
           <Button size="sm" onClick={() => mudar({ historico: l.entidade })} data-testid={`integracao.entidade.historico.${l.entidade}`}>
             Histórico ({l.lotes.length})
           </Button>

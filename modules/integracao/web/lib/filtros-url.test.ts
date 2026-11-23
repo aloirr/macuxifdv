@@ -16,4 +16,9 @@ describe('estado do monitor na URL (link compartilhável)', () => {
     expect(paraBusca(f)).toBe(`?historico=produto&lote=${LOTE}`);
     expect(lerFiltros(paraBusca(f))).toEqual(f);
   });
+
+  it('RF-INT-04: no portal, mantém os parâmetros da página (ex.: a aba) e tira só os filtros fechados', () => {
+    expect(paraBusca({ historico: 'cliente', lote: '' }, `?aba=integracao&lote=${LOTE}`)).toBe('?aba=integracao&historico=cliente');
+    expect(paraBusca(FILTROS_VAZIOS, '?aba=integracao&historico=cliente')).toBe('?aba=integracao');
+  });
 });

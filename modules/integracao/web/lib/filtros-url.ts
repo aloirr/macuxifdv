@@ -21,9 +21,13 @@ export function lerFiltros(busca: string): FiltrosMonitor {
   return { historico: valido(Entidade, p.get('historico')), lote: valido(Uuid, p.get('lote')) };
 }
 
-export function paraBusca(f: FiltrosMonitor): string {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+/** Grava os filtros do monitor na busca atual, sem tirar os parâmetros de quem monta a página (ex.: a aba do portal). */
+export function paraBusca(f: FiltrosMonitor, buscaAtual = ''): string {
+  const p = new URLSearchParams(buscaAtual);
+  for (const [k, v] of Object.entries(f)) {
+    if (v) p.set(k, v);
+    else p.delete(k);
+  }
   const s = p.toString();
   return s ? `?${s}` : '';
 }
