@@ -7,7 +7,7 @@
 - **Autor**: engenheiro-software. **Tarefa**: o gerente atribui o número. **Migração**: 0100.
 
 ## 1. Uma regra só, no banco
-A regra do que sai mora numa função só: **`plataforma.limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null, p_exigir_hub_parado boolean default true)`**, na migração 0100.
+A regra do que sai mora numa função só: **`plataforma.limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null, p_exigir_hub_parado boolean default true, p_simular boolean default false)`**, na migração 0100.
 - O corpo é o da `pg_temp.macuxi_limpar_cadastros` do #675, promovido a função `SECURITY DEFINER`, com as mudanças da §4.1 e o parâmetro `p_entidades` (`null` = a empresa inteira, igual ao #675).
 - Devolve `(r_ordem, r_tabela, r_modo, r_linhas)`: só nomes de tabela, o modo e contagens.
 - Não abre nem fecha transação: quem chama decide entre COMMIT (gravar) e ROLLBACK (simular).
@@ -69,7 +69,7 @@ Worker  (a cada hora) expurgar_zerar(20) → apaga a cópia dos concluídos venc
 Workflow psql (admin): plataforma.limpar_cadastros(tenant, lote, entidades, gravar) · restaurar_limpeza · descartar_limpeza
 ```
 - Falha = nada muda (uma transação).
-- A prévia é a mesma função desfeita, e por isso conta exatamente o que o worker vai fazer naquele instante.
+- A prévia é a mesma função com `p_simular`: as mesmas raízes e a mesma cascata, só contando o que o UPDATE e o DELETE pegariam (sem cópia, sem UPDATE, sem DELETE), numa subtransação desfeita. Conta o que o worker vai fazer naquele instante; o teste de banco confere tabelas, modos e linhas iguais aos do zerar.
 - Na prévia, `p_exigir_hub_parado = false`, e a função não trava as tabelas do Hub (§4.1 d).
 
 ### 3.1 Prévia no worker (revisão final, 🔴 2; decisão D1 do gerente da sessão E)
@@ -77,9 +77,9 @@ Workflow psql (admin): plataforma.limpar_cadastros(tenant, lote, entidades, grav
 
 **Decisão**: a prévia vira trabalho do worker, como o zerar.
 - **Portal**: `POST …/zerar/previa` (`PedirPreviaZerarSchema`: `id` gerado no portal, `entidades`) → 202 `PreviaZerar` em andamento. O mesmo id devolve a mesma prévia; id de outra empresa = 409 `ID_EM_USO`. `GET …/zerar/previa/:previa_id` → 200 `PreviaZerar`; inexistente ou de outra empresa = 404 `ZERAR_PREVIA_NAO_ENCONTRADA`. O GET síncrono com `?entidades=` saiu.
-- **Tela** (engenheiro-apps): pede a prévia ao abrir o diálogo e lê a cada `CONSULTA_PREVIA_ZERAR_MS` (2 s) até `pronta` ou `falhou`. O botão só libera com a prévia `pronta` e `bloqueio = null`. `falhou` mostra `mensagemDoZerar(erro_codigo)`.
+- **Tela** (engenheiro-apps): pede a prévia ao abrir o diálogo e lê a cada `CONSULTA_PREVIA_ZERAR_MS` (2 s) até `pronta` ou `falhou`, por no máximo `PRAZO_PREVIA_ZERAR_MS` (2 min, contado do pedido; depois, a falha da contagem com "Tentar de novo", que pede com id novo). O botão só libera com a prévia `pronta` e `bloqueio = null`. `falhou` mostra `mensagemDoZerar(erro_codigo)`.
 - **Worker** (`empresa-zerar-worker.ts`): laço próprio a cada 2 s, no pool do zerar (2 conexões: uma para o zerar, uma para a prévia), com `statement_timeout` de 15 min e `lock_timeout` de 5 s por `set local`. Até 10 prévias por ciclo. Erro = ROLLBACK e log, sem nova tentativa no mesmo ciclo.
-- **Banco** (banco-dados): sai a `sa_previa_zerar`. Entram `sa_pedir_previa_zerar(p_sid, p_tenant, p_id, p_entidades text[] default null) → jsonb`, `sa_ler_previa_zerar(p_sid, p_tenant, p_id) → jsonb` (EXECUTE só ao `macuxi_portal`), `pegar_previa_zerar() → table(id, empresa_id)` e `executar_previa_zerar(p_previa) → jsonb` (EXECUTE só ao `macuxi_worker`). A `executar_previa_zerar` roda a `limpar_cadastros` numa subtransação desfeita, sem a trava das tabelas do Hub. A concessão e o teto de tentativas ficam na `pegar_previa_zerar`, que fecha `falhou` com `ZERAR_FALHOU` no teto. Concessão curta (1 a 2 min): a tela fica esperando.
+- **Banco** (banco-dados): sai a `sa_previa_zerar`. Entram `sa_pedir_previa_zerar(p_sid, p_tenant, p_id, p_entidades text[] default null) → jsonb`, `sa_ler_previa_zerar(p_sid, p_tenant, p_id) → jsonb` (EXECUTE só ao `macuxi_portal`), `pegar_previa_zerar() → table(id, empresa_id)` e `executar_previa_zerar(p_previa) → jsonb` (EXECUTE só ao `macuxi_worker`). A `executar_previa_zerar` roda a `limpar_cadastros(tenant, lote, entidades, false, true)` (`p_simular`) numa subtransação desfeita, sem a trava das tabelas do Hub. A concessão e o teto de tentativas ficam na `pegar_previa_zerar`, que fecha `falhou` com `ZERAR_FALHOU` no teto. Concessão curta (1 a 2 min): a tela fica esperando.
 
 **Contrato** (`PreviaZerarSchema`, `.strict()`), o jsonb das quatro funções:
 
@@ -88,16 +88,16 @@ Workflow psql (admin): plataforma.limpar_cadastros(tenant, lote, entidades, grav
 | `id` | uuid | sempre |
 | `situacao` | `em_andamento` · `pronta` · `falhou` | sempre |
 | `entidades` | `EntidadeZerar[]` ou `null` (a empresa inteira) | sempre |
-| `linhas` | `[{ ordem, tabela, modo?, linhas }]` (só as com contagem) | não nulo na `pronta` |
+| `linhas` | `[{ ordem, tabela, modo, linhas }]` (só as com contagem) | não nulo na `pronta` |
 | `entidades_afetadas` | `EntidadeZerar[]` | não nulo na `pronta` |
 | `total` | linhas que saem (soft + físico) | não nulo na `pronta` |
 | `bloqueio` | código do `zerar_bloqueado` ou `null` (liberado) | sempre (o da hora da conta) |
 | `erro_codigo` | código técnico | só e sempre na `falhou` |
 | `criado_em` | instante ISO | sempre |
 
-`modo` é opcional: com ele, só `soft` e `fisico` contam no `total` (e o contrato confere a soma); sem ele, o banco manda só as linhas que saem.
+`modo` é obrigatório e é o do resumo da `limpar_cadastros` (o mesmo da `contagem` do zerar). Saem os `MODOS_QUE_SAEM` do SDK (`soft` e `fisico`), que somam o `total`, e o contrato confere a soma. Não saem `filial` (`core.filial` perde só o `external_id`), `sync_pacote` (o pacote vira `substituido`) e `girar` (`plataforma.tenant` gira a geração).
 
-**Medição antes do build** (continua valendo): a prévia e o executar numa base de volume real, para conferir os 15 min e o limite de 2 milhões.
+**Medidas** (400 mil linhas: prévia 1,35 s; ~2 milhões (1.999.963): zerar 1 min 27 s, prévia 23 s; banco-dados, 23/11/2026, Postgres 16 local): no limite de 2 milhões, o zerar fica dentro dos 15 min do worker e a prévia dentro dos 2 min da tela.
 
 **Depois do zerar, o ERP reenvia.** O Conector só lê o cursor do Hub quando não tem estado local (`apps/conector/src/sincronizador.ts:54-60`). Zerar o cursor no Hub **não** faz o Conector reenviar. O reenvio é `conector carga-completa <entidade>` (ou `todas`) no servidor do cliente, ou a carga pela API. A tela do resultado mostra esse comando com as `entidades_afetadas`. O pedido remoto de carga completa está na §6.3, como proposta.
 

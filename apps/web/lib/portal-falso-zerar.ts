@@ -165,7 +165,7 @@ function previaDaApi(x: EmpresaParaZerar, id: string, agora = Date.now()): Previ
   const base = { id, entidades: p.entidades, criado_em: iso(p.criado_em), erro_codigo: null };
   if (agora < p.criado_em + PREVIA_FALSA_MS) return { ...base, situacao: 'em_andamento', linhas: null, entidades_afetadas: null, total: null, bloqueio: null };
   const { tabelas, afetadas } = contar(x, p.entidades);
-  const linhas = tabelas.map((t, ordem) => ({ ordem, tabela: t.tabela, linhas: t.linhas }));
+  const linhas = tabelas.map((t, ordem) => ({ ordem, tabela: t.tabela, modo: t.modo, linhas: t.linhas }));
   return { ...base, situacao: 'pronta', linhas, entidades_afetadas: afetadas, total: linhasQueSaem(tabelas), bloqueio: bloqueioFalso(x) };
 }
 

@@ -186,9 +186,10 @@ describe.skipIf(semBanco() || !banco().urlWorker || !banco().urlPortal)('API × 
       expect(previa.entidades_afetadas).toEqual(['filial', 'vendedor', 'produto', 'cliente']);
       // 🔴 1 da revisão: a empresa inteira leva os usuários não administradores (o vendedor), e a tela vê o grupo
       expect(resumirPreviaPorGrupo(previa.linhas!).find((g) => g.grupo === 'usuarios')?.linhas).toBeGreaterThanOrEqual(1);
-      // sem o modo na prévia, os grupos da tela somam o total do banco (filial, pacote e giro da geração não saem)
+      // os grupos da tela somam o total do banco: saem só os MODOS_QUE_SAEM (filial, sync_pacote e girar ficam)
       expect(resumirPreviaPorGrupo(previa.linhas!).reduce((a, g) => a + g.linhas, 0)).toBe(previa.total);
-      expect(previa.linhas!.some((t) => t.tabela === 'plataforma.tenant')).toBe(true);
+      expect(previa.linhas!.find((t) => t.tabela === 'plataforma.tenant')?.modo).toBe('girar');
+      expect(previa.linhas!.find((t) => t.tabela === 'core.filial')?.modo).toBe('filial');
       expect([await ficam(), await vivos()]).toEqual([fica0, vivos0]);
       expect((await admin.query('select 1 from plataforma.limpeza_copia where empresa_id = $1', [tenant])).rowCount).toBe(0);
 

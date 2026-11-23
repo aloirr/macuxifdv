@@ -94,25 +94,20 @@ export const LOTE_LIMPEZA_FORMATO = /^[0-9]{8}T[0-9]{6}Z(-[0-9a-f]{8})?$/;
 /**
  * O que a limpeza faz em cada tabela (a mesma coluna `modo` da cópia): `soft` = `deleted_at`; `fisico` = DELETE (Hub e filas);
  * `filial` = a filial fica e só perde o `external_id`; `sync_pacote` = pacote pronto vira substituído; `girar` = a
- * `geracao_base` do tenant gira (os aparelhos puxam de novo). Só `soft` e `fisico` contam como linhas que saem.
+ * `geracao_base` do tenant gira (os aparelhos puxam de novo).
  */
 export const MODOS_LIMPEZA = ['soft', 'fisico', 'filial', 'sync_pacote', 'girar'] as const;
 export type ModoLimpeza = (typeof MODOS_LIMPEZA)[number];
-const MODOS_QUE_APAGAM: ReadonlySet<ModoLimpeza> = new Set(['soft', 'fisico']);
-/**
- * Tabelas que a limpeza só muda e nunca apaga (modos `filial`, `sync_pacote` e `girar`): a prévia não traz o `modo`, e estas
- * ficam fora das linhas que saem.
- */
-const TABELAS_QUE_NAO_SAEM: ReadonlySet<string> = new Set(['core.filial', 'plataforma.sync_pacote', 'plataforma.tenant']);
-const sai = (t: { tabela: string; modo?: ModoLimpeza | undefined }): boolean =>
-  t.modo === undefined ? !TABELAS_QUE_NAO_SAEM.has(t.tabela) : MODOS_QUE_APAGAM.has(t.modo);
+/** Modos cujas linhas saem (somam o total da prévia e o `linhas_apagadas` do zerar). Os outros só mudam a linha. */
+export const MODOS_QUE_SAEM: ReadonlySet<ModoLimpeza> = new Set(['soft', 'fisico']);
+const sai = (t: { modo: ModoLimpeza }): boolean => MODOS_QUE_SAEM.has(t.modo);
 
 /** Uma linha do resultado da `limpar_cadastros`: tabela, o que foi feito e quantas linhas. */
 export const LinhaLimpezaSchema = z.object({ tabela: Tabela, modo: z.enum(MODOS_LIMPEZA), linhas: Contagem }).strict();
 export type LinhaLimpeza = z.infer<typeof LinhaLimpezaSchema>;
-/** Linhas que saem (soft + físico) de um resultado da limpeza. */
+/** Linhas que saem (`MODOS_QUE_SAEM`) de um resultado da limpeza. */
 export const linhasQueSaem = (l: readonly LinhaLimpeza[]): number => somaQueSai(l);
-function somaQueSai(l: readonly { tabela: string; modo?: ModoLimpeza | undefined; linhas: number }[]): number {
+function somaQueSai(l: readonly { modo: ModoLimpeza; linhas: number }[]): number {
   return l.reduce((a, x) => a + (sai(x) ? x.linhas : 0), 0);
 }
 const ResultadoLimpeza = z.array(LinhaLimpezaSchema).max(MAX_TABELAS_ZERAR);
@@ -265,10 +260,12 @@ export const SITUACOES_PREVIA_ZERAR = ['em_andamento', 'pronta', 'falhou'] as co
 export type SituacaoPreviaZerar = (typeof SITUACOES_PREVIA_ZERAR)[number];
 
 /**
- * Uma linha da prévia: a ordem e a tabela da `limpar_cadastros` e quantas linhas (só as com contagem). Sem `modo`: as linhas de
- * `core.filial`, `plataforma.sync_pacote` e `plataforma.tenant` mudam e não saem; as outras saem.
+ * Uma linha da prévia: a ordem, a tabela e o `modo` da `limpar_cadastros` e quantas linhas (só as com contagem). Saem as de
+ * `MODOS_QUE_SAEM`; as outras só mudam.
  */
-export const LinhaPreviaZerarSchema = z.object({ ordem: Contagem, tabela: Tabela, linhas: Contagem }).strict();
+export const LinhaPreviaZerarSchema = z
+  .object({ ordem: Contagem, tabela: Tabela, modo: z.enum(MODOS_LIMPEZA), linhas: Contagem })
+  .strict();
 export type LinhaPreviaZerar = z.infer<typeof LinhaPreviaZerarSchema>;
 
 /**
@@ -361,11 +358,11 @@ export function grupoDaTabelaZerar(tabela: string): GrupoZerar {
 }
 
 /**
- * Soma, por grupo, das linhas que saem (soft e físico; sem `modo`, menos as tabelas que só mudam), na ordem de `GRUPOS_ZERAR`,
+ * Soma, por grupo, das linhas que saem (`MODOS_QUE_SAEM`), na ordem de `GRUPOS_ZERAR`,
  * só os grupos com linhas. Recebe as `linhas` da prévia pronta ou a `contagem` do zerar concluído.
  */
 export function resumirPreviaPorGrupo(
-  tabelas: readonly { tabela: string; modo?: ModoLimpeza | undefined; linhas: number }[],
+  tabelas: readonly { tabela: string; modo: ModoLimpeza; linhas: number }[],
 ): { grupo: GrupoZerar; rotulo: string; linhas: number }[] {
   const soma = new Map<GrupoZerar, number>();
   for (const t of tabelas) {

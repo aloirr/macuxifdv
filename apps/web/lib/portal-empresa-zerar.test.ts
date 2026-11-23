@@ -27,7 +27,7 @@ const previa = (x: Partial<PreviaZerar> = {}): PreviaZerar => ({
   id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000010',
   situacao: 'pronta',
   entidades: null,
-  linhas: [{ ordem: 0, tabela: 'core.cliente', linhas: 10 }],
+  linhas: [{ ordem: 0, tabela: 'core.cliente', modo: 'soft', linhas: 10 }],
   entidades_afetadas: ['cliente'],
   total: 10,
   bloqueio: null,

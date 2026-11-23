@@ -153,11 +153,11 @@ describe('contratos das rotas', () => {
       situacao: 'pronta',
       entidades: ['cliente'],
       linhas: [
-        { ordem: 1, tabela: 'core.cliente', linhas: 3 },
-        { ordem: 2, tabela: 'integracao.registro_atual', linhas: 2 },
-        { ordem: 201, tabela: 'core.filial', linhas: 1 },
-        { ordem: 202, tabela: 'plataforma.sync_pacote', linhas: 4 },
-        { ordem: 203, tabela: 'plataforma.tenant', linhas: 1 },
+        { ordem: 1, tabela: 'core.cliente', modo: 'soft', linhas: 3 },
+        { ordem: 2, tabela: 'integracao.registro_atual', modo: 'fisico', linhas: 2 },
+        { ordem: 201, tabela: 'core.filial', modo: 'filial', linhas: 1 },
+        { ordem: 202, tabela: 'plataforma.sync_pacote', modo: 'sync_pacote', linhas: 4 },
+        { ordem: 203, tabela: 'plataforma.tenant', modo: 'girar', linhas: 1 },
       ],
       entidades_afetadas: ['cliente', 'cliente_endereco'],
       total: 5,
@@ -174,9 +174,11 @@ describe('contratos das rotas', () => {
     expect(PreviaZerarSchema.safeParse({ ...andamento, erro_codigo: 'ZERAR_FALHOU' }).success).toBe(false);
     expect(PreviaZerarSchema.safeParse({ ...pronta, total: null }).success).toBe(false);
     expect(PreviaZerarSchema.safeParse({ ...pronta, total: 6 }).success).toBe(false);
-    // o banco não manda o modo: filial, pacote de sync e o giro da geração mudam e não saem
+    // filial, sync_pacote e girar mudam e não saem: o total é só soft + fisico
     expect(PreviaZerarSchema.safeParse({ ...pronta, total: 11 }).success).toBe(false);
-    expect(PreviaZerarSchema.safeParse({ ...pronta, linhas: [{ ordem: 1, tabela: 'core.cliente', modo: 'soft', linhas: 5 }] }).success).toBe(false);
+    // modo obrigatório e da lista
+    expect(PreviaZerarSchema.safeParse({ ...pronta, linhas: [{ ordem: 1, tabela: 'core.cliente', linhas: 5 }], total: 5 }).success).toBe(false);
+    expect(PreviaZerarSchema.safeParse({ ...pronta, linhas: [{ ordem: 1, tabela: 'core.cliente', modo: 'apagar', linhas: 5 }], total: 5 }).success).toBe(false);
     expect(PreviaZerarSchema.safeParse({ ...pronta, bloqueio: Z.naoEncontrada }).success).toBe(true);
     expect(PreviaZerarSchema.safeParse({ ...pronta, bloqueio: Z.volumeAlto }).success).toBe(true);
     expect(PreviaZerarSchema.safeParse({ ...pronta, bloqueio: Z.hubProcessando }).success).toBe(true);
@@ -214,9 +216,9 @@ describe('agrupamento da prévia', () => {
         { tabela: 'core.filial', modo: 'filial', linhas: 2 },
         { tabela: 'core.produto', modo: 'soft', linhas: 0 },
         { tabela: 'plataforma.sync_pacote', modo: 'sync_pacote', linhas: 7 },
-        { tabela: 'core.usuario', linhas: 5 },
-        { tabela: 'core.filial', linhas: 2 },
-        { tabela: 'plataforma.tenant', linhas: 1 },
+        { tabela: 'core.usuario', modo: 'soft', linhas: 5 },
+        { tabela: 'plataforma.evento', modo: 'soft', linhas: 0 },
+        { tabela: 'plataforma.tenant', modo: 'girar', linhas: 1 },
       ]),
     ).toEqual([
       { grupo: 'cadastros', rotulo: ROTULO_GRUPO_ZERAR.cadastros, linhas: 3 },

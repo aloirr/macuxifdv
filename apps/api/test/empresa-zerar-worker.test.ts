@@ -28,7 +28,7 @@ const previaPronta = {
   id: PREVIA,
   situacao: 'pronta',
   entidades: ['cliente'],
-  linhas: [{ ordem: 1, tabela: 'core.cliente', linhas: 30 }],
+  linhas: [{ ordem: 1, tabela: 'core.cliente', modo: 'soft', linhas: 30 }],
   entidades_afetadas: ['cliente'],
   total: 30,
   bloqueio: null,
