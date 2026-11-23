@@ -144,6 +144,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       await t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'aprovar' }, { id: ID2 });
       await t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'aprovar' }, { id: ID1 });
       expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id).sort()).toEqual([ID1, ID2]);
+      await t.q("update core.cliente set aprovado_em = aprovado_em - interval '1 minute' where id = $1", [ID2]); // ordem de aprovação sem empate de milissegundo
       const p1 = await t.lista({ limite: 1 });
       expect(p1.clientes).toHaveLength(1);
       expect(p1.proximo).toBe(p1.clientes[0].cliente_id);
@@ -153,7 +154,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       expect(p2.clientes[0].cliente_id).not.toBe(p1.clientes[0].cliente_id);
       expect(p2.proximo).toBeNull();
 
-      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID1, ID2]);
+      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID2, ID1]);
     });
   });
 });

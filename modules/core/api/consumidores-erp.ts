@@ -11,6 +11,7 @@ import { EVENTO_CLIENTE_ATUALIZADO, PARAMETRO_CAMPOS_OBRIGATORIOS } from '../con
 import { EVENTO_ERP_CLIENTE_ATUALIZADO } from '../../integracao/contracts';
 import { camposExigidos, canalDoClienteDoErp, decidirOrdemErp, filialDoClienteDoErp, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
 import { aplicarCarteiraDoErp, aplicarContatosDoErp, aplicarFinanceiroDoErp } from './consumidores-erp-cliente-extras';
+import { consumidorClienteRetornoErp } from './consumidores-erp-cliente-retorno';
 import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-endereco';
 import { ReferenciaAusenteErp } from './erp-apoio';
 import { consumidorFilialDoErp } from './consumidores-erp-filial';
@@ -150,6 +151,7 @@ export const consumidoresDoErp: ConsumidorEvento[] = [
   consumidorFilialDoErp, // antes do cliente: a filial do cliente aponta para ela (ordem de carga, desenho T-0149 §4.4)
   consumidorVendedorDoErp,
   consumidorClienteDoErp,
+  consumidorClienteRetornoErp, // RN-CORE-78: código do ERP do cliente aprovado
   consumidorProdutoDoErp,
   consumidorProdutoUnidadeDoErp,
   consumidorClienteEnderecoDoErp,
