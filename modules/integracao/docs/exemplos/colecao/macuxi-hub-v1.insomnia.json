@@ -21,7 +21,8 @@
         "base_url": "https://{{ _.servidor }}/integracao/v1",
         "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
         "entidade": "produto",
-        "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c"
+        "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+        "cliente_uuid": ""
       },
       "dataPropertyOrder": null,
       "isPrivate": false
@@ -876,6 +877,112 @@
       }
     },
     {
+      "_id": "fld_clientes novos",
+      "_type": "request_group",
+      "parentId": "wrk_macuxi_hub_v1",
+      "name": "Clientes novos",
+      "description": "Pré-cadastros de cliente aprovados no BKO para criar no ERP e retorno do código do ERP (RN-INT-22)."
+    },
+    {
+      "_id": "req_clientes_pendentes",
+      "_type": "request",
+      "parentId": "fld_clientes novos",
+      "name": "Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22)",
+      "description": "**GET /clientes/pendentes** — Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).\n\nClientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/clientes/pendentes",
+      "parameters": [
+        {
+          "name": "limite",
+          "value": "50",
+          "disabled": true,
+          "description": "Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100."
+        }
+      ],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {}
+    },
+    {
+      "_id": "req_retorno_cliente_vinculado",
+      "_type": "request",
+      "parentId": "fld_clientes novos",
+      "name": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição — vinculado",
+      "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `vinculado` (Cliente criado no ERP (informe o código)).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/clientes/{{ _.cliente_uuid }}/retorno",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n  \"status\": \"vinculado\",\n  \"external_id\": \"C-004512\",\n  \"ocorrido_em\": \"2026-11-23T14:02:00Z\"\n}"
+      }
+    },
+    {
+      "_id": "req_retorno_cliente_rejeitado_erp",
+      "_type": "request",
+      "parentId": "fld_clientes novos",
+      "name": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição — rejeitado_erp",
+      "description": "**POST /clientes/{cliente_uuid}/retorno** — Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).\n\nRetorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o cadastro (o motivo é obrigatório)).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/clientes/{{ _.cliente_uuid }}/retorno",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n  \"status\": \"rejeitado_erp\",\n  \"motivo\": \"CNPJ já cadastrado com outro código\",\n  \"ocorrido_em\": \"2026-11-23T14:02:00Z\"\n}"
+      }
+    },
+    {
       "_id": "fld_pedidos",
       "_type": "request_group",
       "parentId": "wrk_macuxi_hub_v1",
@@ -887,7 +994,7 @@
       "_type": "request",
       "parentId": "fld_pedidos",
       "name": "Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08)",
-      "description": "**GET /pedidos/pendentes** — Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).\n\nPedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos devolver por consulta. Padrão 50, máximo 100.",
+      "description": "**GET /pedidos/pendentes** — Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).\n\nPedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.",
       "method": "GET",
       "url": "{{ _.base_url }}/pedidos/pendentes",
       "parameters": [
@@ -895,7 +1002,7 @@
           "name": "limite",
           "value": "50",
           "disabled": true,
-          "description": "Quantos pedidos devolver por consulta. Padrão 50, máximo 100."
+          "description": "Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100."
         }
       ],
       "headers": [

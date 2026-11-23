@@ -6,6 +6,7 @@ export * from './base';
 export * from './entidades';
 export * from './lote';
 export * from './pedido';
+export * from './cliente-erp';
 export * from './conector';
 export * from './hub';
 export * from './bko';

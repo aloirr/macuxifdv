@@ -33,7 +33,7 @@ describe('Guia da API em PDF (docs/guia-api-hub.pdf)', () => {
 
   it('tem uma seção por operação do OpenAPI, com método, caminho, exemplo JSON e tabela de campos', () => {
     const operacoes = Object.entries(doc.paths).flatMap(([caminho, ops]) => Object.entries(ops).map(([metodo, op]) => ({ caminho, metodo, id: (op as { operationId: string }).operationId })));
-    expect(operacoes).toHaveLength(7);
+    expect(operacoes).toHaveLength(9);
     for (const o of operacoes) {
       const s = secoes.find((x) => x.id === `rota-${o.id}`);
       expect(s, o.id).toBeDefined();
@@ -71,7 +71,7 @@ describe('Guia da API em PDF (docs/guia-api-hub.pdf)', () => {
     }
   });
 
-  it('cita as 7 rotas do contrato, as 16 entidades e os cabeçalhos', () => {
+  it('cita as 9 rotas do contrato, as 16 entidades e os cabeçalhos', () => {
     for (const r of ROTAS_HUB) expect(texto, `${r.metodo} ${r.caminho}`).toContain(r.caminho);
     for (const e of ENTIDADES) expect(texto, e).toContain(e);
     for (const h of ['Authorization', 'X-Macuxi-Conector-Id', 'X-Macuxi-Conector-Versao', 'Idempotency-Key', 'Idempotent-Replay', 'Retry-After', 'X-Request-Id']) expect(texto, h).toContain(h);

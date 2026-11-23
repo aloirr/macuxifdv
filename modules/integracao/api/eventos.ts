@@ -3,6 +3,7 @@
  * este arquivo só reexporta para as rotas. Registro em `.coord/contratos/eventos.md`.
  */
 export {
+  EVENTO_CLIENTE_RETORNO_ERP,
   EVENTO_LOTE_RECEBIDO,
   EVENTO_LOTE_CONCLUIDO,
   EVENTO_PEDIDO_CANCELAMENTO_RECUSADO,

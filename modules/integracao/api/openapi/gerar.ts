@@ -12,6 +12,7 @@ import * as entidades from '../../contracts/entidades';
 import * as hub from '../../contracts/hub';
 import * as lote from '../../contracts/lote';
 import * as pedido from '../../contracts/pedido';
+import * as clienteErp from '../../contracts/cliente-erp';
 import {
   CABECALHO_CONECTOR_ID,
   CABECALHO_CONECTOR_VERSAO,
@@ -22,6 +23,7 @@ import {
   LoteEnvelope,
   RecusaLote,
   RecusaRetorno,
+  RecusaRetornoCliente,
   ROTAS_HUB,
   SCHEMA_REGISTRO,
   VERSAO_CONTRATO,
@@ -31,6 +33,9 @@ import { ConversorZod, campoObrigatorio, type JsonSchema } from './zod-json-sche
 import {
   CHAVE_IDEMPOTENCIA_EXEMPLO,
   CONECTOR_ID_EXEMPLO,
+  EXEMPLOS_CLIENTES_PENDENTES,
+  EXEMPLOS_RETORNO_CLIENTE,
+  EXEMPLOS_RETORNO_CLIENTE_ACEITO,
   EXEMPLOS_CURSOR,
   EXEMPLOS_ERRO_COMUM,
   EXEMPLOS_ERRO_ROTA,
@@ -71,6 +76,7 @@ const EXEMPLOS_CORPO: Record<string, readonly Exemplo[]> = {
   enviar_lote: EXEMPLOS_LOTE,
   enviar_reconciliacao: EXEMPLOS_RECONCILIACAO,
   retorno_pedido: EXEMPLOS_RETORNO,
+  retorno_cliente: EXEMPLOS_RETORNO_CLIENTE,
   sinal: EXEMPLOS_SINAL,
 };
 
@@ -82,6 +88,8 @@ const EXEMPLOS_SUCESSO: Record<string, readonly Exemplo[]> = {
   enviar_reconciliacao: EXEMPLOS_RECONCILIACAO_RESPOSTA,
   pedidos_pendentes: EXEMPLOS_PEDIDOS_PENDENTES,
   retorno_pedido: EXEMPLOS_RETORNO_ACEITO,
+  clientes_pendentes: EXEMPLOS_CLIENTES_PENDENTES,
+  retorno_cliente: EXEMPLOS_RETORNO_CLIENTE_ACEITO,
   sinal: EXEMPLOS_RESPOSTA_SINAL,
 };
 
@@ -94,6 +102,7 @@ export function schemaDeErro(rotaId: string, status: number): z.ZodTypeAny {
   if (rotaId === 'enviar_lote') return status === 400 || status === 413 ? z.union([RecusaLote, ErroHub]) : RecusaLote;
   if (rotaId === 'enviar_reconciliacao' && status === 422) return RecusaLote;
   if (rotaId === 'retorno_pedido' && status === 422) return RecusaRetorno;
+  if (rotaId === 'retorno_cliente' && status === 422) return RecusaRetornoCliente;
   return ErroHub;
 }
 
@@ -106,6 +115,8 @@ const TAG_DA_ROTA: Record<string, string> = {
   enviar_reconciliacao: 'Lotes',
   pedidos_pendentes: 'Pedidos',
   retorno_pedido: 'Pedidos',
+  clientes_pendentes: 'Clientes novos',
+  retorno_cliente: 'Clientes novos',
   sinal: 'Conector',
 };
 
@@ -123,6 +134,8 @@ const DESCRICAO_ROTA: Record<string, string> = {
   retorno_pedido:
     'Retorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. ' +
     'Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.',
+  clientes_pendentes: 'Clientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).',
+  retorno_cliente: 'Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.',
   sinal: 'Sinal de vida (1 por minuto). Responde com a política de versão vigente. É a única rota liberada para o Conector abaixo da versão mínima.',
 };
 
@@ -133,6 +146,8 @@ const DESCRICAO_SUCESSO: Record<string, string> = {
   enviar_reconciliacao: 'Reconciliação recebida (`situacao: pendente` = ainda há lote da entidade em aberto; a comparação definitiva sai quando ele terminar).',
   pedidos_pendentes: 'Pedidos para gravar no ERP (a lista vazia é normal).',
   retorno_pedido: 'Retorno aplicado (ou repetido).',
+  clientes_pendentes: 'Clientes novos para criar no ERP (a lista vazia é normal).',
+  retorno_cliente: 'Retorno aplicado (ou repetido).',
   sinal: 'Sinal recebido; traz a política de versão.',
 };
 
@@ -154,6 +169,10 @@ const DESCRICAO_ERRO_ROTA: Record<string, Record<number, string>> = {
   consultar_lote: { 404: '`lote_nao_encontrado`: lote inexistente, de outro Conector ou de outra empresa (não se distingue). Reenvie o lote com a mesma `Idempotency-Key`.' },
   consultar_cursor: { 404: '`entidade_desconhecida`: use uma das entidades do contrato.' },
   enviar_reconciliacao: { 422: '`entidade_de_outro_conector`: a entidade é alimentada por outro Conector da empresa.' },
+  retorno_cliente: {
+    400: 'Corpo fora do contrato, ou `cliente_uuid` do caminho diferente do corpo.',
+    422: 'Retorno recusado: `cliente_desconhecido`, `cliente_nao_entregue`, `transicao_invalida` ou `external_id_divergente`. Definitivo: o retorno não deve ser reenviado igual.',
+  },
   retorno_pedido: {
     400: 'Corpo fora do contrato, ou `pedido_uuid` do caminho diferente do corpo.',
     422: 'Retorno recusado: `pedido_desconhecido`, `pedido_nao_entregue`, `transicao_invalida` ou `numero_erp_divergente`. Definitivo: o retorno não deve ser reenviado igual.',
@@ -166,9 +185,10 @@ const DESCRICAO_PARAMETRO: Record<string, string> = {
   [CABECALHO_IDEMPOTENCIA.toLowerCase()]: 'Chave de idempotência do lote (16 a 128 caracteres). O Conector envia o SHA-256 hexadecimal do conteúdo; reenvie a MESMA chave após queda ou resposta perdida.',
   id: 'Identificador do lote (`lote_id` devolvido pelo `POST /lotes`).',
   entidade: 'Entidade do contrato.',
+  cliente_uuid: 'UUID do cliente (`cliente_uuid` de `GET /clientes/pendentes`).',
   pedido_uuid: 'UUID do pedido (`pedido_uuid` de `GET /pedidos/pendentes`).',
   limite_erros: 'Quantos erros por linha devolver (as `falha_processamento` vêm primeiro). Padrão 1.000, máximo 5.500.',
-  limite: 'Quantos pedidos devolver por consulta. Padrão 50, máximo 100.',
+  limite: 'Quantos pedidos (ou clientes) devolver por consulta. Padrão 50, máximo 100.',
 };
 
 const EXEMPLO_PARAMETRO: Record<string, unknown> = {
@@ -330,7 +350,7 @@ function montarOperacao(conversor: ConversorZod, rota: RotaHub, parametrosCompon
 
 export function gerarOpenApiHub(): DocumentoOpenApi {
   const conversor = new ConversorZod();
-  for (const modulo of [base, entidades, lote, pedido, conector, hub]) conversor.registrar(modulo, DESCRICOES_SCHEMA);
+  for (const modulo of [base, entidades, lote, pedido, clienteErp, conector, hub]) conversor.registrar(modulo, DESCRICOES_SCHEMA);
 
   const parametrosComponentes: Record<string, unknown> = {};
   const paths: Record<string, Record<string, unknown>> = {};
@@ -389,6 +409,7 @@ export function gerarOpenApiHub(): DocumentoOpenApi {
     ],
     tags: [
       { name: 'Lotes', description: 'Envio de dados do ERP (lotes completos e delta), consulta do resultado, cursor e reconciliação diária.' },
+      { name: 'Clientes novos', description: 'Pré-cadastros de cliente aprovados no BKO para criar no ERP e retorno do código do ERP (RN-INT-22).' },
       { name: 'Pedidos', description: 'Devolução de pedidos aprovados ao ERP e retorno do ERP (número, rejeição, faturamento, cancelamento).' },
       { name: 'Conector', description: 'Sinal de vida e política de versão.' },
     ],
