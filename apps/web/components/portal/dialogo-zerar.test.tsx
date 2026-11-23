@@ -12,7 +12,7 @@ import { responderFalso } from '@/lib/portal-falso';
 import { PREVIA_FALSA_MS } from '@/lib/portal-falso-zerar';
 import type { EmpresaResumo } from '@/lib/portal-empresa-acoes';
 
-import { chavePreviaZerar, chaveZerar, DialogoZerar } from './dialogo-zerar';
+import { chavePreviaZerar, chaveZerar, DialogoZerar, PRAZO_PREVIA_ZERAR_MS } from './dialogo-zerar';
 
 type Empresa = EmpresaResumo & { acoes: AcoesDaEmpresa };
 let token = '';
@@ -70,6 +70,30 @@ describe('diálogo Zerar dados', () => {
     expect(html).not.toContain('empresa-zerar.codigo');
     expect(html).not.toContain('empresa-acao.confirmar');
     expect(html).toContain('>Fechar</button>');
+  });
+  it('prazo da prévia (worker fora): antes do prazo, o giro; no prazo, a falha da contagem com "Tentar de novo", sem campos', async () => {
+    const e = porCodigo('AM2290');
+    const { calculando } = await previaFalsa(e);
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-11-23T12:00:00.000Z'));
+      const agora = Date.now();
+      const render = (desde: number) =>
+        com({ previa: calculando, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ previaDesde: desde }} />);
+      const antes = render(agora - PRAZO_PREVIA_ZERAR_MS + 1);
+      expect(antes).toContain('data-testid="empresa-zerar.calculando"');
+      expect(antes).not.toContain('empresa-zerar.previa-falhou');
+      const estourou = render(agora - PRAZO_PREVIA_ZERAR_MS);
+      expect(estourou).toContain('data-testid="empresa-zerar.previa-falhou"');
+      expect(estourou).toContain('Não foi possível contar os dados. Tente de novo.');
+      expect(estourou).toContain('Tentar de novo');
+      expect(estourou).not.toContain('empresa-zerar.calculando');
+      expect(estourou).not.toContain('Contando os dados…');
+      expect(estourou).not.toContain('empresa-zerar.codigo');
+      expect(estourou).not.toContain('empresa-acao.confirmar');
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('prévia que falhou no worker: a frase do SDK com "Tentar de novo", sem campos', () => {
     const e = porCodigo('AM2290');
