@@ -133,7 +133,8 @@ depois do `rollback to savepoint`, pela função pura `decidirConflitoUnicidade`
 Rotas com `superficie: 'bko'`, `carteira: 'nao_se_aplica'` (o tenant inteiro), licença do Core pelo SDK, RLS do tenant; a API revalida
 tudo o que o BKO mandar (mesma função compartilhada do item 3). O motivo e os erros por campo passam a ir também a quem tem a ação
 `cliente.pre_cadastro_recusados` (analista e admin); para os demais perfis, fora o vendedor da carteira, seguem nulos
-(`motivoRecusaVisivel` não muda: ela é a regra do pull e do Cliente 360). Nunca em log nem na auditoria. **Decidido** (resposta (d)):
+(no pull e no Cliente 360 a regra é a função pura `perfilVeRecusa(perfil)` do domain do Core, que substitui
+a `motivoRecusaVisivel` da ADR 0067). Nunca em log nem na auditoria. **Decidido** (resposta (d)):
 ver e corrigir recusados no BKO é só para analista e admin; supervisor e gerente não recebem as ações.
 
 ### 8. Hub `/integracao/v1` (RN-INT-22), aditivo na v1
@@ -343,7 +344,8 @@ export const EVENTO_CLIENTE_PRE_CADASTRO_REVISADO = definirEvento('core.cliente.
 | `validarPreCadastro(dados, exigidos: readonly CampoCadastroCliente[])` (revista: obrigatório pela `cadastroCompleto` + formatos de hoje) | idem | RN-CORE-16, RN-CORE-79 |
 | `projecaoLegadaObrigatorios(exigidos: readonly CampoCadastroCliente[]): CampoPreCadastroConfiguravel[]` | idem | RN-CORE-79 (compat. v1.0.28) |
 | `idDoReenvio` (app, revista): o recusado reenvia com o **mesmo** id e `revisao_base = revisao_cadastro` | `app/lib/pre-cadastro-local.ts` | RN-CORE-78 |
-Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas por `obrigatoriosDoPreCadastro` + `cadastroCompleto`);
+Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas por `obrigatoriosDoPreCadastro` + `cadastroCompleto`) e
+`motivoRecusaVisivel` (trocada por `perfilVeRecusa(perfil): boolean`, que filtra o motivo e os erros por campo de uma vez);
 `sobreporPreCadastros` deixa de esconder o recusado do mesmo documento quando o item da fila tem o mesmo `id`.
 
 ### C. API do Core — modulo-core
