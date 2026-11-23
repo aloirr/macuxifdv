@@ -1,0 +1,162 @@
+name: producao — limpar cadastros de uma empresa
+
+# Ordem do Alexandre (23/11/2026, AM2808): "APAGUE TUDO AGORA. VOU REENVIAR PELO ERP" e "1 A / 2 b / 3 A" (pedidos também saem).
+# Apaga, de UMA empresa, os cadastros do ERP, os pedidos e tudo o que aponta para eles, o Hub inteiro (lotes, erros, staging,
+# registro_atual, cursores, sessões, filas) e os eventos não publicados da outbox. Fica: empresa, plano, licenças, usuários,
+# perfis, parâmetros, conectores e credenciais. Regras, modo de cada tabela (soft ou físico) e cópia de segurança: cabeçalho de
+# scripts/producao/limpar-cadastros-rotina.sql (a mesma rotina do "Zerar dados" da v1.0.30).
+#
+# Modos: simular (mesma transação, contagens por tabela e ROLLBACK) · apagar (cópia de segurança e limpeza numa transação só,
+# depois o pg_dump da cópia na VM) · restaurar (volta UM lote pela cópia; só antes do reenvio do ERP).
+# Só manual, só no environment PRODUCAO (aprovação do Alexandre; o environment só aceita tag) e só numa tag. Roda na VM,
+# pelo pgcliente (psql 16 como o admin, dono das tabelas); o runner não tem docker. O log mostra só nomes de tabela,
+# contagens, status e identificadores técnicos de conector: nenhum dado pessoal (VERBOSITY terse, sem DETAIL).
+# Teste local (Postgres da sessão): bash scripts/producao/teste/limpar-cadastros.teste.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      empresa:
+        description: código da empresa (ex. AM2808)
+        required: true
+        default: AM2808
+      modo:
+        description: simular (nada muda) · apagar · restaurar (um lote, pela cópia de segurança)
+        type: choice
+        options: [simular, apagar, restaurar]
+        default: simular
+      confirmar:
+        description: 'apagar = "APAGAR CADASTROS <empresa>" · restaurar = "RESTAURAR CADASTROS <empresa> <lote>" · simular = vazio'
+        required: false
+        default: ''
+      lote:
+        description: só no restaurar — o lote do apagar (AAAAMMDDTHHMMSSZ, no resumo dele)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  limpar:
+    name: limpar cadastros (${{ inputs.modo }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: PRODUCAO
+    env:
+      DC: docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T pgcliente
+    steps:
+      - name: entradas
+        id: entradas
+        env:
+          EMPRESA: ${{ inputs.empresa }}
+          MODO: ${{ inputs.modo }}
+          CONFIRMAR: ${{ inputs.confirmar }}
+          LOTE: ${{ inputs.lote }}
+        run: |
+          [ "$GITHUB_REF_TYPE" = tag ] || { echo "::error::rode numa tag (o environment PRODUCAO só aceita tag)"; exit 1; }
+          [[ "$EMPRESA" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$EMPRESA" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido"; exit 1; }
+          case "$MODO" in
+            simular) lote="$(date -u +%Y%m%dT%H%M%SZ)" ;;
+            apagar)
+              [ "$CONFIRMAR" = "APAGAR CADASTROS $EMPRESA" ] || { echo "::error::no apagar, confirmar = \"APAGAR CADASTROS $EMPRESA\""; exit 1; }
+              lote="$(date -u +%Y%m%dT%H%M%SZ)" ;;
+            restaurar)
+              [[ "$LOTE" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { echo "::error::no restaurar, informe o lote (AAAAMMDDTHHMMSSZ)"; exit 1; }
+              [ "$CONFIRMAR" = "RESTAURAR CADASTROS $EMPRESA $LOTE" ] || { echo "::error::no restaurar, confirmar = \"RESTAURAR CADASTROS $EMPRESA $LOTE\""; exit 1; }
+              lote="$LOTE" ;;
+            *) echo "::error::modo inválido"; exit 1 ;;
+          esac
+          echo "lote=$lote" >> "$GITHUB_OUTPUT"
+          echo "empresa $EMPRESA · modo $MODO · lote $lote · ref $GITHUB_REF_NAME"
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/actions
+            scripts/producao
+          persist-credentials: false
+
+      - name: chave SSH
+        id: chave
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: preparar
+          chave: ${{ secrets.PROD_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          conhecidos: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+
+      - name: ${{ inputs.modo }} na VM
+        timeout-minutes: 15
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          EMPRESA: ${{ inputs.empresa }}
+          MODO: ${{ inputs.modo }}
+          LOTE: ${{ steps.entradas.outputs.lote }}
+        run: |
+          if [ "$MODO" = restaurar ]; then
+            bash scripts/producao/montar-limpeza.sh restaurar > limpeza.sql
+            args=(-v "empresa=$EMPRESA" -v "lote=$LOTE")
+          else
+            bash scripts/producao/montar-limpeza.sh limpar > limpeza.sql
+            args=(-v "empresa=$EMPRESA" -v "modo=$MODO" -v "lote=$LOTE")
+          fi
+          # SQL pelo stdin; o psql do pgcliente (admin) roda na VM, sem senha no argv nem no log
+          remoto="set -eu; cd /opt/macuxi; exec $DC psql -X $(printf '%q ' "${args[@]}") -f -"
+          set +e
+          ssh -l "$USUARIO" prod "$remoto" < limpeza.sql 2>&1 | tee saida.txt
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "### limpar cadastros · $EMPRESA · $MODO · lote $LOTE"
+            echo '```'
+            cat saida.txt
+            echo '```'
+            echo "saída: $status (0 ok · 3 erro no SQL ou abortado, nada mudou · 255 falha do SSH)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: cópia de segurança na VM (pg_dump)
+        if: ${{ inputs.modo == 'apagar' }}
+        timeout-minutes: 10
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          EMPRESA: ${{ inputs.empresa }}
+          LOTE: ${{ steps.entradas.outputs.lote }}
+        run: |
+          # a cópia já está no banco (public.macuxi_limpeza_backup, gravada na mesma transação); aqui sai o arquivo na VM
+          arquivo="/opt/macuxi/limpeza/$EMPRESA-$LOTE.dump"
+          remoto="set -eu; cd /opt/macuxi; umask 077; mkdir -p limpeza; chmod 700 limpeza;"
+          remoto+=" $DC pg_dump -Fc -t public.macuxi_limpeza_backup > $(printf '%q' "$arquivo");"
+          remoto+=" echo \"arquivo: $arquivo · \$(stat -c %s $(printf '%q' "$arquivo")) bytes · sha256 \$(sha256sum $(printf '%q' "$arquivo") | cut -c1-16)\""
+          set +e
+          ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee dump.txt
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo
+            echo "### cópia de segurança (saída $status)"
+            echo '```'
+            cat dump.txt
+            echo '```'
+            echo "- No banco: \`public.macuxi_limpeza_backup\`, lote \`$LOTE\` (uma linha por registro mudado, em jsonb, com a tabela e o modo)."
+            echo "- Na VM: \`$arquivo\` (pg_dump da tabela inteira, 0600)."
+            echo "- Restaurar (só antes do reenvio do ERP): rode este workflow com modo=restaurar, lote=\`$LOTE\` e confirmar=\`RESTAURAR CADASTROS $EMPRESA $LOTE\`."
+            echo "- Se a tabela tiver sido apagada: na VM, \`cd /opt/macuxi && docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T pgcliente pg_restore -d macuxi < $arquivo\` e depois o modo restaurar."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: limpar o runner
+        if: ${{ always() && steps.chave.outcome != 'skipped' }}
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: limpar
+          arquivos: limpeza.sql saida.txt dump.txt
