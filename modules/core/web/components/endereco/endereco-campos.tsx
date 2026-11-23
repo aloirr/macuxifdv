@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { UFS_BRASIL, formatarCep } from '@macuxi/comum/endereco';
 import { CampoFormulario } from '@macuxi/ui/web';
+import { ROTULOS_ENDERECO } from '../../../app/lib/pre-cadastro-formulario';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 import type { CampoEndereco, FormEndereco } from '../../lib/endereco';
 
@@ -28,8 +29,8 @@ export interface EnderecoCamposProps {
  */
 export function EnderecoCampos({ value, onChange, erros = {}, centro, disabled, testId }: EnderecoCamposProps) {
   const set = (p: Partial<FormEndereco>) => onChange({ ...value, ...p });
-  const campo = (c: Exclude<CampoEndereco, 'ponto' | 'uf'>, rotulo: string, extra: { classe?: string; maxLength?: number; inputMode?: 'numeric'; formatar?: (v: string) => string } = {}) => (
-    <CampoFormulario rotulo={rotulo} erro={erros[c]} className={extra.classe}>
+  const campo = (c: Exclude<CampoEndereco, 'ponto' | 'uf'>, extra: { classe?: string; maxLength?: number; inputMode?: 'numeric'; formatar?: (v: string) => string } = {}) => (
+    <CampoFormulario rotulo={ROTULOS_ENDERECO[c]} erro={erros[c]} className={extra.classe}>
       <input
         value={value[c]}
         maxLength={extra.maxLength}
@@ -45,14 +46,14 @@ export function EnderecoCampos({ value, onChange, erros = {}, centro, disabled, 
   return (
     <div className="flex flex-col gap-3" data-testid={testId}>
       <div className="grid grid-cols-[130px_minmax(0,1fr)_90px] gap-3">
-        {campo('cep', 'CEP', { maxLength: 9, inputMode: 'numeric', formatar: (v) => (v.replace(/\D/g, '').length === 8 ? formatarCep(v) : v) })}
-        {campo('logradouro', 'Logradouro', { maxLength: 120 })}
-        {campo('numero', 'Número', { maxLength: 20 })}
+        {campo('cep', { maxLength: 9, inputMode: 'numeric', formatar: (v) => (v.replace(/\D/g, '').length === 8 ? formatarCep(v) : v) })}
+        {campo('logradouro', { maxLength: 120 })}
+        {campo('numero', { maxLength: 20 })}
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_90px] gap-3">
-        {campo('bairro', 'Bairro', { maxLength: 80 })}
-        {campo('cidade', 'Cidade', { maxLength: 80 })}
-        <CampoFormulario rotulo="UF" erro={erros.uf}>
+        {campo('bairro', { maxLength: 80 })}
+        {campo('cidade', { maxLength: 80 })}
+        <CampoFormulario rotulo={ROTULOS_ENDERECO.uf} erro={erros.uf}>
           <select
             value={value.uf.toUpperCase()}
             disabled={disabled}

@@ -14,6 +14,7 @@ import { UsuarioAvatarPushSchema, type UsuarioAvatarPush } from '../contracts/av
 import { aplicarTrocaAvatar, type AvatarGravado } from '../domain/frase-avatar/avatar';
 import { idDoPayloadConfere } from '../domain/idempotencia';
 import { auditar } from './auditoria';
+import { aceito, rejeitado, idDivergente } from './push-resposta';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const UsuarioParam = z.object({ id: z.string().uuid() }).strict();
@@ -64,7 +65,6 @@ export async function aplicarTrocaNoBanco(db: ClienteBanco, tx: Pick<TransacaoTe
   return d.acao === 'substituir' ? 'aplicada' : 'superada';
 }
 
-const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 
 /** Push `usuario_avatar`: comando do aparelho (o usuário só troca a própria). Idempotente pelo `id` da troca. */
 export async function receberAvatares(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {
@@ -75,7 +75,7 @@ export async function receberAvatares(ctx: ContextoBase, itens: readonly ItemPus
       continue;
     }
     if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) {
-      saida.push(rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id do item da fila não confere com o id do payload.'));
+      saida.push(idDivergente(item.id));
       continue;
     }
     const valido = UsuarioAvatarPushSchema.safeParse(item.payload);
@@ -86,7 +86,7 @@ export async function receberAvatares(ctx: ContextoBase, itens: readonly ItemPus
     const troca: UsuarioAvatarPush = valido.data;
     try {
       await ctx.comTenant((db, tx) => aplicarTrocaNoBanco(db, tx, troca, { usuario_id: ctx.usuario.id, pode_trocar_outro: false, agora: ctx.agora() }));
-      saida.push({ id: item.id, status: 'aceito' });
+      saida.push(aceito(item.id));
     } catch (e) {
       if (!(e instanceof ErroHttpModulo) || e.status >= 500) throw e;
       saida.push(rejeitado(item.id, e.codigo, e.message));

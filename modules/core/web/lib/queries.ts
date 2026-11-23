@@ -8,10 +8,10 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import { HierarquiaEquipeSchema, RotasListaSchema, type BaseNoMapa, type CalendarioRotas, type MembroHierarquia, type RouteDay } from '../../contracts';
+import { CarteiraDoUsuarioRespostaSchema, HierarquiaEquipeSchema, RotasListaSchema, type BaseNoMapa, type CalendarioRotas, type MembroHierarquia, type RouteDay } from '../../contracts';
 import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { hojeNoFuso } from './hoje';
-import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, paraRouteDay, pontoDaBase, type ClienteDaCarteira } from './rotas-api';
+import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, paraRouteDay, pontoDaBase } from './rotas-api';
 
 export const qk = {
   me: ['me'] as const,
@@ -106,7 +106,7 @@ export function useSellerCustomers(sellerId: string | null) {
   const hojeIso = useHojeDoTenant();
   return useQuery({
     queryKey: qk.sellerCustomers(sellerId ?? ''),
-    queryFn: ({ signal }) => api<{ itens: ClienteDaCarteira[] }>(`/core/usuarios/${encodeURIComponent(sellerId ?? '')}/clientes`, { signal }).then((r) => r.itens.map((c) => clienteDaCarteira(c, hojeIso()))),
+    queryFn: ({ signal }) => api<unknown>(`/core/usuarios/${encodeURIComponent(sellerId ?? '')}/clientes`, { signal }).then((r) => CarteiraDoUsuarioRespostaSchema.parse(r).itens.map((c) => clienteDaCarteira(c, hojeIso()))),
     enabled,
     staleTime: 5 * 60_000,
   });

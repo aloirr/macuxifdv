@@ -144,6 +144,8 @@ const TABELAS_0088_P6 = ['vendedor.pedido_aprovacao'] as const;
 const TABELAS_0089 = ['core.ponto_trajeto', 'core.ausencia_usuario'] as const;
 /** Tabelas novas da 0090 (T-0186, D5 e P15: Documentação do cliente só online, consultada pela API ao abrir, com a permissão revalidada; fora do sync; cliente360-documentos.db.test.ts). */
 const TABELAS_0090 = ['core.documento_tipo', 'core.documento_cliente', 'core.documento_permissao', 'core.documento_excecao'] as const;
+/** Tabelas novas da 0098 (v1.0.30, ADR 0069: histórico das revisões do pré-cadastro e contador do Código FDV do cliente; fora do sync; cliente-pre-cadastro-revisao.db.test.ts e cliente-codigo-fdv.db.test.ts). */
+const TABELAS_0098 = ['core.cliente_pre_cadastro_tentativa', 'core.cliente_codigo_fdv_contador'] as const;
 /** Tabelas novas da 0100 (ADR 0068: o job do zerar e a prévia, sem tenant_id, e a cópia da limpeza; só por função; empresa-zerar.db.test.ts). */
 const TABELAS_0100 = ['plataforma.zerar_empresa', 'plataforma.limpeza_copia', 'plataforma.zerar_previa'] as const;
 const migracoes = lerMigracoes();
@@ -251,6 +253,8 @@ describe('migrações (estático)', () => {
     expect(nomes[92]).toBe('0093_core_usuario_base_cliente_geocodificacao'); // T-0191 (Rotas, RN-CORE-75 a 77): casa_* e base_* em core.usuario e coordenada_origem, coordenada_precisao, geocodificacao_tentada_em e geocodificacao_chave em core.cliente, com CHECKs, backfill 'erp' e SELECT por coluna do macuxi_leitura em core.cliente (usuario-base-cliente-geocodificacao.db.test.ts)
     expect(nomes[93]).toBe('0094_integracao_busca_erp'); // integração por ERP (F2): conector_api, credencial_erp (sem macuxi_leitura), implantacao, implantacao_dia e coleta_execucao, piso de 15 min na frequência (integracao-busca-erp.db.test.ts)
     expect(nomes[96]).toBe('0097_core_cliente_pre_cadastro_erp'); // v1.0.28 (RN-CORE-78, RN-INT-22): core.cliente sem aprovado_por, com motivo_recusa (até 500, só com 'recusado', sem macuxi_leitura) e o índice cliente_pre_cadastro_fila_ix; cliente_fila_erp.aprovado_em vira recebido_em (cliente-pre-cadastro-erp.db.test.ts)
+    expect(nomes[97]).toBe('0098_core_integracao_pre_cadastro_revisao'); // v1.0.30 (ADR 0069, RN-CORE-78, RN-INT-22): core.cliente.revisao_cadastro e erros_recusa, core.cliente_pre_cadastro_tentativa (carga das tentativas existentes, sem hash, motivo e erros no macuxi_leitura), revisao, hash e erros na cliente_fila_erp , o parâmetro unificado com o espelho legado e o Código FDV do cliente com o contador core.cliente_codigo_fdv_contador (cliente-pre-cadastro-revisao.db.test.ts)
+    expect(nomes[98]).toBe('0099_plataforma_resumo_outbox_vivos'); // v1.0.30 (limpeza da AM2808): plataforma.resumo_outbox sem o evento apagado (deleted_at) e SELECT do deleted_at da outbox ao macuxi_worker (resumo-outbox-vivos.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -318,6 +322,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0088_P6,
         ...TABELAS_0089,
         ...TABELAS_0090,
+        ...TABELAS_0098,
         ...TABELAS_0100,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
@@ -413,6 +418,8 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       // 0089 (T-0156, ADR 0061): expurgo do rastreamento (USAGE só para chamar a função; nenhuma tabela do core)
       'usage on schema core',
       'execute on function core.expurgar_rastreamento(timestamptz, integer)',
+      // 0099 (v1.0.30): o despachante filtra o evento apagado no despacho e no reprocessarParados (resumo-outbox-vivos.db.test.ts)
+      'select (deleted_at) on plataforma.evento',
       // 0100 (ADR 0068): o job do zerar dados da empresa, a prévia e o expurgo da cópia (só as funções; nenhuma tabela)
       ...FUNCOES_WORKER_ZERAR.map((f) => `execute on function ${f}`),
     ]);
@@ -895,6 +902,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0086 (ADR 0047): as 3 sa_* dos planos no portal (planos-troca-licencas.db.test.ts); a trava licencas_do_tenant é invoker
     // 0091 (item 15 do Campo v1.0.16): a sa_* que oculta a marca do Macuxi (portal); a interna da marca é recriada com create
     // or replace (tenant-ocultar-marca.db.test.ts)
+    // 0098 (ADR 0069 item 10): a função dos gatilhos do Código FDV do cliente, que grava o contador (cliente-codigo-fdv.db.test.ts)
+    expect(novas.map((x) => x[1]).sort()).toEqual(
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv', ...FUNCOES_SA_CARGA.map(nome), 'plataforma.frases_carga_ativas', ...FUNCOES_SA_LOGO.map(nome), ...FUNCOES_SA_PLANOS.map(nome), 'core.expurgar_rastreamento', ...FUNCOES_SA_OCULTAR_MARCA.map(nome), 'core.cliente_codigo_fdv'].sort(),
     // 0100 (ADR 0068): as 4 sa_* do zerar (portal), as 6 do worker e a regra plataforma.limpar_cadastros (sem EXECUTE para ninguém);
     // a volta, o descarte e as internas são invoker (empresa-zerar.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
@@ -1125,6 +1135,11 @@ describe('fixture dois-tenants (estático)', () => {
         // core.usuario_codigo_fdv_contador (0080): id determinístico do gatilho usuario_codigo_fdv_emitir (a carga e o gatilho gravam a MESMA linha)
         if (t === 'core.usuario_codigo_fdv_contador') {
           expect(l.id).toBe(idDeChave(`${String(l.tenant_id)}:core.usuario_codigo_fdv_contador`));
+          continue;
+        }
+        // core.cliente_codigo_fdv_contador (0098): id determinístico do gatilho cliente_codigo_fdv_emitir (mesma linha)
+        if (t === 'core.cliente_codigo_fdv_contador') {
+          expect(l.id).toBe(idDeChave(`${String(l.tenant_id)}:core.cliente_codigo_fdv_contador`));
           continue;
         }
         // vendedor.pedido_aprovacao (0088): a pendente do ciclo 1 com o id do backfill (a carga e a migração gravam a MESMA linha)

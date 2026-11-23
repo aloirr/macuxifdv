@@ -150,7 +150,10 @@ tenants cujo nome está em `p_nomes`: `pendentes` = `tentativas < p_max_tentativ
 `mais_antigo_s` = segundos desde o `ocorrido_em` mais antigo dos pendentes (nulo sem pendente). Lista nula ou vazia = 0, 0,
 nulo. Só agregados: nenhum id, tenant, payload ou erro sai. `SECURITY DEFINER`, `search_path = pg_catalog, plataforma, pg_temp`,
 `execute` só ao `macuxi_app` (a API chama em `apps/api/src/banco.ts`, `resumoOutbox`; o worker conta direto com a política
-`despacho_outbox`). Índice `evento_pendente_ix`.
+`despacho_outbox`). Índice `evento_pendente_ix`. **0099 (v1.0.30)**: o evento apagado (`deleted_at` preenchido, como os da
+limpeza da AM2808) sai das três contagens (`create or replace`, mesma assinatura, dono e EXECUTE), e o `macuxi_worker` ganha
+`select (deleted_at)` para o despachante filtrar o apagado no despacho e no `reprocessarParados`. Down: volta o corpo da 0024 e
+revoga o SELECT. Teste `db/testes/resumo-outbox-vivos.db.test.ts`.
 
 ## evento_consumo — consumo idempotente da outbox (ADR 0007, migração 0003)
 | Coluna | Tipo | Regra |
@@ -1121,8 +1124,8 @@ A senha do super-admin é conferida pela API **antes** da `sa_pedir_exclusao`, q
 Pendente (fora da 0072): a restauração (`db/backup/restaurar-empresa.mjs`, com o leitor do manifesto, e o ensaio backup →
 exclusão → restauração no CI). Os gatilhos de semeadura (`tenant_semear_*` na inserção do tenant, `usuario_perfil_principal`,
 `resposta_normalizar`) gravam linhas que o backup também traz: a restauração precisa desligá-los (`alter table ... disable
-trigger user` pelo dono, numa janela) ou apagar o semeado antes de cada tabela. Exceção: `core.usuario_codigo_fdv_contador` e os
-gatilhos de Código FDV de `core.usuario` ficam ligados (0080; restauração em qualquer ordem, ver core.md). O teste desta migração prova a outra metade: o
+trigger user` pelo dono, numa janela) ou apagar o semeado antes de cada tabela. Exceção: `core.usuario_codigo_fdv_contador`, `core.cliente_codigo_fdv_contador` e os
+gatilhos de Código FDV de `core.usuario` e `core.cliente` ficam ligados (0080 e 0098; restauração em qualquer ordem, ver core.md). O teste desta migração prova a outra metade: o
 que a exclusão apaga é, tabela a tabela, o que o backup exportou.
 
 Consultas da API e do worker (referência):
