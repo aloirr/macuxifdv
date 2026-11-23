@@ -1,9 +1,9 @@
-# Desenho — "Zerar dados" e "Reprocessar" da empresa no portal (v1.0.30)
+# Desenho — "Zerar dados" e "Reprocessar" da empresa no portal (v1.0.31)
 
-- **Origem** (dono do produto, v1.0.30):
+- **Origem** (dono do produto, v1.0.31):
   - "coloque um botão ao lado do excluir chamado 'zerar dados'. vou clicar lá para zerar os dados";
   - "Na verdade, na integração dentro de config, deve ter uma opção de zerar os dados por entidade. acho que fica melhor. então alem do zerar tudo ao lado de excluir, crie o botão zerar dados ao lado de cada entidade no config. a tela do config deve ter a mesma aba Integração FDV que o BKO tem, mas com mais detalhes e tambem a opção de reprocessar e zerar dados".
-- **Decisão**: ADR 0068 (proposta). **Contrato**: `packages/platform-sdk/src/empresa-zerar.ts`. **Base**: ADR 0052, ADR 0029 §5 e a rotina do PR #675 (`scripts/producao/limpar-cadastros-rotina.sql`, branch `alexandre/limpar-cadastros-am2808`).
+- **Decisão**: ADR 0068 (proposta). **Contrato**: `packages/platform-sdk/src/empresa-zerar.ts`. **Base**: ADR 0052, ADR 0029 §5 e a rotina do PR #675 (`scripts/producao/limpar-cadastros-rotina.sql` no squash f2556d68, que saiu na §8).
 - **Autor**: engenheiro-software. **Tarefa**: o gerente atribui o número. **Migração**: 0099.
 
 ## 1. Uma regra só, no banco
@@ -23,12 +23,12 @@ Quem chama:
 Por que no banco:
 1. A cascata vem do catálogo (FKs e nomes de coluna). Uma tabela nova com `tenant_id`, `id` e `deleted_at` entra sozinha.
 2. A função lê as tabelas de todos os módulos numa transação. O TS do worker não pode (regra 1), e o workflow roda `psql` sem a API.
-3. Duas cópias (a `pg_temp` do workflow e uma do portal) divergiriam na primeira mudança. A `rotina.sql` sai depois do merge do #675 (§8).
+3. Duas cópias (a `pg_temp` do workflow e uma do portal) divergiriam na primeira mudança. A `rotina.sql` saiu (§8).
 
 ## 2. Cópia e volta: decisão
 **Uma tabela de cópia só: `plataforma.limpeza_copia`**, criada pela 0099 com as **mesmas colunas e na mesma ordem** da `public.macuxi_limpeza_backup` do #675: `lote`, `tenant_id`, `tabela`, `modo`, `linha jsonb`, `copiado_em`.
 - A mesma ordem mantém o arquivo `.copy` da VM compatível com `\copy plataforma.limpeza_copia from …`.
-- A 0099 move para ela as linhas da `public.macuxi_limpeza_backup`, se a tabela existir (o workflow pode ter rodado antes da v1.0.30), e apaga a `public`.
+- A 0099 move para ela as linhas da `public.macuxi_limpeza_backup`, se a tabela existir (o workflow pode ter rodado antes da v1.0.31), e apaga a `public`.
 - RLS ligado e forçado, só a política `manutencao`, nenhum grant. É exceção da regra 5, como as tabelas da 0072, e vai ao `docs/banco/rls.md`.
 - Sai a `zerar_empresa_copia` da 0099 atual. Sai também a `zerar_empresa_objeto`: o zerar é soft delete, as fotos e os pacotes ficam no armazenamento como em qualquer linha apagada e não há bytes a remover.
 
@@ -197,7 +197,7 @@ Por que não zerar o cursor:
 
 O reenvio completo de uma entidade é `conector carga-completa <entidade>`.
 
-### 6.3 Proposta, fora da v1.0.30 (precisa de "backlog" do dono do produto)
+### 6.3 Proposta, fora da v1.0.31 (precisa de "backlog" do dono do produto)
 "Pedir carga completa" pelo portal:
 - a resposta do `POST /integracao/v1/sinal` ganha, de forma aditiva, `carga_completa: Entidade[]`;
 - o Conector novo chama `reiniciarCargaCompleta` para cada entidade.
@@ -230,19 +230,23 @@ As duas só para o super-admin. Em `GET /v1/integracao/*`, o admin do cliente qu
   - `tenant.zerar_desfeito`, gravado pela `restaurar_limpeza` quando o lote é de um zerar do portal.
 - O Reprocessar audita como hoje (`lote.reprocessar`).
 
-## 8. Workflow depois do merge do #675 (engenheiro-software, commit neste branch)
-- `scripts/producao/limpar-cadastros.sql`:
-  - chama `plataforma.limpar_cadastros(:'tenant'::uuid, :'lote', string_to_array(nullif(:'entidades', ''), ','), :'gravar'::boolean)`;
-  - o "o que fica" e o resto continuam como estão.
+## 8. Workflow depois do merge do #675 (engenheiro-software, feito)
+- `scripts/producao/limpar-cadastros.sql` chama `plataforma.limpar_cadastros(:'tenant'::uuid, :'lote', string_to_array(nullif(:'entidades', ''), ','), :'gravar'::boolean)`. O "o que fica" e o resto continuam como estão.
 - `.github/workflows/producao-limpar-cadastros.yml`:
-  - entrada opcional `entidades` (lista por vírgula; `^[a-z_]+(,[a-z_]+)*$`);
-  - o lote do `restaurar` aceita o sufixo do portal.
+  - entrada opcional `entidades` (lista por vírgula; `^[a-z_]+(,[a-z_]+)*$`), só no simular e no apagar; vazia = a empresa inteira;
+  - o lote do `restaurar` e do `descartar` aceita o sufixo do portal.
 - `montar-limpeza.sh`:
   - o modo `limpar` deixa de concatenar a rotina;
-  - o modo `arquivo` lê a `plataforma.limpeza_copia`.
-- `limpar-cadastros-restaurar.sql` e `-descartar.sql` viram uma chamada a `restaurar_limpeza` e `descartar_limpeza`.
-- **`limpar-cadastros-rotina.sql` sai**, e o teste (`teste/limpar-cadastros.teste.sh` e `scripts/ci/producao-limpar-cadastros.test.mjs`) passa a migrar até a 0099 e a chamar as funções.
-- Vale a partir da tag da v1.0.30, a mesma que leva a 0099. Rodar numa tag anterior continua com a `pg_temp`.
+  - o modo `arquivo` lê a `plataforma.limpeza_copia`;
+  - todos os modos conferem a 0099 (a `limpeza_copia` e as três funções) antes de ler a empresa.
+- `limpar-cadastros-restaurar.sql` e `-descartar.sql` viraram uma chamada a `restaurar_limpeza` e `descartar_limpeza`.
+- **`limpar-cadastros-rotina.sql` saiu.** O `teste/limpar-cadastros.teste.sh` migra até a 0099, chama as funções e confere o banco sem a 0099. O `scripts/ci/producao-limpar-cadastros.test.mjs` confere que nenhum roteiro escreve direto em tabela.
+
+**Workflow × deploy: decisão.** A rotina sai do `main` agora, sem esperar o deploy da v1.0.31.
+- O workflow roda só numa tag e usa os `scripts/producao` daquela tag.
+- Tag anterior à v1.0.31: continua com a `pg_temp` dela.
+- Tag v1.0.31 ou posterior num banco ainda sem a 0099: o `montar-limpeza.sh` para logo depois das entradas, com "o banco ainda não tem a migração 0099 (plataforma.limpar_cadastros): faça antes o deploy da v1.0.31 ou rode o workflow numa tag anterior (nada mudou)", saída 3, antes de abrir transação.
+- Manter a rotina até o deploy deixaria duas cópias da regra no `main` (a `pg_temp` e a 0099). Elas divergiriam (§1, item 3), e o PR que a tirasse seria mais um passo a lembrar.
 
 ## 9. Códigos
 `CODIGOS_ZERAR_EMPRESA`:

@@ -1,11 +1,17 @@
 -- Limpeza de UMA empresa: workflow .github/workflows/producao-limpar-cadastros.yml, montado por montar-limpeza.sh (preâmbulo
--- psql, conferência de lote e empresa e limpar-cadastros-rotina.sql antes deste arquivo; regras no cabeçalho da rotina).
--- Variáveis (psql -v): empresa (código), modo (simular | apagar), lote (carimbo UTC AAAAMMDDTHHMMSSZ).
+-- psql e conferência de lote, empresa e 0099 antes deste arquivo). A regra é a plataforma.limpar_cadastros da 0099, a mesma
+-- do "Zerar dados" do portal (ADR 0068, docs/desenho/empresa-zerar.md §4).
+-- Variáveis (psql -v): empresa (código), modo (simular | apagar), lote (carimbo UTC AAAAMMDDTHHMMSSZ) e entidades (opcional:
+-- lista por vírgula; vazia = a empresa inteira; entidade fora da lista para a função com 22023).
 -- Uma transação só: simular = o mesmo caminho do apagar, com ROLLBACK no fim. Log: só nomes de tabela e contagens.
-select :'modo' in ('simular', 'apagar') as modo_ok \gset
+\if :{?entidades}
+\else
+\set entidades ''
+\endif
+select :'modo' in ('simular', 'apagar') and :'entidades' ~ '^([a-z_]+(,[a-z_]+)*)?$' as modo_ok \gset
 \if :modo_ok
 \else
-do $$ begin raise exception 'modo inválido'; end $$;
+do $$ begin raise exception 'modo ou entidades inválidos'; end $$;
 \endif
 
 begin;
@@ -24,8 +30,9 @@ select :'modo' = 'apagar' as gravar \gset
 \echo
 \echo 'o que sai, por tabela (soft = deleted_at; fisico = DELETE)'
 select r_tabela as tabela, r_modo as modo, r_linhas as linhas
-  from pg_temp.macuxi_limpar_cadastros(:'tenant'::uuid, :'lote', :'gravar'::boolean) where r_linhas > 0;
-select count(*) as linhas_na_copia_de_seguranca from public.macuxi_limpeza_backup where lote = :'lote';
+  from plataforma.limpar_cadastros(:'tenant'::uuid, :'lote', string_to_array(nullif(:'entidades', ''), ','), :'gravar'::boolean)
+ where r_linhas > 0 order by r_ordem;
+select count(*) as linhas_na_copia_de_seguranca from plataforma.limpeza_copia where lote = :'lote' and tenant_id = :'tenant';
 
 \echo
 \echo 'o que fica (vivos depois da limpeza)'

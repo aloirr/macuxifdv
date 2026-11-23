@@ -2,9 +2,9 @@
 
 - **Status**: proposta. O número 0068 vale depois de reservado no `.coord/quadro.md` pelo gerente-projetos; está livre no `origin/main` 6b2cfd4 e sem reserva no quadro.
 - **Data**: 2026-11-23 (Manaus)
-- **Versão**: v1.0.30. Regra: RN-PLA-12 (nova). Desenho: `docs/desenho/empresa-zerar.md`. Contrato: `packages/platform-sdk/src/empresa-zerar.ts`.
+- **Versão**: v1.0.31. Regra: RN-PLA-12 (nova). Desenho: `docs/desenho/empresa-zerar.md`. Contrato: `packages/platform-sdk/src/empresa-zerar.ts`.
 - **Autor**: engenheiro-software
-- **Origem**: pedidos do dono do produto na v1.0.30: o botão "zerar dados" ao lado de Excluir e, depois, "zerar dados" e "reprocessar" em cada entidade da aba Integração do portal, com mais detalhes que o monitor do BKO.
+- **Origem**: pedidos do dono do produto na v1.0.31: o botão "zerar dados" ao lado de Excluir e, depois, "zerar dados" e "reprocessar" em cada entidade da aba Integração do portal, com mais detalhes que o monitor do BKO.
 
 ## Contexto
 - O PR #675 (`alexandre/limpar-cadastros-am2808`) trouxe a limpeza de uma empresa pelo workflow `producao-limpar-cadastros.yml`, para o ERP reenviar tudo. A rotina dele (`scripts/producao/limpar-cadastros-rotina.sql`, `pg_temp.macuxi_limpar_cadastros`) faz:
@@ -13,13 +13,13 @@
   - cascata por FK e por nome de coluna;
   - as filiais ficam e só perdem o `external_id`;
   - cópia de cada linha numa tabela, com restaurar e descartar.
-- O texto dela diz que o botão da v1.0.30 deve usar o mesmo corpo.
+- O texto dela diz que o botão da v1.0.31 deve usar o mesmo corpo.
 - A primeira versão desta ADR tinha outra regra (DELETE físico de tudo o que tem `tenant_id`, menos uma lista de mantidas) e outra cópia. Ficariam duas regras para a mesma ação.
 - A ADR 0052 pôs Inativar, Backup e Excluir no portal. O worker do backup (cifra, S3) não existe, e a exclusão nunca libera.
 
 ## Decisão
 1. **Uma função**: `plataforma.limpar_cadastros(p_tenant, p_lote, p_entidades text[] default null, p_exigir_hub_parado default true)`, na migração 0099. É o corpo do #675 promovido a `SECURITY DEFINER`, sem EXECUTE para papel da aplicação.
-   - A prévia do portal roda a função numa subtransação desfeita. O worker roda e confirma. O workflow passa a chamá-la, e a `rotina.sql` sai depois do merge do #675.
+   - A prévia do portal roda a função numa subtransação desfeita. O worker roda e confirma. O workflow passa a chamá-la, e a `rotina.sql` saiu. Numa tag da v1.0.31 em diante, banco sem a 0099 faz o workflow parar antes de mudar qualquer coisa (desenho §8).
    - `p_entidades = null` é o comportamento do #675.
 2. **Por entidade**: `p_entidades` traz uma ou mais das 16 entidades do Hub (`ENTIDADES_ZERAR` no SDK = `ORDEM_CARGA_ENTIDADES` do módulo, conferido em teste). O mapa entidade → raízes fica numa função do banco.
    - Saem as raízes da entidade, a cascata e o Hub dela (lotes, staging, erros, sessões, `registro_atual` e cursor).
