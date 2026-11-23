@@ -5,9 +5,12 @@
  */
 import { type ClienteBanco } from '@macuxi/platform-sdk';
 
+/** Filtro do pré-cadastro vivo em `core.cliente` (não apagado e com revisão; sem alias de tabela). */
+export const PRE_CADASTRO_VIVO = 'deleted_at is null and revisao_cadastro is not null';
+
 /** Id do pré-cadastro vivo: o próprio ou, se for um recusado substituído (APK v1.0.28), o que o substituiu (alias). */
 export async function resolverPreCadastro(db: ClienteBanco, id: string): Promise<string | null> {
-  const vivo = (await db.query('select 1 from core.cliente where id = $1 and deleted_at is null and revisao_cadastro is not null', [id])).rows[0];
+  const vivo = (await db.query(`select 1 from core.cliente where id = $1 and ${PRE_CADASTRO_VIVO}`, [id])).rows[0];
   if (vivo) return id;
   const alias = (
     await db.query<{ cliente_id: string }>(

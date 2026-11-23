@@ -48,7 +48,7 @@ import {
   TituloSyncSchema,
   VisitaSyncSchema,
 } from '../contracts';
-import { dataLocal, motivoRecusaVisivel, perfilRecebeHistoricoDeCompra } from '../domain';
+import { dataLocal, perfilVeRecusa, perfilRecebeHistoricoDeCompra } from '../domain';
 import { JANELAS_CORE, janelaMesAnteriorOu40 } from './janelas-sync';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
 import { padraoDeDesconto } from './produtos';
@@ -273,12 +273,12 @@ function puxarDe(t: Tabela) {
     return ctx.comTenant(async (db) => {
       const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
       if (t.tabela === 'core.produto') return comDescontoEfetivo(linhas, await padraoDeDesconto(db));
-      // RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor (a mesma regra, `motivoRecusaVisivel`).
+      // RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor (a mesma regra, `perfilVeRecusa`).
       if (t.tabela === 'core.cliente') {
         return linhas.map((l) => {
           const r = l as unknown as { motivo_recusa?: string | null; erros_recusa?: unknown };
-          const veRecusa = motivoRecusaVisivel(ctx.usuario.perfil, '') !== null;
-          return { ...l, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, r.motivo_recusa), erros_recusa: veRecusa ? (r.erros_recusa ?? null) : null } as unknown as LinhaSync;
+          const veRecusa = perfilVeRecusa(ctx.usuario.perfil);
+          return { ...l, motivo_recusa: veRecusa ? (r.motivo_recusa ?? null) : null, erros_recusa: veRecusa ? (r.erros_recusa ?? null) : null } as unknown as LinhaSync;
         });
       }
       if (t.tabela !== 'core.historico_compra' || ctx.usuario.perfil !== 'promotor') return linhas;

@@ -9,14 +9,18 @@
  * Item 10 da ADR: o banco gera o Código FDV no insert (o `id` novo do APK v1.0.28 herda o do recusado que substitui); `codigo_fdv` no
  * corpo = 422 CODIGO_FDV_SOMENTE_LEITURA. A coordenada digitada grava `coordenada_origem = 'manual'` (RN-CORE-77: a carga do ERP sem
  * coordenada não a apaga).
- * Cada revisão grava uma tentativa em `core.cliente_pre_cadastro_tentativa` (migração 0098). O hash (sha256 do canônico) nunca vai a
- * log, à auditoria nem a evento; a auditoria leva só nomes de campo, revisão e origem.
+ * Escopo de carteira (RN-CORE-04, ADR 0069 §3) nos três caminhos: a correção só no cliente da carteira; o `id` que já existe só devolve
+ * `ja_existia` a quem o tem na carteira ou gravou uma tentativa dele; fora disso, 403 FORA_DA_CARTEIRA.
+ * Cada revisão grava uma tentativa em `core.cliente_pre_cadastro_tentativa` (migração 0098), com o hash dos dados gravados (as
+ * coordenadas como o banco as arredondou). O hash (sha256 do canônico) nunca vai a log, à auditoria nem a evento; a auditoria leva só
+ * nomes de campo, revisão e origem.
  */
 import { createHash } from 'node:crypto';
 import {
   ErroHttpModulo,
   ErroRegraNegocio,
   pode,
+  verificarCarteira,
   type ClienteBanco,
   type ContextoBase,
   type ItemPush,
@@ -31,6 +35,7 @@ import {
   HTTP_ERRO_PRE_CADASTRO,
   MENSAGENS_CAMPO_FALTANTE,
   MENSAGENS_ERRO_PRE_CADASTRO,
+  CODIGO_FDV_SOMENTE_LEITURA,
   PARAMETRO_CAMPOS_OBRIGATORIOS,
   type CodigoErroPreCadastro,
   type OrigemTentativa,
@@ -39,6 +44,7 @@ import {
   type StatusCadastro,
 } from '../contracts';
 import {
+  COLUNAS_DADOS_PRE_CADASTRO,
   FALTA_OBRIGATORIO_PRE_CADASTRO,
   camposAlteradosPreCadastro,
   camposExigidos,
@@ -53,17 +59,22 @@ import {
 } from '../domain';
 import { auditar } from './auditoria';
 import { lerParametroCore } from './parametro-tenant';
+import { PRE_CADASTRO_VIVO } from './pre-cadastro-alias';
+import { aceito, idDivergente, MENSAGEM_FORA_DA_CARTEIRA, rejeitado } from './push-resposta';
 import { carteiraDoEvento } from './rotas';
 
 /** Dados do pré-cadastro com o id e a origem já decididos por quem chama (push = campo; PUT do BKO = bko). */
 export type EntradaPreCadastro = Omit<PreCadastroCliente, 'origem' | 'codigo_fdv'> & { origem: OrigemTentativa };
 
-type Contexto = Pick<ContextoBase, 'usuario' | 'requestId'>;
+type Contexto = Pick<ContextoBase, 'usuario' | 'requestId' | 'carteira'>;
 
-/** Colunas de dados gravadas em `core.cliente` (as mesmas do canônico; o documento já vem só com dígitos do contrato). */
-const COLUNAS_DADOS = ['razao_social', 'nome_fantasia', 'documento', 'inscricao_estadual', 'telefone', 'email', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'cep', 'latitude', 'longitude', 'filial_id'] as const;
-const SELECT_DADOS = `razao_social, nome_fantasia, documento, inscricao_estadual, telefone, email, logradouro, numero, bairro, cidade, uf, cep,
-  latitude::float8 as latitude, longitude::float8 as longitude, filial_id`;
+/** Colunas de dados gravadas em `core.cliente` (as do canônico, domain; o documento já vem só com dígitos do contrato). */
+const COLUNAS_DADOS = COLUNAS_DADOS_PRE_CADASTRO;
+/** Leitura das colunas de dados (coordenadas em float8, como o canônico as compara). */
+export const SELECT_DADOS = COLUNAS_DADOS.map((k) => (k === 'latitude' || k === 'longitude' ? `${k}::float8 as ${k}` : k)).join(', ');
+/** Coordenadas como o banco as gravou (`numeric(9, 6)`), para o hash da tentativa. */
+const RETURNING_COORDENADAS = 'latitude::float8 as latitude, longitude::float8 as longitude';
+type CoordenadasGravadas = { latitude: number | null; longitude: number | null };
 
 /** sha256 do canônico v1 (ADR 0069 §2), hexadecimal minúsculo. Nunca vai a log. */
 export function hashPreCadastro(dados: DadosPreCadastro): string {
@@ -98,6 +109,25 @@ async function exigirObrigatorios(db: ClienteBanco, dados: DadosPreCadastro): Pr
 const ORIGEM_COORDENADA_DIGITADA = `case when $${COLUNAS_DADOS.indexOf('latitude') + 2}::numeric is not null then 'manual' end`;
 
 const valoresDados = (c: EntradaPreCadastro): unknown[] => COLUNAS_DADOS.map((k) => c[k] ?? null);
+
+const foraDaCarteira = () => new ErroHttpModulo(403, 'FORA_DA_CARTEIRA', MENSAGEM_FORA_DA_CARTEIRA);
+
+/** RN-CORE-04 (ADR 0069 §3): a correção do recusado só no cliente da carteira do usuário (o push e a rota, a mesma regra). */
+async function exigirCarteira(ctx: Contexto, id: string): Promise<void> {
+  if (!verificarCarteira(id, await ctx.carteira()).ok) throw foraDaCarteira();
+}
+
+/**
+ * RN-CORE-04: o `id` que já existe só devolve a situação (`ja_existia`) a quem tem o cliente na carteira ou gravou uma tentativa dele (a
+ * repetição de quem cadastrou sem receber a carteira, como supervisor e gerente).
+ */
+async function exigirCarteiraOuAutoria(db: ClienteBanco, ctx: Contexto, id: string): Promise<void> {
+  if (verificarCarteira(id, await ctx.carteira()).ok) return;
+  const autor = ctx.usuario.id
+    ? (await db.query('select 1 from core.cliente_pre_cadastro_tentativa where cliente_id = $1 and corrigido_por = $2 limit 1', [id, ctx.usuario.id])).rows[0]
+    : undefined;
+  if (!autor) throw foraDaCarteira();
+}
 
 interface Tentativa {
   clienteId: string;
@@ -135,13 +165,16 @@ const SELECT_SITUACAO = 'status_cadastro, revisao_cadastro, codigo_fdv';
 export async function gravarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Contexto, entrada: EntradaPreCadastro & { codigo_fdv?: unknown }): Promise<PreCadastroClienteSaida> {
   const { codigo_fdv, ...c } = entrada;
   // ADR 0069 item 10: o Código FDV é só de leitura (gerado pelo banco)
-  if (recusarCodigoFdvNoCorpo({ codigo_fdv })) throw erroPreCadastro('CODIGO_FDV_SOMENTE_LEITURA');
+  if (recusarCodigoFdvNoCorpo({ codigo_fdv })) throw erroPreCadastro(CODIGO_FDV_SOMENTE_LEITURA);
   return c.revisao_base == null ? criarPreCadastro(db, tx, ctx, c) : corrigirPreCadastro(db, tx, ctx, c, c.revisao_base);
 }
 
 async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Contexto, c: EntradaPreCadastro): Promise<PreCadastroClienteSaida> {
   const existente = (await db.query<LinhaCliente>(`select ${SELECT_SITUACAO} from core.cliente where id = $1 and deleted_at is null`, [c.id])).rows[0];
-  if (existente) return saida(c.id, existente.status_cadastro, existente.revisao_cadastro, true, existente.codigo_fdv);
+  if (existente) {
+    await exigirCarteiraOuAutoria(db, ctx, c.id);
+    return saida(c.id, existente.status_cadastro, existente.revisao_cadastro, true, existente.codigo_fdv);
+  }
   await exigirObrigatorios(db, c);
   const iguais = (await db.query<LinhaCliente & { id: string }>(`select id, ${SELECT_SITUACAO} from core.cliente where documento = $1 and deleted_at is null`, [c.documento])).rows;
   const duplicado = decidirDocumentoDuplicado(iguais);
@@ -154,6 +187,7 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
   let recebidoEm: Date | string;
   let filialGravada: string | null = null;
   let codigoFdv: string | null = null;
+  let coordenadas: CoordenadasGravadas = { latitude: null, longitude: null };
   // A substituição e o insert desfazem juntos se a unicidade estourar (corrida): nada do recusado muda sem o novo gravado.
   await db.query('savepoint pre_cadastro');
   try {
@@ -162,16 +196,17 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
       await auditar(db, ctx, { acao: 'cliente.recusado_substituido', entidade: 'cliente', entidadeId: idRecusado, antes: { status_cadastro: 'recusado' }, depois: { substituido_por: c.id, regra: 'RN-CORE-78' } });
     }
     const gravado = (
-      await db.query<{ created_at: Date | string; filial_id: string; codigo_fdv: string | null }>(
+      await db.query<{ created_at: Date | string; filial_id: string; codigo_fdv: string | null } & CoordenadasGravadas>(
         `insert into core.cliente (id, tenant_id, ${COLUNAS_DADOS.join(', ')}, origem_cadastro, status_cadastro, revisao_cadastro, codigo_fdv, coordenada_origem)
          values ($1, plataforma.tenant_atual(), ${COLUNAS_DADOS.map((_, i) => `$${i + 2}`).join(', ')}, $${COLUNAS_DADOS.length + 2}, 'pendente', $${COLUNAS_DADOS.length + 3},
                  $${COLUNAS_DADOS.length + 4}, ${ORIGEM_COORDENADA_DIGITADA})
-         returning created_at, filial_id, codigo_fdv`,
+         returning created_at, filial_id, codigo_fdv, ${RETURNING_COORDENADAS}`,
         [c.id, ...valoresDados(c), c.origem, revisao, codigoHerdado],
       )
     ).rows[0]!;
     recebidoEm = gravado.created_at;
     codigoFdv = gravado.codigo_fdv;
+    coordenadas = { latitude: gravado.latitude, longitude: gravado.longitude };
     // RN-CORE-39: sem filial no pedido, o banco grava a padrão; o hash e os campos alterados são os dos dados gravados
     filialGravada = gravado.filial_id;
     await db.query('release savepoint pre_cadastro');
@@ -183,6 +218,7 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
     const d = decidirConflitoUnicidade({ restricao: (e as { constraint?: string }).constraint, id: c.id, porId, porDocumento });
     if (d.resposta === 'relancar') throw e;
     if (d.resposta === 'erro') throw erroPreCadastro(d.codigo);
+    await exigirCarteiraOuAutoria(db, ctx, c.id);
     return saida(c.id, d.status_cadastro, porId?.revisao_cadastro ?? null, true, porId?.codigo_fdv ?? null);
   }
   if (substituido) {
@@ -192,7 +228,7 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
   if (ctx.usuario.perfil === 'vendedor' && ctx.usuario.id) {
     await db.query("insert into core.carteira (tenant_id, cliente_id, usuario_id, papel) values (plataforma.tenant_atual(), $1, $2, 'vendedor')", [c.id, ctx.usuario.id]);
   }
-  const gravados = { ...c, filial_id: filialGravada };
+  const gravados = { ...c, filial_id: filialGravada, ...coordenadas };
   const camposAlterados = antes ? camposAlteradosPreCadastro(antes, gravados) : [];
   await gravarTentativa(db, ctx, { clienteId: c.id, revisao, hash: hashPreCadastro(gravados), origem: c.origem, camposAlterados });
   await auditar(db, ctx, { acao: 'cliente.pre_cadastrar', entidade: 'cliente', entidadeId: c.id, antes: null, depois: { origem: c.origem, status_cadastro: 'pendente', revisao } });
@@ -201,9 +237,10 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
 }
 
 async function corrigirPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Contexto, pedido: EntradaPreCadastro, revisaoBase: number): Promise<PreCadastroClienteSaida> {
+  await exigirCarteira(ctx, pedido.id);
   const atual = (
     await db.query<DadosPreCadastro & LinhaCliente>(
-      `select ${SELECT_DADOS}, ${SELECT_SITUACAO} from core.cliente where id = $1 and deleted_at is null and revisao_cadastro is not null for update`,
+      `select ${SELECT_DADOS}, ${SELECT_SITUACAO} from core.cliente where id = $1 and ${PRE_CADASTRO_VIVO} for update`,
       [pedido.id],
     )
   ).rows[0];
@@ -220,15 +257,18 @@ async function corrigirPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: C
   const outro = (await db.query('select 1 from core.cliente where documento = $1 and id <> $2 and deleted_at is null limit 1', [c.documento, c.id])).rows[0];
   if (outro) throw erroPreCadastro('DOCUMENTO_JA_CADASTRADO');
   const camposAlterados = camposAlteradosPreCadastro(atual!, c);
+  let coordenadas: CoordenadasGravadas;
   await db.query('savepoint pre_cadastro_correcao');
   try {
-    await db.query(
+    const gravado = await db.query<CoordenadasGravadas>(
       `update core.cliente set ${COLUNAS_DADOS.map((k, i) => `${k} = $${i + 2}`).join(', ')},
               status_cadastro = 'pendente', motivo_recusa = null, erros_recusa = null, revisao_cadastro = $${COLUNAS_DADOS.length + 2},
               coordenada_origem = ${ORIGEM_COORDENADA_DIGITADA}, coordenada_precisao = null
-        where id = $1`,
+        where id = $1
+        returning ${RETURNING_COORDENADAS}`,
       [c.id, ...valoresDados(c), d.revisao],
     );
+    coordenadas = gravado.rows[0]!;
     await db.query('release savepoint pre_cadastro_correcao');
   } catch (e) {
     // corrida do mesmo CPF/CNPJ com outro cliente gravado entre a conferência e o update
@@ -236,7 +276,8 @@ async function corrigirPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: C
     await db.query('rollback to savepoint pre_cadastro_correcao');
     throw erroPreCadastro('DOCUMENTO_JA_CADASTRADO');
   }
-  await gravarTentativa(db, ctx, { clienteId: c.id, revisao: d.revisao, hash, origem: c.origem, camposAlterados });
+  // ADR 0069 §2: o hash da tentativa é o dos dados como o banco gravou (o mesmo que a consulta do Hub calcula)
+  await gravarTentativa(db, ctx, { clienteId: c.id, revisao: d.revisao, hash: hashPreCadastro({ ...c, ...coordenadas }), origem: c.origem, camposAlterados });
   await auditar(db, ctx, { acao: 'cliente.pre_cadastro_corrigir', entidade: 'cliente', entidadeId: c.id, antes: null, depois: { revisao: d.revisao, campos_alterados: camposAlterados, origem: c.origem } });
   const revisadoEm = (await db.query<{ agora: Date | string }>('select now() as agora')).rows[0]!.agora;
   await tx.publicar(EVENTO_CLIENTE_PRE_CADASTRO_REVISADO, { cliente_id: c.id, revisao: d.revisao, origem: c.origem, revisado_em: new Date(revisadoEm).toISOString() }, c.id);
@@ -250,26 +291,25 @@ async function corrigirPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: C
 
 export const ACAO_PRE_CADASTRAR = 'cliente.pre_cadastrar';
 
-const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
-const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 
 /**
  * Receptor do push `cliente_pre_cadastro` (ADR 0069 §3; RN-CORE-78): cada item na própria transação, pelo mesmo caminho da rota
- * (`gravarPreCadastro`, origem `campo`). Ação `cliente.pre_cadastrar`; a correção (`revisao_base`) só para cliente da carteira do
- * usuário (RN-CORE-04, `FORA_DA_CARTEIRA`). Licença do Core pelo SDK (`rejeitarItensInvalidos`). Aceito inclui o `ja_existia`;
- * a regra recusada vira `rejeitado` com o código e o texto do contrato.
+ * (`gravarPreCadastro`, origem `campo`, que também confere a carteira: RN-CORE-04, `FORA_DA_CARTEIRA`). Ação `cliente.pre_cadastrar`.
+ * Licença do Core pelo SDK (`rejeitarItensInvalidos`). Aceito inclui o `ja_existia`; a regra recusada vira `rejeitado` com o código e o
+ * texto do contrato. A carteira é lida uma vez por lote.
  */
 export async function receberPreCadastros(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {
   const saidaItens: ResultadoItemPush[] = [];
   const podePreCadastrar = pode(ctx.usuario.perfis, ACAO_PRE_CADASTRAR);
-  let visiveis: ReadonlySet<string> | 'tenant' | null = null;
+  let visiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
+  const ctxLote: ContextoBase = { ...ctx, carteira: () => (visiveis ??= ctx.carteira()) };
   for (const item of itens) {
     if (item.operacao === 'remover') {
       saidaItens.push(rejeitado(item.id, 'OPERACAO_NAO_SUPORTADA', 'O pré-cadastro não pode ser removido pelo aparelho.'));
       continue;
     }
     if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) {
-      saidaItens.push(rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id do item da fila não confere com o id do payload.'));
+      saidaItens.push(idDivergente(item.id));
       continue;
     }
     if (!podePreCadastrar) {
@@ -277,15 +317,8 @@ export async function receberPreCadastros(ctx: ContextoBase, itens: readonly Ite
       continue;
     }
     const p = item.payload as PreCadastroCliente;
-    if (p.revisao_base != null) {
-      visiveis ??= await ctx.carteira();
-      if (visiveis !== 'tenant' && !visiveis.has(p.id)) {
-        saidaItens.push(rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.'));
-        continue;
-      }
-    }
     try {
-      await ctx.comTenant((db, tx) => gravarPreCadastro(db, tx, ctx, { ...p, origem: 'campo' }));
+      await ctx.comTenant((db, tx) => gravarPreCadastro(db, tx, ctxLote, { ...p, origem: 'campo' }));
       saidaItens.push(aceito(item.id));
     } catch (e) {
       if (!(e instanceof ErroHttpModulo) || e.status >= 500) throw e;

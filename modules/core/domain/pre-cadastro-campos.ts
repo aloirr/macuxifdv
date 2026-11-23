@@ -6,7 +6,7 @@
  */
 import { cepValido, cnpjValido, cpfValido, somenteDigitos } from '@macuxi/comum';
 import { ehEmail } from '@macuxi/comum/email';
-import { CAMPOS_CADASTRO_CLIENTE, CAMPOS_CADASTRO_FIXOS, type CampoCadastroCliente } from '../contracts/cadastro';
+import { CAMPOS_CADASTRO_CLIENTE, type CampoCadastroCliente } from '../contracts/cadastro';
 import {
   CAMPOS_PRE_CADASTRO_CONFIGURAVEIS,
   CAMPOS_PRE_CADASTRO_SEMPRE,
@@ -16,7 +16,7 @@ import {
   type CampoPreCadastroConfiguravel,
   type StatusCadastro,
 } from '../contracts/cliente-pre-cadastro';
-import { cadastroCompleto, type DadosCadastro } from './cadastro';
+import { cadastroCompleto, comFixos, type DadosCadastro } from './cadastro';
 
 const ORDEM: readonly CampoPreCadastro[] = [...CAMPOS_PRE_CADASTRO_SEMPRE, ...CAMPOS_PRE_CADASTRO_CONFIGURAVEIS];
 
@@ -50,8 +50,7 @@ const FORA_DO_PRE_CADASTRO = new Set<CampoCadastroCliente>(['complemento', 'geol
  * geolocalização; razão social e CPF/CNPJ entram sempre. Sem repetir, na ordem canônica.
  */
 export function obrigatoriosDoPreCadastro(exigidos: readonly CampoCadastroCliente[]): CampoCadastroCliente[] {
-  const conjunto = new Set<CampoCadastroCliente>([...CAMPOS_CADASTRO_FIXOS, ...exigidos]);
-  return CAMPOS_CADASTRO_CLIENTE.filter((c) => conjunto.has(c) && !FORA_DO_PRE_CADASTRO.has(c));
+  return comFixos(exigidos).filter((c) => !FORA_DO_PRE_CADASTRO.has(c));
 }
 
 const ENDERECO: readonly CampoCadastroCliente[] = COLUNAS_ENDERECO_PRE_CADASTRO;
