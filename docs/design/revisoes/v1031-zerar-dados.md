@@ -1,6 +1,33 @@
 # Revisão de UX — "Zerar dados" no portal `config.` (v1.0.31)
 
-> Lote renumerado de v1.0.30 para **v1.0.31**. A rodada 3 (reteste) vem primeiro; depois, a rodada 2 (seção "Monitor" e "Zerar dados" por entidade) e a rodada 1 (menu e diálogo da empresa inteira), como registro.
+> Lote renumerado de v1.0.30 para **v1.0.31**. A rodada 4 (reteste depois da revisão final) vem primeiro; depois, a rodada 3 (reteste), a rodada 2 (seção "Monitor" e "Zerar dados" por entidade) e a rodada 1 (menu e diálogo da empresa inteira), como registro.
+
+# Rodada 4 — reteste depois da revisão final (🔴1 "Mantém" e 🔴2 prévia assíncrona)
+
+**Revisado:** SHA `57a583107` (branch `nuvem/v1030-zerar-engenheiro-apps`): `apps/web/components/portal/dialogo-zerar.tsx`, `apps/web/lib/portal-empresa-zerar.ts`, `apps/web/lib/portal-falso-zerar.ts`; frases `packages/platform-sdk/src/empresa-zerar.ts` (SHA `c6424d8d2`, engenheiro-software); rotina `db/migrations/0100_plataforma_zerar_empresa.up.sql` (branch `nuvem/v1030-zerar-banco-dados`); prints `apps/web/docs/prints/zerar-dados/` 02-previa, 02-calculando (novo), 04-concluido e 06-entidade, desktop e `-celular`.
+**Data:** 23/11/2026 · designer-ux.
+
+## Veredito (rodada 4)
+
+**Aprovado com 1 ajuste de texto.** O "Mantém" da empresa inteira, a retirada dele por entidade e o estado "Contando os dados…" ficam como estão. O R4-1 (duas frases da prévia no SDK) segura o lote; o R4-2 é recomendação.
+
+## Pontos julgados
+
+- **"Mantém" da empresa inteira (🟢).** `Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.` (`portal-empresa-zerar.ts:37`) e o grupo `Usuários não administradores` no "Apaga:" (print 02) se completam: quem zera sabe que os administradores ficam e que os outros usuários saem, com o número (18). Isso muda o que ele faz depois (recadastrar a equipe), então é texto para agir. Cada fato num lugar: quem sai no "Apaga:", quem fica no "Mantém:". No celular, 2 linhas (02-celular), aceitável. A premissa de que os não administradores saem segue a rotina (`0100…up.sql:81`, `:333-336`) e fica a confirmar com o dono do produto.
+- **Sem "Mantém" por entidade (🟢).** Quem zera uma entidade escolheu o que sai; listar o que fica seria repetir "tudo menos isto". O que ele precisa para agir é o "Apaga:" com os números e o "Leva junto:" da cascata, e os dois estão lá (print 06). Zerar `vendedor` apaga usuários: na rotina, a raiz de `vendedor` é `core.usuario` (`0100…up.sql:90`), então a prévia real traz o grupo `Usuários não administradores` no "Apaga:". O aviso chega pelo lugar certo, sem linha nova.
+- **Prévia assíncrona (🟢).** "Contando os dados…" com o giro (`LoadingBlock`, `role="status"`) e só **Fechar** no rodapé, porque não há o que confirmar (print 02-calculando; `dialogo-zerar.tsx:185`, `:196-200`). Sem campos nem botão de perigo antes da contagem: o código e a senha só aparecem quando há números para conferir. O título já é a pergunta, então o giro não precisa de outra frase. A falha usa o `ErrorBlock` com "Tentar de novo", que pede uma prévia nova (`:202-205`). Um estado por vez: giro, falha, vazio, bloqueio ou prévia.
+- **Concluído (🟢).** Sem mudança de texto: "20.137 linhas apagadas.", lote e "Rode no servidor do Conector:" (print 04).
+
+## Achados (rodada 4)
+
+| # | Grav. | Dono | Onde | Achado | Ajuste |
+|---|---|---|---|---|---|
+| R4-1 | 🟡 obrig. | engenheiro-software | `packages/platform-sdk/src/empresa-zerar.ts:158` e `:166` (SHA `57a583107`) | (a) `Prévia não encontrada. Abra o zerar de novo.` aparece no `ErrorBlock` cujo botão é "Tentar de novo": a frase manda fazer uma coisa e o botão oferece outra (e o "Tentar de novo" resolve, porque pede uma prévia com id novo). "Prévia" e "o zerar" são palavras do sistema. (b) `Não foi possível calcular o que sai. Tente de novo.` usa "o que sai", mas o diálogo diz "Apaga:" e "Contando os dados…". | As duas: **`Não foi possível contar os dados. Tente de novo.`** Mudam junto os testes do SDK e do portal que conferem essas frases. |
+| R4-2 | 🟢 rec. | engenheiro-apps | `apps/web/lib/portal-falso-zerar.ts:71` | No modo falso, `vendedor` aponta para `core.vendedor`. Na rotina real, a raiz é `core.usuario`, e a prévia mostra `Usuários não administradores`. O modo falso (prints e e2e) não mostra esse caso. | Lote seguinte: `vendedor: 'core.usuario'`, para o print e o e2e de "Zerar Vendedores" mostrarem o grupo como no banco. |
+
+Os textos da tela (`TEXTOS_ZERAR`) ficam como estão. O print 02-calculando e os refeitos voltam para o corretor-redundancias e para o design-de-marca.
+
+---
 
 # Rodada 3 — reteste dos ajustes R2-1 a R2-7
 

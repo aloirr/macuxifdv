@@ -1,6 +1,6 @@
 # Portal `config.` — "Zerar dados" da empresa e por entidade (v1.0.31)
 
-**Situação:** spec do designer-ux a partir da implementação do engenheiro-apps (rodada 1: SHA `8e29949cc`; rodada 2: SHA `ad16c5a86`). Revisão e textos finais: `docs/design/revisoes/v1031-zerar-dados.md`. Regras: RN-PLA-12, RN-INT-15, RN-INT-16, ADR 0068 e `docs/desenho/empresa-zerar.md` (§6.4 para a aba Integração). Componentes de `@macuxi/ui/web`: `MenuAcoes`, `TabelaDados` (prop `acoes`), `Panel`, `Badge`, `Dialog`, `Button`, `CampoSenha`, `LoadingBlock`, `ErrorBlock` e `Notice`.
+**Situação:** spec do designer-ux a partir da implementação do engenheiro-apps (rodada 1: SHA `8e29949cc`; rodada 2: SHA `ad16c5a86`; rodada 4: SHA `57a583107`). Revisão e textos finais: `docs/design/revisoes/v1031-zerar-dados.md`. Regras: RN-PLA-12, RN-INT-15, RN-INT-16, ADR 0068 e `docs/desenho/empresa-zerar.md` (§6.4 para a aba Integração). Componentes de `@macuxi/ui/web`: `MenuAcoes`, `TabelaDados` (prop `acoes`), `Panel`, `Badge`, `Dialog`, `Button`, `CampoSenha`, `LoadingBlock`, `ErrorBlock` e `Notice`.
 
 ## 1. Menu "⋯" da linha (lista de Empresas)
 Ordem: Backup · Inativar/Reativar · divisor · **Zerar dados** · **Excluir**. Os dois últimos são de perigo.
@@ -64,10 +64,10 @@ Título:
 - por entidade: **"Zerar {Entidades} de {empresa}?"**.
 
 Conteúdo, nesta ordem:
-1. Carregando: `LoadingBlock` "Contando os dados…". Erro: `ErrorBlock` com "Tentar de novo".
-2. **Apaga:** lista por grupo, com o rótulo à esquerda e a contagem à direita (`tabular-nums`). Só os grupos com linhas, na ordem de `GRUPOS_ZERAR`.
+1. Contando (a prévia é do worker; a tela pede e lê a cada `CONSULTA_PREVIA_ZERAR_MS`): `LoadingBlock` "Contando os dados…", sem campos, rodapé só com **Fechar**. Erro ao pedir ou prévia que falhou: `ErrorBlock` com a frase do SDK e "Tentar de novo" (pede uma prévia nova).
+2. **Apaga:** lista por grupo, com o rótulo à esquerda e a contagem à direita (`tabular-nums`). Só os grupos com linhas, na ordem de `GRUPOS_ZERAR`. Na empresa inteira, e por entidade quando a entidade é `vendedor`, entra o grupo **"Usuários não administradores"**.
 3. Por entidade, só quando a cascata leva outras: **"Leva junto: {entidades que não estão no título}"**.
-4. Empresa inteira: **"Mantém: empresa, plano, usuários, perfis, parâmetros e conectores."** Por entidade, a linha não aparece.
+4. Empresa inteira: **"Mantém: empresa, plano, administradores, perfis, parâmetros e conectores."** Por entidade, a linha não aparece: o "Apaga:" já diz o que sai, inclusive os usuários.
 5. "Digite `CÓDIGO` para confirmar", com o campo em fonte mono.
 6. "Sua senha" (`CampoSenha`).
 7. Rodapé: **Cancelar** + **Zerar dados** (perigo, o único principal). O botão liga com o código conferindo e a senha preenchida. Enquanto envia, mostra "Zerando…".
@@ -75,7 +75,8 @@ Conteúdo, nesta ordem:
 Estados sem confirmação (sem campos e sem "Zerar dados"; o botão do rodapé é **Fechar**):
 - **Vazio:** "Não há dados para zerar." Só este texto: o vazio vence o bloqueio.
 - **Bloqueado:** só o `Notice` de aviso, com a frase de `mensagemDoZerar`.
-- **Erro na prévia:** `ErrorBlock` com "Tentar de novo".
+- **Contando:** `LoadingBlock` "Contando os dados…".
+- **Erro na prévia:** `ErrorBlock` com "Tentar de novo". Frase (R4-1): "Não foi possível contar os dados. Tente de novo."
 - **Já em andamento** (`ZERAR_EM_ANDAMENTO`): o diálogo vai direto ao andamento.
 
 ## 4. Diálogo — depois do pedido
