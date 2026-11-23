@@ -11,7 +11,7 @@ export type SituacaoPreCadastro = 'aguardando_erp' | 'recusado_erp' | 'nao_envia
 export const ROTULO_AGUARDANDO_ERP = 'Aguardando ERP';
 export const ROTULO_RECUSADO_ERP = 'Recusado pelo ERP';
 /** Envio que o servidor não aceitou: o cadastro não chegou ao ERP. */
-export const ROTULO_NAO_ENVIADO = 'Não enviado';
+export const ROTULO_PRE_CADASTRO_NAO_ENVIADO = 'Não enviado';
 /** Botão do alerta do cliente recusado ou não enviado: abre o formulário preenchido, com o motivo no topo. */
 export const ACAO_CORRIGIR_E_REENVIAR = 'Corrigir e reenviar';
 
@@ -21,6 +21,6 @@ export function seloDoPreCadastro(
 ): { texto: string; tom: TomEstado; icone: 'clock' | 'alert' } | null {
   if (situacao === 'aguardando_erp') return { texto: ROTULO_AGUARDANDO_ERP, tom: 'aviso', icone: 'clock' };
   if (situacao === 'recusado_erp') return { texto: ROTULO_RECUSADO_ERP, tom: 'erro', icone: 'alert' };
-  if (situacao === 'nao_enviado') return { texto: ROTULO_NAO_ENVIADO, tom: 'erro', icone: 'alert' };
+  if (situacao === 'nao_enviado') return { texto: ROTULO_PRE_CADASTRO_NAO_ENVIADO, tom: 'erro', icone: 'alert' };
   return null;
 }

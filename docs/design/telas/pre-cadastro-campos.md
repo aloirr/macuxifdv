@@ -54,31 +54,4 @@ API confere…", "vale também offline…"), nenhuma contagem de marcados, nenhu
 
 **testIDs:** `core.pre_cadastro.parametros.painel` · `.campo.<chave>` (caixa de cada campo) · `.salvar` · `.aviso`.
 
-## 3. Campo: formulário de pré-cadastro (a tela é da sessão B)
-
-**Marcação de obrigatório:** o mesmo padrão do BKO (`CampoFormulario`): o rótulo do campo obrigatório fica
-**sem marca**; o campo não obrigatório leva **(opcional)** depois do rótulo, em 400 e `ink2`
-(ex.: "Telefone (opcional)"). Nada de asterisco.
-- Obrigatórios = Razão social, CPF/CNPJ e as chaves do parâmetro sincronizado. Sem parâmetro no aparelho, usa o padrão
-  (só os dois travados).
-- `endereco` obrigatório: todos os 6 campos do grupo ficam sem "(opcional)".
-- Ao tocar em Salvar com falta: o campo fica com a borda `danger` e o erro embaixo (`CampoTexto` `erro`).
-  Mensagens: `MENSAGENS_CAMPO_FALTANTE` em `modules/core/contracts` (fonte única; app e API usam o mesmo mapa).
-  A de `endereco` fica embaixo do primeiro campo vazio do grupo. O foco vai ao primeiro campo com falta.
-- Recusa 422 `CAMPOS_OBRIGATORIOS` vinda da API (parâmetro mudou antes do envio): a mesma mensagem por campo, do mesmo mapa.
-
-**Situação do cadastro** (`status_cadastro`), no cartão do cliente (lista da carteira) e no alto da ficha do cliente
-(`cliente.tsx`), com `ChipEstado` (`pequeno` na lista):
-
-| `status_cadastro` | Chip | Tom |
-|---|---|---|
-| `pendente` | **Aguardando o ERP** | `aviso` |
-| `aprovado` | sem chip (é o estado normal) | — |
-| `recusado` | **Recusado pelo ERP** | `erro` |
-
-**Motivo da recusa:** só na ficha do cliente, logo abaixo do cabeçalho, numa `Faixa tom="erro"`:
-- `texto`: **Recusado pelo ERP**
-- `apoio`: o `motivo_recusa` como veio, sem prefixo; sem motivo, **Sem motivo informado.**
-
-Na ficha, com a faixa à mostra, o chip do cabeçalho sai: uma informação, um lugar. Na lista fica só o chip, sem o
-motivo.
+## 3. Campo: ver `campo-cliente-pre-cadastro.md` §2 a §5.

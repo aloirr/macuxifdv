@@ -51,10 +51,11 @@ Selo: `ChipEstado pequeno {...seloDoPreCadastro(situacao)}` no lugar do selo `pr
 | Aprovado (ERP devolveu o código) | sem selo | o código aparece onde o código do cliente já aparece |
 
 - O motivo aparece na área Alertas da ficha e, na correção, só no topo do formulário, numa linha `danger` com ícone `alert`.
-- Reenviar = **Salvar** no formulário de correção; o selo volta a **Aguardando ERP**.
+- **Corrigir e reenviar** de um cliente recusado pelo ERP gera um novo pré-cadastro, que substitui o recusado do mesmo CPF/CNPJ, e não corrige o mesmo cadastro (ADR 0067, RN-CORE-78).
+- Reenviar = **Salvar** no formulário; o selo volta a **Aguardando ERP**.
 
 ## 6. Componentes do kit (`@macuxi/ui/mobile`)
 - `CampoTexto` ganhou: `mascara?: 'documento' | 'cep' | 'telefone'` (`aoMudar` recebe o texto formatado), `opcional?: boolean`, `falta?: string | null`.
 - `RotuloCampo` ganhou `opcional?: boolean`.
-- Puros (`@macuxi/ui/mobile/puro`): `aplicarMascara`, `propsDeTecladoDaMascara`, `DIGITOS_DA_MASCARA`, `seloDoPreCadastro(situacao: 'aguardando_erp' | 'recusado_erp' | 'nao_enviado' | 'aprovado_erp')`, `ROTULO_AGUARDANDO_ERP`, `ROTULO_RECUSADO_ERP`, `ROTULO_NAO_ENVIADO`, `ACAO_CORRIGIR_E_REENVIAR`.
+- Puros (`@macuxi/ui/mobile/puro`): `aplicarMascara`, `propsDeTecladoDaMascara`, `DIGITOS_DA_MASCARA`, `seloDoPreCadastro(situacao: 'aguardando_erp' | 'recusado_erp' | 'nao_enviado' | 'aprovado_erp')`, `ROTULO_AGUARDANDO_ERP`, `ROTULO_RECUSADO_ERP`, `ROTULO_PRE_CADASTRO_NAO_ENVIADO`, `ACAO_CORRIGIR_E_REENVIAR`.
 - Já existentes, reusar: `CampoEscolha` (UF), `ChipEstado`, `Botao`, `AvisoRodape`, `Folha`, `RotuloSecao`, `TextoDaFalta`.
