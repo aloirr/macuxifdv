@@ -35,8 +35,8 @@ export interface PropsAbaEmpresa {
   modulos: EmpresaResumo['modulos'];
   /** Cartões da coluna da direita, abaixo de Administradores (Logo, Nome fantasia, Apps). */
   colunaDireita?: ReactNode;
-  /** Só na empresa sem plano: dentro do cartão "Módulos licenciados" (RD-2613). */
-  semPlano?: ReactNode;
+  /** Só na empresa sem plano: dentro do cartão "Módulos licenciados" (RD-2613); com "Escolher plano" no cartão, a ação dele é secundária. */
+  semPlano?: (comEscolher: boolean) => ReactNode;
 }
 
 export function AbaEmpresa({ tenant, fuso, timeMacuxi, modulos, colunaDireita, semPlano }: PropsAbaEmpresa) {
@@ -46,7 +46,7 @@ export function AbaEmpresa({ tenant, fuso, timeMacuxi, modulos, colunaDireita, s
   const podeEscolher = sem && timeMacuxi && !ehRotaAusente(ficha.error);
   const principal = sem ? (
     <CartaoModulosLicenciados modulos={modulos} acao={podeEscolher ? <EscolherPlano tenant={tenant} /> : undefined}>
-      {semPlano}
+      {semPlano?.(podeEscolher)}
     </CartaoModulosLicenciados>
   ) : (
     <CartaoPlano tenant={tenant} podeTrocar={timeMacuxi} largo={!timeMacuxi} />

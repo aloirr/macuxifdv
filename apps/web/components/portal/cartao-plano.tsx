@@ -166,41 +166,60 @@ export function EscolherPlano({ tenant }: { tenant: string }) {
   );
 }
 
-export function DialogoEscolherPlano({ tenant, aoFechar }: { tenant: string; aoFechar: () => void }) {
+/**
+ * Estado e envio comuns aos diálogos "Escolher plano" (POST) e "Trocar de plano" (PUT) (RD-2639): a escolha, o `pedido_id` gerado
+ * no portal, o envio e o erro da API. Cada diálogo diz o método, o corpo e o que fazer no sucesso; `podeBase` já junta planos
+ * carregados, plano escolhido, adicionais válidos e fora do envio. 422 (RN-PLA-05): uma linha por problema; 409 vai para `aoConflito`
+ * quando o diálogo o trata.
+ */
+function useDialogoPlano({
+  tenant,
+  inicial,
+  metodo,
+  corpoDe,
+  aoSucesso,
+  aoConflito,
+  aoFechar,
+}: {
+  tenant: string;
+  inicial: () => EscolhaDaTela;
+  metodo: 'POST' | 'PUT';
+  corpoDe: (escolha: EscolhaDaTela, pedidoId: string) => object | null;
+  aoSucesso: (nova: FichaAssinatura) => void;
+  aoConflito?: () => void;
+  aoFechar: () => void;
+}) {
   const qc = useQueryClient();
   const planos = usePlanos();
-  const [escolha, setEscolha] = useState<EscolhaDaTela>(ESCOLHA_VAZIA);
+  const [escolha, setEscolha] = useState<EscolhaDaTela>(inicial);
   const [pedidoId] = useState(() => crypto.randomUUID());
   const [enviando, setEnviando] = useState(false);
   const [erroApi, setErroApi] = useState<string[] | null>(null);
   const fechar = () => {
     if (!enviando) aoFechar();
   };
-
-  const lista: readonly Plano[] = planos.data ?? [];
-  const plano = lista.find((p) => p.codigo === escolha.plano) ?? null;
-  const erros = errosDaEscolha(escolha);
-  const total = totalDaEscolha(lista, escolha);
-  const pode = planos.isSuccess && !!plano && Object.keys(erros).length === 0 && !enviando;
-
   const mudar = (e: EscolhaDaTela) => {
     setErroApi(null);
     setEscolha(e);
   };
 
-  const escolher = async () => {
-    const corpo = corpoDaAtribuicao(escolha, pedidoId);
+  const lista: readonly Plano[] = planos.data ?? [];
+  const plano = lista.find((p) => p.codigo === escolha.plano) ?? null;
+  const erros = errosDaEscolha(escolha);
+  const total = totalDaEscolha(lista, escolha);
+  const podeBase = planos.isSuccess && !!plano && Object.keys(erros).length === 0 && !enviando;
+
+  const enviar = async (pode: boolean) => {
+    const corpo = corpoDe(escolha, pedidoId);
     if (!pode || !corpo) return;
     setEnviando(true);
     try {
-      const nova = await chamarPortal(ROTAS_PORTAL.assinatura(tenant), { metodo: 'POST', corpo, schema: FichaAssinaturaSchema });
+      const nova = await chamarPortal(ROTAS_PORTAL.assinatura(tenant), { metodo, corpo, schema: FichaAssinaturaSchema });
       qc.setQueryData(chaveDaFicha(tenant), nova);
-      void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS });
-      aoFechar();
+      aoSucesso(nova);
     } catch (x) {
-      if (x instanceof ErroPortal && x.status === 409) {
-        void qc.invalidateQueries({ queryKey: chaveDaFicha(tenant) });
-        aoFechar();
+      if (aoConflito && x instanceof ErroPortal && x.status === 409) {
+        aoConflito();
         return;
       }
       setErroApi(x instanceof ErroPortal && x.status === 422 ? mensagensDosProblemas(x.detalhes, x.message) : [mensagemDoErro(x)]);
@@ -209,39 +228,104 @@ export function DialogoEscolherPlano({ tenant, aoFechar }: { tenant: string; aoF
     }
   };
 
+  return { qc, planos, lista, escolha, mudar, plano, erros, total, enviando, erroApi, fechar, podeBase, enviar };
+}
+
+/** Rodapé comum: Total à esquerda, "Cancelar" e o principal do diálogo. */
+function RodapeDialogoPlano({
+  total,
+  enviando,
+  fechar,
+  pode,
+  aoConfirmar,
+  rotulo,
+  testId,
+}: {
+  total: string | null;
+  enviando: boolean;
+  fechar: () => void;
+  pode: boolean;
+  aoConfirmar: () => void;
+  rotulo: string;
+  testId: string;
+}) {
+  return (
+    <>
+      {total && (
+        <span data-testid="empresa-plano.total" className="mr-auto self-center text-[17px] font-semibold tabular-nums text-ink">
+          {total}
+        </span>
+      )}
+      <Button data-testid="empresa-plano.cancelar" onClick={fechar} disabled={enviando}>
+        {TEXTOS_PLANO.cancelar}
+      </Button>
+      <Button variant="primary" data-testid={testId} disabled={!pode} onClick={aoConfirmar}>
+        {rotulo}
+      </Button>
+    </>
+  );
+}
+
+/** Carregando e erro da lista de planos, iguais nos dois diálogos. */
+function EstadoDosPlanos({ planos }: { planos: ReturnType<typeof usePlanos> }) {
+  return (
+    <>
+      {planos.isPending && <LoadingBlock label={TEXTOS_PLANO.buscandoPlanos} />}
+      {planos.isError && <ErrorBlock message={ehRotaAusente(planos.error) ? TEXTO_INDISPONIVEL : mensagemDoErro(planos.error)} onRetry={() => void planos.refetch()} />}
+    </>
+  );
+}
+
+/** Uma linha por problema (da API ou da regra local), embaixo dos planos. */
+function ErrosDoPlano({ problemas }: { problemas: readonly string[] }) {
+  return (
+    <ul data-testid="empresa-plano.erro" role="alert" className="m-0 flex list-none flex-col gap-0.5 p-0 text-[13px] font-semibold text-danger">
+      {problemas.map((p) => (
+        <li key={p}>{p}</li>
+      ))}
+    </ul>
+  );
+}
+
+export function DialogoEscolherPlano({ tenant, aoFechar }: { tenant: string; aoFechar: () => void }) {
+  const d = useDialogoPlano({
+    tenant,
+    inicial: () => ESCOLHA_VAZIA,
+    metodo: 'POST',
+    corpoDe: corpoDaAtribuicao,
+    aoSucesso: () => {
+      void d.qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS });
+      aoFechar();
+    },
+    // outra pessoa já escolheu: busca a ficha de novo
+    aoConflito: () => {
+      void d.qc.invalidateQueries({ queryKey: chaveDaFicha(tenant) });
+      aoFechar();
+    },
+    aoFechar,
+  });
   return (
     <Dialog
       open
       title={TEXTOS_PLANO.escolher}
       largura="extra-larga"
-      onClose={fechar}
+      onClose={d.fechar}
       footer={
-        <>
-          {total && (
-            <span data-testid="empresa-plano.total" className="mr-auto self-center text-[17px] font-semibold tabular-nums text-ink">
-              {total}
-            </span>
-          )}
-          <Button data-testid="empresa-plano.cancelar" onClick={fechar} disabled={enviando}>
-            {TEXTOS_PLANO.cancelar}
-          </Button>
-          <Button variant="primary" data-testid="empresa-plano.escolher-confirmar" disabled={!pode} onClick={() => void escolher()}>
-            {plano ? TEXTOS_PLANO.escolherNome(plano.nome) : TEXTOS_PLANO.escolher}
-          </Button>
-        </>
+        <RodapeDialogoPlano
+          total={d.total}
+          enviando={d.enviando}
+          fechar={d.fechar}
+          pode={d.podeBase}
+          aoConfirmar={() => void d.enviar(d.podeBase)}
+          rotulo={d.plano ? TEXTOS_PLANO.escolherNome(d.plano.nome) : TEXTOS_PLANO.escolher}
+          testId="empresa-plano.escolher-confirmar"
+        />
       }
     >
       <div data-testid="empresa-plano.escolher-dialogo" className="flex flex-col gap-4">
-        {planos.isPending && <LoadingBlock label={TEXTOS_PLANO.buscandoPlanos} />}
-        {planos.isError && <ErrorBlock message={ehRotaAusente(planos.error) ? TEXTO_INDISPONIVEL : mensagemDoErro(planos.error)} onRetry={() => void planos.refetch()} />}
-        {planos.isSuccess && <SeletorPlano planos={lista} escolha={escolha} aoMudar={mudar} erros={semChaves(erros, 'plano')} />}
-        {erroApi && (
-          <ul data-testid="empresa-plano.erro" role="alert" className="m-0 flex list-none flex-col gap-0.5 p-0 text-[13px] font-semibold text-danger">
-            {erroApi.map((p) => (
-              <li key={p}>{p}</li>
-            ))}
-          </ul>
-        )}
+        <EstadoDosPlanos planos={d.planos} />
+        {d.planos.isSuccess && <SeletorPlano planos={d.lista} escolha={d.escolha} aoMudar={d.mudar} erros={semChaves(d.erros, 'plano')} />}
+        {d.erroApi && <ErrosDoPlano problemas={d.erroApi} />}
       </div>
     </Dialog>
   );
@@ -255,84 +339,45 @@ export function DialogoEscolherPlano({ tenant, aoFechar }: { tenant: string; aoF
  * o principal desabilitado; a API revalida (422).
  */
 export function DialogoTrocarPlano({ tenant, ficha, aoFechar, aoTrocar }: { tenant: string; ficha: FichaAssinatura; aoFechar: () => void; aoTrocar: (nome: string) => void }) {
-  const qc = useQueryClient();
-  const planos = usePlanos();
-  const [escolha, setEscolha] = useState<EscolhaDaTela>(() => escolhaDaFicha(ficha));
-  const [pedidoId] = useState(() => crypto.randomUUID());
-  const [enviando, setEnviando] = useState(false);
-  const [erroApi, setErroApi] = useState<string[] | null>(null);
-  const fechar = () => {
-    if (!enviando) aoFechar();
-  };
-
-  const lista: readonly Plano[] = planos.data ?? [];
-  const plano = lista.find((p) => p.codigo === escolha.plano) ?? null;
-  const erros = errosDaEscolha(escolha);
-  const problemas = erroApi ?? problemasDaTroca(lista, ficha, escolha);
-  const mudou = mudouDaFicha(ficha, escolha);
-  const total = totalDaEscolha(lista, escolha);
-  const pode = planos.isSuccess && !!plano && mudou && problemas.length === 0 && Object.keys(erros).length === 0 && !enviando;
-
-  const mudar = (e: EscolhaDaTela) => {
-    setErroApi(null);
-    setEscolha(e);
-  };
-
-  const trocar = async () => {
-    const corpo = corpoDaTroca(escolha, pedidoId);
-    if (!pode || !corpo) return;
-    setEnviando(true);
-    try {
-      const nova = await chamarPortal(ROTAS_PORTAL.assinatura(tenant), { metodo: 'PUT', corpo, schema: FichaAssinaturaSchema });
-      qc.setQueryData(chaveDaFicha(tenant), nova);
-      aoTrocar(nova.plano.nome);
-    } catch (x) {
-      // 422 do contrato (PLANO_ABAIXO_DO_USO, PLANO_INATIVO…): uma linha por problema, embaixo dos planos
-      setErroApi(x instanceof ErroPortal && x.status === 422 ? mensagensDosProblemas(x.detalhes, x.message) : [mensagemDoErro(x)]);
-    } finally {
-      setEnviando(false);
-    }
-  };
-
+  const d = useDialogoPlano({
+    tenant,
+    inicial: () => escolhaDaFicha(ficha),
+    metodo: 'PUT',
+    corpoDe: corpoDaTroca,
+    aoSucesso: (nova) => aoTrocar(nova.plano.nome),
+    aoFechar,
+  });
+  const problemas = d.erroApi ?? problemasDaTroca(d.lista, ficha, d.escolha);
+  const mudou = mudouDaFicha(ficha, d.escolha);
+  const pode = d.podeBase && mudou && problemas.length === 0;
   return (
     <Dialog
       open
       title={TEXTOS_PLANO.trocar}
       largura="extra-larga"
-      onClose={fechar}
+      onClose={d.fechar}
       footer={
-        <>
-          {total && (
-            <span data-testid="empresa-plano.total" className="mr-auto self-center text-[17px] font-semibold tabular-nums text-ink">
-              {total}
-            </span>
-          )}
-          <Button data-testid="empresa-plano.cancelar" onClick={fechar} disabled={enviando}>
-            {TEXTOS_PLANO.cancelar}
-          </Button>
-          <Button variant="primary" data-testid="empresa-plano.confirmar" disabled={!pode} onClick={() => void trocar()}>
-            {mudou && plano ? TEXTOS_PLANO.trocarPara(plano.nome) : TEXTOS_PLANO.trocar}
-          </Button>
-        </>
+        <RodapeDialogoPlano
+          total={d.total}
+          enviando={d.enviando}
+          fechar={d.fechar}
+          pode={pode}
+          aoConfirmar={() => void d.enviar(pode)}
+          rotulo={mudou && d.plano ? TEXTOS_PLANO.trocarPara(d.plano.nome) : TEXTOS_PLANO.trocar}
+          testId="empresa-plano.confirmar"
+        />
       }
     >
       <div data-testid="empresa-plano.dialogo" className="flex flex-col gap-4">
-        {planos.isPending && <LoadingBlock label={TEXTOS_PLANO.buscandoPlanos} />}
-        {planos.isError && <ErrorBlock message={ehRotaAusente(planos.error) ? TEXTO_INDISPONIVEL : mensagemDoErro(planos.error)} onRetry={() => void planos.refetch()} />}
-        {planos.isSuccess && (
+        <EstadoDosPlanos planos={d.planos} />
+        {d.planos.isSuccess && (
           <>
             <div className="flex flex-col gap-2">
-              <EscolhaDoPlano planos={lista} escolha={escolha} aoMudar={mudar} atual={ficha.plano.codigo} />
-              {problemas.length > 0 && (
-                <ul data-testid="empresa-plano.erro" role="alert" className="m-0 flex list-none flex-col gap-0.5 p-0 text-[13px] font-semibold text-danger">
-                  {problemas.map((p) => (
-                    <li key={p}>{p}</li>
-                  ))}
-                </ul>
-              )}
+              <EscolhaDoPlano planos={d.lista} escolha={d.escolha} aoMudar={d.mudar} atual={ficha.plano.codigo} />
+              {problemas.length > 0 && <ErrosDoPlano problemas={problemas} />}
             </div>
-            {plano && <AdicionaisEmLinhas plano={plano} escolha={escolha} aoMudar={mudar} erros={erros} />}
-            <AlternadorCiclo ciclo={escolha.ciclo} mesesGratis={plano?.meses_gratis_anual ?? 0} aoMudar={(ciclo) => mudar({ ...escolha, ciclo })} />
+            {d.plano && <AdicionaisEmLinhas plano={d.plano} escolha={d.escolha} aoMudar={d.mudar} erros={d.erros} />}
+            <AlternadorCiclo ciclo={d.escolha.ciclo} mesesGratis={d.plano?.meses_gratis_anual ?? 0} aoMudar={(ciclo) => d.mudar({ ...d.escolha, ciclo })} />
           </>
         )}
       </div>

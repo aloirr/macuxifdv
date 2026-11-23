@@ -86,7 +86,7 @@ describe('cartão Plano da aba Empresa (§11.4)', () => {
 describe('aba Empresa (planos-assinatura 03 e 04)', () => {
   it('time da Macuxi: Plano e, à direita, Administradores com os cartões da coluna direita embaixo', () => {
     const html = renderizar(
-      <AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} colunaDireita={<p data-testid="extra">extra</p>} semPlano={<p data-testid="so-sem-plano" />} />,
+      <AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} colunaDireita={<p data-testid="extra">extra</p>} semPlano={() => <p data-testid="so-sem-plano" />} />,
     );
     expect(html).toContain('md:grid-cols-[1.25fr_1fr]');
     const direita = html.slice(html.indexOf('data-testid="empresa-pagina.coluna-direita"'));
@@ -104,7 +104,7 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
     expect(html).not.toContain('empresa-plano.trocar');
   });
   it('empresa sem plano (GET assinatura 404 SEM_ASSINATURA): "Módulos licenciados", sem "Trocar de plano"', () => {
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={<p data-testid="so-sem-plano" />} />, {
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={() => <p data-testid="so-sem-plano" />} />, {
       erroFicha: SEM_ASSINATURA,
     });
     expect(html).toContain('Módulos licenciados');
@@ -122,7 +122,7 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
   });
   it('empresa sem plano, passo antigo: só as caixas dos módulos não licenciados e "Acrescentar módulos" (RD-2613)', () => {
     const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: '11222333000181', fuso: 'America/Manaus', modulos: [...MODULOS, { modulo: 'catalogo' as const, licencas: null }] };
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={existente.modulos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={existente.modulos} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
     for (const m of ['gestor', 'pesquisa', 'promotor', 'treinamento']) expect(html).toContain(`data-testid="empresa.modulo-${m}"`);
     // o Catálogo já licenciado aparece no cartão e não se acrescenta de novo; Core e Integração nunca aparecem (RD-2617)
     for (const m of ['vendedor', 'core', 'catalogo', 'integracao']) expect(html).not.toContain(`data-testid="empresa.modulo-${m}"`);
@@ -132,16 +132,23 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
     expect(html).toContain('>Acrescentar módulos<');
     expect(html.match(/>Vendedor/g)).toHaveLength(1);
   });
+  it('com "Escolher plano" no cartão, "Acrescentar módulos" é secundário: um principal por cartão (marca)', () => {
+    const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: null, fuso: 'America/Manaus', modulos: MODULOS };
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
+    expect(html).toContain('data-testid="empresa-plano.escolher"');
+    expect(html.match(/<button[^>]*bg-accent text-white/g)).toHaveLength(1);
+    expect(html.match(/<button[^>]*data-testid="empresa\.gravar"[^>]*>/)?.[0]).toContain('border-field');
+  });
   it('empresa sem plano e sem o Catálogo: o Catálogo entra no "Acrescentar módulos", desmarcado (RD-2617)', () => {
     const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: '11222333000181', fuso: 'America/Manaus', modulos: MODULOS };
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
     expect(html).toMatch(/<input type="checkbox" data-testid="empresa\.modulo-catalogo"(?![^>]*checked)/);
     for (const m of ['core', 'integracao']) expect(html).not.toContain(`data-testid="empresa.modulo-${m}"`);
   });
   it('empresa sem plano com tudo licenciado: só os selos, sem o formulário', () => {
     const todos = (['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const).map((modulo) => ({ modulo, licencas: null }));
     const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: null, fuso: 'America/Manaus', modulos: todos };
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
     expect(html).not.toContain('empresa.form');
     expect(html).toContain('>Treinamento<');
     expect(html).toContain('>Catálogo<');
@@ -150,7 +157,7 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
   it('empresa sem plano com tudo licenciado (caso thathyany, v1.0.27 c): o time da Macuxi ainda tem uma ação, "Escolher plano"', () => {
     const todos = (['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const).map((modulo) => ({ modulo, licencas: null }));
     const existente = { id: TENANT, codigo: 'thathyany', razao_social: 'Distribuidora Três', cnpj: null, fuso: 'America/Manaus', modulos: todos };
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
     expect(html).toContain('data-testid="empresa-plano.escolher"');
     expect(html).toContain('>Escolher plano<');
     // no cabeçalho do cartão "Módulos licenciados", antes dos selos

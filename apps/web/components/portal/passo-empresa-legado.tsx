@@ -10,7 +10,8 @@
  * - Empresa nova (servidor sem planos): Empresa, Administrador (`AdminInicial`, RN-CORE-34), Módulos e licenças, Parâmetros
  *   iniciais, "Conferir sem gravar" (`simular: true`) e "Criar empresa". A senha só vive no estado da tela e é limpa depois de gravar.
  * - Empresa existente sem plano (RD-2613): só as caixas dos módulos ainda não licenciados e "Acrescentar módulos", dentro do cartão
- *   "Módulos licenciados" (o cabeçalho já mostra a empresa e o cartão "Administradores", os administradores). Tudo licenciado: nada.
+ *   "Módulos licenciados (o cabeçalho já mostra a empresa e o cartão "Administradores", os administradores). Tudo licenciado: nada. Com "Escolher plano"
+ *   no cartão (`secundario`), "Acrescentar módulos" vira secundário: um principal por cartão.
  */
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -138,7 +139,7 @@ export function textoDoAdminNoResultado(r: Pick<Resposta, 'admin' | 'simulado'>,
 
 export type { AdminDoForm };
 
-export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExistente; aoGravar?: (r: Resposta) => void }) {
+export function PassoEmpresa({ existente, secundario = false, aoGravar }: { existente?: EmpresaExistente; secundario?: boolean; aoGravar?: (r: Resposta) => void }) {
   const router = useRouter();
   const [f, setF] = useState<Form>(() => ({
     codigo: existente?.codigo ?? '',
@@ -278,7 +279,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
         {avisos}
         {faltam.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            <Button data-testid="empresa.gravar" type="submit" variant="primary" disabled={enviando !== null}>
+            <Button data-testid="empresa.gravar" type="submit" variant={secundario ? 'secondary' : 'primary'} disabled={enviando !== null}>
               {enviando === 'gravar' ? 'Gravando…' : 'Acrescentar módulos'}
             </Button>
           </div>

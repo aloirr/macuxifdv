@@ -150,10 +150,11 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
                     </Panel>
                   </>
                 }
-                semPlano={
+                semPlano={(comEscolher) =>
                   timeMacuxi && (
                     <PassoEmpresa
                       existente={{ id: empresa.id, codigo: empresa.codigo, razao_social: empresa.razao_social, cnpj: empresa.cnpj, fuso: empresa.fuso, modulos: empresa.modulos }}
+                      secundario={comEscolher}
                       aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })}
                     />
                   )
