@@ -54,10 +54,10 @@ Subtítulo, uma linha, separador ` · `: **códigos, bairro, cidade/UF**.
 Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busca** casa também pelo Código FDV (§6).
 
 ### 3.3 Formulário do pré-cadastro ("Corrigir e reenviar")
-- Com Código FDV: abaixo do título da tela, no estilo de subtítulo (`t.sub`), **`FDV 00012`**, com o valor em `fonte.mono` (§2). Sem campo de formulário (não é
-  editável) e sem cadeado.
+- Com Código FDV: no **cabeçalho**, na linha de subtítulo do `CabecalhoTela`, **`FDV 00012`**, com o valor em `fonte.mono` (§2). Nada no corpo:
+  o motivo da recusa é o único texto acima dos campos (`campo-cliente-pre-cadastro.md` §3.1). Sem campo de formulário (não é editável) e sem cadeado.
 - Sem Código FDV (antes do 1º sync) ou em **Novo cliente**: nada.
-- **Kit:** `<CodigosCliente fdv={codigoFdv} style={type.sub} />` (`@macuxi/ui/mobile`); some sozinho quando o código está vazio.
+- **Kit:** `cabecalho={{ titulo: 'Corrigir cliente', codigos: { fdv: codigoFdv } }}` (`CabecalhoTela`/`Screen`); some sozinho quando o código está vazio.
 - Código ERP nunca aparece aqui (a correção só existe sem vínculo).
 
 ## 4. BKO — Carteira (`modules/core/web/components/carteira/carteira-page.tsx`)

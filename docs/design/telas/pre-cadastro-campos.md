@@ -36,7 +36,7 @@ Rótulos: `ROTULOS_CAMPOS_PRE_CADASTRO` em `modules/core/contracts` (fonte únic
 ## 2. BKO: Parâmetros › Clientes › painel "Campos obrigatórios"
 
 **Onde:** seção `clientes` da página Parâmetros, depois de Farol e Curvas ABC (ordem 25, a do painel atual), no lugar do
-"Pré-cadastro de cliente". Mesmo molde de hoje (`PreCadastroParametrosPanel`): `useQuery`/`useMutation`, sem `PageHeader`
+"Pré-cadastro de cliente". Componente: `CamposObrigatoriosPanel` (`modules/core/web/components/pre-cadastro/campos-obrigatorios-panel.tsx`), com `useQuery`/`useMutation`, sem `PageHeader`
 próprio; o título do painel vem do manifest: **Campos obrigatórios**.
 
 **Ordem na tela:**

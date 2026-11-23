@@ -4,9 +4,9 @@
  * (`aplicarMascara`, parte pura, sem react-native); aqui só entram as props do `<input>` da web. O módulo guarda e envia só os
  * dígitos (`somenteDigitos` de `@macuxi/comum`); se o valor vale é do domain.
  */
-import { aplicarMascara, DIGITOS_DA_MASCARA, type MascaraCampo } from '../mobile/campo-mascara';
+import { aplicarMascara, type MascaraCampo } from '../mobile/campo-mascara';
 
-export { aplicarMascara, DIGITOS_DA_MASCARA, type MascaraCampo };
+export { aplicarMascara, type MascaraCampo };
 
 /** Tamanho do texto já formatado: CNPJ "00.000.000/0000-00", CEP "00000-000", celular "(00) 00000-0000". */
 const MAX_FORMATADO: Record<MascaraCampo, number> = { documento: 18, cep: 9, telefone: 15 };
