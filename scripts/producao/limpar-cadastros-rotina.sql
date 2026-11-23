@@ -25,7 +25,7 @@
 -- CASCATA: toda linha (viva) de tabela do domínio que aponta para uma linha que sai também sai, até não sobrar nenhuma: pela
 --   FK (qualquer coluna que referencia o id), entre módulos pelo nome da coluna (c_nome: cliente_id, produto_id, pedido_id,
 --   visita_id...) e, em plataforma.arquivo, pelo entidade_id (foto de visita, pedido ou tarefa). Para core.usuario, só as
---   colunas de POSSE (c_posse: usuario_id, vendedor_id); as de AUTORIA (autor_id, *_por, enviado_por, alterado_por,
+--   colunas de POSSE (c_posse: usuario_id, vendedor_id, promotor_id); as de AUTORIA (autor_id, *_por, enviado_por, alterado_por,
 --   responsavel_id) não levam a linha: ela fica e a coluna segue apontando para o usuário apagado, como histórico (ex.: a
 --   notificação de um admin escrita por um supervisor que sai fica).
 -- FICA (c_fica e o schema plataforma, menos arquivo, usuario_perfil e usuario_modulo): tenant, plano, assinatura e licenças,
@@ -72,9 +72,10 @@ declare
     "relacionado_id": "core.produto", "pedido_id": "vendedor.pedido", "pedido_uuid": "vendedor.pedido",
     "orcamento_id": "vendedor.pedido", "visita_id": "core.visita", "deposito_id": "catalogo.deposito",
     "tabela_preco_id": "catalogo.tabela_preco", "rota_id": "core.rota", "rota_parada_id": "core.rota_parada",
-    "no_id": "catalogo.catalogo_no", "usuario_id": "core.usuario", "vendedor_id": "core.usuario"}';
+    "no_id": "catalogo.catalogo_no", "usuario_id": "core.usuario", "vendedor_id": "core.usuario",
+    "promotor_id": "core.usuario"}';
   -- colunas de posse: as únicas que levam a linha junto com o usuário (as de autoria ficam como histórico)
-  c_posse constant text[] := array['usuario_id', 'vendedor_id'];
+  c_posse constant text[] := array['usuario_id', 'vendedor_id', 'promotor_id'];
   -- do schema plataforma, só estas entram na cascata
   c_plataforma constant text[] := array['arquivo', 'usuario_perfil', 'usuario_modulo'];
   c_schemas constant text[] := array['core', 'catalogo', 'vendedor', 'promotor', 'pesquisa', 'treinamento', 'gestor', 'integracao', 'plataforma'];

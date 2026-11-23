@@ -157,7 +157,6 @@ jobs:
               echo "- Restaurar (só antes do reenvio do ERP): modo=restaurar, lote=\`$LOTE\`, confirmar=\`RESTAURAR CADASTROS $EMPRESA $LOTE\`."
               echo "- Sem as linhas do lote em public.macuxi_limpeza_backup, antes do restaurar, na VM: \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c '\\copy public.macuxi_limpeza_backup from pstdin' < $arquivo\`. Se a tabela tiver sido apagada, recrie-a antes com o \`create table public.macuxi_limpeza_backup\` de scripts/producao/limpar-cadastros-rotina.sql."
               echo "- A cópia guarda dados pessoais e o hash das senhas: descarte 7 dias depois de o reenvio do ERP ser confirmado, com modo=descartar, lote=\`$LOTE\`, confirmar=\`DESCARTAR COPIA $EMPRESA $LOTE\`."
-              echo "- O vendedor recriado pelo ERP recebe código FDV novo."
               echo "- Equipe com responsável que saiu: o ERP ou o admin redefine o responsável."
             else
               echo "- O backup diário ainda guarda essas linhas por até 30 dias."
