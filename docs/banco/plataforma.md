@@ -150,7 +150,10 @@ tenants cujo nome está em `p_nomes`: `pendentes` = `tentativas < p_max_tentativ
 `mais_antigo_s` = segundos desde o `ocorrido_em` mais antigo dos pendentes (nulo sem pendente). Lista nula ou vazia = 0, 0,
 nulo. Só agregados: nenhum id, tenant, payload ou erro sai. `SECURITY DEFINER`, `search_path = pg_catalog, plataforma, pg_temp`,
 `execute` só ao `macuxi_app` (a API chama em `apps/api/src/banco.ts`, `resumoOutbox`; o worker conta direto com a política
-`despacho_outbox`). Índice `evento_pendente_ix`.
+`despacho_outbox`). Índice `evento_pendente_ix`. **0099 (v1.0.30)**: o evento apagado (`deleted_at` preenchido, como os da
+limpeza da AM2808) sai das três contagens (`create or replace`, mesma assinatura, dono e EXECUTE), e o `macuxi_worker` ganha
+`select (deleted_at)` para o despachante filtrar o apagado no despacho e no `reprocessarParados`. Down: volta o corpo da 0024 e
+revoga o SELECT. Teste `db/testes/resumo-outbox-vivos.db.test.ts`.
 
 ## evento_consumo — consumo idempotente da outbox (ADR 0007, migração 0003)
 | Coluna | Tipo | Regra |

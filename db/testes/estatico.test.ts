@@ -252,6 +252,7 @@ describe('migrações (estático)', () => {
     expect(nomes[93]).toBe('0094_integracao_busca_erp'); // integração por ERP (F2): conector_api, credencial_erp (sem macuxi_leitura), implantacao, implantacao_dia e coleta_execucao, piso de 15 min na frequência (integracao-busca-erp.db.test.ts)
     expect(nomes[96]).toBe('0097_core_cliente_pre_cadastro_erp'); // v1.0.28 (RN-CORE-78, RN-INT-22): core.cliente sem aprovado_por, com motivo_recusa (até 500, só com 'recusado', sem macuxi_leitura) e o índice cliente_pre_cadastro_fila_ix; cliente_fila_erp.aprovado_em vira recebido_em (cliente-pre-cadastro-erp.db.test.ts)
     expect(nomes[97]).toBe('0098_core_integracao_pre_cadastro_revisao'); // v1.0.30 (ADR 0069, RN-CORE-78, RN-INT-22): core.cliente.revisao_cadastro e erros_recusa, core.cliente_pre_cadastro_tentativa (carga das tentativas existentes, sem hash, motivo e erros no macuxi_leitura), revisao, hash e erros na cliente_fila_erp , o parâmetro unificado com o espelho legado e o Código FDV do cliente com o contador core.cliente_codigo_fdv_contador (cliente-pre-cadastro-revisao.db.test.ts)
+    expect(nomes[98]).toBe('0099_plataforma_resumo_outbox_vivos'); // v1.0.30 (limpeza da AM2808): plataforma.resumo_outbox sem o evento apagado (deleted_at) e SELECT do deleted_at da outbox ao macuxi_worker (resumo-outbox-vivos.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -414,6 +415,8 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       // 0089 (T-0156, ADR 0061): expurgo do rastreamento (USAGE só para chamar a função; nenhuma tabela do core)
       'usage on schema core',
       'execute on function core.expurgar_rastreamento(timestamptz, integer)',
+      // 0099 (v1.0.30): o despachante filtra o evento apagado no despacho e no reprocessarParados (resumo-outbox-vivos.db.test.ts)
+      'select (deleted_at) on plataforma.evento',
     ]);
   });
 

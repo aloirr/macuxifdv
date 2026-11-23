@@ -292,6 +292,11 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `cliente_codigo_fdv_somente_leitura` (23514), único `cliente_codigo_fdv_uk` entre os vivos, carga de todos os clientes vivos.
 > Conferência (só informativa, com os duplicados da v1.0.28): `db/scripts/conferencia-0098.sql`. Detalhes no [core.md](core.md) e no
 > [integracao.md](integracao.md) ("0098"); testes `db/testes/cliente-pre-cadastro-revisao.db.test.ts` e `db/testes/cliente-codigo-fdv.db.test.ts`.
+>
+> **2026-11-23 (v1.0.30, saúde da outbox depois da limpeza da AM2808):** `0099_plataforma_resumo_outbox_vivos` (em cima da 0098;
+> número provisório): `plataforma.resumo_outbox` deixa de contar o evento apagado (`deleted_at`) em pendentes, parados e mais
+> antigo, e o `macuxi_worker` ganha `select (deleted_at)` em `plataforma.evento`. Detalhes no [plataforma.md](plataforma.md)
+> (evento); teste `db/testes/resumo-outbox-vivos.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
