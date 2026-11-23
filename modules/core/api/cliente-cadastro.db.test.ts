@@ -216,6 +216,26 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     });
   });
 
+  it('RN-CORE-04 (ADR 0069 §3): o id novo com o documento do recusado de outra carteira dá 403 FORA_DA_CARTEIRA no push e na rota, sem gravar nada', async () => {
+    await emTransacao(pool, async (t) => {
+      const { codigo_fdv: codigoY } = await post(t, VENDEDOR, pre(ID1));
+      await recusar(t, ID1);
+      t.publicar.mockClear();
+      expect(await t.push(receberPreCadastros, VENDEDOR_2, [pre(ID4)])).toMatchObject([{ id: ID4, status: 'rejeitado', codigo: 'FORA_DA_CARTEIRA' }]);
+      await expect(post(t, VENDEDOR_2, pre(ID4))).rejects.toMatchObject({ status: 403, codigo: 'FORA_DA_CARTEIRA' });
+      // Y segue vivo, com o Código FDV, as tentativas e a carteira; X não existe
+      expect((await t.q('select status_cadastro, revisao_cadastro, codigo_fdv, deleted_at from core.cliente where id = $1', [ID1]))[0]).toEqual({ status_cadastro: 'recusado', revisao_cadastro: 1, codigo_fdv: codigoY, deleted_at: null });
+      expect(await t.q('select 1 from core.cliente where id = $1', [ID4])).toHaveLength(0);
+      expect(await tentativas(t, ID1)).toHaveLength(1);
+      expect(await t.q('select 1 from core.carteira where usuario_id = $1 and cliente_id = any($2::uuid[])', [A.usuarios.vendedor2, [ID1, ID4]])).toHaveLength(0);
+      expect(await t.q("select 1 from plataforma.auditoria where acao = 'cliente.recusado_substituido' and entidade_id = $1", [ID1])).toHaveLength(0);
+      expect(t.publicar).not.toHaveBeenCalled();
+      // o dono da carteira continua substituindo
+      expect(await t.push(receberPreCadastros, VENDEDOR, [pre(ID4)])).toEqual([{ id: ID4, status: 'aceito' }]);
+      expect((await t.q('select revisao_cadastro, codigo_fdv from core.cliente where id = $1', [ID4]))[0]).toEqual({ revisao_cadastro: 2, codigo_fdv: codigoY });
+    });
+  });
+
   it('RN-CORE-78 (ADR 0069 §3): o receptor do push aceita, rejeita com o código da regra e confere perfil e carteira', async () => {
     await emTransacao(pool, async (t) => {
       const ok = await t.push(receberPreCadastros, VENDEDOR, [pre(ID1), pre(ID2, { cep: null })]);

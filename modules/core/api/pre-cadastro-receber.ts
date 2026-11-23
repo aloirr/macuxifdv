@@ -10,7 +10,8 @@
  * corpo = 422 CODIGO_FDV_SOMENTE_LEITURA. A coordenada digitada grava `coordenada_origem = 'manual'` (RN-CORE-77: a carga do ERP sem
  * coordenada não a apaga).
  * Escopo de carteira (RN-CORE-04, ADR 0069 §3) nos três caminhos: a correção só no cliente da carteira; o `id` que já existe só devolve
- * `ja_existia` a quem o tem na carteira ou gravou uma tentativa dele; fora disso, 403 FORA_DA_CARTEIRA.
+ * `ja_existia` a quem o tem na carteira ou gravou uma tentativa dele, e o recusado só é substituído pelo `id` novo nas mesmas condições;
+ * fora disso, 403 FORA_DA_CARTEIRA.
  * Cada revisão grava uma tentativa em `core.cliente_pre_cadastro_tentativa` (migração 0098), com o hash dos dados gravados (as
  * coordenadas como o banco as arredondou). O hash (sha256 do canônico) nunca vai a log, à auditoria nem a evento; a auditoria leva só
  * nomes de campo, revisão e origem.
@@ -118,8 +119,8 @@ async function exigirCarteira(ctx: Contexto, id: string): Promise<void> {
 }
 
 /**
- * RN-CORE-04: o `id` que já existe só devolve a situação (`ja_existia`) a quem tem o cliente na carteira ou gravou uma tentativa dele (a
- * repetição de quem cadastrou sem receber a carteira, como supervisor e gerente).
+ * RN-CORE-04: o `id` que já existe só devolve a situação (`ja_existia`), e o recusado só é substituído pelo `id` novo, para quem tem o
+ * cliente na carteira ou gravou uma tentativa dele (a repetição de quem cadastrou sem receber a carteira, como supervisor e gerente).
  */
 async function exigirCarteiraOuAutoria(db: ClienteBanco, ctx: Contexto, id: string): Promise<void> {
   if (verificarCarteira(id, await ctx.carteira()).ok) return;
@@ -180,6 +181,8 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
   const duplicado = decidirDocumentoDuplicado(iguais);
   if (duplicado.bloqueia) throw erroPreCadastro('DOCUMENTO_JA_CADASTRADO');
   const substituido = duplicado.substituir;
+  // RN-CORE-04 (ADR 0069 §3): só substitui o recusado quem o tem na carteira ou gravou uma tentativa dele; fora disso, 403 sem gravar nada
+  if (substituido) await exigirCarteiraOuAutoria(db, ctx, substituido.id);
   const antes = substituido ? (await db.query<DadosPreCadastro>(`select ${SELECT_DADOS} from core.cliente where id = $1`, [substituido.id])).rows[0] : undefined;
   const revisao = substituido ? substituido.revisao + 1 : 1;
   // ADR 0069 item 10: o id novo herda o Código FDV do recusado (o código acompanha a linhagem); sem ele, o banco gera no insert
