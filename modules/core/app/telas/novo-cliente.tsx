@@ -93,6 +93,11 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
         const s = situacaoDoPreCadastro(atual);
         setSituacao(s.situacao);
         setMotivo(s.motivo);
+      } else if (clienteId) {
+        // o cadastro recusado já saiu do aparelho (reenviado): sem `atual` não há o que corrigir, volta à lista (spec §4)
+        salvo.current = true;
+        setAlterado(false);
+        router.replace(ROTA_CLIENTES as never);
       }
     })();
     return () => {
@@ -176,7 +181,8 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
     salvo.current = true;
     setAlterado(false);
     avisarClienteSalvo();
-    sair();
+    // a correção troca o id (o antigo some da ficha): volta à lista, com o cliente no topo (spec §4)
+    router.replace(ROTA_CLIENTES as never);
   }
 
   return (

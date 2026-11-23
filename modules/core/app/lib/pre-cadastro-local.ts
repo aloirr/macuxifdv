@@ -1,7 +1,7 @@
 /**
  * Pré-cadastro de cliente no aparelho (v1.0.28; RN-CORE-78 e RN-CORE-79; docs/design/telas/campo-cliente-pre-cadastro.md).
- * Puro (sem react-native): monta o payload do push, enfileira no sync de forma idempotente (o UUID nasce no aparelho e o
- * reenvio da correção usa o mesmo id) e sobrepõe a fila às linhas do pull, para o cliente novo aparecer na hora, offline.
+ * Puro (sem react-native): monta o payload do push, enfileira no sync de forma idempotente (o UUID nasce no aparelho; o id da
+ * correção sai de `idDoReenvio`) e sobrepõe a fila às linhas do pull, para o cliente novo aparecer na hora, offline.
  */
 import { somenteDigitos } from '@macuxi/comum';
 import { definirEntidadeSync, type MotorSync } from '@macuxi/platform-sdk';
