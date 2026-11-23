@@ -27,10 +27,11 @@ const grafoOk = join(dir, 'graph.json');
 writeFileSync(grafoOk, JSON.stringify(GRAFO));
 const ausente = join(dir, 'nao-existe.json');
 
-const rodar = (modo, stdin, grafo = grafoOk) => {
-  const r = spawnSync('node', [SCRIPT, modo], { input: stdin, env: { ...process.env, MACUXI_GRAFO: grafo } });
+const rodar = (stdin, grafo = grafoOk) => {
+  const r = spawnSync('node', [SCRIPT], { input: stdin, env: { ...process.env, MACUXI_GRAFO: grafo } });
   return { status: r.status, saida: r.stdout.toString() };
 };
+const INICIO = JSON.stringify({ hook_event_name: 'SessionStart', session_id: 's' });
 const contexto = (r) => JSON.parse(r.saida).hookSpecificOutput;
 
 test('símbolos mais ligados: sem nó de arquivo nem dependência externa; laço conta uma vez', () => {
@@ -53,7 +54,7 @@ test('Bash de busca: começo de comando conta; | grep que filtra saída não', (
   for (const c of ['git log | grep fix', 'pnpm test', 'echo grep', undefined, 42]) assert.equal(bashBuscaArquivo(c), false, String(c));
 });
 
-test('lembrete: Grep, Glob e Bash de busca até a sessão rodar o graphify; depois fica calado', () => {
+test('lembrete: Grep, Glob e Bash de busca até o agente rodar o graphify na sessão; depois fica calado', () => {
   const marcador = join(dir, 'marcador');
   assert.equal(lembrete({ tool_name: 'Read' }, marcador), null);
   assert.equal(lembrete({ tool_name: 'Grep' }, marcador), TEXTO_LEMBRETE);
@@ -66,14 +67,23 @@ test('lembrete: Grep, Glob e Bash de busca até a sessão rodar o graphify; depo
   assert.equal(lembrete({ tool_name: 'Glob' }, marcador), null);
 });
 
-test('de ponta a ponta: exit 0 sem bloquear; sem mapa, stdin ruim ou modo errado fica calado', () => {
-  const entrada = JSON.stringify({ session_id: `teste-${process.pid}-${Date.now()}`, tool_name: 'Bash', tool_input: { command: 'grep -rn x .' } });
-  assert.deepEqual(contexto(rodar('lembrete', entrada)), { hookEventName: 'PreToolUse', additionalContext: TEXTO_LEMBRETE });
-  assert.match(contexto(rodar('inicio', '{ruim')).additionalContext, /Símbolos mais ligados/);
-  for (const [modo, stdin, grafo] of [['lembrete', '', grafoOk], ['lembrete', '{ruim', grafoOk], ['lembrete', entrada, ausente], ['outro', '{}', grafoOk]])
-    assert.deepEqual(rodar(modo, stdin, grafo), { status: 0, saida: '' }, `${modo} ${stdin}`);
-  assert.match(contexto(rodar('inicio', '', ausente)).additionalContext, /não encontrado/);
+test('de ponta a ponta: o evento escolhe o modo; exit 0 sem bloquear; sem mapa, stdin ruim ou outro evento fica calado', () => {
+  const busca = (agente) => JSON.stringify({ hook_event_name: 'PreToolUse', session_id: `teste-${process.pid}-${Date.now()}`, agent_id: agente, tool_name: 'Bash', tool_input: { command: 'grep -rn x .' } });
+  assert.deepEqual(contexto(rodar(busca())), { hookEventName: 'PreToolUse', additionalContext: TEXTO_LEMBRETE });
+  assert.match(contexto(rodar(INICIO)).additionalContext, /Símbolos mais ligados/);
+  const ausente = join(dir, 'nao-existe.json');
+  for (const [stdin, grafo] of [['', grafoOk], ['{ruim', grafoOk], [busca(), ausente], [JSON.stringify({ hook_event_name: 'Stop' }), grafoOk]])
+    assert.deepEqual(rodar(stdin, grafo), { status: 0, saida: '' }, stdin);
+  assert.match(contexto(rodar(INICIO, ausente)).additionalContext, /não encontrado/);
   const quebrado = join(dir, 'quebrado.json');
   writeFileSync(quebrado, '{quebrado');
-  assert.match(contexto(rodar('inicio', '', quebrado)).additionalContext, /ilegível/);
+  assert.match(contexto(rodar(INICIO, quebrado)).additionalContext, /ilegível/);
+});
+
+test('marcador por agente: a consulta do agente principal não cala o lembrete do subagente', () => {
+  const sessao = `teste-agente-${process.pid}-${Date.now()}`;
+  const ev = (agente, command) => JSON.stringify({ hook_event_name: 'PreToolUse', session_id: sessao, agent_id: agente, tool_name: 'Bash', tool_input: { command } });
+  assert.equal(rodar(ev(undefined, 'graphify query "x" --graph g')).saida, '');
+  assert.equal(rodar(ev(undefined, 'rg x')).saida, '');
+  assert.equal(contexto(rodar(ev('ag1', 'rg x'))).additionalContext, TEXTO_LEMBRETE);
 });

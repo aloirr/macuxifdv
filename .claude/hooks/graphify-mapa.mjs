@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Mapa do código (Graphify, R-20261122-040155-alexandre). Dois hooks, nenhum bloqueia:
-//  - `inicio` (SessionStart): põe no contexto o comando de consulta e os símbolos mais ligados do mapa;
-//  - `lembrete` (PreToolUse em Grep, Glob e Bash): antes de buscar arquivo, lembra do mapa até a sessão usar o graphify.
+// Mapa do código (Graphify, R-20261122-040155-alexandre). Um script, dois eventos (pelo hook_event_name), nenhum bloqueia:
+//  - SessionStart: põe no contexto o comando de consulta e os símbolos mais ligados do mapa;
+//  - PreToolUse em Grep, Glob e Bash: antes de buscar arquivo, lembra do mapa até o agente usar o graphify na sessão.
 // O mapa é ../grafo-macuxifdv/graphify-out/graph.json, ao lado do repositório (o setup do ambiente o monta);
-// MACUXI_GRAFO troca o caminho. Mapa ausente ou ilegível: o `inicio` avisa e o `lembrete` fica calado.
+// MACUXI_GRAFO troca o caminho. Mapa ausente ou ilegível: o início avisa e o lembrete fica calado.
 // Não instala nada nem roda o graphify; qualquer erro sai com exit 0, sem saída.
 // Testes: .claude/hooks/graphify-mapa.test.mjs.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -71,17 +71,17 @@ function lerGrafo(caminho) {
 const responder = (evento, texto) =>
   texto && process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: evento, additionalContext: texto } }));
 
-async function principal(modo) {
-  const caminho = caminhoDoGrafo();
-  if (modo === 'inicio') return responder('SessionStart', textoDeInicio(lerGrafo(caminho)));
-  if (modo !== 'lembrete' || !existsSync(caminho)) return;
+async function principal() {
   let txt = '';
   for await (const parte of process.stdin) txt += parte;
   const entrada = JSON.parse(txt);
-  const nome = [entrada?.session_id, entrada?.agent_id].map((x) => String(x ?? '').replace(/[^\w-]/g, '') || 'sem-id').join('-');
+  const caminho = caminhoDoGrafo();
+  if (entrada?.hook_event_name === 'SessionStart') return responder('SessionStart', textoDeInicio(lerGrafo(caminho)));
+  if (entrada?.hook_event_name !== 'PreToolUse' || !existsSync(caminho)) return;
+  const nome = [entrada.session_id, entrada.agent_id].map((x) => String(x ?? '').replace(/[^\w-]/g, '') || 'sem-id').join('-');
   responder('PreToolUse', lembrete(entrada, join(tmpdir(), `macuxi-graphify-usado-${nome}`)));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  principal(process.argv[2]).catch(() => {}).finally(() => process.exit(0));
+  principal().catch(() => {}).finally(() => process.exit(0));
 }
