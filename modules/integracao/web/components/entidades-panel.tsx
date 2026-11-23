@@ -19,6 +19,12 @@ import { HistoricoDialog } from './historico-dialog';
  * ações ficam no menu "⋯" da linha; no quadro estreito ficam Entidade, Situação e "⋯" (R2-3). `titulo` dá nome ao quadro (o portal
  * passa "Cargas recentes"; no BKO o título da página basta). A API revalida licença, perfil e tenant.
  */
+/**
+ * Selo da Situação: a margem negativa à direita deixa o selo usar o respiro direito da célula (10 px), e a coluna fica em 89 px.
+ * A 390 px (tabela de 324 px, "⋯" de 52 px) sobram ≥ 4 px no selo mais largo ("Com falha") e no nome mais largo da Entidade.
+ */
+const SELO = '-mr-2.5';
+
 export function EntidadesPanel({
   lotes,
   filtros,
@@ -57,7 +63,7 @@ export function EntidadesPanel({
   const colunas: ReadonlyArray<ColunaDaTabela<LinhaEntidade>> = [
     { id: 'entidade', titulo: 'Entidade', celula: (l) => ROTULO_ENTIDADE[l.entidade], texto: (l) => ROTULO_ENTIDADE[l.entidade] },
     { id: 'ultima', titulo: 'Última carga', largura: '300px', prioridade: 3, celula: (l) => textoUltimaCarga(l, tz), texto: (l) => textoUltimaCarga(l, tz) },
-    { id: 'situacao', titulo: 'Situação', largura: '94px', celula: (l) => (l.comFalha ? <Badge tone="danger">Com falha</Badge> : <Badge tone="success">Em dia</Badge>) },
+    { id: 'situacao', titulo: 'Situação', largura: '89px', celula: (l) => (l.comFalha ? <Badge tone="danger" className={SELO}>Com falha</Badge> : <Badge tone="success" className={SELO}>Em dia</Badge>) },
     { id: 'linhas', titulo: 'Linhas integradas', numero: true, largura: '150px', prioridade: 2, celula: (l) => textoLinhas(l.lotes[0]!.status, l.lotes[0]!.recebidas, l.lotes[0]!.com_erro) },
   ];
 
