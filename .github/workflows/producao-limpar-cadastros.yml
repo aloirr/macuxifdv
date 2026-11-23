@@ -154,9 +154,8 @@ jobs:
           {
             echo '```'; cat dump.txt; echo '```'
             if [ "$MODO" = apagar ]; then
-              linhas="$(sed -n 's/.* · \([0-9]*\) linhas · .*/\1/p' dump.txt)"
               echo "- Restaurar (só antes do reenvio do ERP): modo=restaurar, lote=\`$LOTE\`, confirmar=\`RESTAURAR CADASTROS $EMPRESA $LOTE\`."
-              echo "- Sem as linhas do lote em public.macuxi_limpeza_backup, antes do restaurar, na VM (arquivo $arquivo, ${linhas:-?} linhas): \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c '\\copy public.macuxi_limpeza_backup from pstdin' < $arquivo\`. Se a tabela tiver sido apagada, recrie-a antes com o \`create table public.macuxi_limpeza_backup\` de scripts/producao/limpar-cadastros-rotina.sql."
+              echo "- Sem as linhas do lote em public.macuxi_limpeza_backup, antes do restaurar, na VM: \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c '\\copy public.macuxi_limpeza_backup from pstdin' < $arquivo\`. Se a tabela tiver sido apagada, recrie-a antes com o \`create table public.macuxi_limpeza_backup\` de scripts/producao/limpar-cadastros-rotina.sql."
               echo "- Descartar 7 dias depois de o reenvio do ERP ser confirmado: modo=descartar, lote=\`$LOTE\`, confirmar=\`DESCARTAR COPIA $EMPRESA $LOTE\`."
             else
               echo "- O backup diário ainda guarda essas linhas por até 30 dias."
