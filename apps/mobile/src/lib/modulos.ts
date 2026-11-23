@@ -10,7 +10,6 @@
  * Instalados: os 8 módulos (T-0004, lista em `instalados.ts`). Quem ainda não tem `app/` entra só pelo manifesto
  * (licença, sync e ações valem; nenhuma tela aparece) e ganha telas quando exportar `moduloApp`.
  * O Catálogo é obrigatório desde a T-0007: o Vendedor depende dele (ADR-0005), senão `criarShell` recusa o Vendedor.
- * v1.0.28: o Core ganha aqui a rota do pré-cadastro de cliente do Campo (`pre-cadastro-cliente.ts`).
  * T-0170: o Core ganha aqui as entidades de sync da tarefa, frase, avatar e performance que ainda não registra (`sync-t0170.ts`).
  */
 import type { ComponentType } from 'react';
@@ -24,9 +23,7 @@ import * as appPromotor from '@macuxi/promotor/app';
 import * as appTreinamento from '@macuxi/treinamento/app';
 import * as appVendedor from '@macuxi/vendedor/app';
 
-import { TELA_PRE_CADASTRO_CLIENTE } from '../components/pre-cadastro-cliente';
 import { MANIFESTOS_INSTALADOS } from './instalados';
-import { comPreCadastroCliente } from './pre-cadastro-cliente';
 import { comSyncT0170 } from './sync-t0170';
 import type { Variante } from './variante';
 
@@ -35,7 +32,7 @@ export type ComponenteTela = ComponentType;
 function registroApp(manifesto: Manifesto, exportado: unknown): ModuloShell<ComponenteTela> {
   const m = (exportado as { moduloApp?: ModuloShell<ComponenteTela> } | undefined)?.moduloApp;
   if (m && m.manifesto.id !== manifesto.id) throw new Error(`moduloApp de ${manifesto.id} aponta para ${m.manifesto.id}`);
-  return comPreCadastroCliente(comSyncT0170(m ?? { manifesto, paginas: [] }), TELA_PRE_CADASTRO_CLIENTE);
+  return comSyncT0170(m ?? { manifesto, paginas: [] });
 }
 
 /** Telas de cada módulo (o módulo sem `app/` exporta `{}`). */
