@@ -1,9 +1,11 @@
 /**
- * ADR 0068 (desenho docs/desenho/empresa-zerar.md; pedido do dono do produto na v1.0.30): "Zerar dados" no menu ⋯ da empresa do
- * portal `config.` (só super-admin), ao lado de Excluir. Apaga os dados da empresa e mantém a empresa, o plano e as licenças, os
- * usuários e os perfis, os parâmetros e os conectores (RN-PLA-12). A lista do que sai e a ordem moram SÓ no banco
- * (`plataforma.zerar_tenant`, migração 0099); aqui ficam o contrato das rotas, a regra de liberação do botão e o agrupamento da
- * prévia para a tela. Nada aqui vai a log: só ids, códigos e contagens.
+ * ADR 0068 (desenho docs/desenho/empresa-zerar.md; pedidos do dono do produto na v1.0.30): "Zerar dados" da empresa no portal
+ * `config.` (só super-admin): a empresa inteira (menu ⋯, ao lado de Excluir) ou só algumas entidades do ERP (aba Integração da
+ * empresa, botão em cada entidade). A regra do que sai mora SÓ no banco, na `plataforma.limpar_cadastros(tenant, lote,
+ * entidades)` da migração 0099 (o corpo da rotina do workflow `producao-limpar-cadastros.yml`, promovido): soft delete no
+ * domínio, físico só no Hub; cópia de cada linha em `plataforma.limpeza_copia` (RN-PLA-12). Aqui ficam o contrato das rotas, a
+ * lista das entidades, a regra de liberação do botão e o agrupamento da prévia para a tela. Nada aqui vai a log: só ids,
+ * códigos e contagens.
  */
 import { z } from 'zod';
 import { definirEvento } from './eventos';
@@ -21,19 +23,97 @@ const Tabela = z.string().regex(/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/);
 export const ROTAS_ZERAR_EMPRESA = Object.freeze({
   /** POST 202 `ZerarEmpresa` (senha do super-admin conferida de novo) · GET 200 `ZerarEmpresa` (o mais recente). */
   zerar: '/v1/plataforma/empresas/:tenant_id/zerar',
-  /** GET 200 `PreviaZerarEmpresa`: contagem, por tabela, do que vai sair. */
+  /** GET 200 `PreviaZerarEmpresa` (`?entidades=cliente,produto`; sem = a empresa inteira): o que vai mudar, por tabela. */
   previa: '/v1/plataforma/empresas/:tenant_id/zerar/previa',
 });
 
 // ---------- limites (RN-PLA-12) ----------
 /** Acima disto o zerar do portal é recusado (uma transação só, com cópia das linhas): 422 `ZERAR_VOLUME_ALTO`. */
 export const LIMITE_LINHAS_ZERAR = 2_000_000;
-/** Dias em que a cópia das linhas apagadas (e os bytes das fotos) ficam guardados para desfazer; depois o worker expurga. */
+/** Dias em que a cópia das linhas (`plataforma.limpeza_copia`) do zerar do portal fica para desfazer; depois o worker a descarta. */
 export const RETENCAO_COPIA_ZERAR_DIAS = 7;
-/** Tentativas do worker em falha de concorrência (FK, serialização, deadlock) antes de fechar como `falhou`. */
+/** Tentativas do worker em falha de concorrência (FK, serialização, deadlock, `lock_timeout`) antes de fechar como `falhou`. */
 export const TENTATIVAS_ZERAR = 3;
-/** Teto de tabelas na prévia e na contagem (hoje são ~110; folga para as novas). */
+/** Teto de linhas do resultado na prévia e na contagem (uma por tabela e modo; folga para as tabelas novas). */
 export const MAX_TABELAS_ZERAR = 300;
+
+// ---------- entidades ----------
+/**
+ * As 16 entidades do Hub, na ordem de carga (a mesma `ORDEM_CARGA_ENTIDADES` de `@macuxi/integracao/contracts`; o pacote não
+ * importa módulo, e o teste `apps/api/test/empresa-zerar-portal.test.ts` confere que as duas listas são iguais). O mapa
+ * entidade → tabelas raiz e linhas do Hub mora na `plataforma.limpar_cadastros` (desenho §4.2). Rótulos: `ROTULO_ENTIDADE`.
+ */
+export const ENTIDADES_ZERAR = [
+  'filial',
+  'vendedor',
+  'catalogo_no',
+  'forma_pagamento',
+  'prazo_pagamento',
+  'produto',
+  'produto_unidade',
+  'preco',
+  'tabela_escalonada',
+  'estoque',
+  'cliente',
+  'cliente_endereco',
+  'transportadora',
+  'rota',
+  'titulo',
+  'nota',
+] as const;
+export type EntidadeZerar = (typeof ENTIDADES_ZERAR)[number];
+export const EntidadeZerarSchema = z.enum(ENTIDADES_ZERAR);
+
+/** Sem repetição e na ordem de carga (o mesmo conjunto dá a mesma lista). */
+export function normalizarEntidadesZerar(lista: readonly EntidadeZerar[]): EntidadeZerar[] {
+  return ENTIDADES_ZERAR.filter((e) => lista.includes(e));
+}
+
+/** Lista de entidades do pedido e da prévia: ao menos uma, sem repetição; `null` = a empresa inteira. Sai normalizada. */
+export const EntidadesZerarSchema = z
+  .array(EntidadeZerarSchema)
+  .min(1)
+  .max(ENTIDADES_ZERAR.length)
+  .refine((l) => new Set(l).size === l.length, 'entidade repetida')
+  .transform(normalizarEntidadesZerar)
+  .nullable();
+
+/** Query da prévia: `?entidades=cliente,produto` (vírgula); ausente = a empresa inteira. */
+export const PreviaZerarQuerySchema = z
+  .object({
+    entidades: z
+      .string()
+      .max(400)
+      .optional()
+      .transform((s) => (s === undefined ? null : s.split(',').map((x) => x.trim())))
+      .pipe(EntidadesZerarSchema),
+  })
+  .strict();
+export type PreviaZerarQuery = z.output<typeof PreviaZerarQuerySchema>;
+
+// ---------- lote e modos ----------
+/**
+ * Lote da limpeza = chave da cópia: carimbo UTC `AAAAMMDDTHHMMSSZ` (workflow) ou o carimbo do pedido + `-` + os 8 primeiros
+ * dígitos hexa do id do zerar (portal). É o que o `restaurar` do workflow recebe.
+ */
+export const LOTE_LIMPEZA_FORMATO = /^[0-9]{8}T[0-9]{6}Z(-[0-9a-f]{8})?$/;
+/**
+ * O que a limpeza faz em cada tabela (a mesma coluna `modo` da cópia): `soft` = `deleted_at`; `fisico` = DELETE (Hub e filas);
+ * `filial` = a filial fica e só perde o `external_id`; `sync_pacote` = pacote pronto vira substituído; `girar` = a
+ * `geracao_base` do tenant gira (os aparelhos puxam de novo). Só `soft` e `fisico` contam como linhas que saem.
+ */
+export const MODOS_LIMPEZA = ['soft', 'fisico', 'filial', 'sync_pacote', 'girar'] as const;
+export type ModoLimpeza = (typeof MODOS_LIMPEZA)[number];
+const MODOS_QUE_APAGAM: ReadonlySet<ModoLimpeza> = new Set(['soft', 'fisico']);
+
+/** Uma linha do resultado da `limpar_cadastros`: tabela, o que foi feito e quantas linhas. */
+export const LinhaLimpezaSchema = z.object({ tabela: Tabela, modo: z.enum(MODOS_LIMPEZA), linhas: Contagem }).strict();
+export type LinhaLimpeza = z.infer<typeof LinhaLimpezaSchema>;
+/** Linhas que saem (soft + físico) de um resultado da limpeza. */
+export const linhasQueSaem = (l: readonly LinhaLimpeza[]): number =>
+  l.reduce((a, x) => a + (MODOS_QUE_APAGAM.has(x.modo) ? x.linhas : 0), 0);
+const ResultadoLimpeza = z.array(LinhaLimpezaSchema).max(MAX_TABELAS_ZERAR);
+
 
 // ---------- códigos ----------
 const C = CODIGOS_ACOES_EMPRESA;
@@ -51,8 +131,10 @@ export const CODIGOS_ZERAR_EMPRESA = {
   backupEmAndamento: C.backupEmAndamento,
   /** 422 RN-PLA-12 — o código digitado não é o da empresa. */
   codigoNaoConfere: 'ZERAR_CODIGO_NAO_CONFERE',
-  /** 422 RN-PLA-12 — mais linhas que `LIMITE_LINHAS_ZERAR`. */
+  /** 422 RN-PLA-12 — mais linhas que `LIMITE_LINHAS_ZERAR` (na prévia; o worker confere de novo na transação). */
   volumeAlto: 'ZERAR_VOLUME_ALTO',
+  /** 409 RN-PLA-12 — um lote do Hub desta empresa está em processamento (a limpeza esperaria por ele). */
+  hubProcessando: 'ZERAR_HUB_PROCESSANDO',
   /** 403 — a senha do super-admin não conferiu (conta no limite de falhas do portal). */
   reautenticacaoFalhou: C.reautenticacaoFalhou,
 } as const;
@@ -64,7 +146,7 @@ const VALORES_CODIGOS_ZERAR = [...new Set(Object.values(CODIGOS_ZERAR_EMPRESA))]
 
 /** Falhas do worker gravadas no `erro_codigo` (o pedido foi aceito; a empresa ficou intacta). */
 export const ERROS_WORKER_ZERAR = Object.freeze({
-  /** As `TENTATIVAS_ZERAR` caíram por escrita concorrente (FK 23503, 40001, 40P01). */
+  /** As `TENTATIVAS_ZERAR` caíram por escrita concorrente (23503, 40001, 40P01, 55P03). */
   concorrencia: 'ZERAR_CONCORRENCIA',
   /** Qualquer outro erro do banco na transação. */
   falhou: 'ZERAR_FALHOU',
@@ -76,6 +158,7 @@ const MENSAGENS_PROPRIAS: Readonly<Record<string, string>> = Object.freeze({
   [CODIGOS_ZERAR_EMPRESA.zerarEmAndamento]: 'Os dados desta empresa já estão sendo zerados.',
   [CODIGOS_ZERAR_EMPRESA.codigoNaoConfere]: 'Código não confere.',
   [CODIGOS_ZERAR_EMPRESA.volumeAlto]: 'Esta empresa tem dados demais para zerar pelo portal. Avise o suporte da Macuxi.',
+  [CODIGOS_ZERAR_EMPRESA.hubProcessando]: 'A integração está processando uma carga desta empresa. Tente de novo em alguns minutos.',
   [ERROS_WORKER_ZERAR.concorrencia]: 'A empresa estava em uso e nada foi apagado. Tente de novo.',
   [ERROS_WORKER_ZERAR.falhou]: 'Não foi possível zerar e nada foi apagado. Avise o suporte da Macuxi.',
 });
@@ -92,81 +175,89 @@ export function mensagemDoZerar(codigo: string): string | null {
 // ---------- pedido e situação ----------
 /**
  * `POST …/zerar` (202). `id` gerado no portal (idempotente: o mesmo id devolve o mesmo zerar). `codigo_confirmacao` = código da
- * empresa digitado (sem diferença de maiúsculas; `codigoDeConfirmacaoConfere`); `senha` = a do super-admin (nunca volta nem vai a log).
+ * empresa digitado (sem diferença de maiúsculas; `codigoDeConfirmacaoConfere`); `senha` = a do super-admin (nunca volta nem vai
+ * a log); `entidades` = só estas entidades do ERP (aba Integração), `null` ou ausente = a empresa inteira (menu ⋯).
  */
 export const PedirZerarEmpresaSchema = z
   .object({
     id: Uuid,
     codigo_confirmacao: z.string().trim().min(2).max(40),
     senha: z.string().min(1).max(200),
+    entidades: EntidadesZerarSchema.default(null),
   })
   .strict();
-export type PedirZerarEmpresa = z.infer<typeof PedirZerarEmpresaSchema>;
+export type PedirZerarEmpresa = z.output<typeof PedirZerarEmpresaSchema>;
 
 export const SITUACOES_ZERAR = ['em_andamento', 'concluido', 'falhou'] as const;
 export type SituacaoZerar = (typeof SITUACOES_ZERAR)[number];
-/** `portal` = botão do super-admin; `workflow` = `producao-limpar-cadastros.yml` (mesma função do banco). */
-export const ORIGENS_ZERAR = ['portal', 'workflow'] as const;
-
-/** Contagem por tabela das linhas apagadas (`{"core.cliente": 120, ...}`). */
-export const ContagemZerarSchema = z
-  .record(Tabela, Contagem)
-  .refine((r) => Object.keys(r).length <= MAX_TABELAS_ZERAR, 'tabelas demais');
 
 export const ZerarEmpresaSchema = z
   .object({
     id: Uuid,
     tenant_id: Uuid,
     codigo: z.string(),
-    origem: z.enum(ORIGENS_ZERAR),
+    /** `null` = a empresa inteira. */
+    entidades: z.array(EntidadeZerarSchema).min(1).nullable(),
+    /** Entidades com linhas que saíram (as pedidas e as que vieram pela cascata): as que o ERP precisa reenviar. Só no concluído. */
+    entidades_afetadas: z.array(EntidadeZerarSchema).nullable(),
+    /** Chave da cópia; é o lote do `restaurar` do workflow. */
+    lote: z.string().regex(LOTE_LIMPEZA_FORMATO),
     situacao: z.enum(SITUACOES_ZERAR),
     pedido_em: Instante,
     concluido_em: Instante.nullable(),
+    /** Soft + físico (`linhasQueSaem`). */
     linhas_apagadas: Contagem.nullable(),
-    contagem: ContagemZerarSchema.nullable(),
-    /** Até quando a cópia das linhas e os bytes das fotos ficam para desfazer (RN-PLA-12). */
+    contagem: ResultadoLimpeza.nullable(),
+    /** Até quando a cópia das linhas fica para desfazer (RN-PLA-12). */
     copia_expira_em: Instante.nullable(),
     erro_codigo: ErroCodigo.nullable(),
   })
   .strict()
   .superRefine((x, ctx) => {
     const concluidoIncompleto =
-      x.concluido_em === null || x.linhas_apagadas === null || x.contagem === null || x.copia_expira_em === null;
+      x.concluido_em === null ||
+      x.linhas_apagadas === null ||
+      x.contagem === null ||
+      x.copia_expira_em === null ||
+      x.entidades_afetadas === null;
     const problema =
       x.situacao === 'concluido' && concluidoIncompleto
-        ? 'zerar concluído tem concluido_em, linhas_apagadas, contagem e copia_expira_em'
-        : x.situacao === 'em_andamento' && x.concluido_em !== null
+        ? 'zerar concluído tem concluido_em, linhas_apagadas, contagem, entidades_afetadas e copia_expira_em'
+        : x.situacao !== 'concluido' && x.entidades_afetadas !== null
+          ? 'entidades_afetadas só no zerar concluído'
+          : x.situacao === 'em_andamento' && x.concluido_em !== null
           ? 'zerar em andamento não tem concluido_em'
           : (x.situacao === 'falhou') !== (x.erro_codigo !== null)
             ? 'erro_codigo só (e sempre) no zerar que falhou'
-            : x.contagem !== null &&
-                x.linhas_apagadas !== null &&
-                Object.values(x.contagem).reduce((a, b) => a + b, 0) !== x.linhas_apagadas
-              ? 'linhas_apagadas é a soma da contagem'
+            : x.contagem !== null && x.linhas_apagadas !== null && linhasQueSaem(x.contagem) !== x.linhas_apagadas
+              ? 'linhas_apagadas é a soma das linhas soft e fisico da contagem'
               : null;
     if (problema) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problema, path: ['situacao'] });
   });
 export type ZerarEmpresa = z.infer<typeof ZerarEmpresaSchema>;
 
 // ---------- prévia ----------
-export const LinhaPreviaZerarSchema = z.object({ tabela: Tabela, linhas: Contagem }).strict();
 /**
- * `GET …/zerar/previa`: o que vai sair, por tabela (só as com linhas, na ordem em que o banco apaga), e o bloqueio atual
- * (`conferirZerar`; null = liberado). A contagem é do momento: o worker recontará na transação.
+ * `GET …/zerar/previa`: a MESMA `limpar_cadastros` rodada e desfeita (subtransação com ROLLBACK), só as linhas com contagem, e
+ * o bloqueio atual (`conferirZerar`; null = liberado). A contagem é do momento: o worker refaz na transação.
  */
 export const PreviaZerarEmpresaSchema = z
   .object({
     tenant_id: Uuid,
     codigo: z.string(),
+    entidades: z.array(EntidadeZerarSchema).min(1).nullable(),
+    /** Entidades com linhas que sairiam (as pedidas e as da cascata): a tela pede o reenvio de todas elas. */
+    entidades_afetadas: z.array(EntidadeZerarSchema),
     contado_em: Instante,
+    /** Soft + físico (`linhasQueSaem`). */
     total_linhas: Contagem,
-    tabelas: z.array(LinhaPreviaZerarSchema).max(MAX_TABELAS_ZERAR),
+    tabelas: ResultadoLimpeza,
     bloqueio: z.enum(VALORES_CODIGOS_ZERAR).nullable(),
   })
   .strict()
   .superRefine((p, ctx) => {
-    if (p.tabelas.reduce((a, t) => a + t.linhas, 0) !== p.total_linhas)
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'total_linhas é a soma das tabelas', path: ['total_linhas'] });
+    if (linhasQueSaem(p.tabelas) !== p.total_linhas)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'total_linhas é a soma das linhas soft e fisico', path: ['total_linhas'] });
   });
 export type PreviaZerarEmpresa = z.infer<typeof PreviaZerarEmpresaSchema>;
 
@@ -176,12 +267,15 @@ export interface OcupacaoDaEmpresa {
   zerar_em_andamento: boolean;
   backup_em_andamento: boolean;
   exclusao_em_andamento: boolean;
+  /** Lote do Hub desta empresa em `processando`. */
+  hub_processando: boolean;
 }
 
 /**
- * RN-PLA-12: o zerar está liberado? Vale para empresa ativa ou inativa. Ordem das recusas (a primeira que valer): exclusão em
- * andamento (ou empresa `encerrado`); zerar em andamento; backup em andamento; mais linhas que `LIMITE_LINHAS_ZERAR`. O portal
- * usa para habilitar o botão; a `sa_pedir_zerar` repete na transação do pedido.
+ * RN-PLA-12: o zerar (inteiro ou por entidade) está liberado? Vale para empresa ativa ou inativa. Ordem das recusas (a primeira
+ * que valer): exclusão em andamento (ou empresa `encerrado`); zerar em andamento; backup em andamento; lote do Hub em
+ * processamento; mais linhas que `LIMITE_LINHAS_ZERAR`. A prévia devolve o resultado no `bloqueio`; a `sa_pedir_zerar` repete as
+ * quatro primeiras na transação do pedido (sem recontar: `totalLinhas` = 0) e a `executar_zerar` repete as duas últimas.
  */
 export function conferirZerar(
   empresa: { status: StatusEmpresa },
@@ -192,6 +286,7 @@ export function conferirZerar(
   if (empresa.status === 'encerrado' || ocupacao.exclusao_em_andamento) return { ok: false, codigo: Z.exclusaoEmAndamento };
   if (ocupacao.zerar_em_andamento) return { ok: false, codigo: Z.zerarEmAndamento };
   if (ocupacao.backup_em_andamento) return { ok: false, codigo: Z.backupEmAndamento };
+  if (ocupacao.hub_processando) return { ok: false, codigo: Z.hubProcessando };
   if (totalLinhas > LIMITE_LINHAS_ZERAR) return { ok: false, codigo: Z.volumeAlto };
   return { ok: true };
 }
@@ -231,7 +326,7 @@ const SISTEMA = new Set([
   'plataforma.sync_pacote_pedido',
 ]);
 
-/** Grupo de uma tabela da prévia. Tabela nova cai em `cadastros` (o teste do banco obriga a classificá-la no 0099). */
+/** Grupo de uma tabela da prévia (só apresentação). Tabela nova cai em `cadastros`. */
 export function grupoDaTabelaZerar(tabela: string): GrupoZerar {
   const esquema = tabela.slice(0, tabela.indexOf('.'));
   if (tabela === 'plataforma.arquivo') return 'arquivos';
@@ -242,12 +337,13 @@ export function grupoDaTabelaZerar(tabela: string): GrupoZerar {
   return 'cadastros';
 }
 
-/** Soma da prévia por grupo, na ordem de `GRUPOS_ZERAR`, só os grupos com linhas. */
+/** Soma, por grupo, das linhas que saem (soft e físico), na ordem de `GRUPOS_ZERAR`, só os grupos com linhas. */
 export function resumirPreviaPorGrupo(
-  tabelas: readonly { tabela: string; linhas: number }[],
+  tabelas: readonly LinhaLimpeza[],
 ): { grupo: GrupoZerar; rotulo: string; linhas: number }[] {
   const soma = new Map<GrupoZerar, number>();
   for (const t of tabelas) {
+    if (!MODOS_QUE_APAGAM.has(t.modo)) continue;
     const g = grupoDaTabelaZerar(t.tabela);
     soma.set(g, (soma.get(g) ?? 0) + t.linhas);
   }
@@ -260,8 +356,8 @@ export function resumirPreviaPorGrupo(
 
 // ---------- auditoria ----------
 /**
- * NÃO passa pela outbox (o `plataforma.evento` do tenant é apagado na mesma transação): é o `detalhes` da linha `tenant.zerado`
- * de `plataforma.auditoria_plataforma` (histórico da empresa). O aparelho percebe pelo giro da `geracao_base`.
+ * Sem consumidor: é o `detalhes` da linha `tenant.zerado` de `plataforma.auditoria_plataforma` (histórico da empresa), gravada
+ * pela `executar_zerar`. O aparelho percebe pelo giro da `geracao_base`.
  */
 export const EVENTO_TENANT_ZERADO = definirEvento(
   'plataforma.tenant.zerado@1',
@@ -270,7 +366,8 @@ export const EVENTO_TENANT_ZERADO = definirEvento(
       tenant_id: Uuid,
       codigo: z.string(),
       zerar_id: Uuid,
-      origem: z.enum(ORIGENS_ZERAR),
+      lote: z.string().regex(LOTE_LIMPEZA_FORMATO),
+      entidades: z.array(EntidadeZerarSchema).min(1).nullable(),
       linhas_apagadas: Contagem,
       copia_expira_em: Instante,
       zerado_em: Instante,

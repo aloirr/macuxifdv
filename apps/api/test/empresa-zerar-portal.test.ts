@@ -1,10 +1,13 @@
 /**
- * "Zerar dados" da empresa no portal (ADR 0068; desenho docs/desenho/empresa-zerar.md §6; RN-PLA-12) sem banco real: ligado com as
- * ações da empresa, só super-admin, prévia, pedido com a senha conferida de novo (a mesma `reautenticar` do Excluir), leitura do
- * mais recente e a tradução dos SQLSTATE das `sa_*` da 0099. As funções de verdade são testadas nos `*.db.test.ts` do banco-dados.
+ * "Zerar dados" da empresa no portal (ADR 0068; desenho docs/desenho/empresa-zerar.md §5; RN-PLA-12) sem banco real: ligado com as
+ * ações da empresa, só super-admin, prévia (inteira ou por entidade), pedido com a senha conferida de novo (a mesma `reautenticar`
+ * do Excluir), leitura do mais recente, a tradução dos SQLSTATE das `sa_*` da 0099 e a lista das entidades igual à do Hub. As
+ * funções de verdade são testadas nos `*.db.test.ts` do banco-dados.
  */
 import { mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';
+import { ORDEM_CARGA_ENTIDADES } from '@macuxi/integracao/contracts';
 import {
+  ENTIDADES_ZERAR,
   MENSAGEM_SO_SUPER_ADMIN_ACOES,
   mensagemDoZerar,
   PreviaZerarEmpresaSchema,
@@ -38,11 +41,14 @@ const AGORA = new Date('2026-11-23T12:00:00Z');
 const previaCrua: PreviaZerarEmpresa = {
   tenant_id: EMPRESA,
   codigo: 'distrib',
+  entidades: null,
+  entidades_afetadas: ['cliente'],
   contado_em: '2026-11-23T12:00:00+00:00',
   total_linhas: 130,
   tabelas: [
-    { tabela: 'vendedor.pedido_item', linhas: 100 },
-    { tabela: 'core.cliente', linhas: 30 },
+    { tabela: 'vendedor.pedido_item', modo: 'soft', linhas: 100 },
+    { tabela: 'core.cliente', modo: 'soft', linhas: 30 },
+    { tabela: 'core.filial', modo: 'filial', linhas: 1 },
   ],
   bloqueio: null,
 };
@@ -50,7 +56,9 @@ const zerarCru: ZerarEmpresa = {
   id: ZERAR,
   tenant_id: EMPRESA,
   codigo: 'distrib',
-  origem: 'portal',
+  entidades: null,
+  entidades_afetadas: null,
+  lote: '20261123T120000Z-9e000000',
   situacao: 'em_andamento',
   pedido_em: '2026-11-23T12:00:00+00:00',
   concluido_em: null,
@@ -137,9 +145,25 @@ describe('Portal › Zerar dados da empresa (ADR 0068, RN-PLA-12)', () => {
     const r = await app.inject({ method: 'GET', url: url('zerar/previa'), headers: sa });
     expect(r.statusCode).toBe(200);
     expect(PreviaZerarEmpresaSchema.parse(r.json())).toEqual(previaCrua);
-    expect(de('previa')[0]?.args).toEqual([SA.sessao_id, EMPRESA]);
+    expect(de('previa')[0]?.args).toEqual([SA.sessao_id, EMPRESA, null]);
     const ruim = montar({ previa: { ...previaCrua, total_linhas: 1 } });
     expect((await ruim.app.inject({ method: 'GET', url: url('zerar/previa'), headers: sa })).statusCode).toBe(500);
+  });
+
+  it('RN-PLA-12: prévia por entidade: a lista vai normalizada ao banco; entidade fora da lista = 400 sem chamar o banco', async () => {
+    const { app, de, chamadas } = montar();
+    const r = await app.inject({ method: 'GET', url: url('zerar/previa?entidades=nota,cliente'), headers: sa });
+    expect(r.statusCode).toBe(200);
+    expect(de('previa')[0]?.args).toEqual([SA.sessao_id, EMPRESA, ['cliente', 'nota']]);
+    const n = chamadas.length;
+    for (const q of ['entidades=pedido', 'entidades=', 'entidades=cliente,cliente', 'outra=1']) {
+      expect((await app.inject({ method: 'GET', url: url(`zerar/previa?${q}`), headers: sa })).statusCode, q).toBe(400);
+    }
+    expect(chamadas).toHaveLength(n);
+  });
+
+  it('a lista de entidades do zerar é a ordem de carga do Hub (uma lista só)', () => {
+    expect([...ENTIDADES_ZERAR]).toEqual([...ORDEM_CARGA_ENTIDADES]);
   });
 
   it('RN-PLA-12: pedir = senha conferida de novo e 202 no contrato; a senha não vai ao banco do zerar nem volta', async () => {
@@ -150,12 +174,16 @@ describe('Portal › Zerar dados da empresa (ADR 0068, RN-PLA-12)', () => {
     expect(r.body).not.toContain(SENHA);
     expect(de('reautenticar')).toHaveLength(1);
     expect(de('tentativaSucesso')).toHaveLength(1);
-    expect(de('pedir')[0]?.args).toEqual([SA.sessao_id, EMPRESA, ZERAR, 'DISTRIB']);
+    expect(de('pedir')[0]?.args).toEqual([SA.sessao_id, EMPRESA, ZERAR, 'DISTRIB', null]);
+    const p = montar();
+    const r2 = await p.app.inject({ method: 'POST', url: url('zerar'), headers: sa, payload: { ...corpo(), entidades: ['titulo', 'cliente'] } });
+    expect(r2.statusCode).toBe(202);
+    expect(p.de('pedir')[0]?.args).toEqual([SA.sessao_id, EMPRESA, ZERAR, 'DISTRIB', ['cliente', 'titulo']]);
   });
 
   it('RN-PLA-12: corpo fora do contrato = 400 sem conferir a senha nem pedir', async () => {
     const { app, chamadas } = montar();
-    for (const payload of [{ ...corpo(), id: 'x' }, { ...corpo(), extra: 1 }, { id: ZERAR, codigo_confirmacao: 'DISTRIB' }]) {
+    for (const payload of [{ ...corpo(), id: 'x' }, { ...corpo(), extra: 1 }, { id: ZERAR, codigo_confirmacao: 'DISTRIB' }, { ...corpo(), entidades: [] }]) {
       expect((await app.inject({ method: 'POST', url: url('zerar'), headers: sa, payload })).statusCode).toBe(400);
     }
     expect(chamadas).toEqual([]);
@@ -179,6 +207,7 @@ describe('Portal › Zerar dados da empresa (ADR 0068, RN-PLA-12)', () => {
       [erroPg('55000', 'ZERAR_EM_ANDAMENTO'), 409, 'ZERAR_EM_ANDAMENTO'],
       [erroPg('55000', 'EXCLUSAO_EM_ANDAMENTO'), 409, 'EXCLUSAO_EM_ANDAMENTO'],
       [erroPg('55000', 'BACKUP_EM_ANDAMENTO'), 409, 'BACKUP_EM_ANDAMENTO'],
+      [erroPg('55000', 'ZERAR_HUB_PROCESSANDO'), 409, 'ZERAR_HUB_PROCESSANDO'],
       [erroPg('22023', 'ZERAR_CODIGO_NAO_CONFERE'), 422, 'ZERAR_CODIGO_NAO_CONFERE'],
       [erroPg('22023', 'ZERAR_VOLUME_ALTO'), 422, 'ZERAR_VOLUME_ALTO'],
       [erroPg('22023'), 400, 'VALIDACAO'],

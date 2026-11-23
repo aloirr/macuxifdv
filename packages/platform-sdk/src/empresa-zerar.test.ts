@@ -4,6 +4,10 @@ import { CODIGOS_ACOES_EMPRESA, MENSAGENS_ACOES_EMPRESA } from './empresa-acoes'
 import {
   CODIGOS_ZERAR_EMPRESA as Z,
   conferirZerar,
+  ENTIDADES_ZERAR,
+  linhasQueSaem,
+  LOTE_LIMPEZA_FORMATO,
+  PreviaZerarQuerySchema,
   ERROS_WORKER_ZERAR,
   EVENTO_TENANT_ZERADO,
   grupoDaTabelaZerar,
@@ -21,18 +25,26 @@ import {
 
 const T = '7a000000-0000-4000-8000-000000000001';
 const ID = '7c000000-0000-4000-8000-000000000001';
-const livre: OcupacaoDaEmpresa = { zerar_em_andamento: false, backup_em_andamento: false, exclusao_em_andamento: false };
+const livre: OcupacaoDaEmpresa = { zerar_em_andamento: false, backup_em_andamento: false, exclusao_em_andamento: false, hub_processando: false };
 
 const concluido = {
   id: ID,
   tenant_id: T,
   codigo: 'am2808',
-  origem: 'portal',
+  entidades: null,
+  entidades_afetadas: ['cliente', 'cliente_endereco'],
+  lote: '20261123T140000Z-7c000000',
   situacao: 'concluido',
   pedido_em: '2026-11-23T14:00:00Z',
   concluido_em: '2026-11-23T14:00:09Z',
   linhas_apagadas: 130,
-  contagem: { 'vendedor.pedido_item': 100, 'core.cliente': 30 },
+  contagem: [
+    { tabela: 'vendedor.pedido_item', modo: 'soft', linhas: 100 },
+    { tabela: 'core.cliente', modo: 'soft', linhas: 25 },
+    { tabela: 'integracao.registro_atual', modo: 'fisico', linhas: 5 },
+    { tabela: 'core.filial', modo: 'filial', linhas: 2 },
+    { tabela: 'plataforma.tenant', modo: 'girar', linhas: 1 },
+  ],
   copia_expira_em: '2026-11-30T14:00:09Z',
   erro_codigo: null,
 };
@@ -43,8 +55,8 @@ describe('RN-PLA-12: quando o zerar está liberado', () => {
     expect(conferirZerar({ status: 'suspenso' }, livre, LIMITE_LINHAS_ZERAR)).toEqual({ ok: true });
   });
 
-  it('recusa na ordem: exclusão, zerar, backup, volume', () => {
-    const tudo: OcupacaoDaEmpresa = { zerar_em_andamento: true, backup_em_andamento: true, exclusao_em_andamento: true };
+  it('recusa na ordem: exclusão, zerar, backup, Hub processando, volume', () => {
+    const tudo: OcupacaoDaEmpresa = { zerar_em_andamento: true, backup_em_andamento: true, exclusao_em_andamento: true, hub_processando: true };
     expect(conferirZerar({ status: 'ativo' }, tudo, LIMITE_LINHAS_ZERAR + 1)).toEqual({ ok: false, codigo: Z.exclusaoEmAndamento });
     expect(conferirZerar({ status: 'encerrado' }, livre, 0)).toEqual({ ok: false, codigo: Z.exclusaoEmAndamento });
     expect(conferirZerar({ status: 'ativo' }, { ...tudo, exclusao_em_andamento: false }, 0)).toEqual({
@@ -54,6 +66,10 @@ describe('RN-PLA-12: quando o zerar está liberado', () => {
     expect(conferirZerar({ status: 'ativo' }, { ...livre, backup_em_andamento: true }, 0)).toEqual({
       ok: false,
       codigo: Z.backupEmAndamento,
+    });
+    expect(conferirZerar({ status: 'ativo' }, { ...livre, hub_processando: true }, LIMITE_LINHAS_ZERAR + 1)).toEqual({
+      ok: false,
+      codigo: Z.hubProcessando,
     });
     expect(conferirZerar({ status: 'ativo' }, livre, LIMITE_LINHAS_ZERAR + 1)).toEqual({ ok: false, codigo: Z.volumeAlto });
   });
@@ -78,8 +94,14 @@ describe('contratos das rotas', () => {
     expect(ROTAS_ZERAR_EMPRESA.previa).toBe('/v1/plataforma/empresas/:tenant_id/zerar/previa');
   });
 
-  it('pedido: id, código digitado e senha; nada além', () => {
-    expect(PedirZerarEmpresaSchema.safeParse({ id: ID, codigo_confirmacao: ' AM2808 ', senha: 'x' }).success).toBe(true);
+  it('pedido: id, código digitado, senha e entidades opcionais; nada além', () => {
+    expect(PedirZerarEmpresaSchema.parse({ id: ID, codigo_confirmacao: ' AM2808 ', senha: 'x' }).entidades).toBeNull();
+    expect(PedirZerarEmpresaSchema.parse({ id: ID, codigo_confirmacao: 'am2808', senha: 'x', entidades: null }).entidades).toBeNull();
+    expect(
+      PedirZerarEmpresaSchema.parse({ id: ID, codigo_confirmacao: 'am2808', senha: 'x', entidades: ['nota', 'cliente'] }).entidades,
+    ).toEqual(['cliente', 'nota']);
+    for (const entidades of [[], ['cliente', 'cliente'], ['pedido']])
+      expect(PedirZerarEmpresaSchema.safeParse({ id: ID, codigo_confirmacao: 'am2808', senha: 'x', entidades }).success).toBe(false);
     expect(PedirZerarEmpresaSchema.safeParse({ id: ID, codigo_confirmacao: 'am2808' }).success).toBe(false);
     expect(PedirZerarEmpresaSchema.safeParse({ id: 'x', codigo_confirmacao: 'am2808', senha: 'x' }).success).toBe(false);
     expect(
@@ -87,11 +109,33 @@ describe('contratos das rotas', () => {
     ).toBe(false);
   });
 
-  it('zerar concluído traz data, contagem, soma e prazo da cópia', () => {
+  it('zerar concluído traz data, contagem, soma (só soft e físico), lote e prazo da cópia', () => {
     expect(ZerarEmpresaSchema.safeParse(concluido).success).toBe(true);
+    expect(linhasQueSaem(concluido.contagem as never)).toBe(130);
+    expect(ZerarEmpresaSchema.safeParse({ ...concluido, entidades: ['cliente'] }).success).toBe(true);
+    expect(ZerarEmpresaSchema.safeParse({ ...concluido, entidades: [] }).success).toBe(false);
     expect(ZerarEmpresaSchema.safeParse({ ...concluido, copia_expira_em: null }).success).toBe(false);
-    expect(ZerarEmpresaSchema.safeParse({ ...concluido, linhas_apagadas: 129 }).success).toBe(false);
-    expect(ZerarEmpresaSchema.safeParse({ ...concluido, contagem: { 'Core.Cliente': 1 } }).success).toBe(false);
+    expect(ZerarEmpresaSchema.safeParse({ ...concluido, entidades_afetadas: null }).success).toBe(false);
+    expect(ZerarEmpresaSchema.safeParse({ ...concluido, linhas_apagadas: 133 }).success).toBe(false);
+    expect(ZerarEmpresaSchema.safeParse({ ...concluido, lote: '2026-11-23' }).success).toBe(false);
+    expect(ZerarEmpresaSchema.safeParse({ ...concluido, contagem: [{ tabela: 'Core.Cliente', modo: 'soft', linhas: 1 }] }).success).toBe(false);
+    expect(ZerarEmpresaSchema.safeParse({ ...concluido, contagem: [{ tabela: 'core.cliente', modo: 'apagar', linhas: 1 }] }).success).toBe(false);
+  });
+
+  it('lote: o do workflow (carimbo) e o do portal (carimbo + 8 hexa do id)', () => {
+    expect(LOTE_LIMPEZA_FORMATO.test('20261123T140000Z')).toBe(true);
+    expect(LOTE_LIMPEZA_FORMATO.test('20261123T140000Z-7c000000')).toBe(true);
+    expect(LOTE_LIMPEZA_FORMATO.test('20261123T140000Z-7C000000')).toBe(false);
+    expect(LOTE_LIMPEZA_FORMATO.test('20261123T140000Z;drop')).toBe(false);
+  });
+
+  it('entidades: as 16 do Hub, na ordem de carga; a query da prévia aceita lista por vírgula', () => {
+    expect(ENTIDADES_ZERAR).toHaveLength(16);
+    expect(PreviaZerarQuerySchema.parse({}).entidades).toBeNull();
+    expect(PreviaZerarQuerySchema.parse({ entidades: 'nota, filial' }).entidades).toEqual(['filial', 'nota']);
+    expect(PreviaZerarQuerySchema.safeParse({ entidades: '' }).success).toBe(false);
+    expect(PreviaZerarQuerySchema.safeParse({ entidades: 'cliente,pedido' }).success).toBe(false);
+    expect(PreviaZerarQuerySchema.safeParse({ entidades: 'cliente', x: '1' }).success).toBe(false);
   });
 
   it('em andamento sem conclusão; falhou sempre com erro_codigo', () => {
@@ -102,30 +146,36 @@ describe('contratos das rotas', () => {
       linhas_apagadas: null,
       contagem: null,
       copia_expira_em: null,
+      entidades_afetadas: null,
     };
     expect(ZerarEmpresaSchema.safeParse(andamento).success).toBe(true);
     expect(ZerarEmpresaSchema.safeParse({ ...andamento, concluido_em: '2026-11-23T14:00:09Z' }).success).toBe(false);
     expect(ZerarEmpresaSchema.safeParse({ ...andamento, situacao: 'falhou', erro_codigo: 'ZERAR_CONCORRENCIA' }).success).toBe(true);
     expect(ZerarEmpresaSchema.safeParse({ ...andamento, situacao: 'falhou' }).success).toBe(false);
+    expect(ZerarEmpresaSchema.safeParse({ ...andamento, entidades_afetadas: ['cliente'] }).success).toBe(false);
     expect(ZerarEmpresaSchema.safeParse({ ...andamento, erro_codigo: 'ZERAR_FALHOU' }).success).toBe(false);
-    expect(ZerarEmpresaSchema.safeParse({ ...andamento, origem: 'outro' }).success).toBe(false);
+    expect(ZerarEmpresaSchema.safeParse({ ...andamento, origem: 'portal' }).success).toBe(false);
   });
 
-  it('prévia: total é a soma das tabelas e o bloqueio é um código do zerar', () => {
+  it('prévia: total é a soma das linhas que saem e o bloqueio é um código do zerar', () => {
     const previa = {
       tenant_id: T,
       codigo: 'am2808',
+      entidades: ['cliente'],
+      entidades_afetadas: ['cliente', 'cliente_endereco'],
       contado_em: '2026-11-23T14:00:00Z',
       total_linhas: 5,
       tabelas: [
-        { tabela: 'core.cliente', linhas: 3 },
-        { tabela: 'vendedor.pedido', linhas: 2 },
+        { tabela: 'core.cliente', modo: 'soft', linhas: 3 },
+        { tabela: 'integracao.registro_atual', modo: 'fisico', linhas: 2 },
+        { tabela: 'plataforma.sync_pacote', modo: 'sync_pacote', linhas: 4 },
       ],
       bloqueio: null,
     };
     expect(PreviaZerarEmpresaSchema.safeParse(previa).success).toBe(true);
     expect(PreviaZerarEmpresaSchema.safeParse({ ...previa, total_linhas: 6 }).success).toBe(false);
     expect(PreviaZerarEmpresaSchema.safeParse({ ...previa, bloqueio: Z.volumeAlto }).success).toBe(true);
+    expect(PreviaZerarEmpresaSchema.safeParse({ ...previa, bloqueio: Z.hubProcessando }).success).toBe(true);
     expect(PreviaZerarEmpresaSchema.safeParse({ ...previa, bloqueio: 'EXCLUSAO_SEM_BACKUP' }).success).toBe(false);
   });
 });
@@ -146,15 +196,16 @@ describe('agrupamento da prévia', () => {
     expect(grupoDaTabelaZerar('novo.tabela')).toBe('cadastros');
   });
 
-  it('soma por grupo, na ordem fixa, sem os grupos vazios', () => {
+  it('soma por grupo só o que sai, na ordem fixa, sem os grupos vazios', () => {
     expect(
       resumirPreviaPorGrupo([
-        { tabela: 'plataforma.arquivo', linhas: 4 },
-        { tabela: 'vendedor.pedido_item', linhas: 10 },
-        { tabela: 'vendedor.pedido', linhas: 2 },
-        { tabela: 'core.cliente', linhas: 3 },
-        { tabela: 'core.produto', linhas: 0 },
-        { tabela: 'plataforma.evento', linhas: 0 },
+        { tabela: 'plataforma.arquivo', modo: 'soft', linhas: 4 },
+        { tabela: 'vendedor.pedido_item', modo: 'soft', linhas: 10 },
+        { tabela: 'vendedor.pedido', modo: 'soft', linhas: 2 },
+        { tabela: 'core.cliente', modo: 'soft', linhas: 3 },
+        { tabela: 'core.filial', modo: 'filial', linhas: 2 },
+        { tabela: 'core.produto', modo: 'soft', linhas: 0 },
+        { tabela: 'plataforma.sync_pacote', modo: 'sync_pacote', linhas: 7 },
       ]),
     ).toEqual([
       { grupo: 'cadastros', rotulo: ROTULO_GRUPO_ZERAR.cadastros, linhas: 3 },
@@ -172,7 +223,8 @@ describe('auditoria tenant.zerado', () => {
       tenant_id: T,
       codigo: 'am2808',
       zerar_id: ID,
-      origem: 'workflow',
+      lote: '20261123T140000Z-7c000000',
+      entidades: ['cliente', 'produto'],
       linhas_apagadas: 130,
       copia_expira_em: '2026-11-30T14:00:09Z',
       zerado_em: '2026-11-23T14:00:09Z',
