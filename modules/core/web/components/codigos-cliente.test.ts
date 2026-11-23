@@ -30,7 +30,7 @@ describe('códigos do cliente no BKO (ADR 0069 item 10, v1.0.30)', () => {
     expect(p).toContain('subtitle={<CodigosDoCliente cliente={cliente} forma="linha" depois={identificacao} testId="cliente360.codigos" />}');
   });
 
-  it('Pré-cadastros recusados: coluna Código na 1ª posição, FDV no subtítulo da gaveta e do editar, busca com o rótulo único', () => {
+  it('Pré-cadastros recusados: coluna Código na 1ª posição, FDV no subtítulo da gaveta e do editar, busca com o rótulo do que a API casa', () => {
     const p = ler('pre-cadastro/pre-cadastros-recusados.tsx');
     const colunas = p.slice(p.indexOf('const colunas'), p.indexOf('const vazio'));
     expect(colunas.indexOf("id: 'codigo'")).toBeGreaterThan(-1);
@@ -39,7 +39,8 @@ describe('códigos do cliente no BKO (ADR 0069 item 10, v1.0.30)', () => {
     expect(p.match(/<CodigosDoCliente cliente=\{\{ codigo_fdv: item\.codigo_fdv \}\} forma="linha"/g)).toHaveLength(2);
     expect(p).toContain('texto: (l) => textoDosCodigosDoCliente(l)');
     expect(p).not.toContain('app/lib/codigos-cliente');
-    expect(p).toContain('<CampoBusca rotulo={ROTULO_BUSCA_CLIENTE} ');
-    expect(p).not.toContain('Razão social ou CPF/CNPJ');
+    expect(p).toContain('<CampoBusca rotulo={ROTULO_BUSCA_RECUSADOS} ');
+    expect(p).not.toContain('ROTULO_BUSCA_CLIENTE');
+    expect(ler('../lib/pre-cadastro.ts')).toContain("export const ROTULO_BUSCA_RECUSADOS = 'Razão social ou CPF/CNPJ';");
   });
 });

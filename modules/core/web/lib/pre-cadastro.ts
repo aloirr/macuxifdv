@@ -93,6 +93,9 @@ export const temFiltroRecusados = (f: FiltrosRecusados): boolean => f.situacao !
 /** Patch da URL que volta ao padrão (a aba fica). */
 export const LIMPAR_FILTROS_RECUSADOS = { situacao: null, q: null } as const;
 
+/** Rótulo da busca dos recusados: só o que a API casa (razão social e CPF/CNPJ); o Código FDV não entra nesta busca. */
+export const ROTULO_BUSCA_RECUSADOS = 'Razão social ou CPF/CNPJ';
+
 export const SITUACOES_RECUSADO: readonly { id: SituacaoRecusado; texto: string; tom: 'danger' | 'warning' | 'success' }[] = [
   { id: 'recusado', texto: 'Recusado', tom: 'danger' },
   { id: 'reenviado', texto: 'Reenviado', tom: 'warning' },

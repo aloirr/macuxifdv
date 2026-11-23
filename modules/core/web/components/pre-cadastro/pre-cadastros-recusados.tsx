@@ -29,7 +29,7 @@ import {
   useToast,
 } from '@macuxi/ui/web';
 import type { HistoricoPreCadastro, PreCadastroAtual, RecusadoItem } from '../../../contracts';
-import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, ROTULO_BUSCA_CLIENTE, validarPreCadastro } from '../../../domain';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, validarPreCadastro } from '../../../domain';
 import { CodigosDoCliente, textoDosCodigosDoCliente } from '../codigos-cliente';
 import {
   colunaExigida,
@@ -48,6 +48,7 @@ import {
   GRADE_DA_CORRECAO,
   LIMPAR_FILTROS_RECUSADOS,
   ORDEM_DA_GRADE,
+  ROTULO_BUSCA_RECUSADOS,
   seloDaSituacao,
   situacaoDaGaveta,
   SITUACOES_RECUSADO,
@@ -142,7 +143,7 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
   return (
     <div className="flex flex-col gap-4">
       <FilterBar>
-        <CampoBusca rotulo={ROTULO_BUSCA_CLIENTE} className="sm:w-[340px]" value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid={`${P}.filtro.busca`} />
+        <CampoBusca rotulo={ROTULO_BUSCA_RECUSADOS} className="sm:w-[340px]" value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid={`${P}.filtro.busca`} />
         <SelectField label="Situação" value={filtros.situacao} onChange={(e) => mudar({ situacao: e.target.value === 'recusado' ? null : e.target.value })} data-testid={`${P}.filtro.situacao`}>
           {SITUACOES_RECUSADO.map((s) => (
             <option key={s.id} value={s.id}>
