@@ -1,0 +1,96 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Pré-cadastro — editar e reenviar</title><style>
+*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background:#F8F6F1;color:#16202A;width:1366px;min-height:768px;display:flex;position:relative;font-variant-numeric:tabular-nums}
+.menu{width:240px;min-height:768px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
+.lista{display:flex;flex-direction:column;gap:2px;flex:1}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.titulo.direto.ativo{background:#2B3743;color:#fff}
+.item{display:flex;align-items:center;min-height:32px;padding:6px 10px 6px 20px;line-height:20px;border-radius:8px;font-size:15px;color:#C9CED5;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:12px;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:15px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
+main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:16px}
+h1{font-weight:700;font-size:24px;line-height:1.2;min-height:42px;display:flex;align-items:center}
+h2{font-weight:700;font-size:17px}
+.abas{display:flex;gap:4px;border-bottom:1px solid #DFE2E6}
+.aba{height:44px;display:flex;align-items:center;padding:0 14px;font-size:15px;font-weight:500;color:#34404D;border-bottom:3px solid transparent;margin-bottom:-1px}
+.aba.ativa{color:#16202A;font-weight:600;border-bottom-color:#1E3350}
+.filtros{display:flex;align-items:flex-end;gap:10px}
+.f{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:#4A5562}
+.sel{height:44px;min-width:170px;border:1px solid #C9CED5;border-radius:10px;background:#fff;font-size:15px;font-weight:500;color:#16202A;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px;white-space:nowrap}
+.busca{width:340px;justify-content:flex-start;color:#4A5562;font-weight:400}
+.quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px}
+th{text-align:left;font-size:12px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 10px;height:48px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:0}
+tr.sel-linha td{background:#F1F3F5}
+.nome{font-weight:600}
+.selo{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
+.ok{color:#1D6B4F;background:#E2F1EA}.al{color:#7A4F00;background:#FFF1D6}.pe{color:#A8261B;background:#FDE8E6}.ne{color:#34404D;background:#ECEEF1}
+.vazio{border:1px dashed #DFE2E6;border-radius:16px;padding:40px 24px;text-align:center;font-size:15px;font-weight:600;color:#34404D;background:#fff}
+.btn{height:44px;border-radius:10px;padding:0 18px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.p{background:#1E3350;color:#fff;height:52px;padding:0 22px}
+.btn.s{border:1px solid #C9CED5;background:#fff;color:#16202A}
+.nota{font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #C9CED5;border-radius:8px;padding:8px 12px;max-width:520px}
+.veu{position:absolute;inset:0;background:rgba(22,32,42,.35);z-index:4}
+aside{position:absolute;top:0;right:0;width:560px;height:100%;min-height:768px;background:#F8F6F1;z-index:5;display:flex;flex-direction:column;box-shadow:-12px 0 32px rgba(22,32,42,.2)}
+.dcab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;background:#fff;border-bottom:1px solid #DFE2E6}
+.dcab h2{font-size:20px}
+.dcab .sub{font-size:13px;color:#4A5562;display:flex;align-items:center;gap:8px;margin-top:4px}
+.fechar{width:40px;height:40px;border:1px solid #C9CED5;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dcorpo{flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.drod{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;background:#fff;border-top:1px solid #DFE2E6}
+.rot{font-size:12px;font-weight:600;color:#4A5562;letter-spacing:.06em;text-transform:uppercase}
+.tent{background:#fff;border:1px solid #DFE2E6;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.tent b{font-size:15px}
+.ev{font-size:14px;color:#34404D}
+.mot{font-size:15px;color:#A8261B;display:flex;gap:6px;align-items:flex-start;font-weight:600}
+.mot svg{margin-top:3px;flex-shrink:0}
+.erros{display:flex;flex-direction:column;gap:2px;font-size:14px;padding-left:21px}
+.erros span{color:#34404D}.erros i{font-style:normal;font-weight:600;color:#16202A}
+.notice{display:flex;gap:8px;align-items:flex-start;border-radius:10px;padding:10px 12px;font-size:15px}
+.notice.d{background:#FDE8E6;color:#A8261B;font-weight:600}
+.notice svg{margin-top:2px;flex-shrink:0}
+.form{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px 12px}
+.c{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600;color:#16202A}
+.c small{font-weight:400;color:#5B6673}
+.c.s6{grid-column:span 6}.c.s4{grid-column:span 4}.c.s3{grid-column:span 3}.c.s2{grid-column:span 2}
+.in{height:44px;border:1px solid #7A8593;border-radius:10px;background:#fff;font-size:15px;font-weight:400;display:flex;align-items:center;padding:0 12px;white-space:nowrap;overflow:hidden}
+.in.erro{border:2px solid #A8261B}
+.falta{font-size:13px;font-weight:600;color:#A8261B;display:flex;gap:4px;align-items:center}
+.grp{grid-column:span 6;font-size:12px;font-weight:600;color:#4A5562;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+.corpo{display:flex;gap:24px}
+.secoes{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:2px}
+.sec{display:flex;align-items:center;height:40px;padding:0 12px 0 16px;border-radius:10px;font-size:15px;color:#34404D;position:relative}
+.sec.ativo{background:#fff;color:#16202A;font-weight:600;box-shadow:0 0 0 1px #DFE2E6}
+.sec.ativo:before{content:'';position:absolute;left:6px;top:10px;bottom:10px;width:3px;border-radius:2px;background:#1E3350}
+.conteudo{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;max-width:760px}
+.resumido{font-size:14px;color:#5B6673}
+.chk{display:flex;align-items:center;gap:12px;min-height:44px;font-size:15px;font-weight:600}
+.caixa{width:20px;height:20px;border-radius:4px;border:2px solid #7A8593;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.caixa.on{background:#1E3350;border-color:#1E3350}
+.caixa.trava{background:#8B96A3;border-color:#8B96A3}
+.chk.trava{color:#4A5562}
+</style><body><nav class="menu"><div class="brand"><img src="../../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista"><div class="grupo"><div class="titulo" aria-expanded="false"><span>Acesso</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Análise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="true"><span>Cadastros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(90deg)"><path d="M9 6l6 6-6 6"/></svg></div><a class="item">Carteira</a><a class="item ativo" aria-current="page">Clientes</a><a class="item">Coordenadas sugeridas</a><a class="item">Filiais</a><a class="item">Formas de pagamento e prazos</a><a class="item">Transportadoras</a></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Comunicação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Operação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Produtos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><a class="titulo direto"><span>Parâmetros</span></a><div class="grupo"><div class="titulo" aria-expanded="false"><span>Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div></div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><main><h1>Clientes</h1><div class="abas" role="tablist" aria-label="Clientes"><span class="aba" role="tab" aria-selected="false">Farol</span><span class="aba ativa" role="tab" aria-selected="true">Pré-cadastros recusados (3)</span></div><div class="filtros"><span class="sel busca" aria-label="Buscar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4A5562" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Razão social ou CPF/CNPJ</span>
+  <label class="f">Situação<span class="sel">Todas<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A5562" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></label>
+  <label class="f">Vendedor<span class="sel">Todos<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A5562" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></label></div><section class="quadro" style="padding:8px 16px"><table><colgroup><col style="width:190px"><col><col style="width:128px"><col style="width:168px"><col style="width:220px"><col style="width:118px"></colgroup>
+  <thead><tr><th>CPF/CNPJ</th><th>Razão social</th><th>Vendedor</th><th>Data</th><th>Motivo da recusa</th><th>Situação</th></tr></thead><tbody>
+  <tr class="sel-linha"><td>45.723.174/0001-10</td><td class="nome" title="Mercadinho São Jorge Ltda">Mercadinho São Jorge Ltda</td><td>Carlos Lima</td><td>23/11/2026 10:05</td><td title="Cadastro com divergência na SEFAZ">Cadastro com divergência na SEFAZ</td><td><span class="selo pe">Recusado</span></td></tr><tr><td>08.114.392/0001-55</td><td class="nome" title="Comercial Rio Negro Eireli">Comercial Rio Negro Eireli</td><td>Rita Alves</td><td>23/11/2026 09:40</td><td title="CEP não encontrado">CEP não encontrado</td><td><span class="selo al">Reenviado</span></td></tr><tr><td>321.654.987-00</td><td class="nome" title="Maria do Socorro Lima">Maria do Socorro Lima</td><td>Carlos Lima</td><td>22/11/2026 16:20</td><td title="CPF com situação irregular na Receita">CPF com situação irregular na Receita</td><td><span class="selo pe">Recusado</span></td></tr><tr><td>17.902.551/0001-03</td><td class="nome" title="Atacado Ponta Negra Ltda">Atacado Ponta Negra Ltda</td><td>João Mendes</td><td>22/11/2026 11:02</td><td title="Razão social diferente da Receita">Razão social diferente da Receita</td><td><span class="selo ok">Aceito</span></td></tr><tr><td>33.408.776/0001-29</td><td class="nome" title="Panificadora Aleixo Ltda">Panificadora Aleixo Ltda</td><td>Rita Alves</td><td>21/11/2026 15:47</td><td title="Endereço incompleto">Endereço incompleto</td><td><span class="selo pe">Recusado</span></td></tr><tr><td>52.660.118/0001-84</td><td class="nome" title="Distribuidora Tarumã Ltda">Distribuidora Tarumã Ltda</td><td>João Mendes</td><td>20/11/2026 08:30</td><td title="Telefone inválido">Telefone inválido</td><td><span class="selo ok">Aceito</span></td></tr>
+  </tbody></table></section><div class="nota"><b>Simulação.</b> Editar e reenviar troca o conteúdo da gaveta pelo formulário, com os campos do erro já marcados. O corpo da gaveta rola; o rodapé fica fixo.</div></main><div class="veu"></div><aside role="dialog" aria-modal="true" aria-label="Editar e reenviar"><div class="dcab"><div><h2>Editar e reenviar</h2></div><span class="fechar" aria-label="Fechar painel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div><div class="dcorpo"><div class="notice d" role="alert"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A8261B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></svg><span>Cadastro com divergência na SEFAZ</span></div>
+  <div class="form">
+  <label class="c s3"><span>CPF/CNPJ</span><span class="in">45.723.174/0001-10</span></label><label class="c s3"><span>Inscrição estadual</span><span class="in erro">04.123.456-7</span><span class="falta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8261B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></svg>Não confere com a SEFAZ</span></label>
+  <label class="c s6"><span>Razão social</span><span class="in">Mercadinho São Jorge Ltda</span></label>
+  <label class="c s6"><span>Nome fantasia <small>(opcional)</small></span><span class="in">Mercadinho São Jorge</span></label>
+  <label class="c s3"><span>Telefone</span><span class="in">(92) 98123-4567</span></label><label class="c s3"><span>E-mail <small>(opcional)</small></span><span class="in"></span></label>
+  <span class="grp">Endereço</span>
+  <label class="c s3"><span>CEP</span><span class="in erro">69050-010</span><span class="falta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8261B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></svg>Não pertence a Manaus/AM</span></label><label class="c s3"><span>Bairro</span><span class="in">N. Sra. das Graças</span></label>
+  <label class="c s4"><span>Logradouro</span><span class="in">Rua Rio Mar</span></label><label class="c s2"><span>Número</span><span class="in">118</span></label>
+  <label class="c s4"><span>Cidade</span><span class="in">Manaus</span></label><label class="c s2"><span>UF</span><span class="in">AM</span></label>
+  </div></div><div class="drod"><span class="btn s">Cancelar</span><span class="btn p">Reenviar</span></div></aside><script>document.fonts.ready.then(()=>{const sobre=[...document.querySelectorAll('.nota')].map(e=>e.getBoundingClientRect());const conflitos=[];
+for(const el of document.querySelectorAll('main *, aside *')){if(el.closest('.nota'))continue;if(el.children.length&&!el.matches('td,th,.selo,h1,h2,.btn,.aba'))continue;const r=el.getBoundingClientRect();if(!r.width||!r.height)continue;for(const s of sobre){if(r.left<s.right&&r.right>s.left&&r.top<s.bottom&&r.bottom>s.top)conflitos.push(el.tagName+'.'+el.className+': '+el.textContent.trim().slice(0,30));}}
+document.body.dataset.info=JSON.stringify({conflitos});document.body.dataset.pronto='1';});</script></body></html>
