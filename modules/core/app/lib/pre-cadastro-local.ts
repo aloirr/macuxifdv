@@ -10,8 +10,6 @@ import { PreCadastroClienteSchema, type CampoCadastroCliente, type ClienteSync, 
 import { camposExigidosDasLinhas, MOTIVO_ENVIO_FALHOU, obrigatoriosDoPreCadastro, validarPreCadastro } from '../../domain';
 import { dadosDoFormulario, errosDaRecusaPorColuna, valoresDosDados, type ColunaFormulario, type ValoresPreCadastro } from './pre-cadastro-formulario';
 
-export { COLUNAS_FORMULARIO, type ValoresPreCadastro } from './pre-cadastro-formulario';
-
 /** Entidade de push do pré-cadastro (a API do Core a recebe com este nome). */
 export const ENTIDADE_PRE_CADASTRO = 'cliente_pre_cadastro';
 

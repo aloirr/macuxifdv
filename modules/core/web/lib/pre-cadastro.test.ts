@@ -1,26 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { CorrecaoPreCadastroSchema, type HistoricoPreCadastro, type PreCadastroAtual, type TentativaPreCadastro } from '../../contracts';
+import { COLUNAS_FORMULARIO, errosDaRecusaPorColuna, primeiraColunaMarcada } from '../../app/lib/pre-cadastro-formulario';
 import {
   alternarLinhaObrigatoria,
+  buscaDoQDaUrl,
   buscaParaApi,
-  colunaExigida,
   contadorDaAba,
   corpoDaCorrecao,
   erroDoReenvio,
-  errosDaRecusaPorColuna,
   filtrosRecusadosDaUrl,
   linhaMarcada,
   LINHAS_CAMPOS_OBRIGATORIOS,
-  primeiraColunaMarcada,
-  rotuloDoCampo,
+  ORDEM_DA_GRADE,
+  situacaoDaGaveta,
   situacaoDoHistorico,
   temFiltroRecusados,
   tentativasEmOrdem,
   textoDeQuemCorrigiuAntes,
   textoDeQuemEnviou,
   textoDoResultado,
-  valoresDosDados,
 } from './pre-cadastro';
 
 const FUSO = 'America/Manaus';
@@ -81,12 +80,6 @@ describe('Clientes › Pré-cadastros recusados (RN-CORE-78)', () => {
     expect(textoDoResultado(tentativa({ resultado: 'aceito', respondido_em: '2026-11-21T12:00:00Z' }), FUSO)).toBe('Aceita pelo ERP em 21/11/2026 08:00');
   });
 
-  it('RN-CORE-78: rótulo do campo do erro vem do contrato e do endereço; campo desconhecido aparece com o nome que veio', () => {
-    expect(rotuloDoCampo('documento')).toBe('CPF/CNPJ');
-    expect(rotuloDoCampo('cep')).toBe('CEP');
-    expect(rotuloDoCampo('regime')).toBe('regime');
-  });
-
   it('RN-CORE-78: 409 de revisão desatualizada diz quem corrigiu antes e quando; sem nome, o texto do contrato', () => {
     const h: HistoricoPreCadastro = { cliente_id: ID, revisao_atual: 3, tentativas: [tentativa({ revisao: 2 }), tentativa({ revisao: 3, corrigido_por: { id: ANA.id, nome: 'Ana', perfil: 'vendedor' }, enviado_em: '2026-11-22T13:05:00Z' })] };
     expect(tentativasEmOrdem(h).map((t) => t.revisao)).toEqual([3, 2]);
@@ -110,21 +103,22 @@ describe('Clientes › Pré-cadastros recusados (RN-CORE-78)', () => {
     expect(situacaoDoHistorico(h())).toBeNull();
   });
 
-  it('RN-CORE-16: a IE só é exigida com CNPJ válido, como na cadastroCompleto do domain; o que a lista não pede é opcional', () => {
-    const lista = ['razao_social', 'documento', 'inscricao_estadual'] as const;
-    expect(colunaExigida({ documento: '11222333000181' }, lista, 'inscricao_estadual')).toBe(true);
-    expect(colunaExigida({ documento: '52998224725' }, lista, 'inscricao_estadual')).toBe(false);
-    expect(colunaExigida({ documento: '112223330001' }, lista, 'inscricao_estadual')).toBe(false);
-    expect(colunaExigida({}, lista, 'documento')).toBe(true);
-    expect(colunaExigida({}, lista, 'telefone')).toBe(false);
+  it('RN-CORE-78: até o histórico chegar (ou se falhar), o selo e o "Editar e reenviar" seguem a situação da linha; depois, a do histórico', () => {
+    const h: HistoricoPreCadastro = { cliente_id: ID, revisao_atual: 2, tentativas: [tentativa({ resultado: 'recusado' }), tentativa({ revisao: 2, resultado: 'aguardando' })] };
+    expect(situacaoDaGaveta('recusado', undefined)).toBe('recusado');
+    expect(situacaoDaGaveta('recusado', h)).toBe('reenviado');
   });
 
-  it('RN-CORE-78: o erro da recusa vai para a coluna exata (o primeiro de cada), e a primeira marcada segue a ordem da grade', () => {
-    const marcas = errosDaRecusaPorColuna([{ campo: 'cep', mensagem: 'CEP não existe' }, { campo: ' inscricao_estadual ', mensagem: 'IE inválida' }, { campo: 'cep', mensagem: 'outro' }, { campo: 'regime', mensagem: 'x' }]);
-    expect(marcas).toEqual({ cep: 'CEP não existe', inscricao_estadual: 'IE inválida' });
-    expect(primeiraColunaMarcada(marcas)).toBe('inscricao_estadual');
-    expect(primeiraColunaMarcada({})).toBeNull();
-    expect(valoresDosDados({ razao_social: 'Mercado', telefone: null })).toMatchObject({ razao_social: 'Mercado', telefone: '', uf: '' });
+  it('RN-CORE-78: a busca só volta ao campo quando o q da URL muda por fora; o eco do que o campo mandou não apaga o que foi digitado na espera', () => {
+    expect(buscaDoQDaUrl('merc', 'merc')).toBeNull();
+    expect(buscaDoQDaUrl('', 'merc')).toBe('');
+    expect(buscaDoQDaUrl('padaria', 'merc')).toBe('padaria');
+  });
+
+  it('RN-CORE-78: a grade do BKO cobre as colunas do formulário único, e a primeira marcada segue a ordem da grade (IE antes do CEP)', () => {
+    expect([...ORDEM_DA_GRADE].sort()).toEqual([...COLUNAS_FORMULARIO].sort());
+    const marcas = errosDaRecusaPorColuna([{ campo: 'cep', mensagem: 'CEP não existe' }, { campo: 'inscricao_estadual', mensagem: 'IE inválida' }]);
+    expect(primeiraColunaMarcada(marcas, ORDEM_DA_GRADE)).toBe('inscricao_estadual');
   });
 
   it('RN-CORE-78: o corpo da correção leva o formulário sem máscara, a localização e a filial gravadas e a revisão vista', () => {

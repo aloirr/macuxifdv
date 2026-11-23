@@ -4,7 +4,7 @@
  * aparelho, escrita na fila do sync (`cliente_pre_cadastro`). A correção edita o MESMO cliente (mesmo id) como revisão nova.
  * Quem aprova é o ERP; o Core só pré-cadastra. A API revalida os obrigatórios. A página `novo-cliente` do `moduloApp` só existe para o vendedor.
  */
-import { AvisoRodape, Botao, CabecalhoTela, CampoEscolha, CodigosCliente, CampoTexto, colors, Folha, Icon, RotuloSecao, faltaVisivel, type as t, useAvisoRodape, type FaltaDoCampo } from '@macuxi/ui/mobile';
+import { AvisoRodape, Botao, CabecalhoTela, CampoEscolha, CampoTexto, colors, Folha, Icon, RotuloSecao, faltaVisivel, type as t, useAvisoRodape, type FaltaDoCampo } from '@macuxi/ui/mobile';
 import { somenteDigitos } from '@macuxi/comum';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
 import { useBloquearSaida, useMotorSync } from '@macuxi/platform-sdk/react';
@@ -13,7 +13,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 
 import type { ClienteSync, ParametroSync } from '../../contracts';
-import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../contracts';
 import { FALTA_OBRIGATORIO_PRE_CADASTRO, motivoSoDeCamposFaltantes, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
 import { abrirCliente, PARAM_CLIENTE_ID, ROTA_CLIENTES } from '../lib/navegacao';
 import {
@@ -26,7 +25,7 @@ import {
   sobreporPreCadastros,
   type BaseDaCorrecao,
 } from '../lib/pre-cadastro-local';
-import { colunaExigida, COLUNAS_FORMULARIO, primeiraColunaMarcada, valoresDosDados, type ColunaFormulario as Coluna, type ValoresPreCadastro } from '../lib/pre-cadastro-formulario';
+import { colunaExigida, COLUNAS_FORMULARIO, primeiraColunaMarcada, rotuloDoCampo, valoresDosDados, type ColunaFormulario as Coluna, type ValoresPreCadastro } from '../lib/pre-cadastro-formulario';
 
 export interface PropsTelaNovoClientePreCadastro {
   /** "Corrigir e reenviar": abre o formulário preenchido do mesmo cliente (mesmo id), que vai como revisão nova. */
@@ -151,11 +150,11 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
       rolarAte(c);
     }
   };
-  const campoTexto = (c: Coluna, rotulo: string, extra: Partial<React.ComponentProps<typeof CampoTexto>> = {}) => (
+  const campoTexto = (c: Coluna, extra: Partial<React.ComponentProps<typeof CampoTexto>> = {}) => (
     <View key={c} onLayout={(e) => aoPosicionar(c, e.nativeEvent.layout.y)}>
       <CampoTexto
         testID={`novo-cliente-${c}`}
-        rotulo={rotulo}
+        rotulo={c === 'razao_social' && pessoaFisica ? 'Nome' : rotuloDoCampo(c)}
         valor={valores[c] ?? ''}
         aoMudar={mudar(c)}
         onBlur={marcarSaida(c)}
@@ -200,40 +199,39 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }} testID="tela-novo-cliente">
-      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
+      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} codigos={{ fdv: codigoFdv }} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0}>
       <ScrollView ref={rolagem} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 24 }}>
-        <CodigosCliente fdv={codigoFdv} style={t.sub} testID="novo-cliente-codigo" />
         {motivo && !motivoNoCampo ? (
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }} testID="novo-cliente-motivo" accessibilityRole="alert">
             <Icon name="alert" size={16} color={colors.danger} />
             <Text style={[t.sub, { flex: 1, color: colors.danger }]}>{motivo}</Text>
           </View>
         ) : null}
-        {campoTexto('documento', ROTULOS_CAMPOS_PRE_CADASTRO.documento, { mascara: 'documento' })}
+        {campoTexto('documento', { mascara: 'documento' })}
         {duplicado ? (
           <Pressable testID="novo-cliente-abrir-existente" accessibilityRole="link" onPress={() => pedirSaida(() => abrirCliente(duplicado.id, 'Clientes'))} style={{ minHeight: 48, justifyContent: 'center' }}>
             <Text style={[t.bodyStrong, { color: colors.accent }]}>Abrir</Text>
           </Pressable>
         ) : null}
-        {campoTexto('razao_social', pessoaFisica ? 'Nome' : ROTULOS_CAMPOS_PRE_CADASTRO.razao_social, { autoCapitalize: 'words' })}
-        {campoTexto('nome_fantasia', ROTULOS_CAMPOS_PRE_CADASTRO.nome_fantasia, { autoCapitalize: 'words' })}
+        {campoTexto('razao_social', { autoCapitalize: 'words' })}
+        {campoTexto('nome_fantasia', { autoCapitalize: 'words' })}
         <RotuloSecao texto="Contato" />
-        {campoTexto('telefone', ROTULOS_CAMPOS_PRE_CADASTRO.telefone, { mascara: 'telefone' })}
-        {campoTexto('email', ROTULOS_CAMPOS_PRE_CADASTRO.email, { keyboardType: 'email-address', autoCapitalize: 'none' })}
+        {campoTexto('telefone', { mascara: 'telefone' })}
+        {campoTexto('email', { keyboardType: 'email-address', autoCapitalize: 'none' })}
         <RotuloSecao texto="Endereço" />
-        {campoTexto('cep', 'CEP', { mascara: 'cep' })}
+        {campoTexto('cep', { mascara: 'cep' })}
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 2 }}>{campoTexto('logradouro', 'Logradouro', { autoCapitalize: 'words' })}</View>
-          <View style={{ flex: 1 }}>{campoTexto('numero', 'Número', { keyboardType: 'number-pad' })}</View>
+          <View style={{ flex: 2 }}>{campoTexto('logradouro', { autoCapitalize: 'words' })}</View>
+          <View style={{ flex: 1 }}>{campoTexto('numero', { keyboardType: 'number-pad' })}</View>
         </View>
-        {campoTexto('bairro', 'Bairro', { autoCapitalize: 'words' })}
+        {campoTexto('bairro', { autoCapitalize: 'words' })}
         {/* cadeia do "Próximo": ... Bairro > Cidade; a Cidade fecha o teclado ("Concluir"), a UF abre por toque e a Inscrição é o último campo */}
-        {campoTexto('cidade', 'Cidade', { autoCapitalize: 'words', returnKeyType: 'done' })}
+        {campoTexto('cidade', { autoCapitalize: 'words', returnKeyType: 'done' })}
         <CampoEscolha
           testID="novo-cliente-uf"
-          rotulo="UF"
-          titulo="UF"
+          rotulo={rotuloDoCampo('uf')}
+          titulo={rotuloDoCampo('uf')}
           opcoes={UFS_BRASIL.map((uf) => ({ id: uf, rotulo: uf }))}
           valor={valores.uf ?? null}
           onEscolher={(o: { id: string }) => {
@@ -246,7 +244,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
           falta={falta('uf')}
         />
         <RotuloSecao texto="Outros" />
-        {campoTexto('inscricao_estadual', ROTULOS_CAMPOS_PRE_CADASTRO.inscricao_estadual, { returnKeyType: 'done' })}
+        {campoTexto('inscricao_estadual', { returnKeyType: 'done' })}
       </ScrollView>
       <View style={{ padding: 20, paddingTop: 8, backgroundColor: colors.ground }}>
         <Botao testID="novo-cliente-salvar" rotulo="Salvar" nivel="principal" alto ocupado={salvando} onPress={() => void salvar()} />

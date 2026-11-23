@@ -1,10 +1,10 @@
 /**
  * Formulário do pré-cadastro (v1.0.30; RN-CORE-78 e RN-CORE-79; ADR 0069): colunas, valores digitados, dados normalizados para o
- * contrato e os erros por campo da recusa do ERP marcados na coluna exata. Puro (sem react-native nem rede), do formulário do Campo
- * (`telas/novo-cliente.tsx`).
+ * contrato, os rótulos e os erros por campo da recusa do ERP marcados na coluna exata. Puro (sem react-native nem rede): fonte única
+ * do formulário do Campo (`telas/novo-cliente.tsx`) e do "Editar e reenviar" do BKO (`web/lib/pre-cadastro.ts`).
  */
 import { somenteDigitos } from '@macuxi/comum';
-import type { ErroCampoCadastro } from '../../contracts';
+import { ROTULOS_CAMPOS_PRE_CADASTRO, type CampoPreCadastro, type ErroCampoCadastro } from '../../contracts';
 import { FALTA_OBRIGATORIO_PRE_CADASTRO, validarPreCadastro } from '../../domain';
 
 /** Colunas do formulário, na ordem do Campo (spec `campo-cliente-pre-cadastro.md` §2); são também os nomes canônicos do cadastro. */
@@ -14,15 +14,23 @@ export type ColunaFormulario = (typeof COLUNAS_FORMULARIO)[number];
 /** Texto digitado em cada coluna (a máscara é só da tela; o valor vai sem pontuação onde o contrato pede). */
 export type ValoresPreCadastro = Partial<Record<ColunaFormulario, string>>;
 
+/** Rótulos das colunas do endereço (o contrato só rotula o grupo "Endereço"); os mesmos no Campo, no BKO e no endereço do usuário. */
+export const ROTULOS_ENDERECO = { cep: 'CEP', logradouro: 'Logradouro', numero: 'Número', bairro: 'Bairro', cidade: 'Cidade', uf: 'UF' } as const;
+
+/** Rótulo de uma coluna ou do campo citado no erro (os do contrato e os do endereço); campo que o formulário não tem aparece com o nome que veio. */
+export function rotuloDoCampo(campo: string): string {
+  return ROTULOS_CAMPOS_PRE_CADASTRO[campo as CampoPreCadastro] ?? ROTULOS_ENDERECO[campo as keyof typeof ROTULOS_ENDERECO] ?? campo;
+}
+
 const ouNulo = (v: string | undefined): string | null => (v && v.trim() !== '' ? v.trim() : null);
 const somenteDigitosOuNulo = (v: string | undefined): string | null => (ouNulo(v) === null ? null : somenteDigitos(v));
 
-/** Dados do cliente para o contrato (`PreCadastroClienteSchema` / `CorrecaoPreCadastroSchema`), sem id, origem nem revisão. */
+/** Dados do cliente para o contrato (`PreCadastroClienteSchema` / `CorrecaoPreCadastroSchema`), sem id, origem nem revisão: CPF/CNPJ, telefone e CEP só com dígitos; vazio = nulo. */
 export function dadosDoFormulario(v: ValoresPreCadastro) {
   return {
     razao_social: v.razao_social ?? '',
     nome_fantasia: ouNulo(v.nome_fantasia),
-    documento: v.documento ?? '',
+    documento: somenteDigitos(v.documento),
     inscricao_estadual: ouNulo(v.inscricao_estadual),
     telefone: somenteDigitosOuNulo(v.telefone),
     email: ouNulo(v.email),
@@ -55,9 +63,9 @@ export function errosDaRecusaPorColuna(erros: readonly Pick<ErroCampoCadastro, '
   return r;
 }
 
-/** Primeira coluna (na ordem do formulário) com marca; nula se nenhuma. */
-export function primeiraColunaMarcada(marcas: Partial<Record<ColunaFormulario, unknown>>): ColunaFormulario | null {
-  return COLUNAS_FORMULARIO.find((c) => marcas[c]) ?? null;
+/** Primeira coluna com marca, na `ordem` da tela (padrão: a do Campo; o BKO passa a da grade); nula se nenhuma. */
+export function primeiraColunaMarcada(marcas: Partial<Record<ColunaFormulario, unknown>>, ordem: readonly ColunaFormulario[] = COLUNAS_FORMULARIO): ColunaFormulario | null {
+  return ordem.find((c) => marcas[c]) ?? null;
 }
 
 /**

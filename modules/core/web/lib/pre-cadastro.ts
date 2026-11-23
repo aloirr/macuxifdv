@@ -4,7 +4,7 @@
  * recusados" (filtros na URL, textos do histórico, erro do reenvio e o corpo da correção). Sem React e sem rede; a API revalida.
  */
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
-import { formatDataHoraCurta, formatDateTimeFull } from '@macuxi/ui/web';
+import { formatDataHoraCurta, formatDateTimeFull, type MascaraCampo } from '@macuxi/ui/web';
 import {
   CAMPOS_CADASTRO_CLIENTE,
   CAMPOS_CADASTRO_FIXOS,
@@ -15,14 +15,13 @@ import {
   type CampoCadastroCliente,
   type CampoPreCadastro,
   type CorrecaoPreCadastro,
-  type ErroCampoCadastro,
   type HistoricoPreCadastro,
   type PreCadastroAtual,
   type SituacaoRecusado,
   type TentativaPreCadastro,
 } from '../../contracts';
-import { somenteDigitos } from '@macuxi/comum';
-import { FALTA_OBRIGATORIO_PRE_CADASTRO, situacaoDoRecusado, validarPreCadastro } from '../../domain';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO, situacaoDoRecusado } from '../../domain';
+import { dadosDoFormulario, errosDaRecusaPorColuna, type ColunaFormulario, type ValoresPreCadastro } from '../../app/lib/pre-cadastro-formulario';
 
 // ------------------------------------------------------------ Parâmetros › Clientes › Campos obrigatórios
 
@@ -107,13 +106,6 @@ export function contadorDaAba(pagina: { itens: readonly unknown[]; proximo_curso
   return pagina.itens.length;
 }
 
-const ROTULOS_COLUNAS: Readonly<Record<string, string>> = { logradouro: 'Logradouro', numero: 'Número', bairro: 'Bairro', cidade: 'Cidade', uf: 'UF', cep: 'CEP' };
-
-/** Rótulo do campo citado no erro (os do contrato e os do endereço); campo que o formulário não tem aparece com o nome que veio. */
-export function rotuloDoCampo(campo: string): string {
-  return ROTULOS_CAMPOS_PRE_CADASTRO[campo as CampoPreCadastro] ?? ROTULOS_COLUNAS[campo] ?? campo;
-}
-
 const ONDE: Readonly<Record<TentativaPreCadastro['origem'], string>> = { campo: 'no Campo', bko: 'no BKO' };
 
 /** "Enviada por Ana, no Campo, em 20/11/2026 14:31" (revisão 1) ou "Corrigida por …" (da 2 em diante). */
@@ -163,61 +155,40 @@ export function erroDoReenvio(e: unknown): { revisaoDesatualizada: boolean; erro
 
 // ------------------------------------------------------------ Editar e reenviar (formulário)
 
-/** Colunas do formulário, na ordem da grade do BKO (spec §4); são os nomes canônicos do cadastro. */
-export const COLUNAS_FORMULARIO = ['documento', 'inscricao_estadual', 'razao_social', 'nome_fantasia', 'telefone', 'email', 'cep', 'bairro', 'logradouro', 'numero', 'cidade', 'uf'] as const;
-export type ColunaFormulario = (typeof COLUNAS_FORMULARIO)[number];
-/** Texto de cada coluna; em CPF/CNPJ, telefone e CEP, só os dígitos (a máscara é só da exibição). */
-export type ValoresPreCadastro = Partial<Record<ColunaFormulario, string>>;
+/**
+ * Grade do formulário do BKO (spec §4): ordem, largura (de 6 colunas) e máscara ao digitar (a do Campo). As colunas, os rótulos,
+ * os valores e o corpo enviado são os do formulário do Campo (`app/lib/pre-cadastro-formulario.ts`, fonte única); aqui só a ordem
+ * e o desenho da grade.
+ */
+export const GRADE_DA_CORRECAO: readonly { coluna: ColunaFormulario; largura: string; mascara?: MascaraCampo }[] = [
+  { coluna: 'documento', largura: 'col-span-3', mascara: 'documento' },
+  { coluna: 'inscricao_estadual', largura: 'col-span-3' },
+  { coluna: 'razao_social', largura: 'col-span-6' },
+  { coluna: 'nome_fantasia', largura: 'col-span-6' },
+  { coluna: 'telefone', largura: 'col-span-3', mascara: 'telefone' },
+  { coluna: 'email', largura: 'col-span-3' },
+  { coluna: 'cep', largura: 'col-span-3', mascara: 'cep' },
+  { coluna: 'bairro', largura: 'col-span-3' },
+  { coluna: 'logradouro', largura: 'col-span-4' },
+  { coluna: 'numero', largura: 'col-span-2' },
+  { coluna: 'cidade', largura: 'col-span-4' },
+  { coluna: 'uf', largura: 'col-span-2' },
+];
 
-/** Valores do formulário a partir da revisão atual (coluna ausente fica vazia). */
-export function valoresDosDados(d: Partial<Record<ColunaFormulario, string | null | undefined>>): ValoresPreCadastro {
-  return Object.fromEntries(COLUNAS_FORMULARIO.map((c) => [c, d[c] ?? ''])) as ValoresPreCadastro;
-}
+/** Ordem da grade, para rolar até a primeira coluna marcada (`primeiraColunaMarcada(marcas, ORDEM_DA_GRADE)`). */
+export const ORDEM_DA_GRADE: readonly ColunaFormulario[] = GRADE_DA_CORRECAO.map((g) => g.coluna);
 
-/** Primeira coluna da grade com marca; nula se nenhuma. */
-export function primeiraColunaMarcada(marcas: Partial<Record<ColunaFormulario, unknown>>): ColunaFormulario | null {
-  return COLUNAS_FORMULARIO.find((c) => marcas[c]) ?? null;
-}
-
-const EH_COLUNA = new Set<string>(COLUNAS_FORMULARIO);
-
-/** RN-CORE-78: erros da recusa na coluna exata (o primeiro de cada uma); o de campo que o formulário não tem fica só no histórico. */
-export function errosDaRecusaPorColuna(erros: readonly Pick<ErroCampoCadastro, 'campo' | 'mensagem'>[] | null | undefined): Partial<Record<ColunaFormulario, string>> {
-  const r: Partial<Record<ColunaFormulario, string>> = {};
-  for (const e of erros ?? []) {
-    const c = e.campo.trim();
-    if (EH_COLUNA.has(c)) r[c as ColunaFormulario] ??= e.mensagem;
-  }
-  return r;
+/** Situação do selo da gaveta: a do histórico quando ele chega (alguém pode ter corrigido depois da lista); antes disso, ou se falhar, a da linha. */
+export function situacaoDaGaveta(daLinha: SituacaoRecusado, historico: HistoricoPreCadastro | undefined): SituacaoRecusado | null {
+  return historico ? situacaoDoHistorico(historico) : daLinha;
 }
 
 /**
- * RN-CORE-16 e RN-CORE-79: a coluna é exigida agora se, vazia, a `validarPreCadastro` do domain acusa "Obrigatório" (IE só com CNPJ
- * válido, como na `cadastroCompleto`). O rótulo leva "(opcional)" quando não é.
+ * Busca da lista: o `q` da URL só volta ao campo quando muda por fora (voltar, limpar filtros). O eco da própria busca (o `q` que o
+ * campo acabou de mandar) não volta, senão apagaria o que foi digitado durante a espera. Devolve o novo texto do campo, ou nulo.
  */
-export function colunaExigida(valores: ValoresPreCadastro, exigidos: Parameters<typeof validarPreCadastro>[1], coluna: ColunaFormulario): boolean {
-  return validarPreCadastro({ ...valores, [coluna]: '' }, exigidos).erros[coluna] === FALTA_OBRIGATORIO_PRE_CADASTRO;
-}
-
-const ouNulo = (v: string | undefined): string | null => (v && v.trim() !== '' ? v.trim() : null);
-const digitosOuNulo = (v: string | undefined): string | null => (ouNulo(v) === null ? null : somenteDigitos(v));
-
-/** Dados do cliente para o contrato: CPF/CNPJ, telefone e CEP só com dígitos; vazio = nulo. */
-function dadosDoFormulario(v: ValoresPreCadastro) {
-  return {
-    razao_social: v.razao_social ?? '',
-    nome_fantasia: ouNulo(v.nome_fantasia),
-    documento: somenteDigitos(v.documento),
-    inscricao_estadual: ouNulo(v.inscricao_estadual),
-    telefone: digitosOuNulo(v.telefone),
-    email: ouNulo(v.email),
-    logradouro: ouNulo(v.logradouro),
-    numero: ouNulo(v.numero),
-    bairro: ouNulo(v.bairro),
-    cidade: ouNulo(v.cidade),
-    uf: ouNulo(v.uf),
-    cep: digitosOuNulo(v.cep),
-  };
+export function buscaDoQDaUrl(q: string, ultimoEnviado: string): string | null {
+  return q === ultimoEnviado ? null : q;
 }
 
 /** Corpo do `PUT` da correção: o formulário, a localização e a filial já gravadas e a revisão em que a edição se baseou. */

@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { partesDosCodigos, SEPARADOR_CODIGOS, textoDosCodigos, type CodigosDoCliente as CodigosDoKit } from '@macuxi/ui/mobile/puro';
+import { partesDosCodigos, SEPARADOR_CODIGOS, textoDosCodigos, type CodigosDoCliente as CodigosDoKit } from '@macuxi/ui/web';
 
 /** O cliente como as linhas do BKO trazem: Código ERP (`external_id`) e Código FDV (`codigo_fdv`). */
 export interface CodigosDoClienteEntrada {
@@ -16,7 +16,7 @@ export const textoDosCodigosDoCliente = (c: CodigosDoClienteEntrada): string => 
 /**
  * Códigos do cliente no BKO (v1.0.30; ADR 0069 item 10; docs/design/telas/codigos-do-cliente.md §2): sigla 12/500 cinza e valor
  * mono 13 px com algarismos tabulares, ERP primeiro. Código vazio não aparece; sem nenhum, nada. A regra é a do kit
- * (`partesDosCodigos`, `@macuxi/ui/mobile/puro`), a mesma do app. `empilhado`: um código por linha (células da tabela); `linha`: "ERP C5007 · FDV 00012", seguido de
+ * (`partesDosCodigos`, `@macuxi/ui/web`), a mesma do app. `empilhado`: um código por linha (células da tabela); `linha`: "ERP C5007 · FDV 00012", seguido de
  * `depois` (o resto da linha de identificação), com o separador só quando os dois existem.
  */
 export function CodigosDoCliente({ cliente, forma, depois = '', testId }: { cliente: CodigosDoClienteEntrada; forma: 'empilhado' | 'linha'; depois?: string; testId?: string }) {
