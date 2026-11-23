@@ -71,7 +71,7 @@ describe('pré-cadastro', () => {
   });
 });
 
-describe('pré-cadastro: revisão e histórico (v1.0.29, ADR 0069)', () => {
+describe('pré-cadastro: revisão e histórico (v1.0.30, ADR 0069)', () => {
   const H = 'a'.repeat(64);
   const dados = { razao_social: 'Mercado X', documento: '12.345.678/0001-95' };
   it('RN-CORE-78: revisao_base é opcional na criação (o APK v1.0.28 não manda) e começa em 1', () => {
@@ -98,7 +98,7 @@ describe('pré-cadastro: revisão e histórico (v1.0.29, ADR 0069)', () => {
     expect(ErroCampoCadastroSchema.safeParse({ ...e, mensagem: 'x'.repeat(301) }).success).toBe(false);
     expect(ErroCampoCadastroSchema.safeParse({ ...e, valor: '1' }).success).toBe(false);
   });
-  it('RN-CORE-78: tentativa do histórico guarda só nomes de campo; hash nulo = tentativa anterior à v1.0.29', () => {
+  it('RN-CORE-78: tentativa do histórico guarda só nomes de campo; hash nulo = tentativa anterior à v1.0.30', () => {
     const t = { revisao: 1, hash: null, origem: 'campo', corrigido_por: null, enviado_em: '2026-11-23T12:00:00.000Z', campos_alterados: [], resultado: 'recusado', respondido_em: '2026-11-23T13:00:00.000Z', motivo: 'CNPJ inativo', erros: [], cliente_id_original: null };
     expect(HistoricoPreCadastroSchema.safeParse({ cliente_id: id, revisao_atual: 2, tentativas: [t, { ...t, revisao: 2, hash: H, origem: 'bko', resultado: 'aguardando', respondido_em: null, motivo: null, campos_alterados: ['cep'] }] }).success).toBe(true);
     expect(TentativaPreCadastroSchema.safeParse({ ...t, resultado: 'pendente' }).success).toBe(false);
@@ -134,7 +134,7 @@ describe('pré-cadastro: revisão e histórico (v1.0.29, ADR 0069)', () => {
   });
 });
 
-describe('Código FDV do cliente (v1.0.29, ADR 0069 item 10)', () => {
+describe('Código FDV do cliente (v1.0.30, ADR 0069 item 10)', () => {
   const H = 'a'.repeat(64);
   const base = { id, updated_at: '2026-11-23T12:00:00.000Z', deleted_at: null, external_id: null, documento: null, razao_social: 'X', nome_fantasia: null, segmento: null, telefone: null, email: null, logradouro: null, numero: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null, ativo: true };
   it('RN-CORE-78: o Código FDV do cliente é só dígitos, no mínimo 5 (00001...; 100000 depois de 99999)', () => {
@@ -142,10 +142,11 @@ describe('Código FDV do cliente (v1.0.29, ADR 0069 item 10)', () => {
     expect(CodigoFdvClienteSchema.safeParse('100000').success).toBe(true);
     for (const v of ['0001', '0000A', ' 00001', '']) expect(CodigoFdvClienteSchema.safeParse(v).success).toBe(false);
   });
-  it('RN-CORE-78: pull e Cliente 360 levam o codigo_fdv (aditivo: ausente = emissor antigo; nulo = cliente do ERP)', () => {
+  it('RN-CORE-78: pull e Cliente 360 levam o codigo_fdv em todo cliente, inclusive o do ERP (aditivo: ausente = emissor antigo)', () => {
     expect(ClienteSyncSchema.safeParse(base).success).toBe(true);
     expect(ClienteSyncSchema.safeParse({ ...base, codigo_fdv: null }).success).toBe(true);
     expect(ClienteSyncSchema.parse({ ...base, codigo_fdv: '00042' }).codigo_fdv).toBe('00042');
+    expect(ClienteSyncSchema.parse({ ...base, external_id: 'C-900', revisao_cadastro: null, codigo_fdv: '00043' })).toMatchObject({ external_id: 'C-900', codigo_fdv: '00043' });
     expect(ClienteSyncSchema.safeParse({ ...base, codigo_fdv: '42' }).success).toBe(false);
   });
   it('RN-CORE-78: lista de recusados, dados atuais (com o código do ERP), resposta da gravação e consulta do Hub levam o codigo_fdv', () => {

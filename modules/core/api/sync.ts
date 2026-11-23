@@ -83,7 +83,7 @@ export interface Tabela {
 }
 
 /**
- * Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). v1.0.29 (ADR 0069 §6): a lista
+ * Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). v1.0.30 (ADR 0069 §6): a lista
  * única dos obrigatórios (`cliente.campos_obrigatorios`) e o espelho legado do APK v1.0.28 (`cliente.pre_cadastro.obrigatorios`).
  */
 const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO, PARAMETRO_CAMPOS_OBRIGATORIOS, PARAMETRO_PRE_CADASTRO_OBRIGATORIOS] as const;
@@ -368,7 +368,7 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeIndicadorDiario, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.indicador_diario) },
   { entidade: entidadeVisita, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.visita), receber: receberCheckins },
   { entidade: entidadeVisitaCheckout, receber: receberCheckouts },
-  // ADR 0069 §3 (v1.0.29): receptor do pré-cadastro do Campo (criação, correção com `revisao_base` e o id novo do APK v1.0.28)
+  // ADR 0069 §3 (v1.0.30): receptor do pré-cadastro do Campo (criação, correção com `revisao_base` e o id novo do APK v1.0.28)
   // chamada adiada: evita o ciclo de import pre-cadastro-receber -> rotas -> sync
   { entidade: entidadePreCadastroServidor, receber: (ctx, itens) => receberPreCadastros(ctx, itens) },
 ];
