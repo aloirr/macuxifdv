@@ -44,7 +44,7 @@ Ordem na aba:
 - "Aceito" sai da lista depois de 30 dias do aceite (premissa; ver §7).
 
 ## 3. Histórico (gaveta, `02-bko-recusados-historico.png`)
-`Drawer` (560 px) com:
+`Drawer` (560 px, a largura padrão da gaveta; sem prop) com:
 - **Título:** a razão social. **Subtítulo:** `FDV 00031 · CPF/CNPJ · Vendedor` e o `Badge` da situação (o Código ERP fica só no
   cartão do aceite).
 - **Corpo:** rótulo de seção **Tentativas** e um cartão por revisão, da mais nova para a mais antiga:
@@ -66,7 +66,8 @@ O toque em **Editar e reenviar** troca o conteúdo da gaveta (sem abrir outra):
   rótulo **ENDEREÇO** / CEP (3) · Bairro (3) / Logradouro (4) · Número (2) / Cidade (4) · UF (2).
   - Campo não usado pela empresa: não aparece. Campo não obrigatório (Parâmetros › Clientes › Campos obrigatórios): rótulo com
     **(opcional)** na mesma linha, em `text-ink-2`. Obrigatório não leva marca.
-  - Máscaras de exibição iguais às do Campo; o envio vai só com dígitos.
+  - Máscaras ao digitar iguais às do Campo: `aplicarMascara('documento' | 'cep' | 'telefone', valor)` e as props do `<input>` em
+    `propsDoInputComMascara(mascara)` (`@macuxi/ui/web`); o envio vai só com dígitos.
   - Campos 44 px, borda `#7A8593`, raio 10.
 - **Erros por campo:** cada campo citado na última recusa já abre com borda `danger` 2 px e a mensagem embaixo (13/600 `danger`,
   ícone de alerta), e a gaveta rola até o primeiro. A marca sai quando o valor do campo muda. Campo marcado e não mudado não
