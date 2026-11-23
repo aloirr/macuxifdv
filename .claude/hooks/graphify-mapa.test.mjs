@@ -1,8 +1,8 @@
 // Testes do hook do mapa do código (graphify-mapa.mjs): `node --test .claude/hooks/graphify-mapa.test.mjs`.
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,12 +26,15 @@ const dir = mkdtempSync(join(tmpdir(), 'grafo-'));
 const grafoOk = join(dir, 'graph.json');
 writeFileSync(grafoOk, JSON.stringify(GRAFO));
 const ausente = join(dir, 'nao-existe.json');
+after(() => rmSync(dir, { recursive: true, force: true }));
 
 const rodar = (stdin, grafo = grafoOk) => {
-  const r = spawnSync('node', [SCRIPT], { input: stdin, env: { ...process.env, MACUXI_GRAFO: grafo } });
+  const r = spawnSync('node', [SCRIPT], { input: stdin, env: { ...process.env, MACUXI_GRAFO: grafo, TMPDIR: dir } });
   return { status: r.status, saida: r.stdout.toString() };
 };
 const INICIO = JSON.stringify({ hook_event_name: 'SessionStart', session_id: 's' });
+const busca = ({ sessao = `teste-${process.pid}-${Date.now()}`, agente, command = 'grep -rn x .' } = {}) =>
+  JSON.stringify({ hook_event_name: 'PreToolUse', session_id: sessao, agent_id: agente, tool_name: 'Bash', tool_input: { command } });
 const contexto = (r) => JSON.parse(r.saida).hookSpecificOutput;
 
 test('símbolos mais ligados: sem nó de arquivo nem dependência externa; laço conta uma vez', () => {
@@ -68,10 +71,8 @@ test('lembrete: Grep, Glob e Bash de busca até o agente rodar o graphify na ses
 });
 
 test('de ponta a ponta: o evento escolhe o modo; exit 0 sem bloquear; sem mapa, stdin ruim ou outro evento fica calado', () => {
-  const busca = (agente) => JSON.stringify({ hook_event_name: 'PreToolUse', session_id: `teste-${process.pid}-${Date.now()}`, agent_id: agente, tool_name: 'Bash', tool_input: { command: 'grep -rn x .' } });
   assert.deepEqual(contexto(rodar(busca())), { hookEventName: 'PreToolUse', additionalContext: TEXTO_LEMBRETE });
   assert.match(contexto(rodar(INICIO)).additionalContext, /Símbolos mais ligados/);
-  const ausente = join(dir, 'nao-existe.json');
   for (const [stdin, grafo] of [['', grafoOk], ['{ruim', grafoOk], [busca(), ausente], [JSON.stringify({ hook_event_name: 'Stop' }), grafoOk]])
     assert.deepEqual(rodar(stdin, grafo), { status: 0, saida: '' }, stdin);
   assert.match(contexto(rodar(INICIO, ausente)).additionalContext, /não encontrado/);
@@ -82,8 +83,7 @@ test('de ponta a ponta: o evento escolhe o modo; exit 0 sem bloquear; sem mapa, 
 
 test('marcador por agente: a consulta do agente principal não cala o lembrete do subagente', () => {
   const sessao = `teste-agente-${process.pid}-${Date.now()}`;
-  const ev = (agente, command) => JSON.stringify({ hook_event_name: 'PreToolUse', session_id: sessao, agent_id: agente, tool_name: 'Bash', tool_input: { command } });
-  assert.equal(rodar(ev(undefined, 'graphify query "x" --graph g')).saida, '');
-  assert.equal(rodar(ev(undefined, 'rg x')).saida, '');
-  assert.equal(contexto(rodar(ev('ag1', 'rg x'))).additionalContext, TEXTO_LEMBRETE);
+  assert.equal(rodar(busca({ sessao, command: 'graphify query "x" --graph g' })).saida, '');
+  assert.equal(rodar(busca({ sessao, command: 'rg x' })).saida, '');
+  assert.equal(contexto(rodar(busca({ sessao, agente: 'ag1', command: 'rg x' }))).additionalContext, TEXTO_LEMBRETE);
 });
