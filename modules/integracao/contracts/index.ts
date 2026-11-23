@@ -10,6 +10,7 @@ export * from './cliente-erp';
 export * from './conector';
 export * from './hub';
 export * from './bko';
+export * from './monitor-detalhes';
 export * from './eventos';
 export * from './consulta-cancelamento';
 export * from './conector-download';

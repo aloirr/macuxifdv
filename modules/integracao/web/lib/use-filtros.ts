@@ -17,7 +17,7 @@ export function useFiltrosNaUrl(): [FiltrosMonitor, (patch: Partial<FiltrosMonit
   const mudar = useCallback((patch: Partial<FiltrosMonitor>) => {
     setFiltros((atual) => {
       const novo = { ...atual, ...patch };
-      window.history.replaceState(window.history.state, '', `${window.location.pathname}${paraBusca(novo)}`);
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${paraBusca(novo, window.location.search)}`);
       return novo;
     });
   }, []);
