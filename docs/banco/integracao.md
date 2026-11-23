@@ -514,3 +514,13 @@ que existe muda. O Hub não lê `core.cliente` (0095): a linha entra pelo evento
 - **Fixture dois-tenants:** A com um pendente (cliente c3); B com um rejeitado.
 - **Volta:** `0096_integracao_cliente_fila_erp.down.sql` apaga a tabela (os aprovados ainda não vinculados precisam ser
   reenfileirados depois de um novo up). Teste: `db/testes/cliente-fila-erp.db.test.ts`.
+- **Depois da 0097 (v1.0.28):** `aprovado_em` virou `recebido_em` (ver "0097" abaixo).
+
+## 0097 — `recebido_em` na fila do cliente (`0097_core_cliente_pre_cadastro_erp`; v1.0.28, RN-INT-22)
+Na v1.0.28 ninguém aprova o pré-cadastro no FDV: o Hub recebe o cliente pelo evento `core.cliente.pre_cadastrado@1` assim que o
+Core o recebe (detalhes de `core.cliente` no [core.md](core.md), "0097"). Em `integracao.cliente_fila_erp`, a coluna
+`aprovado_em` vira **`recebido_em`** (timestamptz not null: quando o Core recebeu o pré-cadastro; ordem do poll). O índice
+`cliente_fila_erp_poll_ix` fica com o mesmo nome e passa a `(tenant_id, recebido_em) where estado in ('pendente', 'enviado') and
+deleted_at is null`; o SELECT por coluna do `macuxi_leitura` acompanha o rename. Poll: `... order by recebido_em limit N for update
+skip locked`. Drizzle: `clienteFilaErp.recebido_em`. Volta: o down da 0097 renomeia de volta para `aprovado_em`. Teste:
+`db/testes/cliente-pre-cadastro-erp.db.test.ts` (o `cliente-fila-erp.db.test.ts` confere o estado atual com `recebido_em`).
