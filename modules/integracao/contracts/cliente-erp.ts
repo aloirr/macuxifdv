@@ -3,7 +3,7 @@
  *  - `GET /clientes/pendentes`: o Hub entrega os pré-cadastros sem código do ERP e marca como `enviado`.
  *  - `POST /clientes/{cliente_uuid}/retorno`: o Conector devolve o `external_id` (cliente criado no ERP) ou a rejeição. Idempotente.
  * Aditivo no v1 (RN-INT-09): Conector antigo não chama estas rotas.
- * v1.0.29 (ADR 0069, aditivo): cada cliente sai com `revisao` e `hash`; o reenvio do recusado reabre o mesmo `cliente_uuid` com a revisão
+ * v1.0.30 (ADR 0069, aditivo): cada cliente sai com `revisao` e `hash`; o reenvio do recusado reabre o mesmo `cliente_uuid` com a revisão
  * nova. O retorno aceita `revisao` (ausente = a atual) e, em `rejeitado_erp`, `erros` por campo.
  */
 import { z } from 'zod';
@@ -44,13 +44,13 @@ export const ClienteParaErp = z.object({
   /** Código da filial no ERP, quando houver. */
   filial_external_id: TextoNulo,
   /**
-   * Código FDV do cliente (v1.0.29, ADR 0069 §10): número do Macuxi, só dígitos (5 ou mais, zeros à esquerda), para o ERP guardar como
-   * referência. `null` nos clientes que entraram antes da v1.0.29. O código do cliente no ERP continua sendo o `external_id` do retorno.
+   * Código FDV do cliente (v1.0.30, ADR 0069 §10): número do Macuxi, só dígitos (5 ou mais, zeros à esquerda), para o ERP guardar como
+   * referência. `null` nos clientes que entraram antes da v1.0.30. O código do cliente no ERP continua sendo o `external_id` do retorno.
    */
   codigo_fdv: z.string().regex(/^[0-9]{5,}$/).nullable().optional(),
-  /** Revisão dos dados (v1.0.29): sobe quando o cadastro recusado é corrigido e reenviado. Devolva-a no retorno. */
+  /** Revisão dos dados (v1.0.30): sobe quando o cadastro recusado é corrigido e reenviado. Devolva-a no retorno. */
   revisao: RevisaoCliente.optional(),
-  /** sha256 (hex minúsculo) dos dados desta revisão; nulo nos clientes que entraram antes da v1.0.29. */
+  /** sha256 (hex minúsculo) dos dados desta revisão; nulo nos clientes que entraram antes da v1.0.30. */
   hash: z.string().regex(/^[0-9a-f]{64}$/).nullable().optional(),
   /** Quantas vezes o Hub entregou esta revisão do cliente (1 na primeira). */
   tentativa: z.number().int().positive().optional(),

@@ -3,7 +3,7 @@
  *  - `GET /clientes/pendentes`: `for update skip locked`, `pendente → enviado`, reentrega do `enviado` vencido; só o Conector que recebe pedidos.
  *  - `POST /clientes/{uuid}/retorno`: uma transação; grava o código (`external_id`) ou a rejeição na fila, idempotente, e publica
  *    `integracao.cliente.retorno_erp@1` (o Core consome e grava o código).
- *  - v1.0.29 (ADR 0069): o GET entrega `revisao` e `hash` das colunas; o retorno informa a revisão (recusa de revisão antiga = 200
+ *  - v1.0.30 (ADR 0069): o GET entrega `revisao` e `hash` das colunas; o retorno informa a revisão (recusa de revisão antiga = 200
  *    `obsoleto`, sem gravar; código de revisão antiga vale) e, na recusa, os erros por campo (mascarados no domain). Motivo, erros e hash
  *    nunca vão a log.
  */

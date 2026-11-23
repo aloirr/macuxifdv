@@ -3,7 +3,7 @@
  * e 0098 (revisao, hash e erros; ADR 0069).
  * Consumidores e rotas com o `comTenant` da fixture; a consulta ao Core é simulada. Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
  * Cobre: entrada idempotente na fila, retirada uma vez (skip locked) e reentrega após o timeout, retorno idempotente, vínculo recusado
- * pelo Core (conflito) vira rejeitado, 403 sem permissão e multi-tenant; v1.0.29: reenvio reabre a mesma linha, revisão antiga obsoleta,
+ * pelo Core (conflito) vira rejeitado, 403 sem permissão e multi-tenant; v1.0.30: reenvio reabre a mesma linha, revisão antiga obsoleta,
  * código de revisão antiga vale, código sobre a recusa da mesma revisão vale, recusa nova na mesma revisão é fato novo, erros por campo
  * mascarados, Código FDV no GET.
  */
@@ -142,7 +142,7 @@ describe.skipIf(semBanco())('Integração RN-INT-22 × Postgres', () => {
     expect(visto).toBe(0);
   });
 
-  // ---------- v1.0.29 (ADR 0069): revisão do pré-cadastro ----------
+  // ---------- v1.0.30 (ADR 0069): revisão do pré-cadastro ----------
   /** Pré-cadastro na fila, entregue e rejeitado na revisão 1 (estado de partida do reenvio). */
   const rejeitadoNaRevisao1 = async (tenantId: string, id: string, razao: string) => {
     await aprovar(tenantId, [cli(id, razao)]);

@@ -34,7 +34,7 @@ export interface ClienteNaFila<P = Record<string, unknown>> {
   removido_em: string | null;
   /** Revisão do pré-cadastro na linha (1 na primeira; sobe a cada reenvio). */
   revisao: number;
-  /** sha256 dos dados da revisão (nulo nas linhas anteriores à v1.0.29). */
+  /** sha256 dos dados da revisão (nulo nas linhas anteriores à v1.0.30). */
   hash: string | null;
   /** Erros por campo da última rejeição (só com estado `rejeitado`). */
   erros: ErroRetornoCliente[] | null;
@@ -48,7 +48,7 @@ export interface EntregaCliente {
   tentativa: number;
 }
 
-/** Código FDV do cliente (ADR 0069 §10): só dígitos, 5 ou mais (zeros à esquerda); ausente (payload anterior à v1.0.29) ou fora do formato = null. */
+/** Código FDV do cliente (ADR 0069 §10): só dígitos, 5 ou mais (zeros à esquerda); ausente (payload anterior à v1.0.30) ou fora do formato = null. */
 export function codigoFdvOuNulo(v: unknown): string | null {
   return typeof v === 'string' && /^[0-9]{5,}$/.test(v) ? v : null;
 }
