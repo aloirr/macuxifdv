@@ -144,8 +144,8 @@ const TABELAS_0088_P6 = ['vendedor.pedido_aprovacao'] as const;
 const TABELAS_0089 = ['core.ponto_trajeto', 'core.ausencia_usuario'] as const;
 /** Tabelas novas da 0090 (T-0186, D5 e P15: Documentação do cliente só online, consultada pela API ao abrir, com a permissão revalidada; fora do sync; cliente360-documentos.db.test.ts). */
 const TABELAS_0090 = ['core.documento_tipo', 'core.documento_cliente', 'core.documento_permissao', 'core.documento_excecao'] as const;
-/** Tabelas novas da 0099 (ADR 0068: o job do zerar, sem tenant_id, e a cópia da limpeza; só por função; empresa-zerar.db.test.ts). */
-const TABELAS_0099 = ['plataforma.zerar_empresa', 'plataforma.limpeza_copia'] as const;
+/** Tabelas novas da 0100 (ADR 0068: o job do zerar, sem tenant_id, e a cópia da limpeza; só por função; empresa-zerar.db.test.ts). */
+const TABELAS_0100 = ['plataforma.zerar_empresa', 'plataforma.limpeza_copia'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -318,7 +318,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0088_P6,
         ...TABELAS_0089,
         ...TABELAS_0090,
-        ...TABELAS_0099,
+        ...TABELAS_0100,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -413,7 +413,7 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       // 0089 (T-0156, ADR 0061): expurgo do rastreamento (USAGE só para chamar a função; nenhuma tabela do core)
       'usage on schema core',
       'execute on function core.expurgar_rastreamento(timestamptz, integer)',
-      // 0099 (ADR 0068): o job do zerar dados da empresa e o expurgo da cópia (só as funções; nenhuma tabela)
+      // 0100 (ADR 0068): o job do zerar dados da empresa e o expurgo da cópia (só as funções; nenhuma tabela)
       ...FUNCOES_WORKER_ZERAR.map((f) => `execute on function ${f}`),
     ]);
   });
@@ -895,7 +895,7 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0086 (ADR 0047): as 3 sa_* dos planos no portal (planos-troca-licencas.db.test.ts); a trava licencas_do_tenant é invoker
     // 0091 (item 15 do Campo v1.0.16): a sa_* que oculta a marca do Macuxi (portal); a interna da marca é recriada com create
     // or replace (tenant-ocultar-marca.db.test.ts)
-    // 0099 (ADR 0068): as 3 sa_* do zerar (portal), as 4 do worker e a regra plataforma.limpar_cadastros (sem EXECUTE para ninguém);
+    // 0100 (ADR 0068): as 3 sa_* do zerar (portal), as 4 do worker e a regra plataforma.limpar_cadastros (sem EXECUTE para ninguém);
     // a volta, o descarte e as internas são invoker (empresa-zerar.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
       ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv', ...FUNCOES_SA_CARGA.map(nome), 'plataforma.frases_carga_ativas', ...FUNCOES_SA_LOGO.map(nome), ...FUNCOES_SA_PLANOS.map(nome), 'core.expurgar_rastreamento', ...FUNCOES_SA_OCULTAR_MARCA.map(nome), ...FUNCOES_SA_ZERAR.map(nome), ...FUNCOES_WORKER_ZERAR.map(nome), 'plataforma.limpar_cadastros'].sort(),

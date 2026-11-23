@@ -569,7 +569,7 @@ export const empresaExcluida = plataforma.table('empresa_excluida', {
 });
 
 /**
- * Zerar dados da empresa (0099, ADR 0068, RN-PLA-12): o job do portal (id do portal), em_andamento -> concluido | falhou; um em
+ * Zerar dados da empresa (0100, ADR 0068, RN-PLA-12): o job do portal (id do portal), em_andamento -> concluido | falhou; um em
  * andamento por empresa. empresa_id SEM FK e sem tenant_id: sobrevive à exclusão (exceção à regra 5, como as 0072). A cópia das
  * linhas fica em limpeza_copia (pelo lote) até copia_expira_em (7 dias); expurgado_em = a cópia saiu. Só por função.
  */
@@ -604,7 +604,7 @@ export const zerarEmpresa = plataforma.table('zerar_empresa', {
 });
 
 /**
- * Cópia da limpeza (0099): cada linha que a plataforma.limpar_cadastros muda, por lote (portal e workflow). As 6 primeiras
+ * Cópia da limpeza (0100): cada linha que a plataforma.limpar_cadastros muda, por lote (portal e workflow). As 6 primeiras
  * colunas = as da public.macuxi_limpeza_backup do #675, na mesma ordem; depois as comuns. Sem tenant_id nem FK (sobrevive à
  * exclusão, como as 0072; sai pelo descarte ou pelo expurgo). Só por função (RLS forçado, sem grant).
  */

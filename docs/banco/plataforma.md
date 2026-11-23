@@ -1325,8 +1325,8 @@ Teste: `db/testes/tenant-ocultar-marca.db.test.ts`.
 select plataforma.sa_gravar_ocultar_marca($1, $2, $3) as r;      -- PUT …/marca/ocultar-macuxi
 ```
 
-## Zerar dados da empresa (0099, ADR 0068) — `limpar_cadastros`, `limpeza_copia` e `zerar_empresa`. Fora do sync
-Migração `0099_plataforma_zerar_empresa` (em cima da 0098; número provisório; v1.0.31). Volta: `.down.sql`, que devolve as cópias
+## Zerar dados da empresa (0100, ADR 0068) — `limpar_cadastros`, `limpeza_copia` e `zerar_empresa`. Fora do sync
+Migração `0100_plataforma_zerar_empresa` (em cima da 0099; número provisório; v1.0.31). Volta: `.down.sql`, que devolve as cópias
 à `public.macuxi_limpeza_backup` do #675 e APAGA os registros de zerar do portal (desligue antes as rotas e o worker do zerar).
 Desenho `docs/desenho/empresa-zerar.md` §2, §4 e §5; contrato `packages/platform-sdk/src/empresa-zerar.ts` (RN-PLA-12). Drizzle:
 `zerarEmpresa` e `limpezaCopia` em `db/esquema/plataforma.ts`. Teste: `db/testes/empresa-zerar.db.test.ts`. A `excluir_tenant`
@@ -1334,7 +1334,7 @@ fica como na 0032.
 
 ### A regra: `limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null, p_exigir_hub_parado boolean default true)`
 `returns table (r_ordem int, r_tabela text, r_modo text, r_linhas bigint)`. SECURITY DEFINER, `search_path = pg_catalog, pg_temp`,
-sem EXECUTE para ninguém (só o dono, as SECURITY DEFINER da 0099 e o migrador no workflow). Não abre nem fecha transação.
+sem EXECUTE para ninguém (só o dono, as SECURITY DEFINER da 0100 e o migrador no workflow). Não abre nem fecha transação.
 - **Empresa inteira** (`p_entidades` nulo) = o corpo da `pg_temp.macuxi_limpar_cadastros` do PR #675
   (`scripts/producao/limpar-cadastros-rotina.sql`; as regras do cabeçalho dela valem aqui): raízes (os 11 cadastros do ERP com
   `external_id`, todos os pedidos e os usuários não administradores), cascata (FK, nome de coluna, `plataforma.arquivo` pelo
@@ -1342,10 +1342,11 @@ sem EXECUTE para ninguém (só o dono, as SECURITY DEFINER da 0099 e o migrador 
   pacote de sync `substituido` e `girar_geracao_base`. O teste prova o mesmo estado final, o mesmo resumo e a mesma cópia nos
   dados de `scripts/producao/teste/limpar-cadastros-dados.sql` (referência congelada em `db/testes/referencia/`).
 - **Por entidade** (`p_entidades` = lista de `ENTIDADES_ZERAR`; vazia, repetida ou fora da lista = 22023): raízes = as tabelas do
-  mapa (linhas vivas com `external_id`; `vendedor` = os usuários não administradores) e o Hub das entidades (as 8 tabelas com a
-  coluna `entidade`, inclusive o `cursor_entidade`; staging, erros e recebidos pela cascata); a mesma cascata e mais "pedido
-  inteiro" (o pedido que perde item sai); sai o `registro_atual` (`entidade`, `external_id`) das linhas que a cascata derrubou;
-  derivados só pela cascata; filiais só com `filial` na lista; outbox só pelo `agregado_id`; pacote e `geracao_base` sempre.
+  mapa (linhas vivas com `external_id`; `vendedor` = os usuários não administradores); a mesma cascata e mais "pedido inteiro"
+  (o pedido que perde item sai); depois, o Hub de **toda entidade afetada** (as pedidas e as que caíram pela cascata, mesma
+  regra da `entidades_afetadas_limpeza`: título, nota e endereço ao zerar cliente) — as 8 tabelas com a coluna `entidade`,
+  inclusive `lote`, `registro_atual` e `cursor_entidade`; staging, erros e recebidos pela cascata; as não afetadas ficam.
+  Sem isso o reenvio delta da dependente com a mesma chave voltava `repetido` e nada era recriado; derivados só pela cascata; filiais só com `filial` na lista; outbox só pelo `agregado_id`; pacote e `geracao_base` sempre.
 - **Mudanças do §4.1** sobre o #675: lote `^[0-9]{8}T[0-9]{6}Z(-[0-9a-f]{8})?$` (22023); cópia em `limpeza_copia` (lote repetido
   = 23505); `lock table … share row exclusive` e a recusa 55000 `ZERAR_HUB_PROCESSANDO` só com `p_exigir_hub_parado`; rótulos =
   nome puro da tabela e o `r_modo` diz o que foi feito (`soft`, `fisico`, `filial` em `core.filial`, `sync_pacote`, `girar` em
@@ -1383,7 +1384,7 @@ plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha, copiado_em) fro
 | linha | jsonb not null | `to_jsonb` da linha inteira (objeto) |
 | copiado_em | timestamptz not null default now() | |
 | id, created_at, updated_at, deleted_at, external_id | | comuns |
-Índices: `(lote, tabela)` e `(empresa_id, lote)`. A 0099 move para ela as linhas da `public.macuxi_limpeza_backup`, se existir, e
+Índices: `(lote, tabela)` e `(empresa_id, lote)`. A 0100 move para ela as linhas da `public.macuxi_limpeza_backup`, se existir, e
 apaga a `public`. Volume: uma linha por linha mudada (o portal recusa acima de 2 milhões); guarda dado do tenant pelo prazo da
 cópia (portal: 7 dias, `expurgar_zerar`; workflow: descarte manual). `TABELAS_SO_POR_FUNCAO`.
 

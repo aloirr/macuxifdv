@@ -1,6 +1,6 @@
--- 0099_plataforma_zerar_empresa (up) — "Zerar dados" da empresa (v1.0.31; ADR 0068; desenho docs/desenho/empresa-zerar.md §2,
--- §4 e §5; RN-PLA-12; contrato packages/platform-sdk/src/empresa-zerar.ts). Migração em cima da 0098 (sessão C); o número segue
--- a ordem de merge (provisório até o gerente confirmar). Dicionário: docs/banco/plataforma.md ("Zerar dados da empresa (0099)")
+-- 0100_plataforma_zerar_empresa (up) — "Zerar dados" da empresa (v1.0.31; ADR 0068; desenho docs/desenho/empresa-zerar.md §2,
+-- §4 e §5; RN-PLA-12; contrato packages/platform-sdk/src/empresa-zerar.ts). Migração em cima da 0098 e 0099 (sessão C); o número segue
+-- a ordem de merge (provisório até o gerente confirmar). Dicionário: docs/banco/plataforma.md ("Zerar dados da empresa (0100)")
 -- e docs/banco/rls.md. Teste: db/testes/empresa-zerar.db.test.ts.
 --
 -- UMA regra só: plataforma.limpar_cadastros(tenant, lote, entidades, exigir_hub_parado) é o corpo da
@@ -29,7 +29,7 @@
 -- Auditoria (plataforma.auditoria_plataforma, sem dado pessoal): tenant.zerar_pedido, tenant.zerado (detalhes = payload de
 -- plataforma.tenant.zerado@1), tenant.zerar_falhou e tenant.zerar_desfeito. A excluir_tenant fica como na 0032.
 --
--- Caminho de volta: 0099_plataforma_zerar_empresa.down.sql. Devolve as cópias para a public.macuxi_limpeza_backup (o workflow de
+-- Caminho de volta: 0100_plataforma_zerar_empresa.down.sql. Devolve as cópias para a public.macuxi_limpeza_backup (o workflow de
 -- uma tag anterior restaura com elas) e PERDE os registros de zerar do portal: desligue antes as rotas e o worker do zerar na API
 -- (chamam funções que somem).
 
@@ -185,8 +185,8 @@ revoke all on plataforma.zerar_empresa from public, macuxi_app, macuxi_worker;
 -- aqui): RAÍZES, CASCATA (FK, nome de coluna, plataforma.arquivo pelo entidade_id, posse × autoria), FICA (c_fica e o schema
 -- plataforma, menos arquivo, usuario_perfil e usuario_modulo), FILIAIS (ficam sem o external_id), MODO (soft no domínio, físico
 -- no Hub: c_fisico), OUTBOX, pacote de sync e geracao_base. Com p_entidades (desenho §4.3): as raízes são só as das entidades
--- (mapa_limpeza_entidades) e o Hub delas (as 8 tabelas com a coluna entidade; staging, erros e recebidos pela cascata); o pedido
--- que perde item sai inteiro; sai o registro_atual das linhas que a cascata derrubou; os derivados só pela cascata; as filiais
+-- (mapa_limpeza_entidades) e o Hub de toda entidade afetada, pedida ou caída pela cascata (as 8 tabelas com a coluna entidade;
+-- staging, erros e recebidos pela cascata); o pedido que perde item sai inteiro; os derivados só pela cascata; as filiais
 -- só com filial na lista; a outbox só pelo agregado_id. Devolve (r_ordem, r_tabela, r_modo, r_linhas): só nomes e contagens.
 create function plataforma.limpar_cadastros(p_tenant uuid, p_lote text, p_entidades text[] default null,
                                             p_exigir_hub_parado boolean default true)
@@ -231,6 +231,7 @@ declare
   c_mapa constant jsonb := plataforma.mapa_limpeza_entidades();
   v_inteira constant boolean := p_entidades is null;
   v_entidades text[];
+  v_afetadas text[];
   r record;
   n bigint;
   v_novos bigint;
@@ -293,9 +294,6 @@ begin
       execute format('insert into _limpeza_alvo select %L, x.id from %s x where x.tenant_id = %L and x.deleted_at is null and x.external_id is not null on conflict do nothing',
                      r.tabela, r.tabela, p_tenant);
     end loop;
-    foreach t in array c_hub_entidade loop
-      execute format('insert into _limpeza_alvo select %L, x.id from %s x where x.tenant_id = %L and x.entidade = any (%L::text[])', t, t, p_tenant, v_entidades);
-    end loop;
   end if;
 
   -- 2. cascata: referências (FK para o id, ou nome de coluna entre módulos) de tabelas do domínio com tenant_id, id e deleted_at
@@ -324,48 +322,55 @@ begin
   select distinct x.tabela, x.coluna, x.alvo from (select * from por_fk union all select * from por_nome) x
    where x.alvo <> 'core.usuario' or x.coluna = any (c_posse);
 
-  loop
-    v_volta := v_volta + 1;
-    v_novos := 0;
-    for r in select f.tabela, f.coluna, f.alvo from _limpeza_ref f
-              where exists (select 1 from _limpeza_alvo a where a.tabela = f.alvo) order by 1, 2 loop
-      execute format('insert into _limpeza_alvo select %L, x.id from %s x where x.tenant_id = %L and x.%I in (select a.id from _limpeza_alvo a where a.tabela = %L) %s on conflict do nothing',
-                     r.tabela, r.tabela, p_tenant, r.coluna, r.alvo,
-                     case when r.tabela = any (c_fisico) then '' else 'and x.deleted_at is null' end);
-      get diagnostics n = row_count;
-      v_novos := v_novos + n;
-    end loop;
-    -- arquivo ligado a qualquer registro que sai (foto de visita, pedido, tarefa)
-    insert into _limpeza_alvo select 'plataforma.arquivo', x.id from plataforma.arquivo x
-     where x.tenant_id = p_tenant and x.deleted_at is null and x.entidade_id in (select a.id from _limpeza_alvo a)
-    on conflict do nothing;
-    get diagnostics n = row_count;
-    v_novos := v_novos + n;
-    -- por entidade: o pedido que perde item sai inteiro (na empresa inteira todos os pedidos já são raiz)
-    if not v_inteira then
-      insert into _limpeza_alvo select 'vendedor.pedido', x.id from vendedor.pedido x
-       where x.tenant_id = p_tenant and x.deleted_at is null
-         and x.id in (select i.pedido_id from vendedor.pedido_item i
-                       where i.tenant_id = p_tenant and i.id in (select a.id from _limpeza_alvo a where a.tabela = 'vendedor.pedido_item'))
+  <<cascata>> loop
+    v_volta := 0;
+    loop
+      v_volta := v_volta + 1;
+      v_novos := 0;
+      for r in select f.tabela, f.coluna, f.alvo from _limpeza_ref f
+                where exists (select 1 from _limpeza_alvo a where a.tabela = f.alvo) order by 1, 2 loop
+        execute format('insert into _limpeza_alvo select %L, x.id from %s x where x.tenant_id = %L and x.%I in (select a.id from _limpeza_alvo a where a.tabela = %L) %s on conflict do nothing',
+                       r.tabela, r.tabela, p_tenant, r.coluna, r.alvo,
+                       case when r.tabela = any (c_fisico) then '' else 'and x.deleted_at is null' end);
+        get diagnostics n = row_count;
+        v_novos := v_novos + n;
+      end loop;
+      -- arquivo ligado a qualquer registro que sai (foto de visita, pedido, tarefa)
+      insert into _limpeza_alvo select 'plataforma.arquivo', x.id from plataforma.arquivo x
+       where x.tenant_id = p_tenant and x.deleted_at is null and x.entidade_id in (select a.id from _limpeza_alvo a)
       on conflict do nothing;
       get diagnostics n = row_count;
       v_novos := v_novos + n;
-    end if;
-    exit when v_novos = 0;
-    if v_volta > 30 then raise exception 'cascata sem fim (mais de 30 voltas)'; end if;
-  end loop;
-  -- por entidade: o registro_atual das linhas que a cascata derrubou (sem isso o reenvio da entidade dependente sairia
-  -- "inalterado" pelo hash)
-  if not v_inteira then
-    for r in select e.key as entidade, x.tabela from jsonb_each(c_mapa) e cross join lateral jsonb_array_elements_text(e.value -> 'raizes') x(tabela)
-              where exists (select 1 from _limpeza_alvo a where a.tabela = x.tabela) order by 1, 2 loop
-      execute format('insert into _limpeza_alvo select ''integracao.registro_atual'', ra.id from integracao.registro_atual ra
-                       where ra.tenant_id = %L and ra.entidade = %L
-                         and ra.external_id in (select x.external_id from %s x where x.tenant_id = %L and x.external_id is not null
-                                                   and x.id in (select a.id from _limpeza_alvo a where a.tabela = %L))
-                      on conflict do nothing', p_tenant, r.entidade, r.tabela, p_tenant, r.tabela);
+      -- por entidade: o pedido que perde item sai inteiro (na empresa inteira todos os pedidos já são raiz)
+      if not v_inteira then
+        insert into _limpeza_alvo select 'vendedor.pedido', x.id from vendedor.pedido x
+         where x.tenant_id = p_tenant and x.deleted_at is null
+           and x.id in (select i.pedido_id from vendedor.pedido_item i
+                         where i.tenant_id = p_tenant and i.id in (select a.id from _limpeza_alvo a where a.tabela = 'vendedor.pedido_item'))
+        on conflict do nothing;
+        get diagnostics n = row_count;
+        v_novos := v_novos + n;
+      end if;
+      exit when v_novos = 0;
+      if v_volta > 30 then raise exception 'cascata sem fim (mais de 30 voltas)'; end if;
     end loop;
-  end if;
+    exit cascata when v_inteira;
+    -- por entidade: o Hub (as 8 tabelas com a coluna entidade) de TODA entidade afetada, a pedida e a que caiu pela cascata
+    -- (título, nota e endereço ao zerar cliente), mesma regra da entidades_afetadas_limpeza. Sem isso o lote e o cursor da
+    -- dependente ficavam e o reenvio com a mesma chave voltava repetido, sem recriar nada. Staging, erros e recebidos saem
+    -- pela cascata da volta seguinte; as entidades não afetadas não mudam.
+    v_afetadas := array(select e.key from jsonb_each(c_mapa) e
+                         where e.key = any (v_entidades)
+                            or exists (select 1 from _limpeza_alvo a where e.value -> 'raizes' ? a.tabela));
+    v_novos := 0;
+    foreach t in array c_hub_entidade loop
+      execute format('insert into _limpeza_alvo select %L, x.id from %s x where x.tenant_id = %L and x.entidade = any (%L::text[]) on conflict do nothing',
+                     t, t, p_tenant, v_afetadas);
+      get diagnostics n = row_count;
+      v_novos := v_novos + n;
+    end loop;
+    exit cascata when v_novos = 0;
+  end loop cascata;
   if exists (select 1 from _limpeza_alvo a where a.tabela like 'integracao.%' and not a.tabela = any (c_fisico)) then
     raise exception 'tabela do Hub fora de c_fisico: %',
       (select string_agg(distinct a.tabela, ', ') from _limpeza_alvo a where a.tabela like 'integracao.%' and not a.tabela = any (c_fisico));
@@ -881,13 +886,13 @@ begin
           or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                       where a.grantee = 0 and a.privilege_type = 'EXECUTE'));
   if v_f is not null then
-    raise exception '0099: função sa_* executável pelo macuxi_app, macuxi_worker ou PUBLIC: %', v_f using errcode = '42501';
+    raise exception '0100: função sa_* executável pelo macuxi_app, macuxi_worker ou PUBLIC: %', v_f using errcode = '42501';
   end if;
   select count(*) into v_n
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'plataforma' and p.proname like 'sa\_%' and has_function_privilege('macuxi_portal', p.oid, 'execute');
   if v_n <> 41 then
-    raise exception '0099: esperadas 41 funções sa_* executáveis pelo macuxi_portal, há %', v_n using errcode = '42501';
+    raise exception '0100: esperadas 41 funções sa_* executáveis pelo macuxi_portal, há %', v_n using errcode = '42501';
   end if;
   select string_agg(p.oid::regprocedure::text, ', ' order by 1) into v_f
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -901,7 +906,7 @@ begin
           or (p.proname not in ('pegar_zerar', 'executar_zerar', 'fechar_zerar', 'expurgar_zerar')
               and has_function_privilege('macuxi_worker', p.oid, 'execute')));
   if v_f is not null then
-    raise exception '0099: função do worker, da regra ou interna executável por papel errado: %', v_f using errcode = '42501';
+    raise exception '0100: função do worker, da regra ou interna executável por papel errado: %', v_f using errcode = '42501';
   end if;
 end
 $$;

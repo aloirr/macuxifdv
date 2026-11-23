@@ -1,4 +1,4 @@
--- Referência congelada para o teste de equivalência da 0099 (db/testes/empresa-zerar.db.test.ts): a rotina do PR #675 (squash
+-- Referência congelada para o teste de equivalência da 0100 (db/testes/empresa-zerar.db.test.ts): a rotina do PR #675 (squash
 -- f2556d68), cópia literal de scripts/producao/limpar-cadastros-rotina.sql, que sai do repositório depois (desenho §8). Não editar.
 -- Rotina única da limpeza dos dados de UMA empresa (o "zerar dados"): pg_temp.macuxi_limpar_cadastros(tenant, lote, exigir_hub_parado).
 -- Quem usa: o workflow .github/workflows/producao-limpar-cadastros.yml (scripts/producao/montar-limpeza.sh junta esta rotina

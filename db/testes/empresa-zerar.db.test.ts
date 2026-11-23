@@ -1,15 +1,15 @@
 /**
- * 0099 — "Zerar dados" da empresa (v1.0.31; ADR 0068; desenho docs/desenho/empresa-zerar.md §4, §5 e §11; RN-PLA-12).
- * Dicionário: docs/banco/plataforma.md ("Zerar dados da empresa (0099)"). O que o BANCO garante:
+ * 0100 — "Zerar dados" da empresa (v1.0.31; ADR 0068; desenho docs/desenho/empresa-zerar.md §4, §5 e §11; RN-PLA-12).
+ * Dicionário: docs/banco/plataforma.md ("Zerar dados da empresa (0100)"). O que o BANCO garante:
  * - a empresa inteira (entidades nulo) = a rotina do #675: o mesmo estado final, o mesmo resumo e a mesma cópia, nos dados de
  *   scripts/producao/teste/limpar-cadastros-dados.sql (rotina congelada em db/testes/referencia/limpar-cadastros-675.sql);
- * - por entidade: as raízes do mapa, a cascata (o pedido que perde item sai inteiro), o Hub e o cursor só da entidade, o
- *   registro_atual das linhas derrubadas; as outras entidades intactas;
+ * - por entidade: as raízes do mapa, a cascata (o pedido que perde item sai inteiro), o Hub (lote, registro_atual e cursor) de
+ *   toda entidade afetada, pedida ou caída pela cascata; as entidades não afetadas intactas;
  * - ficam usuários administradores, perfis, credenciais, conectores, plano, licenças e parâmetros; o outro tenant fica intacto;
  * - só o super-admin (sa_* 28000/42501), pedido idempotente pelo id, recusas com o código do contrato no hint (55000
  *   ZERAR_HUB_PROCESSANDO, 22023); prévia = a mesma função desfeita (nada muda) e bate com o executar; tudo ou nada; cópia antes e
  *   restaurar_limpeza volta as contagens; expurgar_zerar só nos vencidos; app, worker e portal sem acesso às tabelas;
- * - up/down exato; a 0099 traz as cópias da public.macuxi_limpeza_backup e o down as devolve.
+ * - up/down exato; a 0100 traz as cópias da public.macuxi_limpeza_backup e o down as devolve.
  * Estático (sempre) + banco efêmero com a fixture dois-tenants (cada caso numa transação desfeita).
  * As constantes do contrato (packages/platform-sdk/src/empresa-zerar.ts) ficam repetidas aqui até o SDK entrar no main com
  * esta migração (PR conjunto alexandre/migracao-zerar).
@@ -29,10 +29,10 @@ import { FUNCOES_SA_ATUAIS, FUNCOES_SA_ZERAR, FUNCOES_WORKER_ZERAR } from './fun
 import { comoPapel, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
-const m99 = migracoes.find((m) => m.versao === '0099')!;
+const m100 = migracoes.find((m) => m.versao === '0100')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m99.up);
-const down = semComentarios(m99.down);
+const up = semComentarios(m100.up);
+const down = semComentarios(m100.down);
 /** Do início até o `$$;` que fecha a função. */
 const bloco = (sql: string, inicio: string) => {
   const i = sql.indexOf(inicio);
@@ -65,7 +65,7 @@ const DO_DONO = [
   'plataforma.zerar_bloqueado(uuid, uuid, bigint)',
   'plataforma.zerar_empresa_json(plataforma.zerar_empresa)',
 ];
-/** Saíram do desenho anterior da 0099 (não podem existir). */
+/** Saíram do desenho anterior da 0100 (não podem existir). */
 const SAIRAM = [
   'zerar_tenant', 'zerar_tenant_manual', 'restaurar_zerar', 'tabelas_mantidas_no_zerar', 'alvos_do_zerar', 'previa_do_zerar',
   'objetos_do_expurgo_zerar', 'fechar_expurgo_zerar', 'tabelas_com_tenant', 'passos_em_ordem_fk', 'apagar_em_ordem_fk',
@@ -76,11 +76,11 @@ const ROTINA_675 = readFileSync(join(PASTA_DB, 'testes', 'referencia', 'limpar-c
 /** O bloco `do $$ ... end $$;` dos dados (sem os comandos do psql); lê o tenant de app.tenant_id. */
 const BLOCO_DADOS = DADOS_675.slice(DADOS_675.indexOf('do $$'), DADOS_675.lastIndexOf('end $$;') + 'end $$;'.length);
 
-describe('0099 zerar dados da empresa (estático)', () => {
-  it('nome e posição: 0099_plataforma_zerar_empresa logo depois da 0098; a excluir_tenant fica a da 0032', () => {
-    const i = migracoes.findIndex((m) => m.versao === '0099');
-    expect(`${m99.versao}_${m99.nome}`).toBe('0099_plataforma_zerar_empresa');
-    expect(migracoes[i - 1]?.versao).toBe('0098');
+describe('0100 zerar dados da empresa (estático)', () => {
+  it('nome e posição: 0100_plataforma_zerar_empresa logo depois da 0099; a excluir_tenant fica a da 0032', () => {
+    const i = migracoes.findIndex((m) => m.versao === '0100');
+    expect(`${m100.versao}_${m100.nome}`).toBe('0100_plataforma_zerar_empresa');
+    expect(migracoes[i - 1]?.versao).toBe('0099');
     expect(up).not.toMatch(/excluir_tenant/);
     expect(down).not.toMatch(/excluir_tenant/);
     for (const f of SAIRAM) expect(up, f).not.toMatch(new RegExp(`plataforma\\.${f}\\(`));
@@ -98,7 +98,7 @@ describe('0099 zerar dados da empresa (estático)', () => {
     expect([...up.matchAll(/\bgrant ([^;]+);/g)].map((x) => x[1]!).filter((g) => !g.startsWith('execute on function '))).toEqual([]);
   });
 
-  it('limpeza_copia: as 6 primeiras colunas = as da public.macuxi_limpeza_backup do #675, na mesma ordem (tenant em empresa_id); a 0099 move e apaga a public', () => {
+  it('limpeza_copia: as 6 primeiras colunas = as da public.macuxi_limpeza_backup do #675, na mesma ordem (tenant em empresa_id); a 0100 move e apaga a public', () => {
     const colunas = (sql: string, tabela: string) =>
       new RegExp(`create table (?:if not exists )?${tabela.replace('.', '\\.')} \\(([\\s\\S]*?)\\n\\s*\\);`).exec(sql)![1]!
         .split('\n').map((l) => l.trim().split(/\s+/)[0]!).filter((c) => c && c !== 'constraint');
@@ -188,7 +188,7 @@ describe('0099 zerar dados da empresa (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0099 zerar dados da empresa (banco efêmero, fixture dois-tenants + dados do #675)', () => {
+describe.skipIf(semBanco())('0100 zerar dados da empresa (banco efêmero, fixture dois-tenants + dados do #675)', () => {
   let b: BancoDeTeste;
   let admin: pg.Client;
   const A = DOIS_TENANTS.A;
@@ -212,7 +212,7 @@ describe.skipIf(semBanco())('0099 zerar dados da empresa (banco efêmero, fixtur
   const worker = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await comoPapel<{ r: T }>(admin, 'macuxi_worker', sql, params)).rows[0]!.r;
   const abrir = async (p: unknown) => (await comoPapel<{ sessao_id: string }>(admin, 'macuxi_portal', 'select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)])).rows[0]!;
   async function sessaoSuperAdmin() {
-    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.zerar@macuxi.exemplo', nome: 'Operador 0099', senha_hash: HASH_TESTE })]))[0]!.r;
+    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.zerar@macuxi.exemplo', nome: 'Operador 0100', senha_hash: HASH_TESTE })]))[0]!.r;
     return (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id })).sessao_id;
   }
   /** SQLSTATE e hint do erro (o hint leva o código do contrato). */
@@ -409,9 +409,9 @@ describe.skipIf(semBanco())('0099 zerar dados da empresa (banco efêmero, fixtur
       expect(await vivo('core.cliente_endereco', end.id)).toBe(false);
       expect(await vivo('vendedor.pedido', ped.id)).toBe(false);
       expect(await contar('select count(*) as n from vendedor.pedido_item where pedido_id = $1 and deleted_at is null', [ped.id])).toBe(0);
-      // o Hub: cliente inteiro (cursor incluso); do endereço só o registro da linha derrubada; o de produto intacto
+      // o Hub: cliente inteiro (cursor incluso); o endereço caiu pela cascata e sai inteiro também; o de produto intacto
       expect(await hub('cliente')).toEqual({ registro: 0, cursor: 0, lote: 0 });
-      expect(await contar("select count(*) as n from integracao.registro_atual where tenant_id = $1 and entidade = 'cliente_endereco'", [A.tenantId])).toBe(1);
+      expect(await hub('cliente_endereco')).toEqual({ registro: 0, cursor: 0, lote: 0 });
       expect(await hub('produto')).toEqual(produtoAntes);
       const mudou = mudaram(antesA, await retrato(A.tenantId));
       for (const t of ['core.produto', 'core.produto_unidade', 'catalogo.tabela_preco', 'catalogo.tabela_preco_item', 'catalogo.estoque_saldo', 'core.usuario', 'core.filial', ...MANTIDOS]) {
@@ -422,6 +422,50 @@ describe.skipIf(semBanco())('0099 zerar dados da empresa (banco efêmero, fixtur
       expect(mudaram(antesB, await retrato(B.tenantId))).toEqual([]);
       // os títulos e as notas do cliente saem pela cascata: o ERP reenvia também essas entidades
       expect(await afetadas(r, ['cliente'])).toEqual(['cliente', 'cliente_endereco', 'titulo', 'nota']);
+    });
+  });
+
+  it('por entidade (cliente): o Hub das entidades que caem pela cascata (título, nota, endereço) sai inteiro; as não afetadas ficam', async () => {
+    await caso(async () => {
+      // nota e endereço do ERP de um cliente do ERP (os títulos do ERP já vêm dos dados do #675)
+      const cli = (await q<{ id: string }>('select id from core.cliente where tenant_id = $1 and deleted_at is null and external_id is not null order by id limit 1', [A.tenantId]))[0]!.id;
+      await q("insert into core.nota_erp (tenant_id, cliente_id, tipo, numero, emitida_em, ano_mes, total_cents, external_id) values ($1, $2, 'faturamento', 'NF-1', now(), '2026-11', 1000, 'ERP-NF-1')", [A.tenantId, cli]);
+      await q("update core.cliente_endereco set external_id = 'ERP-END-' || id where cliente_id = $1", [cli]);
+      const con = (await q<{ id: string }>("select id from integracao.conector where tenant_id = $1 and identificador = 'macuxierp'", [A.tenantId]))[0]!.id;
+      // lote delta, registro_atual e cursor em cada entidade: as 3 da cascata, a pedida e 2 não afetadas (rota sem linha)
+      for (const e of ['cliente', 'cliente_endereco', 'titulo', 'nota', 'produto', 'rota']) {
+        await q(`insert into integracao.lote (tenant_id, conector_id, entidade, modo, versao_contrato, chave_idempotencia, hash_conteudo, recebidas, status)
+                 values ($1, $2, $3, 'delta', '1', 'chave-cascata-' || $3, repeat('d', 64), 1, 'concluido')`, [A.tenantId, con, e]);
+        await q("insert into integracao.registro_atual (tenant_id, entidade, conector_id, external_id, hash, alterado_em) values ($1, $2, $3, 'REG-' || $2, repeat('e', 64), now())", [A.tenantId, e, con]);
+        await q('insert into integracao.cursor_entidade (tenant_id, conector_id, entidade) values ($1, $2, $3) on conflict do nothing', [A.tenantId, con, e]);
+      }
+      const hub = async (entidade: string) => ({
+        lote: await contar('select count(*) as n from integracao.lote where tenant_id = $1 and entidade = $2', [A.tenantId, entidade]),
+        registro: await contar('select count(*) as n from integracao.registro_atual where tenant_id = $1 and entidade = $2', [A.tenantId, entidade]),
+        cursor: await contar('select count(*) as n from integracao.cursor_entidade where tenant_id = $1 and entidade = $2', [A.tenantId, entidade]),
+      });
+      const naoAfetadas = { produto: await hub('produto'), rota: await hub('rota') };
+      expect(naoAfetadas.produto.lote).toBeGreaterThan(1);
+      const hashHub = async () =>
+        (await q<{ h: string }>(`select md5(string_agg(to_jsonb(x)::text, '|' order by to_jsonb(x)::text)) as h from (
+           select 'lote' as t, to_jsonb(l) as x from integracao.lote l where l.tenant_id = $1 and l.entidade in ('produto', 'rota')
+           union all select 'registro', to_jsonb(r) from integracao.registro_atual r where r.tenant_id = $1 and r.entidade in ('produto', 'rota')
+           union all select 'cursor', to_jsonb(c) from integracao.cursor_entidade c where c.tenant_id = $1 and c.entidade in ('produto', 'rota')
+           union all select 'erro', to_jsonb(s) from integracao.lote_linha_erro s join integracao.lote l on l.id = s.lote_id where l.tenant_id = $1 and l.entidade in ('produto', 'rota')) y`, [A.tenantId]))[0]!.h;
+      const antes = await hashHub();
+      const antesB = await retrato(B.tenantId);
+
+      const r = await limpar(A.tenantId, LOTE, ['cliente']);
+      expect(soft(r)).toEqual(expect.arrayContaining(['core.cliente', 'core.cliente_endereco', 'core.titulo', 'core.nota_erp']));
+      expect(await afetadas(r, ['cliente'])).toEqual(['cliente', 'cliente_endereco', 'titulo', 'nota']);
+      for (const e of ['cliente', 'cliente_endereco', 'titulo', 'nota']) {
+        expect(await hub(e), e).toEqual({ lote: 0, registro: 0, cursor: 0 });
+      }
+      // um reenvio delta com a mesma chave não acha lote anterior (não volta repetido)
+      expect(await contar("select count(*) as n from integracao.lote where tenant_id = $1 and chave_idempotencia = 'chave-cascata-titulo'", [A.tenantId])).toBe(0);
+      expect({ produto: await hub('produto'), rota: await hub('rota') }).toEqual(naoAfetadas);
+      expect(await hashHub()).toBe(antes);
+      expect(mudaram(antesB, await retrato(B.tenantId))).toEqual([]);
     });
   });
 
@@ -536,8 +580,8 @@ describe.skipIf(semBanco())('0099 zerar dados da empresa (banco efêmero, fixtur
     await caso(async () => {
       const sid = await sessaoSuperAdmin();
       await portal('select plataforma.sa_pedir_zerar($1, $2, $3, $4, null) as r', [sid, A.tenantId, id(3), A.codigo]);
-      await q("create function public.falha_0099() returns trigger language plpgsql as $f$ begin raise exception 'falha no meio'; end $f$");
-      await q('create trigger falha_0099 before update on core.titulo for each row execute function public.falha_0099()');
+      await q("create function public.falha_0100() returns trigger language plpgsql as $f$ begin raise exception 'falha no meio'; end $f$");
+      await q('create trigger falha_0100 before update on core.titulo for each row execute function public.falha_0100()');
       const antesA = await retrato(A.tenantId);
       expect((await falha(worker('select plataforma.executar_zerar($1) as r', [id(3)])))?.code).toBe('P0001');
       expect(mudaram(antesA, await retrato(A.tenantId))).toEqual([]);
@@ -579,7 +623,7 @@ describe.skipIf(semBanco())('0099 zerar dados da empresa (banco efêmero, fixtur
   });
 });
 
-describe.skipIf(semBanco())('0099 up/down (banco efêmero vazio)', () => {
+describe.skipIf(semBanco())('0100 up/down (banco efêmero vazio)', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
@@ -588,16 +632,16 @@ describe.skipIf(semBanco())('0099 up/down (banco efêmero vazio)', () => {
     await b?.apagar();
   });
 
-  it('a 0099 só acrescenta; o down volta exatamente; as cópias do #675 vão e voltam pela public.macuxi_limpeza_backup', async () => {
+  it('a 0100 só acrescenta; o down volta exatamente; as cópias do #675 vão e voltam pela public.macuxi_limpeza_backup', async () => {
     await comAdmin(b.nome, async (c) => {
       const T = '11111111-0000-4000-8000-000000000001';
-      await migrarUp(c, { ate: '0098' });
+      await migrarUp(c, { ate: '0099' });
       const antes = await retratoDoCatalogo(c);
       // o workflow do #675 rodou antes: a public existe com uma cópia
       await c.query(`create table public.macuxi_limpeza_backup (lote text not null, tenant_id uuid not null, tabela text not null,
         modo text not null check (modo in ('soft', 'fisico', 'filial', 'sync_pacote')), linha jsonb not null, copiado_em timestamptz not null default now())`);
       await c.query(`insert into public.macuxi_limpeza_backup (lote, tenant_id, tabela, modo, linha) values ('20261123T190000Z', $1, 'core.cliente', 'soft', '{"id": 1}')`, [T]);
-      expect((await migrarUp(c, { ate: '0099' })).aplicadas).toEqual(['0099_plataforma_zerar_empresa']);
+      expect((await migrarUp(c, { ate: '0100' })).aplicadas).toEqual(['0100_plataforma_zerar_empresa']);
       const depois = await retratoDoCatalogo(c);
       expect(antes.filter((l) => !depois.includes(l))).toEqual([]);
       expect(depois.filter((l) => !antes.includes(l) && l.startsWith('rel ') && l.endsWith(' r rls=true force=true')).sort()).toEqual(TABELAS.map((t) => `rel ${t} r rls=true force=true`).sort());
@@ -605,13 +649,13 @@ describe.skipIf(semBanco())('0099 up/down (banco efêmero vazio)', () => {
       const linha = { lote: '20261123T190000Z', tenant_id: T, tabela: 'core.cliente', modo: 'soft', linha: { id: 1 } };
       expect((await c.query('select lote, empresa_id as tenant_id, tabela, modo, linha from plataforma.limpeza_copia')).rows).toEqual([linha]);
 
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0099_plataforma_zerar_empresa']);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0100_plataforma_zerar_empresa']);
       expect((await c.query('select lote, tenant_id, tabela, modo, linha from public.macuxi_limpeza_backup')).rows).toEqual([linha]);
       await c.query('drop table public.macuxi_limpeza_backup');
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await c.query(m99.down);
+      await c.query(m100.down);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await migrarUp(c, { ate: '0099' });
+      await migrarUp(c, { ate: '0100' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
       await migrarDown(c, { passos: 1 });
       expect(await retratoDoCatalogo(c)).toEqual(antes);

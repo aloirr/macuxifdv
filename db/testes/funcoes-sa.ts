@@ -194,7 +194,7 @@ export const FUNCOES_SA_PLANOS = [
 export const FUNCOES_SA_OCULTAR_MARCA = ['plataforma.sa_gravar_ocultar_marca(uuid, uuid, boolean)'] as const;
 
 /**
- * As 3 sa_* do zerar dados da empresa (0099, ADR 0068; RN-PLA-12; apps/api/src/empresa-zerar-portal.ts): prévia e pedido (com as
+ * As 3 sa_* do zerar dados da empresa (0100, ADR 0068; RN-PLA-12; apps/api/src/empresa-zerar-portal.ts): prévia e pedido (com as
  * entidades; nulo = a empresa inteira) e leitura. Só super-admin (sessão inválida 28000, admin do cliente 42501). EXECUTE só ao macuxi_portal.
  */
 export const FUNCOES_SA_ZERAR = [
@@ -203,7 +203,7 @@ export const FUNCOES_SA_ZERAR = [
   'plataforma.sa_ler_zerar(uuid, uuid)',
 ] as const;
 
-/** Funções do worker do zerar (0099, ADR 0068): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job). */
+/** Funções do worker do zerar (0100, ADR 0068): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job). */
 export const FUNCOES_WORKER_ZERAR = [
   'plataforma.pegar_zerar()',
   'plataforma.executar_zerar(uuid)',

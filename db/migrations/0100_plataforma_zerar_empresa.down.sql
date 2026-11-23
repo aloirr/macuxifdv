@@ -1,4 +1,4 @@
--- 0099_plataforma_zerar_empresa (down) — desfaz a 0099 e volta ao catálogo da 0098. Idempotente. Pré-condição: 0100+ desfeitas,
+-- 0100_plataforma_zerar_empresa (down) — desfaz a 0100 e volta ao catálogo da 0099. Idempotente. Pré-condição: 0101+ desfeitas,
 -- as rotas e o worker do zerar desligados na API (chamam funções que somem).
 -- As cópias da plataforma.limpeza_copia voltam para a public.macuxi_limpeza_backup do #675 (empresa_id -> tenant_id): o
 -- workflow producao-limpar-cadastros.yml de uma tag anterior restaura e descarta com elas. PERDE os registros de zerar do portal
