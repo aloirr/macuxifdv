@@ -56,9 +56,9 @@ const previaPronta: PreviaZerar = {
   entidades_afetadas: ['cliente'],
   total: 130,
   linhas: [
-    { ordem: 1, tabela: 'vendedor.pedido_item', modo: 'soft', linhas: 100 },
-    { ordem: 2, tabela: 'core.cliente', modo: 'soft', linhas: 30 },
-    { ordem: 3, tabela: 'core.filial', modo: 'filial', linhas: 1 },
+    { ordem: 1, tabela: 'vendedor.pedido_item', linhas: 100 },
+    { ordem: 2, tabela: 'core.cliente', linhas: 30 },
+    { ordem: 201, tabela: 'core.filial', linhas: 1 },
   ],
 };
 const zerarCru: ZerarEmpresa = {

@@ -3,10 +3,11 @@
  * despachante (`worker.ts`), com o papel `macuxi_worker` e um pool PRÓPRIO de 2 conexões, uma para o zerar e uma para a prévia
  * (o `poolWorker` tem `statement_timeout` de 30 s; aqui cada transação ganha 15 min e `lock_timeout` de 5 s por `set local`).
  *
- * Prévia (a cada 2 s, o mesmo ritmo da tela): `pegar_previa_zerar()` reserva uma prévia `em_andamento` e, numa transação,
- * `executar_previa_zerar(id)` roda a `limpar_cadastros` numa subtransação desfeita (sem a trava do Hub), grava a contagem e o
- * bloqueio do banco e fecha `pronta`. Erro = ROLLBACK e log; a prévia volta quando a concessão vence, e o banco fecha `falhou`
- * no teto de tentativas.
+ * Prévia (a cada 2 s, o mesmo ritmo da tela): `pegar_previa_zerar()` reserva uma prévia `em_andamento` (concessão de 2 min) e,
+ * numa transação, `executar_previa_zerar(id)` conta a `limpar_cadastros` no modo simular numa subtransação desfeita (sem a
+ * trava do Hub), grava a contagem e fecha `pronta`; o bloqueio é calculado na leitura. Erro na contagem: o banco fecha `falhou`
+ * `ZERAR_FALHOU` (empresa que saiu: `TENANT_NAO_ENCONTRADO`). Erro na chamada = ROLLBACK e log; a prévia volta quando a
+ * concessão vence, e o banco fecha `falhou` `ZERAR_FALHOU` no teto de 3 tentativas.
  *
  * Zerar (a cada 10 s): `pegar_zerar()` reserva um pedido `em_andamento` (skip locked, concessão de 10 min) e, numa transação,
  * `executar_zerar(id)` confere de novo (exclusão, outro zerar, backup e lote do Hub: fecha `falhou` com o código e devolve o
