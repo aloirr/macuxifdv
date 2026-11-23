@@ -59,11 +59,15 @@ begin
   end loop;
   -- cliente manual (sem external_id): fica
   insert into core.cliente (tenant_id, filial_id, razao_social) values (v_t, v_padrao, 'Cliente do app');
-  -- outbox: 3 estoques parados do ERP, 1 do kit, 1 publicado (fica), 1 de pedido não publicado
+  -- outbox: 3 estoques parados do ERP, 1 do kit, 1 publicado (fica), 1 de pedido não publicado (sai pelo agregado_id)
   insert into plataforma.evento (tenant_id, nome, modulo, payload, tentativas, ultimo_erro)
   select v_t, 'integracao.estoque.atualizado@1', 'integracao', jsonb_build_object('external_id', 'ERP-EST-' || g), 10, 'catalogo: ReferenciaAusenteErp: x'
     from generate_series(1, 3) g;
   insert into plataforma.evento (tenant_id, nome, modulo, payload) values (v_t, 'integracao.cliente.atualizado@1', 'integracao', '{"external_id": "KIT-CLI-1"}');
   insert into plataforma.evento (tenant_id, nome, modulo, payload, publicado_em) values (v_t, 'integracao.produto.atualizado@1', 'integracao', '{}', now());
-  insert into plataforma.evento (tenant_id, nome, modulo, payload) values (v_t, 'vendedor.pedido.enviado@1', 'vendedor', '{}');
+  insert into plataforma.evento (tenant_id, nome, modulo, payload, agregado_id)
+  select v_t, 'vendedor.pedido.enviado@1', 'vendedor', '{}', p.id from vendedor.pedido p where p.tenant_id = v_t order by p.id limit 1;
+  -- foto ligada a um pedido (sai pelo entidade_id)
+  insert into plataforma.arquivo (tenant_id, modulo, finalidade, entidade, entidade_id, enviado_por, tipo, situacao)
+  select v_t, 'vendedor', 'foto', 'pedido', p.id, v_usuario, 'image/jpeg', 'aguardando' from vendedor.pedido p where p.tenant_id = v_t order by p.id limit 1;
 end $$;
