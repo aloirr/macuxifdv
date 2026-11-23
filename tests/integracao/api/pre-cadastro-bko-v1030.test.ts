@@ -119,7 +119,6 @@ describe('v1.0.30 pré-cadastro — funções da tela, sem banco (valor × regra
       'Recusada pelo ERP em 01/12/2026 00:05',
     );
   });
-
 });
 
 describe.skipIf(semBanco())(
