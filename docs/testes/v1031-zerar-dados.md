@@ -38,6 +38,8 @@ Postgres 16 local (`db/scripts/pg-local.sh`), Node 24.
 
 Suítes: `tests/` 166 arquivos, 2525 testes verdes (22 pulados, 9 todo); `db/` 119 de 120 (D-1); módulos 77 arquivos `*.db.test.ts`,
 816 testes verdes; `apps/api` empresa-zerar (portal, worker e `banco`) 19 verdes; `typecheck:tests` e `lint:tests` limpos.
+e2e (Chromium headless da sessão): BKO `tests/e2e/bko/integracao-simples.spec.ts` 19 verdes e portal `apps/web/e2e` 16 verdes, na
+junção acima e de novo com o engenheiro-apps em e4fc95fb6 (traz o c32abc632 do modulo-integracao, Situação em 89 px).
 
 **D-1 (banco-dados, `db/testes/resumo-outbox-vivos.db.test.ts:140` e `:154`)**: o teste da 0099 usa `migrarUp(c)` sem `ate` e, com a
 0100 em cima, aplica as duas (`["0099_plataforma_resumo_outbox_vivos", "0100_plataforma_zerar_empresa"]` ≠ só a 0099). Precisa de
