@@ -1,18 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { aplicarRetornoCliente, decidirEntradaCliente, decidirResultadoVinculo, selecionarClientesPendentes, type ClienteNaFila } from './cliente-fila';
+import { aplicarRetornoCliente, selecionarClientesPendentes, type ClienteNaFila } from './cliente-fila';
 
 const U1 = '3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c';
 const U2 = '4f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6d';
 const T0 = '2026-11-23T12:00:00.000Z';
 const linha = (o: Partial<ClienteNaFila> = {}): ClienteNaFila => ({ cliente_uuid: U1, estado: 'pendente', payload: { cliente_uuid: o.cliente_uuid ?? U1 }, aprovado_em: '2026-11-23T10:00:00.000Z', enviado_em: null, tentativas: 0, external_id: null, motivo: null, removido_em: null, ...o });
 const ret = (o: Record<string, unknown> = {}) => ({ cliente_uuid: U1, status: 'vinculado' as const, external_id: 'C-100', ocorrido_em: T0, ...o });
-
-describe('RN-INT-22: entrada do cliente aprovado na fila', () => {
-  it('RN-INT-22: cria a linha na primeira vez e ignora a reentrega do evento', () => {
-    expect(decidirEntradaCliente(null)).toEqual({ acao: 'criar' });
-    expect(decidirEntradaCliente({ cliente_uuid: U1 })).toEqual({ acao: 'ignorar', motivo: 'ja_na_fila' });
-  });
-});
 
 describe('RN-INT-22: entrega ao Conector', () => {
   it('RN-INT-22: entrega pendentes por ordem de aprovação, com tentativa + 1, e marca como enviado', () => {
@@ -62,17 +55,5 @@ describe('RN-INT-22: retorno do ERP', () => {
   it('RN-INT-22: vínculo recusado depois (rejeitado pelo Core) não aceita outro código', () => {
     expect(aplicarRetornoCliente(linha({ estado: 'rejeitado', external_id: 'C-100', motivo: 'm' }), ret({ external_id: 'C-100' }))).toMatchObject({ ok: true, repetido: true, publicar: false });
     expect(aplicarRetornoCliente(linha({ estado: 'rejeitado', external_id: 'C-100', motivo: 'm' }), ret({ external_id: 'C-300' }))).toMatchObject({ ok: false, codigo: 'transicao_invalida' });
-  });
-});
-
-describe('RN-INT-22 + RN-CORE-78: resultado do vínculo no Core', () => {
-  it('RN-INT-22: vinculado e ja_vinculado concluem; conflito, código em uso e demais viram rejeitado com motivo legível', () => {
-    expect(decidirResultadoVinculo('vinculado')).toEqual({ estado: 'vinculado' });
-    expect(decidirResultadoVinculo('ja_vinculado')).toEqual({ estado: 'vinculado' });
-    for (const r of ['conflito', 'codigo_em_uso', 'nao_encontrado', 'nao_aprovado'] as const) {
-      const d = decidirResultadoVinculo(r);
-      expect(d.estado).toBe('rejeitado');
-      expect('motivo' in d && d.motivo.length).toBeGreaterThan(20);
-    }
   });
 });

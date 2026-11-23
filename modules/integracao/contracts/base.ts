@@ -75,3 +75,7 @@ export const PercentualAjuste = z
   .min(-99.99, 'percentual_ajuste deve ficar entre -99,99 e 99,99')
   .max(99.99, 'percentual_ajuste deve ficar entre -99,99 e 99,99')
   .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, 'percentual_ajuste aceita no máximo 2 casas decimais');
+
+/** `GET /pedidos/pendentes` e `GET /clientes/pendentes`: itens por chamada (padrão e teto). */
+export const LIMITE_PEDIDOS_POLL_PADRAO = 50;
+export const LIMITE_PEDIDOS_POLL_MAX = 100;

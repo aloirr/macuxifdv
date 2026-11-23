@@ -1,18 +1,17 @@
 /** Consumidores do cliente novo (RN-INT-22) com banco e Core simulados. Com Postgres: `clientes-erp.db.test.ts`. */
 import { describe, expect, it, vi } from 'vitest';
-import { entrarClienteNaFila, vincularCodigoDoErp } from './consumidores-cliente';
+import { entrarClienteNaFila } from './consumidores-cliente';
 
 const T = '11111111-1111-4111-8111-111111111111';
 const C1 = '8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04';
 const C2 = '9c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04';
 const cli = (id: string) => ({ cliente_id: id, aprovado_em: '2026-11-23T10:00:00Z', razao_social: 'Mercadinho', nome_fantasia: null, documento: '12345678000190', inscricao_estadual: null, telefone: null, email: null, logradouro: null, numero: null, complemento: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null, filial_external_id: null });
 
-function ctx(o: { existentes?: string[]; consultar: (def: { nome: string }, entrada: unknown) => unknown }) {
+function ctx(o: { consultar: (def: { nome: string }, entrada: unknown) => unknown }) {
   const sqls: { sql: string; params: unknown[] }[] = [];
   const db = {
     query: vi.fn(async (sql: string, params: unknown[] = []) => {
       sqls.push({ sql, params });
-      if (/^\s*select/i.test(sql)) return { rows: (o.existentes ?? []).map((cliente_uuid) => ({ cliente_uuid })) };
       return { rows: [], rowCount: 1 };
     }),
   };
@@ -20,8 +19,8 @@ function ctx(o: { existentes?: string[]; consultar: (def: { nome: string }, entr
 }
 
 describe('RN-INT-22: core.cliente.aprovado@1 entra na fila', () => {
-  it('RN-INT-22: cria só quem ainda não está na fila, com o cliente_uuid e sem dado fora do payload canônico', async () => {
-    const c = ctx({ existentes: [C2], consultar: () => ({ clientes: [cli(C1), cli(C2)], proximo: null }) });
+  it('RN-INT-22: insere cada aprovado com o cliente_uuid, sem dado fora do payload canônico, e a idempotência fica no on conflict', async () => {
+    const c = ctx({ consultar: () => ({ clientes: [cli(C1)], proximo: null }) });
     await entrarClienteNaFila({ cliente_id: C1 }, c.ctx);
     const inserts = c.sqls.filter((s) => /insert into integracao\.cliente_fila_erp/.test(s.sql));
     expect(inserts).toHaveLength(1);
@@ -41,32 +40,5 @@ describe('RN-INT-22: core.cliente.aprovado@1 entra na fila', () => {
     const c = ctx({ consultar: () => { throw new Error('core fora'); } });
     await expect(entrarClienteNaFila({ cliente_id: C1 }, c.ctx)).rejects.toThrow('core fora');
     expect(c.sqls).toHaveLength(0);
-  });
-});
-
-describe('RN-INT-22: integracao.cliente.retorno_erp@1 pede o vínculo ao Core', () => {
-  const evento = { cliente_id: C1, status: 'vinculado' as const, external_id: 'C-100' };
-  it('RN-INT-22: vinculado / ja_vinculado não mexem na fila', async () => {
-    for (const resultado of ['vinculado', 'ja_vinculado']) {
-      const c = ctx({ consultar: () => ({ resultado, external_id_atual: null }) });
-      await vincularCodigoDoErp(evento, c.ctx);
-      expect(c.sqls).toHaveLength(0);
-    }
-  });
-  it('RN-INT-22: conflito e código em uso viram rejeitado na fila, só do mesmo tenant, com o motivo em português', async () => {
-    for (const resultado of ['conflito', 'codigo_em_uso']) {
-      const c = ctx({ consultar: () => ({ resultado, external_id_atual: 'X' }) });
-      await vincularCodigoDoErp(evento, c.ctx);
-      expect(c.sqls).toHaveLength(1);
-      expect(c.sqls[0]!.sql).toMatch(/set estado = 'rejeitado'/);
-      expect(c.sqls[0]!.params.slice(0, 2)).toEqual([T, C1]);
-      expect(String(c.sqls[0]!.params[2])).toMatch(/código|cadastro/);
-    }
-  });
-  it('RN-INT-22: rejeitado_erp não chama o Core', async () => {
-    const consultar = vi.fn();
-    const c = ctx({ consultar });
-    await vincularCodigoDoErp({ cliente_id: C1, status: 'rejeitado_erp', external_id: null }, c.ctx);
-    expect(consultar).not.toHaveBeenCalled();
   });
 });

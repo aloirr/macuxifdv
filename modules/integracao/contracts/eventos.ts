@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { definirEvento, type DefinicaoEvento } from '@macuxi/platform-sdk/eventos';
 import { DataHoraUtc, Uuid } from './base';
 import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from './entidades';
+import { StatusRetornoCliente } from './cliente-erp';
 import { EstadoLote, ModoCarga } from './lote';
 import { EstadoPedidoErp, ItemFaturado, NotaRetorno } from './pedido';
 
@@ -103,11 +104,11 @@ export type ReconciliacaoDivergenteEvento = z.infer<typeof ReconciliacaoDivergen
 
 /**
  * `integracao.cliente.retorno_erp@1` (RN-INT-22) — o ERP devolveu o código do cliente novo (`vinculado`) ou o recusou (`rejeitado_erp`).
- * Sem dado pessoal: só ids e o código. O próprio módulo o consome para pedir ao Core o vínculo (`core.cliente_vincular_erp@1`).
+ * Sem dado pessoal: só ids e o código. O Core o consome e grava o `external_id` no cliente (ADR 0012 §5).
  */
 export const ClienteRetornoErpEvento = z.object({
   cliente_id: Uuid,
-  status: z.enum(['vinculado', 'rejeitado_erp']),
+  status: StatusRetornoCliente,
   external_id: z.string().min(1).nullable(),
   motivo: z.string().max(1000).nullable(),
   ocorrido_em: DataHoraUtc,

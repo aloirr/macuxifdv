@@ -43,7 +43,7 @@ describe('A7/A8: ligação no manifesto e no moduloApi', () => {
     for (const nome of ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1']) {
       expect(manifest.consome).toContain(nome);
     }
-    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['catalogo.referencia.marca_desconhecida@1', 'core.cliente.aprovado@1', 'integracao.cliente.retorno_erp@1', 'integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.cancelado@1', 'vendedor.pedido.status_alterado@1']);
+    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['catalogo.referencia.marca_desconhecida@1', 'core.cliente.aprovado@1', 'integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.cancelado@1', 'vendedor.pedido.status_alterado@1']);
   });
 });
 

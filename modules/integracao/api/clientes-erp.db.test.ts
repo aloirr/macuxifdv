@@ -11,7 +11,7 @@ import type { ContextoConsumo } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { EVENTO_CLIENTE_RETORNO_ERP } from '../contracts';
-import { entrarClienteNaFila, vincularCodigoDoErp } from './consumidores-cliente';
+import { entrarClienteNaFila } from './consumidores-cliente';
 import { clientesPendentes, retornoCliente } from './rotas-clientes';
 
 const A = DOIS_TENANTS.A;
@@ -112,29 +112,12 @@ describe.skipIf(semBanco())('Integração RN-INT-22 × Postgres', () => {
     expect((await retirar()).clientes.map((c) => c.cliente_uuid)).not.toContain(id);
   });
 
-  it('RN-INT-22: rejeitado_erp grava o motivo; o consumidor do vínculo: ok mantém vinculado, conflito do Core marca rejeitado com o motivo em português', async () => {
+  it('RN-INT-22: rejeitado_erp grava o motivo na fila; o vínculo no cliente é do Core, que consome o retorno', async () => {
     const rej = novoId();
     await aprovar(A.tenantId, [cli(rej, 'Mercadinho D')]);
     await retirar();
     expect(await retornar(A.tenantId, rej, { status: 'rejeitado_erp', motivo: 'CNPJ já cadastrado' })).toMatchObject({ estado: 'rejeitado' });
     expect(await fila(A.tenantId, rej)).toMatchObject({ estado: 'rejeitado', motivo: 'CNPJ já cadastrado', external_id: null });
-
-    const ok = novoId();
-    const conf = novoId();
-    await aprovar(A.tenantId, [cli(ok, 'Mercadinho E')]);
-    await aprovar(A.tenantId, [cli(conf, 'Mercadinho F')]);
-    await retirar();
-    await retornar(A.tenantId, ok, { status: 'vinculado', external_id: 'C-OK' });
-    await retornar(A.tenantId, conf, { status: 'vinculado', external_id: 'C-USO' });
-    const responder = (resultado: string) => async () => ({ resultado, external_id_atual: null });
-    await rodar(A.tenantId, (ctx) => vincularCodigoDoErp({ cliente_id: ok, status: 'vinculado', external_id: 'C-OK' }, ctx), responder('vinculado'));
-    await rodar(A.tenantId, (ctx) => vincularCodigoDoErp({ cliente_id: conf, status: 'vinculado', external_id: 'C-USO' }, ctx), responder('codigo_em_uso'));
-    expect(await fila(A.tenantId, ok)).toMatchObject({ estado: 'vinculado', motivo: null });
-    const f = await fila(A.tenantId, conf);
-    expect(f).toMatchObject({ estado: 'rejeitado' });
-    expect(f?.motivo).toMatch(/outro cliente/);
-    // vínculo recusado: o mesmo código de novo é repetição
-    expect(await retornar(A.tenantId, conf, { status: 'vinculado', external_id: 'C-USO' })).toMatchObject({ estado: 'rejeitado', repetido: true });
   });
 
   it('RN-INT-22: o papel macuxi_app não apaga linha da fila (sem DELETE) e o RLS esconde o cliente de outro tenant', async () => {

@@ -5,7 +5,7 @@
  * Aditivo no v1 (RN-INT-09): Conector antigo não chama estas rotas.
  */
 import { z } from 'zod';
-import { DataHoraUtc, ExternalId, Uuid, VERSAO_CONTRATO } from './base';
+import { DataHoraUtc, ExternalId, LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, Uuid, VERSAO_CONTRATO } from './base';
 
 const TextoNulo = z.string().max(200).nullable();
 
@@ -35,10 +35,8 @@ export const ClienteParaErp = z.object({
 });
 export type ClienteParaErp = z.infer<typeof ClienteParaErp>;
 
-export const LIMITE_CLIENTES_POLL_PADRAO = 50;
-export const LIMITE_CLIENTES_POLL_MAX = 100;
 export const QueryClientesPendentes = z.object({
-  limite: z.coerce.number().int().min(1).max(LIMITE_CLIENTES_POLL_MAX).default(LIMITE_CLIENTES_POLL_PADRAO),
+  limite: z.coerce.number().int().min(1).max(LIMITE_PEDIDOS_POLL_MAX).default(LIMITE_PEDIDOS_POLL_PADRAO),
 });
 export type QueryClientesPendentes = z.infer<typeof QueryClientesPendentes>;
 

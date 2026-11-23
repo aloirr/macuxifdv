@@ -1,9 +1,7 @@
 /**
  * Fila do cliente novo para o ERP (RN-INT-22; mesmo padrão da fila de pedidos, RN-INT-08). Funções puras; a API revalida.
- *  - `decidirEntradaCliente`: o evento `core.cliente.aprovado@1` cria a linha uma vez (idempotente pelo cliente).
  *  - `selecionarClientesPendentes`: pendentes e `enviado` vencidos, por ordem de aprovação; cada entrega conta uma tentativa.
  *  - `aplicarRetornoCliente`: `vinculado` (código do ERP) ou `rejeitado_erp`; repetição idêntica é aceita sem reaplicar.
- *  - `decidirResultadoVinculo`: o que o Core respondeu ao vínculo vira o estado final da fila (conflito = rejeitado com o motivo).
  */
 import { aplicarTimeoutEnvio } from './estados';
 import { PARAMETROS_PADRAO } from './parametros';
@@ -20,13 +18,6 @@ export interface ClienteNaFila<P = Record<string, unknown>> {
   external_id: string | null;
   motivo: string | null;
   removido_em: string | null;
-}
-
-export type DecisaoEntradaCliente = { acao: 'criar' } | { acao: 'ignorar'; motivo: 'ja_na_fila' };
-
-/** Um cliente entra na fila uma só vez; reentrega do evento (ou nova aprovação) não duplica nem reabre linha já decidida. */
-export function decidirEntradaCliente(existente: Pick<ClienteNaFila, 'cliente_uuid'> | null): DecisaoEntradaCliente {
-  return existente ? { acao: 'ignorar', motivo: 'ja_na_fila' } : { acao: 'criar' };
 }
 
 export interface SelecaoClientes<P> {
@@ -91,17 +82,4 @@ export function aplicarRetornoCliente(fila: Pick<ClienteNaFila, 'estado' | 'exte
   }
   if (fila.estado === 'rejeitado') return aceito(true);
   return falha('transicao_invalida', 'status', 'O cliente já foi vinculado ao código do ERP; rejeitado_erp não vale depois do vínculo.');
-}
-
-export type ResultadoVinculoCore = 'vinculado' | 'ja_vinculado' | 'conflito' | 'nao_encontrado' | 'nao_aprovado' | 'codigo_em_uso';
-
-const MOTIVO_VINCULO: Record<Exclude<ResultadoVinculoCore, 'vinculado' | 'ja_vinculado'>, string> = {
-  conflito: 'O cliente já tem outro código no Macuxi. Confira no ERP se ele foi criado duas vezes e ajuste o cadastro no BKO.',
-  codigo_em_uso: 'O código devolvido pelo ERP já pertence a outro cliente do Macuxi. Confira o código no ERP e reenvie o cadastro.',
-  nao_encontrado: 'O Macuxi não encontrou o cliente para gravar o código. Confira o cadastro no BKO.',
-  nao_aprovado: 'O cadastro do cliente não está aprovado no Macuxi. Aprove no BKO antes de vincular o código do ERP.',
-};
-
-export function decidirResultadoVinculo(r: ResultadoVinculoCore): { estado: 'vinculado' } | { estado: 'rejeitado'; motivo: string } {
-  return r === 'vinculado' || r === 'ja_vinculado' ? { estado: 'vinculado' } : { estado: 'rejeitado', motivo: MOTIVO_VINCULO[r] };
 }

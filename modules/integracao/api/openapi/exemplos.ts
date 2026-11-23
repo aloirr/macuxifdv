@@ -655,9 +655,11 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },
   clientes_pendentes: {
+    403: [ex('acesso_negado', 'Conector que não recebe pedidos aprovados também não recebe clientes novos', erro('acesso_negado', 'Este Conector não recebe clientes novos (na v1 só o Conector que recebe os pedidos aprovados também recebe os clientes). Ajuste em Integração ERP > Conectores.'))],
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },
   retorno_cliente: {
+    403: [ex('acesso_negado', 'Conector que não recebe pedidos aprovados também não recebe clientes novos', erro('acesso_negado', 'Este Conector não recebe clientes novos (na v1 só o Conector que recebe os pedidos aprovados também recebe os clientes). Ajuste em Integração ERP > Conectores.'))],
     400: [ex('requisicao_invalida', 'Corpo fora do contrato (ou cliente_uuid do caminho diferente do corpo)', erro('requisicao_invalida', 'Dados inválidos em corpo.', { detalhes: { problemas: [{ caminho: 'corpo.external_id', mensagem: 'informe o código do cliente no ERP' }] } }))],
     422: [
       ex('cliente_desconhecido', 'O Hub não conhece o cliente', recusa('cliente_desconhecido', null, 'O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.')),

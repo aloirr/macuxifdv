@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 import { CABECALHO_CONECTOR_ID, CABECALHO_CONECTOR_VERSAO, RespostaSinal, SinalConector } from './conector';
-import { Uuid } from './base';
+import { LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, Uuid } from './base';
 import { Entidade } from './entidades';
 import { CursorEntidade, LoteAceito, LoteEnvelope, LoteResultado, ReconciliacaoEnvio } from './lote';
 import { PedidosPendentes, RetornoAceito, RetornoErp } from './pedido';
@@ -138,8 +138,6 @@ export const QueryConsultaLote = z.object({
 });
 
 /** `GET /pedidos/pendentes?limite=`. */
-export const LIMITE_PEDIDOS_POLL_PADRAO = 50;
-export const LIMITE_PEDIDOS_POLL_MAX = 100;
 export const QueryPedidosPendentes = z.object({
   limite: z.coerce.number().int().min(1).max(LIMITE_PEDIDOS_POLL_MAX).default(LIMITE_PEDIDOS_POLL_PADRAO),
 });
@@ -257,7 +255,7 @@ export const ROTAS_HUB: readonly RotaHub[] = [
     cabecalhos: CabecalhosConector,
     query: QueryClientesPendentes,
     sucesso: { status: 200, schema: ClientesPendentes },
-    erros: [426],
+    erros: [403, 426],
   },
   {
     id: 'retorno_cliente',
@@ -268,7 +266,7 @@ export const ROTAS_HUB: readonly RotaHub[] = [
     params: ParamsCliente,
     corpo: RetornoCliente,
     sucesso: { status: 200, schema: RetornoClienteAceito },
-    erros: [400, 422, 426],
+    erros: [400, 403, 422, 426],
   },
   {
     id: 'sinal',

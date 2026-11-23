@@ -2,18 +2,17 @@
  * Rotas do Conector para o cliente novo (RN-INT-22; mesmo padrão dos pedidos, RN-INT-08).
  *  - `GET /clientes/pendentes`: `for update skip locked`, `pendente → enviado`, reentrega do `enviado` vencido; só o Conector que recebe pedidos.
  *  - `POST /clientes/{uuid}/retorno`: uma transação; grava o código (`external_id`) ou a rejeição na fila, idempotente, e publica
- *    `integracao.cliente.retorno_erp@1` (o consumidor pede o vínculo ao Core).
+ *    `integracao.cliente.retorno_erp@1` (o Core consome e grava o código).
  */
 import { ErroConector, type ContextoConector } from '@macuxi/platform-sdk';
 import { type ClientesPendentes, ParamsCliente, type QueryClientesPendentes, type RetornoCliente, type RetornoClienteAceito } from '../contracts';
 import { aplicarRetornoCliente, selecionarClientesPendentes, type ClienteNaFila } from '../domain';
 import type { ConectorHub } from './autenticacao';
+import { iso } from './bko-comum';
 import { EVENTO_CLIENTE_RETORNO_ERP } from './eventos';
 import { lerParametrosHub } from './parametros';
 
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoConector<ConectorHub, C, Q, P>;
-
-const iso = (v: Date | string | null | undefined): string | null => (v === null || v === undefined ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString());
 
 export interface LinhaClienteFila {
   cliente_uuid: string;
