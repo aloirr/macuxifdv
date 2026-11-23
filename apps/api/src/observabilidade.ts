@@ -110,6 +110,7 @@ export function linhaDeMetricas(j: JanelaMetricas | null, outbox: ResumoOutbox |
 
 /**
  * Resumo da outbox lido pelo `macuxi_worker` (todas as linhas, sem RLS por tenant; só as colunas com grant da 0003).
+ * O evento apagado (`deleted_at`) não conta: o despachante não o despacha.
  * `$1` = eventos com consumidor instalado (os outros ficam na outbox de propósito), `$2` = tentativas máximas.
  */
 export const SQL_RESUMO_OUTBOX = `
@@ -118,6 +119,7 @@ export const SQL_RESUMO_OUTBOX = `
          extract(epoch from now() - min(ocorrido_em) filter (where tentativas < $2))::float8 as mais_antigo_s
     from plataforma.evento
    where publicado_em is null
+     and deleted_at is null
      and nome = any($1::text[])`;
 
 /** Normaliza a linha do resumo (o `pg` devolve `null` quando não há pendente). */

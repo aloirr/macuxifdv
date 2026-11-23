@@ -107,13 +107,16 @@ interface LinhaEvento {
   request_id: string | null;
 }
 
-// Só as colunas com grant para o worker (migração 0003). `deleted_at` não é lida: evento não se apaga.
+// Só as colunas com grant para o worker (migração 0003; `deleted_at` pela migração do banco-dados da v1.0.30).
+// O evento apagado (`deleted_at`, limpeza de cadastros da produção) sai da outbox: nem o ciclo nem o reprocesso o
+// despacham. `deleted_at` só filtra; não vai no envelope.
 const COLUNAS_EVENTO = 'id, tenant_id, nome, modulo, payload, ocorrido_em, tentativas, usuario_id, request_id';
 
 const SQL_LOTE = `
   select ${COLUNAS_EVENTO}
     from plataforma.evento
    where publicado_em is null
+     and deleted_at is null
      and nome = any($1::text[])
      and tentativas < $2
      and id <> all($3::uuid[])
@@ -387,7 +390,7 @@ export function criarDespachante(op: OpcoesDespachante) {
       lista = (
         await c0.query<{ id: string; nome: string; tentativas: number }>(
           `select id, nome, tentativas from plataforma.evento
-            where publicado_em is null and tenant_id = $1 and nome = any($2::text[]) and tentativas >= $3
+            where publicado_em is null and deleted_at is null and tenant_id = $1 and nome = any($2::text[]) and tentativas >= $3
             order by ocorrido_em, id`,
           [o.tenantId, nomes, maxTentativas],
         )
@@ -421,7 +424,7 @@ export function criarDespachante(op: OpcoesDespachante) {
         const l = (
           await c.query<LinhaEvento>(
             `select ${COLUNAS_EVENTO} from plataforma.evento
-              where id = $1 and tenant_id = $2 and publicado_em is null and tentativas = $3
+              where id = $1 and tenant_id = $2 and publicado_em is null and deleted_at is null and tentativas = $3
               for no key update skip locked`,
             [s.id, o.tenantId, maxTentativas],
           )
