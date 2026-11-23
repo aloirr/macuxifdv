@@ -1,5 +1,5 @@
 /**
- * Campos obrigatórios do cliente, lista única do cadastro e do pré-cadastro (v1.0.29, ADR 0069 §6; RN-CORE-16, RN-CORE-79; RN-AUD-01):
+ * Campos obrigatórios do cliente, lista única do cadastro e do pré-cadastro (v1.0.30, ADR 0069 §6; RN-CORE-16, RN-CORE-79; RN-AUD-01):
  * `GET|PUT /v1/core/parametros/campos-obrigatorios`. GET: `parametro.campos_obrigatorios` (analista, admin), devolve a lista efetiva já
  * com os fixos (sem linha = o padrão da RN-CORE-16); PUT: `parametro.campos_obrigatorios_editar` (admin), aceita sem os fixos e o
  * servidor os acrescenta (razão social e CPF/CNPJ sempre). Substitui `parametros/pre-cadastro`.

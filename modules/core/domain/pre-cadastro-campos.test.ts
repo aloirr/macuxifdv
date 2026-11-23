@@ -68,7 +68,7 @@ describe('pré-cadastro: motivo do 422 (RN-CORE-78)', () => {
   });
 });
 
-describe('pré-cadastro: lista única de obrigatórios (RN-CORE-16, RN-CORE-79; v1.0.29)', () => {
+describe('pré-cadastro: lista única de obrigatórios (RN-CORE-16, RN-CORE-79; v1.0.30)', () => {
   it('RN-CORE-79: obrigatórios do pré-cadastro = os exigidos menos complemento e geolocalização, com os fixos sempre, na ordem canônica', () => {
     expect(obrigatoriosDoPreCadastro(['cep', 'complemento', 'geolocalizacao', 'telefone'])).toEqual(['razao_social', 'documento', 'cep', 'telefone']);
     expect(obrigatoriosDoPreCadastro([])).toEqual(['razao_social', 'documento']);

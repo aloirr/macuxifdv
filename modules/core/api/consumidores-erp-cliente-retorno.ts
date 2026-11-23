@@ -1,7 +1,7 @@
 /**
  * `integracao.cliente.retorno_erp@1` -> `core.cliente` (RN-CORE-78, RN-INT-22; ADR 0012 §5: consulta é só leitura, quem grava é o Core).
  * O ERP aprova o pré-cadastro: o Hub devolve o código (`vinculado`) ou a recusa (`rejeitado_erp`). A decisão é do domínio
- * (`decidirVinculoErp`, `decidirRecusaErp`). v1.0.29 (ADR 0069 item 8): o retorno informa a `revisao` (ausente = a atual) e, na recusa,
+ * (`decidirVinculoErp`, `decidirRecusaErp`). v1.0.30 (ADR 0069 item 8): o retorno informa a `revisao` (ausente = a atual) e, na recusa,
  * os erros por campo (`[]` = sem erros); o id de um recusado substituído pelo APK v1.0.28 resolve para o vivo pelo alias.
  * - vinculado: o ERP manda. Grava `external_id`, `status_cadastro = 'aprovado'` e `aprovado_em`, também sobre o recusado e vindo de revisão
  *   anterior, e limpa motivo e erros; a tentativa da revisão do retorno (e a atual, se estiver aguardando) fica `aceito`. O mesmo código
@@ -23,7 +23,7 @@ import { carteiraDoEvento } from './rotas';
 
 export const EventoIntegracaoClienteRetornoErp = eventoTolerante(EVENTO_CLIENTE_RETORNO_ERP);
 
-/** Aditivos da @1 na v1.0.29 (ADR 0069 §9), lidos também enquanto o contrato do dono não os declara (leitura tolerante). */
+/** Aditivos da @1 na v1.0.30 (ADR 0069 §9), lidos também enquanto o contrato do dono não os declara (leitura tolerante). */
 type RetornoErp = ClienteRetornoErpEvento & { revisao?: number; erros?: unknown };
 
 function auditarSistema(ctx: ContextoConsumo, acao: string, clienteId: string, depois: Record<string, unknown>): Promise<void> {

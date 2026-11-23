@@ -69,7 +69,7 @@ describe('RN-CORE-16/17: cliente do ERP vira core.cliente com o cadastro mínimo
   });
 });
 
-describe('decidirDocumentoDoErp (v1.0.29, ADR 0069 item 10)', () => {
+describe('decidirDocumentoDoErp (v1.0.30, ADR 0069 item 10)', () => {
   it('RN-CORE-78: documento sem outro dono segue gravando', () => {
     expect(decidirDocumentoDoErp(null, 'C-1')).toBe('seguir');
   });
