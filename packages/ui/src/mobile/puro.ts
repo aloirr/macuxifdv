@@ -53,3 +53,5 @@ export * from './folha-veiculo-estado';
 // v1.0.28: máscaras do CampoTexto (CNPJ/CPF, CEP, telefone), rótulo opcional e o selo do pré-cadastro de cliente
 export * from './campo-mascara';
 export * from './pre-cadastro';
+// v1.0.30: códigos do cliente (partes, texto e leitura do TalkBack)
+export * from './codigos-cliente';
