@@ -51,13 +51,15 @@ export function validarPreCadastro(dados: Readonly<Record<string, unknown>>, obr
 /** RN-CORE-78: só o vendedor pré-cadastra (a decisão do dono do produto não abre o promotor nem a gestão). A API revalida. */
 export const podePreCadastrarCliente = (perfil: string): boolean => perfil === 'vendedor';
 
-export type SituacaoDoPreCadastro = 'aguardando_erp' | 'recusado_erp' | 'aprovado_erp';
+export type SituacaoDoPreCadastro = 'aguardando_erp' | 'recusado_erp' | 'aprovado_erp' | 'nao_enviado';
 
 /**
- * RN-CORE-78: selo do cliente. Recusado = recusado com o motivo; com código do ERP = aprovado (sem selo); pendente ou sem código = aguardando.
+ * RN-CORE-78: selo do cliente. Recusado (pelo ERP) = recusado com o motivo; pendente com motivo = não enviado (parou na fila, nunca chegou ao ERP); com código do ERP = aprovado (sem selo); pendente ou sem código = aguardando.
  */
 export function situacaoDoPreCadastro(c: { status_cadastro?: StatusCadastro | null; external_id?: string | null; motivo_recusa?: string | null }): { situacao: SituacaoDoPreCadastro; motivo: string | null } {
   if (c.status_cadastro === 'recusado') return { situacao: 'recusado_erp', motivo: c.motivo_recusa?.trim() || null };
+  // não enviado: o item da fila parou antes do ERP (422, 409, módulo inativo); o app o marca pendente com o motivo no `motivo_recusa`
+  if (c.status_cadastro === 'pendente' && c.motivo_recusa?.trim()) return { situacao: 'nao_enviado', motivo: c.motivo_recusa.trim() };
   if (c.external_id && c.external_id.trim() !== '') return { situacao: 'aprovado_erp', motivo: null };
   return { situacao: 'aguardando_erp', motivo: null };
 }

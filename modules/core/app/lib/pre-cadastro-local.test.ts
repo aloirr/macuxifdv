@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ClienteSync } from '../../contracts';
 import { situacaoDoPreCadastro } from '../../domain';
-import { clienteComDocumento, ENTIDADE_PRE_CADASTRO, montarPreCadastro, obrigatoriosDasLinhas, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente } from './pre-cadastro-local';
+import { ROTULO_NAO_ENVIADO, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
+import { clienteComDocumento, ENTIDADE_PRE_CADASTRO, entidadePreCadastro, MOTIVO_ENVIO_FALHOU, montarPreCadastro, obrigatoriosDasLinhas, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente } from './pre-cadastro-local';
 
 const ID = '3f1c2a52-3c1e-4f0a-9d49-7c4a5c0e1a11';
 const valores = { documento: '11.222.333/0001-81', razao_social: 'Mercado Boa Vista', telefone: '(92) 99999-0000' };
@@ -76,13 +77,28 @@ describe('pré-cadastro no aparelho (RN-CORE-78, RN-CORE-79)', () => {
     expect(m.enviar).toHaveBeenCalledTimes(1);
   });
 
-  it('RN-CORE-78: item da fila que falhou aparece como recusado, com a mensagem do 422, e não como "Aguardando ERP"', () => {
+  it('RN-CORE-78: item da fila que falhou (422, 409, CONFLITO) é "Não enviado" com o motivo do servidor, nunca "Recusado pelo ERP" nem "Aguardando ERP"', () => {
     const payload = { id: ID, origem: 'campo', razao_social: 'Mercado', documento: '11222333000181' };
     const [c] = sobreporPreCadastros([], [{ payload, situacao: 'falhou', ultimo_erro: 'Preencha o telefone.' }], '2026-11-23T10:00:00Z');
-    expect(c).toMatchObject({ status_cadastro: 'recusado', motivo_recusa: 'Preencha o telefone.' });
-    expect(situacaoDoPreCadastro(c!)).toEqual({ situacao: 'recusado_erp', motivo: 'Preencha o telefone.' });
+    expect(c).toMatchObject({ status_cadastro: 'pendente', motivo_recusa: 'Preencha o telefone.' });
+    expect(situacaoDoPreCadastro(c!)).toEqual({ situacao: 'nao_enviado', motivo: 'Preencha o telefone.' });
+    expect(seloDoPreCadastro(situacaoDoPreCadastro(c!).situacao)?.texto).toBe(ROTULO_NAO_ENVIADO);
+    const [sem] = sobreporPreCadastros([], [{ payload, situacao: 'falhou' }], '2026-11-23T10:00:00Z');
+    expect(situacaoDoPreCadastro(sem!)).toEqual({ situacao: 'nao_enviado', motivo: MOTIVO_ENVIO_FALHOU });
+    expect(MOTIVO_ENVIO_FALHOU).toBe('Não foi possível enviar o cadastro.');
+  });
+
+  it('RN-CORE-78: item com módulo inativo também é "Não enviado"; só o pendente da fila é "Aguardando ERP"; "Recusado pelo ERP" é só do pull', () => {
+    const payload = { id: ID, origem: 'campo', razao_social: 'Mercado', documento: '11222333000181' };
+    const [m] = sobreporPreCadastros([], [{ payload, situacao: 'modulo_inativo' }], '2026-11-23T10:00:00Z');
+    expect(situacaoDoPreCadastro(m!).situacao).toBe('nao_enviado');
     const [p] = sobreporPreCadastros([], [{ payload, situacao: 'pendente' }], '2026-11-23T10:00:00Z');
     expect(situacaoDoPreCadastro(p!).situacao).toBe('aguardando_erp');
+    expect(situacaoDoPreCadastro({ status_cadastro: 'recusado', motivo_recusa: 'CNPJ duplicado' })).toEqual({ situacao: 'recusado_erp', motivo: 'CNPJ duplicado' });
+  });
+
+  it('RN-CORE-78: o pré-cadastro é editável pelo app até o ERP decidir (pendente ou recusado), e o servidor vence depois', () => {
+    expect(entidadePreCadastro.conflito).toBe('app_edita_ate_status');
   });
 
   it('RN-CORE-79: o documento vai ao servidor só com dígitos, e o schema recusado devolve a mensagem por campo', () => {

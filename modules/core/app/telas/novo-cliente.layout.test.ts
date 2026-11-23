@@ -28,6 +28,12 @@ describe('tela Novo cliente (pré-cadastro; RN-CORE-78 e RN-CORE-79)', () => {
     expect(ficha).toContain('ACAO_CORRIGIR_E_REENVIAR');
     expect(ficha).toContain('abrirNovoCliente(id)');
   });
+  it('RN-CORE-78: o "Não enviado" também mostra "Corrigir e reenviar" na ficha, e o aviso do formulário só entra sem campo marcado', () => {
+    expect(ler('./cliente.tsx')).toContain('ROTULO_NAO_ENVIADO');
+    expect(tela).toContain('rolarAtePrimeira(r.erros)) return;');
+    expect(tela.match(/scrollTo\(/g)).toHaveLength(1);
+    expect(tela).not.toContain('aoConcluir');
+  });
   it('RN-VEN-38: a folha de descarte vale no voltar do Android e da barra (useBloquearSaida), no "Abrir" e depois de salvar não pergunta', () => {
     expect(tela).toContain('useBloquearSaida(alterado, pedirSaida)');
     expect(tela).toContain("pedirSaida(() => abrirCliente(duplicado.id, 'Clientes'))");

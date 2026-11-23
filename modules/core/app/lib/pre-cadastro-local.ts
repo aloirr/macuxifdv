@@ -21,7 +21,7 @@ export const entidadePreCadastro = definirEntidadeSync({
   nome: ENTIDADE_PRE_CADASTRO,
   modulo: 'core',
   direcao: 'push',
-  conflito: 'somente_insercao',
+  conflito: 'app_edita_ate_status',
   schema: PreCadastroClienteSchema,
 });
 
@@ -92,11 +92,11 @@ export interface ItemPreCadastroPendente {
 }
 
 /** Texto da correção quando o servidor recusou o envio sem dizer o motivo. */
-export const MOTIVO_ENVIO_FALHOU = 'Não foi possível enviar o cadastro. Corrija e reenvie.';
+export const MOTIVO_ENVIO_FALHOU = 'Não foi possível enviar o cadastro.';
 
 /**
  * Sobrepõe a fila às linhas do pull: o pré-cadastro novo entra como cliente "pendente" sem código; o reenviado substitui a
- * linha recusada (status volta a pendente e o motivo some). A linha do pull volta a valer quando o item sai da fila.
+ * linha recusada pelo ERP (status volta a pendente e o motivo some). A linha do pull volta a valer quando o item sai da fila.
  */
 export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: readonly ItemPreCadastroPendente[], agora: string): ClienteSync[] {
   const novos = new Map<string, ClienteSync>();
@@ -105,8 +105,9 @@ export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: re
     if (!p.success) continue;
     const d = p.data;
     const antigo = clientes.find((c) => c.id === d.id);
-    // item que falhou na API (422): sai de "Aguardando ERP" e vira "Corrigir e reenviar", com a mensagem do servidor
-    const falhou = i.situacao === 'falhou';
+    // item parado na fila (falhou: 422, 409, CONFLITO; ou módulo inativo): não chegou ao ERP, então não é "Aguardando ERP" nem
+    // "Recusado pelo ERP"; vira "Não enviado" (pendente com o motivo), com a ação "Corrigir e reenviar"
+    const parou = i.situacao === 'falhou' || i.situacao === 'modulo_inativo';
     novos.set(d.id, {
       id: d.id,
       updated_at: agora,
@@ -128,8 +129,8 @@ export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: re
       longitude: d.longitude ?? null,
       ativo: true,
       inscricao_estadual: d.inscricao_estadual ?? null,
-      status_cadastro: falhou ? 'recusado' : 'pendente',
-      motivo_recusa: falhou ? i.ultimo_erro?.trim() || MOTIVO_ENVIO_FALHOU : null,
+      status_cadastro: 'pendente',
+      motivo_recusa: parou ? i.ultimo_erro?.trim() || MOTIVO_ENVIO_FALHOU : null,
     });
   }
   if (novos.size === 0) return [...clientes];

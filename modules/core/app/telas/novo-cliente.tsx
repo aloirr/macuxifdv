@@ -30,8 +30,6 @@ import {
 type Coluna = (typeof COLUNAS_FORMULARIO)[number];
 
 export interface PropsTelaNovoClientePreCadastro {
-  /** Chamada depois de salvar ou de descartar; sem ela, volta à lista de clientes. */
-  aoConcluir?: () => void;
   /** "Corrigir e reenviar": abre o formulário preenchido e reenvia com o mesmo id. */
   clienteId?: string;
 }
@@ -61,15 +59,15 @@ export function PaginaNovoCliente() {
   return <TelaNovoClientePreCadastro clienteId={params[PARAM_CLIENTE_ID] || undefined} />;
 }
 
-export function TelaNovoClientePreCadastro({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) {
+export function TelaNovoClientePreCadastro({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const { motor } = useMotorSync();
   const perfil = motor?.ambiente.usuario()?.perfil;
   // RN-CORE-78: sem usuário, ou com perfil que não pré-cadastra, a tela não abre (a página já é só do vendedor; a API revalida)
   if (!perfil || !podePreCadastrarCliente(perfil)) return null;
-  return <Formulario aoConcluir={aoConcluir} clienteId={clienteId} />;
+  return <Formulario clienteId={clienteId} />;
 }
 
-function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) {
+function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const { motor } = useMotorSync();
   const aviso = useAvisoRodape();
   // o UUID nasce no aparelho uma vez; a correção reaproveita o id do cliente recusado
@@ -127,7 +125,7 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
     setErrosSalvar({});
     setValores((v) => ({ ...v, [c]: texto }));
   };
-  const sair = () => (aoConcluir ? aoConcluir() : router.canGoBack() ? router.back() : router.replace(ROTA_CLIENTES as never));
+  const sair = () => (router.canGoBack() ? router.back() : router.replace(ROTA_CLIENTES as never));
   // RN-VEN-38: a folha "Descartar o cadastro?" vale no Voltar do cabeçalho, no Voltar do Android e na barra inferior;
   // `destino` é o que acontece se o usuário descartar (sair da tela, ou seguir para o cliente existente)
   const destino = useRef<() => void>(sair);
@@ -158,21 +156,24 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
     </View>
   );
 
+  /** Rola até o primeiro campo com erro; devolve se achou algum. */
+  function rolarAtePrimeira(erros: Partial<Record<Coluna, unknown>>): boolean {
+    const primeira = COLUNAS_FORMULARIO.find((c) => erros[c]);
+    if (primeira) rolagem.current?.scrollTo({ y: Math.max(0, (posicoes.current[primeira] ?? 0) - 12), animated: true });
+    return primeira !== undefined;
+  }
+
   async function salvar() {
     setTentou(true);
-    const primeira = COLUNAS_FORMULARIO.find((c) => faltas[c]);
-    if (primeira || !motor) {
-      if (primeira) rolagem.current?.scrollTo({ y: Math.max(0, (posicoes.current[primeira] ?? 0) - 12), animated: true });
-      return;
-    }
+    if (rolarAtePrimeira(faltas) || !motor) return;
     setSalvando(true);
     const r = await salvarPreCadastro(motor, { id, valores, obrigatorios, online: motor.ambiente.online() }).catch(() => null);
     setSalvando(false);
     if (!r) return aviso.mostrar({ texto: 'Não foi possível salvar. Toque em Salvar de novo.', tom: 'erro' });
     if (!r.ok) {
       setErrosSalvar(r.erros);
-      const primeira = COLUNAS_FORMULARIO.find((c) => r.erros[c]);
-      if (primeira) rolagem.current?.scrollTo({ y: Math.max(0, (posicoes.current[primeira] ?? 0) - 12), animated: true });
+      // com campo marcado, o próprio campo diz o que corrigir; o aviso só entra quando o erro não aponta campo
+      if (rolarAtePrimeira(r.erros)) return;
       return aviso.mostrar({ texto: 'Confira os campos marcados e toque em Salvar de novo.', tom: 'erro' });
     }
     // desmarca o formulário antes de sair: o bloqueio de saída não pergunta depois de salvar

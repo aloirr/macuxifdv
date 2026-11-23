@@ -16,7 +16,7 @@
  * A tela só lê os itens; quem registra decide o conteúdo. Sem o módulo ativo, o item some (RN-CORE-03).
  */
 import { useExtensoes, usePode } from '@macuxi/platform-sdk/react';
-import { ACAO_CORRIGIR_E_REENVIAR, Abas, BackLink, Botao, ROTULO_RECUSADO_ERP, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, fonte, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { ACAO_CORRIGIR_E_REENVIAR, Abas, BackLink, Botao, ROTULO_NAO_ENVIADO, ROTULO_RECUSADO_ERP, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, fonte, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -40,7 +40,7 @@ import { tentarCheckin } from '../lib/acoes-visita';
 import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../lib/etapa-pendente';
 import type { PosicaoGps } from '../lib/visita-payload';
 import { mapsUrl, telUrl, whatsappUrl } from '../lib/route';
-import { abrirNovoCliente } from '../lib/navegacao';
+import { abrirNovoCliente, ROTA_CLIENTES } from '../lib/navegacao';
 import { useCore } from '../lib/usar-core';
 import { latestVisitFor } from '../lib/visit';
 
@@ -203,15 +203,15 @@ export function TelaCliente() {
       )
     : null;
 
-  // v1.0.28 / RN-CORE-78: recusado pelo ERP, o motivo e a correção ficam na área de alertas
+  // v1.0.28 / RN-CORE-78: recusado pelo ERP ou não enviado (parou na fila), o motivo e a correção ficam na área de alertas
   const situacaoPre = ficha ? situacaoDoPreCadastro(ficha.cliente) : null;
-  const recusa = situacaoPre?.situacao === 'recusado_erp' ? situacaoPre : null;
+  const recusa = situacaoPre?.situacao === 'recusado_erp' || situacaoPre?.situacao === 'nao_enviado' ? situacaoPre : null;
   const itensAbas = abasDoApp(locais.perfil, locais.verPedidos);
   const abaAtiva: AbaFicha = itensAbas.some((a) => a.id === aba) ? aba : 'resumo';
 
   return (
     <View style={styles.root}>
-      <CabecalhoTela titulo={nome} subtitulo={subtitulo} voltar={{ label: params.from ?? 'Clientes', fallback: '/m/clientes' }} />
+      <CabecalhoTela titulo={nome} subtitulo={subtitulo} voltar={{ label: params.from ?? 'Clientes', fallback: ROTA_CLIENTES }} />
       <Abas abas={itensAbas} valor={abaAtiva} onChange={setAba} testID="abas-cliente" />
       <ScrollView contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
         {/* alertas ficam no topo do conteúdo em todas as abas */}
@@ -231,7 +231,7 @@ export function TelaCliente() {
         {recusa ? (
           <View style={{ gap: 8 }}>
             <Banner tone="danger" icon="alert" testID="cliente-recusado-erp" anunciar>
-              <Strong>{ROTULO_RECUSADO_ERP}</Strong>
+              <Strong>{recusa.situacao === 'nao_enviado' ? ROTULO_NAO_ENVIADO : ROTULO_RECUSADO_ERP}</Strong>
               {recusa.motivo ? `\n${recusa.motivo}` : ''}
             </Banner>
             {podePreCadastrarCliente(locais.perfil) ? <Botao testID="cliente-corrigir-reenviar" rotulo={ACAO_CORRIGIR_E_REENVIAR} onPress={() => abrirNovoCliente(id)} /> : null}
