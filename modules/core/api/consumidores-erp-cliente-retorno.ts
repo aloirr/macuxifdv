@@ -25,7 +25,7 @@ export const consumidorClienteRetornoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoClienteRetornoErp,
   async executar(p, ctx: ContextoConsumo) {
     if (p.status === 'rejeitado_erp') {
-      const atual = (await ctx.db.query<{ status_cadastro: 'pendente' | 'aprovado' | 'recusado' | null; external_id: string | null }>('select status_cadastro, external_id from core.cliente where id = $1 and deleted_at is null for update', [p.cliente_id])).rows[0] ?? null;
+      const atual = (await ctx.db.query<ClienteParaVinculo>('select status_cadastro, external_id from core.cliente where id = $1 and deleted_at is null for update', [p.cliente_id])).rows[0] ?? null;
       const r = decidirRecusaErp(atual);
       if (r.acao === 'nada') return;
       await ctx.db.query("update core.cliente set status_cadastro = 'recusado', motivo_recusa = $2 where id = $1", [p.cliente_id, motivoRecusaCortado(p.motivo)]);

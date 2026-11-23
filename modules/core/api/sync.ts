@@ -46,7 +46,7 @@ import {
   TituloSyncSchema,
   VisitaSyncSchema,
 } from '../contracts';
-import { dataLocal, perfilRecebeHistoricoDeCompra } from '../domain';
+import { dataLocal, motivoRecusaVisivel, perfilRecebeHistoricoDeCompra } from '../domain';
 import { JANELAS_CORE, janelaMesAnteriorOu40 } from './janelas-sync';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
 import { padraoDeDesconto } from './produtos';
@@ -267,6 +267,8 @@ function puxarDe(t: Tabela) {
     return ctx.comTenant(async (db) => {
       const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
       if (t.tabela === 'core.produto') return comDescontoEfetivo(linhas, await padraoDeDesconto(db));
+      // RN-CORE-78: o motivo da recusa do ERP só vai ao vendedor.
+      if (t.tabela === 'core.cliente') return linhas.map((l) => ({ ...l, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, (l as unknown as { motivo_recusa?: string | null }).motivo_recusa) }) as unknown as LinhaSync);
       if (t.tabela !== 'core.historico_compra' || ctx.usuario.perfil !== 'promotor') return linhas;
       return perfilRecebeHistoricoDeCompra('promotor', await lerPromotorVePedidos(db)) ? linhas : ocultarHistorico(linhas);
     });

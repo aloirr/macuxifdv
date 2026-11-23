@@ -8,18 +8,17 @@ import { type z } from 'zod';
 import {
   CONSULTA_CLIENTES_PRE_CADASTRO_SEM_ERP,
   EVENTO_CLIENTE_PRE_CADASTRADO,
+  MENSAGENS_CAMPO_FALTANTE,
   PARAMETRO_PRE_CADASTRO_OBRIGATORIOS,
   PreCadastroClienteSchema,
-  ROTULOS_CAMPOS_PRE_CADASTRO,
   obrigatoriosPreCadastroDasLinhas,
   type ClientePreCadastroParaErp,
   type ClientesPreCadastroSemErpSaida,
+  type StatusCadastro,
 } from '../contracts';
-import { camposFaltantesPreCadastro } from '../domain';
+import { camposFaltantesPreCadastro, decidirDocumentoDuplicado } from '../domain';
 import { auditar } from './auditoria';
 import { lerParametroCore } from './parametro-tenant';
-
-type StatusCadastro = 'pendente' | 'aprovado' | 'recusado';
 
 export const rotasDeClienteCadastro: RotaModulo[] = [
   {
@@ -38,20 +37,25 @@ export const rotasDeClienteCadastro: RotaModulo[] = [
         // RN-CORE-79: obrigatórios do parâmetro da empresa; só as chaves vão nos detalhes da resposta, nunca os valores.
         const faltantes = camposFaltantesPreCadastro(c, obrigatoriosPreCadastroDasLinhas(await lerParametroCore(db, PARAMETRO_PRE_CADASTRO_OBRIGATORIOS)));
         if (faltantes.length > 0) {
-          throw new ErroRegraNegocio('CAMPOS_OBRIGATORIOS', `Preencha: ${faltantes.map((f) => ROTULOS_CAMPOS_PRE_CADASTRO[f].toLowerCase()).join(', ')}.`, { campos: faltantes });
+          throw new ErroRegraNegocio('CAMPOS_OBRIGATORIOS', faltantes.map((f) => MENSAGENS_CAMPO_FALTANTE[f]).join(' '), { campos: faltantes });
         }
-        {
-          const igual = (await db.query('select 1 from core.cliente where documento = $1 and deleted_at is null', [c.documento])).rows[0];
-          if (igual) throw new ErroHttpModulo(409, 'DOCUMENTO_JA_CADASTRADO', 'Já existe um cliente com este CPF/CNPJ. Procure-o na lista de clientes.');
+        // RN-CORE-78: cliente 'recusado' com o mesmo documento não bloqueia o reenvio; ele sai (deleted_at, auditado, sem o motivo) na mesma transação.
+        const iguais = (await db.query<{ id: string; status_cadastro: StatusCadastro | null }>('select id, status_cadastro from core.cliente where documento = $1 and deleted_at is null', [c.documento])).rows;
+        const duplicado = decidirDocumentoDuplicado(iguais);
+        if (duplicado.bloqueia) throw new ErroHttpModulo(409, 'DOCUMENTO_JA_CADASTRADO', 'Já existe um cliente com este CPF/CNPJ. Procure-o na lista de clientes.');
+        for (const idRecusado of duplicado.remover) {
+          await db.query('update core.cliente set deleted_at = now() where id = $1', [idRecusado]);
+          await auditar(db, ctx, { acao: 'cliente.recusado_substituido', entidade: 'cliente', entidadeId: idRecusado, antes: { status_cadastro: 'recusado' }, depois: { substituido_por: c.id, regra: 'RN-CORE-78' } });
         }
         // Id que já existe em outro tenant (RLS esconde no select acima): a unicidade estoura; responde 409 sem dizer onde está.
+        let recebidoEm: Date | string;
         await db.query('savepoint pre_cadastro');
         try {
-          await db.query(
+          recebidoEm = (await db.query<{ created_at: Date | string }>(
           `insert into core.cliente (id, tenant_id, razao_social, nome_fantasia, documento, inscricao_estadual, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude, longitude, filial_id, origem_cadastro, status_cadastro)
-           values ($1, plataforma.tenant_atual(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'pendente')`,
+           values ($1, plataforma.tenant_atual(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'pendente') returning created_at`,
           [c.id, c.razao_social, c.nome_fantasia ?? null, c.documento ?? null, c.inscricao_estadual ?? null, c.telefone ?? null, c.email ?? null, c.logradouro ?? null, c.numero ?? null, c.bairro ?? null, c.cidade ?? null, c.uf ?? null, c.cep ?? null, c.latitude ?? null, c.longitude ?? null, c.filial_id ?? null, c.origem],
-          );
+          )).rows[0]!.created_at;
           await db.query('release savepoint pre_cadastro');
         } catch (e) {
           if ((e as { code?: string }).code !== '23505') throw e;
@@ -62,7 +66,7 @@ export const rotasDeClienteCadastro: RotaModulo[] = [
           await db.query("insert into core.carteira (tenant_id, cliente_id, usuario_id, papel) values (plataforma.tenant_atual(), $1, $2, 'vendedor')", [c.id, ctx.usuario.id]);
         }
         await auditar(db, ctx, { acao: 'cliente.pre_cadastrar', entidade: 'cliente', entidadeId: c.id, antes: null, depois: { origem: c.origem, status_cadastro: 'pendente' } });
-        await tx.publicar(EVENTO_CLIENTE_PRE_CADASTRADO, { cliente_id: c.id, recebido_em: ctx.agora().toISOString() }, c.id);
+        await tx.publicar(EVENTO_CLIENTE_PRE_CADASTRADO, { cliente_id: c.id, recebido_em: new Date(recebidoEm).toISOString() }, c.id);
         return { id: c.id, status_cadastro: 'pendente' as const, ja_existia: false };
       }),
   },

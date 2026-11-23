@@ -8,6 +8,10 @@
 import { definirEvento, definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 
+/** Situação do pré-cadastro (o ERP aprova; v1.0.28, RN-CORE-78): fonte única do app, da API e do sync. */
+export const StatusCadastroSchema = z.enum(['pendente', 'aprovado', 'recusado']);
+export type StatusCadastro = z.infer<typeof StatusCadastroSchema>;
+
 const Uuid = z.string().uuid();
 const Texto = z.string().max(200).nullable();
 
@@ -66,12 +70,19 @@ export function obrigatoriosPreCadastroDasLinhas(
 }
 
 /** `GET|PUT /v1/core/parametros/pre-cadastro` (ação `parametro.pre_cadastro`). */
-export const ParametroPreCadastroPutSchema = z.object({ obrigatorios: ObrigatoriosPreCadastroSchema }).strict();
-export type ParametroPreCadastroPut = z.infer<typeof ParametroPreCadastroPutSchema>;
 export const ParametroPreCadastroSchema = z.object({ obrigatorios: ObrigatoriosPreCadastroSchema }).strict();
 export type ParametroPreCadastro = z.infer<typeof ParametroPreCadastroSchema>;
-/** 422 do pré-cadastro: só as chaves dos campos faltantes, nunca valores. */
-export const ErroCamposObrigatoriosPreCadastroSchema = z.object({ codigo: z.literal('CAMPOS_OBRIGATORIOS'), campos: z.array(z.string()).min(1) });
+
+/** Mensagem do 422 por campo faltante (única fonte: a API junta as mensagens; nunca valores). */
+export const MENSAGENS_CAMPO_FALTANTE: Record<CampoPreCadastro, string> = {
+  razao_social: 'Preencha a razão social.',
+  documento: 'Preencha o CPF/CNPJ.',
+  nome_fantasia: 'Preencha o nome fantasia.',
+  inscricao_estadual: 'Preencha a inscrição estadual.',
+  telefone: 'Preencha o telefone.',
+  email: 'Preencha o e-mail.',
+  endereco: 'Preencha o endereço.',
+};
 
 export const ClientePreCadastradoSchema = z.object({
   cliente_id: Uuid,
@@ -142,4 +153,4 @@ export const PreCadastroClienteSchema = z
   })
   .strict();
 export type PreCadastroCliente = z.infer<typeof PreCadastroClienteSchema>;
-export const PreCadastroClienteSaidaSchema = z.object({ id: Uuid, status_cadastro: z.enum(['pendente', 'aprovado', 'recusado']), ja_existia: z.boolean() });
+export const PreCadastroClienteSaidaSchema = z.object({ id: Uuid, status_cadastro: StatusCadastroSchema, ja_existia: z.boolean() });

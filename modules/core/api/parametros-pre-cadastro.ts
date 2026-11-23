@@ -1,13 +1,12 @@
 /**
  * Parâmetro dos campos obrigatórios do pré-cadastro de cliente (v1.0.28; RN-CORE-79; RN-AUD-01):
- * `GET|PUT /v1/core/parametros/pre-cadastro`, ação `parametro.pre_cadastro` (GET: `parametro.pre_cadastro`, admin e analista; PUT: `parametro.pre_cadastro_editar`, só admin).
+ * `GET|PUT /v1/core/parametros/pre-cadastro`, GET: `parametro.pre_cadastro` (admin, analista); PUT: `parametro.pre_cadastro_editar` (admin).
  * Guardado em `plataforma.parametro` (módulo `core`, chave `cliente.pre_cadastro.obrigatorios`); sem linha, nenhum campo configurável é obrigatório.
  * Escrita idempotente: só grava e audita (antes/depois) o que mudou. A licença do módulo é checada pelo SDK; RLS do tenant da transação.
  */
 import type { RotaModulo } from '@macuxi/platform-sdk';
 import {
   PARAMETRO_PRE_CADASTRO_OBRIGATORIOS,
-  ParametroPreCadastroPutSchema,
   ParametroPreCadastroSchema,
   obrigatoriosPreCadastroDasLinhas,
   type ParametroPreCadastro,
@@ -35,9 +34,9 @@ export const rotasDeParametrosPreCadastro: RotaModulo[] = [
     superficie: 'bko',
     acao: ACAO_PARAMETRO_PRE_CADASTRO_EDITAR,
     carteira: 'nao_se_aplica',
-    corpo: ParametroPreCadastroPutSchema,
+    corpo: ParametroPreCadastroSchema,
     executar: (ctx) => {
-      const novo = ParametroPreCadastroSchema.parse(ctx.corpo);
+      const novo = ctx.corpo as ParametroPreCadastro;
       return ctx.comTenant(async (db): Promise<ParametroPreCadastro> => {
         const antes = obrigatoriosPreCadastroDasLinhas(await lerParametroCore(db, PARAMETRO_PRE_CADASTRO_OBRIGATORIOS));
         if (JSON.stringify([...antes].sort()) !== JSON.stringify([...novo.obrigatorios].sort())) {

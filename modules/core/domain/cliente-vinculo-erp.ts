@@ -2,8 +2,10 @@
  * RN-CORE-78: retorno do ERP sobre o pré-cadastro (vínculo com o código ou recusa com motivo). Funções puras; a API revalida.
  * O cliente chega 'pendente'; o legado 'aprovado' (v1.0.27, sem código) também aceita o código.
  */
+import type { StatusCadastro } from '../contracts/cliente-pre-cadastro';
+
 export interface ClienteParaVinculo {
-  status_cadastro: 'pendente' | 'aprovado' | 'recusado' | null;
+  status_cadastro: StatusCadastro | null;
   external_id: string | null;
 }
 export type DecisaoVinculoErp =
