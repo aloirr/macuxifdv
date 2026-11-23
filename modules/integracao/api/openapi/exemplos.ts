@@ -7,6 +7,9 @@
  */
 import type { z } from 'zod';
 import type {
+  ClientesPendentes,
+  RetornoCliente,
+  RetornoClienteAceito,
   CursorEntidade,
   LoteAceito,
   LoteEnvelope,
@@ -37,6 +40,7 @@ export const VERSAO_CONECTOR_EXEMPLO = '1.2.1';
 export const CHAVE_IDEMPOTENCIA_EXEMPLO = '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08';
 export const REQUISICAO_ID_EXEMPLO = 'req-7f3a9c2e41d8';
 export const LOTE_ID_EXEMPLO = '5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1';
+export const CLIENTE_UUID_EXEMPLO = '8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04';
 export const PEDIDO_UUID_EXEMPLO = '3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c';
 export const SESSAO_ID_EXEMPLO = 'c0a8e3d2-5b71-4a96-b4f0-7d19e8a2c635';
 
@@ -513,6 +517,45 @@ export const EXEMPLOS_PEDIDOS_PENDENTES: readonly Exemplo<z.output<typeof Pedido
   ex('vazio', 'Nenhum pedido pendente (normal)', { pedidos: [] }),
 ];
 
+export const EXEMPLOS_RETORNO_CLIENTE: readonly Exemplo<z.input<typeof RetornoCliente>>[] = [
+  ex('vinculado', 'Cliente criado no ERP (informe o código)', { versao_contrato: 'v1', cliente_uuid: CLIENTE_UUID_EXEMPLO, status: 'vinculado', external_id: 'C-004512', ocorrido_em: '2026-11-23T14:02:00Z' }),
+  ex('rejeitado_erp', 'ERP recusou o cadastro (o motivo é obrigatório)', { versao_contrato: 'v1', cliente_uuid: CLIENTE_UUID_EXEMPLO, status: 'rejeitado_erp', motivo: 'CNPJ já cadastrado com outro código', ocorrido_em: '2026-11-23T14:02:00Z' }),
+];
+
+export const EXEMPLOS_CLIENTES_PENDENTES: readonly Exemplo<z.output<typeof ClientesPendentes>>[] = [
+  ex('com_cliente', 'Um cliente novo aprovado (o Hub o marca como enviado ao entregar)', {
+    clientes: [
+      {
+        cliente_uuid: CLIENTE_UUID_EXEMPLO,
+        aprovado_em: '2026-11-23T13:40:00Z',
+        razao_social: 'Mercadinho Boa Vista Ltda',
+        nome_fantasia: 'Boa Vista',
+        documento: '12345678000190',
+        inscricao_estadual: null,
+        telefone: '9532212345',
+        email: null,
+        logradouro: 'Av. Ene Garcez',
+        numero: '1200',
+        complemento: null,
+        bairro: 'Centro',
+        cidade: 'Boa Vista',
+        uf: 'RR',
+        cep: '69301110',
+        latitude: null,
+        longitude: null,
+        filial_external_id: null,
+        tentativa: 1,
+      },
+    ],
+  }),
+  ex('vazio', 'Nenhum cliente novo pendente (normal)', { clientes: [] }),
+];
+
+export const EXEMPLOS_RETORNO_CLIENTE_ACEITO: readonly Exemplo<z.output<typeof RetornoClienteAceito>>[] = [
+  ex('vinculado', 'Retorno aplicado', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: false }),
+  ex('repetido', 'Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)', { cliente_uuid: CLIENTE_UUID_EXEMPLO, estado: 'vinculado', repetido: true }),
+];
+
 export const EXEMPLOS_RETORNO_ACEITO: readonly Exemplo<z.output<typeof RetornoAceito>>[] = [
   ex('integrado', 'Retorno aplicado', { pedido_uuid: PEDIDO_UUID_EXEMPLO, status: 'integrado', repetido: false }),
   ex('repetido', 'Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)', { pedido_uuid: PEDIDO_UUID_EXEMPLO, status: 'integrado', repetido: true }),
@@ -608,6 +651,17 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
       ex('pedido_desconhecido', 'O Hub não conhece o pedido', recusa('pedido_desconhecido', null, 'O Hub não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno.')),
       ex('transicao_invalida', 'Estado informado não é possível a partir do estado atual', recusa('transicao_invalida', 'status', 'Transição inválida do pedido: rejeitado_erp → faturado_total. rejeitado_erp é um estado final.')),
       ex('numero_erp_divergente', 'O mesmo pedido já tem outro número no ERP', recusa('numero_erp_divergente', 'numero_erp', 'O pedido já tem o número PV-004512 no ERP e o retorno informa outro. Confira no ERP se o pedido foi gravado duas vezes.')),
+    ],
+    426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
+  },
+  clientes_pendentes: {
+    426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
+  },
+  retorno_cliente: {
+    400: [ex('requisicao_invalida', 'Corpo fora do contrato (ou cliente_uuid do caminho diferente do corpo)', erro('requisicao_invalida', 'Dados inválidos em corpo.', { detalhes: { problemas: [{ caminho: 'corpo.external_id', mensagem: 'informe o código do cliente no ERP' }] } }))],
+    422: [
+      ex('cliente_desconhecido', 'O Hub não conhece o cliente', recusa('cliente_desconhecido', null, 'O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.')),
+      ex('external_id_divergente', 'O mesmo cliente já tem outro código no ERP', recusa('external_id_divergente', 'external_id', 'O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes.')),
     ],
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },

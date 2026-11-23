@@ -523,7 +523,7 @@ export function criarHubSimulado({ chave = gerarChaveFicticia(), conectorId = 'e
     if (m === 'GET' && caminho === '/pedidos/pendentes') return pedidosPendentes(ctx);
     if (m === 'POST' && (achou = caminho.match(/^\/pedidos\/([^/]+)\/retorno$/))) return retornoPedido(ctx, achou[1]);
     if (m === 'POST' && caminho === '/sinal') return sinal(ctx);
-    return erro(ctx, 404, 'rota_nao_encontrada', 'Rota não encontrada neste Hub simulado. Veja as 7 rotas do OpenAPI.');
+    return erro(ctx, 404, 'rota_nao_encontrada', 'Rota não encontrada neste Hub simulado. Veja as 9 rotas do OpenAPI.');
   }
 
   const servidor = createServer((req, res) => {

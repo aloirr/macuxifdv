@@ -18,6 +18,7 @@ import {
   CABECALHO_IDEMPOTENCIA,
   CODIGOS_ERRO_ENVELOPE,
   CODIGOS_RECUSA_RETORNO,
+  CODIGOS_RECUSA_RETORNO_CLIENTE,
   ENTIDADES,
   ROTAS_HUB,
   SCHEMA_REGISTRO,
@@ -134,8 +135,8 @@ describe('OpenAPI do Hub: validade (schema oficial do OpenAPI 3.1)', () => {
 });
 
 describe('OpenAPI do Hub: cobertura das rotas do contrato', () => {
-  it('as 7 rotas de ROTAS_HUB viram operações com operationId, resumo, status de sucesso e de erro', () => {
-    expect(ROTAS_HUB).toHaveLength(7);
+  it('as 9 rotas de ROTAS_HUB viram operações com operationId, resumo, status de sucesso e de erro', () => {
+    expect(ROTAS_HUB).toHaveLength(9);
     for (const rota of ROTAS_HUB) {
       const op = doc.paths[rota.caminho]?.[rota.metodo.toLowerCase()] as Json | undefined;
       expect(op, `${rota.metodo} ${rota.caminho}`).toBeDefined();
@@ -146,7 +147,7 @@ describe('OpenAPI do Hub: cobertura das rotas do contrato', () => {
       for (const s of [...rota.erros, ...STATUS_ERRO_COMUM]) expect(status, `${rota.id}: ${s}`).toContain(s);
       expect(Boolean(op?.requestBody)).toBe(Boolean(rota.corpo));
     }
-    expect(Object.values(doc.paths).flatMap((p) => Object.keys(p))).toHaveLength(7);
+    expect(Object.values(doc.paths).flatMap((p) => Object.keys(p))).toHaveLength(9);
   });
 
   it('autenticação: Bearer em securityScheme global; Authorization não vira parâmetro; os outros cabeçalhos usam o nome canônico', () => {
@@ -248,6 +249,7 @@ describe('OpenAPI do Hub: fidelidade dos exemplos (Zod do contrato E JSON Schema
     for (const c of CODIGOS_ERRO_ENVELOPE) if (!['envelope_invalido', 'chave_idempotencia_invalida', 'chave_idempotencia_reutilizada', 'corpo_grande', 'versao_conector_nao_suportada'].includes(c)) add(c, 422);
     add('chave_idempotencia_reutilizada', 409);
     for (const c of CODIGOS_RECUSA_RETORNO) add(c, 422);
+    for (const c of CODIGOS_RECUSA_RETORNO_CLIENTE) add(c, 422);
     add('erro_interno', 500);
 
     const conferir = (nome: string, status: number, schema: z.ZodTypeAny, ex: Exemplo) => {

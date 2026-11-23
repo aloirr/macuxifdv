@@ -102,6 +102,19 @@ export const ReconciliacaoDivergenteEvento = z.object({
 export type ReconciliacaoDivergenteEvento = z.infer<typeof ReconciliacaoDivergenteEvento>;
 
 /**
+ * `integracao.cliente.retorno_erp@1` (RN-INT-22) — o ERP devolveu o código do cliente novo (`vinculado`) ou o recusou (`rejeitado_erp`).
+ * Sem dado pessoal: só ids e o código. O próprio módulo o consome para pedir ao Core o vínculo (`core.cliente_vincular_erp@1`).
+ */
+export const ClienteRetornoErpEvento = z.object({
+  cliente_id: Uuid,
+  status: z.enum(['vinculado', 'rejeitado_erp']),
+  external_id: z.string().min(1).nullable(),
+  motivo: z.string().max(1000).nullable(),
+  ocorrido_em: DataHoraUtc,
+});
+export type ClienteRetornoErpEvento = z.infer<typeof ClienteRetornoErpEvento>;
+
+/**
  * `integracao.lote.recebido@1` — evento INTERNO (T-0025): o `POST /lotes` o publica na mesma transação que grava o lote e o
  * staging; o próprio módulo o consome para aplicar o lote em segundo plano (outbox como fila, ADR 0007). Não tem outro consumidor.
  * O payload não leva linhas (nem dado pessoal): quem processa lê o staging do lote.
@@ -120,6 +133,7 @@ export type LoteRecebidoEvento = z.infer<typeof LoteRecebidoEvento>;
 export const EVENTO_LOTE_RECEBIDO = definirEvento('integracao.lote.recebido@1', LoteRecebidoEvento);
 export const EVENTO_LOTE_CONCLUIDO = definirEvento('integracao.lote.concluido@1', LoteConcluidoEvento);
 export const EVENTO_PEDIDO_RETORNO_ERP = definirEvento('integracao.pedido.retorno_erp@1', PedidoRetornoErpEvento);
+export const EVENTO_CLIENTE_RETORNO_ERP = definirEvento('integracao.cliente.retorno_erp@1', ClienteRetornoErpEvento);
 export const EVENTO_PEDIDO_CANCELAMENTO_RECUSADO = definirEvento('integracao.pedido.cancelamento_recusado@1', PedidoCancelamentoRecusadoEvento);
 export const EVENTO_RECONCILIACAO_DIVERGENTE = definirEvento('integracao.reconciliacao.divergente@1', ReconciliacaoDivergenteEvento);
 

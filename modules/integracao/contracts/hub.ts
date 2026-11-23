@@ -11,6 +11,7 @@ import { Uuid } from './base';
 import { Entidade } from './entidades';
 import { CursorEntidade, LoteAceito, LoteEnvelope, LoteResultado, ReconciliacaoEnvio } from './lote';
 import { PedidosPendentes, RetornoAceito, RetornoErp } from './pedido';
+import { ClientesPendentes, ParamsCliente, QueryClientesPendentes, RetornoCliente, RetornoClienteAceito } from './cliente-erp';
 
 export const CABECALHO_IDEMPOTENCIA = 'Idempotency-Key';
 /** Resposta de repetição: o Hub devolve o lote que já existia para a chave (`Idempotent-Replay: true`). */
@@ -113,6 +114,16 @@ export const RecusaRetorno = z.object({
   requisicao_id: z.string().nullish(),
 });
 export type RecusaRetorno = z.infer<typeof RecusaRetorno>;
+
+/** Códigos de recusa do retorno do cliente (HTTP 422, definitivo; RN-INT-22). */
+export const CODIGOS_RECUSA_RETORNO_CLIENTE = ['cliente_desconhecido', 'cliente_nao_entregue', 'transicao_invalida', 'external_id_divergente'] as const;
+export const RecusaRetornoCliente = z.object({
+  codigo: z.enum(CODIGOS_RECUSA_RETORNO_CLIENTE),
+  mensagem: z.string().min(1),
+  erros: z.array(z.object({ codigo: z.string().min(1), campo: z.string().nullable(), mensagem: z.string().min(1) })).min(1),
+  requisicao_id: z.string().nullish(),
+});
+export type RecusaRetornoCliente = z.infer<typeof RecusaRetornoCliente>;
 
 /** Parâmetros de rota e query. */
 export const ParamsLote = z.object({ id: Uuid });
@@ -236,6 +247,27 @@ export const ROTAS_HUB: readonly RotaHub[] = [
     params: ParamsPedido,
     corpo: RetornoErp,
     sucesso: { status: 200, schema: RetornoAceito },
+    erros: [400, 422, 426],
+  },
+  {
+    id: 'clientes_pendentes',
+    metodo: 'GET',
+    caminho: '/clientes/pendentes',
+    resumo: 'Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).',
+    cabecalhos: CabecalhosConector,
+    query: QueryClientesPendentes,
+    sucesso: { status: 200, schema: ClientesPendentes },
+    erros: [426],
+  },
+  {
+    id: 'retorno_cliente',
+    metodo: 'POST',
+    caminho: '/clientes/{cliente_uuid}/retorno',
+    resumo: 'Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).',
+    cabecalhos: CabecalhosConector,
+    params: ParamsCliente,
+    corpo: RetornoCliente,
+    sucesso: { status: 200, schema: RetornoClienteAceito },
     erros: [400, 422, 426],
   },
   {
