@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { dataLocal, faixasCurvaAbcDasLinhas, PARAMETROS_CURVA_ABC_PADRAO, fotosComPendentes, pedidosVisiveisNoAparelho, type FaixasPorDimensao, type FotoPdvPush } from '../../domain';
 import { agruparPorCliente, montarCliente360Local, type BaseLocal, type Cliente360Local } from './cliente360-local';
 import { fusoDe } from './estado';
+import { ENTIDADE_PRE_CADASTRO, sobreporPreCadastros } from './pre-cadastro-local';
 import { useCore } from './usar-core';
 
 export interface ClientesLocais extends BaseLocal {
@@ -86,7 +87,12 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     () => (motor ? motor.sobreposicao(['cliente_foto']).map((i) => i.payload as FotoPdvPush) : []),
     [motor, estado.fila, estado.aceitos],
   );
-  return { dados: useMemo(() => ({ ...dados, fotosPendentes }), [dados, fotosPendentes]), hoje };
+  // v1.0.28 / RN-CORE-78: o pré-cadastro na fila aparece na hora na lista e na ficha, com o selo "Aguardando ERP"
+  const clientes = useMemo(
+    () => (motor ? sobreporPreCadastros(dados.clientes, motor.sobreposicao([ENTIDADE_PRE_CADASTRO]), new Date().toISOString()) : dados.clientes),
+    [motor, dados.clientes, estado.fila, estado.aceitos],
+  );
+  return { dados: useMemo(() => ({ ...dados, clientes, pronto: dados.pronto || clientes.length > 0, fotosPendentes }), [dados, clientes, fotosPendentes]), hoje };
 }
 
 /** Ficha 360 do cliente com as linhas do aparelho; `null` se o cliente não está no aparelho. */

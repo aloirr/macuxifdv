@@ -1,0 +1,11 @@
+# Pré-cadastro de cliente (v1.0.28; RN-CORE-78, RN-CORE-79, RN-INT-22)
+
+O FDV só faz o pré-cadastro; quem aprova é o ERP. Não há aprovação no BKO.
+
+- **Criar:** `POST /v1/core/clientes/pre-cadastro` (ação `cliente.pre_cadastrar`), idempotente pelo `id`. Revalida os campos obrigatórios (razão social e CPF/CNPJ sempre; os demais pelo parâmetro da empresa). Falta de campo: 422 `CAMPOS_OBRIGATORIOS` com `detalhes.campos` (só as chaves) e a mensagem de `MENSAGENS_CAMPO_FALTANTE` dos campos que faltam (ex.: "Preencha o CPF/CNPJ."). Grava `status_cadastro = 'pendente'` e publica `core.cliente.pre_cadastrado@1` (`cliente_id`, `recebido_em` = `created_at` do insert, o mesmo que a consulta do Hub entrega) na mesma transação.
+- **Fila do ERP:** consulta `core.clientes_pre_cadastro_sem_erp@1` (pendentes sem `external_id`, ordem de chegada, paginada por `depois_de`; campo `recebido_em`).
+- **Retorno do ERP** (`integracao.cliente.retorno_erp@1`): `vinculado` grava `external_id`, `status_cadastro = 'aprovado'` e `aprovado_em`; `rejeitado_erp` grava `status_cadastro = 'recusado'` e `motivo_recusa` (até 500). O motivo nunca vai a log nem à auditoria. Os dois publicam `core.cliente.atualizado@1`. O legado `aprovado` sem código também recebe o código.
+- **Parâmetro:** `GET|PUT /v1/core/parametros/pre-cadastro`. Leitura: ação `parametro.pre_cadastro` (admin, analista); gravação: `parametro.pre_cadastro_editar` (admin); auditada. Valor em `plataforma.parametro` (`core`, `cliente.pre_cadastro.obrigatorios`, lista de `nome_fantasia`, `inscricao_estadual`, `telefone`, `email`, `endereco`). O app lê pelo pull `parametro` (`obrigatoriosPreCadastroDasLinhas`).
+- **BKO:** Parâmetros › Clientes › "Pré-cadastro de cliente" (`modules/core/web/components/pre-cadastro`).
+- **Pull do cliente** leva `status_cadastro` e `motivo_recusa`, mas o motivo só vai ao perfil vendedor (pull e Cliente 360); os demais perfis recebem nulo (`motivoRecusaVisivel`, RN-CORE-78).
+- **Reenvio após recusa**: no pré-cadastro, a busca de CPF/CNPJ duplicado ignora cliente `recusado`. Se houver recusado vivo com o mesmo documento, ele recebe `deleted_at` na mesma transação (auditado como `cliente.recusado_substituido`, sem o motivo) e o novo segue; pendente ou aprovado continua dando 409 (`decidirDocumentoDuplicado`, RN-CORE-78).

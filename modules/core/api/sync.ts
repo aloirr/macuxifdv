@@ -19,6 +19,7 @@ import {
   PARAMETRO_PARADO_MIN,
   PARAMETRO_PROMOTOR_VE_PEDIDOS,
   PARAMETRO_RASTREAMENTO,
+  PARAMETRO_PRE_CADASTRO_OBRIGATORIOS,
   CarteiraSyncSchema,
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
@@ -45,7 +46,7 @@ import {
   TituloSyncSchema,
   VisitaSyncSchema,
 } from '../contracts';
-import { dataLocal, perfilRecebeHistoricoDeCompra } from '../domain';
+import { dataLocal, motivoRecusaVisivel, perfilRecebeHistoricoDeCompra } from '../domain';
 import { JANELAS_CORE, janelaMesAnteriorOu40 } from './janelas-sync';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
 import { padraoDeDesconto } from './produtos';
@@ -79,13 +80,13 @@ export interface Tabela {
 }
 
 /** Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). */
-const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO] as const;
+const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO, PARAMETRO_PRE_CADASTRO_OBRIGATORIOS] as const;
 
 export const TABELAS_SYNC = {
   cliente: {
     tabela: 'core.cliente',
     colunas:
-      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal, filial_id',
+      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal, filial_id, status_cadastro, motivo_recusa',
     colunaCliente: 'id',
   },
   carteira: {
@@ -266,6 +267,8 @@ function puxarDe(t: Tabela) {
     return ctx.comTenant(async (db) => {
       const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
       if (t.tabela === 'core.produto') return comDescontoEfetivo(linhas, await padraoDeDesconto(db));
+      // RN-CORE-78: o motivo da recusa do ERP só vai ao vendedor.
+      if (t.tabela === 'core.cliente') return linhas.map((l) => ({ ...l, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, (l as unknown as { motivo_recusa?: string | null }).motivo_recusa) }) as unknown as LinhaSync);
       if (t.tabela !== 'core.historico_compra' || ctx.usuario.perfil !== 'promotor') return linhas;
       return perfilRecebeHistoricoDeCompra('promotor', await lerPromotorVePedidos(db)) ? linhas : ocultarHistorico(linhas);
     });

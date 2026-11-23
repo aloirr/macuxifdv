@@ -151,7 +151,7 @@ export const consumidoresDoErp: ConsumidorEvento[] = [
   consumidorFilialDoErp, // antes do cliente: a filial do cliente aponta para ela (ordem de carga, desenho T-0149 §4.4)
   consumidorVendedorDoErp,
   consumidorClienteDoErp,
-  consumidorClienteRetornoErp, // RN-CORE-78: código do ERP do cliente aprovado
+  consumidorClienteRetornoErp, // RN-CORE-78: o ERP aprova (código) ou recusa (motivo) o pré-cadastro
   consumidorProdutoDoErp,
   consumidorProdutoUnidadeDoErp,
   consumidorClienteEnderecoDoErp,

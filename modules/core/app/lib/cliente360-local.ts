@@ -5,7 +5,7 @@
  * da janela (título liquidado antigo, histórico além de 12 meses) não aparece, mesmo que ainda esteja no aparelho.
  */
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
-import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, StatusCadastro, TituloSync } from '../../contracts';
 import { fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, ultimaVisitaEntre, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
 
 export interface LinhasCliente {
@@ -144,6 +144,9 @@ export interface ItemClienteLocal extends ClienteLista {
   cadastro_incompleto: boolean;
   /** RN-CORE-47: código do ERP; vazio = Pré-Cadastro. */
   external_id: string | null;
+  /** RN-CORE-78: situação do pré-cadastro (selo da lista); ausente = linha do ERP. */
+  status_cadastro?: StatusCadastro | null;
+  motivo_recusa?: string | null;
   /** RN-CORE-47: data (AAAA-MM-DD, fuso do tenant) do último check-in; nulo = nunca visitado. */
   ultima_visita: string | null;
 }
@@ -176,6 +179,8 @@ export function listarClientesLocais(base: BaseLocal, hoje: string, filtro: Filt
       uf: c.uf,
       cadastro_incompleto: c.cadastro_incompleto ?? false,
       external_id: c.external_id,
+      status_cadastro: c.status_cadastro,
+      motivo_recusa: c.motivo_recusa,
       ultima_visita: ultimaPorCliente.get(c.id) ?? null,
       bloqueado: financeiroPorCliente.get(c.id)?.bloqueado ?? false,
       vencidos_qtd: (titulosPorCliente.get(c.id) ?? []).filter((t) => situacaoTitulo(t, hoje).situacao === 'vencido').length,

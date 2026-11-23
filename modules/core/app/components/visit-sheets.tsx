@@ -120,10 +120,10 @@ export function VisitSheetsProvider({ children }: { children: ReactNode }) {
 }
 
 /** Monta uma tela do Core dentro do provider das folhas de visita. */
-export function comVisitas(Tela: ComponentType): ComponentType {
-  const Envolvida: ComponentType = () => (
+export function comVisitas<P extends object = object>(Tela: ComponentType<P>): ComponentType<P> {
+  const Envolvida: ComponentType<P> = (props: P) => (
     <VisitSheetsProvider>
-      <Tela />
+      <Tela {...props} />
     </VisitSheetsProvider>
   );
   Envolvida.displayName = `comVisitas(${Tela.displayName ?? Tela.name ?? 'Tela'})`;
