@@ -19,6 +19,7 @@ import {
   PARAMETRO_PARADO_MIN,
   PARAMETRO_PROMOTOR_VE_PEDIDOS,
   PARAMETRO_RASTREAMENTO,
+  PARAMETRO_PRE_CADASTRO_OBRIGATORIOS,
   CarteiraSyncSchema,
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
@@ -79,13 +80,13 @@ export interface Tabela {
 }
 
 /** Chaves de `plataforma.parametro` (módulo core) que vão ao aparelho no pull `parametro` (lista fixa). */
-const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO] as const;
+const CHAVES_PARAMETRO_SYNC = ['checkin.raio_m', PARAMETRO_PROMOTOR_VE_PEDIDOS, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_FERIADOS, PARAMETRO_ALMOCO_PADRAO, PARAMETRO_ALERTAS_PRODUTIVIDADE, PARAMETRO_RASTREAMENTO, PARAMETRO_PRE_CADASTRO_OBRIGATORIOS] as const;
 
 export const TABELAS_SYNC = {
   cliente: {
     tabela: 'core.cliente',
     colunas:
-      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal, filial_id',
+      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal, filial_id, status_cadastro, motivo_recusa',
     colunaCliente: 'id',
   },
   carteira: {

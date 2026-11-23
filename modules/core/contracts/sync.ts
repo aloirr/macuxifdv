@@ -53,7 +53,7 @@ export const ClienteSyncSchema = z
     /** T-0115 / RN-PES-05 (aditivo): canal do cliente (lista do tenant, vem do ERP); a Pesquisa o usa no público-alvo. Ausente = linha/emissor antigo. */
     canal: z.string().max(60).nullable().optional(),
     /** v1.0.28 / RN-CORE-78 (aditivo): situação do pré-cadastro (o ERP aprova) e motivo da recusa do ERP (até 500; só com 'recusado'). Ausente = linha/emissor antigo. */
-    status_cadastro: z.enum(['pendente', 'aprovado', 'recusado']).optional(),
+    status_cadastro: z.enum(['pendente', 'aprovado', 'recusado']).nullable().optional(),
     motivo_recusa: z.string().max(500).nullable().optional(),
   })
   .strict();

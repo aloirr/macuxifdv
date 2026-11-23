@@ -52,8 +52,3 @@ export const CONSULTA_CLIENTES_APROVADOS_SEM_ERP = definirConsulta({
   entrada: ClientesAprovadosSemErpEntradaSchema,
   saida: ClientesAprovadosSemErpSaidaSchema,
 });
-
-/** @deprecated v1.0.28: sai no commit 2 (a aprovação passou para o ERP). */
-export const DecidirCadastroClienteSchema = z.object({ decisao: z.enum(['aprovar', 'recusar']) }).strict();
-export type DecidirCadastroCliente = z.infer<typeof DecidirCadastroClienteSchema>;
-export const DecidirCadastroClienteSaidaSchema = z.object({ id: Uuid, status_cadastro: z.enum(['aprovado', 'recusado']) });

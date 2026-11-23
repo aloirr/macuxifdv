@@ -1,6 +1,6 @@
 /**
- * `integracao.cliente.retorno_erp@1` no Core × Postgres real (RN-CORE-78, RN-INT-22; colunas da migração 0095): grava o código do ERP
- * no cliente aprovado, é idempotente, recusa conflito e código em uso, isola por tenant. Transação desfeita no fim. Pula sem Postgres.
+ * `integracao.cliente.retorno_erp@1` no Core × Postgres real (RN-CORE-78, RN-INT-22; colunas das migrações 0095 e 0097): o ERP aprova (grava o código e o
+ * status) ou recusa (grava o motivo), é idempotente, recusa conflito e código em uso, isola por tenant. Transação desfeita no fim. Pula sem Postgres.
  */
 import { definirTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
@@ -46,68 +46,93 @@ describe.skipIf(semBanco())('Core × Postgres: retorno do ERP do cliente novo (R
     }
   }
 
-  const novo = (id: string, aprovado: boolean, externalId: string | null = null) =>
-    `insert into core.cliente (id, tenant_id, razao_social, origem_cadastro, status_cadastro, aprovado_em, aprovado_por, external_id) values ('${id}', plataforma.tenant_atual(), 'Cliente ${id.slice(-1)}', 'campo', '${aprovado ? 'aprovado' : 'pendente'}', ${aprovado ? `now(), '${A.usuarios.admin}'` : 'null, null'}, ${externalId ? `'${externalId}'` : 'null'})`;
+  type Status = 'pendente' | 'aprovado' | 'recusado';
+  const novo = (id: string, status: Status, externalId: string | null = null) =>
+    `insert into core.cliente (id, tenant_id, razao_social, origem_cadastro, status_cadastro, aprovado_em, motivo_recusa, external_id) values ('${id}', plataforma.tenant_atual(), 'Cliente ${id.slice(-1)}', 'campo', '${status}', ${status === 'aprovado' ? 'now()' : 'null'}, ${status === 'recusado' ? "'recusa antiga'" : 'null'}, ${externalId ? `'${externalId}'` : 'null'})`;
   const retorno = (id: string, status: 'vinculado' | 'rejeitado_erp', external_id: string | null, motivo: string | null = null) => ({ cliente_id: id, status, external_id, motivo, ocorrido_em: '2026-11-23T12:00:00Z' });
-  const codigoDe = async (q: <R>(s: string) => Promise<R[]>, id: string) => (await q<{ external_id: string | null }>(`select external_id from core.cliente where id = '${id}'`))[0]?.external_id;
 
-  it('RN-CORE-78: vinculado grava o código no cliente aprovado, audita, publica uma vez e a reentrega não repete', async () => {
+  const linha = async (q: <R>(s: string) => Promise<R[]>, id: string) =>
+    (await q<{ external_id: string | null; status_cadastro: string; aprovado_em: string | null; motivo_recusa: string | null }>(`select external_id, status_cadastro, aprovado_em::text, motivo_recusa from core.cliente where id = '${id}'`))[0]!;
+
+  it('RN-CORE-78: vinculado grava o código e aprova o cadastro pendente, audita, publica uma vez e a reentrega não repete', async () => {
     await emTransacao(async (t) => {
-      await t.q(novo(C1, true));
+      await t.q(novo(C1, 'pendente'));
       await t.entregar(retorno(C1, 'vinculado', 'ERP-1'));
       await t.entregar(retorno(C1, 'vinculado', 'ERP-1'), 'ev-2');
-      expect(await codigoDe(t.q, C1)).toBe('ERP-1');
+      expect(await linha(t.q, C1)).toMatchObject({ external_id: 'ERP-1', status_cadastro: 'aprovado', aprovado_em: expect.any(String) });
       expect(t.publicar).toHaveBeenCalledTimes(1);
       const aud = await t.q<{ acao: string }>("select acao from plataforma.auditoria where entidade_id = $1 and acao like 'cliente.%'", [C1]);
       expect(aud).toEqual([{ acao: 'cliente.vincular_erp' }]);
     });
   });
 
+  it('RN-CORE-78: o legado aprovado sem código também recebe o código do ERP', async () => {
+    await emTransacao(async (t) => {
+      await t.q(novo(C1, 'aprovado'));
+      await t.entregar(retorno(C1, 'vinculado', 'ERP-1'));
+      expect(await linha(t.q, C1)).toMatchObject({ external_id: 'ERP-1', status_cadastro: 'aprovado' });
+    });
+  });
+
   it('RN-CORE-78: código diferente do que o cliente já tem é conflito: não grava, audita e não publica', async () => {
     await emTransacao(async (t) => {
-      await t.q(novo(C1, true, 'ERP-1'));
+      await t.q(novo(C1, 'aprovado', 'ERP-1'));
       await t.entregar(retorno(C1, 'vinculado', 'ERP-9'));
-      expect(await codigoDe(t.q, C1)).toBe('ERP-1');
+      expect((await linha(t.q, C1)).external_id).toBe('ERP-1');
       expect(t.publicar).not.toHaveBeenCalled();
       const aud = await t.q<{ depois: { resultado: string } }>("select depois from plataforma.auditoria where entidade_id = $1 and acao = 'cliente.vinculo_erp_recusado'", [C1]);
       expect(aud[0]?.depois.resultado).toBe('conflito');
     });
   });
 
-  it('RN-CORE-78: código de outro cliente do tenant é codigo_em_uso: não grava; cliente não aprovado é ignorado', async () => {
+  it('RN-CORE-78: código de outro cliente do tenant é codigo_em_uso e cadastro recusado não recebe código', async () => {
     await emTransacao(async (t) => {
-      await t.q(novo(C1, true, 'ERP-1'));
-      await t.q(novo(C2, true));
-      await t.q(novo(C3, false));
+      await t.q(novo(C1, 'aprovado', 'ERP-1'));
+      await t.q(novo(C2, 'pendente'));
+      await t.q(novo(C3, 'recusado'));
       await t.entregar(retorno(C2, 'vinculado', 'ERP-1'));
       await t.entregar(retorno(C3, 'vinculado', 'ERP-3'));
-      expect(await codigoDe(t.q, C2)).toBeNull();
-      expect(await codigoDe(t.q, C3)).toBeNull();
+      expect((await linha(t.q, C2)).external_id).toBeNull();
+      expect((await linha(t.q, C3)).external_id).toBeNull();
       expect(t.publicar).not.toHaveBeenCalled();
       const aud = await t.q<{ depois: { resultado: string } }>("select depois from plataforma.auditoria where entidade_id = $1 and acao = 'cliente.vinculo_erp_recusado'", [C2]);
       expect(aud[0]?.depois.resultado).toBe('codigo_em_uso');
     });
   });
 
-  it('RN-CORE-78: rejeitado_erp só audita (sem código e sem dado pessoal)', async () => {
+  it('RN-CORE-78: rejeitado_erp recusa o cadastro com o motivo cortado em 500, publica uma vez e o motivo não vai à auditoria', async () => {
     await emTransacao(async (t) => {
-      await t.q(novo(C1, true));
-      await t.entregar(retorno(C1, 'rejeitado_erp', null, 'Documento inválido no ERP'));
-      expect(await codigoDe(t.q, C1)).toBeNull();
-      expect(t.publicar).not.toHaveBeenCalled();
+      await t.q(novo(C1, 'pendente'));
+      await t.entregar(retorno(C1, 'rejeitado_erp', null, `Documento inválido no ERP ${'x'.repeat(600)}`));
+      await t.entregar(retorno(C1, 'rejeitado_erp', null, 'outro motivo'), 'ev-2');
+      const l = await linha(t.q, C1);
+      expect(l).toMatchObject({ external_id: null, status_cadastro: 'recusado' });
+      expect(l.motivo_recusa).toHaveLength(500);
+      expect(l.motivo_recusa).toContain('Documento inválido no ERP');
+      expect(t.publicar).toHaveBeenCalledTimes(1);
+      expect(t.publicar).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cliente_id: C1, campos: ['status_cadastro'] }), C1);
       const aud = await t.q("select depois::text as depois from plataforma.auditoria where entidade_id = $1 and acao = 'cliente.rejeitado_erp'", [C1]);
       expect(aud.length).toBe(1);
       expect(String(aud[0]?.depois)).not.toContain('Documento inválido');
     });
   });
 
+  it('RN-CORE-78: recusa do ERP não derruba cliente que já tem código', async () => {
+    await emTransacao(async (t) => {
+      await t.q(novo(C1, 'aprovado', 'ERP-1'));
+      await t.entregar(retorno(C1, 'rejeitado_erp', null, 'tarde demais'));
+      expect(await linha(t.q, C1)).toMatchObject({ external_id: 'ERP-1', status_cadastro: 'aprovado', motivo_recusa: null });
+      expect(t.publicar).not.toHaveBeenCalled();
+    });
+  });
+
   it('RN-CORE-78: multi-tenant: o retorno do tenant B não toca o cliente do tenant A (RLS)', async () => {
     await emTransacao(async (t) => {
-      await t.q(novo(C1, true));
+      await t.q(novo(C1, 'pendente'));
       await t.tenant(B.tenantId);
       await t.entregar(retorno(C1, 'vinculado', 'ERP-1'));
       await t.tenant(A.tenantId);
-      expect(await codigoDe(t.q, C1)).toBeNull();
+      expect((await linha(t.q, C1)).external_id).toBeNull();
     });
   });
 });
