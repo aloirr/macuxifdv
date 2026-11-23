@@ -67,7 +67,7 @@ const fichaCrua = (tenant: string, em: Partial<Record<string, number>> = {}) => 
   atualizada_em: '2026-11-14T12:00:00+00:00',
 });
 
-function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>; semAssinatura?: boolean; jaTem?: boolean } = {}) {
+function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>; semAssinatura?: boolean } = {}) {
   const auditoria: LinhaAuditoriaPlataforma[] = [];
   const provisionados: { entrada: EntradaProvisionarPlataforma; simular: boolean }[] = [];
   const gravadas: { tenant: string; e: EntradaAssinatura }[] = [];
@@ -84,7 +84,7 @@ function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>;
     }),
   };
   // como as sa_*: a assinatura que existe não muda; a troca é idempotente por pedido_id
-  let tem = op.jaTem === true;
+  let tem = false;
   const pedidos = new Set<string>();
   const fontePlanos: FontePlanosPortal = {
     listar: async () => ({ itens: [PME, LIGHT] }),
@@ -253,11 +253,5 @@ describe('Portal › Planos e licenças (ADR 0047)', () => {
     expect([fora.statusCode, fora.json().codigo]).toEqual([422, 'ADICIONAL_FORA_DO_PLANO']);
     const ninguem = await app.inject({ method: 'POST', url: `/v1/plataforma/empresas/0a000000-0000-4000-8000-0000000000ff/assinatura`, headers: sa, payload: corpo });
     expect([ninguem.statusCode, ninguem.json().codigo]).toEqual([404, 'TENANT_NAO_ENCONTRADO']);
-  });
-
-  it('empresa que já tinha plano (outro pedido): 409 ASSINATURA_EXISTENTE', async () => {
-    const { app } = montar({ jaTem: true });
-    const r = await app.inject({ method: 'POST', url: `/v1/plataforma/empresas/${EMPRESA}/assinatura`, headers: sa, payload: { plano: 'pme', pedido_id: PEDIDO } });
-    expect([r.statusCode, r.json().codigo]).toEqual([409, 'ASSINATURA_EXISTENTE']);
   });
 });

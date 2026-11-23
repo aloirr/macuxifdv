@@ -101,6 +101,7 @@ const GravouSchema = z.object({ resultado: z.enum(['criada', 'existente']), test
 const TrocouSchema = z.object({ resultado: z.enum(['trocada', 'existente']) }).passthrough();
 
 const SEM_ASSINATURA = () => new ErroHttp(404, 'SEM_ASSINATURA', 'Esta empresa ainda não tem plano.');
+const SEM_EMPRESA = () => new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.');
 
 /**
  * SQLSTATE das `sa_*` → HTTP: sessão vencida no meio = 401; sem permissão = 403; não achou = 404; 22023 = 422 na escrita (com
@@ -254,7 +255,7 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
     const lista = ListaEmpresasDoBancoSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
     if (!lista.success) throw new Error('sa_listar_tenants devolveu formato diferente do combinado (desenho T-0087 §4)');
     const empresa = lista.data.itens.find((x) => x.id === tenant_id);
-    if (!empresa) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.');
+    if (!empresa) throw SEM_EMPRESA();
     const testeAte = e.com_teste ? fimDoTeste(localIsoDate(relogio(), fusoDoTenantOuPadrao(empresa.fuso)), plano.dias_teste) : null;
     const entrada: EntradaAssinatura = { plano: plano.codigo, ciclo: e.ciclo, adicionais: e.adicionais, teste_ate: testeAte, paga: testeAte === null, pedido_id: e.pedido_id };
     const troca: EntradaTrocaDePlano = { plano: plano.codigo, ciclo: e.ciclo, adicionais: e.adicionais, pedido_id: e.pedido_id, modulos: modulosDaAssinatura(plano, e.adicionais) };
@@ -266,7 +267,7 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
       try {
         gravou = await fonte.gravarAssinatura(quem.sessao_id, tenant_id, entrada, naTransacao);
       } catch (erro) {
-        traduzir(erro, true, () => new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.'));
+        traduzir(erro, true, SEM_EMPRESA);
       }
       const g = GravouSchema.safeParse(gravou);
       if (!g.success) throw new Error('sa_gravar_assinatura devolveu formato diferente do combinado (ADR 0047)');
