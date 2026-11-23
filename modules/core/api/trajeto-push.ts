@@ -13,15 +13,14 @@ import { idDoPayloadConfere } from '../domain/idempotencia';
 import { metrosDoTrajeto } from '../domain/performance/trajeto';
 import { feriadosDasLinhas, parametrosRastreamentoDasLinhas, triarPontoRecebido, type BaseTriagem } from '../domain/trajeto-ponto';
 import { lerParametrosCore } from './parametro-tenant';
+import { aceito, rejeitado, idDivergente } from './push-resposta';
 
-const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
-const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 const SO_INSERCAO = 'Este registro não pode ser removido pelo aparelho.';
 
 /** Valida o item (operação, id e payload) e devolve o payload ou a resposta de rejeição. */
 function conferir<T>(item: ItemPush, schema: { safeParse(v: unknown): { success: true; data: T } | { success: false } }, mensagem: string): { ok: true; dado: T } | { ok: false; resposta: ResultadoItemPush } {
   if (item.operacao === 'remover') return { ok: false, resposta: rejeitado(item.id, 'OPERACAO_NAO_SUPORTADA', SO_INSERCAO) };
-  if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) return { ok: false, resposta: rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id do item da fila não confere com o id do payload.') };
+  if (!idDoPayloadConfere(item.id, item.payload as { id?: unknown })) return { ok: false, resposta: idDivergente(item.id) };
   const v = schema.safeParse(item.payload);
   if (!v.success) return { ok: false, resposta: rejeitado(item.id, 'PAYLOAD_INVALIDO', mensagem) };
   return { ok: true, dado: v.data };

@@ -116,7 +116,7 @@ export const RecusaRetorno = z.object({
 export type RecusaRetorno = z.infer<typeof RecusaRetorno>;
 
 /** Códigos de recusa do retorno do cliente (HTTP 422, definitivo; RN-INT-22). */
-export const CODIGOS_RECUSA_RETORNO_CLIENTE = ['cliente_desconhecido', 'cliente_nao_entregue', 'transicao_invalida', 'external_id_divergente'] as const;
+export const CODIGOS_RECUSA_RETORNO_CLIENTE = ['cliente_desconhecido', 'cliente_nao_entregue', 'transicao_invalida', 'external_id_divergente', 'revisao_desconhecida'] as const;
 export const RecusaRetornoCliente = z.object({
   codigo: z.enum(CODIGOS_RECUSA_RETORNO_CLIENTE),
   mensagem: z.string().min(1),

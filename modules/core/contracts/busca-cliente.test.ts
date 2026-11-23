@@ -29,6 +29,13 @@ describe('busca de clientes (contrato)', () => {
     it('RF-CORE-02: o CNPJ entra como uma das palavras', () => {
       expect(contrato.clienteCasaBusca('joao 12.345', joao)).toBe(true);
     });
+    it('RF-CORE-02: o Código FDV casa como o código do ERP (v1.0.30, ADR 0069 item 10)', () => {
+      const comFdv = { ...joao, codigo_fdv: '00042' };
+      expect(contrato.clienteCasaBusca('00042', comFdv)).toBe(true);
+      expect(contrato.clienteCasaBusca('joao 0004', comFdv)).toBe(true);
+      expect(contrato.clienteCasaBusca('00042', joao)).toBe(false);
+      expect(contrato.clienteCasaBusca('00042', { ...joao, codigo_fdv: null })).toBe(false);
+    });
     it('RF-CORE-02: espaços sobrando e termo vazio', () => {
       expect(contrato.palavrasDaBusca('  JOÃO   0103 ')).toEqual(['joao', '0103']);
       expect(contrato.clienteCasaBusca('   ', joao)).toBe(true);
