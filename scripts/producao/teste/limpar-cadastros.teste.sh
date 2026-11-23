@@ -141,14 +141,14 @@ foto restaurado "$ALFA"
 igual "restaurar devolve o alfa (tabelas diferentes)" "$(tabelas_diferentes restaurado antes "$ALFA")" "plataforma.sync_pacote"
 
 echo '--- 5. arquivo do lote, descartar e empresa inexistente'
-# o mesmo \copy do passo "arquivo da cópia na VM" do workflow (só as linhas do lote) e a volta do resumo (from pstdin)
-copia="\\copy (select * from public.macuxi_limpeza_backup where lote = '20261123T190200Z' and tenant_id = (select id from plataforma.tenant_por_codigo('alfa'))) to stdout"
-psql -X -v ON_ERROR_STOP=1 -d "$BANCO" -c "$copia" > "$tmp/lote.copy"
+# o arquivo da VM (montar-limpeza.sh arquivo, como no workflow) e a volta do resumo (\copy from pstdin)
+montar arquivo | psql -X -d "$BANCO" -v empresa=alfa -v lote=20261123T190200Z -f - > "$tmp/lote.copy"
 linhas="$(q "select count(*) from public.macuxi_limpeza_backup where lote = '20261123T190200Z'")"
 igual "arquivo do lote com só as linhas do lote" "$(wc -l < "$tmp/lote.copy" | tr -d ' ')" "$linhas"
-for modo in restaurar descartar; do
+limpar_inexistente() { limpar "$1" simular "$2"; }
+for modo in limpar_inexistente restaurar descartar; do
   set +e; "$modo" nao-existe 20261123T190200Z > "$tmp/inexistente.txt" 2>&1; st=$?; set -e
-  igual "$modo com empresa inexistente para com 'empresa não encontrada'" \
+  igual "${modo%_inexistente} com empresa inexistente para com 'empresa não encontrada'" \
     "$([ $st -ne 0 ] && grep -q 'empresa não encontrada' "$tmp/inexistente.txt" && echo sim)" sim
 done
 descartar alfa 20261123T190200Z > "$tmp/descartar.txt" || nok "descartar saiu com erro"

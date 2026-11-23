@@ -31,13 +31,14 @@ test('workflow: frase de confirmação no apagar, no restaurar e no descartar; b
   assert.match(wf, /options: \[simular, apagar, restaurar, descartar\]/);
   const backup = wf.indexOf('/opt/macuxi/backup/backup-dbaas.sh');
   assert.ok(backup > 0 && backup < wf.indexOf('name: ${{ inputs.modo }} na VM'), 'o backup do banco vem antes do apagar');
-  // o arquivo na VM leva só as linhas do lote
-  assert.match(wf, /\\copy \(select \* from public\.macuxi_limpeza_backup where lote = '\$LOTE' and tenant_id = /);
+  // o arquivo na VM leva só as linhas do lote (montar-limpeza.sh arquivo)
+  assert.match(wf, /bash scripts\/producao\/montar-limpeza\.sh arquivo > arquivo\.sql/);
+  assert.match(montar('arquivo'), /\ncopy \(select \* from public\.macuxi_limpeza_backup where lote = :'lote' and tenant_id = :'tenant'\) to stdout;\n$/);
 });
 
 test('workflow: segredos só pelo environment, chave apagada no fim, sem docker no runner', () => {
   for (const s of wf.matchAll(/secrets\.([A-Z_]+)/g)) assert.match(s[1], /^PROD_(SSH_KEY|HOST|SSH_KNOWN_HOSTS|USER)$/);
-  assert.match(wf, /acao: limpar\n\s+arquivos: limpeza\.sql saida\.txt dump\.txt backup\.txt/);
+  assert.match(wf, /acao: limpar\n\s+arquivos: limpeza\.sql arquivo\.sql saida\.txt dump\.txt backup\.txt/);
   assert.match(wf, /if: \$\{\{ always\(\) && steps\.chave\.outcome != 'skipped' \}\}/);
   // docker só dentro do comando remoto (a VM): nenhuma linha do run começa com docker
   assert.doesNotMatch(wf, /^\s+docker /m);
@@ -45,7 +46,7 @@ test('workflow: segredos só pelo environment, chave apagada no fim, sem docker 
 });
 
 test('montar-limpeza.sh: o preâmbulo psql sai uma vez, antes do roteiro', () => {
-  for (const modo of ['limpar', 'restaurar', 'descartar']) {
+  for (const modo of ['limpar', 'restaurar', 'descartar', 'arquivo']) {
     const sql = montar(modo);
     assert.ok(sql.startsWith('\\set ON_ERROR_STOP on\n'), modo);
     assert.equal(sql.split('\\set VERBOSITY terse').length, 2, modo);
@@ -53,9 +54,9 @@ test('montar-limpeza.sh: o preâmbulo psql sai uma vez, antes do roteiro', () =>
   const sql = montar('limpar');
   assert.ok(sql.indexOf('create or replace function pg_temp.macuxi_limpar_cadastros') < sql.indexOf('from pg_temp.macuxi_limpar_cadastros('));
   for (const t of [rotina, limpar, restaurar, descartar]) assert.doesNotMatch(t, /\\set (ON_ERROR_STOP|QUIET|VERBOSITY)/);
-  // restaurar e descartar: a conferência de lote e empresa sai uma vez, do montar
-  for (const modo of ['restaurar', 'descartar']) assert.equal(montar(modo).split('empresa não encontrada').length, 2, modo);
-  for (const t of [restaurar, descartar]) assert.doesNotMatch(t, /entradas_ok|tenant_por_codigo/);
+  // a conferência de lote e empresa sai uma vez, do montar, em todos os modos
+  for (const modo of ['limpar', 'restaurar', 'descartar', 'arquivo']) assert.equal(montar(modo).split('empresa não encontrada').length, 2, modo);
+  for (const t of [limpar, restaurar, descartar]) assert.doesNotMatch(t, /entradas_ok|achou|tenant_por_codigo/);
 });
 
 test('rotina: físico = Hub, filas e projeção; restaurar volta o mesmo conjunto; o que fica não entra na cascata', () => {

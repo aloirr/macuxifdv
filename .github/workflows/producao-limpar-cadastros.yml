@@ -134,31 +134,32 @@ jobs:
           MODO: ${{ inputs.modo }}
           LOTE: ${{ steps.entradas.outputs.lote }}
         run: |
-          # só as linhas do lote (COPY em texto): o descartar apaga de fato a cópia daquele lote
+          # só as linhas do lote (COPY em texto, montar-limpeza.sh arquivo): o descartar apaga de fato a cópia daquele lote
           arquivo="/opt/macuxi/limpeza/$EMPRESA-$LOTE.copy"
           a="$(printf '%q' "$arquivo")"
           if [ "$MODO" = descartar ]; then
             remoto="set -eu; if [ -f $a ]; then rm -f $a; echo 'arquivo removido: $arquivo'; else echo 'arquivo não existia: $arquivo'; fi"
           else
-            copia="\\copy (select * from public.macuxi_limpeza_backup where lote = '$LOTE' and tenant_id = (select id from plataforma.tenant_por_codigo('$EMPRESA'))) to stdout"
+            bash scripts/producao/montar-limpeza.sh arquivo > arquivo.sql
             remoto="set -eu; cd /opt/macuxi; umask 077; mkdir -p limpeza; chmod 700 limpeza;"
-            remoto+=" $DC psql -X -v ON_ERROR_STOP=1 -c $(printf '%q' "$copia") > $a;"
+            remoto+=" $DC psql -X $(printf '%q ' -v "empresa=$EMPRESA" -v "lote=$LOTE") -f - > $a;"
             remoto+=" n=\$(wc -l < $a); [ \"\$n\" -ge 1 ] || { echo 'arquivo sem linhas' >&2; exit 7; };"
             remoto+=" echo \"arquivo: $arquivo · \$n linhas · \$(stat -c %s $a) bytes\""
           fi
           set +e
-          ssh -l "$USUARIO" prod "$remoto" 2>&1 | tee dump.txt
+          if [ -f arquivo.sql ]; then entrada=arquivo.sql; else entrada=/dev/null; fi
+          ssh -l "$USUARIO" prod "$remoto" < "$entrada" 2>&1 | tee dump.txt
           status=${PIPESTATUS[0]}
           set -e
           {
             echo '```'; cat dump.txt; echo '```'
             if [ "$MODO" = apagar ]; then
-              echo "- A Gestão recomeça só com os dados novos."
+              linhas="$(sed -n 's/.* · \([0-9]*\) linhas · .*/\1/p' dump.txt)"
               echo "- Restaurar (só antes do reenvio do ERP): modo=restaurar, lote=\`$LOTE\`, confirmar=\`RESTAURAR CADASTROS $EMPRESA $LOTE\`."
-              echo "- Sem as linhas do lote em public.macuxi_limpeza_backup, antes do restaurar, na VM: \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c '\\copy public.macuxi_limpeza_backup from pstdin' < $arquivo\`"
+              echo "- Sem as linhas do lote em public.macuxi_limpeza_backup, antes do restaurar, na VM (arquivo $arquivo, ${linhas:-?} linhas): \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c '\\copy public.macuxi_limpeza_backup from pstdin' < $arquivo\`. Se a tabela tiver sido apagada, recrie-a antes com o \`create table public.macuxi_limpeza_backup\` de scripts/producao/limpar-cadastros-rotina.sql."
               echo "- Descartar 7 dias depois de o reenvio do ERP ser confirmado: modo=descartar, lote=\`$LOTE\`, confirmar=\`DESCARTAR COPIA $EMPRESA $LOTE\`."
             else
-              echo "- O backup diário do bucket ainda guarda essas linhas por até 30 dias (poda do backup-dbaas.sh)."
+              echo "- O backup diário ainda guarda essas linhas por até 30 dias."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
@@ -168,4 +169,4 @@ jobs:
         uses: ./.github/actions/ssh-prod
         with:
           acao: limpar
-          arquivos: limpeza.sql saida.txt dump.txt backup.txt
+          arquivos: limpeza.sql arquivo.sql saida.txt dump.txt backup.txt

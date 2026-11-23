@@ -1,24 +1,16 @@
 -- Limpeza de UMA empresa: workflow .github/workflows/producao-limpar-cadastros.yml, montado por montar-limpeza.sh (preâmbulo
--- psql e limpar-cadastros-rotina.sql antes deste arquivo; regras no cabeçalho da rotina).
+-- psql, conferência de lote e empresa e limpar-cadastros-rotina.sql antes deste arquivo; regras no cabeçalho da rotina).
 -- Variáveis (psql -v): empresa (código), modo (simular | apagar), lote (carimbo UTC AAAAMMDDTHHMMSSZ).
 -- Uma transação só: simular = o mesmo caminho do apagar, com ROLLBACK no fim. Log: só nomes de tabela e contagens.
-select :'modo' in ('simular', 'apagar') and :'lote' ~ '^[0-9]{8}T[0-9]{6}Z$'
-       and :'empresa' ~ '^([a-z0-9][a-z0-9-]{1,39}|[A-Z]{2}[0-9]{4})$' as entradas_ok \gset
-\if :entradas_ok
+select :'modo' in ('simular', 'apagar') as modo_ok \gset
+\if :modo_ok
 \else
-do $$ begin raise exception 'entradas inválidas (modo, lote ou empresa)'; end $$;
+do $$ begin raise exception 'modo inválido'; end $$;
 \endif
 
 begin;
 set local lock_timeout = '15s';
 set local statement_timeout = '10min';
-select count(*) = 1 as achou from plataforma.tenant_por_codigo(:'empresa') \gset
-\if :achou
-\else
-rollback;
-do $$ begin raise exception 'empresa não encontrada (código errado ou empresa excluída)'; end $$;
-\endif
-select id as tenant from plataforma.tenant_por_codigo(:'empresa') \gset
 select set_config('app.tenant_id', :'tenant', true) <> '' as ok \gset
 
 \echo 'antes: pedidos vivos por status (todos saem)'
