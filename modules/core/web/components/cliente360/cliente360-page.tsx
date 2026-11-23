@@ -9,6 +9,7 @@ import { formatBRL } from '@macuxi/comum';
 import { Badge, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
 import { Cliente360Schema, FormasPagamentoDisponiveisSchema } from '../../../contracts';
 import { dataLocal, listarEnderecosDoCliente, linksDeContato, mesNaJanela12, observacaoComCadastro, resumoSemCompras, situacaoTitulo } from '../../../domain';
+import { CodigosDoCliente } from '../codigos-cliente';
 import { FilialCliente } from './filial-cliente';
 import { PagamentoCliente } from './pagamento-cliente';
 import { useMe } from '../../lib/queries';
@@ -43,13 +44,15 @@ function Cliente360Conteudo() {
   // RN-CORE-40: a lista usa a mesma janela de 12 meses dos cartões (o sync traz um mês a mais)
   const historico = historicoBruto.filter((h) => mesNaJanela12(h.ano_mes, hoje));
   const nome = cliente.nome_fantasia || cliente.razao_social;
+  // depois dos códigos (ERP, FDV): o que não existe sai, como os códigos
+  const identificacao = [cliente.razao_social !== nome ? cliente.razao_social : '', cliente.documento ?? '', [cliente.cidade, cliente.uf].filter(Boolean).join(' / ')].filter(Boolean).join(' · ');
   // RF-CORE-12 / RN-VEN-17: a API já manda o padrão primeiro; a mesma função pura do app marca o padrão e monta a linha
   const listaEnderecos = listarEnderecosDoCliente(enderecos, cliente.id);
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="cliente360.tela">
       <PageHeader
         title={nome}
-        subtitle={[cliente.razao_social !== nome ? cliente.razao_social : '', cliente.documento ?? '', [cliente.cidade, cliente.uf].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')}
+        subtitle={<CodigosDoCliente cliente={cliente} forma="linha" depois={identificacao} testId="cliente360.codigos" />}
         badge={
           fin?.bloqueado ? (
             <Badge tone="danger">Bloqueado</Badge>

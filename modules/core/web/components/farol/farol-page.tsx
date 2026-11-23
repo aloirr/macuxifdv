@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -17,6 +17,7 @@ import {
   LoadingBlock,
   Notice,
   PageHeader,
+  PainelAba,
   Panel,
   SelectField,
   SYNC_AUTO_PADRAO_MIN,
@@ -60,9 +61,10 @@ function Cor({ cor }: { cor: CorFarol | null }) {
  * Farol de clientes (RN-CORE-28; T-0081): a carteira do escopo com dias sem compra, positivação do mês e a cor de cada cliente e vendedor.
  * Resumo e vendedores são do recorte inteiro; a lista tem filtro por cor e busca e carrega mais por página. Filtros na URL
  * (`mes`, `equipe`, `vendedor`, `cor`, `q`). Os limites do tenant ficam no painel de parâmetros (`parametro.farol`).
+ * Na página Clientes (v1.0.30), é a aba Farol: `abas` (a barra) vem da página quando há a aba "Pré-cadastros recusados".
  * testIDs: `farol.tela` · `farol.filtro-*` · `farol.resumo` · `farol.vendedor.<id>` · `farol.cliente.<id>` · `farol.exportar-csv` · `farol.mais`.
  */
-function FarolConteudo() {
+export function FarolConteudo({ abas }: { abas?: ReactNode }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -119,8 +121,7 @@ function FarolConteudo() {
   return (
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="farol.tela">
       <PageHeader
-        title="Farol de clientes"
-        subtitle="Quem está comprando e quem esfriou: dias sem compra de cada cliente (contados até hoje) e positivação do mês por vendedor."
+        title="Clientes"
         actions={
           <>
             {podeParametros && (
@@ -157,6 +158,8 @@ function FarolConteudo() {
         }
       />
 
+      {abas}
+      <PainelDoFarol comAbas={Boolean(abas)}>
       <FilterBar>
         <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
           Mês
@@ -411,14 +414,17 @@ function FarolConteudo() {
           </Panel>
         </>
       )}
+      </PainelDoFarol>
     </div>
   );
 }
 
-export function FarolPage() {
+/** Com a barra de abas, o conteúdo do Farol é o painel da aba; sem ela, segue direto na página. */
+function PainelDoFarol({ comAbas, children }: { comAbas: boolean; children: ReactNode }) {
+  if (!comAbas) return <>{children}</>;
   return (
-    <Suspense fallback={<LoadingBlock label="Carregando o farol…" />}>
-      <FarolConteudo />
-    </Suspense>
+    <PainelAba idBase="clientes" id="farol" ativo className="flex flex-col gap-5">
+      {children}
+    </PainelAba>
   );
 }

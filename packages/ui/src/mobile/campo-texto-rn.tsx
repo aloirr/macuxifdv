@@ -8,7 +8,7 @@
  *   Informe o código.          ← erro 12, vermelho (só quando há)
  *
  * v1.0.28 (pré-cadastro, docs/design/telas/campo-cliente-pre-cadastro.md §3):
- * - `mascara` ('documento' | 'cep' | 'telefone'): pontuação ao digitar e teclado numérico (`campo-mascara.ts`); `aoMudar`
+ * - `mascara` ('documento' | 'cep' | 'telefone'): pontuação ao digitar e teclado numérico (`../comum/campo-mascara.ts`); `aoMudar`
  *   recebe o texto formatado (o módulo guarda `somenteDigitos`).
  * - `opcional`: "Complemento (opcional)" no rótulo; obrigatório não leva marca.
  * - `falta`: a marca do formulário do Campo (T-0166: borda `danger` de 2 dp + `TextoDaFalta`); use com `faltaVisivel`.
@@ -16,7 +16,7 @@
 import type { Ref } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { aplicarMascara, leituraDoRotulo, propsDeTecladoDaMascara, SUFIXO_OPCIONAL, type MascaraCampo } from './campo-mascara';
+import { aplicarMascara, leituraDoRotulo, propsDeTecladoDaMascara, SUFIXO_OPCIONAL, type MascaraCampo } from '../comum/campo-mascara';
 import { MARCA_DA_FALTA } from './falta';
 import { TextoDaFalta } from './falta-rn';
 import { colors, fonte, radius } from './theme';

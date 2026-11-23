@@ -1362,3 +1362,112 @@ o status `'recusado'` fica; recria `aprovado_por` com o SELECT do `macuxi_leitur
 `cliente_aprovacao_par` voltar valendo, e o `cliente_aprovado_sem_erp_ix`; `recebido_em` volta a `aprovado_em` na fila do Hub).
 Idempotente. Volte antes o código do Core e do Hub que lê ou grava `motivo_recusa` ou `recebido_em`. Teste:
 `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
+
+## 0098 — revisões do pré-cadastro (`0098_core_integracao_pre_cadastro_revisao`; v1.0.30, ADR 0069, RN-CORE-16, RN-CORE-78 e RN-CORE-79 revistas)
+O recusado pelo ERP é corrigido e reenviado **no mesmo cliente** (mesmo `id`), como uma revisão nova, com histórico. Em cima da
+0097 (número provisório; segue a ordem de merge). Muda `core.cliente`, cria `core.cliente_pre_cadastro_tentativa`, acrescenta
+colunas à `integracao.cliente_fila_erp` (ver [integracao.md](integracao.md), "0098"), unifica o parâmetro de campos obrigatórios e cria o Código FDV do cliente (`codigo_fdv` e `core.cliente_codigo_fdv_contador`).
+
+| Coluna de `core.cliente` | Tipo | Regra |
+|---|---|---|
+| `revisao_cadastro` | integer null | revisão do pré-cadastro: 1 no primeiro recebimento, +1 a cada reenvio (`cliente_revisao_cadastro_valida`: ≥ 1); nula nos clientes do ERP. Carga: 1 em todo pré-cadastro (`origem_cadastro <> 'erp'`, vivo ou apagado). Vai no pull; SELECT do `macuxi_leitura` |
+| `erros_recusa` | jsonb null | erros por campo da última recusa do ERP (`[{campo, codigo, mensagem}]`): array com até 50 itens (`cliente_erros_recusa_lista`) e só com `'recusado'` (`cliente_erros_recusa_status`; reabrir para `pendente` exige limpar). Mesmo sigilo do `motivo_recusa`: pull só ao vendedor do cliente, nunca em log nem na auditoria, **sem** SELECT do `macuxi_leitura` |
+
+### `core.cliente_pre_cadastro_tentativa` (nova; fora do sync)
+Uma linha por revisão do pré-cadastro. Só a API lê (histórico e lista dos recusados no BKO); a revisão atual vai no pull do
+`cliente`. Volume: pré-cadastros × revisões (dezenas a centenas por tenant).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `cliente_id` | uuid not null | FK composta `(tenant_id, cliente_id) → core.cliente`; único `(tenant_id, cliente_id, revisao)` (`cliente_pre_cadastro_tentativa_revisao_uk`, vale também para as apagadas) |
+| `revisao` | integer not null | ≥ 1 |
+| `hash` | text null | `sha256` do canônico (ADR 0069 item 2) em hex minúsculo, 64 caracteres (`^[0-9a-f]{64}$`); nulo nas tentativas da carga (antes da v1.0.30) |
+| `origem` | text not null | `campo` \| `bko` (`ORIGENS_TENTATIVA_PRE_CADASTRO_BANCO`) |
+| `corrigido_por` | uuid null | quem enviou a revisão; FK composta → `core.usuario`; junto com `corrigido_por_perfil` ou nenhum (`cliente_pre_cadastro_tentativa_corrigido_par`) |
+| `corrigido_por_perfil` | text null | código do perfil de quem enviou (1..60) |
+| `cliente_id_original` | uuid null | alias: o recusado Y substituído pelo `id` novo X do APK v1.0.28 (ADR 0069 item 4); FK composta → `core.cliente`; diferente de `cliente_id`; índice `cliente_pre_cadastro_tentativa_original_ix (tenant_id, cliente_id_original) where cliente_id_original is not null` |
+| `campos_alterados` | text[] not null default `'{}'` | só os nomes das colunas alteradas (até 20), nunca valores |
+| `enviado_em` | timestamptz not null | quando a revisão chegou |
+| `resultado` | text not null default `aguardando` | `aguardando` \| `aceito` \| `recusado` (`RESULTADOS_TENTATIVA_PRE_CADASTRO_BANCO`) |
+| `respondido_em` | timestamptz null | quando o ERP respondeu; nulo se e só se `aguardando` (`cliente_pre_cadastro_tentativa_respondido_coerente`) |
+| `motivo` | text null | motivo da recusa, até 500 caracteres |
+| `erros` | jsonb null | erros por campo da recusa, array com até 50 itens; `motivo` e `erros` só com `recusado` (`cliente_pre_cadastro_tentativa_recusa_coerente`) |
+
+- **Lista dos recusados no BKO:** `where tenant_id = $1 and resultado = 'recusado' and deleted_at is null order by respondido_em desc,
+  cliente_id`, pelo índice parcial `cliente_pre_cadastro_tentativa_recusados_ix` (EXPLAIN no teste).
+- **RLS e grants:** RLS forçado; `isolamento_tenant` (macuxi_app: `select, insert, update`; **sem DELETE**), `manutencao` e `leitura`
+  (macuxi_leitura: SELECT por coluna **sem `hash`, `motivo` e `erros`** — o canônico tem CPF/CNPJ, dado de baixa entropia, e o
+  motivo e os erros são texto livre do ERP; a saída desse papel vai para o log do Actions). Gatilho `definir_updated_at`.
+- **Carga inicial:** uma tentativa `revisao = 1` por pré-cadastro vivo: `origem = origem_cadastro`, `enviado_em = created_at`,
+  `resultado` pelo status (`pendente` → aguardando, `aprovado` → aceito, `recusado` → recusado), `respondido_em = aprovado_em` (ou o
+  `updated_at` de antes da 0098), `motivo = motivo_recusa`, `hash` nulo. As substituições da v1.0.28 (linhas apagadas) não ganham
+  tentativa; o elo delas segue na auditoria (`cliente.recusado_substituido`).
+- **Fixture dois-tenants:** A com a revisão 1 do c3 enviada pelo admin no BKO (aguardando); B com a revisão 1 do c1 do Campo,
+  recusada com motivo e um erro por campo (`TENTATIVAS_FIXTURE`, grupo `0x98`).
+- **Drizzle:** `clientePreCadastroTentativa` e as colunas novas de `cliente` em `modules/core/db/nuvem.ts`.
+
+### Parâmetro unificado (ADR 0069 item 6; `plataforma.parametro`, módulo `core`)
+Por tenant: **E** = lista efetiva da RN-CORE-16 (`cliente.campos_obrigatorios`: os códigos conhecidos do array; nenhum = o padrão;
+razão social e documento sempre; ordem canônica — o `camposExigidos` do domain) e **P** = `cliente.pre_cadastro.obrigatorios` válido
+(array sem repetição dos configuráveis; inválido = vazio) com `endereco` expandido em logradouro, número, bairro, cidade, UF e CEP.
+- Tenant com a chave do pré-cadastro viva: `cliente.campos_obrigatorios` = **E ∪ P** na ordem canônica.
+- Todo tenant: o espelho legado `cliente.pre_cadastro.obrigatorios` = projeção de E ∪ P nos configuráveis antigos (`endereco` se
+  qualquer campo de endereço for exigido), para o APK v1.0.28 receber no pull. Sai com a versão mínima do Campo > 1.0.28.
+- Upsert pelo `parametro_uk` (vivo), só quando o valor muda; nada é apagado (a linha apagada fica como estava). O teste confere o
+  SQL contra a referência montada com o domain e os contratos do Core.
+- **Conferência antes do deploy:** `db/scripts/conferencia-0098.sql` (rode ANTES da 0098, só leitura; sai o código do tenant e
+  nomes de campo): caso (a) campos do pré-cadastro fora da lista da RN-CORE-16, que passam a valer no cadastro completo dos clientes
+  do ERP (RN-CORE-17); (b) tenant sem nenhuma das chaves (o pré-cadastro passa a exigir IE para CNPJ e endereço); (c) os demais com
+  campo novo no pré-cadastro. Só informativa (ver "Duplicados da v1.0.28" abaixo).
+- **Tenant novo depois da 0098:** sem as linhas (vale o padrão); o espelho só nasce no primeiro `PUT` de Parâmetros › Clientes.
+- **Duplicados da v1.0.28** (ADR 0069 item 10): a mesma conferência traz uma 2ª consulta, por tenant, `duplicados_v1028` = pré-cadastros
+  vivos ainda sem Código ERP com auditoria `cliente.vinculo_erp_recusado` de resultado `codigo_em_uso` (a carga do ERP chegou antes do
+  vínculo e criou outro cliente). A ADR não os corrige. **A conferência é só informativa** (não é condição do "aprovo deploy"): o
+  gerente informa o resultado ao dono do produto.
+
+### Código FDV do cliente (ADR 0069 item 10 e D.7, decisão "1 B"; molde da 0080, RN-CORE-59; hint RN-CORE-78)
+O cliente tem **dois códigos**: o **Código ERP** (`external_id`, nulo no pré-cadastro até o retorno `vinculado`) e o **Código FDV**,
+que **todo cliente vivo tem**, de qualquer origem: gerado pelo banco quando o **servidor** grava o cliente (pré-cadastro da rota do
+BKO, push do Campo ou cliente novo da carga do ERP; o aparelho não numera offline; o pull leva o código).
+
+| Objeto | Regra |
+|---|---|
+| `core.cliente.codigo_fdv text` | `00001`… por tenant (5 dígitos ou mais, sem prefixo; `100000` depois de `99999`, sem teto), só de leitura, nunca reaproveitado. Nulo só nos clientes apagados antes da 0098. CHECK `cliente_codigo_fdv_formato` (a mesma regex da `usuario_codigo_fdv_formato`) e CHECK `cliente_codigo_fdv_vivo` (`deleted_at is not null or codigo_fdv is not null`: cliente vivo sem código = 23514; criado depois da carga). Vai no pull; SELECT do `macuxi_leitura` |
+| `cliente_codigo_fdv_uk` | único `(tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null`; cobre a busca pelo código |
+| `core.cliente_codigo_fdv_contador` | uma linha por tenant (`cliente_codigo_fdv_contador_tenant_uk`; id = `uuid_de_chave('<tenant>:core.cliente_codigo_fdv_contador')`), `ultimo_sequencial bigint >= 0` = maior número emitido. **Numeração própria** (não divide com o usuário). Colunas-padrão, RLS forçado, `isolamento_tenant` + `manutencao` + `leitura`; `macuxi_app` e `macuxi_leitura` só **select**. Fora do sync (`db/src/excecoes.ts`) |
+| `cliente_codigo_fdv_contador_nao_diminui` | gatilho BEFORE UPDATE do contador: diminuir ou trocar de tenant = 23514, constraint de mesmo nome, hint `RN-CORE-78` |
+| `cliente_codigo_fdv_contador_piso` | gatilho BEFORE INSERT do contador: nasce no mínimo no maior Código FDV de cliente já gravado no tenant (vivo ou apagado) |
+| `core.cliente_codigo_fdv()` | função dos 2 gatilhos abaixo, SECURITY DEFINER, `search_path = pg_catalog, core, plataforma, pg_temp`, sem EXECUTE a ninguém |
+| `cliente_codigo_fdv_emitir` | BEFORE INSERT em `core.cliente`, de **qualquer origem**: código nulo e linha viva -> (1) com `external_id`, procura o vivo do mesmo `(tenant_id, external_id)` (índice `cliente_external_uk`) e, se acha, **não emite**: a linha proposta leva o código do vivo, que fica travado (`for no key update`) até o fim da transação; (2) senão, próximo número do contador (inserts concorrentes do mesmo tenant numeram em fila, sem repetir). Código informado fica (backup, carga técnica e a **substituição do APK v1.0.28**: o id novo X herda o código do recusado Y, apagado antes) e o contador que existe sobe para `greatest(atual, n)`. Linha inserida já apagada e sem código (backup) fica sem código |
+| `cliente_codigo_fdv_somente_leitura` | BEFORE UPDATE em `core.cliente`: mudar `codigo_fdv` = **SQLSTATE 23514**, **constraint `cliente_codigo_fdv_somente_leitura`**, coluna `codigo_fdv`, hint `RN-CORE-78` -> o Core mapeia para 422 `CODIGO_FDV_SOMENTE_LEITURA`. O apagado sem código que volta a vivo ganha o próximo número no mesmo update, de qualquer origem |
+
+- **Carga do ERP sem gastar número:** o `consumidorClienteDoErp` grava com `insert ... on conflict (tenant_id, external_id) ... do
+  update`, e o BEFORE INSERT roda antes do conflito. O Postgres confere os CHECKs **antes** de achar o conflito (`ExecConstraints`
+  antes da inserção especulativa; conferido na sessão): se o gatilho deixasse o código nulo, como dizia o D.7 da ADR, o
+  `cliente_codigo_fdv_vivo` recusaria **toda** carga repetida de cliente que já existe. Por isso a linha proposta leva o código do
+  vivo: o conflito a troca pelo update, que não mexe no código. A trava do vivo (a mesma que o update do conflito pega) impede que
+  ele seja apagado entre a procura e o conflito, então a linha proposta nunca é gravada com o código dele. Duas cargas do mesmo
+  cliente novo ao mesmo tempo gravam um cliente só e perdem no máximo um número (buraco aceito, nunca repete). O consumidor não muda.
+- **Carga (backfill):** **todos** os clientes **vivos** de todas as empresas (qualquer `origem_cadastro`), por tenant, em ordem de
+  `created_at, id` (o `id` desempata a mesma carga do ERP), recebem `00001`… num update só, antes dos gatilhos e do CHECK
+  `cliente_codigo_fdv_vivo`; os apagados ficam nulos e não gastam número. O contador termina no maior emitido (tenant sem cliente
+  vivo fica sem linha até o 1º). O `updated_at` dos vivos anda: o pull leva o código e cada aparelho puxa a carteira de novo no 1º
+  sync depois do deploy. Sem outbox: nenhum evento é publicado.
+- **Tempo da 0098** (medido em 23/11/2026 na base de teste, Postgres 16.15 local da sessão, fsync desligado): 200 mil clientes vivos
+  e 20 mil apagados num tenant, mais dois tenants com 20 mil vivos (240 mil vivos numerados): **12,3 s** a 0098 inteira (12,7 s ao
+  reaplicar depois do down; o down, 27 ms). Durante esse tempo os clientes vivos ficam travados para escrita (o update da carga roda
+  na transação da migração): rode a 0098 na janela do deploy, com a carga do ERP parada. Depois dela, o upsert da carga do ERP sobre
+  cliente que já existe custa 0,75 ms por linha (com a procura e a trava do gatilho). Em produção (fsync ligado, DBaaS), conte com
+  mais tempo.
+- **Backup e restauração** (0072, `ordem_do_backup`): o contador só tem FK para `plataforma.tenant` e sai antes de `core.cliente`; a
+  restauração dá certo em qualquer ordem com os gatilhos ligados, como na 0080 (não desligue os do contador).
+- **Fixture dois-tenants:** todo cliente da fixture tem código (`CODIGOS_FDV_CLIENTES_FIXTURE`: A `00001`–`00003`, B `00001`),
+  gravado informado pelo `carregarDoisTenants` e preservado na recarga; o contador de A fica em 3 e o de B em 1 (id determinístico).
+  Os testes criam os clientes novos dentro de transação desfeita.
+- **Drizzle:** `cliente.codigo_fdv` e `clienteCodigoFdvContador` em `modules/core/db/nuvem.ts`.
+
+Volta: `0098_core_integracao_pre_cadastro_revisao.down.sql` (apaga a tabela de tentativas e `revisao_cadastro` e `erros_recusa`,
+com os CHECKs e o SELECT por coluna do `macuxi_leitura` — o histórico, os hashes e os erros por campo se perdem; os parâmetros ficam
+como a 0098 deixou, válidos para o código da v1.0.28) e o Código FDV do cliente (gatilhos, função, contador, índice, CHECKs e
+coluna: **perde os códigos**; reaplicar renumera os clientes vivos por `created_at, id`). Idempotente. Volte antes o código do Core e do Hub que lê a tabela ou as
+colunas (senão 42P01/42703). Testes: `db/testes/cliente-pre-cadastro-revisao.db.test.ts` e `db/testes/cliente-codigo-fdv.db.test.ts` (Código FDV).

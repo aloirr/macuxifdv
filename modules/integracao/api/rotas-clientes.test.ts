@@ -3,7 +3,7 @@
  * multi-tenant (RLS simulada pelo `tenant_id`), idempotência e evento. Os testes com Postgres ficam em `clientes-erp.db.test.ts`.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { EVENTO_CLIENTE_RETORNO_ERP, RetornoCliente, VERSAO_CONTRATO } from '../contracts';
+import { ClienteParaErp, EVENTO_CLIENTE_RETORNO_ERP, RetornoCliente, VERSAO_CONTRATO } from '../contracts';
 import { clientesPendentes, retornoCliente } from './rotas-clientes';
 
 const UUID = '8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04';
@@ -13,7 +13,7 @@ const TENANT_B = '22222222-2222-4222-8222-222222222222';
 
 const linha = (extra: Record<string, unknown> = {}) => ({
   cliente_uuid: UUID, estado: 'enviado', payload: { cliente_uuid: UUID, razao_social: 'Mercadinho' }, recebido_em: '2026-11-23T10:00:00.000Z',
-  enviado_em: '2026-11-23T11:59:00.000Z', tentativas: 1, external_id: null, motivo: null, deleted_at: null, ...extra,
+  enviado_em: '2026-11-23T11:59:00.000Z', tentativas: 1, external_id: null, motivo: null, deleted_at: null, revisao: 1, hash: null, erros: null, ...extra,
 });
 
 function ambiente(o: { dono?: string; tenant?: string; recebe?: boolean; linha?: Record<string, unknown> } = {}) {
@@ -45,10 +45,18 @@ describe('RN-INT-22: GET /clientes/pendentes', () => {
     const a = ambiente({ linha: { estado: 'pendente', enviado_em: null, tentativas: 0 } });
     const r = await a.pendentes();
     expect(r.clientes).toHaveLength(1);
-    expect(r.clientes[0]).toMatchObject({ cliente_uuid: UUID, tentativa: 1 });
+    expect(r.clientes[0]).toMatchObject({ cliente_uuid: UUID, revisao: 1, hash: null, tentativa: 1 });
     const upd = a.sqls.find((s) => /^\s*update/i.test(s.sql))!;
     expect(upd.params).toEqual([TENANT_A, UUID, 'enviado', AGORA.toISOString(), 1, 'c1']);
     expect(a.sqls[0]!.sql).toMatch(/for update skip locked/);
+  });
+  it('RN-INT-22: entrega o codigo_fdv (ADR 0069 §10), que o contrato ClienteParaErp aceita; payload antigo sai com null', async () => {
+    const r = await ambiente({ linha: { estado: 'pendente', enviado_em: null, tentativas: 0, payload: { cliente_uuid: UUID, razao_social: 'Mercadinho', codigo_fdv: '00012' } } }).pendentes();
+    expect(r.clientes[0]).toMatchObject({ codigo_fdv: '00012' });
+    expect((await ambiente({ linha: { estado: 'pendente', enviado_em: null, tentativas: 0 } }).pendentes()).clientes[0]).toMatchObject({ codigo_fdv: null });
+    expect(ClienteParaErp.shape.codigo_fdv.safeParse('00012').success).toBe(true);
+    expect(ClienteParaErp.shape.codigo_fdv.safeParse(null).success).toBe(true);
+    expect(ClienteParaErp.shape.codigo_fdv.safeParse('12').success).toBe(false);
   });
   it('RN-INT-22: Conector que não recebe pedidos recebe 403 acesso_negado e nada é lido', async () => {
     const a = ambiente({ recebe: false });
@@ -65,15 +73,15 @@ describe('RN-INT-22: POST /clientes/{uuid}/retorno', () => {
   it('RN-INT-22: vinculado grava o external_id na fila e publica integracao.cliente.retorno_erp@1 uma vez', async () => {
     const a = ambiente();
     const r = await a.retorno(vinculado());
-    expect(r).toEqual({ cliente_uuid: UUID, estado: 'vinculado', repetido: false });
+    expect(r).toEqual({ cliente_uuid: UUID, estado: 'vinculado', repetido: false, revisao: 1 });
     const upd = a.sqls.find((s) => /^\s*update/i.test(s.sql))!;
-    expect(upd.params).toEqual([TENANT_A, UUID, 'vinculado', 'C-100', null, 'c1']);
+    expect(upd.params).toEqual([TENANT_A, UUID, 'vinculado', 'C-100', null, null, 'c1']);
     expect(a.publicar).toHaveBeenCalledTimes(1);
     expect(a.publicar).toHaveBeenCalledWith(EVENTO_CLIENTE_RETORNO_ERP, expect.objectContaining({ cliente_id: UUID, status: 'vinculado', external_id: 'C-100' }), UUID);
   });
   it('RN-INT-22: o mesmo retorno de novo é repetido: não regrava nem publica', async () => {
     const a = ambiente({ linha: { estado: 'vinculado', external_id: 'C-100' } });
-    expect(await a.retorno(vinculado())).toEqual({ cliente_uuid: UUID, estado: 'vinculado', repetido: true });
+    expect(await a.retorno(vinculado())).toEqual({ cliente_uuid: UUID, estado: 'vinculado', repetido: true, revisao: 1 });
     expect(a.sqls.some((s) => /^\s*update/i.test(s.sql))).toBe(false);
     expect(a.publicar).not.toHaveBeenCalled();
   });
@@ -82,6 +90,13 @@ describe('RN-INT-22: POST /clientes/{uuid}/retorno', () => {
     const r = await a.retorno(vinculado({ status: 'rejeitado_erp', external_id: undefined, motivo: 'CNPJ já cadastrado' }));
     expect(r.estado).toBe('rejeitado');
     expect(a.publicar).toHaveBeenCalledWith(EVENTO_CLIENTE_RETORNO_ERP, expect.objectContaining({ status: 'rejeitado_erp', motivo: 'CNPJ já cadastrado', external_id: null }), UUID);
+  });
+  it('RN-INT-22: vinculado sobre rejeitado da mesma revisão = 200 (o ERP manda): grava, limpa motivo e erros e publica', async () => {
+    const a = ambiente({ linha: { estado: 'rejeitado', motivo: 'CNPJ inválido', erros: [{ campo: 'documento', codigo: 'X', mensagem: 'm' }] } });
+    expect(await a.retorno(vinculado({ revisao: 1 }))).toEqual({ cliente_uuid: UUID, estado: 'vinculado', repetido: false, revisao: 1 });
+    const upd = a.sqls.find((s) => /^\s*update/i.test(s.sql))!;
+    expect(upd.params).toEqual([TENANT_A, UUID, 'vinculado', 'C-100', null, null, 'c1']);
+    expect(a.publicar).toHaveBeenCalledTimes(1);
   });
   it('RN-INT-22: código diferente do já vinculado é 422 external_id_divergente com mensagem e erros[]', async () => {
     const a = ambiente({ linha: { estado: 'vinculado', external_id: 'C-100' } });
@@ -96,5 +111,37 @@ describe('RN-INT-22: POST /clientes/{uuid}/retorno', () => {
     await expect(ambiente({ recebe: false }).retorno(vinculado())).rejects.toMatchObject({ status: 403 });
     expect(RetornoCliente.safeParse(vinculado({ external_id: null })).success).toBe(false);
     expect(RetornoCliente.safeParse(vinculado({ status: 'rejeitado_erp', external_id: null })).success).toBe(false);
+  });
+  it('RN-INT-22: GET entrega revisao e hash da coluna', async () => {
+    const H = 'e'.repeat(64);
+    const r = await ambiente({ linha: { estado: 'pendente', enviado_em: null, tentativas: 0, revisao: 3, hash: H } }).pendentes();
+    expect(r.clientes[0]).toMatchObject({ revisao: 3, hash: H, tentativa: 1 });
+  });
+  it('RN-INT-22: rejeitado_erp com erros grava os erros mascarados e o log não leva motivo, erros nem documento', async () => {
+    const info = vi.fn();
+    const erros = [{ campo: 'documento', codigo: 'DUPLICADO', mensagem: 'CNPJ 12.345.678/0001-90 já existe' }];
+    const corpo = RetornoCliente.parse(vinculado({ status: 'rejeitado_erp', external_id: undefined, motivo: 'Cadastro inválido', erros }));
+    const r = await retornoCliente({ tenantId: TENANT_A, conector: { id: 'c1', identificador: 'm', recebe_pedidos: true }, agora: () => AGORA, parametros: () => ({}), log: { info, warn: vi.fn(), error: vi.fn() }, comTenant: (fn: (d: unknown, t: unknown) => Promise<unknown>) => fn({ query: async (sql: string) => ({ rows: /^\s*select/i.test(sql) ? [linha()] : [] }) }, { publicar: vi.fn() }), corpo, params: { cliente_uuid: UUID } } as never);
+    expect(r).toEqual({ cliente_uuid: UUID, estado: 'rejeitado', repetido: false, revisao: 1 });
+    expect(info).toHaveBeenCalledWith({ cliente_uuid: UUID, revisao: 1, status: 'rejeitado_erp', repetido: false, obsoleto: false }, expect.any(String));
+    expect(JSON.stringify(info.mock.calls)).not.toMatch(/Cadastro inválido|DUPLICADO|12\.345/);
+    const a2 = ambiente();
+    await a2.retorno(vinculado({ status: 'rejeitado_erp', external_id: undefined, motivo: 'Cadastro inválido', erros }));
+    const upd = a2.sqls.find((s) => /^\s*update/i.test(s.sql))!;
+    expect(JSON.parse(upd.params[5] as string)).toEqual([{ campo: 'documento', codigo: 'DUPLICADO', mensagem: 'CNPJ [cnpj] já existe' }]);
+    expect(a2.publicar).toHaveBeenCalledWith(EVENTO_CLIENTE_RETORNO_ERP, expect.objectContaining({ revisao: 1, erros: [{ campo: 'documento', codigo: 'DUPLICADO', mensagem: 'CNPJ [cnpj] já existe' }] }), UUID);
+  });
+  it('RN-INT-22: recusa de revisão antiga é 200 obsoleto, sem gravar nem publicar; revisão maior é 422 revisao_desconhecida', async () => {
+    const a = ambiente({ linha: { estado: 'enviado', revisao: 2 } });
+    expect(await a.retorno(vinculado({ status: 'rejeitado_erp', external_id: undefined, motivo: 'velho', revisao: 1 }))).toEqual({ cliente_uuid: UUID, estado: 'enviado', repetido: false, revisao: 2, obsoleto: true });
+    expect(a.sqls.some((s) => /^\s*update/i.test(s.sql))).toBe(false);
+    expect(a.publicar).not.toHaveBeenCalled();
+    await expect(a.retorno(vinculado({ revisao: 3 }))).rejects.toMatchObject({ status: 422, corpo: { codigo: 'revisao_desconhecida' } });
+  });
+  it('RN-INT-22: contrato aceita revisao e erros (só em rejeitado_erp); erros vazio ou em vinculado não passa', () => {
+    expect(RetornoCliente.safeParse(vinculado({ revisao: 2 })).success).toBe(true);
+    expect(RetornoCliente.safeParse(vinculado({ erros: [{ campo: 'cep', codigo: 'X', mensagem: 'm' }] })).success).toBe(false);
+    expect(RetornoCliente.safeParse(vinculado({ status: 'rejeitado_erp', external_id: undefined, motivo: 'm', erros: [] })).success).toBe(false);
+    expect(RetornoCliente.safeParse(vinculado({ status: 'rejeitado_erp', external_id: undefined, motivo: 'm', erros: Array.from({ length: 51 }, () => ({ campo: 'c', codigo: 'X', mensagem: 'm' })) })).success).toBe(false);
   });
 });

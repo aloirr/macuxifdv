@@ -5,11 +5,14 @@
  * O payload vem do `contracts` do Integracao (`EVENTO_ERP_CLIENTE_ATUALIZADO`), com leitura tolerante (T-0024).
  * T-0066: depois do cadastro, aplica carteira (`vendedor_external_id`), contatos e financeiro (limite, bloqueio) do mesmo
  * payload (`consumidores-erp-cliente-extras.ts`). Vendedor ainda ausente = `ReferenciaAusenteErp` (a outbox repete, RN-INT-04).
+ * v1.0.30 (ADR 0069 item 10, "o ERP manda"): depois do vínculo, a carga sobrescreve os dados que o vendedor digitou no pré-cadastro
+ * (upsert pelo código), mantendo Código FDV, origem, revisões e a coordenada 'manual' quando o ERP não manda coordenada (RN-CORE-77).
+ * Antes do vínculo, a carga com o CPF/CNPJ de um pré-cadastro sem código espera (`decidirDocumentoDoErp`), sem duplicar o cliente.
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, PARAMETRO_CAMPOS_OBRIGATORIOS } from '../contracts';
 import { EVENTO_ERP_CLIENTE_ATUALIZADO } from '../../integracao/contracts';
-import { camposExigidos, canalDoClienteDoErp, decidirOrdemErp, filialDoClienteDoErp, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
+import { camposExigidos, canalDoClienteDoErp, decidirDocumentoDoErp, decidirOrdemErp, filialDoClienteDoErp, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
 import { aplicarCarteiraDoErp, aplicarContatosDoErp, aplicarFinanceiroDoErp } from './consumidores-erp-cliente-extras';
 import { consumidorClienteRetornoErp } from './consumidores-erp-cliente-retorno';
 import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-endereco';
@@ -63,10 +66,18 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
     }
     if (plano.tipo === 'ignorar') return;
 
-    // Documento já usado por outro cliente do tenant (índice único): entra sem documento e cai no cadastro incompleto.
+    // Documento já usado por outro cliente do tenant (índice único): pré-cadastro ainda sem código = espera o vínculo (a outbox repete,
+    // RN-INT-04); outro dono = entra sem documento e cai no cadastro incompleto.
     if (plano.linha.documento !== null) {
-      const dono = await ctx.db.query('select 1 from core.cliente where documento = $1 and deleted_at is null and external_id is distinct from $2', [plano.linha.documento, plano.linha.external_id]);
-      if (dono.rows.length > 0 && evento.registro) {
+      const dono = (
+        await ctx.db.query<{ origem_cadastro: string; external_id: string | null }>(
+          'select origem_cadastro, external_id from core.cliente where documento = $1 and deleted_at is null and external_id is distinct from $2 limit 1',
+          [plano.linha.documento, plano.linha.external_id],
+        )
+      ).rows[0] ?? null;
+      const decisao = decidirDocumentoDoErp(dono, plano.linha.external_id);
+      if (decisao === 'esperar_vinculo') throw new ReferenciaAusenteErp('cliente_pre_cadastro');
+      if (decisao === 'sem_documento' && evento.registro) {
         evento = { ...evento, registro: { ...evento.registro, documento: null } };
         plano = planejarClienteDoErp(evento, exigidos);
         if (plano.tipo !== 'upsert') return;

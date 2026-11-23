@@ -5,10 +5,9 @@
  * `codigo_fdv` no corpo = 422) e nunca reaproveitado (o provisório inativado no vínculo do ERP mantém o seu; o real mantém o seu).
  * Funções puras, sem banco.
  */
+import { CODIGO_FDV_SOMENTE_LEITURA, MENSAGEM_CODIGO_FDV_SOMENTE_LEITURA } from '../contracts/cliente-pre-cadastro';
 
 export const DIGITOS_MINIMOS_CODIGO_FDV = 5;
-
-export const CODIGOS_CODIGO_FDV = { somenteLeitura: 'CODIGO_FDV_SOMENTE_LEITURA' } as const;
 
 /** Número da sequência da empresa (inteiro seguro a partir de 1) -> `00001`. */
 export function formatarCodigoFdv(sequencial: number): string {
@@ -29,7 +28,7 @@ export function validarCodigoFdv(texto: string): ResultadoCodigoFdv {
 }
 
 /** `codigo_fdv` no corpo de criar/editar é recusado (422), mesmo igual ao gravado: o campo é só de leitura. */
-export function recusarCodigoFdvNoCorpo(corpo: Record<string, unknown>): { codigo: typeof CODIGOS_CODIGO_FDV.somenteLeitura; campo: 'codigo_fdv'; mensagem: string } | null {
+export function recusarCodigoFdvNoCorpo(corpo: Record<string, unknown>): { codigo: typeof CODIGO_FDV_SOMENTE_LEITURA; campo: 'codigo_fdv'; mensagem: string } | null {
   if (corpo.codigo_fdv === undefined) return null;
-  return { codigo: CODIGOS_CODIGO_FDV.somenteLeitura, campo: 'codigo_fdv', mensagem: 'O Código FDV é gerado pelo sistema e não pode ser alterado. Tire o campo e salve de novo.' };
+  return { codigo: CODIGO_FDV_SOMENTE_LEITURA, campo: 'codigo_fdv', mensagem: MENSAGEM_CODIGO_FDV_SOMENTE_LEITURA };
 }
