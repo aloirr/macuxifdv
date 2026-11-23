@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { type FiltrosMonitor, lerFiltros, paraBusca } from './filtros-url';
+import { type FiltrosMonitor, lerFiltros, urlComFiltros } from './filtros-url';
 
 /** Estado do monitor na URL (`?historico=...&lote=...`): lê ao abrir e grava a cada mudança, sem recarregar a página. */
 export function useFiltrosNaUrl(): [FiltrosMonitor, (patch: Partial<FiltrosMonitor>) => void] {
@@ -14,13 +14,13 @@ export function useFiltrosNaUrl(): [FiltrosMonitor, (patch: Partial<FiltrosMonit
     return () => window.removeEventListener('popstate', aoNavegar);
   }, []);
 
-  const mudar = useCallback((patch: Partial<FiltrosMonitor>) => {
-    setFiltros((atual) => {
-      const novo = { ...atual, ...patch };
-      window.history.replaceState(window.history.state, '', `${window.location.pathname}${paraBusca(novo, window.location.search)}`);
-      return novo;
-    });
-  }, []);
+  // grava na URL depois da mudança (fora da função de atualização do estado, que deve ser pura)
+  useEffect(() => {
+    const url = urlComFiltros(filtros, window.location);
+    if (url !== null) window.history.replaceState(window.history.state, '', url);
+  }, [filtros]);
+
+  const mudar = useCallback((patch: Partial<FiltrosMonitor>) => setFiltros((atual) => ({ ...atual, ...patch })), []);
 
   return [filtros, mudar];
 }

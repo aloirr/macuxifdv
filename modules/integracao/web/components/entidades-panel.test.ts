@@ -31,4 +31,10 @@ describe('entidades-panel e monitor-painel: colunas, menu "⋯" e título', () =
     expect(monitor).toMatch(/titulo=\{titulo\}/);
     expect(painel).toMatch(/<Panel label=\{titulo \?\? 'Entidades'\} title=\{titulo\}>/);
   });
+
+  it('R3-1 (engenheiro-apps v1.0.31): a Situação cabe o selo mais largo ("Com falha", 74 px) + 20 px de respiro, e não mais', () => {
+    const largura = Number(/largura: '(\d+)px'/.exec(coluna('situacao'))?.[1]);
+    expect(largura).toBeGreaterThanOrEqual(74 + 20);
+    expect(largura).toBe(94);
+  });
 });
