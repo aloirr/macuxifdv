@@ -13,27 +13,26 @@ Dono da tela: `modulo-core` (`modules/core/app`). Kit: `@macuxi/ui/mobile`. Regr
 
 | Bloco | Campo (rótulo) | Componente | Teclado / máscara |
 |---|---|---|---|
-| — | CNPJ ou CPF | `CampoTexto mascara="documento"` | numérico; CPF até 11 dígitos, CNPJ de 12 a 14 |
+| — | CPF/CNPJ | `CampoTexto mascara="documento"` | numérico; CPF até 11 dígitos, CNPJ de 12 a 14 |
 | — | Razão social (CPF: **Nome**) | `CampoTexto` | texto, `autoCapitalize="words"` |
 | — | Nome fantasia | `CampoTexto` | texto, `words` |
 | CONTATO | Telefone | `CampoTexto mascara="telefone"` | `phone-pad`; (00) 0000-0000 / (00) 00000-0000 |
 | | E-mail | `CampoTexto` | `email-address`, `autoCapitalize="none"` |
-| | Contato (nome) | `CampoTexto` | texto, `words` |
 | ENDEREÇO | CEP | `CampoTexto mascara="cep"` | numérico; 00000-000 |
-| | Logradouro · Número · Complemento · Bairro | `CampoTexto` (Número com `number-pad`, ao lado do Logradouro em 1/3 da largura) | texto |
+| | Logradouro · Número · Bairro | `CampoTexto` (Número com `number-pad`, ao lado do Logradouro em 1/3 da largura) | texto |
 | | Cidade | `CampoTexto` | texto, `words` |
 | | UF | `CampoEscolha` com `UFS_BRASIL` (`@macuxi/comum/endereco`), com busca, placeholder **Escolher** | — |
 | OUTROS | Inscrição estadual e os demais campos do parâmetro | `CampoTexto` | conforme o campo |
 
-- Campo que a empresa **não** exige: `opcional` → rótulo "Complemento (opcional)" em `ink3`. Obrigatório (pelo parâmetro ou sempre) não leva marca.
+- Campo que a empresa **não** exige: `opcional` → rótulo "Nome fantasia (opcional)" em `ink3`. Obrigatório (pelo parâmetro ou sempre) não leva marca.
 - Campo que a empresa não usa: não aparece.
-- Valor guardado sem pontuação (`somenteDigitos`); a máscara é só da tela.
+- O documento (CPF/CNPJ) vai ao sync só com dígitos (`somenteDigitos`), como CEP e telefone; a máscara é só visual.
 - Borda dos campos: `lineStrong` (#7A8593), 1 dp, raio `md`, 52 dp. "Próximo" do teclado leva ao campo seguinte; no último, fecha o teclado.
 
 ## 3. Falta por campo (padrão T-0166, `faltaVisivel`)
 - Obrigatório vazio: normal até tocar em **Salvar**; aí `falta="Obrigatório"` (borda `danger` 2 dp + `TextoDaFalta`) e a tela rola até o primeiro campo com falta.
 - Inválido: ao sair do campo — "CNPJ inválido", "CPF inválido", "CEP inválido", "Telefone inválido", "E-mail inválido". Validação no domain (`cnpjValido`, `cpfValido`, `cepValido`).
-- CNPJ/CPF de cliente que já está na carteira: "Já é cliente" + link **Abrir** na mesma linha.
+- CPF/CNPJ de cliente que já está na carteira: "Já é cliente" + link **Abrir** na mesma linha.
 - Nada de resumo de erros no topo; o erro está no campo.
 
 ## 4. Salvar
@@ -48,9 +47,10 @@ Selo: `ChipEstado pequeno {...seloDoPreCadastro(situacao)}` no lugar do selo `pr
 |---|---|---|
 | Aguardando ERP | `Aguardando ERP` (tom `aviso`, ícone `clock`) | pode abrir pedido conforme a regra do módulo; nenhum texto extra |
 | Recusado pelo ERP | `Recusado pelo ERP` (tom `erro`, ícone `alert`) | na ficha, área **Alertas**: o motivo do ERP (texto literal, 1 a 3 linhas) e o botão secundário **Corrigir e reenviar** |
+| Falha de envio (422) | igual ao recusado | igual ao recusado: o motivo na área **Alertas** e o botão secundário **Corrigir e reenviar** |
 | Aprovado (ERP devolveu o código) | sem selo | o código aparece onde o código do cliente já aparece |
 
-- O motivo aparece só na área Alertas da ficha (não repete na lista nem no formulário). Na correção, o formulário abre preenchido e o motivo fica no topo do formulário, numa linha `danger` com ícone `alert` — é o único lugar dele enquanto o vendedor corrige.
+- O motivo aparece na área Alertas da ficha e, na correção, só no topo do formulário. Na correção, o formulário abre preenchido e o motivo fica numa linha `danger` com ícone `alert`.
 - Reenviar = **Salvar** no formulário de correção; o selo volta a **Aguardando ERP**.
 
 ## 6. Componentes do kit (`@macuxi/ui/mobile`)
