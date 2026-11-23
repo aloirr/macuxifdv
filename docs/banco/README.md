@@ -262,6 +262,11 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > entidade com piso de 15 min por CHECK), `credencial_erp` (segredo cifrado, uma viva por Conector, **sem** `macuxi_leitura`,
 > worker e portal), `implantacao`, `implantacao_dia` (assistente e painel dos 30 dias) e `coleta_execucao`. Detalhes no
 > [integracao.md](integracao.md) ("0094"); teste `db/testes/integracao-busca-erp.db.test.ts`.
+>
+> **2026-11-23 (v1.0.27, RF-CORE-10, R-20261122-084146-alexandre item d):** `0095_core_cliente_cadastro_aprovacao` (aditiva,
+> em cima da 0094; número provisório): `core.cliente` ganha `origem_cadastro` (`'erp'` por default), `status_cadastro`,
+> `aprovado_em` e `aprovado_por`, 5 CHECKs e o índice parcial `cliente_aprovado_sem_erp_ix` (fila do Hub: aprovados sem
+> `external_id`). Detalhes no [core.md](core.md) ("0095"); teste `db/testes/cliente-cadastro-aprovacao.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

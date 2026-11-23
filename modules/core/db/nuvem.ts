@@ -222,6 +222,15 @@ export const cliente = core.table('cliente', {
   geocodificacao_tentada_em: timestamp('geocodificacao_tentada_em', { withTimezone: true }),
   /** Hash do endereço e do CEP tentados (mesma chave = JA_TENTADO). Sensível pelo nome: fora do SELECT do macuxi_leitura. */
   geocodificacao_chave: text('geocodificacao_chave'),
+  // --- 0095 (v1.0.27, RF-CORE-10): origem, status e aprovação do cadastro (pré-cadastro aprovado vai ao ERP pelo Hub). Fora do pull. ---
+  /** Origem do cadastro; quem já existia é 'erp' (default). */
+  origem_cadastro: text('origem_cadastro', { enum: ['erp', 'campo', 'bko'] }).notNull().default('erp'),
+  /** Nulo se e só se origem_cadastro = 'erp' (cliente_status_cadastro_origem). */
+  status_cadastro: text('status_cadastro', { enum: ['pendente', 'aprovado', 'recusado'] }),
+  /** Aprovação no BKO (UTC); com aprovado_por, só com status 'aprovado'. Fila do Hub: cliente_aprovado_sem_erp_ix. */
+  aprovado_em: timestamp('aprovado_em', { withTimezone: true }),
+  /** core.usuario.id de quem aprovou (sem FK). */
+  aprovado_por: uuid('aprovado_por'),
 });
 
 /**
