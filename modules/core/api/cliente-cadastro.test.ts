@@ -16,6 +16,6 @@ describe('rotas do cliente novo para o ERP', () => {
   });
   it('RN-CORE-78: o manifest publica o evento e oferece as duas consultas ao Hub', () => {
     expect(manifest.publica).toContain('core.cliente.aprovado@1');
-    expect(manifest.ofereceConsultas).toEqual(expect.arrayContaining(['core.clientes_aprovados_sem_erp@1', 'core.cliente_vincular_erp@1']));
+    expect(manifest.ofereceConsultas).toEqual(expect.arrayContaining(['core.clientes_aprovados_sem_erp@1']));
   });
 });

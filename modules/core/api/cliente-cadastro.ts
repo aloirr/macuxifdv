@@ -1,21 +1,19 @@
 /**
  * Cliente novo no ERP (RF-CORE-10; RN-CORE-78, RN-INT-22): pré-cadastro idempotente pelo id, decisão no BKO (aprovar publica
- * `core.cliente.aprovado@1` na mesma transação) e as consultas que o Hub usa para buscar os aprovados e devolver o código do ERP.
+ * `core.cliente.aprovado@1` na mesma transação) e a consulta que o Hub usa para buscar os aprovados (o código do ERP volta pelo evento de retorno do Hub).
  * As colunas `origem_cadastro`, `status_cadastro`, `aprovado_em` e `aprovado_por` vêm da migração 0095 (banco-dados).
  */
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, implementarConsulta, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
-  CONSULTA_CLIENTE_VINCULAR_ERP,
   CONSULTA_CLIENTES_APROVADOS_SEM_ERP,
   DecidirCadastroClienteSchema,
   EVENTO_CLIENTE_APROVADO,
   PreCadastroClienteSchema,
   type ClienteAprovadoParaErp,
-  type ClienteVincularErpSaida,
   type ClientesAprovadosSemErpSaida,
 } from '../contracts';
-import { decidirCadastro, decidirVinculoErp } from '../domain';
+import { decidirCadastro, type ClienteParaDecisao } from '../domain';
 import { auditar } from './auditoria';
 
 const IdParam = z.object({ id: z.string().uuid() });
@@ -25,7 +23,7 @@ const ERROS_DECISAO = {
   CADASTRO_JA_DECIDIDO: 'Este cadastro já foi decidido. Atualize a lista para ver o resultado.',
 } as const;
 
-type StatusCadastro = 'pendente' | 'aprovado' | 'recusado';
+type StatusCadastro = NonNullable<ClienteParaDecisao['status_cadastro']>;
 
 export const rotasDeClienteCadastro: RotaModulo[] = [
   {
@@ -45,11 +43,20 @@ export const rotasDeClienteCadastro: RotaModulo[] = [
           const igual = (await db.query('select 1 from core.cliente where documento = $1 and deleted_at is null', [c.documento])).rows[0];
           if (igual) throw new ErroHttpModulo(409, 'DOCUMENTO_JA_CADASTRADO', 'Já existe um cliente com este CPF/CNPJ. Procure-o na lista de clientes.');
         }
-        await db.query(
+        // Id que já existe em outro tenant (RLS esconde no select acima): a unicidade estoura; responde 409 sem dizer onde está.
+        await db.query('savepoint pre_cadastro');
+        try {
+          await db.query(
           `insert into core.cliente (id, tenant_id, razao_social, nome_fantasia, documento, inscricao_estadual, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude, longitude, filial_id, origem_cadastro, status_cadastro)
            values ($1, plataforma.tenant_atual(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'pendente')`,
           [c.id, c.razao_social, c.nome_fantasia ?? null, c.documento ?? null, c.inscricao_estadual ?? null, c.telefone ?? null, c.email ?? null, c.logradouro ?? null, c.numero ?? null, c.bairro ?? null, c.cidade ?? null, c.uf ?? null, c.cep ?? null, c.latitude ?? null, c.longitude ?? null, c.filial_id ?? null, c.origem],
-        );
+          );
+          await db.query('release savepoint pre_cadastro');
+        } catch (e) {
+          if ((e as { code?: string }).code !== '23505') throw e;
+          await db.query('rollback to savepoint pre_cadastro');
+          throw new ErroHttpModulo(409, 'CADASTRO_INDISPONIVEL', 'Não foi possível gravar este cadastro. Abra um novo cadastro e tente de novo.');
+        }
         if (ctx.usuario.perfil === 'vendedor' && ctx.usuario.id) {
           await db.query("insert into core.carteira (tenant_id, cliente_id, usuario_id, papel) values (plataforma.tenant_atual(), $1, $2, 'vendedor')", [c.id, ctx.usuario.id]);
         }
@@ -76,10 +83,11 @@ export const rotasDeClienteCadastro: RotaModulo[] = [
         if (!r.ok) throw new ErroRegraNegocio(r.codigo, ERROS_DECISAO[r.codigo]);
         const em = ctx.agora().toISOString();
         const por = ctx.usuario.id;
+        if (!por) throw new ErroRegraNegocio('USUARIO_OBRIGATORIO', 'Entre com seu usuário para decidir o cadastro.');
         if (r.status === 'aprovado') await db.query("update core.cliente set status_cadastro = 'aprovado', aprovado_em = $2, aprovado_por = $3 where id = $1", [id, em, por]);
         else await db.query("update core.cliente set status_cadastro = 'recusado' where id = $1", [id]);
         await auditar(db, ctx, { acao: 'cliente.aprovar_cadastro', entidade: 'cliente', entidadeId: id, antes: { status_cadastro: cliente.status_cadastro }, depois: { status_cadastro: r.status } });
-        if (r.status === 'aprovado' && por) await tx.publicar(EVENTO_CLIENTE_APROVADO, { cliente_id: id, aprovado_em: em, aprovado_por: por }, id);
+        if (r.status === 'aprovado') await tx.publicar(EVENTO_CLIENTE_APROVADO, { cliente_id: id, aprovado_em: em, aprovado_por: por }, id);
         return { id, status_cadastro: r.status };
       }),
   },
@@ -101,24 +109,4 @@ export const consultaClientesAprovadosSemErp = implementarConsulta(CONSULTA_CLIE
   );
   const pagina = r.rows.slice(0, entrada.limite).map((l) => ({ ...l, aprovado_em: new Date(l.aprovado_em).toISOString() }));
   return { clientes: pagina, proximo: r.rows.length > entrada.limite ? pagina[pagina.length - 1]!.cliente_id : null };
-});
-
-/** RN-INT-22: o Hub devolve o código do ERP; a regra é `decidirVinculoErp` (RN-CORE-78). Código já usado por outro cliente (23505) = `codigo_em_uso`. */
-export const consultaClienteVincularErp = implementarConsulta(CONSULTA_CLIENTE_VINCULAR_ERP, async (entrada, ctx): Promise<ClienteVincularErpSaida> => {
-  const cliente = (await ctx.db.query<{ aprovado_em: Date | null; external_id: string | null }>('select aprovado_em, external_id from core.cliente where id = $1 and deleted_at is null for update', [entrada.cliente_id])).rows[0];
-  const codigo = entrada.external_id.trim();
-  const emUso = cliente && cliente.external_id === null ? (await ctx.db.query('select 1 from core.cliente where external_id = $1 and deleted_at is null and id <> $2', [codigo, entrada.cliente_id])).rows.length > 0 : false;
-  const d = decidirVinculoErp(cliente ? { aprovado: cliente.aprovado_em !== null, external_id: cliente.external_id } : null, codigo, emUso);
-  if (d.acao === 'nada') return { resultado: d.resultado, external_id_atual: cliente!.external_id };
-  if (d.acao === 'recusar') return { resultado: d.resultado, external_id_atual: d.resultado === 'conflito' ? cliente!.external_id : null };
-  try {
-    await ctx.db.query('savepoint vincular_erp');
-    await ctx.db.query('update core.cliente set external_id = $2 where id = $1', [entrada.cliente_id, codigo]);
-    await ctx.db.query('release savepoint vincular_erp');
-  } catch (e) {
-    if ((e as { code?: string }).code !== '23505') throw e;
-    await ctx.db.query('rollback to savepoint vincular_erp');
-    return { resultado: 'codigo_em_uso', external_id_atual: null };
-  }
-  return { resultado: 'vinculado', external_id_atual: null };
 });
