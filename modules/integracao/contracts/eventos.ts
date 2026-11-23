@@ -104,7 +104,7 @@ export type ReconciliacaoDivergenteEvento = z.infer<typeof ReconciliacaoDivergen
 
 /**
  * `integracao.cliente.retorno_erp@1` (RN-INT-22) — o ERP devolveu o código do cliente novo (`vinculado`) ou o recusou (`rejeitado_erp`).
- * Sem dado pessoal: só ids e o código. O Core o consome e grava o `external_id` no cliente (ADR 0012 §5).
+ * Ids e código do ERP; `motivo` é texto livre do ERP (até 1000), que o consumidor não leva a log nem auditoria. O Core o consome e grava o `external_id` no cliente (ADR 0012 §5).
  */
 export const ClienteRetornoErpEvento = z.object({
   cliente_id: Uuid,
