@@ -272,6 +272,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > provisório): `integracao.cliente_fila_erp`, a fila do pré-cadastro aprovado para o ERP no padrão da `pedido_fila_erp` (único
 > por `cliente_uuid`, estados pendente/enviado/vinculado/rejeitado, índice do poll `cliente_fila_erp_poll_ix`, RLS e grants
 > iguais). Detalhes no [integracao.md](integracao.md) ("0096"); teste `db/testes/cliente-fila-erp.db.test.ts`.
+>
+> **2026-11-23 (v1.0.28, RN-CORE-78, RN-INT-22; decisão do dono: o FDV só faz o pré-cadastro, quem aprova é o ERP):**
+> `0097_core_cliente_pre_cadastro_erp` (em cima da 0096; número provisório): `core.cliente` perde `aprovado_por` (e o CHECK
+> `cliente_aprovacao_par`), ganha `motivo_recusa` (até 500, só com `'recusado'`, sem `macuxi_leitura`) e troca o índice da fila
+> (`cliente_aprovado_sem_erp_ix` → `cliente_pre_cadastro_fila_ix`, pendentes sem código por `(created_at, id)`);
+> `integracao.cliente_fila_erp.aprovado_em` vira `recebido_em`. Detalhes no [core.md](core.md) e no
+> [integracao.md](integracao.md) ("0097"); teste `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

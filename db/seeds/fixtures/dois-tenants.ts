@@ -1965,8 +1965,8 @@ function dadosT0032(hojeA: string): Pick<DadosFixture, TabelaT0032> {
     ],
     // 0096 (v1.0.27, RF-CORE-10): A com um pré-cadastro aprovado na fila; B com um rejeitado pelo ERP.
     'integracao.cliente_fila_erp': [
-      { id: a('cliente_fila_erp', 1), tenant_id: tA, cliente_uuid: A.clientes.c3, payload: { nome: 'Cliente pré-cadastrado A' }, aprovado_em: T('12:00:00'), estado: 'pendente', enviado_em: null, tentativas: 0, conector_id: null, motivo: null, ...comuns },
-      { id: b('cliente_fila_erp', 1), tenant_id: tB, cliente_uuid: B.clientes.c1, payload: { nome: 'Cliente pré-cadastrado B' }, aprovado_em: T('11:00:00'), estado: 'rejeitado', enviado_em: T('11:05:00'), tentativas: 1, conector_id: IB.conector, motivo: 'CNPJ já cadastrado no ERP.', ...comuns },
+      { id: a('cliente_fila_erp', 1), tenant_id: tA, cliente_uuid: A.clientes.c3, payload: { nome: 'Cliente pré-cadastrado A' }, recebido_em: T('12:00:00'), estado: 'pendente', enviado_em: null, tentativas: 0, conector_id: null, motivo: null, ...comuns },
+      { id: b('cliente_fila_erp', 1), tenant_id: tB, cliente_uuid: B.clientes.c1, payload: { nome: 'Cliente pré-cadastrado B' }, recebido_em: T('11:00:00'), estado: 'rejeitado', enviado_em: T('11:05:00'), tentativas: 1, conector_id: IB.conector, motivo: 'CNPJ já cadastrado no ERP.', ...comuns },
     ],
   };
 }

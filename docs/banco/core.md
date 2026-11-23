@@ -1329,3 +1329,36 @@ paginada por `(aprovado_em, id)`. A unicidade do `external_id` por tenant entre 
 Volta: `0095_core_cliente_cadastro_aprovacao.down.sql` (apaga o índice, os CHECKs e as 4 colunas — perde a origem, o status e
 a aprovação; os clientes ficam). Idempotente. Volte antes o código do Core e do Hub que lê ou grava. Teste:
 `db/testes/cliente-cadastro-aprovacao.db.test.ts`.
+**Depois da 0097 (v1.0.28):** `aprovado_por`, `cliente_aprovacao_par` e `cliente_aprovado_sem_erp_ix` saíram; `aprovado_em` é
+quando o ERP aprovou. Ver "0097" abaixo.
+
+## 0097 — pré-cadastro sem aprovação no BKO (`0097_core_cliente_pre_cadastro_erp`; v1.0.28, RN-CORE-78, decisão do dono do produto de 23/11/2026)
+"O FDV só faz pre cadastro mesmo. O vendedor faz, chega no ERP e o BKO aprova por lá." Em cima da 0096 (número provisório; segue
+a ordem de merge). O pré-cadastro (campo ou BKO) entra na fila do ERP assim que o servidor o recebe (`'pendente'`); o ERP
+devolve o código (`'aprovado'`) ou a recusa com o motivo (`'recusado'`). Muda `core.cliente` (e renomeia uma coluna da
+`integracao.cliente_fila_erp`, ver [integracao.md](integracao.md), "0097"):
+
+| Coluna | Antes (0095) | Depois (0097) |
+|---|---|---|
+| `aprovado_por` | uuid null, quem aprovou no BKO | **sai** (com o CHECK `cliente_aprovacao_par`); ninguém aprova no FDV |
+| `aprovado_em` | quando o BKO aprovou | **quando o ERP aprovou** (UTC, gravado no retorno `vinculado`); só com `'aprovado'` (`cliente_aprovacao_status`, não muda). Linhas aprovadas no BKO na v1.0.27 guardam a hora do BKO |
+| `motivo_recusa` | — | **nova**, text null: motivo da recusa do ERP, até 500 caracteres (`cliente_motivo_recusa_tamanho`, `char_length`) e só com `'recusado'` (`cliente_motivo_recusa_status`); nulo = sem motivo (recusa legada do BKO) |
+
+- **Índice:** sai `cliente_aprovado_sem_erp_ix`; entra `cliente_pre_cadastro_fila_ix (tenant_id, created_at, id) where
+  status_cadastro = 'pendente' and external_id is null and deleted_at is null` — a consulta
+  `core.clientes_pre_cadastro_sem_erp@1` (pendentes sem código, em ordem de chegada, paginada por `(created_at, id)`; EXPLAIN no
+  teste).
+- **Pull:** `status_cadastro` e `motivo_recusa` passam a ir no pull de `cliente` (só a carteira do vendedor; quem lista as
+  colunas é o `TABELAS_SYNC.cliente` do Core). No aparelho o cliente fica em `ent_cliente.dados` (JSON): nenhuma migração do
+  SQLite. O up anda uma vez o `updated_at` dos pré-cadastros vivos (`origem_cadastro <> 'erp'`, dezenas por tenant) para o
+  aparelho receber os dois campos no próximo pull.
+- **macuxi_leitura:** sem SELECT em `motivo_recusa` (texto livre do ERP; a saída desse papel vai para o log do Actions); segue
+  lendo `origem_cadastro`, `status_cadastro` e `aprovado_em`. O SELECT em `aprovado_por` some com a coluna.
+- **Sigilo:** `motivo_recusa` aparece só para o vendedor do cliente; nunca em log nem na auditoria (RN-CORE-78).
+
+Volta: `0097_core_cliente_pre_cadastro_erp.down.sql` (apaga `motivo_recusa`, os 2 CHECKs e o índice novo — os motivos se perdem,
+o status `'recusado'` fica; recria `aprovado_por` com o SELECT do `macuxi_leitura`, preenchido com o UUID nulo
+`00000000-0000-0000-0000-000000000000` nas linhas com `aprovado_em` (aprovado pelo ERP, sem usuário) para o CHECK
+`cliente_aprovacao_par` voltar valendo, e o `cliente_aprovado_sem_erp_ix`; `recebido_em` volta a `aprovado_em` na fila do Hub).
+Idempotente. Volte antes o código do Core e do Hub que lê ou grava `motivo_recusa` ou `recebido_em`. Teste:
+`db/testes/cliente-pre-cadastro-erp.db.test.ts`.

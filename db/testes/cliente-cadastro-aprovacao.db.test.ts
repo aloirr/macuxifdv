@@ -6,6 +6,8 @@
  * - índice parcial cliente_aprovado_sem_erp_ix (fila do Hub); a unicidade do external_id vivo por tenant é a de sempre;
  * - isolamento: o macuxi_app de um tenant não lê nem grava a aprovação do outro; macuxi_leitura lê as 4 colunas;
  * - up/down: a 0095 só acrescenta; o down volta exatamente ao catálogo da anterior.
+ * Depois da 0097 (v1.0.28, cliente-pre-cadastro-erp.db.test.ts): aprovado_por e cliente_aprovacao_par saíram, aprovado_em é
+ * quando o ERP aprovou e a fila é cliente_pre_cadastro_fila_ix. O bloco "banco" confere o estado ATUAL (todas as migrações).
  */
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -30,6 +32,8 @@ const CHECKS = [
   'cliente_aprovacao_status',
 ];
 const INDICE = 'cliente_aprovado_sem_erp_ix';
+/** Depois da 0097: aprovado_por e cliente_aprovacao_par saíram. */
+const COLUNAS_VIVAS = COLUNAS.filter((c) => c !== 'aprovado_por');
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 
@@ -40,7 +44,8 @@ describe('0095 cadastro e aprovação do cliente (estático)', () => {
     expect(up).toContain('alter table core.cliente add column status_cadastro text;');
     expect(up).toContain('alter table core.cliente add column aprovado_em timestamptz;');
     expect(up).toContain('alter table core.cliente add column aprovado_por uuid;');
-    for (const c of COLUNAS) expect(Object.keys(nuvemCore.cliente), c).toContain(c);
+    for (const c of COLUNAS_VIVAS) expect(Object.keys(nuvemCore.cliente), c).toContain(c);
+    expect(Object.keys(nuvemCore.cliente)).not.toContain('aprovado_por'); // saiu na 0097
     for (const k of CHECKS) expect(up, k).toContain(`add constraint ${k}`);
     expect(up.replace(/\s+/g, ' ')).toContain(
       `create index ${INDICE} on core.cliente (tenant_id, aprovado_em, id) where external_id is null and aprovado_em is not null and deleted_at is null;`,
@@ -62,7 +67,7 @@ describe('0095 cadastro e aprovação do cliente (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0095 cadastro e aprovação do cliente (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0095 cadastro e aprovação do cliente (banco, fixture dois-tenants, estado depois da 0097)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -75,52 +80,50 @@ describe.skipIf(semBanco())('0095 cadastro e aprovação do cliente (banco, fixt
   const q = async <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await admin.query<T>(sql, params)).rows;
   const comoApp = (t: string, sql: string, p: unknown[] = []) => comoPapel<Record<string, unknown>>(admin, 'macuxi_app', sql, p, t).then((r) => r.rows);
   const cliente = (set: string, p: unknown[] = []) => erroNoSavepoint(admin, `update core.cliente set ${set} where id = '${A.clientes.c1}'`, p);
-  const APROVADOR = A.usuarios.vendedor1;
 
   it('quem já existe é do ERP, sem status nem aprovação', async () => {
     const r = await q<{ n: number }>(
-      "select count(*)::int as n from core.cliente where origem_cadastro <> 'erp' or status_cadastro is not null or aprovado_em is not null or aprovado_por is not null",
+      "select count(*)::int as n from core.cliente where origem_cadastro <> 'erp' or status_cadastro is not null or aprovado_em is not null",
     );
     expect(r[0]!.n).toBe(0);
   });
 
-  it('CHECKs: valores, status x origem, par e status da aprovação', async () => {
+  it('CHECKs: valores, status x origem e status da aprovação (o par saiu na 0097)', async () => {
     await emTransacao(admin, null, async () => {
       expect((await cliente("origem_cadastro = 'csv'"))?.code).toBe('23514');
       expect((await cliente('origem_cadastro = null'))?.code).toBe('23502');
       expect((await cliente("origem_cadastro = 'campo', status_cadastro = 'rascunho'"))?.code).toBe('23514');
       expect((await cliente("status_cadastro = 'pendente'"))?.code).toBe('23514'); // origem erp com status
       expect((await cliente("origem_cadastro = 'bko'"))?.code).toBe('23514'); // pré-cadastro sem status
-      expect((await cliente("origem_cadastro = 'campo', status_cadastro = 'pendente', aprovado_em = now(), aprovado_por = $1", [APROVADOR]))?.code).toBe('23514');
-      expect((await cliente("origem_cadastro = 'campo', status_cadastro = 'aprovado', aprovado_em = now()"))?.code).toBe('23514');
-      expect((await cliente("origem_cadastro = 'campo', status_cadastro = 'aprovado', aprovado_por = $1", [APROVADOR]))?.code).toBe('23514');
+      expect((await cliente("origem_cadastro = 'campo', status_cadastro = 'pendente', aprovado_em = now()"))?.code).toBe('23514');
+      expect((await cliente("origem_cadastro = 'campo', status_cadastro = 'recusado', aprovado_em = now()"))?.code).toBe('23514');
       for (const o of ['campo', 'bko']) for (const s of ['pendente', 'recusado', 'aprovado']) expect(await cliente(`origem_cadastro = '${o}', status_cadastro = '${s}'`), `${o} ${s}`).toBeNull();
-      expect(await cliente("origem_cadastro = 'campo', status_cadastro = 'aprovado', aprovado_em = now(), aprovado_por = $1", [APROVADOR])).toBeNull();
-      expect(await cliente("origem_cadastro = 'erp', status_cadastro = null, aprovado_em = null, aprovado_por = null")).toBeNull();
+      expect(await cliente("origem_cadastro = 'campo', status_cadastro = 'aprovado', aprovado_em = now()")).toBeNull();
+      expect(await cliente("origem_cadastro = 'erp', status_cadastro = null, aprovado_em = null")).toBeNull();
     });
   });
 
   it('isolamento: o macuxi_app de B não lê nem grava a aprovação de A; A grava; external_id repetido dá 23505', async () => {
     await emTransacao(admin, null, async () => {
       await q("update core.cliente set origem_cadastro = 'campo', status_cadastro = 'pendente', external_id = null where id = $1", [A.clientes.c1]);
-      const aprovar = "update core.cliente set status_cadastro = 'aprovado', aprovado_em = now(), aprovado_por = $2 where id = $1 returning status_cadastro";
-      expect(await comoApp(B.tenantId, aprovar, [A.clientes.c1, APROVADOR])).toEqual([]);
+      const fila = () =>
+        comoApp(A.tenantId, "select id from core.cliente where status_cadastro = 'pendente' and external_id is null and deleted_at is null order by created_at, id");
+      expect(await fila()).toEqual([{ id: A.clientes.c1 }]);
+      const aprovar = "update core.cliente set status_cadastro = 'aprovado', aprovado_em = now(), external_id = 'ERP-95' where id = $1 returning status_cadastro";
+      expect(await comoApp(B.tenantId, aprovar, [A.clientes.c1])).toEqual([]);
       expect(await comoApp(B.tenantId, 'select origem_cadastro from core.cliente where id = $1', [A.clientes.c1])).toEqual([]);
-      expect(await comoApp(A.tenantId, aprovar, [A.clientes.c1, APROVADOR])).toEqual([{ status_cadastro: 'aprovado' }]);
-      const fila = await comoApp(
-        A.tenantId,
-        'select id from core.cliente where external_id is null and aprovado_em is not null and deleted_at is null order by aprovado_em, id',
-      );
-      expect(fila).toEqual([{ id: A.clientes.c1 }]);
+      expect(await comoApp(A.tenantId, aprovar, [A.clientes.c1])).toEqual([{ status_cadastro: 'aprovado' }]);
+      expect(await fila()).toEqual([]);
+      await q('update core.cliente set external_id = null where id = $1', [A.clientes.c1]);
       const outro = await q<{ external_id: string | null }>('select external_id from core.cliente where tenant_id = $1 and external_id is not null and deleted_at is null limit 1', [A.tenantId]);
       if (outro[0]) expect((await cliente('external_id = $1', [outro[0].external_id]))?.code).toBe('23505');
     });
   });
 
-  it('macuxi_leitura lê as 4 colunas', async () => {
+  it('macuxi_leitura lê as 3 colunas que ficaram (aprovado_por saiu na 0097)', async () => {
     const r = await q<{ c: string; ok: boolean }>(
       "select c, has_column_privilege('macuxi_leitura', 'core.cliente', c, 'SELECT') as ok from unnest($1::text[]) c",
-      [COLUNAS],
+      [COLUNAS_VIVAS],
     );
     expect(r.every((x) => x.ok)).toBe(true);
   });
