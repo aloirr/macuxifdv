@@ -18,7 +18,7 @@ import type { EmpresaResumo } from '@/lib/portal-empresa-acoes';
 import { fichaExemplo, PLANOS_EXEMPLO } from '@/lib/portal-planos.fixture';
 
 import { AbaEmpresa } from './aba-empresa';
-import { CartaoPlano, chaveDaFicha, DialogoTrocarPlano } from './cartao-plano';
+import { CartaoPlano, chaveDaFicha, DialogoEscolherPlano, DialogoTrocarPlano } from './cartao-plano';
 import { NovaEmpresa } from './passo-empresa';
 import { PassoEmpresa } from './passo-empresa-legado';
 import { CHAVE_PLANOS } from './seletor-plano';
@@ -147,6 +147,21 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
     expect(html).toContain('>Catálogo<');
     expect(html).not.toContain('>Core<');
   });
+  it('empresa sem plano com tudo licenciado (caso thathyany, v1.0.27 c): o time da Macuxi ainda tem uma ação, "Escolher plano"', () => {
+    const todos = (['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const).map((modulo) => ({ modulo, licencas: null }));
+    const existente = { id: TENANT, codigo: 'thathyany', razao_social: 'Distribuidora Três', cnpj: null, fuso: 'America/Manaus', modulos: todos };
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    expect(html).toContain('data-testid="empresa-plano.escolher"');
+    expect(html).toContain('>Escolher plano<');
+    // no cabeçalho do cartão "Módulos licenciados", antes dos selos
+    expect(html.indexOf('empresa-plano.escolher')).toBeLessThan(html.indexOf('data-testid="empresa-pagina.modulos"'));
+  });
+  it('"Escolher plano" só para o time da Macuxi e só com os planos ligados', () => {
+    const cliente = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi={false} modulos={MODULOS} />, { erroFicha: SEM_ASSINATURA });
+    expect(cliente).not.toContain('empresa-plano.escolher');
+    const semPlanos = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} />, { erroFicha: ROTA_AUSENTE });
+    expect(semPlanos).not.toContain('empresa-plano.escolher');
+  });
   it('servidor sem planos (MACUXI_PLANOS desligado, 404 de rota): o mesmo cartão, também para o admin do cliente', () => {
     for (const timeMacuxi of [true, false]) {
       const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi={timeMacuxi} modulos={MODULOS} />, { erroFicha: ROTA_AUSENTE });
@@ -179,6 +194,21 @@ describe('Nova empresa sem planos', () => {
     const html = renderizar(<NovaEmpresa />);
     expect(html).toContain('data-testid="empresa.plano-pme"');
     expect(html).not.toContain('data-testid="empresa.modulo-vendedor"');
+  });
+});
+
+describe('diálogo "Escolher plano" (empresa sem plano, v1.0.27)', () => {
+  it('o seletor da Nova empresa (Plano, Adicionais, Ciclo e o teste) e o principal desabilitado sem plano', () => {
+    const html = renderizar(<DialogoEscolherPlano tenant={TENANT} aoFechar={() => undefined} />);
+    expect(html).toContain('data-testid="empresa-plano.escolher-dialogo"');
+    for (const c of ['light', 'pme', 'enterprise', 'corporate']) expect(html).toContain(`data-testid="empresa.plano-${c}"`);
+    expect(html).toContain('data-testid="empresa.teste"');
+    expect(html).not.toContain('>Atual<');
+    // sem plano escolhido: nem o "Escolha o plano." de erro, nem o Total
+    expect(html).not.toContain('empresa.plano-erro');
+    expect(html).not.toContain('empresa-plano.total');
+    const confirmar = html.slice(html.indexOf('data-testid="empresa-plano.escolher-confirmar"'));
+    expect(confirmar.slice(0, confirmar.indexOf('</button>'))).toMatch(/disabled=""[^>]*>Escolher plano$/);
   });
 });
 

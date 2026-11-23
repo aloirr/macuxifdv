@@ -35,6 +35,7 @@ import {
   conferirTrocaDePlano,
   CriarEmpresaComPlanoSchema,
   CriarEmpresaSchema,
+  EscolhaNaCriacaoSchema,
   fimDoTeste,
   modulosDaAssinatura,
   TrocarPlanoSchema,
@@ -512,12 +513,32 @@ function fichaDaEmpresa(x: EmpresaFalsa, a: AssinaturaFalsa): FichaAssinatura {
   };
 }
 
-/** `GET|PUT /plataforma/empresas/:id/assinatura`: ler = time da Macuxi ou o admin da própria empresa; trocar = só o time. */
+/**
+ * `POST /plataforma/empresas/:id/assinatura` (só o time): o primeiro plano da empresa que já existe sem plano, como a API (201 com a
+ * ficha; mesmo `pedido_id` = 200; já tem plano = 409 `ASSINATURA_EXISTENTE`; abaixo do uso = 422 RN-PLA-05).
+ */
+function atribuirPlano(x: EmpresaFalsa, e: Estado, corpo: unknown): Response {
+  const c = lerCorpo(EscolhaNaCriacaoSchema, corpo);
+  if (c instanceof Response) return c;
+  const atual = x.assinatura;
+  if (atual) return atual.pedido_id === c.pedido_id ? json(200, fichaDaEmpresa(x, atual)) : erro(409, 'ASSINATURA_EXISTENTE', 'Esta empresa já tem plano.');
+  const plano = PLANOS_EXEMPLO.find((p) => p.codigo === c.plano);
+  if (!plano) return PLANO_DESCONHECIDO();
+  const testeAte = c.com_teste ? fimDoTeste(localIsoDate(new Date(), x.fuso), plano.dias_teste) : null;
+  const nova = assinaturaFalsa(plano.codigo, { ciclo: c.ciclo, adicionais: c.adicionais, teste_ate: testeAte, paga: testeAte === null, desde: agoraIso(), atualizada_em: agoraIso(), pedido_id: c.pedido_id });
+  const problemas = conferirTrocaDePlano(plano, c.adicionais, usoPorItem(fichaDaEmpresa(x, nova).licencas).emUso);
+  if (problemas.length > 0) return recusarPlano(problemas);
+  gravar({ ...e, empresas: e.empresas.map((y) => (y.id === x.id ? { ...y, assinatura: nova } : y)) });
+  return json(201, fichaDaEmpresa(x, nova));
+}
+
+/** `GET|PUT|POST /plataforma/empresas/:id/assinatura`: ler = time da Macuxi ou o admin da própria empresa; trocar e atribuir = só o time. */
 function responderAssinatura(metodo: string, tenant: string, sessao: SessaoFalsa, e: Estado, corpo: unknown): Response {
-  if (metodo !== 'GET' && metodo !== 'PUT') return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
+  if (metodo !== 'GET' && metodo !== 'PUT' && metodo !== 'POST') return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
   if (sessao.tipo === 'admin_cliente' && sessao.empresa !== tenant) return erro(403, 'PERFIL_SEM_ACESSO', 'Você só vê o plano da sua empresa.');
-  if (metodo === 'PUT' && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi troca o plano.');
+  if (metodo !== 'GET' && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi troca o plano.');
   const x = e.empresas.find((y) => y.id === tenant && !excluida(y));
+  if (metodo === 'POST') return x ? atribuirPlano(x, e, corpo) : erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada.');
   const atual = x?.assinatura;
   if (!x || !atual) return SEM_ASSINATURA();
   if (metodo === 'GET') return json(200, fichaDaEmpresa(x, atual));

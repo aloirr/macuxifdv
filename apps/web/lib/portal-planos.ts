@@ -14,6 +14,7 @@ import {
   type Adicional,
   type AdicionalContratado,
   type Ciclo,
+  type EscolhaNaCriacao,
   type FichaAssinatura,
   type ItemContado,
   type Plano,
@@ -49,6 +50,9 @@ export const TEXTOS_PLANO = Object.freeze({
   cancelar: 'Cancelar',
   atual: 'Atual',
   trocado: (nome: string) => `Plano trocado: ${nome}.`,
+  /** Empresa sem plano (aba Empresa, só o time da Macuxi). */
+  escolher: 'Escolher plano',
+  escolherNome: (nome: string) => `Escolher ${nome}`,
   buscandoPlano: 'Buscando o plano…',
   buscandoPlanos: 'Buscando os planos…',
 });
@@ -255,6 +259,15 @@ export function problemasDaTroca(planos: readonly Plano[], f: Pick<FichaAssinatu
 export function corpoDaTroca(e: EscolhaDaTela, pedidoId: string): TrocarPlano | null {
   if (!e.plano) return null;
   return { plano: e.plano, ciclo: e.ciclo, adicionais: adicionaisDaEscolha(e), pedido_id: pedidoId };
+}
+
+/**
+ * Corpo do `POST rotaPortalAssinatura`: o primeiro plano da empresa que já existe sem plano (`AtribuirPlanoSchema` do SDK, que é a
+ * `EscolhaNaCriacaoSchema`); `null` sem plano.
+ */
+export function corpoDaAtribuicao(e: EscolhaDaTela, pedidoId: string): EscolhaNaCriacao | null {
+  if (!e.plano) return null;
+  return { plano: e.plano, ciclo: e.ciclo, adicionais: adicionaisDaEscolha(e), com_teste: e.teste, pedido_id: pedidoId };
 }
 
 /** Mensagens do 422 do contrato (`detalhes.problemas[].mensagem`, ADR 0047); sem lista, a mensagem do erro. */

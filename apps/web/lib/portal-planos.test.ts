@@ -3,7 +3,7 @@
  * catálogo de exemplo da tabela da spec (§11.3/§11.9). Números só do catálogo; contas do SDK (RN-PLA-05, RN-PLA-06).
  */
 import { describe, expect, it } from 'vitest';
-import { TrocarPlanoSchema } from '@macuxi/platform-sdk';
+import { EscolhaNaCriacaoSchema, TrocarPlanoSchema } from '@macuxi/platform-sdk';
 
 import { ErroPortal } from './portal-api';
 import { fichaExemplo, planoExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
@@ -15,6 +15,7 @@ import {
   adicionaisDaEscolha,
   blocosDaFicha,
   comAdicional,
+  corpoDaAtribuicao,
   corpoDaTroca,
   emTeste,
   errosDaEscolha,
@@ -140,6 +141,17 @@ describe('diálogo "Trocar de plano" (§11.4; RN-PLA-05)', () => {
       pedido_id: '9a0c1e52-5c1e-4c4e-9a43-0000000000aa',
     });
     expect(corpoDaTroca(ESCOLHA_VAZIA, 'x')).toBeNull();
+  });
+  it('primeiro plano da empresa sem plano (POST assinatura): corpo da escolha na criação, com o teste', () => {
+    const e = { ...comAdicional({ ...ESCOLHA_VAZIA, plano: 'pme' }, 'pesquisa', '10'), teste: true };
+    expect(EscolhaNaCriacaoSchema.parse(corpoDaAtribuicao(e, '9a0c1e52-5c1e-4c4e-9a43-0000000000ab'))).toEqual({
+      plano: 'pme',
+      ciclo: 'mensal',
+      adicionais: [{ adicional: 'pesquisa', quantidade: 10 }],
+      com_teste: true,
+      pedido_id: '9a0c1e52-5c1e-4c4e-9a43-0000000000ab',
+    });
+    expect(corpoDaAtribuicao(ESCOLHA_VAZIA, 'x')).toBeNull();
   });
   it('plano abaixo do uso: o texto do contrato, uma linha por item', () => {
     const e = { ...escolhaDaFicha(ficha), plano: 'light' };

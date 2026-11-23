@@ -15,10 +15,13 @@ import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel } fr
 
 import { chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL } from '@/lib/portal-api';
 import { diaCivil } from '@/lib/portal-formato';
+import { semChaves } from '@/lib/portal-nova-empresa';
 import {
   blocosDaFicha,
+  corpoDaAtribuicao,
   corpoDaTroca,
   emTeste,
+  ESCOLHA_VAZIA,
   errosDaEscolha,
   escolhaDaFicha,
   fichaSemPlano,
@@ -32,7 +35,8 @@ import {
 } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
-import { AdicionaisEmLinhas, AlternadorCiclo, EscolhaDoPlano, IconeDoAdicional, usePlanos } from './seletor-plano';
+import { AdicionaisEmLinhas, AlternadorCiclo, EscolhaDoPlano, IconeDoAdicional, SeletorPlano, usePlanos } from './seletor-plano';
+import { CHAVE_EMPRESAS } from './tela-empresas';
 
 export const chaveDaFicha = (tenant: string) => ['portal', tenant, 'assinatura'] as const;
 
@@ -141,6 +145,105 @@ export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: str
         )}
       </div>
     </Panel>
+  );
+}
+
+/**
+ * "Escolher plano" da empresa que já existe sem plano (v1.0.27, R-20261122-084146-alexandre; só o time da Macuxi): o botão e o
+ * diálogo com o `SeletorPlano` da Nova empresa. `POST rotaPortalAssinatura` (`AtribuirPlanoSchema`, `pedido_id` gerado no portal);
+ * a ficha que volta entra no cache e a aba troca os "Módulos licenciados" pelo cartão "Plano {nome}". 422 (RN-PLA-05): uma linha
+ * por problema; 409 `ASSINATURA_EXISTENTE` (outra pessoa já escolheu): busca a ficha de novo. testIDs: empresa-plano.escolher*.
+ */
+export function EscolherPlano({ tenant }: { tenant: string }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <>
+      <Button variant="primary" data-testid="empresa-plano.escolher" onClick={() => setAberto(true)}>
+        {TEXTOS_PLANO.escolher}
+      </Button>
+      {aberto && <DialogoEscolherPlano tenant={tenant} aoFechar={() => setAberto(false)} />}
+    </>
+  );
+}
+
+export function DialogoEscolherPlano({ tenant, aoFechar }: { tenant: string; aoFechar: () => void }) {
+  const qc = useQueryClient();
+  const planos = usePlanos();
+  const [escolha, setEscolha] = useState<EscolhaDaTela>(ESCOLHA_VAZIA);
+  const [pedidoId] = useState(() => crypto.randomUUID());
+  const [enviando, setEnviando] = useState(false);
+  const [erroApi, setErroApi] = useState<string[] | null>(null);
+  const fechar = () => {
+    if (!enviando) aoFechar();
+  };
+
+  const lista: readonly Plano[] = planos.data ?? [];
+  const plano = lista.find((p) => p.codigo === escolha.plano) ?? null;
+  const erros = errosDaEscolha(escolha);
+  const total = totalDaEscolha(lista, escolha);
+  const pode = planos.isSuccess && !!plano && Object.keys(erros).length === 0 && !enviando;
+
+  const mudar = (e: EscolhaDaTela) => {
+    setErroApi(null);
+    setEscolha(e);
+  };
+
+  const escolher = async () => {
+    const corpo = corpoDaAtribuicao(escolha, pedidoId);
+    if (!pode || !corpo) return;
+    setEnviando(true);
+    try {
+      const nova = await chamarPortal(ROTAS_PORTAL.assinatura(tenant), { metodo: 'POST', corpo, schema: FichaAssinaturaSchema });
+      qc.setQueryData(chaveDaFicha(tenant), nova);
+      void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS });
+      aoFechar();
+    } catch (x) {
+      if (x instanceof ErroPortal && x.status === 409) {
+        void qc.invalidateQueries({ queryKey: chaveDaFicha(tenant) });
+        aoFechar();
+        return;
+      }
+      setErroApi(x instanceof ErroPortal && x.status === 422 ? mensagensDosProblemas(x.detalhes, x.message) : [mensagemDoErro(x)]);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      title={TEXTOS_PLANO.escolher}
+      largura="extra-larga"
+      onClose={fechar}
+      footer={
+        <>
+          {total && (
+            <span data-testid="empresa-plano.total" className="mr-auto self-center text-[17px] font-semibold tabular-nums text-ink">
+              {total}
+            </span>
+          )}
+          <Button data-testid="empresa-plano.cancelar" onClick={fechar} disabled={enviando}>
+            {TEXTOS_PLANO.cancelar}
+          </Button>
+          <Button variant="primary" data-testid="empresa-plano.escolher-confirmar" disabled={!pode} onClick={() => void escolher()}>
+            {plano ? TEXTOS_PLANO.escolherNome(plano.nome) : TEXTOS_PLANO.escolher}
+          </Button>
+        </>
+      }
+    >
+      <div data-testid="empresa-plano.escolher-dialogo" className="flex flex-col gap-4">
+        {planos.isPending && <LoadingBlock label={TEXTOS_PLANO.buscandoPlanos} />}
+        {planos.isError && <ErrorBlock message={ehRotaAusente(planos.error) ? TEXTO_INDISPONIVEL : mensagemDoErro(planos.error)} onRetry={() => void planos.refetch()} />}
+        {planos.isSuccess && <SeletorPlano planos={lista} escolha={escolha} aoMudar={mudar} erros={semChaves(erros, 'plano')} />}
+        {erroApi && (
+          <ul data-testid="empresa-plano.erro" role="alert" className="m-0 flex list-none flex-col gap-0.5 p-0 text-[13px] font-semibold text-danger">
+            {erroApi.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Dialog>
   );
 }
 
