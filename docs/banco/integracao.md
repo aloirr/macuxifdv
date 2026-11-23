@@ -415,6 +415,40 @@ Regras que toda view-modelo segue (e que o técnico do cliente mantém ao adapta
 | `cliente` (campos novos) | `prazo_medio_max_dias` (0..365; `COALESCE(teto, 365)`, 365 = sem teto na v1), `formas_pagamento` (JSON com os CÓDIGOS das formas, até 20, sem repetir; `SELECT DISTINCT`; sem linha = `'[]'`) | depois das formas; código sem FK no banco (core.cliente) |
 | `cliente` (T-0120, R-20261108-230146) | `tabela_preco_external_id` (`CAST(c.id_tabela_preco AS VARCHAR(200))`, igual nos dois dialetos; a MESMA chave da `tabela_external_id` da view 10). **NULL = não altera** (cliente na tabela padrão do ERP fica com o vínculo que já tinha); para **desvincular**, o ERP devolve o id da tabela padrão (`COALESCE(c.id_tabela_preco, <padrão>)` se o ERP permite tirar a tabela) | aditivo e opcional no `ClientePayload` v1; o banco do Hub não muda (fica em `integracao.registro_atual.payload`) |
 
+## Modelos por ERP (`db/conector/modelos/<erp>.sql`; integração por ERP, F4b)
+Desenho `docs/desenho/integracao-modelos-erp.md` §3 (de-para) e §6 (F4b); ADR 0066; D9 (status **beta** até o primeiro cliente
+de cada ERP confirmar os itens [C]). Nada é aplicado pelo Macuxi: sem migração, sem mudança no Hub, no Conector ou em
+produção. O técnico do cliente (ou o parceiro do ERP) revisa e cria as views no banco do ERP.
+- **Arquivos:** `protheus.sql` (SQL Server; Oracle/PostgreSQL pelas trocas do cabeçalho do modelo genérico), `winthor.sql`
+  (Oracle, `CREATE OR REPLACE VIEW`), `sap-b1.sql` (SQL Server; com HANA só a API), `sankhya.sql` e `senior.sql` (SQL Server;
+  Oracle pelas trocas do cabeçalho). Mesmas regras 1 a 8 do `views-modelo.sql` (nome da coluna = campo do contrato, UTC em
+  ms, centavos, data civil, 1/0).
+- **Marcação:** `[P]` = conhecimento público; `[C]` = confirmar com o cliente (tabela, campo, filtro ou parametrização).
+  Cada view cita a fonte; cada arquivo abre com `Status: beta` e a legenda.
+- **Cobertura:** cada entidade do contrato tem view ou uma linha `SEM VIEW: <entidade> — motivo` no cabeçalho.
+  - `rota`: nenhum dos 5 (roteiro de visita nasce no Macuxi).
+  - `tabela_escalonada`: nenhum dos 5 (faixa por quantidade não é padrão em nenhum deles).
+  - `cliente_endereco`: fora no WinThor e no Sankhya.
+  - `transportadora`: fora no SAP B1.
+  - `produto_unidade`: fora no Senior.
+- **Sem data de alteração** (WinThor, Senior, parte do SAP B1 e do Sankhya; Protheus sem `S_T_A_M_P_`): `alterado_em` fixo
+  em 2000-01-01, e a entidade roda só em **carga completa** (RN-INT-06 inativa o que sumiu).
+- **Pedido ao ERP:** nenhum modelo escreve em tabela do ERP. O caminho é a rotina do ERP: Protheus `MATA410`; WinThor
+  `PCPEDCFV`/`PCPEDIFV` e a importação; Senior, o web service; SAP B1 e Sankhya, a API da F4a. Pelo Conector, a entrada
+  genérica (`entrada-pedido-modelo.sql`, sem mudança) e um job do parceiro. O UUID vai no campo customizado [C]:
+  `C5_XMXUUID`, `U_MXUUID`, `AD_MXUUID`, `USU_MXUUID`; no WinThor, `NUMPEDRCA` = `numero_pedido` da entrada.
+  - As 2 views do retorno (`vw_macuxi_pedido_status` e `vw_macuxi_pedido_nota_item`) estão nos 5, com as mesmas colunas e
+    regras do modelo genérico.
+- **Teste sem banco** `db/testes/modelos-erp-conector.test.ts`:
+  - os 5 arquivos, com `Status: beta` e a legenda;
+  - cobertura de entidades e ordem de carga;
+  - colunas contra o `SCHEMA_REGISTRO`: obrigatórias presentes, nada fora, sem repetida;
+  - `external_id` sem CPF/CNPJ (também `CGC`, `CGCENT`, `CGC_CPF`, `CGCCPF`, `LicTradNum`);
+  - colunas do retorno e `[P]`/`[C]` em toda view;
+  - nenhuma escrita em tabela do ERP.
+
+  O leitor das views é o mesmo do modelo genérico (`db/testes/leitor-views-conector.ts`).
+
 ## 0056 — entidade `filial` no Hub e filial nas views e na entrada de pedidos (T-0149, RN-CORE-39, ADR 0040)
 Pedido R-20261110-074414-modulo-integracao (desenho docs/desenho/T-0149.md §3.5 e §4.4).
 - **Banco do Hub**: os 7 CHECKs `*_entidade_valida` (sessao_carga, lote, registro_atual, pendencia_inativacao,

@@ -8,6 +8,7 @@
 --   ERP dele e cria as views no banco do ERP, com o usuário somente leitura do Conector tendo SELECT nelas.
 --   Uma view por entidade do Hub, NA ORDEM DE CARGA (ORDEM_CARGA_ENTIDADES em modules/integracao/contracts/entidades.ts).
 --   A entrada de PEDIDOS (Macuxi -> ERP) tem modelo próprio: db/conector/entrada-pedido-modelo.sql.
+--   Modelos prontos por ERP (Protheus, WinThor, SAP B1, Sankhya, Senior; beta): db/conector/modelos/<erp>.sql.
 --   Crie só as views das entidades que o tenant liga no Conector (lista "entidades" no BKO).
 --   T-0162: no fim, as 2 views do RETORNO do pedido (17 e 18), que NÃO são entidades de carga: o Conector as lê em
 --   "pedidos.status" do conector.json (situação, nota e itens faturados de cada pedido gravado pela entrada).
