@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CAMPOS_CADASTRO_CLIENTE,
+  CAMPOS_CADASTRO_FIXOS,
   CAMPOS_CADASTRO_PADRAO,
   CadastroClienteEntradaSchema,
   CadastroClienteSaidaSchema,
@@ -11,6 +12,7 @@ import {
   ClienteSyncSchema,
   CONSULTA_CADASTRO_CLIENTE,
   ParametroCamposObrigatorios,
+  ParametroCamposObrigatoriosClienteSchema,
   PARAMETRO_CAMPOS_OBRIGATORIOS,
   ProdutoUnidadeSyncSchema,
 } from './index';
@@ -33,6 +35,18 @@ describe('RN-CORE-16: contrato do cadastro mínimo', () => {
     expect(ParametroCamposObrigatorios.safeParse(['documento', 'cep']).success).toBe(true);
     expect(ParametroCamposObrigatorios.safeParse([]).success).toBe(false);
     expect(ParametroCamposObrigatorios.safeParse(['inventado']).success).toBe(false);
+  });
+  it('RN-CORE-79: lista única de Parâmetros › Clientes aceita sem os fixos e recusa repetição e chave a mais', () => {
+    expect(CAMPOS_CADASTRO_FIXOS).toEqual(['razao_social', 'documento']);
+    expect(ParametroCamposObrigatoriosClienteSchema.safeParse({ obrigatorios: ['telefone', 'cep'] }).success).toBe(true);
+    expect(ParametroCamposObrigatoriosClienteSchema.safeParse({ obrigatorios: ['cep', 'cep'] }).success).toBe(false);
+    expect(ParametroCamposObrigatoriosClienteSchema.safeParse({ obrigatorios: ['endereco'] }).success).toBe(false);
+    expect(ParametroCamposObrigatoriosClienteSchema.safeParse({ obrigatorios: [], x: 1 }).success).toBe(false);
+  });
+  it('RN-CORE-78: ClienteSync leva revisão e erros por campo da recusa como aditivos opcionais', () => {
+    expect(ClienteSyncSchema.safeParse({ ...cliente, revisao_cadastro: 2, erros_recusa: [{ campo: 'cep', codigo: 'X', mensagem: 'CEP inválido' }] }).success).toBe(true);
+    expect(ClienteSyncSchema.safeParse({ ...cliente, revisao_cadastro: null, erros_recusa: null }).success).toBe(true);
+    expect(ClienteSyncSchema.safeParse({ ...cliente, revisao_cadastro: 0 }).success).toBe(false);
   });
   it('RN-CORE-16: ClienteSync antigo (sem os campos novos) continua válido; os novos são opcionais', () => {
     expect(ClienteSyncSchema.safeParse(cliente).success).toBe(true);

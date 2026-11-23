@@ -14,7 +14,6 @@
  *
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto (o caso diz o que falta; quando corrigir, fica vermelho e vira `it`).
  */
-import { Writable } from 'node:stream';
 import { codificarCursor } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import pino from 'pino';
@@ -22,21 +21,11 @@ import { describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { serializarErro } from '../../../apps/api/src/log-seguro';
 import { registrarMetricasApi, registrarMetricasWorker } from '../../../apps/api/src/observabilidade';
+import { coletor } from '../apoio/coletor-log';
 import { DADO_PESSOAL, montarApiSyncMemoria, type ApiSyncMemoria } from '../apoio/sync-memoria';
 
 const REQUEST_ID = '7a000000-0000-4000-8000-000000000078';
 const NOTIFICACAO = '0f000000-0000-4000-8000-000000000001';
-
-function coletor() {
-  const linhas: string[] = [];
-  const stream = new Writable({
-    write(chunk, _enc, cb) {
-      for (const l of String(chunk).split('\n')) if (l.trim()) linhas.push(l);
-      cb();
-    },
-  });
-  return { linhas, stream, json: () => linhas.map((l) => JSON.parse(l) as Record<string, unknown>) };
-}
 
 /** Tudo o que não pode aparecer no log (com e sem máscara de CNPJ/CPF/telefone). */
 function proibidos(api?: ApiSyncMemoria): string[] {

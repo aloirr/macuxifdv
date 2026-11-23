@@ -42,14 +42,14 @@ export const palavrasDaBusca = (termo: string | null | undefined): string[] => n
 
 /**
  * A única regra de casamento da busca de clientes (API, app e BKO; mora em `contracts` porque o Vendedor só importa `contracts`):
- * palavra por palavra, sem acento e sem caixa. Cada palavra precisa estar no código (external_id), na razão social, no nome
- * fantasia ou no CNPJ (3 dígitos ou mais, com ou sem máscara); todas as palavras precisam casar. Cidade e bairro não entram.
- * Termo vazio casa tudo.
+ * palavra por palavra, sem acento e sem caixa. Cada palavra precisa estar num dos dois códigos (Código ERP = external_id e Código
+ * FDV = codigo_fdv), na razão social, no nome fantasia ou no CNPJ (3 dígitos ou mais, com ou sem máscara); todas as palavras precisam
+ * casar. Cidade e bairro não entram. Termo vazio casa tudo.
  */
 export function clienteCasaBusca(
   termo: string | null | undefined,
-  c: { razao_social?: string | null; nome_fantasia?: string | null; external_id?: string | null; documento?: string | null },
+  c: { razao_social?: string | null; nome_fantasia?: string | null; external_id?: string | null; codigo_fdv?: string | null; documento?: string | null },
 ): boolean {
-  const campos = [c.razao_social, c.nome_fantasia, c.external_id].map(normalizarBusca);
+  const campos = [c.razao_social, c.nome_fantasia, c.external_id, c.codigo_fdv].map(normalizarBusca);
   return palavrasDaBusca(termo).every((p) => campos.some((t) => t.includes(p)) || documentoCasa(p, c.documento));
 }

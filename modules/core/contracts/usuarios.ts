@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
 import { FilialVendaIdsSchema } from './filial-usuario';
+import { CODIGO_FDV_SOMENTE_LEITURA } from './cliente-pre-cadastro';
 import { HorarioAlmocoSchema, MinutoDoDiaSchema } from './jornada';
 import { CargoSchema } from '@macuxi/platform-sdk';
 
@@ -246,7 +247,7 @@ export const CODIGOS_USUARIO = {
   externalIdDuplicado: 'USUARIO_EXTERNAL_ID_DUPLICADO',
   dadosInvalidos: 'USUARIO_DADOS_INVALIDOS',
   /** 422 — `codigo_fdv` no corpo de criar/editar (RN-CORE-59). */
-  codigoFdvSomenteLeitura: 'CODIGO_FDV_SOMENTE_LEITURA',
+  codigoFdvSomenteLeitura: CODIGO_FDV_SOMENTE_LEITURA,
   senhaFraca: 'USUARIO_SENHA_FRACA',
   equipeInvalida: 'EQUIPE_INVALIDA',
   /** 422 — redefinição recusada (própria conta, admin, usuário inativo; `podeRedefinirSenha`). */

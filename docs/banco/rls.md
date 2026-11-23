@@ -141,7 +141,8 @@ e `plataforma.auditoria`.
   papel inteiro, não dá para restringir a uma tabela) com **políticas próprias** só em `plataforma.evento`:
   `despacho_outbox` (`for select to macuxi_worker using (true)`) e `despacho_outbox_marcar`
   (`for update to macuxi_worker using (true) with check (true)`). Grants por coluna: `select (id, tenant_id, nome,
-  modulo, agregado_id, payload, ocorrido_em, publicado_em, tentativas, usuario_id, request_id)` e
+  modulo, agregado_id, payload, ocorrido_em, publicado_em, tentativas, usuario_id, request_id)` (mais `deleted_at`, 0099:
+  o despachante pula o evento apagado) e
   `update (publicado_em, tentativas, ultimo_erro)`; `usage` no schema `plataforma`; **nada** em `core.*`, nos schemas
   dos módulos nem nas outras tabelas da plataforma (42501). O handler do consumidor roda como `macuxi_app` em
   `comTenant(envelope.tenant_id)` e registra o consumo em `plataforma.evento_consumo` (RLS por tenant).
@@ -208,6 +209,7 @@ e `plataforma.auditoria`.
 | S0-028 papel sem SUPERUSER/BYPASSRLS, não dono | `db/testes/conformidade.test.ts` |
 | B1 (T-0078) conferência numa consulta só: zero tabelas sem RLS forçado, sem política ou sem coluna comum; a consulta acusa uma tabela criada sem RLS | `db/testes/conformidade.test.ts` + `db/scripts/conferir-rls.sql` |
 | `resumo_outbox`: só agregados de todos os tenants para o `macuxi_app`; worker sem EXECUTE | `db/testes/lgpd-outbox.test.ts` |
+| `resumo_outbox` sem o evento apagado e worker lendo `deleted_at` da outbox (0099) | `db/testes/resumo-outbox-vivos.db.test.ts` |
 | `tenants_ativos`: worker recebe só os ids dos ativos de todos os tenants (suspenso, encerrado e apagado fora); app 42501 | `db/testes/tenants-ativos.test.ts` |
 | 0079 (T-0174): `catalogo.foto_lote`, `catalogo.foto_lote_item` e `plataforma.trabalho` — B não vê, não altera e não grava de A; sem contexto = 0; app sem DELETE (e sem UPDATE no trabalho) e 42501 nas funções do worker; `trabalho_reservar` não entrega o mesmo trabalho a dois processos e ignora tenant suspenso | `db/testes/foto-lote.db.test.ts` |
 | `provisionar_tenant`: app e worker 42501; 2x a mesma entrada = mesmas contagens; só `redefinir_senha` troca o hash | `db/testes/provisionar-tenant.test.ts` |

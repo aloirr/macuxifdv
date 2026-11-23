@@ -7,12 +7,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, EtiquetaCadastroIncompleto, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
-import { ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
+import { CarteiraDoUsuarioRespostaSchema, ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
 import { MINIMO_BUSCA_CLIENTE_BKO, ROTULO_BUSCA_CLIENTE_BKO } from '../../../domain';
 import { csvDaCarteira, DIAS_DA_SEMANA, rotuloFrequencia } from '../../lib/carteira';
 import { usePapeisDeCampo, useSellersDeCampo } from '../../lib/queries';
 import type { ClienteDaCarteira } from '../../lib/rotas-api';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
+import { CodigosDoCliente } from '../codigos-cliente';
 
 type Frequencia = 1 | 2 | 4 | null;
 
@@ -36,7 +37,7 @@ function CarteiraConteudo() {
 
   const lista = useQuery({
     queryKey: ['core', 'carteira-do-usuario', usuario],
-    queryFn: async () => (await api<{ itens: ClienteDaCarteira[] }>(`/core/usuarios/${usuario}/clientes`)).itens,
+    queryFn: async () => CarteiraDoUsuarioRespostaSchema.parse(await api<unknown>(`/core/usuarios/${usuario}/clientes`)).itens,
     enabled: Boolean(usuario),
   });
   const candidatos = useQuery({
@@ -124,6 +125,7 @@ function CarteiraConteudo() {
               {(candidatos.data ?? []).map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center gap-3 text-[13px]">
                   <span className="min-w-[240px] font-semibold">{c.nome_fantasia || c.razao_social}</span>
+                  <CodigosDoCliente cliente={c} forma="linha" testId={`carteira.candidato.${c.id}.codigos`} />
                   <span className="text-ink-2">{c.cidade ?? ''}</span>
                   <Button
                     variant="primary"
@@ -142,11 +144,12 @@ function CarteiraConteudo() {
           </Panel>
 
           <Panel title={`${itens.length} cliente${itens.length === 1 ? '' : 's'} vigente${itens.length === 1 ? '' : 's'}`}>
-            <TableScroll minWidth={880}>
+            <TableScroll minWidth={984}>
               <table className="w-full border-collapse text-[13px]">
                 <thead>
                   <tr>
                     <th className={th}>Cliente</th>
+                    <th className={`${th} w-[104px]`}>Código</th>
                     <th className={th}>Cidade</th>
                     <th className={th}>Frequência</th>
                     <th className={th}>Dia da visita</th>
@@ -157,7 +160,7 @@ function CarteiraConteudo() {
                 <tbody>
                   {itens.length === 0 && (
                     <tr>
-                      <td className={td} colSpan={6}>
+                      <td className={td} colSpan={7}>
                         Esta carteira está vazia. Busque um cliente acima para vincular.
                       </td>
                     </tr>
@@ -168,6 +171,9 @@ function CarteiraConteudo() {
                         <Link href={`/cliente?id=${c.id}`} className="font-semibold text-accent-ink no-underline hover:underline">
                           {c.nome}
                         </Link>
+                      </td>
+                      <td className={`${td} w-[104px] whitespace-nowrap`}>
+                        <CodigosDoCliente cliente={c} forma="empilhado" testId={`carteira.codigo.${c.id}`} />
                       </td>
                       <td className={td}>{c.cidade ?? ''}</td>
                       <td className={td}>

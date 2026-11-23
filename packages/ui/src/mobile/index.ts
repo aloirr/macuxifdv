@@ -68,8 +68,11 @@ export * from './barra-progresso-rn';
 // RD-0951: CampoTexto (rótulo, entrada e erro) e RotuloCampo, o mesmo rótulo e a mesma entrada do CampoSenha
 export * from './campo-texto-rn';
 // v1.0.28: máscaras do CampoTexto (CNPJ/CPF, CEP, telefone), rótulo opcional e o selo do pré-cadastro de cliente
-export * from './campo-mascara';
+export * from '../comum/campo-mascara';
 export * from './pre-cadastro';
+// v1.0.30: códigos do cliente (`ERP C5007 · FDV 00012`, valor mono, leitura "Código ERP …") e o `codigos` do CabecalhoTela
+export * from '../comum/codigos-cliente';
+export * from './codigos-cliente-rn';
 // Onda 1 do catálogo (solução 5): IndicadorCargaFundo ("Catálogo 63%") e CatalogoCarregando, o catálogo sem sinal na carga
 export * from './carga-fundo';
 export * from './carga-fundo-rn';
