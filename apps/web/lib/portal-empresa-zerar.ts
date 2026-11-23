@@ -21,17 +21,18 @@ import type { EstadoDasAcoes } from './portal-empresa-acoes';
 export const TEXTOS_ZERAR = Object.freeze({
   zerar: 'Zerar dados',
   titulo: (empresa: string) => `Zerar dados de ${empresa}?`,
+  tituloAndamento: (empresa: string) => `Zerar dados de ${empresa}`,
   contando: 'Contando os dados…',
-  sai: 'Vão ser apagados:',
+  sai: 'Apaga:',
   nadaASair: 'Não há dados para zerar.',
-  ficam: 'Ficam a empresa, o plano, os usuários, os perfis, os parâmetros e os conectores.',
+  ficam: 'Mantém: empresa, plano, usuários, perfis, parâmetros e conectores.',
   sufixoCodigo: 'para confirmar',
   senha: 'Sua senha',
   cancelar: 'Cancelar',
   fechar: 'Fechar',
   zerando: 'Zerando…',
-  emAndamento: 'Zerando os dados…',
-  concluido: (linhas: number) => `Dados zerados: ${formatInt(linhas)} ${linhas === 1 ? 'linha apagada' : 'linhas apagadas'}.`,
+  emAndamento: 'Em andamento…',
+  concluido: (linhas: number) => `${formatInt(linhas)} ${linhas === 1 ? 'linha apagada' : 'linhas apagadas'}.`,
 });
 
 /** Caminho (relativo ao `/v1`, como o `ROTAS_PORTAL`) de uma rota do zerar. */

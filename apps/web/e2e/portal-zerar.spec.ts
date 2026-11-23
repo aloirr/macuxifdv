@@ -41,18 +41,19 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.screenshot({ animations: 'disabled', path: `${PRINTS}/02-previa${nome}.png` });
 
     await page.getByTestId('empresa-acao.confirmar').click();
-    await expect(page.getByTestId('empresa-zerar.andamento')).toContainText('Zerando os dados…');
+    await expect(page.getByTestId('empresa-zerar.andamento')).toContainText('Em andamento…');
     await page.screenshot({ animations: 'disabled', path: `${PRINTS}/03-andamento${nome}.png` });
 
-    await expect(page.getByTestId('empresa-zerar.concluido')).toContainText('Dados zerados: 20.119 linhas apagadas.', { timeout: 20000 });
+    await expect(page.getByTestId('empresa-zerar.concluido')).toHaveText('20.119 linhas apagadas.', { timeout: 20000 });
     await page.screenshot({ animations: 'disabled', path: `${PRINTS}/04-concluido${nome}.png` });
 
-    // a empresa sem dados: só a linha e "Cancelar"
+    // a empresa sem dados: só a linha e "Fechar"
     await page.getByTestId('empresa-acao.cancelar').click();
     await abrirMenu();
     await page.getByTestId('empresas.zerar-AM2290').click();
     await expect(page.getByTestId('empresa-zerar.vazio')).toHaveText('Não há dados para zerar.');
     await expect(page.getByTestId('empresa-acao.confirmar')).toHaveCount(0);
+    await expect(page.getByTestId('empresa-acao.cancelar')).toHaveText('Fechar');
     await ctx.close();
   });
 }

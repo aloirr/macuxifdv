@@ -117,7 +117,7 @@ function Confirmar({
       footer={
         <>
           <Button data-testid="empresa-acao.cancelar" disabled={enviando} onClick={fechar}>
-            {T.cancelar}
+            {pedeConfirmacao ? T.cancelar : T.fechar}
           </Button>
           {pedeConfirmacao && (
             <Button variant="danger" data-testid="empresa-acao.confirmar" disabled={enviando || !zerarLiberado(p, codigo, senha)} onClick={() => void zerar()}>
@@ -131,7 +131,7 @@ function Confirmar({
         {previa.isPending && <LoadingBlock label={T.contando} />}
         {previa.isError && <ErrorBlock message={fraseDoZerar(previa.error)} onRetry={() => void previa.refetch()} />}
         {p && p.total_linhas === 0 && <p className="m-0" data-testid="empresa-zerar.vazio">{T.nadaASair}</p>}
-        {p && p.total_linhas > 0 && (
+        {p && p.total_linhas > 0 && !bloqueio && (
           <>
             <div className="flex flex-col gap-1">
               <p className="m-0 text-[13px] font-semibold text-ink">{T.sai}</p>
@@ -147,9 +147,9 @@ function Confirmar({
             <p className="m-0 text-ink-2">{T.ficam}</p>
           </>
         )}
-        {bloqueio && (
+        {bloqueio && p && p.total_linhas > 0 && (
           <div data-testid="empresa-zerar.bloqueio">
-            <Notice tone="danger">{bloqueio}</Notice>
+            <Notice tone="warning">{bloqueio}</Notice>
           </div>
         )}
         {pedeConfirmacao && (
@@ -216,7 +216,7 @@ function Andamento({ empresa, aoFechar, aoTerminar }: { empresa: { id: string; r
   return (
     <Dialog
       open
-      title={T.titulo(empresa.razao_social)}
+      title={T.tituloAndamento(empresa.razao_social)}
       onClose={aoFechar}
       footer={
         <Button data-testid="empresa-acao.cancelar" onClick={aoFechar}>

@@ -67,10 +67,11 @@ describe('frases (uma tabela só: `mensagemDoZerar`)', () => {
     expect(fraseDoZerar(new Error('{"x":1}'))).toBe(MENSAGEM_PADRAO);
   });
   it('andamento: giro, linhas apagadas no fuso pt-BR e a frase da falha do worker', () => {
-    expect(andamentoDoZerar(undefined)).toEqual({ tom: 'andamento', texto: 'Zerando os dados…' });
-    expect(andamentoDoZerar(zerar())).toEqual({ tom: 'andamento', texto: 'Zerando os dados…' });
+    expect(andamentoDoZerar(undefined)).toEqual({ tom: 'andamento', texto: 'Em andamento…' });
+    expect(andamentoDoZerar(zerar())).toEqual({ tom: 'andamento', texto: 'Em andamento…' });
     const ok = zerar({ situacao: 'concluido', concluido_em: '2026-11-23T12:01:00.000Z', linhas_apagadas: 18119, contagem: { 'core.cliente': 18119 }, copia_expira_em: '2026-11-30T12:01:00.000Z' });
-    expect(andamentoDoZerar(ok)).toEqual({ tom: 'success', texto: 'Dados zerados: 18.119 linhas apagadas.' });
+    expect(andamentoDoZerar(ok)).toEqual({ tom: 'success', texto: '18.119 linhas apagadas.' });
+    expect(andamentoDoZerar({ ...ok, linhas_apagadas: 1 })).toEqual({ tom: 'success', texto: '1 linha apagada.' });
     expect(andamentoDoZerar(zerar({ situacao: 'falhou', erro_codigo: 'ZERAR_CONCORRENCIA' }))).toEqual({
       tom: 'danger',
       texto: 'A empresa estava em uso e nada foi apagado. Tente de novo.',

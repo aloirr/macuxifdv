@@ -50,10 +50,11 @@ describe('diálogo Zerar dados', () => {
     const previa = await previaFalsa(e);
     const html = com({ previa, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain('Zerar dados de Mercantil Rio Branco Ltda?');
-    expect(html).toContain('Vão ser apagados:');
+    expect(html).toContain('>Apaga:</p>');
     expect(html).toMatch(/empresa-zerar\.grupo-cadastros.*<dt[^>]*>Cadastros<\/dt><dd[^>]*>7\.530<\/dd>/);
     expect(html).toMatch(/empresa-zerar\.grupo-pedidos.*>Pedidos<\/dt><dd[^>]*>2\.792</);
-    expect(html).toContain('Ficam a empresa, o plano, os usuários, os perfis, os parâmetros e os conectores.');
+    expect(html).toContain('Mantém: empresa, plano, usuários, perfis, parâmetros e conectores.');
+    expect(html).toContain('>Cancelar</button>');
     expect(html).toContain('<span class="font-mono font-medium">AM2290</span> para confirmar');
     expect(html).toContain('data-testid="empresa-zerar.senha.olho"');
     expect(html).toContain('data-testid="empresa-acao.confirmar" disabled=""');
@@ -61,21 +62,33 @@ describe('diálogo Zerar dados', () => {
     expect(certo).not.toContain('disabled=""');
     expect(certo).toContain('>Zerar dados</button>');
   });
-  it('bloqueio da prévia: a frase do SDK, sem campos nem botão de confirmar', async () => {
+  it('bloqueio da prévia: só a frase do SDK em aviso, sem prévia, "Mantém", campos nem confirmar; botão "Fechar"', async () => {
     const e = porCodigo('AM2290');
     const previa = { ...(await previaFalsa(e)), bloqueio: Z.backupEmAndamento };
     const html = com({ previa, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain(`data-testid="empresa-zerar.bloqueio"`);
     expect(html).toContain(mensagemDoZerar(Z.backupEmAndamento) ?? '?');
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain('empresa-zerar.previa');
+    expect(html).not.toContain('Mantém:');
     expect(html).not.toContain('empresa-zerar.codigo');
     expect(html).not.toContain('empresa-acao.confirmar');
+    expect(html).toContain('>Fechar</button>');
+    expect(html).not.toContain('>Cancelar</button>');
   });
-  it('sem dados: uma linha e só "Cancelar"', async () => {
+  it('sem dados: uma linha e só "Fechar"; o vazio vence o bloqueio', async () => {
     const e = porCodigo('atacado-norte');
     const html = com({ previa: await previaFalsa(e), tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain('Não há dados para zerar.');
     expect(html).not.toContain('empresa-zerar.previa');
     expect(html).not.toContain('empresa-acao.confirmar');
+    expect(html).toContain('>Fechar</button>');
+    const vazioBloqueado = com(
+      { previa: { ...(await previaFalsa(e)), bloqueio: Z.backupEmAndamento }, tenant: e.id },
+      <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} />,
+    );
+    expect(vazioBloqueado).toContain('Não há dados para zerar.');
+    expect(vazioBloqueado).not.toContain('empresa-zerar.bloqueio');
   });
   it('senha errada: a frase no campo senha, sem bloco à parte', async () => {
     const e = porCodigo('AM2290');
@@ -85,7 +98,7 @@ describe('diálogo Zerar dados', () => {
     expect(html).toContain(texto);
     expect(html).not.toContain('empresa-acao.erro');
   });
-  it('andamento: giro e "Fechar"; concluído com as linhas apagadas; falha com a frase do worker', () => {
+  it('andamento: título sem "?", giro e "Fechar"; concluído com as linhas apagadas; falha com a frase do worker', () => {
     const e = porCodigo('AM2290');
     const base: ZerarEmpresa = {
       id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000009',
@@ -101,11 +114,13 @@ describe('diálogo Zerar dados', () => {
       erro_codigo: null,
     };
     const rodando = com({ zerar: base, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />);
-    expect(rodando).toContain('Zerando os dados…');
+    expect(rodando).toContain('Em andamento…');
+    expect(rodando).toContain('Zerar dados de Mercantil Rio Branco Ltda<');
+    expect(rodando).not.toContain('Mercantil Rio Branco Ltda?');
     expect(rodando).toContain('>Fechar</button>');
     expect(rodando).not.toContain('empresa-acao.confirmar');
     const fim = { ...base, situacao: 'concluido' as const, concluido_em: '2026-11-23T12:01:00.000Z', linhas_apagadas: 19019, contagem: { 'core.cliente': 19019 }, copia_expira_em: '2026-11-30T12:01:00.000Z' };
-    expect(com({ zerar: fim, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />)).toContain('Dados zerados: 19.019 linhas apagadas.');
+    expect(com({ zerar: fim, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />)).toContain('>19.019 linhas apagadas.<');
     const falhou = { ...base, situacao: 'falhou' as const, erro_codigo: 'ZERAR_FALHOU' };
     expect(com({ zerar: falhou, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />)).toContain(
       'Não foi possível zerar e nada foi apagado. Avise o suporte da Macuxi.',
