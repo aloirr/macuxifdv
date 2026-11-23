@@ -73,6 +73,9 @@ test('rotina: físico = Hub, filas e projeção; restaurar volta o mesmo conjunt
   // usuários: saem todos menos os administradores (perfil principal ou vínculo vivo com perfil de base admin), e o token cai
   assert.match(rotina, /u\.deleted_at is null and u\.perfil <> 'admin'\n\s+and not exists \(select 1 from plataforma\.usuario_perfil up join plataforma\.perfil pf [\s\S]*? pf\.base = 'admin'\);/);
   assert.match(rotina, /update core\.usuario u set sessao_versao = u\.sessao_versao \+ 1/);
+  // para core.usuario, só as colunas de posse levam a linha; as de autoria (autor_id, *_por) ficam como histórico
+  assert.deepEqual(lista(rotina, 'c_posse'), ['usuario_id', 'vendedor_id']);
+  assert.match(rotina, /where x\.alvo <> 'core\.usuario' or x\.coluna = any \(c_posse\);/);
   // DELETE só no modo físico; a rotina não abre nem fecha transação; trava o Hub
   assert.equal([...rotina.matchAll(/delete from/g)].length, 1);
   assert.doesNotMatch(rotina, /^\s*(begin|commit|rollback);/m);

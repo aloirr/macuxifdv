@@ -16,6 +16,10 @@ declare
   v_forma uuid;
   v_lote uuid;
   v_sessao uuid;
+  v_admin uuid;
+  v_sup uuid;
+  v_ger uuid;
+  v_tarefa uuid;
   i int;
 begin
   select id into v_padrao from core.filial where tenant_id = v_t and padrao and deleted_at is null;
@@ -73,6 +77,21 @@ begin
   insert into plataforma.evento (tenant_id, nome, modulo, payload, publicado_em) values (v_t, 'integracao.produto.atualizado@1', 'integracao', '{}', now());
   insert into plataforma.evento (tenant_id, nome, modulo, payload, agregado_id)
   select v_t, 'vendedor.pedido.enviado@1', 'vendedor', '{}', p.id from vendedor.pedido p where p.tenant_id = v_t order by p.id limit 1;
+  -- AUTORIA de quem sai em linhas do administrador (ficam): notificação com autor supervisor, tarefa do admin cancelada pelo
+  -- supervisor, o admin destinatário de uma tarefa do supervisor e a meta do admin editada pelo gerente
+  select id into v_admin from core.usuario where tenant_id = v_t and perfil = 'admin' and deleted_at is null order by id limit 1;
+  select id into v_sup from core.usuario where tenant_id = v_t and perfil = 'supervisor' and deleted_at is null order by id limit 1;
+  select id into v_ger from core.usuario where tenant_id = v_t and perfil = 'gerente' and deleted_at is null order by id limit 1;
+  if v_admin is not null and v_sup is not null and v_ger is not null then
+  insert into core.notificacao (tenant_id, usuario_id, tipo, titulo, corpo, autor_id) values (v_t, v_admin, 'recado', 'Recado', 'Teste', v_sup);
+  insert into core.tarefa (tenant_id, autor_id, titulo, prazo, tipo, alvo, cancelada_em, cancelada_por)
+  values (v_t, v_admin, 'Tarefa do admin', current_date + 7, 'simples', 'usuarios', now(), v_sup);
+  insert into core.tarefa (tenant_id, autor_id, titulo, prazo, tipo, alvo) values (v_t, v_sup, 'Tarefa do supervisor', current_date + 7, 'simples', 'usuarios')
+  returning id into v_tarefa;
+  insert into core.tarefa_destinatario (tenant_id, tarefa_id, usuario_id) values (v_t, v_tarefa, v_admin);
+  insert into core.meta_produtividade (tenant_id, escopo, usuario_id, indicador, valor, vigencia_inicio, atualizado_por)
+  values (v_t, 'usuario', v_admin, 'primeiro_checkin', 480, '2026-11', v_ger);
+  end if;
   -- evento não publicado de um administrador (fica)
   insert into plataforma.evento (tenant_id, nome, modulo, payload, agregado_id)
   select v_t, 'core.usuario.perfil_alterado@1', 'core', '{}', u.id from core.usuario u where u.tenant_id = v_t and u.perfil = 'admin' order by u.id limit 1;

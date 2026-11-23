@@ -86,12 +86,26 @@ igual "apagar abortado não deixa cópia" "$(tem_backup)" f
 
 echo '--- 3. apagar'
 g0="$(qa "select geracao_base from plataforma.tenant where id = '$ALFA'")"
-# administradores: a linha, os perfis, as filiais e as sessões (tudo menos updated_at)
+# administradores: a linha, os perfis, as filiais, as sessões e as linhas deles com AUTORIA de quem sai (notificação,
+# tarefa do admin, destinatário em tarefa do supervisor, meta), tudo menos updated_at
 admins() { qa "select md5(concat_ws('#',
   (select string_agg((to_jsonb(u) - 'updated_at')::text, '|' order by u.id) from core.usuario u where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
   (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from plataforma.usuario_perfil x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
   (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.usuario_filial x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
-  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.sessao x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin')))"; }
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.sessao x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.notificacao x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.tarefa x join core.usuario u on u.id = x.autor_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.tarefa_destinatario x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.meta_produtividade x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin')))"; }
+autoria() { qa "select (select count(*) from core.notificacao x join core.usuario a on a.id = x.usuario_id join core.usuario s on s.id = x.autor_id
+                         where x.tenant_id = '$ALFA' and a.perfil = 'admin' and s.perfil = 'supervisor' and x.deleted_at is null) || '/' ||
+                       (select count(*) from core.tarefa x join core.usuario a on a.id = x.autor_id join core.usuario s on s.id = x.cancelada_por
+                         where x.tenant_id = '$ALFA' and a.perfil = 'admin' and s.perfil = 'supervisor' and x.deleted_at is null) || '/' ||
+                       (select count(*) from core.tarefa_destinatario d join core.tarefa x on x.id = d.tarefa_id join core.usuario a on a.id = d.usuario_id join core.usuario s on s.id = x.autor_id
+                         where d.tenant_id = '$ALFA' and a.perfil = 'admin' and s.perfil = 'supervisor' and d.deleted_at is null and x.deleted_at is null) || '/' ||
+                       (select count(*) from core.meta_produtividade x join core.usuario a on a.id = x.usuario_id join core.usuario g on g.id = x.atualizado_por
+                         where x.tenant_id = '$ALFA' and a.perfil = 'admin' and g.perfil = 'gerente' and x.deleted_at is null)"; }
+igual "dados do admin com autoria de quem vai sair (notificação, tarefa cancelada, destinatário, meta)" "$(autoria)" 1/1/1/1
 admin0="$(admins)"
 sv0="$(qa "select sessao_versao from core.usuario where tenant_id = '$ALFA' and external_id = 'ERP-VEND-1'")"
 limpar alfa apagar 20261123T190200Z > "$tmp/apagar.txt" || nok "apagar saiu com erro"
@@ -104,9 +118,10 @@ igual "ficam: tenant, perfis de acesso, licenças, parâmetros, conectores, cred
           and a.tabela in ('plataforma.tenant', 'plataforma.perfil', 'plataforma.perfil_modulo', 'plataforma.perfil_permissao',
                            'plataforma.tenant_modulo', 'plataforma.assinatura', 'plataforma.parametro',
                            'integracao.conector', 'integracao.credencial', 'integracao.mapeamento', 'core.medida', 'core.equipe')")" 0
-igual "administradores intactos (linha, perfis, filiais e sessões) e logando (vivos, ativos, com sessão viva)" \
+igual "administradores intactos (linha, perfis, filiais, sessões, notificações, tarefas e metas) e logando (vivos, ativos, com sessão viva)" \
   "$([ "$(admins)" = "$admin0" ] && echo iguais)/$(qa "select count(*) from core.usuario u where u.tenant_id = '$ALFA' and u.perfil = 'admin' and u.deleted_at is null and u.ativo
      and exists (select 1 from core.sessao s where s.usuario_id = u.id and s.deleted_at is null and s.revogado_em is null and s.expira_em > now())")" "iguais/1"
+igual "autoria de quem saiu não leva os dados do admin (notificação, tarefa cancelada, destinatário, meta)" "$(autoria)" 1/1/1/1
 igual "os outros usuários saem, com perfis, filiais, carteira e sessões; o token do vendedor cai (sessao_versao)" \
   "$(qa "select (select count(*) from core.usuario where tenant_id = '$ALFA' and deleted_at is null and perfil <> 'admin')
              + (select count(*) from plataforma.usuario_perfil x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil <> 'admin' and x.deleted_at is null)
