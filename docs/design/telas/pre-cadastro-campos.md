@@ -1,15 +1,15 @@
 # Pré-cadastro de cliente: campos obrigatórios (BKO) e marcação no Campo
 
-> 2026-11-23 · designer-ux · v1.0.28 (sessão A); v1.0.29 (sessão D): lista única (§0). Decisão do dono do produto (23/11/2026): o FDV só faz o pré-cadastro e
+> 2026-11-23 · designer-ux · v1.0.28 (sessão A); v1.0.30 (sessão D): lista única (§0). Decisão do dono do produto (23/11/2026): o FDV só faz o pré-cadastro e
 > o ERP aprova; o BKO define em Parâmetros quais campos são obrigatórios. Regras: RN-CORE-78 e RN-CORE-79 (propostas).
 > Parâmetro `core` · `cliente.pre_cadastro.obrigatorios` (array de chaves configuráveis). Sem cor nem token novos.
 
-## 0. v1.0.29: uma lista só (R-20261123-141413 e R-20261123-142306)
+## 0. v1.0.30: uma lista só (R-20261123-141413 e R-20261123-142306)
 
 Parâmetros › Clientes passa a ter **uma lista só de campos obrigatórios**, que vale para as duas regras: o cadastro completo
 (RN-CORE-16, lista `cliente_campos_obrigatorios`) e o pré-cadastro (RN-CORE-79, `cliente.pre_cadastro.obrigatorios`). Sai o
 painel "Pré-cadastro de cliente" com esse nome; entra o painel **Campos obrigatórios**. Simulação:
-`pre-cadastro-v1029/05-bko-parametros-campos-obrigatorios.png` (gerador `pre-cadastro-v1029/gerar.mjs`).
+`pre-cadastro-v1030/05-bko-parametros-campos-obrigatorios.png` (gerador `pre-cadastro-v1030/gerar.mjs`).
 
 ## 1. Campos
 

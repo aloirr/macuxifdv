@@ -1,6 +1,6 @@
-// Simulações da v1.0.29 (R-20261123-141413 e R-20261123-142306): BKO › Cadastros › Clientes › aba "Pré-cadastros recusados"
+// Simulações da v1.0.30 (R-20261123-141413 e R-20261123-142306): BKO › Cadastros › Clientes › aba "Pré-cadastros recusados"
 // (lista, histórico, editar e reenviar, vazio) e Parâmetros › Clientes › Campos obrigatórios (lista única, RN-CORE-16 + RN-CORE-79).
-// Uso, a partir da raiz do repositório: node docs/design/telas/pre-cadastro-v1029/gerar.mjs
+// Uso, a partir da raiz do repositório: node docs/design/telas/pre-cadastro-v1030/gerar.mjs
 // Escreve os .html e .png desta pasta (1366×768, escala 2). Falha se a nota de simulação cobrir conteúdo.
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

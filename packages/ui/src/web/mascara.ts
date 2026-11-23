@@ -1,5 +1,5 @@
 /**
- * v1.0.29 (BKO › Clientes › Pré-cadastros recusados, docs/design/telas/bko-pre-cadastros-recusados.md §4): máscaras do campo
+ * v1.0.30 (BKO › Clientes › Pré-cadastros recusados, docs/design/telas/bko-pre-cadastros-recusados.md §4): máscaras do campo
  * de texto do BKO ao digitar, iguais às do Campo (`CampoTexto mascara`). A regra de encaixe é a mesma do kit mobile
  * (`aplicarMascara`, parte pura, sem react-native); aqui só entram as props do `<input>` da web. O módulo guarda e envia só os
  * dígitos (`somenteDigitos` de `@macuxi/comum`); se o valor vale é do domain.

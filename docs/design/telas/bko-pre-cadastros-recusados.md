@@ -1,9 +1,9 @@
-# BKO — Pré-cadastros recusados (v1.0.29)
+# BKO — Pré-cadastros recusados (v1.0.30)
 
-> 2026-11-23 · designer-ux · sessão D da v1.0.29. Decisões do dono do produto: R-20261123-141413 e R-20261123-142306.
+> 2026-11-23 · designer-ux · sessão D da v1.0.30. Decisões do dono do produto: R-20261123-141413 e R-20261123-142306.
 > Regras: RN-CORE-78 (pré-cadastro, ERP aprova ou recusa) e RN-CORE-79 (campos obrigatórios). Campo: `campo-cliente-pre-cadastro.md`.
 > Códigos do cliente (ADR 0069, item 10): `codigos-do-cliente.md`.
-> Simulações (1366×768, escala 2): `pre-cadastro-v1029/01` a `04` (gerador `pre-cadastro-v1029/gerar.mjs`). Sem cor nem token novos.
+> Simulações (1366×768, escala 2): `pre-cadastro-v1030/01` a `04` (gerador `pre-cadastro-v1030/gerar.mjs`). Sem cor nem token novos.
 
 Dono da tela: `modulo-core` (`modules/core/web`). Kit: `@macuxi/ui/web` (`Abas`, `CampoBusca`, `SelectField`, `TabelaDados`,
 `Badge`, `Drawer`, `Notice`, `Button`, `EstadoVazio`, `LoadingBlock`, `ErrorBlock`, `useToast`). Nenhum componente novo.

@@ -1,6 +1,6 @@
-# Campo — pré-cadastro de cliente (v1.0.28; correção na v1.0.29)
+# Campo — pré-cadastro de cliente (v1.0.28; correção na v1.0.30)
 
-> v1.0.29 (R-20261123-141413 e R-20261123-142306): **Corrigir e reenviar** corrige o **mesmo** pré-cadastro (mesmo id), que vai como revisão nova; os erros por campo da recusa ficam marcados no próprio campo. Lado do BKO: `bko-pre-cadastros-recusados.md`.
+> v1.0.30 (R-20261123-141413 e R-20261123-142306): **Corrigir e reenviar** corrige o **mesmo** pré-cadastro (mesmo id), que vai como revisão nova; os erros por campo da recusa ficam marcados no próprio campo. Lado do BKO: `bko-pre-cadastros-recusados.md`.
 
 Decisão do dono do produto (23/11/2026): o vendedor pré-cadastra o cliente no Campo; o ERP aprova (devolve o código) ou recusa (com motivo). Sem aprovação no BKO. A empresa escolhe em Parâmetros quais campos são obrigatórios; alguns são **sempre obrigatórios** (lista e contratos Zod do `modulo-core`, em `modules/core/contracts`). A tela não distingue os dois casos: para o vendedor, obrigatório é obrigatório.
 
@@ -37,7 +37,7 @@ Dono da tela: `modulo-core` (`modules/core/app`). Kit: `@macuxi/ui/mobile`. Regr
 - CPF/CNPJ de cliente que já está na carteira: "Já é cliente" + link **Abrir** na mesma linha.
 - Nada de resumo de erros no topo; o erro está no campo.
 
-### 3.1 Na correção (v1.0.29)
+### 3.1 Na correção (v1.0.30)
 - **Motivo da recusa:** só no topo do formulário, numa linha `danger` com ícone `alert` (texto literal do ERP ou da API, 1 a 3 linhas). É o único texto acima dos campos.
 - **Erros por campo** (quando a recusa os traz): cada campo citado já abre com `falta=<mensagem do erro>` (borda `danger` 2 dp + `TextoDaFalta`), visível desde a entrada, sem esperar o **Salvar**; a tela abre rolada até o primeiro. Do grupo Endereço, a marca vai no campo exato (CEP, Número…). A mensagem é a do erro, sem prefixo nem nome do campo (o rótulo já está acima).
 - A marca de um campo sai quando o vendedor muda o valor dele. Campo marcado e não mudado não impede o **Salvar** (a API revalida).
@@ -67,5 +67,5 @@ Selo: `ChipEstado pequeno {...seloDoPreCadastro(situacao)}` no lugar do selo `pr
 - `CampoTexto` ganhou: `mascara?: 'documento' | 'cep' | 'telefone'` (`aoMudar` recebe o texto formatado), `opcional?: boolean`, `falta?: string | null`.
 - `RotuloCampo` ganhou `opcional?: boolean`.
 - Puros (`@macuxi/ui/mobile/puro`): `aplicarMascara`, `propsDeTecladoDaMascara`, `DIGITOS_DA_MASCARA`, `seloDoPreCadastro(situacao: 'aguardando_erp' | 'recusado_erp' | 'nao_enviado' | 'aprovado_erp')`, `ROTULO_AGUARDANDO_ERP`, `ROTULO_RECUSADO_ERP`, `ROTULO_PRE_CADASTRO_NAO_ENVIADO`, `ACAO_CORRIGIR_E_REENVIAR`.
-- v1.0.29: nada novo no kit; o erro por campo usa a `falta` que já existe.
+- v1.0.30: nada novo no kit; o erro por campo usa a `falta` que já existe.
 - Já existentes, reusar: `CampoEscolha` (UF), `ChipEstado`, `Botao`, `AvisoRodape`, `Folha`, `RotuloSecao`, `TextoDaFalta`.

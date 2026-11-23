@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { aplicarMascara, propsDoInputComMascara } from './mascara';
 
-describe('máscaras do campo do BKO (v1.0.29, bko-pre-cadastros-recusados §4)', () => {
+describe('máscaras do campo do BKO (v1.0.30, bko-pre-cadastros-recusados §4)', () => {
   it('telefone: fixo e celular ao digitar, sem separador pendurado, corta o excesso', () => {
     expect(aplicarMascara('telefone', '9')).toBe('(9');
     expect(aplicarMascara('telefone', '92')).toBe('(92');

@@ -1,9 +1,9 @@
-# Códigos do cliente: Código ERP e Código FDV (v1.0.29)
+# Códigos do cliente: Código ERP e Código FDV (v1.0.30)
 
-> 2026-11-23 · designer-ux · sessão D da v1.0.29. Base: ADR 0069, item 10 e seção H (resposta (a) do dono do produto);
+> 2026-11-23 · designer-ux · sessão D da v1.0.30. Base: ADR 0069, item 10 e seção H (resposta (a) do dono do produto);
 > todo cliente tem Código FDV, inclusive o do ERP (decisão do dono do produto, 23/11/2026).
 > Telas: ficha do cliente no app (Campo e Gestão), formulário do pré-cadastro no Campo, Carteira e Cliente 360 do BKO,
-> lista e gaveta dos **Pré-cadastros recusados** (`bko-pre-cadastros-recusados.md`, simulações `pre-cadastro-v1029/01` a `03`).
+> lista e gaveta dos **Pré-cadastros recusados** (`bko-pre-cadastros-recusados.md`, simulações `pre-cadastro-v1030/01` a `03`).
 > Sem cor, token nem componente novos (o código usa o `fonte.mono` que já existe). Validar com o `design-de-marca` (muda layout da Carteira e da lista dos recusados).
 
 ## 1. Os dois códigos
