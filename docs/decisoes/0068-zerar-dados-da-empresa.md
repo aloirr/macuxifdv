@@ -18,8 +18,11 @@
 - A ADR 0052 pôs Inativar, Backup e Excluir no portal. O worker do backup (cifra, S3) não existe, e a exclusão nunca libera.
 
 ## Decisão
-1. **Uma função**: `plataforma.limpar_cadastros(p_tenant, p_lote, p_entidades text[] default null, p_exigir_hub_parado default true)`, na migração 0100. É o corpo do #675 promovido a `SECURITY DEFINER`, sem EXECUTE para papel da aplicação.
-   - A prévia roda a função numa subtransação desfeita, **no worker** (o portal pede e lê a cada 2 s; o pool do portal tem prazo de 10 s, curto para a limpeza de uma empresa grande; desenho §3.1). O zerar roda no worker e confirma. O workflow passa a chamá-la, e a `rotina.sql` saiu. Numa tag da v1.0.31 em diante, banco sem a 0100 faz o workflow parar antes de mudar qualquer coisa (desenho §8).
+1. **Uma função**: `plataforma.limpar_cadastros(p_tenant, p_lote, p_entidades text[] default null, p_exigir_hub_parado default true, p_simular default false)`, na migração 0100. É o corpo do #675 promovido a `SECURITY DEFINER`, sem EXECUTE para papel da aplicação.
+   - A prévia roda a função com `p_simular` numa subtransação desfeita, **no worker** (o portal pede e lê a cada 2 s; o pool do portal tem prazo de 10 s; desenho §3.1). O `p_simular` passa pelas mesmas raízes e pela mesma cascata e só conta o que o UPDATE e o DELETE pegariam: sem cópia, sem UPDATE, sem DELETE e sem a trava do Hub. Cada linha traz o `modo`; saem `soft` e `fisico`.
+   - A tela espera a prévia até `PRAZO_PREVIA_ZERAR_MS` (2 min) e depois mostra a falha com "Tentar de novo".
+   - Medidas: 400 mil linhas: prévia 1,35 s; ~2 milhões (1.999.963): zerar 1 min 27 s, prévia 23 s (banco-dados, 23/11/2026, Postgres 16 local).
+   - O zerar roda no worker e confirma. O workflow passa a chamá-la, e a `rotina.sql` saiu. Numa tag da v1.0.31 em diante, banco sem a 0100 faz o workflow parar antes de mudar qualquer coisa (desenho §8).
    - `p_entidades = null` é o comportamento do #675.
 2. **Por entidade**: `p_entidades` traz uma ou mais das 16 entidades do Hub (`ENTIDADES_ZERAR` no SDK = `ORDEM_CARGA_ENTIDADES` do módulo, conferido em teste). O mapa entidade → raízes fica numa função do banco.
    - Saem as raízes da entidade, a cascata e o Hub dela (lotes, staging, erros, sessões, `registro_atual` e cursor).
@@ -37,7 +40,7 @@
 7. **Regra de liberação só no banco**: `plataforma.zerar_bloqueado` (exclusão, zerar, backup, lote do Hub em processamento, 2 milhões de linhas). O SDK traz só o mapa código → frase.
 
 ## Alternativas
-- **Prévia síncrona no portal, com prazo e `lock_timeout` próprios**: devolveria 503 justo nas empresas grandes, que são as que mais precisam da prévia. **Modo "contar" na `limpar_cadastros`**: a conta sem cópia, sem UPDATE e sem DELETE ficaria rápida, mas seria um segundo caminho no corpo da regra, que pode divergir do que o executar faz.
+- **Prévia síncrona no portal, com prazo e `lock_timeout` próprios**: devolveria 503 justo nas empresas grandes, que são as que mais precisam da prévia. **Prévia pela execução inteira desfeita** (cópia, UPDATE e DELETE, depois ROLLBACK): conta o mesmo, mas escreve tudo para desfazer. Ficou o `p_simular`, no mesmo corpo e com as mesmas raízes e cascata; o teste de banco confere que a prévia e o zerar trazem as mesmas tabelas, modos e linhas.
 - **Manter a regra própria do portal** (DELETE físico de tudo menos as mantidas): seriam duas regras para a mesma ação. Ela também apagaria a auditoria do Hub e os usuários de um jeito diferente do workflow, que o dono do produto já usou.
 - **Deixar a rotina em `scripts/` e o worker ler o mesmo texto**: o worker precisaria do arquivo em tempo de execução e de criar função temporária com o papel dele. A `SECURITY DEFINER` na migração é versionada com o schema.
 - **Ficar com as duas cópias** (`zerar_empresa_copia` e `public.macuxi_limpeza_backup`): seriam dois restaurar. A tabela na `public`, sem RLS, criada de dentro da função, não fica.
