@@ -5,6 +5,7 @@ import {
   cabecalhoDoMonitor,
   falhouEm,
   horaDaFalha,
+  menuDaEntidade,
   textoLinhas,
   textoUltimaCarga,
 } from './entidades';
@@ -148,5 +149,39 @@ describe('falhouEm', () => {
     );
     expect(falhouEm(lote({ status: 'falhou', concluido_em: null }))).toBe('2026-11-15T05:01:00.000Z');
     expect(falhouEm(lote({ status: 'concluido' }))).toBeNull();
+  });
+});
+
+describe('menuDaEntidade (menu "⋯" da linha, R2-3)', () => {
+  const sem = { reprocessando: false, aoReprocessar: () => {}, aoAbrirHistorico: () => {} };
+
+  it('RN-INT-15: sem falha, o menu só tem "Histórico (n)"', () => {
+    const [linha] = agruparPorEntidade([lote({ entidade: 'estoque' }), lote({ entidade: 'estoque' })]);
+    const menu = menuDaEntidade(linha!, sem);
+    expect(menu.map((a) => a.rotulo)).toEqual(['Histórico (2)']);
+    expect(menu[0]!.testId).toBe('integracao.entidade.historico.estoque');
+  });
+
+  it('RN-INT-15: com falha, "Reprocessar" vem antes do Histórico e manda os lotes reprocessáveis', () => {
+    const [linha] = agruparPorEntidade([lote({ entidade: 'preco', status: 'falhou', com_erro: 3 })]);
+    const pedidos: (readonly string[])[] = [];
+    const menu = menuDaEntidade(linha!, { ...sem, aoReprocessar: (ids) => pedidos.push(ids) });
+    expect(menu.map((a) => a.id)).toEqual(['reprocessar', 'historico']);
+    expect(menu[0]!.testId).toBe('integracao.entidade.reprocessar.preco');
+    expect(menu.some((a) => a.perigo)).toBe(false);
+    menu[0]!.aoEscolher();
+    expect(pedidos).toEqual([linha!.reprocessaveis]);
+  });
+
+  it('RN-INT-15: "Reprocessar" fica desligado enquanto um reprocesso corre', () => {
+    const [linha] = agruparPorEntidade([lote({ entidade: 'preco', status: 'falhou', com_erro: 3 })]);
+    expect(menuDaEntidade(linha!, { ...sem, reprocessando: true })[0]!.desligada).toBe(true);
+  });
+
+  it('"Histórico (n)" abre o histórico da entidade', () => {
+    const [linha] = agruparPorEntidade([lote({ entidade: 'rota' })]);
+    let aberto = false;
+    menuDaEntidade(linha!, { ...sem, aoAbrirHistorico: () => (aberto = true) })[0]!.aoEscolher();
+    expect(aberto).toBe(true);
   });
 });
