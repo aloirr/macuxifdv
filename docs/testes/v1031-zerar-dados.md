@@ -12,7 +12,7 @@ fonte falsa, nos testes da `apps/api` (engenheiro-software); a tela, no `apps/we
 | 2 | `GET /v1/integracao/monitor/detalhes` | anônimo 401; BKO e admin do cliente 403; super-admin 200, sem dado de linha | Z-01 |
 | 3 | Super-admin reprocessa lote pelo portal | 200 `recebido`, auditoria `via: super_admin`, despachante conclui | Z-02 |
 | 4 | Lote do Hub em processamento | prévia com `bloqueio`; pedido 409 `ZERAR_HUB_PROCESSANDO`; nada pedido | Z-03 |
-| 5 | Zerar `cliente`: prévia (assíncrona: 202 → worker `cicloPrevia` → `pronta`) × executado | mesmas (tabela, linhas) com contagem; `total` = `linhas_apagadas`; `entidades_afetadas` iguais; mesmo id = mesma prévia | Z-04 |
+| 5 | Zerar `cliente`: prévia (assíncrona: 202 → worker `cicloPrevia` → `pronta`) × executado | mesmas (tabela, modo, linhas) com contagem; `total` = `linhas_apagadas`; `entidades_afetadas` iguais; mesmo id = mesma prévia | Z-04 |
 | 6 | Cascata por entidade | saem cliente, endereço, título e nota; produto fica; outro tenant intacto | Z-04 |
 | 7 | O que fica | usuários, perfis, credenciais, conectores, plano, licenças e parâmetros iguais (sem `updated_at`) | Z-04, Z-08 |
 | 8 | Cópia antes de a linha sair | gatilho espião: toda linha que sai (soft e físico) já está na `limpeza_copia`, na mesma transação | Z-04 |
@@ -22,7 +22,7 @@ fonte falsa, nos testes da `apps/api` (engenheiro-software); a tela, no `apps/we
 | 12 | Reenvio depois do zerar | a mesma carga DELTA (mesma chave) de cliente, endereço, título e nota = lote novo, sem `repetido`, `novas`, linhas recriadas | Z-06, Z-08 |
 | 13 | Erro no meio | `falhou` `ZERAR_FALHOU`; nada sai; nenhuma cópia do lote | Z-07 |
 | 14 | Empresa inteira | prévia = executado; ficam os administradores (os não administradores saem); todos os cursores nulos; Hub vazio; reenvio recria; outro tenant intacto | Z-08 |
-| 15 | Valor × regra do total da prévia | `total` = soma das linhas fora de `core.filial`, `plataforma.sync_pacote` e `plataforma.tenant` (mudam, não saem) | Z-08 |
+| 15 | Valor × regra do total da prévia | cada linha da prévia e do resultado traz `modo`; `total` = soma das linhas `soft` + `fisico`; `core.filial`, `plataforma.sync_pacote` e `plataforma.tenant` vêm com `filial`, `sync_pacote` e `girar` (mudam, não saem) | Z-04, Z-08 |
 | 16 | Teto de 3 tentativas | prévia e zerar pegados 3 vezes sem fechar: na 4ª, `falhou` `ZERAR_FALHOU` (frase da prévia: "Não foi possível contar os dados. Tente de novo."); auditoria `tenant.zerar_falhou`; nada sai | Z-09 |
 | 17 | Trava do Hub só da empresa | com a prévia e com o zerar de A abertos numa transação do worker, o Hub de B recebe e conclui um lote; depois o zerar de A conclui | Z-10 |
 
@@ -59,6 +59,32 @@ sem superusuário) TUDO OK; e2e BKO `tests/e2e/bko/integracao-simples.spec.ts` 1
 
 **D-1 (banco-dados, `db/testes/resumo-outbox-vivos.db.test.ts:140` e `:154`)** continua aberto no branch da sessão C: sem
 `{ ate: VERSAO }`, o `migrarUp` aplica a 0099 e a 0100 e o teste da 0099 reprova na junção.
+
+## Reteste curto nos SHAs finais (23/11/2026, noite de Manaus) — `modo` em cada linha
+
+Mudou: cada linha da prévia e do resultado traz `modo` (banco-dados 098a4d8f1); `soft` e `fisico` saem e somam o total, `filial`,
+`sync_pacote` e `girar` mudam e não saem; o SDK exige o `modo` e filtra por `MODOS_QUE_SAEM` (engenheiro-software 88510349b);
+prazo de 2 min na espera pela prévia e modo falso com `modo` (engenheiro-apps df8aef9a8). O teste da API compara agora
+(tabela, modo, linhas) entre prévia e executado e confere o total pela soma literal de `soft` + `fisico` (Z-04 e Z-08), sem a
+premissa antiga "a prévia não traz modo".
+
+Junção local (commits só na árvore descartável, nada publicado): `origin/main` 918ba20d0 + 1ea0ec192 (sessão C) + 098a4d8f1
+(conflito em `db/testes/estatico.test.ts` e `docs/banco/README.md` resolvido somando as duas versões) + df8aef9a8 (com 88510349b)
++ c32abc632 + este branch; no rascunho, o D-1 (`migrarUp(c, { ate: VERSAO })` em `db/testes/resumo-outbox-vivos.db.test.ts:140`
+e `:154`). Postgres 16 local (`db/scripts/pg-local.sh`, sem Docker), Node 24.
+
+| Critério | Teste | Resultado |
+|---|---|---|
+| Prévia = executado por (tabela, modo, linhas) | `zerar-dados-v1031.test.ts` Z-04 e Z-08 | ✅ |
+| Total da prévia = `linhas_apagadas` = soma de `soft` + `fisico` (valor × regra) | Z-04 e Z-08 | ✅ |
+| `core.filial`, `plataforma.sync_pacote` e `plataforma.tenant` com `filial`, `sync_pacote` e `girar`, fora do total | Z-08 | ✅ |
+| Critérios 1 a 9 do reteste anterior | Z-01 a Z-10 | ✅ |
+
+Suítes na junção: `tests/` 169 arquivos (1 pulado), 2551 verdes (22 pulados, 9 todo); `db/testes/empresa-zerar.db.test.ts`,
+`estatico.test.ts` e `resumo-outbox-vivos.db.test.ts` 463 verdes; `apps/api` 87 arquivos, 888 verdes (com banco);
+`limpar-cadastros.teste.sh` (5433, admin sem superusuário) TUDO OK; e2e do portal `apps/web/e2e` 16 verdes (Chromium 1243);
+`typecheck:tests` e `lint:tests` limpos. Os `*.db.test.ts` dos módulos e o e2e do BKO não foram repetidos (c32abc632 igual ao
+reteste anterior). Nenhum defeito novo; o D-1 continua aberto no branch da sessão C.
 
 ## Manual (aparelho real)
 1. Portal `config.` › empresa › ⋯ › Zerar dados: conferir a prévia, digitar o código e a senha; depois do concluído, abrir o Campo

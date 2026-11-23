@@ -11,7 +11,7 @@
  *       `recebido`, a auditoria diz `via: super_admin` e o despachante conclui de novo;
  *  Z-03 Hub em processamento: a prévia mostra o bloqueio e o pedido = 409 `ZERAR_HUB_PROCESSANDO`; nada é pedido;
  *  A prévia é do worker (0100 revista): `POST …/zerar/previa` (202 em_andamento) → `cicloPrevia` do worker real → `GET
- *  …/zerar/previa/:previa_id` pronta; "prévia = executado" = as mesmas (tabela, linhas) com contagem e o mesmo total (soft + físico).
+ *  …/zerar/previa/:previa_id` pronta; "prévia = executado" = as mesmas (tabela, modo, linhas) com contagem e o mesmo total (soft + físico).
  *  Z-04 zerar por entidade (`cliente`): prévia = executado; prévia idempotente pelo id; a cascata leva endereço, título e nota; produto e o outro tenant intactos;
  *       ficam usuários, perfis, credenciais, conectores, plano, licenças e parâmetros; pedido idempotente pelo id; a cópia de cada
  *       linha está em `plataforma.limpeza_copia` ANTES de a linha sair (gatilho espião, mesma transação); cursor da entidade nulo e
@@ -21,8 +21,8 @@
  *       como NOVA (não `repetido` nem `inalterada`) e recria as linhas — a cascata também apaga lote, registro_atual e cursor; B intacto;
  *  Z-07 erro no meio da limpeza (gatilho que falha no `core.nota_erp`, depois de o Hub e os clientes já terem saído na transação):
  *       o zerar fecha `falhou` (`ZERAR_FALHOU`) e nada sai, nem a cópia fica;
- *  Z-08 a empresa inteira: prévia = executado; o total da prévia = a soma das linhas fora de core.filial, plataforma.sync_pacote e
- *       plataforma.tenant (valor × regra); ficam administradores, perfis, credenciais, conectores, plano, licenças e parâmetros (os
+ *  Z-08 a empresa inteira: prévia = executado; o total da prévia = a soma das linhas soft + físico; core.filial, plataforma.sync_pacote e
+ *       plataforma.tenant vêm com o modo filial, sync_pacote e girar e ficam fora do total (valor × regra); ficam administradores, perfis, credenciais, conectores, plano, licenças e parâmetros (os
  *       usuários não administradores saem); todos os cursores nulos e nenhum `registro_atual`; o ERP reenvia e as linhas voltam; B intacto;
  *  Z-09 teto de 3 tentativas: a prévia e o zerar pegados 3 vezes sem fechar (o processo caiu) fecham `falhou` `ZERAR_FALHOU` na 4ª
  *       vez; o zerar audita `tenant.zerar_falhou` e nada sai;
@@ -40,6 +40,7 @@ import {
   ENTIDADES_ZERAR,
   ERROS_WORKER_ZERAR,
   mensagemDaPreviaZerar,
+  MODOS_QUE_SAEM,
   PreviaZerarSchema,
   ZerarEmpresaSchema,
   type LinhaLimpeza,
@@ -182,9 +183,12 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     expect(p).toMatchObject({ id, situacao: 'pronta', erro_codigo: null });
     return p;
   }
-  /** "prévia = executado": as mesmas (tabela, linhas) com contagem, como multiconjunto (a prévia não tem o modo). */
+  /** "prévia = executado": as mesmas (tabela, modo, linhas) com contagem, como multiconjunto (cada linha traz o modo). */
   const tabelasComLinhas = (l: readonly (LinhaLimpeza | LinhaPreviaZerar)[]) =>
-    l.filter((x) => x.linhas > 0).map((x) => `${x.tabela}|${x.linhas}`).sort();
+    l.filter((x) => x.linhas > 0).map((x) => `${x.tabela}|${x.modo}|${x.linhas}`).sort();
+  /** Valor × regra (RN-PLA-12): saem só as linhas dos `MODOS_QUE_SAEM` do SDK (soft e físico); filial, pacote de sync e tenant mudam e não saem. */
+  const somaQueSai = (l: readonly (LinhaLimpeza | LinhaPreviaZerar)[]) =>
+    l.filter((x) => MODOS_QUE_SAEM.has(x.modo)).reduce((a, x) => a + x.linhas, 0);
   const pedir = (id: string, entidades: string[] | null, extra: Record<string, unknown> = {}) =>
     comoPortal(tk.sa, { method: 'POST', url: urlEmpresa('zerar'), payload: { id, codigo_confirmacao: A.codigo, senha: SA.senha, ...(entidades ? { entidades } : {}), ...extra } });
   const lerZerar = async (): Promise<ZerarEmpresa> => {
@@ -457,7 +461,9 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     expect([deNovo.statusCode, PreviaZerarSchema.parse(deNovo.json())]).toEqual([202, pv]);
     expect(await criarWorkerZerar({ pool: worker }).cicloPrevia(), 'nenhuma prévia pendente').toBeNull();
     const tabelas = new Map(pv.linhas!.map((t) => [t.tabela, t]));
-    expect(tabelas.get('core.cliente')).toMatchObject({ tabela: 'core.cliente', linhas: 2 });
+    expect(tabelas.get('core.cliente')).toMatchObject({ tabela: 'core.cliente', modo: 'soft', linhas: 2 });
+    expect(tabelas.get('integracao.registro_atual')?.modo).toBe('fisico');
+    expect(pv.total, 'total da prévia = soft + físico').toBe(somaQueSai(pv.linhas!));
     for (const t of ['core.cliente_endereco', 'core.titulo', 'core.nota_erp']) expect(tabelas.get(t)?.linhas, `cascata ${t}`).toBeGreaterThanOrEqual(1);
     for (const t of ['core.produto', 'catalogo.tabela_preco', 'catalogo.estoque_saldo', 'core.usuario']) expect(tabelas.has(t), `${t} fica`).toBe(false);
     expect(pv.entidades_afetadas).toEqual(expect.arrayContaining(['cliente', 'cliente_endereco', 'titulo', 'nota']));
@@ -608,13 +614,18 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
 
     const pv = await previa();
     expect([pv.entidades, pv.bloqueio]).toEqual([null, null]);
-    // valor × regra: o total da prévia (o número da tela) = as linhas que SAEM; core.filial, plataforma.sync_pacote e plataforma.tenant mudam e não saem
-    const ficamNaEmpresa = new Set(['core.filial', 'plataforma.sync_pacote', 'plataforma.tenant']);
-    expect(pv.total).toBe(pv.linhas!.filter((l) => !ficamNaEmpresa.has(l.tabela)).reduce((a, l) => a + l.linhas, 0));
-    expect(pv.linhas!.some((l) => ficamNaEmpresa.has(l.tabela)), 'a empresa inteira mexe em filial, pacote de sync ou tenant').toBe(true);
+    // valor × regra: o total da prévia (o número da tela) = soma das linhas soft + físico; core.filial, plataforma.sync_pacote e plataforma.tenant mudam e não saem
+    expect([...MODOS_QUE_SAEM].sort(), 'a regra: saem só soft e físico').toEqual(['fisico', 'soft']);
+    expect(pv.total).toBe(somaQueSai(pv.linhas!));
+    const modoDe = new Map(pv.linhas!.map((l) => [l.tabela, l.modo]));
+    const mudamSemSair = { 'core.filial': 'filial', 'plataforma.sync_pacote': 'sync_pacote', 'plataforma.tenant': 'girar' } as const;
+    expect(modoDe.has('core.filial'), 'a empresa inteira mexe na filial').toBe(true);
+    for (const [t, m] of Object.entries(mudamSemSair)) if (modoDe.has(t)) expect(modoDe.get(t), `${t} muda e não sai`).toBe(m);
+    expect(pv.total, 'o que muda e não sai fica fora do total').toBeLessThan(pv.linhas!.reduce((a, l) => a + l.linhas, 0));
     const z = await zerar(null);
     expect(tabelasComLinhas(z.contagem!)).toEqual(tabelasComLinhas(pv.linhas!));
     expect(z.linhas_apagadas).toBe(pv.total);
+    expect(z.linhas_apagadas).toBe(somaQueSai(z.contagem!));
 
     expect(await ficam(false)).toEqual(fica0);
     expect(await vivos()).toMatchObject({ cliente: 0, cliente_endereco: 0, titulo: 0, nota: 0, produto: 0, registro_atual: 0, usuarios: admins });
