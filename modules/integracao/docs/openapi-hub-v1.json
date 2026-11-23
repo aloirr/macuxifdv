@@ -25,7 +25,7 @@
     },
     {
       "name": "Clientes novos",
-      "description": "Pré-cadastros de cliente aprovados no BKO para criar no ERP e retorno do código do ERP (RN-INT-22)."
+      "description": "Pré-cadastros de cliente recebidos, ainda sem código, para criar no ERP e retorno do código do ERP (RN-INT-22)."
     },
     {
       "name": "Pedidos",
@@ -2076,8 +2076,8 @@
     "/clientes/pendentes": {
       "get": {
         "operationId": "clientes_pendentes",
-        "summary": "Clientes novos aprovados no BKO para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).",
-        "description": "Clientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+        "summary": "Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).",
+        "description": "Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
         "tags": [
           "Clientes novos"
         ],
@@ -2116,12 +2116,12 @@
                 },
                 "examples": {
                   "com_cliente": {
-                    "summary": "Um cliente novo aprovado (o Hub o marca como enviado ao entregar)",
+                    "summary": "Um pré-cadastro novo (o Hub o marca como enviado ao entregar)",
                     "value": {
                       "clientes": [
                         {
                           "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
-                          "aprovado_em": "2026-11-23T13:40:00Z",
+                          "recebido_em": "2026-11-23T13:40:00Z",
                           "razao_social": "Mercadinho Boa Vista Ltda",
                           "nome_fantasia": "Boa Vista",
                           "documento": "12345678000190",
@@ -2210,7 +2210,7 @@
       "post": {
         "operationId": "retorno_cliente",
         "summary": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).",
-        "description": "Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.",
+        "description": "Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.",
         "tags": [
           "Clientes novos"
         ],
@@ -2354,12 +2354,12 @@
                     "summary": "O Hub não conhece o cliente",
                     "value": {
                       "codigo": "cliente_desconhecido",
-                      "mensagem": "O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno.",
+                      "mensagem": "O Hub não conhece este cliente. Só cliente entregue ao Conector recebe retorno.",
                       "erros": [
                         {
                           "codigo": "cliente_desconhecido",
                           "campo": null,
-                          "mensagem": "O Hub não conhece este cliente. Só cliente aprovado no BKO e entregue ao Conector recebe retorno."
+                          "mensagem": "O Hub não conhece este cliente. Só cliente entregue ao Conector recebe retorno."
                         }
                       ],
                       "requisicao_id": "req-7f3a9c2e41d8"
@@ -3139,7 +3139,7 @@
             "type": "string",
             "format": "uuid"
           },
-          "aprovado_em": {
+          "recebido_em": {
             "type": "string",
             "format": "date-time",
             "pattern": "Z$"
@@ -3319,7 +3319,7 @@
         },
         "required": [
           "cliente_uuid",
-          "aprovado_em",
+          "recebido_em",
           "razao_social",
           "nome_fantasia",
           "documento",

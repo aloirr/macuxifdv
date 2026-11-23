@@ -12,7 +12,7 @@ const TENANT_A = '11111111-1111-4111-8111-111111111111';
 const TENANT_B = '22222222-2222-4222-8222-222222222222';
 
 const linha = (extra: Record<string, unknown> = {}) => ({
-  cliente_uuid: UUID, estado: 'enviado', payload: { cliente_uuid: UUID, razao_social: 'Mercadinho' }, aprovado_em: '2026-11-23T10:00:00.000Z',
+  cliente_uuid: UUID, estado: 'enviado', payload: { cliente_uuid: UUID, razao_social: 'Mercadinho' }, recebido_em: '2026-11-23T10:00:00.000Z',
   enviado_em: '2026-11-23T11:59:00.000Z', tentativas: 1, external_id: null, motivo: null, deleted_at: null, ...extra,
 });
 

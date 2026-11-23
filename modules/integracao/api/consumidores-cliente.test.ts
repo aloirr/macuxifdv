@@ -5,7 +5,7 @@ import { entrarClienteNaFila } from './consumidores-cliente';
 const T = '11111111-1111-4111-8111-111111111111';
 const C1 = '8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04';
 const C2 = '9c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04';
-const cli = (id: string) => ({ cliente_id: id, aprovado_em: '2026-11-23T10:00:00Z', razao_social: 'Mercadinho', nome_fantasia: null, documento: '12345678000190', inscricao_estadual: null, telefone: null, email: null, logradouro: null, numero: null, complemento: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null, filial_external_id: null });
+const cli = (id: string) => ({ cliente_id: id, recebido_em: '2026-11-23T10:00:00Z', razao_social: 'Mercadinho', nome_fantasia: null, documento: '12345678000190', inscricao_estadual: null, telefone: null, email: null, logradouro: null, numero: null, complemento: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null, filial_external_id: null });
 
 function ctx(o: { consultar: (def: { nome: string }, entrada: unknown) => unknown }) {
   const sqls: { sql: string; params: unknown[] }[] = [];
@@ -18,8 +18,8 @@ function ctx(o: { consultar: (def: { nome: string }, entrada: unknown) => unknow
   return { sqls, ctx: { envelope: { evento_id: 'e1', tenant_id: T }, db, consultar: vi.fn(async (d: { nome: string }, e: unknown) => o.consultar(d, e)), log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } } as never };
 }
 
-describe('RN-INT-22: core.cliente.aprovado@1 entra na fila', () => {
-  it('RN-INT-22: insere cada aprovado com o cliente_uuid, sem dado fora do payload canônico, e a idempotência fica no on conflict', async () => {
+describe('RN-INT-22: core.cliente.pre_cadastrado@1 entra na fila', () => {
+  it('RN-INT-22: insere cada pré-cadastro com o cliente_uuid, sem dado fora do payload canônico, e a idempotência fica no on conflict', async () => {
     const c = ctx({ consultar: () => ({ clientes: [cli(C1)], proximo: null }) });
     await entrarClienteNaFila({ cliente_id: C1 }, c.ctx);
     const inserts = c.sqls.filter((s) => /insert into integracao\.cliente_fila_erp/.test(s.sql));

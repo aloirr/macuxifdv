@@ -134,8 +134,8 @@ const DESCRICAO_ROTA: Record<string, string> = {
   retorno_pedido:
     'Retorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. ' +
     'Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.',
-  clientes_pendentes: 'Clientes novos (pré-cadastro) aprovados no BKO para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).',
-  retorno_cliente: 'Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o BKO mostra o motivo; o ERP não precisa reenviar.',
+  clientes_pendentes: 'Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).',
+  retorno_cliente: 'Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.',
   sinal: 'Sinal de vida (1 por minuto). Responde com a política de versão vigente. É a única rota liberada para o Conector abaixo da versão mínima.',
 };
 
@@ -409,7 +409,7 @@ export function gerarOpenApiHub(): DocumentoOpenApi {
     ],
     tags: [
       { name: 'Lotes', description: 'Envio de dados do ERP (lotes completos e delta), consulta do resultado, cursor e reconciliação diária.' },
-      { name: 'Clientes novos', description: 'Pré-cadastros de cliente aprovados no BKO para criar no ERP e retorno do código do ERP (RN-INT-22).' },
+      { name: 'Clientes novos', description: 'Pré-cadastros de cliente recebidos, ainda sem código, para criar no ERP e retorno do código do ERP (RN-INT-22).' },
       { name: 'Pedidos', description: 'Devolução de pedidos aprovados ao ERP e retorno do ERP (número, rejeição, faturamento, cancelamento).' },
       { name: 'Conector', description: 'Sinal de vida e política de versão.' },
     ],

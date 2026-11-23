@@ -4,15 +4,19 @@ import { aplicarRetornoCliente, selecionarClientesPendentes, type ClienteNaFila 
 const U1 = '3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c';
 const U2 = '4f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6d';
 const T0 = '2026-11-23T12:00:00.000Z';
-const linha = (o: Partial<ClienteNaFila> = {}): ClienteNaFila => ({ cliente_uuid: U1, estado: 'pendente', payload: { cliente_uuid: o.cliente_uuid ?? U1 }, aprovado_em: '2026-11-23T10:00:00.000Z', enviado_em: null, tentativas: 0, external_id: null, motivo: null, removido_em: null, ...o });
+const linha = (o: Partial<ClienteNaFila> = {}): ClienteNaFila => ({ cliente_uuid: U1, estado: 'pendente', payload: { cliente_uuid: o.cliente_uuid ?? U1 }, recebido_em: '2026-11-23T10:00:00.000Z', enviado_em: null, tentativas: 0, external_id: null, motivo: null, removido_em: null, ...o });
 const ret = (o: Record<string, unknown> = {}) => ({ cliente_uuid: U1, status: 'vinculado' as const, external_id: 'C-100', ocorrido_em: T0, ...o });
 
 describe('RN-INT-22: entrega ao Conector', () => {
   it('RN-INT-22: entrega pendentes por ordem de aprovação, com tentativa + 1, e marca como enviado', () => {
-    const s = selecionarClientesPendentes([linha({ cliente_uuid: U2, aprovado_em: '2026-11-23T11:00:00.000Z' }), linha()], T0);
+    const s = selecionarClientesPendentes([linha({ cliente_uuid: U2, recebido_em: '2026-11-23T11:00:00.000Z' }), linha()], T0);
     expect(s.entregar.map((c) => c.cliente_uuid)).toEqual([U1, U2]);
     expect(s.entregar[0]!.tentativa).toBe(1);
     expect(s.atualizacoes[0]).toEqual({ cliente_uuid: U1, estado: 'enviado', enviado_em: T0, tentativas: 1 });
+  });
+  it('RN-INT-22: payload da v1.0.27 (aprovado_em) sai com recebido_em da coluna, sem o campo antigo', () => {
+    const s = selecionarClientesPendentes([linha({ payload: { cliente_uuid: U1, aprovado_em: '2026-11-20T10:00:00.000Z' } })], T0);
+    expect(s.entregar[0]).toEqual({ cliente_uuid: U1, recebido_em: '2026-11-23T10:00:00.000Z', tentativa: 1 });
   });
   it('RN-INT-22: enviado antes do timeout não sai de novo; vencido volta com tentativa + 1', () => {
     expect(selecionarClientesPendentes([linha({ estado: 'enviado', enviado_em: '2026-11-23T11:55:00.000Z', tentativas: 1 })], T0).entregar).toHaveLength(0);
