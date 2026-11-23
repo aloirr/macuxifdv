@@ -38,13 +38,13 @@ select x.item, x.vivos from (
   union all select 7, 'vendedor.forma_pagamento', count(*) from vendedor.forma_pagamento where tenant_id = :'tenant' and deleted_at is null
   union all select 8, 'vendedor.prazo_pagamento', count(*) from vendedor.prazo_pagamento where tenant_id = :'tenant' and deleted_at is null
   union all select 10, 'core.visita', count(*) from core.visita where tenant_id = :'tenant' and deleted_at is null
-  union all select 11, 'core.usuario', count(*) from core.usuario where tenant_id = :'tenant' and deleted_at is null
-  union all select 12, 'core.usuario com external_id (vendedor do ERP)', count(*) from core.usuario where tenant_id = :'tenant' and deleted_at is null and external_id is not null
-  union all select 13, 'plataforma.usuario_perfil', count(*) from plataforma.usuario_perfil where tenant_id = :'tenant' and deleted_at is null
   union all select 14, 'plataforma.tenant_modulo (licenças)', count(*) from plataforma.tenant_modulo where tenant_id = :'tenant' and deleted_at is null
   union all select 15, 'plataforma.parametro', count(*) from plataforma.parametro where tenant_id = :'tenant' and deleted_at is null
   union all select 16, 'integracao.credencial (não revogadas)', count(*) from integracao.credencial where tenant_id = :'tenant' and deleted_at is null and revogada_em is null
 ) x order by x.o;
+\echo 'usuários por perfil principal (saem todos, menos os administradores)'
+select perfil, count(*) filter (where deleted_at = now()) as saem, count(*) filter (where deleted_at is null) as ficam
+  from core.usuario where tenant_id = :'tenant' and (deleted_at is null or deleted_at = now()) group by 1 order by 1;
 \echo 'conectores (ficam como estão)'
 select identificador, tipo, ativo, recebe_pedidos from integracao.conector where tenant_id = :'tenant' and deleted_at is null order by identificador;
 

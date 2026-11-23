@@ -65,10 +65,14 @@ test('rotina: físico = Hub, filas e projeção; restaurar volta o mesmo conjunt
   for (const t of fisico) assert.match(t, /^(integracao\.|gestor\.projecao_fato$)/);
   assert.deepEqual([...lista(restaurar, 'v_fisico')].sort(), [...fisico].sort());
   const fica = lista(rotina, 'c_fica');
-  for (const t of ['core.filial', 'core.usuario', 'core.usuario_filial', 'integracao.conector', 'integracao.credencial', 'integracao.credencial_erp', 'integracao.mapeamento'])
+  for (const t of ['core.filial', 'core.equipe', 'integracao.conector', 'integracao.credencial', 'integracao.credencial_erp', 'integracao.mapeamento'])
     assert.ok(fica.includes(t), `${t} fica`);
-  // o schema plataforma inteiro fica fora da cascata, menos plataforma.arquivo
-  assert.match(rotina, /and \(n\.nspname <> 'plataforma' or c\.relname = 'arquivo'\)/);
+  // do schema plataforma, só arquivo e os vínculos do usuário entram na cascata (tenant, perfis, parâmetros e licenças ficam)
+  assert.deepEqual(lista(rotina, 'c_plataforma'), ['arquivo', 'usuario_perfil', 'usuario_modulo']);
+  assert.match(rotina, /and \(n\.nspname <> 'plataforma' or c\.relname = any \(c_plataforma\)\)/);
+  // usuários: saem todos menos os administradores (perfil principal ou vínculo vivo com perfil de base admin), e o token cai
+  assert.match(rotina, /u\.deleted_at is null and u\.perfil <> 'admin'\n\s+and not exists \(select 1 from plataforma\.usuario_perfil up join plataforma\.perfil pf [\s\S]*? pf\.base = 'admin'\);/);
+  assert.match(rotina, /update core\.usuario u set sessao_versao = u\.sessao_versao \+ 1/);
   // DELETE só no modo físico; a rotina não abre nem fecha transação; trava o Hub
   assert.equal([...rotina.matchAll(/delete from/g)].length, 1);
   assert.doesNotMatch(rotina, /^\s*(begin|commit|rollback);/m);

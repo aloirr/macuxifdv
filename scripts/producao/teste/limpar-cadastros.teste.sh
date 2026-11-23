@@ -6,7 +6,8 @@
 #   bash scripts/producao/teste/limpar-cadastros.teste.sh
 # Cria o banco macuxi_limpeza_teste, migra, carrega a fixture dois-tenants e os dados das duas origens (kit e macuxierp) nos
 # dois tenants, e confere: simular não muda nada; apagar com lote do Hub em processamento aborta; apagar limpa o alfa e
-# mantém empresa, usuários, perfis, licenças, parâmetros, conectores, credenciais, filiais e o tenant beta; restaurar
+# mantém empresa, administradores, perfis de acesso, licenças, parâmetros, conectores, credenciais, filiais e o tenant beta;
+# os demais usuários saem e o reenvio do vendedor pelo ERP o recria; restaurar
 # devolve o alfa; descartar apaga a cópia; depois de apagar de novo, a carga nova do ERP entra.
 set -euo pipefail
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -31,7 +32,8 @@ psql -X -q -d postgres -c "drop database if exists $BANCO" -c "create database $
 (cd "$raiz/db" && npx tsx scripts/banco.ts migrar up --banco "$BANCO" >/dev/null && npx tsx scripts/banco.ts fixture dois-tenants --banco "$BANCO" >/dev/null)
 for t in "$ALFA" "$BETA"; do psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" -v tenant="$t" -f "$raiz/scripts/producao/teste/limpar-cadastros-dados.sql"; done
 
-# hash por tabela e tenant (sem updated_at e geracao_base, que a limpeza e a restauração andam de propósito)
+# hash por tabela e tenant (sem updated_at, geracao_base e sessao_versao, que a limpeza e a restauração andam de propósito;
+# a sessao_versao do vendedor que sai é conferida à parte)
 q "create function public.teste_hash(p_tenant uuid) returns table (tabela text, hash text) language plpgsql as \$f\$
 declare r record; h text; begin
   for r in select n.nspname || '.' || c.relname as nome, exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' and not a.attisdropped) as tem_tenant,
@@ -41,7 +43,7 @@ declare r record; h text; begin
     if r.eh_tenant then
       execute format('select md5(coalesce(string_agg((to_jsonb(t) - ''updated_at'' - ''geracao_base'')::text, ''|'' order by t.id), '''')) from %s t where t.id = %L', r.nome, p_tenant) into h;
     elsif r.tem_tenant then
-      execute format('select md5(coalesce(string_agg((to_jsonb(t) - ''updated_at'')::text, ''|'' order by (to_jsonb(t) - ''updated_at'')::text), '''')) from %s t where t.tenant_id = %L', r.nome, p_tenant) into h;
+      execute format('select md5(coalesce(string_agg((to_jsonb(t) - ''updated_at'' - ''sessao_versao'')::text, ''|'' order by (to_jsonb(t) - ''updated_at'' - ''sessao_versao'')::text), '''')) from %s t where t.tenant_id = %L', r.nome, p_tenant) into h;
     else continue; end if;
     tabela := r.nome; hash := h; return next;
   end loop; end \$f\$;
@@ -84,16 +86,34 @@ igual "apagar abortado não deixa cópia" "$(tem_backup)" f
 
 echo '--- 3. apagar'
 g0="$(qa "select geracao_base from plataforma.tenant where id = '$ALFA'")"
+# administradores: a linha, os perfis, as filiais e as sessões (tudo menos updated_at)
+admins() { qa "select md5(concat_ws('#',
+  (select string_agg((to_jsonb(u) - 'updated_at')::text, '|' order by u.id) from core.usuario u where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from plataforma.usuario_perfil x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.usuario_filial x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin'),
+  (select string_agg((to_jsonb(x) - 'updated_at')::text, '|' order by x.id) from core.sessao x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil = 'admin')))"; }
+admin0="$(admins)"
+sv0="$(qa "select sessao_versao from core.usuario where tenant_id = '$ALFA' and external_id = 'ERP-VEND-1'")"
 limpar alfa apagar 20261123T190200Z > "$tmp/apagar.txt" || nok "apagar saiu com erro"
 cat "$tmp/apagar.txt"
 foto apagado "$ALFA"; foto apagado "$BETA"
 igual "beta intacto" "$(tabelas_diferentes apagado antes "$BETA")" ""
-igual "ficam: tenant, usuários, vínculos de filial, perfis, licenças, parâmetros, conectores, credenciais (hash igual)" \
+igual "ficam: tenant, perfis de acesso, licenças, parâmetros, conectores, credenciais, equipes (hash igual)" \
   "$(q "select count(*) from public.teste_foto a join public.teste_foto b on b.nome = 'antes' and b.tenant = a.tenant and b.tabela = a.tabela
         where a.nome = 'apagado' and a.tenant = '$ALFA' and a.hash is distinct from b.hash
-          and a.tabela in ('plataforma.tenant', 'core.usuario', 'core.usuario_filial', 'plataforma.usuario_perfil', 'plataforma.perfil',
-                           'plataforma.tenant_modulo', 'plataforma.usuario_modulo', 'plataforma.assinatura', 'plataforma.parametro',
+          and a.tabela in ('plataforma.tenant', 'plataforma.perfil', 'plataforma.perfil_modulo', 'plataforma.perfil_permissao',
+                           'plataforma.tenant_modulo', 'plataforma.assinatura', 'plataforma.parametro',
                            'integracao.conector', 'integracao.credencial', 'integracao.mapeamento', 'core.medida', 'core.equipe')")" 0
+igual "administradores intactos (linha, perfis, filiais e sessões) e logando (vivos, ativos, com sessão viva)" \
+  "$([ "$(admins)" = "$admin0" ] && echo iguais)/$(qa "select count(*) from core.usuario u where u.tenant_id = '$ALFA' and u.perfil = 'admin' and u.deleted_at is null and u.ativo
+     and exists (select 1 from core.sessao s where s.usuario_id = u.id and s.deleted_at is null and s.revogado_em is null and s.expira_em > now())")" "iguais/1"
+igual "os outros usuários saem, com perfis, filiais, carteira e sessões; o token do vendedor cai (sessao_versao)" \
+  "$(qa "select (select count(*) from core.usuario where tenant_id = '$ALFA' and deleted_at is null and perfil <> 'admin')
+             + (select count(*) from plataforma.usuario_perfil x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil <> 'admin' and x.deleted_at is null)
+             + (select count(*) from core.usuario_filial x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil <> 'admin' and x.deleted_at is null)
+             + (select count(*) from core.carteira x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil <> 'admin' and x.deleted_at is null)
+             + (select count(*) from core.sessao x join core.usuario u on u.id = x.usuario_id where u.tenant_id = '$ALFA' and u.perfil <> 'admin' and x.deleted_at is null)") / $(qa "select sessao_versao > $sv0 from core.usuario where tenant_id = '$ALFA' and external_id = 'ERP-VEND-1'")" "0 / t"
+grep -q 'usuários por perfil principal' "$tmp/apagar.txt" && ok "a saída mostra os usuários por perfil" || nok "a saída sem os usuários por perfil"
 igual "filiais: todas vivas e sem external_id" \
   "$(qa "select count(*) filter (where deleted_at is not null) || '/' || count(*) filter (where external_id is not null) from core.filial where tenant_id = '$ALFA'")" 0/0
 igual "cadastros do ERP vivos (cliente, produto, preço, saldo, nó, forma, prazo, título) e filhos de apagados" \
@@ -122,10 +142,12 @@ igual "Hub do alfa vazio (lote, erro, registro_atual, cursor, sessão, fila de c
              + (select count(*) from integracao.registro_atual where tenant_id = '$ALFA') + (select count(*) from integracao.cursor_entidade where tenant_id = '$ALFA')
              + (select count(*) from integracao.sessao_carga where tenant_id = '$ALFA')
              + (select count(*) from integracao.cliente_fila_erp f join core.cliente c on c.id = f.cliente_uuid where f.tenant_id = '$ALFA' and c.deleted_at is not null)")" 0
-igual "outbox: integracao e pedido saem; publicado e evento de usuário ficam" \
+igual "outbox: integracao, pedido e usuário que sai saem; publicado e evento de administrador ficam" \
   "$(qa "select (select count(*) from plataforma.evento where tenant_id = '$ALFA' and publicado_em is null and deleted_at is null and (nome like 'integracao.%' or nome like 'vendedor.%')) || '/' ||
                (select count(*) from plataforma.evento where tenant_id = '$ALFA' and publicado_em is not null and deleted_at is null and nome = 'integracao.produto.atualizado@1') || '/' ||
-               (select count(*) from plataforma.evento where tenant_id = '$ALFA' and publicado_em is null and deleted_at is null and nome = 'core.usuario.modulos_alterados@1')")" 0/1/1
+               (select count(*) from plataforma.evento e where e.tenant_id = '$ALFA' and e.publicado_em is null and e.deleted_at is null and e.nome like 'core.usuario.%'
+                  and not exists (select 1 from core.usuario u where u.id = e.agregado_id and u.perfil = 'admin')) || '/' ||
+               (select count(*) from plataforma.evento e join core.usuario u on u.id = e.agregado_id where e.tenant_id = '$ALFA' and e.publicado_em is null and e.deleted_at is null and u.perfil = 'admin')")" 0/1/0/1
 igual "cliente do app vivo; macuxierp ativo" \
   "$(qa "select (select count(*) from core.cliente where tenant_id = '$ALFA' and deleted_at is null and razao_social = 'Cliente do app') || '/' ||
                (select count(*) from integracao.conector where tenant_id = '$ALFA' and identificador = 'macuxierp' and ativo and deleted_at is null)")" 1/1
@@ -161,6 +183,7 @@ echo '--- 6. apagar de novo e a carga nova do ERP entra'
 limpar alfa apagar 20261123T190300Z > /dev/null || nok "2o apagar saiu com erro"
 erp="$(qa "select id from integracao.conector where tenant_id = '$ALFA' and identificador = 'macuxierp'")"
 padrao="$(qa "select id from core.filial where tenant_id = '$ALFA' and padrao and deleted_at is null")"
+vemail="$(qa "select email from core.usuario where tenant_id = '$ALFA' and external_id = 'ERP-VEND-1'")"
 if psql -X -q -v ON_ERROR_STOP=1 -d "$BANCO" >/dev/null <<SQL
 begin;
 select set_config('app.tenant_id', '$ALFA', true);
@@ -179,6 +202,9 @@ insert into catalogo.deposito (tenant_id, codigo, nome, external_id, filial_id) 
   on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set nome = excluded.nome;
 insert into vendedor.forma_pagamento (tenant_id, codigo, nome, external_id) values ('$ALFA', 'ERPF', 'Forma ERP', 'ERP-FP');
 insert into catalogo.catalogo_no (tenant_id, nivel, nome, codigo, external_id) values ('$ALFA', 1, 'Grupo ERP', 'ERP-G1', 'ERP-NO-1');
+-- vendedor: o upsert do consumidores-erp-vendedor.ts (mesmo external_id e mesmo e-mail do que saiu)
+insert into core.usuario (tenant_id, external_id, nome, email, perfil, ativo, erp_alterado_em) values ('$ALFA', 'ERP-VEND-1', 'Vendedor ERP', '$vemail', 'vendedor', true, now())
+  on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set nome = excluded.nome, ativo = (core.usuario.desligado_no_bko_em is null), erp_alterado_em = excluded.erp_alterado_em;
 -- filiais: adotadas pelo código (consumidores-erp-filial.ts:33-37: mesmo código e external_id nulo)
 update core.filial set external_id = 'ERP-FIL-2' where tenant_id = '$ALFA' and deleted_at is null and codigo = 'ERP-F2' and external_id is null;
 update core.filial set external_id = '7adf0a1a-2433-4a09-8edd-4bef759e1e24' where id = '$padrao' and external_id is null;
@@ -187,6 +213,8 @@ SQL
 then ok "carga nova do ERP entra depois do apagar"; else nok "carga nova do ERP não entrou"; fi
 igual "produto do ERP vivo de novo (linha nova); a antiga segue apagada" \
   "$(qa "select count(*) filter (where deleted_at is null) || '/' || count(*) filter (where deleted_at is not null) from core.produto where tenant_id = '$ALFA' and external_id = 'ERP-PRD-1'")" 1/1
+igual "vendedor do ERP recriado (linha nova); o que saiu segue apagado" \
+  "$(qa "select count(*) filter (where deleted_at is null) || '/' || count(*) filter (where deleted_at is not null) from core.usuario where tenant_id = '$ALFA' and external_id = 'ERP-VEND-1'")" 1/1
 igual "filiais adotadas pelo ERP, sem filial nova" \
   "$(qa "select count(*) || '/' || count(*) filter (where external_id in ('ERP-FIL-2', '7adf0a1a-2433-4a09-8edd-4bef759e1e24')) from core.filial where tenant_id = '$ALFA' and deleted_at is null and codigo in ('ERP-F2', '0001')")" 2/2
 igual "usuario_filial e filial_cadastro_id só apontam para filial viva" \

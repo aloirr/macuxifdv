@@ -5,20 +5,29 @@
 -- Não abre nem fecha transação: quem chama decide entre COMMIT (apagar) e ROLLBACK (simular). Roda como o admin (dono das
 -- tabelas, sem BYPASSRLS, herda o macuxi_manutencao: 0031). Devolve (r_ordem, r_tabela, r_modo, r_linhas): só nomes e contagens.
 --
--- Ordem do Alexandre (23/11/2026): "APAGUE TUDO AGORA. VOU REENVIAR PELO ERP" e "1 A / 2 b / 3 A" (pedidos também saem).
+-- Ordem do Alexandre (23/11/2026): "APAGUE TUDO AGORA. VOU REENVIAR PELO ERP", "1 A / 2 b / 3 A" (pedidos também saem) e
+-- "ficam só empresa, plano, ADMINISTRADORES, parâmetros e credenciais; o ERP recria a equipe".
 --
 -- RAÍZES (só do tenant):
 --   - cadastros do ERP (vivos e COM external_id): core.cliente, core.produto, catalogo.catalogo_no, catalogo.tabela_preco,
 --     catalogo.deposito, vendedor.forma_pagamento, vendedor.prazo_pagamento, vendedor.transportadora, core.rota, core.titulo,
 --     core.nota_erp. Linha sem external_id (pré-cadastro do app, cadastro do BKO) fica, salvo se apontar para algo que sai;
 --   - TODOS os pedidos vivos (vendedor.pedido);
+--   - todo usuário vivo que NÃO é administrador (perfil principal admin ou vínculo vivo com perfil de base admin): vendedores,
+--     promotores, supervisores, gerentes, analistas e assistentes, com ou sem external_id. Junto (cascata) saem perfis,
+--     módulos, filiais de venda, carteira, metas, sessões, convites, aparelhos e o resto que aponta para eles; a
+--     sessao_versao deles sobe (o token de acesso cai na próxima requisição; o refresh já cai pela sessão apagada).
+--     O consumidor do vendedor (modules/core/api/consumidores-erp-vendedor.ts) procura e faz upsert só entre os vivos
+--     (usuario_external_uk, usuario_email_uk e usuario_codigo_fdv_uk são parciais): o reenvio cria o usuário de novo, sem senha
+--     (entra pelo convite do BKO). Administradores e super-admins da plataforma (fora do tenant) ficam intactos.
 --   - todas as linhas da empresa no Hub (c_hub) e nos números do gestor (gestor.projecao_fato físico; gestor.alerta e
 --     core.indicador_diario soft: c_derivados), que contavam o que sai.
 -- CASCATA: toda linha (viva) de tabela do domínio que aponta para uma linha que sai também sai, até não sobrar nenhuma: pela
 --   FK (qualquer coluna que referencia o id), entre módulos pelo nome da coluna (c_nome: cliente_id, produto_id, pedido_id,
 --   visita_id...) e, em plataforma.arquivo, pelo entidade_id (foto de visita, pedido ou tarefa).
--- FICA (c_fica e o schema plataforma, menos plataforma.arquivo): tenant, plano, assinatura e licenças, usuários e perfis,
---   sessões, aparelhos, equipes, parâmetros, medidas e configuração, conectores, credenciais, mapeamentos e implantação.
+-- FICA (c_fica e o schema plataforma, menos arquivo, usuario_perfil e usuario_modulo): tenant, plano, assinatura e licenças,
+--   administradores, perfis de acesso, equipes, parâmetros, medidas e configuração, conectores, credenciais, mapeamentos e
+--   implantação. Auditoria, e-mails e diagnósticos ficam (histórico).
 -- FILIAIS: todas FICAM (usuario_filial, filial_cadastro_id, clientes, depósitos e preços apontam para elas) e só perdem o
 --   external_id: a filial do ERP com o mesmo código as adota de novo (modules/core/api/consumidores-erp-filial.ts:33-37).
 -- MODO por tabela (conferido nos índices únicos da 0097):
@@ -50,11 +59,9 @@ declare
   -- todas as linhas vivas da empresa, soft
   c_derivados constant text[] := array['gestor.alerta', 'core.indicador_diario'];
   -- nunca entram na cascata
-  c_fica constant text[] := array['core.filial', 'core.usuario', 'core.usuario_filial', 'core.usuario_avatar',
-    'core.usuario_contato', 'core.usuario_convite', 'core.usuario_codigo_fdv_contador', 'core.sessao', 'core.dispositivo',
-    'core.equipe', 'core.medida', 'core.foto_tipo', 'core.motivo', 'core.frase_dia', 'core.documento_tipo',
-    'core.documento_permissao', 'core.documento_excecao', 'core.plano_rv', 'core.meta', 'core.meta_produtividade',
-    'core.ausencia_usuario', 'integracao.conector', 'integracao.conector_api', 'integracao.credencial',
+  c_fica constant text[] := array['core.filial', 'core.usuario_codigo_fdv_contador', 'core.equipe', 'core.medida',
+    'core.foto_tipo', 'core.motivo', 'core.frase_dia', 'core.documento_tipo', 'core.documento_permissao',
+    'core.documento_excecao', 'core.plano_rv', 'integracao.conector', 'integracao.conector_api', 'integracao.credencial',
     'integracao.credencial_erp', 'integracao.mapeamento', 'integracao.implantacao', 'integracao.implantacao_dia',
     'integracao.politica_versao', 'vendedor.numeracao_pedido', 'vendedor.condicao_pagamento'];
   -- referência entre módulos sem FK: nome da coluna (uuid) -> tabela
@@ -62,7 +69,9 @@ declare
     "relacionado_id": "core.produto", "pedido_id": "vendedor.pedido", "pedido_uuid": "vendedor.pedido",
     "orcamento_id": "vendedor.pedido", "visita_id": "core.visita", "deposito_id": "catalogo.deposito",
     "tabela_preco_id": "catalogo.tabela_preco", "rota_id": "core.rota", "rota_parada_id": "core.rota_parada",
-    "no_id": "catalogo.catalogo_no"}';
+    "no_id": "catalogo.catalogo_no", "usuario_id": "core.usuario", "vendedor_id": "core.usuario"}';
+  -- do schema plataforma, só estas entram na cascata
+  c_plataforma constant text[] := array['arquivo', 'usuario_perfil', 'usuario_modulo'];
   c_schemas constant text[] := array['core', 'catalogo', 'vendedor', 'promotor', 'pesquisa', 'treinamento', 'gestor', 'integracao', 'plataforma'];
   r record;
   n bigint;
@@ -96,6 +105,10 @@ begin
   insert into _limpeza_alvo select 'core.titulo', x.id from core.titulo x where x.tenant_id = p_tenant and x.deleted_at is null and x.external_id is not null;
   insert into _limpeza_alvo select 'core.nota_erp', x.id from core.nota_erp x where x.tenant_id = p_tenant and x.deleted_at is null and x.external_id is not null;
   insert into _limpeza_alvo select 'vendedor.pedido', x.id from vendedor.pedido x where x.tenant_id = p_tenant and x.deleted_at is null;
+  insert into _limpeza_alvo select 'core.usuario', u.id from core.usuario u
+   where u.tenant_id = p_tenant and u.deleted_at is null and u.perfil <> 'admin'
+     and not exists (select 1 from plataforma.usuario_perfil up join plataforma.perfil pf on pf.tenant_id = up.tenant_id and pf.id = up.perfil_id
+                      where up.tenant_id = u.tenant_id and up.usuario_id = u.id and up.deleted_at is null and pf.base = 'admin');
   foreach t in array c_hub loop
     execute format('insert into _limpeza_alvo select %L, x.id from %s x where x.tenant_id = %L', t, t, p_tenant);
   end loop;
@@ -109,7 +122,7 @@ begin
     select c.oid, n.nspname || '.' || c.relname as nome
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where c.relkind in ('r', 'p') and n.nspname = any (c_schemas)
-       and (n.nspname <> 'plataforma' or c.relname = 'arquivo')
+       and (n.nspname <> 'plataforma' or c.relname = any (c_plataforma))
        and not (n.nspname || '.' || c.relname) = any (c_fica)
        and (select count(*) from pg_attribute a where a.attrelid = c.oid and not a.attisdropped
              and a.attname in ('tenant_id', 'id', 'deleted_at')) = 3),
@@ -183,6 +196,10 @@ begin
     get diagnostics n = row_count;
     insert into _limpeza_resumo values (r.ordem, r.tabela, r.modo, n);
   end loop;
+
+  -- usuários que saem: o token de acesso cai na próxima requisição (autenticacao.ts confere a sessao_versao)
+  update core.usuario u set sessao_versao = u.sessao_versao + 1
+   where u.tenant_id = p_tenant and u.id in (select a.id from _limpeza_alvo a where a.tabela = 'core.usuario');
 
   -- 4. outbox: não publicado do Hub ou de registro que sai
   insert into public.macuxi_limpeza_backup (lote, tenant_id, tabela, modo, linha)

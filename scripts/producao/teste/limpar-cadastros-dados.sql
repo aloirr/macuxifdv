@@ -21,6 +21,12 @@ begin
   select id into v_padrao from core.filial where tenant_id = v_t and padrao and deleted_at is null;
   update core.filial set external_id = '7adf0a1a-2433-4a09-8edd-4bef759e1e24' where id = v_padrao;
   select id into v_usuario from core.usuario where tenant_id = v_t and deleted_at is null order by id limit 1;
+  -- um vendedor que veio do ERP; sessão viva de um admin e de um vendedor
+  update core.usuario set external_id = 'ERP-VEND-1'
+   where id = (select id from core.usuario where tenant_id = v_t and perfil = 'vendedor' and deleted_at is null order by id limit 1);
+  insert into core.sessao (tenant_id, usuario_id, familia_id, token_hash, expira_em)
+  select v_t, u.id, gen_random_uuid(), encode(sha256(convert_to(u.id::text || u.perfil, 'UTF8')), 'hex'), now() + interval '30 days'
+    from (select distinct on (perfil) id, perfil from core.usuario where tenant_id = v_t and perfil in ('admin', 'vendedor') and deleted_at is null order by perfil, id) u;
   insert into integracao.conector (tenant_id, identificador, nome, tipo, ativo, entidades, recebe_pedidos)
   values (v_t, 'thathyany-conector', 'Kit antigo', 'conector', false, array['cliente', 'produto', 'preco', 'estoque', 'filial', 'vendedor'], false),
          (v_t, 'macuxierp', 'ERP novo', 'nuvem', true, array['filial', 'vendedor', 'produto', 'preco', 'estoque'], false);
@@ -67,6 +73,9 @@ begin
   insert into plataforma.evento (tenant_id, nome, modulo, payload, publicado_em) values (v_t, 'integracao.produto.atualizado@1', 'integracao', '{}', now());
   insert into plataforma.evento (tenant_id, nome, modulo, payload, agregado_id)
   select v_t, 'vendedor.pedido.enviado@1', 'vendedor', '{}', p.id from vendedor.pedido p where p.tenant_id = v_t order by p.id limit 1;
+  -- evento não publicado de um administrador (fica)
+  insert into plataforma.evento (tenant_id, nome, modulo, payload, agregado_id)
+  select v_t, 'core.usuario.perfil_alterado@1', 'core', '{}', u.id from core.usuario u where u.tenant_id = v_t and u.perfil = 'admin' order by u.id limit 1;
   -- foto ligada a um pedido (sai pelo entidade_id)
   insert into plataforma.arquivo (tenant_id, modulo, finalidade, entidade, entidade_id, enviado_por, tipo, situacao)
   select v_t, 'vendedor', 'foto', 'pedido', p.id, v_usuario, 'image/jpeg', 'aguardando' from vendedor.pedido p where p.tenant_id = v_t order by p.id limit 1;
