@@ -248,6 +248,8 @@ const G = {
   implantacao: 0x80,
   implantacao_dia: 0x81,
   coleta_execucao: 0x82,
+  // 0096 (v1.0.27, RF-CORE-10): fila do pré-cadastro de cliente aprovado para o ERP
+  cliente_fila_erp: 0x83,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -708,6 +710,8 @@ const ORDEM_T0032 = [
   'integracao.implantacao',
   'integracao.implantacao_dia',
   'integracao.coleta_execucao',
+  // 0096 (v1.0.27, RF-CORE-10)
+  'integracao.cliente_fila_erp',
 ] as const;
 type TabelaT0032 = (typeof ORDEM_T0032)[number];
 
@@ -1958,6 +1962,11 @@ function dadosT0032(hojeA: string): Pick<DadosFixture, TabelaT0032> {
     'integracao.coleta_execucao': [
       { id: a('coleta_execucao', 1), tenant_id: tA, conector_id: IA.conector, entidade: 'preco', modo: 'delta', origem: 'agendada', estado: 'concluida', falha_classe: null, http_status: 200, erro_codigo: null, tentativas: 1, paginas: 2, linhas: 150, lotes: 1, solicitada_em: T('12:00:00'), iniciada_em: T('12:00:01'), concluida_em: T('12:00:09'), proxima_tentativa_em: null, trabalho_id: null, ...comuns },
       { id: b('coleta_execucao', 1), tenant_id: tB, conector_id: IB.conector, entidade: 'cliente', modo: 'delta', origem: 'agendada', estado: 'falhou', falha_classe: 'credencial_recusada', http_status: 401, erro_codigo: null, tentativas: 1, paginas: 0, linhas: 0, lotes: 0, solicitada_em: T('11:00:00'), iniciada_em: T('11:00:01'), concluida_em: T('11:00:02'), proxima_tentativa_em: null, trabalho_id: null, ...comuns },
+    ],
+    // 0096 (v1.0.27, RF-CORE-10): A com um pré-cadastro aprovado na fila; B com um rejeitado pelo ERP.
+    'integracao.cliente_fila_erp': [
+      { id: a('cliente_fila_erp', 1), tenant_id: tA, cliente_uuid: A.clientes.c3, payload: { nome: 'Cliente pré-cadastrado A' }, aprovado_em: T('12:00:00'), estado: 'pendente', enviado_em: null, tentativas: 0, conector_id: null, motivo: null, ...comuns },
+      { id: b('cliente_fila_erp', 1), tenant_id: tB, cliente_uuid: B.clientes.c1, payload: { nome: 'Cliente pré-cadastrado B' }, aprovado_em: T('11:00:00'), estado: 'rejeitado', enviado_em: T('11:05:00'), tentativas: 1, conector_id: IB.conector, motivo: 'CNPJ já cadastrado no ERP.', ...comuns },
     ],
   };
 }

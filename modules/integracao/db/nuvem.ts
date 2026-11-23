@@ -54,6 +54,8 @@ export const ENTIDADES_BANCO = [...ENTIDADES_0037, 'filial'] as const;
 export const ESTADOS_LOTE_BANCO = ESTADOS_LOTE_BKO;
 /** Retenção do pedido na fila (montarPedidoParaErp / decidirEntradaNaFila em domain/pedido-fila.ts). */
 export const RETENCOES_PEDIDO_ERP = ['mapeamento_ausente', 'mapeamento_ambiguo', 'sequencia_repetida'] as const;
+/** 0096 (v1.0.27, RF-CORE-10): os valores do CHECK cliente_fila_erp_estado_valido. */
+export const ESTADOS_CLIENTE_ERP_BANCO = ['pendente', 'enviado', 'vinculado', 'rejeitado'] as const;
 export const PERFIS_DECISAO_INATIVACAO = ['admin', 'analista'] as const;
 export const SITUACOES_SESSAO_CARGA = ['aberta', 'completa', 'expirada'] as const;
 export const MOTIVOS_RECONCILIACAO = ['contagem_divergente', 'soma_divergente', 'soma_ausente'] as const;
@@ -406,6 +408,26 @@ export const pedidoFilaErp = integracao.table('pedido_fila_erp', {
   cancelamento_recusado_em: quando('cancelamento_recusado_em'),
   /** 1..300, sem só espaços; texto do ERP mascarado pelo Conector, nunca em log. */
   cancelamento_recusa_motivo: text('cancelamento_recusa_motivo'),
+});
+
+/**
+ * 0096 (v1.0.27, RF-CORE-10): pré-cadastro de cliente aprovado esperando o ERP, no padrão da pedido_fila_erp. Entra pelo evento
+ * do Core (o Hub não lê core.cliente); payload = cadastro canônico. Único (tenant_id, cliente_uuid). 'enviado' => enviado_em.
+ * Poll: `where estado = 'pendente' or (estado = 'enviado' and enviado_em < $vencido) order by aprovado_em limit N
+ * for update skip locked` (índice parcial cliente_fila_erp_poll_ix). Sem DELETE (remoção por deleted_at).
+ */
+export const clienteFilaErp = integracao.table('cliente_fila_erp', {
+  ...comuns(),
+  cliente_uuid: uuid('cliente_uuid').notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  aprovado_em: quando('aprovado_em').notNull(),
+  estado: text('estado', { enum: ESTADOS_CLIENTE_ERP_BANCO }).notNull().default('pendente'),
+  enviado_em: quando('enviado_em'),
+  tentativas: integer('tentativas').notNull().default(0),
+  /** Conector que retirou o cadastro (poll). */
+  conector_id: uuid('conector_id'),
+  /** Motivo da rejeição do ERP (mascarado pelo Conector, nunca em log). */
+  motivo: text('motivo'),
 });
 
 /** Trilha de retorno aceito e não repetido; único (tenant, pedido, status, nota_numero, nota_serie) com nulos iguais. Só insert. */

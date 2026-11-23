@@ -54,6 +54,8 @@ const TABELAS_INTEGRACAO = [
   'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
   // 0094 (integração por ERP, F2): integracao-busca-erp.db.test.ts
   'integracao.conector_api', 'integracao.credencial_erp', 'integracao.implantacao', 'integracao.implantacao_dia', 'integracao.coleta_execucao',
+  // 0096 (v1.0.27, RF-CORE-10): cliente-fila-erp.db.test.ts
+  'integracao.cliente_fila_erp',
 ] as const;
 /** Tabelas do schema promotor (0015, T-0056): 9 cadastros de trade (pull) e 11 coletas (push). */
 const TABELAS_PROMOTOR = [
