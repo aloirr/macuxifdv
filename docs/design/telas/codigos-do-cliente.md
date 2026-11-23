@@ -1,6 +1,7 @@
 # Códigos do cliente: Código ERP e Código FDV (v1.0.29)
 
-> 2026-11-23 · designer-ux · sessão D da v1.0.29. Base: ADR 0069, item 10 e seção H (resposta (a) do dono do produto).
+> 2026-11-23 · designer-ux · sessão D da v1.0.29. Base: ADR 0069, item 10 e seção H (resposta (a) do dono do produto);
+> todo cliente tem Código FDV, inclusive o do ERP (decisão do dono do produto, 23/11/2026).
 > Telas: ficha do cliente no app (Campo e Gestão), formulário do pré-cadastro no Campo, Carteira e Cliente 360 do BKO,
 > lista e gaveta dos **Pré-cadastros recusados** (`bko-pre-cadastros-recusados.md`, simulações `pre-cadastro-v1029/01` a `03`).
 > Sem cor, token nem componente novos. Validar com o `design-de-marca` (muda layout da Carteira e da lista dos recusados).
@@ -8,8 +9,8 @@
 ## 1. Os dois códigos
 | Código | Origem | Quando existe |
 |---|---|---|
-| **Código ERP** | `core.cliente.external_id` | cliente vindo do ERP; pré-cadastro só depois do retorno `vinculado` |
-| **Código FDV** | `core.cliente.codigo_fdv` (5 dígitos ou mais, só leitura) | pré-cadastro (Campo ou BKO), a partir do momento em que o servidor o recebe; no aparelho, só depois do 1º sync; cliente vindo do ERP não tem |
+| **Código ERP** | `core.cliente.external_id` | cliente vindo do ERP; pré-cadastro só depois que o ERP o aprova (retorno `vinculado`) |
+| **Código FDV** | `core.cliente.codigo_fdv` (5 dígitos ou mais, só leitura) | **todo cliente**, inclusive o vindo do ERP; a única exceção é o pré-cadastro novo no aparelho antes do 1º sync |
 
 ## 2. Forma (igual em toda superfície)
 - **Rótulo curto + valor:** `ERP C5007` e `FDV 00012`. O rótulo é a sigla, sempre antes do valor; nunca o valor sozinho.
@@ -20,6 +21,8 @@
   `text-ink` e sigla 12/500 `text-ink-2` (#4A5562), como o código do aceite na gaveta dos recusados. No app, o estilo do texto
   onde aparece (sem mono).
 - **Não é selo:** código não usa `Badge`/`ChipEstado` (selo é estado, e estado tem cor com texto; código é identificação).
+- **Código FDV sempre aparece** onde a superfície mostra códigos. Fica vazio só no aparelho, no pré-cadastro novo antes do
+  1º sync: aí não aparece (regra abaixo), e o selo `Não enviado` da ficha já dá o estado.
 - **Código que não existe não aparece** — nem a sigla, nem traço, nem "sem código", nem explicação ("gerado no próximo sync",
   "aguardando vínculo"). O estado do pré-cadastro já está no selo da própria tela (`Aguardando ERP`, `Recusado pelo ERP`,
   `Não enviado` no app; `Recusado`, `Reenviado`, `Aceito` no BKO): uma informação, um lugar.
@@ -32,7 +35,7 @@ Subtítulo, uma linha, separador ` · `: **códigos, bairro, cidade/UF**.
 
 | Cliente | Subtítulo |
 |---|---|
-| do ERP | `ERP C5007 · Centro · Boa Vista/RR` |
+| do ERP | `ERP C5007 · FDV 00012 · Centro · Boa Vista/RR` |
 | pré-cadastro vinculado | `ERP C5007 · FDV 00012 · Centro · Boa Vista/RR` |
 | pré-cadastro já no servidor, sem vínculo | `FDV 00012 · Centro · Boa Vista/RR` (o selo `Aguardando ERP` ou `Recusado pelo ERP` fica onde já está) |
 | pré-cadastro antes do 1º sync | `Centro · Boa Vista/RR` |
@@ -52,7 +55,7 @@ Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busc
 ## 4. BKO — Carteira (`modules/core/web/components/carteira/carteira-page.tsx`)
 - **Tabela "N clientes vigentes":** coluna nova **Código**, a 2ª (depois de **Cliente**), 104 px, `white-space: nowrap`.
   Conteúdo: uma linha por código existente, empilhadas, ERP em cima e FDV embaixo (`ERP C5007` / `FDV 00012`), 13/16 px.
-  Sem nenhum código: célula vazia (não acontece na prática: cliente do ERP sempre tem ERP; pré-cadastro no servidor sempre tem FDV).
+  Toda linha tem `FDV`; `ERP` só quando o cliente veio do ERP ou o pré-cadastro foi aprovado (no servidor não há cliente sem código).
   A linha já tem 44 px (os `select`s); duas linhas de 16 px cabem sem crescer. `TableScroll minWidth` passa de 880 para 984.
 - **"Vincular cliente"** (candidatos da busca): o mesmo bloco de códigos entre o nome e a cidade (em linha, `ERP C5007 · FDV 00012`),
   para o usuário conferir o cliente certo antes de **Vincular**.

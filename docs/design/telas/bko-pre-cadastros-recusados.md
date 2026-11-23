@@ -31,7 +31,7 @@ Ordem na aba:
 
 | Coluna | Conteúdo | Largura |
 |---|---|---|
-| Código | `ERP C5112` em cima (só no Aceito) e `FDV 00018` embaixo; sigla 12/500 `text-ink-2`, valor mono 13 (`codigos-do-cliente.md` §2) | 92 |
+| Código | `FDV 00018` sempre; `ERP C5112` em cima dele só no Aceito; sigla 12/500 `text-ink-2`, valor mono 13 (`codigos-do-cliente.md` §2) | 92 |
 | CPF/CNPJ | `formatarDocumento` (máscara de exibição: 00.000.000/0000-00 ou 000.000.000-00), `tabular-nums` | 190 |
 | Razão social | 600, uma linha, reticências; texto inteiro no `title` | resto |
 | Vendedor | quem fez o pré-cadastro (nome do usuário do BKO, se veio do BKO) | 120 |
