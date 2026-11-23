@@ -77,7 +77,7 @@ tr:last-child td{border-bottom:0}
 tr.sel-linha td{background:#F8F6F1}
 .cod{display:flex;flex-direction:column;line-height:16px;font-size:13px}
 .cod span{white-space:nowrap}.cod small{font-size:12px;font-weight:500;color:#4A5562;margin-right:4px}
-.cod code,.dcab code{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;font-size:13px;color:#16202A}
+.cod code,.dcab code{font-family:ui-monospace,"Cascadia Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;font-size:13px;color:#16202A}
 .nome{font-weight:600}
 .selo{display:inline-flex;align-items:center;padding:3px 8px;line-height:16px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap}
 .ok{color:#1D6B4F;background:#E2F1EA}.al{color:#7A4F00;background:#FFF1D6}.pe{color:#A8261B;background:#FDE8E6}.ne{color:#34404D;background:#ECEEF1}
@@ -173,7 +173,7 @@ const hist = `<span class="rot">Tentativas</span>
   ${tentativa(1, ['Enviada por Carlos Lima, no Campo, em 22/11/2026 17:30', 'Recusada pelo ERP em 22/11/2026 18:02'], 'Endereço incompleto', [['Número', 'obrigatório']])}`;
 const html02 = pagina('Pré-cadastro — histórico', ['Cadastros', 'Clientes'],
   listaPagina('Todas', LINHAS, 0, '<b>Simulação.</b> Clique na linha abre a gaveta com as tentativas, da mais nova para a mais antiga.'),
-  gaveta('Mercadinho São Jorge Ltda', `<span aria-label="Código FDV 00031">FDV <code>00031</code></span> · 45.723.174/0001-10 · Carlos Lima <span class="selo pe">Recusado</span>`, hist, '<span class="btn p">Editar e reenviar</span>'));
+  gaveta('Mercadinho São Jorge Ltda', `<span><span aria-label="Código FDV 00031">FDV <code>00031</code></span> · 45.723.174/0001-10 · Carlos Lima</span><span class="selo pe">Recusado</span>`, hist, '<span class="btn p">Editar e reenviar</span>'));
 
 // ---------- 03: editar e reenviar (mesma gaveta) ----------
 const c = (rot, val, span, { opcional = false, erro = null } = {}) =>

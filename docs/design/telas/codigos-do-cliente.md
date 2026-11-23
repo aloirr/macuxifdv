@@ -4,7 +4,7 @@
 > todo cliente tem Código FDV, inclusive o do ERP (decisão do dono do produto, 23/11/2026).
 > Telas: ficha do cliente no app (Campo e Gestão), formulário do pré-cadastro no Campo, Carteira e Cliente 360 do BKO,
 > lista e gaveta dos **Pré-cadastros recusados** (`bko-pre-cadastros-recusados.md`, simulações `pre-cadastro-v1029/01` a `03`).
-> Sem cor, token nem componente novos. Validar com o `design-de-marca` (muda layout da Carteira e da lista dos recusados).
+> Sem cor, token nem componente novos (o código usa o `fonte.mono` que já existe). Validar com o `design-de-marca` (muda layout da Carteira e da lista dos recusados).
 
 ## 1. Os dois códigos
 | Código | Origem | Quando existe |
@@ -17,9 +17,13 @@
   Leitor de tela: `Código ERP C5007` / `Código FDV 00012` (`accessibilityLabel` / `aria-label`).
 - **Ordem fixa:** ERP primeiro, FDV depois (o ERP é o código da maior parte da base e o que o escritório usa com o ERP; a
   posição não muda de um cliente para outro).
-- **Valor:** como está no banco (o FDV já vem com zeros à esquerda, `formatarCodigoFdv`). No BKO, valor em mono 13 px
-  `text-ink` e sigla 12/500 `text-ink-2` (#4A5562), como o código do aceite na gaveta dos recusados. No app, o estilo do texto
-  onde aparece (sem mono).
+- **Valor:** como está no banco (o FDV já vem com zeros à esquerda, `formatarCodigoFdv`). O valor é sempre mono com algarismos
+  tabulares (manual da marca §5.1: código do cliente é código); a sigla e o separador ficam na fonte de texto.
+  - **BKO:** valor 13 px `text-ink` em `font-family: ui-monospace, "Cascadia Mono", "Roboto Mono", monospace` com
+    `font-variant-numeric: tabular-nums`; sigla 12/500 `text-ink-2` (#4A5562), como o código do aceite na gaveta dos recusados.
+  - **App:** valor com o token `fonte.mono` de `packages/ui/src/mobile/theme.ts` (`fontFamily: 'monospace'`, a mono do
+    sistema, e `fontVariant: ['tabular-nums']`), no tamanho e na cor do texto onde aparece; sigla no estilo desse texto.
+    Texto aninhado: `<Text style={t.sub}>FDV <Text style={fonte.mono}>00012</Text> · …</Text>`.
 - **Não é selo:** código não usa `Badge`/`ChipEstado` (selo é estado, e estado tem cor com texto; código é identificação).
 - **Código FDV sempre aparece** onde a superfície mostra códigos. Fica vazio só no aparelho, no pré-cadastro novo antes do
   1º sync: aí não aparece (regra abaixo), e o selo `Não enviado` da ficha já dá o estado.
@@ -40,6 +44,7 @@ Subtítulo, uma linha, separador ` · `: **códigos, bairro, cidade/UF**.
 | pré-cadastro já no servidor, sem vínculo | `FDV 00012 · Centro · Boa Vista/RR` (o selo `Aguardando ERP` ou `Recusado pelo ERP` fica onde já está) |
 | pré-cadastro antes do 1º sync | `Centro · Boa Vista/RR` |
 
+- Os valores `C5007` e `00012` em `fonte.mono` (§2); sigla, bairro e cidade no estilo do subtítulo.
 - `numberOfLines={1}`; se não couber, as reticências cortam o fim (cidade), nunca os códigos (eles vêm antes).
 - Campo e Gestão usam a mesma ficha do Core: nada muda entre as variantes.
 
@@ -47,7 +52,7 @@ Subtítulo, uma linha, separador ` · `: **códigos, bairro, cidade/UF**.
 Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busca** casa também pelo Código FDV (§6).
 
 ### 3.3 Formulário do pré-cadastro ("Corrigir e reenviar")
-- Com Código FDV: abaixo do título da tela, no estilo de subtítulo (`t.sub`), **`FDV 00012`**. Sem campo de formulário (não é
+- Com Código FDV: abaixo do título da tela, no estilo de subtítulo (`t.sub`), **`FDV 00012`**, com o valor em `fonte.mono` (§2). Sem campo de formulário (não é
   editável) e sem cadeado.
 - Sem Código FDV (antes do 1º sync) ou em **Novo cliente**: nada.
 - Código ERP nunca aparece aqui (a correção só existe sem vínculo).
