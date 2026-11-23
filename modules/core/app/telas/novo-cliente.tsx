@@ -5,10 +5,10 @@
  */
 import { AvisoRodape, Botao, CabecalhoTela, CampoEscolha, CampoTexto, colors, Folha, Icon, RotuloSecao, faltaVisivel, type as t, useAvisoRodape, type FaltaDoCampo } from '@macuxi/ui/mobile';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
-import { useMotorSync } from '@macuxi/platform-sdk/react';
+import { useBloquearSaida, useMotorSync } from '@macuxi/platform-sdk/react';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, View, Pressable } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 
 import type { ClienteSync, ParametroSync } from '../../contracts';
 import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../contracts';
@@ -127,7 +127,17 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
     setValores((v) => ({ ...v, [c]: texto }));
   };
   const sair = () => (aoConcluir ? aoConcluir() : router.canGoBack() ? router.back() : router.replace('/m/clientes' as never));
-  const aoVoltar = () => (alterado ? setFolhaDescartar(true) : sair());
+  // RN-VEN-38: a folha "Descartar o cadastro?" vale no Voltar do cabeçalho, no Voltar do Android e na barra inferior;
+  // `destino` é o que acontece se o usuário descartar (sair da tela, ou seguir para o cliente existente)
+  const destino = useRef<() => void>(sair);
+  const salvo = useRef(false);
+  const pedirSaida = (prosseguir: () => void) => {
+    if (salvo.current || !alterado) return prosseguir();
+    destino.current = prosseguir;
+    setFolhaDescartar(true);
+  };
+  useBloquearSaida(alterado, pedirSaida);
+  const aoVoltar = () => pedirSaida(sair);
   const marcarSaida = (c: Coluna) => () => setSaiu((s) => new Set(s).add(c));
 
   const cpf = (valores.documento ?? '').replace(/\D/g, '').length <= 11;
@@ -159,6 +169,9 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
     setSalvando(false);
     if (!r) return aviso.mostrar({ texto: 'Não foi possível salvar. Toque em Salvar de novo.', tom: 'erro' });
     if (!r.ok) return;
+    // desmarca o formulário antes de sair: o bloqueio de saída não pergunta depois de salvar
+    salvo.current = true;
+    setAlterado(false);
     avisarClienteSalvo();
     sair();
   }
@@ -166,6 +179,7 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }} testID="tela-novo-cliente">
       <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} voltar={{ label: 'Clientes', fallback: '/m/clientes', aoVoltar }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0}>
       <ScrollView ref={rolagem} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 24 }}>
         {motivo ? (
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }} testID="novo-cliente-motivo" accessibilityRole="alert">
@@ -175,7 +189,7 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
         ) : null}
         {campoTexto('documento', ehSempreObrigatorio('documento') ? 'CNPJ ou CPF' : ROTULOS_CAMPOS_PRE_CADASTRO.documento, { mascara: 'documento' })}
         {duplicado ? (
-          <Pressable testID="novo-cliente-abrir-existente" accessibilityRole="link" onPress={() => abrirCliente(duplicado.id, 'Clientes')} style={{ minHeight: 48, justifyContent: 'center' }}>
+          <Pressable testID="novo-cliente-abrir-existente" accessibilityRole="link" onPress={() => pedirSaida(() => abrirCliente(duplicado.id, 'Clientes'))} style={{ minHeight: 48, justifyContent: 'center' }}>
             <Text style={[t.bodyStrong, { color: colors.accent }]}>Abrir</Text>
           </Pressable>
         ) : null}
@@ -191,7 +205,8 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
           <View style={{ flex: 1 }}>{campoTexto('numero', 'Número', { keyboardType: 'number-pad' })}</View>
         </View>
         {campoTexto('bairro', 'Bairro', { autoCapitalize: 'words' })}
-        {campoTexto('cidade', 'Cidade', { autoCapitalize: 'words' })}
+        {/* cadeia do "Próximo": ... Bairro > Cidade; a Cidade fecha o teclado ("Concluir"), a UF abre por toque e a Inscrição é o último campo */}
+        {campoTexto('cidade', 'Cidade', { autoCapitalize: 'words', returnKeyType: 'done' })}
         <CampoEscolha
           testID="novo-cliente-uf"
           rotulo="UF"
@@ -208,11 +223,12 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
           falta={falta('uf')}
         />
         <RotuloSecao texto="Outros" />
-        {campoTexto('inscricao_estadual', ROTULOS_CAMPOS_PRE_CADASTRO.inscricao_estadual)}
+        {campoTexto('inscricao_estadual', ROTULOS_CAMPOS_PRE_CADASTRO.inscricao_estadual, { returnKeyType: 'done' })}
       </ScrollView>
       <View style={{ padding: 20, paddingTop: 8, backgroundColor: colors.ground }}>
         <Botao testID="novo-cliente-salvar" rotulo="Salvar" nivel="principal" alto ocupado={salvando} onPress={() => void salvar()} />
       </View>
+      </KeyboardAvoidingView>
       <Folha
         visivel={folhaDescartar}
         onFechar={() => setFolhaDescartar(false)}
@@ -220,7 +236,7 @@ function Formulario({ aoConcluir, clienteId }: PropsTelaNovoClientePreCadastro) 
         titulo="Descartar o cadastro?"
         rodapeFixo={
           <View style={{ gap: 8 }}>
-            <Botao testID="novo-cliente-descartar" rotulo="Descartar" nivel="perigo" alto onPress={() => { setFolhaDescartar(false); sair(); }} />
+            <Botao testID="novo-cliente-descartar" rotulo="Descartar" nivel="perigo" alto onPress={() => { setFolhaDescartar(false); destino.current(); }} />
             <Botao testID="novo-cliente-continuar" rotulo="Continuar" alto onPress={() => setFolhaDescartar(false)} />
           </View>
         }
