@@ -2,7 +2,7 @@
  * Consumidores do cliente novo para o ERP (RN-INT-22; ADR 0007: efeito e `evento_consumo` na mesma transação).
  *  - `core.cliente.pre_cadastrado@1` (só ids e carimbo): busca os pré-cadastros sem código do ERP pela consulta do Core
  *    (`core.clientes_pre_cadastro_sem_erp@1`, sem ler tabela do Core) e cria a linha `pendente` em `integracao.cliente_fila_erp` uma só vez
- *    (idempotente pelo cliente; também recompõe a fila se algum pré-cadastro anterior, inclusive o aprovado no BKO da v1.0.27, faltar). Core desligado = a consulta falha e a outbox repete.
+ *    (idempotente pelo cliente; também recompõe a fila se algum pré-cadastro 'pendente' anterior faltar; os aprovados da v1.0.27 já entraram na fila quando foram aprovados). Core desligado = a consulta falha e a outbox repete.
  */
 import { definirConsumidor, eventoTolerante, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { CONSULTA_CLIENTES_PRE_CADASTRO_SEM_ERP, EVENTO_CLIENTE_PRE_CADASTRADO, type ClientePreCadastradoEvento, type ClientesPreCadastroSemErpSaida } from '@macuxi/core/contracts';
