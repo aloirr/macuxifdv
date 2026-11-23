@@ -121,7 +121,6 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
         niveis.push(performance.now() - t);
       }
     }
-    // na suíte (turbo em paralelo, runner lento) o tempo oscila: o teto absoluto ganha folga de 3x; a meta estrita é a do desenho
     // tetos do aparelho (desenho §7): 300 ms a lista e 100 ms a troca de nível, valendo em ESTRITO; na suíte local, folga de 3x; no CI (`process.env.CI`, runner compartilhado do GitHub, mediu 1006 ms) folga de 6x. As razões à lista de produtos abaixo seguem iguais em todos.
     const folga = ESTRITO ? 1 : process.env.CI ? 6 : 3;
     const pLista = p95(lista);
