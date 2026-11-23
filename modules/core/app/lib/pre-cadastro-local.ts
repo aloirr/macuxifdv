@@ -14,8 +14,6 @@ import {
 } from '../../contracts';
 import { camposObrigatoriosPreCadastro, MOTIVO_ENVIO_FALHOU, validarPreCadastro } from '../../domain';
 
-export { MOTIVO_ENVIO_FALHOU };
-
 /** Entidade de push do pré-cadastro (a API do pré-cadastro, da sessão A, a registra com este nome). */
 export const ENTIDADE_PRE_CADASTRO = 'cliente_pre_cadastro';
 
