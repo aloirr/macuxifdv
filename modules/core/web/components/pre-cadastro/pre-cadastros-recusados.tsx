@@ -31,7 +31,9 @@ import {
 } from '@macuxi/ui/web';
 import type { HistoricoPreCadastro, PreCadastroAtual, RecusadoItem } from '../../../contracts';
 import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../../contracts';
-import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, validarPreCadastro } from '../../../domain';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, ROTULO_BUSCA_CLIENTE, validarPreCadastro } from '../../../domain';
+import { textoDosCodigos } from '../../../app/lib/codigos-cliente';
+import { CodigosDoCliente } from '../codigos-cliente';
 import {
   buscaParaApi,
   colunaExigida,
@@ -113,6 +115,7 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
   const comFiltro = temFiltroRecusados(filtros);
 
   const colunas: ColunaDaTabela<RecusadoItem>[] = [
+    { id: 'codigo', titulo: 'Código', celula: (l) => <CodigosDoCliente cliente={l} forma="empilhado" testId={`${P}.linha.${l.cliente_id}.codigo`} />, texto: (l) => textoDosCodigos(l), largura: '92px' },
     { id: 'documento', titulo: 'CPF/CNPJ', celula: (l) => <span className="tabular-nums">{l.documento_mascarado ?? '—'}</span>, texto: (l) => l.documento_mascarado ?? '', largura: '190px' },
     { id: 'razao', titulo: 'Razão social', celula: (l) => <span className="block truncate font-semibold" title={l.razao_social}>{l.razao_social}</span>, texto: (l) => l.razao_social },
     { id: 'vendedor', titulo: 'Vendedor', celula: (l) => l.vendedor?.nome ?? '—', texto: (l) => l.vendedor?.nome ?? '', largura: '128px', prioridade: 2 },
@@ -143,7 +146,7 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
   return (
     <div className="flex flex-col gap-4">
       <FilterBar>
-        <CampoBusca rotulo="Razão social ou CPF/CNPJ" className="sm:w-[340px]" value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid={`${P}.filtro.busca`} />
+        <CampoBusca rotulo={ROTULO_BUSCA_CLIENTE} className="sm:w-[340px]" value={busca} maxLength={60} onChange={(e) => setBusca(e.target.value)} data-testid={`${P}.filtro.busca`} />
         <SelectField label="Situação" value={filtros.situacao} onChange={(e) => mudar({ situacao: e.target.value === 'recusado' ? null : e.target.value })} data-testid={`${P}.filtro.situacao`}>
           {SITUACOES_RECUSADO.map((s) => (
             <option key={s.id} value={s.id}>
@@ -207,9 +210,13 @@ function GavetaDoPreCadastro({ item, api, fuso, aoFechar }: { item: RecusadoItem
         onClose={fechar}
         title={editando ? 'Editar e reenviar' : item.razao_social}
         subtitle={
-          editando ? undefined : (
+          editando ? (
+            <CodigosDoCliente cliente={{ codigo_fdv: item.codigo_fdv }} forma="linha" />
+          ) : (
             <span className="flex flex-wrap items-center gap-2">
-              {[item.documento_mascarado, item.vendedor?.nome].filter(Boolean).join(' · ')}
+              <span>
+                <CodigosDoCliente cliente={{ codigo_fdv: item.codigo_fdv }} forma="linha" depois={[item.documento_mascarado, item.vendedor?.nome].filter(Boolean).join(' · ')} />
+              </span>
               {selo && <Badge tone={selo.tom}>{selo.texto}</Badge>}
             </span>
           )

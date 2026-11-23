@@ -15,6 +15,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text,
 import type { ClienteSync, ParametroSync } from '../../contracts';
 import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../contracts';
 import { FALTA_OBRIGATORIO_PRE_CADASTRO, motivoSoDeCamposFaltantes, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
+import { textoDosCodigos } from '../lib/codigos-cliente';
 import { abrirCliente, PARAM_CLIENTE_ID, ROTA_CLIENTES } from '../lib/navegacao';
 import {
   avisarClienteSalvo,
@@ -68,6 +69,8 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const [obrigatorios, setObrigatorios] = useState(() => obrigatoriosDasLinhas([]));
   const [carteira, setCarteira] = useState<readonly ClienteSync[]>([]);
   const [motivo, setMotivo] = useState<string | null>(null);
+  // Código FDV do cliente em correção (só leitura; o Código ERP não existe enquanto a correção é possível)
+  const [codigoFdv, setCodigoFdv] = useState<string | null>(null);
   // faltas que só o schema do contrato pega ao salvar (a tela não volta em silêncio)
   const [errosSalvar, setErrosSalvar] = useState<Record<string, string>>({});
   const rolagem = useRef<ScrollView>(null);
@@ -90,6 +93,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
         setBase(correcao.base);
         setErrosRecusa(correcao.erros);
         setMotivo(situacaoDoPreCadastro(atual).motivo);
+        setCodigoFdv(atual.codigo_fdv ?? null);
       } else if (clienteId) {
         // o cliente não está no aparelho (nem no pull nem na fila): não há o que corrigir, volta à lista (spec §4)
         salvo.current = true;
@@ -197,7 +201,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }} testID="tela-novo-cliente">
-      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
+      <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} subtitulo={textoDosCodigos({ codigo_fdv: codigoFdv }) || undefined} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0}>
       <ScrollView ref={rolagem} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 24 }}>
         {motivo && !motivoNoCampo ? (

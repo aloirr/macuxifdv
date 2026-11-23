@@ -121,6 +121,8 @@ export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: re
       motivo_recusa: parou ? i.ultimo_erro?.trim() || MOTIVO_ENVIO_FALHOU : null,
       revisao_cadastro: antigo?.revisao_cadastro ?? null,
       erros_recusa: null,
+      // o Código FDV é do servidor (só leitura): a correção na fila mantém o que o pull trouxe
+      codigo_fdv: antigo?.codigo_fdv ?? null,
     });
   }
   if (novos.size === 0) return [...clientes];
