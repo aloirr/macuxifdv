@@ -483,6 +483,12 @@ async function abrirMonitor(page: Page) {
 const celulas = async (page: Page, testId: string) =>
   (await page.getByTestId(testId).locator('td').allInnerTexts()).map((t) => t.trim());
 
+/** v1.0.31 (desenho empresa-zerar §6.4): Reprocessar e Histórico ficam no menu "⋯" da linha; abre o menu e devolve o item. */
+async function itemDoMenu(page: Page, acao: 'reprocessar' | 'historico', entidade: string) {
+  await page.getByTestId(`integracao.entidades.acoes.${entidade}`).click();
+  return page.getByTestId(`integracao.entidade.${acao}.${entidade}`);
+}
+
 test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   test('RF-INT-04: cabeçalho com conector, versão e última carga; uma linha por entidade com Última carga, Situação, "x de y" e ações', async ({
     page,
@@ -499,7 +505,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
     const cab = (await page.locator('[data-testid="integracao.entidades"] thead th').allTextContents()).map(
       (t) => t.trim(),
     );
-    expect(cab).toEqual(['Entidade', 'Última carga', 'Situação', 'Linhas integradas', '']);
+    expect(cab, 'a última coluna é a do menu "⋯" (rótulo só para leitor de tela)').toEqual(['Entidade', 'Última carga', 'Situação', 'Linhas integradas', 'Ações']);
     const ordem = await page
       .locator('[data-testid="integracao.entidades"] tbody tr')
       .evaluateAll((trs) => trs.map((tr) => tr.getAttribute('data-testid')));
@@ -513,11 +519,16 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
       expect(cel[1], `${entidade}: Última carga`).toBe(ultima);
       expect(cel[2], `${entidade}: Situação`).toBe(situacao);
       expect(cel[3], `${entidade}: Linhas integradas`).toBe(linhas);
+      // Reprocessar e Histórico no menu "⋯" da linha (v1.0.31): abre, confere e fecha com Esc
+      await expect(page.getByTestId(`integracao.entidade.historico.${entidade}`)).toHaveCount(0);
+      const historicoNoMenu = await itemDoMenu(page, 'historico', entidade);
       await expect(
         page.getByTestId(`integracao.entidade.reprocessar.${entidade}`),
         `${entidade}: Reprocessar`,
       ).toHaveCount(reprocessar ? 1 : 0);
-      await expect(page.getByTestId(`integracao.entidade.historico.${entidade}`)).toHaveText(historico);
+      await expect(historicoNoMenu).toHaveText(historico);
+      await page.keyboard.press('Escape');
+      await expect(historicoNoMenu).toHaveCount(0);
     }
 
     // coluna Última carga com 300px: o texto mais longo (Títulos, com a data da falha) cabe numa linha só a 1366×768
@@ -551,7 +562,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page);
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.historico.estoque').click();
+    await (await itemDoMenu(page, 'historico', 'estoque')).click();
     await expect(page).toHaveURL(/historico=estoque/);
     const dialogo = page.locator('[role="dialog"]').filter({ has: page.getByTestId('integracao.historico') });
     await expect(dialogo).toContainText('Histórico — Estoque');
@@ -594,7 +605,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page);
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.historico.rota').click();
+    await (await itemDoMenu(page, 'historico', 'rota')).click();
     const dialogo = page.locator('[role="dialog"]').filter({ has: page.getByTestId('integracao.historico') });
     await expect(dialogo.getByTestId(`integracao.lote.cancelar.${L.rota.lote_id}`)).toHaveCount(1);
     // em andamento: Linhas vazia e sem Ver erros
@@ -611,7 +622,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
     await dialogo.getByRole('button', { name: 'Fechar' }).click();
     await expect(page).not.toHaveURL(/historico=/);
 
-    await page.getByTestId('integracao.entidade.reprocessar.preco').click();
+    await (await itemDoMenu(page, 'reprocessar', 'preco')).click();
     await expect(page.getByText('Reprocessamento iniciado.')).toBeVisible();
     expect(chamadas.reprocessados.map((r) => r.lote_id)).toEqual([L.preco.lote_id]);
   });
@@ -621,7 +632,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     await preparar(page);
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.historico.estoque').click();
+    await (await itemDoMenu(page, 'historico', 'estoque')).click();
     await page.getByTestId(`integracao.lote.ver-erros.${L.estoqueFalhou.lote_id}`).click();
     await expect(page).toHaveURL(new RegExp(`lote=${L.estoqueFalhou.lote_id}`));
     const detalhe = page.getByTestId('integracao.lote-detalhe');
@@ -640,7 +651,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page, { reprocessar: 'autorizar' });
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.reprocessar.estoque').click();
+    await (await itemDoMenu(page, 'reprocessar', 'estoque')).click();
     const dialogo = page.locator('[role="dialog"]').filter({ hasText: 'Autorizar reprocessamento' });
     await expect(dialogo).toBeVisible();
     await expect(page.getByTestId('integracao.autorizar.quem')).toHaveValue(AUTORIZADORES.itens[0]!.id);
@@ -667,7 +678,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page, { reprocessar: 'autorizar-ok' });
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.reprocessar.estoque').click();
+    await (await itemDoMenu(page, 'reprocessar', 'estoque')).click();
     await page.locator('#integracao-autorizar-senha').fill('senha-ficticia-certa');
     await page.getByTestId('integracao.autorizar.confirmar').click();
     await expect(page.getByText('Reprocessamento iniciado.')).toBeVisible();
@@ -687,7 +698,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page, { reprocessar: 'expirado' });
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.reprocessar.estoque').click();
+    await (await itemDoMenu(page, 'reprocessar', 'estoque')).click();
     await expect(avisos(page)).toContainText(
       `1 de 2 lotes reprocessados. Falhou ${ANTES}: ${EXPIRADO.mensagem}`,
     );
@@ -702,7 +713,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page, { reprocessar: 'expirado-todos' });
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.historico.estoque').click();
+    await (await itemDoMenu(page, 'historico', 'estoque')).click();
     await page.getByTestId('integracao.historico.reprocessar').click();
     await expect(avisos(page)).toContainText(
       `Nenhum lote reprocessado. Falhou ${ANTES}: ${EXPIRADO.mensagem} Falhou ${DEPOIS}: ${NAO_PODE.mensagem}`,
@@ -717,7 +728,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page, { reprocessar: 'fora' });
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.reprocessar.estoque').click();
+    await (await itemDoMenu(page, 'reprocessar', 'estoque')).click();
     await expect(avisos(page)).toContainText(`Nenhum lote reprocessado. Falhou ${ANTES}: ${FORA.mensagem}`);
     expect(chamadas.tentados).toEqual([L.estoqueFalhouAntes.lote_id]);
     expect(chamadas.reprocessados).toEqual([]);
@@ -732,7 +743,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page, { reprocessar: 'autorizar-limite' });
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.reprocessar.estoque').click();
+    await (await itemDoMenu(page, 'reprocessar', 'estoque')).click();
     const dialogo = page.locator('[role="dialog"]').filter({ hasText: 'Autorizar reprocessamento' });
     const senha = page.locator('#integracao-autorizar-senha');
     await senha.fill('senha-ficticia-certa');
@@ -766,7 +777,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     const chamadas = await preparar(page, { reprocessar: 'autorizar-expirado' });
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.reprocessar.estoque').click();
+    await (await itemDoMenu(page, 'reprocessar', 'estoque')).click();
     await page.locator('#integracao-autorizar-senha').fill('senha-ficticia-certa');
     await page.getByTestId('integracao.autorizar.confirmar').click();
     await expect(avisos(page)).toContainText(
@@ -783,7 +794,7 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
   }) => {
     await preparar(page);
     await abrirMonitor(page);
-    await page.getByTestId('integracao.entidade.historico.vendedor').click();
+    await (await itemDoMenu(page, 'historico', 'vendedor')).click();
     const dialogo = page.locator('[role="dialog"]').filter({ has: page.getByTestId('integracao.historico') });
     await expect(dialogo).toContainText('Histórico — Vendedores');
     const cel = (
@@ -885,7 +896,7 @@ test('RN-INT-15: Histórico do BKO — a Situação mostra os 5 status, sem os r
   await abrirMonitor(page);
   const vistos = new Set<string>();
   for (const [entidade, esperado] of SITUACAO_POR_ENTIDADE) {
-    await page.getByTestId(`integracao.entidade.historico.${entidade}`).click();
+    await (await itemDoMenu(page, 'historico', entidade)).click();
     const dialogo = page.locator('[role="dialog"]').filter({ has: page.getByTestId('integracao.historico') });
     const linhas = dialogo.locator('[data-testid="integracao.historico.lotes"] tbody tr');
     await expect(linhas).toHaveCount(esperado.length);

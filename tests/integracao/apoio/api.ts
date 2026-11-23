@@ -235,6 +235,10 @@ export async function subirApi(
      * `createApp` (desligado: Gerar coordenada = 503). Os testes apontam a implementação Nominatim REAL para um servidor http local.
      */
     geocodificador?: GeocodificadorDaApi;
+    /** ADR 0052/0068 (`MACUXI_EMPRESA_ACOES=1` no servidor): ações da empresa no portal, com o Zerar dados. Padrão desligado. */
+    empresaAcoesPortal?: boolean;
+    /** ADR 0047: planos e licenças no portal (`assinatura` da empresa). Padrão desligado. */
+    planosPortal?: boolean;
   } = {},
 ): Promise<ApiDeTeste> {
   // T-0176 (RN-CORE-39): todo usuário da fixture destravado (filial padrão como cadastro e venda); os testes da T-0176 travam quem precisarem
@@ -274,6 +278,8 @@ export async function subirApi(
     ...(opcoes.versoesApp ? { versoesApp: opcoes.versoesApp } : {}),
     ...(opcoes.urlApiPublica ? { urlApiPublica: opcoes.urlApiPublica } : {}),
     ...(opcoes.geocodificador ? { geocodificador: opcoes.geocodificador } : {}),
+    ...(opcoes.empresaAcoesPortal ? { empresaAcoesPortal: true } : {}),
+    ...(opcoes.planosPortal ? { planosPortal: true } : {}),
     ...comReceita,
   });
   await app.ready();
