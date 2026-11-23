@@ -16,8 +16,8 @@
  * - T-0181 (0081): mais 3 sa_* do portal (frases da tela de carga), 30 no total, e a plataforma.frases_carga_ativas() do app.
  * - T-0182 (0083): mais 4 sa_* do portal (marca da empresa: logo e nome fantasia), 34 no total.
  * - Item 15 do Campo v1.0.16 (0091): mais 1 sa_* do portal (sa_gravar_ocultar_marca: ocultar a logomarca do Macuxi), 38 no total.
- * - v1.0.31 "Zerar dados" (0100, ADR 0068, RN-PLA-12): mais 3 sa_* do portal (prévia, pedido e leitura do zerar), 41 no total,
- *   e 4 funções do worker (pegar, executar, fechar e expurgar o zerar).
+ * - v1.0.31 "Zerar dados" (0100, ADR 0068, RN-PLA-12): mais 4 sa_* do portal (pedido e leitura da prévia, pedido e leitura do
+ *   zerar), 42 no total, e 6 funções do worker (pegar, executar, fechar e expurgar o zerar; pegar e executar a prévia).
  * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
  *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
  *   worker ou portal; as 3 tabelas novas do portal entram na varredura "nenhum privilégio efetivo em tabela" do portal.
@@ -95,11 +95,11 @@ const SA_PORTAL_OCULTAR_MARCA: Record<string, string> = {
 };
 
 /**
- * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 41 plataforma.sa_* — as 12 da 0039
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 42 plataforma.sa_* — as 12 da 0039
  * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados), as 2 da 0042 (T-0094: o super-admin
  * redefine a senha do admin do cliente; R-20261108-001804-banco-dados), as 2 da 0058 (T-0158), a 1 da 0070 (ADR 0047), as 8 da 0072
  * (ADR 0052), as 2 da 0073 (rodapé legal), as 3 da 0081 (T-0181, SA_PORTAL_CARGA) e as 4 da 0083 (T-0182, SA_PORTAL_LOGO), as 3 da 0086
- * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA) e as 3 da 0100 (ADR 0068, Zerar dados) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
+ * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA) e as 4 da 0100 (ADR 0068, Zerar dados) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
  * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
 const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
@@ -167,8 +167,11 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
     'liga módulos e nunca desliga; histórico e auditoria sem dado pessoal',
   // ADR 0068 (0100_plataforma_zerar_empresa; "Zerar dados" da empresa inteira ou por entidade; RN-PLA-12): só super-admin
   // (admin do cliente 42501, sessão inválida 28000); a regra é a plataforma.limpar_cadastros, sem EXECUTE para ninguém
-  'plataforma.sa_previa_zerar(p_sid uuid, p_tenant uuid, p_entidades text[] DEFAULT NULL::text[])':
-    `${SA}; só super-admin; roda a limpar_cadastros numa subtransação desfeita (nada muda); devolve tabelas, total, entidades_afetadas e o bloqueio`,
+  'plataforma.sa_pedir_previa_zerar(p_sid uuid, p_tenant uuid, p_id uuid, p_entidades text[] DEFAULT NULL::text[])':
+    `${SA}; só super-admin; só grava o pedido da prévia (quem conta é o worker, fora do pool do portal); idempotente por p_id ` +
+    '(id de outra empresa 23505); empresa inexistente P0002; entidades inválidas 22023',
+  'plataforma.sa_ler_previa_zerar(p_sid uuid, p_tenant uuid, p_id uuid)':
+    `${SA}; só super-admin; a prévia viva da empresa pelo id (null = nenhuma, vencida ou de outra empresa); bloqueio calculado na leitura`,
   'plataforma.sa_pedir_zerar(p_sid uuid, p_tenant uuid, p_id uuid, p_codigo text, p_entidades text[] DEFAULT NULL::text[])':
     `${SA}; só super-admin; código da licença conferido (22023); um em andamento por empresa e Hub parado (55000, código no hint); ` +
     'idempotente por p_id; audita tenant.zerar_pedido sem dado pessoal',
@@ -226,11 +229,16 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
   'core.expurgar_rastreamento(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 10000)':
     'retenção LGPD: apaga de fato ponto_trajeto com mais de 90 dias e deslocamento_dia com mais de 5 anos, em lote (skip locked); devolve só tenant e contagens; p_limite 1..50000',
   // 0100 (ADR 0068, Zerar dados): NÃO entram em DEFINER_REVISADAS (o app não executa); o tenant sai sempre da linha do job
-  'plataforma.pegar_zerar()': 'próximo zerar em andamento sem concessão viva (skip locked; concessão de 10 min); devolve só (id, empresa_id)',
+  'plataforma.pegar_zerar()':
+    'fecha falhou ZERAR_FALHOU o pegado 3 vezes sem fechar e reserva o próximo em andamento sem concessão viva (skip locked; concessão de 10 min); devolve só (id, empresa_id)',
   'plataforma.executar_zerar(p_zerar uuid)':
     'reconfere exclusão, outro zerar, backup e Hub (fecha falhou com o código, nada muda) e roda a limpar_cadastros com cópia na mesma transação; fecha concluido',
   'plataforma.fechar_zerar(p_zerar uuid, p_erro_codigo text)': 'fecha falhou com o código (formato do contrato); idempotente; audita tenant.zerar_falhou',
   'plataforma.expurgar_zerar(p_limite integer)': 'apaga a cópia dos zerar vencidos (7 dias) e marca expurgado_em; devolve quantos',
+  'plataforma.pegar_previa_zerar()':
+    'apaga as prévias vencidas, fecha falhou ZERAR_FALHOU a pegada 3 vezes sem fechar e reserva a próxima (skip locked; concessão de 2 min); devolve só (id, empresa_id)',
+  'plataforma.executar_previa_zerar(p_previa uuid)':
+    'conta a limpar_cadastros no modo simular numa subtransação desfeita (sem cópia e sem a trava do Hub) e fecha pronta; erro = falhou ZERAR_FALHOU; idempotente',
 };
 
 /**

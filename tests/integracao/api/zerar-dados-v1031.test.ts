@@ -4,12 +4,15 @@
  * `MACUXI_EMPRESA_ACOES=1`), o worker REAL do zerar (`criarWorkerZerar`, papel `macuxi_worker`) e o Hub REAL (`POST /integracao/v1/lotes`
  * → despachante → consumidores do Core), no banco efêmero dois-tenants. A regra do que sai é a `plataforma.limpar_cadastros` (0100),
  * testada tabela a tabela no `db/testes/empresa-zerar.db.test.ts` (banco-dados); aqui ficam os critérios entre módulos:
- *  Z-01 só o super-admin: anônimo 401, token do BKO 401 e admin do cliente no portal 403 na prévia, no pedido e na leitura do zerar;
+ *  Z-01 só o super-admin: anônimo 401, token do BKO 401 e admin do cliente no portal 403 no pedido e na leitura da prévia
+ *       (`POST …/zerar/previa`, `GET …/zerar/previa/:previa_id`) e no pedido e na leitura do zerar;
  *       no `GET /v1/integracao/monitor/detalhes`, anônimo 401 e BKO e admin do cliente 403; o super-admin lê os detalhes (200) e nada é pedido;
  *  Z-02 o super-admin reprocessa um lote pelo portal (`POST /v1/integracao/lotes/:id/reprocessar`, `superAdmin: 'aceita'`): volta a
  *       `recebido`, a auditoria diz `via: super_admin` e o despachante conclui de novo;
  *  Z-03 Hub em processamento: a prévia mostra o bloqueio e o pedido = 409 `ZERAR_HUB_PROCESSANDO`; nada é pedido;
- *  Z-04 zerar por entidade (`cliente`): prévia = executado; a cascata leva endereço, título e nota; produto e o outro tenant intactos;
+ *  A prévia é do worker (0100 revista): `POST …/zerar/previa` (202 em_andamento) → `cicloPrevia` do worker real → `GET
+ *  …/zerar/previa/:previa_id` pronta; "prévia = executado" = as mesmas (tabela, linhas) com contagem e o mesmo total (soft + físico).
+ *  Z-04 zerar por entidade (`cliente`): prévia = executado; prévia idempotente pelo id; a cascata leva endereço, título e nota; produto e o outro tenant intactos;
  *       ficam usuários, perfis, credenciais, conectores, plano, licenças e parâmetros; pedido idempotente pelo id; a cópia de cada
  *       linha está em `plataforma.limpeza_copia` ANTES de a linha sair (gatilho espião, mesma transação); cursor da entidade nulo e
  *       `registro_atual` sem o hash velho;
@@ -18,8 +21,13 @@
  *       como NOVA (não `repetido` nem `inalterada`) e recria as linhas — a cascata também apaga lote, registro_atual e cursor; B intacto;
  *  Z-07 erro no meio da limpeza (gatilho que falha no `core.nota_erp`, depois de o Hub e os clientes já terem saído na transação):
  *       o zerar fecha `falhou` (`ZERAR_FALHOU`) e nada sai, nem a cópia fica;
- *  Z-08 a empresa inteira: prévia = executado; ficam administradores, perfis, credenciais, conectores, plano, licenças e parâmetros;
- *       todos os cursores nulos e nenhum `registro_atual`; o ERP reenvia a mesma carga e as linhas voltam; o outro tenant intacto.
+ *  Z-08 a empresa inteira: prévia = executado; o total da prévia = a soma das linhas fora de core.filial, plataforma.sync_pacote e
+ *       plataforma.tenant (valor × regra); ficam administradores, perfis, credenciais, conectores, plano, licenças e parâmetros (os
+ *       usuários não administradores saem); todos os cursores nulos e nenhum `registro_atual`; o ERP reenvia e as linhas voltam; B intacto;
+ *  Z-09 teto de 3 tentativas: a prévia e o zerar pegados 3 vezes sem fechar (o processo caiu) fecham `falhou` `ZERAR_FALHOU` na 4ª
+ *       vez; o zerar audita `tenant.zerar_falhou` e nada sai;
+ *  Z-10 a trava é só da empresa: com a prévia e com o zerar de A abertos numa transação do worker (locks seguros), o Hub de B
+ *       recebe e conclui um lote; depois o zerar de A conclui.
  * Sem banco (ou sem os papéis do portal e do worker) o describe é pulado; com MACUXI_PG_EXIGIR=1 a falta do banco é erro.
  */
 import { createHash, randomUUID } from 'node:crypto';
@@ -31,10 +39,12 @@ import {
   CODIGOS_ZERAR_EMPRESA,
   ENTIDADES_ZERAR,
   ERROS_WORKER_ZERAR,
-  PreviaZerarEmpresaSchema,
+  mensagemDaPreviaZerar,
+  PreviaZerarSchema,
   ZerarEmpresaSchema,
   type LinhaLimpeza,
-  type PreviaZerarEmpresa,
+  type LinhaPreviaZerar,
+  type PreviaZerar,
   type ZerarEmpresa,
 } from '@macuxi/platform-sdk';
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
@@ -154,11 +164,27 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
   const urlEmpresa = (resto: string, t: Tenant = A) => `/v1/plataforma/empresas/${t.tenantId}/${resto}`;
   const comoPortal = (token: string | null, op: InjectOptions & { url: string }, tenant?: Tenant): Promise<LightMyRequestResponse> =>
     api.app.inject({ ...op, remoteAddress: novoIp(), headers: { ...comToken(token), ...(tenant ? { [CABECALHO_TENANT_PLATAFORMA]: tenant.tenantId } : {}), ...((op.headers as Record<string, string>) ?? {}) } });
-  async function previa(entidades?: string[]): Promise<PreviaZerarEmpresa> {
-    const r = await comoPortal(tk.sa, { method: 'GET', url: urlEmpresa(`zerar/previa${entidades ? `?entidades=${entidades.join(',')}` : ''}`) });
+  const pedirPrevia = (id: string, entidades?: string[]) =>
+    comoPortal(tk.sa, { method: 'POST', url: urlEmpresa('zerar/previa'), payload: { id, ...(entidades ? { entidades } : {}) } });
+  const lerPrevia = async (id: string): Promise<PreviaZerar> => {
+    const r = await comoPortal(tk.sa, { method: 'GET', url: urlEmpresa(`zerar/previa/${id}`) });
     expect(r.statusCode, r.body).toBe(200);
-    return PreviaZerarEmpresaSchema.parse(r.json());
+    return PreviaZerarSchema.parse(r.json());
+  };
+  /** Pede a prévia (202 em andamento), roda o worker real (`cicloPrevia`) e devolve a prévia pronta lida pelo portal. */
+  async function previa(entidades?: string[]): Promise<PreviaZerar> {
+    const id = randomUUID();
+    const r = await pedirPrevia(id, entidades);
+    expect(r.statusCode, r.body).toBe(202);
+    expect(PreviaZerarSchema.parse(r.json())).toMatchObject({ id, situacao: 'em_andamento', linhas: null, total: null, erro_codigo: null });
+    expect(await criarWorkerZerar({ pool: worker }).cicloPrevia()).toBe('pronta');
+    const p = await lerPrevia(id);
+    expect(p).toMatchObject({ id, situacao: 'pronta', erro_codigo: null });
+    return p;
   }
+  /** "prévia = executado": as mesmas (tabela, linhas) com contagem, como multiconjunto (a prévia não tem o modo). */
+  const tabelasComLinhas = (l: readonly (LinhaLimpeza | LinhaPreviaZerar)[]) =>
+    l.filter((x) => x.linhas > 0).map((x) => `${x.tabela}|${x.linhas}`).sort();
   const pedir = (id: string, entidades: string[] | null, extra: Record<string, unknown> = {}) =>
     comoPortal(tk.sa, { method: 'POST', url: urlEmpresa('zerar'), payload: { id, codigo_confirmacao: A.codigo, senha: SA.senha, ...(entidades ? { entidades } : {}), ...extra } });
   const lerZerar = async (): Promise<ZerarEmpresa> => {
@@ -176,7 +202,6 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     expect(z).toMatchObject({ id, situacao: 'concluido', erro_codigo: null });
     return z;
   }
-  const ordenar = (l: readonly LinhaLimpeza[]) => [...l].sort((x, y) => `${x.tabela}|${x.modo}`.localeCompare(`${y.tabela}|${y.modo}`));
 
   // ---------- retratos ----------
   /** Vivos com external_id do prefixo deste arquivo, por tabela, num tenant. */
@@ -348,8 +373,9 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
 
   it('Z-01 só o super-admin: anônimo 401, BKO 401 e admin do cliente 403 no zerar; monitor/detalhes 401 anônimo e 403 BKO e admin do cliente; o super-admin lê os detalhes', async () => {
     const rotas: (InjectOptions & { url: string })[] = [
-      { method: 'GET', url: urlEmpresa('zerar/previa') },
-      { method: 'GET', url: urlEmpresa('zerar/previa?entidades=cliente') },
+      { method: 'POST', url: urlEmpresa('zerar/previa'), payload: { id: randomUUID() } },
+      { method: 'POST', url: urlEmpresa('zerar/previa'), payload: { id: randomUUID(), entidades: ['cliente'] } },
+      { method: 'GET', url: urlEmpresa(`zerar/previa/${randomUUID()}`) },
       { method: 'POST', url: urlEmpresa('zerar'), payload: { id: randomUUID(), codigo_confirmacao: A.codigo, senha: CLIENTE_PORTAL.senha } },
       { method: 'POST', url: urlEmpresa('zerar'), payload: { id: randomUUID(), codigo_confirmacao: A.codigo, senha: CLIENTE_PORTAL.senha, entidades: ['cliente'] } },
       { method: 'GET', url: urlEmpresa('zerar') },
@@ -374,6 +400,16 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     expect(ok.body).toContain('erp-alfa');
     expect(ok.body, 'detalhes sem dado de linha (só códigos e contagens)').not.toContain('Mercado');
     expect(await pedidosZerar(), 'nada foi pedido').toBe(0);
+    expect(await um<string>('select count(*)::text from plataforma.zerar_previa where empresa_id = $1', [A.tenantId]), 'nenhuma prévia pedida').toBe('0');
+    // a prévia do super-admin não é lida pelo admin do cliente (403, nunca o conteúdo)
+    const pv = await previa(['cliente']);
+    const cli = await comoPortal(tk.cliente, { method: 'GET', url: urlEmpresa(`zerar/previa/${pv.id}`) });
+    expect([cli.statusCode, erroDe(cli).codigo]).toEqual([403, 'PERFIL_SEM_ACESSO']);
+    // prévia inexistente (ou de outra empresa) = 404 ZERAR_PREVIA_NAO_ENCONTRADA
+    for (const url of [urlEmpresa(`zerar/previa/${randomUUID()}`), urlEmpresa(`zerar/previa/${pv.id}`, B)]) {
+      const r = await comoPortal(tk.sa, { method: 'GET', url });
+      expect([r.statusCode, erroDe(r).codigo], url).toEqual([404, Z.previaNaoEncontrada]);
+    }
   });
 
   it('Z-02 o super-admin reprocessa um lote pelo portal: volta a recebido, auditoria via super_admin, o despachante conclui de novo', async () => {
@@ -415,9 +451,13 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     expect(await cursor(A, 'produto')).not.toBeNull();
 
     const pv = await previa(['cliente']);
-    expect([pv.entidades, pv.bloqueio, pv.codigo]).toEqual([['cliente'], null, A.codigo]);
-    const tabelas = new Map(pv.tabelas.map((t) => [t.tabela, t]));
-    expect(tabelas.get('core.cliente')).toEqual({ tabela: 'core.cliente', modo: 'soft', linhas: 2 });
+    expect([pv.entidades, pv.bloqueio]).toEqual([['cliente'], null]);
+    // idempotente: o mesmo id devolve a mesma prévia (pronta), sem contar de novo
+    const deNovo = await pedirPrevia(pv.id, ['cliente']);
+    expect([deNovo.statusCode, PreviaZerarSchema.parse(deNovo.json())]).toEqual([202, pv]);
+    expect(await criarWorkerZerar({ pool: worker }).cicloPrevia(), 'nenhuma prévia pendente').toBeNull();
+    const tabelas = new Map(pv.linhas!.map((t) => [t.tabela, t]));
+    expect(tabelas.get('core.cliente')).toMatchObject({ tabela: 'core.cliente', linhas: 2 });
     for (const t of ['core.cliente_endereco', 'core.titulo', 'core.nota_erp']) expect(tabelas.get(t)?.linhas, `cascata ${t}`).toBeGreaterThanOrEqual(1);
     for (const t of ['core.produto', 'catalogo.tabela_preco', 'catalogo.estoque_saldo', 'core.usuario']) expect(tabelas.has(t), `${t} fica`).toBe(false);
     expect(pv.entidades_afetadas).toEqual(expect.arrayContaining(['cliente', 'cliente_endereco', 'titulo', 'nota']));
@@ -457,8 +497,8 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
       for (const t of [...soft, ...fisico]) await q(`drop trigger if exists zerar_espiao on ${t}`);
     }
     // prévia = executado (mesma regra, nada mudou entre as duas)
-    expect(ordenar(zCliente.contagem!)).toEqual(ordenar(pv.tabelas));
-    expect(zCliente.linhas_apagadas).toBe(pv.total_linhas);
+    expect(tabelasComLinhas(zCliente.contagem!)).toEqual(tabelasComLinhas(pv.linhas!));
+    expect(zCliente.linhas_apagadas).toBe(pv.total);
     expect(zCliente.entidades_afetadas).toEqual(pv.entidades_afetadas);
 
     const espiao = await q<{ tabela: string; n: string; sem_copia: string }>(
@@ -568,9 +608,13 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
 
     const pv = await previa();
     expect([pv.entidades, pv.bloqueio]).toEqual([null, null]);
+    // valor × regra: o total da prévia (o número da tela) = as linhas que SAEM; core.filial, plataforma.sync_pacote e plataforma.tenant mudam e não saem
+    const ficamNaEmpresa = new Set(['core.filial', 'plataforma.sync_pacote', 'plataforma.tenant']);
+    expect(pv.total).toBe(pv.linhas!.filter((l) => !ficamNaEmpresa.has(l.tabela)).reduce((a, l) => a + l.linhas, 0));
+    expect(pv.linhas!.some((l) => ficamNaEmpresa.has(l.tabela)), 'a empresa inteira mexe em filial, pacote de sync ou tenant').toBe(true);
     const z = await zerar(null);
-    expect(ordenar(z.contagem!)).toEqual(ordenar(pv.tabelas));
-    expect(z.linhas_apagadas).toBe(pv.total_linhas);
+    expect(tabelasComLinhas(z.contagem!)).toEqual(tabelasComLinhas(pv.linhas!));
+    expect(z.linhas_apagadas).toBe(pv.total);
 
     expect(await ficam(false)).toEqual(fica0);
     expect(await vivos()).toMatchObject({ cliente: 0, cliente_endereco: 0, titulo: 0, nota: 0, produto: 0, registro_atual: 0, usuarios: admins });
@@ -591,5 +635,85 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     }
     expect(await vivos()).toMatchObject({ cliente: 2, produto: 2 });
     expect(await retratoB()).toEqual(b0);
+  });
+
+  /** Simula o processo que caiu depois de pegar o job: pega pelo worker e vence a concessão. */
+  const pegarSemFechar = async (funcao: 'pegar_previa_zerar' | 'pegar_zerar', tabela: 'zerar_previa' | 'zerar_empresa', id: string) => {
+    const r = await worker.query<{ id: string | null }>(`select id from plataforma.${funcao}()`);
+    expect(r.rows[0]?.id ?? null, `${funcao} reserva o job`).toBe(id);
+    await q(`update plataforma.${tabela} set bloqueado_ate = now() - interval '1 second' where id = $1`, [id]);
+  };
+
+  it('Z-09 teto de 3 tentativas: prévia e zerar pegados 3 vezes sem fechar fecham falhou ZERAR_FALHOU na 4ª; nada sai', async () => {
+    const antes = await vivos();
+    const copiasAntes = await copias();
+    // prévia
+    const pid = randomUUID();
+    expect((await pedirPrevia(pid, ['cliente'])).statusCode).toBe(202);
+    for (let i = 1; i <= 3; i += 1) await pegarSemFechar('pegar_previa_zerar', 'zerar_previa', pid);
+    expect(await um<string>('select tentativas::text from plataforma.zerar_previa where id = $1', [pid])).toBe('3');
+    expect(await criarWorkerZerar({ pool: worker }).cicloPrevia(), 'a 4ª não conta: fecha falhou').toBeNull();
+    const pf = await lerPrevia(pid);
+    expect(pf).toMatchObject({ id: pid, situacao: 'falhou', erro_codigo: ERROS_WORKER_ZERAR.falhou, linhas: null, total: null });
+    expect(mensagemDaPreviaZerar(pf.erro_codigo!)).toBe('Não foi possível contar os dados. Tente de novo.');
+    // zerar
+    const zid = randomUUID();
+    const r = await pedir(zid, ['cliente']);
+    expect(r.statusCode, r.body).toBe(202);
+    for (let i = 1; i <= 3; i += 1) await pegarSemFechar('pegar_zerar', 'zerar_empresa', zid);
+    expect(await criarWorkerZerar({ pool: worker }).ciclo(), 'a 4ª não executa: fecha falhou').toBeNull();
+    expect(await lerZerar()).toMatchObject({ id: zid, situacao: 'falhou', erro_codigo: ERROS_WORKER_ZERAR.falhou, linhas_apagadas: null, contagem: null });
+    expect(
+      await um<string>("select count(*)::text from plataforma.auditoria_plataforma where acao = 'tenant.zerar_falhou' and tenant_alvo_id = $1 and detalhes ->> 'zerar_id' = $2", [A.tenantId, zid]),
+      'auditoria do teto',
+    ).toBe('1');
+    expect(await vivos()).toEqual(antes);
+    expect(await copias()).toBe(copiasAntes);
+    // a empresa fica livre para outro zerar (o que falhou não segura)
+    const pv = await previa(['cliente']);
+    expect(pv.bloqueio).toBeNull();
+  });
+
+  it('Z-10 a trava é só da empresa: com a prévia e com o zerar de A abertos no worker, o Hub de B recebe e conclui um lote', async () => {
+    const segura = new pg.Client({ connectionString: api.banco.urlWorker ?? undefined });
+    await segura.connect();
+    const comPrazo = <T>(p: Promise<T>, oQue: string) =>
+      Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`${oQue}: travado pela empresa A`)), 20_000))]);
+    const produtosB = async () => (await vivos(B)).produto ?? 0;
+    try {
+      // 1) prévia da empresa inteira de A contada e NÃO fechada (transação aberta)
+      const pid = randomUUID();
+      expect((await pedirPrevia(pid)).statusCode).toBe(202);
+      await segura.query('begin');
+      const job = (await segura.query<{ id: string }>('select id from plataforma.pegar_previa_zerar()')).rows[0];
+      expect(job?.id).toBe(pid);
+      await segura.query('select plataforma.executar_previa_zerar($1)', [pid]);
+      const n0 = await produtosB();
+      await comPrazo(enviar(carga(B, 'produto', [produto(`${P}-BP2`, medidaB)])), 'Hub de B durante a prévia de A');
+      expect(await produtosB()).toBe(n0 + 1);
+      await segura.query('commit');
+      expect((await lerPrevia(pid)).situacao).toBe('pronta');
+
+      // 2) zerar de A (produto) executado e NÃO fechado: as travas do Hub de A estão seguras
+      const zid = randomUUID();
+      const r = await pedir(zid, ['produto']);
+      expect(r.statusCode, r.body).toBe(202);
+      await segura.query('begin');
+      const jz = (await segura.query<{ id: string }>('select id from plataforma.pegar_zerar()')).rows[0];
+      expect(jz?.id).toBe(zid);
+      await segura.query("set local lock_timeout = '5s'");
+      await segura.query('select plataforma.executar_zerar($1)', [zid]);
+      await comPrazo(enviar(carga(B, 'produto', [produto(`${P}-BP3`, medidaB)])), 'Hub de B durante o zerar de A');
+      expect(await produtosB()).toBe(n0 + 2);
+      await segura.query('commit');
+      expect(await lerZerar()).toMatchObject({ id: zid, situacao: 'concluido', entidades: ['produto'] });
+      expect(await vivos()).toMatchObject({ produto: 0, cliente: 2 });
+      expect(await produtosB()).toBe(n0 + 2);
+    } catch (e) {
+      await segura.query('rollback').catch(() => undefined);
+      throw e;
+    } finally {
+      await segura.end();
+    }
   });
 });
