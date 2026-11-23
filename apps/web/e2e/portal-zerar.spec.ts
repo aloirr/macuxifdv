@@ -1,6 +1,8 @@
 /**
  * e2e do "Zerar dados" (ADR 0068; RN-PLA-12) no portal config., modo falso: o item no menu "⋯" ao lado do Excluir, o diálogo com a
- * prévia por grupo, o código e a senha, o andamento e o concluído. Prints em docs/prints/zerar-dados, 1280 e 390 px (escala 2).
+ * prévia por grupo, o código e a senha, o andamento e o concluído; e, na aba Integração (desenho §6.4), a seção Monitor com o
+ * "Zerar dados" por entidade, a cascata na prévia e o resultado com o lote e os comandos de reenvio. Prints em
+ * docs/prints/zerar-dados, 1280 e 390 px (escala 2).
  * Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
  */
 import { fileURLToPath } from 'node:url';
@@ -54,6 +56,55 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('empresa-zerar.vazio')).toHaveText('Não há dados para zerar.');
     await expect(page.getByTestId('empresa-acao.confirmar')).toHaveCount(0);
     await expect(page.getByTestId('empresa-acao.cancelar')).toHaveText('Fechar');
+    await ctx.close();
+  });
+}
+
+const UMA = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
+
+for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
+  test(`Zerar dados por entidade na aba Integração (${largura} px)`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    await page.goto('/entrar');
+    await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
+    await page.getByTestId('entrar.senha').fill('certa-123');
+    await page.getByTestId('entrar.entrar').click();
+    await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
+    await page.goto(`/empresas/${UMA}`);
+    await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
+    const monitor = page.getByTestId('integracao.monitor');
+    await expect(monitor.getByTestId('integracao.monitor.entidade.estoque')).toBeVisible({ timeout: 60000 });
+    await expect(monitor.getByTestId('integracao.entidade.reprocessar.produto')).toBeVisible();
+    // Estoque não tem lote: o "Zerar dados" dele fica em "Dados no Hub"; o de Clientes, na linha do painel
+    await expect(monitor.getByTestId('integracao.monitor.entidade.estoque').getByTestId('integracao.entidade.zerar.estoque')).toBeVisible();
+    await expect(monitor.getByTestId('integracao.entidade.zerar.cliente')).toHaveCount(1);
+    await monitor.screenshot({ animations: 'disabled', path: `${PRINTS}/05-monitor${nome}.png` });
+
+    // o primeiro clique pode chegar antes da hidratação: repete até o diálogo abrir
+    await expect(async () => {
+      if (!(await page.getByTestId('empresa-zerar.dialogo').isVisible())) await monitor.getByTestId('integracao.entidade.zerar.cliente').click();
+      await expect(page.getByTestId('empresa-zerar.previa')).toBeVisible({ timeout: 5000 });
+    }).toPass({ timeout: 30000 });
+    await expect(page.getByRole('dialog')).toContainText('Zerar Clientes de Distribuidora Uma Ltda?');
+    await expect(page.getByTestId('empresa-zerar.entidades')).toHaveText('Entidades: Clientes, Endereços de clientes');
+    await page.getByTestId('empresa-zerar.codigo').fill('distribuidora-uma');
+    await page.getByTestId('empresa-zerar.senha').fill('certa-123');
+    await expect(page.getByTestId('empresa-acao.confirmar')).toBeEnabled();
+    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/06-entidade${nome}.png` });
+
+    await page.getByTestId('empresa-acao.confirmar').click();
+    await expect(page.getByTestId('empresa-zerar.concluido')).toHaveText('5.030 linhas apagadas.', { timeout: 20000 });
+    await expect(page.getByTestId('empresa-zerar.reenvio')).toContainText('conector carga-completa cliente');
+    await expect(page.getByTestId('empresa-zerar.reenvio')).toContainText('conector carga-completa cliente_endereco');
+    await expect(page.getByTestId('empresa-zerar.lote')).toContainText(/Lote \d{8}T\d{6}Z-[0-9a-f]{8}/);
+    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/07-resultado${nome}.png` });
+
+    // o painel recarrega: Clientes e Endereços saem (sem lote nem registro) e ficam sem "Zerar dados"
+    await page.getByTestId('empresa-acao.cancelar').click();
+    await expect(monitor.getByTestId('integracao.entidade.zerar.cliente')).toHaveCount(0, { timeout: 20000 });
+    await expect(monitor.getByTestId('integracao.entidade.zerar.cliente_endereco')).toHaveCount(0);
+    await expect(monitor.getByTestId('integracao.entidade.zerar.produto')).toHaveCount(1);
     await ctx.close();
   });
 }

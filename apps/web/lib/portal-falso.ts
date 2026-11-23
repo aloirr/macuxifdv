@@ -83,6 +83,7 @@ import { localIsoDate } from '@macuxi/comum/fuso';
 
 import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
+import { MONITOR_FALSO_M, responderMonitorFalso } from './portal-falso-monitor';
 import { responderZerarFalso, ZERAR_FALSO_M } from './portal-falso-zerar';
 import { fichaExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
 import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL } from './portal-rotas';
@@ -811,7 +812,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   const zerarM = ZERAR_FALSO_M.exec(caminho);
   const paraZerar = zerarM && e.empresas.find((y) => y.id === decodeURIComponent(zerarM[1] ?? '') && !excluida(y));
   if (zerarM && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES);
-  if (zerarM) return responderZerarFalso(metodo, paraZerar ? { ...paraZerar, backupEmAndamento: ultimoBackup(paraZerar)?.situacao === 'em_andamento' } : null, !!zerarM[2], corpo);
+  if (zerarM) return responderZerarFalso(metodo, paraZerar ? { ...paraZerar, backupEmAndamento: ultimoBackup(paraZerar)?.situacao === 'em_andamento' } : null, !!zerarM[2], corpo, caminhoComQuery);
   if (rota === `POST ${ROTAS_PORTAL.empresas}`) {
     if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const c = lerCorpo(CriarEmpresaSchema, corpo);
@@ -839,6 +840,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (tenant !== sessao.empresa) return erro(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha outra.');
   }
   if (!tenant || !e.empresas.some((x) => x.id === tenant)) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
+  if (MONITOR_FALSO_M.test(caminho)) return responderMonitorFalso(metodo, caminhoComQuery, tenant, sessao.tipo === 'super_admin');
   if (rota === `GET ${ROTAS_PORTAL.conectores}`) {
     // `?tipo=` (desenho config-credencial-api): `conector` à esquerda e `nuvem` (credencial de API) à direita da aba Integração
     const tipo = new URLSearchParams(caminhoComQuery.split('?')[1] ?? '').get('tipo');

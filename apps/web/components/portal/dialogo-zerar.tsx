@@ -1,43 +1,57 @@
 'use client';
 
 /**
- * "Zerar dados" (pedido do dono do produto na v1.0.30; ADR 0068; desenho docs/desenho/empresa-zerar.md; RN-PLA-12), no padrão do
+ * "Zerar dados" (pedido do dono do produto na v1.0.31; ADR 0068; desenho docs/desenho/empresa-zerar.md; RN-PLA-12), no padrão do
  * Excluir: primeiro a prévia do que sai, por grupo (`resumirPreviaPorGrupo` do SDK); depois o código da empresa e a senha de quem
  * pede. "Zerar dados" só com a prévia sem bloqueio, o código conferindo e a senha preenchida. O pedido roda no worker (202): o
  * diálogo passa ao andamento e consulta a cada 5 s até concluir ou falhar. Frases das recusas e das falhas: `mensagemDoZerar`.
  * A senha vai só no corpo do pedido e sai do estado ao enviar e ao fechar.
+ * `entidades` (aba Integração, desenho §6.4): a prévia e o pedido levam só elas; a prévia diz as que a cascata leva junto. No
+ * concluído, o lote (chave do `restaurar`) e o `conector carga-completa` de cada entidade afetada, para o ERP reenviar.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { mensagemDoZerar, resumirPreviaPorGrupo, type PreviaZerarEmpresa } from '@macuxi/platform-sdk';
+import { mensagemDoZerar, resumirPreviaPorGrupo, type EntidadeZerar, type PreviaZerarEmpresa, type ZerarEmpresa } from '@macuxi/platform-sdk';
 import { Button, CampoSenha, CLASSE_CAMPO, Dialog, ErrorBlock, LoadingBlock, Notice, cx, formatInt } from '@macuxi/ui/web';
 
 import { ACOMPANHAR_ACAO_MS } from '@/lib/portal-empresa-acoes';
 import {
   andamentoDoZerar,
+  comandosDeReenvio,
   erroDoZerar,
   fraseDoZerar,
   lerPreviaZerar,
   lerZerar,
   pedirZerar,
+  rotulosDasEntidades,
   TEXTOS_ZERAR as T,
   zerarJaRodando,
   zerarLiberado,
 } from '@/lib/portal-empresa-zerar';
 
 /** Chaves do React Query (o teste semeia o cache com elas). */
-export const chavePreviaZerar = (tenant: string) => ['portal', 'empresa-zerar-previa', tenant] as const;
+export const chavePreviaZerar = (tenant: string, entidades?: readonly EntidadeZerar[]) => ['portal', 'empresa-zerar-previa', tenant, entidades?.join(',') ?? ''] as const;
 export const chaveZerar = (tenant: string) => ['portal', 'empresa-zerar', tenant] as const;
 
 type ErroDoPedido = { texto: string; senha: boolean };
+type EmpresaDoZerar = { id: string; codigo: string; razao_social: string };
+
+/** Título do diálogo: a empresa inteira ou as entidades pedidas. */
+const tituloDo = (empresa: EmpresaDoZerar, entidades: readonly EntidadeZerar[] | undefined, andamento: boolean): string =>
+  entidades?.length
+    ? (andamento ? T.tituloAndamentoEntidades : T.tituloEntidades)(rotulosDasEntidades(entidades), empresa.razao_social)
+    : (andamento ? T.tituloAndamento : T.titulo)(empresa.razao_social);
 
 export function DialogoZerar({
   empresa,
+  entidades,
   aoFechar,
   aoTerminar,
   inicial,
 }: {
-  empresa: { id: string; codigo: string; razao_social: string };
+  empresa: EmpresaDoZerar;
+  /** Só estas entidades do ERP (aba Integração); ausente = a empresa inteira (menu ⋯). */
+  entidades?: readonly EntidadeZerar[];
   aoFechar: () => void;
   /** O zerar concluiu ou falhou (a lista recarrega). */
   aoTerminar: () => void;
@@ -45,27 +59,29 @@ export function DialogoZerar({
   inicial?: { fase?: 'confirmar' | 'andamento'; codigo?: string; senha?: string; erro?: ErroDoPedido };
 }) {
   const [fase, setFase] = useState(inicial?.fase ?? 'confirmar');
-  const previa = useQuery({ queryKey: chavePreviaZerar(empresa.id), queryFn: () => lerPreviaZerar(empresa.id), retry: false, staleTime: 0 });
+  const previa = useQuery({ queryKey: chavePreviaZerar(empresa.id, entidades), queryFn: () => lerPreviaZerar(empresa.id, entidades), retry: false, staleTime: 0 });
   const rodando = zerarJaRodando(previa.data);
   useEffect(() => {
     if (rodando) setFase('andamento');
   }, [rodando]);
 
   return fase === 'andamento' ? (
-    <Andamento empresa={empresa} aoFechar={aoFechar} aoTerminar={aoTerminar} />
+    <Andamento empresa={empresa} titulo={tituloDo(empresa, entidades, true)} aoFechar={aoFechar} aoTerminar={aoTerminar} />
   ) : (
-    <Confirmar empresa={empresa} previa={previa} aoFechar={aoFechar} aoPedir={() => setFase('andamento')} inicial={inicial} />
+    <Confirmar empresa={empresa} entidades={entidades} previa={previa} aoFechar={aoFechar} aoPedir={() => setFase('andamento')} inicial={inicial} />
   );
 }
 
 function Confirmar({
   empresa,
+  entidades,
   previa,
   aoFechar,
   aoPedir,
   inicial,
 }: {
-  empresa: { id: string; codigo: string; razao_social: string };
+  empresa: EmpresaDoZerar;
+  entidades?: readonly EntidadeZerar[];
   previa: UseQueryResult<PreviaZerarEmpresa>;
   aoFechar: () => void;
   aoPedir: () => void;
@@ -84,12 +100,14 @@ function Confirmar({
   const bloqueio = p?.bloqueio ? mensagemDoZerar(p.bloqueio) : null;
   const pedeConfirmacao = !!p && !bloqueio && p.total_linhas > 0;
   const senhaErrada = !!erro?.senha;
+  // a cascata leva outras entidades junto: a prévia as nomeia (as pedidas já estão no título)
+  const daCascata = entidades?.length && p && p.entidades_afetadas.length > entidades.length ? p.entidades_afetadas : null;
 
   const zerar = async () => {
     setEnviando(true);
     setErro(null);
     try {
-      await pedirZerar(empresa.id, { id: pedido.current, codigo_confirmacao: codigo.trim(), senha });
+      await pedirZerar(empresa.id, { id: pedido.current, codigo_confirmacao: codigo.trim(), senha, ...(entidades?.length ? { entidades } : {}) });
       setSenha('');
       aoPedir();
     } catch (err) {
@@ -112,7 +130,7 @@ function Confirmar({
   return (
     <Dialog
       open
-      title={T.titulo(empresa.razao_social)}
+      title={tituloDo(empresa, entidades, false)}
       onClose={fechar}
       footer={
         <>
@@ -144,7 +162,12 @@ function Confirmar({
                 ))}
               </dl>
             </div>
-            <p className="m-0 text-ink-2">{T.ficam}</p>
+            {daCascata && (
+              <p className="m-0" data-testid="empresa-zerar.entidades">
+                <span className="font-semibold">{T.entidades}</span> {rotulosDasEntidades(daCascata)}
+              </p>
+            )}
+            {!entidades?.length && <p className="m-0 text-ink-2">{T.ficam}</p>}
           </>
         )}
         {bloqueio && p && p.total_linhas > 0 && (
@@ -198,7 +221,7 @@ function Confirmar({
 }
 
 /** Andamento do zerar: consulta a cada 5 s até concluir ou falhar; fechar não cancela (o worker segue). */
-function Andamento({ empresa, aoFechar, aoTerminar }: { empresa: { id: string; razao_social: string }; aoFechar: () => void; aoTerminar: () => void }) {
+function Andamento({ empresa, titulo, aoFechar, aoTerminar }: { empresa: { id: string }; titulo: string; aoFechar: () => void; aoTerminar: () => void }) {
   const q = useQuery({
     queryKey: chaveZerar(empresa.id),
     queryFn: () => lerZerar(empresa.id),
@@ -216,7 +239,7 @@ function Andamento({ empresa, aoFechar, aoTerminar }: { empresa: { id: string; r
   return (
     <Dialog
       open
-      title={T.tituloAndamento(empresa.razao_social)}
+      title={titulo}
       onClose={aoFechar}
       footer={
         <Button data-testid="empresa-acao.cancelar" onClick={aoFechar}>
@@ -234,7 +257,32 @@ function Andamento({ empresa, aoFechar, aoTerminar }: { empresa: { id: string; r
             <Notice tone={a.tom}>{a.texto}</Notice>
           </div>
         )}
+        {q.data?.situacao === 'concluido' && <Reenvio z={q.data} />}
       </div>
     </Dialog>
+  );
+}
+
+/** Concluído: o lote (chave do `restaurar` do workflow) e o comando de reenvio de cada entidade afetada (desenho §3). */
+function Reenvio({ z }: { z: ZerarEmpresa }) {
+  const comandos = comandosDeReenvio(z.entidades_afetadas);
+  return (
+    <>
+      <p className="m-0 text-ink-2" data-testid="empresa-zerar.lote">
+        {T.lote} <span className="font-mono">{z.lote}</span>
+      </p>
+      {comandos.length > 0 && (
+        <div className="flex flex-col gap-1" data-testid="empresa-zerar.reenvio">
+          <p className="m-0 text-[13px] font-semibold text-ink">{T.reenvio}</p>
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+            {comandos.map((c) => (
+              <li key={c}>
+                <code className="rounded-md bg-ground px-2 py-1 font-mono text-[13px]">{c}</code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
   );
 }

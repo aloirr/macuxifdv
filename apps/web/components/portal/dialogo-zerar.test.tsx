@@ -2,7 +2,7 @@
  * "Zerar dados" (ADR 0068; RN-PLA-12): item no menu "⋯" ao lado do Excluir e o diálogo (prévia por grupo, código e senha, bloqueio,
  * andamento), renderizados com `react-dom/server` e o cache do React Query semeado com as respostas do modo falso.
  */
-import { CODIGOS_ZERAR_EMPRESA as Z, ListaEmpresasSchema, PreviaZerarEmpresaSchema, mensagemDoZerar, type AcoesDaEmpresa, type PreviaZerarEmpresa, type ZerarEmpresa } from '@macuxi/platform-sdk';
+import { CODIGOS_ZERAR_EMPRESA as Z, ENTIDADES_ZERAR, ListaEmpresasSchema, PreviaZerarEmpresaSchema, mensagemDoZerar, type AcoesDaEmpresa, type EntidadeZerar, type PreviaZerarEmpresa, type ZerarEmpresa } from '@macuxi/platform-sdk';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -37,9 +37,9 @@ const porCodigo = (c: string) => {
 };
 const previaFalsa = async (e: Empresa) => PreviaZerarEmpresaSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa`)).json());
 
-function com(cache: { previa?: PreviaZerarEmpresa; zerar?: ZerarEmpresa; tenant: string }, filho: ReactNode): string {
+function com(cache: { previa?: PreviaZerarEmpresa; zerar?: ZerarEmpresa; tenant: string; entidades?: EntidadeZerar[] }, filho: ReactNode): string {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, refetchInterval: false } } });
-  if (cache.previa) qc.setQueryData(chavePreviaZerar(cache.tenant), cache.previa);
+  if (cache.previa) qc.setQueryData(chavePreviaZerar(cache.tenant, cache.entidades), cache.previa);
   if (cache.zerar) qc.setQueryData(chaveZerar(cache.tenant), cache.zerar);
   return renderToStaticMarkup(<QueryClientProvider client={qc}>{filho}</QueryClientProvider>);
 }
@@ -104,7 +104,9 @@ describe('diálogo Zerar dados', () => {
       id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000009',
       tenant_id: e.id,
       codigo: e.codigo,
-      origem: 'portal',
+      entidades: null,
+      entidades_afetadas: null,
+      lote: '20261123T120000Z-7c0d5e1a',
       situacao: 'em_andamento',
       pedido_em: '2026-11-23T12:00:00.000Z',
       concluido_em: null,
@@ -119,12 +121,47 @@ describe('diálogo Zerar dados', () => {
     expect(rodando).not.toContain('Mercantil Rio Branco Ltda?');
     expect(rodando).toContain('>Fechar</button>');
     expect(rodando).not.toContain('empresa-acao.confirmar');
-    const fim = { ...base, situacao: 'concluido' as const, concluido_em: '2026-11-23T12:01:00.000Z', linhas_apagadas: 19019, contagem: { 'core.cliente': 19019 }, copia_expira_em: '2026-11-30T12:01:00.000Z' };
-    expect(com({ zerar: fim, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />)).toContain('>19.019 linhas apagadas.<');
+    const fim = { ...base, situacao: 'concluido' as const, concluido_em: '2026-11-23T12:01:00.000Z', linhas_apagadas: 19019, contagem: [{ tabela: 'core.cliente', modo: 'soft' as const, linhas: 19019 }], entidades_afetadas: [...ENTIDADES_ZERAR], copia_expira_em: '2026-11-30T12:01:00.000Z' };
+    const htmlFim = com({ zerar: fim, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />);
+    expect(htmlFim).toContain('>19.019 linhas apagadas.<');
+    expect(htmlFim).toContain('Lote <span class="font-mono">20261123T120000Z-7c0d5e1a</span>');
+    expect(htmlFim).toContain('Rode no servidor do Conector:');
+    expect(htmlFim).toContain('>conector carga-completa todas</code>');
     const falhou = { ...base, situacao: 'falhou' as const, erro_codigo: 'ZERAR_FALHOU' };
     expect(com({ zerar: falhou, tenant: e.id }, <DialogoZerar empresa={e} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />)).toContain(
       'Não foi possível zerar e nada foi apagado. Avise o suporte da Macuxi.',
     );
+  });
+});
+
+describe('diálogo Zerar dados por entidade (aba Integração)', () => {
+  it('título com a entidade, a cascata nomeada, sem o "Mantém"; concluído com o lote e um comando por entidade afetada', async () => {
+    const e = porCodigo('AM2290');
+    const previa = PreviaZerarEmpresaSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa?entidades=cliente`)).json());
+    const html = com({ previa, tenant: e.id, entidades: ['cliente'] }, <DialogoZerar empresa={e} entidades={['cliente']} aoFechar={() => {}} aoTerminar={() => {}} />);
+    expect(html).toContain('Zerar Clientes de Mercantil Rio Branco Ltda?');
+    expect(html).toMatch(/empresa-zerar\.entidades.*Entidades:<\/span> Clientes, Endereços de clientes/);
+    expect(html).not.toContain('Mantém:');
+    expect(html).toContain('empresa-zerar.codigo');
+    const z: ZerarEmpresa = {
+      id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000009',
+      tenant_id: e.id,
+      codigo: e.codigo,
+      entidades: ['cliente'],
+      entidades_afetadas: ['cliente', 'cliente_endereco'],
+      lote: '20261123T120000Z-7c0d5e1a',
+      situacao: 'concluido',
+      pedido_em: '2026-11-23T12:00:00.000Z',
+      concluido_em: '2026-11-23T12:01:00.000Z',
+      linhas_apagadas: 10,
+      contagem: [{ tabela: 'core.cliente', modo: 'soft', linhas: 10 }],
+      copia_expira_em: '2026-11-30T12:01:00.000Z',
+      erro_codigo: null,
+    };
+    const fim = com({ zerar: z, tenant: e.id }, <DialogoZerar empresa={e} entidades={['cliente']} aoFechar={() => {}} aoTerminar={() => {}} inicial={{ fase: 'andamento' }} />);
+    expect(fim).toContain('Zerar Clientes de Mercantil Rio Branco Ltda<');
+    expect(fim).toContain('>conector carga-completa cliente</code>');
+    expect(fim).toContain('>conector carga-completa cliente_endereco</code>');
   });
 });
 

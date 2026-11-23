@@ -1,15 +1,18 @@
 /**
- * "Zerar dados" da empresa no portal `config.` (pedido do dono do produto na v1.0.30; ADR 0068; desenho
+ * "Zerar dados" da empresa no portal `config.` (pedido do dono do produto na v1.0.31; ADR 0068; desenho
  * docs/desenho/empresa-zerar.md; RN-PLA-12). Textos, liberação do botão e as três chamadas. Regra, códigos e frases só do SDK
  * (`empresa-zerar.ts`): o bloqueio vem pronto da prévia (a API calcula com `conferirZerar`); aqui só se junta com o que foi digitado.
  */
+import { ROTULO_ENTIDADE } from '@macuxi/integracao/contracts';
 import {
   CODIGOS_ZERAR_EMPRESA,
+  ENTIDADES_ZERAR,
   PreviaZerarEmpresaSchema,
   ROTAS_ZERAR_EMPRESA,
   ZerarEmpresaSchema,
   codigoDeConfirmacaoConfere,
   mensagemDoZerar,
+  type EntidadeZerar,
   type PreviaZerarEmpresa,
   type ZerarEmpresa,
 } from '@macuxi/platform-sdk';
@@ -22,6 +25,10 @@ export const TEXTOS_ZERAR = Object.freeze({
   zerar: 'Zerar dados',
   titulo: (empresa: string) => `Zerar dados de ${empresa}?`,
   tituloAndamento: (empresa: string) => `Zerar dados de ${empresa}`,
+  /** Por entidade (aba Integração): "Zerar Clientes de <empresa>?". */
+  tituloEntidades: (rotulos: string, empresa: string) => `Zerar ${rotulos} de ${empresa}?`,
+  tituloAndamentoEntidades: (rotulos: string, empresa: string) => `Zerar ${rotulos} de ${empresa}`,
+  entidades: 'Entidades:',
   contando: 'Contando os dados…',
   sai: 'Apaga:',
   nadaASair: 'Não há dados para zerar.',
@@ -33,7 +40,22 @@ export const TEXTOS_ZERAR = Object.freeze({
   zerando: 'Zerando…',
   emAndamento: 'Em andamento…',
   concluido: (linhas: number) => `${formatInt(linhas)} ${linhas === 1 ? 'linha apagada' : 'linhas apagadas'}.`,
+  lote: 'Lote',
+  reenvio: 'Rode no servidor do Conector:',
 });
+
+/** Rótulos das entidades, na ordem de carga, separados por vírgula ("Clientes, Endereços de clientes"). */
+export const rotulosDasEntidades = (lista: readonly EntidadeZerar[]): string => lista.map((e) => ROTULO_ENTIDADE[e]).join(', ');
+
+/**
+ * Comandos de reenvio depois do zerar (desenho §3: o Conector só relê o cursor sem estado local; o reenvio é `conector
+ * carga-completa`): um por entidade afetada, ou `todas` quando são as 16. Lista vazia: nada a reenviar.
+ */
+export function comandosDeReenvio(afetadas: readonly EntidadeZerar[] | null | undefined): string[] {
+  if (!afetadas?.length) return [];
+  if (afetadas.length === ENTIDADES_ZERAR.length) return ['conector carga-completa todas'];
+  return afetadas.map((e) => `conector carga-completa ${e}`);
+}
 
 /** Caminho (relativo ao `/v1`, como o `ROTAS_PORTAL`) de uma rota do zerar. */
 export function rotaDoZerar(rota: keyof typeof ROTAS_ZERAR_EMPRESA, tenantId: string): string {
@@ -74,13 +96,15 @@ export function andamentoDoZerar(z: ZerarEmpresa | undefined): { tom: 'andamento
 
 // ---------------------------------------------------------------------------------------------------------------- chamadas
 
-/** `GET …/zerar/previa`: contagem por tabela do que sai e o bloqueio atual. */
-export const lerPreviaZerar = (tenantId: string): Promise<PreviaZerarEmpresa> =>
-  chamarPortal(rotaDoZerar('previa', tenantId), { schema: PreviaZerarEmpresaSchema });
+/** `GET …/zerar/previa[?entidades=a,b]`: contagem por tabela do que sai e o bloqueio atual. Sem `entidades`: a empresa inteira. */
+export const lerPreviaZerar = (tenantId: string, entidades?: readonly EntidadeZerar[]): Promise<PreviaZerarEmpresa> =>
+  chamarPortal(rotaDoZerar('previa', tenantId), { schema: PreviaZerarEmpresaSchema, query: { entidades: entidades?.length ? entidades.join(',') : undefined } });
 
 /** `POST …/zerar` (202). `id` gerado na tela: repetir o mesmo devolve o mesmo pedido. A senha vai só no corpo. */
-export const pedirZerar = (tenantId: string, corpo: { id: string; codigo_confirmacao: string; senha: string }): Promise<ZerarEmpresa> =>
-  chamarPortal(rotaDoZerar('zerar', tenantId), { metodo: 'POST', corpo, schema: ZerarEmpresaSchema });
+export const pedirZerar = (
+  tenantId: string,
+  corpo: { id: string; codigo_confirmacao: string; senha: string; entidades?: readonly EntidadeZerar[] },
+): Promise<ZerarEmpresa> => chamarPortal(rotaDoZerar('zerar', tenantId), { metodo: 'POST', corpo, schema: ZerarEmpresaSchema });
 
 /** `GET …/zerar`: o zerar mais recente da empresa. */
 export const lerZerar = (tenantId: string): Promise<ZerarEmpresa> => chamarPortal(rotaDoZerar('zerar', tenantId), { schema: ZerarEmpresaSchema });
