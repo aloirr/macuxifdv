@@ -160,7 +160,7 @@ export const TABELAS_FORA_DO_SYNC = [
   'integracao.implantacao',
   'integracao.implantacao_dia',
   'integracao.coleta_execucao',
-  /** 0096 (v1.0.27, RF-CORE-10): fila do pré-cadastro aprovado para o ERP; só a API. */
+  /** 0096 (v1.0.27, RF-CORE-10): fila do pré-cadastro recebido para o ERP; só a API. */
   'integracao.cliente_fila_erp',
 ] as const;
 
