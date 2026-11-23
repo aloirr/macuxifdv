@@ -9,6 +9,7 @@ import {
   CAMPOS_PRE_CADASTRO_CONFIGURAVEIS,
   CAMPOS_PRE_CADASTRO_SEMPRE,
   COLUNAS_DO_CAMPO_PRE_CADASTRO,
+  MENSAGENS_CAMPO_FALTANTE,
   type CampoPreCadastro,
   type CampoPreCadastroConfiguravel,
   type StatusCadastro,
@@ -51,6 +52,9 @@ export function validarPreCadastro(dados: Readonly<Record<string, unknown>>, obr
 /** RN-CORE-78: só o vendedor pré-cadastra (a decisão do dono do produto não abre o promotor nem a gestão). A API revalida. */
 export const podePreCadastrarCliente = (perfil: string): boolean => perfil === 'vendedor';
 
+/** Texto do app quando o item da fila falhou sem motivo do servidor; no selo "Não enviado" ele não vira linha de motivo (o rótulo já diz). */
+export const MOTIVO_ENVIO_FALHOU = 'Não foi possível enviar o cadastro.';
+
 export type SituacaoDoPreCadastro = 'aguardando_erp' | 'recusado_erp' | 'aprovado_erp' | 'nao_enviado';
 
 /**
@@ -59,7 +63,17 @@ export type SituacaoDoPreCadastro = 'aguardando_erp' | 'recusado_erp' | 'aprovad
 export function situacaoDoPreCadastro(c: { status_cadastro?: StatusCadastro | null; external_id?: string | null; motivo_recusa?: string | null }): { situacao: SituacaoDoPreCadastro; motivo: string | null } {
   if (c.status_cadastro === 'recusado') return { situacao: 'recusado_erp', motivo: c.motivo_recusa?.trim() || null };
   // não enviado: o item da fila parou antes do ERP (422, 409, módulo inativo); o app o marca pendente com o motivo no `motivo_recusa`
-  if (c.status_cadastro === 'pendente' && c.motivo_recusa?.trim()) return { situacao: 'nao_enviado', motivo: c.motivo_recusa.trim() };
+  if (c.status_cadastro === 'pendente' && c.motivo_recusa?.trim()) return { situacao: 'nao_enviado', motivo: c.motivo_recusa.trim() === MOTIVO_ENVIO_FALHOU ? null : c.motivo_recusa.trim() };
   if (c.external_id && c.external_id.trim() !== '') return { situacao: 'aprovado_erp', motivo: null };
   return { situacao: 'aguardando_erp', motivo: null };
+}
+
+/**
+ * RN-CORE-78 (422 CAMPOS_OBRIGATORIOS): o motivo é só a lista "Preencha ..." do servidor. Com o campo marcado na tela, a linha do topo
+ * repete o campo e sai; os demais motivos (recusa do ERP, 409 de documento) ficam.
+ */
+export function motivoSoDeCamposFaltantes(motivo: string | null | undefined): boolean {
+  const texto = (motivo ?? '').trim();
+  if (texto === '') return false;
+  return Object.values(MENSAGENS_CAMPO_FALTANTE).reduce((resto, m) => resto.split(m).join(''), texto).trim() === '';
 }

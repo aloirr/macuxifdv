@@ -12,13 +12,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 
 import type { ClienteSync, ParametroSync } from '../../contracts';
-import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../contracts';
-import { FALTA_OBRIGATORIO_PRE_CADASTRO, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
+import { COLUNAS_DO_CAMPO_PRE_CADASTRO, ROTULOS_CAMPOS_PRE_CADASTRO, type CampoPreCadastro } from '../../contracts';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO, motivoSoDeCamposFaltantes, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
 import { abrirCliente, PARAM_CLIENTE_ID, ROTA_CLIENTES } from '../lib/navegacao';
 import {
   avisarClienteSalvo,
   clienteComDocumento,
   COLUNAS_FORMULARIO,
+  idDoReenvio,
   ENTIDADE_PRE_CADASTRO,
   obrigatoriosDasLinhas,
   salvarPreCadastro,
@@ -30,25 +31,14 @@ import {
 type Coluna = (typeof COLUNAS_FORMULARIO)[number];
 
 export interface PropsTelaNovoClientePreCadastro {
-  /** "Corrigir e reenviar": abre o formulário preenchido e reenvia com o mesmo id. */
+  /** "Corrigir e reenviar": abre o formulário preenchido; o recusado pelo ERP reenvia com id novo, o "Não enviado" com o mesmo. */
   clienteId?: string;
 }
 
-/** Coluna do formulário que cada campo obrigatório do parâmetro cobre (para marcar "(opcional)" no que a empresa não exige). */
-const CAMPO_DA_COLUNA: Record<Coluna, keyof typeof ROTULOS_CAMPOS_PRE_CADASTRO> = {
-  documento: 'documento',
-  razao_social: 'razao_social',
-  nome_fantasia: 'nome_fantasia',
-  telefone: 'telefone',
-  email: 'email',
-  cep: 'endereco',
-  logradouro: 'endereco',
-  numero: 'endereco',
-  bairro: 'endereco',
-  cidade: 'endereco',
-  uf: 'endereco',
-  inscricao_estadual: 'inscricao_estadual',
-};
+/** Campo obrigatório do parâmetro que cobre cada coluna do formulário (derivado do contrato; marca "(opcional)" no que a empresa não exige). */
+const CAMPO_DA_COLUNA = Object.fromEntries(
+  COLUNAS_FORMULARIO.map((c) => [c, (Object.keys(COLUNAS_DO_CAMPO_PRE_CADASTRO) as CampoPreCadastro[]).find((k) => COLUNAS_DO_CAMPO_PRE_CADASTRO[k].includes(c))]),
+) as Record<Coluna, CampoPreCadastro>;
 
 const vazioDoFormulario = (): ValoresPreCadastro => Object.fromEntries(COLUNAS_FORMULARIO.map((c) => [c, ''])) as ValoresPreCadastro;
 const novoUuid = (): string => globalThis.crypto.randomUUID();
@@ -70,8 +60,10 @@ export function TelaNovoClientePreCadastro({ clienteId }: PropsTelaNovoClientePr
 function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const { motor } = useMotorSync();
   const aviso = useAvisoRodape();
-  // o UUID nasce no aparelho uma vez; a correção reaproveita o id do cliente recusado
-  const id = useRef(clienteId ?? novoUuid()).current;
+  // o UUID nasce no aparelho uma vez; `idDoReenvio` decide no salvar se a correção o reaproveita (RN-CORE-78)
+  const novoId = useRef(novoUuid()).current;
+  const [situacao, setSituacao] = useState<string | null>(null);
+  const id = idDoReenvio(situacao, clienteId, () => novoId);
   const [valores, setValores] = useState<ValoresPreCadastro>(vazioDoFormulario);
   const [alterado, setAlterado] = useState(false);
   const [tentou, setTentou] = useState(false);
@@ -98,7 +90,9 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
       const atual = clienteId ? sobreporPreCadastros(clientes, motor.sobreposicao([ENTIDADE_PRE_CADASTRO]), new Date().toISOString()).find((c) => c.id === clienteId) : undefined;
       if (atual) {
         setValores(valoresDoCliente(atual));
-        setMotivo(situacaoDoPreCadastro(atual).motivo);
+        const s = situacaoDoPreCadastro(atual);
+        setSituacao(s.situacao);
+        setMotivo(s.motivo);
       }
     })();
     return () => {
@@ -106,13 +100,15 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
     };
   }, [motor, clienteId]);
 
-  const duplicado = useMemo(() => clienteComDocumento(carteira, valores.documento ?? '', id), [carteira, valores.documento, id]);
+  const duplicado = useMemo(() => clienteComDocumento(carteira, valores.documento ?? '', clienteId ?? id), [carteira, valores.documento, clienteId, id]);
   const faltas = useMemo(() => {
     const r = validarPreCadastro(valores, obrigatorios).erros;
     if (duplicado) r.documento = 'Já é cliente';
     return { ...errosSalvar, ...r };
   }, [valores, obrigatorios, duplicado, errosSalvar]);
 
+  // 422 CAMPOS_OBRIGATORIOS: o campo marcado já diz o que falta, então a linha do topo sai; nos outros motivos ela fica (RD-2655)
+  const motivoNoCampo = tentou && motivoSoDeCamposFaltantes(motivo) && COLUNAS_FORMULARIO.some((c) => faltas[c]);
   const falta = (c: Coluna): string | null => {
     const texto = faltas[c];
     if (!texto) return null;
@@ -188,7 +184,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
       <CabecalhoTela titulo={clienteId ? 'Corrigir cliente' : 'Novo cliente'} voltar={{ label: 'Clientes', fallback: ROTA_CLIENTES, aoVoltar }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0}>
       <ScrollView ref={rolagem} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 24 }}>
-        {motivo ? (
+        {motivo && !motivoNoCampo ? (
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }} testID="novo-cliente-motivo" accessibilityRole="alert">
             <Icon name="alert" size={16} color={colors.danger} />
             <Text style={[t.sub, { flex: 1, color: colors.danger }]}>{motivo}</Text>

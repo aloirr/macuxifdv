@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MOTIVO_ENVIO_FALHOU,
+  motivoSoDeCamposFaltantes,
   camposObrigatoriosPreCadastro,
   ehSempreObrigatorio,
   podePreCadastrarCliente,
@@ -54,5 +56,16 @@ describe('pré-cadastro: perfil e selo (RN-CORE-78)', () => {
   it('RN-CORE-78: com o código do ERP o cliente está aprovado (sem selo)', () => {
     expect(situacaoDoPreCadastro({ status_cadastro: 'aprovado', external_id: 'C-100' }).situacao).toBe('aprovado_erp');
     expect(situacaoDoPreCadastro({ external_id: 'C-100' }).situacao).toBe('aprovado_erp');
+  });
+});
+
+describe('pré-cadastro: motivo do 422 (RN-CORE-78)', () => {
+  it('RN-CORE-78: só a lista "Preencha ..." do servidor é motivo de campo; recusa do ERP e 409 ficam no topo', () => {
+    expect(motivoSoDeCamposFaltantes('Preencha o telefone. Preencha o endereço.')).toBe(true);
+    expect(motivoSoDeCamposFaltantes('CNPJ duplicado no ERP')).toBe(false);
+    expect(motivoSoDeCamposFaltantes(null)).toBe(false);
+  });
+  it('RD-2654: o sentinela de envio que falhou não vira motivo no "Não enviado"', () => {
+    expect(situacaoDoPreCadastro({ status_cadastro: 'pendente', motivo_recusa: MOTIVO_ENVIO_FALHOU })).toEqual({ situacao: 'nao_enviado', motivo: null });
   });
 });

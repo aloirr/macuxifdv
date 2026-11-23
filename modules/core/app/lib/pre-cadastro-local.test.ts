@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ClienteSync } from '../../contracts';
 import { situacaoDoPreCadastro } from '../../domain';
-import { ROTULO_NAO_ENVIADO, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
-import { clienteComDocumento, ENTIDADE_PRE_CADASTRO, entidadePreCadastro, MOTIVO_ENVIO_FALHOU, montarPreCadastro, obrigatoriosDasLinhas, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente } from './pre-cadastro-local';
+import { ROTULO_PRE_CADASTRO_NAO_ENVIADO, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
+import { clienteComDocumento, ENTIDADE_PRE_CADASTRO, entidadePreCadastro, MOTIVO_ENVIO_FALHOU, montarPreCadastro, obrigatoriosDasLinhas, idDoReenvio, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente } from './pre-cadastro-local';
 
 const ID = '3f1c2a52-3c1e-4f0a-9d49-7c4a5c0e1a11';
+const ID_NOVO = '9a8b7c6d-1111-4222-8333-444455556666';
 const valores = { documento: '11.222.333/0001-81', razao_social: 'Mercado Boa Vista', telefone: '(92) 99999-0000' };
 const motorFalso = () => {
   const fila = new Map<string, unknown>();
@@ -82,9 +83,10 @@ describe('pré-cadastro no aparelho (RN-CORE-78, RN-CORE-79)', () => {
     const [c] = sobreporPreCadastros([], [{ payload, situacao: 'falhou', ultimo_erro: 'Preencha o telefone.' }], '2026-11-23T10:00:00Z');
     expect(c).toMatchObject({ status_cadastro: 'pendente', motivo_recusa: 'Preencha o telefone.' });
     expect(situacaoDoPreCadastro(c!)).toEqual({ situacao: 'nao_enviado', motivo: 'Preencha o telefone.' });
-    expect(seloDoPreCadastro(situacaoDoPreCadastro(c!).situacao)?.texto).toBe(ROTULO_NAO_ENVIADO);
+    expect(seloDoPreCadastro(situacaoDoPreCadastro(c!).situacao)?.texto).toBe(ROTULO_PRE_CADASTRO_NAO_ENVIADO);
     const [sem] = sobreporPreCadastros([], [{ payload, situacao: 'falhou' }], '2026-11-23T10:00:00Z');
-    expect(situacaoDoPreCadastro(sem!)).toEqual({ situacao: 'nao_enviado', motivo: MOTIVO_ENVIO_FALHOU });
+    // RD-2654: o sentinela não vira linha de motivo (o selo "Não enviado" já diz)
+    expect(situacaoDoPreCadastro(sem!)).toEqual({ situacao: 'nao_enviado', motivo: null });
     expect(MOTIVO_ENVIO_FALHOU).toBe('Não foi possível enviar o cadastro.');
   });
 
@@ -128,5 +130,20 @@ describe('pré-cadastro no aparelho (RN-CORE-78, RN-CORE-79)', () => {
     expect(clienteComDocumento([c], '11.222.333/0001-81')?.id).toBe(ID);
     expect(clienteComDocumento([c], '11.222.333/0001-81', ID)).toBeNull();
     expect(clienteComDocumento([c], '123')).toBeNull();
+  });
+
+  it('RN-CORE-78: o reenvio após recusa do ERP nasce com id novo; o "Não enviado" e o cadastro novo mantêm o id', () => {
+    const gerar = () => ID_NOVO;
+    expect(idDoReenvio('recusado_erp', ID, gerar)).toBe(ID_NOVO);
+    expect(idDoReenvio('nao_enviado', ID, gerar)).toBe(ID);
+    expect(idDoReenvio(null, undefined, gerar)).toBe(ID_NOVO);
+  });
+
+  it('RN-CORE-78: com o reenvio de id novo, a linha recusada do mesmo documento sai da lista até o servidor substituí-la', () => {
+    const m = montarPreCadastro(ID_NOVO, valores);
+    if (!m.ok) throw new Error('payload');
+    const recusado = { ...sobreporPreCadastros([], [{ payload: m.payload }], '2026-11-23T10:00:00Z')[0]!, id: ID, status_cadastro: 'recusado' as const, motivo_recusa: 'CNPJ inválido' };
+    const lista = sobreporPreCadastros([recusado], [{ payload: m.payload }], '2026-11-23T10:00:00Z');
+    expect(lista.map((c) => c.id)).toEqual([ID_NOVO]);
   });
 });

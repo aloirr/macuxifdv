@@ -12,7 +12,9 @@ import {
   type ClienteSync,
   type PreCadastroCliente,
 } from '../../contracts';
-import { camposObrigatoriosPreCadastro, validarPreCadastro } from '../../domain';
+import { camposObrigatoriosPreCadastro, MOTIVO_ENVIO_FALHOU, validarPreCadastro } from '../../domain';
+
+export { MOTIVO_ENVIO_FALHOU };
 
 /** Entidade de push do pré-cadastro (a API do pré-cadastro, da sessão A, a registra com este nome). */
 export const ENTIDADE_PRE_CADASTRO = 'cliente_pre_cadastro';
@@ -64,6 +66,14 @@ export function montarPreCadastro(id: string, valores: ValoresPreCadastro): { ok
 
 export type ResultadoSalvarPreCadastro = { ok: true; id: string } | { ok: false; erros: Record<string, string> };
 
+/**
+ * RN-CORE-78: o id do reenvio. Recusado pelo ERP = cliente novo (UUID novo; o servidor substitui o recusado do mesmo CPF/CNPJ);
+ * "Não enviado" (nunca chegou ao servidor) ou cadastro novo = o mesmo id (a fila o altera).
+ */
+export function idDoReenvio(situacao: string | null, idOriginal: string | undefined, gerarId: () => string): string {
+  return idOriginal && situacao !== 'recusado_erp' ? idOriginal : gerarId();
+}
+
 /** Valida (domain + schema) e enfileira. Mesmo `id` = mesmo item: o reenvio da correção substitui o item da fila (inclusive o que falhou), sem duplicar. */
 export async function salvarPreCadastro(
   motor: Pick<MotorSync, 'enfileirar' | 'alterar' | 'pendentes' | 'enviar'>,
@@ -90,9 +100,6 @@ export interface ItemPreCadastroPendente {
   situacao?: string;
   ultimo_erro?: string;
 }
-
-/** Texto da correção quando o servidor recusou o envio sem dizer o motivo. */
-export const MOTIVO_ENVIO_FALHOU = 'Não foi possível enviar o cadastro.';
 
 /**
  * Sobrepõe a fila às linhas do pull: o pré-cadastro novo entra como cliente "pendente" sem código; o reenviado substitui a
@@ -134,7 +141,10 @@ export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: re
     });
   }
   if (novos.size === 0) return [...clientes];
-  return [...novos.values(), ...clientes.filter((c) => !novos.has(c.id))];
+  // RN-CORE-78: o reenvio após recusa tem id novo; a linha recusada do mesmo documento sai da lista até o servidor a substituir
+  const docsNovos = new Set([...novos.values()].map((n) => somenteDigitos(n.documento)).filter((d) => d !== ''));
+  const substituido = (c: ClienteSync) => c.status_cadastro === 'recusado' && docsNovos.has(somenteDigitos(c.documento));
+  return [...novos.values(), ...clientes.filter((c) => !novos.has(c.id) && !substituido(c))];
 }
 
 /** Valores do formulário a partir de um cliente (a correção abre o formulário preenchido). */

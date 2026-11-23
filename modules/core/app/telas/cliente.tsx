@@ -16,7 +16,7 @@
  * A tela só lê os itens; quem registra decide o conteúdo. Sem o módulo ativo, o item some (RN-CORE-03).
  */
 import { useExtensoes, usePode } from '@macuxi/platform-sdk/react';
-import { ACAO_CORRIGIR_E_REENVIAR, Abas, BackLink, Botao, ROTULO_NAO_ENVIADO, ROTULO_RECUSADO_ERP, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, fonte, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { ACAO_CORRIGIR_E_REENVIAR, Abas, BackLink, Botao, ROTULO_PRE_CADASTRO_NAO_ENVIADO, ROTULO_RECUSADO_ERP, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, fonte, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -231,7 +231,7 @@ export function TelaCliente() {
         {recusa ? (
           <View style={{ gap: 8 }}>
             <Banner tone="danger" icon="alert" testID="cliente-recusado-erp" anunciar>
-              <Strong>{recusa.situacao === 'nao_enviado' ? ROTULO_NAO_ENVIADO : ROTULO_RECUSADO_ERP}</Strong>
+              <Strong>{recusa.situacao === 'nao_enviado' ? ROTULO_PRE_CADASTRO_NAO_ENVIADO : ROTULO_RECUSADO_ERP}</Strong>
               {recusa.motivo ? `\n${recusa.motivo}` : ''}
             </Banner>
             {podePreCadastrarCliente(locais.perfil) ? <Botao testID="cliente-corrigir-reenviar" rotulo={ACAO_CORRIGIR_E_REENVIAR} onPress={() => abrirNovoCliente(id)} /> : null}

@@ -23,13 +23,14 @@ describe('tela Novo cliente (pré-cadastro; RN-CORE-78 e RN-CORE-79)', () => {
     expect(tela).toContain("motor.linhas<ParametroSync>('parametro')");
     expect(tela).toContain('crypto.randomUUID()');
   });
-  it('RN-CORE-78: o recusado mostra "Corrigir e reenviar" na ficha, que reabre o formulário com o mesmo id', () => {
+  it('RN-CORE-78: o recusado mostra "Corrigir e reenviar" na ficha, que reabre o formulário (o reenvio gera id novo, idDoReenvio)', () => {
     const ficha = ler('./cliente.tsx');
     expect(ficha).toContain('ACAO_CORRIGIR_E_REENVIAR');
     expect(ficha).toContain('abrirNovoCliente(id)');
+    expect(ler('./novo-cliente.tsx')).toContain('idDoReenvio(situacao, clienteId');
   });
   it('RN-CORE-78: o "Não enviado" também mostra "Corrigir e reenviar" na ficha, e o aviso do formulário só entra sem campo marcado', () => {
-    expect(ler('./cliente.tsx')).toContain('ROTULO_NAO_ENVIADO');
+    expect(ler('./cliente.tsx')).toContain('ROTULO_PRE_CADASTRO_NAO_ENVIADO');
     expect(tela).toContain('rolarAtePrimeira(r.erros)) return;');
     expect(tela.match(/scrollTo\(/g)).toHaveLength(1);
     expect(tela).not.toContain('aoConcluir');
