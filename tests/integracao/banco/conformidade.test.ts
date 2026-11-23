@@ -16,7 +16,7 @@
  * - T-0181 (0081): mais 3 sa_* do portal (frases da tela de carga), 30 no total, e a plataforma.frases_carga_ativas() do app.
  * - T-0182 (0083): mais 4 sa_* do portal (marca da empresa: logo e nome fantasia), 34 no total.
  * - Item 15 do Campo v1.0.16 (0091): mais 1 sa_* do portal (sa_gravar_ocultar_marca: ocultar a logomarca do Macuxi), 38 no total.
- * - v1.0.31 "Zerar dados" (0099, ADR 0068, RN-PLA-12): mais 3 sa_* do portal (prévia, pedido e leitura do zerar), 41 no total,
+ * - v1.0.31 "Zerar dados" (0100, ADR 0068, RN-PLA-12): mais 3 sa_* do portal (prévia, pedido e leitura do zerar), 41 no total,
  *   e 4 funções do worker (pegar, executar, fechar e expurgar o zerar).
  * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
  *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
@@ -99,7 +99,7 @@ const SA_PORTAL_OCULTAR_MARCA: Record<string, string> = {
  * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados), as 2 da 0042 (T-0094: o super-admin
  * redefine a senha do admin do cliente; R-20261108-001804-banco-dados), as 2 da 0058 (T-0158), a 1 da 0070 (ADR 0047), as 8 da 0072
  * (ADR 0052), as 2 da 0073 (rodapé legal), as 3 da 0081 (T-0181, SA_PORTAL_CARGA) e as 4 da 0083 (T-0182, SA_PORTAL_LOGO), as 3 da 0086
- * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA) e as 3 da 0099 (ADR 0068, Zerar dados) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
+ * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA) e as 3 da 0100 (ADR 0068, Zerar dados) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
  * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
 const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
@@ -165,7 +165,7 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   'plataforma.sa_trocar_plano(p_sid uuid, p_tenant uuid, p jsonb)':
     `${SA}; só super-admin (admin do cliente 42501); idempotente por pedido_id (existente); abaixo do uso 22023 PLANO_ABAIXO_DO_USO e nada muda; ` +
     'liga módulos e nunca desliga; histórico e auditoria sem dado pessoal',
-  // ADR 0068 (0099_plataforma_zerar_empresa; "Zerar dados" da empresa inteira ou por entidade; RN-PLA-12): só super-admin
+  // ADR 0068 (0100_plataforma_zerar_empresa; "Zerar dados" da empresa inteira ou por entidade; RN-PLA-12): só super-admin
   // (admin do cliente 42501, sessão inválida 28000); a regra é a plataforma.limpar_cadastros, sem EXECUTE para ninguém
   'plataforma.sa_previa_zerar(p_sid uuid, p_tenant uuid, p_entidades text[] DEFAULT NULL::text[])':
     `${SA}; só super-admin; roda a limpar_cadastros numa subtransação desfeita (nada muda); devolve tabelas, total, entidades_afetadas e o bloqueio`,
@@ -225,7 +225,7 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
   // 0089 (rastreamento; retenção de R-20261116-110200-alexandre): NÃO entra em DEFINER_REVISADAS (o app não executa)
   'core.expurgar_rastreamento(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 10000)':
     'retenção LGPD: apaga de fato ponto_trajeto com mais de 90 dias e deslocamento_dia com mais de 5 anos, em lote (skip locked); devolve só tenant e contagens; p_limite 1..50000',
-  // 0099 (ADR 0068, Zerar dados): NÃO entram em DEFINER_REVISADAS (o app não executa); o tenant sai sempre da linha do job
+  // 0100 (ADR 0068, Zerar dados): NÃO entram em DEFINER_REVISADAS (o app não executa); o tenant sai sempre da linha do job
   'plataforma.pegar_zerar()': 'próximo zerar em andamento sem concessão viva (skip locked; concessão de 10 min); devolve só (id, empresa_id)',
   'plataforma.executar_zerar(p_zerar uuid)':
     'reconfere exclusão, outro zerar, backup e Hub (fecha falhou com o código, nada muda) e roda a limpar_cadastros com cópia na mesma transação; fecha concluido',

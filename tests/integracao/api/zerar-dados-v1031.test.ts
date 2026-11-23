@@ -2,7 +2,7 @@
  * v1.0.31 "Zerar dados" (ADR 0068; RN-PLA-12; desenho docs/desenho/empresa-zerar.md §3 a §6 e §11, roteiro do testes) ponta a ponta na
  * API REAL (`createApp` com os 8 módulos, portal com o pool do `macuxi_portal`, ações da empresa ligadas como no servidor com
  * `MACUXI_EMPRESA_ACOES=1`), o worker REAL do zerar (`criarWorkerZerar`, papel `macuxi_worker`) e o Hub REAL (`POST /integracao/v1/lotes`
- * → despachante → consumidores do Core), no banco efêmero dois-tenants. A regra do que sai é a `plataforma.limpar_cadastros` (0099),
+ * → despachante → consumidores do Core), no banco efêmero dois-tenants. A regra do que sai é a `plataforma.limpar_cadastros` (0100),
  * testada tabela a tabela no `db/testes/empresa-zerar.db.test.ts` (banco-dados); aqui ficam os critérios entre módulos:
  *  Z-01 só o super-admin: anônimo 401, token do BKO 401 e admin do cliente no portal 403 na prévia, no pedido e na leitura do zerar;
  *       no `GET /v1/integracao/monitor/detalhes`, anônimo 401 e BKO e admin do cliente 403; o super-admin lê os detalhes (200) e nada é pedido;
@@ -14,8 +14,8 @@
  *       linha está em `plataforma.limpeza_copia` ANTES de a linha sair (gatilho espião, mesma transação); cursor da entidade nulo e
  *       `registro_atual` sem o hash velho;
  *  Z-05 `restaurar_limpeza` (workflow) volta as contagens, o `registro_atual` e o cursor;
- *  Z-06 o ERP reenvia depois do zerar: a MESMA carga de clientes (mesma chave de idempotência) é aceita como NOVA (não `inalterada`) e
- *       recria as linhas; endereço, título e nota (entidades afetadas pela cascata) também voltam; o outro tenant intacto;
+ *  Z-06 o ERP reenvia depois do zerar: a MESMA carga de clientes, endereços, títulos e notas (mesma chave de idempotência) é aceita
+ *       como NOVA (não `repetido` nem `inalterada`) e recria as linhas — a cascata também apaga lote, registro_atual e cursor; B intacto;
  *  Z-07 erro no meio da limpeza (gatilho que falha no `core.nota_erp`, depois de o Hub e os clientes já terem saído na transação):
  *       o zerar fecha `falhou` (`ZERAR_FALHOU`) e nada sai, nem a cópia fica;
  *  Z-08 a empresa inteira: prévia = executado; ficam administradores, perfis, credenciais, conectores, plano, licenças e parâmetros;
@@ -476,6 +476,12 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     // o ERP pode reenviar: cursor da entidade nulo e registro_atual sem o hash velho (das linhas que saíram, inclusive pela cascata)
     expect(await cursor(A, 'cliente')).toBeNull();
     expect(await cursor(A, 'produto')).not.toBeNull();
+    // toda entidade afetada pela cascata perde lote, registro_atual e cursor (defeito do reteste v1.0.31, corrigido no 2d9578b81)
+    for (const e of ['cliente_endereco', 'titulo', 'nota'] as const) {
+      expect(await cursor(A, e), `cursor de ${e} (cascata)`).toBeNull();
+      expect(await um<string>('select count(*)::text from integracao.lote where id = $1', [lotesOriginais[e]]), `lote de ${e} (cascata)`).toBe('0');
+    }
+    expect(await um<string>('select count(*)::text from integracao.lote where id = $1', [loteProdutoA]), 'o lote de produto fica').toBe('1');
     const ra = await q<{ entidade: string; n: string }>(
       'select entidade, count(*)::text as n from integracao.registro_atual where tenant_id = $1 and external_id like $2 group by entidade order by entidade',
       [A.tenantId, `${P}-%`],
@@ -503,7 +509,7 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     expect(resultado.contagens).toMatchObject({ recebidas: 2, novas: 0, inalteradas: 2 });
   });
 
-  it('Z-06 o ERP reenvia depois do zerar: a mesma carga (mesma chave) é aceita como nova e recria as linhas; endereço, título e nota voltam; B intacto', async () => {
+  it('Z-06 o ERP reenvia depois do zerar `cliente`: a mesma carga (mesma chave) de cliente, endereço, título e nota é aceita como nova (não repetido) e recria as linhas; B intacto', async () => {
     const b0 = await retratoB();
     const z = await zerar(['cliente']);
     expect(z.entidades_afetadas).toEqual(expect.arrayContaining(['cliente', 'cliente_endereco', 'titulo', 'nota']));
@@ -513,14 +519,19 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     // a MESMA carga de clientes do início (mesmo corpo, mesma Idempotency-Key): lote novo, linhas novas
     const { aceito, resultado } = await enviar(cargas.cliente!);
     expect(aceito.lote_id, 'lote novo, não o da carga original (a chave foi a mesma)').not.toBe(lotesOriginais.cliente);
+    expect(aceito.repetido ?? false, 'cliente: não repetido').toBe(false);
     expect(resultado.contagens).toMatchObject({ recebidas: 2, novas: 2, atualizadas: 0, inalteradas: 0 });
     const vivosNovos = await q<{ id: string }>('select id from core.cliente where tenant_id = $1 and external_id like $2 and deleted_at is null', [A.tenantId, `${P}-C%`]);
     expect(vivosNovos).toHaveLength(2);
     for (const v of vivosNovos) expect(idsVelhos, 'cliente recriado (linha nova)').not.toContain(v.id);
-    // as entidades afetadas pela cascata: a carga completa do Conector manda tudo de novo (sessão nova = chave nova)
+    // as entidades afetadas pela cascata: o reenvio DELTA com a MESMA chave de título, nota e endereço é aceito como NOVO (não `repetido`)
+    // e recria as linhas — o zerar por entidade apagou o lote, o registro_atual e o cursor de cada uma (2d9578b81)
     for (const e of ['cliente_endereco', 'titulo', 'nota'] as const) {
-      const { resultado: r } = await enviar(carga(A, e, cargas[e]!.corpo.registros as object[], 'carga-completa-z06'));
-      expect(r.contagens, e).toMatchObject({ novas: 1, inalteradas: 0 });
+      expect(await cursor(A, e), `cursor de ${e} antes do reenvio`).toBeNull();
+      const { aceito: a, resultado: r } = await enviar(cargas[e]!);
+      expect(a.lote_id, `${e}: lote novo com a mesma chave`).not.toBe(lotesOriginais[e]);
+      expect(a.repetido ?? false, `${e}: não repetido`).toBe(false);
+      expect(r.contagens, e).toMatchObject({ recebidas: 1, novas: 1, atualizadas: 0, inalteradas: 0 });
     }
     expect(await vivos()).toMatchObject({ cliente: 2, cliente_endereco: 1, titulo: 1, nota: 1, produto: 2 });
     expect(await cursor(A, 'cliente')).not.toBeNull();
