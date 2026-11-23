@@ -23,6 +23,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
+import { leituraDosCodigos, partesDosCodigos, SEPARADOR_CODIGOS, type CodigosDoCliente } from './codigos-cliente';
+import { TrechosDosCodigos } from './codigos-cliente-rn';
 import { alturaMinimaCabecalho, CABECALHO, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
 import { formaDoBadge, layoutCarregando, leituraDoChip, type LinhasBadge, rotuloDoVoltar, textoDaContagem, tocarNoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
@@ -37,6 +39,11 @@ export interface PropsCabecalhoTela {
   subtitulo?: string;
   /** `acima`: o subtítulo vem antes do título (a data acima de "Bom dia, Lucas" no Início). Padrão: abaixo. */
   posicaoSubtitulo?: 'acima' | 'abaixo';
+  /**
+   * v1.0.30 (codigos-do-cliente.md §3.1): códigos do cliente no começo do subtítulo (`ERP C5007 · FDV 00012 · <subtitulo>`),
+   * valor em `fonte.mono`; o TalkBack lê `Código ERP C5007, Código FDV 00012, <subtitulo>`. Código vazio não aparece.
+   */
+  codigos?: CodigosDoCliente;
   /** Voltar dentro da faixa ("‹ Pedidos"), com as mesmas regras do `BackLink`. */
   voltar?: { label: string; fallback: string; aoVoltar?: () => void; testID?: string };
   /**
@@ -52,12 +59,20 @@ export interface PropsCabecalhoTela {
  * branco (sistema 700, 22) e subtítulo `#C9CED5`. Fica parado em cima; o corpo rola embaixo, no Pérola. Use pelo `Screen`
  * (`cabecalho={{ titulo, subtitulo }}`) ou sozinho, acima de uma lista própria.
  */
-export function CabecalhoTela({ titulo, subtitulo, posicaoSubtitulo = 'abaixo', voltar, direita, testID = 'cabecalho-tela' }: PropsCabecalhoTela) {
+export function CabecalhoTela({ titulo, subtitulo, posicaoSubtitulo = 'abaixo', codigos, voltar, direita, testID = 'cabecalho-tela' }: PropsCabecalhoTela) {
   const insets = useSafeAreaInsets();
   // T-0170: sino do shell (ProvedorSinoCabecalho) depois da ação da tela; sem provedor, null e nada muda
   const sino = useSinoCabecalho();
-  const sub = subtitulo ? (
-    <Text style={styles.cabecalhoSub} numberOfLines={1}>
+  const comCodigos = partesDosCodigos(codigos).length > 0;
+  const sub = subtitulo || comCodigos ? (
+    <Text
+      style={styles.cabecalhoSub}
+      numberOfLines={1}
+      accessibilityLabel={comCodigos ? leituraDosCodigos(codigos, subtitulo) : undefined}
+      testID={comCodigos ? `${testID}.codigos` : undefined}
+    >
+      {comCodigos ? <TrechosDosCodigos codigos={codigos} testID={`${testID}.codigo`} /> : null}
+      {comCodigos && subtitulo ? SEPARADOR_CODIGOS : null}
       {subtitulo}
     </Text>
   ) : null;

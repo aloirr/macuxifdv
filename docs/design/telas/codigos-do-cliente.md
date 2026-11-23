@@ -47,6 +47,8 @@ Subtítulo, uma linha, separador ` · `: **códigos, bairro, cidade/UF**.
 - Os valores `C5007` e `00012` em `fonte.mono` (§2); sigla, bairro e cidade no estilo do subtítulo.
 - `numberOfLines={1}`; se não couber, as reticências cortam o fim (cidade), nunca os códigos (eles vêm antes).
 - Campo e Gestão usam a mesma ficha do Core: nada muda entre as variantes.
+- **Kit:** `cabecalho={{ titulo, subtitulo: 'Centro · Boa Vista/RR', codigos: { erp, fdv } }}` (`CabecalhoTela`/`Screen`); o
+  `subtitulo` leva só bairro e cidade. O kit monta a linha, a mono e a leitura (`Código ERP C5007, Código FDV 00012, Centro · Boa Vista/RR`).
 
 ### 3.2 Lista de clientes (`telas/clientes.tsx`)
 Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busca** casa também pelo Código FDV (§6).
@@ -55,6 +57,7 @@ Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busc
 - Com Código FDV: abaixo do título da tela, no estilo de subtítulo (`t.sub`), **`FDV 00012`**, com o valor em `fonte.mono` (§2). Sem campo de formulário (não é
   editável) e sem cadeado.
 - Sem Código FDV (antes do 1º sync) ou em **Novo cliente**: nada.
+- **Kit:** `<CodigosCliente fdv={codigoFdv} style={type.sub} />` (`@macuxi/ui/mobile`); some sozinho quando o código está vazio.
 - Código ERP nunca aparece aqui (a correção só existe sem vínculo).
 
 ## 4. BKO — Carteira (`modules/core/web/components/carteira/carteira-page.tsx`)
