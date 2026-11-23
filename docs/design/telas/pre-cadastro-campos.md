@@ -6,17 +6,17 @@
 
 ## 1. Campos
 
-Os rótulos abaixo são os únicos usados no BKO, no formulário do Campo e nas mensagens de campo faltante.
+Rótulos: `ROTULOS_CAMPOS_PRE_CADASTRO` em `modules/core/contracts` (fonte única; BKO, formulário do Campo e mensagens).
 
-| Chave (contrato) | Rótulo | No parâmetro |
-|---|---|---|
-| `razao_social` | Razão social | Sempre obrigatório (marcado e travado) |
-| `documento` | CPF/CNPJ | Sempre obrigatório (marcado e travado) |
-| `nome_fantasia` | Nome fantasia | Configurável |
-| `inscricao_estadual` | Inscrição estadual | Configurável |
-| `telefone` | Telefone | Configurável |
-| `email` | E-mail | Configurável |
-| `endereco` | Endereço | Configurável: vale para o grupo inteiro (logradouro, número, bairro, cidade, UF, CEP) |
+| Chave (contrato) | No parâmetro |
+|---|---|
+| `razao_social` | Sempre obrigatório (marcado e travado) |
+| `documento` | Sempre obrigatório (marcado e travado) |
+| `nome_fantasia` | Configurável |
+| `inscricao_estadual` | Configurável |
+| `telefone` | Configurável |
+| `email` | Configurável |
+| `endereco` | Configurável: vale para o grupo inteiro (logradouro, número, bairro, cidade, UF, CEP) |
 
 - Ordem fixa, a da tabela.
 - Padrão, quando a empresa ainda não salvou: só os dois travados marcados.
@@ -62,12 +62,10 @@ API confere…", "vale também offline…"), nenhuma contagem de marcados, nenhu
 - Obrigatórios = Razão social, CPF/CNPJ e as chaves do parâmetro sincronizado. Sem parâmetro no aparelho, usa o padrão
   (só os dois travados).
 - `endereco` obrigatório: todos os 6 campos do grupo ficam sem "(opcional)".
-- Ao tocar em Salvar com falta: o campo fica com a borda `danger` e o erro embaixo (`CampoTexto` `erro`):
-  **Preencha a razão social.** · **Preencha o CPF ou CNPJ.** · **Preencha o nome fantasia.** ·
-  **Preencha a inscrição estadual.** · **Preencha o telefone.** · **Preencha o e-mail.** · **Preencha o endereço.**
-  (este último fica embaixo do primeiro campo vazio do grupo). O foco vai ao primeiro campo com falta.
-- Recusa 422 `CAMPOS_OBRIGATORIOS` vinda da API (parâmetro mudou antes do envio): a mesma mensagem por campo, com o
-  rótulo da §1.
+- Ao tocar em Salvar com falta: o campo fica com a borda `danger` e o erro embaixo (`CampoTexto` `erro`).
+  Mensagens: `MENSAGENS_CAMPO_FALTANTE` em `modules/core/contracts` (fonte única; app e API usam o mesmo mapa).
+  A de `endereco` fica embaixo do primeiro campo vazio do grupo. O foco vai ao primeiro campo com falta.
+- Recusa 422 `CAMPOS_OBRIGATORIOS` vinda da API (parâmetro mudou antes do envio): a mesma mensagem por campo, do mesmo mapa.
 
 **Situação do cadastro** (`status_cadastro`), no cartão do cliente (lista da carteira) e no alto da ficha do cliente
 (`cliente.tsx`), com `ChipEstado` (`pequeno` na lista):
