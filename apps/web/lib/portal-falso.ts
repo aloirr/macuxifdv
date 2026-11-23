@@ -83,6 +83,7 @@ import { localIsoDate } from '@macuxi/comum/fuso';
 
 import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
+import { responderZerarFalso, ZERAR_FALSO_M } from './portal-falso-zerar';
 import { fichaExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
 import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL } from './portal-rotas';
 
@@ -807,6 +808,10 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   }
   const acaoM = ACOES_M.exec(caminho);
   if (acaoM) return responderAcoes(metodo, decodeURIComponent(acaoM[1] ?? ''), acaoM[2] ?? '', acaoM[3] ? decodeURIComponent(acaoM[3]) : undefined, sessao, e, corpo);
+  const zerarM = ZERAR_FALSO_M.exec(caminho);
+  const paraZerar = zerarM && e.empresas.find((y) => y.id === decodeURIComponent(zerarM[1] ?? '') && !excluida(y));
+  if (zerarM && sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES);
+  if (zerarM) return responderZerarFalso(metodo, paraZerar ? { ...paraZerar, backupEmAndamento: ultimoBackup(paraZerar)?.situacao === 'em_andamento' } : null, !!zerarM[2], corpo);
   if (rota === `POST ${ROTAS_PORTAL.empresas}`) {
     if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const c = lerCorpo(CriarEmpresaSchema, corpo);
