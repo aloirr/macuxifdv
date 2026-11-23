@@ -6,6 +6,7 @@ import {
   cadastroCompleto,
   camposExigidos,
   camposExigidosDasLinhas,
+  comFixos,
   observacaoComCadastro,
   type DadosCadastro,
 } from './cadastro';
@@ -98,6 +99,14 @@ describe('RN-CORE-16: cadastroCompleto', () => {
     const exigidos = camposExigidos([...CAMPOS_CADASTRO_PADRAO, 'geolocalizacao']);
     expect(cadastroCompleto({ ...pj, latitude: -3.1 }, exigidos).campos_faltantes).toEqual(['geolocalizacao']);
     expect(cadastroCompleto({ ...pj, latitude: -3.1, longitude: -60 }, exigidos).completo).toBe(true);
+  });
+});
+
+describe('RN-CORE-16: comFixos', () => {
+  it('RN-CORE-16: acrescenta razão social e CPF/CNPJ, sem repetir, na ordem canônica', () => {
+    expect(comFixos(['cep', 'telefone', 'cep'])).toEqual(['razao_social', 'documento', 'cep', 'telefone']);
+    expect(comFixos([])).toEqual(['razao_social', 'documento']);
+    expect(comFixos(['documento', 'razao_social'])).toEqual(['razao_social', 'documento']);
   });
 });
 

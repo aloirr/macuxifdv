@@ -31,8 +31,8 @@ import {
   type StatusCadastro,
 } from '../contracts';
 import { errosRecusaSeguros, mascararDocumentoDoFarol, situacaoDoRecusado } from '../domain';
-import { resolverPreCadastro } from './pre-cadastro-alias';
-import { gravarPreCadastro } from './pre-cadastro-receber';
+import { PRE_CADASTRO_VIVO, resolverPreCadastro } from './pre-cadastro-alias';
+import { gravarPreCadastro, SELECT_DADOS } from './pre-cadastro-receber';
 
 export const ACAO_PRE_CADASTRO_RECUSADOS = 'cliente.pre_cadastro_recusados';
 export const ACAO_PRE_CADASTRO_CORRIGIR = 'cliente.pre_cadastro_corrigir';
@@ -49,6 +49,7 @@ interface LinhaRecusado {
   status_cadastro: StatusCadastro | null;
   revisao_cadastro: number;
   codigo_fdv: string | null;
+  external_id: string | null;
   motivo_recusa: string | null;
   erros_recusa: unknown;
   atualizado_em: Date | string;
@@ -78,6 +79,7 @@ function paraItem(l: LinhaRecusado, situacao: SituacaoRecusado): RecusadoItem {
     erros: errosRecusaSeguros(situacao === 'recusado' ? l.erros_recusa : l.t_erros),
     situacao,
     codigo_fdv: l.codigo_fdv,
+    external_id: l.external_id,
   };
 }
 
@@ -110,9 +112,10 @@ export async function listarRecusados(db: ClienteBanco, entrada: RecusadosEntrad
     filtros.push(digitos !== '' ? `(${porNome} or c.documento like ${param(`${digitos}%`)})` : porNome);
   }
   // Volume: dezenas a centenas de pré-cadastros por tenant (migração 0098); a situação e a ordem saem do domain, em memória.
+  // O filtro do vivo vale para `c` (os laterais só expõem as colunas que selecionam).
   const linhas = (
     await db.query<LinhaRecusado>(
-      `select c.id, c.razao_social, c.documento, c.status_cadastro, c.revisao_cadastro, c.codigo_fdv, c.motivo_recusa, c.erros_recusa, c.updated_at as atualizado_em,
+      `select c.id, c.razao_social, c.documento, c.status_cadastro, c.revisao_cadastro, c.codigo_fdv, c.external_id, c.motivo_recusa, c.erros_recusa, c.updated_at as atualizado_em,
               t.revisao as t_revisao, t.respondido_em as t_respondido_em, t.motivo as t_motivo, t.erros as t_erros,
               v.id as vendedor_id, v.nome as vendedor_nome
          from core.cliente c
@@ -124,7 +127,7 @@ export async function listarRecusados(db: ClienteBanco, entrada: RecusadosEntrad
            select u.id, u.nome from core.carteira k join core.usuario u on u.id = k.usuario_id
             where k.cliente_id = c.id and k.papel = 'vendedor' and k.deleted_at is null and (k.fim is null or k.fim >= current_date)
             order by k.inicio desc nulls last, k.created_at desc limit 1) v on true
-        where c.deleted_at is null and c.revisao_cadastro is not null
+        where ${PRE_CADASTRO_VIVO}
           and (c.status_cadastro = 'recusado' or t.revisao is not null)
           ${filtros.map((f) => `and ${f}`).join(' ')}`,
       valores,
@@ -144,9 +147,8 @@ export async function listarRecusados(db: ClienteBanco, entrada: RecusadosEntrad
 async function lerPreCadastroAtual(db: ClienteBanco, id: string): Promise<PreCadastroAtual> {
   const l = (
     await db.query(
-      `select id, revisao_cadastro as revisao, status_cadastro, codigo_fdv, external_id, motivo_recusa as motivo, erros_recusa as erros, razao_social, nome_fantasia, documento,
-              inscricao_estadual, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::float8 as latitude, longitude::float8 as longitude, filial_id
-         from core.cliente where id = $1 and deleted_at is null and revisao_cadastro is not null`,
+      `select id, revisao_cadastro as revisao, status_cadastro, codigo_fdv, external_id, motivo_recusa as motivo, erros_recusa as erros, ${SELECT_DADOS}
+         from core.cliente where id = $1 and ${PRE_CADASTRO_VIVO}`,
       [id],
     )
   ).rows[0] as (Record<string, unknown> & { erros: unknown }) | undefined;
@@ -171,7 +173,7 @@ interface LinhaTentativa {
 }
 
 async function lerHistorico(db: ClienteBanco, id: string): Promise<HistoricoPreCadastro> {
-  const atual = (await db.query<{ revisao_cadastro: number }>('select revisao_cadastro from core.cliente where id = $1 and deleted_at is null and revisao_cadastro is not null', [id])).rows[0];
+  const atual = (await db.query<{ revisao_cadastro: number; external_id: string | null }>(`select revisao_cadastro, external_id from core.cliente where id = $1 and ${PRE_CADASTRO_VIVO}`, [id])).rows[0];
   if (!atual) throw naoEncontrado();
   const linhas = (
     await db.query<LinhaTentativa>(
@@ -198,6 +200,7 @@ async function lerHistorico(db: ClienteBanco, id: string): Promise<HistoricoPreC
       motivo: t.motivo,
       erros: errosRecusaSeguros(t.erros),
       cliente_id_original: t.cliente_id_original,
+      external_id: t.resultado === 'aceito' ? atual.external_id : null,
     })),
   });
 }

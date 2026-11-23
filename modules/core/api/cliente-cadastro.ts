@@ -18,10 +18,11 @@ import { gravarPreCadastro, hashPreCadastro } from './pre-cadastro-receber';
 export const rotasDeClienteCadastro: RotaModulo[] = [
   {
     // Idempotente pelo id do corpo: repetir devolve o cliente existente com `ja_existia: true`, sem regravar. Com `revisao_base`, corrige o recusado.
+    // RN-CORE-04: cliente novo não tem carteira; a correção e o id existente conferem a carteira em `gravarPreCadastro` (403 FORA_DA_CARTEIRA).
     metodo: 'POST',
     caminho: 'clientes/pre-cadastro',
     acao: 'cliente.pre_cadastrar',
-    carteira: 'nao_se_aplica',
+    carteira: 'filtrar_no_dominio',
     corpo: PreCadastroClienteSchema,
     status: 200,
     executar: (ctx) =>

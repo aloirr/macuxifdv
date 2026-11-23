@@ -23,6 +23,7 @@ const ID4 = '5a000000-0000-4000-8000-000000000004';
 // documento próprio por id (o CPF/CNPJ é único por tenant)
 const DOCS: Record<string, string> = { [ID1]: '11222333000181', [ID2]: '11444777000161', [ID3]: '12345678909', [ID4]: '11222333000181' };
 const VENDEDOR = { id: A.usuarios.vendedor1, perfil: 'vendedor' } as const;
+const VENDEDOR_2 = { id: A.usuarios.vendedor2, perfil: 'vendedor' } as const;
 const ADMIN = { id: A.usuarios.admin, perfil: 'admin' } as const;
 
 const pre = (id: string, extra: Record<string, unknown> = {}) => ({ id, origem: 'campo', razao_social: 'Mercado Novo', documento: DOCS[id] ?? '11222333000181', ...ENDERECO_COMPLETO, ...extra });
@@ -37,6 +38,7 @@ const tentativas = (t: Ambiente, id: string) =>
 /** RN-CORE-39: sem filial no pedido o banco grava a padrão; o hash é o dos dados gravados. */
 const comFilial = async (t: Ambiente, id: string, dados: Record<string, unknown>) => ({ ...dados, filial_id: (await t.q<{ filial_id: string }>('select filial_id from core.cliente where id = $1', [id]))[0]!.filial_id });
 const FDV = expect.stringMatching(/^\d{5,}$/);
+const hub = (t: Ambiente): Promise<ClientesPreCadastroSemErpSaida> => consultaClientesPreCadastroSemErp.executar(consultaClientesPreCadastroSemErp.consulta.entrada.parse({}), { db: t.c } as never);
 const eventos = (t: Ambiente, nome: string) => t.publicar.mock.calls.filter((c) => (c[0] as { nome: string }).nome === nome);
 
 describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-78, RN-INT-22, ADR 0069)', () => {
@@ -144,6 +146,40 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       const aud = await t.q<{ acao: string; depois: unknown }>('select acao, depois from plataforma.auditoria where entidade_id = $1 order by created_at', [ID1]);
       expect(aud.find((a) => a.acao === 'cliente.pre_cadastro_corrigir')?.depois).toEqual({ revisao: 2, campos_alterados: ['inscricao_estadual', 'razao_social'], origem: 'campo' });
       expect(JSON.stringify(aud)).not.toMatch(/bloqueado|IE não confere/);
+    });
+  });
+
+  it('RN-CORE-04 (ADR 0069 §3): pela rota, o vendedor não corrige o recusado nem lê o id existente da carteira de outro (403 FORA_DA_CARTEIRA)', async () => {
+    await emTransacao(pool, async (t) => {
+      await post(t, VENDEDOR, pre(ID1));
+      await recusar(t, ID1);
+      t.publicar.mockClear();
+      const corrigido = pre(ID1, { revisao_base: 1, inscricao_estadual: '041234567' });
+      await expect(post(t, VENDEDOR_2, corrigido)).rejects.toMatchObject({ status: 403, codigo: 'FORA_DA_CARTEIRA' });
+      await expect(post(t, VENDEDOR_2, pre(ID1))).rejects.toMatchObject({ status: 403, codigo: 'FORA_DA_CARTEIRA' });
+      expect((await t.q('select status_cadastro, revisao_cadastro from core.cliente where id = $1', [ID1]))[0]).toEqual({ status_cadastro: 'recusado', revisao_cadastro: 1 });
+      expect(await tentativas(t, ID1)).toHaveLength(1);
+      expect(t.publicar).not.toHaveBeenCalled();
+      // quem tem na carteira corrige; o autor sem carteira repete e recebe ja_existia; o BKO (tenant) corrige
+      expect(await post(t, VENDEDOR, corrigido)).toMatchObject({ status_cadastro: 'pendente', revisao: 2, ja_existia: false });
+      await t.q('update core.carteira set deleted_at = now() where cliente_id = $1', [ID1]);
+      expect(await post(t, VENDEDOR, pre(ID1))).toMatchObject({ revisao: 2, ja_existia: true });
+      await recusar(t, ID1);
+      expect(await post(t, ADMIN, pre(ID1, { revisao_base: 2, numero: '300' }))).toMatchObject({ revisao: 3, ja_existia: false });
+    });
+  });
+
+  it('RN-CORE-78 (ADR 0069 §2): o hash da tentativa é o dos dados gravados, com a coordenada arredondada como o banco (o mesmo da consulta do Hub)', async () => {
+    await emTransacao(pool, async (t) => {
+      await post(t, ADMIN, pre(ID1, { latitude: -3.1234565, longitude: -60.0000005 }));
+      const [l] = await t.q<{ latitude: number; longitude: number }>('select latitude::float8 as latitude, longitude::float8 as longitude from core.cliente where id = $1', [ID1]);
+      expect(l).toEqual({ latitude: -3.123457, longitude: -60.000001 });
+      const doHub = (await hub(t)).clientes.find((x) => x.cliente_id === ID1)!;
+      expect((await tentativas(t, ID1))[0]!.hash).toBe(doHub.hash);
+      await recusar(t, ID1);
+      await post(t, ADMIN, pre(ID1, { revisao_base: 1, latitude: 2.0000005, longitude: -60.0000005, numero: '11' }));
+      const hub2 = (await hub(t)).clientes.find((x) => x.cliente_id === ID1)!;
+      expect((await tentativas(t, ID1))[1]!.hash).toBe(hub2.hash);
     });
   });
 
