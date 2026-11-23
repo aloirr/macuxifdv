@@ -279,6 +279,15 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > (`cliente_aprovado_sem_erp_ix` → `cliente_pre_cadastro_fila_ix`, pendentes sem código por `(created_at, id)`);
 > `integracao.cliente_fila_erp.aprovado_em` vira `recebido_em`. Detalhes no [core.md](core.md) e no
 > [integracao.md](integracao.md) ("0097"); teste `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
+>
+> **2026-11-23 (v1.0.29, ADR 0069; RN-CORE-16, RN-CORE-78, RN-CORE-79 e RN-INT-22 revistas):**
+> `0098_core_integracao_pre_cadastro_revisao` (em cima da 0097; número provisório): `core.cliente` ganha `revisao_cadastro` (1 em
+> todo pré-cadastro) e `erros_recusa` (só com `'recusado'`, sem `macuxi_leitura`); nova `core.cliente_pre_cadastro_tentativa` (uma
+> linha por revisão, com hash, origem, quem corrigiu, resultado, motivo e erros por campo; alias `cliente_id_original`; carga das
+> existentes; fora do sync); `integracao.cliente_fila_erp` ganha `revisao`, `hash` e `erros`; o parâmetro
+> `cliente.campos_obrigatorios` vira a lista única (E ∪ P) e `cliente.pre_cadastro.obrigatorios` fica como espelho do APK v1.0.28.
+> Conferência antes do deploy: `db/scripts/conferencia-0098.sql`. Detalhes no [core.md](core.md) e no
+> [integracao.md](integracao.md) ("0098"); teste `db/testes/cliente-pre-cadastro-revisao.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

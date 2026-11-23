@@ -524,3 +524,17 @@ Core o recebe (detalhes de `core.cliente` no [core.md](core.md), "0097"). Em `in
 deleted_at is null`; o SELECT por coluna do `macuxi_leitura` acompanha o rename. Poll: `... order by recebido_em limit N for update
 skip locked`. Drizzle: `clienteFilaErp.recebido_em`. Volta: o down da 0097 renomeia de volta para `aprovado_em`. Teste:
 `db/testes/cliente-pre-cadastro-erp.db.test.ts` (o `cliente-fila-erp.db.test.ts` confere o estado atual com `recebido_em`).
+
+## 0098 — revisão, hash e erros na fila do cliente (`0098_core_integracao_pre_cadastro_revisao`; v1.0.29, ADR 0069, RN-INT-22)
+A correção do pré-cadastro recusado é uma revisão nova do mesmo cliente (detalhes de `core.cliente` e da
+`core.cliente_pre_cadastro_tentativa` no [core.md](core.md), "0098") e **reabre a mesma linha** de `integracao.cliente_fila_erp`
+(`rejeitado → pendente`, revisão nova, `tentativas = 0`; `recebido_em` fica o do primeiro recebimento; `vinculado` nunca reabre).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `revisao` | integer not null default 1 | revisão do pré-cadastro na linha (`cliente_fila_erp_revisao_valida`: ≥ 1); as linhas de antes da 0098 ficam com 1. SELECT do `macuxi_leitura` |
+| `hash` | text null | `sha256` hex do canônico da revisão (`^[0-9a-f]{64}$`, `cliente_fila_erp_hash_formato`); nulo nas linhas de antes da 0098. Sem `macuxi_leitura`; nunca em log |
+| `erros` | jsonb null | erros por campo da rejeição (`[{campo, codigo, mensagem}]`, array com até 50, `cliente_fila_erp_erros_lista`), só com `estado = 'rejeitado'` (`cliente_fila_erp_erros_estado`; reabrir exige limpar). Sem `macuxi_leitura`; nunca em log |
+
+Índice do poll sem mudança. Drizzle: `clienteFilaErp.revisao`, `hash` e `erros`. Volta: o down da 0098 apaga as 3 colunas (com os
+CHECKs e o grant). Teste: `db/testes/cliente-pre-cadastro-revisao.db.test.ts`.

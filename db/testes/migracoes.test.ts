@@ -213,17 +213,19 @@ describe.skipIf(semBanco())('migrações up/down', () => {
           select (select count(*) from core.motivo where tenant_id = 'cccccccc-0000-4000-8000-000000000001')::int as m,
                  (select count(*) from core.motivo where tenant_id = 'cccccccc-0000-4000-8000-000000000001' and sistema)::int as s,
                  (select count(*) from plataforma.parametro where tenant_id = 'cccccccc-0000-4000-8000-000000000001')::int as p`)).rows[0];
-      expect(await padroes()).toEqual({ m: 7, s: 2, p: 3 });
+      expect(await padroes()).toEqual({ m: 7, s: 2, p: 4 }); // 3 + o espelho legado cliente.pre_cadastro.obrigatorios (0098)
       await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       // down com dados: apaga as tabelas novas e os parâmetros semeados (o parâmetro do próprio tenant fica)
       expect((await migrarDown(c, { passos: aPartirDe('0005').length })).aplicadas).toEqual(descendoAte('0005'));
       expect(await retratoDoCatalogo(c)).toEqual(ate0004);
       const p = await c.query("select chave from plataforma.parametro where tenant_id = 'cccccccc-0000-4000-8000-000000000001'");
-      expect(p.rows.map((x) => x.chave)).toEqual(['outro']);
+      // o espelho da 0098 fica no down (ADR 0069: os parâmetros ficam)
+      expect(p.rows.map((x) => x.chave).sort()).toEqual(['cliente.pre_cadastro.obrigatorios', 'outro']);
       // up de novo: mesmo catálogo, padrões de volta e a fixture recarrega
       await migrarUp(c);
       expect(await retratoDoCatalogo(c)).toEqual(completo);
-      expect(await padroes()).toEqual({ m: 7, s: 2, p: 3 });
+      // o espelho que ficou do down é a chave do pré-cadastro viva: a 0098 de novo grava também a lista unificada
+      expect(await padroes()).toEqual({ m: 7, s: 2, p: 5 });
       await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       const v = await c.query('select (select count(*) from core.visita)::int as v, (select count(*) from vendedor.pedido)::int as p');
       expect(v.rows[0]).toEqual({ v: 7, p: 4 });

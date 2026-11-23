@@ -136,6 +136,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'core.documento_cliente',
   'core.documento_permissao',
   'core.documento_excecao',
+  /** 0098 (v1.0.29, ADR 0069): histórico das revisões do pré-cadastro; só a API lê (BKO); a revisão atual vai no pull do cliente. */
+  'core.cliente_pre_cadastro_tentativa',
   /** Hub de Integração (0010, T-0032): nada do schema integracao vai ao aparelho (o que o app vê chega pelos eventos). */
   'integracao.conector',
   'integracao.credencial',

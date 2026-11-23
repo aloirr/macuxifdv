@@ -250,6 +250,8 @@ const G = {
   coleta_execucao: 0x82,
   // 0096 (v1.0.27, RF-CORE-10): fila do pré-cadastro de cliente recebido para o ERP
   cliente_fila_erp: 0x83,
+  // 0098 (v1.0.29, ADR 0069): histórico das revisões do pré-cadastro (0x84–0x97 são do Promotor)
+  cliente_pre_cadastro_tentativa: 0x98,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -829,6 +831,8 @@ export const ORDEM_TABELAS = [
   'core.documento_cliente',
   'core.documento_permissao',
   'core.documento_excecao',
+  // 0098 (v1.0.29, ADR 0069): revisões do pré-cadastro (FKs -> core.cliente e core.usuario)
+  'core.cliente_pre_cadastro_tentativa',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -1347,6 +1351,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'core.usuario_filial': dadosUsuarioFilial(),
     ...dadosFotoLote(),
     ...dadosDocumentos(),
+    'core.cliente_pre_cadastro_tentativa': dadosTentativasPreCadastro(),
     'core.usuario_contato': [
       { id: USUARIO_CONTATO_FIXTURE.A.vendedor2, tenant_id: tA, usuario_id: A.usuarios.vendedor2, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
       { id: USUARIO_CONTATO_FIXTURE.B.admin, tenant_id: tB, usuario_id: B.usuarios.admin, contato_em: DATA_FIXA_ACESSO, deleted_at: null, external_id: null },
@@ -1969,6 +1974,31 @@ function dadosT0032(hojeA: string): Pick<DadosFixture, TabelaT0032> {
       { id: b('cliente_fila_erp', 1), tenant_id: tB, cliente_uuid: B.clientes.c1, payload: { nome: 'Cliente pré-cadastrado B' }, recebido_em: T('11:00:00'), estado: 'rejeitado', enviado_em: T('11:05:00'), tentativas: 1, conector_id: IB.conector, motivo: 'CNPJ já cadastrado no ERP.', ...comuns },
     ],
   };
+}
+
+/**
+ * 0098 (v1.0.29, ADR 0069; grupo 0x98): uma tentativa por tenant, nos clientes da fila do ERP (integracao.cliente_fila_erp). A: c3,
+ * revisão 1 enviada pelo admin no BKO, aguardando o ERP. B: c1, revisão 1 do Campo (sem quem corrigiu, como a carga da 0098),
+ * recusada com motivo e um erro por campo. Os clientes seguem com origem 'erp' (o banco não amarra a tentativa à origem).
+ */
+export const TENTATIVAS_FIXTURE = { A: a('cliente_pre_cadastro_tentativa', 1), B: b('cliente_pre_cadastro_tentativa', 1) } as const;
+function dadosTentativasPreCadastro(): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const comuns = { deleted_at: null, external_id: null };
+  return [
+    {
+      id: TENTATIVAS_FIXTURE.A, tenant_id: A.tenantId, cliente_id: A.clientes.c3, revisao: 1, hash: 'a'.repeat(64), origem: 'bko',
+      corrigido_por: A.usuarios.admin, corrigido_por_perfil: 'admin', cliente_id_original: null, campos_alterados: arrayDeTextoLivre([]),
+      enviado_em: DATA_FIXA_ACESSO, resultado: 'aguardando', respondido_em: null, motivo: null, erros: null, ...comuns,
+    },
+    {
+      id: TENTATIVAS_FIXTURE.B, tenant_id: B.tenantId, cliente_id: B.clientes.c1, revisao: 1, hash: null, origem: 'campo',
+      corrigido_por: null, corrigido_por_perfil: null, cliente_id_original: null, campos_alterados: arrayDeTextoLivre([]),
+      enviado_em: DATA_FIXA_ACESSO, resultado: 'recusado', respondido_em: DATA_FIXA_ACESSO, motivo: 'CNPJ já cadastrado no ERP.',
+      erros: [{ campo: 'documento', codigo: 'duplicado', mensagem: 'CNPJ já cadastrado.' }], ...comuns,
+    },
+  ];
 }
 
 /**

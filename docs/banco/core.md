@@ -1362,3 +1362,66 @@ o status `'recusado'` fica; recria `aprovado_por` com o SELECT do `macuxi_leitur
 `cliente_aprovacao_par` voltar valendo, e o `cliente_aprovado_sem_erp_ix`; `recebido_em` volta a `aprovado_em` na fila do Hub).
 Idempotente. Volte antes o código do Core e do Hub que lê ou grava `motivo_recusa` ou `recebido_em`. Teste:
 `db/testes/cliente-pre-cadastro-erp.db.test.ts`.
+
+## 0098 — revisões do pré-cadastro (`0098_core_integracao_pre_cadastro_revisao`; v1.0.29, ADR 0069, RN-CORE-16, RN-CORE-78 e RN-CORE-79 revistas)
+O recusado pelo ERP é corrigido e reenviado **no mesmo cliente** (mesmo `id`), como uma revisão nova, com histórico. Em cima da
+0097 (número provisório; segue a ordem de merge). Muda `core.cliente`, cria `core.cliente_pre_cadastro_tentativa`, acrescenta
+colunas à `integracao.cliente_fila_erp` (ver [integracao.md](integracao.md), "0098") e unifica o parâmetro de campos obrigatórios.
+
+| Coluna de `core.cliente` | Tipo | Regra |
+|---|---|---|
+| `revisao_cadastro` | integer null | revisão do pré-cadastro: 1 no primeiro recebimento, +1 a cada reenvio (`cliente_revisao_cadastro_valida`: ≥ 1); nula nos clientes do ERP. Carga: 1 em todo pré-cadastro (`origem_cadastro <> 'erp'`, vivo ou apagado). Vai no pull; SELECT do `macuxi_leitura` |
+| `erros_recusa` | jsonb null | erros por campo da última recusa do ERP (`[{campo, codigo, mensagem}]`): array com até 50 itens (`cliente_erros_recusa_lista`) e só com `'recusado'` (`cliente_erros_recusa_status`; reabrir para `pendente` exige limpar). Mesmo sigilo do `motivo_recusa`: pull só ao vendedor do cliente, nunca em log nem na auditoria, **sem** SELECT do `macuxi_leitura` |
+
+### `core.cliente_pre_cadastro_tentativa` (nova; fora do sync)
+Uma linha por revisão do pré-cadastro. Só a API lê (histórico e lista dos recusados no BKO); a revisão atual vai no pull do
+`cliente`. Volume: pré-cadastros × revisões (dezenas a centenas por tenant).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `cliente_id` | uuid not null | FK composta `(tenant_id, cliente_id) → core.cliente`; único `(tenant_id, cliente_id, revisao)` (`cliente_pre_cadastro_tentativa_revisao_uk`, vale também para as apagadas) |
+| `revisao` | integer not null | ≥ 1 |
+| `hash` | text null | `sha256` do canônico (ADR 0069 item 2) em hex minúsculo, 64 caracteres (`^[0-9a-f]{64}$`); nulo nas tentativas da carga (antes da v1.0.29) |
+| `origem` | text not null | `campo` \| `bko` (`ORIGENS_TENTATIVA_PRE_CADASTRO_BANCO`) |
+| `corrigido_por` | uuid null | quem enviou a revisão; FK composta → `core.usuario`; junto com `corrigido_por_perfil` ou nenhum (`cliente_pre_cadastro_tentativa_corrigido_par`) |
+| `corrigido_por_perfil` | text null | código do perfil de quem enviou (1..60) |
+| `cliente_id_original` | uuid null | alias: o recusado Y substituído pelo `id` novo X do APK v1.0.28 (ADR 0069 item 4); FK composta → `core.cliente`; diferente de `cliente_id`; índice `cliente_pre_cadastro_tentativa_original_ix (tenant_id, cliente_id_original) where cliente_id_original is not null` |
+| `campos_alterados` | text[] not null default `'{}'` | só os nomes das colunas alteradas (até 20), nunca valores |
+| `enviado_em` | timestamptz not null | quando a revisão chegou |
+| `resultado` | text not null default `aguardando` | `aguardando` \| `aceito` \| `recusado` (`RESULTADOS_TENTATIVA_PRE_CADASTRO_BANCO`) |
+| `respondido_em` | timestamptz null | quando o ERP respondeu; nulo se e só se `aguardando` (`cliente_pre_cadastro_tentativa_respondido_coerente`) |
+| `motivo` | text null | motivo da recusa, até 500 caracteres |
+| `erros` | jsonb null | erros por campo da recusa, array com até 50 itens; `motivo` e `erros` só com `recusado` (`cliente_pre_cadastro_tentativa_recusa_coerente`) |
+
+- **Lista dos recusados no BKO:** `where tenant_id = $1 and resultado = 'recusado' and deleted_at is null order by respondido_em desc,
+  cliente_id`, pelo índice parcial `cliente_pre_cadastro_tentativa_recusados_ix` (EXPLAIN no teste).
+- **RLS e grants:** RLS forçado; `isolamento_tenant` (macuxi_app: `select, insert, update`; **sem DELETE**), `manutencao` e `leitura`
+  (macuxi_leitura: SELECT por coluna **sem `hash`, `motivo` e `erros`** — o canônico tem CPF/CNPJ, dado de baixa entropia, e o
+  motivo e os erros são texto livre do ERP; a saída desse papel vai para o log do Actions). Gatilho `definir_updated_at`.
+- **Carga inicial:** uma tentativa `revisao = 1` por pré-cadastro vivo: `origem = origem_cadastro`, `enviado_em = created_at`,
+  `resultado` pelo status (`pendente` → aguardando, `aprovado` → aceito, `recusado` → recusado), `respondido_em = aprovado_em` (ou o
+  `updated_at` de antes da 0098), `motivo = motivo_recusa`, `hash` nulo. As substituições da v1.0.28 (linhas apagadas) não ganham
+  tentativa; o elo delas segue na auditoria (`cliente.recusado_substituido`).
+- **Fixture dois-tenants:** A com a revisão 1 do c3 enviada pelo admin no BKO (aguardando); B com a revisão 1 do c1 do Campo,
+  recusada com motivo e um erro por campo (`TENTATIVAS_FIXTURE`, grupo `0x98`).
+- **Drizzle:** `clientePreCadastroTentativa` e as colunas novas de `cliente` em `modules/core/db/nuvem.ts`.
+
+### Parâmetro unificado (ADR 0069 item 6; `plataforma.parametro`, módulo `core`)
+Por tenant: **E** = lista efetiva da RN-CORE-16 (`cliente.campos_obrigatorios`: os códigos conhecidos do array; nenhum = o padrão;
+razão social e documento sempre; ordem canônica — o `camposExigidos` do domain) e **P** = `cliente.pre_cadastro.obrigatorios` válido
+(array sem repetição dos configuráveis; inválido = vazio) com `endereco` expandido em logradouro, número, bairro, cidade, UF e CEP.
+- Tenant com a chave do pré-cadastro viva: `cliente.campos_obrigatorios` = **E ∪ P** na ordem canônica.
+- Todo tenant: o espelho legado `cliente.pre_cadastro.obrigatorios` = projeção de E ∪ P nos configuráveis antigos (`endereco` se
+  qualquer campo de endereço for exigido), para o APK v1.0.28 receber no pull. Sai com a versão mínima do Campo > 1.0.28.
+- Upsert pelo `parametro_uk` (vivo), só quando o valor muda; nada é apagado (a linha apagada fica como estava). O teste confere o
+  SQL contra a referência montada com o domain e os contratos do Core.
+- **Conferência antes do deploy:** `db/scripts/conferencia-0098.sql` (rode ANTES da 0098, só leitura; sai o código do tenant e
+  nomes de campo): caso (a) campos do pré-cadastro fora da lista da RN-CORE-16, que passam a valer no cadastro completo dos clientes
+  do ERP (RN-CORE-17); (b) tenant sem nenhuma das chaves (o pré-cadastro passa a exigir IE para CNPJ e endereço); (c) os demais com
+  campo novo no pré-cadastro. O gerente leva o resultado ao dono do produto antes do "aprovo deploy".
+- **Tenant novo depois da 0098:** sem as linhas (vale o padrão); o espelho só nasce no primeiro `PUT` de Parâmetros › Clientes.
+
+Volta: `0098_core_integracao_pre_cadastro_revisao.down.sql` (apaga a tabela de tentativas e `revisao_cadastro` e `erros_recusa`,
+com os CHECKs e o SELECT por coluna do `macuxi_leitura` — o histórico, os hashes e os erros por campo se perdem; os parâmetros ficam
+como a 0098 deixou, válidos para o código da v1.0.28). Idempotente. Volte antes o código do Core e do Hub que lê a tabela ou as
+colunas (senão 42P01/42703). Teste: `db/testes/cliente-pre-cadastro-revisao.db.test.ts`.

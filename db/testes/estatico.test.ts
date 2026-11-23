@@ -144,6 +144,8 @@ const TABELAS_0088_P6 = ['vendedor.pedido_aprovacao'] as const;
 const TABELAS_0089 = ['core.ponto_trajeto', 'core.ausencia_usuario'] as const;
 /** Tabelas novas da 0090 (T-0186, D5 e P15: Documentação do cliente só online, consultada pela API ao abrir, com a permissão revalidada; fora do sync; cliente360-documentos.db.test.ts). */
 const TABELAS_0090 = ['core.documento_tipo', 'core.documento_cliente', 'core.documento_permissao', 'core.documento_excecao'] as const;
+/** Tabela nova da 0098 (v1.0.29, ADR 0069: histórico das revisões do pré-cadastro; fora do sync; cliente-pre-cadastro-revisao.db.test.ts). */
+const TABELAS_0098 = ['core.cliente_pre_cadastro_tentativa'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -249,6 +251,7 @@ describe('migrações (estático)', () => {
     expect(nomes[92]).toBe('0093_core_usuario_base_cliente_geocodificacao'); // T-0191 (Rotas, RN-CORE-75 a 77): casa_* e base_* em core.usuario e coordenada_origem, coordenada_precisao, geocodificacao_tentada_em e geocodificacao_chave em core.cliente, com CHECKs, backfill 'erp' e SELECT por coluna do macuxi_leitura em core.cliente (usuario-base-cliente-geocodificacao.db.test.ts)
     expect(nomes[93]).toBe('0094_integracao_busca_erp'); // integração por ERP (F2): conector_api, credencial_erp (sem macuxi_leitura), implantacao, implantacao_dia e coleta_execucao, piso de 15 min na frequência (integracao-busca-erp.db.test.ts)
     expect(nomes[96]).toBe('0097_core_cliente_pre_cadastro_erp'); // v1.0.28 (RN-CORE-78, RN-INT-22): core.cliente sem aprovado_por, com motivo_recusa (até 500, só com 'recusado', sem macuxi_leitura) e o índice cliente_pre_cadastro_fila_ix; cliente_fila_erp.aprovado_em vira recebido_em (cliente-pre-cadastro-erp.db.test.ts)
+    expect(nomes[97]).toBe('0098_core_integracao_pre_cadastro_revisao'); // v1.0.29 (ADR 0069, RN-CORE-78, RN-INT-22): core.cliente.revisao_cadastro e erros_recusa, core.cliente_pre_cadastro_tentativa (carga das tentativas existentes, sem hash, motivo e erros no macuxi_leitura), revisao, hash e erros na cliente_fila_erp e o parâmetro unificado com o espelho legado (cliente-pre-cadastro-revisao.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -316,6 +319,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0088_P6,
         ...TABELAS_0089,
         ...TABELAS_0090,
+        ...TABELAS_0098,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
