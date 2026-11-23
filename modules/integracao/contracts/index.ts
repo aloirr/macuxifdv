@@ -12,3 +12,4 @@ export * from './bko';
 export * from './eventos';
 export * from './consulta-cancelamento';
 export * from './conector-download';
+export * from './busca-erp';

@@ -90,7 +90,7 @@ export type ResultadoGravarLote =
  * mesma chave e conteúdo repete o lote, conteúdo diferente é conflito —, sessão de carga completa, lote, staging e o evento
  * `integracao.lote.recebido@1` na mesma transação. A validação do envelope e da topologia é de quem chama.
  */
-export async function gravarLote(db: DbTenant, tx: TxTenant, e: EntradaGravarLote): Promise<ResultadoGravarLote> {
+export async function gravarLote(db: DbTenant, tx: Pick<TxTenant, 'publicar'>, e: EntradaGravarLote): Promise<ResultadoGravarLote> {
   const { env } = e;
   const lerPorChave = async (): Promise<LoteExistente | null> => {
     const { rows } = await db.query<LoteExistente>(

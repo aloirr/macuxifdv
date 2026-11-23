@@ -134,116 +134,141 @@ export async function retornoPedido(ctx: Ctx<RetornoErp, unknown, ReturnType<typ
   if (ehCancelamentoRecusado(retorno)) return cancelamentoRecusado(ctx, retorno);
 
   return ctx.comTenant(async (db, tx) => {
-    const { rows } = await db.query<LinhaFila>(
-      `select pedido_uuid, estado, payload, enviado_em, tentativas, numero_erp, motivo, notas_aplicadas, itens_faturados_acumulados, retencao_codigo, deleted_at
-         from integracao.pedido_fila_erp where tenant_id = $1 and pedido_uuid = $2 for update`,
-      [ctx.tenantId, retorno.pedido_uuid],
+    const r = await aplicarRetornoNaFila(db, tx, { tenantId: ctx.tenantId, conectorId: ctx.conector.id, retorno, log: ctx.log });
+    if (!r.ok) throw new ErroConector(422, { codigo: r.codigo, mensagem: r.mensagem, erros: r.erros });
+    return r.aceito;
+  });
+}
+
+/** Contexto mínimo para aplicar um retorno na fila: o Hub (Conector) e a entrega pela API (RN-INT-19) usam a MESMA regra (RN-INT-08). */
+export interface EntradaRetornoNaFila {
+  tenantId: string;
+  conectorId: string;
+  retorno: RetornoErp;
+  log: { warn(obj: Record<string, unknown>, msg: string): void };
+}
+
+export type ResultadoRetornoNaFila =
+  | { ok: true; aceito: RetornoAceito }
+  | { ok: false; status: 422; codigo: string; mensagem: string; erros: { codigo: string; campo: string | null; mensagem: string }[] };
+
+type DbFila = Parameters<Parameters<Ctx['comTenant']>[0]>[0];
+type TxFila = Pick<Parameters<Parameters<Ctx['comTenant']>[0]>[1], 'publicar'>;
+
+/** Aplica o retorno (status do pedido, trilha, itens descartados e o evento `retorno_erp@1`) na transação do chamador. Idempotente (RN-INT-08). */
+export async function aplicarRetornoNaFila(db: DbFila, tx: TxFila, ent: EntradaRetornoNaFila): Promise<ResultadoRetornoNaFila> {
+  const { retorno } = ent;
+  const { rows } = await db.query<LinhaFila>(
+    `select pedido_uuid, estado, payload, enviado_em, tentativas, numero_erp, motivo, notas_aplicadas, itens_faturados_acumulados, retencao_codigo, deleted_at
+       from integracao.pedido_fila_erp where tenant_id = $1 and pedido_uuid = $2 for update`,
+    [ent.tenantId, retorno.pedido_uuid],
+  );
+  const r = aplicarRetornoPedido(rows[0] ? naFila(rows[0]) : null, retorno);
+  if (!r.ok) return { ok: false, status: 422, codigo: r.codigo, mensagem: r.mensagem, erros: r.erros };
+  const nota = retorno.nota ?? null;
+  const notaNumero = nota?.numero.trim() ?? null;
+  const notaSerie = nota?.serie?.trim() || null;
+
+  if (!r.repetido) {
+    const a = r.atualizacao;
+    await db.query(
+      `update integracao.pedido_fila_erp set
+         cancelamento_estado = case when $3 = 'cancelado' and cancelamento_estado is not null then 'confirmado' else cancelamento_estado end,
+         estado = $3, numero_erp = $4, motivo = $5, notas_aplicadas = $6::jsonb, itens_faturados_acumulados = $7::jsonb,
+         ultimo_retorno_em = $8, conector_id = $9,
+         nota_numero = case when $10::boolean then $11 else nota_numero end,
+         nota_serie = case when $10::boolean then $12 else nota_serie end,
+         nota_emitida_em = case when $10::boolean then $13::timestamptz else nota_emitida_em end,
+         nota_total_cents = case when $10::boolean then $14::bigint else nota_total_cents end
+       where tenant_id = $1 and pedido_uuid = $2`,
+      [
+        ent.tenantId,
+        retorno.pedido_uuid,
+        a.estado,
+        a.numero_erp,
+        a.motivo,
+        JSON.stringify(a.notas_aplicadas),
+        JSON.stringify(a.itens_faturados_acumulados),
+        a.ultimo_retorno_em,
+        ent.conectorId,
+        nota !== null,
+        notaNumero,
+        notaSerie,
+        nota?.emitida_em ?? null,
+        nota?.total_cents ?? null,
+      ],
     );
-    const r = aplicarRetornoPedido(rows[0] ? naFila(rows[0]) : null, retorno);
-    if (!r.ok) {
-      throw new ErroConector(422, { codigo: r.codigo, mensagem: r.mensagem, erros: r.erros });
-    }
-    const nota = retorno.nota ?? null;
-    const notaNumero = nota?.numero.trim() ?? null;
-    const notaSerie = nota?.serie?.trim() || null;
+  }
 
-    if (!r.repetido) {
-      const a = r.atualizacao;
-      await db.query(
-        `update integracao.pedido_fila_erp set
-           cancelamento_estado = case when $3 = 'cancelado' and cancelamento_estado is not null then 'confirmado' else cancelamento_estado end,
-           estado = $3, numero_erp = $4, motivo = $5, notas_aplicadas = $6::jsonb, itens_faturados_acumulados = $7::jsonb,
-           ultimo_retorno_em = $8, conector_id = $9,
-           nota_numero = case when $10::boolean then $11 else nota_numero end,
-           nota_serie = case when $10::boolean then $12 else nota_serie end,
-           nota_emitida_em = case when $10::boolean then $13::timestamptz else nota_emitida_em end,
-           nota_total_cents = case when $10::boolean then $14::bigint else nota_total_cents end
-         where tenant_id = $1 and pedido_uuid = $2`,
-        [
-          ctx.tenantId,
-          retorno.pedido_uuid,
-          a.estado,
-          a.numero_erp,
-          a.motivo,
-          JSON.stringify(a.notas_aplicadas),
-          JSON.stringify(a.itens_faturados_acumulados),
-          a.ultimo_retorno_em,
-          ctx.conector.id,
-          nota !== null,
-          notaNumero,
-          notaSerie,
-          nota?.emitida_em ?? null,
-          nota?.total_cents ?? null,
-        ],
-      );
-    }
+  // trilha do retorno (segunda guarda da idempotência: único por pedido, status e nota) — só se não repetido
+  let retornoId: string | null = null;
+  if (!r.repetido) {
+    const { rows: t } = await db.query<{ id: string }>(
+      `insert into integracao.pedido_retorno
+         (tenant_id, pedido_uuid, status, numero_erp, motivo, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, itens_faturados, ocorrido_em, conector_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
+       on conflict do nothing
+       returning id`,
+      [
+        ent.tenantId,
+        retorno.pedido_uuid,
+        retorno.status,
+        r.atualizacao.numero_erp,
+        retorno.motivo?.trim() || null,
+        notaNumero,
+        notaSerie,
+        nota?.emitida_em ?? null,
+        nota?.total_cents ?? null,
+        r.evento.itens_faturados ? JSON.stringify(r.evento.itens_faturados) : null,
+        retorno.ocorrido_em,
+        ent.conectorId,
+      ],
+    );
+    retornoId = t[0]?.id ?? null;
+  }
 
-    // trilha do retorno (segunda guarda da idempotência: único por pedido, status e nota) — só se não repetido
-    let retornoId: string | null = null;
-    if (!r.repetido) {
-      const { rows: t } = await db.query<{ id: string }>(
-        `insert into integracao.pedido_retorno
-           (tenant_id, pedido_uuid, status, numero_erp, motivo, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, itens_faturados, ocorrido_em, conector_id)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
-         on conflict do nothing
-         returning id`,
-        [
-          ctx.tenantId,
-          retorno.pedido_uuid,
-          retorno.status,
-          r.atualizacao.numero_erp,
-          retorno.motivo?.trim() || null,
-          notaNumero,
-          notaSerie,
-          nota?.emitida_em ?? null,
-          nota?.total_cents ?? null,
-          r.evento.itens_faturados ? JSON.stringify(r.evento.itens_faturados) : null,
-          retorno.ocorrido_em,
-          ctx.conector.id,
-        ],
-      );
-      retornoId = t[0]?.id ?? null;
-    }
+  // P-4: um erro por item descartado (monitor e alerta das últimas 24 h)
+  for (const e of r.erros_monitor) {
+    await db.query(
+      `insert into integracao.pedido_retorno_erro
+         (tenant_id, pedido_uuid, pedido_retorno_id, status, numero_erp, nota_numero, nota_serie, ocorrido_em, indice, sequencia,
+          produto_external_id, quantidade, codigo, codigos, campo, motivo, conector_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::text[], $15, $16, $17)`,
+      [
+        ent.tenantId,
+        e.pedido_uuid,
+        retornoId,
+        e.status,
+        e.numero_erp,
+        e.nota_numero,
+        e.nota_serie,
+        e.ocorrido_em,
+        e.indice,
+        e.sequencia,
+        e.produto_external_id,
+        e.quantidade,
+        e.codigo,
+        e.codigos,
+        e.campo.slice(0, 200),
+        e.motivo.slice(0, 1000),
+        ent.conectorId,
+      ],
+    );
+  }
 
-    // P-4: um erro por item descartado (monitor e alerta das últimas 24 h)
-    for (const e of r.erros_monitor) {
-      await db.query(
-        `insert into integracao.pedido_retorno_erro
-           (tenant_id, pedido_uuid, pedido_retorno_id, status, numero_erp, nota_numero, nota_serie, ocorrido_em, indice, sequencia,
-            produto_external_id, quantidade, codigo, codigos, campo, motivo, conector_id)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::text[], $15, $16, $17)`,
-        [
-          ctx.tenantId,
-          e.pedido_uuid,
-          retornoId,
-          e.status,
-          e.numero_erp,
-          e.nota_numero,
-          e.nota_serie,
-          e.ocorrido_em,
-          e.indice,
-          e.sequencia,
-          e.produto_external_id,
-          e.quantidade,
-          e.codigo,
-          e.codigos,
-          e.campo.slice(0, 200),
-          e.motivo.slice(0, 1000),
-          ctx.conector.id,
-        ],
-      );
-    }
+  if (r.publicar) await tx.publicar(EVENTO_PEDIDO_RETORNO_ERP, r.evento, retorno.pedido_uuid);
+  if (r.itens_descartados.length > 0) ent.log.warn({ pedido_uuid: retorno.pedido_uuid, descartados: r.itens_descartados.length }, 'retorno aceito com itens faturados descartados');
 
-    if (r.publicar) await tx.publicar(EVENTO_PEDIDO_RETORNO_ERP, r.evento, retorno.pedido_uuid);
-    if (r.itens_descartados.length > 0) ctx.log.warn({ pedido_uuid: retorno.pedido_uuid, descartados: r.itens_descartados.length }, 'retorno aceito com itens faturados descartados');
-
-    return {
+  return {
+    ok: true,
+    aceito: {
       pedido_uuid: retorno.pedido_uuid,
       status: r.atualizacao.estado,
       repetido: r.repetido,
       ...(r.itens_descartados.length > 0 ? { itens_descartados: r.itens_descartados } : {}),
-    } as RetornoAceito;
-  });
+    } as RetornoAceito,
+  };
+
 }
 
 /**
