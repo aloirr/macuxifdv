@@ -137,6 +137,10 @@ const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'parametro.checkout_pendencia': 'Ajustar o prazo do alerta de checkout',
   'parametro.pre_cadastro': 'Ver campos do pré-cadastro',
   'parametro.pre_cadastro_editar': 'Ajustar campos do pré-cadastro',
+  'parametro.campos_obrigatorios': 'Ver campos obrigatórios do cliente',
+  'parametro.campos_obrigatorios_editar': 'Ajustar campos obrigatórios do cliente',
+  'cliente.pre_cadastro_recusados': 'Ver pré-cadastros recusados',
+  'cliente.pre_cadastro_corrigir': 'Corrigir pré-cadastros recusados',
 };
 
 /** Rótulo da chave: o da spec; senão a descrição do manifesto até o primeiro " (" ou ";". */

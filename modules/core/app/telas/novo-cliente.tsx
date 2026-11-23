@@ -1,6 +1,7 @@
 /**
- * Novo cliente / Corrigir cliente (v1.0.28; RF-CORE-10, RN-CORE-78 e RN-CORE-79; docs/design/telas/campo-cliente-pre-cadastro.md).
- * Offline: obrigatórios vindos do parâmetro sincronizado, UUID gerado no aparelho, escrita na fila do sync (`cliente_pre_cadastro`).
+ * Novo cliente / Corrigir cliente (v1.0.28; correção na v1.0.29: RF-CORE-10, RN-CORE-78 e RN-CORE-79, ADR 0069;
+ * docs/design/telas/campo-cliente-pre-cadastro.md). Offline: obrigatórios da lista única do parâmetro sincronizado, UUID gerado no
+ * aparelho, escrita na fila do sync (`cliente_pre_cadastro`). A correção edita o MESMO cliente (mesmo id) como revisão nova.
  * Quem aprova é o ERP; o Core só pré-cadastra. A API revalida os obrigatórios. A página `novo-cliente` do `moduloApp` só existe para o vendedor.
  */
 import { AvisoRodape, Botao, CabecalhoTela, CampoEscolha, CampoTexto, colors, Folha, Icon, RotuloSecao, faltaVisivel, type as t, useAvisoRodape, type FaltaDoCampo } from '@macuxi/ui/mobile';
@@ -12,35 +13,27 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 
 import type { ClienteSync, ParametroSync } from '../../contracts';
-import { COLUNAS_DO_CAMPO_PRE_CADASTRO, ROTULOS_CAMPOS_PRE_CADASTRO, type CampoPreCadastro } from '../../contracts';
+import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../contracts';
 import { FALTA_OBRIGATORIO_PRE_CADASTRO, motivoSoDeCamposFaltantes, podePreCadastrarCliente, situacaoDoPreCadastro, validarPreCadastro } from '../../domain';
 import { abrirCliente, PARAM_CLIENTE_ID, ROTA_CLIENTES } from '../lib/navegacao';
 import {
   avisarClienteSalvo,
   clienteComDocumento,
-  COLUNAS_FORMULARIO,
-  idDoReenvio,
+  correcaoDoCliente,
   ENTIDADE_PRE_CADASTRO,
   obrigatoriosDasLinhas,
   salvarPreCadastro,
   sobreporPreCadastros,
-  valoresDoCliente,
-  type ValoresPreCadastro,
+  type BaseDaCorrecao,
 } from '../lib/pre-cadastro-local';
-
-type Coluna = (typeof COLUNAS_FORMULARIO)[number];
+import { COLUNAS_FORMULARIO, primeiraColunaMarcada, valoresDosDados, type ColunaFormulario as Coluna, type ValoresPreCadastro } from '../lib/pre-cadastro-formulario';
 
 export interface PropsTelaNovoClientePreCadastro {
-  /** "Corrigir e reenviar": abre o formulário preenchido; o recusado pelo ERP reenvia com id novo, o "Não enviado" com o mesmo. */
+  /** "Corrigir e reenviar": abre o formulário preenchido do mesmo cliente (mesmo id), que vai como revisão nova. */
   clienteId?: string;
 }
 
-/** Campo obrigatório do parâmetro que cobre cada coluna do formulário (derivado do contrato; marca "(opcional)" no que a empresa não exige). */
-const CAMPO_DA_COLUNA = Object.fromEntries(
-  COLUNAS_FORMULARIO.map((c) => [c, (Object.keys(COLUNAS_DO_CAMPO_PRE_CADASTRO) as CampoPreCadastro[]).find((k) => COLUNAS_DO_CAMPO_PRE_CADASTRO[k].includes(c))]),
-) as Record<Coluna, CampoPreCadastro>;
-
-const vazioDoFormulario = (): ValoresPreCadastro => Object.fromEntries(COLUNAS_FORMULARIO.map((c) => [c, ''])) as ValoresPreCadastro;
+const vazioDoFormulario = (): ValoresPreCadastro => valoresDosDados({});
 const novoUuid = (): string => globalThis.crypto.randomUUID();
 
 /** A página do shell (`/m/novo-cliente`): lê `clienteId` da query (a correção do recusado) e monta a tela. */
@@ -60,10 +53,12 @@ export function TelaNovoClientePreCadastro({ clienteId }: PropsTelaNovoClientePr
 function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const { motor } = useMotorSync();
   const aviso = useAvisoRodape();
-  // o UUID nasce no aparelho uma vez; `idDoReenvio` decide no salvar se a correção o reaproveita (RN-CORE-78)
+  // o UUID nasce no aparelho uma vez; a correção usa o id do próprio cliente (RN-CORE-78)
   const novoId = useRef(novoUuid()).current;
-  const [situacao, setSituacao] = useState<string | null>(null);
-  const id = idDoReenvio(situacao, clienteId, () => novoId);
+  const id = clienteId ?? novoId;
+  const [base, setBase] = useState<BaseDaCorrecao | null>(null);
+  // erros por campo da recusa: marcados desde a entrada; a marca de um campo sai quando o valor dele muda (spec §3.1)
+  const [errosRecusa, setErrosRecusa] = useState<Partial<Record<Coluna, string>>>({});
   const [valores, setValores] = useState<ValoresPreCadastro>(vazioDoFormulario);
   const [alterado, setAlterado] = useState(false);
   const [tentou, setTentou] = useState(false);
@@ -87,12 +82,14 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
       if (!ativo) return;
       setObrigatorios(obrigatoriosDasLinhas(parametros));
       setCarteira(clientes);
-      const atual = clienteId ? sobreporPreCadastros(clientes, motor.sobreposicao([ENTIDADE_PRE_CADASTRO]), new Date().toISOString()).find((c) => c.id === clienteId) : undefined;
-      if (atual) {
-        setValores(valoresDoCliente(atual));
-        const s = situacaoDoPreCadastro(atual);
-        setSituacao(s.situacao);
-        setMotivo(s.motivo);
+      const fila = motor.sobreposicao([ENTIDADE_PRE_CADASTRO]);
+      const correcao = clienteId ? correcaoDoCliente(clientes, fila, clienteId) : null;
+      const atual = clienteId ? sobreporPreCadastros(clientes, fila, new Date().toISOString()).find((c) => c.id === clienteId) : undefined;
+      if (correcao && atual) {
+        setValores(correcao.valores);
+        setBase(correcao.base);
+        setErrosRecusa(correcao.erros);
+        setMotivo(situacaoDoPreCadastro(atual).motivo);
       } else if (clienteId) {
         // o cadastro recusado já saiu do aparelho (reenviado): sem `atual` não há o que corrigir, volta à lista (spec §4)
         salvo.current = true;
@@ -105,7 +102,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
     };
   }, [motor, clienteId]);
 
-  const duplicado = useMemo(() => clienteComDocumento(carteira, valores.documento ?? '', clienteId ?? id), [carteira, valores.documento, clienteId, id]);
+  const duplicado = useMemo(() => clienteComDocumento(carteira, valores.documento ?? '', id), [carteira, valores.documento, id]);
   const faltas = useMemo(() => {
     const r = validarPreCadastro(valores, obrigatorios).erros;
     if (duplicado) r.documento = 'Já é cliente';
@@ -116,14 +113,16 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const motivoNoCampo = tentou && motivoSoDeCamposFaltantes(motivo) && COLUNAS_FORMULARIO.some((c) => faltas[c]);
   const falta = (c: Coluna): string | null => {
     const texto = faltas[c];
-    if (!texto) return null;
-    const f: FaltaDoCampo = { texto, quando: texto === FALTA_OBRIGATORIO_PRE_CADASTRO ? 'vazio' : 'invalido' };
-    return faltaVisivel(f, { tentou, saiu: saiu.has(c) });
+    const f: FaltaDoCampo | null = texto ? { texto, quando: texto === FALTA_OBRIGATORIO_PRE_CADASTRO ? 'vazio' : 'invalido' } : null;
+    return (f && faltaVisivel(f, { tentou, saiu: saiu.has(c) })) || errosRecusa[c] || null;
   };
-  const exigido = (c: Coluna) => obrigatorios.includes(CAMPO_DA_COLUNA[c]);
+  const cpf = somenteDigitos(valores.documento).length <= 11;
+  // RN-CORE-16: a inscrição estadual só é exigida para CNPJ
+  const exigido = (c: Coluna) => obrigatorios.includes(c) && !(c === 'inscricao_estadual' && cpf);
   const mudar = (c: Coluna) => (texto: string) => {
     setAlterado(true);
     setErrosSalvar({});
+    setErrosRecusa((e) => (e[c] ? { ...e, [c]: undefined } : e));
     setValores((v) => ({ ...v, [c]: texto }));
   };
   const sair = () => (router.canGoBack() ? router.back() : router.replace(ROTA_CLIENTES as never));
@@ -140,9 +139,18 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const aoVoltar = () => pedirSaida(sair);
   const marcarSaida = (c: Coluna) => () => setSaiu((s) => new Set(s).add(c));
 
-  const cpf = somenteDigitos(valores.documento).length <= 11;
+  // a tela abre rolada até o primeiro campo com erro da recusa (spec §3.1), uma vez, quando a posição dele é conhecida
+  const primeiraRecusa = primeiraColunaMarcada(errosRecusa);
+  const rolouRecusa = useRef(false);
+  const aoPosicionar = (c: Coluna, y: number) => {
+    posicoes.current[c] = y;
+    if (!rolouRecusa.current && c === primeiraRecusa) {
+      rolouRecusa.current = true;
+      rolarAte(c);
+    }
+  };
   const campoTexto = (c: Coluna, rotulo: string, extra: Partial<React.ComponentProps<typeof CampoTexto>> = {}) => (
-    <View key={c} onLayout={(e) => (posicoes.current[c] = e.nativeEvent.layout.y)}>
+    <View key={c} onLayout={(e) => aoPosicionar(c, e.nativeEvent.layout.y)}>
       <CampoTexto
         testID={`novo-cliente-${c}`}
         rotulo={rotulo}
@@ -157,18 +165,21 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
     </View>
   );
 
+  function rolarAte(c: Coluna) {
+    rolagem.current?.scrollTo({ y: Math.max(0, (posicoes.current[c] ?? 0) - 12), animated: true });
+  }
   /** Rola até o primeiro campo com erro; devolve se achou algum. */
   function rolarAtePrimeira(erros: Partial<Record<Coluna, unknown>>): boolean {
-    const primeira = COLUNAS_FORMULARIO.find((c) => erros[c]);
-    if (primeira) rolagem.current?.scrollTo({ y: Math.max(0, (posicoes.current[primeira] ?? 0) - 12), animated: true });
-    return primeira !== undefined;
+    const primeira = primeiraColunaMarcada(erros);
+    if (primeira) rolarAte(primeira);
+    return primeira !== null;
   }
 
   async function salvar() {
     setTentou(true);
     if (rolarAtePrimeira(faltas) || !motor) return;
     setSalvando(true);
-    const r = await salvarPreCadastro(motor, { id, valores, obrigatorios, online: motor.ambiente.online() }).catch(() => null);
+    const r = await salvarPreCadastro(motor, { id, valores, obrigatorios, online: motor.ambiente.online(), base }).catch(() => null);
     setSalvando(false);
     if (!r) return aviso.mostrar({ texto: 'Não foi possível salvar. Toque em Salvar de novo.', tom: 'erro' });
     if (!r.ok) {
@@ -181,7 +192,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
     salvo.current = true;
     setAlterado(false);
     avisarClienteSalvo();
-    // a correção troca o id (o antigo some da ficha): volta à lista, com o cliente no topo (spec §4)
+    // salvar = reenviar: volta à lista, com o cliente no topo, também na correção (spec §4)
     router.replace(ROTA_CLIENTES as never);
   }
 

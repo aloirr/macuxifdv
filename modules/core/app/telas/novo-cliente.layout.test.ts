@@ -23,11 +23,19 @@ describe('tela Novo cliente (pré-cadastro; RN-CORE-78 e RN-CORE-79)', () => {
     expect(tela).toContain("motor.linhas<ParametroSync>('parametro')");
     expect(tela).toContain('crypto.randomUUID()');
   });
-  it('RN-CORE-78: o recusado mostra "Corrigir e reenviar" na ficha, que reabre o formulário (o reenvio gera id novo, idDoReenvio)', () => {
+  it('RN-CORE-78: o recusado mostra "Corrigir e reenviar" na ficha, que reabre o formulário do MESMO cliente, com a revisão vista (ADR 0069)', () => {
     const ficha = ler('./cliente.tsx');
     expect(ficha).toContain('ACAO_CORRIGIR_E_REENVIAR');
     expect(ficha).toContain('abrirNovoCliente(id)');
-    expect(ler('./novo-cliente.tsx')).toContain('idDoReenvio(situacao, clienteId');
+    expect(tela).toContain('const id = clienteId ?? novoId;');
+    expect(tela).toContain('correcaoDoCliente(clientes, fila, clienteId)');
+    expect(tela).toMatch(/salvarPreCadastro\(motor, \{[^}]*base \}\)/);
+  });
+  it('RN-CORE-78: os erros por campo da recusa abrem marcados no próprio campo, saem quando o valor muda e não bloqueiam o Salvar (spec §3.1)', () => {
+    expect(tela).toContain('|| errosRecusa[c] || null');
+    expect(tela).toContain('setErrosRecusa((e) => (e[c] ? { ...e, [c]: undefined } : e));');
+    expect(tela).toContain('if (rolarAtePrimeira(faltas) || !motor) return;');
+    expect(tela).not.toMatch(/rolarAtePrimeira\(\{[^)]*errosRecusa/);
   });
   it('RN-CORE-78: depois de salvar a correção volta à lista (replace), sem o id antigo, e sem o cadastro no aparelho a tela não reabre o formulário (spec §4)', () => {
     const salvar = tela.slice(tela.indexOf('salvo.current = true;\n    setAlterado(false);\n    avisarClienteSalvo'));
@@ -40,6 +48,7 @@ describe('tela Novo cliente (pré-cadastro; RN-CORE-78 e RN-CORE-79)', () => {
     expect(ler('./cliente.tsx')).toContain('ROTULO_PRE_CADASTRO_NAO_ENVIADO');
     expect(tela).toContain('rolarAtePrimeira(r.erros)) return;');
     expect(tela.match(/scrollTo\(/g)).toHaveLength(1);
+    expect(tela.match(/rolarAte\(c\)/g)).toHaveLength(1);
     expect(tela).not.toContain('aoConcluir');
   });
   it('RN-VEN-38: a folha de descarte vale no voltar do Android e da barra (useBloquearSaida), no "Abrir" e depois de salvar não pergunta', () => {
