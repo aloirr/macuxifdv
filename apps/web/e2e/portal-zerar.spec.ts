@@ -1,7 +1,7 @@
 /**
  * e2e do "Zerar dados" (ADR 0068; RN-PLA-12) no portal config., modo falso: o item no menu "⋯" ao lado do Excluir, o diálogo com a
  * prévia por grupo, o código e a senha, o andamento e o concluído; e, na aba Integração (desenho §6.4), a seção Monitor com o
- * "Zerar dados" por entidade, a cascata na prévia e o resultado com o lote e os comandos de reenvio. Prints em
+ * "Zerar dados" no "⋯" de cada entidade da "Dados no Hub", o "Leva junto:" da cascata e o resultado com o lote e os comandos de reenvio. Prints em
  * docs/prints/zerar-dados, 1280 e 390 px (escala 2).
  * Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
  */
@@ -75,19 +75,30 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
     const monitor = page.getByTestId('integracao.monitor');
     await expect(monitor.getByTestId('integracao.monitor.entidade.estoque')).toBeVisible({ timeout: 60000 });
-    await expect(monitor.getByTestId('integracao.entidade.reprocessar.produto')).toBeVisible();
-    // Estoque não tem lote: o "Zerar dados" dele fica em "Dados no Hub"; o de Clientes, na linha do painel
-    await expect(monitor.getByTestId('integracao.monitor.entidade.estoque').getByTestId('integracao.entidade.zerar.estoque')).toBeVisible();
-    await expect(monitor.getByTestId('integracao.entidade.zerar.cliente')).toHaveCount(1);
+    await expect(monitor.getByText('Cargas recentes', { exact: true })).toBeVisible();
+    // "Corrigir no ERP" tem prioridade 3: some no quadro estreito
+    await expect(monitor.getByText('Corrigir no ERP', { exact: true })).toBeVisible({ visible: largura > 500 });
+    // nenhuma tabela passa da tela (no celular: Entidade + Situação + "⋯" no painel; Entidade + "⋯" no "Dados no Hub")
+    for (const t of ['integracao.monitor.conectores', 'integracao.entidades', 'integracao.monitor.entidades']) {
+      const caixa = await monitor.getByTestId(t).boundingBox();
+      expect(caixa && caixa.x + caixa.width).toBeLessThanOrEqual(largura);
+    }
+    // "Zerar dados" num lugar só: o "⋯" da "Dados no Hub" (com ou sem lote recente); o "⋯" do painel tem Reprocessar e Histórico
+    await expect(monitor.getByTestId('integracao.entidades.acoes.produto')).toBeVisible();
+    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.estoque')).toBeVisible();
+    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente')).toBeVisible();
     await monitor.screenshot({ animations: 'disabled', path: `${PRINTS}/05-monitor${nome}.png` });
 
     // o primeiro clique pode chegar antes da hidratação: repete até o diálogo abrir
     await expect(async () => {
-      if (!(await page.getByTestId('empresa-zerar.dialogo').isVisible())) await monitor.getByTestId('integracao.entidade.zerar.cliente').click();
+      if (!(await page.getByTestId('empresa-zerar.dialogo').isVisible())) {
+        if (!(await page.getByTestId('integracao.entidade.zerar.cliente').isVisible())) await monitor.getByTestId('integracao.monitor.entidades.acoes.cliente').click();
+        await page.getByTestId('integracao.entidade.zerar.cliente').click({ timeout: 2000 });
+      }
       await expect(page.getByTestId('empresa-zerar.previa')).toBeVisible({ timeout: 5000 });
     }).toPass({ timeout: 30000 });
     await expect(page.getByRole('dialog')).toContainText('Zerar Clientes de Distribuidora Uma Ltda?');
-    await expect(page.getByTestId('empresa-zerar.entidades')).toHaveText('Entidades: Clientes, Endereços de clientes');
+    await expect(page.getByTestId('empresa-zerar.entidades')).toHaveText('Leva junto:Endereços de clientes');
     await page.getByTestId('empresa-zerar.codigo').fill('distribuidora-uma');
     await page.getByTestId('empresa-zerar.senha').fill('certa-123');
     await expect(page.getByTestId('empresa-acao.confirmar')).toBeEnabled();
@@ -102,9 +113,9 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
 
     // o painel recarrega: Clientes e Endereços saem (sem lote nem registro) e ficam sem "Zerar dados"
     await page.getByTestId('empresa-acao.cancelar').click();
-    await expect(monitor.getByTestId('integracao.entidade.zerar.cliente')).toHaveCount(0, { timeout: 20000 });
-    await expect(monitor.getByTestId('integracao.entidade.zerar.cliente_endereco')).toHaveCount(0);
-    await expect(monitor.getByTestId('integracao.entidade.zerar.produto')).toHaveCount(1);
+    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente')).toHaveCount(0, { timeout: 20000 });
+    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente_endereco')).toHaveCount(0);
+    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.produto')).toHaveCount(1);
     await ctx.close();
   });
 }

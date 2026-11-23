@@ -135,14 +135,18 @@ describe('diálogo Zerar dados', () => {
 });
 
 describe('diálogo Zerar dados por entidade (aba Integração)', () => {
-  it('título com a entidade, a cascata nomeada, sem o "Mantém"; concluído com o lote e um comando por entidade afetada', async () => {
+  it('título com a entidade, "Leva junto:" só com a cascata, sem o "Mantém"; concluído com o lote e um comando por entidade afetada', async () => {
     const e = porCodigo('AM2290');
     const previa = PreviaZerarEmpresaSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa?entidades=cliente`)).json());
     const html = com({ previa, tenant: e.id, entidades: ['cliente'] }, <DialogoZerar empresa={e} entidades={['cliente']} aoFechar={() => {}} aoTerminar={() => {}} />);
     expect(html).toContain('Zerar Clientes de Mercantil Rio Branco Ltda?');
-    expect(html).toMatch(/empresa-zerar\.entidades.*Entidades:<\/span> Clientes, Endereços de clientes/);
+    expect(html).toMatch(/empresa-zerar\.entidades.*text-\[13px\] font-semibold text-ink">Leva junto:<\/p><p class="m-0 text-ink-2">Endereços de clientes<\/p>/);
     expect(html).not.toContain('Mantém:');
     expect(html).toContain('empresa-zerar.codigo');
+    const previaPreco = PreviaZerarEmpresaSchema.parse(await (await chamar('GET', `/plataforma/empresas/${e.id}/zerar/previa?entidades=preco`)).json());
+    const semCascata = com({ previa: previaPreco, tenant: e.id, entidades: ['preco'] }, <DialogoZerar empresa={e} entidades={['preco']} aoFechar={() => {}} aoTerminar={() => {}} />);
+    expect(previaPreco.entidades_afetadas).toEqual(['preco']);
+    expect(semCascata).not.toContain('Leva junto:');
     const z: ZerarEmpresa = {
       id: '7c0d5e1a-2b4f-4c6d-8e9f-000000000009',
       tenant_id: e.id,

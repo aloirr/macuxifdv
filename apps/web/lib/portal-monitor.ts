@@ -35,12 +35,6 @@ export const ehEntidadeZerar = (e: string): e is EntidadeZerar => (ENTIDADES_ZER
 /** A entidade tem algo no Hub para zerar: registro, lote ou cursor. */
 export const temDadosNoHub = (d: EntidadeDetalhe): boolean => d.registros.ativos + d.registros.inativos > 0 || d.ultimo_lote !== null || d.cursores.length > 0;
 
-/**
- * "Zerar dados" na tabela "Dados no Hub": só a entidade com dados e SEM lote recente. A que tem lote já está numa linha do painel
- * (a mesma janela do monitor: `ultimo_lote` nulo = fora do painel), e o botão fica lá. Assim cada entidade tem um "Zerar dados" só.
- */
-export const zerarNoDetalhe = (d: EntidadeDetalhe): boolean => d.ultimo_lote === null && temDadosNoHub(d);
-
 /** "1.180 ativos · 60 inativos"; sem registro, "—". */
 export function textoRegistros(r: EntidadeDetalhe['registros']): string {
   if (r.ativos + r.inativos === 0) return '—';
@@ -53,14 +47,15 @@ export function textoCursor(cursores: EntidadeDetalhe['cursores'], tz: string): 
   return datas.length ? formatDateTime(datas[datas.length - 1], tz) : '—';
 }
 
-/** Erros por classe: "12 a reprocessar · 3 a corrigir no ERP (campo_obrigatorio)"; sem erro, "—". */
-export function textoErros(erros: EntidadeDetalhe['erros']): string {
-  const soma = (classe: string) => erros.filter((e) => e.classe === classe).reduce((a, e) => a + e.linhas, 0);
-  const reprocessar = soma('reprocessavel');
-  const corrigir = soma('corrigir_no_erp');
-  const codigos = [...new Set(erros.filter((e) => e.classe === 'corrigir_no_erp').map((e) => e.codigo))].join(', ');
-  const partes = [reprocessar > 0 ? `${formatInt(reprocessar)} a reprocessar` : '', corrigir > 0 ? `${formatInt(corrigir)} a corrigir no ERP (${codigos})` : ''];
-  return partes.filter(Boolean).join(' · ') || '—';
+/**
+ * Coluna "Corrigir no ERP": só a classe `corrigir_no_erp`, "3 · campo_obrigatorio"; sem erro dessa classe, "—". Os erros a
+ * reprocessar ficam só no painel (selo "Com falha" e Reprocessar), revisão v1.0.31 R2-4.
+ */
+export function textoCorrigirNoErp(erros: EntidadeDetalhe['erros']): string {
+  const daClasse = erros.filter((e) => e.classe === 'corrigir_no_erp');
+  const linhas = daClasse.reduce((a, e) => a + e.linhas, 0);
+  if (linhas === 0) return '—';
+  return `${formatInt(linhas)} · ${[...new Set(daClasse.map((e) => e.codigo))].join(', ')}`;
 }
 
 /** Saúde do Conector (`avaliarSaudeConector` da API): rótulo e tom do selo. */

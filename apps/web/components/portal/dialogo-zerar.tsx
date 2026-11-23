@@ -100,8 +100,8 @@ function Confirmar({
   const bloqueio = p?.bloqueio ? mensagemDoZerar(p.bloqueio) : null;
   const pedeConfirmacao = !!p && !bloqueio && p.total_linhas > 0;
   const senhaErrada = !!erro?.senha;
-  // a cascata leva outras entidades junto: a prévia as nomeia (as pedidas já estão no título)
-  const daCascata = entidades?.length && p && p.entidades_afetadas.length > entidades.length ? p.entidades_afetadas : null;
+  // "Leva junto:" só as que a cascata leva além das pedidas, que já estão no título (revisão v1.0.31, R2-5)
+  const levaJunto = entidades?.length && p ? p.entidades_afetadas.filter((e) => !entidades.includes(e)) : [];
 
   const zerar = async () => {
     setEnviando(true);
@@ -162,10 +162,11 @@ function Confirmar({
                 ))}
               </dl>
             </div>
-            {daCascata && (
-              <p className="m-0" data-testid="empresa-zerar.entidades">
-                <span className="font-semibold">{T.entidades}</span> {rotulosDasEntidades(daCascata)}
-              </p>
+            {levaJunto.length > 0 && (
+              <div className="flex flex-col gap-1" data-testid="empresa-zerar.entidades">
+                <p className="m-0 text-[13px] font-semibold text-ink">{T.levaJunto}</p>
+                <p className="m-0 text-ink-2">{rotulosDasEntidades(levaJunto)}</p>
+              </div>
             )}
             {!entidades?.length && <p className="m-0 text-ink-2">{T.ficam}</p>}
           </>

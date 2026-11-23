@@ -4,10 +4,10 @@
  * Seção "Monitor" da aba Integração da empresa no portal `config.` (pedido do dono do produto na v1.0.31; desenho
  * docs/desenho/empresa-zerar.md §6.4). Só o time da Macuxi: o admin do cliente não vê a seção (e a API recusa os detalhes).
  * - "Conector": saúde, versão, último sinal e fila de cada Conector (`MonitorDetalhes`).
- * - O painel do BKO (`MonitorPainel` do módulo): uma linha por entidade com lote, "Reprocessar" (RN-INT-15; o super-admin age como
- *   `admin`, direto) e, pelo `acoesDaEntidade`, "Zerar dados".
- * - "Dados no Hub": por entidade, registros, cursor e erros por classe; "Zerar dados" só na entidade com dados e sem lote recente (a
- *   com lote já tem o botão no painel).
+ * - "Cargas recentes": o painel do BKO (`MonitorPainel` do módulo), uma linha por entidade com lote, "Reprocessar" (RN-INT-15; o
+ *   super-admin age como `admin`, direto) e Histórico no menu "⋯".
+ * - "Dados no Hub": por entidade, registros, cursor e o que corrigir no ERP; "Zerar dados" (perigo) no menu "⋯" de toda entidade com
+ *   dados. É o único lugar do "Zerar dados" por entidade (revisão v1.0.31, R2-1/R2-2).
  * "Zerar dados" abre o `DialogoZerar` com `entidades: [e]`; ao terminar, o cache do painel desta empresa é invalidado.
  */
 import { useMemo, useState } from 'react';
@@ -15,11 +15,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ROTULO_ENTIDADE, type ConectorDetalhe, type EntidadeDetalhe } from '@macuxi/integracao/contracts';
 import { chaveDoCacheIntegracao, MonitorPainel, useMonitorDetalhes } from '@macuxi/integracao/web';
 import type { EntidadeZerar } from '@macuxi/platform-sdk';
-import { Badge, Button, ErrorBlock, formatDateTime, LoadingBlock, Panel, TabelaDados, type ColunaDaTabela } from '@macuxi/ui/web';
+import { Badge, ErrorBlock, formatDateTime, LoadingBlock, Panel, TabelaDados, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 
 import { mensagemDoErro } from '@/lib/portal-api';
 import { TEXTOS_ZERAR } from '@/lib/portal-empresa-zerar';
-import { clienteDoPortal, ehEntidadeZerar, SAUDE_DO_CONECTOR, textoCursor, textoErros, textoFila, textoRegistros, zerarNoDetalhe } from '@/lib/portal-monitor';
+import { clienteDoPortal, ehEntidadeZerar, SAUDE_DO_CONECTOR, temDadosNoHub, textoCorrigirNoErp, textoCursor, textoFila, textoRegistros } from '@/lib/portal-monitor';
 import { ehTimeMacuxi } from '@/lib/portal-sessao';
 
 import { useSessaoPortal } from './base';
@@ -41,26 +41,25 @@ export function MonitorDaEmpresa({ empresa }: { empresa: { id: string; codigo: s
   const [zerar, setZerar] = useState<EntidadeZerar | null>(null);
   const tz = empresa.fuso;
 
-  const botaoZerar = (e: EntidadeZerar) => (
-    <Button size="sm" onClick={() => setZerar(e)} data-testid={`integracao.entidade.zerar.${e}`}>
-      {TEXTOS_ZERAR.zerar}
-    </Button>
-  );
-
   const colunasConector: ReadonlyArray<ColunaDaTabela<ConectorDetalhe>> = [
     { id: 'conector', titulo: 'Conector', celula: (c) => <span className="font-mono">{c.conector_id}</span>, texto: (c) => c.conector_id },
     { id: 'saude', titulo: 'Situação', largura: '170px', celula: (c) => <Badge tone={SAUDE_DO_CONECTOR[c.saude].tom}>{SAUDE_DO_CONECTOR[c.saude].rotulo}</Badge> },
     { id: 'versao', titulo: 'Versão', largura: '100px', prioridade: 2, celula: (c) => c.versao_conector ?? '—' },
-    { id: 'sinal', titulo: 'Último sinal', largura: '150px', numero: true, celula: (c) => formatDateTime(c.ultimo_sinal_em, tz) },
+    { id: 'sinal', titulo: 'Último sinal', largura: '150px', numero: true, prioridade: 2, celula: (c) => formatDateTime(c.ultimo_sinal_em, tz) },
     { id: 'fila', titulo: 'Fila', largura: '170px', numero: true, prioridade: 2, celula: (c) => textoFila(c.sinal) },
   ];
   const colunasEntidade: ReadonlyArray<ColunaDaTabela<EntidadeDetalhe>> = [
     { id: 'entidade', titulo: 'Entidade', largura: '200px', celula: (d) => ROTULO_ENTIDADE[d.entidade], texto: (d) => ROTULO_ENTIDADE[d.entidade] },
-    { id: 'registros', titulo: 'Registros', largura: '210px', numero: true, celula: (d) => textoRegistros(d.registros) },
+    { id: 'registros', titulo: 'Registros', largura: '200px', numero: true, prioridade: 2, celula: (d) => textoRegistros(d.registros) },
     { id: 'cursor', titulo: 'Última alteração', largura: '150px', numero: true, prioridade: 2, celula: (d) => textoCursor(d.cursores, tz) },
-    { id: 'erros', titulo: 'Erros', prioridade: 2, celula: (d) => textoErros(d.erros), texto: (d) => textoErros(d.erros) },
-    { id: 'acoes', titulo: '', largura: '130px', celula: (d) => <span className="flex justify-end">{zerarNoDetalhe(d) && ehEntidadeZerar(d.entidade) ? botaoZerar(d.entidade) : null}</span> },
+    { id: 'corrigir', titulo: 'Corrigir no ERP', prioridade: 3, celula: (d) => textoCorrigirNoErp(d.erros), texto: (d) => textoCorrigirNoErp(d.erros) },
   ];
+  /** "Zerar dados" no "⋯" de toda entidade com dados no Hub; sem dados, a lista vazia esconde o menu. */
+  const acoesDaLinha = (x: EntidadeDetalhe): AcaoDoMenu[] => {
+    const e = x.entidade;
+    if (!temDadosNoHub(x) || !ehEntidadeZerar(e)) return [];
+    return [{ id: 'zerar', rotulo: TEXTOS_ZERAR.zerar, perigo: true, aoEscolher: () => setZerar(e), testId: `integracao.entidade.zerar.${e}` }];
+  };
 
   const d = detalhes.data;
   return (
@@ -75,10 +74,10 @@ export function MonitorDaEmpresa({ empresa }: { empresa: { id: string; codigo: s
           <TabelaDados colunas={colunasConector} linhas={d.conectores} chave={(c) => c.conector_id} rotulo="Conector" testId="integracao.monitor.conectores" linhaTestId={(c) => `integracao.monitor.conector.${c.conector_id}`} />
         </Panel>
       )}
-      <MonitorPainel cliente={cliente} tz={tz} perfil="admin" acoesDaEntidade={(l) => (ehEntidadeZerar(l.entidade) ? botaoZerar(l.entidade) : null)} />
+      <MonitorPainel cliente={cliente} tz={tz} perfil="admin" titulo="Cargas recentes" />
       {d && (
         <Panel title="Dados no Hub">
-          <TabelaDados colunas={colunasEntidade} linhas={d.entidades} chave={(x) => x.entidade} rotulo="Dados no Hub" testId="integracao.monitor.entidades" linhaTestId={(x) => `integracao.monitor.entidade.${x.entidade}`} />
+          <TabelaDados colunas={colunasEntidade} linhas={d.entidades} chave={(x) => x.entidade} rotulo="Dados no Hub" acoes={acoesDaLinha} testId="integracao.monitor.entidades" linhaTestId={(x) => `integracao.monitor.entidade.${x.entidade}`} />
         </Panel>
       )}
       {zerar && (

@@ -1,13 +1,13 @@
 /**
  * Seção "Monitor" da aba Integração no portal (desenho empresa-zerar.md §6.4): o cliente do painel no portal, o texto das células do
- * detalhe, onde fica o "Zerar dados" de cada entidade e o monitor falso (contratos do módulo, só super-admin, zerar e reprocessar).
+ * detalhe, quais entidades têm o "Zerar dados" e o monitor falso (contratos do módulo, só super-admin, zerar e reprocessar).
  */
 import { ErrosLoteResposta, MonitorDetalhes, MonitorResumo, type EntidadeDetalhe } from '@macuxi/integracao/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { limparMonitorFalso, responderMonitorFalso } from './portal-falso-monitor';
 import { limparZerarFalso, responderZerarFalso } from './portal-falso-zerar';
-import { clienteDoPortal, INTERVALO_MONITOR_PORTAL_MS, SAUDE_DO_CONECTOR, textoCursor, textoErros, textoFila, textoRegistros, zerarNoDetalhe } from './portal-monitor';
+import { clienteDoPortal, INTERVALO_MONITOR_PORTAL_MS, SAUDE_DO_CONECTOR, temDadosNoHub, textoCorrigirNoErp, textoCursor, textoFila, textoRegistros } from './portal-monitor';
 
 const T = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const detalhe = (x: Partial<EntidadeDetalhe> = {}): EntidadeDetalhe => ({
@@ -31,14 +31,14 @@ describe('cliente do painel no portal', () => {
 });
 
 describe('detalhe por entidade e Conector', () => {
-  it('"Zerar dados" no detalhe só com dados e sem lote recente (a com lote tem o botão no painel)', () => {
-    expect(zerarNoDetalhe(detalhe({ registros: { ativos: 3, inativos: 0 } }))).toBe(true);
-    expect(zerarNoDetalhe(detalhe({ cursores: [{ conector_id: 'erp', alterado_em: null, external_id: null, atualizado_em: '2026-11-23T12:00:00.000Z' }] }))).toBe(true);
-    expect(zerarNoDetalhe(detalhe())).toBe(false);
+  it('"Zerar dados" em toda entidade com dados no Hub (registro, cursor ou lote); sem dados, sem menu', () => {
+    expect(temDadosNoHub(detalhe({ registros: { ativos: 3, inativos: 0 } }))).toBe(true);
+    expect(temDadosNoHub(detalhe({ cursores: [{ conector_id: 'erp', alterado_em: null, external_id: null, atualizado_em: '2026-11-23T12:00:00.000Z' }] }))).toBe(true);
+    expect(temDadosNoHub(detalhe())).toBe(false);
     const lote = { lote_id: '0b6f0c3e-0001-4a00-8000-000000000001', conector_id: 'erp', modo: 'delta' as const, status: 'concluido' as const, recebido_em: '2026-11-23T12:00:00.000Z', concluido_em: null };
-    expect(zerarNoDetalhe(detalhe({ registros: { ativos: 3, inativos: 0 }, ultimo_lote: lote }))).toBe(false);
+    expect(temDadosNoHub(detalhe({ registros: { ativos: 3, inativos: 0 }, ultimo_lote: lote }))).toBe(true);
   });
-  it('textos: registros, cursor no fuso, erros por classe com os códigos a corrigir, fila e saúde', () => {
+  it('textos: registros, cursor no fuso, "Corrigir no ERP" (só a classe corrigir_no_erp), fila e saúde', () => {
     expect(textoRegistros({ ativos: 1180, inativos: 60 })).toBe('1.180 ativos · 60 inativos');
     expect(textoRegistros({ ativos: 5, inativos: 0 })).toBe('5 ativos');
     expect(textoRegistros({ ativos: 0, inativos: 0 })).toBe('—');
@@ -46,13 +46,14 @@ describe('detalhe por entidade e Conector', () => {
     expect(textoCursor([cursor('2026-11-23T12:00:00.000Z'), cursor('2026-11-23T15:30:00.000Z'), cursor(null)], 'America/Manaus')).toBe('23/11 às 11:30');
     expect(textoCursor([], 'America/Manaus')).toBe('—');
     expect(
-      textoErros([
+      textoCorrigirNoErp([
         { codigo: 'referencia_ausente', classe: 'reprocessavel', linhas: 12 },
         { codigo: 'campo_obrigatorio', classe: 'corrigir_no_erp', linhas: 3 },
         { codigo: 'tipo_invalido', classe: 'corrigir_no_erp', linhas: 1 },
       ]),
-    ).toBe('12 a reprocessar · 4 a corrigir no ERP (campo_obrigatorio, tipo_invalido)');
-    expect(textoErros([])).toBe('—');
+    ).toBe('4 · campo_obrigatorio, tipo_invalido');
+    expect(textoCorrigirNoErp([{ codigo: 'referencia_ausente', classe: 'reprocessavel', linhas: 12 }])).toBe('—');
+    expect(textoCorrigirNoErp([])).toBe('—');
     expect(textoFila(null)).toBe('—');
     expect(textoFila({ fila: [], entidades: [] })).toBe('Vazia');
     expect(textoFila({ fila: [{ estado: 'pendente', lotes: 1, linhas: 1, maisAntigo: null }], entidades: [] })).toBe('1 lote · 1 linha');
@@ -73,7 +74,7 @@ describe('monitor falso', () => {
     const m = MonitorResumo.parse((await ler(responderMonitorFalso('GET', '/integracao/monitor', T, true))).corpo);
     expect(new Set(m.lotes_recentes.map((l) => l.entidade))).toEqual(new Set(['produto', 'cliente', 'cliente_endereco', 'preco', 'vendedor']));
     const d = MonitorDetalhes.parse((await ler(responderMonitorFalso('GET', '/integracao/monitor/detalhes', T, true))).corpo);
-    expect(d.entidades.filter(zerarNoDetalhe).map((x) => x.entidade)).toEqual(['estoque', 'titulo']);
+    expect(d.entidades.filter((x) => x.ultimo_lote === null && temDadosNoHub(x)).map((x) => x.entidade)).toEqual(['estoque', 'titulo']);
     expect(d.conectores.map((c) => [c.conector_id, c.saude])).toEqual([['erp', 'ok']]);
     expect((await ler(responderMonitorFalso('GET', '/integracao/monitor/detalhes', T, false))).status).toBe(403);
   });
