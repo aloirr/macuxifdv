@@ -9,7 +9,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { EVENTO_CLIENTE_APROVADO } from '../contracts';
 import { perfisDeFabrica } from '../domain';
-import { consultaClienteVincularErp, consultaClientesAprovadosSemErp, rotasDeClienteCadastro } from './cliente-cadastro';
+import { consultaClientesAprovadosSemErp, rotasDeClienteCadastro } from './cliente-cadastro';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -30,8 +30,8 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     rota(caminho: string, usuarioId: string, perfil: 'admin' | 'vendedor', corpo: unknown, params?: unknown, tenant?: string): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     q<R = Record<string, unknown>>(sql: string, v?: unknown[]): Promise<R[]>;
     publicar: ReturnType<typeof vi.fn>;
+    trocarTenant(tenantId: string): Promise<void>;
     lista(entrada?: unknown): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-    vincular(cliente_id: string, external_id: string): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 
   async function emTransacao(fn: (t: T) => Promise<void>): Promise<void> {
@@ -56,9 +56,9 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
         return r.executar(ctx as never) as Promise<unknown>;
       };
       const lista: T['lista'] = (entrada = {}) => consultaClientesAprovadosSemErp.executar(consultaClientesAprovadosSemErp.consulta.entrada.parse(entrada), { db: c } as never);
-      const vincular: T['vincular'] = (cliente_id, external_id) => consultaClienteVincularErp.executar(consultaClienteVincularErp.consulta.entrada.parse({ cliente_id, external_id }), { db: c } as never);
+      const trocarTenant: T['trocarTenant'] = (tenantId) => definirTenant(c, tenantId);
       try {
-        await fn({ rota, q, publicar, lista, vincular });
+        await fn({ rota, q, publicar, lista, trocarTenant });
       } finally {
         await c.query('rollback').catch(() => undefined);
       }
@@ -79,6 +79,16 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       expect(l).toEqual({ razao_social: 'Mercado Novo', origem_cadastro: 'campo', status_cadastro: 'pendente', aprovado_em: null, documento: '12345678000195' });
       expect((await t.q('select 1 from core.carteira where cliente_id = $1 and usuario_id = $2', [ID1, A.usuarios.vendedor1])).length).toBe(1);
       await expect(t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(ID2, { documento: '12345678000195' }))).rejects.toMatchObject({ codigo: 'DOCUMENTO_JA_CADASTRADO' });
+    });
+  });
+
+  it('RN-CORE-78: id que já existe em outro tenant dá 409 CADASTRO_INDISPONIVEL, sem 500 e sem dizer que existe', async () => {
+    await emTransacao(async (t) => {
+      await t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(ID1));
+      await t.trocarTenant(B.tenantId);
+      const e = await t.rota('clientes/pre-cadastro', B.usuarios.admin, 'admin', pre(ID1), {}, B.tenantId).catch((x: unknown) => x);
+      expect(e).toMatchObject({ status: 409, codigo: 'CADASTRO_INDISPONIVEL' });
+      expect(String((e as Error).message)).not.toMatch(/outro|existe/i);
     });
   });
 
@@ -143,13 +153,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       expect(p2.clientes[0].cliente_id).not.toBe(p1.clientes[0].cliente_id);
       expect(p2.proximo).toBeNull();
 
-      expect(await t.vincular(ID1, 'ERP-9001')).toEqual({ resultado: 'vinculado', external_id_atual: null });
-      expect(await t.vincular(ID1, 'ERP-9001')).toMatchObject({ resultado: 'ja_vinculado' });
-      expect(await t.vincular(ID1, 'ERP-9002')).toEqual({ resultado: 'conflito', external_id_atual: 'ERP-9001' });
-      expect(await t.vincular(ID2, 'ERP-9001')).toMatchObject({ resultado: 'codigo_em_uso' });
-      expect(await t.vincular(ID3, 'ERP-9003')).toMatchObject({ resultado: 'nao_aprovado' });
-      expect(await t.vincular('5a000000-0000-4000-8000-0000000000ff', 'ERP-1')).toMatchObject({ resultado: 'nao_encontrado' });
-      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID2]);
+      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID1, ID2]);
     });
   });
 });

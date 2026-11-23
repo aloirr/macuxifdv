@@ -2,7 +2,7 @@
  * Cliente novo aprovado no BKO, disponível ao ERP (RF-CORE-10; RN-CORE-78 e RN-INT-22).
  *  - Evento `core.cliente.aprovado@1`: só ids e o carimbo da aprovação; o Hub busca os dados pela consulta abaixo (sem dado pessoal na outbox/log).
  *  - Consulta `core.clientes_aprovados_sem_erp@1`: aprovados sem `external_id`, com os campos canônicos do cadastro (RN-CORE-16).
- *  - Comando `core.cliente_vincular_erp@1`: grava o `external_id` devolvido pelo ERP (idempotente; outro código = conflito).
+ *  - O código do ERP volta pelo evento de retorno do Hub (`integracao.cliente.retorno_erp@1`), não por consulta (ADR 0012 §5).
  */
 import { definirEvento, definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
@@ -50,19 +50,6 @@ export const CONSULTA_CLIENTES_APROVADOS_SEM_ERP = definirConsulta({
   nome: 'core.clientes_aprovados_sem_erp@1',
   entrada: ClientesAprovadosSemErpEntradaSchema,
   saida: ClientesAprovadosSemErpSaidaSchema,
-});
-
-export const ClienteVincularErpEntradaSchema = z.object({ cliente_id: Uuid, external_id: z.string().trim().min(1).max(200) }).strict();
-export const ClienteVincularErpSaidaSchema = z.object({
-  resultado: z.enum(['vinculado', 'ja_vinculado', 'conflito', 'nao_encontrado', 'nao_aprovado', 'codigo_em_uso']),
-  /** Preenchido em `conflito`: o código que o cliente já tem. */
-  external_id_atual: z.string().nullable(),
-});
-export type ClienteVincularErpSaida = z.infer<typeof ClienteVincularErpSaidaSchema>;
-export const CONSULTA_CLIENTE_VINCULAR_ERP = definirConsulta({
-  nome: 'core.cliente_vincular_erp@1',
-  entrada: ClienteVincularErpEntradaSchema,
-  saida: ClienteVincularErpSaidaSchema,
 });
 
 /** Pré-cadastro (campo ou BKO): o `id` nasce no aparelho/tela e torna a escrita idempotente. Sem `complemento`: o cliente não tem a coluna. */
