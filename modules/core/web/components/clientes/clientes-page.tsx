@@ -13,7 +13,7 @@ import { ABA_PRE_CADASTROS, contadorDaAba, filtrosRecusadosDaUrl } from '../../l
 type AbaClientes = 'farol' | typeof ABA_PRE_CADASTROS;
 
 /**
- * Cadastros › Clientes (v1.0.29; spec `bko-pre-cadastros-recusados.md` §1): abas Farol | Pré-cadastros recusados. A aba dos recusados
+ * Cadastros › Clientes (v1.0.30; spec `bko-pre-cadastros-recusados.md` §1): abas Farol | Pré-cadastros recusados. A aba dos recusados
  * só existe com `cliente.pre_cadastro_recusados`; sem ela, a página é só o Farol, sem barra de abas, e `?aba=pre-cadastros` cai no Farol.
  * O número da aba é o dos pré-cadastros na situação Recusado.
  */

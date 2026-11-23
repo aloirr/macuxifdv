@@ -1,23 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
-import { CorrecaoPreCadastroSchema, type HistoricoPreCadastro, type PreCadastroAtual, type RecusadoItem, type TentativaPreCadastro } from '../../contracts';
+import { CorrecaoPreCadastroSchema, type HistoricoPreCadastro, type PreCadastroAtual, type TentativaPreCadastro } from '../../contracts';
 import {
   alternarLinhaObrigatoria,
   buscaParaApi,
+  colunaExigida,
   contadorDaAba,
   corpoDaCorrecao,
   erroDoReenvio,
-  filtrarPorVendedor,
+  errosDaRecusaPorColuna,
   filtrosRecusadosDaUrl,
   linhaMarcada,
   LINHAS_CAMPOS_OBRIGATORIOS,
+  primeiraColunaMarcada,
   rotuloDoCampo,
+  situacaoDoHistorico,
   temFiltroRecusados,
   tentativasEmOrdem,
   textoDeQuemCorrigiuAntes,
   textoDeQuemEnviou,
   textoDoResultado,
-  vendedoresDosItens,
+  valoresDosDados,
 } from './pre-cadastro';
 
 const FUSO = 'America/Manaus';
@@ -27,9 +30,6 @@ const BRUNO = { id: '1a2b3c4d-1111-4222-8333-444455556666', nome: 'Bruno' };
 const linha = (id: string) => LINHAS_CAMPOS_OBRIGATORIOS.find((l) => l.id === id)!;
 const tentativa = (o: Partial<TentativaPreCadastro>): TentativaPreCadastro => ({
   revisao: 1, hash: null, origem: 'campo', corrigido_por: null, enviado_em: '2026-11-20T18:31:00Z', campos_alterados: [], resultado: 'aguardando', respondido_em: null, motivo: null, erros: [], cliente_id_original: null, ...o,
-});
-const item = (o: Partial<RecusadoItem>): RecusadoItem => ({
-  cliente_id: ID, revisao: 1, documento_mascarado: null, razao_social: 'Mercado', vendedor: ANA, recusado_em: '2026-11-20T18:31:00Z', motivo: null, erros: [], situacao: 'recusado', ...o,
 });
 
 describe('Parâmetros › Clientes › Campos obrigatórios (RN-CORE-16 e RN-CORE-79)', () => {
@@ -53,24 +53,17 @@ describe('Parâmetros › Clientes › Campos obrigatórios (RN-CORE-16 e RN-COR
 
 describe('Clientes › Pré-cadastros recusados (RN-CORE-78)', () => {
   it('RN-CORE-78: filtros na URL; situação inválida ou ausente é Recusado, o padrão', () => {
-    const f = filtrosRecusadosDaUrl(new URLSearchParams('situacao=aceito&vendedor=v1&q= Mercado '));
-    expect(f).toEqual({ situacao: 'aceito', vendedor: 'v1', q: 'Mercado' });
-    expect(filtrosRecusadosDaUrl(new URLSearchParams('situacao=todas'))).toEqual({ situacao: 'recusado', vendedor: '', q: '' });
+    const f = filtrosRecusadosDaUrl(new URLSearchParams('situacao=aceito&q= Mercado '));
+    expect(f).toEqual({ situacao: 'aceito', q: 'Mercado' });
+    expect(filtrosRecusadosDaUrl(new URLSearchParams('situacao=todas'))).toEqual({ situacao: 'recusado', q: '' });
     expect(temFiltroRecusados(f)).toBe(true);
-    expect(temFiltroRecusados({ situacao: 'recusado', vendedor: '', q: '' })).toBe(false);
+    expect(temFiltroRecusados({ situacao: 'recusado', q: '' })).toBe(false);
   });
 
   it('RN-CORE-78: a busca por CPF/CNPJ vai só com dígitos (sem precisar da máscara); texto vai como veio', () => {
     expect(buscaParaApi('11.222.333/0001')).toBe('112223330001');
     expect(buscaParaApi(' Mercado 2 ')).toBe('Mercado 2');
     expect(buscaParaApi('  ')).toBeUndefined();
-  });
-
-  it('RN-CORE-78: o filtro de vendedor recorta as linhas, e as opções vêm das linhas em ordem alfabética, sem repetir', () => {
-    const itens = [item({ vendedor: BRUNO }), item({ vendedor: ANA }), item({ vendedor: null }), item({ vendedor: ANA })];
-    expect(filtrarPorVendedor(itens, ANA.id)).toHaveLength(2);
-    expect(filtrarPorVendedor(itens, '')).toHaveLength(4);
-    expect(vendedoresDosItens(itens)).toEqual([ANA, BRUNO]);
   });
 
   it('RN-CORE-78: o número da aba é o dos recusados de uma página; com mais páginas, sem número', () => {
@@ -109,9 +102,34 @@ describe('Clientes › Pré-cadastros recusados (RN-CORE-78)', () => {
     expect(erroDoReenvio(new Error('rede'))).toEqual({ revisaoDesatualizada: false, erros: {} });
   });
 
+  it('RN-CORE-78: o selo da gaveta vem da tentativa mais nova do histórico (recusada, reenviada ou aceita)', () => {
+    const h = (...t: Partial<TentativaPreCadastro>[]): HistoricoPreCadastro => ({ cliente_id: ID, revisao_atual: Math.max(1, t.length), tentativas: t.map(tentativa) });
+    expect(situacaoDoHistorico(h({ resultado: 'recusado' }))).toBe('recusado');
+    expect(situacaoDoHistorico(h({ resultado: 'recusado' }, { revisao: 2, resultado: 'aguardando' }))).toBe('reenviado');
+    expect(situacaoDoHistorico(h({ resultado: 'recusado' }, { revisao: 2, resultado: 'aceito' }))).toBe('aceito');
+    expect(situacaoDoHistorico(h())).toBeNull();
+  });
+
+  it('RN-CORE-16: a IE só é exigida com CNPJ válido, como na cadastroCompleto do domain; o que a lista não pede é opcional', () => {
+    const lista = ['razao_social', 'documento', 'inscricao_estadual'] as const;
+    expect(colunaExigida({ documento: '11222333000181' }, lista, 'inscricao_estadual')).toBe(true);
+    expect(colunaExigida({ documento: '52998224725' }, lista, 'inscricao_estadual')).toBe(false);
+    expect(colunaExigida({ documento: '112223330001' }, lista, 'inscricao_estadual')).toBe(false);
+    expect(colunaExigida({}, lista, 'documento')).toBe(true);
+    expect(colunaExigida({}, lista, 'telefone')).toBe(false);
+  });
+
+  it('RN-CORE-78: o erro da recusa vai para a coluna exata (o primeiro de cada), e a primeira marcada segue a ordem da grade', () => {
+    const marcas = errosDaRecusaPorColuna([{ campo: 'cep', mensagem: 'CEP não existe' }, { campo: ' inscricao_estadual ', mensagem: 'IE inválida' }, { campo: 'cep', mensagem: 'outro' }, { campo: 'regime', mensagem: 'x' }]);
+    expect(marcas).toEqual({ cep: 'CEP não existe', inscricao_estadual: 'IE inválida' });
+    expect(primeiraColunaMarcada(marcas)).toBe('inscricao_estadual');
+    expect(primeiraColunaMarcada({})).toBeNull();
+    expect(valoresDosDados({ razao_social: 'Mercado', telefone: null })).toMatchObject({ razao_social: 'Mercado', telefone: '', uf: '' });
+  });
+
   it('RN-CORE-78: o corpo da correção leva o formulário sem máscara, a localização e a filial gravadas e a revisão vista', () => {
     const atual = { id: ID, revisao: 2, status_cadastro: 'recusado', motivo: null, erros: [], razao_social: 'Mercado', documento: '11222333000181', latitude: -3.1, longitude: -60, filial_id: null } as PreCadastroAtual;
-    const corpo = CorrecaoPreCadastroSchema.parse(corpoDaCorrecao(atual, { razao_social: 'Mercado Ltda', documento: '11.222.333/0001-81', cep: '69000-000' }));
-    expect(corpo).toMatchObject({ razao_social: 'Mercado Ltda', documento: '11222333000181', cep: '69000000', latitude: -3.1, longitude: -60, filial_id: null, revisao_base: 2 });
+    const corpo = CorrecaoPreCadastroSchema.parse(corpoDaCorrecao(atual, { razao_social: 'Mercado Ltda', documento: '11.222.333/0001-81', cep: '69000-000', telefone: '(92) 98888-7777', email: ' ' }));
+    expect(corpo).toMatchObject({ razao_social: 'Mercado Ltda', documento: '11222333000181', cep: '69000000', telefone: '92988887777', email: null, latitude: -3.1, longitude: -60, filial_id: null, revisao_base: 2 });
   });
 });

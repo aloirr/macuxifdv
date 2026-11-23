@@ -12,7 +12,7 @@ import { CHAVE_CAMPOS_OBRIGATORIOS, criarApiCamposObrigatorios, type ApiCamposOb
 const P = 'core.pre_cadastro.parametros';
 
 /**
- * Parâmetros › Clientes › Campos obrigatórios (v1.0.29; RN-CORE-16 e RN-CORE-79; ADR 0069 §6): uma lista só, que vale para o cadastro
+ * Parâmetros › Clientes › Campos obrigatórios (v1.0.30; RN-CORE-16 e RN-CORE-79; ADR 0069 §6): uma lista só, que vale para o cadastro
  * e para o pré-cadastro. Razão social e CPF/CNPJ ficam marcados e travados (selo "Sempre"). Quem tem `parametro.campos_obrigatorios`
  * vê; só quem tem `parametro.campos_obrigatorios_editar` salva; a API revalida e audita.
  * testIDs: `core.pre_cadastro.parametros.painel` · `.campo.<chave>` · `.salvar` · `.aviso`.

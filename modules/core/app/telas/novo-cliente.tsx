@@ -1,5 +1,5 @@
 /**
- * Novo cliente / Corrigir cliente (v1.0.28; correção na v1.0.29: RF-CORE-10, RN-CORE-78 e RN-CORE-79, ADR 0069;
+ * Novo cliente / Corrigir cliente (v1.0.28; correção na v1.0.30: RF-CORE-10, RN-CORE-78 e RN-CORE-79, ADR 0069;
  * docs/design/telas/campo-cliente-pre-cadastro.md). Offline: obrigatórios da lista única do parâmetro sincronizado, UUID gerado no
  * aparelho, escrita na fila do sync (`cliente_pre_cadastro`). A correção edita o MESMO cliente (mesmo id) como revisão nova.
  * Quem aprova é o ERP; o Core só pré-cadastra. A API revalida os obrigatórios. A página `novo-cliente` do `moduloApp` só existe para o vendedor.
@@ -26,7 +26,7 @@ import {
   sobreporPreCadastros,
   type BaseDaCorrecao,
 } from '../lib/pre-cadastro-local';
-import { COLUNAS_FORMULARIO, primeiraColunaMarcada, valoresDosDados, type ColunaFormulario as Coluna, type ValoresPreCadastro } from '../lib/pre-cadastro-formulario';
+import { colunaExigida, COLUNAS_FORMULARIO, primeiraColunaMarcada, valoresDosDados, type ColunaFormulario as Coluna, type ValoresPreCadastro } from '../lib/pre-cadastro-formulario';
 
 export interface PropsTelaNovoClientePreCadastro {
   /** "Corrigir e reenviar": abre o formulário preenchido do mesmo cliente (mesmo id), que vai como revisão nova. */
@@ -91,7 +91,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
         setErrosRecusa(correcao.erros);
         setMotivo(situacaoDoPreCadastro(atual).motivo);
       } else if (clienteId) {
-        // o cadastro recusado já saiu do aparelho (reenviado): sem `atual` não há o que corrigir, volta à lista (spec §4)
+        // o cliente não está no aparelho (nem no pull nem na fila): não há o que corrigir, volta à lista (spec §4)
         salvo.current = true;
         setAlterado(false);
         router.replace(ROTA_CLIENTES as never);
@@ -116,9 +116,8 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
     const f: FaltaDoCampo | null = texto ? { texto, quando: texto === FALTA_OBRIGATORIO_PRE_CADASTRO ? 'vazio' : 'invalido' } : null;
     return (f && faltaVisivel(f, { tentou, saiu: saiu.has(c) })) || errosRecusa[c] || null;
   };
-  const cpf = somenteDigitos(valores.documento).length <= 11;
-  // RN-CORE-16: a inscrição estadual só é exigida para CNPJ
-  const exigido = (c: Coluna) => obrigatorios.includes(c) && !(c === 'inscricao_estadual' && cpf);
+  // só o rótulo: até 11 dígitos é pessoa física ("Nome"); a exigência da IE é a do domain (`colunaExigida`)
+  const pessoaFisica = somenteDigitos(valores.documento).length <= 11;
   const mudar = (c: Coluna) => (texto: string) => {
     setAlterado(true);
     setErrosSalvar({});
@@ -157,7 +156,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
         valor={valores[c] ?? ''}
         aoMudar={mudar(c)}
         onBlur={marcarSaida(c)}
-        opcional={!exigido(c)}
+        opcional={!colunaExigida(valores, obrigatorios, c)}
         falta={falta(c)}
         returnKeyType="next"
         {...extra}
@@ -213,7 +212,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
             <Text style={[t.bodyStrong, { color: colors.accent }]}>Abrir</Text>
           </Pressable>
         ) : null}
-        {campoTexto('razao_social', cpf ? 'Nome' : ROTULOS_CAMPOS_PRE_CADASTRO.razao_social, { autoCapitalize: 'words' })}
+        {campoTexto('razao_social', pessoaFisica ? 'Nome' : ROTULOS_CAMPOS_PRE_CADASTRO.razao_social, { autoCapitalize: 'words' })}
         {campoTexto('nome_fantasia', ROTULOS_CAMPOS_PRE_CADASTRO.nome_fantasia, { autoCapitalize: 'words' })}
         <RotuloSecao texto="Contato" />
         {campoTexto('telefone', ROTULOS_CAMPOS_PRE_CADASTRO.telefone, { mascara: 'telefone' })}

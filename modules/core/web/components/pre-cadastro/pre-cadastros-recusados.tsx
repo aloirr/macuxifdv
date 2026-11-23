@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { formatarCep, formatarDocumento } from '@macuxi/comum';
+import { somenteDigitos } from '@macuxi/comum';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
 import {
+  aplicarMascara,
   Badge,
   Button,
   CampoBusca,
@@ -21,46 +22,52 @@ import {
   formatDateTimeFull,
   IconAlert,
   LoadingBlock,
+  type MascaraCampo,
   Notice,
+  propsDoInputComMascara,
   SelectField,
   TabelaDados,
   useToast,
 } from '@macuxi/ui/web';
 import type { HistoricoPreCadastro, PreCadastroAtual, RecusadoItem } from '../../../contracts';
 import { ROTULOS_CAMPOS_PRE_CADASTRO } from '../../../contracts';
-import { errosDaRecusaPorColuna, primeiraColunaMarcada, valoresDosDados, type ColunaFormulario, type ValoresPreCadastro } from '../../../app/lib/pre-cadastro-formulario';
-import { obrigatoriosDoPreCadastro, validarPreCadastro } from '../../../domain';
+import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, validarPreCadastro } from '../../../domain';
 import {
   buscaParaApi,
+  colunaExigida,
   corpoDaCorrecao,
   erroDoReenvio,
-  filtrarPorVendedor,
+  errosDaRecusaPorColuna,
   LIMPAR_FILTROS_RECUSADOS,
+  primeiraColunaMarcada,
   rotuloDoCampo,
   seloDaSituacao,
+  situacaoDoHistorico,
   SITUACOES_RECUSADO,
   temFiltroRecusados,
   tentativasEmOrdem,
   textoDeQuemCorrigiuAntes,
   textoDeQuemEnviou,
   textoDoResultado,
-  vendedoresDosItens,
+  valoresDosDados,
+  type ColunaFormulario,
   type FiltrosRecusados,
+  type ValoresPreCadastro,
 } from '../../lib/pre-cadastro';
 import { useMe } from '../../lib/queries';
 import { CHAVE_CAMPOS_OBRIGATORIOS, CHAVE_RECUSADOS, criarApiCamposObrigatorios, criarApiRecusados, type ApiRecusados } from './api';
 
 const P = 'core.pre_cadastros';
 
-/** Rótulo e largura (de 6 colunas) de cada campo do formulário, na ordem da spec §4. */
-const GRADE: readonly { coluna: ColunaFormulario; rotulo: string; largura: string }[] = [
-  { coluna: 'documento', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.documento, largura: 'col-span-3' },
+/** Rótulo, largura (de 6 colunas) e máscara ao digitar (a do Campo) de cada campo do formulário, na ordem da spec §4. */
+const GRADE: readonly { coluna: ColunaFormulario; rotulo: string; largura: string; mascara?: MascaraCampo }[] = [
+  { coluna: 'documento', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.documento, largura: 'col-span-3', mascara: 'documento' },
   { coluna: 'inscricao_estadual', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.inscricao_estadual, largura: 'col-span-3' },
   { coluna: 'razao_social', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.razao_social, largura: 'col-span-6' },
   { coluna: 'nome_fantasia', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.nome_fantasia, largura: 'col-span-6' },
-  { coluna: 'telefone', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.telefone, largura: 'col-span-3' },
+  { coluna: 'telefone', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.telefone, largura: 'col-span-3', mascara: 'telefone' },
   { coluna: 'email', rotulo: ROTULOS_CAMPOS_PRE_CADASTRO.email, largura: 'col-span-3' },
-  { coluna: 'cep', rotulo: rotuloDoCampo('cep'), largura: 'col-span-3' },
+  { coluna: 'cep', rotulo: rotuloDoCampo('cep'), largura: 'col-span-3', mascara: 'cep' },
   { coluna: 'bairro', rotulo: rotuloDoCampo('bairro'), largura: 'col-span-3' },
   { coluna: 'logradouro', rotulo: rotuloDoCampo('logradouro'), largura: 'col-span-4' },
   { coluna: 'numero', rotulo: rotuloDoCampo('numero'), largura: 'col-span-2' },
@@ -68,9 +75,6 @@ const GRADE: readonly { coluna: ColunaFormulario; rotulo: string; largura: strin
   { coluna: 'uf', rotulo: rotuloDoCampo('uf'), largura: 'col-span-2' },
 ];
 const ANTES_DO_ENDERECO: ColunaFormulario = 'cep';
-
-/** Exibição com a máscara do Campo para o que tem máscara de formato fixo (o envio vai só com dígitos, `dadosDoFormulario`). */
-const exibir = (c: ColunaFormulario, v: string): string => (c === 'documento' ? formatarDocumento(v) : c === 'cep' ? formatarCep(v) : v);
 
 export interface PropsPreCadastrosRecusados {
   filtros: FiltrosRecusados;
@@ -80,7 +84,7 @@ export interface PropsPreCadastrosRecusados {
 }
 
 /**
- * Clientes › Pré-cadastros recusados (v1.0.29; RN-CORE-78 e RN-CORE-79; ADR 0069 §7; spec `bko-pre-cadastros-recusados.md`): lista com
+ * Clientes › Pré-cadastros recusados (v1.0.30; RN-CORE-78 e RN-CORE-79; ADR 0069 §7; spec `bko-pre-cadastros-recusados.md`): lista com
  * filtros na URL, gaveta com o histórico das tentativas e "Editar e reenviar" (revisão nova do mesmo cliente). Ver exige
  * `cliente.pre_cadastro_recusados` (a página monta a aba só com ela); reenviar, `cliente.pre_cadastro_corrigir`. A API revalida.
  */
@@ -96,6 +100,8 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
     const t = setTimeout(() => mudar({ q: busca.trim() || null }), 300);
     return () => clearTimeout(t);
   }, [busca]);
+  // o `q` da URL mudou por fora (voltar, limpar filtros): o campo acompanha
+  useEffect(() => setBusca((b) => (b.trim() === filtros.q ? b : filtros.q)), [filtros.q]);
 
   const lista = useInfiniteQuery({
     queryKey: [...CHAVE_RECUSADOS, 'lista', { situacao: filtros.situacao, q: filtros.q }],
@@ -103,16 +109,14 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
     queryFn: ({ pageParam, signal }) => apiR.listar({ situacao: filtros.situacao, busca: buscaParaApi(filtros.q), cursor: pageParam || undefined }, signal),
     getNextPageParam: (p) => p.proximo_cursor ?? undefined,
   });
-  const todos = useMemo(() => (lista.data?.pages ?? []).flatMap((p) => p.itens), [lista.data]);
-  const linhas = useMemo(() => filtrarPorVendedor(todos, filtros.vendedor), [todos, filtros.vendedor]);
-  const vendedores = useMemo(() => vendedoresDosItens(todos), [todos]);
+  const linhas = useMemo(() => (lista.data?.pages ?? []).flatMap((p) => p.itens), [lista.data]);
   const comFiltro = temFiltroRecusados(filtros);
 
   const colunas: ColunaDaTabela<RecusadoItem>[] = [
     { id: 'documento', titulo: 'CPF/CNPJ', celula: (l) => <span className="tabular-nums">{l.documento_mascarado ?? '—'}</span>, texto: (l) => l.documento_mascarado ?? '', largura: '190px' },
     { id: 'razao', titulo: 'Razão social', celula: (l) => <span className="block truncate font-semibold" title={l.razao_social}>{l.razao_social}</span>, texto: (l) => l.razao_social },
     { id: 'vendedor', titulo: 'Vendedor', celula: (l) => l.vendedor?.nome ?? '—', texto: (l) => l.vendedor?.nome ?? '', largura: '128px', prioridade: 2 },
-    { id: 'data', titulo: 'Data', celula: (l) => <span className="tabular-nums">{formatDateTimeFull(l.recusado_em, fuso)}</span>, texto: (l) => formatDateTimeFull(l.recusado_em, fuso), largura: '168px' },
+    { id: 'data', titulo: 'Recusado em', celula: (l) => <span className="tabular-nums">{formatDateTimeFull(l.recusado_em, fuso)}</span>, texto: (l) => formatDateTimeFull(l.recusado_em, fuso), largura: '168px' },
     { id: 'motivo', titulo: 'Motivo da recusa', celula: (l) => <span className="block truncate" title={l.motivo ?? undefined}>{l.motivo ?? '—'}</span>, texto: (l) => l.motivo ?? '', largura: '220px', prioridade: 2 },
     { id: 'situacao', titulo: 'Situação', celula: (l) => <Badge tone={seloDaSituacao(l.situacao).tom}>{seloDaSituacao(l.situacao).texto}</Badge>, texto: (l) => seloDaSituacao(l.situacao).texto, largura: '118px' },
   ];
@@ -144,14 +148,6 @@ export function PreCadastrosRecusados({ filtros, mudar, api: apiInjetada }: Prop
           {SITUACOES_RECUSADO.map((s) => (
             <option key={s.id} value={s.id}>
               {s.texto}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField label="Vendedor" value={filtros.vendedor} onChange={(e) => mudar({ vendedor: e.target.value || null })} data-testid={`${P}.filtro.vendedor`}>
-          <option value="">Todos</option>
-          {vendedores.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.nome}
             </option>
           ))}
         </SelectField>
@@ -187,10 +183,10 @@ function GavetaDoPreCadastro({ item, api, fuso, aoFechar }: { item: RecusadoItem
   const [enviando, setEnviando] = useState(false);
   const qc = useQueryClient();
   const historico = useQuery({ queryKey: [...CHAVE_RECUSADOS, 'historico', item.cliente_id], queryFn: () => api.historico(item.cliente_id) });
-  const selo = seloDaSituacao(item.situacao);
-  // a última tentativa vale sobre a linha da lista (alguém pode ter corrigido depois que a lista carregou)
-  const ultima = historico.data ? tentativasEmOrdem(historico.data)[0] : undefined;
-  const recusado = ultima ? ultima.resultado === 'recusado' : item.situacao === 'recusado';
+  // a situação vem do histórico, não da linha da lista (alguém pode ter corrigido depois que a lista carregou)
+  const situacao = historico.data ? situacaoDoHistorico(historico.data) : null;
+  const selo = situacao ? seloDaSituacao(situacao) : null;
+  const recusado = situacao === 'recusado';
 
   const sairDaEdicao = () => {
     setEditando(false);
@@ -214,7 +210,7 @@ function GavetaDoPreCadastro({ item, api, fuso, aoFechar }: { item: RecusadoItem
           editando ? undefined : (
             <span className="flex flex-wrap items-center gap-2">
               {[item.documento_mascarado, item.vendedor?.nome].filter(Boolean).join(' · ')}
-              <Badge tone={selo.tom}>{selo.texto}</Badge>
+              {selo && <Badge tone={selo.tom}>{selo.texto}</Badge>}
             </span>
           )
         }
@@ -340,11 +336,11 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
   // sem a lista do parâmetro (sem permissão de ler), só os sempre obrigatórios; a API revalida
   const lista = exigidos ?? obrigatoriosDoPreCadastro([]);
   const validacao = validarPreCadastro(valores, lista).erros as Partial<Record<ColunaFormulario, string>>;
-  const cpf = (valores.documento ?? '').replace(/\D/g, '').length <= 11;
-  const opcional = (c: ColunaFormulario) => !lista.includes(c) || (c === 'inscricao_estadual' && cpf);
+  // só o rótulo: até 11 dígitos é pessoa física ("Nome"); a exigência da IE é a do domain (`colunaExigida`)
+  const pessoaFisica = somenteDigitos(valores.documento).length <= 11;
   const erroDe = (c: ColunaFormulario): string | undefined => {
     const v = validacao[c];
-    const visivel = v && (v === 'Obrigatório' ? tentou : tentou || saiu.has(c));
+    const visivel = v && (v === FALTA_OBRIGATORIO_PRE_CADASTRO ? tentou : tentou || saiu.has(c));
     return (visivel ? v : undefined) ?? marcas[c];
   };
 
@@ -409,10 +405,10 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
         </Notice>
       )}
       <div className="grid grid-cols-6 gap-3">
-        {GRADE.map(({ coluna, rotulo, largura }) => (
+        {GRADE.map(({ coluna, rotulo, largura, mascara }) => (
           <div key={coluna} className={largura}>
             {coluna === ANTES_DO_ENDERECO && <span className="mb-2 block text-[12px] font-semibold tracking-wide text-ink-2 uppercase">Endereço</span>}
-            <CampoFormulario rotulo={coluna === 'razao_social' && cpf ? 'Nome' : rotulo} opcional={opcional(coluna)} erro={erroDe(coluna)}>
+            <CampoFormulario rotulo={coluna === 'razao_social' && pessoaFisica ? 'Nome' : rotulo} opcional={!colunaExigida(valores, lista, coluna)} erro={erroDe(coluna)}>
               {coluna === 'uf' ? (
                 <select
                   className={CLASSE_CAMPO}
@@ -432,11 +428,11 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
               ) : (
                 <input
                   className={CLASSE_CAMPO}
-                  value={exibir(coluna, valores[coluna] ?? '')}
-                  maxLength={200}
-                  inputMode={coluna === 'documento' || coluna === 'cep' ? 'numeric' : coluna === 'telefone' ? 'tel' : coluna === 'email' ? 'email' : undefined}
+                  {...(mascara ? propsDoInputComMascara(mascara) : { maxLength: 200, inputMode: coluna === 'email' ? ('email' as const) : undefined })}
+                  value={mascara ? aplicarMascara(mascara, valores[coluna]) : (valores[coluna] ?? '')}
                   aria-invalid={Boolean(erroDe(coluna))}
-                  onChange={(e) => mudar(coluna, e.target.value)}
+                  // com máscara, o valor guardado é só de dígitos (o envio vai sem pontuação)
+                  onChange={(e) => mudar(coluna, mascara ? somenteDigitos(aplicarMascara(mascara, e.target.value)) : e.target.value)}
                   onBlur={() => setSaiu((s) => new Set(s).add(coluna))}
                   data-testid={`${P}.form.campo.${coluna}`}
                 />

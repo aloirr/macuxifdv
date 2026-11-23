@@ -1,5 +1,5 @@
 /**
- * Pré-cadastro de cliente no aparelho (v1.0.28; correção na v1.0.29; RN-CORE-78 e RN-CORE-79; ADR 0069;
+ * Pré-cadastro de cliente no aparelho (v1.0.28; correção na v1.0.30; RN-CORE-78 e RN-CORE-79; ADR 0069;
  * docs/design/telas/campo-cliente-pre-cadastro.md). Puro (sem react-native): monta o payload do push, enfileira no sync de forma
  * idempotente (o UUID nasce no aparelho; a correção usa o MESMO id, com `revisao_base`) e sobrepõe a fila às linhas do pull, para o
  * cliente aparecer na hora, offline.

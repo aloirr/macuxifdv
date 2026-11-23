@@ -1,5 +1,5 @@
 /**
- * Chamadas do BKO do pré-cadastro (v1.0.29; RN-CORE-16, RN-CORE-78 e RN-CORE-79; ADR 0069 §6 e §7): a lista única de campos
+ * Chamadas do BKO do pré-cadastro (v1.0.30; RN-CORE-16, RN-CORE-78 e RN-CORE-79; ADR 0069 §6 e §7): a lista única de campos
  * obrigatórios (`/v1/core/parametros/campos-obrigatorios`) e os recusados (lista, histórico, revisão atual e o reenvio).
  * Tudo validado pelos contratos na ida e na volta.
  */
