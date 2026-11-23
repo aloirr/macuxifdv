@@ -176,7 +176,7 @@ describe('0100 zerar dados da empresa (estático)', () => {
     expect(bloco(up, 'create function plataforma.zerar_bloqueado(')).toContain(`if p_total > ${LIMITE_LINHAS_ZERAR} then`);
   });
 
-  it('zerar_bloqueado: as recusas da conferirZerar na mesma ordem (exclusão, zerar, backup, Hub, volume)', () => {
+  it('zerar_bloqueado: as recusas na ordem da RN-PLA-12 (exclusão, zerar, backup, Hub, volume)', () => {
     const b = bloco(up, 'create function plataforma.zerar_bloqueado(');
     const ordem = ['TENANT_NAO_ENCONTRADO', 'EXCLUSAO_EM_ANDAMENTO', 'ZERAR_EM_ANDAMENTO', 'BACKUP_EM_ANDAMENTO', 'ZERAR_HUB_PROCESSANDO', 'ZERAR_VOLUME_ALTO'];
     const pos = ordem.map((c) => b.indexOf(`return '${c}';`));

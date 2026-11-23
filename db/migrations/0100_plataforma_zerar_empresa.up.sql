@@ -605,7 +605,7 @@ end
 $$;
 revoke all on function plataforma.descartar_limpeza(uuid, text) from public;
 
--- RN-PLA-12: a conferirZerar do SDK, na mesma ordem (null = liberado). p_zerar = o zerar que está sendo executado (não conta
+-- RN-PLA-12: a regra do bloqueio do zerar mora só aqui (o SDK não a repete); null = liberado. p_zerar = o zerar que está sendo executado (não conta
 -- como "outro em andamento"); p_total null = sem conferir o volume (pedido e worker antes da limpeza).
 create function plataforma.zerar_bloqueado(p_tenant uuid, p_zerar uuid, p_total bigint)
   returns text
