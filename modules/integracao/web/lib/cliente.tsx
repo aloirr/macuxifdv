@@ -23,8 +23,8 @@ export interface ClienteIntegracao {
   /** `false` enquanto a sessão não está pronta: nada é consultado. */
   ativo: boolean;
   /**
-   * Intervalo de atualização do monitor (ms). Ausente = o `sync_auto_min` do tenant, lido de `/v1/me/modulos` (só o BKO tem essa
-   * rota); o portal passa o seu.
+   * Intervalo de atualização do monitor (ms). Ausente = o `sync_auto_min` do tenant, lido de `/v1/me/modulos` com o JWT do usuário
+   * (só o BKO tem essa rota). Fora do BKO é obrigatório: o portal passa o seu.
    */
   intervaloMs?: number;
 }
@@ -43,6 +43,11 @@ export function useClienteIntegracao(explicito?: ClienteIntegracao): ClienteInte
   const c = explicito ?? doPainel;
   if (!c) throw new Error('Painel da Integração montado sem cliente HTTP (ClienteIntegracaoProvider).');
   return c;
+}
+
+/** Escopo do cliente em volta ou o do BKO (telas só do BKO, como o de-para, montadas fora do painel). */
+export function useEscopoIntegracao(): string {
+  return useContext(Contexto)?.escopo ?? ESCOPO_BKO;
 }
 
 /** Cliente do BKO: `api` do SDK com o JWT do usuário logado. */

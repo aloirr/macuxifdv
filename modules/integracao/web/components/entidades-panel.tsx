@@ -57,7 +57,7 @@ export function EntidadesPanel({
   const colunas: ReadonlyArray<ColunaDaTabela<LinhaEntidade>> = [
     { id: 'entidade', titulo: 'Entidade', celula: (l) => ROTULO_ENTIDADE[l.entidade], texto: (l) => ROTULO_ENTIDADE[l.entidade] },
     { id: 'ultima', titulo: 'Última carga', largura: '300px', prioridade: 3, celula: (l) => textoUltimaCarga(l, tz), texto: (l) => textoUltimaCarga(l, tz) },
-    { id: 'situacao', titulo: 'Situação', largura: '96px', celula: (l) => (l.comFalha ? <Badge tone="danger">Com falha</Badge> : <Badge tone="success">Em dia</Badge>) },
+    { id: 'situacao', titulo: 'Situação', largura: '94px', celula: (l) => (l.comFalha ? <Badge tone="danger">Com falha</Badge> : <Badge tone="success">Em dia</Badge>) },
     { id: 'linhas', titulo: 'Linhas integradas', numero: true, largura: '150px', prioridade: 2, celula: (l) => textoLinhas(l.lotes[0]!.status, l.lotes[0]!.recebidas, l.lotes[0]!.com_erro) },
   ];
 

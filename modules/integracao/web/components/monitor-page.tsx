@@ -2,7 +2,7 @@
 
 import { Button, ErrorBlock, PageHeader } from '@macuxi/ui/web';
 import { podeExecutar } from '../lib/apresentacao';
-import { ClienteIntegracaoProvider, useClienteDoBko, type ClienteIntegracao } from '../lib/cliente';
+import { useClienteDoBko } from '../lib/cliente';
 import { cabecalhoDoMonitor } from '../lib/entidades';
 import { useMonitor, useSessaoDoBko } from '../lib/queries';
 import { MonitorPainel } from './monitor-painel';
@@ -15,16 +15,9 @@ import { MonitorPainel } from './monitor-painel';
  */
 export function MonitorPage() {
   const cliente = useClienteDoBko();
-  return (
-    <ClienteIntegracaoProvider cliente={cliente}>
-      <MonitorDoBko cliente={cliente} />
-    </ClienteIntegracaoProvider>
-  );
-}
-
-function MonitorDoBko({ cliente }: { cliente: ClienteIntegracao }) {
   const sessao = useSessaoDoBko();
-  const monitor = useMonitor();
+  // o cliente vai por parâmetro: o único provider é o do `MonitorPainel`
+  const monitor = useMonitor(cliente);
   const m = monitor.data;
   const cabecalho = m ? cabecalhoDoMonitor(m.lotes_recentes, m.conectores, sessao.fuso) : '';
 

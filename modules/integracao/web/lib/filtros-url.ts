@@ -31,3 +31,9 @@ export function paraBusca(f: FiltrosMonitor, buscaAtual = ''): string {
   const s = p.toString();
   return s ? `?${s}` : '';
 }
+
+/** URL com os filtros (caminho + busca) ou `null` quando ela já está assim: o hook só chama `replaceState` quando muda algo. */
+export function urlComFiltros(f: FiltrosMonitor, local: { pathname: string; search: string }): string | null {
+  const busca = paraBusca(f, local.search);
+  return busca === local.search ? null : `${local.pathname}${busca}`;
+}

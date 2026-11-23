@@ -32,7 +32,7 @@ import {
   type TipoMapeamento,
 } from '../../contracts';
 import { perfilDaSessao } from './apresentacao';
-import { ESCOPO_BKO, useClienteIntegracao, type ClienteIntegracao } from './cliente';
+import { useClienteIntegracao, useEscopoIntegracao, type ClienteIntegracao } from './cliente';
 import { paraSeNaoForDoLote } from './reprocessar-lotes';
 
 /**
@@ -48,6 +48,7 @@ export const CSV_ERROS_MAX = 20_000;
 export const qk = {
   monitor: (escopo: string) => ['integracao', escopo, 'monitor'] as const,
   detalhes: (escopo: string) => ['integracao', escopo, 'monitor', 'detalhes'] as const,
+  syncAutoMin: (escopo: string) => ['integracao', escopo, 'sync-auto-min'] as const,
   mapeamentos: ['integracao', 'mapeamentos'] as const,
   autorizadores: (escopo: string) => ['integracao', escopo, 'autorizadores'] as const,
   codigosMacuxi: (tipo: string) => ['integracao', 'codigos-macuxi', tipo] as const,
@@ -77,7 +78,7 @@ export function useIntervaloSyncAutoMs(explicito?: ClienteIntegracao): number {
   const cliente = useClienteIntegracao(explicito);
   const enabled = cliente.ativo && cliente.intervaloMs === undefined;
   const q = useQuery({
-    queryKey: ['integracao', 'sync-auto-min'] as const,
+    queryKey: qk.syncAutoMin(cliente.escopo),
     enabled,
     staleTime: 60_000,
     queryFn: async ({ signal }) => {
@@ -88,9 +89,10 @@ export function useIntervaloSyncAutoMs(explicito?: ClienteIntegracao): number {
   return cliente.intervaloMs ?? q.data ?? MONITOR_REFETCH_MS;
 }
 
-export function useMonitor() {
-  const cliente = useClienteIntegracao();
-  const intervalo = useIntervaloSyncAutoMs();
+/** Resumo do monitor; o cliente vem do painel em volta ou por parâmetro (o cabeçalho do BKO, fora do painel). */
+export function useMonitor(explicito?: ClienteIntegracao) {
+  const cliente = useClienteIntegracao(explicito);
+  const intervalo = useIntervaloSyncAutoMs(cliente);
   return useQuery({
     queryKey: qk.monitor(cliente.escopo),
     queryFn: async ({ signal }) => MonitorResumo.parse(await cliente.chamar<unknown>(ROTA_MONITOR, { signal })),
@@ -158,22 +160,31 @@ export function useMapeamentos() {
   });
 }
 
+/** O que gravar/apagar um mapeamento invalida: a lista do de-para e o monitor do escopo do cliente (pedidos retidos liberados). */
+export const chavesAposMapeamento = (escopo: string) => [qk.mapeamentos, qk.monitor(escopo)] as const;
+
+function useInvalidarAposMapeamento() {
+  const qc = useQueryClient();
+  const escopo = useEscopoIntegracao();
+  return () => Promise.all(chavesAposMapeamento(escopo).map((queryKey) => qc.invalidateQueries({ queryKey })));
+}
+
 /** Grava (cria ou atualiza pelo código do ERP) e libera os pedidos retidos que passam a montar. */
 export function useGravarMapeamento() {
-  const qc = useQueryClient();
+  const invalidar = useInvalidarAposMapeamento();
   return useMutation({
     mutationFn: async (entrada: Mapeamento) => GravarMapeamentoResposta.parse(await api<unknown>('/integracao/mapeamentos', { method: 'PUT', body: entrada })),
-    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: qk.mapeamentos }), qc.invalidateQueries({ queryKey: qk.monitor(ESCOPO_BKO) })]),
+    onSettled: invalidar,
   });
 }
 
 export function useApagarMapeamento() {
-  const qc = useQueryClient();
+  const invalidar = useInvalidarAposMapeamento();
   return useMutation({
     mutationFn: async (id: string) => {
       await api<unknown>(`/integracao/mapeamentos/${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
-    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: qk.mapeamentos }), qc.invalidateQueries({ queryKey: qk.monitor(ESCOPO_BKO) })]),
+    onSettled: invalidar,
   });
 }
 
