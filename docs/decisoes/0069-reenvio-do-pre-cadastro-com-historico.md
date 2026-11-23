@@ -448,7 +448,7 @@ Saem: `camposFaltantesPreCadastro` e `camposObrigatoriosPreCadastro` (trocadas p
   z.array(ErroCampoRetornoCliente).max(50).optional()` (mesma versão @1).
 - `domain/cliente-fila.ts`: `ClienteNaFila` + `revisao`, `hash`, `erros`; `selecionarClientesPendentes` entrega `revisao` e `hash` (das
   colunas, não do payload); `aplicarRetornoCliente` com as regras do item 8 (novo código de falha `revisao_desconhecida`; resultado com
-  `obsoleto`); nova `decidirEntradaNaFila(atual: { revisao: number; estado: EstadoClienteNaFila } | null, nova: { revisao: number }):
+  `obsoleto`); nova `decidirEntradaClienteNaFila(atual: { revisao: number; estado: EstadoClienteNaFila } | null, nova: { revisao: number }):
   'inserir' | 'reabrir' | 'nada'` (reabre só revisão maior e linha não `vinculado`); `iguaisErrosRetorno(a, b): boolean` (compara motivo
   normalizado e erros pela ordem de `campo, codigo`).
 - `api/consumidores-cliente.ts`: `entrarClienteNaFila` passa a fazer upsert pela decisão acima (`on conflict (tenant_id, cliente_uuid) do
