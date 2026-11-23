@@ -26,7 +26,7 @@ import { avaliarCheckin, checkinPermitido, avaliarCheckoutTolerante, dataLocal, 
 
 import { verificadorPorConsulta, type VerificarEtapas } from './etapas-checkout';
 import { gravarEtapasDoCheckout } from './etapas-pendencia';
-import { aceito, rejeitado, idDivergente, MENSAGEM_FORA_DA_CARTEIRA } from './push-resposta';
+import { aceito, rejeitado, idDivergente, MENSAGEM_CLIENTE_NAO_ENCONTRADO, MENSAGEM_FORA_DA_CARTEIRA } from './push-resposta';
 
 const iso = (d: Date | string): string => new Date(d).toISOString();
 
@@ -101,7 +101,7 @@ export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPus
     // 2) escopo (RN-CORE-04): promotor e vendedor só a própria carteira
     if (visiveis !== 'tenant' && !visiveis.has(p.cliente_id)) return rejeitado(item.id, 'FORA_DA_CARTEIRA', MENSAGEM_FORA_DA_CARTEIRA);
     const cli = (await db.query<{ lat: number | null; lng: number | null }>('select latitude::float8 as lat, longitude::float8 as lng from core.cliente where id = $1 and deleted_at is null', [p.cliente_id])).rows[0];
-    if (!cli) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Cliente não encontrado. Atualize os dados e tente de novo.');
+    if (!cli) return rejeitado(item.id, 'FORA_DA_CARTEIRA', MENSAGEM_CLIENTE_NAO_ENCONTRADO);
     // 3) RN-CORE-52: fora da rota do dia, só com a ação no perfil (o dia é o do check-in, no fuso do tenant)
     if (!(await checkinNaRotaPermitido(ctx, db, eu, p))) return rejeitado(item.id, CODIGO_CHECKIN_FORA_DE_ROTA, MENSAGEM_CHECKIN_FORA_DE_ROTA);
     // 4) RN-CORE-10 / RN-CORE-13

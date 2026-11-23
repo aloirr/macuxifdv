@@ -168,10 +168,11 @@ export function situacaoDoRecusado(c: { status_cadastro: StatusCadastro | null; 
 }
 
 /**
- * RN-CORE-78 e regra 8: erros por campo do ERP prontos para gravar. Só itens com campo, código e mensagem em texto; até 50 itens; a
- * mensagem passa por `mascararDadoPessoal` antes do corte em 300 caracteres (o corte nunca deixa meio CPF à vista).
+ * RN-CORE-78, RN-INT-22 e regra 8: erros por campo do ERP prontos para gravar. Só itens com campo, código e mensagem em texto; até 50
+ * itens; campo, código e mensagem passam por `mascararDadoPessoal` antes do corte nos limites (o corte nunca deixa meio CPF à vista).
  */
 export function errosRecusaSeguros(erros: unknown): ErroCampoCadastro[] {
+  const seguro = (t: string, max: number) => mascararDadoPessoal(t.trim()).slice(0, max).trim();
   if (!Array.isArray(erros)) return [];
   const seguros: ErroCampoCadastro[] = [];
   for (const e of erros) {
@@ -180,9 +181,9 @@ export function errosRecusaSeguros(erros: unknown): ErroCampoCadastro[] {
     const { campo, codigo, mensagem } = e as Record<string, unknown>;
     if (typeof campo !== 'string' || typeof codigo !== 'string' || typeof mensagem !== 'string') continue;
     const item = {
-      campo: campo.trim().slice(0, ERRO_CAMPO_LIMITES.campo),
-      codigo: codigo.trim().slice(0, ERRO_CAMPO_LIMITES.codigo),
-      mensagem: mascararDadoPessoal(mensagem.trim()).slice(0, ERRO_CAMPO_LIMITES.mensagem).trim(),
+      campo: seguro(campo, ERRO_CAMPO_LIMITES.campo),
+      codigo: seguro(codigo, ERRO_CAMPO_LIMITES.codigo),
+      mensagem: seguro(mensagem, ERRO_CAMPO_LIMITES.mensagem),
     };
     if (item.campo !== '' && item.codigo !== '' && item.mensagem !== '') seguros.push(item);
   }

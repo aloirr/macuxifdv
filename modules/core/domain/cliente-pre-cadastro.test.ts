@@ -173,6 +173,10 @@ describe('errosRecusaSeguros', () => {
     expect(r[1]!.mensagem).toHaveLength(300);
     expect(errosRecusaSeguros(Array.from({ length: 60 }, () => ({ campo: 'c', codigo: 'k', mensagem: 'm' })))).toHaveLength(50);
   });
+  it('RN-CORE-78 e RN-INT-22: campo, código e mensagem saem sem dado pessoal', () => {
+    const [e] = errosRecusaSeguros([{ campo: ' fulano@x.com.br ', codigo: '123.456.789-09', mensagem: 'Fone (92) 99123-4567 inválido' }]);
+    expect(e).toEqual({ campo: MARCADOR_DADO_PESSOAL.email, codigo: MARCADOR_DADO_PESSOAL.cpf, mensagem: `Fone ${MARCADOR_DADO_PESSOAL.telefone} inválido` });
+  });
   it('RN-CORE-78: entrada que não é lista vira lista vazia', () => {
     expect(errosRecusaSeguros(null)).toEqual([]);
     expect(errosRecusaSeguros({ campo: 'c' })).toEqual([]);

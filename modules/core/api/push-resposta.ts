@@ -12,3 +12,6 @@ export const idDivergente = (id: string): ResultadoItemPush => rejeitado(id, 'PA
 
 /** RN-CORE-04: cliente fora da carteira do usuário. */
 export const MENSAGEM_FORA_DA_CARTEIRA = 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.';
+
+/** Cliente do item não existe (ou foi apagado) no tenant: visita e foto do PDV. */
+export const MENSAGEM_CLIENTE_NAO_ENCONTRADO = 'Cliente não encontrado. Atualize os dados e tente de novo.';

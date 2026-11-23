@@ -11,7 +11,7 @@ import { ErroHttpModulo, type ContextoBase, type ItemPush, type Perfil, type Res
 import type { ClienteFotoPush } from '../contracts';
 import { ERROS_FOTO_PDV } from '../contracts';
 import { idDoPayloadConfere, perfisDeLeitura, podeEnviarFoto } from '../domain';
-import { aceito, rejeitado, idDivergente, MENSAGEM_FORA_DA_CARTEIRA } from './push-resposta';
+import { aceito, rejeitado, idDivergente, MENSAGEM_CLIENTE_NAO_ENCONTRADO, MENSAGEM_FORA_DA_CARTEIRA } from './push-resposta';
 
 
 interface TipoLinha {
@@ -45,7 +45,7 @@ export async function receberFotosPdv(ctx: ContextoBase, itens: readonly ItemPus
           if (ja) return ja.enviado_por === eu && ja.cliente_id === p.cliente_id && ja.foto_tipo_id === p.foto_tipo_id ? aceito(item.id) : rejeitado(item.id, 'ID_EM_USO', 'Este identificador de foto já pertence a outro registro.');
           if (visiveis !== 'tenant' && !visiveis.has(p.cliente_id)) return rejeitado(item.id, 'FORA_DA_CARTEIRA', MENSAGEM_FORA_DA_CARTEIRA);
           const cli = (await db.query('select 1 from core.cliente where id = $1 and deleted_at is null', [p.cliente_id])).rows[0];
-          if (!cli) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Cliente não encontrado. Atualize os dados e tente de novo.');
+          if (!cli) return rejeitado(item.id, 'FORA_DA_CARTEIRA', MENSAGEM_CLIENTE_NAO_ENCONTRADO);
           const tipo = (await db.query<TipoLinha>('select id, sensivel, fachada, ativo from core.foto_tipo where id = $1 and deleted_at is null', [p.foto_tipo_id])).rows[0];
           if (!tipo || !tipo.ativo) return rejeitado(item.id, ERROS_FOTO_PDV.tipoNaoEncontrado, 'Este tipo de foto não está mais disponível. Atualize os dados e tente de novo.');
           const vigente = (await db.query<{ id: string }>('select id from core.cliente_foto where cliente_id = $1 and foto_tipo_id = $2 and deleted_at is null', [p.cliente_id, p.foto_tipo_id])).rows[0];
