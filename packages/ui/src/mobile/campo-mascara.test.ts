@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { aplicarMascara, DIGITOS_DA_MASCARA, leituraDoRotulo, propsDeTecladoDaMascara, SUFIXO_OPCIONAL } from './campo-mascara';
+import { aplicarMascara, DIGITOS_DA_MASCARA, leituraDoRotulo, propsDeTecladoDaMascara, SUFIXO_OPCIONAL } from '../comum/campo-mascara';
 import { ACAO_CORRIGIR_E_REENVIAR, ROTULO_PRE_CADASTRO_NAO_ENVIADO, seloDoPreCadastro } from './pre-cadastro';
 
 // campo-texto-rn.tsx importa react-native (não roda no node): a conferência do componente é sobre o texto do arquivo.
