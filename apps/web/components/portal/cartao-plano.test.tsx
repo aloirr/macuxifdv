@@ -18,7 +18,7 @@ import type { EmpresaResumo } from '@/lib/portal-empresa-acoes';
 import { fichaExemplo, PLANOS_EXEMPLO } from '@/lib/portal-planos.fixture';
 
 import { AbaEmpresa } from './aba-empresa';
-import { CartaoPlano, chaveDaFicha, DialogoTrocarPlano } from './cartao-plano';
+import { CartaoPlano, chaveDaFicha, DialogoEscolherPlano, DialogoTrocarPlano } from './cartao-plano';
 import { NovaEmpresa } from './passo-empresa';
 import { PassoEmpresa } from './passo-empresa-legado';
 import { CHAVE_PLANOS } from './seletor-plano';
@@ -86,7 +86,7 @@ describe('cartão Plano da aba Empresa (§11.4)', () => {
 describe('aba Empresa (planos-assinatura 03 e 04)', () => {
   it('time da Macuxi: Plano e, à direita, Administradores com os cartões da coluna direita embaixo', () => {
     const html = renderizar(
-      <AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} colunaDireita={<p data-testid="extra">extra</p>} semPlano={<p data-testid="so-sem-plano" />} />,
+      <AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} colunaDireita={<p data-testid="extra">extra</p>} semPlano={() => <p data-testid="so-sem-plano" />} />,
     );
     expect(html).toContain('md:grid-cols-[1.25fr_1fr]');
     const direita = html.slice(html.indexOf('data-testid="empresa-pagina.coluna-direita"'));
@@ -104,7 +104,7 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
     expect(html).not.toContain('empresa-plano.trocar');
   });
   it('empresa sem plano (GET assinatura 404 SEM_ASSINATURA): "Módulos licenciados", sem "Trocar de plano"', () => {
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={<p data-testid="so-sem-plano" />} />, {
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={() => <p data-testid="so-sem-plano" />} />, {
       erroFicha: SEM_ASSINATURA,
     });
     expect(html).toContain('Módulos licenciados');
@@ -122,7 +122,7 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
   });
   it('empresa sem plano, passo antigo: só as caixas dos módulos não licenciados e "Acrescentar módulos" (RD-2613)', () => {
     const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: '11222333000181', fuso: 'America/Manaus', modulos: [...MODULOS, { modulo: 'catalogo' as const, licencas: null }] };
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={existente.modulos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={existente.modulos} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
     for (const m of ['gestor', 'pesquisa', 'promotor', 'treinamento']) expect(html).toContain(`data-testid="empresa.modulo-${m}"`);
     // o Catálogo já licenciado aparece no cartão e não se acrescenta de novo; Core e Integração nunca aparecem (RD-2617)
     for (const m of ['vendedor', 'core', 'catalogo', 'integracao']) expect(html).not.toContain(`data-testid="empresa.modulo-${m}"`);
@@ -132,20 +132,42 @@ describe('aba Empresa (planos-assinatura 03 e 04)', () => {
     expect(html).toContain('>Acrescentar módulos<');
     expect(html.match(/>Vendedor/g)).toHaveLength(1);
   });
+  it('com "Escolher plano" no cartão, "Acrescentar módulos" é secundário: um principal por cartão (marca)', () => {
+    const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: null, fuso: 'America/Manaus', modulos: MODULOS };
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
+    expect(html).toContain('data-testid="empresa-plano.escolher"');
+    expect(html.match(/<button[^>]*bg-accent text-white/g)).toHaveLength(1);
+    expect(html.match(/<button[^>]*data-testid="empresa\.gravar"[^>]*>/)?.[0]).toContain('border-field');
+  });
   it('empresa sem plano e sem o Catálogo: o Catálogo entra no "Acrescentar módulos", desmarcado (RD-2617)', () => {
     const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: '11222333000181', fuso: 'America/Manaus', modulos: MODULOS };
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
     expect(html).toMatch(/<input type="checkbox" data-testid="empresa\.modulo-catalogo"(?![^>]*checked)/);
     for (const m of ['core', 'integracao']) expect(html).not.toContain(`data-testid="empresa.modulo-${m}"`);
   });
   it('empresa sem plano com tudo licenciado: só os selos, sem o formulário', () => {
     const todos = (['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const).map((modulo) => ({ modulo, licencas: null }));
     const existente = { id: TENANT, codigo: 'am2808', razao_social: 'Distribuidora Dois', cnpj: null, fuso: 'America/Manaus', modulos: todos };
-    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={<PassoEmpresa existente={existente} />} />, { erroFicha: SEM_ASSINATURA });
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
     expect(html).not.toContain('empresa.form');
     expect(html).toContain('>Treinamento<');
     expect(html).toContain('>Catálogo<');
     expect(html).not.toContain('>Core<');
+  });
+  it('empresa sem plano com tudo licenciado (caso thathyany, v1.0.27 c): o time da Macuxi ainda tem uma ação, "Escolher plano"', () => {
+    const todos = (['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const).map((modulo) => ({ modulo, licencas: null }));
+    const existente = { id: TENANT, codigo: 'thathyany', razao_social: 'Distribuidora Três', cnpj: null, fuso: 'America/Manaus', modulos: todos };
+    const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={todos} semPlano={(comEscolher) => <PassoEmpresa existente={existente} secundario={comEscolher} />} />, { erroFicha: SEM_ASSINATURA });
+    expect(html).toContain('data-testid="empresa-plano.escolher"');
+    expect(html).toContain('>Escolher plano<');
+    // no cabeçalho do cartão "Módulos licenciados", antes dos selos
+    expect(html.indexOf('empresa-plano.escolher')).toBeLessThan(html.indexOf('data-testid="empresa-pagina.modulos"'));
+  });
+  it('"Escolher plano" só para o time da Macuxi e só com os planos ligados', () => {
+    const cliente = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi={false} modulos={MODULOS} />, { erroFicha: SEM_ASSINATURA });
+    expect(cliente).not.toContain('empresa-plano.escolher');
+    const semPlanos = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} />, { erroFicha: ROTA_AUSENTE });
+    expect(semPlanos).not.toContain('empresa-plano.escolher');
   });
   it('servidor sem planos (MACUXI_PLANOS desligado, 404 de rota): o mesmo cartão, também para o admin do cliente', () => {
     for (const timeMacuxi of [true, false]) {
@@ -179,6 +201,21 @@ describe('Nova empresa sem planos', () => {
     const html = renderizar(<NovaEmpresa />);
     expect(html).toContain('data-testid="empresa.plano-pme"');
     expect(html).not.toContain('data-testid="empresa.modulo-vendedor"');
+  });
+});
+
+describe('diálogo "Escolher plano" (empresa sem plano, v1.0.27)', () => {
+  it('o seletor da Nova empresa (Plano, Adicionais, Ciclo e o teste) e o principal desabilitado sem plano', () => {
+    const html = renderizar(<DialogoEscolherPlano tenant={TENANT} aoFechar={() => undefined} />);
+    expect(html).toContain('data-testid="empresa-plano.escolher-dialogo"');
+    for (const c of ['light', 'pme', 'enterprise', 'corporate']) expect(html).toContain(`data-testid="empresa.plano-${c}"`);
+    expect(html).toContain('data-testid="empresa.teste"');
+    expect(html).not.toContain('>Atual<');
+    // sem plano escolhido: nem o "Escolha o plano." de erro, nem o Total
+    expect(html).not.toContain('empresa.plano-erro');
+    expect(html).not.toContain('empresa-plano.total');
+    const confirmar = html.slice(html.indexOf('data-testid="empresa-plano.escolher-confirmar"'));
+    expect(confirmar.slice(0, confirmar.indexOf('</button>'))).toMatch(/disabled=""[^>]*>Escolher plano$/);
   });
 });
 
