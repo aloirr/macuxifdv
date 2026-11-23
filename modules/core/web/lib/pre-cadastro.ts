@@ -125,6 +125,9 @@ export function textoDoResultado(t: TentativaPreCadastro, fuso: string): string 
   return t.resultado === 'recusado' ? `Recusada pelo ERP${quando}` : `Aceita pelo ERP${quando}`;
 }
 
+/** Código ERP do cartão da revisão aceita ("· Código ERP C5112"); nulo nas demais e no aceite sem código (codigos-do-cliente.md §5.2). */
+export const codigoErpDoAceite = (t: Pick<TentativaPreCadastro, 'resultado' | 'external_id'>): string | null => (t.resultado === 'aceito' && t.external_id ? t.external_id : null);
+
 /** Tentativas da mais nova para a mais antiga. */
 export const tentativasEmOrdem = (h: HistoricoPreCadastro): TentativaPreCadastro[] => [...h.tentativas].sort((a, b) => b.revisao - a.revisao);
 

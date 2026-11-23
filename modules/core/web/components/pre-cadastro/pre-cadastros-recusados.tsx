@@ -25,6 +25,7 @@ import {
   Notice,
   propsDoInputComMascara,
   SelectField,
+  SEPARADOR_CODIGOS,
   TabelaDados,
   useToast,
 } from '@macuxi/ui/web';
@@ -43,6 +44,7 @@ import {
 import {
   buscaDoQDaUrl,
   buscaParaApi,
+  codigoErpDoAceite,
   corpoDaCorrecao,
   erroDoReenvio,
   GRADE_DA_CORRECAO,
@@ -281,7 +283,17 @@ function Historico({ consulta, fuso }: { consulta: UseQueryResult<HistoricoPreCa
         <article key={t.revisao} className="flex flex-col gap-1 rounded-xl border border-line bg-surface p-3 text-[13px] text-ink" data-testid={`${P}.tentativa.${t.revisao}`}>
           <strong className="font-semibold">Revisão {t.revisao}</strong>
           <span className="text-ink-2">{textoDeQuemEnviou(t, fuso)}</span>
-          <span>{textoDoResultado(t, fuso)}</span>
+          <span>
+            {textoDoResultado(t, fuso)}
+            {codigoErpDoAceite(t) && (
+              <>
+                {SEPARADOR_CODIGOS}Código ERP{' '}
+                <span className="font-mono text-[13px] tabular-nums" data-testid={`${P}.tentativa.${t.revisao}.codigo-erp`}>
+                  {codigoErpDoAceite(t)}
+                </span>
+              </>
+            )}
+          </span>
           {t.resultado === 'recusado' && t.motivo && (
             <span className="flex items-start gap-1 text-danger">
               <IconAlert size={13} className="mt-[2px] shrink-0" />

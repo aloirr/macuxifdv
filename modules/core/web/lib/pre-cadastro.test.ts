@@ -6,6 +6,7 @@ import {
   alternarLinhaObrigatoria,
   buscaDoQDaUrl,
   buscaParaApi,
+  codigoErpDoAceite,
   contadorDaAba,
   corpoDaCorrecao,
   erroDoReenvio,
@@ -78,6 +79,14 @@ describe('Clientes › Pré-cadastros recusados (RN-CORE-78)', () => {
     expect(textoDoResultado(tentativa({}), FUSO)).toBe('Aguardando ERP');
     expect(textoDoResultado(tentativa({ resultado: 'recusado', respondido_em: '2026-11-21T12:00:00Z' }), FUSO)).toBe('Recusada pelo ERP em 21/11/2026 08:00');
     expect(textoDoResultado(tentativa({ resultado: 'aceito', respondido_em: '2026-11-21T12:00:00Z' }), FUSO)).toBe('Aceita pelo ERP em 21/11/2026 08:00');
+  });
+
+  it('RN-CORE-78: o Código ERP vai só no cartão da revisão aceita que trouxe o código (ADR 0069 item 10)', () => {
+    expect(codigoErpDoAceite(tentativa({ resultado: 'aceito', external_id: 'C5112' }))).toBe('C5112');
+    expect(codigoErpDoAceite(tentativa({ resultado: 'aceito', external_id: null }))).toBeNull();
+    expect(codigoErpDoAceite(tentativa({ resultado: 'aceito' }))).toBeNull();
+    expect(codigoErpDoAceite(tentativa({ resultado: 'recusado', external_id: 'C5112' }))).toBeNull();
+    expect(codigoErpDoAceite(tentativa({ external_id: 'C5112' }))).toBeNull();
   });
 
   it('RN-CORE-78: 409 de revisão desatualizada diz quem corrigiu antes e quando; sem nome, o texto do contrato', () => {

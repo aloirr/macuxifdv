@@ -3,7 +3,7 @@
  * o modelo do editor de rotas herdado da Fase M (`RouteDay`, `Seller`, `Team`, `CustomerSummary`). O editor (lista,
  * mapa Leaflet, 2-opt, copiar dia) continua igual; só a camada de dados troca. Puro: sem React nem rede.
  */
-import type { CustomerSummary, BaseNoMapa, DiaDaPrevia, MembroHierarquia, PutRota, RotasLista, RouteDay, RouteStop, Seller, Team } from '../../contracts';
+import type { CarteiraDoUsuarioItem, CustomerSummary, BaseNoMapa, DiaDaPrevia, MembroHierarquia, PutRota, RotasLista, RouteDay, RouteStop, Seller, Team } from '../../contracts';
 import { routeDistanceKm, type GeoPoint } from '../../domain';
 
 /** Sem base não há ponto de saída: o km conta a partir do 1º cliente (RN-CORE-75). */
@@ -15,28 +15,8 @@ export const pontoDaBase = (b: Pick<BaseNoMapa, 'lat' | 'lng'> | null | undefine
 type ItemRota = RotasLista['itens'][number];
 type ParadaServidor = ItemRota['paradas'][number];
 
-/** Cliente "magro" da carteira do usuário (`GET usuarios/:id/clientes`). */
-export interface ClienteDaCarteira {
-  id: string;
-  nome: string;
-  razao_social: string;
-  /** Código do cliente no ERP e CNPJ: a busca do editor de rota casa por eles (`clienteCasaBusca`). */
-  external_id?: string | null;
-  /** Código FDV (ADR 0069 item 10): coluna Código da Carteira; ausente = a API ainda não manda. */
-  codigo_fdv?: string | null;
-  documento?: string | null;
-  cidade: string | null;
-  bairro: string | null;
-  lat: number | null;
-  lng: number | null;
-  ultima_compra_em: string | null;
-  carteira_id?: string;
-  papel?: 'vendedor' | 'promotor';
-  frequencia_semanas: number | null;
-  dia_semana: number | null;
-  /** RN-CORE-16: cliente sem os campos mínimos do tenant (pedido só como orçamento). */
-  cadastro_incompleto?: boolean;
-}
+/** Cliente "magro" da carteira do usuário (`GET usuarios/:id/clientes`): o item do contrato (Código ERP e Código FDV, CNPJ, coordenada). */
+export type ClienteDaCarteira = CarteiraDoUsuarioItem;
 
 const STATUS: Record<ParadaServidor['status'], RouteStop['status']> = { feita: 'done', em_atendimento: 'in_progress', proxima: 'next', pendente: 'pending' };
 

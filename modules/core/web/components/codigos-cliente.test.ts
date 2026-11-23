@@ -25,6 +25,14 @@ describe('códigos do cliente no BKO (ADR 0069 item 10, v1.0.30)', () => {
     expect(p).toContain('colSpan={7}');
   });
 
+  it('Carteira: a lista vem validada pelo contrato da carteira (dois códigos) e os candidatos de "Vincular cliente" mostram os códigos em linha entre o nome e a cidade', () => {
+    const p = ler('carteira/carteira-page.tsx');
+    expect(p).toContain('CarteiraDoUsuarioRespostaSchema.parse(await api<unknown>(`/core/usuarios/${usuario}/clientes`)).itens');
+    expect(p).toMatch(/\{c\.nome_fantasia \|\| c\.razao_social\}<\/span>\s*<CodigosDoCliente cliente=\{c\} forma="linha" testId=\{`carteira\.candidato\.\$\{c\.id\}\.codigos`\} \/>\s*<span className="text-ink-2">\{c\.cidade \?\? ''\}<\/span>/);
+    expect(ler('../lib/rotas-api.ts')).toContain('export type ClienteDaCarteira = CarteiraDoUsuarioItem;');
+    expect(ler('../lib/queries.ts')).toContain('CarteiraDoUsuarioRespostaSchema.parse(r).itens');
+  });
+
   it('Cliente 360: os códigos no início do subtítulo do cabeçalho', () => {
     const p = ler('cliente360/cliente360-page.tsx');
     expect(p).toContain('subtitle={<CodigosDoCliente cliente={cliente} forma="linha" depois={identificacao} testId="cliente360.codigos" />}');
@@ -38,6 +46,9 @@ describe('códigos do cliente no BKO (ADR 0069 item 10, v1.0.30)', () => {
     expect(colunas).toContain("largura: '92px'");
     expect(p.match(/<CodigosDoCliente cliente=\{\{ codigo_fdv: item\.codigo_fdv \}\} forma="linha"/g)).toHaveLength(2);
     expect(p).toContain('texto: (l) => textoDosCodigosDoCliente(l)');
+    expect(p).toContain('<CodigosDoCliente cliente={l} forma="empilhado"');
+    expect(p).toContain('{SEPARADOR_CODIGOS}Código ERP{\' \'}');
+    expect(p).toMatch(/className="font-mono text-\[13px\] tabular-nums" data-testid=\{`\$\{P\}\.tentativa\.\$\{t\.revisao\}\.codigo-erp`\}/);
     expect(p).not.toContain('app/lib/codigos-cliente');
     expect(p).toContain('<CampoBusca rotulo={ROTULO_BUSCA_RECUSADOS} ');
     expect(p).not.toContain('ROTULO_BUSCA_CLIENTE');

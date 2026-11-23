@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, EtiquetaCadastroIncompleto, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
-import { ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
+import { CarteiraDoUsuarioRespostaSchema, ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
 import { MINIMO_BUSCA_CLIENTE_BKO, ROTULO_BUSCA_CLIENTE_BKO } from '../../../domain';
 import { csvDaCarteira, DIAS_DA_SEMANA, rotuloFrequencia } from '../../lib/carteira';
 import { usePapeisDeCampo, useSellersDeCampo } from '../../lib/queries';
@@ -37,7 +37,7 @@ function CarteiraConteudo() {
 
   const lista = useQuery({
     queryKey: ['core', 'carteira-do-usuario', usuario],
-    queryFn: async () => (await api<{ itens: ClienteDaCarteira[] }>(`/core/usuarios/${usuario}/clientes`)).itens,
+    queryFn: async () => CarteiraDoUsuarioRespostaSchema.parse(await api<unknown>(`/core/usuarios/${usuario}/clientes`)).itens,
     enabled: Boolean(usuario),
   });
   const candidatos = useQuery({
@@ -125,6 +125,7 @@ function CarteiraConteudo() {
               {(candidatos.data ?? []).map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center gap-3 text-[13px]">
                   <span className="min-w-[240px] font-semibold">{c.nome_fantasia || c.razao_social}</span>
+                  <CodigosDoCliente cliente={c} forma="linha" testId={`carteira.candidato.${c.id}.codigos`} />
                   <span className="text-ink-2">{c.cidade ?? ''}</span>
                   <Button
                     variant="primary"
