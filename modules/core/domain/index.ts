@@ -77,3 +77,4 @@ export * from './base-vendedor';
 export * from './geocodificacao-cliente';
 export * from './cliente-vinculo-erp';
 export * from './cliente-pre-cadastro';
+export * from './pre-cadastro-campos';

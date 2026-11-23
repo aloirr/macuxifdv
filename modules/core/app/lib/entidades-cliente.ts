@@ -15,6 +15,7 @@ import {
   ClienteVisitaResumoSyncSchema,
   UsuarioSyncSchema,
 } from '../../contracts';
+import { entidadePreCadastro } from './pre-cadastro-local';
 
 const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['schema']) =>
   definirEntidadeSync({ nome, modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema });
@@ -32,4 +33,6 @@ export const entidadesCliente = [
   pull('cliente_visita_resumo', ClienteVisitaResumoSyncSchema),
   // RN-VEN-11a: funções e limite de desconto do usuário (o app usa a linha da sessão)
   pull('usuario', UsuarioSyncSchema),
+  // v1.0.28 / RN-CORE-78: pré-cadastro do vendedor no Campo, push à fila do ERP (o ERP aprova ou recusa; a decisão volta no pull de `cliente`)
+  entidadePreCadastro,
 ] as const;

@@ -17,3 +17,9 @@ export function abrirRota(): void {
 export function abrirClientes(filtro?: string): void {
   router.navigate((filtro ? `/m/clientes?filter=${encodeURIComponent(filtro)}` : '/m/clientes') as never);
 }
+
+/** Rota do formulário "Novo cliente" (pré-cadastro, v1.0.28); com `clienteId` é "Corrigir e reenviar". A rota do shell monta `TelaNovoClientePreCadastro`. */
+export const ROTA_NOVO_CLIENTE = '/m/novo-cliente';
+export function abrirNovoCliente(clienteId?: string): void {
+  router.navigate((clienteId ? `${ROTA_NOVO_CLIENTE}?clienteId=${encodeURIComponent(clienteId)}` : ROTA_NOVO_CLIENTE) as never);
+}

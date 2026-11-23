@@ -1,36 +1,58 @@
 import { describe, expect, it } from 'vitest';
-import { camposObrigatoriosEfetivos, validarPreCadastro } from './pre-cadastro-campos';
+import {
+  camposObrigatoriosPreCadastro,
+  ehSempreObrigatorio,
+  podePreCadastrarCliente,
+  situacaoDoPreCadastro,
+  validarPreCadastro,
+} from './pre-cadastro-campos';
 
-describe('pré-cadastro: campos obrigatórios efetivos (RN-CORE-16)', () => {
-  it('RN-CORE-16: efetivos = sempre obrigatórios ∪ obrigatórios do parâmetro, sem duplicar, na ordem canônica', () => {
-    const ordem = ['razao_social', 'documento', 'telefone', 'email'] as const;
-    expect(camposObrigatoriosEfetivos(ordem, ['razao_social', 'documento'], ['email', 'telefone', 'email'])).toEqual(['razao_social', 'documento', 'telefone', 'email']);
+describe('pré-cadastro: campos obrigatórios efetivos (RN-CORE-79)', () => {
+  it('RN-CORE-79: efetivos = sempre obrigatórios ∪ parâmetro, na ordem canônica, sem repetir', () => {
+    expect(camposObrigatoriosPreCadastro([])).toEqual(['razao_social', 'documento']);
+    expect(camposObrigatoriosPreCadastro(['email', 'telefone', 'email'])).toEqual(['razao_social', 'documento', 'telefone', 'email']);
   });
-  it('RN-CORE-16: parâmetro ausente, inválido ou com código desconhecido não tira os sempre obrigatórios', () => {
-    const ordem = ['razao_social', 'documento', 'telefone'] as const;
-    expect(camposObrigatoriosEfetivos(ordem, ['razao_social', 'documento'], undefined)).toEqual(['razao_social', 'documento']);
-    expect(camposObrigatoriosEfetivos(ordem, ['razao_social', 'documento'], 'x')).toEqual(['razao_social', 'documento']);
-    expect(camposObrigatoriosEfetivos(ordem, ['razao_social', 'documento'], ['inexistente', 7])).toEqual(['razao_social', 'documento']);
+  it('RN-CORE-79: razão social e documento ficam travados', () => {
+    expect(ehSempreObrigatorio('documento')).toBe(true);
+    expect(ehSempreObrigatorio('email')).toBe(false);
   });
 });
 
-describe('pré-cadastro: validação do formulário (RN-CORE-16)', () => {
-  const obrig = ['razao_social', 'documento', 'telefone'] as const;
-  it('RN-CORE-16: CNPJ com dígito verificador inválido é recusado com a mensagem do campo', () => {
-    const r = validarPreCadastro({ razao_social: 'Mercado Boa Vista', documento: '11.222.333/0001-80', telefone: '92999990000' }, obrig);
-    expect(r.ok).toBe(false);
-    expect(r.erros.documento).toMatch(/CNPJ|CPF/);
+describe('pré-cadastro: validação do formulário (RN-CORE-79)', () => {
+  const base = { razao_social: 'Mercado Boa Vista', documento: '11.222.333/0001-81' };
+  const obrig = camposObrigatoriosPreCadastro(['telefone', 'endereco']);
+  it('RN-CORE-79: CNPJ com dígito verificador errado é recusado; CNPJ e CPF válidos passam, com ou sem máscara', () => {
+    expect(validarPreCadastro({ ...base, documento: '11.222.333/0001-80' }, ['razao_social', 'documento']).erros.documento).toBe('CNPJ inválido');
+    expect(validarPreCadastro({ ...base, documento: '111.111.111-11' }, ['razao_social', 'documento']).erros.documento).toBe('CPF inválido');
+    expect(validarPreCadastro(base, ['razao_social', 'documento']).ok).toBe(true);
+    expect(validarPreCadastro({ ...base, documento: '52998224725' }, ['razao_social', 'documento']).ok).toBe(true);
   });
-  it('RN-CORE-16: aceita CNPJ e CPF válidos com ou sem máscara', () => {
-    expect(validarPreCadastro({ razao_social: 'A', documento: '11.222.333/0001-81', telefone: '1' }, obrig).ok).toBe(true);
-    expect(validarPreCadastro({ razao_social: 'A', documento: '529.982.247-25', telefone: '1' }, obrig).ok).toBe(true);
+  it('RN-CORE-79: obrigatório vazio ou só espaço aponta o campo; endereço vale pelo grupo todo', () => {
+    const r = validarPreCadastro({ ...base, razao_social: '  ', telefone: '', logradouro: 'Rua A', numero: '1' }, obrig);
+    expect(Object.keys(r.erros).sort()).toEqual(['bairro', 'cep', 'cidade', 'razao_social', 'telefone', 'uf']);
+    expect(r.erros.cep).toBe('Obrigatório');
   });
-  it('RN-CORE-16: campo obrigatório vazio ou só espaço aponta o campo; opcional vazio passa', () => {
-    const r = validarPreCadastro({ razao_social: '   ', documento: '11222333000181', telefone: '', email: '' }, obrig);
-    expect(Object.keys(r.erros).sort()).toEqual(['razao_social', 'telefone']);
+  it('RN-CORE-79: opcional vazio passa; opcional preenchido e inválido (CEP, telefone, e-mail) é recusado', () => {
+    expect(validarPreCadastro({ ...base, email: '', cep: '' }, ['razao_social', 'documento']).ok).toBe(true);
+    const r = validarPreCadastro({ ...base, cep: '123', telefone: '9299', email: 'sem-arroba' }, ['razao_social', 'documento']);
+    expect(r.erros).toEqual({ cep: 'CEP inválido', telefone: 'Telefone inválido', email: 'E-mail inválido' });
   });
-  it('RN-CORE-16: campo opcional preenchido e inválido (e-mail) é recusado', () => {
-    const r = validarPreCadastro({ razao_social: 'A', documento: '11222333000181', telefone: '1', email: 'sem-arroba' }, obrig);
-    expect(r.erros.email).toBeDefined();
+});
+
+describe('pré-cadastro: perfil e selo (RN-CORE-78)', () => {
+  it('RN-CORE-78: só o vendedor pré-cadastra; promotor e gestão não', () => {
+    expect(podePreCadastrarCliente('vendedor')).toBe(true);
+    for (const p of ['promotor', 'supervisor', 'gerente', 'admin']) expect(podePreCadastrarCliente(p)).toBe(false);
+  });
+  it('RN-CORE-78: pendente ou sem código = aguardando o ERP', () => {
+    expect(situacaoDoPreCadastro({ status_cadastro: 'pendente', external_id: null }).situacao).toBe('aguardando_erp');
+    expect(situacaoDoPreCadastro({ external_id: null }).situacao).toBe('aguardando_erp');
+  });
+  it('RN-CORE-78: recusado mostra o motivo do ERP', () => {
+    expect(situacaoDoPreCadastro({ status_cadastro: 'recusado', external_id: null, motivo_recusa: ' CNPJ duplicado ' })).toEqual({ situacao: 'recusado_erp', motivo: 'CNPJ duplicado' });
+  });
+  it('RN-CORE-78: com o código do ERP o cliente está aprovado (sem selo)', () => {
+    expect(situacaoDoPreCadastro({ status_cadastro: 'aprovado', external_id: 'C-100' }).situacao).toBe('aprovado_erp');
+    expect(situacaoDoPreCadastro({ external_id: 'C-100' }).situacao).toBe('aprovado_erp');
   });
 });

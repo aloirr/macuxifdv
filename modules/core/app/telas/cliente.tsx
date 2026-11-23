@@ -16,13 +16,13 @@
  * A tela só lê os itens; quem registra decide o conteúdo. Sem o módulo ativo, o item some (RN-CORE-03).
  */
 import { useExtensoes, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, BackLink, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, fonte, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { ACAO_CORRIGIR_E_REENVIAR, Abas, BackLink, Botao, ROTULO_RECUSADO_ERP, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, fonte, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ACAO_CHECKIN_FORA_DE_ROTA, ACAO_VISITA_REGISTRAR_GESTAO, type AbaCliente, type AcaoCliente, type AvisoCliente, type ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, visitaDeGestaoPermitida, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, limiteEDisponivelDoResumo, performanceDoCliente, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal, perfilDeGestao, type AbaFicha } from '../../domain';
+import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, visitaDeGestaoPermitida, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, limiteEDisponivelDoResumo, performanceDoCliente, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal, perfilDeGestao, podePreCadastrarCliente, situacaoDoPreCadastro, type AbaFicha } from '../../domain';
 import { AbaDocumentacao } from '../components/aba-documentacao';
 import { AbaHistorico } from '../components/aba-historico';
 import { AbaResumo, type ItemCompradoLinha } from '../components/aba-resumo';
@@ -40,6 +40,7 @@ import { tentarCheckin } from '../lib/acoes-visita';
 import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../lib/etapa-pendente';
 import type { PosicaoGps } from '../lib/visita-payload';
 import { mapsUrl, telUrl, whatsappUrl } from '../lib/route';
+import { abrirNovoCliente } from '../lib/navegacao';
 import { useCore } from '../lib/usar-core';
 import { latestVisitFor } from '../lib/visit';
 
@@ -202,6 +203,8 @@ export function TelaCliente() {
       )
     : null;
 
+  // v1.0.28 / RN-CORE-78: recusado pelo ERP, o motivo e a correção ficam na área de alertas
+  const recusa = ficha && situacaoDoPreCadastro(ficha.cliente).situacao === 'recusado_erp' ? situacaoDoPreCadastro(ficha.cliente) : null;
   const itensAbas = abasDoApp(locais.perfil, locais.verPedidos);
   const abaAtiva: AbaFicha = itensAbas.some((a) => a.id === aba) ? aba : 'resumo';
 
@@ -224,6 +227,15 @@ export function TelaCliente() {
           return <Aviso key={`${a.modulo}-${a.id}`} contexto={contexto} />;
         })}
         {avisoFoto ? <Banner tone="danger" icon="alert" testID="cliente-foto-erro" anunciar>{avisoFoto}</Banner> : null}
+        {recusa ? (
+          <View style={{ gap: 8 }}>
+            <Banner tone="danger" icon="alert" testID="cliente-recusado-erp" anunciar>
+              <Strong>{ROTULO_RECUSADO_ERP}</Strong>
+              {recusa.motivo ? `\n${recusa.motivo}` : ''}
+            </Banner>
+            {podePreCadastrarCliente(locais.perfil) ? <Botao testID="cliente-corrigir-reenviar" rotulo={ACAO_CORRIGIR_E_REENVIAR} onPress={() => abrirNovoCliente(id)} /> : null}
+          </View>
+        ) : null}
 
         {abaAtiva === 'resumo' ? (
           ficha && performance ? (
