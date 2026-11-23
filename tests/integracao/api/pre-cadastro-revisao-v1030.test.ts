@@ -22,7 +22,7 @@
  * (RN-CORE-01), então o MODULO_INATIVO das rotas novas fica no teste de permissão do Core. Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { Writable } from 'node:stream';
+import { completarCnpj, completarCpf } from '@macuxi/comum/documento';
 import { PEPPER_HUB_FIXTURE } from '@macuxi/db/teste';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { ClienteParaErp, RetornoClienteAceito, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
@@ -34,6 +34,7 @@ import { camposExigidos, canonicalPreCadastro, validarPreCadastro } from '../../
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
+import { coletor } from '../apoio/coletor-log';
 import { A, B, erroDe, licenca, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 
 const VERSAO_CONECTOR = '1.2.0';
@@ -44,40 +45,10 @@ const CPF_NA_MENSAGEM = '123.456.789-09';
 /** Ids criados por este arquivo (o Conector simulado só confere estes contra o contrato). */
 const DESTE_ARQUIVO = new Set<string>();
 
-/** CNPJ válido a partir de um número de 8 dígitos (dígitos verificadores calculados), para não colidir com a fixture. */
-function cnpj(base: number): string {
-  const d = `${String(base).padStart(8, '0')}0001`.split('').map(Number);
-  const dv = (n: number[]) => {
-    const pesos = n.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    const r = n.reduce((s, x, i) => s + x * pesos[i]!, 0) % 11;
-    return r < 2 ? 0 : 11 - r;
-  };
-  d.push(dv(d));
-  d.push(dv(d));
-  return d.join('');
-}
+/** CNPJ válido a partir de um número de 8 dígitos (filial 0001), para não colidir com a fixture. */
+const cnpj = (base: number): string => completarCnpj(`${String(base).padStart(8, '0')}0001`);
 /** CPF válido a partir de 9 dígitos. */
-function cpf(base: number): string {
-  const d = String(base).padStart(9, '0').split('').map(Number);
-  const dv = (n: number[]) => {
-    const r = (n.reduce((s, x, i) => s + x * (n.length + 1 - i), 0) * 10) % 11;
-    return r === 10 ? 0 : r;
-  };
-  d.push(dv(d));
-  d.push(dv(d));
-  return d.join('');
-}
-
-function coletor() {
-  const linhas: string[] = [];
-  const stream = new Writable({
-    write(chunk, _enc, cb) {
-      for (const l of String(chunk).split('\n')) if (l.trim()) linhas.push(l);
-      cb();
-    },
-  });
-  return { linhas, stream };
-}
+const cpf = (base: number): string => completarCpf(String(base).padStart(9, '0'));
 
 function conectorSimulado(api: ApiDeTeste, t: Tenant, ip: string) {
   const cab = {
