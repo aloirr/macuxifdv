@@ -1,4 +1,4 @@
--- 0098_core_integracao_pre_cadastro_revisao (up) — v1.0.29, ADR 0069 (reenvio do pré-cadastro recusado no mesmo cliente, com
+-- 0098_core_integracao_pre_cadastro_revisao (up) — v1.0.30, ADR 0069 (reenvio do pré-cadastro recusado no mesmo cliente, com
 -- histórico de revisões; decisões do dono do produto R-20261123-141413 e R-20261123-142306; RN-CORE-16, RN-CORE-78, RN-CORE-79 e
 -- RN-INT-22 revistas). Em cima da 0097; o número segue a ordem de merge (provisório até o gerente confirmar). Dicionários:
 -- docs/banco/core.md e docs/banco/integracao.md ("0098"). Teste: db/testes/cliente-pre-cadastro-revisao.db.test.ts (estático
@@ -39,15 +39,16 @@
 --        se qualquer campo de endereço for exigido), para o APK v1.0.28 receber no pull (projecaoLegadaObrigatorios).
 --    Upsert pelo parametro_uk (vivo), só quando o valor muda. Nada é apagado.
 --
--- 5. Código FDV do cliente (ADR 0069 item 10 e D.7; molde da 0080, RN-CORE-59; dono: Core). O cliente tem dois códigos: o Código
---    ERP (core.cliente.external_id, nulo no pré-cadastro até o retorno 'vinculado') e o Código FDV, gerado pelo banco quando o
---    SERVIDOR recebe o pré-cadastro (o aparelho não numera offline; o pull leva o código).
---      core.cliente.codigo_fdv text  NOVA: 00001… por tenant (5 dígitos ou mais, sem prefixo; 100000 depois de 99999), só de leitura
---                                    e nunca reaproveitado. Nula nos clientes do ERP (sem carga para eles) e nos pré-cadastros
---                                    apagados antes desta migração. CHECKs cliente_codigo_fdv_formato (o mesmo da 0080) e
---                                    cliente_codigo_fdv_origem (codigo_fdv is null or origem_cadastro <> 'erp'). Único entre os
---                                    vivos: cliente_codigo_fdv_uk (tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv
---                                    is not null (cobre a busca pelo código). SELECT do macuxi_leitura.
+-- 5. Código FDV do cliente (ADR 0069 item 10 e D.7, decisão "1 B": TODO cliente vivo tem código, de qualquer origem; molde da
+--    0080, RN-CORE-59; hint RN-CORE-78; dono: Core). O cliente tem dois códigos: o Código ERP (core.cliente.external_id, nulo no
+--    pré-cadastro até o retorno 'vinculado') e o Código FDV, gerado pelo banco quando o SERVIDOR grava o cliente (pré-cadastro da
+--    rota do BKO, push do Campo ou cliente novo da carga do ERP; o aparelho não numera offline; o pull leva o código).
+--      core.cliente.codigo_fdv text  NOVA: 00001… por tenant (5 dígitos ou mais, sem prefixo; 100000 depois de 99999, sem teto), só
+--                                    de leitura e nunca reaproveitado. Nula só nos clientes apagados antes desta migração.
+--                                    CHECKs cliente_codigo_fdv_formato (o mesmo da 0080) e cliente_codigo_fdv_vivo (deleted_at is
+--                                    not null or codigo_fdv is not null: cliente vivo sem código = 23514; criado depois da carga).
+--                                    Único entre os vivos: cliente_codigo_fdv_uk (tenant_id, codigo_fdv) where deleted_at is null
+--                                    and codigo_fdv is not null (cobre a busca pelo código). SELECT do macuxi_leitura.
 --    core.cliente_codigo_fdv_contador (fora do sync, db/src/excecoes.ts): uma linha por tenant (id = uuid_de_chave
 --    '<tenant>:core.cliente_codigo_fdv_contador'; único cliente_codigo_fdv_contador_tenant_uk), ultimo_sequencial bigint >= 0 = o
 --    maior número emitido. Numeração própria (não divide com a do usuário). Nunca diminui (gatilho e constraint
@@ -56,23 +57,36 @@
 --    quem grava é a função do gatilho (SECURITY DEFINER). Backup (0072, ordem_do_backup): só FK para plataforma.tenant, 1ª leva,
 --    antes de core.cliente; a restauração dá certo em qualquer ordem com os gatilhos ligados (como na 0080).
 --    core.cliente_codigo_fdv() — função dos 2 gatilhos de core.cliente, SECURITY DEFINER, search_path fixo, sem EXECUTE a ninguém:
---      - cliente_codigo_fdv_emitir (BEFORE INSERT): só com origem_cadastro <> 'erp' e o código nulo -> próximo número do contador
---        do tenant (update + 1 returning; sem a linha, insert no piso e o mesmo update: inserts concorrentes do mesmo tenant
---        numeram em fila, sem repetir). Código informado (backup, carga técnica, substituição do APK v1.0.28: o id novo X herda o
---        código do recusado Y, apagado antes) fica, e o contador que existe sobe para greatest(atual, n). Insert que cai no ON
---        CONFLICT consome o número: buraco aceito, nunca repete.
+--      - cliente_codigo_fdv_emitir (BEFORE INSERT), para todo insert vivo com o código nulo, de qualquer origem:
+--          . com external_id e já existe o vivo com o mesmo (tenant_id, external_id) (índice cliente_external_uk) -> NÃO emite: é o
+--            upsert da carga do ERP ("insert ... on conflict (tenant_id, external_id) do update"; o BEFORE INSERT roda antes do
+--            conflito) e o insert vira o update, que não mexe no código. Carga repetida não gasta número. Como o Postgres confere
+--            os CHECKs ANTES do conflito, a linha proposta leva o código do vivo (sem ele, o cliente_codigo_fdv_vivo recusaria
+--            toda carga repetida), e o vivo fica travado (for no key update, a trava que o update do conflito pega) até o fim da
+--            transação: ele não some entre a procura e o conflito, e a linha proposta nunca é gravada com o código dele;
+--          . senão -> próximo número do contador do tenant (update + 1 returning; sem a linha, insert no piso e o mesmo update:
+--            inserts concorrentes do mesmo tenant numeram em fila, sem repetir). Duas cargas do mesmo cliente novo ao mesmo tempo
+--            perdem no máximo um número (buraco aceito, nunca repete).
+--        Código informado (backup, carga técnica, substituição do APK v1.0.28: o id novo X herda o código do recusado Y, apagado
+--        antes) fica, e o contador que existe sobe para greatest(atual, n). Insert de linha já apagada sem código (backup) fica sem
+--        código (ganha o número se voltar a viva).
 --      - cliente_codigo_fdv_somente_leitura (BEFORE UPDATE): mudar codigo_fdv = 23514, CONSTRAINT
---        cliente_codigo_fdv_somente_leitura, coluna codigo_fdv, hint RN-CORE-59 -> o Core mapeia para 422 CODIGO_FDV_SOMENTE_LEITURA.
---        Só o pré-cadastro apagado sem código que volta a vivo ganha número num update.
---    Carga: os pré-cadastros VIVOS (origem_cadastro <> 'erp'), por tenant, em ordem de created_at, id, recebem 00001…; o contador
---    termina no maior emitido (tenant sem pré-cadastro vivo fica sem linha até o 1º). O updated_at anda: o pull leva o código.
+--        cliente_codigo_fdv_somente_leitura, coluna codigo_fdv, hint RN-CORE-78 -> o Core mapeia para 422 CODIGO_FDV_SOMENTE_LEITURA.
+--        O apagado sem código (antes da 0098) que volta a vivo ganha o próximo número no mesmo update, de qualquer origem.
+--      Os 2 gatilhos rodam antes do cliente_updated_at (ordem alfabética) e não mexem no updated_at.
+--    Carga (backfill): TODOS os clientes VIVOS de todas as empresas (qualquer origem_cadastro), por tenant, em ordem de
+--    created_at, id (o id desempata a mesma carga do ERP), recebem 00001… num update só, antes dos gatilhos e do CHECK
+--    cliente_codigo_fdv_vivo; os apagados ficam nulos. O contador de cada tenant termina no maior número emitido (tenant sem
+--    cliente vivo fica sem linha até o 1º). O updated_at dos vivos anda (o pull leva o código; cada aparelho puxa a carteira de
+--    novo no 1º sync depois do deploy). Roda pelo dono da migração, sem outbox: nenhum evento é publicado. Tempo medido na base
+--    de teste: docs/banco/core.md ("0098", Código FDV do cliente).
 --
--- Volume: core.cliente (milhares a dezenas de milhares por tenant; pré-cadastros são dezenas); tentativas = pré-cadastros x
+-- Volume: core.cliente (milhares a dezenas de milhares por tenant, todos os vivos numerados na carga; pré-cadastros são dezenas); tentativas = pré-cadastros x
 -- revisões (dezenas a centenas por tenant); parâmetros: 2 linhas por tenant.
 --
 -- Caminho de volta: 0098_core_integracao_pre_cadastro_revisao.down.sql (APAGA a tabela de tentativas e as colunas novas: o
 -- histórico, as revisões, os hashes e os erros por campo se perdem; os parâmetros ficam como a 0098 deixou). APAGA também o Código
--- FDV dos clientes e o contador: reaplicar a 0098 renumera os pré-cadastros vivos por created_at, id (exporte antes "select
+-- FDV dos clientes e o contador: reaplicar a 0098 renumera os clientes vivos por created_at, id (exporte antes "select
 -- tenant_id, id, codigo_fdv from core.cliente where codigo_fdv is not null" se precisar). Volte antes o código do Core e do Hub que
 -- lê as colunas ou a tabela (senão 42703/42P01).
 
@@ -252,12 +266,10 @@ select n.tenant_id, 'core', n.chave, n.valor from novos n
 on conflict (tenant_id, modulo, chave) where deleted_at is null
   do update set valor = excluded.valor where plataforma.parametro.valor is distinct from excluded.valor;
 
--- 5. Código FDV do cliente (ADR 0069 item 10; molde da 0080, RN-CORE-59)
+-- 5. Código FDV do cliente (ADR 0069 item 10 e D.7, decisão 1 B: todo cliente vivo; molde da 0080, RN-CORE-59)
 alter table core.cliente add column codigo_fdv text;
 alter table core.cliente add constraint cliente_codigo_fdv_formato
   check (codigo_fdv is null or codigo_fdv ~ '^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$');
-alter table core.cliente add constraint cliente_codigo_fdv_origem
-  check (codigo_fdv is null or origem_cadastro <> 'erp');
 create unique index cliente_codigo_fdv_uk on core.cliente (tenant_id, codigo_fdv)
   where deleted_at is null and codigo_fdv is not null;
 grant select (codigo_fdv) on core.cliente to macuxi_leitura;
@@ -284,7 +296,7 @@ begin
   if new.ultimo_sequencial < old.ultimo_sequencial or new.tenant_id is distinct from old.tenant_id then
     raise exception 'o contador do Código FDV do cliente nunca diminui nem muda de empresa (números emitidos não voltam)'
       using errcode = '23514', constraint = 'cliente_codigo_fdv_contador_nao_diminui', schema = tg_table_schema,
-            table = tg_table_name, column = 'ultimo_sequencial', hint = 'RN-CORE-59';
+            table = tg_table_name, column = 'ultimo_sequencial', hint = 'RN-CORE-78';
   end if;
   return new;
 end
@@ -320,12 +332,13 @@ grant select on core.cliente_codigo_fdv_contador to macuxi_app;
 grant select on core.cliente_codigo_fdv_contador to macuxi_leitura;
 create policy leitura on core.cliente_codigo_fdv_contador for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 
--- carga dos pré-cadastros vivos (antes dos gatilhos de core.cliente: o somente_leitura recusaria o update)
+-- carga de todos os clientes vivos, de qualquer origem (antes dos gatilhos de core.cliente: o somente_leitura recusaria o update;
+-- e antes do CHECK cliente_codigo_fdv_vivo, que confere a tabela inteira de uma vez)
 with ordem as (
   select c.id,
          row_number() over (partition by c.tenant_id order by c.created_at, c.id) as n
     from core.cliente c
-   where c.origem_cadastro <> 'erp' and c.deleted_at is null
+   where c.deleted_at is null
 )
 update core.cliente c
    set codigo_fdv = lpad(o.n::text, greatest(5, length(o.n::text)), '0')
@@ -333,10 +346,13 @@ update core.cliente c
  where o.id = c.id;
 
 insert into core.cliente_codigo_fdv_contador (id, tenant_id, ultimo_sequencial)
-select plataforma.uuid_de_chave(c.tenant_id::text || ':core.cliente_codigo_fdv_contador'), c.tenant_id, count(*)
+select plataforma.uuid_de_chave(c.tenant_id::text || ':core.cliente_codigo_fdv_contador'), c.tenant_id, max(c.codigo_fdv::bigint)
   from core.cliente c
  where c.codigo_fdv is not null
  group by c.tenant_id;
+
+alter table core.cliente add constraint cliente_codigo_fdv_vivo
+  check (deleted_at is not null or codigo_fdv is not null);
 
 create function core.cliente_codigo_fdv() returns trigger
   language plpgsql security definer
@@ -344,15 +360,16 @@ create function core.cliente_codigo_fdv() returns trigger
   as $$
 declare
   v_n bigint;
+  v_existente text;
 begin
   if tg_op = 'UPDATE' then
     if new.codigo_fdv is distinct from old.codigo_fdv then
       raise exception 'o Código FDV do cliente é gerado pelo banco e não muda depois de gravado'
         using errcode = '23514', constraint = 'cliente_codigo_fdv_somente_leitura', schema = tg_table_schema,
-              table = tg_table_name, column = 'codigo_fdv', hint = 'RN-CORE-59';
+              table = tg_table_name, column = 'codigo_fdv', hint = 'RN-CORE-78';
     end if;
-    -- só o pré-cadastro apagado sem código (antes da 0098) que volta a vivo recebe número aqui
-    if new.codigo_fdv is not null or new.deleted_at is not null or old.deleted_at is null or new.origem_cadastro = 'erp' then
+    -- só o apagado sem código (antes da 0098) que volta a vivo recebe número aqui, de qualquer origem
+    if new.codigo_fdv is not null or new.deleted_at is not null or old.deleted_at is null then
       return new;
     end if;
   elsif new.codigo_fdv is not null then
@@ -363,11 +380,23 @@ begin
        where c.tenant_id = new.tenant_id and c.ultimo_sequencial < new.codigo_fdv::bigint;
     end if;
     return new;
-  elsif new.origem_cadastro is not distinct from 'erp' then
-    return new; -- cliente do ERP: sem Código FDV
+  elsif new.deleted_at is not null or new.tenant_id is null then
+    return new; -- linha já apagada (backup): número só se voltar a viva; sem tenant, o NOT NULL de core.cliente recusa
   end if;
-  if new.tenant_id is null then
-    return new; -- o NOT NULL de core.cliente.tenant_id recusa
+  if new.external_id is not null then
+    -- upsert da carga do ERP (on conflict (tenant_id, external_id) ... do update) sobre o vivo que já existe: não gasta número.
+    -- O Postgres confere os CHECKs ANTES do conflito, então a linha proposta leva o código do vivo (senão o
+    -- cliente_codigo_fdv_vivo a recusaria em toda carga repetida); o conflito a troca pelo update, que não mexe no código. A trava
+    -- (for no key update, a mesma que o update do conflito pega) impede o vivo de sumir entre a procura e o conflito: a linha
+    -- proposta nunca é gravada com o código dele.
+    select c.codigo_fdv into v_existente
+      from core.cliente c
+     where c.tenant_id = new.tenant_id and c.external_id = new.external_id and c.deleted_at is null
+       for no key update;
+    if found then
+      new.codigo_fdv := v_existente;
+      return new;
+    end if;
   end if;
   update core.cliente_codigo_fdv_contador c set ultimo_sequencial = c.ultimo_sequencial + 1
    where c.tenant_id = new.tenant_id

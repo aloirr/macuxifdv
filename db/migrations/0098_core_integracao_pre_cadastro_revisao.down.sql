@@ -1,11 +1,11 @@
--- 0098_core_integracao_pre_cadastro_revisao (down) — desfaz a 0098 (v1.0.29, ADR 0069) e volta exatamente ao catálogo e às ACLs
+-- 0098_core_integracao_pre_cadastro_revisao (down) — desfaz a 0098 (v1.0.30, ADR 0069) e volta exatamente ao catálogo e às ACLs
 -- da 0097. APAGA core.cliente_pre_cadastro_tentativa (o histórico das revisões, os hashes e os erros por campo se perdem; o drop
 -- leva índices, gatilho, políticas e grants), core.cliente.revisao_cadastro e erros_recusa e integracao.cliente_fila_erp.revisao,
 -- hash e erros (com os CHECKs e os SELECT por coluna do macuxi_leitura). Os parâmetros ficam como a 0098 deixou
 -- (cliente.campos_obrigatorios unificado e o espelho cliente.pre_cadastro.obrigatorios): são válidos para o código da v1.0.28.
 -- APAGA também o Código FDV do cliente (ADR 0069 item 10): os 2 gatilhos de core.cliente e a função deles, o contador (leva os
 -- gatilhos dele) e as funções do "nunca diminui" e do piso, o índice, os CHECKs e a coluna (leva o SELECT do macuxi_leitura). PERDE
--- os códigos emitidos: reaplicar a 0098 renumera os pré-cadastros vivos por created_at, id. Idempotente.
+-- os códigos emitidos (de todos os clientes): reaplicar a 0098 renumera os clientes vivos por created_at, id. Idempotente.
 -- Pré-condição: o código do Core e do Hub sem ler ou gravar a tabela ou as colunas novas (senão 42P01/42703).
 
 -- 5. Código FDV do cliente
@@ -16,7 +16,7 @@ drop table if exists core.cliente_codigo_fdv_contador; -- leva os gatilhos _upda
 drop function if exists core.cliente_codigo_fdv_contador_nao_diminui();
 drop function if exists core.cliente_codigo_fdv_contador_piso();
 drop index if exists core.cliente_codigo_fdv_uk;
-alter table core.cliente drop constraint if exists cliente_codigo_fdv_origem;
+alter table core.cliente drop constraint if exists cliente_codigo_fdv_vivo;
 alter table core.cliente drop constraint if exists cliente_codigo_fdv_formato;
 alter table core.cliente drop column if exists codigo_fdv;
 

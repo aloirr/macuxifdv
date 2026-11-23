@@ -250,7 +250,7 @@ const G = {
   coleta_execucao: 0x82,
   // 0096 (v1.0.27, RF-CORE-10): fila do pré-cadastro de cliente recebido para o ERP
   cliente_fila_erp: 0x83,
-  // 0098 (v1.0.29, ADR 0069): histórico das revisões do pré-cadastro (0x84–0x97 são do Promotor)
+  // 0098 (v1.0.30, ADR 0069): histórico das revisões do pré-cadastro (0x84–0x97 são do Promotor)
   cliente_pre_cadastro_tentativa: 0x98,
 } as const;
 
@@ -516,6 +516,17 @@ export const CODIGOS_FDV_FIXTURE = {
   B: { admin: '00001', vendedor: '00002' },
 } as const;
 
+/**
+ * 0098 (ADR 0069 item 10 e D.7, decisão 1 B): Código FDV dos clientes da fixture (todo cliente vivo tem, inclusive os do ERP), na
+ * ordem da lista de core.cliente. O carregarDoisTenants grava esses códigos informados (o gatilho cliente_codigo_fdv_emitir aceita
+ * o informado e não emite; os clientes da fixture não têm external_id, então sem o código cada recarga gastaria um número): o
+ * contador de A fica em 3 e o de B em 1, e recarregar não muda nem os códigos nem o contador.
+ */
+export const CODIGOS_FDV_CLIENTES_FIXTURE = {
+  A: { c1: '00001', c2: '00002', c3: '00003' },
+  B: { c1: '00001' },
+} as const;
+
 /** 0057 (ADR 0041): quem abre documento sensível do PDV = PERFIS_DOC_SENSIVEL do Core (fonte única; o gerente entrou em R-20261110-084206). */
 export const PERFIS_LEITURA_DOC_SENSIVEL = PERFIS_DOC_SENSIVEL;
 
@@ -763,7 +774,7 @@ export const ORDEM_TABELAS = [
   // 0056 (T-0149): filiais além da padrão (a padrão vem do gatilho tenant_semear_filial), antes da FK cliente_filial_fk
   'core.filial',
   'core.cliente',
-  // 0098 (ADR 0069 item 10): contador do Código FDV do cliente; os clientes da fixture vêm do ERP (sem código), então nasce em 0
+  // 0098 (ADR 0069 item 10): contador do Código FDV do cliente, depois dos clientes (que levam o código informado)
   'core.cliente_codigo_fdv_contador',
   'core.carteira',
   'core.dispositivo',
@@ -833,7 +844,7 @@ export const ORDEM_TABELAS = [
   'core.documento_cliente',
   'core.documento_permissao',
   'core.documento_excecao',
-  // 0098 (v1.0.29, ADR 0069): revisões do pré-cadastro (FKs -> core.cliente e core.usuario)
+  // 0098 (v1.0.30, ADR 0069): revisões do pré-cadastro (FKs -> core.cliente e core.usuario)
   'core.cliente_pre_cadastro_tentativa',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
@@ -1242,10 +1253,11 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       { id: idDeChave(`${tA}:core.usuario_codigo_fdv_contador`), tenant_id: tA, ultimo_sequencial: 8, external_id: null },
       { id: idDeChave(`${tB}:core.usuario_codigo_fdv_contador`), tenant_id: tB, ultimo_sequencial: 2, external_id: null },
     ],
-    // 0098 (ADR 0069 item 10): mesmo id determinístico do gatilho cliente_codigo_fdv_emitir; nenhum pré-cadastro na fixture (0)
+    // 0098 (ADR 0069 item 10): mesmo id determinístico do gatilho cliente_codigo_fdv_emitir; o maior Código FDV de cliente da
+    // fixture (CODIGOS_FDV_CLIENTES_FIXTURE: A até 00003, B até 00001)
     'core.cliente_codigo_fdv_contador': [
-      { id: idDeChave(`${tA}:core.cliente_codigo_fdv_contador`), tenant_id: tA, ultimo_sequencial: 0, external_id: null },
-      { id: idDeChave(`${tB}:core.cliente_codigo_fdv_contador`), tenant_id: tB, ultimo_sequencial: 0, external_id: null },
+      { id: idDeChave(`${tA}:core.cliente_codigo_fdv_contador`), tenant_id: tA, ultimo_sequencial: 3, external_id: null },
+      { id: idDeChave(`${tB}:core.cliente_codigo_fdv_contador`), tenant_id: tB, ultimo_sequencial: 1, external_id: null },
     ],
     'plataforma.usuario_modulo': [
       { id: a('usuario_modulo', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor2, modulo: 'teste', efeito: 'remover', motivo: 'fixture: exceção que remove teste (S0-042)', external_id: null },
@@ -1984,7 +1996,7 @@ function dadosT0032(hojeA: string): Pick<DadosFixture, TabelaT0032> {
 }
 
 /**
- * 0098 (v1.0.29, ADR 0069; grupo 0x98): uma tentativa por tenant, nos clientes da fila do ERP (integracao.cliente_fila_erp). A: c3,
+ * 0098 (v1.0.30, ADR 0069; grupo 0x98): uma tentativa por tenant, nos clientes da fila do ERP (integracao.cliente_fila_erp). A: c3,
  * revisão 1 enviada pelo admin no BKO, aguardando o ERP. B: c1, revisão 1 do Campo (sem quem corrigiu, como a carga da 0098),
  * recusada com motivo e um erro por campo. Os clientes seguem com origem 'erp' (o banco não amarra a tentativa à origem).
  */
@@ -2188,12 +2200,23 @@ function auditoria(id: string, tenant_id: string, autor: string, alvo: string): 
  * Carrega a fixture com um cliente ADMIN (o papel de aplicação não pode criar tenant). Idempotente.
  * Roda numa transação: ou entra tudo, ou nada.
  */
-/** 0080: a coluna core.usuario.codigo_fdv existe no banco (a fixture também carrega bancos antes da 0080)? */
-async function temCodigoFdv(admin: ClientBase): Promise<boolean> {
+/** 0080 e 0098: a coluna core.<tabela>.codigo_fdv existe no banco (a fixture também carrega bancos antes da 0080 e da 0098)? */
+async function temCodigoFdv(admin: ClientBase, tabela: 'usuario' | 'cliente' = 'usuario'): Promise<boolean> {
   const r = await admin.query(
-    "select 1 from information_schema.columns where table_schema = 'core' and table_name = 'usuario' and column_name = 'codigo_fdv'",
+    "select 1 from information_schema.columns where table_schema = 'core' and table_name = $1 and column_name = 'codigo_fdv'",
+    [tabela],
   );
   return (r.rowCount ?? 0) > 0;
+}
+
+/** 0098: Código FDV de um cliente da fixture (CODIGOS_FDV_CLIENTES_FIXTURE, pelo id de DOIS_TENANTS). */
+function codigoFdvDoCliente(id: string): string {
+  for (const t of ['A', 'B'] as const) {
+    const clientes = DOIS_TENANTS[t].clientes as Record<string, string>;
+    const codigos = CODIGOS_FDV_CLIENTES_FIXTURE[t] as Record<string, string>;
+    for (const [nome, cid] of Object.entries(clientes)) if (cid === id && codigos[nome]) return codigos[nome];
+  }
+  throw new Error(`fixture: cliente ${id} sem Código FDV em CODIGOS_FDV_CLIENTES_FIXTURE`);
 }
 
 /** 0080: Código FDV de um usuário da fixture (CODIGOS_FDV_FIXTURE, pelo id de DOIS_TENANTS). */
@@ -2220,9 +2243,13 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
       // no banco fica (preservar), e o somente_leitura não dispara
       const comCodigoFdv = tabela === 'core.usuario' && (await temCodigoFdv(admin));
       if (comCodigoFdv) linhas = linhas.map((u) => ({ ...u, codigo_fdv: codigoFdvDaFixture(String(u.id)) }));
+      // 0098: o mesmo para o Código FDV do cliente (CODIGOS_FDV_CLIENTES_FIXTURE; todo cliente vivo tem, cliente_codigo_fdv_vivo)
+      const clienteComCodigoFdv = tabela === 'core.cliente' && (await temCodigoFdv(admin, 'cliente'));
+      if (clienteComCodigoFdv) linhas = linhas.map((c) => ({ ...c, codigo_fdv: codigoFdvDoCliente(String(c.id)) }));
       const preservar =
         tabela === 'core.usuario'
           ? comCodigoFdv ? ['senha_hash', 'codigo_fdv'] : ['senha_hash']
+          : clienteComCodigoFdv ? ['codigo_fdv']
           : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : tabela === 'core.usuario_codigo_fdv_contador' || tabela === 'core.cliente_codigo_fdv_contador' ? ['ultimo_sequencial'] : [];
       // 0077: o backfill (empresa com uma filial) pode já ter dado a filial a usuários da fixture com outro id (banco que desceu e
       // subiu com os dados); sai o vínculo de id diferente para o da fixture entrar sem 23505 (usuario_filial_uk). A conferência

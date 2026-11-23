@@ -234,7 +234,7 @@ export const cliente = core.table('cliente', {
    * nem na auditoria; sem SELECT do macuxi_leitura. Fila do ERP: cliente_pre_cadastro_fila_ix (pendentes sem external_id).
    */
   motivo_recusa: text('motivo_recusa'),
-  // --- 0098 (v1.0.29, ADR 0069, RN-CORE-78): revisão do pré-cadastro e erros por campo da recusa. ---
+  // --- 0098 (v1.0.30, ADR 0069, RN-CORE-78): revisão do pré-cadastro e erros por campo da recusa. ---
   /** Revisão do pré-cadastro (1 no primeiro recebimento, +1 a cada reenvio; >= 1); nula nos clientes do ERP. Vai no pull. */
   revisao_cadastro: integer('revisao_cadastro'),
   /**
@@ -243,10 +243,11 @@ export const cliente = core.table('cliente', {
    */
   erros_recusa: jsonb('erros_recusa').$type<{ campo: string; codigo: string; mensagem: string }[]>(),
   /**
-   * Código FDV do cliente (0098, ADR 0069 item 10, molde da RN-CORE-59): 00001… por tenant, gerado pelo banco quando o servidor
-   * recebe o pré-cadastro (gatilho cliente_codigo_fdv_emitir) e só de leitura (cliente_codigo_fdv_somente_leitura, 23514). Nulo
-   * nos clientes do ERP (o Código ERP é o external_id). Somente leitura — nunca grave (só a substituição do APK v1.0.28 copia o do
-   * recusado para o id novo, no insert).
+   * Código FDV do cliente (0098, ADR 0069 item 10 e D.7, molde da RN-CORE-59): 00001… por tenant, gerado pelo banco no insert de
+   * TODO cliente, de qualquer origem (gatilho cliente_codigo_fdv_emitir; o upsert da carga do ERP sobre o vivo que já existe não
+   * gasta número), e só de leitura (cliente_codigo_fdv_somente_leitura, 23514). Todo cliente vivo tem (cliente_codigo_fdv_vivo,
+   * 23514); nulo só no apagado antes da 0098. O Código ERP é o external_id. Somente leitura — nunca grave (só a substituição do APK
+   * v1.0.28 copia o do recusado para o id novo, no insert).
    */
   codigo_fdv: text('codigo_fdv'),
 });
@@ -262,7 +263,7 @@ export const ORIGENS_TENTATIVA_PRE_CADASTRO_BANCO = ['campo', 'bko'] as const;
 export const RESULTADOS_TENTATIVA_PRE_CADASTRO_BANCO = ['aguardando', 'aceito', 'recusado'] as const;
 
 /**
- * 0098 (v1.0.29, ADR 0069, RN-CORE-78): uma linha por revisão do pré-cadastro, única por (tenant_id, cliente_id, revisao). Fora do
+ * 0098 (v1.0.30, ADR 0069, RN-CORE-78): uma linha por revisão do pré-cadastro, única por (tenant_id, cliente_id, revisao). Fora do
  * sync. hash = sha256 hex do canônico (nulo nas tentativas de antes da 0098); corrigido_por e corrigido_por_perfil juntos ou nenhum;
  * respondido_em nulo se e só se 'aguardando'; motivo (até 500) e erros (até 50) só com 'recusado'. cliente_id_original = o recusado
  * substituído pelo APK v1.0.28 (alias, índice cliente_pre_cadastro_tentativa_original_ix). Sem SELECT do macuxi_leitura em hash,

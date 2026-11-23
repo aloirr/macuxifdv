@@ -525,7 +525,7 @@ deleted_at is null`; o SELECT por coluna do `macuxi_leitura` acompanha o rename.
 skip locked`. Drizzle: `clienteFilaErp.recebido_em`. Volta: o down da 0097 renomeia de volta para `aprovado_em`. Teste:
 `db/testes/cliente-pre-cadastro-erp.db.test.ts` (o `cliente-fila-erp.db.test.ts` confere o estado atual com `recebido_em`).
 
-## 0098 — revisão, hash e erros na fila do cliente (`0098_core_integracao_pre_cadastro_revisao`; v1.0.29, ADR 0069, RN-INT-22)
+## 0098 — revisão, hash e erros na fila do cliente (`0098_core_integracao_pre_cadastro_revisao`; v1.0.30, ADR 0069, RN-INT-22)
 A correção do pré-cadastro recusado é uma revisão nova do mesmo cliente (detalhes de `core.cliente` e da
 `core.cliente_pre_cadastro_tentativa` no [core.md](core.md), "0098") e **reabre a mesma linha** de `integracao.cliente_fila_erp`
 (`rejeitado → pendente`, revisão nova, `tentativas = 0`; `recebido_em` fica o do primeiro recebimento; `vinculado` nunca reabre).

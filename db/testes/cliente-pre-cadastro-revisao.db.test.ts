@@ -1,5 +1,5 @@
 /**
- * 0098 — reenvio do pré-cadastro recusado no mesmo cliente, com histórico de revisões (v1.0.29, ADR 0069; RN-CORE-16, RN-CORE-78,
+ * 0098 — reenvio do pré-cadastro recusado no mesmo cliente, com histórico de revisões (v1.0.30, ADR 0069; RN-CORE-16, RN-CORE-78,
  * RN-CORE-79 e RN-INT-22). Dicionários: docs/banco/core.md e docs/banco/integracao.md ("0098"). O que o BANCO garante:
  * - core.cliente.revisao_cadastro (>= 1; 1 em todo pré-cadastro na carga) e erros_recusa (array até 50, só com 'recusado', sem
  *   SELECT do macuxi_leitura);
@@ -10,15 +10,12 @@
  * - parâmetro unificado: cliente.campos_obrigatorios = E ∪ P e o espelho legado cliente.pre_cadastro.obrigatorios, conferidos
  *   contra o domain (camposExigidos e os contratos do pré-cadastro); a conferência db/scripts/conferencia-0098.sql (antes do up;
  *   só informativa), com a contagem dos duplicados da v1.0.28 (codigo_em_uso);
- * - Código FDV do cliente (ADR 0069 item 10, molde da 0080/RN-CORE-59): core.cliente.codigo_fdv emitido pelo banco no insert do
- *   pré-cadastro (nulo no cliente do ERP), em sequência por tenant sem repetir em inserts concorrentes, único entre os vivos, só de
- *   leitura (23514 cliente_codigo_fdv_somente_leitura), informado fica (substituição do APK v1.0.28); contador
- *   core.cliente_codigo_fdv_contador (só o gatilho grava, nunca diminui, piso); carga dos pré-cadastros vivos por created_at, id;
+ * - Código FDV do cliente (ADR 0069 item 10 e D.7): os objetos entram no retrato do catálogo do up/down abaixo; o comportamento
+ *   (emissão, carga, concorrência) fica em cliente-codigo-fdv.db.test.ts;
  * - up/down: o down volta exatamente ao catálogo e às ACLs da 0097; os parâmetros ficam.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setTimeout as esperar } from 'node:timers/promises';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAMPOS_CADASTRO_CLIENTE, CAMPOS_PRE_CADASTRO_CONFIGURAVEIS, COLUNAS_ENDERECO_PRE_CADASTRO, ObrigatoriosPreCadastroSchema } from '../../modules/core/contracts';
@@ -56,21 +53,6 @@ const B = DOIS_TENANTS.B;
 const HASH = 'f'.repeat(64);
 const CONTADOR = 'core.cliente_codigo_fdv_contador';
 const COLUNAS_CONTADOR = ['id', 'tenant_id', 'ultimo_sequencial', 'created_at', 'updated_at', 'deleted_at', 'external_id'];
-const fdv = (n: number) => String(n).padStart(5, '0');
-
-/** Erro do Postgres com o nome da constraint, num savepoint do admin (o erro esperado não aborta o caso). */
-async function erroComConstraint(admin: pg.ClientBase, sql: string, params: unknown[] = []): Promise<{ code?: string; constraint?: string; hint?: string } | null> {
-  await admin.query('savepoint erro_constraint');
-  try {
-    await admin.query(sql, params);
-    await admin.query('release savepoint erro_constraint');
-    return null;
-  } catch (e) {
-    await admin.query('rollback to savepoint erro_constraint');
-    const err = e as { code?: string; constraint?: string; hint?: string };
-    return { code: err.code, constraint: err.constraint, hint: err.hint };
-  }
-}
 
 /** Resultados de um script com várias consultas (o pg devolve um array quando há mais de um comando). */
 async function consultas(c: pg.ClientBase, sql: string): Promise<pg.QueryResult[]> {
@@ -164,70 +146,6 @@ describe('0098 revisão do pré-cadastro (estático)', () => {
     expect(CONFERENCIA).toContain('SÓ INFORMATIVA');
   });
 
-  it('Código FDV do cliente: coluna, CHECKs, único entre os vivos, grant ao macuxi_leitura e Drizzle', () => {
-    const u = umaLinha(up);
-    expect(up).toContain('alter table core.cliente add column codigo_fdv text;');
-    expect(u).toContain(
-      "add constraint cliente_codigo_fdv_formato check (codigo_fdv is null or codigo_fdv ~ '^(0000[1-9]|000[1-9][0-9]|00[1-9][0-9]{2}|0[1-9][0-9]{3}|[1-9][0-9]{4,})$');",
-    );
-    // o mesmo formato do usuário (0080)
-    const m80 = migracoes.find((m) => m.versao === '0080')!;
-    const formato = (sql: string, nome: string) => new RegExp(`${nome} check \\(codigo_fdv is null or codigo_fdv ~ '([^']+)'\\)`).exec(umaLinha(sql))![1];
-    expect(formato(up, 'cliente_codigo_fdv_formato')).toBe(formato(m80.up, 'usuario_codigo_fdv_formato'));
-    expect(u).toContain("add constraint cliente_codigo_fdv_origem check (codigo_fdv is null or origem_cadastro <> 'erp');");
-    expect(u).toContain('create unique index cliente_codigo_fdv_uk on core.cliente (tenant_id, codigo_fdv) where deleted_at is null and codigo_fdv is not null;');
-    expect(up).toContain('grant select (codigo_fdv) on core.cliente to macuxi_leitura;');
-    expect(Object.keys(nuvemCore.cliente)).toContain('codigo_fdv');
-  });
-
-  it('Código FDV do cliente: contador próprio (RLS, app e leitura só leem, nunca diminui, piso), fora do sync e Drizzle', () => {
-    const u = umaLinha(up);
-    expect(up).toContain(`create table ${CONTADOR} (`);
-    expect(u).toContain('constraint cliente_codigo_fdv_contador_tenant_uk unique (tenant_id)');
-    expect(u).toContain('constraint cliente_codigo_fdv_contador_nao_negativo check (ultimo_sequencial >= 0)');
-    expect(up).toContain(`alter table ${CONTADOR} force row level security;`);
-    expect(up).toContain(`grant select on ${CONTADOR} to macuxi_app;`);
-    expect(up).toContain(`grant select on ${CONTADOR} to macuxi_leitura;`);
-    expect(up).not.toMatch(new RegExp(`grant [^;]*(insert|update|delete)[^;]* on ${CONTADOR.replace('.', '\\.')}`));
-    expect(u).toContain(`create trigger cliente_codigo_fdv_contador_nao_diminui before update on ${CONTADOR}`);
-    expect(u).toContain(`create trigger cliente_codigo_fdv_contador_piso before insert on ${CONTADOR}`);
-    expect(up).toContain("constraint = 'cliente_codigo_fdv_contador_nao_diminui'");
-    expect(TABELAS_FORA_DO_SYNC as readonly string[]).toContain(CONTADOR);
-    expect(Object.keys(nuvemCore.clienteCodigoFdvContador).filter((k) => COLUNAS_CONTADOR.includes(k)).sort()).toEqual([...COLUNAS_CONTADOR].sort());
-  });
-
-  it('Código FDV do cliente: função DEFINER dos 2 gatilhos (emitir só fora do ERP; somente leitura 23514), carga antes dos gatilhos', () => {
-    const u = umaLinha(up);
-    expect(u).toMatch(/create function core\.cliente_codigo_fdv\(\) returns trigger language plpgsql security definer set search_path = pg_catalog, core, plataforma, pg_temp/);
-    expect(up).toContain('revoke all on function core.cliente_codigo_fdv() from public;');
-    expect(u).toContain('create trigger cliente_codigo_fdv_emitir before insert on core.cliente for each row execute function core.cliente_codigo_fdv();');
-    expect(u).toContain('create trigger cliente_codigo_fdv_somente_leitura before update on core.cliente for each row execute function core.cliente_codigo_fdv();');
-    expect(u).toContain("constraint = 'cliente_codigo_fdv_somente_leitura'");
-    expect(u).toContain("elsif new.origem_cadastro is not distinct from 'erp' then return new;");
-    expect(u).toContain("plataforma.uuid_de_chave(new.tenant_id::text || ':core.cliente_codigo_fdv_contador')");
-    expect(u).toContain("lpad(v_n::text, greatest(5, length(v_n::text)), '0')");
-    // carga: só os pré-cadastros vivos, por created_at, id; antes dos gatilhos de core.cliente
-    expect(u).toContain("row_number() over (partition by c.tenant_id order by c.created_at, c.id) as n from core.cliente c where c.origem_cadastro <> 'erp' and c.deleted_at is null");
-    expect(up.indexOf('set codigo_fdv = lpad(')).toBeLessThan(up.indexOf('create trigger cliente_codigo_fdv_somente_leitura'));
-    // não divide a numeração com o usuário
-    expect(up).not.toMatch(/usuario_codigo_fdv/);
-  });
-
-  it('Código FDV do cliente: down apaga gatilhos, função, contador, índice, CHECKs e coluna, antes do resto', () => {
-    for (const x of [
-      'drop trigger if exists cliente_codigo_fdv_emitir on core.cliente;',
-      'drop trigger if exists cliente_codigo_fdv_somente_leitura on core.cliente;',
-      'drop function if exists core.cliente_codigo_fdv();',
-      `drop table if exists ${CONTADOR};`,
-      'drop function if exists core.cliente_codigo_fdv_contador_nao_diminui();',
-      'drop function if exists core.cliente_codigo_fdv_contador_piso();',
-      'drop index if exists core.cliente_codigo_fdv_uk;',
-      'alter table core.cliente drop constraint if exists cliente_codigo_fdv_origem;',
-      'alter table core.cliente drop constraint if exists cliente_codigo_fdv_formato;',
-      'alter table core.cliente drop column if exists codigo_fdv;',
-    ]) expect(down).toContain(x);
-    expect(down.indexOf('drop column if exists codigo_fdv')).toBeLessThan(down.indexOf('cliente_fila_erp'));
-  });
 });
 
 describe.skipIf(semBanco())('0098 revisão do pré-cadastro (banco, fixture dois-tenants)', () => {
@@ -372,94 +290,6 @@ describe.skipIf(semBanco())('0098 revisão do pré-cadastro (banco, fixture dois
     });
   });
 
-  describe('Código FDV do cliente (ADR 0069 item 10)', () => {
-    const PRE = "insert into core.cliente (tenant_id, razao_social, origem_cadastro, status_cadastro, codigo_fdv, deleted_at) values ($1, $2, $3, $4, $5, $6) returning id, codigo_fdv";
-    const preCadastro = async (t: string, nome: string, origem = 'campo', codigo: string | null = null, apagado = false) =>
-      (await comoApp(t, PRE, [t, nome, origem, origem === 'erp' ? null : 'pendente', codigo, apagado ? new Date().toISOString() : null]))[0] as { id: string; codigo_fdv: string | null };
-    const contador = async (t: string) =>
-      (await q<{ n: number }>(`select ultimo_sequencial::int as n from ${CONTADOR} where tenant_id = $1`, [t]))[0]?.n ?? 0;
-
-    it('fixture: os clientes da fixture vêm do ERP e ficam sem Código FDV', async () => {
-      const r = await q<{ n: number }>("select count(*)::int as n from core.cliente where tenant_id in ($1, $2) and origem_cadastro = 'erp' and codigo_fdv is not null", [A.tenantId, B.tenantId]);
-      expect(r[0]!.n).toBe(0);
-      for (const id of [A.clientes.c1, A.clientes.c2, A.clientes.c3, B.clientes.c1]) {
-        expect((await q<{ codigo_fdv: string | null }>('select codigo_fdv from core.cliente where id = $1', [id]))[0]!.codigo_fdv).toBeNull();
-      }
-    });
-
-    it('o app insere o pré-cadastro e ganha o próximo número do tenant; cliente do ERP sem código; B tem numeração própria', async () => {
-      await emTransacao(admin, null, async () => {
-        const doUsuario = async () => (await q<{ n: number }>('select ultimo_sequencial::int as n from core.usuario_codigo_fdv_contador where tenant_id = $1', [A.tenantId]))[0]?.n;
-        const usuarioAntes = await doUsuario();
-        const baseA = await contador(A.tenantId);
-        const baseB = await contador(B.tenantId);
-        expect((await preCadastro(A.tenantId, 'Pré Campo')).codigo_fdv).toBe(fdv(baseA + 1));
-        expect((await preCadastro(A.tenantId, 'Pré BKO', 'bko')).codigo_fdv).toBe(fdv(baseA + 2));
-        expect((await preCadastro(A.tenantId, 'Do ERP', 'erp')).codigo_fdv).toBeNull();
-        expect((await preCadastro(B.tenantId, 'Pré Beta')).codigo_fdv).toBe(fdv(baseB + 1));
-        expect(await contador(A.tenantId)).toBe(baseA + 2);
-        expect(await contador(B.tenantId)).toBe(baseB + 1);
-        // o contador do usuário não anda (numeração própria)
-        expect(await doUsuario()).toBe(usuarioAntes);
-      });
-    });
-
-    it('só de leitura: trocar, apagar ou dar código = 23514 cliente_codigo_fdv_somente_leitura; outras colunas passam; ERP com código = 23514', async () => {
-      await emTransacao(admin, null, async () => {
-        const p = await preCadastro(A.tenantId, 'Pré Leitura');
-        const upd = (set: string, id = p.id) => erroComConstraint(admin, `update core.cliente set ${set} where id = '${id}'`);
-        const leitura = { code: '23514', constraint: 'cliente_codigo_fdv_somente_leitura', hint: 'RN-CORE-59' };
-        expect(await upd("codigo_fdv = '99999'")).toEqual(leitura);
-        expect(await upd('codigo_fdv = null')).toEqual(leitura);
-        expect(await upd("codigo_fdv = '00001'", A.clientes.c1)).toEqual(leitura); // cliente do ERP não ganha código
-        expect(await upd(`codigo_fdv = '${p.codigo_fdv}'`)).toBeNull(); // o mesmo valor
-        expect(await upd("razao_social = 'Pré Leitura 2', status_cadastro = 'recusado', motivo_recusa = 'x'")).toBeNull();
-        expect((await upd("origem_cadastro = 'erp', status_cadastro = null, motivo_recusa = null"))?.constraint).toBe('cliente_codigo_fdv_origem');
-        // pelo papel de aplicação, o mesmo erro
-        const app = await erroDe(comoApp(A.tenantId, "update core.cliente set codigo_fdv = '77777' where id = $1", [p.id]));
-        expect(app?.code).toBe('23514');
-      });
-    });
-
-    it('informado no insert fica (substituição do APK v1.0.28: X herda o código de Y apagado); único entre os vivos; formato; contador sobe', async () => {
-      await emTransacao(admin, null, async () => {
-        const y = await preCadastro(A.tenantId, 'Recusado Y');
-        await q('update core.cliente set deleted_at = now() where id = $1', [y.id]); // hora-fixa-ok: só apaga
-        const x = await preCadastro(A.tenantId, 'Substituto X', 'campo', y.codigo_fdv);
-        expect(x.codigo_fdv).toBe(y.codigo_fdv);
-        expect((await q<{ codigo_fdv: string }>('select codigo_fdv from core.cliente where id = $1', [y.id]))[0]!.codigo_fdv).toBe(y.codigo_fdv); // o apagado mantém
-        const ins = (codigo: string | null, origem = 'campo') =>
-          erroComConstraint(admin, PRE, [A.tenantId, 'Outro', origem, origem === 'erp' ? null : 'pendente', codigo, null]);
-        expect(await ins(y.codigo_fdv)).toMatchObject({ code: '23505', constraint: 'cliente_codigo_fdv_uk' });
-        for (const ruim of ['00000', '000001', '0100000', '1234', 'A0001']) expect((await ins(ruim))?.constraint, ruim).toBe('cliente_codigo_fdv_formato');
-        expect((await ins('00123', 'erp'))?.constraint).toBe('cliente_codigo_fdv_origem');
-        const antes = await contador(A.tenantId);
-        const alto = antes + 50;
-        expect(await ins(fdv(alto))).toBeNull();
-        expect(await contador(A.tenantId)).toBe(alto);
-        expect((await preCadastro(A.tenantId, 'Depois do alto')).codigo_fdv).toBe(fdv(alto + 1));
-      });
-    });
-
-    it('passa de 99999 para 100000; o contador nunca diminui (23514); o app não escreve no contador; B não vê o de A; leitura lê o código', async () => {
-      await emTransacao(admin, null, async () => {
-        await preCadastro(A.tenantId, 'Garante a linha');
-        await q(`update ${CONTADOR} set ultimo_sequencial = greatest(ultimo_sequencial, 99998) where tenant_id = $1`, [A.tenantId]);
-        expect((await preCadastro(A.tenantId, 'Último de 5')).codigo_fdv).toBe('99999');
-        expect((await preCadastro(A.tenantId, 'Primeiro de 6')).codigo_fdv).toBe('100000');
-        expect(await erroComConstraint(admin, `update ${CONTADOR} set ultimo_sequencial = 1 where tenant_id = $1`, [A.tenantId])).toMatchObject({
-          code: '23514', constraint: 'cliente_codigo_fdv_contador_nao_diminui',
-        });
-        expect((await erroDe(comoApp(A.tenantId, `update ${CONTADOR} set ultimo_sequencial = ultimo_sequencial + 1`)))?.code).toBe('42501');
-        expect((await erroDe(comoApp(A.tenantId, `insert into ${CONTADOR} (tenant_id) values ($1)`, [A.tenantId])))?.code).toBe('42501');
-        expect(await comoApp(B.tenantId, `select tenant_id from ${CONTADOR} where tenant_id = $1`, [A.tenantId])).toEqual([]);
-        expect((await comoApp(A.tenantId, `select ultimo_sequencial::int as n from ${CONTADOR}`))[0]).toEqual({ n: 100000 });
-        const r = await comoPapel(admin, 'macuxi_leitura', "select codigo_fdv from core.cliente where codigo_fdv = '100000'", [], A.tenantId);
-        expect(r.rows).toEqual([{ codigo_fdv: '100000' }]);
-        expect((await comoPapel(admin, 'macuxi_leitura', `select ultimo_sequencial::int as n from ${CONTADOR}`, [], A.tenantId)).rows).toEqual([{ n: 100000 }]);
-      });
-    });
-  });
 });
 
 describe.skipIf(semBanco())('0098 revisão do pré-cadastro (up/down, banco efêmero)', () => {
@@ -587,22 +417,6 @@ describe.skipIf(semBanco())('0098 revisão do pré-cadastro (up/down, banco efê
       ]);
       expect(novos.filter((x) => !/^(col|con|idx|rel|pol|trg|fn) /.test(x))).toEqual([]);
 
-      // Código FDV: os pré-cadastros vivos por created_at, id; o apagado e o do ERP ficam nulos; contador no maior emitido
-      const codigos = async () =>
-        Object.fromEntries((await c.query<{ id: string; codigo_fdv: string | null }>('select id, codigo_fdv from core.cliente where tenant_id = $1', [t])).rows.map((r) => [r.id, r.codigo_fdv]));
-      expect(await codigos()).toEqual({ [erp]: null, [pend]: '00001', [apr]: '00002', [rec]: '00003', [apagado]: null });
-      const lerContador = async (tenant: string) => (await c.query<{ n: number; id: string }>(`select ultimo_sequencial::int as n, id from ${CONTADOR} where tenant_id = $1`, [tenant])).rows;
-      expect((await lerContador(t)).map((r) => r.n)).toEqual([3]);
-      expect((await c.query<{ n: number }>(`select count(*)::int as n from ${CONTADOR}`)).rows[0]!.n).toBe(1); // tenant sem pré-cadastro vivo: sem linha
-      expect((await lerContador(t))[0]!.id).toBe((await c.query<{ id: string }>("select plataforma.uuid_de_chave($1::text || ':core.cliente_codigo_fdv_contador') as id", [t])).rows[0]!.id);
-      // o apagado sem código que volta a vivo ganha o próximo número
-      await c.query('begin');
-      try {
-        expect((await c.query('update core.cliente set deleted_at = null where id = $1 returning codigo_fdv', [apagado])).rows[0]!.codigo_fdv).toBe('00004');
-      } finally {
-        await c.query('rollback');
-      }
-
       // carga das tentativas: uma por pré-cadastro vivo, revisão 1, sem hash, resultado e resposta pelo status
       const tent = (await c.query<{ cliente_id: string; revisao: number; hash: string | null; origem: string; enviado_em: Date; resultado: string; respondido_em: Date | null; motivo: string | null; erros: unknown; corrigido_por: string | null }>(
         `select cliente_id, revisao, hash, origem, enviado_em, resultado, respondido_em, motivo, erros, corrigido_por from ${TABELA} where tenant_id = $1`, [t],
@@ -619,12 +433,12 @@ describe.skipIf(semBanco())('0098 revisão do pré-cadastro (up/down, banco efê
       expect(porCliente[rec]).toMatchObject({ origem: 'campo', resultado: 'recusado', motivo: 'CNPJ inválido' });
       expect(porCliente[rec]!.respondido_em!.getTime()).toBe(datas[rec]!.updated_at.getTime()); // o updated_at de antes da 0098
 
-      // revisão 1 em todo pré-cadastro (inclusive o apagado); o updated_at andou neles (pull) e não no do ERP
+      // revisão 1 em todo pré-cadastro (inclusive o apagado); o updated_at andou neles (pull) e no do ERP vivo (carga do Código FDV)
       const rev = (await c.query<{ id: string; revisao_cadastro: number | null; andou: boolean }>(
         "select id, revisao_cadastro, updated_at > now() - interval '1 day' as andou from core.cliente where tenant_id = $1", [t],
       )).rows;
       expect(Object.fromEntries(rev.map((r) => [r.id, [r.revisao_cadastro, r.andou]]))).toEqual({
-        [erp]: [null, false], [pend]: [1, true], [apr]: [1, true], [rec]: [1, true], [apagado]: [1, true],
+        [erp]: [null, true], [pend]: [1, true], [apr]: [1, true], [rec]: [1, true], [apagado]: [1, true],
       });
 
       // parâmetro unificado e espelho = referência do domain
@@ -662,7 +476,6 @@ describe.skipIf(semBanco())('0098 revisão do pré-cadastro (up/down, banco efê
 
       await migrarUp(c, { ate: VERSAO });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
-      expect(await codigos()).toEqual({ [erp]: null, [pend]: '00001', [apr]: '00002', [rec]: '00003', [apagado]: null });
       expect((await c.query(ACL)).rows.filter((r: { c: string }) => ['codigo_fdv', 'erros_recusa', 'revisao_cadastro', 'revisao', 'hash', 'erros'].includes(r.c))).toEqual([
         { t: 'core.cliente', c: 'codigo_fdv', leitura: true },
         { t: 'core.cliente', c: 'erros_recusa', leitura: false },
@@ -672,52 +485,5 @@ describe.skipIf(semBanco())('0098 revisão do pré-cadastro (up/down, banco efê
         { t: 'integracao.cliente_fila_erp', c: 'revisao', leitura: true },
       ]);
     });
-  });
-
-  it('Código FDV: dois inserts simultâneos do mesmo tenant não repetem número (com e sem a linha do contador); ordem do backup; piso', async () => {
-    await comAdmin(b.nome, async (c: pg.Client) => {
-      await migrarUp(c, { ate: VERSAO });
-      const ordem = new Map((await c.query<{ tabela: string; ordem: number }>('select tabela, ordem from plataforma.ordem_do_backup()')).rows.map((r) => [r.tabela, r.ordem]));
-      expect(ordem.get(CONTADOR)!).toBeLessThan(ordem.get('core.cliente')!);
-    });
-    const c1 = new pg.Client({ connectionString: b.urlAdmin });
-    const c2 = new pg.Client({ connectionString: b.urlAdmin });
-    await c1.connect();
-    await c2.connect();
-    try {
-      const T = '98000000-0000-4000-8000-000000000002';
-      await c1.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'conc98', 'Concorrência')", [T]);
-      const ins = (c: pg.Client, nome: string) =>
-        c.query<{ codigo_fdv: string }>("insert into core.cliente (tenant_id, razao_social, origem_cadastro, status_cadastro) values ($1, $2, 'campo', 'pendente') returning codigo_fdv", [T, nome]);
-      const emitidos: string[] = [];
-      for (const rodada of [1, 2]) {
-        await c1.query('begin');
-        await c2.query('begin');
-        emitidos.push((await ins(c1, `A${rodada}`)).rows[0]!.codigo_fdv);
-        let pronto = false;
-        const segundo = ins(c2, `B${rodada}`).then((r) => {
-          pronto = true;
-          return r.rows[0]!.codigo_fdv;
-        });
-        await esperar(300);
-        expect(pronto, `rodada ${rodada}: o 2º espera a linha do contador`).toBe(false);
-        await c1.query('commit');
-        emitidos.push(await segundo);
-        await c2.query('commit');
-      }
-      expect(emitidos).toEqual(['00001', '00002', '00003', '00004']);
-      // piso: sem a linha do contador (backup restaurado sem ela), o próximo parte do maior código gravado (vivo ou apagado)
-      await c1.query('begin');
-      try {
-        await c1.query("update core.cliente set deleted_at = now() where tenant_id = $1 and codigo_fdv = '00004'", [T]); // hora-fixa-ok: só apaga
-        await c1.query(`delete from ${CONTADOR} where tenant_id = $1`, [T]);
-        expect((await ins(c1, 'Depois do piso')).rows[0]!.codigo_fdv).toBe('00005');
-      } finally {
-        await c1.query('rollback');
-      }
-    } finally {
-      await c1.end();
-      await c2.end();
-    }
   });
 });

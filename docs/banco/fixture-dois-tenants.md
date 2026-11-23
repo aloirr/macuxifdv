@@ -263,4 +263,5 @@ padrão do Core vêm do gatilho do tenant.
 ## 0080 — Código FDV (T-0175, RN-CORE-59)
 - O `carregarDoisTenants` grava o `codigo_fdv` de `CODIGOS_FDV_FIXTURE` (A = admin `00001` … promotor `00008`; B = admin `00001`, vendedor `00002`); o gatilho `usuario_codigo_fdv_emitir` aceita o informado e não emite.
 - `core.usuario_codigo_fdv_contador`: A em 8 e B em 2 (linha da fixture, no piso). Recarregar não muda códigos nem contador (o código que está no banco fica).
-- `core.cliente_codigo_fdv_contador` (0098, ADR 0069 item 10): A e B em 0 (os clientes da fixture vêm do ERP e ficam sem Código FDV; id determinístico; recarregar não baixa o contador).
+- Clientes (0098, ADR 0069 item 10, decisão 1 B: todo cliente vivo tem Código FDV): o `carregarDoisTenants` grava o `codigo_fdv` de `CODIGOS_FDV_CLIENTES_FIXTURE` (A = c1 `00001`, c2 `00002`, c3 `00003`; B = c1 `00001`); o gatilho `cliente_codigo_fdv_emitir` aceita o informado e não emite (os clientes da fixture não têm `external_id`: sem o código, cada recarga gastaria um número).
+- `core.cliente_codigo_fdv_contador` (0098): A em 3 e B em 1 (id determinístico, no piso). Recarregar não muda códigos nem contador.
