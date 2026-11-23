@@ -10,7 +10,7 @@ export type SituacaoPreCadastro = 'aguardando_erp' | 'recusado_erp' | 'nao_envia
 
 export const ROTULO_AGUARDANDO_ERP = 'Aguardando ERP';
 export const ROTULO_RECUSADO_ERP = 'Recusado pelo ERP';
-/** A API recusou o envio (422 ou 409): o cadastro não chegou ao ERP. */
+/** Envio que o servidor não aceitou: o cadastro não chegou ao ERP. */
 export const ROTULO_NAO_ENVIADO = 'Não enviado';
 /** Botão do alerta do cliente recusado ou não enviado: abre o formulário preenchido, com o motivo no topo. */
 export const ACAO_CORRIGIR_E_REENVIAR = 'Corrigir e reenviar';

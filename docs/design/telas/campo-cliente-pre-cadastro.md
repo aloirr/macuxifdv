@@ -47,7 +47,7 @@ Selo: `ChipEstado pequeno {...seloDoPreCadastro(situacao)}` no lugar do selo `pr
 |---|---|---|
 | Aguardando ERP | `Aguardando ERP` (tom `aviso`, ícone `clock`) | pode abrir pedido conforme a regra do módulo; nenhum texto extra |
 | Recusado pelo ERP | `Recusado pelo ERP` (tom `erro`, ícone `alert`) | na ficha, área **Alertas**: o motivo do ERP (texto literal, 1 a 3 linhas) e o botão secundário **Corrigir e reenviar** |
-| Não enviado (a API recusou o envio: 422 ou 409) | `Não enviado` (tom `erro`, ícone `alert`) | na ficha, área **Alertas**: o motivo da recusa e o botão secundário **Corrigir e reenviar** |
+| Não enviado (envio que o servidor não aceitou) | `Não enviado` (tom `erro`, ícone `alert`) | na ficha, área **Alertas**: o motivo da recusa e o botão secundário **Corrigir e reenviar** |
 | Aprovado (ERP devolveu o código) | sem selo | o código aparece onde o código do cliente já aparece |
 
 - O motivo aparece na área Alertas da ficha e, na correção, só no topo do formulário, numa linha `danger` com ícone `alert`.
