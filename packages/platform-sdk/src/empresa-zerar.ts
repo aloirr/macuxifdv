@@ -2,7 +2,7 @@
  * ADR 0068 (desenho docs/desenho/empresa-zerar.md; pedidos do dono do produto na v1.0.31): "Zerar dados" da empresa no portal
  * `config.` (só super-admin): a empresa inteira (menu ⋯, ao lado de Excluir) ou só algumas entidades do ERP (aba Integração da
  * empresa, botão em cada entidade). A regra do que sai mora SÓ no banco, na `plataforma.limpar_cadastros(tenant, lote,
- * entidades)` da migração 0099 (o corpo da rotina do workflow `producao-limpar-cadastros.yml`, promovido): soft delete no
+ * entidades)` da migração 0100 (o corpo da rotina do workflow `producao-limpar-cadastros.yml`, promovido): soft delete no
  * domínio, físico só no Hub; cópia de cada linha em `plataforma.limpeza_copia` (RN-PLA-12). Aqui ficam o contrato das rotas, a
  * lista das entidades, a regra de liberação do botão e o agrupamento da prévia para a tela. Nada aqui vai a log: só ids,
  * códigos e contagens.

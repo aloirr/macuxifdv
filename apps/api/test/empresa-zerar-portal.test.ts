@@ -1,7 +1,7 @@
 /**
  * "Zerar dados" da empresa no portal (ADR 0068; desenho docs/desenho/empresa-zerar.md §5; RN-PLA-12) sem banco real: ligado com as
  * ações da empresa, só super-admin, prévia (inteira ou por entidade), pedido com a senha conferida de novo (a mesma `reautenticar`
- * do Excluir), leitura do mais recente, a tradução dos SQLSTATE das `sa_*` da 0099 e a lista das entidades igual à do Hub. As
+ * do Excluir), leitura do mais recente, a tradução dos SQLSTATE das `sa_*` da 0100 e a lista das entidades igual à do Hub. As
  * funções de verdade são testadas nos `*.db.test.ts` do banco-dados.
  */
 import { mensagemBloqueioPorTentativas } from '@macuxi/core/contracts';

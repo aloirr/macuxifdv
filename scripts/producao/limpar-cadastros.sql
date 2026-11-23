@@ -1,5 +1,5 @@
 -- Limpeza de UMA empresa: workflow .github/workflows/producao-limpar-cadastros.yml, montado por montar-limpeza.sh (preâmbulo
--- psql e conferência de lote, empresa e 0099 antes deste arquivo). A regra é a plataforma.limpar_cadastros da 0099, a mesma
+-- psql e conferência de lote, empresa e 0100 antes deste arquivo). A regra é a plataforma.limpar_cadastros da 0100, a mesma
 -- do "Zerar dados" do portal (ADR 0068, docs/desenho/empresa-zerar.md §4).
 -- Variáveis (psql -v): empresa (código), modo (simular | apagar), lote (carimbo UTC AAAAMMDDTHHMMSSZ) e entidades (opcional:
 -- lista por vírgula; vazia = a empresa inteira; entidade fora da lista para a função com 22023).
@@ -32,7 +32,7 @@ select :'modo' = 'apagar' as gravar \gset
 select r_tabela as tabela, r_modo as modo, r_linhas as linhas
   from plataforma.limpar_cadastros(:'tenant'::uuid, :'lote', string_to_array(nullif(:'entidades', ''), ','), :'gravar'::boolean)
  where r_linhas > 0 order by r_ordem;
-select count(*) as linhas_na_copia_de_seguranca from plataforma.limpeza_copia where lote = :'lote' and tenant_id = :'tenant';
+select count(*) as linhas_na_copia_de_seguranca from plataforma.limpeza_copia where lote = :'lote' and empresa_id = :'tenant';
 
 \echo
 \echo 'o que fica (vivos depois da limpeza)'

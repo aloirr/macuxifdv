@@ -5,8 +5,8 @@ name: producao — limpar cadastros de uma empresa
 # cópia do lote e o arquivo).
 # Travas: só manual, environment PRODUCAO, só numa tag, fila producao-vm, frase de confirmação no apagar, no restaurar e no
 # descartar; psql pelo pgcliente da VM (o runner não tem docker).
-# Regra: plataforma.limpar_cadastros, restaurar_limpeza e descartar_limpeza da migração 0099 (ADR 0068), a mesma do "Zerar
-# dados" do portal. Vale da v1.0.31 em diante: banco sem a 0099 para na conferência do montar-limpeza.sh, sem mudar nada.
+# Regra: plataforma.limpar_cadastros, restaurar_limpeza e descartar_limpeza da migração 0100 (ADR 0068), a mesma do "Zerar
+# dados" do portal. Vale da v1.0.31 em diante: banco sem a 0100 para na conferência do montar-limpeza.sh, sem mudar nada.
 # Teste: bash scripts/producao/teste/limpar-cadastros.teste.sh.
 
 on:
@@ -164,7 +164,7 @@ jobs:
             echo '```'; cat dump.txt; echo '```'
             if [ "$MODO" = apagar ]; then
               echo "- Restaurar (só antes do reenvio do ERP): modo=restaurar, lote=\`$LOTE\`, confirmar=\`RESTAURAR CADASTROS $EMPRESA $LOTE\`."
-              echo "- Sem as linhas do lote em plataforma.limpeza_copia, antes do restaurar, na VM: \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c '\\copy plataforma.limpeza_copia from pstdin' < $arquivo\`."
+              echo "- Sem as linhas do lote em plataforma.limpeza_copia, antes do restaurar, na VM: \`cd /opt/macuxi && $DC psql -X -v ON_ERROR_STOP=1 -c 'create temp table c (lote text, empresa_id uuid, tabela text, modo text, linha jsonb, copiado_em timestamptz)' -c '\\copy c from pstdin' -c 'insert into plataforma.limpeza_copia (lote, empresa_id, tabela, modo, linha, copiado_em) select * from c' < $arquivo\`."
               echo "- A cópia guarda dados pessoais e o hash das senhas: descarte 7 dias depois de o reenvio do ERP ser confirmado, com modo=descartar, lote=\`$LOTE\`, confirmar=\`DESCARTAR COPIA $EMPRESA $LOTE\`."
               echo "- Equipe com responsável que saiu: o ERP ou o admin redefine o responsável."
             else

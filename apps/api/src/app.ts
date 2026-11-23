@@ -235,7 +235,7 @@ export interface OpcoesApp {
   empresaAcoesPortal?: boolean;
   /** ADR 0052: fonte das funções `sa_*` da 0072 (padrão: `fonteAcoesEmpresaNoBanco`). Testes injetam a sua. */
   fonteAcoesEmpresa?: FonteAcoesEmpresa;
-  /** ADR 0068: fonte das `sa_*` do Zerar dados (0099; padrão: `fonteZerarEmpresaNoBanco`). Testes injetam a sua. */
+  /** ADR 0068: fonte das `sa_*` do Zerar dados (0100; padrão: `fonteZerarEmpresaNoBanco`). Testes injetam a sua. */
   fonteZerarEmpresa?: FonteZerarEmpresa;
   /** ADR 0052: bucket S3 e `MACUXI_BACKUP_EMPRESA_CHAVE` configurados (falso = 503 `BACKUP_INDISPONIVEL`). Padrão: falso. */
   backupEmpresaDisponivel?: boolean;

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Monta no stdout o SQL completo para o psql (stdin): o preâmbulo psql uma vez e o roteiro do modo.
-# Todos os modos começam pela conferência de lote, empresa e migração 0099 (define :tenant). Variáveis (psql -v): empresa, lote
-# (e modo e entidades no limpar). A regra é a do banco (0099, ADR 0068): plataforma.limpar_cadastros, restaurar_limpeza,
-# descartar_limpeza e a cópia plataforma.limpeza_copia. Banco sem a 0099 para aqui, antes de qualquer mudança.
+# Todos os modos começam pela conferência de lote, empresa e migração 0100 (define :tenant). Variáveis (psql -v): empresa, lote
+# (e modo e entidades no limpar). A regra é a do banco (0100, ADR 0068): plataforma.limpar_cadastros, restaurar_limpeza,
+# descartar_limpeza e a cópia plataforma.limpeza_copia. Banco sem a 0100 para aqui, antes de qualquer mudança.
 #   limpar    -> limpar-cadastros.sql (simular e apagar)
 #   restaurar -> limpar-cadastros-restaurar.sql
 #   descartar -> limpar-cadastros-descartar.sql
@@ -35,10 +35,10 @@ do $$ begin raise exception 'entradas inválidas (lote ou empresa)'; end $$;
 \endif
 select to_regclass('plataforma.limpeza_copia') is not null
    and (select count(distinct p.proname) = 3 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
-         where n.nspname = 'plataforma' and p.proname in ('limpar_cadastros', 'restaurar_limpeza', 'descartar_limpeza')) as tem_0099 \gset
-\if :tem_0099
+         where n.nspname = 'plataforma' and p.proname in ('limpar_cadastros', 'restaurar_limpeza', 'descartar_limpeza')) as tem_0100 \gset
+\if :tem_0100
 \else
-do $$ begin raise exception 'o banco ainda não tem a migração 0099 (plataforma.limpar_cadastros): faça antes o deploy da v1.0.31 ou rode o workflow numa tag anterior (nada mudou)'; end $$;
+do $$ begin raise exception 'o banco ainda não tem a migração 0100 (plataforma.limpar_cadastros): faça antes o deploy da v1.0.31 ou rode o workflow numa tag anterior (nada mudou)'; end $$;
 \endif
 select count(*) = 1 as achou from plataforma.tenant_por_codigo(:'empresa') \gset
 \if :achou
@@ -48,7 +48,9 @@ do $$ begin raise exception 'empresa não encontrada (código errado ou empresa 
 select id as tenant from plataforma.tenant_por_codigo(:'empresa') \gset
 ENTRADAS
 if [ "$1" = arquivo ]; then
-  echo "copy (select * from plataforma.limpeza_copia where lote = :'lote' and tenant_id = :'tenant') to stdout;"
+  # as 6 colunas da cópia do #675, na mesma ordem (o tenant fica em empresa_id na 0100); a volta do arquivo (COPY FROM não entra
+  # em tabela com RLS) passa por uma temporária: o comando está no resumo do workflow
+  echo "copy (select lote, empresa_id as tenant_id, tabela, modo, linha, copiado_em from plataforma.limpeza_copia where lote = :'lote' and empresa_id = :'tenant') to stdout;"
 else
   cat "${arquivos[@]}"
 fi

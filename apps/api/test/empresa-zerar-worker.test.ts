@@ -1,6 +1,6 @@
 /**
  * Worker do "Zerar dados" (ADR 0068; desenho docs/desenho/empresa-zerar.md §3 e §5) sem banco real: o pool falso responde às
- * funções da 0099 (`pegar_zerar`, `executar_zerar`, `fechar_zerar`, `expurgar_zerar`). A regra do que sai
+ * funções da 0100 (`pegar_zerar`, `executar_zerar`, `fechar_zerar`, `expurgar_zerar`). A regra do que sai
  * (`plataforma.limpar_cadastros`), a cópia e o restaurar são testados nos `*.db.test.ts` do banco-dados.
  */
 import { CODIGOS_ZERAR_EMPRESA, ERROS_WORKER_ZERAR, TENTATIVAS_ZERAR, type LogRota } from '@macuxi/platform-sdk';
@@ -93,7 +93,7 @@ describe('worker do Zerar dados (ADR 0068)', () => {
       'commit',
     ]);
     expect(linhas).toEqual([
-      { nivel: 'info', o: { tipo: 'zerar', zerar_id: ZERAR, tenant_alvo_id: EMPRESA, tentativa: 1, situacao: 'concluido', entidades: ['cliente'], linhas_apagadas: 130, tabelas: 2 } },
+      { nivel: 'info', o: { tipo: 'zerar', zerar_id: ZERAR, tenant_alvo_id: EMPRESA, tentativa: 1, situacao: 'concluido', entidades: ['cliente'], entidades_afetadas: ['cliente', 'cliente_endereco'], linhas_apagadas: 130, tabelas: 2 } },
     ]);
   });
 
@@ -116,11 +116,24 @@ describe('worker do Zerar dados (ADR 0068)', () => {
     expect(de(SQL_FECHAR_ZERAR)).toEqual([]);
   });
 
-  it('outro erro: sem nova tentativa, fechar_zerar(ZERAR_FALHOU)', async () => {
-    const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: () => erroPg('XX000') });
-    expect(await criarWorkerZerar({ pool }).ciclo()).toBe('falhou');
-    expect(de(SQL_EXECUTAR_ZERAR)).toHaveLength(1);
-    expect(de(SQL_FECHAR_ZERAR).map((s) => s.args)).toEqual([[ZERAR, ERROS_WORKER_ZERAR.falhou]]);
+  it('outro erro (inclusive 23505 lote repetido): sem nova tentativa, fechar_zerar(ZERAR_FALHOU)', async () => {
+    for (const estado of ['XX000', '23505']) {
+      const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: () => erroPg(estado) });
+      expect(await criarWorkerZerar({ pool }).ciclo()).toBe('falhou');
+      expect(de(SQL_EXECUTAR_ZERAR)).toHaveLength(1);
+      expect(de(SQL_FECHAR_ZERAR).map((s) => s.args)).toEqual([[ZERAR, ERROS_WORKER_ZERAR.falhou]]);
+    }
+  });
+
+  it('a executar_zerar recusou na conferência (fechou falhou com o código): sem fechar_zerar, log com o código', async () => {
+    const recusado = { ...concluido, situacao: 'falhou', concluido_em: null, linhas_apagadas: null, contagem: null, copia_expira_em: null, entidades_afetadas: null, erro_codigo: 'BACKUP_EM_ANDAMENTO' };
+    const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: () => recusado });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).ciclo()).toBe('falhou');
+    expect(de(SQL_FECHAR_ZERAR)).toHaveLength(0);
+    expect(linhas).toEqual([
+      { nivel: 'warn', o: { tipo: 'zerar', zerar_id: ZERAR, tenant_alvo_id: EMPRESA, tentativa: 1, situacao: 'falhou', erro_codigo: 'BACKUP_EM_ANDAMENTO' } },
+    ]);
   });
 
   it('recusa da executar_zerar (Hub processando, volume alto): fecha com o próprio código, sem nova tentativa', async () => {
