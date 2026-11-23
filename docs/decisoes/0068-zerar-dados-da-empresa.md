@@ -19,7 +19,7 @@
 
 ## Decisão
 1. **Uma função**: `plataforma.limpar_cadastros(p_tenant, p_lote, p_entidades text[] default null, p_exigir_hub_parado default true)`, na migração 0100. É o corpo do #675 promovido a `SECURITY DEFINER`, sem EXECUTE para papel da aplicação.
-   - A prévia do portal roda a função numa subtransação desfeita. O worker roda e confirma. O workflow passa a chamá-la, e a `rotina.sql` saiu. Numa tag da v1.0.31 em diante, banco sem a 0100 faz o workflow parar antes de mudar qualquer coisa (desenho §8).
+   - A prévia roda a função numa subtransação desfeita, **no worker** (o portal pede e lê a cada 2 s; o pool do portal tem prazo de 10 s, curto para a limpeza de uma empresa grande; desenho §3.1). O zerar roda no worker e confirma. O workflow passa a chamá-la, e a `rotina.sql` saiu. Numa tag da v1.0.31 em diante, banco sem a 0100 faz o workflow parar antes de mudar qualquer coisa (desenho §8).
    - `p_entidades = null` é o comportamento do #675.
 2. **Por entidade**: `p_entidades` traz uma ou mais das 16 entidades do Hub (`ENTIDADES_ZERAR` no SDK = `ORDEM_CARGA_ENTIDADES` do módulo, conferido em teste). O mapa entidade → raízes fica numa função do banco.
    - Saem as raízes da entidade, a cascata e o Hub dela (lotes, staging, erros, sessões, `registro_atual` e cursor).
@@ -28,14 +28,16 @@
 3. **Uma cópia**: `plataforma.limpeza_copia`, com as colunas da `public.macuxi_limpeza_backup` do #675, que a 0100 move e apaga.
    - A volta é `restaurar_limpeza` e `descartar_limpeza`, as mesmas do workflow.
    - No portal, a cópia fica 7 dias e o worker a descarta.
-4. **Reaproveita da 0100 atual** o job `zerar_empresa`, as três `sa_*` (com `entidades`), `pegar_zerar`, `executar_zerar` e `fechar_zerar`.
+4. **Reaproveita da 0100 atual** o job `zerar_empresa`, a `sa_pedir_zerar` e a `sa_ler_zerar` (com `entidades`), `pegar_zerar`, `executar_zerar` e `fechar_zerar`.
    - **Sai**: `zerar_tenant` e as funções dele, a `zerar_empresa_copia`, a `zerar_empresa_objeto` e a extração do laço da 0032 (a `excluir_tenant` fica como está).
 5. **Reprocessar** por entidade é o que o BKO já faz (RN-INT-15): os lotes da entidade com falha ou com avisos voltam à fila.
    - A rota e o monitor do módulo abrem ao super-admin pela ADR 0029 §5 (`superAdmin: 'aceita'`). Os detalhes a mais (cursor, erros por código, sinal do conector) vêm de uma rota nova do módulo, só do super-admin.
    - **Não zera o cursor**: o Conector só lê o cursor do Hub quando não tem estado local, e o reenvio completo é `conector carga-completa <entidade>`.
 6. **Confirmação**: só o super-admin, com prévia, o código da empresa e a senha de novo. A auditoria `tenant.zerado` leva o payload `plataforma.tenant.zerado@1`.
+7. **Regra de liberação só no banco**: `plataforma.zerar_bloqueado` (exclusão, zerar, backup, lote do Hub em processamento, 2 milhões de linhas). O SDK traz só o mapa código → frase.
 
 ## Alternativas
+- **Prévia síncrona no portal, com prazo e `lock_timeout` próprios**: devolveria 503 justo nas empresas grandes, que são as que mais precisam da prévia. **Modo "contar" na `limpar_cadastros`**: a conta sem cópia, sem UPDATE e sem DELETE ficaria rápida, mas seria um segundo caminho no corpo da regra, que pode divergir do que o executar faz.
 - **Manter a regra própria do portal** (DELETE físico de tudo menos as mantidas): seriam duas regras para a mesma ação. Ela também apagaria a auditoria do Hub e os usuários de um jeito diferente do workflow, que o dono do produto já usou.
 - **Deixar a rotina em `scripts/` e o worker ler o mesmo texto**: o worker precisaria do arquivo em tempo de execução e de criar função temporária com o papel dele. A `SECURITY DEFINER` na migração é versionada com o schema.
 - **Ficar com as duas cópias** (`zerar_empresa_copia` e `public.macuxi_limpeza_backup`): seriam dois restaurar. A tabela na `public`, sem RLS, criada de dentro da função, não fica.
@@ -45,8 +47,9 @@
 
 ## Consequências
 - **O ERP precisa reenviar**: o operador roda `conector carga-completa` para as `entidades_afetadas`. A tela mostra o comando.
-- **Usuários**: no inteiro e na entidade `vendedor`, os usuários que não são administradores saem, como no #675. O ERP os recria sem senha, e o acesso volta pelo convite.
+- **Usuários**: no inteiro e na entidade `vendedor`, os usuários que não são administradores saem, como no #675. O ERP os recria sem senha, e o acesso volta pelo convite. A prévia mostra o grupo "Usuários não administradores", e a tela diz que mantém os administradores. Premissa a confirmar com o dono do produto.
+- **Prévia assíncrona**: a tela espera alguns segundos pela conta. Uma prévia que falha volta depois da concessão do banco e fecha `falhou` no teto de tentativas.
 - **Linhas apagadas no banco**: o soft delete deixa as linhas no banco, e as fotos e os pacotes ficam no armazenamento, como em qualquer linha apagada.
 - **Retenção**: a cópia fica 7 dias no banco (portal).
 - **Workflow**: muda depois do merge do #675, na mesma tag da 0100.
-- **`sa_*`**: a assinatura de duas muda. A migração e o teste da lista vão juntos no PR conjunto `alexandre/migracao-zerar`.
+- **`sa_*`**: a assinatura de duas muda, sai a `sa_previa_zerar` e entram a `sa_pedir_previa_zerar` e a `sa_ler_previa_zerar`. A migração e o teste da lista vão juntos no PR conjunto `alexandre/migracao-zerar`.

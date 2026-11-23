@@ -1,7 +1,8 @@
 /**
  * "Zerar dados" da empresa × Postgres real (ADR 0068; desenho docs/desenho/empresa-zerar.md §3 e §5; RN-PLA-12; migração 0100), de
  * ponta a ponta: rotas do portal (`macuxi_portal`, sa_*) → worker (`macuxi_worker`: pegar_zerar, executar_zerar, fechar_zerar) →
- * concluído. Confere: só o super-admin; prévia sem mudar nada e igual ao executado; pedido idempotente pelo id e um em andamento
+ * concluído. Confere: só o super-admin; prévia pedida ao portal e contada pelo worker (pegar_previa_zerar, executar_previa_zerar)
+ * sem mudar nada, com o grupo dos usuários não administradores, e igual ao executado; pedido idempotente pelo id e um em andamento
  * por empresa; recusa na conferência do worker (lote do Hub em processamento) fecha `falhou` com o código e nada muda; ficam
  * administradores, credenciais, conectores, plano e licenças; saem os cadastros do ERP e os outros usuários; cópia no lote;
  * auditoria `tenant.zerar_pedido`, `tenant.zerar_falhou` e `tenant.zerado` (detalhes = payload de plataforma.tenant.zerado@1).
@@ -14,8 +15,10 @@ import {
   CODIGOS_ZERAR_EMPRESA,
   EVENTO_TENANT_ZERADO,
   mensagemDoZerar,
-  PreviaZerarEmpresaSchema,
+  PreviaZerarSchema,
+  resumirPreviaPorGrupo,
   ZerarEmpresaSchema,
+  type PreviaZerar,
   type AcessoPortalAutenticado,
 } from '@macuxi/platform-sdk';
 import pg from 'pg';
@@ -138,8 +141,13 @@ describe.skipIf(semBanco() || !banco().urlWorker || !banco().urlPortal)('API × 
       expect(plano.statusCode, plano.body).toBe(201);
 
       // RN-PLA-12: só super-admin (o admin do cliente = 403, sem chamar o banco)
-      for (const [method, rota] of [['GET', 'zerar/previa'], ['POST', 'zerar'], ['GET', 'zerar']] as const) {
-        const r = await api.inject({ method, url: url(rota), headers: { 'x-quem': 'cli' }, ...(method === 'POST' ? { payload: { id: randomUUID(), codigo_confirmacao: codigo, senha: SENHA } } : {}) });
+      for (const [method, rota, payload] of [
+        ['POST', 'zerar/previa', { id: randomUUID() }],
+        ['GET', `zerar/previa/${randomUUID()}`, undefined],
+        ['POST', 'zerar', { id: randomUUID(), codigo_confirmacao: codigo, senha: SENHA }],
+        ['GET', 'zerar', undefined],
+      ] as const) {
+        const r = await api.inject({ method, url: url(rota), headers: { 'x-quem': 'cli' }, ...(payload ? { payload } : {}) });
         expect([r.statusCode, r.json().codigo], rota).toEqual([403, 'PERFIL_SEM_ACESSO']);
       }
       const nenhum = await api.inject({ method: 'GET', url: url('zerar'), headers: sa });
@@ -149,18 +157,34 @@ describe.skipIf(semBanco() || !banco().urlWorker || !banco().urlPortal)('API × 
       const fica0 = await ficam();
       const vivos0 = await vivos();
       expect(vivos0).toBe('2/1/1/1');
-      const porCliente = await api.inject({ method: 'GET', url: url('zerar/previa?entidades=cliente'), headers: sa });
-      expect(porCliente.statusCode, porCliente.body).toBe(200);
-      const pc = PreviaZerarEmpresaSchema.parse(porCliente.json());
-      expect(pc.entidades).toEqual(['cliente']);
+      const w = criarWorkerZerar({ pool: worker });
+      /** D1 da revisão: o portal pede (202 em andamento), o worker conta, a tela lê pelo id até `pronta`. */
+      const contar = async (entidades?: string[]): Promise<PreviaZerar> => {
+        const id = randomUUID();
+        const pedida = await api.inject({ method: 'POST', url: url('zerar/previa'), headers: sa, payload: { id, ...(entidades ? { entidades } : {}) } });
+        expect(pedida.statusCode, pedida.body).toBe(202);
+        expect(PreviaZerarSchema.parse(pedida.json())).toMatchObject({ id, situacao: 'em_andamento', total: null });
+        const deNovo = await api.inject({ method: 'POST', url: url('zerar/previa'), headers: sa, payload: { id, ...(entidades ? { entidades } : {}) } });
+        expect([deNovo.statusCode, deNovo.json().id]).toEqual([202, id]);
+        expect(await w.cicloPrevia()).toBe('pronta');
+        expect(await w.cicloPrevia()).toBeNull();
+        const lida = await api.inject({ method: 'GET', url: url(`zerar/previa/${id}`), headers: sa });
+        expect(lida.statusCode, lida.body).toBe(200);
+        return PreviaZerarSchema.parse(lida.json());
+      };
+      const semPrevia = await api.inject({ method: 'GET', url: url(`zerar/previa/${randomUUID()}`), headers: sa });
+      expect([semPrevia.statusCode, semPrevia.json().codigo]).toEqual([404, Z.previaNaoEncontrada]);
+      const pc = await contar(['cliente']);
+      expect([pc.situacao, pc.entidades]).toEqual(['pronta', ['cliente']]);
       expect(pc.entidades_afetadas).toContain('cliente');
-      expect(pc.tabelas).toContainEqual({ tabela: 'core.cliente', modo: 'soft', linhas: 1 });
-      expect(pc.tabelas.some((t) => t.tabela === 'core.produto')).toBe(false);
-      const inteira = await api.inject({ method: 'GET', url: url('zerar/previa'), headers: sa });
-      expect(inteira.statusCode, inteira.body).toBe(200);
-      const previa = PreviaZerarEmpresaSchema.parse(inteira.json());
-      expect([previa.entidades, previa.bloqueio, previa.codigo]).toEqual([null, null, codigo]);
+      expect(pc.linhas!.some((t) => t.tabela === 'core.cliente' && t.linhas === 1)).toBe(true);
+      expect(pc.linhas!.some((t) => t.tabela === 'core.produto')).toBe(false);
+      expect(resumirPreviaPorGrupo(pc.linhas!).some((g) => g.grupo === 'usuarios')).toBe(false);
+      const previa = await contar();
+      expect([previa.situacao, previa.entidades, previa.bloqueio]).toEqual(['pronta', null, null]);
       expect(previa.entidades_afetadas).toEqual(['filial', 'vendedor', 'produto', 'cliente']);
+      // 🔴 1 da revisão: a empresa inteira leva os usuários não administradores (o vendedor), e a tela vê o grupo
+      expect(resumirPreviaPorGrupo(previa.linhas!).find((g) => g.grupo === 'usuarios')?.linhas).toBeGreaterThanOrEqual(1);
       expect([await ficam(), await vivos()]).toEqual([fica0, vivos0]);
       expect((await admin.query('select 1 from plataforma.limpeza_copia where empresa_id = $1', [tenant])).rowCount).toBe(0);
 
@@ -176,7 +200,6 @@ describe.skipIf(semBanco() || !banco().urlWorker || !banco().urlPortal)('API × 
           [tenant, ids.conector, `chave-${codigo}`],
         )
       ).rows[0]!.id;
-      const w = criarWorkerZerar({ pool: worker });
       expect(await w.ciclo()).toBe('falhou');
       const lido1 = await api.inject({ method: 'GET', url: url('zerar'), headers: sa });
       expect(ZerarEmpresaSchema.parse(lido1.json())).toMatchObject({ id: id1, situacao: 'falhou', erro_codigo: Z.hubProcessando, entidades_afetadas: null });
@@ -209,7 +232,7 @@ describe.skipIf(semBanco() || !banco().urlWorker || !banco().urlPortal)('API × 
       const lido2 = await api.inject({ method: 'GET', url: url('zerar'), headers: sa });
       const z = ZerarEmpresaSchema.parse(lido2.json());
       expect(z).toMatchObject({ id: id2, situacao: 'concluido', erro_codigo: null, lote: pedido.lote });
-      expect(z.linhas_apagadas).toBe(previa.total_linhas + 1); // + o lote do Hub que entrou depois da prévia
+      expect(z.linhas_apagadas).toBe(previa.total! + 1); // + o lote do Hub que entrou depois da prévia
       expect(z.entidades_afetadas).toEqual(['filial', 'vendedor', 'produto', 'cliente']);
       expect(z.contagem).toContainEqual({ tabela: 'integracao.lote', modo: 'fisico', linhas: 1 });
 

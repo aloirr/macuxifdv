@@ -94,10 +94,10 @@ async function principal(): Promise<void> {
   const pacotesSync = await iniciarPacotesSync();
   const trabalhos = await iniciarTrabalhos();
   const expurgo = await iniciarExpurgoRastreamento();
-  const zerar = await iniciarZerarEmpresa(urlWorker(cfg), log); // ADR 0068
+  const zerar = iniciarZerarEmpresa(urlWorker(cfg), log); // ADR 0068
   const encerrar = async () => {
     expurgo?.parar();
-    await zerar?.parar();
+    await zerar.parar();
     if (timerMetricas) clearInterval(timerMetricas);
     await trabalhos?.parar();
     await agendamento?.parar();

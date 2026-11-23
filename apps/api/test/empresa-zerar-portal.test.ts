@@ -1,6 +1,6 @@
 /**
  * "Zerar dados" da empresa no portal (ADR 0068; desenho docs/desenho/empresa-zerar.md §5; RN-PLA-12) sem banco real: ligado com as
- * ações da empresa, só super-admin, prévia (inteira ou por entidade), pedido com a senha conferida de novo (a mesma `reautenticar`
+ * ações da empresa, só super-admin, prévia pedida ao worker e lida pelo id (inteira ou por entidade), pedido com a senha conferida de novo (a mesma `reautenticar`
  * do Excluir), leitura do mais recente, a tradução dos SQLSTATE das `sa_*` da 0100 e a lista das entidades igual à do Hub. As
  * funções de verdade são testadas nos `*.db.test.ts` do banco-dados.
  */
@@ -10,10 +10,10 @@ import {
   ENTIDADES_ZERAR,
   MENSAGEM_SO_SUPER_ADMIN_ACOES,
   mensagemDoZerar,
-  PreviaZerarEmpresaSchema,
+  PreviaZerarSchema,
   ZerarEmpresaSchema,
   type AcessoPortalAutenticado,
-  type PreviaZerarEmpresa,
+  type PreviaZerar,
   type ZerarEmpresa,
 } from '@macuxi/platform-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +30,7 @@ const CLI: AcessoPortalAutenticado = {
   empresa: { tenant_id: EMPRESA, usuario_id: '0b000000-0000-4000-8000-000000000001' },
 };
 const ZERAR = '9e000000-0000-4000-8000-000000000001';
+const PREVIA = '9f000000-0000-4000-8000-000000000001';
 const SEGREDO = 's'.repeat(40);
 const { SENHA, HASH } = vi.hoisted(() => ({ SENHA: 'Senha#Certa2026', HASH: '$argon2id$v=19$m=19456,t=2,p=1$c2Fs$HASH' }));
 vi.mock('@macuxi/db', async (original) => ({
@@ -38,19 +39,27 @@ vi.mock('@macuxi/db', async (original) => ({
 }));
 const AGORA = new Date('2026-11-23T12:00:00Z');
 
-const previaCrua: PreviaZerarEmpresa = {
-  tenant_id: EMPRESA,
-  codigo: 'distrib',
+const previaEmAndamento: PreviaZerar = {
+  id: PREVIA,
+  situacao: 'em_andamento',
   entidades: null,
-  entidades_afetadas: ['cliente'],
-  contado_em: '2026-11-23T12:00:00+00:00',
-  total_linhas: 130,
-  tabelas: [
-    { tabela: 'vendedor.pedido_item', modo: 'soft', linhas: 100 },
-    { tabela: 'core.cliente', modo: 'soft', linhas: 30 },
-    { tabela: 'core.filial', modo: 'filial', linhas: 1 },
-  ],
+  linhas: null,
+  entidades_afetadas: null,
+  total: null,
   bloqueio: null,
+  erro_codigo: null,
+  criado_em: '2026-11-23T12:00:00+00:00',
+};
+const previaPronta: PreviaZerar = {
+  ...previaEmAndamento,
+  situacao: 'pronta',
+  entidades_afetadas: ['cliente'],
+  total: 130,
+  linhas: [
+    { ordem: 1, tabela: 'vendedor.pedido_item', modo: 'soft', linhas: 100 },
+    { ordem: 2, tabela: 'core.cliente', modo: 'soft', linhas: 30 },
+    { ordem: 3, tabela: 'core.filial', modo: 'filial', linhas: 1 },
+  ],
 };
 const zerarCru: ZerarEmpresa = {
   id: ZERAR,
@@ -75,6 +84,7 @@ interface OpcoesMontar {
   semZerar?: boolean;
   bloqueiaNaFalha?: boolean;
   previa?: unknown;
+  semPrevia?: boolean;
 }
 
 function montar(op: OpcoesMontar = {}) {
@@ -87,7 +97,8 @@ function montar(op: OpcoesMontar = {}) {
       return resposta(...args);
     };
   const fonte: FonteZerarEmpresa = {
-    previa: registrar('previa', () => op.previa ?? previaCrua, op.falha?.previa),
+    pedirPrevia: registrar('pedirPrevia', () => op.previa ?? previaEmAndamento, op.falha?.pedirPrevia),
+    lerPrevia: registrar('lerPrevia', () => (op.semPrevia ? null : (op.previa ?? previaPronta)), op.falha?.lerPrevia),
     pedir: registrar('pedir', () => zerarCru, op.falha?.pedir),
     ler: registrar('ler', () => (op.semZerar ? null : zerarCru), op.falha?.ler),
   } as FonteZerarEmpresa;
@@ -117,6 +128,13 @@ const sa = { 'x-quem': 'sa' };
 const cli = { 'x-quem': 'cli' };
 const url = (resto: string) => `/v1/plataforma/empresas/${EMPRESA}/${resto}`;
 const corpo = (senha = SENHA) => ({ id: ZERAR, codigo_confirmacao: 'DISTRIB', senha });
+const ROTAS: readonly (readonly ['GET' | 'POST', string])[] = [
+  ['POST', 'zerar/previa'],
+  ['GET', `zerar/previa/${PREVIA}`],
+  ['POST', 'zerar'],
+  ['GET', 'zerar'],
+];
+const corpoDe = (rota: string) => (rota === 'zerar' ? corpo() : { id: PREVIA });
 
 describe('Portal › Zerar dados da empresa (ADR 0068, RN-PLA-12)', () => {
   beforeEach(() => vi.stubEnv('MACUXI_JWT_SEGREDO_PLATAFORMA', SEGREDO));
@@ -124,42 +142,62 @@ describe('Portal › Zerar dados da empresa (ADR 0068, RN-PLA-12)', () => {
 
   it('desligado com as ações da empresa: sem empresaAcoesPortal as rotas não existem (404) e o banco não é chamado', async () => {
     const { app, chamadas } = montar({ ligado: false });
-    expect((await app.inject({ method: 'GET', url: url('zerar/previa'), headers: sa })).statusCode).toBe(404);
-    expect((await app.inject({ method: 'POST', url: url('zerar'), headers: sa, payload: corpo() })).statusCode).toBe(404);
+    for (const [method, rota] of ROTAS) {
+      const r = await app.inject({ method, url: url(rota), headers: sa, ...(method === 'POST' ? { payload: corpoDe(rota) } : {}) });
+      expect(r.statusCode, rota).toBe(404);
+    }
     expect(chamadas).toEqual([]);
   });
 
   it('RN-PLA-12: só super-admin; admin do cliente = 403 PERFIL_SEM_ACESSO e sem sessão = 401, sem chamar o banco', async () => {
     const { app, chamadas } = montar();
-    for (const [method, rota] of [['GET', 'zerar/previa'], ['POST', 'zerar'], ['GET', 'zerar']] as const) {
-      const r = await app.inject({ method, url: url(rota), headers: cli, ...(method === 'POST' ? { payload: corpo() } : {}) });
-      expect([r.statusCode, r.json().codigo, r.json().mensagem]).toEqual([403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES]);
+    for (const [method, rota] of ROTAS) {
+      const r = await app.inject({ method, url: url(rota), headers: cli, ...(method === 'POST' ? { payload: corpoDe(rota) } : {}) });
+      expect([r.statusCode, r.json().codigo, r.json().mensagem], rota).toEqual([403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES]);
     }
-    const anonimo = await app.inject({ method: 'GET', url: url('zerar/previa') });
+    const anonimo = await app.inject({ method: 'GET', url: url(`zerar/previa/${PREVIA}`) });
     expect([anonimo.statusCode, anonimo.json().codigo]).toEqual([401, 'NAO_AUTENTICADO']);
     expect(chamadas).toEqual([]);
   });
 
-  it('RN-PLA-12: a prévia devolve 200 no contrato; formato fora do contrato = 500', async () => {
+  it('RN-PLA-12: pedir a prévia = 202 em andamento (o worker conta), sem pedir a senha; o GET síncrono saiu', async () => {
     const { app, de } = montar();
-    const r = await app.inject({ method: 'GET', url: url('zerar/previa'), headers: sa });
-    expect(r.statusCode).toBe(200);
-    expect(PreviaZerarEmpresaSchema.parse(r.json())).toEqual(previaCrua);
-    expect(de('previa')[0]?.args).toEqual([SA.sessao_id, EMPRESA, null]);
-    const ruim = montar({ previa: { ...previaCrua, total_linhas: 1 } });
-    expect((await ruim.app.inject({ method: 'GET', url: url('zerar/previa'), headers: sa })).statusCode).toBe(500);
+    const r = await app.inject({ method: 'POST', url: url('zerar/previa'), headers: sa, payload: { id: PREVIA } });
+    expect(r.statusCode).toBe(202);
+    expect(PreviaZerarSchema.parse(r.json())).toEqual(previaEmAndamento);
+    expect(de('pedirPrevia')[0]?.args).toEqual([SA.sessao_id, EMPRESA, PREVIA, null]);
+    expect(de('reautenticar')).toEqual([]);
+    expect((await app.inject({ method: 'GET', url: url('zerar/previa'), headers: sa })).statusCode).toBe(404);
+    const ruim = montar({ previa: { ...previaPronta, total: 1 } });
+    expect((await ruim.app.inject({ method: 'POST', url: url('zerar/previa'), headers: sa, payload: { id: PREVIA } })).statusCode).toBe(500);
   });
 
-  it('RN-PLA-12: prévia por entidade: a lista vai normalizada ao banco; entidade fora da lista = 400 sem chamar o banco', async () => {
+  it('RN-PLA-12: prévia por entidade: a lista vai normalizada ao banco; corpo fora do contrato = 400 sem chamar o banco', async () => {
     const { app, de, chamadas } = montar();
-    const r = await app.inject({ method: 'GET', url: url('zerar/previa?entidades=nota,cliente'), headers: sa });
-    expect(r.statusCode).toBe(200);
-    expect(de('previa')[0]?.args).toEqual([SA.sessao_id, EMPRESA, ['cliente', 'nota']]);
+    const r = await app.inject({ method: 'POST', url: url('zerar/previa'), headers: sa, payload: { id: PREVIA, entidades: ['nota', 'cliente'] } });
+    expect(r.statusCode).toBe(202);
+    expect(de('pedirPrevia')[0]?.args).toEqual([SA.sessao_id, EMPRESA, PREVIA, ['cliente', 'nota']]);
     const n = chamadas.length;
-    for (const q of ['entidades=pedido', 'entidades=', 'entidades=cliente,cliente', 'outra=1']) {
-      expect((await app.inject({ method: 'GET', url: url(`zerar/previa?${q}`), headers: sa })).statusCode, q).toBe(400);
+    for (const payload of [{}, { id: 'x' }, { id: PREVIA, entidades: ['pedido'] }, { id: PREVIA, entidades: [] }, { id: PREVIA, entidades: ['cliente', 'cliente'] }, { id: PREVIA, outra: 1 }]) {
+      expect((await app.inject({ method: 'POST', url: url('zerar/previa'), headers: sa, payload })).statusCode, JSON.stringify(payload)).toBe(400);
     }
     expect(chamadas).toHaveLength(n);
+  });
+
+  it('RN-PLA-12: ler a prévia pelo id = 200 no contrato; inexistente = 404 ZERAR_PREVIA_NAO_ENCONTRADA; id inválido = 400', async () => {
+    const { app, de, chamadas } = montar();
+    const r = await app.inject({ method: 'GET', url: url(`zerar/previa/${PREVIA}`), headers: sa });
+    expect([r.statusCode, PreviaZerarSchema.parse(r.json())]).toEqual([200, previaPronta]);
+    expect(de('lerPrevia')[0]?.args).toEqual([SA.sessao_id, EMPRESA, PREVIA]);
+    const n = chamadas.length;
+    expect((await app.inject({ method: 'GET', url: url('zerar/previa/x'), headers: sa })).statusCode).toBe(400);
+    expect(chamadas).toHaveLength(n);
+    const vazio = montar({ semPrevia: true });
+    const r2 = await vazio.app.inject({ method: 'GET', url: url(`zerar/previa/${PREVIA}`), headers: sa });
+    expect([r2.statusCode, r2.json().codigo, r2.json().mensagem]).toEqual([404, 'ZERAR_PREVIA_NAO_ENCONTRADA', mensagemDoZerar('ZERAR_PREVIA_NAO_ENCONTRADA')]);
+    const outraEmpresa = montar({ falha: { pedirPrevia: erroPg('23505') } });
+    const r3 = await outraEmpresa.app.inject({ method: 'POST', url: url('zerar/previa'), headers: sa, payload: { id: PREVIA } });
+    expect([r3.statusCode, r3.json().codigo, r3.json().mensagem]).toEqual([409, 'ID_EM_USO', mensagemDoZerar('ID_EM_USO')]);
   });
 
   it('a lista de entidades do zerar é a ordem de carga do Hub (uma lista só)', () => {
