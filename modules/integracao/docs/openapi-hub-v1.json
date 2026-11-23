@@ -2077,7 +2077,7 @@
       "get": {
         "operationId": "clientes_pendentes",
         "summary": "Pré-cadastros recebidos, ainda sem código, para criar no ERP; o Hub marca como enviado o que entrega (RN-INT-22).",
-        "description": "Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+        "description": "Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
         "tags": [
           "Clientes novos"
         ],
@@ -2138,6 +2138,8 @@
                           "latitude": null,
                           "longitude": null,
                           "filial_external_id": null,
+                          "revisao": 1,
+                          "hash": "3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5",
                           "tentativa": 1
                         }
                       ]
@@ -2210,7 +2212,7 @@
       "post": {
         "operationId": "retorno_cliente",
         "summary": "Retorno do ERP: código do cliente criado (vinculado) ou rejeição. Idempotente (RN-INT-22).",
-        "description": "Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.",
+        "description": "Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código de revisão anterior vale. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.",
         "tags": [
           "Clientes novos"
         ],
@@ -2259,6 +2261,29 @@
                     "motivo": "CNPJ já cadastrado com outro código",
                     "ocorrido_em": "2026-11-23T14:02:00Z"
                   }
+                },
+                "rejeitado_com_erros": {
+                  "summary": "ERP recusou a revisão 2, com os erros por campo (opcionais)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
+                    "status": "rejeitado_erp",
+                    "motivo": "Cadastro incompleto",
+                    "revisao": 2,
+                    "erros": [
+                      {
+                        "campo": "inscricao_estadual",
+                        "codigo": "IE_INVALIDA",
+                        "mensagem": "Inscrição estadual inválida para RR"
+                      },
+                      {
+                        "campo": "cep",
+                        "codigo": "CEP_INEXISTENTE",
+                        "mensagem": "CEP não encontrado na base dos Correios"
+                      }
+                    ],
+                    "ocorrido_em": "2026-11-23T14:02:00Z"
+                  }
                 }
               }
             }
@@ -2266,7 +2291,7 @@
         },
         "responses": {
           "200": {
-            "description": "Retorno aplicado (ou repetido).",
+            "description": "Retorno aplicado (ou repetido, ou obsoleto).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
@@ -2283,7 +2308,8 @@
                     "value": {
                       "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
                       "estado": "vinculado",
-                      "repetido": false
+                      "repetido": false,
+                      "revisao": 1
                     }
                   },
                   "repetido": {
@@ -2291,7 +2317,18 @@
                     "value": {
                       "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
                       "estado": "vinculado",
-                      "repetido": true
+                      "repetido": true,
+                      "revisao": 1
+                    }
+                  },
+                  "obsoleto": {
+                    "summary": "Recusa de uma revisão anterior: aceita sem gravar (vale a revisão nova)",
+                    "value": {
+                      "cliente_uuid": "8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04",
+                      "estado": "pendente",
+                      "repetido": false,
+                      "revisao": 3,
+                      "obsoleto": true
                     }
                   }
                 }
@@ -2338,7 +2375,7 @@
             "$ref": "#/components/responses/AcessoNegado"
           },
           "422": {
-            "description": "Retorno recusado: `cliente_desconhecido`, `cliente_nao_entregue`, `transicao_invalida` ou `external_id_divergente`. Definitivo: o retorno não deve ser reenviado igual.",
+            "description": "Retorno recusado: `cliente_desconhecido`, `cliente_nao_entregue`, `transicao_invalida`, `external_id_divergente` ou `revisao_desconhecida`. Definitivo: o retorno não deve ser reenviado igual.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/XRequestId"
@@ -2375,6 +2412,21 @@
                           "codigo": "external_id_divergente",
                           "campo": "external_id",
                           "mensagem": "O cliente já tem o código C-004512 no ERP e o retorno informa outro. Confira no ERP se o cliente foi criado duas vezes."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "revisao_desconhecida": {
+                    "summary": "Revisão maior que a atual do cliente",
+                    "value": {
+                      "codigo": "revisao_desconhecida",
+                      "mensagem": "O retorno informa a revisão 4, mas a revisão atual deste cliente é 3. Devolva a revisão recebida em GET /clientes/pendentes.",
+                      "erros": [
+                        {
+                          "codigo": "revisao_desconhecida",
+                          "campo": "revisao",
+                          "mensagem": "O retorno informa a revisão 4, mas a revisão atual deste cliente é 3. Devolva a revisão recebida em GET /clientes/pendentes."
                         }
                       ],
                       "requisicao_id": "req-7f3a9c2e41d8"
@@ -3312,6 +3364,21 @@
               }
             ]
           },
+          "revisao": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tentativa": {
             "type": "integer",
             "exclusiveMinimum": 0
@@ -3954,6 +4021,31 @@
           "prazo_pagamento",
           "tabela_escalonada",
           "filial"
+        ]
+      },
+      "ErroCampoRetornoCliente": {
+        "type": "object",
+        "properties": {
+          "campo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "mensagem": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "campo",
+          "codigo",
+          "mensagem"
         ]
       },
       "ErroHub": {
@@ -6253,7 +6345,8 @@
               "cliente_desconhecido",
               "cliente_nao_entregue",
               "transicao_invalida",
-              "external_id_divergente"
+              "external_id_divergente",
+              "revisao_desconhecida"
             ]
           },
           "mensagem": {
@@ -6563,6 +6656,18 @@
               }
             ]
           },
+          "revisao": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "erros": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErroCampoRetornoCliente"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
           "ocorrido_em": {
             "type": "string",
             "format": "date-time",
@@ -6588,12 +6693,21 @@
           },
           "repetido": {
             "type": "boolean"
+          },
+          "revisao": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "obsoleto": {
+            "const": true,
+            "type": "boolean"
           }
         },
         "required": [
           "cliente_uuid",
           "estado",
-          "repetido"
+          "repetido",
+          "revisao"
         ]
       },
       "RetornoErp": {

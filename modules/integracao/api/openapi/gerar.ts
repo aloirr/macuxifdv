@@ -134,8 +134,8 @@ const DESCRICAO_ROTA: Record<string, string> = {
   retorno_pedido:
     'Retorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. ' +
     'Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.',
-  clientes_pendentes: 'Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).',
-  retorno_cliente: 'Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.',
+  clientes_pendentes: 'Clientes novos (pré-cadastro) recebidos, ainda sem código, para criar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o cliente volta a `pendente` e sai de novo com `tentativa + 1`. Crie no ERP de forma idempotente pelo `cliente_uuid`. Cada cliente traz `revisao` e `hash`: quando o cadastro recusado é corrigido, o mesmo `cliente_uuid` volta com `revisao` maior. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).',
+  retorno_cliente: 'Retorno do ERP para um cliente entregue: `vinculado` com o código do ERP em `external_id`, ou `rejeitado_erp` com o `motivo` e, opcionalmente, os `erros` por campo. Informe a `revisao` recebida (ausente = a atual): recusa de revisão anterior volta `obsoleto: true` sem mudar nada; o código de revisão anterior vale. Idempotente: o mesmo retorno de novo devolve `repetido: true`; outra recusa na mesma revisão (motivo ou erros diferentes) é aplicada. Se o Macuxi recusar o código (já usado por outro cliente), o ERP não precisa reenviar.',
   sinal: 'Sinal de vida (1 por minuto). Responde com a política de versão vigente. É a única rota liberada para o Conector abaixo da versão mínima.',
 };
 
@@ -147,7 +147,7 @@ const DESCRICAO_SUCESSO: Record<string, string> = {
   pedidos_pendentes: 'Pedidos para gravar no ERP (a lista vazia é normal).',
   retorno_pedido: 'Retorno aplicado (ou repetido).',
   clientes_pendentes: 'Clientes novos para criar no ERP (a lista vazia é normal).',
-  retorno_cliente: 'Retorno aplicado (ou repetido).',
+  retorno_cliente: 'Retorno aplicado (ou repetido, ou obsoleto).',
   sinal: 'Sinal recebido; traz a política de versão.',
 };
 
@@ -171,7 +171,7 @@ const DESCRICAO_ERRO_ROTA: Record<string, Record<number, string>> = {
   enviar_reconciliacao: { 422: '`entidade_de_outro_conector`: a entidade é alimentada por outro Conector da empresa.' },
   retorno_cliente: {
     400: 'Corpo fora do contrato, ou `cliente_uuid` do caminho diferente do corpo.',
-    422: 'Retorno recusado: `cliente_desconhecido`, `cliente_nao_entregue`, `transicao_invalida` ou `external_id_divergente`. Definitivo: o retorno não deve ser reenviado igual.',
+    422: 'Retorno recusado: `cliente_desconhecido`, `cliente_nao_entregue`, `transicao_invalida`, `external_id_divergente` ou `revisao_desconhecida`. Definitivo: o retorno não deve ser reenviado igual.',
   },
   retorno_pedido: {
     400: 'Corpo fora do contrato, ou `pedido_uuid` do caminho diferente do corpo.',

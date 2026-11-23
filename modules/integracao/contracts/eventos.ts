@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { definirEvento, type DefinicaoEvento } from '@macuxi/platform-sdk/eventos';
 import { DataHoraUtc, Uuid } from './base';
 import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from './entidades';
-import { StatusRetornoCliente } from './cliente-erp';
+import { ErroCampoRetornoCliente, RevisaoCliente, StatusRetornoCliente } from './cliente-erp';
 import { EstadoLote, ModoCarga } from './lote';
 import { EstadoPedidoErp, ItemFaturado, NotaRetorno } from './pedido';
 
@@ -105,6 +105,8 @@ export type ReconciliacaoDivergenteEvento = z.infer<typeof ReconciliacaoDivergen
 /**
  * `integracao.cliente.retorno_erp@1` (RN-INT-22) — o ERP devolveu o código do cliente novo (`vinculado`) ou o recusou (`rejeitado_erp`).
  * Ids e código do ERP; `motivo` é texto livre do ERP (até 1000), que o consumidor não leva a log nem auditoria. O Core o consome e grava o `external_id` no cliente (ADR 0012 §5).
+ * v1.0.29 (ADR 0069, aditivos na @1): `revisao` (a que o retorno se refere; o Hub sempre manda) e `erros` por campo (só em `rejeitado_erp`,
+ * mensagens já sem dado pessoal). Recusa de revisão antiga não publica; recusa nova na mesma revisão com outro motivo ou erros publica.
  */
 export const ClienteRetornoErpEvento = z.object({
   cliente_id: Uuid,
@@ -112,6 +114,8 @@ export const ClienteRetornoErpEvento = z.object({
   external_id: z.string().min(1).nullable(),
   motivo: z.string().max(1000).nullable(),
   ocorrido_em: DataHoraUtc,
+  revisao: RevisaoCliente.optional(),
+  erros: z.array(ErroCampoRetornoCliente).max(50).optional(),
 });
 export type ClienteRetornoErpEvento = z.infer<typeof ClienteRetornoErpEvento>;
 
