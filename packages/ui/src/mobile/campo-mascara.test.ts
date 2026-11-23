@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { aplicarMascara, DIGITOS_DA_MASCARA, leituraDoRotulo, propsDeTecladoDaMascara, SUFIXO_OPCIONAL } from './campo-mascara';
-import { ACAO_CORRIGIR_E_REENVIAR, ROTULO_NAO_ENVIADO, seloDoPreCadastro } from './pre-cadastro';
+import { ACAO_CORRIGIR_E_REENVIAR, ROTULO_PRE_CADASTRO_NAO_ENVIADO, seloDoPreCadastro } from './pre-cadastro';
 
 // campo-texto-rn.tsx importa react-native (não roda no node): a conferência do componente é sobre o texto do arquivo.
 const fonteRn = readFileSync(new URL('./campo-texto-rn.tsx', import.meta.url), 'utf8');
@@ -68,7 +68,7 @@ describe('selo do pré-cadastro (campo-cliente-pre-cadastro.md §5)', () => {
     expect(seloDoPreCadastro('aguardando_erp')).toEqual({ texto: 'Aguardando ERP', tom: 'aviso', icone: 'clock' });
     expect(seloDoPreCadastro('recusado_erp')).toEqual({ texto: 'Recusado pelo ERP', tom: 'erro', icone: 'alert' });
     expect(seloDoPreCadastro('nao_enviado')).toEqual({ texto: 'Não enviado', tom: 'erro', icone: 'alert' });
-    expect(ROTULO_NAO_ENVIADO).toBe('Não enviado');
+    expect(ROTULO_PRE_CADASTRO_NAO_ENVIADO).toBe('Não enviado');
     expect(seloDoPreCadastro('aprovado_erp')).toBeNull();
     expect(seloDoPreCadastro(null)).toBeNull();
     expect(ACAO_CORRIGIR_E_REENVIAR).toBe('Corrigir e reenviar');
