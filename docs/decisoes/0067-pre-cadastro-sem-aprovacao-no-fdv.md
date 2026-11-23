@@ -16,7 +16,7 @@ buscava os aprovados pela consulta `core.clientes_aprovados_sem_erp@1` para entr
 ## Decisão
 1. **Sem aprovação no FDV.** O pré-cadastro (campo ou BKO) chega `pendente` e entra na fila do ERP assim que o servidor o recebe. O ERP
    devolve o código (`aprovado`, com `external_id` e `aprovado_em` = quando o ERP aprovou) ou a recusa com o motivo (`recusado`,
-   `motivo_recusa` até 500 caracteres, só no pull do cliente, nunca em log nem auditoria).
+   `motivo_recusa` até 500 caracteres; quem vê, item 6).
 2. **Evento e consulta trocados sem nova versão.** Saem `core.cliente.aprovado@1`, `core.clientes_aprovados_sem_erp@1`, a ação
    `cliente.aprovar_cadastro` e a rota de decisão; entram `core.cliente.pre_cadastrado@1` `{cliente_id, recebido_em}` e
    `core.clientes_pre_cadastro_sem_erp@1`. Não é "nova versão + convivência" (regra 3 do CLAUDE.md) porque os dois contratos são
@@ -35,7 +35,7 @@ buscava os aprovados pela consulta `core.clientes_aprovados_sem_erp@1` para entr
    `macuxi_leitura`); índice da fila por `(tenant_id, created_at, id)` dos pendentes sem código; `integracao.cliente_fila_erp.aprovado_em`
    vira `recebido_em`.
 6. **Motivo da recusa só ao vendedor.** O `motivo_recusa` vai ao perfil vendedor no pull do `cliente` (que já é limitado à carteira) e
-   no Cliente 360; os demais perfis recebem nulo. Filtro na API pela função pura `motivoRecusaVisivel` (domain do Core, RN-CORE-78).
+   no Cliente 360; os demais perfis (supervisor, gerente, analista, admin, promotor) recebem nulo. Filtro na API pela função pura `motivoRecusaVisivel` (domain do Core, RN-CORE-78).
    O motivo nunca vai a log nem à auditoria.
 7. **Reenvio após recusa substitui o recusado.** No `POST /v1/core/clientes/pre-cadastro`, a busca de CPF/CNPJ repetido ignora cliente
    `recusado`: se houver recusado vivo com o mesmo documento, ele recebe `deleted_at` na mesma transação do novo (auditado como
@@ -55,7 +55,5 @@ buscava os aprovados pela consulta `core.clientes_aprovados_sem_erp@1` para entr
 ## Consequências
 - O APK v1.0.27 em campo não quebra: o pull do `cliente` passa a trazer `status_cadastro` e `motivo_recusa`, e o aparelho guarda a linha
   como JSON sem revalidar pelo `ClienteSyncSchema` (só o push é validado). Ele só não mostra os campos.
-- Supervisor, gerente, analista, admin e promotor veem o cliente recusado sem o motivo (nulo no pull e no Cliente 360).
-- O CPF/CNPJ de um cadastro recusado pelo ERP fica livre para o reenvio; o recusado sai da lista (removido, não apagado) e o histórico
-  fica na auditoria. O registro antigo no Hub (`integracao.cliente_fila_erp`) segue como está, ligado ao `id` antigo.
+- O histórico do recusado fica na auditoria; o registro antigo no Hub (`integracao.cliente_fila_erp`) segue ligado ao `id` antigo.
 - Ordem do lote: migração 0097, Core e Integração juntos (o Core lê `motivo_recusa` no pull; a Integração grava `recebido_em`).
