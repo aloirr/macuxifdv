@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { leituraDosCodigos, partesDosCodigos, textoDosCodigos } from './codigos-cliente';
+import { leituraDosCodigos, partesDosCodigos, textoDosCodigos } from '../comum/codigos-cliente';
 import * as puro from './puro';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');

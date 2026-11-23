@@ -67,7 +67,8 @@ O toque em **Editar e reenviar** troca o conteúdo da gaveta (sem abrir outra):
   - Campo não usado pela empresa: não aparece. Campo não obrigatório (Parâmetros › Clientes › Campos obrigatórios): rótulo com
     **(opcional)** na mesma linha, em `text-ink-2`. Obrigatório não leva marca.
   - Máscaras ao digitar iguais às do Campo: `aplicarMascara('documento' | 'cep' | 'telefone', valor)` e as props do `<input>` em
-    `propsDoInputComMascara(mascara)` (`@macuxi/ui/web`); o envio vai só com dígitos.
+    `propsDoInputComMascara(mascara)` (`@macuxi/ui/web`, sem `maxLength`: o texto colado chega inteiro e a máscara
+    corta o excesso; `+55` do telefone sai); o envio vai só com dígitos.
   - Campos 44 px, borda `#7A8593`, raio 10.
 - **Erros por campo:** cada campo citado na última recusa já abre com borda `danger` 2 px e a mensagem embaixo (13/600 `danger`,
   ícone de alerta), e a gaveta rola até o primeiro. A marca sai quando o valor do campo muda. Campo marcado e não mudado não

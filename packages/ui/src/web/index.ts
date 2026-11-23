@@ -34,3 +34,5 @@ export * from './abas';
 export * from './opcao-cartao';
 // v1.0.30: máscaras ao digitar no campo de texto (aplicarMascara, propsDoInputComMascara; CPF/CNPJ, CEP e telefone)
 export * from './mascara';
+// v1.0.30: códigos do cliente (ERP · FDV), parte pura em src/comum, a mesma do kit mobile (partesDosCodigos, textoDosCodigos, leituraDosCodigos, SEPARADOR_CODIGOS)
+export * from '../comum/codigos-cliente';

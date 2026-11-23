@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
-import { leituraDosCodigos, partesDosCodigos, SEPARADOR_CODIGOS, type CodigosDoCliente } from './codigos-cliente';
+import { leituraDosCodigos, partesDosCodigos, SEPARADOR_CODIGOS, type CodigosDoCliente } from '../comum/codigos-cliente';
 import { TrechosDosCodigos } from './codigos-cliente-rn';
 import { alturaMinimaCabecalho, CABECALHO, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
 import { formaDoBadge, layoutCarregando, leituraDoChip, type LinhasBadge, rotuloDoVoltar, textoDaContagem, tocarNoVoltar } from './componentes';

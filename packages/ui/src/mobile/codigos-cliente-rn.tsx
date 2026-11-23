@@ -6,7 +6,7 @@
 import { Fragment } from 'react';
 import { Text, type TextStyle } from 'react-native';
 
-import { partesDosCodigos, SEPARADOR_CODIGOS, type CodigosDoCliente } from './codigos-cliente';
+import { partesDosCodigos, SEPARADOR_CODIGOS, type CodigosDoCliente } from '../comum/codigos-cliente';
 import { fonte } from './theme';
 
 /**

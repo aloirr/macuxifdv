@@ -67,6 +67,8 @@ Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busc
   A linha já tem 44 px (os `select`s); duas linhas de 16 px cabem sem crescer. `TableScroll minWidth` passa de 880 para 984.
 - **"Vincular cliente"** (candidatos da busca): o mesmo bloco de códigos entre o nome e a cidade (em linha, `ERP C5007 · FDV 00012`),
   para o usuário conferir o cliente certo antes de **Vincular**.
+- **Kit:** `partesDosCodigos`, `textoDosCodigos`, `leituraDosCodigos` e `SEPARADOR_CODIGOS` de `@macuxi/ui/web` (a mesma parte pura
+  do Campo, em `packages/ui/src/comum`); a web não importa de `@macuxi/ui/mobile`.
 - Rótulo da busca inalterado: `ROTULO_BUSCA_CLIENTE_BKO` (**Código, CNPJ ou nome (mínimo 3 caracteres)**); "Código" passa a
   valer para os dois (§6).
 
