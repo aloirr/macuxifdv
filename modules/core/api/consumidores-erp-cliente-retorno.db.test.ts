@@ -5,6 +5,7 @@
 import { definirTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ContextoConsumo } from '@macuxi/platform-sdk';
+import type { StatusCadastro } from '../contracts';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { consumidorClienteRetornoErp } from './consumidores-erp-cliente-retorno';
@@ -46,8 +47,7 @@ describe.skipIf(semBanco())('Core × Postgres: retorno do ERP do cliente novo (R
     }
   }
 
-  type Status = 'pendente' | 'aprovado' | 'recusado';
-  const novo = (id: string, status: Status, externalId: string | null = null) =>
+  const novo = (id: string, status: StatusCadastro, externalId: string | null = null) =>
     `insert into core.cliente (id, tenant_id, razao_social, origem_cadastro, status_cadastro, aprovado_em, motivo_recusa, external_id) values ('${id}', plataforma.tenant_atual(), 'Cliente ${id.slice(-1)}', 'campo', '${status}', ${status === 'aprovado' ? 'now()' : 'null'}, ${status === 'recusado' ? "'recusa antiga'" : 'null'}, ${externalId ? `'${externalId}'` : 'null'})`;
   const retorno = (id: string, status: 'vinculado' | 'rejeitado_erp', external_id: string | null, motivo: string | null = null) => ({ cliente_id: id, status, external_id, motivo, ocorrido_em: '2026-11-23T12:00:00Z' });
 

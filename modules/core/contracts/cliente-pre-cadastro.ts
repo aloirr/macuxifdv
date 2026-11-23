@@ -23,7 +23,7 @@ export type CampoPreCadastroSempre = (typeof CAMPOS_PRE_CADASTRO_SEMPRE)[number]
 export type CampoPreCadastroConfiguravel = (typeof CAMPOS_PRE_CADASTRO_CONFIGURAVEIS)[number];
 export type CampoPreCadastro = CampoPreCadastroSempre | CampoPreCadastroConfiguravel;
 
-/** Rótulos em português para telas e mensagens (única fonte: app, BKO e API). */
+/** Rótulos dos campos (fonte única: app e BKO). */
 export const ROTULOS_CAMPOS_PRE_CADASTRO: Record<CampoPreCadastro, string> = {
   razao_social: 'Razão social',
   documento: 'CPF/CNPJ',
