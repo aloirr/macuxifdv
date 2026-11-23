@@ -135,6 +135,8 @@ const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'visita.registrar_gestao': 'Registrar visita no app Gestão',
   'visita.dispensar_etapa': 'Dispensar etapa pendente da visita',
   'parametro.checkout_pendencia': 'Ajustar o prazo do alerta de checkout',
+  'parametro.pre_cadastro': 'Ver campos do pré-cadastro',
+  'parametro.pre_cadastro_editar': 'Ajustar campos do pré-cadastro',
 };
 
 /** Rótulo da chave: o da spec; senão a descrição do manifesto até o primeiro " (" ou ";". */

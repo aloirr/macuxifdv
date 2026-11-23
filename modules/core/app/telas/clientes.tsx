@@ -4,7 +4,8 @@
  * R-20261120-062210) e procura por código, CNPJ, razão social ou nome fantasia; as situações ficam na folha "Filtrar"; cada situação aplicada vira etiqueta removível. A
  * carteira vazia mostra só "Sua carteira está vazia." (RD-0501, RD-0504). Regras no domain (`filtro-padrao.ts`).
  */
-import { BotaoFiltro, CabecalhoTela, CampoBusca, Chip, ChipEstado, EstadoVazio, EtiquetaFiltro, colors, Icon, radius, type as t } from '@macuxi/ui/mobile';
+import { AvisoRodape, Botao, BotaoFiltro, CabecalhoTela, CampoBusca, Chip, ChipEstado, EstadoVazio, EtiquetaFiltro, colors, Icon, radius, seloDoPreCadastro, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -14,7 +15,9 @@ import {
   dataLocal,
   ROTULO_BUSCA_CLIENTE,
   ROTULO_SITUACAO_CLIENTE,
+  podePreCadastrarCliente,
   situacaoDoCliente,
+  situacaoDoPreCadastro,
   situacaoNaLinha,
   subtituloDaCarteira,
   textoUltimaVisita,
@@ -26,7 +29,8 @@ import { fusoDe } from '../lib/estado';
 import { listarClientesLocais, type ItemClienteLocal } from '../lib/cliente360-local';
 import { useClientesLocais, type ClientesLocais } from '../lib/usar-clientes-locais';
 import { CUSTOMER_FILTERS, filterCustomers, type CustomerFilter } from '../lib/carteira';
-import { abrirCliente } from '../lib/navegacao';
+import { abrirCliente, abrirNovoCliente } from '../lib/navegacao';
+import { consumirAvisoClienteSalvo } from '../lib/pre-cadastro-local';
 import { useCore } from '../lib/usar-core';
 
 /** Situação da folha; `garante` é a situação da linha que o filtro já assegura (RD-0500: a tag dela sai da linha). */
@@ -38,8 +42,16 @@ interface Situacao<F extends string> {
 
 const SITUACOES_FASE_M: ReadonlyArray<Situacao<CustomerFilter>> = CUSTOMER_FILTERS.map((f) => (f.id === 'overdue' ? { ...f, garante: 'devendo' } : f));
 
-export function TelaClientes() {
+export interface PropsTelaClientes {
+  /** Abre o formulário "Novo cliente" (pré-cadastro). O botão aparece só quando a prop vem e o usuário pode pré-cadastrar (RN-CORE-78); a checagem é uma, em `TelaClientes`. */
+  aoNovoCliente?: () => void;
+}
+
+export function TelaClientes({ aoNovoCliente: abrirFormulario }: PropsTelaClientes = {}) {
   const core = useCore();
+  const { motor } = useMotorSync();
+  const perfil = motor?.ambiente.usuario()?.perfil;
+  const aoNovoCliente = perfil && podePreCadastrarCliente(perfil) ? abrirFormulario : undefined;
   const customers = core.estado.clientes;
   const params = useLocalSearchParams<{ filter?: string }>();
   const [query, setQuery] = useState('');
@@ -54,7 +66,7 @@ export function TelaClientes() {
   const list = useMemo(() => filterCustomers(customers, query, filters), [customers, query, filters]);
 
   // com o pull de `cliente` no aparelho, a lista vem das linhas locais (offline, T-0017); senão, a carga antiga da Fase M
-  if (locais.pronto) return <ListaLocal dados={locais} hoje={hoje} />;
+  if (locais.pronto) return <ListaLocal dados={locais} hoje={hoje} aoNovoCliente={aoNovoCliente} />;
 
   return (
     <Carteira
@@ -68,9 +80,13 @@ export function TelaClientes() {
       query={query}
       setQuery={setQuery}
       linha={(item, first, last, garantidas) => <CustomerRow c={item} first={first} last={last} garantidas={garantidas} />}
+      aoNovoCliente={aoNovoCliente}
     />
   );
 }
+
+/** A página do shell: a lista com o botão "Novo cliente" (a tela em si só mostra o botão quando recebe `aoNovoCliente`). */
+export const TelaClientesDoShell = () => <TelaClientes aoNovoCliente={() => abrirNovoCliente()} />;
 
 type FiltroLocal = 'vencidos' | 'sem_compra' | 'bloqueados';
 const FILTROS_LOCAIS: ReadonlyArray<Situacao<FiltroLocal>> = [
@@ -80,7 +96,7 @@ const FILTROS_LOCAIS: ReadonlyArray<Situacao<FiltroLocal>> = [
 ];
 
 /** Lista de Clientes do aparelho (Cliente 360 offline, T-0017). */
-function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
+function ListaLocal({ dados, hoje, aoNovoCliente }: { dados: ClientesLocais; hoje: string; aoNovoCliente?: () => void }) {
   const core = useCore();
   const [query, setQuery] = useState('');
   const [filtros, setFiltros] = useState<FiltroLocal[]>([]);
@@ -113,6 +129,7 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
       query={query}
       setQuery={setQuery}
       linha={(item, first, last, garantidas) => <LinhaLocal c={item} hoje={hoje} first={first} last={last} garantidas={garantidas} />}
+      aoNovoCliente={aoNovoCliente}
     />
   );
 }
@@ -130,6 +147,7 @@ function Carteira<F extends string, T>({
   setQuery,
   linha,
   testID,
+  aoNovoCliente,
 }: {
   total: number;
   itens: readonly T[];
@@ -143,8 +161,14 @@ function Carteira<F extends string, T>({
   setQuery: (q: string) => void;
   linha: (item: T, first: boolean, last: boolean, garantidas: readonly SituacaoDoCliente[]) => ReactElement;
   testID?: string;
+  aoNovoCliente?: () => void;
 }) {
   const core = useCore();
+  const aviso = useAvisoRodape();
+  useEffect(() => {
+    if (consumirAvisoClienteSalvo()) aviso.mostrar({ texto: 'Cliente salvo', tom: 'sucesso' });
+    // só ao abrir a lista: o formulário marca o aviso antes de fechar
+  }, []);
   const [folhaAberta, setFolhaAberta] = useState(false);
   const [rascunho, setRascunho] = useState<F[]>([]);
   const garantidas = situacoes.flatMap((s) => (s.garante && filtros.includes(s.id) ? [s.garante] : []));
@@ -155,6 +179,7 @@ function Carteira<F extends string, T>({
       <CabecalhoTela
         titulo="Clientes"
         subtitulo={subtituloDaCarteira(itens.length, total)}
+        direita={aoNovoCliente ? <Botao testID="clientes-novo" rotulo="Novo cliente" nivel="principal" icone="plus" onPress={aoNovoCliente} /> : undefined}
       />
       {vazia ? null : (
         <View style={styles.top}>
@@ -221,6 +246,7 @@ function Carteira<F extends string, T>({
           </View>
         </GrupoFiltro>
       </FolhaFiltrar>
+      <AvisoRodape {...aviso.props} />
     </View>
   );
 }
@@ -231,9 +257,11 @@ const TOM_SITUACAO: Record<SituacaoDoCliente, 'erro' | 'sucesso' | 'neutro'> = {
  * RN-CORE-47: nome, uma tag de situação, a última visita e a seta. Nada mais na linha. RD-0500: a tag que o filtro marcado já
  * garante sai (`situacaoNaLinha`).
  */
-function LinhaCliente({ id, nome, situacao: daLinha, garantidas, visita, first, last }: { id: string; nome: string; situacao: SituacaoDoCliente; garantidas: readonly SituacaoDoCliente[]; visita: string | null; first: boolean; last: boolean }) {
+function LinhaCliente({ id, nome, situacao: daLinha, garantidas, visita, first, last, preCadastro }: { id: string; nome: string; situacao: SituacaoDoCliente; garantidas: readonly SituacaoDoCliente[]; visita: string | null; first: boolean; last: boolean; preCadastro?: ReturnType<typeof situacaoDoPreCadastro> }) {
   const situacao = situacaoNaLinha(daLinha, garantidas);
-  const rotulo = situacao ? ROTULO_SITUACAO_CLIENTE[situacao] : null;
+  // v1.0.28: o selo "Pré-Cadastro" dá lugar a "Aguardando ERP" / "Recusado pelo ERP" (o motivo fica na ficha)
+  const selo = situacao === 'pre_cadastro' && preCadastro ? seloDoPreCadastro(preCadastro.situacao) : null;
+  const rotulo = selo ? selo.texto : situacao ? ROTULO_SITUACAO_CLIENTE[situacao] : null;
   const leitura = [nome, rotulo, visita].filter(Boolean).join(', ');
   return (
     <Pressable
@@ -252,7 +280,7 @@ function LinhaCliente({ id, nome, situacao: daLinha, garantidas, visita, first, 
           </Text>
         ) : null}
       </View>
-      {situacao && rotulo ? <ChipEstado pequeno texto={rotulo} tom={TOM_SITUACAO[situacao]} icone={situacao === 'bloqueado' ? 'lock' : undefined} /> : null}
+      {selo ? <ChipEstado pequeno {...selo} /> : situacao && rotulo ? <ChipEstado pequeno texto={rotulo} tom={TOM_SITUACAO[situacao]} icone={situacao === 'bloqueado' ? 'lock' : undefined} /> : null}
       <Icon name="chevron" size={16} color={colors.ink3} />
     </Pressable>
   );
@@ -268,6 +296,7 @@ function LinhaLocal({ c, hoje, first, last, garantidas }: { c: ItemClienteLocal;
       visita={textoUltimaVisita(c.ultima_visita, hoje)}
       first={first}
       last={last}
+      preCadastro={situacaoDoPreCadastro(c)}
     />
   );
 }

@@ -1,21 +1,24 @@
 /**
- * RF-CORE-10 × Postgres real (fixture dois-tenants, papel macuxi_app, RLS; colunas da migração 0095): pré-cadastro, decisão no BKO e
- * consultas do Hub (RN-CORE-78, RN-INT-22). Cada caso roda numa transação desfeita no fim. Pula sem Postgres (roda no CI).
+ * RF-CORE-10 × Postgres real (fixture dois-tenants, papel macuxi_app, RLS; colunas das migrações 0095 e 0097): pré-cadastro (obrigatórios, evento), parâmetro e
+ * consulta do Hub (RN-CORE-78, RN-INT-22). Cada caso roda numa transação desfeita no fim. Pula sem Postgres (roda no CI).
  */
 import { definirTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ContextoBase, RotaModulo } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { EVENTO_CLIENTE_APROVADO } from '../contracts';
+import { EVENTO_CLIENTE_PRE_CADASTRADO } from '../contracts';
 import { perfisDeFabrica } from '../domain';
-import { consultaClientesAprovadosSemErp, rotasDeClienteCadastro } from './cliente-cadastro';
+import { consultaClientesPreCadastroSemErp, rotasDeClienteCadastro } from './cliente-cadastro';
+import { rotasDeParametrosPreCadastro } from './parametros-pre-cadastro';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const ID1 = '5a000000-0000-4000-8000-000000000001';
 const ID2 = '5a000000-0000-4000-8000-000000000002';
 const ID3 = '5a000000-0000-4000-8000-000000000003';
+// documento próprio por id (o CPF/CNPJ é único por tenant)
+const DOCS: Record<string, string> = { [ID1]: '11222333000181', [ID2]: '11444777000161', [ID3]: '12345678909' };
 
 describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-78, RN-INT-22)', () => {
   let pool: pg.Pool;
@@ -31,6 +34,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     q<R = Record<string, unknown>>(sql: string, v?: unknown[]): Promise<R[]>;
     publicar: ReturnType<typeof vi.fn>;
     trocarTenant(tenantId: string): Promise<void>;
+    param(metodo: 'GET' | 'PUT', corpo?: unknown): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     lista(entrada?: unknown): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 
@@ -55,10 +59,22 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
         } as unknown as ContextoBase;
         return r.executar(ctx as never) as Promise<unknown>;
       };
-      const lista: T['lista'] = (entrada = {}) => consultaClientesAprovadosSemErp.executar(consultaClientesAprovadosSemErp.consulta.entrada.parse(entrada), { db: c } as never);
+      const param: T['param'] = (metodo, corpo) => {
+        const r = rotasDeParametrosPreCadastro.find((x) => x.metodo === metodo)!;
+        const ctx = {
+          usuario: { id: A.usuarios.admin, tenant_id: A.tenantId, perfil: 'admin', perfis: perfisDeFabrica('admin') },
+          requestId: 'req-param',
+          comTenant: (f: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => f(c, { publicar }),
+          corpo: r.corpo ? r.corpo.parse(corpo) : undefined,
+          params: {},
+          query: {},
+        } as unknown as ContextoBase;
+        return r.executar(ctx as never) as Promise<unknown>;
+      };
+      const lista: T['lista'] = (entrada = {}) => consultaClientesPreCadastroSemErp.executar(consultaClientesPreCadastroSemErp.consulta.entrada.parse(entrada), { db: c } as never);
       const trocarTenant: T['trocarTenant'] = (tenantId) => definirTenant(c, tenantId);
       try {
-        await fn({ rota, q, publicar, lista, trocarTenant });
+        await fn({ rota, q, publicar, lista, trocarTenant, param });
       } finally {
         await c.query('rollback').catch(() => undefined);
       }
@@ -67,7 +83,7 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     }
   }
 
-  const pre = (id: string, extra: Record<string, unknown> = {}) => ({ id, origem: 'campo', razao_social: 'Mercado Novo', cidade: 'Manaus', uf: 'AM', ...extra });
+  const pre = (id: string, extra: Record<string, unknown> = {}) => ({ id, origem: 'campo', razao_social: 'Mercado Novo', documento: DOCS[id] ?? '11222333000181', cidade: 'Manaus', uf: 'AM', ...extra });
 
   it('RN-CORE-78: o pré-cadastro entra pendente, é idempotente pelo id e o vendedor recebe o cliente na carteira', async () => {
     await emTransacao(async (t) => {
@@ -92,30 +108,38 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     });
   });
 
-  it('RN-CORE-78: o analista aprova uma vez: grava quem e quando, audita e publica core.cliente.aprovado@1 na mesma transação', async () => {
+  it('RN-CORE-78: o pré-cadastro publica core.cliente.pre_cadastrado@1 na mesma transação, uma vez só, e a repetição não publica', async () => {
     await emTransacao(async (t) => {
       await t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(ID1, { origem: 'bko' }));
-      const r = await t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'aprovar' }, { id: ID1 });
-      expect(r).toEqual({ id: ID1, status_cadastro: 'aprovado' });
-      const [l] = await t.q<{ aprovado_por: string; aprovado_em: string }>('select aprovado_por, aprovado_em::text from core.cliente where id = $1', [ID1]);
-      expect(l!.aprovado_por).toBe(A.usuarios.admin);
-      expect(l!.aprovado_em).toBeTruthy();
       expect(t.publicar).toHaveBeenCalledTimes(1);
-      expect(t.publicar).toHaveBeenCalledWith(EVENTO_CLIENTE_APROVADO, expect.objectContaining({ cliente_id: ID1, aprovado_por: A.usuarios.admin }), ID1);
-      const aud = await t.q<{ depois: { status_cadastro: string } }>("select depois from plataforma.auditoria where acao = 'cliente.aprovar_cadastro' and entidade_id = $1", [ID1]);
-      expect(aud[0]?.depois).toEqual({ status_cadastro: 'aprovado' });
-      await expect(t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'recusar' }, { id: ID1 })).rejects.toMatchObject({ codigo: 'CADASTRO_JA_DECIDIDO' });
+      expect(t.publicar).toHaveBeenCalledWith(EVENTO_CLIENTE_PRE_CADASTRADO, expect.objectContaining({ cliente_id: ID1, recebido_em: expect.any(String) }), ID1);
+      await t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(ID1, { origem: 'bko' }));
       expect(t.publicar).toHaveBeenCalledTimes(1);
+      const aud = await t.q<{ depois: { status_cadastro: string } }>("select depois from plataforma.auditoria where acao = 'cliente.pre_cadastrar' and entidade_id = $1", [ID1]);
+      expect(aud[0]?.depois).toMatchObject({ status_cadastro: 'pendente' });
     });
   });
 
-  it('RN-CORE-78: recusar não publica evento nem entra na fila do ERP; cliente do ERP não se decide', async () => {
+  it('RN-CORE-79: sem documento ou razão social a API recusa; os configurados faltando dão 422 CAMPOS_OBRIGATORIOS só com as chaves', async () => {
     await emTransacao(async (t) => {
-      await t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(ID2));
-      expect(await t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'recusar' }, { id: ID2 })).toEqual({ id: ID2, status_cadastro: 'recusado' });
+      await t.q("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values (plataforma.tenant_atual(), 'core', 'cliente.pre_cadastro.obrigatorios', '[\"telefone\",\"endereco\"]'::jsonb)");
+      const e = await t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(ID1, { cidade: undefined, uf: undefined, cep: '69000000' })).catch((x: unknown) => x);
+      expect(e).toMatchObject({ status: 422, codigo: 'CAMPOS_OBRIGATORIOS', detalhes: { campos: ['telefone', 'endereco'] } });
+      expect(JSON.stringify((e as { detalhes: unknown }).detalhes)).not.toContain('Mercado Novo');
       expect(t.publicar).not.toHaveBeenCalled();
-      expect((await t.lista()).clientes).toEqual([]);
-      await expect(t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'aprovar' }, { id: A.clientes.c1 })).rejects.toMatchObject({ codigo: 'CLIENTE_DO_ERP' });
+      expect(await t.q('select 1 from core.cliente where id = $1', [ID1])).toHaveLength(0);
+      const ok = await t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(ID1, { telefone: '92999990000', logradouro: 'Rua A', numero: '1', bairro: 'Centro', cep: '69000000' }));
+      expect(ok).toMatchObject({ status_cadastro: 'pendente', ja_existia: false });
+    });
+  });
+
+  it('RN-CORE-79: o parâmetro grava, lê, audita a mudança e a repetição não audita de novo', async () => {
+    await emTransacao(async (t) => {
+      expect(await t.param('GET')).toEqual({ obrigatorios: [] });
+      expect(await t.param('PUT', { obrigatorios: ['email', 'telefone'] })).toEqual({ obrigatorios: ['email', 'telefone'] });
+      await t.param('PUT', { obrigatorios: ['telefone', 'email'] });
+      expect(await t.param('GET')).toEqual({ obrigatorios: ['email', 'telefone'] });
+      expect(await t.q("select 1 from plataforma.auditoria where acao = 'parametro.pre_cadastro_editar'")).toHaveLength(1);
     });
   });
 
@@ -136,25 +160,23 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     }
   });
 
-  it('RN-INT-22: o Hub lê só os aprovados sem código, na ordem da aprovação e paginados; o vínculo é idempotente e protege o código', async () => {
+  it('RN-INT-22: o Hub lê só os pendentes sem código, em ordem de chegada e paginados', async () => {
     await emTransacao(async (t) => {
       for (const id of [ID1, ID2, ID3]) {
         await t.rota('clientes/pre-cadastro', A.usuarios.admin, 'admin', pre(id, { origem: 'bko', razao_social: `Cliente ${id.slice(-1)}`, latitude: -3.1, longitude: -60.02 }));
       }
-      await t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'aprovar' }, { id: ID2 });
-      await t.rota('clientes/:id/cadastro', A.usuarios.admin, 'admin', { decisao: 'aprovar' }, { id: ID1 });
-      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id).sort()).toEqual([ID1, ID2]);
-      await t.q("update core.cliente set aprovado_em = aprovado_em - interval '1 minute' where id = $1", [ID2]); // ordem de aprovação sem empate de milissegundo
+      await t.q("update core.cliente set created_at = created_at - interval '2 minute' where id = $1", [ID2]);
+      await t.q("update core.cliente set status_cadastro = 'recusado', motivo_recusa = 'x' where id = $1", [ID3]);
+      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID2, ID1]);
       const p1 = await t.lista({ limite: 1 });
       expect(p1.clientes).toHaveLength(1);
       expect(p1.proximo).toBe(p1.clientes[0].cliente_id);
-      expect(p1.clientes[0]).toMatchObject({ latitude: -3.1, longitude: -60.02, cidade: 'Manaus' });
+      expect(p1.clientes[0]).toMatchObject({ latitude: -3.1, longitude: -60.02, cidade: 'Manaus', recebido_em: expect.any(String) });
       const p2 = await t.lista({ limite: 1, depois_de: p1.proximo });
-      expect(p2.clientes).toHaveLength(1);
-      expect(p2.clientes[0].cliente_id).not.toBe(p1.clientes[0].cliente_id);
+      expect(p2.clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID1]);
       expect(p2.proximo).toBeNull();
-
-      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID2, ID1]);
+      await t.q("update core.cliente set external_id = 'ERP-1' where id = $1", [ID1]);
+      expect((await t.lista()).clientes.map((x: { cliente_id: string }) => x.cliente_id)).toEqual([ID2]);
     });
   });
 });
