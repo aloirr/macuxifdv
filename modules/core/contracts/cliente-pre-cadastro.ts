@@ -4,9 +4,13 @@
  *  - Consulta `core.clientes_pre_cadastro_sem_erp@1`: pendentes sem `external_id`, com os campos canônicos do cadastro (RN-CORE-16).
  *  - Parâmetro `cliente.pre_cadastro.obrigatorios`: quais campos configuráveis a empresa exige (RN-CORE-79). Razão social e documento são sempre obrigatórios.
  *  - O código do ERP volta pelo evento de retorno do Hub (`integracao.cliente.retorno_erp@1`), não por consulta (ADR 0012 §5).
+ *  - v1.0.29 (ADR 0069): o recusado é corrigido no mesmo cliente como revisão nova (`revisao_base`), com histórico de tentativas, lista
+ *    de recusados do BKO e o evento `core.cliente.pre_cadastro_revisado@1`. Os obrigatórios passam a vir da lista única de Parâmetros ›
+ *    Clientes (`cliente.campos_obrigatorios`, RN-CORE-16); a chave antiga fica só como espelho para o APK v1.0.28.
  */
 import { definirEvento, definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { CAMPOS_CADASTRO_FIXOS } from './cadastro';
 
 /** Situação do pré-cadastro (o ERP aprova; v1.0.28, RN-CORE-78): fonte única do app, da API e do sync. */
 export const StatusCadastroSchema = z.enum(['pendente', 'aprovado', 'recusado']);
@@ -15,9 +19,61 @@ export type StatusCadastro = z.infer<typeof StatusCadastroSchema>;
 const Uuid = z.string().uuid();
 const Texto = z.string().max(200).nullable();
 
-/** Campos sempre obrigatórios (travados; mínimo para o ERP identificar o cliente). */
-export const CAMPOS_PRE_CADASTRO_SEMPRE = ['razao_social', 'documento'] as const;
-/** Campos que a empresa pode marcar como obrigatórios (chaves do parâmetro). Padrão: nenhum. */
+/** Revisão do pré-cadastro (RN-CORE-78, ADR 0069): 1 no primeiro recebimento; sobe 1 a cada reenvio do recusado. */
+export const RevisaoCadastroSchema = z.number().int().min(1);
+/** sha256 do `canonicalPreCadastro` (domain), em hexadecimal minúsculo. Nunca vai a log. */
+export const HashPreCadastroSchema = z.string().regex(/^[0-9a-f]{64}$/);
+export const OrigemTentativaSchema = z.enum(['campo', 'bko']);
+export type OrigemTentativa = z.infer<typeof OrigemTentativaSchema>;
+export const ResultadoTentativaSchema = z.enum(['aguardando', 'aceito', 'recusado']);
+export type ResultadoTentativa = z.infer<typeof ResultadoTentativaSchema>;
+/** Situação na lista de recusados do BKO (`situacaoDoRecusado`, domain). */
+export const SituacaoRecusadoSchema = z.enum(['recusado', 'reenviado', 'aceito']);
+export type SituacaoRecusado = z.infer<typeof SituacaoRecusadoSchema>;
+
+/** Limite de erros por campo guardados por recusa (RN-CORE-78, RN-INT-22). */
+export const ERROS_RECUSA_MAX = 50;
+/** Tamanho máximo de cada texto do erro por campo (o domain corta por aqui). */
+export const ERRO_CAMPO_LIMITES = { campo: 60, codigo: 60, mensagem: 300 } as const;
+/** Erro por campo devolvido pelo ERP (campo = nome canônico do ClienteParaErp ou o que o ERP mandou). */
+export const ErroCampoCadastroSchema = z
+  .object({
+    campo: z.string().trim().min(1).max(ERRO_CAMPO_LIMITES.campo),
+    codigo: z.string().trim().min(1).max(ERRO_CAMPO_LIMITES.codigo),
+    mensagem: z.string().trim().min(1).max(ERRO_CAMPO_LIMITES.mensagem),
+  })
+  .strict();
+export type ErroCampoCadastro = z.infer<typeof ErroCampoCadastroSchema>;
+export const ErrosCampoCadastroSchema = z.array(ErroCampoCadastroSchema).max(ERROS_RECUSA_MAX);
+
+/** Códigos de erro da criação e da correção do pré-cadastro (RN-CORE-78/79); também o código do item `rejeitado` no push. */
+export const CODIGOS_ERRO_PRE_CADASTRO = ['CAMPOS_OBRIGATORIOS', 'CADASTRO_NAO_RECUSADO', 'REVISAO_DESATUALIZADA', 'DOCUMENTO_JA_CADASTRADO', 'CADASTRO_INDISPONIVEL', 'NAO_ENCONTRADO'] as const;
+export const CodigoErroPreCadastroSchema = z.enum(CODIGOS_ERRO_PRE_CADASTRO);
+export type CodigoErroPreCadastro = z.infer<typeof CodigoErroPreCadastroSchema>;
+/** HTTP de cada código (a API responde; o receptor do push usa só o código). */
+export const HTTP_ERRO_PRE_CADASTRO: Record<CodigoErroPreCadastro, 404 | 409 | 422> = {
+  CAMPOS_OBRIGATORIOS: 422,
+  CADASTRO_NAO_RECUSADO: 422,
+  REVISAO_DESATUALIZADA: 409,
+  DOCUMENTO_JA_CADASTRADO: 409,
+  CADASTRO_INDISPONIVEL: 409,
+  NAO_ENCONTRADO: 404,
+};
+/** Texto em português de cada erro, com a ação seguinte (fonte única: API, receptor do push, app e BKO). */
+export const MENSAGENS_ERRO_PRE_CADASTRO: Record<Exclude<CodigoErroPreCadastro, 'CAMPOS_OBRIGATORIOS'>, string> = {
+  CADASTRO_NAO_RECUSADO: 'Este cadastro não está recusado pelo ERP. Atualize a tela para ver a situação atual.',
+  REVISAO_DESATUALIZADA: 'Este cadastro foi corrigido por outra pessoa. Recarregue para ver a versão atual e corrija de novo.',
+  DOCUMENTO_JA_CADASTRADO: 'Já existe um cliente com este CPF/CNPJ. Procure-o na lista de clientes.',
+  CADASTRO_INDISPONIVEL: 'Não foi possível gravar este cadastro. Abra um novo cadastro e tente de novo.',
+  NAO_ENCONTRADO: 'Cadastro não encontrado. Atualize a lista e tente de novo.',
+};
+
+/** Campos sempre obrigatórios (travados; mínimo para o ERP identificar o cliente): a mesma lista do cadastro (RN-CORE-16). */
+export const CAMPOS_PRE_CADASTRO_SEMPRE = CAMPOS_CADASTRO_FIXOS;
+/**
+ * Campos que a empresa podia marcar como obrigatórios na chave antiga (v1.0.28). Padrão: nenhum.
+ * @deprecated v1.0.29 (ADR 0069): só para o espelho legado do APK v1.0.28 (`projecaoLegadaObrigatorios`); sai com a versão mínima > 1.0.28.
+ */
 export const CAMPOS_PRE_CADASTRO_CONFIGURAVEIS = ['nome_fantasia', 'inscricao_estadual', 'telefone', 'email', 'endereco'] as const;
 export type CampoPreCadastroSempre = (typeof CAMPOS_PRE_CADASTRO_SEMPRE)[number];
 export type CampoPreCadastroConfiguravel = (typeof CAMPOS_PRE_CADASTRO_CONFIGURAVEIS)[number];
@@ -48,10 +104,14 @@ export const COLUNAS_DO_CAMPO_PRE_CADASTRO: Record<CampoPreCadastro, readonly st
   endereco: COLUNAS_ENDERECO_PRE_CADASTRO,
 };
 
-/** Chave em `plataforma.parametro` (modulo `core`); valor = array de campos configuráveis, sem repetição. */
+/**
+ * Chave em `plataforma.parametro` (modulo `core`); valor = array de campos configuráveis, sem repetição.
+ * @deprecated v1.0.29 (ADR 0069): espelho legado para o APK v1.0.28; a lista única é `PARAMETRO_CAMPOS_OBRIGATORIOS` (contracts/cadastro).
+ */
 export const PARAMETRO_PRE_CADASTRO_OBRIGATORIOS = 'cliente.pre_cadastro.obrigatorios';
 
 export const CampoPreCadastroConfiguravelSchema = z.enum(CAMPOS_PRE_CADASTRO_CONFIGURAVEIS);
+/** @deprecated v1.0.29 (ADR 0069): só para o espelho legado do APK v1.0.28. */
 export const ObrigatoriosPreCadastroSchema = z
   .array(CampoPreCadastroConfiguravelSchema)
   .max(CAMPOS_PRE_CADASTRO_CONFIGURAVEIS.length)
@@ -60,6 +120,7 @@ export const ObrigatoriosPreCadastroSchema = z
 /**
  * Obrigatórios efetivos a partir das linhas da entidade de sync `parametro` (`motor.linhas('parametro')`): sem linha viva do módulo
  * `core`, ou valor inválido, vale o padrão (nenhum configurável). Mesmo molde de `paradoMinDasLinhas`.
+ * @deprecated v1.0.29 (ADR 0069): o app lê `camposExigidosDasLinhas` (domain/cadastro); fica até a versão mínima > 1.0.28.
  */
 export function obrigatoriosPreCadastroDasLinhas(
   linhas: readonly { modulo: string; chave: string; valor?: unknown; deleted_at?: string | null }[],
@@ -69,7 +130,10 @@ export function obrigatoriosPreCadastroDasLinhas(
   return r.success ? r.data : [];
 }
 
-/** `GET|PUT /v1/core/parametros/pre-cadastro` (ação `parametro.pre_cadastro`). */
+/**
+ * `GET|PUT /v1/core/parametros/pre-cadastro` (ação `parametro.pre_cadastro`).
+ * @deprecated v1.0.29 (ADR 0069): a rota sai, trocada por `parametros/campos-obrigatorios` (`ParametroCamposObrigatoriosClienteSchema`).
+ */
 export const ParametroPreCadastroSchema = z.object({ obrigatorios: ObrigatoriosPreCadastroSchema }).strict();
 export type ParametroPreCadastro = z.infer<typeof ParametroPreCadastroSchema>;
 
@@ -111,6 +175,9 @@ export const ClientePreCadastroParaErpSchema = z.object({
   longitude: z.number().nullable(),
   /** Código da filial no ERP (external_id da filial), quando houver. */
   filial_external_id: Texto,
+  /** v1.0.29 (ADR 0069, aditivo): revisão atual e hash dos dados dela. Ausente = emissor antigo. */
+  revisao: RevisaoCadastroSchema.optional(),
+  hash: HashPreCadastroSchema.optional(),
 });
 export type ClientePreCadastroParaErp = z.infer<typeof ClientePreCadastroParaErpSchema>;
 
@@ -150,7 +217,89 @@ export const PreCadastroClienteSchema = z
     latitude: z.number().min(-90).max(90).nullish(),
     longitude: z.number().min(-180).max(180).nullish(),
     filial_id: Uuid.nullish(),
+    /** v1.0.29 (RN-CORE-78): revisão que a pessoa viu ao corrigir o recusado. Ausente = criação (o APK v1.0.28 nunca manda). */
+    revisao_base: RevisaoCadastroSchema.nullish(),
   })
   .strict();
 export type PreCadastroCliente = z.infer<typeof PreCadastroClienteSchema>;
-export const PreCadastroClienteSaidaSchema = z.object({ id: Uuid, status_cadastro: StatusCadastroSchema, ja_existia: z.boolean() });
+
+/** Correção do BKO: `PUT /v1/core/clientes/:id/pre-cadastro` (o id vem do caminho; origem = 'bko'). */
+export const CorrecaoPreCadastroSchema = PreCadastroClienteSchema.omit({ id: true, origem: true, revisao_base: true })
+  .extend({ revisao_base: RevisaoCadastroSchema })
+  .strict();
+export type CorrecaoPreCadastro = z.infer<typeof CorrecaoPreCadastroSchema>;
+
+/** Resposta da criação e da correção (o mesmo schema serve as duas; `revisao` = a do cliente depois da escrita). */
+export const PreCadastroClienteSaidaSchema = z.object({ id: Uuid, status_cadastro: StatusCadastroSchema, revisao: RevisaoCadastroSchema, ja_existia: z.boolean() });
+export type PreCadastroClienteSaida = z.infer<typeof PreCadastroClienteSaidaSchema>;
+
+/** Uma tentativa (revisão) do pré-cadastro: só nomes de campo, nunca valores. */
+export const TentativaPreCadastroSchema = z.object({
+  revisao: RevisaoCadastroSchema,
+  /** Nulo = tentativa anterior à v1.0.29 (carga da migração). */
+  hash: HashPreCadastroSchema.nullable(),
+  origem: OrigemTentativaSchema,
+  corrigido_por: z.object({ id: Uuid, nome: z.string(), perfil: z.string() }).nullable(),
+  enviado_em: z.string().datetime(),
+  campos_alterados: z.array(z.string()).max(20),
+  resultado: ResultadoTentativaSchema,
+  respondido_em: z.string().datetime().nullable(),
+  motivo: z.string().max(500).nullable(),
+  erros: ErrosCampoCadastroSchema,
+  /** Id do recusado substituído pelo APK v1.0.28 (`id` novo com o mesmo CPF/CNPJ). */
+  cliente_id_original: Uuid.nullable(),
+});
+export type TentativaPreCadastro = z.infer<typeof TentativaPreCadastroSchema>;
+/** `GET /v1/core/clientes/:id/pre-cadastro/historico`. */
+export const HistoricoPreCadastroSchema = z.object({ cliente_id: Uuid, revisao_atual: RevisaoCadastroSchema, tentativas: z.array(TentativaPreCadastroSchema) });
+export type HistoricoPreCadastro = z.infer<typeof HistoricoPreCadastroSchema>;
+
+/** `GET /v1/core/clientes/pre-cadastro/recusados` (BKO; filtros vão na URL). */
+export const RecusadosEntradaSchema = z
+  .object({
+    situacao: SituacaoRecusadoSchema.default('recusado'),
+    /** Razão social (contém) ou dígitos do documento (prefixo). */
+    busca: z.string().trim().max(60).optional(),
+    limite: z.coerce.number().int().min(1).max(200).default(50),
+    /** Opaco: (recusado_em, id) da última linha. */
+    cursor: z.string().max(200).optional(),
+  })
+  .strict();
+export type RecusadosEntrada = z.infer<typeof RecusadosEntradaSchema>;
+export const RecusadoItemSchema = z.object({
+  cliente_id: Uuid,
+  revisao: RevisaoCadastroSchema,
+  /** `mascararDocumentoDoFarol` (domain/farol); nulo se o documento não for CPF nem CNPJ. */
+  documento_mascarado: z.string().nullable(),
+  razao_social: z.string(),
+  /** Papel 'vendedor' da carteira. */
+  vendedor: z.object({ id: Uuid, nome: z.string() }).nullable(),
+  /** `respondido_em` da última tentativa recusada. */
+  recusado_em: z.string().datetime(),
+  motivo: z.string().max(500).nullable(),
+  erros: ErrosCampoCadastroSchema,
+  situacao: SituacaoRecusadoSchema,
+});
+export type RecusadoItem = z.infer<typeof RecusadoItemSchema>;
+export const RecusadosSaidaSchema = z.object({ itens: z.array(RecusadoItemSchema).max(200), proximo_cursor: z.string().nullable() });
+export type RecusadosSaida = z.infer<typeof RecusadosSaidaSchema>;
+
+/** `GET /v1/core/clientes/:id/pre-cadastro`: dados atuais para o formulário de correção (documento completo: quem corrige precisa). */
+export const PreCadastroAtualSchema = CorrecaoPreCadastroSchema.omit({ revisao_base: true }).extend({
+  id: Uuid,
+  revisao: RevisaoCadastroSchema,
+  status_cadastro: StatusCadastroSchema,
+  motivo: z.string().max(500).nullable(),
+  erros: ErrosCampoCadastroSchema,
+});
+export type PreCadastroAtual = z.infer<typeof PreCadastroAtualSchema>;
+
+/** Evento da revisão nova do recusado (RN-CORE-78): só ids, a revisão e a origem (sem dado pessoal na outbox). Consumidor: Integração. */
+export const ClientePreCadastroRevisadoSchema = z.object({
+  cliente_id: Uuid,
+  revisao: RevisaoCadastroSchema,
+  origem: OrigemTentativaSchema,
+  revisado_em: z.string().datetime(),
+});
+export type ClientePreCadastroRevisadoEvento = z.infer<typeof ClientePreCadastroRevisadoSchema>;
+export const EVENTO_CLIENTE_PRE_CADASTRO_REVISADO = definirEvento('core.cliente.pre_cadastro_revisado@1', ClientePreCadastroRevisadoSchema);

@@ -5,6 +5,7 @@ import {
   ROTULO_CAMPO_CADASTRO,
   cadastroCompleto,
   camposExigidos,
+  camposExigidosDasLinhas,
   observacaoComCadastro,
   type DadosCadastro,
 } from './cadastro';
@@ -151,5 +152,17 @@ describe('RN-CORE-17: observacaoComCadastro', () => {
     expect(ROTULO_CAMPO_CADASTRO.documento).toBe('CNPJ/CPF');
     expect(ROTULO_CAMPO_CADASTRO.cep).toBe('CEP');
     expect(ROTULO_CAMPO_CADASTRO.inscricao_estadual).toBe('inscrição estadual');
+  });
+});
+
+describe('RN-CORE-16: camposExigidosDasLinhas (pull `parametro` no app)', () => {
+  const k = 'cliente.campos_obrigatorios';
+  it('RN-CORE-16: linha viva do core vira a lista efetiva, com os fixos', () => {
+    expect(camposExigidosDasLinhas([{ modulo: 'core', chave: k, valor: ['telefone'] }])).toEqual(['razao_social', 'documento', 'telefone']);
+  });
+  it('RN-CORE-16: sem linha viva do core (ou apagada, ou de outro módulo) vale o padrão', () => {
+    expect(camposExigidosDasLinhas([])).toEqual([...CAMPOS_CADASTRO_PADRAO]);
+    expect(camposExigidosDasLinhas([{ modulo: 'core', chave: k, valor: ['telefone'], deleted_at: '2026-11-23T00:00:00Z' }])).toEqual([...CAMPOS_CADASTRO_PADRAO]);
+    expect(camposExigidosDasLinhas([{ modulo: 'outro', chave: k, valor: ['telefone'] }])).toEqual([...CAMPOS_CADASTRO_PADRAO]);
   });
 });
