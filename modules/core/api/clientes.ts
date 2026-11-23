@@ -83,8 +83,10 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
       (await db.query(`select ${BASE}, ${tabela.colunas} from ${tabela.tabela} where deleted_at is null and ${onde} order by ${ordem}`, [id])).rows;
     const [linhaCliente] = await linhas(t.cliente, 'id = $1', 'id');
     if (!linhaCliente) throw naoEncontrado();
-    // RN-CORE-78: o motivo da recusa do ERP só vai ao vendedor.
-    const cliente = { ...linhaCliente, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, (linhaCliente as { motivo_recusa?: string | null }).motivo_recusa) };
+    // RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor (a mesma regra do pull).
+    const recusa = linhaCliente as { motivo_recusa?: string | null; erros_recusa?: unknown };
+    const veRecusa = motivoRecusaVisivel(ctx.usuario.perfil, '') !== null;
+    const cliente = { ...linhaCliente, motivo_recusa: motivoRecusaVisivel(ctx.usuario.perfil, recusa.motivo_recusa), erros_recusa: veRecusa ? (recusa.erros_recusa ?? null) : null };
     const hoje = hojeDoTenant(ctx);
     const contatos = await linhas(t.cliente_contato, 'cliente_id = $1', 'principal desc, nome, id');
     const [financeiro = null] = await linhas(t.cliente_financeiro, 'cliente_id = $1', 'id');

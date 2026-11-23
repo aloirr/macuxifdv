@@ -31,6 +31,7 @@ import {
   type StatusCadastro,
 } from '../contracts';
 import { errosRecusaSeguros, mascararDocumentoDoFarol, situacaoDoRecusado } from '../domain';
+import { resolverPreCadastro } from './pre-cadastro-alias';
 import { gravarPreCadastro } from './pre-cadastro-receber';
 
 export const ACAO_PRE_CADASTRO_RECUSADOS = 'cliente.pre_cadastro_recusados';
@@ -41,26 +42,13 @@ const idDoCaminho = (e: { params?: unknown }) => (e.params as { id?: string } | 
 const iso = (v: Date | string): string => new Date(v).toISOString();
 const naoEncontrado = () => new ErroNaoEncontrado('NAO_ENCONTRADO', MENSAGENS_ERRO_PRE_CADASTRO.NAO_ENCONTRADO);
 
-/** Id do pré-cadastro vivo: o próprio ou, se for um recusado substituído (APK v1.0.28), o que o substituiu (alias). */
-export async function resolverPreCadastro(db: ClienteBanco, id: string): Promise<string | null> {
-  const vivo = (await db.query('select 1 from core.cliente where id = $1 and deleted_at is null and revisao_cadastro is not null', [id])).rows[0];
-  if (vivo) return id;
-  const alias = (
-    await db.query<{ cliente_id: string }>(
-      `select t.cliente_id from core.cliente_pre_cadastro_tentativa t join core.cliente c on c.id = t.cliente_id and c.deleted_at is null
-        where t.cliente_id_original = $1 order by t.revisao desc limit 1`,
-      [id],
-    )
-  ).rows[0];
-  return alias?.cliente_id ?? null;
-}
-
 interface LinhaRecusado {
   id: string;
   razao_social: string;
   documento: string | null;
   status_cadastro: StatusCadastro | null;
   revisao_cadastro: number;
+  codigo_fdv: string | null;
   motivo_recusa: string | null;
   erros_recusa: unknown;
   atualizado_em: Date | string;
@@ -89,6 +77,7 @@ function paraItem(l: LinhaRecusado, situacao: SituacaoRecusado): RecusadoItem {
     motivo: situacao === 'recusado' ? l.motivo_recusa : l.t_motivo,
     erros: errosRecusaSeguros(situacao === 'recusado' ? l.erros_recusa : l.t_erros),
     situacao,
+    codigo_fdv: l.codigo_fdv,
   };
 }
 
@@ -123,7 +112,7 @@ export async function listarRecusados(db: ClienteBanco, entrada: RecusadosEntrad
   // Volume: dezenas a centenas de pré-cadastros por tenant (migração 0098); a situação e a ordem saem do domain, em memória.
   const linhas = (
     await db.query<LinhaRecusado>(
-      `select c.id, c.razao_social, c.documento, c.status_cadastro, c.revisao_cadastro, c.motivo_recusa, c.erros_recusa, c.updated_at as atualizado_em,
+      `select c.id, c.razao_social, c.documento, c.status_cadastro, c.revisao_cadastro, c.codigo_fdv, c.motivo_recusa, c.erros_recusa, c.updated_at as atualizado_em,
               t.revisao as t_revisao, t.respondido_em as t_respondido_em, t.motivo as t_motivo, t.erros as t_erros,
               v.id as vendedor_id, v.nome as vendedor_nome
          from core.cliente c
@@ -155,7 +144,7 @@ export async function listarRecusados(db: ClienteBanco, entrada: RecusadosEntrad
 async function lerPreCadastroAtual(db: ClienteBanco, id: string): Promise<PreCadastroAtual> {
   const l = (
     await db.query(
-      `select id, revisao_cadastro as revisao, status_cadastro, motivo_recusa as motivo, erros_recusa as erros, razao_social, nome_fantasia, documento,
+      `select id, revisao_cadastro as revisao, status_cadastro, codigo_fdv, external_id, motivo_recusa as motivo, erros_recusa as erros, razao_social, nome_fantasia, documento,
               inscricao_estadual, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::float8 as latitude, longitude::float8 as longitude, filial_id
          from core.cliente where id = $1 and deleted_at is null and revisao_cadastro is not null`,
       [id],

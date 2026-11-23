@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CorrecaoPreCadastroSchema } from '../../contracts';
-import { dadosDoFormulario, errosDaRecusaPorColuna, primeiraColunaMarcada, valoresDosDados } from './pre-cadastro-formulario';
+import { colunaExigida, dadosDoFormulario, errosDaRecusaPorColuna, primeiraColunaMarcada, valoresDosDados } from './pre-cadastro-formulario';
 
 describe('formulário do pré-cadastro (RN-CORE-78, RN-CORE-79)', () => {
   it('RN-CORE-78: o erro por campo da recusa marca a coluna exata; o primeiro de cada coluna vale e campo fora do formulário fica de fora', () => {
@@ -24,5 +24,14 @@ describe('formulário do pré-cadastro (RN-CORE-78, RN-CORE-79)', () => {
     expect(v.nome_fantasia).toBe('');
     const corpo = CorrecaoPreCadastroSchema.parse({ ...dadosDoFormulario(v), revisao_base: 2 });
     expect(corpo).toMatchObject({ documento: '11222333000181', telefone: '92999990000', cep: '69000000', email: null, uf: 'AM', nome_fantasia: null, revisao_base: 2 });
+  });
+
+  it('RN-CORE-16: a IE só é exigida com CNPJ válido, como na cadastroCompleto do domain; o que a lista não pede é opcional', () => {
+    const lista = ['razao_social', 'documento', 'inscricao_estadual'] as const;
+    expect(colunaExigida({ documento: '11.222.333/0001-81' }, lista, 'inscricao_estadual')).toBe(true);
+    expect(colunaExigida({ documento: '529.982.247-25' }, lista, 'inscricao_estadual')).toBe(false);
+    expect(colunaExigida({ documento: '112223330001' }, lista, 'inscricao_estadual')).toBe(false);
+    expect(colunaExigida({}, lista, 'razao_social')).toBe(true);
+    expect(colunaExigida({}, lista, 'email')).toBe(false);
   });
 });

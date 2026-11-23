@@ -78,6 +78,7 @@ describe.skipIf(semBanco())('Core × Postgres: BKO dos pré-cadastros recusados 
         motivo: 'IE inválida.',
         erros: [{ campo: 'inscricao_estadual', codigo: 'IE_INVALIDA', mensagem: 'IE não confere.' }],
         situacao: 'recusado',
+        codigo_fdv: expect.stringMatching(/^\d{5,}$/),
       });
       expect(JSON.stringify(r)).not.toContain(DOCS[ID1]);
       expect(r.proximo_cursor).toBeNull();
@@ -119,9 +120,15 @@ describe.skipIf(semBanco())('Core × Postgres: BKO dos pré-cadastros recusados 
       await recusar(t, ID1);
       const atual = await bko(t, 'GET', 'clientes/:id/pre-cadastro', ANALISTA, { params: { id: ID1 } });
       expect(atual).toMatchObject({ id: ID1, revisao: 1, status_cadastro: 'recusado', documento: DOCS[ID1], motivo: 'CNPJ com cadastro bloqueado no ERP.', erros: [{ campo: 'inscricao_estadual' }] });
+      // ADR 0069 item 10: os dois códigos, só de leitura (Código ERP vazio até o vínculo)
+      expect(atual).toMatchObject({ codigo_fdv: expect.stringMatching(/^\d{5,}$/), external_id: null });
+      await expect(bko(t, 'PUT', 'clientes/:id/pre-cadastro', ANALISTA, { params: { id: ID1 }, corpo: { ...correcao(ID1, 1), codigo_fdv: atual.codigo_fdv } })).rejects.toMatchObject({
+        status: 422,
+        codigo: 'CODIGO_FDV_SOMENTE_LEITURA',
+      });
       t.publicar.mockClear();
       const r = await bko(t, 'PUT', 'clientes/:id/pre-cadastro', ANALISTA, { params: { id: ID1 }, corpo: correcao(ID1, 1, { inscricao_estadual: '041234567' }) });
-      expect(r).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 2, ja_existia: false });
+      expect(r).toEqual({ id: ID1, status_cadastro: 'pendente', revisao: 2, ja_existia: false, codigo_fdv: expect.stringMatching(/^\d{5,}$/) });
       expect(t.publicar.mock.calls.filter((c) => (c[0] as { nome: string }).nome === EVENTO_CLIENTE_PRE_CADASTRO_REVISADO.nome)[0]![1]).toMatchObject({ cliente_id: ID1, revisao: 2, origem: 'bko' });
       const h = await bko(t, 'GET', 'clientes/:id/pre-cadastro/historico', ANALISTA, { params: { id: ID1 } });
       expect(h.revisao_atual).toBe(2);

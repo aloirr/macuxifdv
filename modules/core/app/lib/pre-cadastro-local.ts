@@ -1,5 +1,5 @@
 /**
- * Pré-cadastro de cliente no aparelho (v1.0.28; correção na v1.0.29; RN-CORE-78 e RN-CORE-79; ADR 0069;
+ * Pré-cadastro de cliente no aparelho (v1.0.28; correção na v1.0.30; RN-CORE-78 e RN-CORE-79; ADR 0069;
  * docs/design/telas/campo-cliente-pre-cadastro.md). Puro (sem react-native): monta o payload do push, enfileira no sync de forma
  * idempotente (o UUID nasce no aparelho; a correção usa o MESMO id, com `revisao_base`) e sobrepõe a fila às linhas do pull, para o
  * cliente aparecer na hora, offline.
@@ -121,6 +121,8 @@ export function sobreporPreCadastros(clientes: readonly ClienteSync[], itens: re
       motivo_recusa: parou ? i.ultimo_erro?.trim() || MOTIVO_ENVIO_FALHOU : null,
       revisao_cadastro: antigo?.revisao_cadastro ?? null,
       erros_recusa: null,
+      // o Código FDV é do servidor (só leitura): a correção na fila mantém o que o pull trouxe
+      codigo_fdv: antigo?.codigo_fdv ?? null,
     });
   }
   if (novos.size === 0) return [...clientes];

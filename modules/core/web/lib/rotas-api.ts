@@ -22,6 +22,8 @@ export interface ClienteDaCarteira {
   razao_social: string;
   /** Código do cliente no ERP e CNPJ: a busca do editor de rota casa por eles (`clienteCasaBusca`). */
   external_id?: string | null;
+  /** Código FDV (ADR 0069 item 10): coluna Código da Carteira; ausente = a API ainda não manda. */
+  codigo_fdv?: string | null;
   documento?: string | null;
   cidade: string | null;
   bairro: string | null;

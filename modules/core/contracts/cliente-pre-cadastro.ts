@@ -23,6 +23,12 @@ const Texto = z.string().max(200).nullable();
 export const RevisaoCadastroSchema = z.number().int().min(1);
 /** sha256 do `canonicalPreCadastro` (domain), em hexadecimal minúsculo. Nunca vai a log. */
 export const HashPreCadastroSchema = z.string().regex(/^[0-9a-f]{64}$/);
+/**
+ * Código FDV do cliente (v1.0.29, ADR 0069 item 10; molde da RN-CORE-59): gerado pelo banco quando o servidor recebe o pré-cadastro, em
+ * sequência por empresa, só dígitos, no mínimo 5 (`00001`…; `100000` depois de `99999`), só de leitura. Nulo = cliente do ERP. O Código
+ * ERP é o `external_id`.
+ */
+export const CodigoFdvClienteSchema = z.string().regex(/^\d{5,}$/);
 export const OrigemTentativaSchema = z.enum(['campo', 'bko']);
 export type OrigemTentativa = z.infer<typeof OrigemTentativaSchema>;
 export const ResultadoTentativaSchema = z.enum(['aguardando', 'aceito', 'recusado']);
@@ -47,7 +53,7 @@ export type ErroCampoCadastro = z.infer<typeof ErroCampoCadastroSchema>;
 export const ErrosCampoCadastroSchema = z.array(ErroCampoCadastroSchema).max(ERROS_RECUSA_MAX);
 
 /** Códigos de erro da criação e da correção do pré-cadastro (RN-CORE-78/79); também o código do item `rejeitado` no push. */
-export const CODIGOS_ERRO_PRE_CADASTRO = ['CAMPOS_OBRIGATORIOS', 'CADASTRO_NAO_RECUSADO', 'REVISAO_DESATUALIZADA', 'DOCUMENTO_JA_CADASTRADO', 'CADASTRO_INDISPONIVEL', 'NAO_ENCONTRADO'] as const;
+export const CODIGOS_ERRO_PRE_CADASTRO = ['CAMPOS_OBRIGATORIOS', 'CADASTRO_NAO_RECUSADO', 'REVISAO_DESATUALIZADA', 'DOCUMENTO_JA_CADASTRADO', 'CADASTRO_INDISPONIVEL', 'NAO_ENCONTRADO', 'CODIGO_FDV_SOMENTE_LEITURA'] as const;
 export const CodigoErroPreCadastroSchema = z.enum(CODIGOS_ERRO_PRE_CADASTRO);
 export type CodigoErroPreCadastro = z.infer<typeof CodigoErroPreCadastroSchema>;
 /** HTTP de cada código (a API responde; o receptor do push usa só o código). */
@@ -58,7 +64,10 @@ export const HTTP_ERRO_PRE_CADASTRO: Record<CodigoErroPreCadastro, 404 | 409 | 4
   DOCUMENTO_JA_CADASTRADO: 409,
   CADASTRO_INDISPONIVEL: 409,
   NAO_ENCONTRADO: 404,
+  CODIGO_FDV_SOMENTE_LEITURA: 422,
 };
+/** Código FDV no corpo (cliente RN-CORE-78 e usuário RN-CORE-59): texto único da recusa. */
+export const MENSAGEM_CODIGO_FDV_SOMENTE_LEITURA = 'O Código FDV é gerado pelo sistema e não pode ser alterado. Tire o campo e salve de novo.';
 /** Texto em português de cada erro, com a ação seguinte (fonte única: API, receptor do push, app e BKO). */
 export const MENSAGENS_ERRO_PRE_CADASTRO: Record<Exclude<CodigoErroPreCadastro, 'CAMPOS_OBRIGATORIOS'>, string> = {
   CADASTRO_NAO_RECUSADO: 'Este cadastro não está recusado pelo ERP. Atualize a tela para ver a situação atual.',
@@ -66,6 +75,7 @@ export const MENSAGENS_ERRO_PRE_CADASTRO: Record<Exclude<CodigoErroPreCadastro, 
   DOCUMENTO_JA_CADASTRADO: 'Já existe um cliente com este CPF/CNPJ. Procure-o na lista de clientes.',
   CADASTRO_INDISPONIVEL: 'Não foi possível gravar este cadastro. Abra um novo cadastro e tente de novo.',
   NAO_ENCONTRADO: 'Cadastro não encontrado. Atualize a lista e tente de novo.',
+  CODIGO_FDV_SOMENTE_LEITURA: MENSAGEM_CODIGO_FDV_SOMENTE_LEITURA,
 };
 
 /** Campos sempre obrigatórios (travados; mínimo para o ERP identificar o cliente): a mesma lista do cadastro (RN-CORE-16). */
@@ -178,6 +188,8 @@ export const ClientePreCadastroParaErpSchema = z.object({
   /** v1.0.29 (ADR 0069, aditivo): revisão atual e hash dos dados dela. Ausente = emissor antigo. */
   revisao: RevisaoCadastroSchema.optional(),
   hash: HashPreCadastroSchema.optional(),
+  /** v1.0.29 (ADR 0069 item 10, aditivo): Código FDV, para o ERP guardar a referência do FDV. Fora do hash. */
+  codigo_fdv: CodigoFdvClienteSchema.nullish(),
 });
 export type ClientePreCadastroParaErp = z.infer<typeof ClientePreCadastroParaErpSchema>;
 
@@ -219,6 +231,8 @@ export const PreCadastroClienteSchema = z
     filial_id: Uuid.nullish(),
     /** v1.0.29 (RN-CORE-78): revisão que a pessoa viu ao corrigir o recusado. Ausente = criação (o APK v1.0.28 nunca manda). */
     revisao_base: RevisaoCadastroSchema.nullish(),
+    /** Só de leitura (ADR 0069 item 10): aceito no schema só para a API recusar com 422 `CODIGO_FDV_SOMENTE_LEITURA` (o `.strict()` daria 400). */
+    codigo_fdv: z.unknown().optional(),
   })
   .strict();
 export type PreCadastroCliente = z.infer<typeof PreCadastroClienteSchema>;
@@ -230,7 +244,14 @@ export const CorrecaoPreCadastroSchema = PreCadastroClienteSchema.omit({ id: tru
 export type CorrecaoPreCadastro = z.infer<typeof CorrecaoPreCadastroSchema>;
 
 /** Resposta da criação e da correção (o mesmo schema serve as duas; `revisao` = a do cliente depois da escrita). */
-export const PreCadastroClienteSaidaSchema = z.object({ id: Uuid, status_cadastro: StatusCadastroSchema, revisao: RevisaoCadastroSchema, ja_existia: z.boolean() });
+export const PreCadastroClienteSaidaSchema = z.object({
+  id: Uuid,
+  status_cadastro: StatusCadastroSchema,
+  revisao: RevisaoCadastroSchema,
+  ja_existia: z.boolean(),
+  /** v1.0.29 (ADR 0069 item 10, aditivo): Código FDV gerado pelo banco; nulo só se a migração não entrou. */
+  codigo_fdv: CodigoFdvClienteSchema.nullish(),
+});
 export type PreCadastroClienteSaida = z.infer<typeof PreCadastroClienteSaidaSchema>;
 
 /** Uma tentativa (revisão) do pré-cadastro: só nomes de campo, nunca valores. */
@@ -279,14 +300,19 @@ export const RecusadoItemSchema = z.object({
   motivo: z.string().max(500).nullable(),
   erros: ErrosCampoCadastroSchema,
   situacao: SituacaoRecusadoSchema,
+  /** v1.0.29 (ADR 0069 item 10, aditivo). */
+  codigo_fdv: CodigoFdvClienteSchema.nullish(),
 });
 export type RecusadoItem = z.infer<typeof RecusadoItemSchema>;
 export const RecusadosSaidaSchema = z.object({ itens: z.array(RecusadoItemSchema).max(200), proximo_cursor: z.string().nullable() });
 export type RecusadosSaida = z.infer<typeof RecusadosSaidaSchema>;
 
 /** `GET /v1/core/clientes/:id/pre-cadastro`: dados atuais para o formulário de correção (documento completo: quem corrige precisa). */
-export const PreCadastroAtualSchema = CorrecaoPreCadastroSchema.omit({ revisao_base: true }).extend({
+export const PreCadastroAtualSchema = CorrecaoPreCadastroSchema.omit({ revisao_base: true, codigo_fdv: true }).extend({
   id: Uuid,
+  /** v1.0.29 (ADR 0069 item 10, aditivos): os dois códigos do cliente (FDV e ERP), só de leitura. */
+  codigo_fdv: CodigoFdvClienteSchema.nullish(),
+  external_id: z.string().nullish(),
   revisao: RevisaoCadastroSchema,
   status_cadastro: StatusCadastroSchema,
   motivo: z.string().max(500).nullable(),

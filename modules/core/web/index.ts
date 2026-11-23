@@ -63,7 +63,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'fotos-pdv', secao: 'visitas', titulo: 'Fotos do PDV', ordem: 20, acao: 'foto_tipo.editar', caminhosAntigos: ['fotos-pdv'], componente: FotosPdvPage },
     { id: 'farol', secao: 'clientes', titulo: 'Farol', ordem: 10, acao: 'parametro.farol', componente: FarolParametrosPanel },
     { id: 'curvas-abc', secao: 'clientes', titulo: 'Curvas ABC', ordem: 20, acao: 'parametro.curva_abc', componente: CurvasAbcParametrosPanel },
-    // v1.0.29 (ADR 0069 §6): uma lista só de campos obrigatórios, do cadastro e do pré-cadastro (RN-CORE-16 e RN-CORE-79)
+    // v1.0.30 (ADR 0069 §6): uma lista só de campos obrigatórios, do cadastro e do pré-cadastro (RN-CORE-16 e RN-CORE-79)
     { id: 'campos-obrigatorios', secao: 'clientes', titulo: 'Campos obrigatórios', ordem: 25, acao: 'parametro.campos_obrigatorios', componente: CamposObrigatoriosPanel },
     // Seção própria "Documentos" (prancha 05, opção A) pede ADR e `SECOES_PARAMETROS` (packages); até lá, opção B: dentro de Clientes
     { id: 'documentos-permissoes', secao: 'clientes', titulo: 'Quem vê cada tipo de documento', ordem: 30, acao: 'documento.permissoes', componente: DocumentosPermissoesPanel },
@@ -83,7 +83,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
   ],
   // Perfis, Módulos, Motivos e Fotos do PDV vivem só nos painéis (ADR 0058); edição de perfil: ?editar_perfil=<codigo>, novo: ?novo=1; Módulos filtra por ?modulos_perfil=
   paginas: [
-    // v1.0.29: abas Farol | Pré-cadastros recusados (`?aba=pre-cadastros`, só com `cliente.pre_cadastro_recusados`)
+    // v1.0.30: abas Farol | Pré-cadastros recusados (`?aba=pre-cadastros`, só com `cliente.pre_cadastro_recusados`)
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', grupo: 'cadastros', ordem: 10, acao: 'farol.ver', componente: ClientesPage },
     { id: 'rotas', caminho: 'rotas', titulo: 'Rotas', navegacao: 'Rotas', grupo: 'operacao', ordem: 20, componente: RotasPagina },
     { id: 'visitas', caminho: 'visitas', titulo: 'Visitas', navegacao: 'Visitas', grupo: 'operacao', ordem: 30, componente: VisitasPage },

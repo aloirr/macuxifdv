@@ -16,10 +16,19 @@ describe('decidirVinculoErp', () => {
   it('RN-CORE-78: código diferente para cliente que já tem é conflito', () => {
     expect(decidirVinculoErp({ status_cadastro: 'aprovado', external_id: '123' }, '999', false)).toEqual({ acao: 'recusar', resultado: 'conflito' });
   });
-  it('RN-CORE-78: cliente inexistente, recusado ou com código já usado por outro é recusado', () => {
+  it('RN-CORE-78: cliente inexistente ou com código já usado por outro é recusado', () => {
     expect(decidirVinculoErp(null, '1', false)).toEqual({ acao: 'recusar', resultado: 'nao_encontrado' });
-    expect(decidirVinculoErp({ status_cadastro: 'recusado', external_id: null }, '1', false)).toEqual({ acao: 'recusar', resultado: 'cadastro_recusado' });
     expect(decidirVinculoErp(pend, '1', true)).toEqual({ acao: 'recusar', resultado: 'codigo_em_uso' });
+  });
+  it('RN-INT-22: o código do ERP vale sobre o recusado (o ERP manda; ADR 0069 item 8)', () => {
+    expect(decidirVinculoErp({ status_cadastro: 'recusado', external_id: null }, '1', false)).toEqual({ acao: 'gravar' });
+    expect(decidirVinculoErp({ status_cadastro: 'recusado', external_id: null, revisao_cadastro: 2 }, '1', false, 2)).toEqual({ acao: 'gravar' });
+  });
+  it('RN-INT-22: vinculado de revisão anterior vale; revisão maior que a do cliente é desconhecida', () => {
+    expect(decidirVinculoErp({ ...pend, revisao_cadastro: 3 }, '1', false, 1)).toEqual({ acao: 'gravar' });
+    expect(decidirVinculoErp({ ...pend, revisao_cadastro: 3 }, '1', false, 3)).toEqual({ acao: 'gravar' });
+    expect(decidirVinculoErp({ ...pend, revisao_cadastro: 3 }, '1', false, 4)).toEqual({ acao: 'nada', resultado: 'revisao_desconhecida' });
+    expect(decidirVinculoErp(pend, '1', false, 2)).toEqual({ acao: 'nada', resultado: 'revisao_desconhecida' });
   });
 });
 

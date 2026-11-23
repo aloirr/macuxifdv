@@ -32,3 +32,5 @@ export * from './lista-parametros';
 export * from './abas';
 // T-0191: opção exclusiva em cartão de 52 px (OpcaoCartao, GrupoOpcoesCartao); IconCasa, IconLapis e svgDaCasa ficam em icons
 export * from './opcao-cartao';
+// v1.0.30: máscaras ao digitar no campo de texto (aplicarMascara, propsDoInputComMascara; CPF/CNPJ, CEP e telefone)
+export * from './mascara';
