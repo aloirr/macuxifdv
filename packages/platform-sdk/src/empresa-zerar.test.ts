@@ -12,6 +12,7 @@ import {
   EVENTO_TENANT_ZERADO,
   grupoDaTabelaZerar,
   GRUPOS_ZERAR,
+  mensagemDaPreviaZerar,
   mensagemDoZerar,
   PedirZerarEmpresaSchema,
   PreviaZerarSchema,
@@ -64,6 +65,15 @@ describe('RN-PLA-12: códigos e frases (a regra de liberação é só do banco)'
     for (const c of [...Object.values(Z), ...Object.values(ERROS_WORKER_ZERAR)]) expect(mensagemDoZerar(c)).toBeTruthy();
     expect(mensagemDoZerar(Z.reautenticacaoFalhou)).toBe(MENSAGENS_ACOES_EMPRESA[CODIGOS_ACOES_EMPRESA.reautenticacaoFalhou]);
     expect(mensagemDoZerar('NAO_EXISTE')).toBeNull();
+  });
+
+  it('prévia que falhou ou sumiu: a frase da contagem (R4-1); o ZERAR_FALHOU da prévia não é o do zerar', () => {
+    const contar = 'Não foi possível contar os dados. Tente de novo.';
+    expect(mensagemDoZerar(Z.previaNaoEncontrada)).toBe(contar);
+    expect(mensagemDaPreviaZerar(ERROS_WORKER_ZERAR.falhou)).toBe(contar);
+    expect(mensagemDoZerar(ERROS_WORKER_ZERAR.falhou)).not.toBe(contar);
+    expect(mensagemDaPreviaZerar(Z.naoEncontrada)).toBe(mensagemDoZerar(Z.naoEncontrada));
+    expect(mensagemDaPreviaZerar('NAO_EXISTE')).toBeNull();
   });
 });
 
@@ -143,9 +153,11 @@ describe('contratos das rotas', () => {
       situacao: 'pronta',
       entidades: ['cliente'],
       linhas: [
-        { ordem: 1, tabela: 'core.cliente', modo: 'soft', linhas: 3 },
-        { ordem: 2, tabela: 'integracao.registro_atual', modo: 'fisico', linhas: 2 },
-        { ordem: 3, tabela: 'plataforma.sync_pacote', modo: 'sync_pacote', linhas: 4 },
+        { ordem: 1, tabela: 'core.cliente', linhas: 3 },
+        { ordem: 2, tabela: 'integracao.registro_atual', linhas: 2 },
+        { ordem: 201, tabela: 'core.filial', linhas: 1 },
+        { ordem: 202, tabela: 'plataforma.sync_pacote', linhas: 4 },
+        { ordem: 203, tabela: 'plataforma.tenant', linhas: 1 },
       ],
       entidades_afetadas: ['cliente', 'cliente_endereco'],
       total: 5,
@@ -156,14 +168,16 @@ describe('contratos das rotas', () => {
     const andamento = { ...pronta, situacao: 'em_andamento', linhas: null, entidades_afetadas: null, total: null };
     expect(PreviaZerarSchema.safeParse(pronta).success).toBe(true);
     expect(PreviaZerarSchema.safeParse(andamento).success).toBe(true);
-    expect(PreviaZerarSchema.safeParse({ ...andamento, situacao: 'falhou', erro_codigo: ERROS_WORKER_ZERAR.previaFalhou }).success).toBe(true);
+    expect(PreviaZerarSchema.safeParse({ ...andamento, situacao: 'falhou', erro_codigo: ERROS_WORKER_ZERAR.falhou }).success).toBe(true);
+    expect(PreviaZerarSchema.safeParse({ ...andamento, situacao: 'falhou', erro_codigo: Z.naoEncontrada }).success).toBe(true);
     expect(PreviaZerarSchema.safeParse({ ...andamento, situacao: 'falhou' }).success).toBe(false);
     expect(PreviaZerarSchema.safeParse({ ...andamento, erro_codigo: 'ZERAR_FALHOU' }).success).toBe(false);
     expect(PreviaZerarSchema.safeParse({ ...pronta, total: null }).success).toBe(false);
     expect(PreviaZerarSchema.safeParse({ ...pronta, total: 6 }).success).toBe(false);
-    // sem modo: o banco manda só as linhas que saem, e o total não é recalculado aqui
-    const semModo = { ...pronta, linhas: [{ ordem: 1, tabela: 'core.cliente', linhas: 3 }], total: 3 };
-    expect(PreviaZerarSchema.safeParse(semModo).success).toBe(true);
+    // o banco não manda o modo: filial, pacote de sync e o giro da geração mudam e não saem
+    expect(PreviaZerarSchema.safeParse({ ...pronta, total: 11 }).success).toBe(false);
+    expect(PreviaZerarSchema.safeParse({ ...pronta, linhas: [{ ordem: 1, tabela: 'core.cliente', modo: 'soft', linhas: 5 }] }).success).toBe(false);
+    expect(PreviaZerarSchema.safeParse({ ...pronta, bloqueio: Z.naoEncontrada }).success).toBe(true);
     expect(PreviaZerarSchema.safeParse({ ...pronta, bloqueio: Z.volumeAlto }).success).toBe(true);
     expect(PreviaZerarSchema.safeParse({ ...pronta, bloqueio: Z.hubProcessando }).success).toBe(true);
     expect(PreviaZerarSchema.safeParse({ ...pronta, bloqueio: 'EXCLUSAO_SEM_BACKUP' }).success).toBe(false);
@@ -201,6 +215,8 @@ describe('agrupamento da prévia', () => {
         { tabela: 'core.produto', modo: 'soft', linhas: 0 },
         { tabela: 'plataforma.sync_pacote', modo: 'sync_pacote', linhas: 7 },
         { tabela: 'core.usuario', linhas: 5 },
+        { tabela: 'core.filial', linhas: 2 },
+        { tabela: 'plataforma.tenant', linhas: 1 },
       ]),
     ).toEqual([
       { grupo: 'cadastros', rotulo: ROTULO_GRUPO_ZERAR.cadastros, linhas: 3 },

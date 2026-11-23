@@ -86,6 +86,7 @@ describe.skipIf(semBanco() || !banco().urlWorker || !banco().urlPortal)('API × 
     if (tenant) {
       await admin.query('delete from plataforma.limpeza_copia where empresa_id = $1', [tenant]);
       await admin.query('delete from plataforma.zerar_empresa where empresa_id = $1', [tenant]);
+      await admin.query('delete from plataforma.zerar_previa where empresa_id = $1', [tenant]);
       await admin.query("update plataforma.tenant set status = 'encerrado' where id = $1", [tenant]);
       await admin.query('select * from plataforma.excluir_tenant($1, $2)', [tenant, codigo]);
     }
@@ -185,6 +186,9 @@ describe.skipIf(semBanco() || !banco().urlWorker || !banco().urlPortal)('API × 
       expect(previa.entidades_afetadas).toEqual(['filial', 'vendedor', 'produto', 'cliente']);
       // 🔴 1 da revisão: a empresa inteira leva os usuários não administradores (o vendedor), e a tela vê o grupo
       expect(resumirPreviaPorGrupo(previa.linhas!).find((g) => g.grupo === 'usuarios')?.linhas).toBeGreaterThanOrEqual(1);
+      // sem o modo na prévia, os grupos da tela somam o total do banco (filial, pacote e giro da geração não saem)
+      expect(resumirPreviaPorGrupo(previa.linhas!).reduce((a, g) => a + g.linhas, 0)).toBe(previa.total);
+      expect(previa.linhas!.some((t) => t.tabela === 'plataforma.tenant')).toBe(true);
       expect([await ficam(), await vivos()]).toEqual([fica0, vivos0]);
       expect((await admin.query('select 1 from plataforma.limpeza_copia where empresa_id = $1', [tenant])).rowCount).toBe(0);
 

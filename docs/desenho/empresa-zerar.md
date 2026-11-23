@@ -46,12 +46,14 @@ Por que no banco:
 ## 3. Fluxo
 ```
 Portal  POST …/zerar/previa {id, entidades?} → Zod → sa_pedir_previa_zerar(sid, tenant, id, entidades) → 202 PreviaZerar em_andamento
-Worker  pegar_previa_zerar() (a cada 2 s; concessão e teto de tentativas no banco)
+Worker  pegar_previa_zerar() (a cada 2 s; concessão de 2 min e teto de 3 tentativas no banco; apaga as vencidas, de 1 hora)
         BEGIN; statement_timeout 15min; lock_timeout 5s
-        executar_previa_zerar(id) → subtransação: limpar_cadastros(tenant, lote_simulado, entidades, false) → guarda → rollback
-          → grava linhas, total, entidades_afetadas e bloqueio (zerar_bloqueado) → pronta; COMMIT
-        erro → ROLLBACK e log; a prévia volta depois da concessão; no teto, o banco fecha falhou (ZERAR_PREVIA_FALHOU)
+        executar_previa_zerar(id) → subtransação: limpar_cadastros(tenant, lote_simulado, entidades, false, simular) → rollback
+          → grava linhas {ordem, tabela, linhas}, total e entidades_afetadas → pronta; COMMIT
+          erro na contagem → falhou ZERAR_FALHOU; empresa que saiu → falhou TENANT_NAO_ENCONTRADO
+        erro na chamada → ROLLBACK e log; a prévia volta depois da concessão; no teto, o banco fecha falhou (ZERAR_FALHOU)
 Portal  GET  …/zerar/previa/:previa_id → sa_ler_previa_zerar(sid, tenant, id) a cada 2 s até pronta | falhou
+          (bloqueio = zerar_bloqueado calculado na leitura; null = não existe, venceu ou é de outra empresa → 404)
 Portal  POST …/zerar {id, codigo_confirmacao, senha, entidades?} → Zod → senha (sa_reautenticar) → sa_pedir_zerar(sid, tenant, id, codigo, entidades)
           → zerar_empresa em_andamento (lote) + auditoria tenant.zerar_pedido → 202 ZerarEmpresa
 Worker  pegar_zerar() (skip locked, concessão de 10 min)
@@ -77,7 +79,7 @@ Workflow psql (admin): plataforma.limpar_cadastros(tenant, lote, entidades, grav
 - **Portal**: `POST …/zerar/previa` (`PedirPreviaZerarSchema`: `id` gerado no portal, `entidades`) → 202 `PreviaZerar` em andamento. O mesmo id devolve a mesma prévia; id de outra empresa = 409 `ID_EM_USO`. `GET …/zerar/previa/:previa_id` → 200 `PreviaZerar`; inexistente ou de outra empresa = 404 `ZERAR_PREVIA_NAO_ENCONTRADA`. O GET síncrono com `?entidades=` saiu.
 - **Tela** (engenheiro-apps): pede a prévia ao abrir o diálogo e lê a cada `CONSULTA_PREVIA_ZERAR_MS` (2 s) até `pronta` ou `falhou`. O botão só libera com a prévia `pronta` e `bloqueio = null`. `falhou` mostra `mensagemDoZerar(erro_codigo)`.
 - **Worker** (`empresa-zerar-worker.ts`): laço próprio a cada 2 s, no pool do zerar (2 conexões: uma para o zerar, uma para a prévia), com `statement_timeout` de 15 min e `lock_timeout` de 5 s por `set local`. Até 10 prévias por ciclo. Erro = ROLLBACK e log, sem nova tentativa no mesmo ciclo.
-- **Banco** (banco-dados): sai a `sa_previa_zerar`. Entram `sa_pedir_previa_zerar(p_sid, p_tenant, p_id, p_entidades text[] default null) → jsonb`, `sa_ler_previa_zerar(p_sid, p_tenant, p_id) → jsonb` (EXECUTE só ao `macuxi_portal`), `pegar_previa_zerar() → table(id, empresa_id)` e `executar_previa_zerar(p_previa) → jsonb` (EXECUTE só ao `macuxi_worker`). A `executar_previa_zerar` roda a `limpar_cadastros` numa subtransação desfeita, sem a trava das tabelas do Hub. A concessão e o teto de tentativas ficam na `pegar_previa_zerar`, que fecha `falhou` com `ZERAR_PREVIA_FALHOU` no teto. Concessão curta (1 a 2 min): a tela fica esperando.
+- **Banco** (banco-dados): sai a `sa_previa_zerar`. Entram `sa_pedir_previa_zerar(p_sid, p_tenant, p_id, p_entidades text[] default null) → jsonb`, `sa_ler_previa_zerar(p_sid, p_tenant, p_id) → jsonb` (EXECUTE só ao `macuxi_portal`), `pegar_previa_zerar() → table(id, empresa_id)` e `executar_previa_zerar(p_previa) → jsonb` (EXECUTE só ao `macuxi_worker`). A `executar_previa_zerar` roda a `limpar_cadastros` numa subtransação desfeita, sem a trava das tabelas do Hub. A concessão e o teto de tentativas ficam na `pegar_previa_zerar`, que fecha `falhou` com `ZERAR_FALHOU` no teto. Concessão curta (1 a 2 min): a tela fica esperando.
 
 **Contrato** (`PreviaZerarSchema`, `.strict()`), o jsonb das quatro funções:
 
@@ -292,7 +294,7 @@ As duas só para o super-admin. Em `GET /v1/integracao/*`, o admin do cliente qu
 - 422: `ZERAR_CODIGO_NAO_CONFERE`, `ZERAR_VOLUME_ALTO`;
 - 403: `REAUTENTICACAO_FALHOU`.
 
-Worker: `ZERAR_CONCORRENCIA`, `ZERAR_FALHOU`, e `ZERAR_HUB_PROCESSANDO` e `ZERAR_VOLUME_ALTO` no `erro_codigo`; na prévia, `ZERAR_PREVIA_FALHOU`. O texto final é do designer-ux.
+Worker: `ZERAR_CONCORRENCIA`, `ZERAR_FALHOU`, e `ZERAR_HUB_PROCESSANDO` e `ZERAR_VOLUME_ALTO` no `erro_codigo`; na prévia, `ZERAR_FALHOU` (frase da contagem: `mensagemDaPreviaZerar`) e `TENANT_NAO_ENCONTRADO`. A prévia não traz o `modo`: `core.filial`, `plataforma.sync_pacote` e `plataforma.tenant` mudam e não saem (fora do `total` e dos grupos). O texto final é do designer-ux.
 
 **Grupos da confirmação** (`resumirPreviaPorGrupo`, `GRUPOS_ZERAR`): `cadastros`, `usuarios`, `pedidos`, `registros`, `integracao`, `sistema`, `arquivos`. O grupo `usuarios` ("Usuários não administradores": `core.usuario`, `plataforma.usuario_perfil`, `plataforma.usuario_modulo`) aparece no zerar da empresa inteira e no da entidade `vendedor`, e a tela não pode prometer "Mantém … usuários" (revisão final, 🔴 1): mantém os **administradores**.
 
