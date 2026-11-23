@@ -5,26 +5,29 @@
  * API pelo contrato (push idempotente pelo UUID; pull de `cliente` com `status_cadastro`/`motivo_recusa`/`external_id`) → lista
  * (`sobreporPreCadastros` + `listarClientesLocais` + `situacaoDoCliente`/`situacaoNaLinha` + `seloDoPreCadastro`, a mesma composição
  * de `usar-clientes-locais.ts` e de `LinhaCliente` em `telas/clientes.tsx`).
- * O servidor é o do contrato (a rota real de push e a revalidação 422 têm os testes de banco do Core). Matriz: offline → reconexão;
- * reenvio duplicado; 422 da API → "Corrigir e reenviar" que substitui o item da fila; recusado pelo ERP → correção com o mesmo id;
+ * O servidor segue a regra REAL de `modules/core/api/cliente-cadastro.ts` (a rota e a revalidação 422 têm os testes de banco do Core):
+ * id vivo repetido = `ja_existia`, sem regravar; id novo com o CPF/CNPJ de um recusado = substitui (o recusado sai com deleted_at,
+ * `decidirDocumentoDuplicado`); com o de um pendente/aprovado = 409. Matriz: offline → reconexão; reenvio duplicado; 422 da API →
+ * "Corrigir e reenviar" com o mesmo id (`alterar`); recusado pelo ERP → correção com id NOVO (`idDoReenvio`; ADR 0067, item 7);
  * código do ERP; parâmetro de obrigatórios com e sem linha; CNPJ com dígito errado; perfil; valor × regra do selo em cada status.
  */
 import { manifest as manifestCore } from '@macuxi/core/manifest';
 import { criarArmazenamentoEmMemoria, criarClienteHttp, criarMotorSync, criarRegistroSync, ErroSemConexao, type ItemPush, type LinhaSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
-import { ACAO_CORRIGIR_E_REENVIAR, ROTULO_AGUARDANDO_ERP, ROTULO_NAO_ENVIADO, ROTULO_RECUSADO_ERP, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
+import { ACAO_CORRIGIR_E_REENVIAR, ROTULO_AGUARDANDO_ERP, ROTULO_PRE_CADASTRO_NAO_ENVIADO, ROTULO_RECUSADO_ERP, seloDoPreCadastro } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
 import { PreCadastroClienteSchema, type ClienteSync, type ParametroSync, type PreCadastroCliente } from '../../modules/core/contracts';
-import { podePreCadastrarCliente, situacaoDoCliente, situacaoDoPreCadastro, situacaoNaLinha } from '../../modules/core/domain';
+import { decidirDocumentoDuplicado, podePreCadastrarCliente, situacaoDoCliente, situacaoDoPreCadastro, situacaoNaLinha } from '../../modules/core/domain';
 import { listarClientesLocais } from '../../modules/core/app/lib/cliente360-local';
 import { entidadesCliente } from '../../modules/core/app/lib/entidades-cliente';
 import { entidadesRota } from '../../modules/core/app/lib/entidades-rota';
-import { ENTIDADE_PRE_CADASTRO, obrigatoriosDasLinhas, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente, type ValoresPreCadastro } from '../../modules/core/app/lib/pre-cadastro-local';
+import { clienteComDocumento, ENTIDADE_PRE_CADASTRO, idDoReenvio, obrigatoriosDasLinhas, salvarPreCadastro, sobreporPreCadastros, valoresDoCliente, type ValoresPreCadastro } from '../../modules/core/app/lib/pre-cadastro-local';
 
 const U = (n: number) => `0c028000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const AGORA = '2026-11-23T14:00:00.000Z';
 const HOJE = '2026-11-23';
 const ID = U(1);
+const ID_NOVO = U(2);
 const CNPJ_OK = '11.222.333/0001-81';
 const VALORES: ValoresPreCadastro = { documento: CNPJ_OK, razao_social: 'Mercado Boa Vista', telefone: '(92) 99999-0000' };
 
@@ -36,11 +39,19 @@ function montar(parametro?: unknown) {
   let ativado = false;
   let relogio = Date.parse(AGORA);
   const instante = () => new Date((relogio += 1000)).toISOString();
-  const servidor = { recebidos: new Map<string, PreCadastroCliente>(), recebimentos: 0, decisao: new Map<string, Decisao>(), recusa422: new Map<string, string>() };
+  const servidor = {
+    recebidos: new Map<string, PreCadastroCliente>(),
+    excluidos: new Map<string, string>(), // id → deleted_at (o recusado substituído)
+    recebimentos: 0,
+    jaExistia: 0,
+    decisao: new Map<string, Decisao>(),
+    recusa422: new Map<string, string>(),
+  };
+  const vivos = () => [...servidor.recebidos.values()].filter((p) => !servidor.excluidos.has(p.id));
   const registro = criarRegistroSync([manifestCore]);
   for (const e of [...entidadesCliente, ...entidadesRota]) if (!registro.entidade(e.nome)) registro.registrar(e);
   const linhaCliente = (p: PreCadastroCliente, d: Decisao | undefined): ClienteSync => ({
-    id: p.id, updated_at: instante(), deleted_at: null, external_id: d?.codigo ?? null, documento: p.documento, razao_social: p.razao_social,
+    id: p.id, updated_at: instante(), deleted_at: servidor.excluidos.get(p.id) ?? null, external_id: d?.codigo ?? null, documento: p.documento, razao_social: p.razao_social,
     nome_fantasia: p.nome_fantasia ?? null, segmento: null, telefone: p.telefone ?? null, email: p.email ?? null, logradouro: p.logradouro ?? null,
     numero: p.numero ?? null, bairro: p.bairro ?? null, cidade: p.cidade ?? null, uf: p.uf ?? null, cep: p.cep ?? null, latitude: null, longitude: null,
     ativo: true, status_cadastro: d?.status ?? 'pendente', motivo_recusa: d?.status === 'recusado' ? (d.motivo ?? null) : null,
@@ -69,9 +80,19 @@ function montar(parametro?: unknown) {
             servidor.recusa422.delete(p.id);
             return { id: i.id, status: 'rejeitado', codigo: 'VALIDACAO', mensagem: recusa };
           }
-          // reenvio da correção (mesmo id): substitui e volta a pendente; o mesmo payload repetido não duplica
+          // cliente-cadastro.ts: id vivo já gravado = `ja_existia: true`, SEM regravar (nem a correção, nem o status)
+          if (servidor.recebidos.has(p.id) && !servidor.excluidos.has(p.id)) {
+            servidor.jaExistia += 1;
+            return { id: i.id, status: 'aceito', em: instante() };
+          }
+          // RN-CORE-78 (`decidirDocumentoDuplicado`): recusado do mesmo CPF/CNPJ sai com deleted_at; pendente/aprovado bloqueia (409)
+          const iguais = vivos()
+            .filter((o) => o.documento === p.documento)
+            .map((o) => ({ id: o.id, status_cadastro: servidor.decisao.get(o.id)?.status ?? ('pendente' as const) }));
+          const dup = decidirDocumentoDuplicado(iguais);
+          if (dup.bloqueia) return { id: i.id, status: 'rejeitado', codigo: 'DOCUMENTO_JA_CADASTRADO', mensagem: 'Já existe um cliente com este CPF/CNPJ.' };
+          for (const r of dup.remover) servidor.excluidos.set(r, instante());
           servidor.recebidos.set(p.id, p);
-          if (servidor.decisao.get(p.id)?.status === 'recusado') servidor.decisao.delete(p.id);
           return { id: i.id, status: 'aceito', em: instante() };
         });
       },
@@ -110,7 +131,7 @@ function montar(parametro?: unknown) {
     sinal = false;
     return ok;
   };
-  return { motor, servidor, lista, obrigatorios, salvar, sincronizar };
+  return { motor, servidor, vivos, lista, obrigatorios, salvar, sincronizar };
 }
 
 describe('v1.0.28 pré-cadastro no Campo: perfil (critério 1)', () => {
@@ -161,7 +182,7 @@ describe('v1.0.28 pré-cadastro no Campo: offline → fila → ERP (motor real)'
     expect(await t.lista()).toEqual([{ id: ID, nome: 'Mercado Boa Vista', situacao: 'pre_cadastro', selo: ROTULO_AGUARDANDO_ERP, motivo: null, status: 'pendente' }]);
   });
 
-  it('RN-CORE-78: recusado mostra o motivo; "Corrigir e reenviar" usa o MESMO id, volta a "Aguardando ERP" e o servidor guarda a correção', async () => {
+  it('RN-CORE-78 (ADR 0067, item 7): recusado mostra o motivo; "Corrigir e reenviar" usa id NOVO, o servidor substitui o recusado e fica um cliente vivo só', async () => {
     const t = montar();
     await t.salvar(VALORES);
     await t.sincronizar();
@@ -169,16 +190,49 @@ describe('v1.0.28 pré-cadastro no Campo: offline → fila → ERP (motor real)'
     await t.sincronizar();
     expect(await t.lista()).toEqual([{ id: ID, nome: 'Mercado Boa Vista', situacao: 'pre_cadastro', selo: ROTULO_RECUSADO_ERP, motivo: 'CNPJ com situação inapta na Receita', status: 'recusado' }]);
 
-    // a correção abre o formulário preenchido a partir da linha recusada e salva com o id dela, offline
-    const linha = (await t.motor.linhas<ClienteSync & LinhaSync>('cliente')).find((c) => c.id === ID)!;
-    expect(await t.salvar({ ...valoresDoCliente(linha), razao_social: 'Mercado Boa Vista Ltda' }, linha.id)).toEqual({ ok: true, id: ID });
-    expect(t.motor.estado().fila.map((i) => i.id)).toEqual([ID]);
-    expect(await t.lista()).toEqual([{ id: ID, nome: 'Mercado Boa Vista Ltda', situacao: 'pre_cadastro', selo: ROTULO_AGUARDANDO_ERP, motivo: null, status: 'pendente' }]);
+    // a correção abre o formulário preenchido a partir da linha recusada; o id sai de `idDoReenvio`, como em novo-cliente.tsx
+    const linhas = await t.motor.linhas<ClienteSync & LinhaSync>('cliente');
+    const linha = linhas.find((c) => c.id === ID)!;
+    const id = idDoReenvio(situacaoDoPreCadastro(linha).situacao, linha.id, () => ID_NOVO);
+    expect(id).toBe(ID_NOVO);
+    // o aviso "Já é cliente" não acusa o próprio recusado que está sendo corrigido
+    expect(clienteComDocumento(linhas, CNPJ_OK, linha.id)).toBeNull();
+    expect(await t.salvar({ ...valoresDoCliente(linha), razao_social: 'Mercado Boa Vista Ltda' }, id)).toEqual({ ok: true, id: ID_NOVO });
+    expect(t.motor.estado().fila.map((i) => i.id)).toEqual([ID_NOVO]);
+    // offline, o recusado do mesmo documento some da lista: uma linha só, já com a correção
+    expect(await t.lista()).toEqual([{ id: ID_NOVO, nome: 'Mercado Boa Vista Ltda', situacao: 'pre_cadastro', selo: ROTULO_AGUARDANDO_ERP, motivo: null, status: 'pendente' }]);
 
+    expect(await t.sincronizar(), t.motor.estado().erro ?? '').toBe(true);
+    expect(t.motor.estado().fila).toEqual([]);
+    expect(t.servidor.jaExistia).toBe(0);
+    // servidor: o recusado saiu com deleted_at e há um cliente vivo só, com os dados corrigidos
+    expect(t.servidor.excluidos.has(ID)).toBe(true);
+    expect(t.vivos().map((p) => [p.id, p.razao_social, p.documento])).toEqual([[ID_NOVO, 'Mercado Boa Vista Ltda', '11222333000181']]);
+    // o pull trouxe o recusado com deleted_at: a lista não o mostra duplicado
+    expect(await t.lista()).toEqual([{ id: ID_NOVO, nome: 'Mercado Boa Vista Ltda', situacao: 'pre_cadastro', selo: ROTULO_AGUARDANDO_ERP, motivo: null, status: 'pendente' }]);
+  });
+
+  it('RN-CORE-78: o defeito do corretor fica provado no servidor — reenviar o recusado com o MESMO id é `ja_existia` e não grava a correção', async () => {
+    const t = montar();
+    await t.salvar(VALORES);
     await t.sincronizar();
-    expect(t.servidor.recebidos.size).toBe(1);
-    expect(t.servidor.recebidos.get(ID)?.razao_social).toBe('Mercado Boa Vista Ltda');
-    expect(await t.lista()).toEqual([{ id: ID, nome: 'Mercado Boa Vista Ltda', situacao: 'pre_cadastro', selo: ROTULO_AGUARDANDO_ERP, motivo: null, status: 'pendente' }]);
+    t.servidor.decisao.set(ID, { status: 'recusado', motivo: 'CNPJ com situação inapta na Receita' });
+    await t.sincronizar();
+    await t.salvar({ ...VALORES, razao_social: 'Mercado Boa Vista Ltda' }, ID);
+    await t.sincronizar();
+    expect(t.servidor.jaExistia).toBe(1);
+    expect(t.servidor.recebidos.get(ID)?.razao_social).toBe('Mercado Boa Vista');
+    expect((await t.lista()).map((c) => [c.id, c.status])).toEqual([[ID, 'recusado']]);
+  });
+
+  it('RN-CORE-78: id novo com o CPF/CNPJ de um cliente pendente é 409 (não substitui) e fica "Não enviado"', async () => {
+    const t = montar();
+    await t.salvar(VALORES);
+    await t.sincronizar();
+    await t.salvar(VALORES, ID_NOVO);
+    await t.sincronizar();
+    expect(t.vivos().map((p) => p.id)).toEqual([ID]);
+    expect(t.motor.estado().fila.map((i) => [i.id, i.situacao])).toEqual([[ID_NOVO, 'falhou']]);
   });
 
   it('RN-CORE-78: com o código do ERP o selo some (Em dia), e o rótulo nunca diz "Aguardando" para aprovado', async () => {
@@ -200,10 +254,12 @@ describe('v1.0.28 pré-cadastro no Campo: 422 e módulo inativo da API → "Não
     expect(t.motor.estado().fila.map((i) => [i.id, i.situacao])).toEqual([[ID, 'falhou']]);
     const [linha] = await t.lista();
     // o cadastro não chegou ao ERP: status do contrato continua pendente, o selo diz "Não enviado" e o motivo é o do servidor
-    expect(linha).toEqual({ id: ID, nome: 'Mercado Boa Vista', situacao: 'pre_cadastro', selo: ROTULO_NAO_ENVIADO, motivo: 'Inscrição estadual inválida para AM', status: 'pendente' });
+    expect(linha).toEqual({ id: ID, nome: 'Mercado Boa Vista', situacao: 'pre_cadastro', selo: ROTULO_PRE_CADASTRO_NAO_ENVIADO, motivo: 'Inscrição estadual inválida para AM', status: 'pendente' });
     expect(ACAO_CORRIGIR_E_REENVIAR).toBe('Corrigir e reenviar');
 
-    // "Corrigir e reenviar": mesmo id, o item parado vira pendente com o payload novo (um item só na fila)
+    // "Corrigir e reenviar" do "Não enviado" (nunca chegou ao servidor): `idDoReenvio` mantém o id e o `alterar` devolve o item a pendente
+    const [parado] = sobreporPreCadastros(await t.motor.linhas<ClienteSync & LinhaSync>('cliente'), t.motor.sobreposicao([ENTIDADE_PRE_CADASTRO]), AGORA);
+    expect(idDoReenvio(situacaoDoPreCadastro(parado!).situacao, ID, () => ID_NOVO)).toBe(ID);
     expect(await t.salvar({ ...VALORES, razao_social: 'Mercado Boa Vista Ltda' })).toEqual({ ok: true, id: ID });
     expect(t.motor.estado().fila.map((i) => [i.id, i.situacao, (i.payload as PreCadastroCliente).razao_social])).toEqual([[ID, 'pendente', 'Mercado Boa Vista Ltda']]);
     expect(await t.lista()).toEqual([{ id: ID, nome: 'Mercado Boa Vista Ltda', situacao: 'pre_cadastro', selo: ROTULO_AGUARDANDO_ERP, motivo: null, status: 'pendente' }]);
@@ -220,7 +276,7 @@ describe('v1.0.28 pré-cadastro no Campo: 422 e módulo inativo da API → "Não
     await t.salvar(VALORES);
     const [item] = t.motor.sobreposicao([ENTIDADE_PRE_CADASTRO]);
     const [c] = sobreporPreCadastros([], [{ ...item!, situacao: 'modulo_inativo', ultimo_erro: 'Módulo desativado' }], AGORA);
-    expect(seloDoPreCadastro(situacaoDoPreCadastro(c!).situacao)?.texto).toBe(ROTULO_NAO_ENVIADO);
+    expect(seloDoPreCadastro(situacaoDoPreCadastro(c!).situacao)?.texto).toBe(ROTULO_PRE_CADASTRO_NAO_ENVIADO);
     expect(situacaoDoPreCadastro(c!).motivo).toBe('Módulo desativado');
     expect(c?.status_cadastro).toBe('pendente');
   });
