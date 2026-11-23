@@ -39,6 +39,7 @@ Dono da tela: `modulo-core` (`modules/core/app`). Kit: `@macuxi/ui/mobile`. Regr
 
 ### 3.1 Na correção (v1.0.30)
 - **Motivo da recusa:** só no topo do formulário, numa linha `danger` com ícone `alert` (texto literal do ERP ou da API, 1 a 3 linhas). É o único texto acima dos campos.
+- **Código FDV:** no cabeçalho (`CabecalhoTela codigos={{ fdv }}`, `codigos-do-cliente.md` §3.3), nunca no corpo; sem código, nada.
 - **Erros por campo** (quando a recusa os traz): cada campo citado já abre com `falta=<mensagem do erro>` (borda `danger` 2 dp + `TextoDaFalta`), visível desde a entrada, sem esperar o **Salvar**; a tela abre rolada até o primeiro. Do grupo Endereço, a marca vai no campo exato (CEP, Número…). A mensagem é a do erro, sem prefixo nem nome do campo (o rótulo já está acima).
 - A marca de um campo sai quando o vendedor muda o valor dele. Campo marcado e não mudado não impede o **Salvar** (a API revalida).
 - Sem erros por campo, só a linha do motivo.

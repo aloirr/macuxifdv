@@ -54,10 +54,10 @@ Subtítulo, uma linha, separador ` · `: **códigos, bairro, cidade/UF**.
 Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busca** casa também pelo Código FDV (§6).
 
 ### 3.3 Formulário do pré-cadastro ("Corrigir e reenviar")
-- Com Código FDV: abaixo do título da tela, no estilo de subtítulo (`t.sub`), **`FDV 00012`**, com o valor em `fonte.mono` (§2). Sem campo de formulário (não é
-  editável) e sem cadeado.
+- Com Código FDV: no **cabeçalho**, na linha de subtítulo do `CabecalhoTela`, **`FDV 00012`**, com o valor em `fonte.mono` (§2). Nada no corpo:
+  o motivo da recusa é o único texto acima dos campos (`campo-cliente-pre-cadastro.md` §3.1). Sem campo de formulário (não é editável) e sem cadeado.
 - Sem Código FDV (antes do 1º sync) ou em **Novo cliente**: nada.
-- **Kit:** `<CodigosCliente fdv={codigoFdv} style={type.sub} />` (`@macuxi/ui/mobile`); some sozinho quando o código está vazio.
+- **Kit:** `cabecalho={{ titulo: 'Corrigir cliente', codigos: { fdv: codigoFdv } }}` (`CabecalhoTela`/`Screen`); some sozinho quando o código está vazio.
 - Código ERP nunca aparece aqui (a correção só existe sem vínculo).
 
 ## 4. BKO — Carteira (`modules/core/web/components/carteira/carteira-page.tsx`)
@@ -67,6 +67,8 @@ Sem código na linha (RN-CORE-47: nome, uma tag, última visita, seta). A **busc
   A linha já tem 44 px (os `select`s); duas linhas de 16 px cabem sem crescer. `TableScroll minWidth` passa de 880 para 984.
 - **"Vincular cliente"** (candidatos da busca): o mesmo bloco de códigos entre o nome e a cidade (em linha, `ERP C5007 · FDV 00012`),
   para o usuário conferir o cliente certo antes de **Vincular**.
+- **Kit:** `partesDosCodigos`, `textoDosCodigos`, `leituraDosCodigos` e `SEPARADOR_CODIGOS` de `@macuxi/ui/web` (a mesma parte pura
+  do Campo, em `packages/ui/src/comum`); a web não importa de `@macuxi/ui/mobile`.
 - Rótulo da busca inalterado: `ROTULO_BUSCA_CLIENTE_BKO` (**Código, CNPJ ou nome (mínimo 3 caracteres)**); "Código" passa a
   valer para os dois (§6).
 
