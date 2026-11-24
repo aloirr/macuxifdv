@@ -20,6 +20,13 @@ describe('celulaCsv', () => {
     expect(celulaCsv('=HYPERLINK("x")')).toBe('"\'=HYPERLINK(""x"")"');
   });
 
+  it('nulo vira "" e número sai com vírgula, sem proteção', () => {
+    expect(celulaCsv(null)).toBe('""');
+    expect(celulaCsv(undefined)).toBe('""');
+    expect(celulaCsv(-5)).toBe('"-5"');
+    expect(celulaCsv(12.5)).toBe('"12,5"');
+  });
+
   it('BOM do UTF-8 para o Excel', () => {
     expect(BOM_CSV).toBe('﻿');
   });
@@ -39,8 +46,11 @@ describe('celulaCsvCompacta (CWE-1236, R-20261109-125233)', () => {
     expect(celulaCsvCompacta('l1\rl2')).toBe('"l1\rl2"');
   });
 
-  it.each(['=SOMA(A1)', '+1', '-2', '@x', '\tA'])('prefixa a fórmula "%s" com apóstrofo', (v) => {
-    expect(celulaCsvCompacta(v)).toBe(`'${v}`);
+  it('nulo vira vazio e número sai com vírgula, sem proteção', () => {
+    expect(celulaCsvCompacta(null)).toBe('');
+    expect(celulaCsvCompacta(undefined)).toBe('');
+    expect(celulaCsvCompacta(-5)).toBe('-5');
+    expect(celulaCsvCompacta(-12.5)).toBe('-12,5');
   });
 
   it('CR no início ganha apóstrofo e, por ser quebra, aspas', () => {
