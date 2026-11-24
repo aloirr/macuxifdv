@@ -387,7 +387,7 @@ export function useVendedor() {
   const limitesDe = useCallback(
     (clienteId: string) => {
       const c = linhas.clientes.find((x) => x.id === clienteId);
-      return { formas_pagamento: c?.formas_pagamento ?? null };
+      return { formas_pagamento: c?.formas_pagamento ?? null, prazo_medio_max_dias: c?.prazo_medio_max_dias ?? null };
     },
     [linhas.clientes],
   );

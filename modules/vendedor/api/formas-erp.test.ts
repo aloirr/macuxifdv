@@ -52,16 +52,23 @@ describe('P7 (T-0089): o consumidor adota pelo código a AVISTA semeada', () => 
     const { db } = banco({ forma_pagamento: [{ id: 'f1', codigo: 'BOLETO', external_id: 'FP-BOL', deleted_at: null }], prazo_pagamento: [] });
     expect((await aplicarFormaDoErp(db, { external_id: 'FP-BOL', codigo: 'BOLETO', nome: 'Boleto bancário' })).acao).toBe('atualizada');
   });
-  it('RN-VEN-24: o prazo AVISTA do ERP adota o prazo semeado e o prazo médio é calculado aqui', async () => {
+  it('RN-VEN-24: o prazo AVISTA do ERP adota o prazo semeado', async () => {
     const t = {
       forma_pagamento: [{ id: 'f1', codigo: 'AVISTA', external_id: 'FP-AV', deleted_at: null }],
       prazo_pagamento: [{ id: 'p-semeado', codigo: 'AVISTA', external_id: null, deleted_at: null }],
     };
     const { db } = banco(t);
-    const r = await aplicarPrazoDoErp(db, { external_id: 'PZ-AV', forma_external_id: 'FP-AV', codigo: 'AVISTA', parcelas_dias: [0], prazo_medio_dias: 99 });
+    const r = await aplicarPrazoDoErp(db, { external_id: 'PZ-AV', forma_external_id: 'FP-AV', codigo: 'AVISTA', parcelas_dias: [0], prazo_medio_dias: 0 });
     expect(r).toEqual({ id: 'p-semeado', acao: 'adotada', prazo_medio_dias: 0 });
   });
-  it('RN-VEN-24: prazo 28/56 do ERP grava prazo médio 42 (o informado só confere)', async () => {
+  it('RN-VEN-24 (ADR 0072): o prazo médio e a descrição recebidos do ERP são gravados como vieram, sem recalcular', async () => {
+    const { db, gravado } = banco({ forma_pagamento: [{ id: 'f2', codigo: 'CARTAO', external_id: 'FP-CC', deleted_at: null }], prazo_pagamento: [] });
+    const r = await aplicarPrazoDoErp(db, { external_id: 'PZ-3X', forma_external_id: 'FP-CC', codigo: 'cc-3x', descricao: 'Cartão 3X', parcelas_dias: [30, 60, 90], prazo_medio_dias: 75 });
+    expect(r).toMatchObject({ acao: 'inserida', prazo_medio_dias: 75 });
+    expect(gravado[0]!.params).toContain(75);
+    expect(gravado[0]!.params).toContain('Cartão 3X');
+  });
+  it('RN-VEN-24: sem prazo médio nem descrição (emissor antigo), calcula 42 e gera "28/56 dias" como reserva', async () => {
     const { db, gravado } = banco({ forma_pagamento: [{ id: 'f2', codigo: 'BOLETO', external_id: 'FP-BOL', deleted_at: null }], prazo_pagamento: [] });
     const r = await aplicarPrazoDoErp(db, { external_id: 'PZ-2856', forma_external_id: 'FP-BOL', codigo: 'bol-28-56', parcelas_dias: [28, 56] });
     expect(r).toMatchObject({ acao: 'inserida', prazo_medio_dias: 42 });
