@@ -2,16 +2,8 @@
 import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import type { RelatorioRupturaApi, RelatorioShareApi } from '../../contracts';
 
-export const CSV_BOM = BOM_CSV;
-
-/** Texto pela `celulaCsvCompacta` do comum (fórmula protegida, CWE-1236); número só troca o ponto pela vírgula, sem apóstrofo no negativo. */
-export function csvCelula(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return '';
-  return typeof v === 'number' ? String(v).replace('.', ',') : celulaCsvCompacta(v);
-}
-
 export function paraCsv(linhas: ReadonlyArray<ReadonlyArray<string | number | null | undefined>>): string {
-  return CSV_BOM + linhas.map((l) => l.map(csvCelula).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + linhas.map((l) => l.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
 
 export const ROTULO_SITUACAO_SHARE: Readonly<Record<RelatorioShareApi['linhas'][number]['situacao'], string>> = {
