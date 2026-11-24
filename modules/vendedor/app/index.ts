@@ -16,6 +16,9 @@ import OrdersScreen from './screens/orders-screen';
 import RascunhosScreen from './screens/rascunhos-screen';
 
 export { mergeOrders, pedidosNaFila, upsertOrder } from './lib/pedidos';
+/** T-0195 (ADR 0070, D8): o shell conta os rascunhos vivos antes do link do APK novo e abre a tela Rascunhos. */
+export { contarRascunhosParaAtualizar } from './lib/rascunhos-para-atualizar';
+export { CAMINHO_RASCUNHOS, hrefRascunhos } from './rotas';
 
 /** RN-PRO-01: o promotor nunca vê página de pedido, mesmo que o Vendedor fique efetivo para ele (mesma lista do manifesto e de /alcadas). */
 const PERFIS_PAGINAS = manifest.perfis;
