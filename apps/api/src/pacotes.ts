@@ -9,7 +9,7 @@
  *
  * `manifestoDoUltimo` (T-0195, ADR 0070) só lê e valida o manifesto: a API tira dele a versão e o `publicado_em` dos APKs.
  * `linkDoUltimo` lê o manifesto com a chave da API e devolve um GET pré-assinado (SigV4 por query string) do pacote, com
- * validade `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s, de 60 a 900) e `Content-Disposition: attachment` com o nome do arquivo.
+ * a validade de `validadeDoLinkS` (SDK) e `Content-Disposition: attachment` com o nome do arquivo.
  * Só existe com `MACUXI_ARQUIVOS_DRIVER=s3`; no disco (dev, CI) a porta fica desligada e a rota responde 503.
  * Log: só status HTTP e código S3/da porta; nunca a URL assinada, a chave, o segredo nem o conteúdo do manifesto.
  */
@@ -21,6 +21,7 @@ import {
   PRODUTOS_PACOTE,
   SERVICO_PACOTES_DESLIGADO,
   VALIDADE_LINK_PACOTE_S,
+  validadeDoLinkS,
   type LogRota,
   type PacotePublicado,
   type ProdutoPacote,
@@ -35,7 +36,7 @@ export const PREFIXO_PACOTES_PADRAO = 'pacotes/';
 export interface OpcoesPacotesS3 {
   /** Prefixo dentro do bucket (termina em `/`). */
   prefixo: string;
-  /** Validade do link em segundos (`VALIDADE_LINK_PACOTE_S`). */
+  /** Validade do link do Conector em segundos (`VALIDADE_LINK_PACOTE_S`). */
   validadeS: number;
   log?: Pick<LogRota, 'warn'>;
 }
@@ -89,7 +90,7 @@ export function criarPacotesS3(cliente: ClienteS3, op: OpcoesPacotesS3): Servico
     async linkDoUltimo(produto) {
       const m = await lerManifesto(produto);
       if (!m) return null;
-      const { url, expiraEm } = cliente.urlPreAssinada(op.prefixo + chaveDoPacote(produto, m.arquivo), op.validadeS, {
+      const { url, expiraEm } = cliente.urlPreAssinada(op.prefixo + chaveDoPacote(produto, m.arquivo), validadeDoLinkS(produto, op.validadeS), {
         'response-content-disposition': `attachment; filename="${m.arquivo}"`,
       });
       return { ...m, url, expira_em: expiraEm.toISOString() };
@@ -99,7 +100,7 @@ export function criarPacotesS3(cliente: ClienteS3, op: OpcoesPacotesS3): Servico
 
 /**
  * Porta pelo ambiente (`servidor.ts`): com `MACUXI_ARQUIVOS_DRIVER=s3`, o mesmo bucket e a mesma credencial das fotos
- * (`MACUXI_S3_*`), prefixo `MACUXI_PACOTES_PREFIXO` e validade `MACUXI_PACOTES_VALIDADE_S`, conferidos AQUI (valor inválido =
+ * (`MACUXI_S3_*`), prefixo `MACUXI_PACOTES_PREFIXO` e validade do Conector `MACUXI_PACOTES_VALIDADE_S`, conferidos AQUI (valor inválido =
  * a API não sobe; a mensagem leva só o NOME da variável). Sem S3 = `SERVICO_PACOTES_DESLIGADO` (a rota responde 503).
  * `criar(log)` monta a porta com o log do app.
  */

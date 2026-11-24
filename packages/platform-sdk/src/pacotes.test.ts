@@ -14,7 +14,9 @@ import {
   LinkPacoteSchema,
   PacotePublicadoSchema,
   SERVICO_PACOTES_DESLIGADO,
+  VALIDADE_LINK_APP_S,
   VALIDADE_LINK_PACOTE_S,
+  validadeDoLinkS,
   type ProdutoPacote,
 } from './pacotes';
 
@@ -80,6 +82,21 @@ describe('serviços', () => {
     expect(l).toMatchObject({ versao: '1.3.0', arquivo: 'c.zip', tamanho_bytes: 10 });
     expect(l?.expira_em).toBe(new Date(agora.getTime() + VALIDADE_LINK_PACOTE_S.padrao * 1000).toISOString());
     expect(l?.url.startsWith('https://pacotes.teste/conector/c.zip?')).toBe(true);
+  });
+
+  it('ADR 0074 (R-20261124-090942, item 04): link do Campo e do Gestão vale 24 h; o do Conector, a validade configurada', async () => {
+    expect(VALIDADE_LINK_APP_S).toBe(24 * 60 * 60);
+    expect(validadeDoLinkS('conector', 600)).toBe(600);
+    expect(validadeDoLinkS('campo', 600)).toBe(VALIDADE_LINK_APP_S);
+    expect(validadeDoLinkS('gestao', 600)).toBe(VALIDADE_LINK_APP_S);
+    const agora = new Date('2026-11-24T12:00:00Z');
+    const s = criarServicoPacotesMemoria(
+      { conector: { versao: '1.3.0', arquivo: 'c.zip' }, campo: { versao: '1.0.34', arquivo: 'campo.apk' }, gestao: { versao: '1.0.34', arquivo: 'gestao.apk' } },
+      { agora: () => agora, validadeS: 600 },
+    );
+    expect((await s.linkDoUltimo('conector'))?.expira_em).toBe('2026-11-24T12:10:00.000Z');
+    expect((await s.linkDoUltimo('campo'))?.expira_em).toBe('2026-11-25T12:00:00.000Z');
+    expect((await s.linkDoUltimo('gestao'))?.expira_em).toBe('2026-11-25T12:00:00.000Z');
   });
 
   it('T-0195 (ADR 0070): manifestoDoUltimo devolve o manifesto sem link; desligado = 503', async () => {

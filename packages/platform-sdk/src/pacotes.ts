@@ -23,8 +23,18 @@ import { VARIANTES_APP } from './app-versao';
 export const PRODUTOS_PACOTE = ['conector', ...VARIANTES_APP] as const;
 export type ProdutoPacote = (typeof PRODUTOS_PACOTE)[number];
 
-/** Validade do link em segundos: padrão 5 min, de 1 a 15 min (`MACUXI_PACOTES_VALIDADE_S`). */
+/** Validade do link do Conector em segundos: padrão 5 min, de 1 a 15 min (`MACUXI_PACOTES_VALIDADE_S`). */
 export const VALIDADE_LINK_PACOTE_S = Object.freeze({ padrao: 300, min: 60, max: 900 });
+
+/**
+ * Validade fixa do link dos APKs (Campo e Gestão): 24 h (R-20261124-090942, item 04; ADR 0074, que troca o item 1 da
+ * ADR 0065 só para os APKs). `MACUXI_PACOTES_VALIDADE_S` não muda este valor.
+ */
+export const VALIDADE_LINK_APP_S = 86_400;
+
+export function validadeDoLinkS(produto: ProdutoPacote, validadeConectorS: number): number {
+  return produto === 'conector' ? validadeConectorS : VALIDADE_LINK_APP_S;
+}
 
 /** 503 do armazenamento (o mesmo código das fotos em `/v1/arquivos`). */
 export const CODIGO_ARMAZENAMENTO_INDISPONIVEL = 'ARMAZENAMENTO_INDISPONIVEL';
@@ -108,7 +118,7 @@ export const SERVICO_PACOTES_DESLIGADO: ServicoPacotes = Object.freeze({
 
 /**
  * Para testes de módulo: pacotes fixos, link falso `https://pacotes.teste/<produto>/<arquivo>?expira=<iso>`.
- * `agora` e `validadeS` como na API.
+ * `agora` e `validadeS` do Conector como na API.
  */
 export function criarServicoPacotesMemoria(
   pacotes: Partial<Record<ProdutoPacote, z.input<typeof PacotePublicadoSchema>>>,
@@ -126,7 +136,7 @@ export function criarServicoPacotesMemoria(
     async linkDoUltimo(produto) {
       const p = await manifestoDoUltimo(produto);
       if (!p) return null;
-      const expira = new Date(agora().getTime() + validadeS * 1000).toISOString();
+      const expira = new Date(agora().getTime() + validadeDoLinkS(produto, validadeS) * 1000).toISOString();
       return { ...p, url: `https://pacotes.teste/${chaveDoPacote(produto, p.arquivo)}?expira=${encodeURIComponent(expira)}`, expira_em: expira };
     },
   };
