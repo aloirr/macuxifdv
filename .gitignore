@@ -23,3 +23,5 @@ playwright-report/
 # Recados e lidos moram no repositorio macuxifdv-recados (ADR 0035); aqui sao juncoes para o clone
 /.coord/recados
 /.coord/lidos
+# Mapa do código do Graphify (R-20261122-040155); gerado pelo setup da sessão, nunca vai para o GitHub
+graphify-out/
