@@ -122,6 +122,20 @@ describe('RN-INT-15/16: reprocessar lote', () => {
     expect(e.codigo).toBe('conteudo_expirado');
   });
 
+  it('RN-INT-15: o super-admin reprocessa pelo portal (superAdmin aceita) sem a senha de autorizador e a auditoria grava via super_admin', async () => {
+    const m = montar({ status: 'falhou' });
+    const rota = criarRotaReprocessarLote({ verificarSenha: nunca, limite: criarLimiteTentativas() });
+    expect(rota.superAdmin).toBe('aceita');
+    expect(await executar(rota, m.ctx, { corpo: {}, superAdmin: { id: 'sa-1', sessao_id: 's-1' } })).toEqual({ lote_id: LOTE, reenfileiradas: 3, status: 'recebido' });
+    expect(m.auditoria[0]).toMatchObject({ acao: 'lote.reprocessar', depois: { status: 'recebido', via: 'super_admin', autorizado_por: null } });
+  });
+
+  it('RN-INT-16: sem ctx.superAdmin (admin do cliente no portal ou BKO) as regras de perfil continuam: sem a permissão, 403', async () => {
+    const rota = criarRotaReprocessarLote({ verificarSenha: nunca, limite: criarLimiteTentativas() });
+    const e = await erroDe(executar(rota, montar({ status: 'falhou' }).ctx, { corpo: {} }));
+    expect(e.codigo).toBe('autorizador_necessario');
+  });
+
   it('RN-INT-16: sem a permissão e sem autorizador, 403 pedindo o autorizador', async () => {
     const rota = criarRotaReprocessarLote({ verificarSenha: nunca, limite: criarLimiteTentativas() });
     const e = await erroDe(executar(rota, montar({ status: 'falhou' }).ctx, { corpo: {} }));
