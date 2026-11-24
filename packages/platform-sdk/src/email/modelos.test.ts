@@ -150,11 +150,62 @@ describe('RN-CORE-34 — bloco de dados, validade e rodapé (spec §2 e §3)', (
   it('cada valor numa linha só dele, selecionável; a senha é a maior coisa do bloco, em ênfase 600', () => {
     const r = renderizarEmail('nova_senha', redefinida);
     expect(r.texto).toContain('\nCódigo da empresa\nRIOBRANCO\n\nE-mail\njoaquina.teste@exemplo.com.br\n\nSenha temporária\nN0va-Senh4-Kz\nVale por 72 horas.\n');
+    expect(r.texto).not.toContain('Toque e segure');
     expect(r.html).toContain('user-select:all;word-break:break-all">RIOBRANCO</td>');
     expect(r.html).toContain('user-select:all;word-break:break-all">joaquina.teste@exemplo.com.br</td>');
-    expect(r.html).toMatch(/font-size:22px;line-height:30px;font-weight:600;[^"]*user-select:all;word-break:break-all">N0va-Senh4-Kz<\/td>/);
+    expect(r.html).toMatch(/font-size:24px;line-height:30px;font-weight:600;[^"]*user-select:all;word-break:break-all">N0va-Senh4-Kz<\/td>/);
     expect(r.html).toContain('>Vale por 72 horas.</td>');
     expect(VALIDADE_SENHA_PROVISORIA_HORAS).toBe(72);
+  });
+
+  describe('senha temporária em campo de seleção fácil (opção B, R-20261124-181507-alexandre)', () => {
+    const modelos = [
+      ['acesso_inicial', carga, 'Prov1sor1a-Xq7'],
+      ['nova_senha', novaSenha, 'N0va-Senh4-Kz'],
+      ['nova_senha', redefinida, 'N0va-Senh4-Kz'],
+    ] as const;
+
+    it.each(modelos)('%s: a senha num só elemento selecionável, campo branco com borda #7A8593 (tabela, sem flex)', (modelo, c, senha) => {
+      const { html } = renderizarEmail(modelo, c, comTudo);
+      const campos = [...html.matchAll(/<td class="mx-valor mx-campo" bgcolor="#FFFFFF" style="([^"]*)">([^<]*)<\/td>/g)];
+      expect(campos).toHaveLength(1);
+      const [, estilo, valor] = campos[0]!;
+      expect(valor).toBe(senha);
+      expect(html.split(senha)).toHaveLength(2);
+      for (const regra of [
+        'background:#FFFFFF;',
+        'border:1px solid #7A8593;',
+        'border-radius:8px;',
+        'padding:12px 14px;',
+        `font-family:${PILHA_MONO_EMAIL};`,
+        'font-size:24px;',
+        'letter-spacing:2px;',
+        '-webkit-user-select:all;',
+        'user-select:all;',
+      ]) {
+        expect(estilo, regra).toContain(regra);
+      }
+      expect(html).not.toMatch(/display:flex|display:grid/);
+    });
+
+    it.each(modelos)('%s: a dica "Toque e segure para copiar" logo abaixo da senha só no HTML', (modelo, c, senha) => {
+      const r = renderizarEmail(modelo, c, comTudo);
+      const depois = r.html.slice(r.html.indexOf(`>${senha}</td>`));
+      expect(depois.match(/<td[^>]*>([^<]+)<\/td>/)?.[1]).toBe('Toque e segure para copiar');
+      expect(r.html.match(/Toque e segure para copiar/g)).toHaveLength(1);
+      expect(r.texto).toContain(`\nSenha temporária\n${senha}\n`);
+      expect(r.texto).not.toContain('Toque e segure');
+    });
+
+    it('validade nula: a dica fecha o bloco com o respiro de baixo', () => {
+      const { html } = renderizarEmail('acesso_inicial', { ...carga, dados: { ...dados, validade_horas: null } });
+      expect(html).toMatch(/padding:6px 20px 16px;[^"]*">Toque e segure para copiar<\/td>/);
+    });
+
+    it('modo escuro: o campo vira Azul noite com contorno #C9CED5 (texto branco do .mx-valor)', () => {
+      const { html } = renderizarEmail('nova_senha', redefinida);
+      expect(html).toContain('.mx-campo { background:#1E3350 !important; border-color:#C9CED5 !important; }');
+    });
   });
 
   it('validade nula (admin inicial, P5): sem "Vale por"', () => {
