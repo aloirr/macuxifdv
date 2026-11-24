@@ -480,7 +480,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
 
   const passo = [
     '<h3>Passo 1. Obter a credencial</h3>',
-    p('O administrador da empresa abre o portal de configuração (`config.macuxifdv.com.br`), na aba **Integração**, lado **Integração via API**, e escolhe **Gerar credencial**: informa um identificador (por exemplo `erp-matriz`) e o nome, e marca **Envia os pedidos aprovados ao ERP** se esta credencial vai buscar os pedidos. A chave aparece **uma única vez**: guarde-a em um cofre de segredos.'),
+    p('O administrador da empresa abre o portal de configuração do Macuxi FDV, na aba **Integração**, lado **Integração via API**, e escolhe **Gerar credencial**: informa um identificador (por exemplo `erp-matriz`) e o nome, e marca **Envia os pedidos aprovados ao ERP** se esta credencial vai buscar os pedidos. A chave aparece **uma única vez**: guarde-a em um cofre de segredos.'),
     p(`Se perder a chave, o administrador gera uma chave nova no portal de configuração. A anterior continua valendo por uma janela de convivência (padrão ${pp.convivenciaChaveMin / 60} horas, até ${pp.convivenciaChaveMaxMin / 1440} dias) para você trocar sem parar a integração.`),
     '<h3>Passo 2. Autenticar</h3>',
     p('Toda chamada leva estes cabeçalhos:'),
