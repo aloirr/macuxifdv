@@ -125,6 +125,13 @@ describe('retorno do ERP no pedido (RN-INT-08, RN-VEN-30)', () => {
     expect(banco.pedidos[0]!.resumo).toMatchObject({ faturado_cents: 6_000, notas: 1, ultima_nota: '1001', itens: [{ sequencia: 1, faturada: 6, saldo: 4 }, { sequencia: 2, faturada: 0, saldo: 4 }] });
   });
 
+  it('RN-INT-08: a chave de acesso da NF vai para o faturamento gravado; sem chave fica nula', async () => {
+    const { banco, reg, repoA } = cenario([pedidoAprovado({ status: 'integrated', numero_erp: 'ERP-77' })]);
+    await aplicarRetornoErp(repoA, retorno('faturado_parcial', { nota: { numero: '1001', emitida_em: EM(1), total_cents: 7_000, chave_acesso: '35261112345678000195550010000090011000090019' }, itens_faturados: [{ sequencia: 1, quantidade: 2 }] }), contexto('e-ch1', reg));
+    await aplicarRetornoErp(repoA, retorno('faturado_parcial', { nota: { numero: '1002', emitida_em: EM(2), total_cents: 1_000 }, itens_faturados: [{ sequencia: 1, quantidade: 1 }], ocorrido_em: EM(2) }), contexto('e-ch2', reg));
+    expect(banco.faturamentos.map((f) => [f.nota_numero, f.nota_chave_acesso])).toEqual([['1001', '35261112345678000195550010000090011000090019'], ['1002', null]]);
+  });
+
   it('RN-TRE-08: faturado_total sem itens depois do parcial publica só o saldo; reentrega do mesmo evento não duplica', async () => {
     const { banco, reg, repoA } = cenario([pedidoAprovado({ status: 'integrated', numero_erp: 'ERP-77' })]);
     await aplicarRetornoErp(repoA, retorno('faturado_parcial', { itens_faturados: [{ sequencia: 1, quantidade: 10 }, { sequencia: 2, quantidade: 1 }] }), contexto('e-3', reg));

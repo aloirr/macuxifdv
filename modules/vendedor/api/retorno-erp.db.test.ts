@@ -89,7 +89,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     const reg: Registro = { publicados: [] };
     const retorno = {
       pedido_uuid: PED, status: 'faturado_parcial' as const, numero_erp: 'ERP-54', motivo: null,
-      nota: { numero: '9001', serie: '1', emitida_em: EM(-5), total_cents: 6_500 },
+      nota: { numero: '9001', serie: '1', chave_acesso: '35261112345678000195550010000090011000090019', emitida_em: EM(-5), total_cents: 6_500 },
       itens_faturados: [{ sequencia: 1, produto_external_id: 'E1', quantidade: 6, valor_cents: 6_000 }, { sequencia: 9, produto_external_id: 'E9', quantidade: 1, valor_cents: 1 }],
       ocorrido_em: EM(-5),
     };
@@ -97,8 +97,8 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     expect(r).toEqual({ aplicado: true, de: 'approved', para: 'invoiced_partial', faturado_publicado: true });
     const p = (await admin.query('select status, numero_erp, total_faturado_cents::int as faturado_cents from vendedor.pedido where id = $1', [PED])).rows[0];
     expect(p).toEqual({ status: 'invoiced_partial', numero_erp: 'ERP-54', faturado_cents: 6_000 });
-    const fat = (await admin.query('select parcial, numero_erp, nota_numero, itens from vendedor.pedido_faturamento where pedido_id = $1', [PED])).rows;
-    expect(fat).toEqual([{ parcial: true, numero_erp: 'ERP-54', nota_numero: '9001', itens: [{ sequencia: 1, produto_id: P1, quantidade: 6, total_cents: 6_000 }] }]);
+    const fat = (await admin.query('select parcial, numero_erp, nota_numero, nota_chave_acesso, itens from vendedor.pedido_faturamento where pedido_id = $1', [PED])).rows;
+    expect(fat).toEqual([{ parcial: true, numero_erp: 'ERP-54', nota_numero: '9001', nota_chave_acesso: '35261112345678000195550010000090011000090019', itens: [{ sequencia: 1, produto_id: P1, quantidade: 6, total_cents: 6_000 }] }]);
     const itens = (await admin.query('select sequencia, quantidade_faturada from vendedor.pedido_item where pedido_id = $1 order by sequencia', [PED])).rows;
     expect(itens).toEqual([{ sequencia: 1, quantidade_faturada: 6 }, { sequencia: 2, quantidade_faturada: 0 }]);
     const ev = (await admin.query("select de, para, autor_nome, autor_id from vendedor.pedido_evento where pedido_id = $1", [PED])).rows;
@@ -124,7 +124,12 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     expect(p).toEqual({ status: 'invoiced', faturado_cents: 12_000, tem_data: true });
     const notas = await noTenant(A.tenantId, (db) => lerNotasDoPedido(db, PED));
     expect(notas.notas.map((n) => [n.nota_numero, n.parcial, n.unidades])).toEqual([['9001', true, 6], ['9002', false, 8]]);
+    // retorno com chave grava; sem chave fica nulo; o detalhe leva a chave por nota
+    expect(notas.notas.map((n) => n.nota_chave_acesso)).toEqual(['35261112345678000195550010000090011000090019', null]);
     const f = paraFaturamento({ faturado_cents: 12_000, devolvido_cents: 0 } as LinhaPedido, notas.notas, notas.devolucoes);
+    expect(f.notas.map((n) => n.chave_acesso)).toEqual(['35261112345678000195550010000090011000090019', null]);
+    // multi-tenant (RLS): o tenant B não lê nota do A
+    expect((await noTenant(B.tenantId, (db) => lerNotasDoPedido(db, PED))).notas).toEqual([]);
     expect(f).toMatchObject({ faturado_cents: 12_000, devolucao: 'nenhuma', notas: [{ numero: '9001', total_cents: 6_500 }, { numero: '9002', serie: null }] });
   });
 

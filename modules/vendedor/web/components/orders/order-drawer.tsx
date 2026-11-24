@@ -6,6 +6,8 @@ import { useAmbiente } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
+import { chaveAcessoAgrupada, rotuloAcessivelCopiarChave, rotuloCopiarChave } from '../../../domain/retorno-erp';
+import { copiarChaveNf } from '../../../app/lib/copiar-chave';
 import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { descontoDoPedidoPct } from '../../../domain/preco-pedido';
@@ -33,7 +35,17 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
   const ambiente = useAmbiente();
   const [erroPdf, setErroPdf] = useState<string | null>(null);
   const [gerando, setGerando] = useState<OrderPdfView | null>(null);
+  const [chaveCopiadaNaNota, setChaveCopiadaNaNota] = useState<number | null>(null);
+  const [chaveFalhouNaNota, setChaveFalhouNaNota] = useState<number | null>(null);
   const o = dados ?? order;
+
+  const copiarChave = async (chave: string | null | undefined, indice: number) => {
+    const r = await copiarChaveNf(chave, (t) => navigator.clipboard.writeText(t));
+    if (r.ok) {
+      setChaveFalhouNaNota(null);
+      setChaveCopiadaNaNota(indice);
+    } else setChaveFalhouNaNota(indice);
+  };
 
   const exportar = async (view: OrderPdfView) => {
     if (!dados) return;
@@ -158,15 +170,28 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                       </tr>
                     </thead>
                     <tbody>
-                      {dados.faturamento.notas.map((n, i) => (
+                      {dados.faturamento.notas.map((n, i) => {
+                        const chaveAgrupada = chaveAcessoAgrupada(n.chave_acesso);
+                        return (
                         <tr key={`nf-${n.numero ?? i}-${n.faturado_em}`}>
-                          <td className={`${td} tabular-nums whitespace-nowrap`}>{n.numero ? `${n.numero}${n.serie ? `/${n.serie}` : ''}` : '—'}</td>
+                          <td className={`${td} tabular-nums`}>
+                            <span className="whitespace-nowrap">{n.numero ? `${n.numero}${n.serie ? `/${n.serie}` : ''}` : '—'}</span>
+                            {chaveAgrupada ? (
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[12px] text-ink-2">
+                                <span data-testid={`pedido.nota-${i}.chave`}>Chave {chaveAgrupada}</span>
+                                <Button size="sm" className="!h-11" aria-label={rotuloAcessivelCopiarChave(n.numero)} onClick={() => void copiarChave(n.chave_acesso, i)} data-testid={`pedido.nota-${i}.copiar-chave`}>
+                                  {rotuloCopiarChave({ falhou: chaveFalhouNaNota === i, copiada: chaveCopiadaNaNota === i })}
+                                </Button>
+                              </div>
+                            ) : null}
+                          </td>
                           <td className={td}>{n.parcial ? 'Faturamento parcial' : 'Faturamento'}</td>
                           <td className={`${td} whitespace-nowrap`}>{formatDateTime(n.faturado_em, tz)}</td>
                           <td className={tdNum}>{n.unidades}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{n.total_cents === null ? '—' : formatBRL(n.total_cents)}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                       {dados.faturamento.devolucoes.map((d, i) => (
                         <tr key={`dev-${d.numero}-${i}`}>
                           <td className={`${td} tabular-nums whitespace-nowrap`}>{`${d.numero}${d.serie ? `/${d.serie}` : ''}`}</td>

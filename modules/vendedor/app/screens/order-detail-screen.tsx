@@ -35,7 +35,7 @@ import {
 } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Clipboard, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { DecisaoAprovador, OrderEvent } from '../../contracts';
@@ -44,11 +44,12 @@ import type { NivelDePreco } from '../../domain/preco-pedido';
 import { referenciaNoOrcamento } from '../../domain/aplicacao';
 import { soOrcamentoPorAlertas } from '../../domain/alertas-pedido';
 import { enviadoAoErp } from '../../domain/order';
-import { textoItemFaturado } from '../../domain/retorno-erp';
+import { chaveAcessoAgrupada, ROTULO_COPIAR_CHAVE, rotuloAcessivelCopiarChave, textoItemFaturado } from '../../domain/retorno-erp';
 import { vendedorDoPdf } from '../../domain/pedido-em-nome';
 import { AreaAlertas } from '../components/area-alertas';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { CartaoDeTotais, TABELA_DO_PEDIDO, TabelaDeItens } from '../components/tabelas-pedido';
+import { copiarChaveNf } from '../lib/copiar-chave';
 import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
@@ -626,7 +627,10 @@ export default function OrderDetailScreen() {
             <RotuloSecao texto="Faturamento" />
             <Card style={{ padding: 14, gap: 6 }}>
               {notasFaturamento.map((n, i) => (
-                <Row key={`nf-${n.numero ?? i}-${n.faturado_em}`} label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agoraTela, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
+                <View key={`nf-${n.numero ?? i}-${n.faturado_em}`} style={{ gap: 2 }}>
+                  <Row label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agoraTela, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
+                  <ChaveDaNota numero={n.numero} chave={n.chave_acesso} indice={i} onCopiada={sheets.mostrar} />
+                </View>
               ))}
               {devolucoes.map((d, i) => (
                 <Row key={`dev-${d.numero}-${i}`} label={`Devolução NF ${d.numero}${d.serie ? `/${d.serie}` : ''} · ${dateTimeLabel(d.emitida_em, agoraTela, tz)}`} value={`− ${formatBRL(d.total_cents)}`} />
@@ -750,6 +754,23 @@ export default function OrderDetailScreen() {
         <RodapeAcoes principal={principalDoRodape} acoes={iconesDaTela} testID="rodape-acoes" />
       ) : null}
       <AvisoRapido aviso={sheets.aviso} acima={rodapeFixo || decide ? 120 : 0} />
+    </View>
+  );
+}
+
+/** Chave de acesso da NF (44 dígitos em grupos de 4) e o botão que copia os dígitos sem espaços; sem chave válida não aparece. */
+function ChaveDaNota({ numero, chave, indice, onCopiada }: { numero: string | null | undefined; chave: string | null | undefined; indice: number; onCopiada: (aviso: string) => void }) {
+  const agrupada = chaveAcessoAgrupada(chave);
+  if (!agrupada) return null;
+  return (
+    <View>
+      <Text style={t.sub} testID={`nf-chave-${indice}`}>Chave {agrupada}</Text>
+      <LinkTexto
+        rotulo={ROTULO_COPIAR_CHAVE}
+        rotuloAcessivel={rotuloAcessivelCopiarChave(numero)}
+        onPress={() => void copiarChaveNf(chave, (texto) => Clipboard.setString(texto)).then((r) => onCopiada(r.aviso))}
+        testID={`nf-chave-copiar-${indice}`}
+      />
     </View>
   );
 }
