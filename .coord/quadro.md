@@ -244,7 +244,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 ## Adiantadas (domínio sem banco/telas) e backlog de outras sprints
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
-| [T-0195](tarefas/T-0195.md) | Atualização obrigatória do APK no Campo e na Gestão: sininho nas primeiras 24 h, depois só "Versão desatualizada, reinstale para continuar." | engenheiro-apps, modulo-core | — | backlog (R-20261123-200746-alexandre; fora da esteira até ordem do Alexandre) |
+| [T-0195](tarefas/T-0195.md) | Atualização obrigatória do APK no Campo e na Gestão: aviso no sininho nas primeiras 24 h, depois só a tela de reinstalar | gerente-projetos | — | backlog (R-20261123-200746-alexandre; fora da esteira até ordem do Alexandre) |
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | nuvem → local (merge 6fba044) | concluida (🔴 da fixture corrigido · 🟡 aplicados · API 37/37 com banco) |
 | [T-0011](tarefas/T-0011.md) | Treinamento — domínio (trilhas, XP, níveis, medalhas, ranking) | modulo-treinamento | nuvem → local (merge 9f06e77) | concluida (230 testes · revisão sem 🔴 · RN-TRE-01..08 aplicadas) |
 | [T-0012](tarefas/T-0012.md) | Pesquisa — domínio | modulo-pesquisa | nuvem → local (merge f4fdbe5) | concluida (215 testes · revisão sem 🔴 · decisões do Alexandre aplicadas · cliente fechado via RN-CORE-14) |
