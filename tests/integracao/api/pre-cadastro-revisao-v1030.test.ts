@@ -16,6 +16,7 @@
  *  f. Código FDV em todo cliente vivo; no Hub igual ao do Core; no corpo = 422 CODIGO_FDV_SOMENTE_LEITURA.
  *  g. 23505 em corrida real (mesmo id, mesmo documento) → `ja_existia` / 409 DOCUMENTO_JA_CADASTRADO; id de outro tenant → 409.
  *  i. o push `cliente_pre_cadastro` tem receptor (nunca SYNC_NAO_IMPLEMENTADO).
+ *  j. v1.0.34: vendedor_external_id = código no ERP de quem fez o pré-cadastro, do app ao Hub; sem vazar entre tenants.
  * O item h (outbox apagada) tem o teste de banco do engenheiro-software (apps/api/test/outbox-apagada.banco.test.ts).
  *
  * Premissas: licença `integracao` ligada no tenant e nos perfis admin e analista de A e B (como na T-0114); o Core não desliga
@@ -457,6 +458,31 @@ describe.skipIf(semBanco())('v1.0.30 — reenvio do pré-cadastro com histórico
     expect(log.linhas.some((l) => l.includes('retorno do cliente aplicado'))).toBe(true);
     for (const proibido of ['IE não confere com a UF', 'Endereço não encontrado', 'CNPJ baixado', CPF_NA_MENSAGEM, '12345678909', DOC_Y1, DOC_Y2, ...hashes]) {
       expect(texto.includes(proibido), `log com "${proibido.slice(0, 12)}…"`).toBe(false);
+    }
+  });
+
+  it('j. v1.0.34: vendedor_external_id = código no ERP de quem fez o pré-cadastro, do app ao Hub; sem vazar entre tenants', async () => {
+    const [V1, VB] = [randomUUID(), randomUUID()];
+    for (const id of [V1, VB]) DESTE_ARQUIVO.add(id);
+    const tokenVendedorB = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
+    const codigo = (id: string, valor: string | null) => api.admin.query('update core.usuario set external_id = $2 where id = $1', [id, valor]);
+    await codigo(A.usuarios.vendedor1, 'V-1034');
+    await codigo(B.usuarios.vendedor, 'V-B-1034');
+    try {
+      expect(await push(tk.vendedor1A, pre(V1, cnpj(71_034_001)))).toMatchObject({ id: V1, status: 'aceito' });
+      expect(await push(tokenVendedorB, pre(VB, cnpj(71_034_005)))).toMatchObject({ id: VB, status: 'aceito' });
+      await despachar();
+      expect(await falhasDos([V1, VB])).toEqual([]);
+
+      const deA = new Map((await erpA.pendentes()).map((c) => [c.cliente_uuid, c]));
+      expect(deA.get(V1)).toMatchObject({ vendedor_external_id: 'V-1034', revisao: 1 });
+      expect(JSON.stringify([...deA.values()])).not.toContain('V-B-1034');
+
+      const deB = await erpB.pendentes();
+      expect(deB.find((c) => c.cliente_uuid === VB)).toMatchObject({ vendedor_external_id: 'V-B-1034' });
+    } finally {
+      await codigo(A.usuarios.vendedor1, null);
+      await codigo(B.usuarios.vendedor, null);
     }
   });
 
