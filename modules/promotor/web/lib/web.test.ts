@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_PADRAO } from '../../domain/parametros';
 import { camposDoPainel, type PainelParametroTrade } from './parametros-trade';
-import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
-import { rupturaCsv, shareCsv } from './csv';
+import { BOM_CSV } from '@macuxi/comum/csv';
+import { paraCsv, rupturaCsv, shareCsv } from './csv';
 import { lerFiltrosTrade, paraBuscaTrade, paraQueryTrade } from './filtros';
 
 const LOJA = '00000000-0000-4000-8000-0000000000c1';
@@ -24,16 +24,8 @@ describe('filtros do BKO de trade na URL', () => {
 });
 
 describe('CSV do BKO de trade', () => {
-  it('célula com ; ou aspas vai entre aspas; número com vírgula decimal', () => {
-    expect(celulaCsvCompacta('A;B')).toBe('"A;B"');
-    expect(celulaCsvCompacta('diz "oi"')).toBe('"diz ""oi"""');
-    expect(celulaCsvCompacta(83.33)).toBe('83,33');
-    expect(celulaCsvCompacta(null)).toBe('');
-  });
-
-  it('texto que começa com = sai com apóstrofo (CWE-1236); número negativo não', () => {
-    expect(celulaCsvCompacta('=SOMA(A1:A2)')).toBe("'=SOMA(A1:A2)");
-    expect(celulaCsvCompacta(-10.5)).toBe('-10,5');
+  it('paraCsv: texto que começa com = sai com apóstrofo (CWE-1236); número negativo/decimal sai com vírgula', () => {
+    expect(paraCsv([['=SOMA(A1:A2)', -10.5, 83.33]])).toBe(`${BOM_CSV}'=SOMA(A1:A2);-10,5;83,33\r\n`);
   });
 
   it('share × meta e ruptura por loja, com BOM e CRLF', () => {
