@@ -8,7 +8,7 @@ import { travaDaChave } from '@macuxi/platform-sdk';
 import { modulosContrataveis, nomeDoModulo, type IdDoModulo } from '@macuxi/ui/web';
 import type { UsuarioItem } from '../../contracts';
 import type { Edicao } from './perfis';
-import { rotuloDaChave } from './perfis';
+import { CHAVES_SEM_EFEITO, rotuloDaChave } from './perfis';
 
 export interface ModuloExibivel {
   id: IdDoModulo;
@@ -108,7 +108,6 @@ export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   'transportadora.ver': 'Ver transportadoras',
   'transportadora.gerenciar': 'Cadastrar transportadoras',
   'forma_pagamento.ver': 'Ver formas de pagamento',
-  'forma_pagamento.gerenciar': 'Cadastrar formas de pagamento',
   // Gestor
   'painel_equipe.ver': 'Ver painel da equipe',
   'ranking_equipe.ver': 'Ver ranking da equipe',
@@ -189,7 +188,7 @@ export const entraNaGrade = (c: Pick<ChaveDoCatalogo, 'nivel' | 'alvos'>): boole
 export function linhasPorModulo(catalogo: readonly ChaveDoCatalogo[], modulos: readonly string[]): Record<string, LinhaDeAcesso[]> {
   const saida: Record<string, LinhaDeAcesso[]> = Object.fromEntries(modulos.map((m) => [m, []]));
   for (const c of catalogo) {
-    if (!entraNaGrade(c)) continue;
+    if (!entraNaGrade(c) || CHAVES_SEM_EFEITO.has(c.chave)) continue;
     const linhas = saida[c.modulo];
     if (!linhas) continue;
     const rotulo = rotuloDaPermissao(c.chave, c.descricao);

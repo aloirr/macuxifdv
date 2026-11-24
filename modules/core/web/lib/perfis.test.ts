@@ -45,6 +45,16 @@ describe('página Perfis de acesso (RN-CORE-35, RN-CORE-33, RN-CORE-04)', () => 
     expect(g.opcoes?.map((o) => o.valor)).toContain('equipes_abaixo');
   });
 
+  it('ADR 0072: a permissão sem efeito de formas de pagamento não aparece, mas a gravada segue no corpo ao salvar', () => {
+    const d = detalhe('vendedor', [chave('forma_pagamento.gerenciar', 'vendas'), chave('forma_pagamento.ver', 'vendas')]);
+    const { linhas, outras } = montarLinhas(d);
+    const rotulos = [...linhas.map((l) => l.rotulo), ...outras.flatMap((g) => g.linhas.map((l) => l.rotulo))];
+    expect(rotulos.some((r) => /Cadastrar formas de pagamento/.test(r))).toBe(false);
+    expect([...linhas.flatMap((l) => l.chaves), ...outras.flatMap((g) => g.linhas.flatMap((l) => l.chaves))]).not.toContain('forma_pagamento.gerenciar');
+    const corpo = corpoDoPerfil(edicaoInicial(d), { nome: 'V', descricao: '', ativo: true }, false);
+    expect(corpo.permissoes?.map((p) => p.chave)).toContain('forma_pagamento.gerenciar');
+  });
+
   it('spec §13: linha cuja chave não existe no catálogo some; chave sem linha cai em "Outras permissões"', () => {
     const { linhas, outras } = montarLinhas(detalhe());
     expect(linhas.some((l) => l.id === 'pedido-excluir')).toBe(false);
