@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Backup, Inativar/Reativar e Excluir na lista de Empresas do portal (R-20261114-195600-alexandre; ADR 0052; spec
+ * Backup, Inativar/Reativar, Zerar dados (ADR 0068, `dialogo-zerar.tsx`) e Excluir na lista de Empresas do portal (R-20261114-195600-alexandre; ADR 0052; spec
  * docs/design/telas/portal-config-enxuto.md §15). Só o time da Macuxi chega aqui (a lista é dele). Contrato e códigos: SDK
  * (`empresa-acoes.ts`); textos e estados puros em `lib/portal-empresa-acoes.ts`.
  * - Backup e Reativar sem confirmação; Inativar e Excluir com diálogo. Sem aviso de sucesso, a não ser no Excluir: o selo da
@@ -23,7 +23,10 @@ import {
 import { Button, CampoSenha, CLASSE_CAMPO, Dialog, ErrorBlock, MenuAcoes, Notice, cx, formatDateTimeFull, type AcaoDoMenu } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
+import { TEXTOS_ZERAR, zerarLigadoNoMenu } from '@/lib/portal-empresa-zerar';
 import { ACOMPANHAR_ACAO_MS, celulaDoBackup, type EmpresaResumo, rotuloDoExcluir, erroDoExcluir, estadoDasAcoes, rotaDaAcao, TEXTOS_EMPRESA_ACOES as T, type ErroDoExcluir } from '@/lib/portal-empresa-acoes';
+
+import { DialogoZerar } from './dialogo-zerar';
 
 type Empresa = EmpresaResumo & { acoes: AcoesDaEmpresa };
 type Aviso = { tom: 'success' | 'danger'; texto: string };
@@ -47,7 +50,7 @@ export function useAcoesDasEmpresas(chave: readonly unknown[]) {
   const [reativando, setReativando] = useState<ReadonlySet<string>>(new Set());
   const [backups, setBackups] = useState<Readonly<Record<string, { tenant: string; nome: string }>>>({});
   const [exclusoes, setExclusoes] = useState<Readonly<Record<string, { nome: string }>>>({});
-  const [dialogo, setDialogo] = useState<{ tipo: 'inativar' | 'excluir'; empresa: Empresa } | null>(null);
+  const [dialogo, setDialogo] = useState<{ tipo: 'inativar' | 'zerar' | 'excluir'; empresa: Empresa } | null>(null);
 
   const com = (s: ReadonlySet<string>, id: string) => new Set([...s, id]);
   const sem = (s: ReadonlySet<string>, id: string) => new Set([...s].filter((x) => x !== id));
@@ -102,7 +105,7 @@ export function useAcoesDasEmpresas(chave: readonly unknown[]) {
   }
   const fimDaExclusao = (tenant: string, situacao: string) => concluirExclusao(tenant, exclusoes[tenant]?.nome ?? '', situacao);
 
-  /** Itens do menu "⋯" da linha (ordem do §15.1; o Excluir, de perigo, vai por último). */
+  /** Itens do menu "⋯" da linha (ordem do §15.1; Zerar dados e Excluir, de perigo, por último, lado a lado). */
   function menu(e: Empresa): AcaoDoMenu[] {
     const ocupada = reativando.has(e.id) || !!exclusoes[e.id];
     const est = estadoDasAcoes(e.status, e.acoes, { pedindoBackup: pedindoBackup.has(e.id), ocupada });
@@ -117,6 +120,7 @@ export function useAcoesDasEmpresas(chave: readonly unknown[]) {
         aoEscolher: () => void reativar(e),
         testId: `empresas.reativar-${e.codigo}`,
       });
+    itens.push({ id: 'zerar', rotulo: TEXTOS_ZERAR.zerar, perigo: true, desligada: !zerarLigadoNoMenu(est), aoEscolher: () => setDialogo({ tipo: 'zerar', empresa: e }), testId: `empresas.zerar-${e.codigo}` });
     itens.push({ id: 'excluir', rotulo: rotuloDoExcluir(e.acoes), perigo: true, desligada: !est.excluirLigado, aoEscolher: () => setDialogo({ tipo: 'excluir', empresa: e }), testId: `empresas.excluir-${e.codigo}` });
     return itens;
   }
@@ -153,6 +157,7 @@ export function useAcoesDasEmpresas(chave: readonly unknown[]) {
           }}
         />
       )}
+      {dialogo?.tipo === 'zerar' && <DialogoZerar empresa={dialogo.empresa} aoFechar={() => setDialogo(null)} aoTerminar={recarregar} />}
       {dialogo?.tipo === 'excluir' && (
         <DialogoExcluir
           empresa={dialogo.empresa}

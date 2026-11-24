@@ -121,11 +121,15 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
     // quem não tem `lote.reprocessar` chega aqui com a senha de quem tem: a rota exige só o monitor e o domain decide o resto
     acao: 'monitor.ver',
     carteira: 'nao_se_aplica',
+    // ADR 0029 (desenho empresa-zerar §6.2): o super-admin reprocessa pelo portal como o admin de fábrica (tem `lote.reprocessar`), sem
+    // a autorização por senha; o admin do cliente no portal entra como o admin real do tenant, com as mesmas regras do BKO
+    superAdmin: 'aceita',
     params: Params,
     corpo: ReprocessarLoteEntrada,
     executar: async (ctx: ContextoRota<ReprocessarLoteEntrada, unknown, z.infer<typeof Params>>): Promise<ReprocessarLoteResposta> => {
       const tenantId = ctx.usuario.tenant_id;
-      const solicitantePode = pode(ctx.usuario.perfis, 'lote.reprocessar');
+      const viaSuperAdmin = !!ctx.superAdmin;
+      const solicitantePode = viaSuperAdmin || pode(ctx.usuario.perfis, 'lote.reprocessar');
       const { autorizador_id, senha } = ctx.corpo;
       return ctx.comTenant(async (db, tx) => {
         const l = await lerLoteTravado(db, tenantId, ctx.params.id);
@@ -176,7 +180,7 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
           entidade: 'lote',
           entidade_id: l.id,
           antes: { status: l.status },
-          depois: { status: 'recebido', via: autorizadoPor ? 'autorizado' : 'direto', autorizado_por: autorizadoPor },
+          depois: { status: 'recebido', via: viaSuperAdmin ? 'super_admin' : autorizadoPor ? 'autorizado' : 'direto', autorizado_por: autorizadoPor },
         });
         return { lote_id: l.id, reenfileiradas: l.com_erro, status: 'recebido' as const };
       });

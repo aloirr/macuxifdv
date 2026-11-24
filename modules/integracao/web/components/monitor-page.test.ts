@@ -19,3 +19,15 @@ describe('monitor-page: botão Atualizar (R-20261120-090347)', () => {
     expect(fonte).not.toMatch(/Sem resposta/);
   });
 });
+
+describe('monitor-page: um só ClienteIntegracaoProvider no BKO (engenheiro-apps v1.0.31)', () => {
+  const pagina = readFileSync(new URL('./monitor-page.tsx', import.meta.url), 'utf8');
+  const painel = readFileSync(new URL('./monitor-painel.tsx', import.meta.url), 'utf8');
+
+  it('RF-INT-04: a página passa o cliente ao `useMonitor` e ao painel; só o painel monta o provider', () => {
+    expect(pagina).not.toMatch(/ClienteIntegracaoProvider/);
+    expect(pagina).toMatch(/useMonitor\(cliente\)/);
+    expect(pagina).toMatch(/<MonitorPainel cliente=\{cliente\}/);
+    expect(painel.match(/<ClienteIntegracaoProvider/g)).toHaveLength(1);
+  });
+});

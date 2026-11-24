@@ -27,7 +27,7 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CAMINHOS_DE_GOVERNANCA, globParaRegex } from '../coord-lib.mjs';
+import { ARQUIVO_RETROATIVAS, CAMINHOS_DE_GOVERNANCA, globParaRegex, lerRetroativas, retroativasNoTopo } from '../coord-lib.mjs';
 
 const TRAILER_AGENTE = /^\s*Agente:[ \t]*(\S+)[ \t]*$/i;
 const RECADOS = globParaRegex('.coord/recados/**');
@@ -83,40 +83,7 @@ export function violacoesDeTrailer(commits, padroes = CAMINHOS_DE_GOVERNANCA) {
   return ruins;
 }
 
-export const ARQUIVO_RETROATIVAS = '.github/governanca-retroativa.json';
-const SHA_COMPLETO = /^[0-9a-f]{40}$/;
-const RECADO_DO_ALEXANDRE = /^R-\d{8}-\d{6}-alexandre$/;
-
-/**
- * Lista de autorizações retroativas (função pura). null/undefined = arquivo ausente (Map vazio).
- * Chaves que começam com "_" são comentário. Qualquer defeito lança Error (falha fechada).
- * @returns {Map<string, {sha: string, pr: number, recado: string, motivo: string}>}
- */
-export function lerRetroativas(texto) {
-  const mapa = new Map();
-  if (texto === null || texto === undefined) return mapa;
-  const falha = (msg) => new Error(`lista retroativa (${ARQUIVO_RETROATIVAS}) inválida: ${msg}`);
-  let dados;
-  try {
-    dados = JSON.parse(texto);
-  } catch (e) {
-    throw falha(`JSON quebrado (${e.message})`);
-  }
-  if (!dados || typeof dados !== 'object' || Array.isArray(dados) || !Array.isArray(dados.autorizacoes)) {
-    throw falha('esperado um objeto com o array "autorizacoes"');
-  }
-  dados.autorizacoes.forEach((it, i) => {
-    const onde = `autorizacoes[${i}]`;
-    if (!it || typeof it !== 'object' || Array.isArray(it)) throw falha(`${onde} não é objeto`);
-    if (typeof it.sha !== 'string' || !SHA_COMPLETO.test(it.sha)) throw falha(`${onde}.sha tem de ser o SHA completo (40 hex minúsculos)`);
-    if (typeof it.pr !== 'number' || !Number.isInteger(it.pr) || it.pr <= 0) throw falha(`${onde}.pr tem de ser inteiro positivo`);
-    if (typeof it.recado !== 'string' || !RECADO_DO_ALEXANDRE.test(it.recado)) throw falha(`${onde}.recado tem de ser um recado do Alexandre (R-AAAAMMDD-HHMMSS-alexandre)`);
-    if (typeof it.motivo !== 'string' || !it.motivo.trim()) throw falha(`${onde}.motivo vazio`);
-    if (mapa.has(it.sha)) throw falha(`${onde}.sha ${it.sha} repetido`);
-    mapa.set(it.sha, { sha: it.sha, pr: it.pr, recado: it.recado, motivo: it.motivo });
-  });
-  return mapa;
-}
+export { ARQUIVO_RETROATIVAS, lerRetroativas };
 
 /** Separa as violações de trailer em violações de fato e regularizadas pela lista retroativa (SHA exato). */
 export function separarRetroativas(ruins, autorizados) {
@@ -177,13 +144,6 @@ export function recadosDoDiff(base, topo, cwd) {
     mudancas.push({ status, caminho, texto });
   }
   return mudancas;
-}
-
-/** Texto da lista retroativa no commit TOPO; null se o caminho não existe nele (erro de git propaga: falha fechada). */
-export function retroativasNoTopo(topo, cwd) {
-  git(['rev-parse', '--verify', '--quiet', `${topo}^{commit}`], { cwd });
-  const existe = git(['ls-tree', '--name-only', '-z', topo, '--', ARQUIVO_RETROATIVAS], { cwd });
-  return listaZ(existe).includes(ARQUIVO_RETROATIVAS) ? git(['show', `${topo}:${ARQUIVO_RETROATIVAS}`], { cwd }) : null;
 }
 
 function rodarTrailer(intervalo) {

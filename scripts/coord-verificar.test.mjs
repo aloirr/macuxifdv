@@ -805,6 +805,30 @@ test('--por-commit: 3 commits de agentes diferentes, um invadindo caminho alheio
   assert.match(r.saida, /Resultado: VIOLAÇÃO — 1 de 3 commit\(s\) conferido\(s\)/);
 });
 
+test('--por-commit: squash da lista retroativa (ADR 0045, no topo do intervalo) conta como alexandre; lista inválida → 2', () => {
+  const dir = criarRepo();
+  // o fixture não tem dono para .github/**: a regra entra antes do intervalo (como no donos.json real)
+  escrever(dir, '.coord/donos.json', JSON.stringify({ ...DONOS, regras: [{ padrao: '.github/**', dono: 'engenheiro-software' }, ...DONOS.regras] }, null, 2));
+  commitar(dir, 'donos: .github');
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  escrever(dir, 'modules/core/a.ts', 'squash do gerente\n');
+  commitarComo(dir, 'gerente-projetos', 'v9: squash sem o rito');
+  const sha = git(dir, 'rev-parse', 'HEAD').trim();
+  const sem = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(sem.codigo, 1, sem.tudo);
+  const lista = { autorizacoes: [{ sha, pr: 9, recado: 'R-20261123-212947-alexandre', motivo: 'squash sem o rito' }] };
+  escrever(dir, '.github/governanca-retroativa.json', JSON.stringify(lista));
+  commitarComo(dir, 'alexandre', 'governança: regulariza o squash');
+  const com = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(com.codigo, 0, com.tudo);
+  assert.match(blocoDoCommit(com.saida, sha.slice(0, 7)), /agente: alexandre \(lista retroativa, PR #9, R-20261123-212947-alexandre\)/);
+  escrever(dir, '.github/governanca-retroativa.json', JSON.stringify({ autorizacoes: [{ sha: 'abc', pr: 9, recado: 'x', motivo: 'm' }] }));
+  commitarComo(dir, 'alexandre', 'governança: lista quebrada');
+  const ruim = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(ruim.codigo, 2, ruim.tudo);
+  assert.match(ruim.tudo, /lista retroativa \(\.github\/governanca-retroativa\.json\) inválida/);
+});
+
 test('--por-commit: sem invasão → 0; commit de merge é ignorado', () => {
   const dir = criarRepo();
   const inicio = git(dir, 'rev-parse', 'HEAD').trim();

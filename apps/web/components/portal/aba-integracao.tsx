@@ -26,6 +26,7 @@ import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
 import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import { BaixarPacote } from './baixar-conector';
+import { SecaoMonitor } from './secao-monitor';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
@@ -631,6 +632,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
         <Panel title="Credenciais">{lista(todos.filter((c) => c.tipo === 'nuvem'), 'Nenhuma credencial.', 'integracao.api-credenciais')}</Panel>
       </section>
 
+      <SecaoMonitor tenant={tenant} />
       <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmarAcao()} />
       <DialogoBases
         alvo={bases?.conector ?? null}

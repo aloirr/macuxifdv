@@ -21,7 +21,7 @@ import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarLimiteTentativas, criarRotaReprocessarLote, rotaCancelarLote, rotaCodigosMacuxi, rotaListarAutorizadores, verificadorSenhaIndisponivel, type VerificadorSenha } from './bko-lotes-acoes';
 import { criarRotasConectores } from './bko-conectores';
 import { rotaDownloadConector } from './conector-download';
-import { rotaMonitor } from './bko-monitor';
+import { rotaMonitor, rotaMonitorDetalhes } from './bko-monitor';
 import { documentoOpenApiPublico } from './openapi/publico';
 import { rotaGuiaPdf } from './guia-pdf-rota';
 import { rotaGravarPolitica, rotaLerPolitica } from './bko-politica';
@@ -69,7 +69,7 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined; 
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida, consumidorClientePreCadastrado, consumidorClientePreCadastroRevisado],
     consultas: [consultaCancelamentoErp],
-    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaLote, rotaErrosLote, rotaDownloadConector],
+    rotas: [rotaMonitor, rotaMonitorDetalhes, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCodigosMacuxi, rotaListarAutorizadores, rotaCancelarLote, criarRotaReprocessarLote({ verificarSenha: o.verificarSenha ?? verificadorSenhaIndisponivel, limite: criarLimiteTentativas() }), rotaLote, rotaErrosLote, rotaDownloadConector],
     // T-0092: especificação e guia em PDF públicos (sem token); ETag, 304 e Cache-Control são da plataforma
     rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }, rotaGuiaPdf],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),

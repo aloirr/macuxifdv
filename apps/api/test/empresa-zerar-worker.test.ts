@@ -1,0 +1,299 @@
+/**
+ * Worker do "Zerar dados" (ADR 0068; desenho docs/desenho/empresa-zerar.md §3 e §5) sem banco real: o pool falso responde às
+ * funções da 0100 (`pegar_zerar`, `executar_zerar`, `fechar_zerar`, `expurgar_zerar`, `pegar_previa_zerar`,
+ * `executar_previa_zerar`). A regra do que sai
+ * (`plataforma.limpar_cadastros`), a cópia e o restaurar são testados nos `*.db.test.ts` do banco-dados.
+ */
+import { CODIGOS_ZERAR_EMPRESA, ERROS_WORKER_ZERAR, TENTATIVAS_ZERAR, type LogRota } from '@macuxi/platform-sdk';
+import type pg from 'pg';
+import { describe, expect, it } from 'vitest';
+import {
+  criarConferenciaMigracao,
+  criarWorkerZerar,
+  ESPERAS_ZERAR_MS,
+  LOTE_EXPURGO_ZERAR,
+  SQL_EXECUTAR_ZERAR,
+  SQL_EXPURGAR_ZERAR,
+  SQL_FECHAR_ZERAR,
+  SQL_EXECUTAR_PREVIA_ZERAR,
+  SQL_EXISTE_0100,
+  SQL_PEGAR_PREVIA_ZERAR,
+  SQL_PEGAR_ZERAR,
+} from '../src/empresa-zerar-worker';
+
+const ZERAR = '9e000000-0000-4000-8000-000000000001';
+const EMPRESA = '0a000000-0000-4000-8000-000000000001';
+const PREVIA = '9f000000-0000-4000-8000-000000000001';
+const previaPronta = {
+  id: PREVIA,
+  situacao: 'pronta',
+  entidades: ['cliente'],
+  linhas: [{ ordem: 1, tabela: 'core.cliente', modo: 'soft', linhas: 30 }],
+  entidades_afetadas: ['cliente'],
+  total: 30,
+  bloqueio: null,
+  erro_codigo: null,
+  criado_em: '2026-11-23T12:00:00+00:00',
+};
+
+const concluido = {
+  id: ZERAR,
+  tenant_id: EMPRESA,
+  codigo: 'distrib',
+  entidades: ['cliente'],
+  entidades_afetadas: ['cliente', 'cliente_endereco'],
+  lote: '20261123T120000Z-9e000000',
+  situacao: 'concluido',
+  pedido_em: '2026-11-23T12:00:00+00:00',
+  concluido_em: '2026-11-23T12:01:00+00:00',
+  linhas_apagadas: 130,
+  contagem: [
+    { tabela: 'core.cliente', modo: 'soft', linhas: 30 },
+    { tabela: 'vendedor.pedido_item', modo: 'soft', linhas: 100 },
+  ],
+  copia_expira_em: '2026-11-30T12:01:00+00:00',
+  erro_codigo: null,
+};
+const erroPg = (code: string, hint?: string) => Object.assign(new Error(`erro com dado sensível ${code}`), { code, ...(hint ? { hint } : {}) });
+
+function poolFalso(o: {
+  pedidos?: string[];
+  executar?: (n: number) => unknown;
+  expurgados?: number[];
+  previas?: string[];
+  executarPrevia?: () => unknown;
+}) {
+  const sqls: { sql: string; args: unknown[] }[] = [];
+  const pedidos = [...(o.pedidos ?? [])];
+  const previas = [...(o.previas ?? [])];
+  let execucoes = 0;
+  const responder = async (sql: string, args: unknown[] = []) => {
+    sqls.push({ sql, args });
+    if (sql === SQL_PEGAR_ZERAR) {
+      const id = pedidos.shift();
+      return { rows: id ? [{ id, empresa_id: EMPRESA }] : [] };
+    }
+    if (sql === SQL_EXECUTAR_ZERAR) {
+      execucoes += 1;
+      const r = o.executar?.(execucoes) ?? concluido;
+      if (r instanceof Error) throw r;
+      return { rows: [{ r }] };
+    }
+    if (sql === SQL_PEGAR_PREVIA_ZERAR) {
+      const id = previas.shift();
+      return { rows: id ? [{ id, empresa_id: EMPRESA }] : [] };
+    }
+    if (sql === SQL_EXECUTAR_PREVIA_ZERAR) {
+      const r = o.executarPrevia?.() ?? previaPronta;
+      if (r instanceof Error) throw r;
+      return { rows: [{ r }] };
+    }
+    if (sql === SQL_EXPURGAR_ZERAR) return { rows: [{ n: o.expurgados?.shift() ?? 0 }] };
+    return { rows: [] };
+  };
+  const cliente = { query: responder, release: () => undefined };
+  const pool = { query: responder, connect: async () => cliente } as unknown as Pick<pg.Pool, 'connect' | 'query'>;
+  return { pool, sqls, de: (sql: string) => sqls.filter((s) => s.sql === sql) };
+}
+
+function logFalso() {
+  const linhas: { nivel: string; o: Record<string, unknown> }[] = [];
+  const log: LogRota = {
+    info: (o) => void linhas.push({ nivel: 'info', o }),
+    warn: (o) => void linhas.push({ nivel: 'warn', o }),
+    error: (o) => void linhas.push({ nivel: 'error', o }),
+  };
+  return { log, linhas };
+}
+
+describe('worker do Zerar dados (ADR 0068)', () => {
+  it('sem pedido: nada roda', async () => {
+    const { pool, sqls } = poolFalso({});
+    expect(await criarWorkerZerar({ pool }).ciclo()).toBeNull();
+    expect(sqls.map((s) => s.sql)).toEqual([SQL_PEGAR_ZERAR]);
+  });
+
+  it('executa numa transação com prazo de 15 min e lock_timeout; log só com ids e contagens', async () => {
+    const { pool, sqls } = poolFalso({ pedidos: [ZERAR] });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).ciclo()).toBe('concluido');
+    expect(sqls.map((s) => s.sql)).toEqual([
+      SQL_PEGAR_ZERAR,
+      'begin',
+      "set local statement_timeout = '15min'",
+      "set local lock_timeout = '5s'",
+      SQL_EXECUTAR_ZERAR,
+      'commit',
+    ]);
+    expect(linhas).toEqual([
+      { nivel: 'info', o: { tipo: 'zerar', zerar_id: ZERAR, tenant_alvo_id: EMPRESA, tentativa: 1, situacao: 'concluido', entidades: ['cliente'], entidades_afetadas: ['cliente', 'cliente_endereco'], linhas_apagadas: 130, tabelas: 2 } },
+    ]);
+  });
+
+  it(`escrita concorrente: ${TENTATIVAS_ZERAR} tentativas com as esperas do desenho e, na última, fechar_zerar(ZERAR_CONCORRENCIA)`, async () => {
+    const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: (n) => erroPg(['23503', '40P01', '55P03'][n - 1]!) });
+    const esperas: number[] = [];
+    const { log, linhas } = logFalso();
+    const w = criarWorkerZerar({ pool, log, esperar: async (ms) => void esperas.push(ms) });
+    expect(await w.ciclo()).toBe('falhou');
+    expect(de(SQL_EXECUTAR_ZERAR)).toHaveLength(TENTATIVAS_ZERAR);
+    expect(de('rollback')).toHaveLength(TENTATIVAS_ZERAR);
+    expect(esperas).toEqual([...ESPERAS_ZERAR_MS]);
+    expect(de(SQL_FECHAR_ZERAR).map((s) => s.args)).toEqual([[ZERAR, ERROS_WORKER_ZERAR.concorrencia]]);
+    expect(JSON.stringify(linhas)).not.toContain('sensível');
+  });
+
+  it('concorrência que passa na 2ª tentativa conclui', async () => {
+    const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: (n) => (n === 1 ? erroPg('40001') : concluido) });
+    expect(await criarWorkerZerar({ pool, esperar: async () => undefined }).ciclo()).toBe('concluido');
+    expect(de(SQL_FECHAR_ZERAR)).toEqual([]);
+  });
+
+  it('outro erro (inclusive 23505 lote repetido): sem nova tentativa, fechar_zerar(ZERAR_FALHOU)', async () => {
+    for (const estado of ['XX000', '23505']) {
+      const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: () => erroPg(estado) });
+      expect(await criarWorkerZerar({ pool }).ciclo()).toBe('falhou');
+      expect(de(SQL_EXECUTAR_ZERAR)).toHaveLength(1);
+      expect(de(SQL_FECHAR_ZERAR).map((s) => s.args)).toEqual([[ZERAR, ERROS_WORKER_ZERAR.falhou]]);
+    }
+  });
+
+  it('a executar_zerar recusou na conferência (fechou falhou com o código): sem fechar_zerar, log com o código', async () => {
+    const recusado = { ...concluido, situacao: 'falhou', concluido_em: null, linhas_apagadas: null, contagem: null, copia_expira_em: null, entidades_afetadas: null, erro_codigo: 'BACKUP_EM_ANDAMENTO' };
+    const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: () => recusado });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).ciclo()).toBe('falhou');
+    expect(de(SQL_FECHAR_ZERAR)).toHaveLength(0);
+    expect(linhas).toEqual([
+      { nivel: 'warn', o: { tipo: 'zerar', zerar_id: ZERAR, tenant_alvo_id: EMPRESA, tentativa: 1, situacao: 'falhou', erro_codigo: 'BACKUP_EM_ANDAMENTO' } },
+    ]);
+  });
+
+  it('recusa da executar_zerar (Hub processando, volume alto): fecha com o próprio código, sem nova tentativa', async () => {
+    for (const codigo of [CODIGOS_ZERAR_EMPRESA.hubProcessando, CODIGOS_ZERAR_EMPRESA.volumeAlto]) {
+      const estado = codigo === CODIGOS_ZERAR_EMPRESA.hubProcessando ? '55000' : '22023';
+      const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: () => erroPg(estado, codigo) });
+      expect(await criarWorkerZerar({ pool }).ciclo()).toBe('falhou');
+      expect(de(SQL_EXECUTAR_ZERAR)).toHaveLength(1);
+      expect(de(SQL_FECHAR_ZERAR).map((s) => s.args)).toEqual([[ZERAR, codigo]]);
+    }
+  });
+
+  it('descarte das cópias vencidas: uma chamada com o limite; o número volta e vai ao log', async () => {
+    const { pool, de } = poolFalso({ expurgados: [3] });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).expurgar()).toBe(3);
+    expect(de(SQL_EXPURGAR_ZERAR).map((s) => s.args)).toEqual([[LOTE_EXPURGO_ZERAR]]);
+    expect(linhas).toEqual([{ nivel: 'info', o: { tipo: 'zerar', etapa: 'expurgo', expurgados: 3 } }]);
+    const vazio = poolFalso({});
+    expect(await criarWorkerZerar({ pool: vazio.pool, log }).expurgar()).toBe(0);
+    expect(linhas).toHaveLength(1);
+  });
+
+  it('resposta da executar_zerar fora do contrato: a transação confirmou, log warn "fora do contrato" (não "concluído")', async () => {
+    const { pool, de } = poolFalso({ pedidos: [ZERAR], executar: () => ({ id: ZERAR }) });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).ciclo()).toBe('concluido');
+    expect(de('commit')).toHaveLength(1);
+    expect(linhas).toEqual([
+      { nivel: 'warn', o: { tipo: 'zerar', zerar_id: ZERAR, tenant_alvo_id: EMPRESA, tentativa: 1 } },
+    ]);
+  });
+});
+
+describe('worker da prévia do Zerar dados (ADR 0068, D1 da revisão)', () => {
+  it('sem prévia: nada roda', async () => {
+    const { pool, sqls } = poolFalso({});
+    expect(await criarWorkerZerar({ pool }).cicloPrevia()).toBeNull();
+    expect(sqls.map((s) => s.sql)).toEqual([SQL_PEGAR_PREVIA_ZERAR]);
+  });
+
+  it('conta numa transação com prazo de 15 min e lock_timeout (fora do pool do portal); log só com ids e contagens', async () => {
+    const { pool, sqls } = poolFalso({ previas: [PREVIA] });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).cicloPrevia()).toBe('pronta');
+    expect(sqls.map((s) => s.sql)).toEqual([
+      SQL_PEGAR_PREVIA_ZERAR,
+      'begin',
+      "set local statement_timeout = '15min'",
+      "set local lock_timeout = '5s'",
+      SQL_EXECUTAR_PREVIA_ZERAR,
+      'commit',
+    ]);
+    expect(sqls.find((s) => s.sql === SQL_EXECUTAR_PREVIA_ZERAR)?.args).toEqual([PREVIA]);
+    expect(linhas).toEqual([
+      { nivel: 'info', o: { tipo: 'zerar_previa', previa_id: PREVIA, tenant_alvo_id: EMPRESA, situacao: 'pronta', total: 30, tabelas: 1, bloqueio: null, erro_codigo: null } },
+    ]);
+  });
+
+  it('erro na prévia: ROLLBACK, sem nova tentativa nem fechar (o banco fecha no teto); log sem a mensagem do banco', async () => {
+    const { pool, de } = poolFalso({ previas: [PREVIA], executarPrevia: () => erroPg('57014') });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).cicloPrevia()).toBe('falhou');
+    expect(de(SQL_EXECUTAR_PREVIA_ZERAR)).toHaveLength(1);
+    expect(de('rollback')).toHaveLength(1);
+    expect(de(SQL_FECHAR_ZERAR)).toEqual([]);
+    expect(linhas).toEqual([{ nivel: 'error', o: { tipo: 'zerar_previa', previa_id: PREVIA, tenant_alvo_id: EMPRESA, sqlstate: '57014' } }]);
+    expect(JSON.stringify(linhas)).not.toContain('sensível');
+  });
+
+  it('prévia fora do contrato = falhou com warn', async () => {
+    const { pool } = poolFalso({ previas: [PREVIA], executarPrevia: () => ({ ...previaPronta, total: null }) });
+    const { log, linhas } = logFalso();
+    expect(await criarWorkerZerar({ pool, log }).cicloPrevia()).toBe('falhou');
+    expect(linhas.map((l) => l.nivel)).toEqual(['warn']);
+  });
+});
+
+describe('subida do zerar: a conferência da 0100 (revisão, 🟡 worker:187)', () => {
+  const poolConferencia = (respostas: (boolean | Error)[]) => {
+    let n = 0;
+    return {
+      chamadas: () => n,
+      pool: {
+        query: async (sql: string) => {
+          expect(sql).toBe(SQL_EXISTE_0100);
+          const r = respostas[n++];
+          if (r instanceof Error) throw r;
+          return { rows: [{ ok: r }] };
+        },
+      } as unknown as Pick<pg.Pool, 'query'>,
+    };
+  };
+
+  it('banco fora na subida não desliga: o erro sobe ao laço e a próxima chamada confere de novo', async () => {
+    const p = poolConferencia([new Error('ECONNREFUSED'), true]);
+    const { log, linhas } = logFalso();
+    const ativo = criarConferenciaMigracao(p.pool, log);
+    await expect(ativo()).rejects.toThrow('ECONNREFUSED');
+    expect(await ativo()).toBe(true);
+    expect(await ativo()).toBe(true);
+    expect(p.chamadas()).toBe(2);
+    expect(linhas).toEqual([{ nivel: 'info', o: { tipo: 'zerar' } }]);
+  });
+
+  it('sem a 0100: desligado, um log só, sem conferir de novo', async () => {
+    const p = poolConferencia([false]);
+    const { log, linhas } = logFalso();
+    const ativo = criarConferenciaMigracao(p.pool, log);
+    expect(await ativo()).toBe(false);
+    expect(await ativo()).toBe(false);
+    expect(p.chamadas()).toBe(1);
+    expect(linhas).toHaveLength(1);
+  });
+
+  it('os laços pulam o ciclo enquanto desligado e rodam a prévia quando ligado', async () => {
+    const { pool, de } = poolFalso({ previas: [PREVIA] });
+    let ligado = false;
+    const w = criarWorkerZerar({ pool });
+    const desligado = w.iniciar({ intervaloMs: 60_000, intervaloPreviaMs: 60_000, intervaloExpurgoMs: 60_000, ativo: async () => ligado });
+    await desligado.parar();
+    expect(de(SQL_PEGAR_ZERAR)).toEqual([]);
+    expect(de(SQL_PEGAR_PREVIA_ZERAR)).toEqual([]);
+    ligado = true;
+    const exec = w.iniciar({ intervaloMs: 60_000, intervaloPreviaMs: 60_000, intervaloExpurgoMs: 60_000, ativo: async () => ligado });
+    await exec.parar();
+    expect(de(SQL_EXECUTAR_PREVIA_ZERAR).map((s) => s.args)).toEqual([[PREVIA]]);
+    expect(de(SQL_PEGAR_ZERAR)).toHaveLength(1);
+  });
+});
