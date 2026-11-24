@@ -3,14 +3,11 @@
  * filtro da tela. Nada de regra aqui: os números vêm prontos da API (domain `painelDeAdesao`).
  */
 import type { BkoTrilhaResumo, PessoaDoPainelContrato } from '../../contracts';
-import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta, type ValorCsv } from '@macuxi/comum/csv';
 import { DEFAULT_TZ, formatDateTimeFull, rotuloDoPerfil } from '@macuxi/ui/web';
 
-/** Texto passa por `celulaCsvCompacta` (fórmula protegida, CWE-1236); número sai como está (negativo não é fórmula). */
-export function toCsv(rows: Array<Array<string | number | null | undefined>>): string {
-  const celula = (v: string | number | null | undefined): string =>
-    typeof v === 'number' ? String(v) : celulaCsvCompacta(v ?? '');
-  return BOM_CSV + rows.map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
+export function toCsv(rows: Array<Array<ValorCsv>>): string {
+  return BOM_CSV + rows.map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
 
 /** Percentual com vírgula e 2 casas; vazio quando não há dado (`null`, ex.: público vazio). */
