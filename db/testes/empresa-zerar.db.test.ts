@@ -68,6 +68,9 @@ const DO_DONO = [
   'plataforma.zerar_bloqueado(uuid, uuid, bigint)',
   'plataforma.zerar_empresa_json(plataforma.zerar_empresa)',
   'plataforma.zerar_previa_json(plataforma.zerar_previa)',
+  'plataforma.zerar_max_linhas()',
+  'plataforma.zerar_max_pegadas()',
+  'plataforma.resumir_limpeza(uuid, text, text[], boolean, boolean)',
 ];
 /** Saíram do desenho anterior da 0100 (não podem existir). */
 const SAIRAM = [
@@ -156,24 +159,49 @@ describe('0100 zerar dados da empresa (estático)', () => {
     expect(up).toContain('drop table public.macuxi_limpeza_backup;');
   });
 
-  it('listas do contrato: situações, lote, modos, 7 dias e 2 milhões', () => {
+  it('listas do contrato: situações, lote, modos, 7 dias, 2 milhões e 3 pegadas (os tetos num lugar só)', () => {
     const lista = (re: RegExp) => [...(re.exec(up)?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
     expect(lista(/constraint zerar_empresa_situacao_valida check \(situacao in \(([^)]+)\)\)/)).toEqual(SITUACOES_ZERAR);
     expect(lista(/constraint zerar_previa_situacao_valida check \(situacao in \(([^)]+)\)\)/)).toEqual(SITUACOES_PREVIA);
     expect(up).toContain("expira_em       timestamptz not null default now() + interval '1 hour',");
+    // RD-2685: cada teto só na sua função; os 6 pontos leem dela
+    expect(bloco(up, 'create function plataforma.zerar_max_linhas(')).toMatch(
+      new RegExp(`language sql immutable security invoker[\\s\\S]*select ${LIMITE_LINHAS_ZERAR}::bigint`));
+    expect(bloco(up, 'create function plataforma.zerar_max_pegadas(')).toMatch(
+      new RegExp(`language sql immutable security invoker[\\s\\S]*select ${TETO_TENTATIVAS}\\s`));
+    expect(up.replace(/--.*$/gm, '').match(new RegExp(`\\b${LIMITE_LINHAS_ZERAR}\\b`, 'g'))).toHaveLength(1);
+    expect(up).not.toMatch(/tentativas [<>]=? *[1-9]/);
+    expect(bloco(up, 'create function plataforma.pegar_zerar(')).toContain("perform plataforma.fechar_zerar(v_z.id, 'ZERAR_FALHOU');");
+    const previas = bloco(up, 'create function plataforma.pegar_previa_zerar(');
+    expect(previas).toContain("erro_codigo = 'ZERAR_FALHOU'");
     for (const f of ['pegar_zerar', 'pegar_previa_zerar']) {
       const b = bloco(up, `create function plataforma.${f}(`);
-      expect(b, f).toContain(`tentativas >= ${TETO_TENTATIVAS}`);
-      expect(b, f).toContain(`tentativas < ${TETO_TENTATIVAS}`);
-      expect(b, f).toContain("erro_codigo = 'ZERAR_FALHOU'");
+      expect(b, f).toContain('tentativas >= plataforma.zerar_max_pegadas()');
+      expect(b, f).toContain('tentativas < plataforma.zerar_max_pegadas()');
     }
     expect(up).toContain(`'${LOTE_LIMPEZA_FORMATO.source}'`);
     const modos = new Set(['soft', 'fisico', ...[...up.matchAll(/insert into _limpeza_resumo values \(\d+, '[a-z_.]+', '([a-z_]+)'/g)].map((x) => x[1]!)]);
     expect([...modos].sort()).toEqual([...MODOS_LIMPEZA].sort());
     const executar = bloco(up, 'create function plataforma.executar_zerar(');
     expect(executar).toContain(`copia_expira_em = v_agora + interval '${RETENCAO_COPIA_ZERAR_DIAS} days'`);
-    expect(executar).toContain(`if v_total > ${LIMITE_LINHAS_ZERAR} then`);
-    expect(bloco(up, 'create function plataforma.zerar_bloqueado(')).toContain(`if p_total > ${LIMITE_LINHAS_ZERAR} then`);
+    expect(executar).toContain('if v_total > plataforma.zerar_max_linhas() then');
+    expect(bloco(up, 'create function plataforma.zerar_bloqueado(')).toContain('if p_total > plataforma.zerar_max_linhas() then');
+  });
+
+  it('um lugar só: falhou + auditoria na fechar_zerar (RD-2686) e o resumo na resumir_limpeza (RD-2687)', () => {
+    const semComentarios = up.replace(/--.*$/gm, '');
+    expect(semComentarios.match(/'tenant\.zerar_falhou'/g)).toHaveLength(1);
+    expect(bloco(up, 'create function plataforma.fechar_zerar(')).toContain("'tenant.zerar_falhou'");
+    expect(bloco(up, 'create function plataforma.executar_zerar(')).toContain('return plataforma.fechar_zerar(p_zerar, v_bloqueio);');
+    expect(semComentarios.match(/filter \(where l\.r_modo in \('soft', 'fisico'\)\)/g)).toHaveLength(1);
+    expect(bloco(up, 'create function plataforma.resumir_limpeza(')).toContain("filter (where l.r_modo in ('soft', 'fisico'))");
+    for (const f of ['executar_zerar', 'executar_previa_zerar']) {
+      const b = bloco(up, `create function plataforma.${f}(`);
+      expect(b, f).toContain('from plataforma.resumir_limpeza(');
+      expect(b, f).not.toContain('plataforma.limpar_cadastros(');
+    }
+    // contagem do zerar = LinhaLimpezaSchema (.strict(), sem a ordem)
+    expect(bloco(up, 'create function plataforma.executar_zerar(')).toContain("jsonb_agg(e.x - 'ordem' order by e.n)");
   });
 
   it('zerar_bloqueado: as recusas na ordem da RN-PLA-12 (exclusão, zerar, backup, Hub, volume)', () => {
@@ -235,7 +263,7 @@ describe('0100 zerar dados da empresa (estático)', () => {
     expect(corpo).toContain('perform 1 from integracao.lote l where l.tenant_id = p_tenant for update;');
     expect(corpo).toMatch(/if not p_simular then\s+perform 1 from integracao\.conector/);
     const previa = bloco(up, 'create function plataforma.executar_previa_zerar(');
-    expect(previa).toMatch(/v_p\.entidades, false, true\) l;/);
+    expect(previa).toMatch(/v_p\.entidades, false, true\) r;/);
     expect(previa).toContain("raise exception 'prévia desfeita' using errcode = 'MXZ99';");
   });
 });

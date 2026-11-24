@@ -1455,24 +1455,36 @@ entidades_afetadas, total, bloqueio, erro_codigo, criado_em }`. `linhas` (só as
 `executar_zerar` em 1 min 27 s; a prévia (simular) em 23 s.
 
 `zerar_bloqueado(p_tenant, p_zerar, p_total)` (interna) é a fonte única do bloqueio (RN-PLA-12): exclusão (ou `encerrado`), zerar,
-backup, lote do Hub em `processando`, volume acima de 2 milhões. Chega à tela pelo `bloqueio` da prévia e pelo `erro_codigo` do
-zerar recusado no worker (`sa_ler_zerar`).
+backup, lote do Hub em `processando`, volume acima de `zerar_max_linhas()`. Chega à tela pelo `bloqueio` da prévia e pelo
+`erro_codigo` do zerar recusado no worker (`sa_ler_zerar`).
+
+Internas de um lugar só (SECURITY INVOKER, sem EXECUTE para ninguém; só as funções da 0100 chamam):
+- `zerar_max_linhas() returns bigint` (immutable, 2.000.000) — o teto de linhas do portal, lido pela `zerar_bloqueado` e pela
+  `executar_zerar`;
+- `zerar_max_pegadas() returns integer` (immutable, 3) — o teto de vezes que o worker pega o mesmo zerar (`pegar_zerar`) ou a mesma
+  prévia (`pegar_previa_zerar`) sem fechar;
+- `resumir_limpeza(p_tenant, p_lote, p_entidades, p_exigir_hub_parado, p_simular) returns table (linhas jsonb, total bigint)` — o
+  resumo da `limpar_cadastros`: `linhas` = as com contagem, na ordem do resumo, com `ordem`; `total` = soft + físico. A
+  `executar_previa_zerar` grava as `linhas` como vêm; a `executar_zerar` grava a `contagem` sem a `ordem` (`LinhaLimpezaSchema` é
+  `.strict()`).
 
 ### Worker (SECURITY DEFINER; EXECUTE só ao `macuxi_worker`; o tenant sai da linha do job)
 - `pegar_previa_zerar() returns table (id uuid, empresa_id uuid)` — apaga as vencidas (até 500), fecha `falhou` `ZERAR_FALHOU` a
-  pegada 3 vezes sem fechar e devolve a próxima em andamento, viva, sem concessão (`skip locked`), 2 min, `tentativas + 1`.
-- `executar_previa_zerar(p_previa uuid) returns jsonb` — a `limpar_cadastros(tenant, lote, entidades, false, true)` (simular, sem
+  pegada `zerar_max_pegadas()` vezes sem fechar e devolve a próxima em andamento, viva, sem concessão (`skip locked`), 2 min,
+  `tentativas + 1`.
+- `executar_previa_zerar(p_previa uuid) returns jsonb` — a `resumir_limpeza(tenant, lote, entidades, false, true)` (simular, sem
   trava do Hub) numa subtransação desfeita; grava `pronta` com o resultado; erro = `falhou` `ZERAR_FALHOU`; empresa que saiu =
   `falhou` `TENANT_NAO_ENCONTRADO`; já fechada = devolve.
 - `pegar_zerar() returns table (id uuid, empresa_id uuid)` — fecha `falhou` `ZERAR_FALHOU` (auditoria `tenant.zerar_falhou`) o
-  pegado 3 vezes sem fechar (o processo caiu no meio; nada foi apagado); devolve o próximo em andamento sem concessão viva
-  (`skip locked`), 10 min, `tentativas + 1`; nenhum = nenhuma linha.
-- `executar_zerar(p_zerar uuid) returns jsonb` — reconfere (bloqueio = `falhou` com o código, nada muda, sem erro); roda a
-  `limpar_cadastros(tenant, lote, entidades, true, false)`; acima de 2 milhões = 22023 `ZERAR_VOLUME_ALTO` (desfaz); lote do Hub no meio
-  = 55000 `ZERAR_HUB_PROCESSANDO`; fecha `concluido` com a `contagem`, as `entidades_afetadas` e a cópia por 7 dias; auditoria
+  pegado `zerar_max_pegadas()` vezes sem fechar, pela `fechar_zerar` (o processo caiu no meio; nada foi apagado); devolve o
+  próximo em andamento sem concessão viva (`skip locked`), 10 min, `tentativas + 1`; nenhum = nenhuma linha.
+- `executar_zerar(p_zerar uuid) returns jsonb` — reconfere (bloqueio = `fechar_zerar` com o código, nada muda, sem erro); roda a
+  `resumir_limpeza(tenant, lote, entidades, true, false)`; acima de `zerar_max_linhas()` = 22023 `ZERAR_VOLUME_ALTO` (desfaz); lote
+  do Hub no meio = 55000 `ZERAR_HUB_PROCESSANDO`; fecha `concluido` com a `contagem`, as `entidades_afetadas` e a cópia por 7 dias; auditoria
   `tenant.zerado` (payload de `plataforma.tenant.zerado@1`: `tenant_id`, `codigo`, `zerar_id`, `lote`, `entidades`,
   `linhas_apagadas`, `copia_expira_em`, `zerado_em`). Já fechado = devolve.
-- `fechar_zerar(p_zerar uuid, p_erro_codigo text) returns jsonb` — `falhou` com o código; já falhou = devolve; concluído = 55000.
+- `fechar_zerar(p_zerar uuid, p_erro_codigo text) returns jsonb` — `falhou` com o código e a auditoria `tenant.zerar_falhou` (o
+  único lugar; `pegar_zerar` e `executar_zerar` também fecham por ela); já falhou = devolve; concluído = 55000.
 - `expurgar_zerar(p_limite integer) returns integer` — até `p_limite` (1..500) zerar concluídos vencidos: apaga a cópia do lote e
   marca `expurgado_em`; devolve quantos. Os lotes do workflow não entram.
 

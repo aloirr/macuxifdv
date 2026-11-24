@@ -25,7 +25,8 @@
 --    As três sem tenant_id nem FK (sobrevivem à excluir_tenant, como as da 0072); a cópia sai pelo descarte ou pelo expurgo.
 -- 2. A regra (sem EXECUTE para ninguém; só o dono): limpar_cadastros (SECURITY DEFINER), mapa_limpeza_entidades,
 --    entidades_limpeza_ordenadas e entidades_afetadas_limpeza; a volta e o descarte do workflow: restaurar_limpeza e
---    descartar_limpeza (SECURITY INVOKER); as internas zerar_bloqueado e zerar_empresa_json.
+--    descartar_limpeza (SECURITY INVOKER); as internas zerar_max_linhas e zerar_max_pegadas (os tetos), resumir_limpeza,
+--    zerar_bloqueado, zerar_empresa_json e zerar_previa_json.
 -- 3. Portal (SECURITY DEFINER; EXECUTE só ao macuxi_portal; sessão inválida 28000, admin do cliente 42501; código do contrato no
 --    hint: 55000 = 409, 22023 = 422, P0002 = 404): sa_pedir_previa_zerar, sa_ler_previa_zerar, sa_pedir_zerar e sa_ler_zerar
 --    (42 sa_* no portal).
@@ -605,6 +606,41 @@ end
 $$;
 revoke all on function plataforma.descartar_limpeza(uuid, text) from public;
 
+-- Os tetos do zerar (um lugar só; a prévia, o pedido e o worker leem daqui): linhas que o portal apaga (RN-PLA-12) e vezes que o
+-- worker pega o mesmo zerar ou a mesma prévia sem fechar.
+create function plataforma.zerar_max_linhas()
+  returns bigint
+  language sql immutable security invoker
+  set search_path = pg_catalog, pg_temp
+  as $$
+    select 2000000::bigint
+  $$;
+revoke all on function plataforma.zerar_max_linhas() from public;
+
+create function plataforma.zerar_max_pegadas()
+  returns integer
+  language sql immutable security invoker
+  set search_path = pg_catalog, pg_temp
+  as $$
+    select 3
+  $$;
+revoke all on function plataforma.zerar_max_pegadas() from public;
+
+-- O resumo da limpar_cadastros (um lugar só; executar_zerar e executar_previa_zerar): linhas = as com contagem, na ordem do resumo,
+-- com a ordem; total = o que sai (soft + físico).
+create function plataforma.resumir_limpeza(p_tenant uuid, p_lote text, p_entidades text[], p_exigir_hub_parado boolean,
+                                           p_simular boolean)
+  returns table (linhas jsonb, total bigint)
+  language sql volatile security invoker
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+    select coalesce(jsonb_agg(jsonb_build_object('ordem', l.r_ordem, 'tabela', l.r_tabela, 'modo', l.r_modo, 'linhas', l.r_linhas)
+                              order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
+           coalesce(sum(l.r_linhas) filter (where l.r_modo in ('soft', 'fisico')), 0)::bigint
+      from plataforma.limpar_cadastros(p_tenant, p_lote, p_entidades, p_exigir_hub_parado, p_simular) l
+  $$;
+revoke all on function plataforma.resumir_limpeza(uuid, text, text[], boolean, boolean) from public;
+
 -- RN-PLA-12: a regra do bloqueio do zerar mora só aqui (o SDK não a repete); null = liberado. p_zerar = o zerar que está sendo executado (não conta
 -- como "outro em andamento"); p_total null = sem conferir o volume (pedido e worker antes da limpeza).
 create function plataforma.zerar_bloqueado(p_tenant uuid, p_zerar uuid, p_total bigint)
@@ -633,7 +669,7 @@ begin
   if exists (select 1 from integracao.lote l where l.tenant_id = p_tenant and l.status = 'processando') then
     return 'ZERAR_HUB_PROCESSANDO';
   end if;
-  if p_total > 2000000 then
+  if p_total > plataforma.zerar_max_linhas() then
     return 'ZERAR_VOLUME_ALTO';
   end if;
   return null;
@@ -675,8 +711,8 @@ revoke all on function plataforma.zerar_previa_json(plataforma.zerar_previa) fro
 
 -- 4. Worker -----------------------------------------------------------------------------------------------------------------------
 -- Próximo zerar em andamento sem concessão viva (skip locked; concessão de 10 min); conta a tentativa. Nenhum = nenhuma linha.
--- Teto: o pegado 3 vezes sem fechar (o processo caiu no meio: OOM, deploy) fecha falhou ZERAR_FALHOU, com auditoria; a
--- transação do executar_zerar caiu inteira, então nada foi apagado.
+-- Teto: o pegado zerar_max_pegadas() vezes sem fechar (o processo caiu no meio: OOM, deploy) fecha pela fechar_zerar (falhou
+-- ZERAR_FALHOU, com auditoria); a transação do executar_zerar caiu inteira, então nada foi apagado.
 create function plataforma.pegar_zerar()
   returns table (id uuid, empresa_id uuid)
   language plpgsql volatile security definer
@@ -687,16 +723,15 @@ declare
   v_id uuid;
   v_z record;
 begin
-  for v_z in select z.id, z.empresa_id, z.super_admin_id, z.sessao_id from plataforma.zerar_empresa z
-              where z.situacao = 'em_andamento' and z.tentativas >= 3 and (z.bloqueado_ate is null or z.bloqueado_ate < now())
+  for v_z in select z.id from plataforma.zerar_empresa z
+              where z.situacao = 'em_andamento' and z.tentativas >= plataforma.zerar_max_pegadas()
+                and (z.bloqueado_ate is null or z.bloqueado_ate < now())
               for update skip locked loop
-    update plataforma.zerar_empresa z set situacao = 'falhou', erro_codigo = 'ZERAR_FALHOU', bloqueado_ate = null where z.id = v_z.id;
-    perform plataforma.sa_registrar_auditoria('super_admin', v_z.super_admin_id, null, v_z.sessao_id, v_z.empresa_id,
-      'tenant.zerar_falhou', jsonb_build_object('zerar_id', v_z.id, 'erro_codigo', 'ZERAR_FALHOU'));
+    perform plataforma.fechar_zerar(v_z.id, 'ZERAR_FALHOU');
   end loop;
   select z.id into v_id
     from plataforma.zerar_empresa z
-   where z.situacao = 'em_andamento' and z.tentativas < 3 and (z.bloqueado_ate is null or z.bloqueado_ate < now())
+   where z.situacao = 'em_andamento' and z.tentativas < plataforma.zerar_max_pegadas() and (z.bloqueado_ate is null or z.bloqueado_ate < now())
    order by z.pedido_em, z.id
    limit 1
    for update skip locked;
@@ -739,19 +774,15 @@ begin
   perform 1 from plataforma.tenant t where t.id = v_z.empresa_id for update;
   v_bloqueio := plataforma.zerar_bloqueado(v_z.empresa_id, v_z.id, null);
   if v_bloqueio is not null then
-    update plataforma.zerar_empresa set situacao = 'falhou', erro_codigo = v_bloqueio, bloqueado_ate = null where id = p_zerar
-    returning * into v_z;
-    perform plataforma.sa_registrar_auditoria('super_admin', v_z.super_admin_id, null, v_z.sessao_id, v_z.empresa_id,
-      'tenant.zerar_falhou', jsonb_build_object('zerar_id', v_z.id, 'erro_codigo', v_bloqueio));
-    return plataforma.zerar_empresa_json(v_z);
+    return plataforma.fechar_zerar(p_zerar, v_bloqueio);
   end if;
 
-  select coalesce(jsonb_agg(jsonb_build_object('tabela', l.r_tabela, 'modo', l.r_modo, 'linhas', l.r_linhas)
-                            order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
-         coalesce(sum(l.r_linhas) filter (where l.r_modo in ('soft', 'fisico')), 0)::bigint
+  -- contagem = LinhaLimpezaSchema (.strict(), sem a ordem)
+  select (select coalesce(jsonb_agg(e.x - 'ordem' order by e.n), '[]'::jsonb) from jsonb_array_elements(r.linhas) with ordinality e(x, n)),
+         r.total
     into v_contagem, v_total
-    from plataforma.limpar_cadastros(v_z.empresa_id, v_z.lote, v_z.entidades, true, false) l;
-  if v_total > 2000000 then
+    from plataforma.resumir_limpeza(v_z.empresa_id, v_z.lote, v_z.entidades, true, false) r;
+  if v_total > plataforma.zerar_max_linhas() then
     raise exception 'executar_zerar: mais linhas que o limite do portal (nada mudou)' using errcode = '22023', hint = 'ZERAR_VOLUME_ALTO';
   end if;
   update plataforma.zerar_empresa
@@ -851,11 +882,11 @@ begin
                    for update skip locked);
   update plataforma.zerar_previa z set situacao = 'falhou', erro_codigo = 'ZERAR_FALHOU', bloqueado_ate = null
    where z.id in (select x.id from plataforma.zerar_previa x
-                   where x.situacao = 'em_andamento' and x.tentativas >= 3 and (x.bloqueado_ate is null or x.bloqueado_ate < now())
+                   where x.situacao = 'em_andamento' and x.tentativas >= plataforma.zerar_max_pegadas() and (x.bloqueado_ate is null or x.bloqueado_ate < now())
                    for update skip locked);
   select z.id into v_id
     from plataforma.zerar_previa z
-   where z.situacao = 'em_andamento' and z.tentativas < 3 and z.expira_em > now()
+   where z.situacao = 'em_andamento' and z.tentativas < plataforma.zerar_max_pegadas() and z.expira_em > now()
      and (z.bloqueado_ate is null or z.bloqueado_ate < now())
    order by z.created_at, z.id
    limit 1
@@ -900,12 +931,9 @@ begin
   end if;
   -- subtransação: conta e desfaz (as tabelas temporárias saem; as variáveis ficam)
   begin
-    select coalesce(jsonb_agg(jsonb_build_object('ordem', l.r_ordem, 'tabela', l.r_tabela, 'modo', l.r_modo, 'linhas', l.r_linhas)
-                              order by l.r_ordem, l.r_tabela) filter (where l.r_linhas > 0), '[]'::jsonb),
-           coalesce(sum(l.r_linhas) filter (where l.r_modo in ('soft', 'fisico')), 0)::bigint
-      into v_linhas, v_total
-      from plataforma.limpar_cadastros(v_p.empresa_id, to_char(now() at time zone 'UTC', 'YYYYMMDD"T"HH24MISS"Z"') || '-'
-                                       || left(v_p.id::text, 8), v_p.entidades, false, true) l;
+    select r.linhas, r.total into v_linhas, v_total
+      from plataforma.resumir_limpeza(v_p.empresa_id, to_char(now() at time zone 'UTC', 'YYYYMMDD"T"HH24MISS"Z"') || '-'
+                                      || left(v_p.id::text, 8), v_p.entidades, false, true) r;
     raise exception 'prévia desfeita' using errcode = 'MXZ99';
   exception
     when sqlstate 'MXZ99' then
@@ -1116,7 +1144,7 @@ begin
      and p.proname in ('pegar_zerar', 'executar_zerar', 'fechar_zerar', 'expurgar_zerar', 'pegar_previa_zerar',
                        'executar_previa_zerar', 'limpar_cadastros', 'mapa_limpeza_entidades', 'entidades_limpeza_ordenadas',
                        'entidades_afetadas_limpeza', 'restaurar_limpeza', 'descartar_limpeza', 'zerar_bloqueado',
-                       'zerar_empresa_json', 'zerar_previa_json')
+                       'zerar_empresa_json', 'zerar_previa_json', 'zerar_max_linhas', 'zerar_max_pegadas', 'resumir_limpeza')
      and (has_function_privilege('macuxi_app', p.oid, 'execute') or has_function_privilege('macuxi_portal', p.oid, 'execute')
           or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                       where a.grantee = 0 and a.privilege_type = 'EXECUTE')
