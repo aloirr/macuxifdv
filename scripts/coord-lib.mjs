@@ -490,6 +490,13 @@ export function lerRetroativas(texto) {
   return mapa;
 }
 
+/** Texto da lista retroativa no commit TOPO; null se o caminho não existe nele (erro de git propaga: falha fechada). */
+export function retroativasNoTopo(topo, cwd) {
+  const git = (args) => execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  git(['rev-parse', '--verify', '--quiet', `${topo}^{commit}`]);
+  const existe = git(['ls-tree', '--name-only', '-z', topo, '--', ARQUIVO_RETROATIVAS]).split('\0');
+  return existe.includes(ARQUIVO_RETROATIVAS) ? git(['show', `${topo}:${ARQUIVO_RETROATIVAS}`]) : null;
+}
 
 /** Mudanças em caminhos de governança, sem repetição (função pura). */
 export function mudancasDeGovernanca(mudancas, padroes = CAMINHOS_DE_GOVERNANCA) {

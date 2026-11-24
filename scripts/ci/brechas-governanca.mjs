@@ -27,7 +27,7 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ARQUIVO_RETROATIVAS, CAMINHOS_DE_GOVERNANCA, globParaRegex, lerRetroativas } from '../coord-lib.mjs';
+import { ARQUIVO_RETROATIVAS, CAMINHOS_DE_GOVERNANCA, globParaRegex, lerRetroativas, retroativasNoTopo } from '../coord-lib.mjs';
 
 const TRAILER_AGENTE = /^\s*Agente:[ \t]*(\S+)[ \t]*$/i;
 const RECADOS = globParaRegex('.coord/recados/**');
@@ -83,8 +83,7 @@ export function violacoesDeTrailer(commits, padroes = CAMINHOS_DE_GOVERNANCA) {
   return ruins;
 }
 
-// Lista retroativa (ADR 0045): leitura em scripts/coord-lib.mjs, a mesma do verificar --por-commit.
-export { ARQUIVO_RETROATIVAS, lerRetroativas };
+export { ARQUIVO_RETROATIVAS, lerRetroativas, retroativasNoTopo };
 
 /** Separa as violações de trailer em violações de fato e regularizadas pela lista retroativa (SHA exato). */
 export function separarRetroativas(ruins, autorizados) {
@@ -145,13 +144,6 @@ export function recadosDoDiff(base, topo, cwd) {
     mudancas.push({ status, caminho, texto });
   }
   return mudancas;
-}
-
-/** Texto da lista retroativa no commit TOPO; null se o caminho não existe nele (erro de git propaga: falha fechada). */
-export function retroativasNoTopo(topo, cwd) {
-  git(['rev-parse', '--verify', '--quiet', `${topo}^{commit}`], { cwd });
-  const existe = git(['ls-tree', '--name-only', '-z', topo, '--', ARQUIVO_RETROATIVAS], { cwd });
-  return listaZ(existe).includes(ARQUIVO_RETROATIVAS) ? git(['show', `${topo}:${ARQUIVO_RETROATIVAS}`], { cwd }) : null;
 }
 
 function rodarTrailer(intervalo) {

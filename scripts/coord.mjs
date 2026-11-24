@@ -60,7 +60,7 @@ import {
   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
   WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
   modoDosRecados, regraDoRecadoNovo, ErroRecados, conexaoDeRecados, atualizarIndiceDeRecados, recadosDoIndice,
-  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub, ehRemetenteDeSistema, ARQUIVO_RETROATIVAS, lerRetroativas,
+  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub, ehRemetenteDeSistema, lerRetroativas, retroativasNoTopo,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -362,11 +362,10 @@ function verificarPorCommit(intervalo, regras) {
     return { sha, curto: sha.slice(0, 7), merge: pais.trim().split(/\s+/).filter(Boolean).length > 1, assunto, corpo: corpo || '' };
   });
   console.log(`Verificação de donos por commit — ${de}..${ate} (${commits.length} commit(s))`);
-  // ADR 0045: squash da lista retroativa (no topo do intervalo, como no CI de governança) conta como do alexandre
+  // ADR 0045: squash da lista retroativa conta como do alexandre
   let retroativas;
   try {
-    const existe = git(['ls-tree', '--name-only', ate, '--', ARQUIVO_RETROATIVAS], { falha: null })?.trim();
-    retroativas = lerRetroativas(existe ? git(['show', `${ate}:${ARQUIVO_RETROATIVAS}`]) : null);
+    retroativas = lerRetroativas(retroativasNoTopo(ate, RAIZ));
   } catch (e) {
     erroUso(e.message, false);
   }
