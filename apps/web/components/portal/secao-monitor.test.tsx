@@ -36,6 +36,8 @@ describe('seção Monitor', () => {
     expect(html).toContain('>Monitor</h2>');
     expect(html).toMatch(/integracao\.monitor\.conector\.erp.*Em dia.*1\.4\.0.*2 lotes · 380 linhas/);
     expect(html).toContain('>Cargas recentes<');
+    // RD-2679: a coluna é "Identificador"; "Conector" fica só no título do quadro
+    expect(html).toContain('>Identificador<');
     for (const e of ['produto', 'cliente', 'cliente_endereco', 'preco', 'vendedor']) expect(html).toContain(`data-testid="integracao.entidades.acoes.${e}"`);
     expect(html).not.toContain('integracao.entidade.zerar.');
   });
@@ -47,6 +49,21 @@ describe('seção Monitor', () => {
     for (const e of ['produto', 'cliente', 'cliente_endereco', 'preco', 'vendedor', 'estoque', 'titulo'])
       expect(html.split(`data-testid="integracao.monitor.entidades.acoes.${e}"`).length).toBe(2);
     expect(html).not.toContain('integracao.monitor.entidades.acoes.filial');
+  });
+  it('linha sem dados no Hub (RD-2678): "Sem dados" em Registros, sem "—" na linha', async () => {
+    const html = await montar();
+    const filial = html.split('data-testid="integracao.monitor.entidade.filial"')[1]!.split('</tr>')[0]!;
+    expect(filial).toContain('Sem dados');
+    expect(filial).not.toContain('—');
+  });
+  it('modo falso: a última alteração no ERP nunca passa da última carga da entidade', async () => {
+    const resumo = MonitorResumo.parse(await resposta('/integracao/monitor'));
+    const det = MonitorDetalhes.parse(await resposta('/integracao/monitor/detalhes'));
+    for (const c of resumo.ultima_carga_por_entidade) {
+      const alteracoes = det.entidades.find((x) => x.entidade === c.entidade)?.cursores.map((x) => x.alterado_em!) ?? [];
+      for (const a of alteracoes) expect(Date.parse(a)).toBeLessThanOrEqual(Date.parse(c.recebido_em));
+    }
+    expect(resumo.ultima_carga_por_entidade.map((c) => c.entidade)).toContain('vendedor');
   });
   it('sem a sessão do time da Macuxi, nada aparece', () => {
     const qc = new QueryClient();

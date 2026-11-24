@@ -19,7 +19,7 @@ import { Badge, ErrorBlock, formatDateTime, LoadingBlock, Panel, TabelaDados, ty
 
 import { mensagemDoErro } from '@/lib/portal-api';
 import { TEXTOS_ZERAR } from '@/lib/portal-empresa-zerar';
-import { clienteDoPortal, ehEntidadeZerar, SAUDE_DO_CONECTOR, temDadosNoHub, textoCorrigirNoErp, textoCursor, textoFila, textoRegistros } from '@/lib/portal-monitor';
+import { celulasDaEntidade, clienteDoPortal, ehEntidadeZerar, SAUDE_DO_CONECTOR, temDadosNoHub, textoFila } from '@/lib/portal-monitor';
 import { ehTimeMacuxi } from '@/lib/portal-sessao';
 
 import { useSessaoPortal } from './base';
@@ -42,7 +42,7 @@ export function MonitorDaEmpresa({ empresa }: { empresa: { id: string; codigo: s
   const tz = empresa.fuso;
 
   const colunasConector: ReadonlyArray<ColunaDaTabela<ConectorDetalhe>> = [
-    { id: 'conector', titulo: 'Conector', celula: (c) => <span className="font-mono">{c.conector_id}</span>, texto: (c) => c.conector_id },
+    { id: 'conector', titulo: 'Identificador', celula: (c) => <span className="font-mono">{c.conector_id}</span>, texto: (c) => c.conector_id },
     { id: 'saude', titulo: 'Situação', largura: '170px', celula: (c) => <Badge tone={SAUDE_DO_CONECTOR[c.saude].tom}>{SAUDE_DO_CONECTOR[c.saude].rotulo}</Badge> },
     { id: 'versao', titulo: 'Versão', largura: '100px', prioridade: 2, celula: (c) => c.versao_conector ?? '—' },
     { id: 'sinal', titulo: 'Último sinal', largura: '150px', numero: true, prioridade: 2, celula: (c) => formatDateTime(c.ultimo_sinal_em, tz) },
@@ -50,9 +50,9 @@ export function MonitorDaEmpresa({ empresa }: { empresa: { id: string; codigo: s
   ];
   const colunasEntidade: ReadonlyArray<ColunaDaTabela<EntidadeDetalhe>> = [
     { id: 'entidade', titulo: 'Entidade', largura: '200px', celula: (d) => ROTULO_ENTIDADE[d.entidade], texto: (d) => ROTULO_ENTIDADE[d.entidade] },
-    { id: 'registros', titulo: 'Registros', largura: '200px', numero: true, prioridade: 2, celula: (d) => textoRegistros(d.registros) },
-    { id: 'cursor', titulo: 'Última alteração', largura: '150px', numero: true, prioridade: 2, celula: (d) => textoCursor(d.cursores, tz) },
-    { id: 'corrigir', titulo: 'Corrigir no ERP', prioridade: 3, celula: (d) => textoCorrigirNoErp(d.erros), texto: (d) => textoCorrigirNoErp(d.erros) },
+    { id: 'registros', titulo: 'Registros', largura: '200px', numero: true, prioridade: 2, celula: (d) => celulasDaEntidade(d, tz).registros },
+    { id: 'cursor', titulo: 'Última alteração', largura: '150px', numero: true, prioridade: 2, celula: (d) => celulasDaEntidade(d, tz).cursor },
+    { id: 'corrigir', titulo: 'Corrigir no ERP', prioridade: 3, celula: (d) => celulasDaEntidade(d, tz).corrigir, texto: (d) => celulasDaEntidade(d, tz).corrigir },
   ];
   /** "Zerar dados" no "⋯" de toda entidade com dados no Hub; sem dados, a lista vazia esconde o menu. */
   const acoesDaLinha = (x: EntidadeDetalhe): AcaoDoMenu[] => {

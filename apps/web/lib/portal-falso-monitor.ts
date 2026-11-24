@@ -13,6 +13,7 @@ import {
   ORDEM_CARGA_ENTIDADES,
   ReprocessarLoteResposta,
   type Entidade,
+  type EntidadeDetalhe,
   type ErroPorCodigo,
   type LinhaErro,
   type LoteListagemItem,
@@ -97,6 +98,15 @@ function monitor(tenant: string, agora: number): MonitorResumo {
   });
 }
 
+/**
+ * Cursor do delta no falso: a última alteração no ERP vem 5 min antes da última carga recebida (nunca depois dela) e o cursor é
+ * gravado quando a carga termina; sem lote, uma alteração de 3 dias atrás.
+ */
+function cursorFalso(ultimo: LoteListagemItem | null, agora: number): EntidadeDetalhe['cursores'][number] {
+  if (!ultimo) return { conector_id: 'erp', alterado_em: iso(agora - 3 * 24 * 60 * MIN), external_id: null, atualizado_em: iso(agora - 30 * MIN) };
+  return { conector_id: 'erp', alterado_em: iso(Date.parse(ultimo.recebido_em) - 5 * MIN), external_id: null, atualizado_em: ultimo.concluido_em ?? ultimo.recebido_em };
+}
+
 function detalhes(tenant: string, agora: number): MonitorDetalhes {
   const zeradas = entidadesZeradasFalso(tenant, agora);
   const lotes = lotesDe(tenant, agora);
@@ -108,7 +118,7 @@ function detalhes(tenant: string, agora: number): MonitorDetalhes {
     const erros: ErroPorCodigo[] = comErro.flatMap((l) => (ERROS[l.lote_id] ?? []).map((x) => ({ codigo: x.codigo, classe: x.reprocessavel ? 'reprocessavel' : 'corrigir_no_erp', linhas: x.linhas })));
     return {
       entidade: e,
-      cursores: r ? [{ conector_id: 'erp', alterado_em: iso(agora - (ultimo ? 30 : 3 * 24 * 60) * MIN), external_id: null, atualizado_em: iso(agora - 30 * MIN) }] : [],
+      cursores: r ? [cursorFalso(ultimo, agora)] : [],
       registros: { ativos: r?.ativos ?? 0, inativos: r?.inativos ?? 0 },
       ultimo_lote: ultimo && { lote_id: ultimo.lote_id, conector_id: 'erp', modo: ultimo.modo, status: ultimo.status, recebido_em: ultimo.recebido_em, concluido_em: ultimo.concluido_em },
       erros,

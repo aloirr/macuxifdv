@@ -125,6 +125,10 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(monitor.getByTestId('integracao.entidades.acoes.produto')).toBeVisible();
     await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.estoque')).toBeVisible();
     await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente')).toBeVisible();
+    // RD-2679: a coluna do quadro "Conector" é o identificador; RD-2678: a linha sem dados diz "Sem dados" uma vez só
+    await expect(monitor.getByTestId('integracao.monitor.conectores').getByText('Identificador', { exact: true })).toBeVisible();
+    await expect(monitor.getByTestId('integracao.monitor.entidade.filial')).toContainText('Sem dados');
+    await expect(monitor.getByTestId('integracao.monitor.entidade.filial')).not.toContainText('—');
     await monitor.screenshot({ animations: 'disabled', path: `${PRINTS}/05-monitor${nome}.png` });
 
     // o primeiro clique pode chegar antes da hidratação: repete até o diálogo abrir
@@ -153,6 +157,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('empresa-acao.cancelar').click();
     await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente')).toHaveCount(0, { timeout: 20000 });
     await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente_endereco')).toHaveCount(0);
+    await expect(monitor.getByTestId('integracao.monitor.entidade.cliente')).toContainText('Sem dados');
     await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.produto')).toHaveCount(1);
     await ctx.close();
   });

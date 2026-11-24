@@ -58,6 +58,18 @@ export function textoCorrigirNoErp(erros: EntidadeDetalhe['erros']): string {
   return `${formatInt(linhas)} · ${[...new Set(daClasse.map((e) => e.codigo))].join(', ')}`;
 }
 
+/** Estado vazio da linha de "Dados no Hub" (RD-2678): uma célula só diz que não há dados. */
+export const TEXTO_SEM_DADOS = 'Sem dados';
+
+/**
+ * Células de uma linha de "Dados no Hub": Registros, Última alteração e Corrigir no ERP. Sem nada no Hub (`temDadosNoHub`),
+ * "Sem dados" em Registros e as outras duas vazias; com dados, o "—" fica para "sem registro", "sem cursor" e "sem erro".
+ */
+export function celulasDaEntidade(d: EntidadeDetalhe, tz: string): { registros: string; cursor: string; corrigir: string } {
+  if (!temDadosNoHub(d)) return { registros: TEXTO_SEM_DADOS, cursor: '', corrigir: '' };
+  return { registros: textoRegistros(d.registros), cursor: textoCursor(d.cursores, tz), corrigir: textoCorrigirNoErp(d.erros) };
+}
+
 /** Saúde do Conector (`avaliarSaudeConector` da API): rótulo e tom do selo. */
 export const SAUDE_DO_CONECTOR: Readonly<Record<ConectorDetalhe['saude'], { rotulo: string; tom: BadgeTone }>> = Object.freeze({
   ok: { rotulo: 'Em dia', tom: 'success' },

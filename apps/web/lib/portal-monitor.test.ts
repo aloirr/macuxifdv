@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { limparMonitorFalso, responderMonitorFalso } from './portal-falso-monitor';
 import { limparZerarFalso, responderZerarFalso } from './portal-falso-zerar';
-import { clienteDoPortal, INTERVALO_MONITOR_PORTAL_MS, SAUDE_DO_CONECTOR, temDadosNoHub, textoCorrigirNoErp, textoCursor, textoFila, textoRegistros } from './portal-monitor';
+import { celulasDaEntidade, clienteDoPortal, INTERVALO_MONITOR_PORTAL_MS, SAUDE_DO_CONECTOR, temDadosNoHub, textoCorrigirNoErp, textoCursor, textoFila, textoRegistros } from './portal-monitor';
 
 const T = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const detalhe = (x: Partial<EntidadeDetalhe> = {}): EntidadeDetalhe => ({
@@ -37,6 +37,12 @@ describe('detalhe por entidade e Conector', () => {
     expect(temDadosNoHub(detalhe())).toBe(false);
     const lote = { lote_id: '0b6f0c3e-0001-4a00-8000-000000000001', conector_id: 'erp', modo: 'delta' as const, status: 'concluido' as const, recebido_em: '2026-11-23T12:00:00.000Z', concluido_em: null };
     expect(temDadosNoHub(detalhe({ registros: { ativos: 3, inativos: 0 }, ultimo_lote: lote }))).toBe(true);
+  });
+  it('linha da "Dados no Hub" (RD-2678): sem dados, "Sem dados" e as outras duas vazias; com dados, o "—" de cada célula', () => {
+    expect(celulasDaEntidade(detalhe(), 'America/Manaus')).toEqual({ registros: 'Sem dados', cursor: '', corrigir: '' });
+    const cursor = { conector_id: 'erp', alterado_em: null, external_id: null, atualizado_em: '2026-11-23T12:00:00.000Z' };
+    expect(celulasDaEntidade(detalhe({ cursores: [cursor] }), 'America/Manaus')).toEqual({ registros: '—', cursor: '—', corrigir: '—' });
+    expect(celulasDaEntidade(detalhe({ registros: { ativos: 5, inativos: 0 } }), 'America/Manaus')).toEqual({ registros: '5 ativos', cursor: '—', corrigir: '—' });
   });
   it('textos: registros, cursor no fuso, "Corrigir no ERP" (só a classe corrigir_no_erp), fila e saúde', () => {
     expect(textoRegistros({ ativos: 1180, inativos: 60 })).toBe('1.180 ativos · 60 inativos');
