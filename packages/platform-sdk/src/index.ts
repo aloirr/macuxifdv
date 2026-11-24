@@ -46,6 +46,7 @@ export * from './diagnostico';
 export * from './cnpj';
 export * from './planos';
 export * from './empresa-acoes';
+export * from './empresa-zerar';
 export * from './frase-carga';
 export * from './empresa-logo';
 export * from './app-versao';
