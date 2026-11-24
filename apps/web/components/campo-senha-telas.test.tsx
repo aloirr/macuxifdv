@@ -28,7 +28,7 @@ vi.mock('@macuxi/ui/web', async (original) => ({
 }));
 
 import { CrieSuaSenha } from './ciclo-senha';
-import { LoginScreen } from './login-screen';
+import { LoginScreen, safeNext } from './login-screen';
 import { TelaEntrar } from './portal/tela-entrar';
 
 const contar = (html: string, trecho: string) => html.split(trecho).length - 1;
@@ -70,5 +70,12 @@ describe('campo de senha com olho (CampoSenha do kit)', () => {
       expect(input).toContain('autoCorrect="off"');
       expect(input).toContain('spellCheck="false"');
     }
+  });
+});
+
+describe('safeNext: só destino interno', () => {
+  it('recusa //, /\\, \\ e caractere de controle no destino; aceita caminho interno', () => {
+    for (const fora of ['//evil.com', '/\\evil.com', '/a\\b', 'https://evil.com', '/\t/evil.com', '/\n/evil.com', '/\r/evil.com', null]) expect(safeNext(fora)).toBe('/bko');
+    expect(safeNext('/bko/pedidos')).toBe('/bko/pedidos');
   });
 });

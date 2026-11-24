@@ -50,6 +50,7 @@ import {
 } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
 import { ehRotaParametros, secoesParametros } from '@/lib/parametros';
+import { INICIO_DO_BKO } from '@/lib/portal';
 import { aoSemFilial } from '@/lib/sem-filial';
 import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosContratados, useModulosEfetivos, useParametrosDosModulos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
@@ -508,7 +509,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     setSemFilialNaPagina(false);
     qc.removeQueries({ queryKey: CHAVE_MINHA_FILIAL });
     void qc.resetQueries({ queryKey: qk.modulos });
-    router.replace('/');
+    router.replace(INICIO_DO_BKO);
   }, [qc, router]);
 
   if (session.status === 'sem_conexao') return <SessaoSemConexao aviso={session.aviso} onTentar={() => void tentarRestaurarSessao()} />;
