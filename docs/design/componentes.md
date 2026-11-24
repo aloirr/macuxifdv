@@ -412,6 +412,13 @@ web (`--color-disabled`). A troca no kit (`packages/ui/src/web/ui.tsx`) entra no
 - Token `colors.faixaFrase` = Sol claro `#F59A52` (`colors.accentLight`, 5,85:1 na faixa) e estilo `type.fraseInicio`
   (14/700, itálico, até `LINHAS_FRASE_INICIO` = 2 linhas). Aprovado em 20/11/2026 (R-20261120-062210).
 
+### 5.6 Gaveta do BKO: aviso de obrigatório no rodapé (`Drawer`; v1.0.34, R-20261124-092046 item 07)
+- **Onde:** rodapé de toda gaveta com `rodape`, à esquerda de Cancelar e Salvar. Os botões ficam num grupo que não se separa, sempre à direita; abaixo de `sm` (ex.: 390 px) o aviso ocupa a linha inteira acima deles.
+- **Texto literal do dono do produto** (a concordância fica como ele escreveu): "Campos obrigatórios não preenchido. Preencha e salve novamente" (`TEXTO_AVISO_OBRIGATORIO`). Vermelho (`text-danger`), 15 px semibold, com o ícone de alerta, `role="alert"`, `data-testid="gaveta.aviso-obrigatorio"`. É o único texto novo: o erro de cada campo continua embaixo dele.
+- **Quando aparece:** depois de tentar salvar (`type="submit"` de formulário, submit de formulário dentro da gaveta, botão com `data-salvar`, ou o último botão do rodapé quando a gaveta já tinha campo editável no clique; botão que só abre a edição, como "Editar e reenviar", não liga; `data-salvar="false"` exclui), se houver campo vazio que seja `required`/`aria-required="true"`, ou `CampoFormulario` sem `opcional` que a validação da tela marcou (`aria-invalid="true"` ou `erro`). O evento `invalid` nativo de campo vazio também liga. Validação assíncrona do módulo (erro marcado depois de um `await`) conta se chegar em até 2 s (`ESPERA_VALIDACAO_MS`). Decisão pura em `packages/ui/src/web/obrigatorios.ts`.
+- **Quando some:** ao digitar ou mudar qualquer campo, e ao fechar a gaveta.
+- **Limites:** campo obrigatório sem `input`/`select`/`textarea` (ex.: lista de escolha feita de botões) não liga o aviso; trocar de registro com a gaveta aberta não zera o aviso (a gaveta não sabe do registro).
+
 ## 6. Movimento (sempre com "reduzir movimento")
 | Movimento | Token | Duração | Com "reduzir movimento" | Quem liga |
 |---|---|---|---|---|
