@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BOM_CSV } from '@macuxi/comum/csv';
 import { LIMITES_CATALOGO_PRODUTO } from '../../contracts';
 import { lerCsv } from '../lib/csv-para-lote';
+import { celulaDoModelo } from '../lib/modelos-csv';
 import { completarCodigosMarcaReferencia, type ResumoCodigosMarcaReferencia } from '../../domain/marca-referencia-codigo';
 // @ts-expect-error módulo .mjs sem tipos (kit em Node puro)
 import { VERSAO_KIT, montarEntradas } from './gerar-zip.mjs';
@@ -32,9 +33,8 @@ export interface ArquivoConvertido {
   csv: string;
 }
 
-const celula = (v: string): string => (/[;"\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 const montarCsv = (cab: readonly string[], linhas: readonly Record<string, string>[]): string =>
-  BOM_CSV + [cab, ...linhas.map((l) => cab.map((c) => l[c] ?? ''))].map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
+  BOM_CSV + [cab, ...linhas.map((l) => cab.map((c) => l[c] ?? ''))].map((r) => r.map(celulaDoModelo).join(';')).join('\r\n') + '\r\n';
 
 function cabecalhoDoModelo(arquivo: string, modelos: string): string[] {
   const r = lerCsv(readFileSync(join(modelos, arquivo), 'utf8'));

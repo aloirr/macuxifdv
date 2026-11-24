@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { LinhaErro } from '../../contracts';
-import { CSV_BOM, csvCell, errosParaCsv, toCsv } from './csv';
+import { BOM_CSV } from '@macuxi/comum/csv';
+import { errosParaCsv, toCsv } from './csv';
 
-const linhas = (csv: string) => csv.replace(CSV_BOM, '').trimEnd().split('\r\n');
+const linhas = (csv: string) => csv.replace(BOM_CSV, '').trimEnd().split('\r\n');
 
 describe('CSV no padrão do Excel brasileiro', () => {
   it('BOM, separador ;, CRLF e aspas quando precisa', () => {
@@ -10,16 +11,14 @@ describe('CSV no padrão do Excel brasileiro', () => {
       ['a', 'b;c'],
       [1, 'diz "oi"'],
     ]);
-    expect(csv.startsWith(CSV_BOM)).toBe(true);
+    expect(csv.startsWith(BOM_CSV)).toBe(true);
     expect(linhas(csv)).toEqual(['a;"b;c"', '1;"diz ""oi"""']);
   });
 
-  it('neutraliza fórmula vinda do ERP (=, +, -, @) sem mexer em número', () => {
-    expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
-    expect(csvCell('+55')).toBe("'+55");
-    expect(csvCell('@soma')).toBe("'@soma");
-    expect(csvCell(-3)).toBe('-3');
-    expect(csvCell(null)).toBe('');
+  it('CWE-1236: neutraliza fórmula vinda do ERP (=, +, -, @) sem mexer em número', () => {
+    expect(linhas(toCsv([['=1+1', '=HYPERLINK("x")', '+55', '@soma', -3, null]]))).toEqual([
+      `'=1+1;"'=HYPERLINK(""x"")";'+55;'@soma;-3;`,
+    ]);
   });
 });
 
