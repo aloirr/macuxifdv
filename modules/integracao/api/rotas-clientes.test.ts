@@ -58,6 +58,15 @@ describe('RN-INT-22: GET /clientes/pendentes', () => {
     expect(ClienteParaErp.shape.codigo_fdv.safeParse(null).success).toBe(true);
     expect(ClienteParaErp.shape.codigo_fdv.safeParse('12').success).toBe(false);
   });
+  it('RN-INT-22: entrega o vendedor_external_id do vendedor que fez o pré-cadastro; o contrato aceita string, null e ausente', async () => {
+    const r = await ambiente({ linha: { estado: 'pendente', enviado_em: null, tentativas: 0, payload: { cliente_uuid: UUID, razao_social: 'Mercadinho', vendedor_external_id: 'V-007' } } }).pendentes();
+    expect(r.clientes[0]).toMatchObject({ vendedor_external_id: 'V-007' });
+    const campo = ClienteParaErp.shape.vendedor_external_id;
+    expect(campo.safeParse('V-007').success).toBe(true);
+    expect(campo.safeParse(null).success).toBe(true);
+    expect(campo.safeParse(undefined).success).toBe(true);
+    expect(campo.safeParse(7).success).toBe(false);
+  });
   it('RN-INT-22: Conector que não recebe pedidos recebe 403 acesso_negado e nada é lido', async () => {
     const a = ambiente({ recebe: false });
     await expect(a.pendentes()).rejects.toMatchObject({ status: 403, corpo: { codigo: 'acesso_negado' } });

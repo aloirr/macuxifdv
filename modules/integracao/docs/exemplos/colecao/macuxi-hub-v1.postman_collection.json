@@ -2414,7 +2414,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"clientes\": [\n    {\n      \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n      \"recebido_em\": \"2026-11-23T13:40:00Z\",\n      \"razao_social\": \"Mercadinho Boa Vista Ltda\",\n      \"nome_fantasia\": \"Boa Vista\",\n      \"documento\": \"12345678000190\",\n      \"inscricao_estadual\": null,\n      \"telefone\": \"9532212345\",\n      \"email\": null,\n      \"logradouro\": \"Av. Ene Garcez\",\n      \"numero\": \"1200\",\n      \"complemento\": null,\n      \"bairro\": \"Centro\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cep\": \"69301110\",\n      \"latitude\": null,\n      \"longitude\": null,\n      \"filial_external_id\": null,\n      \"codigo_fdv\": \"00012\",\n      \"revisao\": 1,\n      \"hash\": \"3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5\",\n      \"tentativa\": 1\n    }\n  ]\n}"
+                  "body": "{\n  \"clientes\": [\n    {\n      \"cliente_uuid\": \"8c1d4e72-3b5a-4f90-a6d2-5e7f1a9b3c04\",\n      \"recebido_em\": \"2026-11-23T13:40:00Z\",\n      \"razao_social\": \"Mercadinho Boa Vista Ltda\",\n      \"nome_fantasia\": \"Boa Vista\",\n      \"documento\": \"12345678000190\",\n      \"inscricao_estadual\": null,\n      \"telefone\": \"9532212345\",\n      \"email\": null,\n      \"logradouro\": \"Av. Ene Garcez\",\n      \"numero\": \"1200\",\n      \"complemento\": null,\n      \"bairro\": \"Centro\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cep\": \"69301110\",\n      \"latitude\": null,\n      \"longitude\": null,\n      \"filial_external_id\": null,\n      \"codigo_fdv\": \"00012\",\n      \"vendedor_external_id\": \"V-007\",\n      \"revisao\": 1,\n      \"hash\": \"3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5\",\n      \"tentativa\": 1\n    }\n  ]\n}"
                 },
                 {
                   "name": "200 — vazio: Nenhum cliente novo pendente (normal)",
@@ -3468,7 +3468,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_total\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8855\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-06T10:15:00Z\",\n    \"total_cents\": 19000\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 2,\n      \"produto_external_id\": \"P000051\",\n      \"quantidade\": 10,\n      \"valor_cents\": 19000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-06T10:16:00Z\"\n}",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_total\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8855\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-06T10:15:00Z\",\n    \"total_cents\": 19000,\n    \"chave_acesso\": \"13261104252011000110550010000088551234567890\"\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 2,\n      \"produto_external_id\": \"P000051\",\n      \"quantidade\": 10,\n      \"valor_cents\": 19000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-06T10:16:00Z\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

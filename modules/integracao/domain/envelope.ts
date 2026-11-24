@@ -10,7 +10,6 @@ import { validarVersaoContrato } from './versao';
 
 export interface OpcoesEnvelope {
   limiteRegistros?: number;
-  versoesSuportadas?: readonly string[];
   /** P-6 (T-0027): entidades do Conector autenticado; omitido = não confere (testes). */
   entidadesDoConector?: readonly Entidade[];
 }
@@ -19,7 +18,6 @@ export type ResultadoEnvelope = { ok: true; envelope: LoteEnvelopeValido } | { o
 
 export function validarEnvelope(entrada: unknown, opcoes: OpcoesEnvelope = {}): ResultadoEnvelope {
   const limite = opcoes.limiteRegistros ?? PARAMETROS_PADRAO.limiteRegistrosLote;
-  const suportadas = opcoes.versoesSuportadas ?? PARAMETROS_PADRAO.versoesSuportadas;
   const erros: ErroEnvelope[] = [];
 
   const base = LoteEnvelope.safeParse(entrada);
@@ -32,7 +30,7 @@ export function validarEnvelope(entrada: unknown, opcoes: OpcoesEnvelope = {}): 
   }
   const env = base.data;
 
-  const versao = validarVersaoContrato(env.versao_contrato, { suportadas });
+  const versao = validarVersaoContrato(env.versao_contrato);
   if (!versao.ok) erros.push({ codigo: 'versao_nao_suportada', campo: 'versao_contrato', mensagem: versao.mensagem });
 
   const entidade = Entidade.safeParse(env.entidade);

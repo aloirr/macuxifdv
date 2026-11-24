@@ -35,6 +35,19 @@ const retorno = (extra: Partial<RetornoErp> & Record<string, unknown>): RetornoE
 const nota = (numero: string, extra = {}) => ({ numero, serie: '1', emitida_em: t0, total_cents: 1000, ...extra });
 const item = (sequencia: number, produto: string, quantidade: number, valor_cents = 100) => ({ sequencia, produto_external_id: produto, quantidade, valor_cents });
 
+describe('RN-INT-08: chave_acesso da NF-e no retorno', () => {
+  const CHAVE = '13261104252011000110550010000088551234567890';
+  const enviado = (extra: Partial<PedidoNaFila> = {}) => naFila({ estado: 'enviado', enviado_em: t0, tentativas: 1, ...extra });
+  it('RN-INT-08: a chave vai no evento e não entra na idempotência (mesma nota sem a chave segue repetida)', () => {
+    const primeiro = aplicarRetornoPedido(enviado({ estado: 'integrado', numero_erp: 'P-1' }), retorno({ status: 'faturado_parcial', nota: nota('100', { chave_acesso: CHAVE }), itens_faturados: [item(1, 'SKU1', 4)] }));
+    expect(primeiro.ok && primeiro.evento).toMatchObject({ nota: { numero: '100', chave_acesso: CHAVE } });
+    if (!primeiro.ok) return;
+    const de = enviado({ estado: 'faturado_parcial', numero_erp: 'P-1', notas_aplicadas: primeiro.atualizacao.notas_aplicadas });
+    expect(aplicarRetornoPedido(de, retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(1, 'SKU1', 4)] }))).toMatchObject({ ok: true, repetido: true, publicar: false });
+    expect(aplicarRetornoPedido(de, retorno({ status: 'faturado_parcial', nota: nota('100', { chave_acesso: CHAVE }), itens_faturados: [item(1, 'SKU1', 4)] }))).toMatchObject({ ok: true, repetido: true });
+  });
+});
+
 describe('RN-INT-08: montagem do pedido para a fila (de-para)', () => {
   it('RN-INT-08: traduz a condição de pagamento pelo mapeamento e zera a tentativa (entra na fila como 1ª entrega)', () => {
     const r = montarPedidoParaErp(snapshot(), mapas);

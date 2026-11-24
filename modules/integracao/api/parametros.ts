@@ -55,9 +55,6 @@ export function lerParametrosHub(brutos: Readonly<Record<string, unknown>>, log?
       const ok = typeof valor === 'number' && Number.isFinite(valor) && valor >= regra.minimo && (!regra.inteiro || Number.isInteger(valor)) && (max === undefined || valor <= max);
       if (ok) saida[chave] = valor;
       else recusados.push(chave);
-    } else if (chave === 'versoesSuportadas') {
-      if (Array.isArray(valor) && valor.length > 0 && valor.every((x) => typeof x === 'string' && x.length > 0)) saida[chave] = Object.freeze([...(valor as string[])]);
-      else recusados.push(chave);
     } else if (chave === 'taxaPorConector') {
       const o = valor as Record<string, unknown> | null;
       const lote = balde(o?.lote);

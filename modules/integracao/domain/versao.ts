@@ -1,14 +1,15 @@
 /**
  * Versionamento do contrato `/integracao/v1` (RN-INT-09).
  */
+import { VERSOES_CONTRATO_ENTRADA } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
 
 export type ResultadoVersao =
   | { ok: true; versao: string }
   | { ok: false; codigo: 'versao_nao_suportada'; mensagem: string; suportadas: readonly string[] };
 
-export function validarVersaoContrato(versao: unknown, opcoes: { suportadas?: readonly string[] } = {}): ResultadoVersao {
-  const suportadas = opcoes.suportadas ?? PARAMETROS_PADRAO.versoesSuportadas;
+export function validarVersaoContrato(versao: unknown): ResultadoVersao {
+  const suportadas: readonly string[] = VERSOES_CONTRATO_ENTRADA;
   if (typeof versao === 'string' && suportadas.includes(versao)) return { ok: true, versao };
   return {
     ok: false,

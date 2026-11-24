@@ -44,6 +44,11 @@ describe('RN-INT-22: core.cliente.pre_cadastrado@1 entra na fila', () => {
     const insert = c.sqls.find((s) => /^\s*insert/i.test(s.sql));
     expect(JSON.parse(insert!.params[2] as string)).toMatchObject({ cliente_uuid: C1, codigo_fdv: '00012' });
   });
+  it('RN-INT-22: o vendedor_external_id da consulta (vendedor com código) fica no payload', async () => {
+    const c = ctx({ consultar: () => ({ clientes: [{ ...cli(C1), vendedor_external_id: 'V-007' }], proximo: null }) });
+    await entrarClienteNaFila({ cliente_id: C1 }, c.ctx);
+    expect(JSON.parse(c.sqls.find((s) => /^\s*insert/i.test(s.sql))!.params[2] as string)).toMatchObject({ cliente_uuid: C1, vendedor_external_id: 'V-007' });
+  });
   it('RN-INT-22: core.cliente.pre_cadastro_revisado@1 reabre a mesma linha rejeitada (sem insert); vinculado e mesma revisão ficam como estão', async () => {
     const H = 'd'.repeat(64);
     const c = ctx({
