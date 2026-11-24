@@ -2,10 +2,8 @@
  * Visão das telas Carteira e Cliente 360 do BKO (T-0017/T-0018): funções puras sobre `GET /v1/core/usuarios/:id/clientes`
  * e `GET /v1/core/clientes/:id`. Sem React e sem rede.
  */
-import { BOM_CSV } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
 import type { ClienteDaCarteira } from './rotas-api';
-
-const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 /** Dia ISO da semana (1 = segunda … 7 = domingo), como `core.carteira.dia_semana`. */
 export const DIAS_DA_SEMANA = [
@@ -31,7 +29,7 @@ export function rotuloDia(dia: number | null | undefined): string {
 export function csvDaCarteira(itens: readonly ClienteDaCarteira[], usuarioNome: string): string {
   const cab = ['Usuário', 'Cliente', 'Cidade', 'Bairro', 'Última compra', 'Frequência', 'Dia da visita', 'Coordenada'];
   const linhas = itens.map((c) =>
-    [usuarioNome, c.nome, c.cidade ?? '', c.bairro ?? '', c.ultima_compra_em ?? '', rotuloFrequencia(c.frequencia_semanas), rotuloDia(c.dia_semana), c.lat === null ? 'sem coordenada' : 'ok'].map(aspas).join(';'),
+    [usuarioNome, c.nome, c.cidade ?? '', c.bairro ?? '', c.ultima_compra_em ?? '', rotuloFrequencia(c.frequencia_semanas), rotuloDia(c.dia_semana), c.lat === null ? 'sem coordenada' : 'ok'].map(celulaCsv).join(';'),
   );
-  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[cab.map(celulaCsv).join(';'), ...linhas].join('\r\n')}\r\n`;
 }

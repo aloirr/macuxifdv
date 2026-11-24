@@ -54,7 +54,7 @@ export interface ResultadoCadastro {
 const UFS = new Set(['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']);
 
 /**
- * RN-CORE-16: lista efetiva do tenant a partir do parâmetro `cliente_campos_obrigatorios`. Ausente, inválido ou vazio =
+ * RN-CORE-16: lista efetiva do tenant a partir do parâmetro `cliente.campos_obrigatorios`. Ausente, inválido ou vazio =
  * padrão; códigos desconhecidos são ignorados; razão social e CNPJ/CPF entram sempre (o tenant não pode tirá-los).
  * Resultado sem duplicados, na ordem canônica.
  */

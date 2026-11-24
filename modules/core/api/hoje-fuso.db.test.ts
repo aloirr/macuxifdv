@@ -4,6 +4,7 @@
  * metas não podem virar de dia nessa janela. Relógio e fuso são injetados (`ctx.agora`, `ctx.fuso`); as datas são
  * relativas ao relógio real (nenhum instante fixo contra o `now()` do banco). Pula sem Docker; com MACUXI_PG_EXIGIR=1 falha.
  */
+import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { AcessoBanco, ClienteBanco, ContextoBase, LinhaSync, PedidoPull, RotaModulo, UsuarioAutenticado } from '@macuxi/platform-sdk';
@@ -21,9 +22,7 @@ const U = A.usuarios;
 const C = A.clientes;
 const MANAUS = 'America/Manaus';
 const SAO_PAULO = 'America/Sao_Paulo';
-const DIA_MS = 86_400_000;
 const id = (n: number) => `0e500000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const somarDias = (data: string, n: number) => new Date(Date.parse(`${data}T12:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
 /** Instante `HH:MM` do dia civil `dia` em Manaus (UTC-4, sem horário de verão). */
 const emManaus = (dia: string, hhmm: string) => new Date(`${dia}T${hhmm}:00-04:00`);
 const ultimoDiaDoMes = (anoMes: string) => {
@@ -35,7 +34,7 @@ describe.skipIf(semBanco())('Core C6 x Postgres: "hoje" no fuso do tenant (rota,
   let pool: pg.Pool;
   let acesso: AcessoBanco;
   /** Dia de referência: daqui a 5 dias de Manaus, sempre relativo ao relógio real. */
-  const D = somarDias(dataLocal(new Date(), MANAUS), 5);
+  const D = somarDiasCivis(dataLocal(new Date(), MANAUS), 5);
   const vendedor2: UsuarioAutenticado = { id: U.vendedor2, tenant_id: A.tenantId, perfil: 'vendedor' };
   const gerente: UsuarioAutenticado = { id: U.gerente, tenant_id: A.tenantId, perfil: 'gerente' };
   const analista: UsuarioAutenticado = { id: U.analista, tenant_id: A.tenantId, perfil: 'analista' };
@@ -98,8 +97,8 @@ describe.skipIf(semBanco())('Core C6 x Postgres: "hoje" no fuso do tenant (rota,
   it('o dia D vale D às 21:00 e às 23:59 de Manaus (embora em UTC já seja D+1 às 23:59)', () => {
     expect(dataLocal(emManaus(D, '21:00'), MANAUS)).toBe(D);
     expect(dataLocal(emManaus(D, '23:59'), MANAUS)).toBe(D);
-    expect(emManaus(D, '23:59').toISOString().slice(0, 10)).toBe(somarDias(D, 1));
-    expect(dataLocal(emManaus(D, '23:59'), SAO_PAULO)).toBe(somarDias(D, 1));
+    expect(emManaus(D, '23:59').toISOString().slice(0, 10)).toBe(somarDiasCivis(D, 1));
+    expect(dataLocal(emManaus(D, '23:59'), SAO_PAULO)).toBe(somarDiasCivis(D, 1));
   });
 
   describe('carteira (RN-CORE-04: vigência no dia do tenant)', () => {
@@ -108,7 +107,7 @@ describe.skipIf(semBanco())('Core C6 x Postgres: "hoje" no fuso do tenant (rota,
     });
 
     it('RN-CORE-04: à meia-noite de Manaus o vínculo com fim = ontem deixa de valer', async () => {
-      expect(await carteiraEm(emManaus(somarDias(D, 1), '00:00'), MANAUS)).not.toContain(clienteVigencia);
+      expect(await carteiraEm(emManaus(somarDiasCivis(D, 1), '00:00'), MANAUS)).not.toContain(clienteVigencia);
     });
 
     it('RN-CORE-04: tenant em São Paulo vira o dia 1 h antes: às 23:59 de Manaus (00:59 em SP) o vínculo venceu; às 22:59 ainda vale', async () => {
@@ -150,9 +149,9 @@ describe.skipIf(semBanco())('Core C6 x Postgres: "hoje" no fuso do tenant (rota,
 
   describe('metas (período padrão = mês de hoje no fuso do tenant)', () => {
     // último dia de um mês futuro: 23:59 de Manaus ainda é o mês; em UTC e em São Paulo já é o mês seguinte
-    const mesDeD = somarDias(D, 40).slice(0, 7);
+    const mesDeD = somarDiasCivis(D, 40).slice(0, 7);
     const ultimo = ultimoDiaDoMes(mesDeD);
-    const proximo = somarDias(ultimo, 1).slice(0, 7);
+    const proximo = somarDiasCivis(ultimo, 1).slice(0, 7);
     it.each(['21:00', '23:59'])('RN-CORE-20: o painel abre no mês corrente às %s do último dia do mês em Manaus', async (hhmm) => {
       expect((await chamar(rotasDeMetas, 'indicadores', gerente, emManaus(ultimo, hhmm), MANAUS)).periodo).toBe(mesDeD);
     });

@@ -6,6 +6,7 @@
  * O escopo vem dos serviços REAIS (`carteiraDoUsuario`, `usuariosVisiveisDoUsuario`); `tx.publicar` e
  * `tx.registrarArquivo` são simulados aqui (a versão real é do `apps/api` e tem teste próprio).
  */
+import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanco, type ContextoBase, type ItemPush, type LinhaSync, type ModuloId, type PedidoPull, type ResultadoItemPush, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
@@ -24,8 +25,6 @@ const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const U = A.usuarios;
 const C = A.clientes;
-const DIA_MS = 86_400_000;
-const somarDias = (data: string, n: number) => new Date(Date.parse(`${data}T12:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
 /** Relógio da suíte: UMA linha do tempo (RN-CORE-11 depende do dia do fuso do tenant, Manaus UTC-4). Fora da madrugada
  *  de Manaus (00:00-04:00 locais) é o relógio real; na madrugada, `hora(3)` cairia no dia anterior do fuso e o cenário
  *  "outro cliente no mesmo dia" viraria "esquecida de ontem", então o relógio vai para as 12:00 de Manaus do mesmo dia. */
@@ -39,15 +38,15 @@ const AGORA = (() => {
 const HOJE = AGORA.toISOString().slice(0, 10);
 /** Segunda-feira a mais de 40 dias de qualquer "hoje" próximo: fora das janelas do pull (`data >= hoje - 40`) e sem limite superior. */
 const SEMANA = (() => {
-  const base = somarDias(HOJE, 400);
+  const base = somarDiasCivis(HOJE, 400);
   const dow = new Date(`${base}T12:00:00Z`).getUTCDay();
-  return somarDias(base, (8 - dow) % 7);
+  return somarDiasCivis(base, (8 - dow) % 7);
 })();
-const SEMANA_TER = somarDias(SEMANA, 1);
-const SEMANA_QUA = somarDias(SEMANA, 2);
-const SEMANA_QUI = somarDias(SEMANA, 3);
-const SEMANA_LONGE = somarDias(SEMANA, 91); // segunda-feira, a mais de 30 dias à frente da SEMANA
-const LIMPEZA_DESDE = somarDias(HOJE, 300);
+const SEMANA_TER = somarDiasCivis(SEMANA, 1);
+const SEMANA_QUA = somarDiasCivis(SEMANA, 2);
+const SEMANA_QUI = somarDiasCivis(SEMANA, 3);
+const SEMANA_LONGE = somarDiasCivis(SEMANA, 91); // segunda-feira, a mais de 30 dias à frente da SEMANA
+const LIMPEZA_DESDE = somarDiasCivis(HOJE, 300);
 const id = (n: number) => `0e300000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const PERTO = { lat: -3.1019, lng: -60.025 }; // coordenada de c1
 const LONGE = { lat: -3.11, lng: -60.025 }; // ~900 m de c1
