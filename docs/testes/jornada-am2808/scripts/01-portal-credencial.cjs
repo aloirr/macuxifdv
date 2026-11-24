@@ -11,7 +11,7 @@ const { abrir, print, mascararChaves, entrarPortal, PORTAL } = require('./apoio.
   await p.getByTestId('integracao.aba').waitFor();
   await p.getByTestId('integracao.api-identificador').fill('macuxierp');
   await p.getByTestId('integracao.api-nome').fill('ERP Thathyany (teste, simulado)');
-  const caixa = p.getByTestId('integracao.api-recebe-pedidos').locator('input');
+  const caixa = p.getByTestId('integracao.api-recebe-pedidos');
   if (!(await caixa.isChecked())) await caixa.check();
   await print(p, '01b-portal-integracao-antes');
   await p.getByTestId('integracao.api-gerar').click();
