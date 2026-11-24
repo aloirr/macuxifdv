@@ -1,9 +1,7 @@
 # ADR 0073 — Perfis de acesso sem "perfil base": cada perfil é um conjunto explícito de permissões, editado numa tabela com caixas
 
-> **Número a confirmar no quadro pelo gerente.** 0073 é provisório: a 0070 é da T-0195 e a 0071 está vaga no `main`, mas pode
-> estar reservada. Se o quadro der outro número, só o nome do arquivo e o título mudam.
-
-- **Status**: proposta em 2026-11-24. **Só desenho**: nada é implementado antes da aprovação do Alexandre.
+- **Status**: **aceita** em 24/11/2026 pelo Alexandre (R-20261124-191902-alexandre: todas as opções A do item 12; §2.0).
+  Código na v1.0.35; migrações a partir da 0103.
 - **Data**: 2026-11-24
 - **Origem**: pedido do Alexandre, R-20261124-094327, item 12 de 24/11: perfis de acesso **sem "perfil base"** (cada perfil é um
   perfil, independente) e permissões numa **tabela com caixa de marcar** (uma linha por permissão, agrupadas por área; a caixa liga
@@ -94,6 +92,20 @@ de geração de sync e de quantidade ficou de fora.
   fixo; esta ADR fecha o assunto (§2.8).
 
 ## 2. Decisão
+
+### 2.0 Decisões do Alexandre (R-20261124-191902-alexandre, todas as opções A)
+1. **Perfil = nome + cargo + permissões**; as travas (§2.5) saem do cargo, nunca de uma combinação de caixas.
+2. **A tabela edita um perfil por vez** (linhas = permissões por área; não há grade com todos os perfis lado a lado).
+3. **Conflito na migração** (perfil cujo cargo não bate com a base, ou concessão que a trava pelo cargo cortaria, §5.5): o caso
+   fica para o tenant e é levado a ele caso a caso; nada é cortado em silêncio. O perfil **sem usuários** é acertado para o cargo
+   pela própria migração (auditado).
+4. **Admin = quem tem a gestão do acesso completa** (`acesso.bko` + `perfil.gerir` + `usuario.criar` + `usuario.editar` +
+   `usuario.desativar`), para o "sempre um admin ativo" e o portal. A senha (`senha.redefinir`) alcança todos, menos quem também
+   tem essa gestão (e menos o próprio).
+5. **Revogação sem efeito** (sobreposição `concedida=false` que hoje não muda o que vale): a migração mantém o que o usuário vê
+   hoje na tabela (a caixa como aparece marcada), e a lista desses casos vai ao tenant.
+6. **Janela de retorno**: o modelo antigo (`perfil.base`, `perfil.fabrica`, `perfil_permissao`, `core.usuario.perfil` e o
+   `perfil` do token) fica guardado por **uma versão inteira do app ou 30 dias, o que vier depois**; só então a fase 2 o apaga.
 
 ### 2.1 Cada perfil é um conjunto explícito de permissões
 - O perfil de acesso do tenant passa a ser: `id` (UUID), `codigo`, `nome`, `descricao`, **`cargo`** (RN-CORE-53, lista fixa),
@@ -294,10 +306,12 @@ Nenhum evento existente leva `base`; nada precisa de `@v2`.
    rodar de novo não duplica nem muda nada.
 4. **Reversível**: a fase 1 **não apaga** `perfil.base`, `perfil.fabrica` nem `perfil_permissao`; a API nova mantém `base`
    preenchido com `perfilDeCompatibilidade` em perfil novo ou editado. O `down` recalcula as sobreposições como a diferença entre
-   as concessões e o modelo da `base` e apaga a tabela nova. As colunas antigas saem numa fase 2, depois da janela de retorno.
+   as concessões e o modelo da `base` e apaga a tabela nova. As colunas antigas saem numa fase 2, depois da janela de retorno
+   (uma versão inteira do app ou 30 dias, o que vier depois; §2.0).
 5. **Diagnóstico antes** (`db/scripts/diagnostico-<n>.sql`): perfis com `cargo ≠ cargo_da_base(base)` (o `POST` atual aceita base
-   e cargo independentes) e concessões que as travas pelo cargo (§2.5) cortariam. **Com algum caso, a migração para no tenant** e o
-   gerente leva a lista ao dono do produto; nada é cortado em silêncio.
+   e cargo independentes), concessões que as travas pelo cargo (§2.5) cortariam e revogações sem efeito. Pela §2.0: perfil sem
+   usuários é acertado para o cargo; perfil com usuários fica como está e entra na lista do tenant, tratada caso a caso; revogação
+   sem efeito mantém a caixa como o usuário a vê hoje e entra na lista. Nada é cortado em silêncio.
 6. **Funções e gatilhos a rever**: `plataforma.perfis_do_usuario` (devolve `cargo` e concessões); a semeadura dos 7 perfis
    (`tenant_semear_perfis`, provisionamento RN-CORE-31) a partir dos modelos; o gatilho de "um admin" (0041) pela gestão do
    acesso; `usuario_tem_perfil_admin` (0047) e a lista do portal pela gestão do acesso + cargo administrativo; a licença do plano
