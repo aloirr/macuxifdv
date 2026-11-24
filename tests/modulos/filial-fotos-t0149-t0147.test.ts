@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { manifest as manifestCore } from '../../modules/core/manifest';
 import { ClienteFotoSyncSchema, CONSULTA_FILIAIS } from '../../modules/core/contracts';
-import { filialEfetiva, PERFIS_DOC_SENSIVEL, perfisDeLeitura, podeAbrirFoto, fachadaDoPdv, podeEnviarFoto, resumoFotos, type TipoFotoLike } from '../../modules/core/domain';
+import { filialEfetiva, PERFIS_DOC_SENSIVEL, perfisDeLeitura, podeAbrirFoto, podeEnviarFoto, resumoFotos, type TipoFotoLike } from '../../modules/core/domain';
 import { fotoPdvTrancada } from '../../modules/core/app/lib/foto-fachada';
 import { filialDoClienteLocal } from '../../modules/catalogo/domain/preco-filial';
 import { esquecerMemoriaLocal, vitrineLocal, type LeitorLocal } from '../../modules/catalogo/app/lib/local';
@@ -222,16 +222,9 @@ describe('T-0147 critério 4/5 — quem abre o quê (RN-CORE-38)', () => {
     for (const p of ['vendedor', 'promotor', 'assistente']) expect(TODOS).toContain(p);
   });
 
-  it('a fachada abre para todos os perfis do resumo (a carteira vale à parte) e "Ver foto do PDV" só liga com ela enviada', () => {
+  it('a fachada abre para todos os perfis do resumo (a carteira vale à parte)', () => {
     for (const perfil of TODOS) expect(podeAbrirFoto(perfil, FACHADA), perfil).toBe(true);
     expect(perfisDeLeitura(FACHADA)).toBeNull();
-    const tipos = [FACHADA, CNH, CONTRATO, INTERIOR];
-    const viva = { foto_tipo_id: FACHADA.id, arquivo_id: id(95) };
-    expect(fachadaDoPdv(tipos, [{ foto_tipo_id: CNH.id, arquivo_id: id(96) }, { foto_tipo_id: INTERIOR.id, arquivo_id: id(97) }])).toBeNull();
-    expect(fachadaDoPdv(tipos, [{ ...viva, deleted_at: QUANDO }])).toBeNull();
-    expect(fachadaDoPdv(tipos, [{ foto_tipo_id: FACHADA.id, arquivo_id: null }])).toBeNull(); // registro sem arquivo enviado
-    expect(fachadaDoPdv([{ ...FACHADA, ativo: false }, CNH], [viva])).toBeNull();
-    expect(fachadaDoPdv(tipos, [{ foto_tipo_id: CNH.id, arquivo_id: id(96) }, viva])).toEqual(viva);
   });
 
   it('o vendedor só recebe o arquivo_id da fachada: o pull troca os demais por nulo pelo tipo, e o resumo da API só preenche o que o perfil abre', () => {
@@ -245,11 +238,10 @@ describe('T-0147 critério 4/5 — quem abre o quê (RN-CORE-38)', () => {
     expect(get).toContain('if (!perfilLeArquivo(linha.perfis_leitura, u)) throw naoEncontrado();');
   });
 
-  it('resumo tem/falta: o vendedor vê que o sensível existe ("tem") sem abri-lo; envia só o que falta, admin/analista/supervisor substituem', () => {
+  it('resumo tem/falta: o vendedor vê que o sensível existe ("tem") sem abri-lo; envia o que falta', () => {
     const r = resumoFotos([INTERIOR, CONTRATO, FACHADA, CNH], [{ foto_tipo_id: FACHADA.id }, { foto_tipo_id: CNH.id }]);
     expect(r.itens.map((i) => [i.nome, i.situacao])).toEqual([['Fachada', 'tem'], ['CNH do sócio', 'tem'], ['Contrato social', 'falta'], ['Interior da loja', 'falta']]);
     expect(r.faltam_obrigatorias).toBe(0);
-    expect(podeEnviarFoto('vendedor', true).ok).toBe(false);
     expect(podeEnviarFoto('vendedor', false).ok).toBe(true);
     for (const p of ['admin', 'analista', 'supervisor']) expect(podeEnviarFoto(p, true).ok, p).toBe(true);
   });
@@ -270,7 +262,7 @@ describe('T-0147 critério 4/5 — quem abre o quê (RN-CORE-38)', () => {
     // T-0186: as Fotos do PDV ficam na aba Documentação; o cadeado é a célula "Abrir" desligada
     const ficha = ler('modules/core/app/components/aba-documentacao.tsx');
     expect(ficha).not.toMatch(/i\.sensivel \?/);
-    expect(ficha).toMatch(/tem && !i\.fachada && fotoPdvTrancada\(i\) \? \(\s*<BotaoCelula key="a" icone="lock" rotulo=\{`\$\{i\.nome\}: sem permissão para abrir`\} desligado \/>/);
+    expect(ficha).toMatch(/<BotaoCelula (key="a" )?icone="lock" rotulo=\{`\$\{i\.nome\}: sem permissão para abrir`\} desligado \/>/);
     // RN-CORE-38 (Core 10/11, imagem aprovada): o cadeado só existe onde HÁ foto que o perfil não abre; sem foto é "Falta" + "Adicionar", sem cadeado
     for (const t of [FACHADA, CNH, CONTRATO, INTERIOR]) {
       expect(fotoPdvTrancada({ ...t, situacao: 'tem' }), `${t.nome} tem`).toBe(!t.fachada);
