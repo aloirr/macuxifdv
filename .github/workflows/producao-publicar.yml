@@ -7,8 +7,9 @@ name: producao — publicar
 #      testes-integracao, rodada pelo liberar na árvore do commit), o CI VERDE (push no main) e a imagem
 #      ghcr.io/<dono>/macuxi-api:<sha> existe (montada pelo "producao — liberar versão" depois daquele CI; ADR 0051). Fixa
 #      o DIGEST: a produção roda exatamente a imagem do commit que passou no CI, a mesma conferida no liberar e no aprovar;
-#   2. bko (sem segredo): monta o BKO DE PRODUÇÃO do mesmo commit (a origem https://bko.macuxifdv.com.br fica gravada no
-#      next build) → ghcr.io/<dono>/macuxi-bko-prod:<sha>, por digest;
+#   2. bko (sem segredo): monta o BKO DE PRODUÇÃO do mesmo commit (a origem https://fdv.macuxifdv.com.br fica gravada no
+#      next build; ADR 0068) → ghcr.io/<dono>/macuxi-bko-prod:<sha>, por digest. A imagem atende os três hosts (fdv.,
+#      e bko./config. até o corte, que é passo de configuração sem versão nova);
 #   3. deploy (environment PRODUCAO: espera a APROVAÇÃO do Alexandre): SSH da VM pelos secrets do environment, copia
 #      scripts/deploy/producao (+ o alerta-saude.sh e o ghcr-tentar.sh de scripts/deploy/demo, que ficam lá: o stack
 #      isolado também os usa), roda o preparar-vm.sh (idempotente; timers do backup e do alerta), grava os segredos em /opt/macuxi (modo 600, pelo stdin do ssh), faz login no GHCR NA VM com o token deste
@@ -138,7 +139,7 @@ jobs:
           provenance: false
           build-args: |
             NEXT_PUBLIC_API_URL=http://api:8100/v1
-            MACUXI_BKO_ORIGEM=https://bko.macuxifdv.com.br
+            MACUXI_BKO_ORIGEM=https://fdv.macuxifdv.com.br
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           tags: |
             ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod:${{ needs.conferir.outputs.sha }}
@@ -175,7 +176,7 @@ jobs:
     timeout-minutes: 40
     environment:
       name: PRODUCAO
-      url: https://bko.macuxifdv.com.br
+      url: https://fdv.macuxifdv.com.br/bko
     permissions:
       contents: read
       packages: read
@@ -369,10 +370,19 @@ jobs:
             sleep 6
           done
           [ "$ok" = 1 ] || { echo "::error::api.macuxifdv.com.br/v1/saude não devolveu $VERSAO (túnel macuxi-prod e rota api. no painel da Cloudflare)"; exit 1; }
-          curl -fsS -m 10 -o /dev/null https://bko.macuxifdv.com.br/login && echo "bko.macuxifdv.com.br: ok" \
-            || { echo "::error::bko.macuxifdv.com.br/login não respondeu (rota bko. → http://bko:3100 no túnel)"; exit 1; }
-          if curl -fsS -m 10 -o /dev/null https://config.macuxifdv.com.br/login; then echo "config.macuxifdv.com.br: ok"
-          else echo "::warning::config.macuxifdv.com.br não respondeu (rota config. → http://bko:3100 no túnel; portal da T-0087)"; fi
+          # ADR 0068: até o corte, o web responde no fdv. (novo) e no bko./config. (antigos); depois, só no fdv. O BKO passa
+          # se um dos dois hosts responder; o que não responder vira aviso (antes do túnel do fdv. ou depois do corte)
+          responde() { curl -fsS -m 10 -o /dev/null "$1"; }
+          bko_ok=0
+          for u in https://fdv.macuxifdv.com.br/login https://bko.macuxifdv.com.br/login; do
+            if responde "$u"; then bko_ok=1; echo "$u: ok"; else echo "::warning::$u não respondeu (rota do host → http://bko:3100 no túnel)"; fi
+          done
+          [ "$bko_ok" = 1 ] || { echo "::error::o BKO não respondeu nem em fdv.macuxifdv.com.br/login nem em bko.macuxifdv.com.br/login (túnel macuxi-prod → http://bko:3100)"; exit 1; }
+          portal_ok=0
+          for u in https://fdv.macuxifdv.com.br/config/entrar https://config.macuxifdv.com.br/login; do
+            if responde "$u"; then portal_ok=1; echo "$u: ok"; else echo "::warning::$u não respondeu (portal da T-0087)"; fi
+          done
+          [ "$portal_ok" = 1 ] || echo "::warning::o portal não respondeu nem em fdv.../config/entrar nem em config.../login"
 
       - name: limpar a chave do runner
         if: ${{ always() }}
