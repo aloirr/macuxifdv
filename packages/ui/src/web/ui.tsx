@@ -4,6 +4,7 @@ import { cloneElement, useEffect, type ButtonHTMLAttributes, type InputHTMLAttri
 import { CLASSES_DESTAQUE } from './cores';
 import { ehMensagemTecnica, MENSAGEM_ERRO_PADRAO, mensagemParaTela } from './erros';
 import { IconAlert, IconBusca, IconCheck, IconInfo } from './icons';
+import { ATRIBUTO_CAMPO_OBRIGATORIO, ATRIBUTO_ERRO_DO_CAMPO } from './obrigatorios';
 import { estiloDaTabela, tabelaPronta } from './tabela';
 
 export function cx(...c: Array<string | false | null | undefined>): string {
@@ -111,14 +112,15 @@ export function CampoBusca({ rotulo, className, ...rest }: Omit<InputHTMLAttribu
  */
 export function CampoFormulario({ rotulo, opcional, erro, children, className }: { rotulo: string; opcional?: boolean; erro?: string; children: ReactNode; className?: string }) {
   return (
-    <label className={cx('flex min-w-0 flex-col gap-1 text-[13px] font-semibold text-ink', className)}>
+    // As marcas `data-*` deixam a gaveta (`Drawer`) achar obrigatório vazio com erro e mostrar o aviso do rodapé (R-20261124-092046).
+    <label className={cx('flex min-w-0 flex-col gap-1 text-[13px] font-semibold text-ink', className)} {...(opcional ? {} : { [ATRIBUTO_CAMPO_OBRIGATORIO]: '' })}>
       <span>
         {rotulo}
         {opcional && <span className="font-normal text-ink-2"> (opcional)</span>}
       </span>
       {children}
       {erro && (
-        <span className="flex items-start gap-1 text-[12px] font-normal text-danger">
+        <span className="flex items-start gap-1 text-[12px] font-normal text-danger" {...{ [ATRIBUTO_ERRO_DO_CAMPO]: '' }}>
           <IconAlert size={13} className="mt-[2px] shrink-0" />
           {erro}
         </span>
