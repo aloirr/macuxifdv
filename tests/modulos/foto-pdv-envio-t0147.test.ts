@@ -127,7 +127,10 @@ function montar() {
     const pendentes = motor.sobreposicao(['cliente_foto']).map((i) => i.payload as FotoPdvPush);
     const linhas = (await motor.linhas<ClienteFotoSync & LinhaSync>('cliente_foto')).filter((l) => l.cliente_id === CLIENTE);
     const r = resumoDeFotosDoPdv({ tipos: TIPOS, fotos: fotosComPendentes(linhas, pendentes, TIPOS) as ClienteFotoSync[], na_fila: pendentes.map((p) => p.foto_tipo_id) })!;
-    return { itens: Object.fromEntries(r.itens.map((i) => [i.nome, { situacao: i.situacao, na_fila: i.na_fila }])), fachada: r.fachada_foto, faltam: r.faltam_obrigatorias };
+    // a fachada é o item com `fachada: true` (o mesmo que a aba Documentação usa para o olho)
+    const f = r.itens.find((i) => i.fachada);
+    const fachada = f?.situacao === 'tem' && f.arquivo_id ? { arquivo_id: f.arquivo_id, tirada_em: f.tirada_em } : null;
+    return { itens: Object.fromEntries(r.itens.map((i) => [i.nome, { situacao: i.situacao, na_fila: i.na_fila }])), fachada, faltam: r.faltam_obrigatorias };
   };
   return { motor, locais, removidos, ordem, servidor, ficha, ligarSinal: (v: boolean) => (sinal = v) };
 }
