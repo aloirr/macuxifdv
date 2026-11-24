@@ -8,9 +8,6 @@ import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import { zonedParts } from '@macuxi/comum/fuso';
 import type { ItemResposta, Pergunta, QuestionarioVersao, RespostaPesquisa } from '../contracts';
 
-/** Nome antigo, usado em `tests/modulos/t0140-csv-pesquisa-formula.test.ts`. */
-export { celulaCsvCompacta as celulaCsv } from '@macuxi/comum/csv';
-
 const SEP = ';';
 const FIM = '\r\n';
 
