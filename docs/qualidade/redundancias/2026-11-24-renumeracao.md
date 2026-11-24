@@ -328,3 +328,6 @@ Mesmo critério. Diffs lidos: `ca4f270..c49fed1` e `origin/main` (0865039)`..85e
 - **Não liberados:** nenhum.
 - **Corrigidos (13):** RD-0051, RD-0284 e RD-2741 a RD-2751.
 - **Abertos da sessão G:** nenhum. Os dois pontos do "Encaminhar ao testes" e a observação sem número do gestor seguem fora do catálogo.
+
+### Reteste do PR conjunto (`alexandre/v1032`, 6716daa → 4eb56a4)
+- 6716daa: os 63 arquivos iguais aos dos branches liberados, salvo o `csv.ts` e o `csv.test.ts` do comum, que vêm do 579a785 e só ampliam o tipo (`ValorCsv`). Novo na junção: RD-2752 (baixa, código, modulo-pesquisa), com o `numeroBr` e os `String()` da exportação repetindo o comum. Corrigido no 4eb56a4: `valorDoItem` devolve `ValorCsv`, o `numeroBr` saiu e a versão vai como `?? null`. A resposta numérica `-5` agora sai como número, como nos outros CSVs. Exportação 8/8 e t0140 12/12. Nenhum achado aberto.
