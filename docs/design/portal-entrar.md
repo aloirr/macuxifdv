@@ -134,9 +134,10 @@ Novo bloco `Panel` depois dos dados da empresa e antes dos módulos:
   **"Informe o e-mail."**, **"Informe a senha inicial."** Formato: **"Informe o nome, de 2 a 120 caracteres."** e
   **"Informe um e-mail válido, como nome@empresa.com.br."** O erro embaixo do campo some quando a pessoa volta a digitar nele
   (a lista das regras segue ao vivo; erro velho embaixo de uma lista toda verde confunde).
-- **Resultado** (resumo depois de gravar): `admin: 'criado'` → **"Administrador criado: <e-mail>."**; `'existente'` →
-  **"Administrador mantido: a senha não mudou."** No Conferir (nada gravado): **"Administrador que será criado: <e-mail>."** e
-  **"Administrador mantido: a senha não muda."**
+- **Conferir** (nada gravado): uma linha só, **"Conferido: a empresa será criada."**, **"Conferido: entram <módulos>."** ou
+  **"Conferido: nada muda."**, e os avisos embaixo (RD-0284).
+- **Resultado** (depois de gravar): o rótulo (**"Empresa criada."**, **"Empresa atualizada."** ou **"Nada mudou."**),
+  **"Módulos que entraram: <módulos>."** só com 1 ou mais, e os avisos. Sem parâmetros e sem o administrador (RD-0284). Core e Integração não entram na lista de módulos (RD-2617).
 - A senha nunca vai ao `sessionStorage`, à URL nem a log; o campo é limpo depois de gravar.
 
 ## 7. Checklist da revisão (fatia W)
