@@ -83,7 +83,7 @@ export function violacoesDeTrailer(commits, padroes = CAMINHOS_DE_GOVERNANCA) {
   return ruins;
 }
 
-export { ARQUIVO_RETROATIVAS, lerRetroativas, retroativasNoTopo };
+export { ARQUIVO_RETROATIVAS, lerRetroativas };
 
 /** Separa as violações de trailer em violações de fato e regularizadas pela lista retroativa (SHA exato). */
 export function separarRetroativas(ruins, autorizados) {
