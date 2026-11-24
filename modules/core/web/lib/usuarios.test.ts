@@ -260,6 +260,11 @@ describe('RN-CORE-44 (D5): seção Jornada na gaveta Editar usuário', () => {
     expect(corpoDeEdicao(f)).toMatchObject({ almoco_inicio_min: null, almoco_fim_min: null });
     expect(corpoDeEdicao({ ...f, almoco_padrao: false, almoco_inicio: '11:30', almoco_fim: '12:30' })).toMatchObject({ almoco_inicio_min: 690, almoco_fim_min: 750 });
   });
+  it('RN-CORE-44: a criação leva o horário próprio (minutos) ou os dois nulos quando é o padrão', () => {
+    const f = { ...formularioNovo(padrao), nome: 'Ana', email: 'ana@x.com', perfis: ['vendedor'], senha: 'Abcdefg1!' };
+    expect(corpoDeCriacao(f)).toMatchObject({ almoco_inicio_min: null, almoco_fim_min: null });
+    expect(corpoDeCriacao({ ...f, almoco_padrao: false, almoco_inicio: '11:30', almoco_fim: '12:30' })).toMatchObject({ almoco_inicio_min: 690, almoco_fim_min: 750 });
+  });
   it('RN-CORE-44: o erro vem só ao salvar, no campo certo; marcado "padrão" não valida; na criação não valida', () => {
     const f = { ...formularioDoUsuario(u(), padrao), almoco_padrao: false };
     expect(errosDoFormulario({ ...f, almoco_inicio: '13:00', almoco_fim: '12:00' }, 'editar').find((e) => e.campo === 'almoco_fim')?.mensagem).toBe('O fim do almoço deve ser depois do início.');
@@ -267,6 +272,8 @@ describe('RN-CORE-44 (D5): seção Jornada na gaveta Editar usuário', () => {
     expect(errosDoFormulario({ ...f, almoco_inicio: '12:00', almoco_fim: '12:10' }, 'editar').some((e) => e.campo === 'almoco_fim')).toBe(true);
     expect(errosDoFormulario({ ...f, almoco_inicio: '12:00', almoco_fim: '13:00' }, 'editar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
     expect(errosDoFormulario({ ...f, almoco_padrao: true, almoco_inicio: '13:00', almoco_fim: '12:00' }, 'editar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
-    expect(errosDoFormulario({ ...f, almoco_inicio: '13:00', almoco_fim: '12:00', senha: 'Abcdefg1!' }, 'criar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
+    // Novo usuário tem os mesmos campos do Editar (R-20261124-092544): a jornada também é validada na criação
+    expect(errosDoFormulario({ ...f, almoco_inicio: '13:00', almoco_fim: '12:00', senha: 'Abcdefg1!' }, 'criar').find((e) => e.campo === 'almoco_fim')?.mensagem).toBe('O fim do almoço deve ser depois do início.');
+    expect(errosDoFormulario({ ...f, almoco_padrao: true, almoco_inicio: '13:00', almoco_fim: '12:00', senha: 'Abcdefg1!' }, 'criar').some((e) => e.campo.startsWith('almoco'))).toBe(false);
   });
 });

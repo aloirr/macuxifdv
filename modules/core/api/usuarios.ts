@@ -163,6 +163,12 @@ async function perfisDosUsuarios(db: ClienteBanco, ids: readonly string[]): Prom
   return m;
 }
 
+/** RN-CORE-44: almoço com início e fim válidos, juntos; senão 422 com as mensagens. */
+function recusarAlmocoInvalido(inicio: number | null, fim: number | null): void {
+  const erros = validarAlmocoDoUsuario({ almoco_inicio_min: inicio, almoco_fim_min: fim });
+  if (erros.length > 0) throw new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, erros.map((x) => x.mensagem).join(' '), { regra: 'RN-CORE-44', erros });
+}
+
 /** O bloqueio do login pela mesma regra do login (`estadoDoLogin`), sem o inativo, que já vem em `ativo`. */
 export function bloqueioDaLinha(l: { bloqueado_admin?: boolean; bloqueio_ate_login?: string | null }, agora: Date): Pick<UsuarioItem, 'bloqueio' | 'bloqueio_ate'> {
   const bloqueioAte = l.bloqueio_ate_login ? new Date(l.bloqueio_ate_login) : null;
@@ -349,6 +355,9 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       const erros = validarDadosDeUsuario({ nome, email, perfil: c.perfil ?? 'vendedor', external_id: externalId });
       if (erros.length > 0) throw dadosInvalidos(erros);
       if (!limiteDescontoCompleto(c)) throw descontoPedidoObrigatorio();
+      const almocoInicio = c.almoco_inicio_min ?? null;
+      const almocoFim = c.almoco_fim_min ?? null;
+      recusarAlmocoInvalido(almocoInicio, almocoFim);
       const fraca = validarSenhaInicial(c.senha, email);
       if (fraca) throw new ErroRegraNegocio(CODIGOS_USUARIO.senhaFraca, fraca, { faltas: faltasNaSenha(c.senha) });
       const senhaHash = await hashSenha(c.senha);
@@ -365,9 +374,9 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           exigirQuemEditaFilial(ctx.usuario.perfis);
           const filiais = await conferirFiliaisDoUsuario(db, { cadastro: c.filial_cadastro_id, venda: c.filial_venda_ids ?? [] });
           const r = await db.query<{ id: string }>(
-            `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil)
-             values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12) returning id`,
-            [nome, c.nome_curto?.trim() || null, email, principal, c.equipe_id, senhaHash, validadeDaSenhaTemporaria(ctx.agora()), c.ativo, externalId, c.desconto_limita_item, c.desconto_limita_pedido, c.desconto_maximo_pedido_permil],
+            `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil, almoco_inicio_min, almoco_fim_min)
+             values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12, $13, $14) returning id`,
+            [nome, c.nome_curto?.trim() || null, email, principal, c.equipe_id, senhaHash, validadeDaSenhaTemporaria(ctx.agora()), c.ativo, externalId, c.desconto_limita_item, c.desconto_limita_pedido, c.desconto_maximo_pedido_permil, almocoInicio, almocoFim],
           );
           const id = r.rows[0]!.id;
           await gravarPerfisDoUsuario(db, id, escolhidos.map((x) => x.codigo));
@@ -423,8 +432,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             almoco_inicio_min: c.almoco_inicio_min === undefined ? antes.almoco_inicio_min : c.almoco_inicio_min,
             almoco_fim_min: c.almoco_fim_min === undefined ? antes.almoco_fim_min : c.almoco_fim_min,
           };
-          const errosAlmoco = validarAlmocoDoUsuario({ almoco_inicio_min: depois.almoco_inicio_min ?? null, almoco_fim_min: depois.almoco_fim_min ?? null });
-          if (errosAlmoco.length > 0) throw new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, errosAlmoco.map((x) => x.mensagem).join(' '), { regra: 'RN-CORE-44', erros: errosAlmoco });
+          recusarAlmocoInvalido(depois.almoco_inicio_min ?? null, depois.almoco_fim_min ?? null);
           const erros = validarDadosDeUsuario(depois);
           if (erros.length > 0) throw dadosInvalidos(erros);
           if (!limiteDescontoCompleto({ desconto_limita_item: depois.desconto_limita_item ?? true, desconto_limita_pedido: depois.desconto_limita_pedido ?? false, desconto_maximo_pedido_permil: depois.desconto_maximo_pedido_permil ?? null })) throw descontoPedidoObrigatorio();

@@ -505,6 +505,7 @@ export * from './inicio-parametros';
 export * from './hora';
 export * from './inicio-bko';
 export * from './jornada';
+export * from './cep';
 export * from './alertas-produtividade';
 export * from './curvas-abc';
 export * from './farol';

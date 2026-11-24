@@ -48,7 +48,8 @@ Regras: RN-CORE-75 (base), RN-CORE-76 (criar por proximidade) e RN-CORE-77 (gera
 | Rota `/v1/core` | Ação | O que faz |
 |---|---|---|
 | `GET usuarios/:id/endereco` | `usuario.ver` | a casa do vendedor ou promotor |
-| `PUT usuarios/:id/endereco` | `usuario.editar` | grava a casa (`{ endereco: null }` apaga); só vendedor e promotor (422 `USUARIO_SEM_ENDERECO`); auditada sem o endereço |
+| `PUT usuarios/:id/endereco` | `usuario.editar` | grava a casa (`{ endereco: null }` apaga); só vendedor e promotor (422 `USUARIO_SEM_ENDERECO`); o ponto (lat/lng) vem do banco, não da tela: endereço mudou (CEP, rua, número, bairro, cidade ou UF) apaga o ponto, igual mantém; com a base Casa, o endereço novo é localizado pela geocodificação (sem achar, fica sem ponto e sem base); auditada sem o endereço |
+| `GET cep?cep=` | `usuario.ver` | pesquisa de CEP para o endereço do usuário (R-20261124-092544): o servidor consulta BrasilAPI e, se falhar, ViaCEP (3 s cada); 200 `{ logradouro, bairro, cidade, uf }`, 404 `CEP_NAO_ENCONTRADO`, 422 `CEP_INVALIDO`, 503 `CEP_SERVICO_INDISPONIVEL`; o CEP vai na query, que o log de acesso corta (no caminho ele iria para o log); nada vai para log |
 | `GET usuarios/:id/base` | `rota.editar` | a casa e a base resolvida, para o diálogo "Endereço base" |
 | `PUT usuarios/:id/base` | `rota.editar` | `{ tipo: 'casa' }` (422 `BASE_SEM_PONTO` sem o ponto da casa) ou `{ tipo: 'outro', endereco }` com o ponto marcado; grava `base_alterada_em`; auditada (só o tipo) |
 | `POST rotas/previa` | `rota.editar` | não grava; dias, totais, `fora_sem_coordenada`, `fora_limite`, `mantidas`, `feriados`, `substituidas`, base e limite |

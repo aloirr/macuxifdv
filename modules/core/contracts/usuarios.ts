@@ -180,6 +180,9 @@ export const CriarUsuarioRequestSchema = z
     /** T-0176 / RN-CORE-39: só admin e analista informam (403 aos demais). Cadastro obrigatória em qualquer perfil (422); a API inclui a de cadastro na lista de venda. */
     filial_cadastro_id: z.string().uuid().optional(),
     filial_venda_ids: FilialVendaIdsSchema.optional(),
+    /** T-0180 (D5; RN-CORE-44): horário de almoço próprio já na criação; ausente ou nulos = padrão da empresa. */
+    almoco_inicio_min: MinutoDoDiaSchema.nullable().optional(),
+    almoco_fim_min: MinutoDoDiaSchema.nullable().optional(),
   })
   .strict();
 /** "Por pedido" ligada sem o número é recusada pela API (422 `USUARIO_DADOS_INVALIDOS`, `limiteDescontoCompleto`), não pelo schema. */

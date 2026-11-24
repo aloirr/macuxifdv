@@ -249,12 +249,15 @@ export function UsuariosConteudo() {
       }
       const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo, cargo, podeFilial) }));
       await gravarModulos(criado.id, []);
-      return criado;
+      // o usuário já existe: se só o endereço falhar, não repete a criação; avisa e o endereço se informa em Editar
+      const enderecoFalhou = (await enderecoRef.current?.gravar(criado.id).then(() => false, () => true)) ?? false;
+      return { criado, enderecoFalhou };
     },
-    onSuccess: (criado, { editando, corpo }) => {
+    onSuccess: async (r, { editando, corpo }) => {
       setForm(FORMULARIO_VAZIO);
-      if (editando || !criado) return concluir('Usuário atualizado.');
-      return mostrar(resultadoDeCriar(criado.email_acesso, corpo.email.trim().toLowerCase(), corpo.senha));
+      if (editando || !r) return concluir('Usuário atualizado.');
+      await mostrar(resultadoDeCriar(r.criado.email_acesso, corpo.email.trim().toLowerCase(), corpo.senha));
+      if (r.enderecoFalhou) setErroDaLista('Usuário criado sem o endereço. Abra Editar para informar.');
     },
     onError: (e) => setErroApi(errorMessage(e)),
   });
@@ -691,8 +694,7 @@ export function UsuariosConteudo() {
               </Button>
             </div>
           )}
-          {editando && podeEditar && perfilTemEndereco(editando.perfil) && <SecaoEndereco key={editando.id} usuarioId={editando.id} registrar={registrarEndereco} />}
-          {editando && (
+          {(editando ? podeEditar && perfilTemEndereco(editando.perfil) : perfilTemEndereco(baseEscolhida ?? '')) && <SecaoEndereco key={editando?.id ?? 'novo'} usuarioId={editando?.id ?? null} registrar={registrarEndereco} />}
             <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.jornada">
               <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Horário de almoço</legend>
               <label className="flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold text-ink">
@@ -710,7 +712,6 @@ export function UsuariosConteudo() {
                 </div>
               )}
             </fieldset>
-          )}
           {licencas && (
             <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">
               <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Módulos</legend>

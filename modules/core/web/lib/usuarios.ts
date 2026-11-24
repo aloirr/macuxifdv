@@ -146,8 +146,8 @@ export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'
     if (f.desconto_maximo_pedido.trim() === '') erros.push({ campo: 'desconto_maximo_pedido', mensagem: ERRO_DESCONTO_OBRIGATORIO });
     else if (permil === null || permil > DESCONTO_PEDIDO_PERMIL_MAX) erros.push({ campo: 'desconto_maximo_pedido', mensagem: ERRO_DESCONTO_FAIXA });
   }
-  // RN-CORE-44 (D5): horário próprio só na edição; fim > início e de 15 min a 3 h; o erro vem ao salvar, no texto do campo
-  if (modo === 'editar' && !f.almoco_padrao) {
+  // RN-CORE-44 (D5): horário próprio na edição e na criação (mesmos campos); fim > início e de 15 min a 3 h; o erro vem ao salvar, no texto do campo
+  if (!f.almoco_padrao) {
     const h = lerHorarioAlmocoTexto(f.almoco_inicio, f.almoco_fim);
     if (!h.ok) {
       if (h.erros.inicio) erros.push({ campo: 'almoco_inicio', mensagem: h.erros.inicio });
@@ -171,6 +171,7 @@ const corpoDaHierarquia = (f: FormularioUsuario, cargo: Cargo | null | undefined
 
 export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null, comFilial = false): CriarUsuarioRequest {
   return {
+    ...almocoDoForm(f),
     nome: f.nome.trim(),
     nome_curto: ouNulo(f.nome_curto),
     email: f.email.trim(),
@@ -188,10 +189,14 @@ export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null, comFi
   };
 }
 
-export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null, comFilial = false): EditarUsuarioRequest {
+/** Horário de almoço do corpo (criar e editar): os minutos próprios ou os dois nulos (padrão da empresa). */
+function almocoDoForm(f: FormularioUsuario) {
   const h = f.almoco_padrao ? null : lerHorarioAlmocoTexto(f.almoco_inicio, f.almoco_fim);
-  const almoco = h?.ok ? { almoco_inicio_min: h.inicio_min, almoco_fim_min: h.fim_min } : { almoco_inicio_min: null, almoco_fim_min: null };
-  return { ...almoco, nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), ...(f.email.trim() === '' ? {} : { email: f.email.trim() }), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo), ...corpoDaFilial(f, comFilial) };
+  return h?.ok ? { almoco_inicio_min: h.inicio_min, almoco_fim_min: h.fim_min } : { almoco_inicio_min: null, almoco_fim_min: null };
+}
+
+export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null, comFilial = false): EditarUsuarioRequest {
+  return { ...almocoDoForm(f), nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), ...(f.email.trim() === '' ? {} : { email: f.email.trim() }), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo), ...corpoDaFilial(f, comFilial) };
 }
 
 /** A API só fala ‰; o valor guardado vai mesmo com "por pedido" desligada. */
