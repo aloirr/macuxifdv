@@ -12,6 +12,12 @@ export function prazoMedioCalculado(parcelasDias: readonly number[]): number {
   return Math.ceil(parcelasDias.reduce((a, b) => a + b, 0) / parcelasDias.length);
 }
 
+/** RN-VEN-24: descrição gerada quando o ERP não informa ("28/56 dias"; `[0]` = "À vista"). Mesma regra do Vendedor. */
+export function descricaoPrazoGerada(parcelasDias: readonly number[]): string {
+  if (parcelasDias.length === 1 && parcelasDias[0] === 0) return 'À vista';
+  return `${parcelasDias.join('/')} dias`;
+}
+
 /** Aviso quando o ERP informou um prazo médio diferente do calculado; sem valor informado, não há o que comparar. */
 export function avisoPrazoMedioDivergente(r: Pick<PrazoPagamentoPayload, 'external_id' | 'parcelas_dias' | 'prazo_medio_dias'>): AvisoPrazo | null {
   if (r.prazo_medio_dias == null) return null;

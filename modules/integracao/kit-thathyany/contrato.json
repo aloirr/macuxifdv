@@ -529,6 +529,18 @@
           "regra": {}
         },
         {
+          "campo": "descricao",
+          "obrigatorio": true,
+          "tipo": "texto",
+          "tamanho_max": 60,
+          "formato": null,
+          "exemplo": "30/60/90 dias",
+          "observacao": null,
+          "coluna": "descricao",
+          "tipo_sql": "NVARCHAR(60) NOT NULL",
+          "regra": {}
+        },
+        {
           "campo": "parcelas_dias",
           "obrigatorio": true,
           "tipo": "lista de números",
@@ -547,6 +559,22 @@
               "max_itens": 24,
               "nao_decrescente": true
             }
+          }
+        },
+        {
+          "campo": "prazo_medio_dias",
+          "obrigatorio": true,
+          "tipo": "número",
+          "tamanho_max": null,
+          "formato": "inteiro de 0 a 365",
+          "exemplo": "60",
+          "observacao": "Digitado no ERP; fica entre a menor e a maior parcela.",
+          "coluna": "prazo_medio_dias",
+          "tipo_sql": "INT NOT NULL",
+          "regra": {
+            "inteiro": true,
+            "min": 0,
+            "max": 365
           }
         },
         {
@@ -572,34 +600,6 @@
           "coluna": "ativo",
           "tipo_sql": "TINYINT NOT NULL CONSTRAINT {df_ativo} DEFAULT 1",
           "regra": {}
-        },
-        {
-          "campo": "descricao",
-          "obrigatorio": false,
-          "tipo": "texto",
-          "tamanho_max": 60,
-          "formato": null,
-          "exemplo": "30/60/90 dias",
-          "observacao": null,
-          "coluna": "descricao",
-          "tipo_sql": "NVARCHAR(60) NULL",
-          "regra": {}
-        },
-        {
-          "campo": "prazo_medio_dias",
-          "obrigatorio": false,
-          "tipo": "número",
-          "tamanho_max": null,
-          "formato": "inteiro de 0 a 365",
-          "exemplo": "60",
-          "observacao": "Informativo: o Macuxi calcula o prazo médio; valor diferente gera aviso.",
-          "coluna": "prazo_medio_dias",
-          "tipo_sql": "INT NULL",
-          "regra": {
-            "inteiro": true,
-            "min": 0,
-            "max": 365
-          }
         },
         {
           "campo": "percentual_ajuste",

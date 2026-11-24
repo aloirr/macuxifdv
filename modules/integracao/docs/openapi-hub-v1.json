@@ -566,6 +566,36 @@
                     ]
                   }
                 },
+                "prazo_pagamento_v2": {
+                  "summary": "Prazo de pagamento na v2: descrição e prazo médio obrigatórios",
+                  "value": {
+                    "versao_contrato": "v2",
+                    "entidade": "prazo_pagamento",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-24T15:00:00Z",
+                      "external_id": "PRZ-30-60-90"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "PRZ-30-60-90",
+                        "alterado_em": "2026-11-24T15:00:00Z",
+                        "forma_external_id": "BOLETO",
+                        "codigo": "306090",
+                        "descricao": "Boleto 30/60/90",
+                        "parcelas_dias": [
+                          30,
+                          60,
+                          90
+                        ],
+                        "prazo_medio_dias": 60
+                      }
+                    ]
+                  }
+                },
                 "carga_completa_parte_1": {
                   "summary": "Carga completa, parte 1 de 2 (sessão aberta)",
                   "value": {
@@ -4878,7 +4908,7 @@
           "versao_contrato": {
             "type": "string",
             "minLength": 1,
-            "description": "Versão do contrato: `v1`."
+            "description": "Versão do contrato: `v1` ou `v2`. A `v2` só muda `prazo_pagamento`: `descricao` e `prazo_medio_dias` passam a ser obrigatórios e o Macuxi usa o prazo médio recebido."
           },
           "entidade": {
             "type": "string",
@@ -5037,6 +5067,9 @@
           "modo",
           "registros"
         ],
+        "x-macuxi-registro-prazo-pagamento-v2": {
+          "$ref": "#/components/schemas/PrazoPagamentoPayloadV2"
+        },
         "x-macuxi-registro-por-entidade": {
           "vendedor": {
             "$ref": "#/components/schemas/VendedorPayload"
@@ -5828,6 +5861,80 @@
           "forma_external_id",
           "codigo",
           "parcelas_dias"
+        ]
+      },
+      "PrazoPagamentoPayloadV2": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "forma_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "descricao": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "parcelas_dias": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 365
+            },
+            "minItems": 1,
+            "maxItems": 24
+          },
+          "prazo_medio_dias": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
+          "percentual_ajuste": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -99.99,
+                "maximum": 99.99
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ordem": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "forma_external_id",
+          "codigo",
+          "descricao",
+          "parcelas_dias",
+          "prazo_medio_dias"
         ]
       },
       "PrecoPayload": {

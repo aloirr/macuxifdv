@@ -385,27 +385,56 @@ export const ParcelasDias = z
   .max(24, 'parcelas_dias aceita até 24 itens');
 
 // ---------- prazo de pagamento (T-0089; dono do dado: Vendedor) ----------
-export const PrazoPagamentoPayload = RegistroBase.extend({
+const PrazoPagamentoCampos = RegistroBase.extend({
   /** Referência à forma (RN-INT-04): forma ausente = `referencia_ausente`, reprocessável. */
   forma_external_id: ExternalId,
   codigo: Texto(20),
   /** Ausente = gerada pelo Macuxi ("28/56 dias"; [0] = "À vista"). */
   descricao: TextoOpcional(60),
   parcelas_dias: ParcelasDias,
-  /** Informativo: o Macuxi CALCULA o prazo médio (RN-VEN-24); valor divergente vira o aviso `prazo_medio_divergente`. */
+  /** Só `v1`: o Macuxi CALCULA o prazo médio (RN-VEN-24); valor divergente vira o aviso `prazo_medio_divergente`. Na `v2` é obrigatório e vale o recebido (ver PrazoPagamentoPayloadV2). */
   prazo_medio_dias: z.number().int().min(0).max(365).nullish(),
   /** RN-INT-15: "% Acres.Fin." do ERP; ausente = 0. O Vendedor ajusta a tabela de cada produto por ele (RN-VEN-43). */
   percentual_ajuste: PercentualAjuste.nullish(),
   ordem: z.number().int().default(0),
-}).superRefine((r, ctx) => {
+});
+/** Parcelas em ordem crescente (30/60/90), comum às duas versões. */
+function parcelasSemDecrescer(r: { parcelas_dias: number[] }, ctx: z.RefinementCtx): void {
   for (let i = 1; i < r.parcelas_dias.length; i++) {
     if ((r.parcelas_dias[i] ?? 0) < (r.parcelas_dias[i - 1] ?? 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['parcelas_dias'], message: 'parcelas_dias não pode decrescer (use 30/60/90, não 60/30)' });
       break;
     }
   }
-});
+}
+export const PrazoPagamentoPayload = PrazoPagamentoCampos.superRefine(parcelasSemDecrescer);
 export type PrazoPagamentoPayload = z.infer<typeof PrazoPagamentoPayload>;
+
+/**
+ * ADR 0072 (`versao_contrato: "v2"`; RN-VEN-24, RN-INT-09): o prazo do ERP vem completo e o Macuxi usa o recebido.
+ * `descricao` e `prazo_medio_dias` obrigatórios; o prazo médio (digitado no ERP) fica entre a menor e a maior parcela.
+ * Um erro por campo, com os códigos de sempre (campo_obrigatorio, tipo_invalido, valor_fora_da_faixa, regra_invalida).
+ */
+export const PrazoPagamentoPayloadV2 = PrazoPagamentoCampos.extend({
+  descricao: Texto(60),
+  prazo_medio_dias: z
+    .number()
+    .int('prazo_medio_dias deve ser um número inteiro de dias')
+    .min(0, 'prazo_medio_dias não pode ser negativo')
+    .max(365, 'prazo_medio_dias aceita até 365 dias'),
+}).superRefine((r, ctx) => {
+  parcelasSemDecrescer(r, ctx);
+  const menor = Math.min(...r.parcelas_dias);
+  const maior = Math.max(...r.parcelas_dias);
+  if (r.prazo_medio_dias < menor || r.prazo_medio_dias > maior) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['prazo_medio_dias'],
+      message: `prazo_medio_dias deve ficar entre a menor (${menor}) e a maior (${maior}) parcela`,
+    });
+  }
+});
+export type PrazoPagamentoPayloadV2 = z.infer<typeof PrazoPagamentoPayloadV2>;
 
 // ---------- tabela escalonada (T-0089; dono do dado: Catálogo; RN-VEN-23) ----------
 export const TabelaEscalonadaPayload = RegistroBase.extend({
@@ -480,6 +509,12 @@ export const SCHEMA_REGISTRO = {
   tabela_escalonada: TabelaEscalonadaPayload,
   filial: FilialPayload,
 } as const satisfies Record<Entidade, z.ZodTypeAny>;
+
+/** Schema do registro pela `versao_contrato` do envelope (ADR 0072): só `prazo_pagamento` muda na "v2". */
+export function schemaRegistro(entidade: Entidade, versao: string = 'v1'): z.ZodTypeAny {
+  if (entidade === 'prazo_pagamento' && versao === 'v2') return PrazoPagamentoPayloadV2;
+  return SCHEMA_REGISTRO[entidade];
+}
 
 export type RegistroDe<E extends Entidade> = z.infer<(typeof SCHEMA_REGISTRO)[E]>;
 
