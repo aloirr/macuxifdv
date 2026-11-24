@@ -34,5 +34,5 @@ export const MENSAGENS_HIERARQUIA = {
   gerenteInvalido: 'Escolha um gerente da lista.',
   gerenteDoSupervisor: 'O gerente precisa ser o gerente do supervisor escolhido.',
   equipeObrigatoria: 'Informe o nome da equipe.',
-  codigoErpObrigatorio: 'Informe o código no ERP.',
+  codigoErpObrigatorio: 'Informe o Código ERP.',
 } as const;

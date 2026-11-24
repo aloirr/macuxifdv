@@ -78,7 +78,7 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 - Última visita: `ultima_visita_em` do `cliente_visita_resumo@1` (id = cliente; último check-in concluído de qualquer vendedor, data no fuso do tenant; ver `performance-cliente.md`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.
 
 ## Vendedor do ERP ligado ao usuário do BKO (T-0175, RN-CORE-58)
-- **Código no ERP** (`external_id`) é o vínculo: editável em Novo e Editar (vendedor e promotor). Código repetido responde 409; se o dono do código é um provisório (`@sem-email.invalid`), a mensagem manda usar "Vincular vendedor do ERP".
+- **Código ERP** (`external_id`) é o vínculo: editável em Novo e Editar (vendedor e promotor). Código repetido responde 409; se o dono do código é um provisório (`@sem-email.invalid`), a mensagem manda usar "Vincular vendedor do ERP".
 - A carga do ERP que cria um provisório avisa os admins (notificação de sistema, só o código do ERP). A lista de Usuários busca também pelo código e filtra "Provisórios" (`provisorio=true`).
 - `POST /v1/core/usuarios/:id/vincular-erp` (`usuario.editar`, corpo `{ usuario_id }`): uma transação; o real recebe o código, a carteira (sem duplicar), `nota_erp`, rotas, metas e indicadores; o provisório fica inativo, com `external_id` nulo, sem `deleted_at` (RN-CORE-60; a repetição é reconhecida pela auditoria); auditoria `usuario.vincular_erp`; um `core.cliente.atualizado@1` por cliente movido. Plano puro em `domain/vinculo-erp.ts` (`planejarVinculoErp`); recusas 422 `VINCULO_*`.
 - A carga seguinte casa pelo `external_id`: não recria o provisório, só troca e-mail provisório por e-mail real livre (nunca o e-mail real do vínculo) e não mexe na carteira.
@@ -98,5 +98,5 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 
 ## BKO: Código FDV e vínculo do vendedor do ERP (v1.0.12)
 - Lista: coluna "Código FDV" (depois de Filial), selo "Provisório", "—" no e-mail do provisório, filtro "Provisórios" (`?provisorios=1`) e busca única "Buscar". Menu: "Desativar" (nunca excluir).
-- Gaveta Editar: "Código FDV" só de leitura com copiar; "Vincular vendedor do ERP" aparece para vendedor/promotor sem Código no ERP quando existe provisório do mesmo perfil (escolher, confirmar; `POST /core/usuarios/:provisorio/vincular-erp` com o usuário real no corpo). Não mostra o nº de clientes por provisório: a lista não traz essa contagem (o aviso depois do vínculo traz).
+- Gaveta Editar: "Código FDV" só de leitura com copiar; "Vincular vendedor do ERP" aparece para vendedor/promotor sem Código ERP quando existe provisório do mesmo perfil (escolher, confirmar; `POST /core/usuarios/:provisorio/vincular-erp` com o usuário real no corpo). Não mostra o nº de clientes por provisório: a lista não traz essa contagem (o aviso depois do vínculo traz).
 - Portal (RN-CORE-39): `autenticarPortal` preenche `empresa.sem_filial` a partir de `sessaoValida().sem_filial`; depende de a `plataforma.sa_sessao_valida` devolver a coluna `sem_filial` (o `macuxi_portal` não lê `core.usuario`; recado ao banco-dados).
