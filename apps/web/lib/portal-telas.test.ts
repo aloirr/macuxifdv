@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
-import { corpoDaEmpresa, errosDaEmpresa, sugerirCodigo, textoDaConferencia, textoDoAdminNoResultado } from '@/components/portal/passo-empresa-legado';
+import { corpoDaEmpresa, errosDaEmpresa, sugerirCodigo, textoDaConferencia } from '@/components/portal/passo-empresa-legado';
 import { abaDoEndereco } from '@/components/portal/tela-empresa';
 import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
@@ -70,11 +70,6 @@ describe('passo Empresa: administrador inicial (RN-CORE-34, RN-CORE-32; spec por
   });
   it('empresa existente (sem bloco do admin) não manda admin', () => {
     expect(corpoDaEmpresa(form, false)).not.toHaveProperty('admin');
-  });
-  it('resultado: criado com o e-mail; existente sem trocar a senha; sem admin no pedido = nada', () => {
-    expect(textoDoAdminNoResultado({ admin: 'criado' }, 'ana@empresa.com.br')).toBe('Administrador criado: ana@empresa.com.br.');
-    expect(textoDoAdminNoResultado({ admin: 'existente' }, 'ana@empresa.com.br')).toBe('Administrador mantido: a senha não mudou.');
-    expect(textoDoAdminNoResultado({ admin: null }, null)).toBeNull();
   });
   it('conferência (RD-0284): uma linha só; Core e Integração não aparecem', () => {
     expect(textoDaConferencia({ resultado: 'criado', modulos_adicionados: ['core', 'integracao', 'vendedor'] })).toBe('Conferido: a empresa será criada.');

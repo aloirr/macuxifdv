@@ -129,21 +129,16 @@ export function errosDaEmpresa(corpo: unknown): Record<string, string> {
 
 const ROTULO_RESULTADO: Record<Resposta['resultado'], string> = { criado: 'Empresa criada', atualizado: 'Empresa atualizada', sem_mudanca: 'Nada mudou' };
 
+/** Módulos da lista do resultado: sem Core e Integração, que entram em toda empresa (RD-2617). */
+const modulosNaLista = (ids: readonly string[]): string[] => ids.filter((m) => !ehModuloSempre(m));
+
 /**
- * Linha única do "Conferir sem gravar" (RD-0284): a empresa nova, os módulos que entram (sem Core e Integração, RD-2617) ou
- * nada. Os `avisos` vêm embaixo; parâmetros e administrador não entram na conferência.
+ * Linha única do "Conferir sem gravar" (RD-0284): a empresa nova, os módulos que entram ou nada. Os `avisos` vêm embaixo.
  */
 export function textoDaConferencia(r: Pick<Resposta, 'resultado' | 'modulos_adicionados'>): string {
   if (r.resultado === 'criado') return 'Conferido: a empresa será criada.';
-  const entram = r.modulos_adicionados.filter((m) => !ehModuloSempre(m));
+  const entram = modulosNaLista(r.modulos_adicionados);
   return entram.length > 0 ? `Conferido: entram ${entram.map(nomeDoModulo).join(', ')}.` : 'Conferido: nada muda.';
-}
-
-/** Linha do administrador no resultado gravado (spec §6). `null` quando ele não veio no pedido. */
-export function textoDoAdminNoResultado(r: Pick<Resposta, 'admin'>, email: string | null): string | null {
-  if (r.admin === 'existente') return 'Administrador mantido: a senha não mudou.';
-  if (r.admin === 'criado') return `Administrador criado: ${email ?? ''}.`;
-  return null;
 }
 
 export type { AdminDoForm };
@@ -176,8 +171,6 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
   // tentou conferir ou gravar com a senha fora da RN-CORE-32: a lista pinta as faltas de vermelho
   const [destacarSenha, setDestacarSenha] = useState(false);
   const [erroAdmin, setErroAdmin] = useState<string | null>(null);
-  // e-mail do administrador do último envio (o resultado diz "Administrador criado: <e-mail>.")
-  const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
   const faltasDaSenha = f.admin ? faltasNaSenha(f.admin.senha) : [];
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
@@ -205,7 +198,6 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
     setDestacarSenha(faltasDaSenha.length > 0);
     if (Object.keys(e).length > 0) return setErro('Confira os campos marcados.');
     setEnviando(simular ? 'conferir' : 'gravar');
-    setEmailEnviado(f.admin ? f.admin.email.trim().toLowerCase() : null);
     try {
       const r = await chamarPortal(ROTAS_PORTAL.empresas, { metodo: 'POST', corpo, schema: CriarEmpresaRespostaSchema });
       setResultado(r);
@@ -274,7 +266,7 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
           <Notice tone="danger">{erro}</Notice>
         </div>
       )}
-      {resultado && <ResultadoEmpresa r={resultado} emailAdmin={emailEnviado} />}
+      {resultado && <ResultadoEmpresa r={resultado} />}
     </>
   );
 
@@ -368,31 +360,14 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
   );
 }
 
-function ResultadoEmpresa({ r, emailAdmin }: { r: Resposta; emailAdmin: string | null }) {
-  if (r.simulado)
-    return (
-      <div data-testid="empresa.resultado">
-        <Notice tone="info">
-          <span className="flex flex-col gap-1">
-            <strong>{textoDaConferencia(r)}</strong>
-            {r.avisos.map((a) => (
-              <span key={a}>{a}</span>
-            ))}
-          </span>
-        </Notice>
-      </div>
-    );
-  const admin = textoDoAdminNoResultado(r, emailAdmin);
-  // Core e Integração entram em toda empresa e não aparecem em lista (RD-2617)
-  const adicionados = r.modulos_adicionados.filter((m) => !ehModuloSempre(m));
+function ResultadoEmpresa({ r }: { r: Resposta }) {
+  const entram = modulosNaLista(r.modulos_adicionados);
   return (
     <div data-testid="empresa.resultado">
-      <Notice tone="success">
+      <Notice tone={r.simulado ? 'info' : 'success'}>
         <span className="flex flex-col gap-1">
-          <strong>{`${ROTULO_RESULTADO[r.resultado]}.`}</strong>
-          {adicionados.length > 0 && <span>Módulos que entraram: {adicionados.map(nomeDoModulo).join(', ')}.</span>}
-          {r.parametros_gravados.length > 0 && <span>Parâmetros gravados: {r.parametros_gravados.length}.</span>}
-          {admin && <span data-testid="empresa.resultado-admin">{admin}</span>}
+          <strong>{r.simulado ? textoDaConferencia(r) : `${ROTULO_RESULTADO[r.resultado]}.`}</strong>
+          {!r.simulado && entram.length > 0 && <span>Módulos que entraram: {entram.map(nomeDoModulo).join(', ')}.</span>}
           {r.avisos.map((a) => (
             <span key={a}>{a}</span>
           ))}
