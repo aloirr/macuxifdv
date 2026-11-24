@@ -398,7 +398,8 @@ function exemploDe(entidade: Entidade, caminho: string, f: Folha, linha: 0 | 1, 
 
 // ---------------------------------------------------------------------------------------------------------------- geração
 
-function celulaCsv(valor: string): string {
+/** Sem protegerFormula: o arquivo vai para o importador, não para o Excel. */
+export function celulaDoModelo(valor: string): string {
   return /[;"\r\n]/.test(valor) ? `"${valor.replace(/"/g, '""')}"` : valor;
 }
 
@@ -427,8 +428,8 @@ export function gerarModeloCsv(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA
     const f = lerFolha(col.caminho, declarado);
     const v0 = exemploDe(entidade, col.caminho, f, 0, exemplos);
     const v1 = exemploDe(entidade, col.caminho, f, 1, exemplos);
-    linhas[0].push(celulaCsv(v0));
-    linhas[1].push(celulaCsv(v1));
+    linhas[0].push(celulaDoModelo(v0));
+    linhas[1].push(celulaDoModelo(v1));
     const padrao = valorPadrao(declarado);
     const notas = [OBSERVACOES[`${entidade}.${col.caminho}`] ?? OBSERVACOES[col.caminho], typeof padrao === 'boolean' ? `Vazio = ${padrao ? 'sim' : 'não'}.` : typeof padrao === 'string' || typeof padrao === 'number' ? `Vazio = ${String(padrao)}.` : undefined].filter((x): x is string => x !== undefined);
     campos.push({
@@ -441,7 +442,7 @@ export function gerarModeloCsv(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA
       observacao: notas.length > 0 ? notas.join(' ') : null,
     });
   }
-  const cabecalho = colunas.map((c) => celulaCsv(c.caminho)).join(SEPARADOR);
+  const cabecalho = colunas.map((c) => celulaDoModelo(c.caminho)).join(SEPARADOR);
   const csv = BOM_CSV + [cabecalho, linhas[0].join(SEPARADOR), linhas[1].join(SEPARADOR)].join(CRLF) + CRLF;
   return { entidade, arquivo: nomeArquivoModelo(entidade), csv, campos };
 }

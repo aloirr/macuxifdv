@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { LinhaErro } from '../../contracts';
-import { CSV_BOM, errosParaCsv, toCsv } from './csv';
+import { BOM_CSV } from '@macuxi/comum/csv';
+import { errosParaCsv, toCsv } from './csv';
 
-const linhas = (csv: string) => csv.replace(CSV_BOM, '').trimEnd().split('\r\n');
+const linhas = (csv: string) => csv.replace(BOM_CSV, '').trimEnd().split('\r\n');
 
 describe('CSV no padrão do Excel brasileiro', () => {
   it('BOM, separador ;, CRLF e aspas quando precisa', () => {
@@ -10,7 +11,7 @@ describe('CSV no padrão do Excel brasileiro', () => {
       ['a', 'b;c'],
       [1, 'diz "oi"'],
     ]);
-    expect(csv.startsWith(CSV_BOM)).toBe(true);
+    expect(csv.startsWith(BOM_CSV)).toBe(true);
     expect(linhas(csv)).toEqual(['a;"b;c"', '1;"diz ""oi"""']);
   });
 
