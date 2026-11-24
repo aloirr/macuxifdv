@@ -100,16 +100,22 @@ function resumirGrupo(linhas: readonly LinhaFarol[], p: ParametrosFarol): FarolR
   return { carteira: linhas.length, positivados, positivacao_pct: pontosBase(positivados, linhas.length), cor: corDaPositivacao(positivados, linhas.length, p), por_cor };
 }
 
+/** RN-CORE-28 item 1: uma linha por cliente; vale a de quem positivou, senão a primeira. */
+export function umaLinhaPorCliente<T>(itens: readonly T[], cliente: (i: T) => string, positivado: (i: T) => boolean): T[] {
+  const unicos = new Map<string, T>();
+  for (const i of itens) {
+    const atual = unicos.get(cliente(i));
+    if (!atual || (positivado(i) && !positivado(atual))) unicos.set(cliente(i), i);
+  }
+  return [...unicos.values()];
+}
+
 /**
  * RN-CORE-28 item 1: o cliente com dois vendedores conta UMA vez no total e uma vez em cada vendedor.
  * Vendedores saem ordenados por id (a API troca pela ordem de nome).
  */
 export function resumirFarol(linhas: readonly LinhaFarol[], p: ParametrosFarol): { resumo: FarolResumo; vendedores: Array<FarolResumo & { usuario_id: string }> } {
-  const unicos = new Map<string, LinhaFarol>();
-  for (const l of linhas) {
-    const atual = unicos.get(l.cliente_id);
-    if (!atual || (l.positivado_mes && !atual.positivado_mes)) unicos.set(l.cliente_id, l);
-  }
+  const unicos = umaLinhaPorCliente(linhas, (l) => l.cliente_id, (l) => l.positivado_mes);
   const porVendedor = new Map<string, LinhaFarol[]>();
   for (const l of linhas) {
     const grupo = porVendedor.get(l.usuario_id);
@@ -117,7 +123,7 @@ export function resumirFarol(linhas: readonly LinhaFarol[], p: ParametrosFarol):
     else porVendedor.set(l.usuario_id, [l]);
   }
   return {
-    resumo: resumirGrupo([...unicos.values()], p),
+    resumo: resumirGrupo(unicos, p),
     vendedores: [...porVendedor.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([usuario_id, ls]) => ({ usuario_id, ...resumirGrupo(ls, p) })),
   };
 }

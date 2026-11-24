@@ -3,17 +3,16 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import {
   Badge,
   Button,
+  CLASSES_DESTAQUE,
   ErrorBlock,
   FilterBar,
   intervaloSyncAutoMs,
-  KpiCard,
-  KpiGrid,
   LoadingBlock,
   Notice,
   PageHeader,
@@ -31,27 +30,115 @@ import { EquipeListaRespostaSchema, FarolSchema, type CorFarol, type Farol } fro
 import {
   aoEscolherEquipe,
   aoEscolherVendedor,
+  corAoClicarNoContador,
   consultaDoFarol,
   csvDoFarol,
   filtrosDaUrl,
-  legendaEmLinhas,
+  dicaDaPositivacao,
+  estadoDaPositivacao,
+  legendaDoCliente,
+  tomDoContador,
   mesMaximo,
   avisoDoMesPassado,
   ORDEM_DAS_CORES,
-  ROTULO_COR_PLURAL,
+  ORDEM_DOS_CONTADORES,
+  ROTULO_PLURAL_DA_COR,
   rotuloDaCor,
   rotuloDoExportar,
-  textoDaFonte,
   textoDeData,
   textoDeDias,
   textoDePositivacao,
-  textoDoResumo,
   tomDaCor,
 } from '../../lib/farol';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 
 const CAMPO =
   'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[15px] font-medium text-ink';
+
+const TEXTO_DO_TOM = { neutral: 'text-ink', warning: 'text-warning', danger: 'text-danger' } as const;
+
+/** Dois cartões executivos: positivação do mês (cor só abaixo do limite) e carteira (cada número filtra a lista). */
+export function ResumoDoFarol({
+  farol,
+  corAtiva,
+  aoFiltrar,
+}: {
+  farol: Farol;
+  corAtiva: string;
+  aoFiltrar: (cor: CorFarol | '') => void;
+}) {
+  const [dica, setDica] = useState(false);
+  const pos = estadoDaPositivacao(farol.resumo, farol.fonte_positivacao, farol.parametros);
+  return (
+    <div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_2fr]">
+      <section
+        aria-label="Positivação do mês"
+        className="flex flex-col gap-1 rounded-[14px] border border-line bg-surface px-4 py-3.5"
+        data-testid="farol.positivacao"
+      >
+        <span className="flex items-center gap-1.5 text-[13px] text-ink-2">
+          Positivação do mês
+          <button
+            type="button"
+            className={`inline-flex size-8 cursor-pointer items-center justify-center rounded-full border border-line bg-transparent text-[12px] font-semibold text-ink-2 ${CLASSES_DESTAQUE.foco}`}
+            aria-label="Como o vendedor é avaliado"
+            aria-expanded={dica}
+            aria-controls={dica ? 'farol-dica-positivacao' : undefined}
+            onClick={() => setDica((v) => !v)}
+            data-testid="farol.dica-positivacao"
+          >
+            i
+          </button>
+        </span>
+        <span className={`text-[32px] leading-tight font-semibold tabular-nums ${TEXTO_DO_TOM[pos.tom]}`}>
+          {pos.valor}
+        </span>
+        <span className="text-[13px] text-ink-2">
+          {pos.detalhe}
+          {pos.alerta && (
+            <>
+              {' · '}
+              <strong className={`font-semibold ${TEXTO_DO_TOM[pos.tom]}`}>{pos.alerta}</strong>
+            </>
+          )}
+        </span>
+        {dica && <span id="farol-dica-positivacao" className="text-[12px] text-ink-2">{dicaDaPositivacao(farol.parametros)}</span>}
+      </section>
+      <section
+        aria-label="Carteira"
+        className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-[14px] border border-line bg-surface px-4 py-3.5 sm:grid-cols-5"
+        data-testid="farol.carteira"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="text-[13px] text-ink-2">Clientes na carteira</span>
+          <span className="text-[32px] leading-tight font-semibold text-ink tabular-nums">
+            {farol.resumo.carteira}
+          </span>
+        </div>
+        {ORDEM_DOS_CONTADORES.map((cor) => {
+          const rotulo = ROTULO_PLURAL_DA_COR[cor];
+          const n = farol.resumo.por_cor[cor];
+          return (
+            <button
+              key={cor}
+              type="button"
+              className={`flex min-h-11 cursor-pointer flex-col gap-1 border-0 border-l border-line pl-4 text-left ${corAtiva === cor ? 'bg-accent-soft' : 'bg-transparent'} ${CLASSES_DESTAQUE.foco}`}
+              onClick={() => aoFiltrar(corAoClicarNoContador(corAtiva, cor))}
+              aria-pressed={corAtiva === cor}
+              aria-label={`Ver só os clientes: ${rotulo.toLowerCase()} (${n})`}
+              data-testid={`farol.contador.${cor}`}
+            >
+              <span className="text-[13px] text-ink-2">{rotulo}</span>
+              <span className={`text-[32px] leading-tight font-semibold tabular-nums ${TEXTO_DO_TOM[tomDoContador(cor, n)]}`}>
+                {n}
+              </span>
+            </button>
+          );
+        })}
+      </section>
+    </div>
+  );
+}
 
 function Cor({ cor }: { cor: CorFarol | null }) {
   return <Badge tone={tomDaCor(cor)}>{rotuloDaCor(cor)}</Badge>;
@@ -96,6 +183,7 @@ export function FarolConteudo({ abas }: { abas?: ReactNode }) {
       ),
     getNextPageParam: (p) => p.proximo_cursor ?? undefined,
     refetchInterval: intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN), // RN-CORE-23 item 6
+    placeholderData: keepPreviousData, // mantém cartões e foco ao trocar filtro/contador
   });
   // supervisor/gerente/admin leem as equipes; sem permissão (analista) o filtro some e o resto segue
   const equipes = useQuery({
@@ -242,48 +330,14 @@ export function FarolConteudo({ abas }: { abas?: ReactNode }) {
 
       {primeira && (
         <>
-          <KpiGrid>
-            <KpiCard
-              label="Clientes na carteira"
-              value={primeira.resumo.carteira}
-              sub={textoDoResumo(primeira.resumo)}
-            />
-            <KpiCard
-              label="Positivação do mês"
-              value={textoDePositivacao(primeira.resumo.positivacao_pct)}
-              sub={<Cor cor={primeira.resumo.cor} />}
-            />
-            {ORDEM_DAS_CORES.map((c) => (
-              <KpiCard
-                key={c}
-                label={ROTULO_COR_PLURAL[c]}
-                value={primeira.resumo.por_cor[c]}
-                sub={
-                  <button
-                    type="button"
-                    className="inline-flex min-h-[32px] items-center gap-1.5 bg-transparent p-0 text-left"
-                    onClick={() => set({ cor: c })}
-                    aria-label={`Ver só ${ROTULO_COR_PLURAL[c].toLowerCase()}`}
-                  >
-                    <Cor cor={c} /> ver na lista
-                  </button>
-                }
-              />
-            ))}
-          </KpiGrid>
-          <div className="flex flex-col gap-1.5 text-[13px] text-ink-2" data-testid="farol.resumo">
-            {legendaEmLinhas(primeira.parametros).map((l) => (
-              <p key={l.rotulo} className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <strong>{l.rotulo}:</strong>
-                {l.faixas.map((f) => (
-                  <span key={f.cor} className="inline-flex items-center gap-1">
-                    <Cor cor={f.cor} /> {f.texto}
-                  </span>
-                ))}
-              </p>
-            ))}
-            <p className="m-0">{textoDaFonte(primeira.fonte_positivacao)}</p>
-          </div>
+          <ResumoDoFarol
+            farol={primeira}
+            corAtiva={filtros.cor}
+            aoFiltrar={(c) => set({ cor: c })}
+          />
+          <p className="m-0 text-[13px] text-ink-2" data-testid="farol.resumo">
+            {legendaDoCliente(primeira.parametros)}
+          </p>
 
           <Panel title={`Por vendedor (${primeira.vendedores.length})`}>
             {primeira.vendedores.length === 0 ? (

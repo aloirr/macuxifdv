@@ -20,22 +20,23 @@ export const ROTULO_COR: Record<CorFarol, string> = {
   vermelho: 'Vermelho',
   sem_compra: 'Sem compra',
 };
-export type TomDoFarol = 'success' | 'warning' | 'danger' | 'neutral';
+export type TomDoFarol = 'warning' | 'danger' | 'neutral';
 export const TOM_DA_COR: Record<CorFarol, TomDoFarol> = {
-  verde: 'success',
+  verde: 'neutral',
   amarelo: 'warning',
   vermelho: 'danger',
   sem_compra: 'neutral',
 };
 export const ORDEM_DAS_CORES: readonly CorFarol[] = ['vermelho', 'amarelo', 'verde', 'sem_compra'];
 
-/** Cor sempre acompanhada de texto (acessibilidade): "Vermelho", nunca só a bolinha. */
-/** Rótulo no plural para os cartões e a ação de filtrar ("Clientes verdes", "Clientes sem compra"). */
-export const ROTULO_COR_PLURAL: Record<CorFarol, string> = {
-  verde: 'Clientes verdes',
-  amarelo: 'Clientes amarelos',
-  vermelho: 'Clientes vermelhos',
-  sem_compra: 'Clientes sem compra',
+/** Ordem dos contadores da carteira (a da simulação aprovada); o filtro de cor usa `ORDEM_DAS_CORES`. */
+export const ORDEM_DOS_CONTADORES: readonly CorFarol[] = ['vermelho', 'amarelo', 'sem_compra', 'verde'];
+/** Rótulo plural dos contadores e do botão de filtrar. */
+export const ROTULO_PLURAL_DA_COR: Record<CorFarol, string> = {
+  verde: 'Verdes',
+  amarelo: 'Amarelos',
+  vermelho: 'Vermelhos',
+  sem_compra: 'Sem compra',
 };
 
 export function rotuloDaCor(cor: CorFarol | null): string {
@@ -53,10 +54,10 @@ export function textoDeDias(dias: number | null): string {
   return dias === 1 ? '1 dia' : `${dias} dias`;
 }
 
-/** Pontos-base (10000 = 100,00%) para texto: 3333 -> "33,3%"; 10000 -> "100%". */
+/** Pontos-base (10000 = 100,00%) para texto, truncado (nunca sobe para o limite que a cor diz não ter atingido): 3333 -> "33,3%"; 6995 -> "69,9%"; 10000 -> "100%". */
 export function textoDePositivacao(pontosBase: number): string {
-  const pct = pontosBase / 100;
-  const texto = Number.isInteger(pct) ? String(pct) : pct.toFixed(1).replace('.', ',');
+  const decimos = Math.floor(pontosBase / 10);
+  const texto = decimos % 10 === 0 ? String(decimos / 10) : `${Math.floor(decimos / 10)},${decimos % 10}`;
   return `${texto}%`;
 }
 
@@ -67,14 +68,32 @@ export function textoDeData(iso: string | null): string {
   return `${d}/${m}/${a}`;
 }
 
-export function textoDoResumo(r: FarolResumo): string {
-  return `${r.positivados} de ${r.carteira} clientes positivados no mês (${textoDePositivacao(r.positivacao_pct)})`;
+/** Cartão "Positivação do mês": cor de aviso/erro só abaixo do limite do vendedor e sempre com texto; sem fonte, estado vazio. */
+export interface EstadoDaPositivacao {
+  valor: string;
+  detalhe: string;
+  tom: TomDoFarol;
+  alerta: string | null;
 }
 
-export function textoDaFonte(fonte: Farol['fonte_positivacao']): string {
-  if (fonte === 'pedido') return 'Positivação pelos pedidos do Vendedor.';
-  if (fonte === 'nota_erp') return 'Positivação pelas notas fiscais do ERP.';
-  return 'Sem dados de positivação neste mês: os clientes aparecem só pelos dias sem compra.';
+export function estadoDaPositivacao(
+  r: FarolResumo,
+  fonte: Farol['fonte_positivacao'],
+  p: ParametrosFarol,
+): EstadoDaPositivacao {
+  if (!fonte) return { valor: '—', detalhe: 'Sem pedidos nem notas', tom: 'neutral', alerta: null };
+  const detalhe = `${r.positivados} de ${r.carteira} clientes`;
+  const valor = textoDePositivacao(r.positivacao_pct);
+  if (r.cor === 'vermelho') return { valor, detalhe, tom: 'danger', alerta: `abaixo de ${p.positivacao_amarelo_pct}%` };
+  if (r.cor === 'amarelo') return { valor, detalhe, tom: 'warning', alerta: `abaixo de ${p.positivacao_verde_pct}%` };
+  return { valor, detalhe, tom: 'neutral', alerta: null };
+}
+
+/** Contadores da carteira: só Vermelhos e Amarelos acima de zero pedem ação e ganham cor. */
+export function tomDoContador(cor: CorFarol, quantidade: number): TomDoFarol {
+  if (quantidade > 0 && cor === 'vermelho') return 'danger';
+  if (quantidade > 0 && cor === 'amarelo') return 'warning';
+  return 'neutral';
 }
 
 /** Filtros que vivem na URL (`?mes=&equipe=&vendedor=&cor=&q=`); só o que está preenchido vai para a API. */
@@ -192,33 +211,19 @@ export function validarFormularioDoFarol(t: TextosDosParametros): ResultadoDoFor
   return { ok: false, erros };
 }
 
-/** Frase que explica as faixas em vigor, para a legenda sob o resumo. */
-export function legendaDasFaixas(p: ParametrosFarol): string {
-  return `Verde: comprou até ${p.verde_ate_dias} dias atrás ou já positivou no mês. Amarelo: até ${p.amarelo_ate_dias} dias. Vermelho: mais que isso. Vendedor: verde a partir de ${p.positivacao_verde_pct}% de positivação e amarelo a partir de ${p.positivacao_amarelo_pct}%.`;
+/** Contador da carteira: clicar na cor ativa limpa o filtro; em outra, filtra por ela. */
+export function corAoClicarNoContador(ativa: string, clicada: CorFarol): CorFarol | '' {
+  return ativa === clicada ? '' : clicada;
 }
 
-/** Legenda em linhas, cada faixa com a sua cor (o selo vem da tela): uma linha para o cliente e outra para o vendedor. */
-export function legendaEmLinhas(
-  p: ParametrosFarol,
-): { rotulo: string; faixas: { cor: CorFarol; texto: string }[] }[] {
-  return [
-    {
-      rotulo: 'Cliente',
-      faixas: [
-        { cor: 'verde', texto: `até ${p.verde_ate_dias} dias ou positivado no mês` },
-        { cor: 'amarelo', texto: `até ${p.amarelo_ate_dias} dias` },
-        { cor: 'vermelho', texto: `acima de ${p.amarelo_ate_dias} dias` },
-      ],
-    },
-    {
-      rotulo: 'Vendedor',
-      faixas: [
-        { cor: 'verde', texto: `a partir de ${p.positivacao_verde_pct}%` },
-        { cor: 'amarelo', texto: `a partir de ${p.positivacao_amarelo_pct}%` },
-        { cor: 'vermelho', texto: `abaixo de ${p.positivacao_amarelo_pct}%` },
-      ],
-    },
-  ];
+/** Legenda de uma linha: a regra do cliente, que explica a coluna Farol da lista. */
+export function legendaDoCliente(p: ParametrosFarol): string {
+  return `Farol do cliente: verde até ${p.verde_ate_dias} dias sem compra ou positivado no mês · amarelo até ${p.amarelo_ate_dias} dias · vermelho acima de ${p.amarelo_ate_dias} dias.`;
+}
+
+/** Dica (i) do cartão de positivação: a regra do vendedor. */
+export function dicaDaPositivacao(p: ParametrosFarol): string {
+  return `Vendedor: verde a partir de ${p.positivacao_verde_pct}%, amarelo a partir de ${p.positivacao_amarelo_pct}%, vermelho abaixo de ${p.positivacao_amarelo_pct}%.`;
 }
 
 /** Rótulo do botão de exportar: diz quantos clientes saem e avisa quando há mais páginas. */
