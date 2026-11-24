@@ -231,12 +231,15 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     expect(rotas.length).toBeGreaterThan(0);
     const respostasRotas = await emLotes(rotas, async ({ modulo, r }) => {
       const url = `/v1/${modulo}/${r.caminho.replace(/:[a-zA-Z_]+/g, NAO_UUID)}`;
-      return { modulo, rotulo: `${r.metodo} ${url}`, resp: await api.chamar(admin, { method: r.metodo, url, ...(r.metodo === 'GET' ? {} : { payload: {} }) }) };
+      return { modulo, soSuperAdmin: r.superAdmin === 'exige', rotulo: `${r.metodo} ${url}`, resp: await api.chamar(admin, { method: r.metodo, url, ...(r.metodo === 'GET' ? {} : { payload: {} }) }) };
     });
     expect(respostasRotas).toHaveLength(rotas.length);
-    for (const { modulo, rotulo, resp } of respostasRotas) {
+    for (const { modulo, soSuperAdmin, rotulo, resp } of respostasRotas) {
       expect(resp.statusCode, rotulo).toBe(403);
-      expect(erroDe(resp), rotulo).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo } });
+      // v1.0.31 (ADR 0029, `superAdmin: 'exige'`, ex.: GET /v1/integracao/monitor/detalhes): rota só do super-admin recusa o usuário
+      // do tenant pelo perfil, antes da licença (com ou sem o módulo, ele nunca entra)
+      if (soSuperAdmin) expect(erroDe(resp), rotulo).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO' });
+      else expect(erroDe(resp), rotulo).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo } });
     }
     // e toda entidade de sync de módulo não efetivo, no pull
     const entidades = api.modulos.filter((x) => x.manifesto.id !== 'core').flatMap((m) => m.manifesto.sync);

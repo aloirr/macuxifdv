@@ -8,6 +8,7 @@ import { CODIGOS_ERRO_LINHA, type ErrosLoteResposta, type LoteListagemItem } fro
 type ErroLinhaLote = ErrosLoteResposta['itens'][number];
 import { ROTULO_ENTIDADE, rotuloDoLote, textoDoFimDoLote, tomDoLote } from '../lib/apresentacao';
 import { errosParaCsv, ROTULO_MODO } from '../lib/csv';
+import { useClienteIntegracao } from '../lib/cliente';
 import { buscarTodosErros, useErrosLote } from '../lib/queries';
 
 /**
@@ -44,6 +45,7 @@ export function LoteDrawer({ lote, tz, onClose }: { lote: LoteListagemItem | nul
 
 function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
   const toast = useToast();
+  const { chamar } = useClienteIntegracao();
   const [codigo, setCodigo] = useState('');
   const [exportando, setExportando] = useState(false);
   const erros = useErrosLote(lote.com_erro > 0 ? lote.lote_id : null, codigo);
@@ -53,7 +55,7 @@ function DetalheLote({ lote, tz }: { lote: LoteListagemItem; tz: string }) {
   const exportar = async () => {
     setExportando(true);
     try {
-      const r = await buscarTodosErros(lote.lote_id, codigo);
+      const r = await buscarTodosErros(chamar, lote.lote_id, codigo);
       downloadBlob(new Blob([errosParaCsv(r.itens)], { type: 'text/csv;charset=utf-8' }), `erros_lote_${lote.entidade}_${lote.lote_id.slice(0, 8)}.csv`);
       toast(r.truncado ? 'warning' : 'success', r.truncado ? `CSV com as primeiras ${r.itens.length} de ${r.total} linhas com erro.` : `CSV com ${r.itens.length} linhas com erro exportado.`);
     } catch (e) {

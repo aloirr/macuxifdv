@@ -38,6 +38,10 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.dados_legais': 'razão social, CNPJ e site da Macuxi, fora dos tenants (rodape-legal.md §3.2); só por função',
   /** Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin, vale para todas as empresas; só por função. */
   'plataforma.frase_carga': 'frases da tela de carga, globais (T-0181); portal pelas sa_*_frase_carga, app pela frases_carga_ativas()',
+  /** Zerar dados da empresa (0100, ADR 0068): empresa_id SEM FK no lugar de tenant_id, como as da 0072 (sobrevivem à excluir_tenant). */
+  'plataforma.zerar_empresa': 'job do zerar dados da empresa, sobrevive à exclusão do tenant (ADR 0068); só por função',
+  'plataforma.limpeza_copia': 'cópia das linhas que a limpeza muda, por lote (ADR 0068; a public.macuxi_limpeza_backup do #675); só por função',
+  'plataforma.zerar_previa': 'prévia do zerar dados da empresa, contada pelo worker, vale 1 hora (ADR 0068); só por função',
 } as const;
 
 /**
@@ -63,6 +67,10 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.dados_legais',
   /** 0081 (T-0181): frases da tela de carga; o app lê pela plataforma.frases_carga_ativas(), o portal pelas sa_*_frase_carga. */
   'plataforma.frase_carga',
+  /** 0100 (ADR 0068): zerar dados da empresa, a prévia e a cópia da limpeza; só pelas sa_* do zerar, pelo worker e pelo dono (workflow). */
+  'plataforma.zerar_empresa',
+  'plataforma.limpeza_copia',
+  'plataforma.zerar_previa',
 ] as const;
 
 /**

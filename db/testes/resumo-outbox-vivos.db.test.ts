@@ -137,7 +137,7 @@ describe.skipIf(semBanco())('0099 resumo da outbox sem apagados (up/down, banco 
       expect(estadoAntes.worker_deleted_at).toBe(false);
       expect(estadoAntes.def).not.toContain('deleted_at is null');
 
-      expect((await migrarUp(c)).aplicadas).toEqual([`${VERSAO}_${m99.nome}`]);
+      expect((await migrarUp(c, { ate: VERSAO })).aplicadas).toEqual([`${VERSAO}_${m99.nome}`]);
       const depois = await retratoDoCatalogo(c);
       expect(depois).toEqual(antes); // nenhum objeto novo: só o corpo da função e o grant
       const estadoDepois = (await c.query(ESTADO)).rows[0];
@@ -151,7 +151,7 @@ describe.skipIf(semBanco())('0099 resumo da outbox sem apagados (up/down, banco 
       await c.query(m99.down); // idempotente
       expect((await c.query(ESTADO)).rows[0]).toEqual(estadoAntes);
 
-      await migrarUp(c);
+      await migrarUp(c, { ate: VERSAO });
       expect((await c.query(ESTADO)).rows[0]).toEqual(estadoDepois);
     });
   });

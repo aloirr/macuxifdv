@@ -194,11 +194,33 @@ export const FUNCOES_SA_PLANOS = [
 export const FUNCOES_SA_OCULTAR_MARCA = ['plataforma.sa_gravar_ocultar_marca(uuid, uuid, boolean)'] as const;
 
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA: as até a 0080 (FUNCOES_SA_ATE_0080) + uma constante por lote da v1.0.14
- * (FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS) e a da v1.0.17 (FUNCOES_SA_OCULTAR_MARCA). Use esta lista nas conferências pelo catálogo do banco migrado até o
- * fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
+ * As 4 sa_* do zerar dados da empresa (0100, ADR 0068; RN-PLA-12; apps/api/src/empresa-zerar-portal.ts): pedir e ler a prévia
+ * (contada pelo worker), pedir o zerar (com as entidades; nulo = a empresa inteira) e ler. Só super-admin (sessão inválida 28000,
+ * admin do cliente 42501). EXECUTE só ao macuxi_portal.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS, ...FUNCOES_SA_OCULTAR_MARCA] as const;
+export const FUNCOES_SA_ZERAR = [
+  'plataforma.sa_pedir_previa_zerar(uuid, uuid, uuid, text[])',
+  'plataforma.sa_ler_previa_zerar(uuid, uuid, uuid)',
+  'plataforma.sa_pedir_zerar(uuid, uuid, uuid, text, text[])',
+  'plataforma.sa_ler_zerar(uuid, uuid)',
+] as const;
+
+/** Funções do worker do zerar (0100, ADR 0068): SECURITY DEFINER, EXECUTE só ao macuxi_worker (o tenant sai da linha do job). */
+export const FUNCOES_WORKER_ZERAR = [
+  'plataforma.pegar_zerar()',
+  'plataforma.executar_zerar(uuid)',
+  'plataforma.fechar_zerar(uuid, text)',
+  'plataforma.expurgar_zerar(integer)',
+  'plataforma.pegar_previa_zerar()',
+  'plataforma.executar_previa_zerar(uuid)',
+] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA: as até a 0080 (FUNCOES_SA_ATE_0080) + uma constante por lote da v1.0.14
+ * (FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS), a da v1.0.17 (FUNCOES_SA_OCULTAR_MARCA) e as do zerar da v1.0.31 (FUNCOES_SA_ZERAR): 42.
+ * Use esta lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS, ...FUNCOES_SA_OCULTAR_MARCA, ...FUNCOES_SA_ZERAR] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

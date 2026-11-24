@@ -2,7 +2,7 @@
  * Monitor da Integração ERP, uma linha por entidade (RF-INT-04; RN-INT-15). Funções puras que agregam os lotes recentes do
  * `MonitorResumo`: a regra de "reprocessável", "em andamento" e "linhas integradas" vem do domain; aqui só se compõe a linha e o texto.
  */
-import { formatDataHoraCurta, formatDateTime, formatInt, formatTime } from '@macuxi/ui/web';
+import { formatDataHoraCurta, formatDateTime, formatInt, formatTime, type AcaoDoMenu } from '@macuxi/ui/web';
 import type { Entidade, LoteListagemItem, MonitorResumo } from '../../contracts';
 import { integradasDoLote, podeCancelarLote, podeReprocessarLote } from '../../domain';
 
@@ -88,4 +88,31 @@ export function cabecalhoDoMonitor(
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+/**
+ * Itens do menu "⋯" da linha da entidade (revisão v1.0.31, R2-3): "Reprocessar" só com falha reprocessável (RN-INT-15), desligado
+ * enquanto um reprocesso corre, e "Histórico (n)" sempre. Os `testId` são os dos botões de antes.
+ */
+export function menuDaEntidade(
+  l: LinhaEntidade,
+  o: { reprocessando: boolean; aoReprocessar: (ids: readonly string[]) => void; aoAbrirHistorico: () => void },
+): AcaoDoMenu[] {
+  const historico: AcaoDoMenu = {
+    id: 'historico',
+    rotulo: `Histórico (${l.lotes.length})`,
+    aoEscolher: o.aoAbrirHistorico,
+    testId: `integracao.entidade.historico.${l.entidade}`,
+  };
+  if (!l.comFalha) return [historico];
+  return [
+    {
+      id: 'reprocessar',
+      rotulo: 'Reprocessar',
+      desligada: o.reprocessando,
+      aoEscolher: () => o.aoReprocessar(l.reprocessaveis),
+      testId: `integracao.entidade.reprocessar.${l.entidade}`,
+    },
+    historico,
+  ];
 }
