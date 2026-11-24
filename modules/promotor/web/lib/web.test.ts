@@ -30,6 +30,11 @@ describe('CSV do BKO de trade', () => {
     expect(csvCelula(null)).toBe('');
   });
 
+  it('texto que começa com = sai com apóstrofo (CWE-1236); número negativo não', () => {
+    expect(csvCelula('=SOMA(A1:A2)')).toBe("'=SOMA(A1:A2)");
+    expect(csvCelula(-10.5)).toBe('-10,5');
+  });
+
   it('share × meta e ruptura por loja, com BOM e CRLF', () => {
     const s = shareCsv({
       de: '2026-10-05',
