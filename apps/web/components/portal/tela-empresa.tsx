@@ -128,7 +128,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
           </div>
           {abertas.has('integracao') && (
             <div role="tabpanel" id="empresa-painel-integracao" aria-labelledby="empresa-aba-integracao" hidden={aba !== 'integracao'}>
-              <AbaIntegracao tenant={empresa.id} />
+              <AbaIntegracao tenant={empresa.id} fuso={empresa.fuso} />
             </div>
           )}
           {abertas.has('empresa') && (
@@ -144,7 +144,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
                     <Panel title="Apps">
                       <div data-testid="empresa-pagina.apps" className="flex flex-col gap-2 text-[15px]">
                         {DOWNLOAD_APPS.map((p) => (
-                          <BaixarPacote key={p.testId} produto={p} tenant={empresa.id} />
+                          <BaixarPacote key={p.testId} produto={p} tenant={empresa.id} fuso={empresa.fuso} />
                         ))}
                       </div>
                     </Panel>
