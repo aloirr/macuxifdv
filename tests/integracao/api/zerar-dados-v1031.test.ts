@@ -39,6 +39,7 @@ import {
   CODIGOS_ZERAR_EMPRESA,
   ENTIDADES_ZERAR,
   ERROS_WORKER_ZERAR,
+  linhasQueSaem,
   mensagemDaPreviaZerar,
   MODOS_QUE_SAEM,
   PreviaZerarSchema,
@@ -186,9 +187,6 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
   /** "prévia = executado": as mesmas (tabela, modo, linhas) com contagem, como multiconjunto (cada linha traz o modo). */
   const tabelasComLinhas = (l: readonly (LinhaLimpeza | LinhaPreviaZerar)[]) =>
     l.filter((x) => x.linhas > 0).map((x) => `${x.tabela}|${x.modo}|${x.linhas}`).sort();
-  /** Valor × regra (RN-PLA-12): saem só as linhas dos `MODOS_QUE_SAEM` do SDK (soft e físico); filial, pacote de sync e tenant mudam e não saem. */
-  const somaQueSai = (l: readonly (LinhaLimpeza | LinhaPreviaZerar)[]) =>
-    l.filter((x) => MODOS_QUE_SAEM.has(x.modo)).reduce((a, x) => a + x.linhas, 0);
   const pedir = (id: string, entidades: string[] | null, extra: Record<string, unknown> = {}) =>
     comoPortal(tk.sa, { method: 'POST', url: urlEmpresa('zerar'), payload: { id, codigo_confirmacao: A.codigo, senha: SA.senha, ...(entidades ? { entidades } : {}), ...extra } });
   const lerZerar = async (): Promise<ZerarEmpresa> => {
@@ -463,7 +461,7 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     const tabelas = new Map(pv.linhas!.map((t) => [t.tabela, t]));
     expect(tabelas.get('core.cliente')).toMatchObject({ tabela: 'core.cliente', modo: 'soft', linhas: 2 });
     expect(tabelas.get('integracao.registro_atual')?.modo).toBe('fisico');
-    expect(pv.total, 'total da prévia = soft + físico').toBe(somaQueSai(pv.linhas!));
+    expect(pv.total, 'total da prévia = soft + físico').toBe(linhasQueSaem(pv.linhas!));
     for (const t of ['core.cliente_endereco', 'core.titulo', 'core.nota_erp']) expect(tabelas.get(t)?.linhas, `cascata ${t}`).toBeGreaterThanOrEqual(1);
     for (const t of ['core.produto', 'catalogo.tabela_preco', 'catalogo.estoque_saldo', 'core.usuario']) expect(tabelas.has(t), `${t} fica`).toBe(false);
     expect(pv.entidades_afetadas).toEqual(expect.arrayContaining(['cliente', 'cliente_endereco', 'titulo', 'nota']));
@@ -616,7 +614,7 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     expect([pv.entidades, pv.bloqueio]).toEqual([null, null]);
     // valor × regra: o total da prévia (o número da tela) = soma das linhas soft + físico; core.filial, plataforma.sync_pacote e plataforma.tenant mudam e não saem
     expect([...MODOS_QUE_SAEM].sort(), 'a regra: saem só soft e físico').toEqual(['fisico', 'soft']);
-    expect(pv.total).toBe(somaQueSai(pv.linhas!));
+    expect(pv.total).toBe(linhasQueSaem(pv.linhas!));
     const modoDe = new Map(pv.linhas!.map((l) => [l.tabela, l.modo]));
     const mudamSemSair = { 'core.filial': 'filial', 'plataforma.sync_pacote': 'sync_pacote', 'plataforma.tenant': 'girar' } as const;
     expect(modoDe.has('core.filial'), 'a empresa inteira mexe na filial').toBe(true);
@@ -625,7 +623,7 @@ describe.skipIf(semBanco() || !!SEM_PAPEIS)('v1.0.31 — Zerar dados da empresa 
     const z = await zerar(null);
     expect(tabelasComLinhas(z.contagem!)).toEqual(tabelasComLinhas(pv.linhas!));
     expect(z.linhas_apagadas).toBe(pv.total);
-    expect(z.linhas_apagadas).toBe(somaQueSai(z.contagem!));
+    expect(z.linhas_apagadas).toBe(linhasQueSaem(z.contagem!));
 
     expect(await ficam(false)).toEqual(fica0);
     expect(await vivos()).toMatchObject({ cliente: 0, cliente_endereco: 0, titulo: 0, nota: 0, produto: 0, registro_atual: 0, usuarios: admins });

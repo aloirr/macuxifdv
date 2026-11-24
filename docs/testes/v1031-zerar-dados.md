@@ -84,6 +84,21 @@ admin sem superusuário) TUDO OK; `apps/web` lint e typecheck limpos, 50 arquivo
 verdes e e2e BKO `tests/e2e/bko/integracao-simples.spec.ts` 19 verdes (Chromium 1243 de `/opt/pw-browsers`); `typecheck:tests` e
 `lint:tests` limpos. Nenhum defeito; o D-1 está fechado no branch do banco-dados (7e0b0d769).
 
+## Rodada curta depois das correções do corretor-redundancias (24/11/2026, Manaus)
+
+O teste da API usa a `linhasQueSaem` do SDK no total da prévia e no `linhas_apagadas` (Z-04 e Z-08); saiu a soma local que a
+repetia. Nenhum teste de `tests/` citava "— — —" nem a coluna "Conector" do quadro do Monitor (o e2e do portal, do engenheiro-apps,
+já confere "Sem dados" e "Identificador", RD-2678/2679).
+
+Junção local descartável (merges só na árvore, nada publicado): este branch (c2ddb882a) + banco-dados d357956ac (RD-2685/2686/2687)
++ engenheiro-software 633dc5762 (RD-2680 a 2684) + engenheiro-apps 4ed8223b4 (RD-2678/2679) + modulo-integracao b88d66ef8, sem
+conflito. Postgres 16 local (`db/scripts/pg-local.sh`, sem Docker), Node 24. Os cinco critérios da tabela acima seguem ✅.
+
+Suítes na junção: `tests/` 169 arquivos (1 pulado), 2551 verdes (22 pulados, 9 todo), com a conformidade;
+`db/testes/empresa-zerar.db.test.ts` 25 verdes; `apps/api` 87 arquivos, 888 verdes (com banco); `limpar-cadastros.teste.sh` TUDO
+OK; e2e do portal `apps/web/e2e` 16 verdes (Chromium 1243 de `/opt/pw-browsers`); `typecheck:tests` e `lint:tests` limpos.
+Nenhum defeito.
+
 ## Manual (aparelho real)
 1. Portal `config.` › empresa › ⋯ › Zerar dados: conferir a prévia, digitar o código e a senha; depois do concluído, abrir o Campo
    de um vendedor administrador e confirmar que a base é baixada de novo (sem clientes do ERP).
