@@ -164,3 +164,4 @@
 2026-11-20 — T-0187 item 7 — dependência invertida: slot pedido.equipe_em_nome (contracts/extensoes.ts, EquipeEmNome.usarMembros) no lugar da consulta gestor.membros_da_equipe@1; merge do gestor revertido; sem import de @macuxi/gestor
 2026-11-20 — v1.0.16 S4 — RD-2437 (nivelMinimoDoAutor derivado de NIVEIS_APROVACAO) e RD-2451 (MembroDoSlot removido; usa MembroEquipeEmNome do contracts)
 2026-11-20 — v1.0.16 S4 — RD-2455 (MembrosEquipeEmNomeSchema sai do contrato) e RD-2456 (opcoesEmNome sem autor/visiveis; filtro só em equipeEmNomeDosMembros)
+2026-11-24 — v1.0.34 — busca do Novo pedido não pisca: sync não zera a tabela de preços; tabelaVencida (domain, base_sync) + recálculo por trás em garantirProdutos (lê as linhas frescas; orçamento e cópia aguardam); tela chama ensureProducts também em app.sincronizadoEm
