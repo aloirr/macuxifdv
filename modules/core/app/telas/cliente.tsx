@@ -26,7 +26,7 @@ import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, visitaDe
 import { AbaDocumentacao } from '../components/aba-documentacao';
 import { AbaHistorico } from '../components/aba-historico';
 import { AbaResumo, type ItemCompradoLinha } from '../components/aba-resumo';
-import { nomeDoCliente, subtituloDaFicha } from '../components/cliente360';
+import { codigosDaFicha, nomeDoCliente, subtituloDaFicha } from '../components/cliente360';
 import { abrirArquivoRegistrado } from '../lib/abrir-arquivo';
 import { pedidosQuePesamNoCredito, abasDoApp, FILTRO_PADRAO, type FiltroDaFicha } from '../lib/ficha-v2';
 import { useAbrirDocumento, useDetalheDaNota, useDocumentosDoCliente, useNotasDoCliente } from '../lib/usar-ficha-online';
@@ -211,7 +211,7 @@ export function TelaCliente() {
 
   return (
     <View style={styles.root}>
-      <CabecalhoTela titulo={nome} subtitulo={subtitulo} voltar={{ label: params.from ?? 'Clientes', fallback: ROTA_CLIENTES }} />
+      <CabecalhoTela titulo={nome} subtitulo={subtitulo} codigos={ficha ? codigosDaFicha(ficha.cliente) : undefined} voltar={{ label: params.from ?? 'Clientes', fallback: ROTA_CLIENTES }} />
       <Abas abas={itensAbas} valor={abaAtiva} onChange={setAba} testID="abas-cliente" />
       <ScrollView contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
         {/* alertas ficam no topo do conteúdo em todas as abas */}

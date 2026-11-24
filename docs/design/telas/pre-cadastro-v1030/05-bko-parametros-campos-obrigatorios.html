@@ -1,0 +1,92 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Parâmetros — Clientes</title><style>
+*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background:#F8F6F1;color:#16202A;width:1366px;min-height:768px;display:flex;position:relative;font-variant-numeric:tabular-nums}
+.menu{width:240px;min-height:768px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
+.lista{display:flex;flex-direction:column;gap:2px;flex:1}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.titulo.direto.ativo{background:#2B3743;color:#fff}
+.item{display:flex;align-items:center;min-height:32px;padding:6px 10px 6px 20px;line-height:20px;border-radius:8px;font-size:15px;color:#C9CED5;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:12px;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:15px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
+main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:16px}
+h1{font-weight:700;font-size:24px;line-height:1.2;min-height:42px;display:flex;align-items:center}
+h2{font-weight:700;font-size:17px}
+.abas{display:flex;gap:4px;border-bottom:1px solid #DFE2E6}
+.aba{height:44px;display:flex;align-items:center;padding:0 14px;font-size:15px;font-weight:500;color:#34404D;border-bottom:3px solid transparent;margin-bottom:-1px}
+.aba.ativa{color:#16202A;font-weight:600;border-bottom-color:#1E3350}
+.filtros{display:flex;align-items:flex-end;gap:10px}
+.f{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#4A5562}
+.sel{height:44px;min-width:170px;border:1px solid #7A8593;border-radius:10px;background:#fff;font-size:15px;font-weight:500;color:#16202A;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px;white-space:nowrap}
+.busca{width:340px;justify-content:flex-start;color:#4A5562;font-weight:400}
+.quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px}
+th{text-align:left;font-size:12px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 10px;height:48px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:0}
+tr.sel-linha td{background:#F8F6F1}
+.cod{display:flex;flex-direction:column;line-height:16px;font-size:13px}
+.cod span{white-space:nowrap}.cod small{font-size:12px;font-weight:500;color:#4A5562;margin-right:4px}
+.cod code,.dcab code{font-family:ui-monospace,"Cascadia Mono","Roboto Mono",monospace;font-variant-numeric:tabular-nums;font-size:13px;color:#16202A}
+.nome{font-weight:600}
+.selo{display:inline-flex;align-items:center;padding:3px 8px;line-height:16px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap}
+.ok{color:#1D6B4F;background:#E2F1EA}.al{color:#7A4F00;background:#FFF1D6}.pe{color:#A8261B;background:#FDE8E6}.ne{color:#34404D;background:#ECEEF1}
+.vazio{border:1px dashed #DFE2E6;border-radius:16px;padding:40px 24px;text-align:center;font-size:15px;font-weight:600;color:#34404D;background:#fff}
+.btn{height:44px;border-radius:10px;padding:0 18px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.p{background:#1E3350;color:#fff;height:42px;padding:0 18px}
+.btn.s{border:1px solid #7A8593;background:#fff;color:#16202A}
+.nota{font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #C9CED5;border-radius:8px;padding:8px 12px;max-width:520px}
+.veu{position:absolute;inset:0;background:rgba(22,32,42,.35);z-index:4}
+aside{position:absolute;top:0;right:0;width:560px;height:100%;min-height:768px;background:#F8F6F1;z-index:5;display:flex;flex-direction:column;box-shadow:-12px 0 32px rgba(22,32,42,.2)}
+.dcab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;background:#fff;border-bottom:1px solid #DFE2E6}
+.dcab h2{font-size:20px}
+.dcab .sub{font-size:13px;color:#4A5562;display:flex;align-items:center;gap:8px;margin-top:4px}
+.fechar{width:40px;height:40px;border:1px solid #7A8593;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dcorpo{flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.drod{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;background:#fff;border-top:1px solid #DFE2E6}
+.rot{font-size:12px;font-weight:600;color:#4A5562;letter-spacing:.06em;text-transform:uppercase}
+.tent{background:#fff;border:1px solid #DFE2E6;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.tent b{font-size:15px}
+.ev{font-size:14px;color:#34404D}
+.mot{font-size:15px;color:#A8261B;display:flex;gap:6px;align-items:flex-start;font-weight:600}
+.mot svg{margin-top:3px;flex-shrink:0}
+.erros{display:flex;flex-direction:column;gap:2px;font-size:14px;padding-left:21px}
+.erros span{color:#34404D}.erros i{font-style:normal;font-weight:600;color:#16202A}
+.notice{display:flex;gap:8px;align-items:flex-start;border-radius:10px;padding:10px 12px;font-size:15px}
+.notice.d{background:#FDE8E6;color:#A8261B;font-weight:600}
+.notice svg{margin-top:2px;flex-shrink:0}
+.form{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px 12px}
+.c{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#16202A}
+.c small{font-weight:400;color:#5B6673}
+.c.s6{grid-column:span 6}.c.s4{grid-column:span 4}.c.s3{grid-column:span 3}.c.s2{grid-column:span 2}
+.in{height:44px;border:1px solid #7A8593;border-radius:10px;background:#fff;font-size:15px;font-weight:400;display:flex;align-items:center;padding:0 12px;white-space:nowrap;overflow:hidden}
+.in.erro{border:2px solid #A8261B}
+.falta{font-size:13px;font-weight:600;color:#A8261B;display:flex;gap:4px;align-items:center}
+.grp{grid-column:span 6;font-size:12px;font-weight:600;color:#4A5562;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+.corpo{display:flex;gap:24px}
+.secoes{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:2px}
+.sec{display:flex;align-items:center;height:40px;padding:0 12px 0 16px;border-radius:10px;font-size:15px;color:#34404D;position:relative}
+.sec.ativo{background:#fff;color:#16202A;font-weight:600;box-shadow:0 0 0 1px #DFE2E6}
+.sec.ativo:before{content:'';position:absolute;left:6px;top:10px;bottom:10px;width:3px;border-radius:2px;background:#1E3350}
+.conteudo{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;max-width:760px}
+.resumido{font-size:14px;color:#5B6673}
+.chk{display:flex;align-items:center;gap:12px;min-height:44px;font-size:15px;font-weight:600}
+.caixa{width:20px;height:20px;border-radius:4px;border:2px solid #7A8593;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.caixa.on{background:#1E3350;border-color:#1E3350}
+.caixa.trava{background:#8B96A3;border-color:#8B96A3}
+.chk.trava{color:#4A5562}
+</style><body><nav class="menu"><div class="brand"><img src="../../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista"><div class="grupo"><div class="titulo" aria-expanded="false"><span>Acesso</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Análise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Cadastros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Comunicação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Operação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo" aria-expanded="false"><span>Produtos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><a class="titulo direto ativo" aria-current="page"><span>Parâmetros</span></a><div class="grupo"><div class="titulo" aria-expanded="false"><span>Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div></div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><main><h1>Parâmetros</h1><div class="corpo"><nav class="secoes" aria-label="Seções de Parâmetros"><a class="sec">Acesso</a><a class="sec">Alertas</a><a class="sec">Calendário</a><a class="sec ativo" aria-current="page">Clientes</a><a class="sec">Início</a><a class="sec">Integração</a><a class="sec">Metas e RV</a><a class="sec">Pedidos</a><a class="sec">Produtos</a><a class="sec">Visitas</a></nav>
+  <div class="conteudo">
+  <section class="quadro"><h2>Farol</h2><span class="resumido">(sem mudança)</span></section>
+  <section class="quadro"><h2>Curvas ABC</h2><span class="resumido">(sem mudança)</span></section>
+  <section class="quadro"><h2>Campos obrigatórios</h2><div>
+  <label class="chk trava"><span class="caixa trava" role="checkbox" aria-checked="true" aria-disabled="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Razão social <span class="selo ne">Sempre</span></label><label class="chk trava"><span class="caixa trava" role="checkbox" aria-checked="true" aria-disabled="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>CPF/CNPJ <span class="selo ne">Sempre</span></label><label class="chk"><span class="caixa" role="checkbox" aria-checked="false"></span>Nome fantasia</label><label class="chk"><span class="caixa on" role="checkbox" aria-checked="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Inscrição estadual</label><label class="chk"><span class="caixa" role="checkbox" aria-checked="false"></span>Telefone</label><label class="chk"><span class="caixa" role="checkbox" aria-checked="false"></span>E-mail</label><label class="chk"><span class="caixa on" role="checkbox" aria-checked="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Endereço</label>
+  </div><div><span class="btn p">Salvar</span></div></section>
+  <div class="nota"><b>Simulação.</b> Uma lista só para o cadastro completo (RN-CORE-16) e o pré-cadastro (RN-CORE-79). Marcação inicial = padrão da RN-CORE-16. Farol e Curvas ABC resumidos.</div>
+  </div></div></main><script>document.fonts.ready.then(()=>{const sobre=[...document.querySelectorAll('.nota')].map(e=>e.getBoundingClientRect());const conflitos=[];
+for(const el of document.querySelectorAll('main *, aside *')){if(el.closest('.nota'))continue;if(el.children.length&&!el.matches('td,th,.selo,h1,h2,.btn,.aba'))continue;const r=el.getBoundingClientRect();if(!r.width||!r.height)continue;for(const s of sobre){if(r.left<s.right&&r.right>s.left&&r.top<s.bottom&&r.bottom>s.top)conflitos.push(el.tagName+'.'+el.className+': '+el.textContent.trim().slice(0,30));}}
+document.body.dataset.info=JSON.stringify({conflitos});document.body.dataset.pronto='1';});</script></body></html>
