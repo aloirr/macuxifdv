@@ -569,6 +569,86 @@ export const empresaExcluida = plataforma.table('empresa_excluida', {
 });
 
 /**
+ * Zerar dados da empresa (0100, ADR 0068, RN-PLA-12): o job do portal (id do portal), em_andamento -> concluido | falhou; um em
+ * andamento por empresa. empresa_id SEM FK e sem tenant_id: sobrevive à exclusão (exceção à regra 5, como as 0072). A cópia das
+ * linhas fica em limpeza_copia (pelo lote) até copia_expira_em (7 dias); expurgado_em = a cópia saiu. Só por função.
+ */
+export const zerarEmpresa = plataforma.table('zerar_empresa', {
+  id: uuid('id').primaryKey(),
+  empresa_id: uuid('empresa_id').notNull(),
+  codigo: text('codigo').notNull(),
+  /** Chave da cópia: carimbo UTC do pedido + '-' + 8 primeiros dígitos do id (LOTE_LIMPEZA_FORMATO). */
+  lote: text('lote').notNull().unique(),
+  /** Nulo = a empresa inteira; senão as entidades do ERP, na ordem de carga (ENTIDADES_ZERAR). */
+  entidades: text('entidades').array(),
+  /** Entidades com linhas que saíram (o ERP reenvia todas); só no concluído. */
+  entidades_afetadas: text('entidades_afetadas').array(),
+  situacao: text('situacao', { enum: ['em_andamento', 'concluido', 'falhou'] }).notNull().default('em_andamento'),
+  pedido_em: timestamp('pedido_em', { withTimezone: true }).notNull().defaultNow(),
+  concluido_em: timestamp('concluido_em', { withTimezone: true }),
+  linhas_apagadas: bigint('linhas_apagadas', { mode: 'number' }),
+  /** Lista LinhaLimpeza ([{ tabela, modo, linhas }]) da limpar_cadastros. */
+  contagem: jsonb('contagem').$type<{ tabela: string; modo: string; linhas: number }[]>(),
+  copia_expira_em: timestamp('copia_expira_em', { withTimezone: true }),
+  expurgado_em: timestamp('expurgado_em', { withTimezone: true }),
+  /** Desfeito pela plataforma.restaurar_limpeza (workflow) com o lote deste zerar. */
+  desfeito_em: timestamp('desfeito_em', { withTimezone: true }),
+  erro_codigo: text('erro_codigo'),
+  /** Vezes que o worker pegou o job (pegar_zerar; teto 3, depois falhou ZERAR_FALHOU). */
+  tentativas: integer('tentativas').notNull().default(0),
+  /** Concessão do worker (10 min). */
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  super_admin_id: uuid('super_admin_id').notNull(),
+  sessao_id: uuid('sessao_id'),
+  ...auditaveis(),
+});
+
+/**
+ * Prévia do zerar (0100, ADR 0068): pedida pelo portal (id do portal), contada pelo worker (executar_previa_zerar, a
+ * limpar_cadastros no modo simular, fora do pool do portal), em_andamento -> pronta | falhou. Vale 1 hora (expira_em); o worker
+ * pega no máximo 3 vezes. empresa_id SEM FK e sem tenant_id (como a zerar_empresa). Só por função.
+ */
+export const zerarPrevia = plataforma.table('zerar_previa', {
+  id: uuid('id').primaryKey(),
+  empresa_id: uuid('empresa_id').notNull(),
+  /** Nulo = a empresa inteira; senão as entidades do ERP, na ordem de carga (ENTIDADES_ZERAR). */
+  entidades: text('entidades').array(),
+  situacao: text('situacao', { enum: ['em_andamento', 'pronta', 'falhou'] }).notNull().default('em_andamento'),
+  /** Só na pronta: linhas [{ ordem, tabela, linhas }] (as com contagem), entidades_afetadas e total (soft + físico). */
+  resultado: jsonb('resultado').$type<{
+    linhas: { ordem: number; tabela: string; linhas: number }[];
+    entidades_afetadas: string[];
+    total: number;
+  }>(),
+  erro_codigo: text('erro_codigo'),
+  /** Vezes que o worker pegou a prévia (pegar_previa_zerar; teto 3). */
+  tentativas: integer('tentativas').notNull().default(0),
+  /** Concessão do worker (2 min). */
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
+  super_admin_id: uuid('super_admin_id').notNull(),
+  sessao_id: uuid('sessao_id'),
+  ...auditaveis(),
+});
+
+/**
+ * Cópia da limpeza (0100): cada linha que a plataforma.limpar_cadastros muda, por lote (portal e workflow). As 6 primeiras
+ * colunas = as da public.macuxi_limpeza_backup do #675, na mesma ordem; depois as comuns. Sem tenant_id nem FK (sobrevive à
+ * exclusão, como as 0072; sai pelo descarte ou pelo expurgo). Só por função (RLS forçado, sem grant).
+ */
+export const limpezaCopia = plataforma.table('limpeza_copia', {
+  lote: text('lote').notNull(),
+  /** O tenant, sem FK (na public do #675 a coluna se chamava tenant_id). */
+  empresa_id: uuid('empresa_id').notNull(),
+  tabela: text('tabela').notNull(),
+  modo: text('modo', { enum: ['soft', 'fisico', 'filial', 'sync_pacote'] }).notNull(),
+  linha: jsonb('linha').$type<Record<string, unknown>>().notNull(),
+  copiado_em: timestamp('copiado_em', { withTimezone: true }).notNull().defaultNow(),
+  id: uuid('id').primaryKey().defaultRandom(),
+  ...auditaveis(),
+});
+
+/**
  * Dados legais da Macuxi (0073, rodapé legal; docs/design/telas/rodape-legal.md §3.2): UMA linha só, dado da PLATAFORMA
  * (sem tenant_id, exceção em db/src/excecoes.ts). RLS forçado sem política nem grant para os papéis da aplicação: a API lê
  * por plataforma.dados_legais_publicos() (app) e plataforma.sa_dados_legais() (portal) e grava por
