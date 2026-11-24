@@ -142,6 +142,40 @@ export function lerSessaoWeb(env: NodeJS.ProcessEnv, hostBanco: string): { segur
 }
 
 /**
+ * ADR 0071 (v1.0.33): endereços públicos do web nos links que o sistema gera. Até o corte, o BKO e o portal respondem nos
+ * hosts antigos (`bko.`, `config.`) e no novo (`fdv.`, por caminho); os links continuam nos antigos até o dono do produto
+ * configurar o `fdv.` na Cloudflare e desligar `MACUXI_HOSTS_ANTIGOS` na VM (ADR 0071, decisão 2).
+ * A API fica em `api.macuxifdv.com.br` nos dois casos.
+ */
+export const ENDERECOS_WEB = {
+  antigos: { bko: 'https://bko.macuxifdv.com.br', portal: 'https://config.macuxifdv.com.br' },
+  fdv: { bko: 'https://fdv.macuxifdv.com.br/bko', portal: 'https://fdv.macuxifdv.com.br' },
+} as const;
+
+/**
+ * `MACUXI_HOSTS_ANTIGOS` (api e worker), padrão LIGADA: `0`/`false`/`nao` desliga; ausente, `1`/`true`/`sim` ou outro valor
+ * = ligada (mesma leitura do `MACUXI_SESSAO_COOKIE_SEGURO`: valor que não se entende fica no padrão, que é o que funciona hoje).
+ */
+export function hostsAntigosLigados(env: NodeJS.ProcessEnv): boolean {
+  const v = (env.MACUXI_HOSTS_ANTIGOS ?? '').trim().toLowerCase();
+  return !['0', 'false', 'nao', 'não'].includes(v);
+}
+
+/**
+ * Bases padrão dos links (ADR 0071): `bko` = botão "Abrir o backoffice" dos e-mails; `portal` = base do link do recado de
+ * diagnóstico (`<portal>/config/diagnosticos/<id>`). `MACUXI_EMAIL_URL_BKO` e `MACUXI_DIAGNOSTICOS_PORTAL_URL`, se definidas,
+ * valem por cima (lidas em `email/config.ts` e no `worker.ts`).
+ */
+export function enderecosWebPadrao(env: NodeJS.ProcessEnv): { bko: string; portal: string } {
+  return hostsAntigosLigados(env) ? ENDERECOS_WEB.antigos : ENDERECOS_WEB.fdv;
+}
+
+/** Base do link do recado de diagnóstico: `MACUXI_DIAGNOSTICOS_PORTAL_URL` ou o padrão de `enderecosWebPadrao`. */
+export function urlPortalDiagnosticos(env: NodeJS.ProcessEnv): string {
+  return env.MACUXI_DIAGNOSTICOS_PORTAL_URL?.trim() || enderecosWebPadrao(env).portal;
+}
+
+/**
  * `MACUXI_TRUST_PROXY` → opção `trustProxy` do Fastify (T-0026). Ausente, vazio, `false`/`0`: desligado (padrão).
  * `true`: confia em qualquer proxy (só atrás de um proxy que reescreve o `X-Forwarded-For`). Número inteiro: saltos.
  * Outro texto: lista de IPs/CIDR ou `loopback`/`linklocal`/`uniquelocal`, separados por vírgula (ex.: `loopback` para o

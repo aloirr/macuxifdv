@@ -74,24 +74,24 @@ const tresEmB: SessaoPortal = { ...prazos, tipo: 'admin_cliente', empresa: B, em
 
 describe('para onde vai depois de entrar', () => {
   it('time da Macuxi: Empresas (ou a página de onde a guarda mandou)', () => {
-    expect(destinoDaSessao(timeMacuxi)).toBe('/empresas');
-    expect(destinoDepoisDoLogin(timeMacuxi, null)).toBe('/empresas');
-    expect(destinoDepoisDoLogin(timeMacuxi, `/empresas/${B.id}#integracao`)).toBe(`/empresas/${B.id}#integracao`);
-    expect(destinoDepoisDoLogin(timeMacuxi, '//mal.com')).toBe('/empresas');
+    expect(destinoDaSessao(timeMacuxi)).toBe('/config/empresas');
+    expect(destinoDepoisDoLogin(timeMacuxi, null)).toBe('/config/empresas');
+    expect(destinoDepoisDoLogin(timeMacuxi, `/empresas/${B.id}#integracao`)).toBe(`/config/empresas/${B.id}#integracao`);
+    expect(destinoDepoisDoLogin(timeMacuxi, '//mal.com')).toBe('/config/empresas');
   });
   it('admin do cliente com 1 empresa entra direto nela', () => {
-    expect(destinoDaSessao(umaEmpresa)).toBe(`/empresas/${A.id}`);
-    expect(destinoDepoisDoLogin(umaEmpresa, null)).toBe(`/empresas/${A.id}`);
-    expect(destinoDepoisDoLogin(umaEmpresa, `/empresas/${A.id}#bases`)).toBe(`/empresas/${A.id}#bases`);
+    expect(destinoDaSessao(umaEmpresa)).toBe(`/config/empresas/${A.id}`);
+    expect(destinoDepoisDoLogin(umaEmpresa, null)).toBe(`/config/empresas/${A.id}`);
+    expect(destinoDepoisDoLogin(umaEmpresa, `/empresas/${A.id}#bases`)).toBe(`/config/empresas/${A.id}#bases`);
   });
   it('admin do cliente com 2+ sem escolher vai à "Escolha a empresa", mesmo com página de origem', () => {
     expect(destinoDaSessao(duasSemEscolha)).toBe(CAMINHO_ESCOLHER_EMPRESA);
     expect(destinoDepoisDoLogin(duasSemEscolha, `/empresas/${A.id}`)).toBe(CAMINHO_ESCOLHER_EMPRESA);
   });
   it('a página de origem de OUTRA empresa nunca abre sem escolher (multi-tenant)', () => {
-    expect(destinoDepoisDoLogin(duasEmB, `/empresas/${A.id}#bases`)).toBe(`/empresas/${B.id}`);
-    expect(destinoDepoisDoLogin(duasEmB, '/empresas')).toBe(`/empresas/${B.id}`);
-    expect(destinoDepoisDoLogin(duasEmB, '/empresas/nova')).toBe(`/empresas/${B.id}`);
+    expect(destinoDepoisDoLogin(duasEmB, `/empresas/${A.id}#bases`)).toBe(`/config/empresas/${B.id}`);
+    expect(destinoDepoisDoLogin(duasEmB, '/empresas')).toBe(`/config/empresas/${B.id}`);
+    expect(destinoDepoisDoLogin(duasEmB, '/empresas/nova')).toBe(`/config/empresas/${B.id}`);
   });
 });
 
@@ -119,9 +119,9 @@ describe('Escolha a empresa e Trocar de empresa (spec §2 e §3)', () => {
   it('trocar exige escolher: a página de outra empresa da lista leva à escolha; fora da lista, à empresa atual', () => {
     expect(desvioDaPaginaDaEmpresa(duasEmB, B.id)).toBeNull();
     expect(desvioDaPaginaDaEmpresa(duasEmB, A.id)).toBe(CAMINHO_ESCOLHER_EMPRESA);
-    expect(desvioDaPaginaDaEmpresa(duasEmB, 'outra')).toBe(`/empresas/${B.id}`);
+    expect(desvioDaPaginaDaEmpresa(duasEmB, 'outra')).toBe(`/config/empresas/${B.id}`);
     expect(desvioDaPaginaDaEmpresa(duasSemEscolha, A.id)).toBe(CAMINHO_ESCOLHER_EMPRESA);
-    expect(desvioDaPaginaDaEmpresa(umaEmpresa, B.id)).toBe(`/empresas/${A.id}`);
+    expect(desvioDaPaginaDaEmpresa(umaEmpresa, B.id)).toBe(`/config/empresas/${A.id}`);
     expect(desvioDaPaginaDaEmpresa(timeMacuxi, B.id)).toBeNull();
   });
 });
@@ -169,7 +169,7 @@ describe('403/409 de empresa (desenho T-0093 §4; spec §4)', () => {
     // o toque em A deu 403 e B é a atual: sessão com B só, e a regra de 1 empresa leva à página dela
     const soB = sessaoSemEmpresa(duasEmB, A.id);
     expect(soB).toMatchObject({ empresa: B, empresas: [B] });
-    expect(soB && destinoDaSessao(soB)).toBe('/empresas/' + B.id);
+    expect(soB && destinoDaSessao(soB)).toBe('/config/empresas/' + B.id);
     expect(passoDaEscolha(duasEmB, [A.id])).toEqual({ tipo: 'pagina', id: B.id });
     expect(passoDaEscolha(duasSemEscolha, [A.id, B.id])).toEqual({ tipo: 'entrada' });
     expect(sessaoSemEmpresa(umaEmpresa, A.id)).toBeNull();
@@ -263,7 +263,7 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
   it('time da Macuxi: sessão sem empresa; vê todas', async () => {
     const s = await sessaoDe(await login('time@macuxi.com.br'));
     expect(s.tipo).toBe('super_admin');
-    expect(destinoDaSessao(s)).toBe('/empresas');
+    expect(destinoDaSessao(s)).toBe('/config/empresas');
     const lista = (await (await responderFalso('GET', ROTAS_PORTAL.empresas, undefined, com(s))).json()) as { itens: Record<string, unknown>[] };
     expect(lista.itens.length).toBeGreaterThanOrEqual(3);
     // Coluna Plano (§11.5): a tela usa só `plano` e `em_teste`; o modo falso não traz `teste_ate` (RD-0959).
@@ -273,7 +273,7 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
   it('1 empresa: entra direto (empresa já escolhida)', async () => {
     const s = await sessaoDe(await login('admin@uma.com.br'));
     expect(s.empresa?.nome).toBe('Distribuidora Uma Ltda');
-    expect(destinoDaSessao(s)).toBe(`/empresas/${s.empresa?.id}`);
+    expect(destinoDaSessao(s)).toBe(`/config/empresas/${s.empresa?.id}`);
   });
 
   it('2+: lista com os nomes; rota de módulo sem escolher = 409; escolher dá token novo e mata o anterior; trocar exige escolher de novo', async () => {

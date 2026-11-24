@@ -188,3 +188,4 @@
 2026-11-21 — T-0192 — spec do Catálogo (catalogo-grade §7): sem o gesto de puxar, erro em EstadoVazio 'Não foi possível abrir o catálogo agora' com 'Tentar de novo', preço/estoque carregando com traço (critério por modoCarga, sync.pendentes e contagem local), sem componente novo
 2026-11-21 — T-0192 — ajuste §7.2: sem marca de preço carregando
 2026-11-24 — v1.0.34 — spec menu-parametros §2: página /parametros/<secao> sem lista de seções (painéis na largura toda, seção ativa só no menu); §3 e §4 alinhados
+2026-11-24 — revisão geral das telas — 46 achados de UX (8 altos: fuso em Recados e Visitas, % em inglês nos Alertas, Aprovações sem cliente, Valor escondido em Pedidos, lojas cortadas no Trade, id interno na Pesquisa, códigos RN na tela) em docs/design/revisao-geral-2026-11-24.md, com 26 prints

@@ -13,7 +13,7 @@
  * | `MACUXI_EMAIL_ARQUIVO_DIR` | — (`<tmp>/macuxi-email` com `arquivo` explícito) | pasta do adaptador `arquivo` (a "caixa" da demo e dos testes) |
  * | `MACUXI_EMAIL_ARQUIVO_MASCARAR` | desligado | `1`: o `.eml` sai com a senha mascarada |
  * | `MACUXI_EMAIL_URL_ATIVOS` | — (e-mail sem logo, só o texto alternativo) | base HTTPS pública dos PNG do logo (`ARQUIVOS_LOGO_EMAIL`); **configurar em produção** |
- * | `MACUXI_EMAIL_URL_BKO` | — (sem o botão "Abrir o backoffice") | endereço HTTPS do backoffice, para o botão |
+ * | `MACUXI_EMAIL_URL_BKO` | em produção, `ENDERECOS_WEB` pela `MACUXI_HOSTS_ANTIGOS` (ADR 0071, decisão 8); fora de produção, sem o botão "Abrir o backoffice" | endereço HTTPS do backoffice, para o botão |
  *
  * As duas `MACUXI_EMAIL_URL_*` não são segredo (ADR 0032, adendo de 19/11/2026): vão no HTML do e-mail e no log da subida.
  * Recusadas: endereço inválido, fora de http(s), com usuário/senha e, em produção, sem https.
@@ -31,7 +31,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CODIGOS_EMAIL, type EnderecoEmail, type OpcoesApresentacaoEmail } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { SEGREDO_JWT_MIN } from '../config';
+import { enderecosWebPadrao, SEGREDO_JWT_MIN } from '../config';
 import { ErroEmail } from './erros';
 
 export const TRANSPORTES_EMAIL = ['smtp', 'arquivo', 'desligado'] as const;
@@ -225,7 +225,14 @@ export function lerConfigEmail(env: NodeJS.ProcessEnv, opcoes: { producao?: bool
     avisos.push('sem MACUXI_EMAIL_URL_ATIVOS: o e-mail sai sem o logo (só o texto alternativo)');
   }
   const bkoBruto = valor('MACUXI_EMAIL_URL_BKO');
-  const bko = bkoBruto === undefined ? null : lerUrlPublica('MACUXI_EMAIL_URL_BKO', bkoBruto, producao, problemas, avisos);
+  // ADR 0071: sem a variável, a produção usa o padrão da `MACUXI_HOSTS_ANTIGOS`; fora dela (PC, testes) o e-mail sai sem botão,
+  // para um e-mail local nunca apontar para o BKO de produção
+  const bko =
+    bkoBruto !== undefined
+      ? lerUrlPublica('MACUXI_EMAIL_URL_BKO', bkoBruto, producao, problemas, avisos)
+      : producao
+        ? enderecosWebPadrao(env).bko
+        : null;
   if (bko) apresentacao.urlBackoffice = bko;
 
   let chave: Uint8Array | null = null;
