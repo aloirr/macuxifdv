@@ -2,14 +2,13 @@
  * Exportação CSV das páginas do Gestor (padrão do BKO: `;` como separador, vírgula decimal, dinheiro em reais).
  * Só dados que a API já devolveu no escopo de quem exporta (RN-CORE-04).
  */
-import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import type { RankingEquipe, VisaoEquipe } from '../../contracts';
 
+/** Número sai formatado, sem a proteção de fórmula: o `-5` continua número no Excel (RD-0051). Texto passa pela célula do comum. */
 const celula = (v: string | number | null | undefined): string => {
   if (v === null || v === undefined) return '';
-  const s = typeof v === 'number' ? v.toLocaleString('pt-BR', { useGrouping: false, maximumFractionDigits: 2 }) : v;
-  const t = typeof v === 'number' ? s : protegerFormula(s);
-  return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  return typeof v === 'number' ? v.toLocaleString('pt-BR', { useGrouping: false, maximumFractionDigits: 2 }) : celulaCsvCompacta(v);
 };
 const reais = (cents: number | null | undefined) => (cents === null || cents === undefined ? null : cents / 100);
 const linhas = (rows: (string | number | null | undefined)[][]) => BOM_CSV + rows.map((r) => r.map(celula).join(';')).join('\n') + '\n';

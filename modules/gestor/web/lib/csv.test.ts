@@ -32,4 +32,10 @@ describe('CSV do BKO do Gestor', () => {
     const r = rankingDaEquipe({ estado, membros: MEMBROS, viewer, indicador: 'vendas_cents', periodo: 'diario', data_ref: relogio.hoje(), modulos, agora: relogio.iso() });
     expect(csvDoRanking(r).split('\n')[1]).toBe(`1;"Vera; ""a melhor""";vendedor;1234,56;${relogio.hoje()};${relogio.hoje()}`);
   });
+
+  it('CWE-1236: texto que começa com = sai com apóstrofo', () => {
+    const membros: MembroEquipe[] = [MEMBROS[0]!, { ...MEMBROS[1]!, nome: '=HIPERLINK("x")' }];
+    const r = rankingDaEquipe({ estado, membros, viewer, indicador: 'vendas_cents', periodo: 'diario', data_ref: relogio.hoje(), modulos, agora: relogio.iso() });
+    expect(csvDoRanking(r).split('\n')[1]).toBe(`1;"'=HIPERLINK(""x"")";vendedor;1234,56;${relogio.hoje()};${relogio.hoje()}`);
+  });
 });
