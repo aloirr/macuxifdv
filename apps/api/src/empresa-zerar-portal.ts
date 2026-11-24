@@ -13,7 +13,6 @@
  */
 import {
   CODIGOS_ZERAR_EMPRESA,
-  MENSAGEM_SO_SUPER_ADMIN_ACOES,
   mensagemDoZerar,
   PedirPreviaZerarSchema,
   PedirZerarEmpresaSchema,
@@ -25,11 +24,11 @@ import {
   type PedirPreviaZerar,
   type PedirZerarEmpresa,
 } from '@macuxi/platform-sdk';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { criarReautenticar, fonteAcoesEmpresaNoBanco, type DepsAcoesEmpresa, type FonteReautenticar } from './empresa-acoes-portal';
+import { criarReautenticar, fonteAcoesEmpresaNoBanco, guardaDaEmpresa, type DepsAcoesEmpresa, type FonteReautenticar } from './empresa-acoes-portal';
 import { ErroHttp } from './erros';
-import { conferirRetorno as conferir, exigirSuperAdmin, traduzirErroSa } from './portal-comum';
+import { conferirRetorno as conferir, traduzirErroSa } from './portal-comum';
 
 const Z = CODIGOS_ZERAR_EMPRESA;
 
@@ -65,7 +64,6 @@ export interface DepsZerarEmpresa extends Pick<DepsAcoesEmpresa, 'autenticar' | 
   reautenticacao?: FonteReautenticar;
 }
 
-const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
 const ParamsPrevia = z.object({ tenant_id: z.string().uuid(), previa_id: z.string().uuid() }).strict();
 const CODIGOS_409 = new Set<string>([Z.zerarEmAndamento, Z.exclusaoEmAndamento, Z.backupEmAndamento, Z.hubProcessando]);
 const CODIGOS_422 = new Set<string>([Z.codigoNaoConfere, Z.volumeAlto]);
@@ -89,9 +87,7 @@ async function chamar<T>(f: () => Promise<T>): Promise<T> {
 export function registrarRotasZerarEmpresa(app: FastifyInstance, dep: DepsZerarEmpresa): void {
   const fonte = dep.fonte ?? fonteZerarEmpresaNoBanco;
   const reautenticar = criarReautenticar(dep, dep.reautenticacao ?? fonteAcoesEmpresaNoBanco);
-  /** RN-PLA-12: só super-admin; o admin do cliente recebe 403 `PERFIL_SEM_ACESSO`. */
-  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGEM_SO_SUPER_ADMIN_ACOES);
-  const empresa = (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id;
+  const { exigir, empresa } = guardaDaEmpresa(dep);
 
   app.post(ROTAS_ZERAR_EMPRESA.previa, async (req, reply) => {
     const tenantId = empresa(req);

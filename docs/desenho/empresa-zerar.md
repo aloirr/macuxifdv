@@ -26,7 +26,7 @@ Por que no banco:
 3. Duas cópias (a `pg_temp` do workflow e uma do portal) divergiriam na primeira mudança. A `rotina.sql` saiu (§8).
 
 ## 2. Cópia e volta: decisão
-**Uma tabela de cópia só: `plataforma.limpeza_copia`**, criada pela 0100 com as **mesmas colunas e na mesma ordem** da `public.macuxi_limpeza_backup` do #675: `lote`, `tenant_id`, `tabela`, `modo`, `linha jsonb`, `copiado_em`.
+**Uma tabela de cópia só: `plataforma.limpeza_copia`**, criada pela 0100 com as 6 colunas da `public.macuxi_limpeza_backup` do #675, na mesma ordem (o tenant em `empresa_id`; ver `docs/banco/plataforma.md`, seção Zerar dados).
 - A mesma ordem mantém o arquivo `.copy` da VM compatível com `\copy plataforma.limpeza_copia from …`.
 - A 0100 move para ela as linhas da `public.macuxi_limpeza_backup`, se a tabela existir (o workflow pode ter rodado antes da v1.0.31), e apaga a `public`.
 - RLS ligado e forçado, só a política `manutencao`, nenhum grant. É exceção da regra 5, como as tabelas da 0072, e vai ao `docs/banco/rls.md`.
@@ -35,7 +35,7 @@ Por que no banco:
 **Volta**:
 - `plataforma.restaurar_limpeza(p_tenant, p_lote)`: o corpo do `limpar-cadastros-restaurar.sql` do #675 promovido. Só o dono roda, pelo workflow (modo `restaurar`). Marca `desfeito_em` no zerar do portal com o mesmo lote.
 - `plataforma.descartar_limpeza(p_tenant, p_lote)`: o `limpar-cadastros-descartar.sql` promovido.
-- No portal, a cópia fica 7 dias (`RETENCAO_COPIA_ZERAR_DIAS`). Depois o worker a descarta (`expurgar_zerar`).
+- No portal, a cópia fica o prazo da `executar_zerar` (0100; a tela lê o `copia_expira_em`). Depois o worker a descarta (`expurgar_zerar`).
 - Os lotes do workflow continuam com o descarte manual, como no #675.
 
 **Lote**:
@@ -129,17 +129,7 @@ Workflow psql (admin): plataforma.limpar_cadastros(tenant, lote, entidades, grav
 ### 4.2 Mapa entidade → raízes e Hub
 As raízes são as linhas vivas do tenant **com `external_id`**, como no #675.
 
-| Entidade | Raízes (domínio) |
-|---|---|
-| `filial` | nenhuma: `core.filial` fica e só perde o `external_id` (modo `filial`, como no #675) |
-| `vendedor` | `core.usuario` não administrador (o mesmo predicado do #675, com ou sem `external_id`) |
-| `catalogo_no` | `catalogo.catalogo_no` |
-| `forma_pagamento` · `prazo_pagamento` · `transportadora` | `vendedor.forma_pagamento` · `vendedor.prazo_pagamento` · `vendedor.transportadora` |
-| `produto` · `produto_unidade` | `core.produto` · `core.produto_unidade` |
-| `preco` · `tabela_escalonada` | `catalogo.tabela_preco` · `catalogo.tabela_escalonada` |
-| `estoque` | `catalogo.estoque_saldo` e `catalogo.deposito` |
-| `cliente` · `cliente_endereco` | `core.cliente` · `core.cliente_endereco` |
-| `rota` · `titulo` · `nota` | `core.rota` · `core.titulo` · `core.nota_erp` |
+Mapa: `plataforma.mapa_limpeza_entidades()` (0100, `db/migrations/0100_plataforma_zerar_empresa.up.sql`); descrição em `docs/banco/plataforma.md`, seção Zerar dados.
 
 Hub da entidade (físico), de **toda entidade afetada** (as pedidas e as que caíram pela cascata, a lista `entidades_afetadas` da §4.3):
 - linhas de `integracao.lote`, `sessao_carga`, `registro_atual`, `cursor_entidade`, `reconciliacao`, `coleta_execucao`, `pendencia_inativacao` e `inativacao_auditoria` com `entidade` na lista;
@@ -254,11 +244,9 @@ Rotas que o modulo-integracao abre ao super-admin ou cria:
 | `POST /v1/integracao/lotes/:id/reprocessar` | + `superAdmin: 'aceita'`; a auditoria grava `via: 'super_admin'` |
 | `GET /v1/integracao/monitor/detalhes` (nova, `superAdmin: 'exige'`, contrato `MonitorDetalhes` em `modules/integracao/contracts`) | por entidade: cursor (`alterado_em`, `external_id`, `atualizado_em`), registros no `registro_atual`, último lote, erros por código (`lote_linha_erro` dos lotes recentes) e lotes reprocessáveis; por conector: versão, último sinal e o `sinal_resumo` (fila, entidades, atualização) |
 
-Na tela, cada linha de entidade tem:
-- **"Reprocessar"** (§6.2), com confirmação;
-- **"Zerar dados"**: o mesmo diálogo do zerar inteiro, com `entidades: [e]`, prévia, código da empresa e senha.
+Tela: `docs/design/telas/portal-empresa-zerar.md` §2.
 
-As duas só para o super-admin. Em `GET /v1/integracao/*`, o admin do cliente que entra pelo portal não vê os botões, e a API recusa (`exigirSuperAdmin` no zerar; `superAdmin: 'exige'` nos detalhes).
+As ações só para o super-admin. Em `GET /v1/integracao/*`, o admin do cliente que entra pelo portal não vê os botões, e a API recusa (`exigirSuperAdmin` no zerar; `superAdmin: 'exige'` nos detalhes).
 
 ## 7. Permissões e auditoria
 - Só o super-admin, com a sessão do portal `config.`. No zerar (inteiro ou por entidade), também o código da empresa digitado e a senha de novo. O admin do cliente recebe 403 `PERFIL_SEM_ACESSO`.
@@ -325,6 +313,6 @@ Nos dois casos:
 | **banco-dados** | Refaz a 0100 pela §5 (corpo do #675 promovido, §4), com os testes da §5, no PR conjunto `alexandre/migracao-zerar`; `docs/banco/plataforma.md` e `rls.md` |
 | **engenheiro-software** | §6.1 (feito); §8 depois do merge do #675; linha do evento em `.coord/contratos/eventos.md`; revisão final |
 | **modulo-integracao** | §6.4: `superAdmin: 'aceita'` em `rotaMonitor` e no reprocessar lote (com teste); a rota `monitor/detalhes` e o contrato `MonitorDetalhes`; em `modules/integracao/web`, as consultas do monitor recebem o cliente HTTP por parâmetro (o BKO passa `api`, o portal passa `chamarPortal` com o tenant), e o painel de entidades aceita ações extras por linha (`acoesDaEntidade?: (e) => ReactNode`) sem duplicar o componente |
-| **engenheiro-apps** | Na aba Integração do portal, a seção "Monitor" com o painel do módulo, os detalhes e, por entidade, "Reprocessar" (`reprocessarLotes`) e "Zerar dados". O `dialogo-zerar` ganha a prop `entidades`, que leva a prévia e o POST. O resultado mostra o lote e "Rode `conector carga-completa <e>` para: …" com as `entidades_afetadas`. O modo falso do portal ganha as respostas novas. Item "Zerar dados" do menu ⋯ como está |
+| **engenheiro-apps** | Na aba Integração do portal, a seção "Monitor" com o painel do módulo, os detalhes, "Reprocessar" (`reprocessarLotes`) e "Zerar dados" onde a tela os põe (`docs/design/telas/portal-empresa-zerar.md` §2). O `dialogo-zerar` ganha a prop `entidades`, que leva a prévia e o POST. O resultado mostra o lote e "Rode `conector carga-completa <e>` para: …" com as `entidades_afetadas`. O modo falso do portal ganha as respostas novas. Item "Zerar dados" do menu ⋯ como está |
 | **designer-ux** e **design-de-marca** | Textos e layout da seção Monitor e dos dois diálogos; validação da marca |
 | **testes** | Roteiro na sessão: (1) zerar `cliente` → prévia = resultado, os produtos intactos, `entidades_afetadas`, `conector carga-completa cliente` recria; (2) zerar inteiro = o roteiro do #675; (3) reprocessar a entidade com 2 lotes com falha → os dois `recebido`, na ordem; (4) recusas 403 (admin do cliente), 409 (`ZERAR_HUB_PROCESSANDO`, em andamento) e 422; (5) `restaurar` pelo workflow com o lote do portal |

@@ -119,7 +119,6 @@ export interface DepsAcoesEmpresa {
   relogio?: () => Date;
 }
 
-const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
 const ParamsBackup = z.object({ tenant_id: z.string().uuid(), backup_id: z.string().uuid() }).strict();
 const AcoesComTenantSchema = z.object({ itens: z.array(AcoesDaEmpresaSchema.extend({ tenant_id: z.string().uuid() })) });
 
@@ -197,12 +196,22 @@ export function criarReautenticar(
   };
 }
 
+const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
+
+/**
+ * A guarda das rotas da empresa no portal (ações e zerar): `exigir` = só super-admin (RN-PLA-07, RN-PLA-12; o admin do cliente
+ * recebe 403 `PERFIL_SEM_ACESSO`); `empresa` = o `:tenant_id` validado.
+ */
+export function guardaDaEmpresa(dep: Pick<DepsAcoesEmpresa, 'autenticar' | 'validar'>) {
+  return {
+    exigir: (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGEM_SO_SUPER_ADMIN_ACOES),
+    empresa: (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id,
+  };
+}
+
 export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesEmpresa): void {
   const fonte = dep.fonte ?? fonteAcoesEmpresaNoBanco;
-
-  /** Só super-admin (RN-PLA-07); o admin do cliente recebe 403 `PERFIL_SEM_ACESSO`. */
-  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGEM_SO_SUPER_ADMIN_ACOES);
-  const empresa = (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id;
+  const { exigir, empresa } = guardaDaEmpresa(dep);
 
   const reautenticar = criarReautenticar(dep, fonte);
 
