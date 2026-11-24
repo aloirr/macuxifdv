@@ -3,7 +3,7 @@
  * (`app.baixar`) e o super-admin; a licença do módulo que usa o app é conferida no domain. A URL assinada nunca vai a auditoria
  * nem a log. Sem S3, o SDK responde 503 `ARMAZENAMENTO_INDISPONIVEL`.
  */
-import { ErroHttpModulo, erroArmazenamentoIndisponivel, type ContextoRota, type ModuloId, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, erroArmazenamentoIndisponivel, type ContextoBase, type ContextoRota, type LinkPacote, type ModuloId, type RotaModulo, type VarianteApp } from '@macuxi/platform-sdk';
 import { CODIGO_APP_SEM_LICENCA, CODIGO_APP_SEM_PACOTE, LinkDownloadAppRequestSchema, LinkDownloadAppSchema, type LinkDownloadApp, type LinkDownloadAppRequest } from '../contracts';
 import { podeBaixarApp } from '../domain';
 
@@ -19,19 +19,31 @@ export const rotaDownloadApp: RotaModulo = {
   corpo: LinkDownloadAppRequestSchema,
   executar: async (ctx: ContextoRota): Promise<LinkDownloadApp> => {
     const { variante } = ctx.corpo as LinkDownloadAppRequest;
-    // RN-CORE-67: a licença é da EMPRESA (tenant_modulo, que o Core licencia), não dos módulos do perfil do usuário.
-    const ativos = await ctx.comTenant(async (db) => (await db.query<{ modulo: ModuloId }>('select modulo from plataforma.tenant_modulo where ativo and deleted_at is null')).rows.map((r) => r.modulo));
-    if (!podeBaixarApp(variante, ativos)) {
-      throw new ErroHttpModulo(403, CODIGO_APP_SEM_LICENCA, 'Este app não está licenciado para a empresa. Peça ao suporte para ativar o módulo.');
-    }
-    if (!ctx.pacotes) throw erroArmazenamentoIndisponivel();
-    const link = await ctx.pacotes.linkDoUltimo(variante);
-    if (!link) throw new ErroHttpModulo(404, CODIGO_APP_SEM_PACOTE, 'O app ainda não foi publicado. Avise o suporte.');
-    await ctx.comTenant(async (_db, tx) => {
-      await tx.auditar({ acao: 'core.app_download_link', entidade: 'app_pacote', entidade_id: null, depois: { variante, versao: link.versao, arquivo: link.arquivo } });
-    });
-    return LinkDownloadAppSchema.parse({ ...link, variante });
+    return LinkDownloadAppSchema.parse(await linkDoApp(ctx, variante, 'core.app_download_link'));
   },
 };
+
+/** RN-CORE-67: a licença é da EMPRESA (tenant_modulo, que o Core licencia), não dos módulos do perfil do usuário. */
+export async function empresaPodeBaixarApp(ctx: ContextoBase, variante: VarianteApp): Promise<boolean> {
+  const ativos = await ctx.comTenant(async (db) => (await db.query<{ modulo: ModuloId }>('select modulo from plataforma.tenant_modulo where ativo and deleted_at is null')).rows.map((r) => r.modulo));
+  return podeBaixarApp(variante, ativos);
+}
+
+/**
+ * Link temporário do último APK da variante, com a licença da empresa (RN-CORE-67) e a auditoria SEM a URL. Serve ao portal
+ * (`apps/download`) e ao próprio app (`app/apk`, T-0195). Sem S3 = 503; sem pacote = 404.
+ */
+export async function linkDoApp(ctx: ContextoBase, variante: VarianteApp, acaoAuditoria: string): Promise<LinkPacote & { variante: VarianteApp }> {
+  if (!(await empresaPodeBaixarApp(ctx, variante))) {
+    throw new ErroHttpModulo(403, CODIGO_APP_SEM_LICENCA, 'Este app não está licenciado para a empresa. Peça ao suporte para ativar o módulo.');
+  }
+  if (!ctx.pacotes) throw erroArmazenamentoIndisponivel();
+  const link = await ctx.pacotes.linkDoUltimo(variante);
+  if (!link) throw new ErroHttpModulo(404, CODIGO_APP_SEM_PACOTE, 'O app ainda não foi publicado. Avise o suporte.');
+  await ctx.comTenant(async (_db, tx) => {
+    await tx.auditar({ acao: acaoAuditoria, entidade: 'app_pacote', entidade_id: null, depois: { variante, versao: link.versao, arquivo: link.arquivo } });
+  });
+  return { ...link, variante };
+}
 
 export const rotasDeAppsDownload: RotaModulo[] = [rotaDownloadApp];

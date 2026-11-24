@@ -5,7 +5,7 @@
  * Tocar no recado marca como lido e segue o link interno; tocar na tarefa abre o detalhe (rota do shell, `abrirTarefa`); a caixa
  * da tarefa simples marca e desmarca ali mesmo (D4: só enquanto não sincronizou).
  */
-import { linkInternoNavegavel } from '@macuxi/platform-sdk';
+import { destinoDaNotificacao } from '../../lib/destino-notificacao';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
 import { colors, EstadoVazio, fonte, Pressionavel, radius, Screen, Segmentado, space } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
@@ -31,7 +31,7 @@ export function TelaRecadosETarefas({ abrirTarefa, filtroInicial = 'todos' }: { 
   const abrir = (item: ItemDaTela) => {
     void r.marcarLido(item);
     if (item.tipo === 'tarefa') return abrirTarefa(item.id);
-    const destino = linkInternoNavegavel(item.notificacao.link ?? null, (c) => visao.pagina(c) !== null);
+    const destino = destinoDaNotificacao(item.notificacao, (c) => visao.pagina(c) !== null);
     if (destino) router.navigate(destino as never);
   };
   const tocarNaCaixa = (item: ItemDaTela) => {

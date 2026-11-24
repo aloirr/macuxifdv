@@ -5,6 +5,7 @@ export * from './checkout';
 export * from './checkout-servidor';
 export * from './route';
 export * from './licencas';
+export * from './aviso-versao-app';
 export * from './matriz';
 export * from './escopo';
 export * from './fila-modulo-desativado';

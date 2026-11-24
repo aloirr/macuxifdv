@@ -7,7 +7,7 @@ import { useVisaoShell } from '@macuxi/platform-sdk/react';
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
-import { linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk';
+import { destinoDaNotificacao } from '../lib/destino-notificacao';
 import { rotuloDoTipo, type NotificacaoLocal } from '../lib/notificacoes';
 import { useCore } from '../lib/usar-core';
 import { useNotificacoes } from '../lib/usar-notificacoes';
@@ -19,7 +19,7 @@ export function TelaNotificacoes() {
 
   const abrir = (n: NotificacaoLocal) => {
     void marcarLida(n.id);
-    const destino = linkNavegavel(n.link, (c) => visao.pagina(c) !== null);
+    const destino = destinoDaNotificacao(n, (c) => visao.pagina(c) !== null);
     if (destino) router.navigate(destino as never);
   };
 

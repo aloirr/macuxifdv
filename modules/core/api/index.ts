@@ -4,6 +4,7 @@
  * - Rotas públicas: `auth/login`, `auth/refresh`, `auth/logout`, `auth/senha/trocar` e `auth/senha/esqueci` (T-0094, ADR 0032), com limite por IP + código da empresa.
  * - Rotas: licenças por tenant → perfil → usuário (admin); usuários no BKO (`usuarios`, `equipes`; T-0067, escrita só admin). `GET /v1/me/modulos` é da plataforma (T-0004).
  * - Rotas da T-0017: `clientes`, `clientes/:id` (Cliente 360), `carteira`, `equipe/hierarquia`; aparelhos (RN-CORE-15).
+ * - Rotas da T-0195 (ADR 0070): `app/apk` e `app/aviso-versao` (link do APK do próprio app e aviso de versão nova, RN-CORE-80).
  * - Rotas da T-0018: `rotas` (leitura/edição/copiar/gerar), `visitas`, `motivos`, `coordenadas-sugeridas`, `clientes/:id/coordenada`.
  * - Sync: pull de `cliente`, `carteira`, `produto`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`, `motivo`,
  *   `rota`, `rota_parada`, `visita`; push de `visita` e `visita_checkout`.
@@ -30,6 +31,7 @@ import { consumidoresDePedido } from './consumidores-pedido';
 import { consumidorMetaDefinida } from './consumidores-sistema';
 import { rotasDeLicencas } from './licencas';
 import { rotasDeAppsDownload } from './apps-download';
+import { rotasDeAppAtualizacao } from './app-atualizacao';
 import { alertarPendenciasVencidas, consumidorBaixaPorResposta, rotasDePendenciaCheckout } from './etapas-pendencia';
 import { consultaFiliais, consultaFiliaisDoUsuario, rotasDeFiliais } from './filiais';
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
@@ -80,7 +82,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   return definirModuloApi({
     manifesto: manifest,
     guardaArquivo: guardaArquivoDocumento,
-    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeAppsDownload, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeClientes, ...rotasDeClienteCadastro, ...rotasDePreCadastroBko, ...rotasDeParametrosCamposObrigatorios, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeCriarRotaEBase, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeInicioBko, ...rotasDeParametrosHorarioCarga, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDeCliente360V2, ...rotasDeCarteiraDoCliente, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
+    rotas: [...rotasDeFilialDoProprioUsuario, ...rotasDeLicencas, ...rotasDeAppsDownload, ...rotasDeAppAtualizacao, ...rotasDeUsuarios, ...rotasDeVinculoErp, ...rotasDePerfis, ...rotasDeClientes, ...rotasDeClienteCadastro, ...rotasDePreCadastroBko, ...rotasDeParametrosCamposObrigatorios, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeCriarRotaEBase, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeInicioBko, ...rotasDeParametrosHorarioCarga, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeFiliais, ...rotasDeFotosPdv, ...rotasDeCliente360V2, ...rotasDeCarteiraDoCliente, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeParametrosAlertas, ...rotasDeParametrosJornada, ...rotasDeParametrosCurvaAbc, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes, ...rotasDeTarefas, ...rotasDeFrases, ...rotasDeAvatar, ...rotasDeMetasProdutividade, ...rotasDePerformance, ...rotasDeTrajeto, ...rotasDeRastreamento],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao, ...provedoresSyncT0170, ...provedoresSyncTrajeto],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
