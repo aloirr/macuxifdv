@@ -1,6 +1,6 @@
 # Portal `config.` — "Zerar dados" da empresa e por entidade (v1.0.31)
 
-**Situação:** spec do designer-ux a partir da implementação do engenheiro-apps (rodada 1: SHA `8e29949cc`; rodada 2: SHA `ad16c5a86`; rodada 4: SHA `57a583107`). Revisão e textos finais: `docs/design/revisoes/v1031-zerar-dados.md`. Regras: RN-PLA-12, RN-INT-15, RN-INT-16, ADR 0068 e `docs/desenho/empresa-zerar.md` (§6.4 para a aba Integração). Componentes de `@macuxi/ui/web`: `MenuAcoes`, `TabelaDados` (prop `acoes`), `Panel`, `Badge`, `Dialog`, `Button`, `CampoSenha`, `LoadingBlock`, `ErrorBlock` e `Notice`.
+**Situação:** spec do designer-ux a partir da implementação do engenheiro-apps (rodada 1: SHA `8e29949cc`; rodada 2: SHA `ad16c5a86`; rodada 4: SHA `57a583107`; tela final: SHA `4ed8223b4`). Revisão e textos finais: `docs/design/revisoes/v1031-zerar-dados.md`. Regras: RN-PLA-12, RN-INT-15, RN-INT-16, ADR 0068 e `docs/desenho/empresa-zerar.md` (§6.4 para a aba Integração). Componentes de `@macuxi/ui/web`: `MenuAcoes`, `TabelaDados` (prop `acoes`), `Panel`, `Badge`, `Dialog`, `Button`, `CampoSenha`, `LoadingBlock`, `ErrorBlock` e `Notice`.
 
 ## 1. Menu "⋯" da linha (lista de Empresas)
 Ordem: Backup · Inativar/Reativar · divisor · **Zerar dados** · **Excluir**. Os dois últimos são de perigo.
@@ -18,13 +18,13 @@ O título `Monitor` (h2) vem depois do conteúdo da aba. Os três quadros, nesta
 **2.1 Conector** (`TabelaDados`):
 | Coluna | Largura | Prioridade |
 |---|---|---|
-| Conector (mono) | sobra | 1 |
+| Identificador (mono) | sobra | 1 |
 | Situação (selo com texto) | 170 px | 1 |
 | Versão | 100 px | 2 |
 | Último sinal | 150 px | 2 |
 | Fila ("2 lotes · 380 linhas", "Vazia", "—") | 170 px | 2 |
 
-**2.2 Painel do BKO** (`MonitorPainel` do módulo integracao, igual ao do BKO, sem ações do portal):
+**2.2 Cargas recentes** (`MonitorPainel` do módulo integracao, o painel do BKO):
 | Coluna | Largura | Prioridade |
 |---|---|---|
 | Entidade | sobra | 1 |
@@ -34,27 +34,27 @@ O título `Monitor` (h2) vem depois do conteúdo da aba. Os três quadros, nesta
 
 Menu "⋯" da linha: **Reprocessar** (só com falha; direto para `admin`, ou com a senha de quem autoriza, RN-INT-16) e **Histórico (n)**.
 
-Recomendação para o lote seguinte: título visível `Cargas recentes`.
-
 **2.3 Dados no Hub** (`TabelaDados`):
 | Coluna | Largura | Prioridade |
 |---|---|---|
 | Entidade | 200 px | 1 |
-| Registros ("1.180 ativos · 60 inativos" / "—") | 200 px | 2 |
+| Registros ("1.180 ativos · 60 inativos", "812 ativos") | 200 px | 2 |
 | Última alteração (cursor do ERP, fuso da empresa) | 150 px | 2 |
-| Corrigir no ERP ("3 · campo_obrigatorio" / "—") | sobra | 3 |
+| Corrigir no ERP ("3 · campo_obrigatorio"; sem erro, "—") | sobra | 3 |
 
-Menu "⋯" da linha: **Zerar dados** (perigo, vermelho), só na entidade com dados no Hub. Sem dados, a linha fica sem menu.
+Entidade sem dados no Hub: "Sem dados" na célula de Registros, as outras células vazias.
+
+Menu "⋯" da linha: **Zerar dados** (perigo, vermelho), só na entidade com dados no Hub.
 
 **Uma informação, um lugar:**
-- **Só no painel:** situação e linhas do lote, Reprocessar e Histórico.
+- **Só em "Cargas recentes":** situação e linhas do lote, Reprocessar e Histórico.
 - **Só na "Dados no Hub":** registros, cursor, o que corrigir no ERP e "Zerar dados".
 
-Os erros "a reprocessar" ficam só no painel, no selo "Com falha" e no Reprocessar.
+Os erros "a reprocessar" ficam só em "Cargas recentes", no selo "Com falha" e no Reprocessar.
 
 **No celular:**
-- Conector: Conector + Situação.
-- Painel: Entidade + Situação + "⋯".
+- Conector: Identificador + Situação.
+- "Cargas recentes": Entidade + Situação + "⋯".
 - "Dados no Hub": Entidade + "⋯".
 - Nenhuma tabela passa da largura da tela.
 
