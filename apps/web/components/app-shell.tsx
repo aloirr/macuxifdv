@@ -10,7 +10,7 @@
  * (lib/menu-bko.ts); tudo aberto quando cabe na altura, senão sanfona com o grupo da tela atual aberto e painel ao lado
  * do menu ao passar o ponteiro (ou dar foco) num grupo fechado. Marca: logo A negativo para o grafite (MC-0056).
  * ADR 0060 (spec docs/design/menu-parametros/spec.md §2–§3; `menuParametros: true` no SDK): Parâmetros e Sistema fixos no
- * fim; grupo de um item vira item direto (D9); Pesquisa, Trade e Treinamento sem a licença da EMPRESA (`modulos_contratados`
+ * fim, com uma opção por seção (`/parametros/<secao>`); todo grupo tem a seta, mesmo com um item só (R-20261124-094002); Pesquisa, Trade e Treinamento sem a licença da EMPRESA (`modulos_contratados`
  * de `/v1/me/modulos`) aparecem com cadeado, não navegam e mostram o balão "Contrate o módulo para usar"; os endereços
  * antigos que viraram painel de Parâmetros (`/perfis`, `/motivos`, `/alcadas`…) vão para `/parametros/<secao>#<ancora>`
  * (`visao.destinoParametros`), com a query preservada.
@@ -40,6 +40,7 @@ import {
   densidadeDoMenu,
   destinoComBusca,
   grupoDaTela,
+  GRUPO_QUE_ROLA,
   hrefAtivo,
   hrefsNavegaveis,
   montarGruposMenu,
@@ -99,7 +100,7 @@ export function NavLink({
       title={compacta ? item.label : undefined}
       onClick={onNavegar}
       className={cx(
-        'flex shrink-0 items-center rounded-lg no-underline transition-colors',
+        'flex shrink-0 items-center gap-1.5 rounded-lg no-underline transition-colors',
         FOCO,
         lateral
           ? cx('relative pr-2.5 leading-5', compacta ? 'h-7 py-1 text-[15px] whitespace-nowrap' : 'min-h-8 py-1.5 text-[15px]', recuo ? 'pl-5' : 'pl-2.5')
@@ -111,6 +112,12 @@ export function NavLink({
       )}
     >
       {compacta ? <span className="min-w-0 truncate">{item.label}</span> : item.label}
+      {item.cadeado && (
+        <>
+          <IconLock size={14} strokeWidth={2.2} className="ml-auto shrink-0" aria-hidden />
+          <span className="sr-only">, sem licença</span>
+        </>
+      )}
     </Link>
   );
 }
@@ -140,31 +147,6 @@ export function Brand({ company, logoCliente = null }: { company: string; logoCl
 
 const TITULO_TEXTO = 'text-[12px] font-semibold tracking-[0.07em] uppercase';
 const TITULO_GRUPO = cx(TITULO_TEXTO, 'text-nav-grupo');
-
-/**
- * Item direto de 1º nível (D9: grupo com uma página só; Parâmetros): o título do grupo (Sol claro, maiúsculas, 30 px), sem
- * seta, navega no clique; tela atual com o fundo do item ativo e o texto branco (spec §3).
- */
-function ItemDireto({ grupo, active, densidade }: { grupo: GrupoMenuBko; active: boolean; densidade: DensidadeMenu }) {
-  const item = grupo.itens[0];
-  if (!item) return null;
-  return (
-    <Link
-      href={item.href}
-      data-testid={item.testId}
-      aria-current={active ? 'page' : undefined}
-      className={cx(
-        'flex shrink-0 items-center rounded-lg px-2.5 no-underline transition-colors',
-        alturaTitulo(densidade),
-        TITULO_TEXTO,
-        FOCO,
-        active ? 'bg-nav-active text-white' : 'text-nav-grupo hover:bg-nav-active',
-      )}
-    >
-      {grupo.titulo}
-    </Link>
-  );
-}
 
 /**
  * Entrada de módulo de vitrine que a empresa não contratou (ADR 0060, spec §3): cinza no grafite com cadeado no lugar da
@@ -256,7 +238,7 @@ export function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: 
   const [transbordou, setTransbordou] = useState(false);
   const [rolouNormal, setRolouNormal] = useState(false);
   // `grupos` é montado de novo a cada render do shell: compara pelo conteúdo, não pela referência
-  const medida = `${disponivel}|${grupos.map((g) => `${g.id}:${g.direto ? 'd' : ''}${g.bloqueado ? 'b' : ''}:${g.itens.map((i) => i.label).join(',')}`).join(';')}`;
+  const medida = `${disponivel}|${grupos.map((g) => `${g.id}:${g.bloqueado ? 'b' : ''}:${g.itens.map((i) => i.label).join(',')}`).join(';')}`;
   const [medidaVista, setMedidaVista] = useState(medida);
   if (medidaVista !== medida) {
     setMedidaVista(medida);
@@ -280,7 +262,7 @@ export function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: 
   }
   useLayoutEffect(() => {
     const el = listaRef.current;
-    if (!tudoAberto && disponivel !== null && densidade === 'normal' && el && el.scrollHeight > el.clientHeight) setRolouNormal(true);
+    if (!tudoAberto && disponivel !== null && densidade === 'normal' && aberto !== GRUPO_QUE_ROLA && el && el.scrollHeight > el.clientHeight) setRolouNormal(true);
   }, [tudoAberto, disponivel, densidade, grupos, aberto]);
 
   const [painel, setPainel] = useState<Painel | null>(null);
@@ -323,7 +305,6 @@ export function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: 
     <div ref={listaRef} data-testid="menu-bko-lista" className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-1">
       {grupos.map((g) => {
         if (g.bloqueado) return <EntradaBloqueada key={g.id} grupo={g} densidade={densidade} />;
-        if (g.direto) return <ItemDireto key={g.id} grupo={g} active={g.itens[0]?.href === ativo} densidade={densidade} />;
         const estaAberto = tudoAberto || aberto === g.id;
         const comPainel = !estaAberto && painel?.grupo === g.id;
         const titulo = (e: { currentTarget: HTMLElement }) => e.currentTarget.querySelector<HTMLElement>('[data-menu-titulo]');
@@ -530,7 +511,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     navegacao: visao.navegacao,
     mais: visao.extensoes<ItemMenu>('menu.itens').map((i) => i.payload),
     plataforma: entraEm('bko', perfil),
-    parametros: secoes.length > 0,
+    parametros: secoes,
   });
   const ativo = hrefAtivo(pathname, hrefsNavegaveis(grupos));
   const conteudo = estadoDoConteudo({
