@@ -200,3 +200,4 @@
 2026-11-20 — v1.0.17 Campo (r4) — busca de Clientes volta à tela (código, CNPJ com/sem máscara, razão social, fantasia); selo e etiquetas da busca saem do domain; sem textos de sincronização no core
 2026-11-21 — T-0189 — Início do BKO: domain inicio-bko (RN-CORE-64/65/66), GET /v1/core/inicio-bko, parâmetro integracao.horario_carga, InicioBkoPage e painel do horário da carga
 2026-11-21 — T-0189 — Início do BKO r3: achados RD-2509 a RD-2516 do corretor, D0-D3 do testes (supervisor fora, carga atrasada = atenção, feriados, última carga e parados_desde do Monitor), Pedidos = aprovados + em aprovação
+2026-11-24 — v1.0.34 — Fachada: foto só adiciona (podeEnviarFoto, fotoMaisRecente, fotosComPendentes, fachadaDoPdv), linhaDaFotoDoPdv + olho/câmera na aba Documentação, aviso de erro junto da linha; perfis.test.ts sem (RN-CORE-04) (lote Parâmetros); índice cliente_foto_vigente_uk pendente (banco-dados)

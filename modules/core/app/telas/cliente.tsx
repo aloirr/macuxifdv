@@ -34,8 +34,8 @@ import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
-import { enviarFotoPdv } from '../lib/enviar-foto-pdv';
-import { capturaFotoPdvRegistrada, pedidoDaFachada } from '../lib/foto-fachada';
+import { enviarFotoPdv, MSG_FALHA_FOTO_PDV } from '../lib/enviar-foto-pdv';
+import { capturaFotoPdvRegistrada, pedidoDeAbrirFotoPdv } from '../lib/foto-fachada';
 import { tentarCheckin } from '../lib/acoes-visita';
 import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../lib/etapa-pendente';
 import type { PosicaoGps } from '../lib/visita-payload';
@@ -63,11 +63,18 @@ export function TelaCliente() {
   const acoes = filtrarExtensoesDePedido(acoesTodas, locais.verPedidos);
   // Cliente 360 e resumo do check-in montados só com as linhas do aparelho (offline)
   const ficha = montarFichaLocal(locais, id, hoje);
-  // T-0147: "Foto do PDV" abre pelo visualizador do shell; sem ele ou sem fachada enviada, o botão fica desligado
+  // T-0147: o olho abre pelo visualizador do shell; sem ele, fica desligado
   const abrirArquivo = abrirArquivoRegistrado();
-  const pedidoFoto = ficha ? pedidoDaFachada(ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, ficha.fotos_pdv?.fachada_foto, tz) : null;
-  const verFotoPdv = abrirArquivo && pedidoFoto ? () => abrirArquivo(pedidoFoto) : undefined;
-  // T-0147: "Adicionar" no tipo que falta: o shell abre a folha (câmera ou galeria); o envio é offline (fila de itens + de arquivos)
+  // v1.0.34: cada olho abre a foto MAIS RECENTE do próprio tipo (pedidoDeAbrirFotoPdv); sem arquivo ou trancado, não abre
+  const nomeParaFoto = ficha ? (ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social) : '';
+  const verFotoPdv = abrirArquivo && ficha
+    ? (tipoId: string) => {
+        const item = ficha.fotos_pdv?.itens.find((x) => x.tipo_id === tipoId);
+        const pedido = item ? pedidoDeAbrirFotoPdv(nomeParaFoto, item, tz) : null;
+        if (pedido) abrirArquivo(pedido);
+      }
+    : undefined;
+  // T-0147: câmera em toda linha quando o perfil envia: o shell abre a folha (câmera ou galeria); o envio é offline (fila de itens + de arquivos)
   const [avisoFoto, setAvisoFoto] = useState<string | null>(null);
   const adicionarFotoPdv = capturaFotoPdvRegistrada() && ficha && motor
     ? (tipoId: string) => {
@@ -76,7 +83,7 @@ export function TelaCliente() {
         setAvisoFoto(null);
         void enviarFotoPdv({ motor }, { clienteId: id, nomeCliente: ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, tipo }).then((r) => {
           if (r.kind === 'erro') setAvisoFoto(r.mensagem);
-        });
+        }).catch(() => setAvisoFoto(MSG_FALHA_FOTO_PDV));
       }
     : undefined;
   const customer = estado.clientes.find((c) => c.id === id) ?? null;
@@ -227,7 +234,6 @@ export function TelaCliente() {
           const Aviso = a.payload.componente;
           return <Aviso key={`${a.modulo}-${a.id}`} contexto={contexto} />;
         })}
-        {avisoFoto ? <Banner tone="danger" icon="alert" testID="cliente-foto-erro" anunciar>{avisoFoto}</Banner> : null}
         {recusa ? (
           <View style={{ gap: 8 }}>
             <Banner tone="danger" icon="alert" testID="cliente-recusado-erp" anunciar>
@@ -273,7 +279,7 @@ export function TelaCliente() {
         ) : abaAtiva === 'historico' ? (
           <AbaHistorico notas={notas} filtro={filtroNotas} onFiltro={setFiltroNotas} detalhe={detalheNota} hoje={hoje} />
         ) : (
-          <AbaDocumentacao documentos={documentos} abertura={aberturaDoc} fotos={ficha.fotos_pdv} verFotoPdv={verFotoPdv} adicionarFotoPdv={adicionarFotoPdv} tirada={ficha.fotos_pdv?.fachada_foto?.tirada_em ? dataLocal(ficha.fotos_pdv.fachada_foto.tirada_em, tz) : null} />
+          <AbaDocumentacao documentos={documentos} abertura={aberturaDoc} fotos={ficha.fotos_pdv} verFotoPdv={verFotoPdv} adicionarFotoPdv={adicionarFotoPdv} tz={tz} aviso={avisoFoto} />
         )}
       </ScrollView>
 

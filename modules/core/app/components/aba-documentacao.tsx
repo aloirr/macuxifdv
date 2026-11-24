@@ -2,14 +2,14 @@
  * Aba Documentação da ficha (T-0186, spec §5): tabela Documento · Data · Abrir, uma faixa por grupo. Só visualizar (P15): o arquivo
  * vem do servidor ao tocar, sem baixar e sem cópia no aparelho; sem internet, "Sem internet" e "Tentar de novo". O tipo que o perfil
  * não vê não chega; a exceção por documento vem com cadeado e "Sem permissão para abrir" (P10). Vencido só na linha (P16).
- * "Fotos do PDV" (RN-CORE-38) lê as linhas do aparelho: "Falta" em vermelho com a câmera quando o perfil envia.
+ * "Fotos do PDV" (RN-CORE-38) lê as linhas do aparelho: câmera em toda linha quando o perfil envia.
  */
-import { BotaoCelula, CelulaTexto, colors, Folha, Icon, Loading, TabelaDados, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
+import { Banner, BotaoCelula, CelulaTexto, colors, Folha, Icon, Loading, TabelaDados, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
 import { Text, View } from 'react-native';
 
 import type { Cliente360Local } from '../lib/cliente360-local';
-import { fotoPdvTrancada } from '../lib/foto-fachada';
-import { acaoDoDocumento, agruparDocumentos, dataBr, dataDoDocumento, leituraDoDocumento, segundaLinhaDoDocumento } from '../lib/ficha-v2';
+import { linhaDaFotoDoPdv } from '../lib/foto-fachada';
+import { acaoDoDocumento, agruparDocumentos, dataDoDocumento, leituraDoDocumento, segundaLinhaDoDocumento } from '../lib/ficha-v2';
 import type { AberturaDeDocumento, DocumentosDoCliente } from '../lib/usar-ficha-online';
 import { ErroOnline } from './erro-online';
 
@@ -21,41 +21,42 @@ export function AbaDocumentacao({
   fotos,
   verFotoPdv,
   adicionarFotoPdv,
-  tirada,
+  tz,
+  aviso,
 }: {
   documentos: DocumentosDoCliente;
   abertura: AberturaDeDocumento;
   /** Fotos do PDV do aparelho (RN-CORE-38); `null` = sem tipo cadastrado. */
   fotos: Cliente360Local['fotos_pdv'] | undefined;
-  verFotoPdv?: () => void;
-  /** Tipo que falta: abre a captura do shell; sem ela, não há câmera. */
+  /** Abre a foto mais recente do tipo no visualizador do shell. */
+  verFotoPdv?: (tipoId: string) => void;
+  /** Abre a captura do shell (câmera em toda linha quando o perfil envia); sem ela, não há câmera. */
   adicionarFotoPdv?: (tipoId: string) => void;
-  /** Data da fachada (AAAA-MM-DD, fuso do tenant). */
-  tirada: string | null;
+  /** Fuso do tenant (a data da linha é a da foto mais recente). */
+  tz: string;
+  /** Erro ao guardar a foto (junto da linha). */
+  aviso?: string | null;
 }) {
   const linhasFotos: LinhaTabela[] = (fotos?.itens ?? []).flatMap<LinhaTabela>((i) => {
-    const tem = i.situacao === 'tem';
-    const segunda = i.na_fila ? 'Na fila' : tem ? 'Foto' : i.obrigatorio ? 'Falta' : 'Opcional';
-    const podeAbrir = tem && i.fachada && Boolean(verFotoPdv);
+    const l = linhaDaFotoDoPdv(i, { tz, podeAbrir: Boolean(verFotoPdv), podeEnviar: Boolean(adicionarFotoPdv) });
     return [
       {
         tipo: 'linha',
         key: `foto-${i.tipo_id}`,
         testID: `cliente-foto-${i.tipo_id}`,
-        rotulo: `${i.nome}, ${segunda}`,
-        onPress: podeAbrir ? verFotoPdv : undefined,
+        rotulo: `${i.nome}, ${l.segunda}`,
+        onPress: l.ver.ligado ? () => verFotoPdv?.(i.tipo_id) : undefined,
         celulas: [
-          <CelulaTexto key="n" principal={i.nome} segunda={segunda} perigoSegunda={!tem && i.obrigatorio} />,
-          <CelulaTexto key="d" principal={i.fachada && tem && tirada ? dataBr(tirada) : '—'} mudo />,
-          tem && !i.fachada && fotoPdvTrancada(i) ? (
-            <BotaoCelula key="a" icone="lock" rotulo={`${i.nome}: sem permissão para abrir`} desligado />
-          ) : tem ? (
-            <BotaoCelula key="a" icone="chevron" rotulo={`Ver ${i.nome}`} desligado={!podeAbrir} onPress={verFotoPdv} testID="cliente-foto-pdv" />
-          ) : adicionarFotoPdv ? (
-            <BotaoCelula key="a" icone="camera" rotulo={`Adicionar foto: ${i.nome}`} onPress={() => adicionarFotoPdv(i.tipo_id)} testID={`cliente-foto-adicionar-${i.tipo_id}`} />
-          ) : (
-            <View key="a" />
-          ),
+          <CelulaTexto key="n" principal={i.nome} segunda={l.segunda} perigoSegunda={l.perigo} />,
+          <CelulaTexto key="d" principal={l.data} mudo />,
+          <View key="a" style={{ flexDirection: 'row', justifyContent: 'center' }}>
+            {l.trancada ? (
+              <BotaoCelula icone="lock" rotulo={`${i.nome}: sem permissão para abrir`} desligado />
+            ) : (
+              <BotaoCelula icone="olho" rotulo={l.ver.rotulo} desligado={!l.ver.ligado} onPress={() => verFotoPdv?.(i.tipo_id)} testID={`cliente-foto-ver-${i.tipo_id}`} />
+            )}
+            {l.adicionar ? <BotaoCelula icone="camera" rotulo={l.adicionar.rotulo} onPress={() => adicionarFotoPdv?.(i.tipo_id)} testID={`cliente-foto-adicionar-${i.tipo_id}`} /> : <View style={{ width: 48 }} />}
+          </View>,
         ],
       },
     ];
@@ -88,13 +89,14 @@ export function AbaDocumentacao({
 
   return (
     <View style={{ gap: 12 }} testID="cliente-documentacao">
+      {aviso ? <Banner tone="danger" icon="alert" testID="cliente-foto-erro" anunciar>{aviso}</Banner> : null}
       {linhas.length > 0 ? (
         <TabelaDados
           testID="tabela-documentos"
           colunas={[
             { id: 'doc', titulo: 'Documento' },
             { id: 'data', titulo: 'Data', largura: 76 },
-            { id: 'abrir', titulo: 'Abrir', largura: 48, alinhar: 'centro' },
+            { id: 'abrir', titulo: 'Ações', largura: 96, alinhar: 'centro' },
           ]}
           linhas={linhas}
         />

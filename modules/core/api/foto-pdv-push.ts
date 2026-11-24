@@ -3,7 +3,7 @@
  * os bytes (`PUT /v1/arquivos/:id`). O servidor sempre revalida, item a item, cada um na própria transação:
  *  - carteira (RN-CORE-04): cliente fora da carteira = `FORA_DA_CARTEIRA`;
  *  - tipo vivo e ativo, senão 422 `FOTO_TIPO_NAO_ENCONTRADO`;
- *  - `podeEnviarFoto`: vendedor e promotor só o que falta (422 `RN-CORE-38`); admin, analista e supervisor substituem (a antiga sai logicamente);
+ *  - `podeEnviarFoto`: todo perfil só adiciona; a mais recente vale e a anterior ainda vai para `deleted_at` (até a migração do índice `cliente_foto_vigente_uk`);
  *  - `tx.registrarArquivo` com `perfis_leitura` do tipo (`perfisDeLeitura`): sensível só admin, analista, gerente e supervisor.
  * Idempotente pelo `id` (UUID do aparelho). Sem dado pessoal em log e sem evento.
  */

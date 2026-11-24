@@ -11,10 +11,10 @@ describe('T-0186: botões de ação da ficha v2 (spec §3 e §5)', () => {
     expect(resumo).toContain('WhatsApp indisponível');
     expect(resumo).toContain('Abrir no mapa:');
   });
-  it('RN-CORE-38: a fachada abre pelo visualizador do shell ("Ver ...") e o tipo que falta tem a câmera', () => {
-    expect(documentacao).toContain('rotulo={`Ver ${i.nome}`}');
-    expect(documentacao).toContain('icone="camera"');
-    expect(documentacao).toContain('fotoPdvTrancada(i)');
+  it('RN-CORE-38: cada foto do PDV tem o olho (visualizador do shell) e a câmera (adicionar), com os rótulos de linhaDaFotoDoPdv', () => {
+    expect(documentacao).toContain('icone="olho" rotulo={l.ver.rotulo}');
+    expect(documentacao).toContain('icone="camera" rotulo={l.adicionar.rotulo}');
+    expect(documentacao).toContain('l.trancada');
   });
   it('P10: a exceção por documento mostra o cadeado e não abre', () => {
     expect(documentacao).toContain('icone="lock"');
