@@ -14,6 +14,8 @@ import type { OrderDisplay, Rascunho } from './pedidos';
 export interface TabelaDePrecos {
   items: Product[];
   synced_at: string;
+  /** carimbo do sync sobre o qual a tabela foi calculada; vence quando o sync é outro (tabelaVencida, RN-VEN-02) */
+  base_sync?: string | null;
   /** RN-VEN-23: faixas vigentes da tabela escalonada (produto → faixas), de faixas[] da consulta de preço; ausente = sem faixa */
   faixas?: Record<string, FaixaEscalonada[]>;
 }

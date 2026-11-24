@@ -269,12 +269,13 @@ export interface TravaDaChave {
  * Limite travado de uma chave para um perfil base (o cadeado da página, com a regra). `null` = editável.
  * No multiperfil (`combinarPerfis`, RN-CORE-35), os limites de ACESSO (BKO, portal) valem se QUALQUER perfil do usuário os tiver;
  * os de ação travam só o perfil.
+ * A `mensagem` vai à tela do cliente e nunca traz código interno (RN-CORE-33, RN-PRO-01 ficam só em `regra`; R-20261124-094002).
  */
 export function travaDaChave(base: Perfil, chave: string): TravaDaChave | null {
   const nome = ROTULO_BASE[base];
-  if (chave === CHAVE_ACESSO.bko && BASES_SEM_BKO.includes(base)) return { regra: 'RN-CORE-33', mensagem: `${nome} nunca entra no BKO (RN-CORE-33).` };
-  if (chave === CHAVE_ACESSO.portal && base !== 'admin') return { regra: 'RN-CORE-33', mensagem: `O portal é só do admin (RN-CORE-33).` };
-  if (base === 'promotor' && ehAcaoDeEscritaDePedido(chave)) return { regra: 'RN-PRO-01', mensagem: 'Promotor nunca cria, edita, cancela ou exclui pedido (RN-PRO-01).' };
+  if (chave === CHAVE_ACESSO.bko && BASES_SEM_BKO.includes(base)) return { regra: 'RN-CORE-33', mensagem: `${nome} nunca entra no BKO.` };
+  if (chave === CHAVE_ACESSO.portal && base !== 'admin') return { regra: 'RN-CORE-33', mensagem: 'O portal é só do admin.' };
+  if (base === 'promotor' && ehAcaoDeEscritaDePedido(chave)) return { regra: 'RN-PRO-01', mensagem: 'Promotor nunca cria, edita, cancela ou exclui pedido.' };
   return null;
 }
 

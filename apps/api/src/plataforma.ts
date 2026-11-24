@@ -1,5 +1,6 @@
 /**
- * Portal de implantação (`config.macuxifdv.com.br`, T-0087; ADR 0029; desenho docs/desenho/T-0087.md §3–§6):
+ * Portal de implantação (`fdv.macuxifdv.com.br/config` e, até o corte da ADR 0071, `config.macuxifdv.com.br`; T-0087;
+ * ADR 0029; desenho docs/desenho/T-0087.md §3–§6):
  * - rotas da plataforma sem tenant: `GET|POST /v1/plataforma/empresas` (o passo Empresa usa o `planoDeOnboarding` da
  *   T-0083 sobre TODOS os manifestos, por isso mora aqui, na raiz de composição, e não no Core);
  * - fonte de dados do portal (funções `SECURITY DEFINER` `plataforma.sa_*`, banco-dados) e a auditoria de toda requisição

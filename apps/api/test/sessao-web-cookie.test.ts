@@ -305,6 +305,53 @@ describe('T-0117: logout (encerrar)', () => {
   });
 });
 
+describe('ADR 0071: cookie de sessão repetido (injetado por outro subdomínio)', () => {
+  const dois = (a: string, b: string, nome = NOME) => ({ cookie: `${nome}=${a}; outro=1; ${nome}=${b}` });
+
+  it('refresh com dois cookies de sessão de mesmo nome: 401 SESSAO_INVALIDA, cookie apagado, sem chamar o Core', async () => {
+    const { app, recebidos } = montar();
+    await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { senha: 'certa' }, headers: WEB });
+    recebidos.length = 0;
+    for (const headers of [dois(token(1), token(66)), dois(token(66), token(1)), dois(token(1), token(1)), dois(token(1), '')]) {
+      const r = await app.inject({ method: 'POST', url: '/v1/auth/refresh', payload: {}, headers: { ...WEB, ...headers } });
+      expect([r.statusCode, r.json().codigo, r.json().mensagem]).toEqual([401, 'SESSAO_INVALIDA', MENSAGEM_SESSAO]);
+      expect(setCookie(r)).toBe(`${NOME}=; Max-Age=0; Path=${CAMINHO_COOKIE_SESSAO}; HttpOnly; Secure; SameSite=Strict`);
+    }
+    expect(recebidos).toEqual([]);
+  });
+
+  it('logout com o cookie repetido: 401, cookie apagado e nada revogado', async () => {
+    const { app, revogados } = montar();
+    await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { senha: 'certa' }, headers: WEB });
+    const r = await app.inject({ method: 'POST', url: '/v1/auth/logout', payload: {}, headers: { ...WEB, ...dois(token(1), token(66)) } });
+    expect([r.statusCode, r.json().codigo]).toEqual([401, 'SESSAO_INVALIDA']);
+    expect(setCookie(r)).toContain('Max-Age=0');
+    expect(revogados).toEqual([]);
+  });
+
+  it('um cookie de sessão só (com outros cookies e o nome do outro modo ao lado) segue valendo', async () => {
+    const { app } = montar();
+    await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { senha: 'certa' }, headers: WEB });
+    const cookie = `${NOME_COOKIE_SESSAO_LOCAL}=${token(66)}; ${NOME}=${token(1)}; x${NOME}=${token(67)}`;
+    const r = await app.inject({ method: 'POST', url: '/v1/auth/refresh', payload: {}, headers: { ...WEB, cookie } });
+    expect(r.statusCode, r.body).toBe(200);
+  });
+
+  it('no PC (macuxi_rt) a regra é a mesma', async () => {
+    const { app } = montar(false);
+    const r = await app.inject({ method: 'POST', url: '/v1/auth/refresh', payload: {}, headers: { ...WEB, ...dois(token(1), token(2), NOME_COOKIE_SESSAO_LOCAL) } });
+    expect(r.statusCode).toBe(401);
+    expect(setCookie(r)).toBe(`${NOME_COOKIE_SESSAO_LOCAL}=; Max-Age=0; Path=${CAMINHO_COOKIE_SESSAO}; HttpOnly; SameSite=Strict`);
+  });
+
+  it('o app (token no corpo) não é afetado por cookies repetidos', async () => {
+    const { app } = montar();
+    await app.inject({ method: 'POST', url: '/v1/auth/login', payload: { senha: 'certa' } });
+    const r = await app.inject({ method: 'POST', url: '/v1/auth/refresh', payload: { refresh_token: token(1) }, headers: dois(token(5), token(6)) });
+    expect(r.statusCode, r.body).toBe(200);
+  });
+});
+
 describe('T-0117: nada de token em log', () => {
   it('nem o Cookie nem o Set-Cookie nem o corpo aparecem no log', async () => {
     const { app, log } = montar();
