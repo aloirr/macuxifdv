@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import {
   averageMix,
   businessDays,
@@ -311,10 +312,10 @@ export function payoutCsv(data: Data, ym: string): string {
   const codes = tg.plan.rules.map((r) => r.kpi_code);
   const names = tg.plan.rules.map((r) => r.kpi_name);
   const head = ['periodo', 'codigo_vendedor', 'vendedor', 'equipe', ...names.flatMap((n) => [`${n} meta`, `${n} realizado`, `${n} atingimento %`]), 'gatilho', 'rv_valor', 'situacao_mes'];
-  const num = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
+  const num = (n: number) => Math.round(n * 100) / 100;
   const lines = tg.sellers.map((g) => {
     const s = data.seller(g.seller_id)!;
-    const cells = [ym, s.erp_code, g.seller_name, g.team_name];
+    const cells: Array<string | number> = [ym, s.erp_code, g.seller_name, g.team_name];
     for (const c of codes) {
       const k = g.kpis.find((x) => x.kpi_code === c);
       cells.push(k ? num(k.target) : '', k ? num(k.actual) : '', k ? num(k.achievement_pct) : '');
@@ -322,8 +323,7 @@ export function payoutCsv(data: Data, ym: string): string {
     cells.push(g.trigger_blocked ? 'zerou' : 'ok', num(fromCents(g.incentive_cents)), tg.period_status === 'closed' ? 'fechado' : 'parcial');
     return cells;
   });
-  const esc = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  return '﻿' + [head, ...lines].map((r) => r.map(esc).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + [head, ...lines].map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
 
 export async function putGoals(data: Data, actor: Actor, ym: string, goals: Array<{ seller_id: string; kpi_code: string; target_value: number }>) {
