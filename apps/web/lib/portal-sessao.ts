@@ -13,6 +13,8 @@
 import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { CODIGO_USUARIO_SEM_FILIAL, SessaoPortalSchema } from '@macuxi/platform-sdk';
 
+import { ENTRADA_DO_PORTAL, noPortal } from './portal';
+
 /** O apps/web não depende do zod direto: o tipo sai do schema do SDK. */
 export type SessaoPortal = ReturnType<typeof SessaoPortalSchema.parse>;
 export type EmpresaDaSessaoPortal = SessaoPortal['empresas'][number];
@@ -110,18 +112,22 @@ export function versaoDaSessaoPortal(): number {
 // ---------------------------------------------------------------------------------------------------------------- retorno
 
 /**
- * Volta depois do login (revisão de UX R-20261106-023316 🟡 10): quando a guarda manda para `/entrar`, guarda a página de origem
- * (com o `#aba`) e se a sessão terminou (para o aviso "Sua sessão terminou"). Só caminhos do próprio portal (`/empresas...`):
+ * Volta depois do login (revisão de UX R-20261106-023316 🟡 10): quando a guarda manda para `/config/entrar`, guarda a página de origem
+ * (com o `#aba`) e se a sessão terminou (para o aviso "Sua sessão terminou"). Só caminhos do próprio portal (`/config/empresas...`):
  * nada de outro host, `//` ou query, para o retorno não virar redirecionamento aberto.
  */
 export const CHAVE_RETORNO_PORTAL = 'macuxi.portal.retorno';
 
 export type RetornoPortal = { caminho: string | null; sessaoTerminou: boolean };
 
-/** Caminho interno aceito para voltar depois do login, ou `null`. */
+/**
+ * Caminho interno aceito para voltar depois do login, ou `null`. Sempre com o `/config` (ADR 0068); o `/empresas...` sem o
+ * prefixo (endereço reescrito do host `config.` antigo) vira `/config/empresas...`.
+ */
 export function caminhoDeRetornoSeguro(c: unknown): string | null {
   if (typeof c !== 'string' || c.length > 120) return null;
-  return /^\/empresas(\/[A-Za-z0-9-]{1,64})?(#[a-z]{1,20})?$/.test(c) ? c : null;
+  const m = /^(\/config)?(\/empresas(\/[A-Za-z0-9-]{1,64})?(#[a-z]{1,20})?)$/.exec(c);
+  return m?.[2] ? noPortal(m[2]) : null;
 }
 
 export function guardarRetornoPortal(r: RetornoPortal, st: Storage | null = armazenamento()) {
@@ -177,13 +183,17 @@ export function retirarSaidaPedida(): boolean {
 // ---------------------------------------------------------------------------------------------------------------- empresa
 
 /**
- * Escolha de empresa (T-0093; docs/design/portal-entrar.md §2 e §3). Caminhos sem o prefixo `/config` (o `proxy.ts` reescreve).
- * - time da Macuxi: a lista de todas as empresas (`/empresas`), como antes;
+ * Escolha de empresa (T-0093; docs/design/portal-entrar.md §2 e §3). Caminhos com o prefixo `/config` (ADR 0068): valem no `fdv.`
+ * e no host `config.` antigo (lá o `/config/...` não é reescrito).
+ * - time da Macuxi: a lista de todas as empresas (`/config/empresas`), como antes;
  * - admin do cliente com a empresa escolhida (1 empresa entra direto): a página dela;
  * - admin do cliente com 2+ e sem escolha: "Escolha a empresa".
  */
-export const CAMINHO_ESCOLHER_EMPRESA = '/escolher-empresa';
-export const CAMINHO_EMPRESAS = '/empresas';
+export const CAMINHO_ESCOLHER_EMPRESA = noPortal('/escolher-empresa');
+export const CAMINHO_EMPRESAS = noPortal('/empresas');
+export const CAMINHO_NOVA_EMPRESA = `${CAMINHO_EMPRESAS}/nova`;
+/** Entrada do portal (`/config/entrar`): a guarda, o "Sair" e a raiz sem sessão levam para cá. */
+export const CAMINHO_ENTRAR = ENTRADA_DO_PORTAL;
 
 export const caminhoDaEmpresa = (id: string): string => `${CAMINHO_EMPRESAS}/${encodeURIComponent(id)}`;
 

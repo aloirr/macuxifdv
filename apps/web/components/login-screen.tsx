@@ -41,6 +41,7 @@ import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { CAMINHO_ESQUECI_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
 import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin } from '@/lib/login';
+import { INICIO_DO_BKO } from '@/lib/portal';
 import { encerrarSessao, pedirLogin, pedirTrocaDeSenha, salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
 
 const DICA: Partial<Record<Perfil, string>> = {
@@ -53,9 +54,9 @@ const DICA: Partial<Record<Perfil, string>> = {
 /** Perfis que entram no BKO (motor do SDK), do de linha de frente ao admin. */
 const ORDEM = perfisDeFabricaQueEntram('bko');
 
-/** Só aceita destino interno (evita redirecionar para fora). */
+/** Só aceita destino interno (evita redirecionar para fora); sem destino, o Início do BKO (`/bko`, ADR 0068). */
 function safeNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') && next !== '/login' ? next : '/';
+  return next && next.startsWith('/') && !next.startsWith('//') && next !== '/login' && next !== '/' ? next : INICIO_DO_BKO;
 }
 
 export function LoginScreen() {

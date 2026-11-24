@@ -27,6 +27,7 @@ import {
   consumirAvisoPortal,
   consumirEmpresaIndisponivel,
   destinoDaSessao,
+  CAMINHO_ENTRAR,
   destinoDepoisDoLogin,
   estadoDaSessao,
   guardarRetornoPortal,
@@ -88,7 +89,7 @@ export function TelaEscolherEmpresa() {
   useEffect(() => {
     if (vencida) {
       if (!retirarSaidaPedida() && (teveSessao.current || sessao !== null)) guardarRetornoPortal({ caminho: null, sessaoTerminou: true });
-      router.replace('/entrar');
+      router.replace(CAMINHO_ENTRAR);
     } else if (naoEscolhe && sessao) router.replace(destinoDaSessao(sessao));
   }, [vencida, naoEscolhe, sessao, router]);
 
@@ -157,7 +158,7 @@ export function TelaEscolherEmpresa() {
   }
 
   const sair = () => {
-    void sairDoPortal().then(() => router.replace('/entrar'));
+    void sairDoPortal().then(() => router.replace(CAMINHO_ENTRAR));
   };
 
   return (

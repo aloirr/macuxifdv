@@ -170,7 +170,7 @@ describe('shell do BKO com a conta sem filial', () => {
     expect(html).not.toContain('conteúdo da página');
   });
 
-  it('salvo → Início: relê os módulos e vai para "/"', () => {
+  it('salvo → Início: relê os módulos e vai para "/bko" (ADR 0068)', () => {
     estado.modulos = {
       data: undefined,
       isError: true,
@@ -180,7 +180,7 @@ describe('shell do BKO com a conta sem filial', () => {
     propsDaTela()?.onSalvo();
     expect(estado.removeQueries).toHaveBeenCalledWith({ queryKey: ['core', 'eu', 'filial-cadastro'] });
     expect(estado.resetQueries).toHaveBeenCalledWith({ queryKey: ['me', 'modulos'] });
-    expect(estado.replace).toHaveBeenCalledWith('/');
+    expect(estado.replace).toHaveBeenCalledWith('/bko');
   });
 
   it('Sair: encerra a sessão e volta ao login', () => {

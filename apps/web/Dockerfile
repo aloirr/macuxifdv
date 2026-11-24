@@ -1,13 +1,14 @@
 # syntax=docker/dockerfile:1.7
 # Imagem do BKO (shell Next.js) para a produção (T-0074, T-0086, ADR 0028). Contexto = RAIZ do monorepo (.dockerignore da raiz):
 #   docker build -f apps/web/Dockerfile -t macuxi-bko .
-#   docker run -p 3100:3100 macuxi-bko        → http://localhost:3100/login
-# No compose da VM (scripts/deploy/producao/compose.yml) o serviço se chama `bko` (rota do túnel: http://bko:3100) e fala
-# com a API pela rede interna (`api:8100`).
+#   docker run -p 3100:3100 macuxi-bko        → http://localhost:3100/login (BKO) e http://localhost:3100/config (portal)
+# No compose da VM (scripts/deploy/producao/compose.yml) o serviço se chama `bko` (rotas do túnel `fdv.`, e até o corte `bko.` e
+# `config.`: http://bko:3100; ADR 0068) e fala com a API pela rede interna (`api:8100`).
 #
 # O endereço da API é GRAVADO NO BUILD: o rewrite same-origin `/api-proxy/*` → NEXT_PUBLIC_API_URL (next.config.ts) e
 # o NEXT_PUBLIC_* do navegador saem do `next build`. Trocar a API = nova imagem (--build-arg NEXT_PUBLIC_API_URL=...).
-# MACUXI_BKO_ORIGEM: origem pública aceita pelo Next (allowedOrigins das Server Actions), também GRAVADA NO BUILD: o
+# MACUXI_BKO_ORIGEM: origem pública aceita pelo Next (allowedOrigins das Server Actions; padrão `fdv.`, ADR 0068; os hosts fixos
+# fdv., bko. e config. entram sempre, `HOSTS_DO_BKO_PADRAO` do next.config.ts), também GRAVADA NO BUILD: o
 # server.js do standalone leva o next.config serializado e não relê o next.config.ts nem o ambiente. Trocar a origem =
 # nova imagem (--build-arg MACUXI_BKO_ORIGEM=...); a variável no estágio final ou no environment do compose não muda nada.
 # Nenhum dos dois é segredo; nenhum segredo entra na imagem (o BKO não usa nenhum: o login e os tokens passam pela API).
@@ -51,7 +52,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # Agora o código (o .dockerignore deixa os node_modules de fora: os instalados acima ficam intactos).
 COPY . .
 ARG NEXT_PUBLIC_API_URL=http://api:8100/v1
-ARG MACUXI_BKO_ORIGEM=https://bko.macuxifdv.com.br
+ARG MACUXI_BKO_ORIGEM=https://fdv.macuxifdv.com.br
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     MACUXI_BKO_ORIGEM=$MACUXI_BKO_ORIGEM \
     MACUXI_NEXT_STANDALONE=1 \

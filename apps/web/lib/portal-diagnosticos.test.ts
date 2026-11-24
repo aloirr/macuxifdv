@@ -106,7 +106,7 @@ describe('rótulos', () => {
     expect(dataDoDetalhe('2026-11-11T18:02:10.000Z')).toBe('11/11 às 14:02');
     expect(dataDaLista(null)).toBe('—');
     expect(idCurto(TENANT)).toBe('3b9e…a71c');
-    expect(caminhoDoDiagnostico(ID)).toBe(`/diagnosticos/${ID}`);
+    expect(caminhoDoDiagnostico(ID)).toBe(`/config/diagnosticos/${ID}`);
     expect(ROTAS_PORTAL.printDoDiagnostico(ID)).toBe(`/plataforma/diagnosticos/${ID}/print`);
   });
 });
@@ -202,9 +202,11 @@ describe('detalhe', () => {
 describe('cabeçalho do portal', () => {
   it('Empresas e Diagnósticos; o item ativo pelo caminho, com ou sem o prefixo /config', () => {
     expect(MENU_TIME_MACUXI.map((i) => i.rotulo)).toEqual(['Empresas', 'Diagnósticos', 'Frases da carga']);
-    expect(itemAtivoDoMenu('/diagnosticos')).toBe('/diagnosticos');
-    expect(itemAtivoDoMenu(`/config/diagnosticos/${ID}`)).toBe('/diagnosticos');
-    expect(itemAtivoDoMenu('/empresas/nova')).toBe('/empresas');
+    expect(itemAtivoDoMenu('/diagnosticos')).toBe('/config/diagnosticos');
+    expect(itemAtivoDoMenu(`/config/diagnosticos/${ID}`)).toBe('/config/diagnosticos');
+    expect(itemAtivoDoMenu('/empresas/nova')).toBe('/config/empresas');
+    expect(itemAtivoDoMenu('/config/empresas/nova')).toBe('/config/empresas');
     expect(itemAtivoDoMenu('/entrar')).toBeNull();
+    expect(itemAtivoDoMenu('/config/entrar')).toBeNull();
   });
 });

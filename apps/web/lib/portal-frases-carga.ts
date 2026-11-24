@@ -13,8 +13,10 @@ import {
 } from '@macuxi/platform-sdk';
 import type { BadgeTone } from '@macuxi/ui/web';
 
-/** Página do portal (sem o prefixo `/config`: no host `config.` o navegador vê `/frases-carga`). */
-export const CAMINHO_FRASES_CARGA = '/frases-carga';
+import { noPortal } from './portal';
+
+/** Página do portal, com o prefixo `/config` (ADR 0068: vale no `fdv.` e no `config.` antigo). */
+export const CAMINHO_FRASES_CARGA = noPortal('/frases-carga');
 
 export const TEXTOS_PORTAL_FRASES = {
   titulo: 'Frases da carga',

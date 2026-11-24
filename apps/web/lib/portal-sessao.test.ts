@@ -106,11 +106,14 @@ describe('erros do cliente do portal', () => {
 });
 
 describe('volta depois do login (R-20261106-023316 🟡 10)', () => {
-  it('só caminhos do portal: /empresas, /empresas/<id> e o #aba', () => {
-    expect(caminhoDeRetornoSeguro('/empresas')).toBe('/empresas');
-    expect(caminhoDeRetornoSeguro('/empresas/0b6f2a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b#integracao')).toBe('/empresas/0b6f2a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b#integracao');
-    expect(caminhoDeRetornoSeguro('/empresas/nova')).toBe('/empresas/nova');
-    for (const ruim of ['//mal.com/empresas', 'https://mal.com', '/empresas/../entrar', '/empresas?x=1', '/entrar', '/empresas/a/b', '', 42, null]) expect(caminhoDeRetornoSeguro(ruim)).toBeNull();
+  it('só caminhos do portal: /config/empresas, /config/empresas/<id> e o #aba (ADR 0068)', () => {
+    expect(caminhoDeRetornoSeguro('/config/empresas')).toBe('/config/empresas');
+    expect(caminhoDeRetornoSeguro('/config/empresas/0b6f2a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b#integracao')).toBe('/config/empresas/0b6f2a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b#integracao');
+    expect(caminhoDeRetornoSeguro('/config/empresas/nova')).toBe('/config/empresas/nova');
+    // endereço reescrito do host config. antigo (sem o prefixo): volta com o prefixo
+    expect(caminhoDeRetornoSeguro('/empresas')).toBe('/config/empresas');
+    expect(caminhoDeRetornoSeguro('/empresas/nova#bases')).toBe('/config/empresas/nova#bases');
+    for (const ruim of ['//mal.com/empresas', 'https://mal.com', '/empresas/../entrar', '/empresas?x=1', '/entrar', '/config/entrar', '/empresas/a/b', '/config/empresas/a/b', '/config', '/configempresas', '/config/config/empresas', '/CONFIG/empresas', '', 42, null]) expect(caminhoDeRetornoSeguro(ruim), String(ruim)).toBeNull();
   });
   it('trava a lista branca contra afrouxamento (R-20261107-094706 🟢 1)', () => {
     const ruins = [
@@ -142,12 +145,13 @@ describe('volta depois do login (R-20261106-023316 🟡 10)', () => {
     for (const ruim of ruins) expect(caminhoDeRetornoSeguro(ruim), JSON.stringify(ruim)).toBeNull();
     // o limite de 64 do id e de 20 do #aba ainda passa
     const noLimite = `/empresas/${'a'.repeat(64)}#${'a'.repeat(20)}`;
-    expect(caminhoDeRetornoSeguro(noLimite)).toBe(noLimite);
+    expect(caminhoDeRetornoSeguro(noLimite)).toBe(`/config${noLimite}`);
+    expect(caminhoDeRetornoSeguro(`/config${noLimite}`)).toBe(`/config${noLimite}`);
   });
   it('guarda, lê uma vez e apaga; caminho estranho vira null', () => {
     const st = new Memoria();
     guardarRetornoPortal({ caminho: '/empresas/abc#bases', sessaoTerminou: true }, st);
-    expect(consumirRetornoPortal(st)).toEqual({ caminho: '/empresas/abc#bases', sessaoTerminou: true });
+    expect(consumirRetornoPortal(st)).toEqual({ caminho: '/config/empresas/abc#bases', sessaoTerminou: true });
     expect(consumirRetornoPortal(st)).toBeNull();
     guardarRetornoPortal({ caminho: '//mal.com', sessaoTerminou: false }, st);
     expect(consumirRetornoPortal(st)).toEqual({ caminho: null, sessaoTerminou: false });
@@ -162,9 +166,9 @@ describe('volta depois do login (R-20261106-023316 🟡 10)', () => {
   });
   it('lerRetornoPortal não apaga (F5 na entrada); apagarRetornoPortal apaga depois do login (R-20261107-093612 🟢 4)', () => {
     const st = new Memoria();
-    guardarRetornoPortal({ caminho: '/empresas/abc#equipe', sessaoTerminou: true }, st);
-    expect(lerRetornoPortal(st)).toEqual({ caminho: '/empresas/abc#equipe', sessaoTerminou: true });
-    expect(lerRetornoPortal(st)).toEqual({ caminho: '/empresas/abc#equipe', sessaoTerminou: true });
+    guardarRetornoPortal({ caminho: '/config/empresas/abc#equipe', sessaoTerminou: true }, st);
+    expect(lerRetornoPortal(st)).toEqual({ caminho: '/config/empresas/abc#equipe', sessaoTerminou: true });
+    expect(lerRetornoPortal(st)).toEqual({ caminho: '/config/empresas/abc#equipe', sessaoTerminou: true });
     apagarRetornoPortal(st);
     expect(lerRetornoPortal(st)).toBeNull();
     st.setItem(CHAVE_RETORNO_PORTAL, '{"caminho":"//mal.com","sessaoTerminou":true}');

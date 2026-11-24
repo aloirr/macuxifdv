@@ -1,13 +1,23 @@
 /**
- * Proxy do Next 16 (o antigo middleware). T-0086: no host `config.` (portal de implantação da T-0087) reescreve o
- * caminho para a rota `/config`; nos outros hosts (bko., localhost e a sonda `127.0.0.1:3100/login`) não
- * reescreve nada. T-0087 (ADR 0029 §7): fora do host `config.`, `/config` e `/config/*` respondem 404, e no host
- * `config.` o `/login` do BKO vai para a entrada do portal. As regras são puras e testadas em `lib/portal.ts`.
- * Sem sessão aqui: o token do super-admin fica no `sessionStorage` da origem `config.` e as páginas do portal conferem.
+ * Proxy do Next 16 (o antigo middleware). Regras puras e testadas em `lib/portal.ts` (ADR 0068, v1.0.33: os três hosts valem ao
+ * mesmo tempo até o corte):
+ * - host `config.` (antigo): reescreve para a rota `/config`; o `/login` do BKO vai para a entrada do portal;
+ * - host `bko.` (antigo): `/config` e `/config/*` respondem 404;
+ * - `fdv.` e qualquer outro host: o portal abre por caminho (`/config/...`); a raiz `/` vai (307) para o Início do BKO (`/bko`),
+ *   também no `bko.`;
+ * - páginas do portal (`/config/*` e tudo no host `config.`): `noindex`, `no-store` e a CSP estrita com nonce (`politicaDoPortal`).
+ * Sem sessão aqui: o token do portal fica no `sessionStorage` (chaves `macuxi.portal.*`) e as páginas do portal conferem.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { bloqueadoForaDoPortal, destinoNoPortal, ehHostDoPortal, ehPaginaDeConvite, hostDaRequisicao } from './lib/portal';
+import { bloqueadoForaDoPortal, destinoNoPortal, ehPaginaDeConvite, ehPaginaDoPortal, hostDaRequisicao, politicaDoPortal, redirecionamentoDaRaiz } from './lib/portal';
+
+/** Nonce de 128 bits, novo a cada requisição (Web Crypto: roda no proxy do Next e no vitest). */
+function novoNonce(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return btoa(String.fromCharCode(...b));
+}
 
 export function proxy(request: NextRequest) {
   const host = hostDaRequisicao(request.headers.get('host'), request.headers.get('x-forwarded-host'));
@@ -15,18 +25,35 @@ export function proxy(request: NextRequest) {
   if (bloqueadoForaDoPortal(host, caminho)) {
     return new NextResponse('Página não encontrada.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'x-robots-tag': 'noindex' } });
   }
+  const raiz = redirecionamentoDaRaiz(host, caminho);
+  if (raiz) {
+    // no mesmo host: o Next devolve o Location relativo (`/bko`) quando o destino é da própria origem
+    const url = request.nextUrl.clone();
+    url.pathname = raiz;
+    url.search = '';
+    return NextResponse.redirect(url, 307);
+  }
   const destino = destinoNoPortal(host, caminho);
-  let resposta = NextResponse.next();
+  const portal = ehPaginaDoPortal(host, caminho);
+  // CSP do portal: o Next lê o nonce do cabeçalho da requisição e o aplica nos scripts dele (a página precisa ser dinâmica:
+  // `app/config/layout.tsx` espera a requisição)
+  const csp = portal ? politicaDoPortal(novoNonce(), process.env.NODE_ENV === 'development') : null;
+  const cabecalhos = new Headers(request.headers);
+  if (csp) cabecalhos.set('content-security-policy', csp);
+  let resposta: NextResponse;
   if (destino) {
     const url = request.nextUrl.clone();
     url.pathname = destino;
-    resposta = NextResponse.rewrite(url);
+    resposta = csp ? NextResponse.rewrite(url, { request: { headers: cabecalhos } }) : NextResponse.rewrite(url);
+  } else {
+    resposta = csp ? NextResponse.next({ request: { headers: cabecalhos } }) : NextResponse.next();
   }
   // o portal nunca entra em buscador nem em cache compartilhado
-  if (ehHostDoPortal(host)) {
+  if (portal) {
     resposta.headers.set('x-robots-tag', 'noindex, nofollow');
     resposta.headers.set('cache-control', 'no-store');
   }
+  if (csp) resposta.headers.set('content-security-policy', csp);
   // convite de 1º acesso (T-0087 fatia E): o token está no endereço; nada de Referer, cache ou buscador
   if (ehPaginaDeConvite(caminho)) {
     resposta.headers.set('referrer-policy', 'no-referrer');
