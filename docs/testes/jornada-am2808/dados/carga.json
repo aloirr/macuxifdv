@@ -1,0 +1,364 @@
+{
+  "lotes": [
+    {
+      "entidade": "filial",
+      "registros": 1,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "e51394e5-beb5-4533-8e46-6ff152aca2cc",
+        "status": "recebido",
+        "entidade": "filial",
+        "modo": "delta",
+        "recebidos": 1,
+        "consulta": "/integracao/v1/lotes/e51394e5-beb5-4533-8e46-6ff152aca2cc"
+      },
+      "resultado": {
+        "lote_id": "e51394e5-beb5-4533-8e46-6ff152aca2cc",
+        "entidade": "filial",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 1,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 1,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "F01"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:47.380Z",
+        "concluido_em": "2026-11-24T10:21:47.811Z"
+      }
+    },
+    {
+      "entidade": "vendedor",
+      "registros": 1,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "420d8f23-7ccd-4b2d-a8e0-ec1850355db7",
+        "status": "recebido",
+        "entidade": "vendedor",
+        "modo": "delta",
+        "recebidos": 1,
+        "consulta": "/integracao/v1/lotes/420d8f23-7ccd-4b2d-a8e0-ec1850355db7"
+      },
+      "resultado": {
+        "lote_id": "420d8f23-7ccd-4b2d-a8e0-ec1850355db7",
+        "entidade": "vendedor",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 1,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 1,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "V001"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:48.414Z",
+        "concluido_em": "2026-11-24T10:21:48.835Z"
+      }
+    },
+    {
+      "entidade": "forma_pagamento",
+      "registros": 2,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "8addf4ad-74f9-495f-953f-fac5b2a7be8e",
+        "status": "recebido",
+        "entidade": "forma_pagamento",
+        "modo": "delta",
+        "recebidos": 2,
+        "consulta": "/integracao/v1/lotes/8addf4ad-74f9-495f-953f-fac5b2a7be8e"
+      },
+      "resultado": {
+        "lote_id": "8addf4ad-74f9-495f-953f-fac5b2a7be8e",
+        "entidade": "forma_pagamento",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 2,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 2,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "FP-DIN"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:49.439Z",
+        "concluido_em": "2026-11-24T10:21:49.879Z"
+      }
+    },
+    {
+      "entidade": "prazo_pagamento",
+      "registros": 2,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "327943e0-db06-4aec-9693-b25f8f32a34f",
+        "status": "recebido",
+        "entidade": "prazo_pagamento",
+        "modo": "delta",
+        "recebidos": 2,
+        "consulta": "/integracao/v1/lotes/327943e0-db06-4aec-9693-b25f8f32a34f"
+      },
+      "resultado": {
+        "lote_id": "327943e0-db06-4aec-9693-b25f8f32a34f",
+        "entidade": "prazo_pagamento",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 2,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 2,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "PZ-DIN-0"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:50.470Z",
+        "concluido_em": "2026-11-24T10:21:50.900Z"
+      }
+    },
+    {
+      "entidade": "produto",
+      "registros": 3,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "f3fd17e0-960d-416f-8269-336d45ba0034",
+        "status": "recebido",
+        "entidade": "produto",
+        "modo": "delta",
+        "recebidos": 3,
+        "consulta": "/integracao/v1/lotes/f3fd17e0-960d-416f-8269-336d45ba0034"
+      },
+      "resultado": {
+        "lote_id": "f3fd17e0-960d-416f-8269-336d45ba0034",
+        "entidade": "produto",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 3,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 3,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "P003"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:51.499Z",
+        "concluido_em": "2026-11-24T10:21:51.925Z"
+      }
+    },
+    {
+      "entidade": "preco",
+      "registros": 3,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "4e7778b2-f064-4470-b3e0-0a3a30a8859d",
+        "status": "recebido",
+        "entidade": "preco",
+        "modo": "delta",
+        "recebidos": 3,
+        "consulta": "/integracao/v1/lotes/4e7778b2-f064-4470-b3e0-0a3a30a8859d"
+      },
+      "resultado": {
+        "lote_id": "4e7778b2-f064-4470-b3e0-0a3a30a8859d",
+        "entidade": "preco",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 3,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 3,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "T01-P003"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:52.529Z",
+        "concluido_em": "2026-11-24T10:21:52.956Z"
+      }
+    },
+    {
+      "entidade": "estoque",
+      "registros": 3,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "621c8a5c-1ec9-4d40-898b-bd1c617d333a",
+        "status": "recebido",
+        "entidade": "estoque",
+        "modo": "delta",
+        "recebidos": 3,
+        "consulta": "/integracao/v1/lotes/621c8a5c-1ec9-4d40-898b-bd1c617d333a"
+      },
+      "resultado": {
+        "lote_id": "621c8a5c-1ec9-4d40-898b-bd1c617d333a",
+        "entidade": "estoque",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 3,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 3,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "D01-P003"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:53.556Z",
+        "concluido_em": "2026-11-24T10:21:53.993Z"
+      }
+    },
+    {
+      "entidade": "cliente",
+      "registros": 2,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "9a493da9-c112-46b2-8df9-26cba0a976fc",
+        "status": "recebido",
+        "entidade": "cliente",
+        "modo": "delta",
+        "recebidos": 2,
+        "consulta": "/integracao/v1/lotes/9a493da9-c112-46b2-8df9-26cba0a976fc"
+      },
+      "resultado": {
+        "lote_id": "9a493da9-c112-46b2-8df9-26cba0a976fc",
+        "entidade": "cliente",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 2,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 2,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "C002"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:54.581Z",
+        "concluido_em": "2026-11-24T10:21:55.022Z"
+      }
+    },
+    {
+      "entidade": "titulo",
+      "registros": 2,
+      "http_aceito": 202,
+      "aceito": {
+        "lote_id": "2525c969-bd39-4719-ba37-3ff71f4dc049",
+        "status": "recebido",
+        "entidade": "titulo",
+        "modo": "delta",
+        "recebidos": 2,
+        "consulta": "/integracao/v1/lotes/2525c969-bd39-4719-ba37-3ff71f4dc049"
+      },
+      "resultado": {
+        "lote_id": "2525c969-bd39-4719-ba37-3ff71f4dc049",
+        "entidade": "titulo",
+        "modo": "delta",
+        "status": "concluido",
+        "contagens": {
+          "recebidas": 2,
+          "duplicadas_no_lote": 0,
+          "com_erro": 0,
+          "novas": 2,
+          "atualizadas": 0,
+          "inalteradas": 0,
+          "obsoletas": 0
+        },
+        "erros": [],
+        "avisos": [],
+        "cursor": {
+          "alterado_em": "2026-11-24T10:21:47.344Z",
+          "external_id": "TIT-1001-1"
+        },
+        "invalidas_omitidas": 0,
+        "erros_total": 0,
+        "erros_omitidos": 0,
+        "inativadas": 0,
+        "recebido_em": "2026-11-24T10:21:55.607Z",
+        "concluido_em": "2026-11-24T10:21:56.084Z"
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "enviado": {
+    "versao_contrato": "v1",
+    "pedido_uuid": "614f10af-21a2-4704-9a47-f7924c28c93c",
+    "ocorrido_em": "2026-11-24T10:35:48.950Z",
+    "status": "faturado_total",
+    "numero_erp": "PV-000123",
+    "nota": {
+      "numero": "000004521",
+      "serie": "1",
+      "emitida_em": "2026-11-24T10:35:48.950Z",
+      "total_cents": 36680,
+      "chave_acesso": "13261111222333000181550010000045211000045210"
+    },
+    "itens_faturados": [
+      {
+        "sequencia": 1,
+        "produto_external_id": "P001",
+        "quantidade": 10,
+        "valor_cents": 24900
+      },
+      {
+        "sequencia": 2,
+        "produto_external_id": "P002",
+        "quantidade": 20,
+        "valor_cents": 11780
+      }
+    ]
+  },
+  "resposta": {
+    "status": 200,
+    "json": {
+      "pedido_uuid": "614f10af-21a2-4704-9a47-f7924c28c93c",
+      "status": "faturado_total",
+      "repetido": false
+    }
+  }
+}

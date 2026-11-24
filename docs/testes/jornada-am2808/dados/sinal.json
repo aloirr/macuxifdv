@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "json": {
+    "politica_versao": {
+      "versao_minima": "1.2.1",
+      "versao_recomendada": "1.2.1",
+      "mensagem": "O Conector 1.2.0 ou anterior reenvia itens no fechamento sem nota nova.",
+      "pacote": null
+    },
+    "conector_id": "macuxierp",
+    "recebido_em": "2026-11-24T10:21:43.987Z"
+  }
+}

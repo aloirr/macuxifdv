@@ -1,0 +1,17 @@
+{
+  "enviado": {
+    "versao_contrato": "v1",
+    "pedido_uuid": "614f10af-21a2-4704-9a47-f7924c28c93c",
+    "ocorrido_em": "2026-11-24T10:34:47.843Z",
+    "status": "integrado",
+    "numero_erp": "PV-000123"
+  },
+  "resposta": {
+    "status": 200,
+    "json": {
+      "pedido_uuid": "614f10af-21a2-4704-9a47-f7924c28c93c",
+      "status": "integrado",
+      "repetido": false
+    }
+  }
+}

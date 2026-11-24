@@ -1,0 +1,74 @@
+{
+  "status": 200,
+  "json": {
+    "pedidos": [
+      {
+        "frete": {
+          "modalidade": "CIF"
+        },
+        "itens": [
+          {
+            "fator": 1,
+            "unidade": "UN",
+            "sequencia": 1,
+            "quantidade": 10,
+            "total_cents": 24900,
+            "desconto_pct": 0,
+            "acrescimo_pct": 0,
+            "desconto_cents": 0,
+            "acrescimo_cents": 0,
+            "quantidade_venda": 10,
+            "preco_tabela_cents": 2490,
+            "produto_external_id": "P001",
+            "preco_unitario_cents": 2490
+          },
+          {
+            "fator": 1,
+            "unidade": "UN",
+            "sequencia": 2,
+            "quantidade": 20,
+            "total_cents": 11780,
+            "desconto_pct": 0,
+            "acrescimo_pct": 0,
+            "desconto_cents": 0,
+            "acrescimo_cents": 0,
+            "quantidade_venda": 20,
+            "preco_tabela_cents": 589,
+            "produto_external_id": "P002",
+            "preco_unitario_cents": 589
+          }
+        ],
+        "filial": {
+          "nome": "Matriz Teste",
+          "codigo": "01",
+          "padrao": false,
+          "external_id": "F01"
+        },
+        "criado_em": "2026-11-24T10:34:14.136000Z",
+        "pagamento": {
+          "forma_codigo": "BOL",
+          "prazo_codigo": "28",
+          "parcelas_dias": [
+            28
+          ],
+          "prazo_medio_dias": 28,
+          "forma_external_id": "FP-BOL",
+          "prazo_external_id": "PZ-BOL-28"
+        },
+        "tentativa": 1,
+        "observacao": null,
+        "aprovado_em": "2026-11-24T10:34:14.136Z",
+        "pedido_uuid": "614f10af-21a2-4704-9a47-f7924c28c93c",
+        "total_cents": 36680,
+        "desconto_pct": 0,
+        "acrescimo_pct": 0,
+        "versao_contrato": "v1",
+        "cliente_external_id": "C001",
+        "desconto_total_cents": 0,
+        "vendedor_external_id": "V001",
+        "acrescimo_total_cents": 0,
+        "condicao_pagamento_erp": "PZ-BOL-28"
+      }
+    ]
+  }
+}

@@ -4,7 +4,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const SENHAS = JSON.parse(readFileSync(process.env.MACUXI_SENHAS ?? '/home/user/jornada/senhas.json', 'utf8'));
 const TELAS = join(__dirname, '..', 'telas');
-const BKO = process.env.MACUXI_BKO ?? 'http://127.0.0.1:3000';
+const BKO = process.env.MACUXI_BKO ?? 'http://localhost:3000';
 const PORTAL = process.env.MACUXI_PORTAL ?? 'http://config.localhost:3000';
 const CSS = 'nextjs-portal{display:none!important}';
 async function abrir() {
@@ -23,10 +23,10 @@ async function print(p, nome, op = {}) {
 /** Troca a chave em claro por máscara antes do print (a chave nunca aparece em tela salva). */
 async function mascararChaves(p) {
   await p.evaluate(() => {
-    const re = /mxk_[A-Za-z0-9_-]+/g;
+    const re = /mx[a-z]_[A-Za-z0-9_-]{10,}/g;
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    for (let n = w.nextNode(); n; n = w.nextNode()) if (re.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(re, 'mxk_••••••••••••••••••••••••(mascarada)');
-    for (const i of document.querySelectorAll('input,textarea')) if (/mxk_/.test(i.value)) i.value = 'mxk_••••(mascarada)';
+    for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeValue = n.nodeValue.replace(re, '•••••••• (chave mascarada no print)');
+    for (const i of document.querySelectorAll('input,textarea')) if (/mx[a-z]_/.test(i.value)) i.value = '•••• (mascarada)';
   });
 }
 async function entrarPortal(p) {
@@ -39,7 +39,8 @@ async function entrarPortal(p) {
 module.exports = { abrir, print, mascararChaves, entrarPortal, SENHAS, TELAS, BKO, PORTAL };
 async function entrarBko(p, email = 'admin@thathyany-teste.com.br', senha = SENHAS.admin) {
   await p.goto(`${BKO}/login`, { waitUntil: 'networkidle' });
-  await p.getByLabel('Código da empresa').fill('thathyany-teste');
+  await p.waitForTimeout(2500);
+  await p.getByLabel('Código da empresa').fill(process.env.MACUXI_CODIGO_EMPRESA ?? 'AM2808');
   await p.getByLabel('E-mail').fill(email);
   await p.getByTestId('login.senha').fill(senha);
   await p.getByTestId('login.entrar').click();

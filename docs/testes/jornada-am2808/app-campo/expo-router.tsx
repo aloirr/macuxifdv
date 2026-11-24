@@ -1,0 +1,20 @@
+// Dublê do expo-router: parâmetros da rota vêm do cenário; navegação só é registrada (window.__nav).
+import { useEffect, type ReactNode } from 'react';
+const w = window as unknown as { CENARIO: { params?: Record<string, string> }; __nav: unknown[] };
+w.__nav = [];
+const ir = (tipo: string) => (alvo: unknown) => void w.__nav.push({ tipo, alvo });
+export const router = { push: ir('push'), navigate: ir('navigate'), replace: ir('replace'), back: ir('back'), canGoBack: () => true, setParams: ir('setParams'), dismiss: ir('dismiss'), dismissAll: ir('dismissAll') };
+export const useRouter = () => router;
+export const useLocalSearchParams = () => w.CENARIO.params ?? {};
+export const useGlobalSearchParams = useLocalSearchParams;
+export const usePathname = () => (w.CENARIO as { caminho?: string }).caminho ?? '/';
+export const useSegments = () => [];
+export const useNavigation = () => ({ addListener: () => () => undefined, setOptions: () => undefined, goBack: () => undefined, dispatch: () => undefined, isFocused: () => true });
+export const useFocusEffect = (cb: () => void | (() => void)) => useEffect(() => cb(), [cb]);
+export const useIsFocused = () => true;
+export const Link = ({ children }: { children: ReactNode }) => <>{children}</>;
+export const Redirect = () => null;
+const Tela = () => null;
+export const Stack = Object.assign(({ children }: { children?: ReactNode }) => <>{children}</>, { Screen: Tela });
+export const Tabs = Stack;
+export const Slot = () => null;

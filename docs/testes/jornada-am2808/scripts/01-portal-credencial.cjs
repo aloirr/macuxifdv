@@ -20,6 +20,7 @@ const { abrir, print, mascararChaves, entrarPortal, PORTAL } = require('./apoio.
   const chave = (await el.innerText()).trim();
   writeFileSync('/home/user/jornada/credencial.json', JSON.stringify({ conector_id: 'macuxierp', chave }) + '\n', { mode: 0o600 });
   await mascararChaves(p);
+  if ((await p.innerText('body')).includes(chave)) throw new Error('chave ainda visível: print cancelado');
   await print(p, '01c-portal-credencial-gerada');
   await navegador.close();
 })();
