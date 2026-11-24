@@ -57,7 +57,7 @@ const PRINTS = [
   ['usuarios-lista.png', '', null, ['Filial', 'Código FDV', '00001', 'Provisório', 'Sem filial', 'Boa Vista', '2 usuários sem filial de cadastro não entram no app.', 'Ver os 2'], []],
   ['usuarios-sem-filial.png', '?filial=sem', null, ['Filial de cadastro', 'Diego Matos', 'Paulo Brito'], ['Ver os 2', 'Carla Souza', 'Rita Alves']],
   ['usuario-editar-filiais.png', '', 'gaveta', ['Editar usuário', 'Filial de cadastro', 'Filiais de venda', 'filial de cadastro', 'Belém', 'Santarém'], []],
-  ['usuario-editar-codigo-fdv.png', '', 'gaveta-fim', ['Código FDV', '00001', 'Código no ERP', 'Vincular vendedor do ERP'], ['Desvincular']],
+  ['usuario-editar-codigo-fdv.png', '', 'gaveta-fim', ['Código FDV', '00001', 'Código ERP', 'Vincular vendedor do ERP'], ['Desvincular']],
   ['vincular-escolher.png', '', 'vincular', ['Escolha o vendedor provisório que é Carla Souza.', 'V-0142', 'V-0177', 'Continuar'], []],
   ['vincular-confirmar.png', '', 'vincular-confirmar', ['Vincular o provisório V-0142 a Carla Souza?', 'Voltar'], []],
 ];

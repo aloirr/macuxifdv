@@ -8,7 +8,7 @@ Uso, na raiz: `MACUXI_CHROMIUM=/opt/pw-browsers/chromium node docs/modulos/core/
 | `usuarios-lista.png` | Lista com a coluna Filial, selo "Sem filial" e o aviso "Ver os 2" |
 | `usuarios-sem-filial.png` | Filtro "Sem filial": sem a coluna Filial e sem o aviso |
 | `usuario-editar-filiais.png` | Gaveta com Filial de cadastro e Filiais de venda |
-| `usuario-editar-codigo-fdv.png` | Fim da gaveta: Código FDV só de leitura com copiar, Código no ERP e "Vincular vendedor do ERP" (spec `docs/design/erp-vinculo/`, 01) |
+| `usuario-editar-codigo-fdv.png` | Fim da gaveta: Código FDV só de leitura com copiar, Código ERP e "Vincular vendedor do ERP" (spec `docs/design/erp-vinculo/`, 01) |
 | `vincular-escolher.png` | Escolher o provisório do mesmo perfil (02) |
 | `vincular-confirmar.png` | Confirmação do vínculo (03) |
 

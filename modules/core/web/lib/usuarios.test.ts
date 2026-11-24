@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { almocoPadraoDoTenant, formularioNovo, permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, provisoriosParaVincular, podeVincularErp, corpoDeVinculoErp, textoDoVinculoErp, tituloDaConfirmacaoDoVinculo, textoDaOpcaoDoProvisorio, textoDaConfirmacaoDoVinculo, emailParaLista, codigoFdvParaLista } from './usuarios';
+import { almocoPadraoDoTenant, formularioNovo, permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe, provisoriosParaVincular, podeVincularErp, corpoDeVinculoErp, textoDoVinculoErp, tituloDaConfirmacaoDoVinculo, textoDaOpcaoDoProvisorio, textoDaConfirmacaoDoVinculo, emailParaLista, PLACEHOLDER_SEM_EMAIL, codigoFdvParaLista, codigoErpParaLista } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -85,6 +85,9 @@ describe('RN-CORE-34: senha por e-mail no BKO (T-0094)', () => {
     expect(acaoDeSenha(u({ sem_senha: true }))).toEqual({ rotulo: 'Enviar acesso' });
     expect(acaoDeSenha(u({ perfil: 'admin' }))).toBeNull();
     expect(acaoDeSenha(u({ ativo: false }))).toBeNull();
+    // RN-CORE-58: provisório (e-mail técnico) não tem para onde enviar acesso nem senha, e o endereço nunca é mostrado
+    expect(acaoDeSenha(u({ email: 'erp-1@sem-email.invalid', sem_senha: true }))).toBeNull();
+    expect(acaoDeSenha(u({ email: 'erp-1@sem-email.invalid' }))).toBeNull();
     expect(acaoDeSenha(u({ perfil: 'analista', perfis: [{ codigo: 'analista', base: 'analista', nome: 'Analista' }, { codigo: 'admin', base: 'admin', nome: 'Admin' }] }))).toBeNull();
   });
   it('RN-CORE-34: "Gerar senha" produz 12 caracteres que passam na RN-CORE-32', () => {
@@ -123,7 +126,7 @@ describe('RN-CORE-55/56/57 (0069): hierarquia e código no ERP na gaveta Novo us
   const ok = { ...FORMULARIO_VAZIO, nome: 'Ana', email: 'ana@exemplo.com.br', senha: 'Abcdef1!', perfis: ['vendedor'], external_id: 'V-10' };
 
   it('RN-CORE-57: sem código no ERP a gaveta para no campo, para todos os cargos', () => {
-    expect(errosDoFormulario({ ...ok, external_id: ' ' }, 'editar', { cargo: 'administrativo', pessoas: [] })).toEqual([{ campo: 'external_id', mensagem: 'Informe o código no ERP.' }]);
+    expect(errosDoFormulario({ ...ok, external_id: ' ' }, 'editar', { cargo: 'administrativo', pessoas: [] })).toEqual([{ campo: 'external_id', mensagem: 'Informe o Código ERP.' }]);
   });
 
   it('supervisores e gerentes ativos, por nome; o supervisor do promotor só entre os do gerente escolhido', () => {
@@ -216,6 +219,28 @@ describe('RN-CORE-58/59: Vincular vendedor do ERP e Código FDV no BKO (spec erp
     expect(codigoFdvParaLista({ codigo_fdv: '00007' })).toBe('00007');
     expect(codigoFdvParaLista({ codigo_fdv: null })).toBe('—');
     expect(codigoFdvParaLista({})).toBe('—');
+  });
+  it('RN-CORE-58: a lista mostra o Código ERP (external_id) e "—" quando o usuário não veio do ERP', () => {
+    expect(codigoErpParaLista({ external_id: 'V-01' })).toBe('V-01');
+    expect(codigoErpParaLista({ external_id: null })).toBe('—');
+    expect(codigoErpParaLista({ external_id: '  ' })).toBe('—');
+    expect(codigoErpParaLista({})).toBe('—');
+  });
+  it('RN-CORE-58: o e-mail técnico não aparece na lista nem na gaveta; a gaveta abre com o campo vazio', () => {
+    expect(emailParaLista(prov('1', { provisorio: false }))).toBe('—');
+    expect(PLACEHOLDER_SEM_EMAIL).toBe('Informe o e-mail');
+    const f = formularioDoUsuario(prov('1'));
+    expect(f.email).toBe('');
+    expect(f.email_tecnico).toBe(true);
+    expect(formularioDoUsuario(real).email).toBe('vera@exemplo.com.br');
+  });
+  it('RN-CORE-58: salvar com o e-mail vazio não dá erro nem envia o campo (o servidor mantém o técnico); digitado, vai no corpo', () => {
+    const f = formularioDoUsuario(prov('1'));
+    expect(errosDoFormulario(f, 'editar').map((e) => e.campo)).not.toContain('email');
+    expect(corpoDeEdicao(f)).not.toHaveProperty('email');
+    expect(corpoDeEdicao({ ...f, email: ' joao@exemplo.com.br ' })).toMatchObject({ email: 'joao@exemplo.com.br' });
+    expect(errosDoFormulario({ ...f, email: 'x' }, 'editar').map((e) => e.campo)).toContain('email');
+    expect(errosDoFormulario({ ...formularioDoUsuario(real), email: '' }, 'editar').map((e) => e.campo)).toContain('email');
   });
 });
 

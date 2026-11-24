@@ -158,6 +158,17 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
     expect(JSON.stringify(a)).not.toContain('argon2');
   });
 
+  it('RN-CORE-58: redefinir senha / enviar acesso recusa o usuário provisório (sem e-mail) com 422 USUARIO_SEM_EMAIL; o usuário real segue', async () => {
+    const prov = await chamar('POST', 'usuarios', admin, { corpo: novo('prov1') });
+    await comTenant(pool, A.tenantId, (c) => c.query('update core.usuario set email = $2 where id = $1', [prov.id, 'erp-70726f7631@sem-email.invalid']));
+    const hash = (id: string) => comTenant(pool, A.tenantId, async (c) => (await c.query<{ senha_hash: string }>('select senha_hash from core.usuario where id = $1', [id])).rows[0]!.senha_hash);
+    const antes = await hash(prov.id);
+    await expect(chamar('PUT', 'usuarios/:id/senha', admin, { params: { id: prov.id }, corpo: { senha: 'Outra@Senha456' } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SEM_EMAIL', message: 'Informe o e-mail do usuário antes de enviar o acesso.' });
+    expect(await hash(prov.id)).toBe(antes);
+    const real = await chamar('POST', 'usuarios', admin, { corpo: novo('real1') });
+    await expect(chamar('PUT', 'usuarios/:id/senha', admin, { params: { id: real.id }, corpo: { senha: 'Outra@Senha456' } })).resolves.toMatchObject({ ok: true });
+  });
+
   it('RF-CORE-02: o admin não desativa a si mesmo (nos dois tenants)', async () => {
     await expect(chamar('PUT', 'usuarios/:id/ativo', admin, { params: { id: U.admin }, corpo: { ativo: false } })).rejects.toMatchObject({ codigo: 'USUARIO_AUTODESATIVACAO' });
     await expect(chamar('PUT', 'usuarios/:id/ativo', adminB, { params: { id: B.usuarios.admin }, corpo: { ativo: false } })).rejects.toMatchObject({ codigo: 'USUARIO_AUTODESATIVACAO' });

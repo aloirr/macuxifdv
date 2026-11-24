@@ -11,6 +11,8 @@ import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespo
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
+  codigoErpParaLista,
+  PLACEHOLDER_SEM_EMAIL,
   codigoFdvParaLista,
   corpoDeVinculoErp,
   emailParaLista,
@@ -77,7 +79,7 @@ function Campo({ rotulo, erro, children }: { rotulo: string; erro?: string; chil
 
 /**
  * Tela "Usuários" do BKO (RF-CORE-02; T-0067; T-0094; simplificada a pedido do dono do produto, R-20261114-144500): título, "Novo usuário"
- * e a tabela Nome · E-mail · Perfil · Módulos · ⋯ (Desbloquear, Editar, Redefinir senha, Desativar). Um selo por linha: Inativo, Bloqueado ou
+ * e a tabela Nome · E-mail · Perfil · Filial (quando há) · Código ERP · Código FDV · Módulos · ⋯ (Desbloquear, Editar, Redefinir senha, Desativar). Um selo por linha: Inativo, Bloqueado ou
  * Bloqueado até HHhMM (docs/design/telas/usuario-bloqueio.md); "Desbloquear" age na hora, sem confirmação nem aviso: o selo some. "Novo usuário" e "Editar" abrem numa gaveta com
  * Nome, E-mail, Perfil e Módulos; a senha inicial é gerada e vai por e-mail (RN-CORE-34). Os módulos vêm da licença (RN-CORE-01: a exceção
  * do usuário só remove, e só dentro do que o perfil tem); Core, Catálogo e Integração não aparecem. Escrita só para quem tem as chaves do
@@ -335,7 +337,7 @@ export function UsuariosConteudo() {
 
   const itens = filtrarPorFilial(lista.data ?? [], filialFiltro);
   const comColunaFilial = mostraColunaFilial(filialFiltro);
-  const colunas = comColunaFilial ? 7 : 6;
+  const colunas = comColunaFilial ? 8 : 7;
   // um perfil por usuário (0069, R-20261114-153500)
   const rotuloDoPerfilDe = (u: UsuarioItem) => (u.perfis[0] ? rotuloDoPerfil(u.perfis[0].codigo, { nome: u.perfis[0].nome }) : ROTULO_PERFIL[u.perfil]);
   const supervisores = opcoesDeChefia(ativos, 'supervisor', cargo === 'promotor' ? form.gerente_id : '').filter((u) => u.id !== editando?.id);
@@ -479,6 +481,7 @@ export function UsuariosConteudo() {
                 <th className={th}>E-mail</th>
                 <th className={th}>Perfil</th>
                 {comColunaFilial && <th className={th}>Filial</th>}
+                <th className={th}>Código ERP</th>
                 <th className={th}>Código FDV</th>
                 <th className={th}>Módulos</th>
                 <th className={th}>
@@ -521,7 +524,10 @@ export function UsuariosConteudo() {
                         {estaSemFilial(u) ? <Badge tone="danger">{SELO_SEM_FILIAL}</Badge> : (nomeDaFilialDe(u, filiais) ?? '—')}
                       </td>
                     )}
-                    <td className={`${td} font-mono`} data-testid={`usuarios.codigo-fdv.${u.id}`}>
+                    <td className={`${td} whitespace-nowrap font-mono`} data-testid={`usuarios.codigo-erp.${u.id}`}>
+                      {codigoErpParaLista(u)}
+                    </td>
+                    <td className={`${td} whitespace-nowrap font-mono`} data-testid={`usuarios.codigo-fdv.${u.id}`}>
                       {codigoFdvParaLista(u)}
                     </td>
                     <td className={td}>
@@ -568,7 +574,7 @@ export function UsuariosConteudo() {
             <input ref={campoNome} value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-nome" />
           </Campo>
           <Campo rotulo="E-mail" erro={erroDe('email')}>
-            <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-email" />
+            <input type="email" value={form.email} placeholder={form.email_tecnico ? PLACEHOLDER_SEM_EMAIL : undefined} onChange={(e) => upd({ email: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-email" />
           </Campo>
           <Campo rotulo="Perfil" erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : undefined}>
             <select
@@ -675,7 +681,7 @@ export function UsuariosConteudo() {
               </span>
             </Campo>
           )}
-          <Campo rotulo="Código no ERP" erro={erroDe('external_id')}>
+          <Campo rotulo="Código ERP" erro={erroDe('external_id')}>
             <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CLASSE_CAMPO_BKO} data-testid="usuarios.campo-external-id" />
           </Campo>
           {editando && podeEditar && podeVincularErp(ativos, editando) && form.external_id.trim() === '' && (
