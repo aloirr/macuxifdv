@@ -10,6 +10,8 @@
 import { z } from 'zod';
 
 export const VERSAO_CONTRATO = 'v1' as const;
+/** ADR 0072: versões aceitas na ENTRADA (`POST /lotes`); a saída (pedidos/clientes pendentes) segue com `VERSAO_CONTRATO`. */
+export const VERSOES_CONTRATO_ENTRADA = ['v1', 'v2'] as const;
 export const API_PREFIX_INTEGRACAO = '/integracao/v1';
 
 /** Limite padrão de registros por lote (RN-INT-01); o tenant pode parametrizar. */

@@ -14,9 +14,9 @@
  */
 import { BOM_CSV } from '@macuxi/comum/csv';
 import { z } from 'zod';
-import { ORDEM_CARGA_ENTIDADES, SCHEMA_REGISTRO, type Entidade } from '../../contracts';
+import { ORDEM_CARGA_ENTIDADES, schemaRegistro, type Entidade } from '../../contracts';
 import { DEPENDENCIAS } from '../../domain/ordem';
-import { defDe, desembrulhar, estruturaDoSchema } from './csv-para-lote';
+import { defDe, desembrulhar, estruturaDoSchema, VERSAO_ENVIADA } from './csv-para-lote';
 
 export interface CampoDicionario {
   /** Nome da coluna no cabeçalho (`external_id`, `endereco.cidade`…). */
@@ -218,7 +218,7 @@ const OBSERVACOES: Record<string, string> = {
   'cliente.prazo_medio_max_dias': 'Prazo médio máximo aceito pelo cliente, em dias. Vazio = não altera.',
   'prazo_pagamento.parcelas_dias': 'Dias de cada parcela, em ordem crescente (0 = à vista): 30/60/90 vale, 60/30 não.',
   'prazo_pagamento.forma_external_id': 'external_id de uma forma do modelo forma_pagamento (carregue a forma antes).',
-  'prazo_pagamento.prazo_medio_dias': 'Informativo: o Macuxi calcula o prazo médio; valor diferente gera aviso.',
+  'prazo_pagamento.prazo_medio_dias': 'Digitado no ERP; fica entre a menor e a maior parcela.',
   'prazo_pagamento.percentual_ajuste': 'Coluna "% Acres.Fin." do ERP (negativo = desconto; à vista = -1.71), 2 casas, ponto decimal. Vazio = 0 (RN-INT-15).',
   'tabela_escalonada.preco_unidade_cents': 'Preço da unidade base na faixa. Faixas do mesmo produto: quantidade_minima maior, preço igual ou menor.',
   'tabela_escalonada.tabela_external_id': 'Vazio = vale para todas as tabelas de preço.',
@@ -413,10 +413,10 @@ export interface ModeloCsv {
 }
 
 /**
- * Gera o modelo de uma entidade a partir do schema do contrato (padrão: `SCHEMA_REGISTRO[entidade]`; o parâmetro permite provar que
+ * Gera o modelo de uma entidade a partir do schema do contrato (padrão: `schemaRegistro(entidade, VERSAO_ENVIADA)`; o parâmetro permite provar que
  * mudar o contrato muda o modelo). `exemplos` substitui valores de exemplo por campo (testes e ajustes finos).
  */
-export function gerarModeloCsv(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA_REGISTRO[entidade], exemplos: Record<string, Exemplo> = {}): ModeloCsv {
+export function gerarModeloCsv(entidade: Entidade, schema: z.ZodTypeAny = schemaRegistro(entidade, VERSAO_ENVIADA), exemplos: Record<string, Exemplo> = {}): ModeloCsv {
   const { estrutura, bases } = estruturaDoSchema(schema);
   // obrigatórios primeiro, mantendo a ordem do contrato dentro de cada grupo (sort estável)
   const colunas = [...estrutura.colunas].sort((a, b) => Number(b.obrigatoria) - Number(a.obrigatoria));
@@ -448,7 +448,7 @@ export function gerarModeloCsv(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA
 }
 
 /** Dicionário de campos de uma entidade (o JSON que a página do BKO mostra). */
-export function dicionarioDaEntidade(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA_REGISTRO[entidade]): DicionarioModelo {
+export function dicionarioDaEntidade(entidade: Entidade, schema: z.ZodTypeAny = schemaRegistro(entidade, VERSAO_ENVIADA)): DicionarioModelo {
   const { arquivo, campos } = gerarModeloCsv(entidade, schema);
   const resumo = RESUMO_MODELOS.find((r) => r.entidade === entidade) as ResumoModelo;
   return { entidade, arquivo, ordem: resumo.ordem, depende_de: resumo.depende_de, opcional: resumo.opcional, campos };

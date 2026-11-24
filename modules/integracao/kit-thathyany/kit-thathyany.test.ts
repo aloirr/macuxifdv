@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ENTIDADES_ORDEM_CARGA } from './lib/modelos-csv';
 import { converterCsvParaLote } from './lib/csv-para-lote';
-import { LIMITES_CATALOGO_PRODUTO, SCHEMA_REGISTRO } from '../contracts';
+import { LIMITES_CATALOGO_PRODUTO, SCHEMA_REGISTRO, schemaRegistro, type Entidade } from '../contracts';
 import { limitarCatalogoDoProduto } from '../domain/catalogo-produto';
 import { artefatos, HUB_URL } from './scripts/gerar';
 // @ts-expect-error módulo .mjs sem tipos (kit em Node puro)
@@ -235,7 +235,7 @@ describe('T-0174 defeito 4: o kit e o Zod REAL do Hub não divergem', () => {
 
   it('todo modelo de CSV, convertido como o Hub converte (converterCsvParaLote), passa no Zod real da entidade', () => {
     for (const e of ENTIDADES_ORDEM_CARGA) {
-      const r = SCHEMA_REGISTRO[e].safeParse(registroDoModelo(e));
+      const r = schemaRegistro(e, 'v2').safeParse(registroDoModelo(e));
       expect(r.success, `${e}: ${r.success ? '' : JSON.stringify(r.error.issues)}`).toBe(true);
     }
   });
@@ -249,7 +249,7 @@ describe('T-0174 defeito 4: o kit e o Zod REAL do Hub não divergem', () => {
         const caminho = c.campo;
         const presente = caminho.split('.').reduce<unknown>((o, p) => (o as Record<string, unknown> | undefined)?.[p], base) !== undefined;
         if (!presente || caminho === 'alterado_em') continue; // alterado_em: o Hub (e o carga_csv.py) preenchem com a hora do envio quando a coluna não vem
-        const hubRecusa = !SCHEMA_REGISTRO[ent.entidade as keyof typeof SCHEMA_REGISTRO].safeParse(tirar(base, caminho)).success;
+        const hubRecusa = !schemaRegistro(ent.entidade as Entidade, 'v2').safeParse(tirar(base, caminho)).success;
         expect(hubRecusa, `${ent.entidade}.${caminho}`).toBe(c.obrigatorio || entre.has(caminho));
       }
     }

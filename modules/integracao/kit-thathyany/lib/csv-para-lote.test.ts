@@ -126,7 +126,7 @@ describe('RF-INT-03: CSV vira o envelope canônico do lote', () => {
     const r = conv('external_id;nome\nV1;Ana', { modo: 'completo', sessaoId: sessaoDoArquivo('chave-abc-0123456789') });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.envelope).toMatchObject({ versao_contrato: 'v1', entidade: 'vendedor', modo: 'completo', sessao: { parte: 1, ultimo: true } });
+    expect(r.envelope).toMatchObject({ versao_contrato: 'v2', entidade: 'vendedor', modo: 'completo', sessao: { parte: 1, ultimo: true } });
     expect(validarEnvelope(r.envelope).ok).toBe(true);
     const d = conv('external_id;nome\nV1;Ana');
     expect(d.ok && d.envelope.sessao).toBeUndefined();
@@ -267,14 +267,14 @@ describe('RF-INT-03: carga por arquivo (CSV) das 3 entidades e do cliente amplia
 
   it('prazo_pagamento: parcelas_dias numa célula (28/56) vira lista de números; 60/30 e texto viram erro legível', () => {
     expect(colunasDaEntidade('prazo_pagamento').colunas.find((c) => c.caminho === 'parcelas_dias')).toMatchObject({ tipo: 'lista_numeros', obrigatoria: true });
-    const r = csv('prazo_pagamento', 'external_id;forma_external_id;codigo;parcelas_dias;prazo_medio_dias\nP1;F2;28-56;28/56;42\nP2;F2;AVISTA;0;0\nP3;F2;ERRADO;60/30;45\nP4;F2;TEXTO;vinte;20');
+    const r = csv('prazo_pagamento', 'external_id;forma_external_id;codigo;descricao;parcelas_dias;prazo_medio_dias\nP1;F2;28-56;28/56 dias;28/56;42\nP2;F2;AVISTA;À vista;0;0\nP3;F2;ERRADO;60/30;60/30;45\nP4;F2;TEXTO;Texto;vinte;20');
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.registros.map((x) => x.parcelas_dias)).toEqual([[28, 56], [0], [60, 30]]);
     expect(r.linhasInvalidas).toHaveLength(1);
     expect(r.linhasInvalidas[0]?.mensagem).toContain('Linha 5 do arquivo');
     expect(r.linhasInvalidas[0]?.mensagem).toContain('28/56');
-    const v = validarLinhas('prazo_pagamento', r.registros);
+    const v = validarLinhas('prazo_pagamento', r.registros, 'v2');
     expect(v.validas.map((l) => l.external_id)).toEqual(['P1', 'P2']);
     expect(v.erros.map((e) => e.external_id)).toEqual(['P3']);
   });
