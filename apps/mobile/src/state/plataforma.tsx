@@ -36,6 +36,9 @@ import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
   CODIGO_USUARIO_SEM_FILIAL,
   ErroHttp,
+  ROTA_CORE_APP_APK,
+  ROTA_CORE_APP_AVISO_VERSAO,
+  rotaAppVersao,
   MENSAGEM_USUARIO_SEM_FILIAL,
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
@@ -74,7 +77,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import { router } from 'expo-router';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
+import * as appVendedor from '@macuxi/vendedor/app';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
 import { criarTratadorSemFilial } from '@/lib/sem-filial';
@@ -113,6 +117,24 @@ import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
 import type { ResultadoSegundoPlano } from '@/lib/segundo-plano';
 import { testarServidor } from '@/lib/servidor';
 import { contaDaSessao, sessaoDepoisDaTroca } from '@/lib/trocar-senha-shell';
+import {
+  contadorDeRascunhos,
+  contarParaAtualizar,
+  criarPortaoAtualizacao,
+  type DestinoQueResolve,
+  type PortaoAtualizacao,
+} from '@/lib/portao-atualizacao';
+import {
+  appInstalado,
+  comCabecalhoDoApp,
+  ehAppDesatualizado,
+  guardadaDaResposta,
+  guardadaDoErro,
+  sincronizacaoComBloqueio,
+  situacaoGuardada,
+  telaDeBloqueioNaEntrada,
+  type VersaoPublicadaGuardada,
+} from '@/lib/versao-app';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
 import { ApiClient, HttpError, NetworkError } from '@/services/api';
 import {
@@ -155,6 +177,7 @@ import { abrirFoto } from '@/services/visor-foto';
 import { limparPdfsTemporarios } from '@/services/visor-pdf';
 import { ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
+import { gravarVersaoGuardada, lerVersaoGuardada } from '@/services/versao-guardada';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
 
 /** Usuário da sessão no shell: o do login real (Core) ou o fictício da Fase M (`role`, `team_name`...). */
@@ -365,6 +388,31 @@ function usePlataformaValor() {
     return e !== null && permissoesLiberadas(variante, e, permissoesDoUsuarioRef.current);
   }, [lerEGuardarPermissoes, variante]);
 
+  /**
+   * T-0195 (ADR 0070, RN-CORE-80): última versão publicada conhecida (guardada, vale sem sinal), a situação `bloqueada` (pela
+   * conta com o relógio ou por um 426) e a tela de bloqueio, que só troca na entrada (abrir, voltar ao primeiro plano, login).
+   */
+  const [versaoPublicada, setVersaoPublicada] = useState<VersaoPublicadaGuardada | null>(null);
+  const versaoPublicadaRef = useRef<VersaoPublicadaGuardada | null>(null);
+  const appBloqueadoRef = useRef(false);
+  const [telaBloqueio, setTelaBloqueio] = useState(false);
+  const telaBloqueioRef = useRef(false);
+  /** A tela que resolve um item do portão, aberta da tela de bloqueio (`chegou`: a rota dela já abriu). */
+  const [resolvendo, setResolvendo] = useState<{ destino: DestinoQueResolve; chegou: boolean } | null>(null);
+  const guardarVersao = useCallback((v: VersaoPublicadaGuardada) => {
+    versaoPublicadaRef.current = v;
+    setVersaoPublicada(v);
+    void gravarVersaoGuardada(v);
+  }, []);
+  /** 426 no meio do uso: só marca (o formulário aberto continua; o salvar vai para a fila, cujo envio é liberado). */
+  const appDesatualizadoRef = useRef<(e: HttpError) => void>(() => undefined);
+  appDesatualizadoRef.current = (e) => {
+    if (!ehAppDesatualizado(e)) return;
+    appBloqueadoRef.current = true;
+    const v = guardadaDoErro({ codigo: e.code, mensagem: e.message, detalhes: e.details }, variante, new Date());
+    if (v) guardarVersao(v);
+  };
+
   const api = useCallback(
     () =>
       new ApiClient(
@@ -376,6 +424,8 @@ function usePlataformaValor() {
           void aparelhoBloqueadoRef.current?.(e).catch(() => undefined);
           // T-0176: 403 USUARIO_SEM_FILIAL em qualquer chamada (rota, módulos, sync) volta ao login sem apagar nada
           void semFilialRef.current?.(e).catch(() => undefined);
+          // T-0195: 426 APP_DESATUALIZADO em qualquer chamada marca o app bloqueado (a tela troca na próxima entrada)
+          appDesatualizadoRef.current(e);
         },
       ),
     [modo],
@@ -613,6 +663,13 @@ function usePlataformaValor() {
       const m = motorRef.current;
       // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
       if (!m || !permissoesOkRef.current) return Promise.resolve(false);
+      // T-0195 (ADR 0070): app bloqueado = só o envio da fila (liberado no 426); o pull não é tentado de novo em laço
+      if (sincronizacaoComBloqueio(appBloqueadoRef.current) === 'so-envio') {
+        return m.enviar().then(
+          () => false,
+          () => false,
+        );
+      }
       const emCurso = syncEmCursoRef.current;
       const decisao = decidirPedidoSync(pedido.tipo, emCurso ? tipoEmCursoRef.current : null);
       if (emCurso && decisao === 'juntar') return emCurso;
@@ -686,6 +743,8 @@ function usePlataformaValor() {
       sessaoRef.current = s;
       setSessao(s);
       await abrirMotor(s);
+      // T-0195: o login concluído também é uma entrada (a tela de bloqueio volta com a fila do usuário para enviar)
+      void entradaRef.current();
     },
     [abrirMotor],
   );
@@ -1026,6 +1085,125 @@ function usePlataformaValor() {
     return renovando.current;
   };
 
+  // ---------- T-0195 (ADR 0070, RN-CORE-80): atualização obrigatória do APK ----------
+  /** Recalcula a situação com a versão guardada e o relógio; na entrada, mostra ou tira a tela de bloqueio. */
+  const avaliarVersao = useCallback((entrada: boolean) => {
+    const bloqueada = situacaoGuardada(versaoPublicadaRef.current, appInstalado()?.versao, new Date()).situacao === 'bloqueada';
+    // o 426 marcado no meio do uso vale até a próxima conta com uma versão guardada que diga o contrário
+    appBloqueadoRef.current = bloqueada || (!entrada && appBloqueadoRef.current);
+    const mostrar = telaDeBloqueioNaEntrada({ mostrando: telaBloqueioRef.current, bloqueada, entrada });
+    if (entrada && mostrar) setResolvendo(null);
+    telaBloqueioRef.current = mostrar;
+    setTelaBloqueio(mostrar);
+  }, []);
+
+  /** `GET /v1/app/versao?contrato=2` (pública): guarda a resposta; sem sinal ou fora do contrato, vale a guardada. */
+  const consultarVersao = useCallback(async () => {
+    if (offlineRef.current || modo !== 'v1') return;
+    const [caminho = '', qs = ''] = rotaAppVersao(variante).replace(/^\/v1(?=\/)/, '').split('?');
+    try {
+      const r = await api().request<unknown>('GET', caminho, { query: Object.fromEntries(new URLSearchParams(qs)), timeoutMs: 8000 });
+      const v = guardadaDaResposta(r.data, variante, new Date());
+      if (v) guardarVersao(v);
+    } catch {
+      // sem sinal, 404 SEM_VERSAO ou erro do servidor: a última guardada continua valendo
+    }
+  }, [api, guardarVersao, modo, variante]);
+
+  /** O sininho é do servidor: o Core cria o aviso das primeiras 24 h (uma vez por usuário e versão). */
+  const avisarVersao = useCallback(async () => {
+    if (offlineRef.current || modo !== 'v1' || !sessaoRef.current || appBloqueadoRef.current) return;
+    await api()
+      .request('POST', ROTA_CORE_APP_AVISO_VERSAO.replace(/^\/v1(?=\/)/, ''), { body: {}, timeoutMs: 8000 })
+      .catch(() => undefined);
+  }, [api, modo]);
+
+  /** Entrada (abrir, voltar ao primeiro plano, login): primeiro a guardada (vale sem sinal), depois a da API e o aviso. */
+  const entrada = useCallback(async () => {
+    if (!versaoPublicadaRef.current) {
+      const g = await lerVersaoGuardada();
+      if (g && !versaoPublicadaRef.current) {
+        versaoPublicadaRef.current = g;
+        setVersaoPublicada(g);
+      }
+    }
+    avaliarVersao(true);
+    await consultarVersao();
+    avaliarVersao(true);
+    await avisarVersao();
+  }, [avaliarVersao, avisarVersao, consultarVersao]);
+  const entradaRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  entradaRef.current = () => entrada().catch((e: unknown) => void gravarErro(e, 'nao-fatal', 'versão do app'));
+
+  useEffect(() => {
+    if (!ready) return;
+    void entradaRef.current();
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') void entradaRef.current();
+    });
+    return () => sub.remove();
+  }, [ready]);
+
+  /**
+   * Portão do D8 (a): a tela de bloqueio e a folha "Baixar a versão X.Y.Z" contam a fila, os "Não aceito" e os rascunhos do
+   * aparelho e só oferecem o link com os três em zero. Lê sessão, motor e sinal por ref (uma instância por app).
+   */
+  const portaoAtualizacao = useMemo<PortaoAtualizacao>(() => {
+    const vazio = { pendentes: 0, naoAceitos: 0, rascunhos: 0 };
+    return criarPortaoAtualizacao({
+      temSessao: () => sessaoRef.current !== null && motorRef.current !== null,
+      async contar() {
+        const m = motorRef.current;
+        if (!m) return vazio;
+        const e = m.estado();
+        let rascunhos = 0;
+        if (e.modulosAtivos.includes('vendedor')) {
+          const arm = m.armazenamentoDoModulo('vendedor');
+          rascunhos = await contadorDeRascunhos(appVendedor, (k) => arm.ler(k))(arm, new Date());
+        }
+        return contarParaAtualizar(m.estado(), rascunhos);
+      },
+      async enviar() {
+        const m = motorRef.current;
+        if (!m || offlineRef.current) return 'sem_sinal';
+        try {
+          await api().request('GET', rotaDeSaude(modo), { timeoutMs: 5000 });
+        } catch (e) {
+          if (e instanceof NetworkError) return 'sem_sinal';
+        }
+        // o "Não aceito" não é reenviado sozinho: ele precisa de correção (ou de descarte de propósito, na tela do item)
+        await m.enviar({ incluirFalhos: false });
+        return 'ok';
+      },
+      async pedirLink() {
+        if (offlineRef.current) return { tipo: 'sem_sinal' };
+        try {
+          const r = await api().request<{ url?: unknown }>('POST', ROTA_CORE_APP_APK.replace(/^\/v1(?=\/)/, ''), { body: {}, timeoutMs: 12_000 });
+          const url = r.data?.url;
+          return typeof url === 'string' && /^https?:\/\//.test(url) ? { tipo: 'ok', url } : { tipo: 'erro' };
+        } catch (e) {
+          return e instanceof NetworkError ? { tipo: 'sem_sinal' } : { tipo: 'erro' };
+        }
+      },
+      // o link vale minutos e vai direto ao navegador: nunca é guardado no aparelho
+      abrirNoNavegador: (url) => Linking.openURL(url).then(() => undefined),
+    });
+  }, [api, modo]);
+
+  /** Abre só a tela que resolve o item (Rascunhos, pedido ou cliente "Não aceito", login); fora dela a tela de bloqueio volta. */
+  const resolverAtualizacao = useCallback((destino: DestinoQueResolve) => {
+    setResolvendo({ destino, chegou: false });
+    try {
+      router.push(destino.abrir as never);
+    } catch {
+      setResolvendo(null);
+    }
+  }, []);
+  /** O Gate avisa a rota: dentro das liberadas marca `chegou`; fora delas (depois de chegar), a tela de bloqueio volta. */
+  const rotaDuranteResolucao = useCallback((liberada: boolean) => {
+    setResolvendo((r) => (!r ? r : liberada ? (r.chegou ? r : { ...r, chegou: true }) : r.chegou ? null : r));
+  }, []);
+
   const setApiUrl = useCallback(
     async (url: string | null) => {
       // endereço fixo (T-0038): não há o que trocar; nada é salvo
@@ -1045,7 +1223,7 @@ function usePlataformaValor() {
       const r = await testarServidor(endereco, {
         rota: rotaDeSaude(modo),
         exigirHttps: EXIGIR_HTTPS,
-        buscar: (u, init) => fetch(u, init),
+        buscar: (u, init) => fetch(u, comCabecalhoDoApp(init)),
       });
       if (r.ok) servidorAprovadoRef.current = endereco;
       return { ok: r.ok, message: r.mensagem, testado: r.testado };
@@ -1083,6 +1261,7 @@ function usePlataformaValor() {
       // automática só depois da carga inicial (antes dela, quem sincroniza é a tela de carga), com sessão e sinal
       podeSincronizar: () =>
         permissoesOkRef.current &&
+        !appBloqueadoRef.current &&
         !offlineRef.current &&
         sessaoRef.current !== null &&
         motorRef.current === m &&
@@ -1363,6 +1542,12 @@ function usePlataformaValor() {
     permissoesLidas,
     pedindoPermissao,
     tocarBotaoPermissoes,
+    versaoPublicada,
+    telaBloqueio,
+    resolvendo: resolvendo?.destino ?? null,
+    portaoAtualizacao,
+    resolverAtualizacao,
+    rotaDuranteResolucao,
   };
 }
 

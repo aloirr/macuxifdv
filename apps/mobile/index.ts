@@ -6,6 +6,8 @@
 // relato de 08/11 (o app fechava sem deixar rastro): o erro fatal fora do React fica gravado para o Diagnóstico do Perfil
 // (import com efeito, ANTES dos outros: os imports sobem, então a chamada solta aqui rodaria só depois deles)
 import './src/services/erros-globais';
+// T-0195 (ADR 0070): `x-macuxi-app` em toda chamada, antes de qualquer tela ou tarefa sem tela chamar a API
+import './src/services/identidade-app';
 import 'expo-router/entry';
 import './src/services/segundo-plano';
 // T-0156: tarefa `macuxi-trajeto` (localização no expediente), também no escopo global; sem os módulos nativos, nada

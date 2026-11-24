@@ -32,7 +32,7 @@ import { usePlataforma } from '@/state/plataforma';
 const ProvedorSinoCabecalho = (kit as unknown as { ProvedorSinoCabecalho?: Provider<ReactNode> }).ProvedorSinoCabecalho;
 
 export default function TabsLayout() {
-  const { sessao, visao } = usePlataforma();
+  const { sessao, visao, resolvendo } = usePlataforma();
   const { estado } = useMotorSync();
   // o `router.replace` de uma tela de módulo para outra substitui o topo da pilha da aba (o editor sai da pilha): o
   // roteador do shell marca a tela que abre (`PARAM_SUBSTITUIR`, ADR 0026), sem evento interno nem janela de tempo
@@ -42,12 +42,15 @@ export default function TabsLayout() {
     <Tabs
       backBehavior="history"
       UNSTABLE_router={(original) => comHistoricoDoShell(original)}
-      tabBar={() => (
-        <>
-          <CargaEmFundo />
-          <TabBar abas={abasDaVariante(visao.navegacao, varianteAtual())} />
-        </>
-      )}
+      tabBar={() =>
+        // T-0195: com o app bloqueado, a tela que resolve um item do portão abre sem abas (nada mais do app abre)
+        resolvendo ? null : (
+          <>
+            <CargaEmFundo />
+            <TabBar abas={abasDaVariante(visao.navegacao, varianteAtual())} />
+          </>
+        )
+      }
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: kit.colors.ground } }}>
       <Tabs.Screen name="index" options={{ title: 'Início' }} listeners={{ focus: () => marcarOrigemFora('inicio') }} />
       <Tabs.Screen name={ROTA_MODULO} options={{ title: 'Módulo' }} listeners={{ focus: marcarVoltaAoModulo, blur: marcarSaidaDoModulo }} />
@@ -56,7 +59,7 @@ export default function TabsLayout() {
   );
   return (
     <ProvedorContagemSino>
-      {ProvedorSinoCabecalho ? <ProvedorSinoCabecalho value={<Sino sobreFaixa />}>{abas}</ProvedorSinoCabecalho> : abas}
+      {ProvedorSinoCabecalho ? <ProvedorSinoCabecalho value={resolvendo ? null : <Sino sobreFaixa />}>{abas}</ProvedorSinoCabecalho> : abas}
     </ProvedorContagemSino>
   );
 }

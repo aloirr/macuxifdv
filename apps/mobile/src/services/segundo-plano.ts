@@ -19,6 +19,8 @@ import { requireOptionalNativeModule } from 'expo';
 import Constants from 'expo-constants';
 import { AppState, Platform } from 'react-native';
 
+import './identidade-app';
+
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
 import { enderecoSalvoValido } from '@/lib/endereco-do-build';
 import { shellDaVariante } from '@/lib/modulos';
@@ -32,6 +34,7 @@ import {
 import { buildAindaNaoAberto, criarCorteDaPassada, criarTravaSync, idDoBuild, semDerrubar, semDerrubarAgora, type CorteDaPassada } from '@/lib/trava-sync';
 import { permissoesLiberadas } from '@/lib/permissoes';
 import { varianteAtual } from '@/lib/variante';
+import { sincronizacaoComBloqueio } from '@/lib/versao-app';
 
 import { criarAmbienteDoAparelho } from './ambiente';
 import { ApiClient, HttpError, NetworkError } from './api';
@@ -45,6 +48,7 @@ import { consultarModulosEfetivos, criarMotorDoUsuario, trocarRefresh } from './
 import { abrirArmazenamentoDaSessao, usuarioDaSessao, type SessaoGuardada } from './sessao-sem-tela';
 import { keys, readJson, writeJson } from './storage';
 import { atualizarTrajeto, pararTrajeto } from './trajeto';
+import { situacaoNoAparelho } from './versao-guardada';
 
 /** Última execução (Diagnóstico do Perfil: "Última sincronização em segundo plano"). */
 export const CHAVE_ULTIMO_SEGUNDO_PLANO = 'fv:diagnostico:segundo_plano';
@@ -209,7 +213,15 @@ async function abrirMotorSemInterface(
     erro: () => m.estado().erro,
     // ADR 0018 item 8: API real = atualização leve (`GET /v1/sync/novidades`, que já traz os módulos efetivos quando
     // mudam; sem cursor, o próprio motor faz a completa). Demonstração (Fase M, sem novidades): completa.
-    sincronizar: () => (modo === 'v1' ? m.sincronizarNovidades() : m.sincronizar()),
+    // T-0195 (ADR 0070): com o app bloqueado pela última versão guardada, a passada só envia a fila (push e arquivos liberados);
+    // o pull seria recusado com 426 a cada passada
+    sincronizar: async () => {
+      if (sincronizacaoComBloqueio((await situacaoNoAparelho()).situacao === 'bloqueada') === 'so-envio') {
+        await m.enviar();
+        return true;
+      }
+      return modo === 'v1' ? m.sincronizarNovidades() : m.sincronizar();
+    },
     async prepararSessao() {
       // API real: nada a consultar antes (os módulos vêm na resposta das novidades; 1 requisição sem mudança)
       if (modo === 'v1') {
