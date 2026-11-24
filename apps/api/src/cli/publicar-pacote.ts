@@ -8,7 +8,10 @@
  *   `.env` da raiz; segredo nunca em argumento.
  * - Ordem: 1º o pacote (`<prefixo><produto>/<arquivo>`), 2º o manifesto `<prefixo><produto>/ultimo.json` com versão, nome,
  *   tamanho e sha256. Quem pede o link no meio da publicação recebe o pacote anterior, nunca um link para objeto ausente.
- * - Republicar a mesma versão regrava os dois (idempotente). Versões antigas ficam no bucket (a limpeza é manual).
+ * - O manifesto SEMPRE leva `publicado_em` (hora desta publicação, UTC): é a referência das 24 h da atualização obrigatória dos
+ *   APKs (T-0195, ADR 0070, RN-CORE-80). Sem ele a API não bloqueia o app antigo.
+ * - Republicar a mesma versão regrava os dois (idempotente) e reinicia as 24 h (só adia o bloqueio). Versões antigas ficam no
+ *   bucket (a limpeza é manual).
  * - Saída: uma linha JSON (produto, versão, arquivo, tamanho, sha256); nunca a chave, o segredo nem URL assinada.
  */
 import { createHash } from 'node:crypto';
@@ -35,19 +38,24 @@ export interface PedidoPublicacao {
   agora: Date;
 }
 
+/** Manifesto gravado por este CLI: `publicado_em` sempre presente (T-0195). */
+export type ManifestoPublicado = PacotePublicado & { publicado_em: string };
+
 /** Monta o manifesto (validado) a partir dos bytes. Erro de formato = exceção com a mensagem do schema. */
-export function manifestoDoPacote(p: PedidoPublicacao): PacotePublicado {
-  return PacotePublicadoSchema.parse({
+export function manifestoDoPacote(p: PedidoPublicacao): ManifestoPublicado {
+  const publicadoEm = p.agora.toISOString();
+  const m = PacotePublicadoSchema.parse({
     versao: p.versao,
     arquivo: p.arquivo,
     tamanho_bytes: p.bytes.byteLength,
     sha256: createHash('sha256').update(p.bytes).digest('hex'),
-    publicado_em: p.agora.toISOString(),
+    publicado_em: publicadoEm,
   });
+  return { ...m, publicado_em: publicadoEm };
 }
 
 /** Grava o pacote e depois o `ultimo.json`. Devolve o manifesto gravado. */
-export async function publicarPacote(cliente: ClienteS3, prefixo: string, p: PedidoPublicacao): Promise<PacotePublicado> {
+export async function publicarPacote(cliente: ClienteS3, prefixo: string, p: PedidoPublicacao): Promise<ManifestoPublicado> {
   const manifesto = manifestoDoPacote(p);
   const extensao = /\.([a-z0-9]+)$/i.exec(manifesto.arquivo)?.[1]?.toLowerCase() ?? '';
   const gravar = async (chave: string, corpo: Uint8Array, tipo: string) => {
@@ -60,7 +68,7 @@ export async function publicarPacote(cliente: ClienteS3, prefixo: string, p: Ped
   return manifesto;
 }
 
-export async function executarPublicarPacote(argv: readonly string[], env: NodeJS.ProcessEnv, agora = new Date()): Promise<PacotePublicado> {
+export async function executarPublicarPacote(argv: readonly string[], env: NodeJS.ProcessEnv, agora = new Date()): Promise<ManifestoPublicado> {
   const { positionals, values } = parseArgs({
     args: [...argv],
     allowPositionals: true,
