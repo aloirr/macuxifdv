@@ -60,31 +60,29 @@ sem superusuário) TUDO OK; e2e BKO `tests/e2e/bko/integracao-simples.spec.ts` 1
 **D-1 (banco-dados, `db/testes/resumo-outbox-vivos.db.test.ts:140` e `:154`)** continua aberto no branch da sessão C: sem
 `{ ate: VERSAO }`, o `migrarUp` aplica a 0099 e a 0100 e o teste da 0099 reprova na junção.
 
-## Reteste curto nos SHAs finais (23/11/2026, noite de Manaus) — `modo` em cada linha
+## Reteste final sobre o main da v1.0.30 (24/11/2026, madrugada de Manaus) — `modo` em cada linha
 
-Mudou: cada linha da prévia e do resultado traz `modo` (banco-dados 098a4d8f1); `soft` e `fisico` saem e somam o total, `filial`,
-`sync_pacote` e `girar` mudam e não saem; o SDK exige o `modo` e filtra por `MODOS_QUE_SAEM` (engenheiro-software 88510349b);
-prazo de 2 min na espera pela prévia e modo falso com `modo` (engenheiro-apps df8aef9a8). O teste da API compara agora
-(tabela, modo, linhas) entre prévia e executado e confere o total pela soma literal de `soft` + `fisico` (Z-04 e Z-08), sem a
-premissa antiga "a prévia não traz modo".
+Mudou: cada linha da prévia e do resultado traz `modo`; `soft` e `fisico` saem e somam o total (`MODOS_QUE_SAEM` do SDK), `filial`,
+`sync_pacote` e `girar` mudam e não saem. O teste da API compara (tabela, modo, linhas) entre prévia e executado, confere o total pela
+soma dos `MODOS_QUE_SAEM` e que a regra é exatamente {`soft`, `fisico`} (Z-04 e Z-08); saiu a lista própria das tabelas que ficam.
 
-Junção local (commits só na árvore descartável, nada publicado): `origin/main` 918ba20d0 + 1ea0ec192 (sessão C) + 098a4d8f1
-(conflito em `db/testes/estatico.test.ts` e `docs/banco/README.md` resolvido somando as duas versões) + df8aef9a8 (com 88510349b)
-+ c32abc632 + este branch; no rascunho, o D-1 (`migrarUp(c, { ate: VERSAO })` em `db/testes/resumo-outbox-vivos.db.test.ts:140`
-e `:154`). Postgres 16 local (`db/scripts/pg-local.sh`, sem Docker), Node 24.
+Junção local descartável (merges só na árvore, nada publicado; nenhuma correção local): este branch (com `origin/main` 918ba20d0) +
+banco-dados 7e0b0d769 (com o D-1 corrigido) + engenheiro-software 79d728c92 + engenheiro-apps 3fdf4f7fc + modulo-integracao
+b88d66ef8, sem conflito. Postgres 16 local (`db/scripts/pg-local.sh`, sem Docker), Node 24.
 
 | Critério | Teste | Resultado |
 |---|---|---|
-| Prévia = executado por (tabela, modo, linhas) | `zerar-dados-v1031.test.ts` Z-04 e Z-08 | ✅ |
-| Total da prévia = `linhas_apagadas` = soma de `soft` + `fisico` (valor × regra) | Z-04 e Z-08 | ✅ |
-| `core.filial`, `plataforma.sync_pacote` e `plataforma.tenant` com `filial`, `sync_pacote` e `girar`, fora do total | Z-08 | ✅ |
-| Critérios 1 a 9 do reteste anterior | Z-01 a Z-10 | ✅ |
+| Mantém administradores, perfis, credenciais, conectores, plano, licenças e parâmetros | `tests/integracao/api/zerar-dados-v1031.test.ts` Z-04 e Z-08 | ✅ |
+| O ERP reenvia, inclusive a cascata (endereço, título, nota) | Z-06 e Z-08 | ✅ |
+| Só super-admin | Z-01 e Z-02 | ✅ |
+| Backup antes (cópia na `limpeza_copia` antes de a linha sair; erro no meio não deixa nada) | Z-04 (gatilho espião) e Z-07 | ✅ |
+| Prévia = executado por (tabela, modo, linhas); total = `linhas_apagadas` = soma de `soft` + `fisico` (valor × regra) | Z-04 e Z-08 | ✅ |
 
-Suítes na junção: `tests/` 169 arquivos (1 pulado), 2551 verdes (22 pulados, 9 todo); `db/testes/empresa-zerar.db.test.ts`,
-`estatico.test.ts` e `resumo-outbox-vivos.db.test.ts` 463 verdes; `apps/api` 87 arquivos, 888 verdes (com banco);
-`limpar-cadastros.teste.sh` (5433, admin sem superusuário) TUDO OK; e2e do portal `apps/web/e2e` 16 verdes (Chromium 1243);
-`typecheck:tests` e `lint:tests` limpos. Os `*.db.test.ts` dos módulos e o e2e do BKO não foram repetidos (c32abc632 igual ao
-reteste anterior). Nenhum defeito novo; o D-1 continua aberto no branch da sessão C.
+Suítes na junção: `tests/` 169 arquivos (1 pulado), 2551 verdes (22 pulados, 9 todo); `db/` 120 arquivos, 2193 verdes (1 pulado);
+módulos 78 arquivos `*.db.test.ts`, 853 verdes; `apps/api` 87 arquivos, 888 verdes (com banco); `limpar-cadastros.teste.sh` (5433,
+admin sem superusuário) TUDO OK; `apps/web` lint e typecheck limpos, 50 arquivos, 450 verdes; e2e do portal `apps/web/e2e` 16
+verdes e e2e BKO `tests/e2e/bko/integracao-simples.spec.ts` 19 verdes (Chromium 1243 de `/opt/pw-browsers`); `typecheck:tests` e
+`lint:tests` limpos. Nenhum defeito; o D-1 está fechado no branch do banco-dados (7e0b0d769).
 
 ## Manual (aparelho real)
 1. Portal `config.` › empresa › ⋯ › Zerar dados: conferir a prévia, digitar o código e a senha; depois do concluído, abrir o Campo
