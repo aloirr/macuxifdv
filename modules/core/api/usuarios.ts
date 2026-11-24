@@ -578,6 +578,8 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
         const refsDoAlvo = await refsDoUsuario(db, alvo.id, alvo.perfil as Perfil);
         const pode = podeRedefinirSenha({ id: ctx.usuario.id, perfis: ctx.usuario.perfis ?? [] }, { id: alvo.id, perfis: refsDoAlvo, ativo: alvo.ativo });
         if (!pode.ok) throw new ErroRegraNegocio(pode.codigo, pode.mensagem, { regra: 'RN-CORE-35' });
+        // RN-CORE-58: o provisório do ERP não tem e-mail real; a tela esconde a ação e a API recusa (regra 2)
+        if (ehUsuarioProvisorio(alvo.email)) throw new ErroRegraNegocio(CODIGOS_USUARIO.semEmail, 'Informe o e-mail do usuário antes de enviar o acesso.', { regra: 'RN-CORE-58' });
         const informada = ctx.corpo.senha;
         // sem senha informada o servidor gera: ninguém a conhece além do e-mail — sem e-mail configurado, recusa antes de mexer
         if (informada === undefined && !emailDisponivel(ctx)) {

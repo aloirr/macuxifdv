@@ -44,7 +44,34 @@ export const ESTILO_CAMPO = StyleSheet.create({
   entradaComFalta: { borderColor: MARCA_DA_FALTA.cor, borderWidth: MARCA_DA_FALTA.larguraBorda },
   erro: { ...fonte.body, fontSize: 12, color: colors.danger },
   opcional: { ...fonte.body, color: colors.ink3 },
+  /** `CampoLeitura`: a mesma caixa, no fundo `ground` e com a borda fraca (`line`), sem cursor (ADR 0072). */
+  leitura: { justifyContent: 'center', backgroundColor: colors.ground, borderColor: colors.line },
+  valorLeitura: { ...fonte.body, fontSize: 16, color: colors.ink },
 });
+
+/**
+ * Campo só leitura (ADR 0072: "Parcelas" do prazo do ERP, "30/60/90 dias" ou "À vista"): o mesmo `RotuloCampo` e a mesma
+ * altura do `CampoTexto`, fundo `ground`, sem borda forte, sem toque e sem cursor; o TalkBack lê "rótulo, valor" como desligado.
+ * `testID` (opcional) vai na caixa do valor, como o do `CampoTexto` vai na entrada (o teste lê o valor por ele).
+ */
+export function CampoLeitura({ rotulo, valor, testID }: { rotulo: string; valor: string; testID?: string }) {
+  return (
+    <View style={ESTILO_CAMPO.caixa}>
+      <RotuloCampo>{rotulo}</RotuloCampo>
+      <View
+        testID={testID}
+        accessible
+        accessibilityLabel={`${rotulo}, ${valor}`}
+        accessibilityState={{ disabled: true }}
+        style={[ESTILO_CAMPO.entrada, ESTILO_CAMPO.leitura]}
+      >
+        <Text style={ESTILO_CAMPO.valorLeitura} numberOfLines={2}>
+          {valor}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 /**
  * Rótulo de campo (acima ou ao lado da entrada), o único do kit (RD-0953). Use quando o controle não é um `CampoTexto`

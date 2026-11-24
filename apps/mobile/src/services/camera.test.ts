@@ -2,7 +2,8 @@
  * T-0147 (RN-CORE-38): galeria só para as fotos do PDV. A foto escolhida passa pela mesma redução (1600 px) e regravação
  * JPEG 80 da câmera (a regravação descarta o EXIF, inclusive o GPS), vai para `fotos/<uuid>.jpg`; galeria cancelada = null.
  * O registro dá câmera + galeria só ao Core; Promotor e Pesquisa seguem só com a câmera. T-0186 (RD-2374): o visualizador vai na
- * porta única `definirAbrirArquivo`, com os formatos que ele abre (imagem e PDF).
+ * porta única `definirAbrirArquivo`, com os formatos que ele abre (imagem e PDF). v1.0.34 (R-20261124-093521): câmera negada
+ * reabre a folha com o motivo em "Tirar foto"; a foto da atividade destruída vem do `getPendingResultAsync`.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,11 +19,15 @@ const sim = vi.hoisted(() => ({
   pesquisa: vi.fn(),
   titulos: [] as string[],
   origem: null as 'camera' | 'galeria' | null,
+  pedidosFolha: [] as unknown[],
+  permitida: true,
+  falhaGravar: false,
 }));
 
-vi.mock('react-native', () => ({ Platform: { OS: 'android' } }));
+vi.mock('react-native', () => ({ Platform: { OS: 'android' }, AppState: { addEventListener: () => ({ remove: () => undefined }) } }));
 vi.mock('expo-image-picker', () => ({
-  requestCameraPermissionsAsync: async () => ({ granted: true }),
+  requestCameraPermissionsAsync: async () => ({ granted: sim.permitida }),
+  getPendingResultAsync: async () => null,
   launchCameraAsync: async () => sim.camera,
   launchImageLibraryAsync: async (o: unknown) => {
     sim.opcoesGaleria.push(o);
@@ -63,6 +68,7 @@ vi.mock('expo-file-system', () => {
       this.nome = String(partes[partes.length - 1]);
     }
     async move(destino: File) {
+      if (sim.falhaGravar) throw new Error('disco cheio');
       sim.movidos.push(destino.nome);
     }
   }
@@ -70,12 +76,19 @@ vi.mock('expo-file-system', () => {
 });
 vi.mock('./device', () => ({ uuid: () => '0b9f6c3e-6a7d-4c1e-9f0a-2b3c4d5e6f70', posicaoAgora: async () => null }));
 vi.mock('./visualizar-arquivo', () => ({ abrirArquivo: vi.fn() }));
-vi.mock('@/lib/folha-foto-pdv', () => ({ pedirOrigemFotoPdv: async (p: { titulo: string }) => (sim.titulos.push(p.titulo), sim.origem) }));
+vi.mock('@/lib/folha-foto-pdv', () => ({
+  pedirOrigemFotoPdv: async (p: { titulo: string }) => {
+    sim.titulos.push(p.titulo);
+    sim.pedidosFolha.push(p);
+    // a segunda vez a pessoa fecha a folha
+    return sim.pedidosFolha.length > 1 ? null : sim.origem;
+  },
+}));
 vi.mock('@macuxi/core/app', () => sim.core);
 vi.mock('@macuxi/promotor/app', () => ({ definirCapturaFotoPromotor: sim.promotor }));
 vi.mock('@macuxi/pesquisa/app', () => ({ definirCapturaFotoPesquisa: sim.pesquisa }));
 
-import { capturarFotoGravada, escolherFotoDaGaleria, escolherFotoPdv, registrarCameraNosModulos } from './camera';
+import { capturarDaCamera, capturarFotoGravada, escolherFotoDaGaleria, escolherFotoPdv, registrarCameraNosModulos } from './camera';
 import { abrirArquivo } from './visualizar-arquivo';
 
 beforeEach(() => {
@@ -86,6 +99,9 @@ beforeEach(() => {
   sim.galeria.canceled = false;
   sim.titulos.length = 0;
   sim.origem = null;
+  sim.pedidosFolha.length = 0;
+  sim.permitida = true;
+  sim.falhaGravar = false;
 });
 
 describe('escolherFotoDaGaleria', () => {
@@ -132,10 +148,39 @@ describe('escolherFotoPdv (folha Tirar foto / Escolher da galeria)', () => {
 
   it('folha fechada ou galeria cancelada = null, nada gravado', async () => {
     expect(await escolherFotoPdv({ titulo: 'Fachada' })).toBeNull();
+    sim.pedidosFolha.length = 0;
     sim.origem = 'galeria';
     sim.galeria.canceled = true;
     expect(await escolherFotoPdv({ titulo: 'Fachada' })).toBeNull();
     expect(sim.movidos).toEqual([]);
+  });
+
+  it('câmera negada: a folha reabre com o motivo em "Tirar foto"; fechada, null e nada gravado', async () => {
+    sim.permitida = false;
+    sim.origem = 'camera';
+    expect(await escolherFotoPdv({ titulo: 'Fachada' })).toBeNull();
+    expect(sim.pedidosFolha).toEqual([{ titulo: 'Fachada' }, { titulo: 'Fachada', cameraNegada: true }]);
+    expect(sim.movidos).toEqual([]);
+  });
+
+  it('erro da câmera/galeria (gravação falhou) lança, para o Core avisar na aba; cancelar não lança', async () => {
+    sim.origem = 'galeria';
+    sim.falhaGravar = true;
+    await expect(escolherFotoPdv({ titulo: 'Fachada' })).rejects.toThrow('foto_pdv_erro');
+    expect(sim.movidos).toEqual([]);
+  });
+});
+
+describe('capturarDaCamera (motivo de não haver foto)', () => {
+  it('câmera negada = sem_permissao; cancelada = cancelada; a porta dos módulos segue com null', async () => {
+    sim.permitida = false;
+    expect(await capturarDaCamera()).toEqual({ tipo: 'sem_permissao' });
+    expect(await capturarFotoGravada()).toBeNull();
+    sim.permitida = true;
+    sim.camera.canceled = true;
+    expect(await capturarDaCamera()).toEqual({ tipo: 'cancelada' });
+    sim.camera.canceled = false;
+    expect(await capturarDaCamera()).toMatchObject({ tipo: 'foto', foto: { id: '0b9f6c3e-6a7d-4c1e-9f0a-2b3c4d5e6f70' } });
   });
 });
 

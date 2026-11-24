@@ -211,7 +211,7 @@ const DESCRICOES_SCHEMA: Record<string, string> = {
   LoteEnvelope:
     'Envelope do lote. Uma entidade por lote; o formato de cada item de `registros` depende de `entidade` (ver `x-macuxi-registro-por-entidade`). ' +
     'Campos desconhecidos são ignorados (compatibilidade para frente).',
-  'LoteEnvelope.versao_contrato': 'Versão do contrato: `v1`.',
+  'LoteEnvelope.versao_contrato': 'Versão do contrato: `v1` ou `v2`. A `v2` só muda `prazo_pagamento`: `descricao` e `prazo_medio_dias` passam a ser obrigatórios e o Macuxi usa o prazo médio recebido.',
   'LoteEnvelope.entidade': `Entidade do lote: ${ENTIDADES.join(', ')}.`,
   'LoteEnvelope.modo': '`completo` = carga completa (exige `sessao`); `delta` = só o que mudou (não leva `sessao`).',
   'LoteEnvelope.sessao': 'Obrigatória no modo completo: `id` (UUID da sessão), `parte` (1, 2, ...) e `ultimo: true` na última parte, que fecha a sessão.',
@@ -372,14 +372,16 @@ export function gerarOpenApiHub(): DocumentoOpenApi {
     };
   }
 
-  // `registros` do envelope: o contrato guarda `unknown[]` e valida linha a linha com SCHEMA_REGISTRO[entidade]
+  // registros do envelope: o contrato guarda unknown[] e valida linha a linha com schemaRegistro(entidade, versao); o registro v2 do prazo fica em x-macuxi-registro-prazo-pagamento-v2
   const porEntidade: Record<string, JsonSchema> = {};
   for (const e of REGISTROS_POR_ENTIDADE) porEntidade[e] = conversor.ref(SCHEMA_REGISTRO[e], 'entrada');
+  const prazoV2 = conversor.ref(entidades.PrazoPagamentoPayloadV2, 'entrada');
   conversor.ajustarComponente('LoteEnvelope', 'entrada', (s) => {
     const props = s.properties as Record<string, JsonSchema>;
     if (!props.registros) throw new Error('gerarOpenApiHub: LoteEnvelope sem registros');
     return {
       ...s,
+      'x-macuxi-registro-prazo-pagamento-v2': prazoV2,
       properties: { ...props, registros: { ...props.registros, items: { anyOf: REGISTROS_POR_ENTIDADE.map((e) => porEntidade[e]) } } },
       'x-macuxi-registro-por-entidade': porEntidade,
     };

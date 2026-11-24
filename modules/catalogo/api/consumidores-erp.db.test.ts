@@ -83,19 +83,20 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
   const noCons = criarConsumidorCatalogoNoDoErp();
   const produtoNo = criarConsumidorProdutoNoDoErp(resolver);
   // Envelope e registro no formato do contracts do Integracao (T-0024): lote, entidade, hash e alterado_em/external_id do registro.
-  const env = (entidade: string, external_id: string, acao: string, registro: Record<string, unknown>) => ({
+  const env = (entidade: string, external_id: string, acao: string, registro: Record<string, unknown>, ocorrido_em = '2026-11-04T10:00:00Z') => ({
     lote_id: '11111111-1111-4111-8111-111111111111',
     entidade,
     external_id,
     acao,
     hash: 'h',
-    ocorrido_em: '2026-11-04T10:00:00Z',
+    ocorrido_em,
     registro: { external_id, alterado_em: '2026-11-04T10:00:00Z', ...registro },
   });
   const evNo = (id: string, pai: string | null, nivel: number, extra: Record<string, unknown> = {}, acao = 'criado') => env('catalogo_no', id, acao, { codigo: id, nome: `Nó ${id}`, pai_external_id: pai, nivel, ordem: 1, ...extra });
   const evProdutoNo = (no: string | null, acao = 'atualizado') => env('produto', 'P-1', acao, { sku: 'SKU-1', nome: 'Produto 1', unidade: 'UN', catalogo_no_external_id: no });
   const evPreco = (extra: Record<string, unknown> = {}, acao = 'criado', external_id = 'PR-T66') => env('preco', external_id, acao, { tabela_external_id: 'TAB-T66', tabela_nome: 'Atacado ERP', vigencia_inicio: '2026-11-01', vigencia_fim: null, produto_external_id: 'P-1', preco_cents: 1500, ...extra });
-  const evEstoque = (extra: Record<string, unknown> = {}, acao = 'criado') => env('estoque', 'ES-T66', acao, { deposito_external_id: 'DEP-T66', deposito_nome: 'Matriz', produto_external_id: 'P-1', saldo: 12.5, ...extra });
+  const evEstoque = (extra: Record<string, unknown> = {}, acao = 'criado', external_id = 'ES-T66', ocorrido_em = '2026-11-04T10:00:00Z') =>
+    env('estoque', external_id, acao, { deposito_external_id: 'DEP-T66', deposito_nome: 'Matriz', produto_external_id: 'P-1', saldo: 12.5, ...extra }, ocorrido_em);
   const itens = (t: Teste) => t.q<{ preco_cents: string; vigencia_fim: string | null }>("select preco_cents, vigencia_fim from catalogo.tabela_preco_item where external_id = 'PR-T66' and deleted_at is null");
 
   it('RN-INT-02: preço cria tabela e item; reentrega e atualização não duplicam; inativação faz soft delete', async () => {
@@ -227,6 +228,75 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
       expect(Number(s[0]!.quantidade)).toBe(3);
       await t.entregar(estoque, { lote_id: '11111111-1111-4111-8111-111111111111', entidade: 'estoque', external_id: 'ES-T66', acao: 'inativado', hash: 'h2', ocorrido_em: '2026-11-04T11:00:00Z' });
       expect((await t.q("select 1 from catalogo.estoque_saldo where external_id = 'ES-T66' and deleted_at is null")).length).toBe(0);
+    });
+  });
+
+  describe('RN-INT-02: saldo vivo único por depósito+produto (estoque_saldo_uk)', () => {
+    const dep = (d: string, saldo: number) => ({ deposito_external_id: d, deposito_nome: d, saldo });
+    const vivos = (t: Teste, dep: string) =>
+      t.q<{ id: string; external_id: string; quantidade: string }>(
+        'select s.id, s.external_id, s.quantidade::text as quantidade from catalogo.estoque_saldo s join catalogo.deposito d on d.id = s.deposito_id where d.external_id = $1 and s.deleted_at is null',
+        [dep],
+      );
+
+    it('RN-INT-02: external_id novo no par que já tem saldo vivo adota a linha (mesmo id) e não estoura 23505', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 5), 'atualizado', 'ES-VELHO'));
+        const antes = await vivos(t, 'DEP-1');
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 8), 'atualizado', 'ES-NOVO', '2026-11-04T11:00:00Z'));
+        const depois = await vivos(t, 'DEP-1');
+        expect(depois.length).toBe(1);
+        expect(depois[0]!.external_id).toBe('ES-NOVO');
+        expect(depois[0]!.id).toBe(antes[0]!.id);
+        expect(Number(depois[0]!.quantidade)).toBe(8);
+        // reentrega do mesmo evento: mesmo estado (igual aplica, idempotente)
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 8), 'atualizado', 'ES-NOVO', '2026-11-04T11:00:00Z'));
+        expect(await vivos(t, 'DEP-1')).toEqual(depois);
+        // linha própria mais nova que o evento parado: não sobrescreve nem dá erro
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 9), 'atualizado', 'ES-NOVO', '2026-11-04T13:30:00Z'));
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 8), 'atualizado', 'ES-NOVO', '2026-11-04T12:52:00Z'));
+        expect(Number((await vivos(t, 'DEP-1'))[0]!.quantidade)).toBe(9);
+        // saldo do par sem atualizado_erp_em: adotado
+        await t.entregar(estoque, evEstoque(dep('DEP-3', 5), 'atualizado', 'ES-Z'));
+        await t.q("update catalogo.estoque_saldo set atualizado_erp_em = null where external_id = 'ES-Z'");
+        await t.entregar(estoque, evEstoque(dep('DEP-3', 6), 'atualizado', 'ES-W', '2026-11-04T09:00:00Z'));
+        const adotado = await vivos(t, 'DEP-3');
+        expect(adotado.map((x) => x.external_id)).toEqual(['ES-W']);
+        expect(Number(adotado[0]!.quantidade)).toBe(6);
+      });
+    });
+
+    it('RN-INT-04: evento mais velho que o saldo do par não grava e não dá erro', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 5), 'atualizado', 'ES-VELHO', '2026-11-04T12:00:00Z'));
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 8), 'atualizado', 'ES-NOVO', '2026-11-04T09:00:00Z'));
+        const v = await vivos(t, 'DEP-1');
+        expect(v.length).toBe(1);
+        expect(v[0]!.external_id).toBe('ES-VELHO');
+        expect(Number(v[0]!.quantidade)).toBe(5);
+      });
+    });
+
+    it('RN-INT-04: linha própria mais nova que o evento que a move para outro par: o saldo do par não é apagado', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 4), 'atualizado', 'ES-X', '2026-11-04T12:00:00Z'));
+        await t.entregar(estoque, evEstoque(dep('DEP-2', 6), 'atualizado', 'ES-Y'));
+        await t.entregar(estoque, evEstoque(dep('DEP-2', 7), 'atualizado', 'ES-X', '2026-11-04T11:00:00Z'));
+        expect((await vivos(t, 'DEP-2')).map((x) => x.external_id)).toEqual(['ES-Y']);
+        expect((await vivos(t, 'DEP-1')).map((x) => x.external_id)).toEqual(['ES-X']);
+      });
+    });
+
+    it('RN-INT-02: linha que muda para um par já ocupado apaga a do par e move a própria', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar(estoque, evEstoque(dep('DEP-1', 4), 'atualizado', 'ES-X'));
+        await t.entregar(estoque, evEstoque(dep('DEP-2', 6), 'atualizado', 'ES-Y'));
+        await t.entregar(estoque, evEstoque(dep('DEP-2', 7), 'atualizado', 'ES-X', '2026-11-04T11:00:00Z'));
+        const v = await vivos(t, 'DEP-2');
+        expect(v.map((x) => x.external_id)).toEqual(['ES-X']);
+        expect(Number(v[0]!.quantidade)).toBe(7);
+        expect((await t.q("select 1 from catalogo.estoque_saldo where external_id = 'ES-Y' and deleted_at is not null")).length).toBe(1);
+      });
     });
   });
 

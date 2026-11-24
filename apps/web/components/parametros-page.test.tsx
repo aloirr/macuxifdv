@@ -1,6 +1,6 @@
 /**
- * Página Parâmetros do BKO (ADR 0060, spec docs/design/menu-parametros/spec.md §2–§3): título único, lista de seções com a
- * selecionada, painel do módulo dentro de `Panel` com a âncora, página em transição como está e seção sem licença só com o aviso.
+ * Página Parâmetros do BKO (ADR 0060, spec docs/design/menu-parametros/spec.md §2–§3): título único, sem lista de seções (a
+ * escolha fica no menu), painel do módulo dentro de `Panel` com a âncora, página em transição como está e seção sem licença só com o aviso.
  */
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -37,11 +37,11 @@ estado.parametros = [
 ];
 
 describe('página Parâmetros (ADR 0060)', () => {
-  it('seção com painel: título "Parâmetros", seção selecionada na lista, painel com âncora e título', () => {
+  it('seção com painel: título "Parâmetros", painel com âncora e título, sem lista de seções (a escolha fica no menu)', () => {
     const html = renderToStaticMarkup(<PaginaParametros segmentos={['clientes']} />);
     expect(html).toContain('Parâmetros');
-    expect(html).toMatch(/href="\/parametros\/clientes" data-testid="parametros-secao-clientes" aria-current="page"/);
-    expect(html).toContain('data-testid="parametros-secao-pesquisa" data-bloqueado=""');
+    expect(html).toContain('data-testid="parametros-conteudo-clientes"');
+    expect(html).not.toContain('parametros-secao-');
     expect(html).toMatch(/id="core-farol" data-testid="parametros-core-farol"/);
     expect(html).toContain('Farol');
     expect(html).toContain('conteúdo do farol');
@@ -58,8 +58,6 @@ describe('página Parâmetros (ADR 0060)', () => {
     const html = renderToStaticMarkup(<PaginaParametros segmentos={['pesquisa']} />);
     expect(html).toContain('data-testid="parametros-sem-licenca"');
     expect(html).toContain(TEXTO_SEM_LICENCA);
-    // o cadeado é aria-hidden: o leitor de tela ouve "Pesquisa, sem licença" na lista de seções
-    expect(html).toContain('<span class="sr-only">, sem licença</span>');
   });
 
   it('seção inexistente ou endereço com mais de um segmento: 404', () => {

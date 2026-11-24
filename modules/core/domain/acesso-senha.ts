@@ -94,13 +94,13 @@ export function podeRedefinirSenha(
 const MAIUSCULAS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MINUSCULAS = 'abcdefghijkmnopqrstuvwxyz';
 const DIGITOS = '23456789';
-const ESPECIAIS = '!@#$%&*?';
+const ESPECIAIS = '_';
 const TODOS = MAIUSCULAS + MINUSCULAS + DIGITOS + ESPECIAIS;
 export const TAMANHO_SENHA_TEMPORARIA = 12;
 
 /**
- * Senha temporária de 12 caracteres sem ambíguos (sem 0/O, 1/l/I), sempre com letra, número e um especial de `!@#$%&*?`
- * (passa na RN-CORE-32). A aleatoriedade entra por `aleatorio(n)` (bytes seguros: `crypto.randomBytes` na API,
+ * Senha temporária de 12 caracteres sem ambíguos (sem 0/O, 1/l/I), sempre com letra, número e o especial `_`
+ * (passa na RN-CORE-32; o `_` não corta a seleção de palavra no toque longo do e-mail, como `!@#$%&*?` cortam no Gmail/Outlook). A aleatoriedade entra por `aleatorio(n)` (bytes seguros: `crypto.randomBytes` na API,
  * `crypto.getRandomValues` no navegador). Sorteio sem viés (rejeição) e embaralhamento de Fisher-Yates.
  */
 export function gerarSenhaTemporaria(aleatorio: (n: number) => Uint8Array): string {

@@ -32,7 +32,7 @@ describe('folha da foto do PDV', () => {
     expect(vistos.at(-1)).toBeNull();
   });
 
-  it('fechar (✕, Voltar, toque fora) devolve null; resposta sem pedido não faz nada', async () => {
+  it('fechar (Cancelar, toque fora, Voltar do Android) devolve null; resposta sem pedido não faz nada', async () => {
     montarFolha();
     const r = pedirOrigemFotoPdv({ titulo: 'Fachada' });
     responderFolhaFotoPdv(null);

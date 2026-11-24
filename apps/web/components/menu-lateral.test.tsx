@@ -71,3 +71,11 @@ describe('menu lateral do BKO: densidade compacta (v1.0.18)', () => {
     expect(html).not.toContain('title=');
   });
 });
+
+describe('menu lateral do BKO: seção de Parâmetros sem licença (spec menu-parametros §3)', () => {
+  it('o cadeado é aria-hidden e o leitor de tela ouve "Pesquisa, sem licença"; ícone afastado do rótulo (gap-1.5)', () => {
+    const html = renderToStaticMarkup(<NavLink item={{ href: '/parametros/pesquisa', label: 'Pesquisa', testId: 'nav-parametros-pesquisa', cadeado: true }} active={false} />);
+    expect(html).toContain('<span class="sr-only">, sem licença</span>');
+    expect(classes(html, /<a [^>]*class="([^"]*)"/g)[0]).toContain('gap-1.5');
+  });
+});

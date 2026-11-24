@@ -96,12 +96,12 @@ export function planejarVinculoErp(e: {
     return { ok: true, ja_vinculado: true, external_id: jaCodigo, provisorio_id: p.id, real_id: r.id, referencias: REFERENCIAS_DO_VINCULO, carteira_mover: [], carteira_descartar: [], desativar_provisorio: false, eventos_cliente: [] };
   }
   const codigo = p.external_id?.trim() ?? '';
-  if (codigo === '') return recusa(CODIGOS_VINCULO.semCodigoErp, 'O vendedor provisório não tem Código no ERP. Confira o cadastro.');
+  if (codigo === '') return recusa(CODIGOS_VINCULO.semCodigoErp, 'O vendedor provisório não tem Código ERP. Confira o cadastro.');
   if (p.perfil !== r.perfil || (r.perfil !== 'vendedor' && r.perfil !== 'promotor')) return recusa(CODIGOS_VINCULO.perfilIncompativel, 'Os perfis não combinam. Vincule vendedor com vendedor e promotor com promotor.');
   if (e.visitaAbertaDoProvisorio) return recusa(CODIGOS_VINCULO.visitaAberta, 'O vendedor provisório tem uma visita aberta. Feche o check-in dele antes de vincular.');
   const base = { external_id: codigo, provisorio_id: p.id, real_id: r.id, referencias: REFERENCIAS_DO_VINCULO } as const;
   if (r.external_id !== null && r.external_id.trim() !== '') {
-    return recusa(CODIGOS_VINCULO.realComOutroCodigo, 'O usuário escolhido já tem outro Código no ERP. Limpe o código dele em Editar antes de vincular.');
+    return recusa(CODIGOS_VINCULO.realComOutroCodigo, 'O usuário escolhido já tem outro Código ERP. Limpe o código dele em Editar antes de vincular.');
   }
   const ja = new Set(e.carteiraReal.map((x) => `${x.cliente_id}|${x.papel}`));
   const mover: string[] = [];

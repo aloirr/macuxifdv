@@ -89,7 +89,7 @@ Supervisor, Gerente, Analista, Assistente, Admin (`ORDEM_PERFIL_BASE`); depois o
    não é campo: linha de texto **"Perfil base: Vendedor"** (a base não muda).
    Ajuda embaixo (12, `ink-2`), muda com a base escolhida, a partir de `textoOndeEntra` da fábrica da base:
    **"Começa com as permissões do <Base>. Entra em: Campo."** E, nas bases vendedor, promotor e supervisor, a segunda frase:
-   **"Este perfil nunca entra no BKO nem no portal (RN-CORE-33)."**
+   **"Este perfil nunca entra no BKO nem no portal."** (regra RN-CORE-33)
 3. **Descrição** (opcional, até 200 caracteres, 2 linhas): ajuda **"Para quem é este perfil. Aparece na lista."**
 
 Rodapé: "Cancelar" e **"Criar e editar"** (principal; enviando: **"Criando…"**). Sucesso: vai à edição do perfil novo, com o
@@ -150,8 +150,8 @@ Ajuda da seção (13, `ink-2`, embaixo do título): **"Em quais apps e sites que
 |---|---|---|---|
 | **App Campo** | `acesso.campo` | Interruptor | — |
 | **App Gestão** | `acesso.gestao` | Interruptor | — |
-| **BKO** | `acesso.bko` | Interruptor | bases vendedor, promotor, supervisor: "Não" travado, texto do `travaDaChave` (RN-CORE-33) |
-| **Portal de implantação** | `acesso.portal` | Interruptor | base não admin: "Não" travado, "O portal é só do admin (RN-CORE-33)." |
+| **BKO** | `acesso.bko` | Interruptor | bases vendedor, promotor, supervisor: "Não" travado, texto do `travaDaChave` (regra RN-CORE-33) |
+| **Portal de implantação** | `acesso.portal` | Interruptor | base não admin: "Não" travado, "O portal é só do admin." (regra RN-CORE-33) |
 Em perfil de base admin que o próprio usuário tem: **BKO** travado em "Sim" com `CADEADO.autogestao` (§6).
 
 ### 5.3 Escopo de dados
@@ -209,7 +209,7 @@ Mais permissões (§5.13): `cliente.pagamento_editar`, `cliente.aprovar_coordena
 | **Aprovar desconto e crédito** | `pedido.aprovar` (nível alçada) | Nível: **Não · Até a alçada · Acima da alçada** |
 
 **Perfis de base promotor (RN-PRO-01):** "Criar e editar pedido", "Cancelar pedido" e "Excluir rascunho" ficam em "Não", travados,
-com o texto do `travaDaChave` ("Promotor nunca cria, edita, cancela ou exclui pedido (RN-PRO-01)."). "Aprovar desconto e crédito"
+com o texto do `travaDaChave` ("Promotor nunca cria, edita, cancela ou exclui pedido."). "Aprovar desconto e crédito"
 também ("Não", mesmo cadeado). E a linha "Ver pedidos" vira o Interruptor **"Vê os pedidos da carteira"** com ajuda **"Só
 leitura. Desligado, o promotor não vê pedido em lugar nenhum, nem no Cliente 360."** (`promotor_ve_pedidos`: `pedido.ver` com
 nível carteira; o padrão é "Sim").
@@ -305,20 +305,23 @@ Nenhuma chave do catálogo (`catalogoDePermissoes`) fica sem lugar na tela:
 ## 6. Cadeados
 O cadeado (`Cadeado`, dentro da `LinhaDePermissao` com `trava`) fica logo depois do rótulo. **Mostra o texto da regra ao passar o
 mouse, ao focar com o teclado ou ao tocar**; o controle da linha vem desabilitado no valor que a regra obriga. Texto: o do
-`travaDaChave` do SDK quando a trava é de chave; senão, o `CADEADO` do kit. Sempre com a regra entre parênteses.
+`travaDaChave` do SDK quando a trava é de chave; senão, o `CADEADO` do kit.
 
 | Situação | Onde | Texto |
 |---|---|---|
-| Base vendedor, promotor ou supervisor (e derivados) e o BKO | 5.2 BKO | `travaDaChave`: "Vendedor nunca entra no BKO (RN-CORE-33)." (com o nome da base) |
-| Portal fora da base admin | 5.2 Portal | `travaDaChave`: "O portal é só do admin (RN-CORE-33)." |
-| Base promotor e escrita de pedido | 5.7 | `travaDaChave`: "Promotor nunca cria, edita, cancela ou exclui pedido (RN-PRO-01)." |
-| Escopo acima da base | 5.3 e níveis de escopo | `CADEADO.escopoAcimaDaBase(base)`: "Acima do perfil base Supervisor (RN-CORE-04)." (na opção) |
-| Autogestão do admin | 5.2 BKO, 5.5 gestão | `CADEADO.autogestao`: "Você não pode tirar isto de si mesmo. Peça a outro admin (RN-CORE-35)." |
+| Base vendedor, promotor ou supervisor (e derivados) e o BKO | 5.2 BKO | `travaDaChave`: "Vendedor nunca entra no BKO." (com o nome da base; regra RN-CORE-33) |
+| Portal fora da base admin | 5.2 Portal | `travaDaChave`: "O portal é só do admin." (regra RN-CORE-33) |
+| Base promotor e escrita de pedido | 5.7 | `travaDaChave`: "Promotor nunca cria, edita, cancela ou exclui pedido." (regra RN-PRO-01) |
+| Escopo acima da base | 5.3 e níveis de escopo | `CADEADO.escopoAcimaDaBase(base)`: "Acima do perfil base Supervisor." (na opção; regra RN-CORE-04) |
+| Autogestão do admin | 5.2 BKO, 5.5 gestão | `CADEADO.autogestao`: "Você não pode tirar isto de si mesmo. Peça a outro admin." (regra RN-CORE-35) |
 | Senha de admin na lista de alvos | 5.5 lista | `CADEADO.senhaDeAdmin` (na opção) |
-| Regra da senha | 5.5 | `CADEADO.senhaSempreComRegra`: "Toda senha segue a regra de segurança (RN-CORE-32)." |
-| Perfil base | 5.1 | `CADEADO.baseImutavel` |
+| Regra da senha | 5.5 | `CADEADO.senhaSempreComRegra`: "Toda senha segue a regra de segurança." (regra RN-CORE-32) |
+| Perfil base | 5.1 | `CADEADO.baseImutavel`: "O perfil base não muda depois de criado." |
 | Ativo dos perfis padrão | 5.1 | `CADEADO.padraoNaoDesativa` |
 | Core | 5.4 | `CADEADO.coreSempreLigado` |
+
+**Sem código interno no texto visível** (R-20261124-094002): RN-, RF-, RD-, T-nnnn e ADR ficam só entre parênteses na tabela e nos comentários; o texto que o cliente lê termina na frase.
+
 O **último admin** não tem cadeado (depende de todos os usuários): a API recusa ao salvar e a tela explica (§7.2).
 
 ## 7. Salvar
@@ -381,9 +384,9 @@ contador e no resumo) e a pessoa salva pelo caminho normal. Nome, descrição e 
   `aria-label="Seções do perfil"`; a seção atual tem `aria-current="true"`.
 - Cada controle se liga ao rótulo da linha (`rotuloId` = `idsDaLinha(id).rotulo`) e à ajuda e ao cadeado pelo
   `descricaoDaLinha(id, { ajuda, travada })`. Exemplo do que se ouve: "BKO, interruptor, desligado, indisponível. Vendedor nunca
-  entra no BKO (RN-CORE-33)."
+  entra no BKO."
 - Interruptor: `role="switch"`, Espaço/Enter. Nível: rádios nativos num `radiogroup` (Tab entra no marcado, setas trocam); opção
-  travada fala "Toda a empresa, travado: Acima do perfil base Supervisor (RN-CORE-04)". Perfis: caixas num `fieldset` com `legend`.
+  travada fala "Toda a empresa, travado: Acima do perfil base Supervisor". Perfis: caixas num `fieldset` com `legend`.
 - O cadeado é um botão com o nome "Travado"; o texto da regra é a descrição dele (`role="tooltip"`), lido também sem abrir.
 - O contador do rodapé é região viva educada ("3 mudanças não salvas"), anunciada a cada mudança.
 - O resumo fala "Cancelar pedido, de Equipe para Próprio" (sem a seta). Recusa e erro de linha: `role="alert"`.
@@ -412,7 +415,7 @@ contador e no resumo) e a pessoa salva pelo caminho normal. Nome, descrição e 
 3. Editando, com exceções: **"Tirados desta pessoa: Treinamento."**
 4. Onde entra: `textoOndeEntra(lugares)` ("Entra em: Campo.") pelo `podeEntrar` dos perfis combinados. Se a regra mais restritiva
    fechar o BKO ou o portal que outro perfil daria (RN-CORE-35), uma linha com o cadeado: **"Não entra no BKO: um dos perfis é de
-   base Vendedor (RN-CORE-33)."**
+   base Vendedor."** (regra RN-CORE-33)
 5. Nenhum perfil marcado: só **"Marque um perfil para ver os módulos."**
 A prévia é região viva educada (lê a frase de onde entra e a lista quando mudam).
 

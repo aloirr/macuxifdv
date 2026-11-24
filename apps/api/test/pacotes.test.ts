@@ -88,6 +88,24 @@ describe('pacotes × S3 falso', () => {
     expect((await fetch(l.url)).status).toBe(200);
   });
 
+  it('ADR 0074: o link do Campo e do Gestão vale 24 h (X-Amz-Expires=86400) e vence depois; o do Conector segue 300 s', async () => {
+    const APK = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 9, 9]);
+    for (const produto of ['campo', 'gestao'] as const) {
+      const arquivo = `${produto}-1.0.34.apk`;
+      await publicarPacote(cliente(), 'apks/', { produto, arquivo, versao: '1.0.34', bytes: APK, agora: AGORA });
+      const l = (await servico('apks/').linkDoUltimo(produto))!;
+      expect(l.expira_em).toBe(new Date(AGORA.getTime() + 86_400_000).toISOString());
+      expect(new URL(l.url).searchParams.get('X-Amz-Expires')).toBe('86400');
+      s3.agora = () => new Date(AGORA.getTime() + 86_399_000);
+      expect((await fetch(l.url)).status).toBe(200);
+      s3.agora = () => new Date(AGORA.getTime() + 86_401_000);
+      expect((await fetch(l.url)).status).toBe(403);
+      s3.agora = () => AGORA;
+    }
+    const c = (await servico().linkDoUltimo('conector'))!;
+    expect(new URL(c.url).searchParams.get('X-Amz-Expires')).toBe('300');
+  });
+
   it('manifesto inválido, bucket com erro ou fora do ar = 503 ARMAZENAMENTO_INDISPONIVEL; log sem URL nem segredo', async () => {
     s3.objetos.set(`/${s3.bucket}/ruim/conector/ultimo.json`, Buffer.from('{"versao":"1","arquivo":"../x"}'));
     s3.objetos.set(`/${s3.bucket}/lixo/conector/ultimo.json`, Buffer.from('não é json'));
@@ -130,6 +148,9 @@ describe('pacotes × S3 falso', () => {
     expect(s3.tipos.get(`/${s3.bucket}/pacotes/gestao/macuxi-gestao-1.0.19.apk`)).toBe('application/vnd.android.package-archive');
     const la = await servico().linkDoUltimo('gestao');
     expect(la).toMatchObject({ versao: '1.0.19', arquivo: 'macuxi-gestao-1.0.19.apk' });
+    // T-0195 (ADR 0070 §D1): o manifesto do APK sempre leva publicado_em (a hora das 24 h), lido sem assinar link
+    expect(await servico().manifestoDoUltimo?.('gestao')).toMatchObject({ versao: '1.0.19', publicado_em: AGORA.toISOString() });
+    expect(await servico().manifestoDoUltimo?.('campo')).toBeNull();
     expect((await servico().linkDoUltimo('campo'))).toBeNull();
     await expect(executarPublicarPacote(['conector', arquivo], env)).rejects.toThrow(/--versao/);
     await expect(executarPublicarPacote(['conector', arquivo, '--versao', 'v1'], env)).rejects.toThrow();

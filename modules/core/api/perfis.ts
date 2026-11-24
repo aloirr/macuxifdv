@@ -48,7 +48,7 @@ import { avaliarEstadoDePerfis, codigoDoPerfil, diffAuditavelDePerfil, sobreposi
 import { auditar } from './auditoria';
 
 /** Chaves básicas que a página nunca edita (os apps dependem delas) e o parâmetro que virou `pedido.ver` (spec §5.13). */
-const FORA_DA_TELA = new Set(['notificacao.ler', 'dispositivo.registrar_push', 'parametro.promotor_ve_pedidos']);
+const FORA_DA_TELA = new Set(['notificacao.ler', 'dispositivo.registrar_push', 'app.atualizar', 'parametro.promotor_ve_pedidos']);
 
 interface LinhaPerfil {
   id: string;

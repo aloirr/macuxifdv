@@ -165,7 +165,7 @@ export const ENTIDADE_TEXTO: Record<Entidade, { titulo: string; sobre: string; n
   catalogo_no: { titulo: 'Nó do catálogo', sobre: 'Árvore de categorias do catálogo (departamento, grupo, subgrupo). O produto se liga a um nó.', nota: 'Nó de nível 1 não tem `pai_external_id`.' },
   transportadora: { titulo: 'Transportadora', sobre: 'Transportadoras cadastradas, para o frete FOB do pedido.' },
   forma_pagamento: { titulo: 'Forma de pagamento', sobre: 'Formas aceitas (boleto, PIX...). O cliente cita a forma pelo `codigo`.' },
-  prazo_pagamento: { titulo: 'Prazo de pagamento', sobre: 'Condições de prazo de cada forma de pagamento.', nota: '`prazo_medio_dias` é a média de `parcelas_dias`; se divergir, o registro entra com aviso.' },
+  prazo_pagamento: { titulo: 'Prazo de pagamento', sobre: 'Condições de prazo de cada forma de pagamento.', nota: 'Na `v2`, `descricao` e `prazo_medio_dias` são obrigatórios e valem como enviados. Na `v1`, o prazo médio é calculado e, se divergir, o registro entra com aviso.' },
   cliente: { titulo: 'Cliente', sobre: 'Clientes da carteira, com endereço, contatos, crédito e formas de pagamento permitidas.' },
   produto: { titulo: 'Produto', sobre: 'Itens do catálogo de venda.', nota: '`embalagem_medida` e `embalagem_quantidade` devem ser informadas juntas.' },
   rota: { titulo: 'Rota de visita', sobre: 'Roteiro de visitas de um vendedor, com a ordem das paradas.' },
@@ -185,7 +185,7 @@ export const DESCRICAO_CAMPO: Record<string, string> = {
   alterado_em: 'Instante da última alteração no ERP. Só pode crescer: versão mais antiga é ignorada.',
   ativo: 'Falso inativa o registro no Macuxi (nunca apaga). Omitido vale verdadeiro.',
   // envelope
-  versao_contrato: 'Versão do contrato. Use `v1`.',
+  versao_contrato: 'Versão do contrato: `v1` ou `v2`. Use `v2` com `prazo_pagamento` completo.',
   entidade: 'Entidade do lote ou da consulta.',
   modo: '`completo`: foto inteira da entidade (exige `sessao`). `delta`: só o que mudou.',
   sessao: 'Identifica a carga completa em partes. Só no modo completo.',

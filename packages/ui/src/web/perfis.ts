@@ -53,17 +53,18 @@ export type SecaoDoPerfil = (typeof SECOES_DO_PERFIL)[number]['id'];
 export const tituloDaSecao = (id: SecaoDoPerfil): string => SECOES_DO_PERFIL.find((s) => s.id === id)?.titulo ?? id;
 
 /**
- * Textos dos cadeados que não vêm do `travaDaChave` do SDK. Sempre com a regra entre parênteses, como o do SDK
- * ("Vendedor nunca entra no BKO (RN-CORE-33).").
+ * Textos dos cadeados que não vêm do `travaDaChave` do SDK. Sem código interno (RN-, RF-, T-, ADR, RD-) no texto visível
+ * (R-20261124-094002): a regra fica só neste comentário. escopoAcimaDaBase: RN-CORE-04; autogestao, senhaDeAdmin,
+ * baseImutavel e padraoNaoDesativa: RN-CORE-35; senhaSempreComRegra: RN-CORE-32.
  */
 export const CADEADO = {
   coreSempreLigado: 'O Core é a base do sistema e fica sempre ligado.',
-  escopoAcimaDaBase: (base: PerfilBase) => `Acima do perfil base ${ROTULO_PERFIL_BASE[base]} (RN-CORE-04).`,
-  autogestao: 'Você não pode tirar isto de si mesmo. Peça a outro admin (RN-CORE-35).',
-  senhaDeAdmin: 'A senha de um admin não é redefinida por aqui (RN-CORE-35).',
-  baseImutavel: 'O perfil base não muda depois de criado (RN-CORE-35).',
-  padraoNaoDesativa: 'Os perfis padrão não são apagados nem desativados (RN-CORE-35).',
-  senhaSempreComRegra: 'Toda senha segue a regra de segurança (RN-CORE-32).',
+  escopoAcimaDaBase: (base: PerfilBase) => `Acima do perfil base ${ROTULO_PERFIL_BASE[base]}.`,
+  autogestao: 'Você não pode tirar isto de si mesmo. Peça a outro admin.',
+  senhaDeAdmin: 'A senha de um admin não é redefinida por aqui.',
+  baseImutavel: 'O perfil base não muda depois de criado.',
+  padraoNaoDesativa: 'Os perfis padrão não são apagados nem desativados.',
+  senhaSempreComRegra: 'Toda senha segue a regra de segurança.',
 } as const;
 
 /** Rótulo falado do botão do cadeado (o texto da regra vai na descrição). */

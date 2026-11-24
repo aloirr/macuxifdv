@@ -192,6 +192,8 @@ export const ClientePreCadastroParaErpSchema = z.object({
   hash: HashPreCadastroSchema.optional(),
   /** v1.0.30 (ADR 0069 item 10, aditivo): Código FDV, para o ERP guardar a referência do FDV. Fora do hash. */
   codigo_fdv: CodigoFdvClienteSchema.nullish(),
+  /** v1.0.34 (aditivo): código no ERP do vendedor que fez o pré-cadastro: o autor da primeira tentativa (`corrigido_por`, perfil vendedor), não a carteira atual; nulo se o autor não for vendedor ou não tiver código. Fora do hash. */
+  vendedor_external_id: Texto.optional(),
 });
 export type ClientePreCadastroParaErp = z.infer<typeof ClientePreCadastroParaErpSchema>;
 

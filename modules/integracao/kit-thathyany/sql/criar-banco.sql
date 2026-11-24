@@ -85,11 +85,11 @@ CREATE TABLE dbo.tha_prazo_pagamento (
     external_id VARCHAR(200) NOT NULL,
     forma_external_id NVARCHAR(200) NOT NULL,
     codigo NVARCHAR(20) NOT NULL,
+    descricao NVARCHAR(60) NOT NULL,
     parcelas_dias NVARCHAR(MAX) NOT NULL,
+    prazo_medio_dias INT NOT NULL,
     alterado_em DATETIME2(3) NOT NULL,
     ativo TINYINT NOT NULL CONSTRAINT df_tha_prazo_pagamento_ativo DEFAULT 1,
-    descricao NVARCHAR(60) NULL,
-    prazo_medio_dias INT NULL,
     percentual_ajuste DECIMAL(18, 6) NULL,
     ordem INT NULL,
     linha_hash CHAR(64) NULL,
@@ -391,7 +391,7 @@ SELECT external_id, alterado_em, ativo, codigo, nome, ordem
 FROM dbo.tha_forma_pagamento;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_prazo_pagamento AS
-SELECT external_id, forma_external_id, codigo, parcelas_dias, alterado_em, ativo, descricao, prazo_medio_dias, percentual_ajuste, ordem
+SELECT external_id, forma_external_id, codigo, descricao, parcelas_dias, prazo_medio_dias, alterado_em, ativo, percentual_ajuste, ordem
 FROM dbo.tha_prazo_pagamento;
 GO
 CREATE OR ALTER VIEW dbo.vw_macuxi_produto AS

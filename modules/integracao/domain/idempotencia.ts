@@ -3,11 +3,11 @@
  * O hash é SHA-256 (hex, 64 caracteres) do JSON canônico — o formato do CHECK do banco (R-20261101-233652, 🔴; sem colisão
  * prática: colisão seria atualização perdida em silêncio). O domain roda só no servidor; SHA-256 puro em TypeScript (`./sha256`), sem módulos do Node.
  */
-import { SCHEMA_REGISTRO, type AvisoLinha, type Entidade, type LinhaErro } from '../contracts';
+import { schemaRegistro, type AvisoLinha, type Entidade, type LinhaErro } from '../contracts';
 import { classificarErroZod } from './erros';
 import { limitarCatalogoDoProduto } from './catalogo-produto';
 import { avisoVendedorSemFilial } from './vendedor-filial';
-import { avisoPrazoMedioDivergente } from './pagamento';
+import { avisoPrazoMedioDivergente, descricaoPrazoGerada, prazoMedioCalculado } from './pagamento';
 import { sha256Hex } from '@macuxi/platform-sdk/sha256';
 
 /** JSON com chaves ordenadas; `null`/`undefined` em objeto equivalem a campo ausente; `-0` vira `0`. */
@@ -95,9 +95,9 @@ export function contarDuplicadasNoLote(avisos: readonly { codigo: string }[]): n
 }
 
 /** Deduplica, valida cada linha com o schema da entidade e calcula o hash. Erro de linha não trava o lote (RN-INT-03). */
-export function validarLinhas(entidade: Entidade, registros: readonly unknown[]): { validas: LinhaValida[]; erros: LinhaErro[]; avisos: AvisoLinha[] } {
+export function validarLinhas(entidade: Entidade, registros: readonly unknown[], versao: string = 'v1'): { validas: LinhaValida[]; erros: LinhaErro[]; avisos: AvisoLinha[] } {
   const { linhas, avisos } = deduplicarNoLote(registros);
-  const schema = SCHEMA_REGISTRO[entidade];
+  const schema = schemaRegistro(entidade, versao);
   const validas: LinhaValida[] = [];
   const erros: LinhaErro[] = [];
   for (const l of linhas) {
@@ -115,10 +115,13 @@ export function validarLinhas(entidade: Entidade, registros: readonly unknown[])
         const aviso = avisoVendedorSemFilial(r.data as { external_id: string; filial_external_id?: string | null });
         if (aviso) avisos.push({ ...aviso, indice: l.indice });
       }
-      if (entidade === 'prazo_pagamento') {
-        // T-0089: prazo médio informado diferente do calculado = aviso (RN-VEN-24); a linha segue
-        const aviso = avisoPrazoMedioDivergente(r.data as Parameters<typeof avisoPrazoMedioDivergente>[0]);
+      if (entidade === 'prazo_pagamento' && versao !== 'v2') {
+        // T-0089 (só v1; na v2 o prazo médio recebido vale, ADR 0072): informado diferente do calculado = aviso (RN-VEN-24); a linha segue
+        const p = r.data as Parameters<typeof avisoPrazoMedioDivergente>[0] & { descricao?: string | null };
+        const aviso = avisoPrazoMedioDivergente(p);
         if (aviso) avisos.push({ ...aviso, indice: l.indice });
+        // ADR 0072 (decisão 4): o Hub entrega o registro completo nas duas versões; a v1 sai com média calculada e descrição gerada, antes do hash
+        dados = { ...p, prazo_medio_dias: prazoMedioCalculado(p.parcelas_dias), descricao: p.descricao?.trim() || descricaoPrazoGerada(p.parcelas_dias) };
       }
       validas.push({ indice: l.indice, external_id: (r.data as { external_id: string }).external_id, alterado_em: (r.data as { alterado_em: string }).alterado_em, registro: dados, hash: hashRegistro(dados) });
     } else {

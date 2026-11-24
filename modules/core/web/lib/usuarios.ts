@@ -6,6 +6,7 @@ import { formatDateTime, formatTime } from '@macuxi/ui/web';
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import { ALMOCO_PADRAO_EMPRESA, DESCONTO_PEDIDO_PERMIL_MAX, textoDoMinuto, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type HorarioAlmoco, type UsuarioItem, type VincularErpRequest } from '../../contracts';
 import { filiaisDoUsuario, corpoDaFilial } from './filial-usuario';
+import { ehUsuarioProvisorio } from '../../domain/vinculo-erp';
 import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
 import type { Cargo } from '@macuxi/platform-sdk';
 import { ERRO_SEM_PERFIL, lerHorarioAlmocoTexto, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
@@ -14,6 +15,8 @@ export interface FormularioUsuario {
   nome: string;
   nome_curto: string;
   email: string;
+  /** RN-CORE-58: o e-mail da API é o técnico do provisório; o campo fica vazio e, vazio, não vai no corpo (o servidor mantém o atual). */
+  email_tecnico?: boolean;
   perfil: Perfil;
   /** Código do perfil do usuário (RN-CORE-54: um só; a API recebe a lista de um item). */
   perfis: string[];
@@ -39,6 +42,8 @@ export interface FormularioUsuario {
 
 export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '', filial_cadastro_id: '', filial_venda_ids: [], almoco_padrao: true, almoco_inicio: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.inicio_min), almoco_fim: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.fim_min) };
 
+/** Indicação no campo E-mail vazio do provisório do ERP (RN-CORE-58). */
+export const PLACEHOLDER_SEM_EMAIL = 'Informe o e-mail';
 export const ERRO_DESCONTO_OBRIGATORIO = 'Obrigatório';
 export const ERRO_DESCONTO_FAIXA = 'De 0 a 100';
 
@@ -69,7 +74,7 @@ export const almocoPadraoDoTenant = (p: { almoco_padrao: HorarioAlmoco } | undef
 export const formularioNovo = (padrao: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): FormularioUsuario => ({ ...FORMULARIO_VAZIO, perfil: 'vendedor', perfis: [], ...jornadaDoForm(null, padrao) });
 
 export function formularioDoUsuario(u: UsuarioItem, padrao: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): FormularioUsuario {
-  return { ...jornadaDoForm(u, padrao), nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '', ...filiaisDoUsuario(u) };
+  return { ...jornadaDoForm(u, padrao), nome: u.nome, nome_curto: u.nome_curto ?? '', ...(ehUsuarioProvisorio(u.email) ? { email: '', email_tecnico: true } : { email: u.email }), perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '', ...filiaisDoUsuario(u) };
 }
 
 const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim());
@@ -107,8 +112,11 @@ export const textoDaConfirmacaoDoVinculo = (provisorio: Pick<UsuarioItem, 'clien
   return `${n === 1 ? 'Recebe o 1 cliente' : `Recebe os ${n} clientes`} da carteira e o provisório sai da lista.`;
 };
 
-/** E-mail na lista: o do provisório (`provisorio` da API) aparece como "—" (spec §6). */
-export const emailParaLista = (u: Pick<UsuarioItem, 'email' | 'provisorio'>): string => (u.provisorio === true ? '—' : u.email);
+/** E-mail na lista: o técnico do provisório (RN-CORE-58) aparece como "—" (spec §6). */
+export const emailParaLista = (u: Pick<UsuarioItem, 'email'>): string => (ehUsuarioProvisorio(u.email) ? '—' : u.email);
+
+/** Código ERP (`external_id`) na lista: sem o código (usuário que não veio do ERP) aparece "—", como o Código FDV. */
+export const codigoErpParaLista = (u: { external_id?: string | null }): string => u.external_id?.trim() || '—';
 
 /** Código FDV na lista e na gaveta: sem o código (ainda não gerado) aparece "—". */
 export const codigoFdvParaLista = (u: Pick<UsuarioItem, 'codigo_fdv'>): string => u.codigo_fdv ?? '—';
@@ -126,6 +134,11 @@ const hierarquiaDoForm = (f: FormularioUsuario, cargo: Cargo | null) => hierarqu
  */
 export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar', hierarquia?: { cargo: Cargo | null; pessoas: readonly PessoaDaHierarquia[] }): ErroDeCampo[] {
   const erros = validarDadosDeUsuario({ nome: f.nome, email: f.email, perfil: f.perfil, external_id: f.external_id.trim() === '' ? null : f.external_id });
+  // RN-CORE-58: e-mail técnico oculto e vazio na edição não é erro; a API mantém o e-mail atual
+  if (modo === 'editar' && f.email_tecnico === true && f.email.trim() === '') {
+    const i = erros.findIndex((e) => e.campo === 'email');
+    if (i >= 0) erros.splice(i, 1);
+  }
   if (f.perfis.length === 0) erros.push({ campo: 'perfil', mensagem: ERRO_SEM_PERFIL });
   // RN-VEN-11a: o número só é exigido com "por pedido" ligada (desligada, o valor fica guardado)
   if (f.limita_pedido) {
@@ -178,7 +191,7 @@ export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null, comFi
 export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null, comFilial = false): EditarUsuarioRequest {
   const h = f.almoco_padrao ? null : lerHorarioAlmocoTexto(f.almoco_inicio, f.almoco_fim);
   const almoco = h?.ok ? { almoco_inicio_min: h.inicio_min, almoco_fim_min: h.fim_min } : { almoco_inicio_min: null, almoco_fim_min: null };
-  return { ...almoco, nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo), ...corpoDaFilial(f, comFilial) };
+  return { ...almoco, nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), ...(f.email.trim() === '' ? {} : { email: f.email.trim() }), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo), ...corpoDaFilial(f, comFilial) };
 }
 
 /** A API só fala ‰; o valor guardado vai mesmo com "por pedido" desligada. */
@@ -221,10 +234,10 @@ export function etiquetaDeSenha(u: Pick<UsuarioItem, 'sem_senha' | 'trocar_senha
 
 export type RotuloAcaoDeSenha = 'Redefinir senha' | 'Enviar acesso';
 
-/** Ação de senha da linha: nunca para admin (P7: admin recupera pelo "Esqueci a senha"); "Enviar acesso" para quem não tem senha. */
-export function acaoDeSenha(u: Pick<UsuarioItem, 'perfil' | 'ativo' | 'sem_senha' | 'perfis'>): { rotulo: RotuloAcaoDeSenha } | null {
+/** Ação de senha da linha: nunca para admin (P7: admin recupera pelo "Esqueci a senha") nem para provisório do ERP (RN-CORE-58: e-mail técnico, sem destino e nunca mostrado); "Enviar acesso" para quem não tem senha. */
+export function acaoDeSenha(u: Pick<UsuarioItem, 'perfil' | 'ativo' | 'sem_senha' | 'perfis' | 'email'>): { rotulo: RotuloAcaoDeSenha } | null {
   // P7: perfil de base admin nunca tem a senha redefinida por aqui (os perfis de hoje são os de fábrica: código = base)
-  if (temPerfilDeBase(u.perfis.length > 0 ? u.perfis : [{ base: u.perfil }], 'admin') || !u.ativo) return null;
+  if (temPerfilDeBase(u.perfis.length > 0 ? u.perfis : [{ base: u.perfil }], 'admin') || !u.ativo || ehUsuarioProvisorio(u.email)) return null;
   return { rotulo: u.sem_senha ? 'Enviar acesso' : 'Redefinir senha' };
 }
 

@@ -404,4 +404,31 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
       expect(r3).toMatchObject({ revisao: 2, hash: hashPreCadastro(await comFilial(t, ID3, pre(ID3, { razao_social: 'Cliente 3 corrigido', latitude: -3.1, longitude: -60.02 }))) });
     });
   });
+
+  it('RN-INT-22 (v1.0.34, aditivo): o Hub recebe o vendedor_external_id do vendedor que fez o pré-cadastro (autor da 1ª tentativa), mesmo com a carteira movida ou encerrada; sem código ou autor não vendedor, null; o hash não muda; outro tenant não vaza', async () => {
+    await emTransacao(pool, async (t) => {
+      await post(t, VENDEDOR, pre(ID1));
+      await post(t, ADMIN, pre(ID2, { origem: 'bko' }));
+      const achar = async (id: string) => (await hub(t)).clientes.find((x) => x.cliente_id === id)!;
+      await t.q('update core.usuario set external_id = null where id = $1', [A.usuarios.vendedor1]);
+      const antes = await achar(ID1);
+      expect(antes.vendedor_external_id).toBeNull();
+      await t.q("update core.usuario set external_id = 'V-77' where id = $1", [A.usuarios.vendedor1]);
+      const depois = await achar(ID1);
+      expect(depois.vendedor_external_id).toBe('V-77');
+      expect(depois.hash).toBe(antes.hash);
+      await t.q("update core.carteira set fim = current_date - 1 where cliente_id = $1", [ID1]);
+      await t.q("insert into core.carteira (tenant_id, cliente_id, usuario_id, papel) values (plataforma.tenant_atual(), $1, $2, 'vendedor')", [ID1, A.usuarios.vendedor2]);
+      expect((await achar(ID1)).vendedor_external_id).toBe('V-77');
+      expect(depois.hash).toBe(hashPreCadastro(await comFilial(t, ID1, pre(ID1))));
+      expect((await achar(ID2)).vendedor_external_id).toBeNull();
+      // revisão 1 do BKO e revisão 2 de vendedor: o autor da 1ª tentativa não é vendedor, então null
+      await recusar(t, ID2);
+      await post(t, ADMIN, pre(ID2, { origem: 'bko', revisao_base: 1, razao_social: 'Cliente 2 corrigido' }));
+      await t.q("update core.cliente_pre_cadastro_tentativa set corrigido_por = $2, corrigido_por_perfil = 'vendedor' where cliente_id = $1 and revisao = 2", [ID2, A.usuarios.vendedor1]);
+      expect((await achar(ID2)).vendedor_external_id).toBeNull();
+      await t.trocarTenant(B.tenantId);
+      expect((await hub(t)).clientes).toEqual([]);
+    });
+  });
 });

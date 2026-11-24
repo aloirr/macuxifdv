@@ -123,6 +123,8 @@ export const RODAPE_EMAIL = 'Equipe Macuxi FDV · Boa Vista, RR · macuxifdv.com
 /** Texto alternativo do logo (o `aria-label` do SVG); sem `urlLogo`, entra como texto no lugar do logo. */
 export const TEXTO_ALTERNATIVO_LOGO = 'Macuxi Força de Vendas';
 const ROTULO_BOTAO_BKO = 'Abrir o backoffice';
+/** Dica logo abaixo da senha (opção B, R-20261124-181507-alexandre). */
+const DICA_COPIAR_SENHA = 'Toque e segure para copiar';
 
 /**
  * Apresentação (não vem da carga cifrada; vem da configuração da API). Sem `urlLogo`, o texto alternativo entra como texto;
@@ -140,9 +142,10 @@ interface CorpoEmail {
   contexto: string;
   /**
    * Rótulo + valor, cada valor numa linha só dele. `codigo` = mono (manual §5.1: código da empresa e senha temporária; o e-mail
-   * fica na fonte de texto); `destaque` = a senha, a maior coisa do bloco, em ênfase 600 (manual §5.2).
+   * fica na fonte de texto); `destaque` = a senha, a maior coisa do bloco, em ênfase 600 (manual §5.2), num campo branco
+   * fácil de selecionar com um toque, com a `dica` logo abaixo (opção B, R-20261124-181507-alexandre).
    */
-  dados: readonly { rotulo: string; valor: string; codigo?: boolean; destaque?: boolean }[];
+  dados: readonly { rotulo: string; valor: string; codigo?: boolean; destaque?: boolean; dica?: string }[];
   validade?: string;
   botao?: { rotulo: string; url: string };
 }
@@ -169,17 +172,34 @@ function cabecalhoHtml(op: OpcoesApresentacaoEmail): string {
   );
 }
 
+const ESTILO_ROTULO = `${F_TEXTO}font-size:13px;line-height:18px;color:#5B6673`;
+
+/**
+ * A senha (opção B, R-20261124-181507-alexandre; simulação docs/design/simulacoes/2026-11-24/email-acesso-copiar.md): um campo
+ * branco com a borda de componente `#7A8593` (manual da marca, decisão de 22/11), mono grande e espaçada, um só elemento com
+ * `user-select:all` (o toque longo pega a senha inteira onde o cliente aceita) e a dica logo abaixo. Tabela, sem flex.
+ */
+function campoSenhaHtml(d: CorpoEmail['dados'][number], familia: string, comValidade: boolean): string {
+  const campo =
+    `<tr><td style="padding:4px 20px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>` +
+    `<td class="mx-valor mx-campo" bgcolor="#FFFFFF" style="background:#FFFFFF;border:1px solid #7A8593;border-radius:8px;padding:12px 14px;${familia}font-size:24px;line-height:30px;font-weight:600;letter-spacing:2px;color:#16202A;${SELECIONAVEL}">${escaparHtml(d.valor)}</td>` +
+    '</tr></table></td></tr>';
+  const dica = d.dica
+    ? `\n<tr><td class="mx-rotulo" style="padding:6px 20px ${comValidade ? 8 : 16}px;${ESTILO_ROTULO}">${escaparHtml(d.dica)}</td></tr>`
+    : '';
+  return campo + dica;
+}
+
 function dadosHtml(c: CorpoEmail): string {
   const linhas = c.dados.map((d) => {
-    const rotulo = `<tr><td class="mx-rotulo" style="padding:${d.destaque ? '12px' : '0'} 20px 2px;${F_TEXTO}font-size:13px;line-height:18px;color:#5B6673">${escaparHtml(d.rotulo)}</td></tr>`;
+    const rotulo = `<tr><td class="mx-rotulo" style="padding:${d.destaque ? '12px' : '0'} 20px 2px;${ESTILO_ROTULO}">${escaparHtml(d.rotulo)}</td></tr>`;
     const familia = d.codigo ? F_MONO : F_TEXTO;
-    const fonte = d.destaque
-      ? `padding:0 20px ${c.validade ? 4 : 16}px;${familia}font-size:22px;line-height:30px;font-weight:600;`
-      : `padding:0 20px 12px;${familia}font-size:17px;line-height:24px;font-weight:500;`;
+    if (d.destaque) return `${rotulo}\n${campoSenhaHtml(d, familia, Boolean(c.validade))}`;
+    const fonte = `padding:0 20px 12px;${familia}font-size:17px;line-height:24px;font-weight:500;`;
     return `${rotulo}\n<tr><td class="mx-valor" style="${fonte}color:#16202A;${SELECIONAVEL}">${escaparHtml(d.valor)}</td></tr>`;
   });
   const validade = c.validade
-    ? `\n<tr><td class="mx-texto" style="padding:0 20px 16px;${F_TEXTO}font-size:14px;line-height:20px;color:#4A5562">${escaparHtml(c.validade)}</td></tr>`
+    ? `\n<tr><td class="mx-texto" style="padding:0 20px 16px;${F_TEXTO}font-size:13px;line-height:20px;color:#4A5562">${escaparHtml(c.validade)}</td></tr>`
     : '';
   return (
     '<tr><td>\n<table role="presentation" class="mx-dados" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F8F6F1" style="background:#F8F6F1;border:1px solid #DFE2E6;border-radius:8px">\n' +
@@ -223,6 +243,7 @@ function cabecaHtml(assunto: string, op: OpcoesApresentacaoEmail): string {
     '    .mx-titulo, .mx-valor, .mx-marca { color:#FFFFFF !important; }\n' +
     '    .mx-texto, .mx-rotulo, .mx-assinatura { color:#C9CED5 !important; }\n' +
     '    .mx-dados { background:#3A4D68 !important; border-color:#3A4D68 !important; }\n' +
+    '    .mx-campo { background:#1E3350 !important; border-color:#C9CED5 !important; }\n' +
     '    .mx-filete { border-top-color:#C9CED5 !important; }\n' +
     '    .mx-botao { background:#FFFFFF !important; }\n' +
     '    .mx-botao-txt { color:#1E3350 !important; }\n' +
@@ -233,7 +254,7 @@ function cabecaHtml(assunto: string, op: OpcoesApresentacaoEmail): string {
 
 /**
  * Monta o HTML (tabelas, estilos inline, 600 px, modo escuro; spec §2 e §5, base `redefinir-senha/depois-*.html`) e a versão
- * só texto (spec §3: mesmo conteúdo e ordem, cada valor numa linha só dele).
+ * só texto (spec §3: mesmo conteúdo e ordem, cada valor numa linha só dele; sem a dica da senha, que depende do campo do HTML).
  */
 function montar(assunto: string, c: CorpoEmail, op: OpcoesApresentacaoEmail): EmailRenderizado {
   const texto =
@@ -289,7 +310,7 @@ function renderizarValidado(modelo: ModeloEmail, c: CargaEmail, op: OpcoesAprese
       dados: [
         { rotulo: 'Código da empresa', valor: d.codigo_empresa, codigo: true },
         { rotulo: 'E-mail', valor: d.login },
-        { rotulo: 'Senha temporária', valor: d.senha, codigo: true, destaque: true },
+        { rotulo: 'Senha temporária', valor: d.senha, codigo: true, destaque: true, dica: DICA_COPIAR_SENHA },
       ],
       ...(d.validade_horas === null ? {} : { validade: `Vale por ${d.validade_horas} horas.` }),
       ...(d.apps.includes('web') && op.urlBackoffice ? { botao: { rotulo: ROTULO_BOTAO_BKO, url: op.urlBackoffice } } : {}),

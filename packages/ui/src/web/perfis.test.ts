@@ -16,6 +16,10 @@ import {
   tituloDaSecao,
   type MudancaDePermissao,
 } from './perfis';
+import * as perfis from './perfis';
+
+/** Código interno que nunca aparece para o cliente (R-20261124-094002). */
+const CODIGO_INTERNO = /\b(RN|RF|RD)-|\bT-\d{4}\b|\bADR\b/;
 
 describe('perfis de acesso: textos e arrumação (T-0111)', () => {
   it('as 12 seções aprovadas, na ordem, e o bloco final', () => {
@@ -90,7 +94,7 @@ describe('perfis de acesso: textos e arrumação (T-0111)', () => {
     expect(textoOndeEntra(['portal', 'bko', 'campo'])).toBe('Entra em: Campo, BKO e Portal.');
   });
 
-  it('todo texto de cadeado cita a regra', () => {
+  it('nenhum texto visível traz código interno (R-20261124-094002)', () => {
     const textos = [
       CADEADO.escopoAcimaDaBase('vendedor'),
       CADEADO.autogestao,
@@ -99,7 +103,16 @@ describe('perfis de acesso: textos e arrumação (T-0111)', () => {
       CADEADO.padraoNaoDesativa,
       CADEADO.senhaSempreComRegra,
     ];
-    for (const t of textos) expect(t).toMatch(/\(RN-[A-Z]+-\d+\)\.$/);
-    expect(CADEADO.escopoAcimaDaBase('supervisor')).toBe('Acima do perfil base Supervisor (RN-CORE-04).');
+    const visiveis = [
+      ...textos,
+      CADEADO.coreSempreLigado,
+      ...SECOES_DO_PERFIL.map((s) => s.titulo),
+      ...Object.values(perfis).filter((v: unknown): v is string => typeof v === 'string'),
+      ...Object.values(perfis.TEXTO_INTERRUPTOR),
+    ];
+    for (const t of visiveis) expect(t).not.toMatch(CODIGO_INTERNO);
+    for (const t of textos) expect(t).toMatch(/[a-zà-ú]\.$/);
+    expect(CADEADO.escopoAcimaDaBase('supervisor')).toBe('Acima do perfil base Supervisor.');
+    expect(CADEADO.baseImutavel).toBe('O perfil base não muda depois de criado.');
   });
 });
