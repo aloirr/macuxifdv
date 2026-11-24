@@ -253,3 +253,61 @@ Nenhum recado foi enviado nesta tarefa, como o pedido mandou. O gerente-projetos
 - **Liberados (4):** e67a0bb, 26e05c1, 509ec65 e 3ebfd15.
 - **Não liberados (9):** 72c92bf, e372cf8, d2f2438, c5d88a9, 5420e21, 41e16fa, 6bc880a, f19fe03 e e62cea1.
 - **Abertos:** 9, todos seguram. São 8 novos (RD-2741 a RD-2749) e o RD-0284 reaberto em parte. O RD-0051 continua aberto, preso ao RD-2741, ao RD-2747 e ao RD-2748.
+
+## Reteste v1.0.32 (sessão G)
+
+- **Data:** 24/11/2026 (horário de Manaus). Pedido do gerente-projetos depois da rodada 2 dos donos sobre o "Parecer v1.0.32 (sessão G)" (e37c7b1). Mesma decisão "3 A" (R-20261123-190212-alexandre e R-20261123-222635-alexandre).
+- **Bases:** cada SHA contra o SHA do parecer (`git diff <parecer>..<sha>`). Os branches de CSV dos módulos trazem o merge do 579a785, e o diff deles foi lido contra `origin/nuvem/v1032-csv-engenheiro-software` (579a785). O grep final das células de CSV foi feito à mão no conjunto: em cada branch, só os caminhos do dono; no 579a785, `apps` e `packages`.
+- **Critério:** o mesmo do parecer. Nenhum achado aberto, de qualquer gravidade (R-20261110-062506). A exceção (R-20261111-190159) vale só para comentário ou título de teste de gravidade baixa. Corpo de teste repetido segura.
+- **Graphify:** 1 consulta (`query` das células de CSV e do BOM fora do comum). O mapa é do `main`, e por isso o conjunto foi conferido com `git grep` nos SHAs.
+
+### Veredito por branch
+
+| Branch | SHA | Veredito | Achados |
+|---|---|---|---|
+| `nuvem/v1032-portal-engenheiro-apps` | b9008a7 | **LIBERADO** | RD-0284 corrigido: o gravado mostra o rótulo, "Módulos que entraram" (só com 1 ou mais) e os avisos, sem parâmetros e sem administrador. Saíram `textoDoAdminNoResultado`, o estado `emailEnviado` e o teste deles. RD-2742 corrigido: um `ResultadoEmpresa`, com o tom e o título pelo `simulado`, e `modulosNaLista` usada também em `textoDaConferencia`. Não sobra `empresa.resultado-admin` no código nem nos testes. O resíduo em `docs/producao/sabado.md` é o RD-2750, do gerente-projetos, e não segura este branch |
+| `nuvem/v1032-core-modulo-core` | 32fe2e8 | **LIBERADO** | RD-2744 corrigido: o caso repetido saiu, e a CWE-1236 foi para o título do `describe`. Os tipos importados seguem em uso nas fotos |
+| `nuvem/v1032-ux-designer-ux` | b530e3d | **LIBERADO** | RD-2743 corrigido: a spec (§6) descreve o Conferir em uma linha e o gravado como o código faz. Não sobra "Administrador que será criado" em `docs/design` |
+| `nuvem/v1032-csv-engenheiro-software` | 579a785 | **LIBERADO** | RD-2741 (parte do comum) corrigido: `ValorCsv` e `textoDaCelula` únicos, com uma linha no JSDoc. RD-2745 corrigido. RD-2749 corrigido: `goals.ts` usa `BOM_CSV` e `celulaCsvCompacta`. Os dois casos "nulo e número" de `csv.test.ts` são um por função pública, com saídas diferentes (`""` × vazio), e não se repetem |
+| `nuvem/v1032-csv-modulo-catalogo` | 3dc1593 | **LIBERADO** | RD-2741 corrigido nas 3 células (`marcas.ts`, `tabelas-preco.ts` e `formularios.ts`). Os 2 casos novos de fórmula são os únicos que provam que `produtosParaCsv` e `precosParaCsv` passam pelo comum |
+| `nuvem/v1032-csv-modulo-gestor` | 8d4e621 | **LIBERADO** | RD-2741 corrigido: o adaptador saiu e o arredondamento vem de `arredondar(v, 2)` do comum. O caso do negativo é o único que prova o arredondamento no CSV (`-2,345` → `-2,35`; o `Math.round` daria `-2,34`) |
+| `nuvem/v1032-csv-modulo-promotor` | cd4903b | **LIBERADO** | RD-2741 e RD-2747 corrigidos: `csvCelula` e `CSV_BOM` saíram, e o teste passa pela saída do `paraCsv` |
+| `nuvem/v1032-csv-modulo-integracao` | 3309c6c | **LIBERADO** | RD-2741 e RD-2747 corrigidos: `csvCell`, `Celula` e `CSV_BOM` saíram, e o teste vai pelo `toCsv`. RD-2748 corrigido: `celulaDoModelo` única no kit, com o JSDoc proposto, importada pelo `migrar-csv-1.0.5.ts` |
+| `nuvem/v1032-csv-modulo-treinamento` | ca4f270 | **NÃO LIBERADO** | RD-2741 corrigido (`map(celulaCsvCompacta)` direto). Novo: RD-2751 |
+| `nuvem/v1032-csv-modulo-vendedor` | c01675b | **LIBERADO** | RD-2741 corrigido: `map(celulaCsv)` direto. RD-2747 corrigido: `CSV_BOM` e o `expect(CSV_BOM).toBe('﻿')` saíram. A fórmula é testada pelo `ordersToCsv` |
+| `nuvem/v1032-csv-testes` | f922696 | **LIBERADO** | RD-2746 corrigido: P1 a P3 pela `exportarRespostasCsv` com uma resposta de texto, e o `=1+1` não se repete (fica no `exportacao.test.ts` da Pesquisa). O merge do 3ebfd15 não muda a Pesquisa |
+| `nuvem/v1032-comentarios-testes` | e67a0bb | **LIBERADO** | sem mudança desde o parecer |
+| `nuvem/v1032-comentarios-modulo-vendedor` | 26e05c1 | **LIBERADO** | sem mudança desde o parecer |
+| `nuvem/v1032-csv-modulo-pesquisa` | 3ebfd15 | **LIBERADO** | sem mudança desde o parecer |
+
+### Achados novos
+
+| RD | Grav. | Tipo | Onde (SHA) | O que se repete | Proposta (antes → depois) | Dono | Segura |
+|---|---|---|---|---|---|---|---|
+| RD-2750 | média | doc | `docs/producao/sabado.md:63`, passo 5, coluna do resultado esperado (`main` 0865039 e todos os branches) | O roteiro espera `"Empresa criada" e "Administrador criado: <e-mail>"`. Com o RD-0284 (b9008a7), a tela gravada não diz mais o administrador. São dois docs com textos diferentes para o mesmo resultado, e a fonte da verdade é `docs/design/portal-entrar.md` §6 (b530e3d) | `"Empresa criada" e "Administrador criado: <e-mail>"` → `"Empresa criada." e "Módulos que entraram: <módulos>."` | gerente-projetos | sim (doc), no lote do gerente. Não segura o b9008a7 |
+| RD-2751 | baixa | teste | `modules/treinamento/web/lib/csv.test.ts:57-62` (ca4f270) | O caso "RD-0051: célula que começa com = sai com apóstrofo; número negativo fica como está" repete a foto byte a byte logo acima (`:41-55`), que já mostra `'=1+1` pelo mesmo `toCsv`. O `-1` repete o `celulaCsvCompacta(-5)` do comum (`packages/comum/src/csv.test.ts`). Fazia sentido com o adaptador local do f19fe03 (`typeof v === 'number' ? String(v)`); com o `map(celulaCsvCompacta)` direto, não prova mais nada do módulo | Tirar o caso `:57-62`. A foto `:41-55` continua garantindo a fórmula e os números do CSV do treinamento | modulo-treinamento | sim (corpo de teste) |
+
+**Grep final** (`replace(/"/g, '""')`, `/[;"`, `protegerFormula`, `CSV_BOM`, `﻿` e o BOM literal em `.ts`/`.tsx`, sem testes e sem `.md`), no conjunto. Sobram:
+- `packages/comum/src/csv.ts`, com `protegerFormula`, `celulaCsv`, `celulaCsvCompacta` e o `BOM_CSV`, o único BOM literal em código;
+- `modules/integracao/kit-thathyany/lib/modelos-csv.ts:403` (`celulaDoModelo`), que fica sem proteção de propósito, porque o arquivo vai ao importador (RD-2748);
+- `packages/platform-sdk/src/busca.ts:81` e `packages/platform-sdk/src/sqlite/armazenamento.ts:705`, que não são CSV;
+- escapes de HTML (`&quot;`) no PDF do catálogo, no PDF do pedido e no Conector, que não são CSV.
+
+Não sobra adaptador, apelido nem célula de CSV à mão nos módulos.
+
+**RD-0051:** **fecha**. O RD-2741, o RD-2747 e o RD-2748 estão corrigidos nos branches, e a parte do Core está no 32fe2e8. Ficam os dois formatos do comum: `celulaCsv`, com aspas sempre, e `celulaCsvCompacta`, com aspas só quando precisa. O RD-2751 é de teste e não reabre o RD-0051. No catálogo, o status passa a "corrigido", e a confirmação vem no merge.
+
+### Encaminhar ao testes (sem RD, como no parecer)
+- Os dois pontos do parecer seguem como estão: o "Sessão até" no horário de Manaus (`apps/web/components/portal/base.tsx:270`) e o apóstrofo no negativo em texto dos CSVs que passaram a proteger fórmula.
+- Mudança de comportamento do vendedor (c01675b): o `toCsv` passou a receber o número cru pelo `celulaCsv`. Com isso, o número negativo deixa de ganhar apóstrofo e o decimal sai com vírgula. Hoje o `ordersToCsv` só manda texto (`csvNumber`). O testes confere `formas-pagamento.ts:183,189` e `transportadoras.ts:67`.
+
+### Observação sem número (próxima rodada)
+- `modules/gestor/web/lib/csv.test.ts:25-26` (já estava no `main`, fora do diff): o `expect(cab).toBe(BOM_CSV + …)` já garante o `startsWith(BOM_CSV)` da linha seguinte.
+
+Nenhum recado foi enviado nesta tarefa, como o pedido mandou. O gerente-projetos repassa ao modulo-treinamento e cuida do próprio RD-2750.
+
+### Resumo do reteste
+- **Liberados (13):** b9008a7, 32fe2e8, b530e3d, 579a785, 3dc1593, 8d4e621, cd4903b, 3309c6c, c01675b e f922696. Sem mudança, seguem liberados o e67a0bb, o 26e05c1 e o 3ebfd15.
+- **Não liberado (1):** ca4f270 (RD-2751).
+- **Corrigidos nos branches (11):** RD-0051, RD-0284 e RD-2741 a RD-2749 (RD-2741, RD-2742, RD-2743, RD-2744, RD-2745, RD-2746, RD-2747, RD-2748 e RD-2749).
+- **Abertos (2):** RD-2750 (gerente-projetos, doc) e RD-2751 (modulo-treinamento, corpo de teste). Os dois seguram.
