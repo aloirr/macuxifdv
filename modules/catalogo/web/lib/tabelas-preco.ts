@@ -126,7 +126,7 @@ export function faixaDoForm(f: FormFaixa): ResultadoForm<SalvarFaixa> {
   return { ok: true, valor };
 }
 
-const csv = (linhas: (string | number | null)[][]) => BOM_CSV + linhas.map((r) => r.map((v) => celulaCsvCompacta(String(v ?? ''))).join(';')).join('\r\n') + '\r\n';
+const csv = (linhas: (string | number | null)[][]) => BOM_CSV + linhas.map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 
 /** CSV da aba Escalonada (padrão do Excel brasileiro: `;`, CRLF e BOM). */
 export function faixasParaCsv(faixas: readonly FaixaCadastrada[]): string {

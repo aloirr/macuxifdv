@@ -161,7 +161,7 @@ export function sinonimoDoForm(f: FormSinonimo): ResultadoForm<SalvarSinonimo> {
 export function produtosParaCsv(itens: readonly ItemVitrine[]): string {
   const cab = ['Código', 'Produto', 'Marca', 'Categoria', 'Unidade', 'EAN', 'Destaque'];
   const corpo = itens.map((i) => [i.erp_code, i.description, i.brand, i.line, i.unit, i.ean ?? '', i.is_campaign ? 'Sim' : 'Não']);
-  return BOM_CSV + [cab, ...corpo].map((r) => r.map((v) => celulaCsvCompacta(String(v ?? ''))).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + [cab, ...corpo].map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
 
 export type AbaBko = 'produtos' | 'sinonimos' | 'sem-resultado';

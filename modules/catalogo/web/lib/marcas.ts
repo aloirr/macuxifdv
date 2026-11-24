@@ -37,5 +37,5 @@ export function buscaDosFiltrosMarcas(f: FiltrosMarcas): string {
 /** CSV da lista (padrão do Excel brasileiro: `;`, CRLF e BOM). */
 export function marcasParaCsv(marcas: MarcaListaSaida['marcas']): string {
   const linhas: (string | number)[][] = [['Marca', 'Situação', 'Referências', 'Código no ERP'], ...marcas.map((m) => [m.nome, m.ativo ? 'Ativa' : 'Inativa', m.referencias, m.external_id ?? ''])];
-  return BOM_CSV + linhas.map((r) => r.map((v) => celulaCsvCompacta(String(v))).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + linhas.map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
