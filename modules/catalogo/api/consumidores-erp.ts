@@ -203,11 +203,31 @@ export function criarConsumidorEstoqueDoErp(resolver: ResolverProdutos = resolve
           [dep.rows[0]!.id, c.produto_id, c.quantidade, c.atualizado_erp_em, c.external_id],
         );
       }
+      // RN-INT-02/RN-INT-04: o par vivo (depósito, produto) é único (estoque_saldo_uk). Mais novo vence (atualizado_erp_em x ocorrido_em): evento mais velho que o saldo do par ou que a própria linha não muda nada;
+      // senão, sem linha do evento o saldo do par é adotado; com ela (movida para o par), o do par é apagado.
+      const vivos = (
+        await ctx.db.query<{ id: string; external_id: string | null; velho: boolean }>(
+          `select id, external_id, coalesce(atualizado_erp_em > $4::timestamptz, false) as velho from catalogo.estoque_saldo
+           where deleted_at is null and ((deposito_id = $1 and produto_id = $2 and external_id is distinct from $3) or external_id = $3)`,
+          [dep.rows[0]!.id, produto, l.external_id, p.ocorrido_em],
+        )
+      ).rows;
+      if (vivos.some((v) => v.velho)) {
+        ctx.log.warn({ external_id: l.external_id }, 'estoque do ERP mais velho que o saldo vivo; ignorado');
+        return;
+      }
+      const doPar = vivos.find((v) => v.external_id !== l.external_id);
+      if (doPar) {
+        if (vivos.some((v) => v.external_id === l.external_id)) await ctx.db.query('update catalogo.estoque_saldo set deleted_at = now() where id = $1', [doPar.id]);
+        else await ctx.db.query('update catalogo.estoque_saldo set external_id = $2 where id = $1', [doPar.id, l.external_id]);
+      }
+      // o where do on conflict repete a guarda para a corrida entre entregas
       await ctx.db.query(
         `insert into catalogo.estoque_saldo (tenant_id, deposito_id, produto_id, quantidade, atualizado_erp_em, external_id)
          values (plataforma.tenant_atual(), $1, $2, $3, $4::timestamptz, $5)
          on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
-         do update set deposito_id = excluded.deposito_id, produto_id = excluded.produto_id, quantidade = excluded.quantidade, atualizado_erp_em = excluded.atualizado_erp_em`,
+         do update set deposito_id = excluded.deposito_id, produto_id = excluded.produto_id, quantidade = excluded.quantidade, atualizado_erp_em = excluded.atualizado_erp_em
+         where catalogo.estoque_saldo.atualizado_erp_em is null or catalogo.estoque_saldo.atualizado_erp_em <= excluded.atualizado_erp_em`,
         [dep.rows[0]!.id, produto, l.saldo, p.ocorrido_em, l.external_id],
       );
     },
