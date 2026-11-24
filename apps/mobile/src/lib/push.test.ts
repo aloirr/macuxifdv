@@ -59,6 +59,12 @@ describe('FCM direto: data como mapa de textos', () => {
 });
 
 describe('rotaDoPush', () => {
+  it('T-0195: o push do aviso de versão nova (subtipo, sem link) abre a folha /atualizar-app; o link do servidor prevalece', () => {
+    expect(rotaDoPush({ subtipo: 'app_versao_nova' })).toBe('/atualizar-app');
+    expect(rotaDoPush({ subtipo: 'app_versao_nova', link: '/m/rascunhos' })).toBe('/m/rascunhos');
+    expect(rotaDoPush({ subtipo: 'outro' })).toBeNull();
+  });
+
   it('abre a rota interna do link ou o detalhe do pedido', () => {
     expect(rotaDoPush({ link: '/m/core/notificacoes' })).toBe('/m/core/notificacoes');
     expect(rotaDoPush({ link: '/m/pedido?id=abc' })).toBe('/m/pedido?id=abc');

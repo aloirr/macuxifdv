@@ -16,3 +16,8 @@ export function lerModoApi(env: { EXPO_PUBLIC_API_MODO?: string | undefined }): 
 export function rotaDeSaude(modo: ModoApi): string {
   return modo === 'v1' ? '/saude' : '/health';
 }
+
+/** Rota do contrato (`/v1/...`) relativa ao `/v1`, como o `ApiClient` e o `ClienteHttp` do shell chamam. */
+export function semPrefixoV1(rota: string): string {
+  return rota.replace(/^\/v1(?=\/)/, '');
+}
