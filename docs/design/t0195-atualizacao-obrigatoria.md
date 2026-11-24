@@ -7,7 +7,8 @@
 
 ## 1. Regra que o desenho garante
 Nada digitado se perde: orçamento, pedido, pré-cadastro e o resto da fila de envio. Por isso:
-- o botão de baixar **só aparece com a fila vazia**. Com itens, a única ação é enviar;
+- o botão de baixar **só aparece com pendentes, "Não aceito" e rascunhos em zero** (ADR 0070, D8 (a)). Antes disso, a única ação é
+  a que zera a contagem da vez (§5);
 - o texto pede para **instalar por cima, sem desinstalar** (no Android, desinstalar apaga os dados do app);
 - o título literal do Alexandre ("reinstale") fica, e a linha logo abaixo diz como fazer sem desinstalar.
 
@@ -25,7 +26,8 @@ A bolinha do sino acende como para qualquer recado novo. Nenhum banner, faixa ou
 
 ### 2.1 Folha "Baixar a versão X.Y.Z"
 `Folha` com título **Baixar a versão X.Y.Z** e `fechar={{ rotulo: 'Fechar' }}`. O conteúdo é o **mesmo bloco de estado da tela de
-bloqueio** (§3.2, linhas 3 a 6, com os mesmos textos e estados). A fila também tem de estar vazia antes de baixar. A folha não
+bloqueio** (§3.2, linhas 3 a 6, com os mesmos textos e estados de §3.3 e §5). As três contagens também têm de estar em zero
+antes de baixar. A folha não
 repete o título da tela de bloqueio, porque o app segue liberado. Toque fora ou Voltar do Android fecham a folha. O envio
 continua por trás, como hoje.
 
@@ -93,17 +95,44 @@ mesmas medidas, montada no shell com as peças acima. Se o engenheiro-apps prefe
 opcional `estado` (ReactNode entre o texto e os botões) e `ocupado` no principal, sem mudar o que já existe. O pedido vem por
 recado.
 
-## 5. Pendências para o ADR 0070 (fora do desenho)
-- **Item recusado pela API** (regra de negócio, não falha de rede): ele não esvazia a fila e o botão de baixar nunca aparece. É
-  preciso definir se a API aceita o item da versão antiga, se ele vai para revisão no BKO ou se sai da fila com um registro. O
-  desenho pode receber um estado "N itens recusados" quando isso for decidido.
-- **Sem sessão** (login expirado na tela de bloqueio): é preciso definir se o pedido do link temporário e o envio da fila exigem
-  login. Se exigirem, a tela ganha o estado "Entre para enviar" antes do envio.
-- Gestão: a fila tem outros tipos (aprovações, recados). Os textos acima já são genéricos ("itens") e valem para os dois apps.
+## 5. Sessão, "Não aceito" e rascunhos (decisão do ADR 0070, D8 (a))
+"Não aceito" e rascunhos não saem sozinhos: a tela mostra a contagem e abre só a tela que os resolve. Nada é descartado aqui.
+
+### 5.1 Prioridade (um estado por vez, um só principal)
+1. **Sem sessão** (vem antes de tudo: sem login não há envio nem link).
+2. **Pendentes > 0**: os estados de fila de §3.3 (enviar primeiro, porque o envio pode gerar novos "Não aceito").
+3. **Não aceito > 0**.
+4. **Rascunhos > 0** (só existem no Campo; no Gestão a contagem é sempre zero).
+5. **Tudo em zero**: os estados de download de §3.3.
+
+Só a contagem do estado da vez aparece. As outras ficam para quando ele zerar: a tela volta e mostra a próxima.
+
+### 5.2 Textos finais (literais)
+| Estado | Texto (linha 3) | Linha 4 | Principal (linha 5) | Secundário |
+|---|---|---|---|---|
+| **Sem sessão** | Antes de reinstalar, entre para enviar o que está neste aparelho. Não desinstale o app. | (nada) | **Entrar** | (nenhum) |
+| **Não aceito** (N > 0) | Antes de reinstalar, corrija ou descarte o que não foi aceito. Não desinstale o app. | `ChipEstado tom="erro" icone="alert"`: **N não aceitos** | **Abrir os não aceitos** | (nenhum) |
+| **Rascunhos** (N > 0) | Antes de reinstalar, envie ou descarte os rascunhos. Não desinstale o app. | `ChipEstado tom="aviso" icone="edit"`: **N rascunhos** | **Abrir os rascunhos** | (nenhum) |
+
+Singular (N = 1): chip **1 não aceito** e **1 rascunho**; botão **Abrir o não aceito** e **Abrir o rascunho**; texto "…envie ou
+descarte o rascunho. Não desinstale o app." O texto do não aceito não muda no singular.
+
+Destinos (shell, ADR 0070): "Abrir os não aceitos" leva à tela que corrige o primeiro item (pedido, orçamento ou pré-cadastro
+recusado); os demais "Não aceito" abrem a fila do aparelho no Perfil, com o motivo e o Descartar. "Abrir os rascunhos" leva à
+lista de Rascunhos. "Entrar" leva ao login. Ao voltar, a tela de bloqueio reaparece com a contagem nova.
+
+Na folha do período de 24 h (§2.1) valem os mesmos estados e textos; o "Abrir…" fecha a folha e navega. Sem sessão não ocorre na
+folha (o app está em uso).
+
+### 5.3 O que não entra
+- Sem lista dos itens nem motivo da recusa nesta tela: o motivo está na tela de destino (uma informação, um lugar).
+- Sem botão "Descartar" aqui: descartar é decisão na tela do item.
+- Sem chip no estado sem sessão: a contagem só aparece depois do login, no estado de fila.
 
 ## 6. Critérios para a revisão
 - Um só principal por estado. Alvo de toque ≥ 48 dp.
 - Contraste: título 14,9:1 e texto 6,9:1 no `ground`, como na `TelaDeErro`. O `ChipEstado` aviso e os Banners seguem os tons já
   conferidos do kit.
-- O botão de baixar nunca aparece com `N > 0`, em nenhuma superfície (tela e folha).
+- O botão de baixar nunca aparece com pendentes, "Não aceito" ou rascunhos acima de zero, nem sem sessão, em nenhuma superfície
+  (tela e folha).
 - Os textos são iguais nos dois apps. Só `X.Y.Z` muda por variante.
