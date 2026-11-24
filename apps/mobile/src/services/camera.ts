@@ -5,6 +5,10 @@
  * Captura: expo-image-picker (câmera do sistema; fachada do checkout, trade e pesquisa só pela câmera, tirada na hora), reduz para no
  * máximo 1600 px no maior lado e grava JPEG 80 (expo-image-manipulator) em `<documentos>/fotos/<uuid>.jpg`
  * (expo-file-system). Devolve o UUID gerado no aparelho; `null` = câmera negada ou cancelada (a tela orienta).
+ * v1.0.34 (R-20261124-093521): a volta da câmera passa por `esperarRetornoSeletor` (lib/retorno-camera.ts): se o Android destruir
+ * a atividade com a câmera aberta, a foto vem do `getPendingResultAsync` na volta do app. `capturarDaCamera` e `escolherDaGaleria`
+ * dizem por que não há foto (`cancelada`, `sem_permissao`, `erro`); na folha da foto do PDV, a câmera negada reabre a
+ * folha com o motivo na opção (spec docs/design/telas/cliente-documentacao-v1034.md §5).
  * A mesma câmera serve ao Core (fachada), ao Promotor (gôndola e tarefa, RN-PRO-02, com a coordenada do momento quando
  * houver) e à Pesquisa (pergunta de foto, RN-PES-06, com largura e altura gravadas).
  *
@@ -24,10 +28,11 @@ import { definirCapturaFotoPromotor } from '@macuxi/promotor/app';
 import { Directory, File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { pedirOrigemFotoPdv, type OrigemFotoPdv } from '@/lib/folha-foto-pdv';
 import { FOTO_QUALIDADE_JPEG, nomeArquivoFoto, PASTA_FOTOS, redimensionamento } from '@/lib/foto';
+import { esperarRetornoSeletor, lerRetornoSeletor, type PortasRetornoCamera, type ResultadoCaptura, type RetornoSeletor } from '@/lib/retorno-camera';
 import { posicaoAgora, uuid } from './device';
 import { abrirArquivo } from './visualizar-arquivo';
 
@@ -44,24 +49,58 @@ export async function capturarFoto(): Promise<string | null> {
   return (await capturarFotoGravada())?.id ?? null;
 }
 
-export async function capturarFotoGravada(): Promise<FotoGravada | null> {
-  if (Platform.OS === 'web') return null; // navegador (demonstração): sem câmera
+/** Portas reais da volta do seletor: o pendente do expo-image-picker e a volta do app ao primeiro plano. */
+const PORTAS_RETORNO: PortasRetornoCamera = {
+  pendente: () => ImagePicker.getPendingResultAsync() as Promise<RetornoSeletor>,
+  aoVoltar: (fn) => {
+    const s = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') fn();
+    });
+    return () => s.remove();
+  },
+  esperar: (ms) => new Promise((ok) => setTimeout(ok, ms)),
+};
+
+/** Foto do seletor reduzida e gravada; o motivo quando não há foto. */
+async function gravarDoSeletor(abrir: () => Promise<RetornoSeletor>): Promise<ResultadoCaptura<FotoGravada>> {
+  const r = lerRetornoSeletor(await esperarRetornoSeletor(abrir, PORTAS_RETORNO));
+  if (r.tipo !== 'foto') return r;
+  try {
+    return { tipo: 'foto', foto: await gravarReduzida(r.foto) };
+  } catch {
+    return { tipo: 'erro' };
+  }
+}
+
+/** Câmera do sistema; `sem_permissao` = câmera negada (a tela pede para liberar nos ajustes). Navegador: cancelada. */
+export async function capturarDaCamera(): Promise<ResultadoCaptura<FotoGravada>> {
+  if (Platform.OS === 'web') return { tipo: 'cancelada' }; // navegador (demonstração): sem câmera
   const perm = await ImagePicker.requestCameraPermissionsAsync();
-  if (!perm.granted) return null;
-  const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1, exif: false, allowsEditing: false });
-  const original = r.canceled ? null : r.assets[0];
-  return original ? gravarReduzida(original) : null;
+  if (!perm.granted) return { tipo: 'sem_permissao' };
+  return gravarDoSeletor(() => ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1, exif: false, allowsEditing: false }) as Promise<RetornoSeletor>);
 }
 
 /**
- * Uma foto da galeria (T-0147, só para as fotos do PDV): o seletor do sistema (Android 13+ não pede permissão), sem EXIF
- * na leitura, e a mesma redução e regravação da câmera. `null` = cancelada ou navegador.
+ * Galeria (T-0147, só para as fotos do PDV): o seletor do sistema (Android 13+ não pede permissão), sem EXIF na leitura, e a
+ * mesma redução e regravação da câmera. Navegador: cancelada.
  */
+export async function escolherDaGaleria(): Promise<ResultadoCaptura<FotoGravada>> {
+  if (Platform.OS === 'web') return { tipo: 'cancelada' };
+  return gravarDoSeletor(
+    () => ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: false, quality: 1, exif: false, allowsEditing: false }) as Promise<RetornoSeletor>,
+  );
+}
+
+/** Porta dos módulos (Core, Promotor, Pesquisa): a foto ou `null` (o contrato da porta não traz o motivo). */
+export async function capturarFotoGravada(): Promise<FotoGravada | null> {
+  const r = await capturarDaCamera();
+  return r.tipo === 'foto' ? r.foto : null;
+}
+
+/** Porta do Core e do diagnóstico: a foto da galeria ou `null`. */
 export async function escolherFotoDaGaleria(): Promise<FotoGravada | null> {
-  if (Platform.OS === 'web') return null;
-  const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: false, quality: 1, exif: false, allowsEditing: false });
-  const original = r.canceled ? null : r.assets[0];
-  return original ? gravarReduzida(original) : null;
+  const r = await escolherDaGaleria();
+  return r.tipo === 'foto' ? r.foto : null;
 }
 
 /** Reduz a 1600 px no maior lado, regrava em JPEG 80 (sem EXIF) e move para `fotos/<uuid>.jpg`. */
@@ -94,13 +133,21 @@ export interface FotoPdvCapturada extends FotoGravada {
 
 /**
  * Foto do PDV (T-0147): a folha com o tipo no título; "Tirar foto" abre a câmera e "Escolher da galeria" a galeria, com a
- * mesma gravação (JPEG 1600 px / 80, sem EXIF). `null` = fechou a folha, cancelou a câmera/galeria ou câmera negada.
+ * mesma gravação (JPEG 1600 px / 80, sem EXIF). Câmera negada: a folha reabre com o motivo em "Tirar foto" (v1.0.34).
+ * `null` = fechou a folha ou cancelou a câmera/galeria; `erro` da câmera/galeria lança (o Core avisa na aba).
  */
 export async function escolherFotoPdv(p: { titulo: string }): Promise<FotoPdvCapturada | null> {
-  const origem = await pedirOrigemFotoPdv({ titulo: p.titulo });
-  if (!origem) return null;
-  const foto = origem === 'camera' ? await capturarFotoGravada() : await escolherFotoDaGaleria();
-  return foto ? { ...foto, origem } : null;
+  let cameraNegada = false;
+  for (;;) {
+    const origem = await pedirOrigemFotoPdv({ titulo: p.titulo, ...(cameraNegada ? { cameraNegada } : {}) });
+    if (!origem) return null;
+    const r = origem === 'camera' ? await capturarDaCamera() : await escolherDaGaleria();
+    if (r.tipo === 'foto') return { ...r.foto, origem };
+    // `erro` (a câmera/galeria ou a gravação falhou) sai como exceção: o Core mostra o aviso na aba; cancelar não avisa
+    if (r.tipo === 'erro') throw new Error('foto_pdv_erro');
+    if (r.tipo !== 'sem_permissao') return null;
+    cameraNegada = true;
+  }
 }
 
 /** Captura das fotos do PDV no Core (T-0147): `escolher` (com a folha) é o caminho da ficha; câmera e galeria avulsas. */

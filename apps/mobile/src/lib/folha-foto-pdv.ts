@@ -8,7 +8,12 @@ export type OrigemFotoPdv = 'camera' | 'galeria';
 
 export interface PedidoFolhaFotoPdv {
   titulo: string;
+  /** A câmera foi negada no pedido anterior: "Tirar foto" mostra `TEXTO_CAMERA_NEGADA` (v1.0.34). */
+  cameraNegada?: boolean;
 }
+
+/** Motivo em "Tirar foto" com a câmera negada (spec docs/design/telas/cliente-documentacao-v1034.md §5). */
+export const TEXTO_CAMERA_NEGADA = 'Permita o acesso à câmera nos ajustes.';
 
 type Ouvinte = (pedido: PedidoFolhaFotoPdv | null) => void;
 
@@ -26,7 +31,7 @@ export function assinarFolhaFotoPdv(fn: Ouvinte): () => void {
   };
 }
 
-/** Abre a folha e espera a escolha; `null` = fechou (✕, Voltar, toque fora, Voltar do Android) ou não há folha. */
+/** Abre a folha e espera a escolha; `null` = fechou (Cancelar, toque fora, Voltar do Android) ou não há folha. */
 export function pedirOrigemFotoPdv(pedido: PedidoFolhaFotoPdv): Promise<OrigemFotoPdv | null> {
   responderFolhaFotoPdv(null);
   if (!ouvinte) return Promise.resolve(null);
