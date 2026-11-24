@@ -49,13 +49,14 @@ describe('BaixarPacote', () => {
     expect(antes).not.toContain('href=');
     const url = 'https://br-se1.magaluobjects.com/macuxi-prod/pacotes/gestao/Gestao-Oficial-v1.0.19.apk?X-Amz-Signature=abc';
     const html = renderToStaticMarkup(
-      <BaixarPacote produto={gestao!} tenant={TENANT} inicial={{ url, expira_em: '2026-11-21T10:05:00.000Z', versao: '1.0.19', arquivo: 'Gestao-Oficial-v1.0.19.apk', tamanho_bytes: 80_000_000 }} />,
+      <BaixarPacote produto={gestao!} tenant={TENANT} fuso="America/Manaus" inicial={{ url, expira_em: '2026-11-21T10:05:00.000Z', versao: '1.0.19', arquivo: 'Gestao-Oficial-v1.0.19.apk', tamanho_bytes: 80_000_000 }} />,
     );
     expect(html).toContain('data-testid="empresa-pagina.baixar-gestao-link"');
     expect(html).toContain('Baixar Gestao-Oficial-v1.0.19.apk');
     expect(html).toContain('<span class="text-ink-2">76,3 MB</span>');
     expect(html).not.toContain('Versão 1.0.19');
     expect(html.split('Gestao-Oficial-v1.0.19.apk').length).toBe(3); // href e texto do link, nada embaixo
+    expect(html).toContain('O link vale até 06:05.'); // RD-0274: hora no fuso da empresa (10:05 UTC = 06:05 em Manaus)
     expect(html).toContain('rel="noreferrer noopener"');
   });
 });

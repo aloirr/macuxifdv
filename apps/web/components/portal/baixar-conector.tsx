@@ -8,16 +8,24 @@
  * publicado), fica o "em breve"; app sem licença na empresa (403 `APP_SEM_LICENCA`) vira uma linha no lugar do botão.
  * testIDs: `<produto.testId>`, `-gerar` e `-link`.
  */
-import { Button, IconDownload, useToast } from '@macuxi/ui/web';
+import { Button, formatTime, IconDownload, useToast } from '@macuxi/ui/web';
 import { useState } from 'react';
 
 import { falhaDoDownload, textoDaValidade, textoDoPacote, type LinkDownloadConector, type ProdutoDownload } from '@/lib/conector-download';
 import { chamarPortal } from '@/lib/portal-api';
 
-/** Hora local (fuso do navegador do operador; o portal não é de um tenant). */
-const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-export function BaixarPacote({ produto, tenant, inicial = null }: { produto: ProdutoDownload; tenant: string; inicial?: LinkDownloadConector | null }) {
+/** `fuso`: o da empresa (`empresa.fuso`); sem ele, o padrão do `formatTime` (America/Manaus). */
+export function BaixarPacote({
+  produto,
+  tenant,
+  fuso,
+  inicial = null,
+}: {
+  produto: ProdutoDownload;
+  tenant: string;
+  fuso?: string;
+  inicial?: LinkDownloadConector | null;
+}) {
   const toast = useToast();
   const [link, setLink] = useState<LinkDownloadConector | null>(inicial);
   const [linha, setLinha] = useState<string | null>(null);
@@ -61,7 +69,7 @@ export function BaixarPacote({ produto, tenant, inicial = null }: { produto: Pro
             {textos.baixar(link.arquivo)}
           </a>
           {pacote && <span className="text-ink-2">{pacote}</span>}
-          <span className="text-[12px] text-ink-2">{textoDaValidade(link, hora)}</span>
+          <span className="text-[12px] text-ink-2">{textoDaValidade(link, (iso) => formatTime(iso, fuso))}</span>
           {link.sha256 && <span className="break-all font-mono text-[12px] text-ink-2">SHA-256 {link.sha256}</span>}
         </div>
       )}

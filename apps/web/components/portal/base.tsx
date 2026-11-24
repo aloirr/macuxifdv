@@ -9,7 +9,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react';
-import { cx, LoadingBlock, Panel } from '@macuxi/ui/web';
+import { cx, formatTime, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -212,9 +212,6 @@ export function itemAtivoDoMenu(caminho: string | null): string | null {
   return MENU_TIME_MACUXI.find((i) => c === i.href || c.startsWith(`${i.href}/`))?.href ?? null;
 }
 
-/** Hora local (fuso do navegador do operador; o portal não é de um tenant). */
-const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
 /**
  * Moldura das páginas internas: cabeçalho com a marca, o fim da sessão e "Sair"; para o admin do cliente, o nome da empresa atual
  * e, com 2+ empresas, "Trocar de empresa" (T-0093; spec docs/design/portal-entrar.md §3). A marca leva à página inicial de quem
@@ -270,7 +267,7 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
             )}
             <div className="order-5 flex min-w-0 flex-wrap items-center gap-3 py-3 text-[13px] text-faixa-texto md:order-3 md:ml-auto">
               {sessao && (
-                <span data-testid="portal.sessao-ate">Sessão até {hora(sessao.sessao_expira_em)}</span>
+                <span data-testid="portal.sessao-ate">Sessão até {formatTime(sessao.sessao_expira_em)}</span>
               )}
               {podeTrocarDeEmpresa(sessao) && (
                 <BotaoDaFaixa testId="portal.trocar-empresa" onClick={trocar}>

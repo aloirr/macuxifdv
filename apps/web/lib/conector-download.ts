@@ -42,7 +42,7 @@ export function textoDoPacote(l: LinkDownloadConector): string | null {
   return l.tamanho_bytes ? tamanhoLegivel(l.tamanho_bytes) : null;
 }
 
-/** "O link vale até 01:30. Depois disso, gere outro." `hora` formata no fuso de quem vê (o contrato sempre manda `expira_em`). */
+/** "O link vale até 01:30. Depois disso, gere outro." `hora` formata no fuso da empresa (o contrato sempre manda `expira_em`). */
 export function textoDaValidade(l: LinkDownloadConector, hora: (iso: string) => string): string {
   return `O link vale até ${hora(l.expira_em)}. Depois disso, gere outro.`;
 }
@@ -62,13 +62,14 @@ export interface TextosDownload {
 
 const GERANDO = 'Gerando o link…';
 const ESPERA = 'Muitos links seguidos. Espere um minuto e tente de novo.';
+const EM_BREVE = 'em breve.';
 
 export const TEXTOS_DOWNLOAD_CONECTOR: Readonly<TextosDownload> = Object.freeze({
   nome: 'Baixar o Conector',
   botao: 'Gerar o link do Conector',
   gerando: GERANDO,
   baixar: (arquivo: string | null) => (arquivo ? `Baixar ${arquivo}` : 'Baixar o Conector'),
-  emBreve: 'o pacote será publicado aqui em breve.',
+  emBreve: EM_BREVE,
   espera: ESPERA,
   semAcesso: 'Só quem administra a empresa no portal baixa o Conector.',
 });
@@ -79,7 +80,7 @@ const textosDoApp = (nome: string): Readonly<TextosDownload> =>
     botao: `Gerar o link do ${nome}`,
     gerando: GERANDO,
     baixar: (arquivo: string | null) => (arquivo ? `Baixar ${arquivo}` : `Baixar o ${nome}`),
-    emBreve: 'em breve.',
+    emBreve: EM_BREVE,
     espera: ESPERA,
     semAcesso: 'Só quem administra a empresa no portal baixa os apps.',
     semLicenca: 'sem licença. Peça ao suporte para ativar o módulo.',
