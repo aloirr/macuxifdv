@@ -38,4 +38,12 @@ describe('CSV do BKO do Gestor', () => {
     const r = rankingDaEquipe({ estado, membros, viewer, indicador: 'vendas_cents', periodo: 'diario', data_ref: relogio.hoje(), modulos, agora: relogio.iso() });
     expect(csvDoRanking(r).split('\n')[1]).toBe(`1;"'=HIPERLINK(""x"")";vendedor;1234,56;${relogio.hoje()};${relogio.hoje()}`);
   });
+
+  it('negativo de meio exato arredonda afastando de zero e nunca sai -0', () => {
+    const r = rankingDaEquipe({ estado, membros: MEMBROS, viewer, indicador: 'vendas_cents', periodo: 'diario', data_ref: relogio.hoje(), modulos, agora: relogio.iso() });
+    const l = r.linhas[0]!;
+    const csv = csvDoRanking({ ...r, indicador: 'atingimento_meta_pct', linhas: [{ ...l, valor: -2.345 }, { ...l, valor: -0.001 }] }).split('\n');
+    expect(csv[1]).toBe(`1;"Vera; ""a melhor""";vendedor;-2,35;${relogio.hoje()};${relogio.hoje()}`);
+    expect(csv[2]).toBe(`1;"Vera; ""a melhor""";vendedor;0;${relogio.hoje()};${relogio.hoje()}`);
+  });
 });
