@@ -4,7 +4,7 @@
  * coluna só, com o enunciado da versão mais nova). Datas e horas no fuso do tenant; número com vírgula decimal.
  * Célula pelo `celulaCsvCompacta` do comum (RD-0051): fórmula protegida com `'` e aspas só com `;`, `"` ou quebra.
  */
-import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta, type ValorCsv } from '@macuxi/comum/csv';
 import { zonedParts } from '@macuxi/comum/fuso';
 import type { ItemResposta, Pergunta, QuestionarioVersao, RespostaPesquisa } from '../contracts';
 
@@ -19,9 +19,8 @@ function dataHoraLocal(instante: string, fuso: string): string {
 }
 
 const dataCivilBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
-const numeroBr = (n: number) => String(n).replace('.', ',');
 
-function valorDoItem(p: Pergunta | undefined, it: ItemResposta): string {
+function valorDoItem(p: Pergunta | undefined, it: ItemResposta): ValorCsv {
   const rotulo = (id: string) => (p && (p.tipo === 'unica' || p.tipo === 'multipla') ? (p.opcoes.find((o) => o.id === id)?.rotulo ?? id) : id);
   switch (it.tipo) {
     case 'sim_nao':
@@ -31,9 +30,9 @@ function valorDoItem(p: Pergunta | undefined, it: ItemResposta): string {
     case 'multipla':
       return it.opcao_ids.map(rotulo).join(' | ');
     case 'numero':
-      return numeroBr(it.numero);
+      return it.numero;
     case 'escala':
-      return String(it.valor);
+      return it.valor;
     case 'texto':
       return it.texto.trim();
     case 'data':
@@ -76,7 +75,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
     const porPergunta = new Map(r.itens.map((i) => [i.pergunta_id, i] as const));
     const fixas = [
       r.id,
-      String(numeroDa.get(r.versao_id) ?? ''),
+      numeroDa.get(r.versao_id) ?? null,
       dataHoraLocal(r.respondida_em, e.fuso),
       dataHoraLocal(r.recebida_em, e.fuso),
       r.usuario_id,
