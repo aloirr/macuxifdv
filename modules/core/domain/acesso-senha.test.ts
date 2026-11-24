@@ -119,12 +119,12 @@ describe('RN-CORE-34: gerarSenhaTemporaria', () => {
   it('RN-CORE-34: 12 caracteres, sem ambíguos, com letra, número e especial, e passa na RN-CORE-32', () => {
     for (let i = 1; i <= 200; i++) {
       const s = gerarSenhaTemporaria(fonte(i));
-      expect(s).toHaveLength(12);
       expect(s).not.toMatch(/[0O1lI\s]/);
       expect(s).toMatch(/[A-Za-z]/);
       expect(s).toMatch(/[2-9]/);
-      expect(s).toMatch(/[!@#$%&*?]/);
       expect(senhaServe(s)).toBe(true);
+      expect(s).toMatch(/^[A-Za-z0-9_]{12}$/);
+      expect(s).toContain('_');
     }
   });
   it('RN-CORE-34: fontes diferentes dão senhas diferentes', () => {
