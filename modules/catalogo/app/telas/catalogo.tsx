@@ -6,7 +6,7 @@
  * + ranking do domain) sem sinal, em falha ou com sistema/categoria escolhidos.
  * Preço (RN-VEN-01, RN-CAT-06): pela ficha do cliente (`?cliente=`) vale a tabela dele; pelo menu, a da filial padrão do vendedor;
  * produto sem preço mostra "Sem preço". Preço e estoque somem para quem não vê (RN-CAT-05). Copiar o código é a única ação própria;
- * ações de outros módulos só pela extensão `produto.acoes` (RN-PRO-01). Com `?pedido=1` só entram os produtos da tabela do cliente. `?no=` abre com o filtro já marcado.
+ * ações de outros módulos só pela extensão `produto.acoes` (RN-PRO-01). Com `?pedido=` (aberto do Novo pedido) só entram os produtos da tabela do cliente. `?no=` abre com o filtro já marcado.
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
@@ -55,7 +55,8 @@ interface EstadoLista {
 
 export default function TelaCatalogo() {
   const params = useLocalSearchParams<{ cliente?: string; q?: string; pedido?: string; no?: string }>();
-  const dentroDoPedido = params.pedido === '1';
+  const pedidoEmCurso = params.pedido ? String(params.pedido) : null;
+  const dentroDoPedido = Boolean(pedidoEmCurso);
   const clienteId = params.cliente ? String(params.cliente) : null;
   const ambiente = useAmbiente();
   const { motor, estado: sync } = useMotorSync();
@@ -296,7 +297,7 @@ export default function TelaCatalogo() {
   const chips = useMemo(() => chipsDaGrade(naCarga ? ARVORE_VAZIA : (arvore?.arvore ?? ARVORE_VAZIA), filtro), [arvore, filtro, naCarga]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
   // callbacks estáveis (ver `CartaoDaLista`)
-  const abrirProduto = useCallback((id: string) => irParaProduto(id, clienteId), [clienteId]);
+  const abrirProduto = useCallback((id: string) => irParaProduto(id, clienteId, pedidoEmCurso), [clienteId, pedidoEmCurso]);
   const abrirFolhaDeEstoque = useCallback((item: ItemVitrine) => setItemDaFolha(item), []);
   const comFiltro = !naCarga && (filtroLigado(filtro) || escolhaLigada(escolha));
   const opcoesFilial = useMemo(() => opcoesDoFiltroFilial({ proprias: filiais.venda, filiais: filiais.todas }), [filiais]);
@@ -424,7 +425,7 @@ export default function TelaCatalogo() {
       {linhas.map((par) => (
         <View key={par[0]!.id} style={s.linha}>
           {par.map((item) => (
-            <CartaoDaLista key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} estoqueCarregando={estoqueCarregando} onAbrir={abrirProduto} onEstoquePorFilial={abrirFolhaDeEstoque} />
+            <CartaoDaLista key={item.id} item={item} clienteId={clienteId} pedidoEmCurso={pedidoEmCurso} miniatura={miniaturas.get(item.id) ?? null} estoqueCarregando={estoqueCarregando} onAbrir={abrirProduto} onEstoquePorFilial={abrirFolhaDeEstoque} />
           ))}
           {par.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>
@@ -483,11 +484,11 @@ export default function TelaCatalogo() {
  * Cartão da grade com `memo` e sem função nova por item. No "Mostrar mais" a lista inteira é relida e os objetos são novos, então o memo compara
  * o conteúdo: o item (reaproveitado por `reaproveitarItens` quando igual) e a miniatura (objeto novo a cada leitura, igual por valor).
  */
-const CartaoDaLista = memo(function CartaoDaLista({ item, clienteId, miniatura, estoqueCarregando, onAbrir, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura: ComponentProps<typeof CartaoGrade>['miniatura']; estoqueCarregando: boolean; onAbrir: (id: string) => void; onEstoquePorFilial: (item: ItemVitrine) => void }) {
+const CartaoDaLista = memo(function CartaoDaLista({ item, clienteId, pedidoEmCurso, miniatura, estoqueCarregando, onAbrir, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; pedidoEmCurso: string | null; miniatura: ComponentProps<typeof CartaoGrade>['miniatura']; estoqueCarregando: boolean; onAbrir: (id: string) => void; onEstoquePorFilial: (item: ItemVitrine) => void }) {
   const abrir = useCallback(() => onAbrir(item.id), [onAbrir, item.id]);
   const estoque = useCallback(() => onEstoquePorFilial(item), [onEstoquePorFilial, item]);
-  return <CartaoGrade item={item} clienteId={clienteId} miniatura={miniatura} estoqueCarregando={estoqueCarregando} onPress={abrir} onEstoquePorFilial={estoque} />;
-}, (a, b) => a.item === b.item && a.clienteId === b.clienteId && a.estoqueCarregando === b.estoqueCarregando && a.onAbrir === b.onAbrir && a.onEstoquePorFilial === b.onEstoquePorFilial && mesmoValor(a.miniatura, b.miniatura));
+  return <CartaoGrade item={item} clienteId={clienteId} pedidoEmCurso={pedidoEmCurso} miniatura={miniatura} estoqueCarregando={estoqueCarregando} onPress={abrir} onEstoquePorFilial={estoque} />;
+}, (a, b) => a.item === b.item && a.clienteId === b.clienteId && a.pedidoEmCurso === b.pedidoEmCurso && a.estoqueCarregando === b.estoqueCarregando && a.onAbrir === b.onAbrir && a.onEstoquePorFilial === b.onEstoquePorFilial && mesmoValor(a.miniatura, b.miniatura));
 
 const SEM_ESCOLHA: EscolhaFiltro = { filial: null, soComEstoque: false };
 /** Filial escolhida (inclusive "Suas filiais") ou "Ocultar" ligados: a busca é local, que sabe filtrar por filial e estoque. */

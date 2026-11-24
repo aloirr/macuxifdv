@@ -16,6 +16,7 @@ import { INDICE_BUSCA_CATALOGO } from './indice';
 
 const PAGINAS = [
   { id: 'catalogo', caminho: 'catalogo', titulo: 'Catálogo', navegacao: 'Catálogo', icone: 'search', ordem: 60, acao: 'produto.consultar', apps: ['campo', 'gestao'] as const, componente: 'TelaCatalogo' },
+  { id: 'catalogo-no-pedido', caminho: 'catalogo-no-pedido', titulo: 'Catálogo', acao: 'produto.consultar', apps: ['campo'] as const, componente: 'TelaCatalogo' },
   { id: 'produto', caminho: 'produto', titulo: 'Produto', acao: 'produto.consultar', apps: ['campo', 'gestao'] as const, componente: 'TelaProduto' },
 ];
 
@@ -48,7 +49,7 @@ describe('moduloApp do Catálogo no shell (T-0052; pedidos R-20261101-155035-eng
       const linha = fonte.split('\n').find((l) => l.includes(`id: '${p.id}'`))!;
       expect(linha, p.id).toContain(`caminho: '${p.caminho}'`);
       expect(linha, p.id).toContain(`acao: '${p.acao}'`);
-      expect(linha, p.id).toContain("apps: ['campo', 'gestao']");
+      expect(linha, p.id).toContain(`apps: [${p.apps.map((a) => `'${a}'`).join(', ')}]`);
       if (p.navegacao) expect(linha, p.id).toContain(`navegacao: '${p.navegacao}'`);
     }
   });

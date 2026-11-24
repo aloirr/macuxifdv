@@ -6,7 +6,7 @@ import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { ALTURA, BotaoIcone, Button, Cartao, ChipEstado, colors, fonte, Icon, type IconName, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from 'react-native';
-import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
+import { acoesDaTela, type AcaoProduto, type ContextoProduto, type ItemVitrine, type MiniaturaProduto as Miniatura } from '../../contracts';
 import { rotuloPreco } from '../lib/apresentacao';
 import { AVISO_CODIGO_COPIADO, copiarCodigo, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
 import { estoqueCarregandoVisivel, LEITURA_ESTOQUE_CARREGANDO, TEXTO_ESTOQUE_CARREGANDO } from '../lib/carga-do-cartao';
@@ -15,12 +15,13 @@ import { BotaoEstoquePorFilial } from './estoque-filial';
 import { MiniaturaProduto } from './miniatura';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
-export function useAcoesProduto(): { id: string; payload: AcaoProduto }[] {
-  return useExtensoes<AcaoProduto>('produto.acoes').map((e) => ({ id: e.id, payload: e.payload }));
+export function useAcoesProduto(dentroDoPedido = false): { id: string; payload: AcaoProduto }[] {
+  const todas = useExtensoes<AcaoProduto>('produto.acoes').map((e) => ({ id: e.id, payload: e.payload }));
+  return acoesDaTela(todas, dentroDoPedido);
 }
 
-export function contextoDoProduto(item: ItemVitrine, clienteId: string | null): ContextoProduto {
-  return { produtoId: item.id, sku: item.erp_code, nomeProduto: item.description, clienteId, vendavel: item.price ? item.price.sellable : null };
+export function contextoDoProduto(item: ItemVitrine, clienteId: string | null, pedidoEmCurso: string | null = null): ContextoProduto {
+  return { produtoId: item.id, sku: item.erp_code, nomeProduto: item.description, clienteId, vendavel: item.price ? item.price.sellable : null, pedidoEmCurso };
 }
 
 /**
@@ -55,10 +56,10 @@ export function BotaoCopiarCodigo({ codigo }: { codigo: string }) {
 }
 
 /** Botões da extensão na ficha: o `destaque` vira o principal (laranja, 52). */
-export function BotoesAcao({ item, clienteId }: { item: ItemVitrine; clienteId: string | null }) {
-  const acoes = useAcoesProduto();
+export function BotoesAcao({ item, clienteId, pedidoEmCurso = null }: { item: ItemVitrine; clienteId: string | null; pedidoEmCurso?: string | null }) {
+  const acoes = useAcoesProduto(Boolean(pedidoEmCurso));
   if (acoes.length === 0) return null;
-  const ctx = contextoDoProduto(item, clienteId);
+  const ctx = contextoDoProduto(item, clienteId, pedidoEmCurso);
   return (
     <View style={s.acoes}>
       {acoes.map((a) => (
@@ -80,8 +81,8 @@ export function BotoesAcao({ item, clienteId }: { item: ItemVitrine; clienteId: 
  * Botões da extensão no cartão da grade (docs/design/catalogo-grade.md §2): só o ícone, 44 dp com borda, à direita do preço; o
  * rótulo vai para o TalkBack com o nome do produto. Com texto, o botão não cabe na coluna de 360 dp (print de 14/11).
  */
-function BotoesAcaoDoCartao({ item, clienteId, acoes }: { item: ItemVitrine; clienteId: string | null; acoes: { id: string; payload: AcaoProduto }[] }) {
-  const ctx = contextoDoProduto(item, clienteId);
+function BotoesAcaoDoCartao({ item, clienteId, pedidoEmCurso, acoes }: { item: ItemVitrine; clienteId: string | null; pedidoEmCurso: string | null; acoes: { id: string; payload: AcaoProduto }[] }) {
+  const ctx = contextoDoProduto(item, clienteId, pedidoEmCurso);
   return (
     <View style={g.acoes}>
       {acoes.map((a) => (
@@ -105,12 +106,12 @@ function BotoesAcaoDoCartao({ item, clienteId, acoes }: { item: ItemVitrine; cli
  * mais de uma filial). O cartão inteiro abre a ficha; o copiar e o botão de estoque não abrem. O botão da extensão `produto.acoes`
  * (de outro módulo, só dentro do fluxo dele) fica ao lado do preço.
  */
-export function CartaoGrade({ item, clienteId, miniatura = null, estoqueCarregando = false, onPress, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; estoqueCarregando?: boolean; onPress: () => void; onEstoquePorFilial: () => void }) {
+export function CartaoGrade({ item, clienteId, pedidoEmCurso = null, miniatura = null, estoqueCarregando = false, onPress, onEstoquePorFilial }: { item: ItemVitrine; clienteId: string | null; pedidoEmCurso?: string | null; miniatura?: Miniatura | null; estoqueCarregando?: boolean; onPress: () => void; onEstoquePorFilial: () => void }) {
   const preco = rotuloPreco(item);
   const tag = tagDeEstoque(item);
   const linhaMarca = linhaDaMarca(item);
   const precoTexto = precoDoCartao(preco);
-  const acoes = useAcoesProduto();
+  const acoes = useAcoesProduto(Boolean(pedidoEmCurso));
   // T-0192 §7.3: estoque em carga = chip neutro "Estoque: —"; o perfil que não vê preço e estoque não ganha o chip
   const mostraEstoqueCarregando = estoqueCarregandoVisivel(estoqueCarregando, item.price_stock_visible);
   const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, item.erp_code, precoTexto, mostraEstoqueCarregando ? LEITURA_ESTOQUE_CARREGANDO : tag?.texto]);
@@ -136,7 +137,7 @@ export function CartaoGrade({ item, clienteId, miniatura = null, estoqueCarregan
             {precoTexto}
           </Text>
           {preco.riscado ? <Text style={g.riscado}>{preco.riscado}</Text> : null}
-          {acoes.length > 0 ? <BotoesAcaoDoCartao item={item} clienteId={clienteId} acoes={acoes} /> : null}
+          {acoes.length > 0 ? <BotoesAcaoDoCartao item={item} clienteId={clienteId} pedidoEmCurso={pedidoEmCurso} acoes={acoes} /> : null}
         </View>
       ) : null}
       {mostraEstoqueCarregando ? (
