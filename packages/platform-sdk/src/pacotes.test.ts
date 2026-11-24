@@ -81,4 +81,11 @@ describe('serviços', () => {
     expect(l?.expira_em).toBe(new Date(agora.getTime() + VALIDADE_LINK_PACOTE_S.padrao * 1000).toISOString());
     expect(l?.url.startsWith('https://pacotes.teste/conector/c.zip?')).toBe(true);
   });
+
+  it('T-0195 (ADR 0070): manifestoDoUltimo devolve o manifesto sem link; desligado = 503', async () => {
+    const s = criarServicoPacotesMemoria({ campo: { versao: '1.0.33', arquivo: 'campo.apk', publicado_em: '2026-11-24T12:00:00.000Z' } });
+    expect(await s.manifestoDoUltimo?.('campo')).toEqual({ versao: '1.0.33', arquivo: 'campo.apk', publicado_em: '2026-11-24T12:00:00.000Z' });
+    expect(await s.manifestoDoUltimo?.('gestao')).toBeNull();
+    await expect(SERVICO_PACOTES_DESLIGADO.manifestoDoUltimo?.('campo')).rejects.toMatchObject({ status: 503 });
+  });
 });

@@ -75,6 +75,12 @@ export interface ServicoPacotes {
    * `ARMAZENAMENTO_INDISPONIVEL` quando não há S3, o bucket falha ou o manifesto está fora do formato.
    */
   linkDoUltimo(produto: ProdutoPacote): Promise<LinkPacote | null>;
+  /**
+   * T-0195 (ADR 0070 §D1): só o manifesto do último publicado, SEM assinar link (a API lê a versão e o `publicado_em` dos APKs
+   * para o 426 e para `GET /v1/app/versao`). `null` = nenhum publicado; falha como em `linkDoUltimo`. Opcional: porta sem ele
+   * = a API usa a versão do ambiente.
+   */
+  manifestoDoUltimo?(produto: ProdutoPacote): Promise<PacotePublicado | null>;
 }
 
 /** Chave relativa ao prefixo dos pacotes. */
@@ -97,6 +103,7 @@ export function erroArmazenamentoIndisponivel(): ErroHttpModulo {
 export const SERVICO_PACOTES_DESLIGADO: ServicoPacotes = Object.freeze({
   disponivel: () => false,
   linkDoUltimo: () => Promise.reject(erroArmazenamentoIndisponivel()),
+  manifestoDoUltimo: () => Promise.reject(erroArmazenamentoIndisponivel()),
 });
 
 /**
@@ -111,6 +118,10 @@ export function criarServicoPacotesMemoria(
   const validadeS = op.validadeS ?? VALIDADE_LINK_PACOTE_S.padrao;
   return {
     disponivel: () => true,
+    manifestoDoUltimo(produto) {
+      const bruto = pacotes[produto];
+      return Promise.resolve(bruto ? PacotePublicadoSchema.parse(bruto) : null);
+    },
     linkDoUltimo(produto) {
       const bruto = pacotes[produto];
       if (!bruto) return Promise.resolve(null);

@@ -130,6 +130,9 @@ describe('pacotes × S3 falso', () => {
     expect(s3.tipos.get(`/${s3.bucket}/pacotes/gestao/macuxi-gestao-1.0.19.apk`)).toBe('application/vnd.android.package-archive');
     const la = await servico().linkDoUltimo('gestao');
     expect(la).toMatchObject({ versao: '1.0.19', arquivo: 'macuxi-gestao-1.0.19.apk' });
+    // T-0195 (ADR 0070 §D1): o manifesto do APK sempre leva publicado_em (a hora das 24 h), lido sem assinar link
+    expect(await servico().manifestoDoUltimo?.('gestao')).toMatchObject({ versao: '1.0.19', publicado_em: AGORA.toISOString() });
+    expect(await servico().manifestoDoUltimo?.('campo')).toBeNull();
     expect((await servico().linkDoUltimo('campo'))).toBeNull();
     await expect(executarPublicarPacote(['conector', arquivo], env)).rejects.toThrow(/--versao/);
     await expect(executarPublicarPacote(['conector', arquivo, '--versao', 'v1'], env)).rejects.toThrow();
