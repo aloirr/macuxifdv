@@ -11,7 +11,12 @@ import { notificacaoDeMeta, type NotificacaoDeSistema } from '../domain';
 
 /** uuid v5-like determinístico (evento + usuário): estável na reentrega e válido mesmo se o id do evento não for uuid. */
 function envioIdDe(eventoId: string, usuarioId: string, chave?: string): string {
-  const h = createHash('sha1').update(`macuxi.notificacao.sistema|${eventoId}|${usuarioId}${chave ? `|${chave}` : ''}`).digest();
+  return uuidDoTexto(`macuxi.notificacao.sistema|${eventoId}|${usuarioId}${chave ? `|${chave}` : ''}`);
+}
+
+/** uuid v5-like (sha1) do texto: o mesmo texto dá sempre o mesmo uuid (`envio_id` idempotente das notificações do Core). */
+export function uuidDoTexto(texto: string): string {
+  const h = createHash('sha1').update(texto).digest();
   h[6] = (h[6]! & 0x0f) | 0x50;
   h[8] = (h[8]! & 0x3f) | 0x80;
   const x = h.subarray(0, 16).toString('hex');
