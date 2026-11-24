@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LinhaErro } from '../../contracts';
-import { CSV_BOM, csvCell, errosParaCsv, toCsv } from './csv';
+import { CSV_BOM, errosParaCsv, toCsv } from './csv';
 
 const linhas = (csv: string) => csv.replace(CSV_BOM, '').trimEnd().split('\r\n');
 
@@ -14,12 +14,10 @@ describe('CSV no padrão do Excel brasileiro', () => {
     expect(linhas(csv)).toEqual(['a;"b;c"', '1;"diz ""oi"""']);
   });
 
-  it('neutraliza fórmula vinda do ERP (=, +, -, @) sem mexer em número', () => {
-    expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
-    expect(csvCell('+55')).toBe("'+55");
-    expect(csvCell('@soma')).toBe("'@soma");
-    expect(csvCell(-3)).toBe('-3');
-    expect(csvCell(null)).toBe('');
+  it('CWE-1236: neutraliza fórmula vinda do ERP (=, +, -, @) sem mexer em número', () => {
+    expect(linhas(toCsv([['=1+1', '=HYPERLINK("x")', '+55', '@soma', -3, null]]))).toEqual([
+      `'=1+1;"'=HYPERLINK(""x"")";'+55;'@soma;-3;`,
+    ]);
   });
 });
 
