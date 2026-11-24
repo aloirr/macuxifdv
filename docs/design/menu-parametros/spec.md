@@ -47,6 +47,7 @@ Seções em ordem alfabética; painéis na ordem do código. **Hoje**: onde abre
 
 Total: **13 seções, 34 painéis** (32 existem, 2 faltam). 🔒 = seção de módulo de vitrine: aparece com cadeado sem a licença da empresa (ADR 0060).
 Ficam fora de Parâmetros (cadastro, operação ou consulta): Formas de pagamento e prazos e Transportadoras (Cadastros, D4/D11), Trade › Cadastros, Metas (inclusive as metas de produtividade), Fotos em lote, Trajeto do dia, Integração ERP e Carga por arquivo, e o portal de configuração (`config.<host>`).
+Página `/parametros/<secao>` (v1.0.34, R-20261124-094002): sem lista de seções na página; os painéis da seção usam a largura toda e a seção ativa aparece só no menu (uma informação, um lugar, R-20261110-093124).
 
 ## 3. Menu: hoje × proposto
 
@@ -55,17 +56,19 @@ Ficam fora de Parâmetros (cadastro, operação ou consulta): Formas de pagament
 | Comercial › Plano de RV | Parâmetros › Metas e RV |
 | Comercial › Transportadoras | Cadastros › Transportadoras (o grupo Comercial sai, D4) |
 | Comunicação › Regras de alerta | Parâmetros › Alertas |
-| Parâmetros (grupo) › Integração | Parâmetros (item direto, D3/D10) › seção Integração |
-| Pesquisa (grupo) › Pesquisas | Pesquisa (item direto, D9) |
-| Treinamento (grupo) › Trilhas | Treinamento (item direto, D9) |
+| Parâmetros (grupo) › Integração | Parâmetros (grupo com ›) › uma opção por seção (§2), cada uma em `/parametros/<secao>` |
+| Pesquisa (grupo) › Pesquisas | Pesquisa (grupo com ›) › os seus itens |
+| Treinamento (grupo) › Trilhas | Treinamento (grupo com ›) › os seus itens |
 | Parâmetros em ordem alfabética, entre Operação e Pesquisa | Parâmetros fixo logo acima de Sistema (D1) |
 
-Os demais grupos e itens ficam como hoje. Pior caso de altura (Cadastros aberto, 6 itens): 562 px dos 571 px livres em 1366×768; o menu não rola.
-Comportamento (item direto, cadeado, balão "Contrate o módulo para usar", Salvar só no painel alterado, endereços antigos redirecionados): como na versão de 15/11, ADR 0060 e `docs/desenho/menu-parametros.md` §2.
+**Revisão de 24/11/2026 (R-20261124-094002, teste de campo da v1.0.32):** decisão do Alexandre: Parâmetros tem a seta (›) e abre as opções, como Acesso, Análise e Cadastros. Premissa, a confirmar pelo Alexandre: Pesquisa e Treinamento seguem o mesmo padrão. D3/D10 (Parâmetros item direto) e D9 (grupo de um item vira item direto) deixam de valer no BKO: todo grupo do menu lateral tem a seta, mesmo com um item só. As seções com 🔒 aparecem no menu com o cadeado.
+
+Os demais grupos e itens ficam como hoje. Com Parâmetros aberto (13 seções) o menu passa da altura de 1366×768: só a lista do menu rola, o cabeçalho e o rodapé do menu ficam fixos.
+Comportamento (cadeado, balão "Contrate o módulo para usar", Salvar só no painel alterado, endereços antigos redirecionados): ADR 0060 e `docs/desenho/menu-parametros.md` §2.
 
 ## 4. O que precisa de trabalho além do shell (estimativa do 2b)
 
-Shell (`engenheiro-apps`): ligar `menuParametros: true`, a rota `/parametros/<secao>` com a lista de seções e os redirecionamentos de `destinoParametros`; em `apps/web/lib/menu-bko.ts`, a ordem com `compararGrupoMenu` (D1), o item direto (D9) e o item com cadeado.
+Shell (`engenheiro-apps`): ligar `menuParametros: true`, a rota `/parametros/<secao>` (sem lista de seções, §2) e os redirecionamentos de `destinoParametros`; em `apps/web/lib/menu-bko.ts`, a ordem com `compararGrupoMenu` (D1), Parâmetros, Pesquisa e Treinamento como grupo com seta (sem o item direto da D9; R-20261124-094002), as seções de Parâmetros como opções do grupo (`/parametros/<secao>`) e o item com cadeado.
 
 Nos módulos:
 1. **integracao**: o de-para é página com `grupo: 'parametros'`; com o menu novo, Parâmetros viraria grupo. Precisa virar `PainelParametros` da seção Integração.
@@ -82,13 +85,13 @@ Pronto e sem rota, fora de Parâmetros: `MetasProdutividadePanel` (core), aba Pr
 
 ## 5. Simulações (1366 de largura, escala 2)
 
-Gerador: `node docs/design/menu-parametros/gerar.mjs` (escreve os `.html` e `.png` desta pasta; falha se balão ou nota cobrir conteúdo, se o menu rolar com qualquer grupo aberto ou se um item for cortado). Dados fictícios. Cenário: empresa sem Pesquisa e Treinamento, com Trade; perfil Administrador.
+Gerador: `node docs/design/menu-parametros/gerar.mjs` (escreve os `.html` e `.png` desta pasta; falha se balão ou nota cobrir conteúdo, se o menu rolar com qualquer grupo fora Parâmetros aberto ou se um item for cortado). Dados fictícios. Cenário: empresa sem Pesquisa e Treinamento, com Trade; perfil Administrador.
 
 | Arquivo | O que mostra |
 |---|---|
-| `01-menu-hoje-e-proposto.png` | Menu proposto à esquerda, com Parâmetros selecionado; ao lado, o menu de hoje (com o destino do que muda), o proposto aberto e a árvore da página Parâmetros |
+| `01-menu-hoje-e-proposto.png` | Menu proposto à esquerda, com Parâmetros aberto (a lista do menu rola); ao lado, o menu de hoje (com o destino do que muda) e a árvore das seções de Parâmetros |
 | `02-parametros-calendario.png` | Parâmetros › Calendário: Feriados, Almoço, Rastreamento no expediente (alterado, Salvar ativo) e Ausências |
-| `03-parametros-pesquisa-sem-licenca.png` | Seção de módulo sem licença: cadeado na lista; o conteúdo mostra só "Contrate o módulo para usar" |
+| `03-parametros-pesquisa-sem-licenca.png` | Seção de módulo sem licença: cadeado no menu (Parâmetros › Pesquisa); o conteúdo mostra só "Contrate o módulo para usar" |
 
 O `03-parametros-pedidos.html` (versão de 15/11) fica só como base do `docs/design/pedido-aprovacao/gerar.mjs`; este gerador não o reescreve.
 

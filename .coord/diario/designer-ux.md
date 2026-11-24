@@ -187,3 +187,4 @@
 2026-11-21 — T-0191 — ícones Casa e Lápis, OpcaoCartao e largura media/media-larga do Dialog em packages/ui/src/web; spec docs/design/rotas-criar/spec.md e parecer revisao-T-0191.md sem achados em aberto (UX-11 fechado no print 07c)
 2026-11-21 — T-0192 — spec do Catálogo (catalogo-grade §7): sem o gesto de puxar, erro em EstadoVazio 'Não foi possível abrir o catálogo agora' com 'Tentar de novo', preço/estoque carregando com traço (critério por modoCarga, sync.pendentes e contagem local), sem componente novo
 2026-11-21 — T-0192 — ajuste §7.2: sem marca de preço carregando
+2026-11-24 — v1.0.34 — spec menu-parametros §2: página /parametros/<secao> sem lista de seções (painéis na largura toda, seção ativa só no menu); §3 e §4 alinhados
