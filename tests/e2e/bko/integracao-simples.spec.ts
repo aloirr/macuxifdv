@@ -25,6 +25,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { abrirGrupo } from './apoio';
+
 const AGORA = '2026-11-15T18:40:00.000Z'; // 15/11 14:40 em Manaus
 const FUSO = 'America/Manaus';
 const MODULOS = ['core', 'catalogo', 'vendedor', 'integracao'];
@@ -810,16 +812,15 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
     await expect(dialogo.getByTestId('integracao.historico.reprocessar')).toHaveCount(0);
   });
 
-  test('De-para na seção Integração de Parâmetros (item Parâmetros aceso; seção fora do menu), com Alertas, folha e vazio', async ({
+  test('De-para na seção Integração de Parâmetros (opção Parâmetros › Integração acesa no menu), com Alertas, folha e vazio', async ({
     page,
   }) => {
     await preparar(page);
     await page.goto('/parametros/integracao');
     await expect(page.getByRole('heading', { name: 'De-para de códigos' })).toBeVisible({ timeout: 120_000 });
     const menu = page.getByTestId('menu-bko');
-    await expect(menu.getByTestId('nav-plataforma-parametros')).toHaveAttribute('aria-current', 'page');
-    await expect(menu.locator('a[href="/parametros/integracao"]')).toHaveCount(0);
-    await expect(page.getByTestId('parametros-secao-integracao')).toHaveAttribute('aria-current', 'page');
+    await expect(menu.getByTestId('nav-parametros-integracao')).toHaveAttribute('aria-current', 'page');
+    await expect(menu.locator('a[aria-current="page"]'), 'só a opção da seção acesa').toHaveCount(1);
     await expect(page.getByTestId('parametros-integracao-de-para')).toBeVisible();
     await expect(page.locator('main')).toContainText('5 pedidos retidos: condição 28D sem código do ERP');
     await page.getByRole('button', { name: 'Novo de-para' }).first().click();
@@ -865,9 +866,12 @@ test.describe('T-0173 e v1.0.19 — Integração ERP (API simulada)', () => {
       await page.waitForTimeout(1_000);
       await expect(page.getByTestId('pedidos.cards-erp')).toHaveCount(0);
       expect(erros).toEqual([]);
-      await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
+      const menu = page.getByTestId('menu-bko');
+      await abrirGrupo(page, 'parametros');
+      await expect(menu.getByTestId('nav-parametros-integracao'), 'Integração fora das opções de Parâmetros').toHaveCount(0);
+      await menu.locator('a[data-testid^="nav-parametros-"]').first().click();
       await expect(page.getByTestId('pagina-parametros')).toBeVisible({ timeout: 60_000 });
-      await expect(page.getByTestId('parametros-secao-integracao')).toHaveCount(0);
+      await expect(page.getByTestId('parametros-conteudo-integracao')).toHaveCount(0);
     });
   }
 });
