@@ -22,8 +22,10 @@ import {
   SQL_ULTIMO_RESUMO,
   TETO_RECADOS_POR_HORA,
   textoDeUmaLinha,
+  URL_PORTAL_PADRAO,
   type LinhaAlerta,
 } from '../src/diagnosticos-worker';
+import { urlPortalDiagnosticos } from '../src/config';
 import { ErroRecadosGithub, type ClienteRecadosGithub, type EnvioRecado } from '../src/recados-github';
 
 const TENANT = '0a000000-0000-4000-8000-000000000001';
@@ -172,6 +174,15 @@ describe('formato do recado do diagnóstico (T-0158 §3)', () => {
     expect(t).toContain(`https://config.macuxifdv.com.br/config/diagnosticos/${ID(42)}`);
     expect(textoDeUmaLinha('a b\u0000c\r\nd')).toBe('a b c d');
     expect(textoDeUmaLinha(null)).toBe('—');
+  });
+
+  it('ADR 0068: com MACUXI_HOSTS_ANTIGOS=0 o link do recado vai para fdv.../config/diagnosticos/<id>', () => {
+    const l = linha(42, { origem: 'queda', motivo: 'crash_nativo' });
+    const urlPortal = urlPortalDiagnosticos({ MACUXI_HOSTS_ANTIGOS: '0' });
+    const t = montarRecadoDiagnostico(l, { id: 'R-20261111-153012-diagnostico', agora: T0, urlPortal });
+    expect(t).toContain(`https://fdv.macuxifdv.com.br/config/diagnosticos/${ID(42)}`);
+    expect(t).not.toContain('config.macuxifdv.com.br');
+    expect(URL_PORTAL_PADRAO).toBe(urlPortalDiagnosticos({}));
   });
 
   it('espera exponencial 1, 2, 4… min até 60 min', () => {

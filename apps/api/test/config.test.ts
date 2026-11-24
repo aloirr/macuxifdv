@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { conferirSegredoJwt, diagnosticosAppLigados, diagnosticosLigados, ehAmbienteLocal, lerTrustProxy } from '../src/config';
+import {
+  conferirSegredoJwt,
+  diagnosticosAppLigados,
+  diagnosticosLigados,
+  ehAmbienteLocal,
+  enderecosWebPadrao,
+  hostsAntigosLigados,
+  lerTrustProxy,
+  urlPortalDiagnosticos,
+} from '../src/config';
 
 const forte = 'x'.repeat(32);
 
@@ -56,5 +65,34 @@ describe('MACUXI_DIAGNOSTICOS e MACUXI_DIAGNOSTICOS_APP (T-0158, R-20261111-0111
     expect(diagnosticosAppLigados({ MACUXI_DIAGNOSTICOS_APP: '1' })).toBe(false);
     expect(diagnosticosAppLigados({ MACUXI_DIAGNOSTICOS: '1', MACUXI_DIAGNOSTICOS_APP: '0' })).toBe(false);
     expect(diagnosticosAppLigados({ MACUXI_DIAGNOSTICOS: 'sim', MACUXI_DIAGNOSTICOS_APP: 'true' })).toBe(true);
+  });
+});
+
+describe('MACUXI_HOSTS_ANTIGOS (ADR 0068, v1.0.33): padrão dos links do e-mail e do diagnóstico', () => {
+  const ANTIGOS = { bko: 'https://bko.macuxifdv.com.br', portal: 'https://config.macuxifdv.com.br' };
+  const FDV = { bko: 'https://fdv.macuxifdv.com.br/bko', portal: 'https://fdv.macuxifdv.com.br' };
+
+  it('ligada: ausente, vazia, 1/true/sim e valor inválido ficam no padrão (hosts antigos)', () => {
+    for (const v of [undefined, '', '1', 'true', 'sim', ' SIM ', 'talvez', 'desligado']) {
+      expect(hostsAntigosLigados({ MACUXI_HOSTS_ANTIGOS: v }), String(v)).toBe(true);
+      expect(enderecosWebPadrao({ MACUXI_HOSTS_ANTIGOS: v })).toEqual(ANTIGOS);
+    }
+  });
+
+  it('desligada: 0/false/nao/não (sem caixa nem espaços) → fdv.', () => {
+    for (const v of ['0', 'false', 'FALSE', 'nao', 'não', ' Nao ']) {
+      expect(hostsAntigosLigados({ MACUXI_HOSTS_ANTIGOS: v }), v).toBe(false);
+      expect(enderecosWebPadrao({ MACUXI_HOSTS_ANTIGOS: v })).toEqual(FDV);
+    }
+  });
+
+  it('link do diagnóstico: a base segue a variável; MACUXI_DIAGNOSTICOS_PORTAL_URL definida vale por cima', () => {
+    expect(urlPortalDiagnosticos({})).toBe('https://config.macuxifdv.com.br');
+    expect(urlPortalDiagnosticos({ MACUXI_HOSTS_ANTIGOS: '0' })).toBe('https://fdv.macuxifdv.com.br');
+    for (const v of ['1', '0']) {
+      const explicita = { MACUXI_HOSTS_ANTIGOS: v, MACUXI_DIAGNOSTICOS_PORTAL_URL: ' https://portal.exemplo.com.br ' };
+      expect(urlPortalDiagnosticos(explicita)).toBe('https://portal.exemplo.com.br');
+    }
+    expect(urlPortalDiagnosticos({ MACUXI_HOSTS_ANTIGOS: '0', MACUXI_DIAGNOSTICOS_PORTAL_URL: '  ' })).toBe('https://fdv.macuxifdv.com.br');
   });
 });

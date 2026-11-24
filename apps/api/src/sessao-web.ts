@@ -8,6 +8,9 @@
  *   (401/423) apaga o cookie. Respostas com `Cache-Control: no-store`.
  * - Cabeçalho com outro valor ou `Sec-Fetch-Site` de outro site: 403 `CSRF_RECUSADO`, antes de validar o corpo ou contar
  *   tentativa.
+ * - ADR 0068 (cookie injetado): `renovar`/`encerrar` com MAIS DE UM cookie de sessão de mesmo nome no `Cookie` (um gravado por
+ *   outro subdomínio com `Domain=.macuxifdv.com.br`, ao lado do host-only) respondem 401 `SESSAO_INVALIDA` e apagam o cookie,
+ *   sem chamar o Core: a API não escolhe qual dos dois vale.
  * O valor do token nunca vai para log (o `Cookie` já é redigido; `Set-Cookie` também: `CAMINHOS_REDIGIDOS_LOG`).
  */
 import {
@@ -25,7 +28,7 @@ import { ErroHttp } from './erros';
 
 /** Configuração do cookie (`MACUXI_SESSAO_COOKIE_SEGURO`, `lerSessaoWeb` em `config.ts`). */
 export interface OpcoesSessaoWeb {
-  /** `true` = HTTPS (demo e produção): nome `__Secure-macuxi_rt` e atributo `Secure`. */
+  /** `true` = HTTPS (produção): nome `__Secure-macuxi_rt` e atributo `Secure` (o nome fica na v1.0.33, ADR 0068). */
   seguro: boolean;
 }
 
@@ -56,9 +59,21 @@ function semToken(resultado: Record<string, unknown>): Record<string, unknown> {
   return resto;
 }
 
+/** Quantos cookies de nome `nome` o cabeçalho `Cookie` traz (com qualquer valor, até vazio). */
+export function contarCookie(cabecalho: string | undefined | null, nome: string): number {
+  if (!cabecalho) return 0;
+  let n = 0;
+  for (const parte of cabecalho.split(';')) {
+    const i = parte.indexOf('=');
+    if (i >= 0 && parte.slice(0, i).trim() === nome) n += 1;
+  }
+  return n;
+}
+
 /**
  * Prepara a rota pública para o modo cookie. `null` = rota sem `cookieSessao` ou chamada sem o cabeçalho (segue como sempre).
- * Lança 403 `CSRF_RECUSADO` (cabeçalho inválido ou outro site) e 401 `SESSAO_INVALIDA` (`renovar` sem cookie).
+ * Lança 403 `CSRF_RECUSADO` (cabeçalho inválido ou outro site) e 401 `SESSAO_INVALIDA` (`renovar` sem cookie; `renovar` ou
+ * `encerrar` com o cookie de sessão repetido, ADR 0068).
  */
 export function prepararSessaoWeb(req: FastifyRequest, reply: FastifyReply, rota: CookieSessaoRota | undefined, opcoes: OpcoesSessaoWeb): SessaoWebDaRequisicao | null {
   if (!rota) return null;
@@ -73,7 +88,12 @@ export function prepararSessaoWeb(req: FastifyRequest, reply: FastifyReply, rota
   let corpo: unknown = req.body;
   let semCookie = false;
   if (rota.papel === 'renovar' || rota.papel === 'encerrar') {
-    const token = lerCookie(req.headers.cookie, nomeDoCookieSessao(opcoes.seguro));
+    const nome = nomeDoCookieSessao(opcoes.seguro);
+    if (contarCookie(req.headers.cookie, nome) > 1) {
+      apagar();
+      throw new ErroHttp(401, CODIGOS_AUTH.sessao, MENSAGEM_SESSAO);
+    }
+    const token = lerCookie(req.headers.cookie, nome);
     if (!token) {
       apagar();
       if (rota.papel === 'renovar') throw new ErroHttp(401, CODIGOS_AUTH.sessao, MENSAGEM_SESSAO);

@@ -16,7 +16,8 @@
  * T-0158 (ADR 0043; `diagnosticos-worker.ts`): com `MACUXI_DIAGNOSTICOS=1` (padrão DESLIGADO) e a migração 0058 no banco, o
  * alerta (recado automático do remetente `diagnostico`, só com `MACUXI_RECADOS_TOKEN_SERVIDOR`; sem ele as linhas viram
  * `desligado`) e o expurgo de 90 dias rodam aqui também. `MACUXI_DIAGNOSTICOS_INTERVALO_MS` (padrão 60000) e
- * `MACUXI_DIAGNOSTICOS_PORTAL_URL` (link do recado; padrão https://config.macuxifdv.com.br).
+ * `MACUXI_DIAGNOSTICOS_PORTAL_URL` (base do link do recado; padrão pela `MACUXI_HOSTS_ANTIGOS`, ADR 0068: ligada
+ * https://config.macuxifdv.com.br, desligada https://fdv.macuxifdv.com.br; `urlPortalDiagnosticos` em `config.ts`).
  * ADR 0054 (`sync-pacotes-gerador.ts`): com `MACUXI_SYNC_PACOTES=1` (padrão DESLIGADO) e a migração 0074 no banco, o gerador do
  * pacote pronto da primeira carga roda aqui também, a cada `MACUXI_SYNC_PACOTES_INTERVALO_MS` (padrão 60000), num pool próprio do
  * `macuxi_worker` (2 conexões: a trava de sessão da partição segura uma durante a geração). Arquivos no mesmo armazenamento das
@@ -33,8 +34,8 @@ import pino from 'pino';
 import { criarAgendador } from './agendador';
 import type { ArmazenamentoArquivos } from './arquivos';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
-import { CAMINHOS_REDIGIDOS_LOG, diagnosticosLigados, lerConfigSyncPacotes, syncPacotesLigados } from './config';
-import { criarWorkerDiagnosticos, SQL_EXISTE_0058, URL_PORTAL_PADRAO } from './diagnosticos-worker';
+import { CAMINHOS_REDIGIDOS_LOG, diagnosticosLigados, lerConfigSyncPacotes, syncPacotesLigados, urlPortalDiagnosticos } from './config';
+import { criarWorkerDiagnosticos, SQL_EXISTE_0058 } from './diagnosticos-worker';
 import { criarBancoApp } from './banco';
 import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
 import { criarCifraEmail, criarDespachanteEmail, criarTransporteDaConfig, descreverConfigEmail, lerConfigEmail } from './email';
@@ -155,7 +156,7 @@ async function iniciarDiagnosticos(): Promise<{ parar(): Promise<void> } | undef
     worker: poolWorker,
     recados: token ? criarClienteRecadosGithub({ token }) : null,
     armazenamento,
-    urlPortal: process.env.MACUXI_DIAGNOSTICOS_PORTAL_URL?.trim() || URL_PORTAL_PADRAO,
+    urlPortal: urlPortalDiagnosticos(process.env),
     log: logDiag,
   });
   log.info({ tipo: 'diagnostico', alerta: token ? 'ligado' : 'desligado' }, 'diagnósticos no ar (alerta e expurgo)');

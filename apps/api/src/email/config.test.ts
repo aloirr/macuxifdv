@@ -179,6 +179,32 @@ describe('endereços públicos do e-mail (MACUXI_EMAIL_URL_ATIVOS, MACUXI_EMAIL_
   });
 });
 
+describe('padrão do botão "Abrir o backoffice" pela MACUXI_HOSTS_ANTIGOS (ADR 0068)', () => {
+  const ARQ = { MACUXI_EMAIL_ARQUIVO_DIR: '/tmp/caixa', MACUXI_JWT_SEGREDO: SEGREDO_JWT };
+
+  it('em produção sem MACUXI_EMAIL_URL_BKO: ligada (ausente, 1, sim ou valor inválido) → bko.; desligada (0, false, nao) → fdv.../bko', () => {
+    for (const v of [undefined, '1', 'sim', 'TRUE', 'talvez', '']) {
+      const c = lerConfigEmail({ ...ARQ, ...(v === undefined ? {} : { MACUXI_HOSTS_ANTIGOS: v }) }, { producao: true });
+      expect(c.apresentacao.urlBackoffice, String(v)).toBe('https://bko.macuxifdv.com.br');
+    }
+    for (const v of ['0', 'false', 'nao', 'não', ' NAO ']) {
+      const c = lerConfigEmail({ ...ARQ, MACUXI_HOSTS_ANTIGOS: v }, { producao: true });
+      expect(c.apresentacao.urlBackoffice, v).toBe('https://fdv.macuxifdv.com.br/bko');
+    }
+  });
+
+  it('MACUXI_EMAIL_URL_BKO definida vale por cima da MACUXI_HOSTS_ANTIGOS, ligada ou desligada', () => {
+    for (const v of ['1', '0']) {
+      const c = lerConfigEmail({ ...ARQ, MACUXI_HOSTS_ANTIGOS: v, MACUXI_EMAIL_URL_BKO: 'https://bko.exemplo.com.br/' }, { producao: true });
+      expect(c.apresentacao.urlBackoffice).toBe('https://bko.exemplo.com.br/');
+    }
+  });
+
+  it('fora de produção, sem MACUXI_EMAIL_URL_BKO: sem botão, com a variável ligada ou desligada', () => {
+    for (const v of ['1', '0']) expect(lerConfigEmail({ ...ARQ, MACUXI_HOSTS_ANTIGOS: v }).apresentacao.urlBackoffice).toBeUndefined();
+  });
+});
+
 describe('lerRemetente', () => {
   it('Nome <email>, "Nome" <email> e só o e-mail; CR/LF recusado', () => {
     expect(lerRemetente('Macuxi <Nao-Responda@Macuxifdv.com.br>')).toEqual({ nome: 'Macuxi', email: 'nao-responda@macuxifdv.com.br' });
