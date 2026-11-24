@@ -48,7 +48,7 @@ export function linkInternoNavegavel(link: string | null | undefined, telaExiste
 /**
  * Grupos do menu do BKO (ADR 0050, revista pela ADR 0060; spec docs/design/menu-parametros/spec.md §2). O menu mostra
  * os grupos e os itens em ordem alfabética pelo rótulo (pt-BR, sem diferenciar acento e caixa), com Parâmetros e
- * Sistema fixos no fim, nesta ordem (`GRUPOS_FIXOS_NO_FIM`, D1). Grupo com uma página só vira item direto (D9, no shell).
+ * Sistema fixos no fim, nesta ordem (`GRUPOS_FIXOS_NO_FIM`, D1).
  */
 export const GRUPOS_MENU = [
   'acesso',

@@ -174,10 +174,10 @@ describe('perfil resolvido: sobreposições do tenant e limites travados do perf
     expect(escopoDosPerfis([invalido])).toBe('carteira');
   });
 
-  it('travaDaChave: o cadeado da página com a regra', () => {
-    expect(travaDaChave('vendedor', 'acesso.bko')).toEqual({ regra: 'RN-CORE-33', mensagem: 'Vendedor nunca entra no BKO (RN-CORE-33).' });
-    expect(travaDaChave('gerente', 'acesso.portal')?.regra).toBe('RN-CORE-33');
-    expect(travaDaChave('promotor', 'pedido.cancelar')?.regra).toBe('RN-PRO-01');
+  it('travaDaChave: o cadeado da página com a regra no campo `regra` e a mensagem sem código interno (R-20261124-094002)', () => {
+    expect(travaDaChave('vendedor', 'acesso.bko')).toEqual({ regra: 'RN-CORE-33', mensagem: 'Vendedor nunca entra no BKO.' });
+    expect(travaDaChave('gerente', 'acesso.portal')).toEqual({ regra: 'RN-CORE-33', mensagem: 'O portal é só do admin.' });
+    expect(travaDaChave('promotor', 'pedido.cancelar')).toEqual({ regra: 'RN-PRO-01', mensagem: 'Promotor nunca cria, edita, cancela ou exclui pedido.' });
     expect(travaDaChave('promotor', 'pedido.ver')).toBeNull();
     expect(travaDaChave('gerente', 'acesso.bko')).toBeNull();
     expect(travaDaChave('admin', 'acesso.portal')).toBeNull();
