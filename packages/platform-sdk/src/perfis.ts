@@ -8,7 +8,7 @@
  *   login com `perfilDaFaseM` e daí em diante só falam `Perfil`. Some quando a API real (T-0003) emitir perfis.
  */
 import { ROTULO_PERFIL_CURTO, ROTULO_PERFIL_LONGO as ROTULO_LONGO_COMUM } from '@macuxi/comum/perfis';
-import { NOME_APP_VARIANTE } from './app-versao';
+import { NOME_APP_VARIANTE, VARIANTES_APP, type VarianteApp } from './app-versao';
 import type { AppId, Perfil } from './nomes';
 
 export const PERFIS_DO_APP: Readonly<Record<Exclude<AppId, 'conector'>, readonly Perfil[]>> = {
@@ -19,6 +19,14 @@ export const PERFIS_DO_APP: Readonly<Record<Exclude<AppId, 'conector'>, readonly
 
 export function perfilUsaApp(perfil: Perfil | null | undefined, app: keyof typeof PERFIS_DO_APP): boolean {
   return !!perfil && PERFIS_DO_APP[app].includes(perfil);
+}
+
+/**
+ * T-0195 (ADR 0070 §D6): a variante do app Android do perfil (cada perfil usa no máximo uma). `null` = perfil sem app Android
+ * (admin, analista, assistente). A rota do link do APK do próprio app (`ROTA_CORE_APP_APK`) usa esta, nunca o que o cliente manda.
+ */
+export function varianteDoPerfil(perfil: Perfil | null | undefined): VarianteApp | null {
+  return VARIANTES_APP.find((v) => perfilUsaApp(perfil, v)) ?? null;
 }
 
 /**

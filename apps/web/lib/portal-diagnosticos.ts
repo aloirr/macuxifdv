@@ -15,8 +15,10 @@ import {
 } from '@macuxi/platform-sdk';
 import type { BadgeTone } from '@macuxi/ui/web';
 
-/** Página do portal (sem o prefixo `/config`: no host `config.` o navegador vê `/diagnosticos`). */
-export const CAMINHO_DIAGNOSTICOS = '/diagnosticos';
+import { noPortal } from './portal';
+
+/** Página do portal, com o prefixo `/config` (`noPortal`). */
+export const CAMINHO_DIAGNOSTICOS = noPortal('/diagnosticos');
 export const caminhoDoDiagnostico = (id: string) => `${CAMINHO_DIAGNOSTICOS}/${encodeURIComponent(id)}`;
 
 /** Fuso da lista entre empresas (não há fuso de tenant aqui; desenho §6). */

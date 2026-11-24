@@ -1,20 +1,21 @@
 /**
  * T-0038: o BKO aceita rodar atrás de proxy/túnel, com a origem informada em `MACUXI_BKO_ORIGEM` (host e origem
- * permitidos no Next). T-0086: produção em `bko.macuxifdv.com.br` e `config.macuxifdv.com.br` (fixos); a variável aceita
- * lista. Sem os hosts da demo (desligada, ADR 0051).
+ * permitidos no Next). ADR 0071 (v1.0.33): produção em `fdv.macuxifdv.com.br` e, até o corte, nos antigos `bko.` e `config.`
+ * (fixos, sem variável); a variável aceita lista. Sem os hosts da demo (desligada, ADR 0051).
  */
 import { describe, expect, it } from 'vitest';
 
 import nextConfig, { hostDaOrigem, hostsDoBko, origemDaApi, PROXY_GUIA_PDF_HUB, PROXY_OPENAPI_HUB } from '../next.config';
 import { GUIA_PDF_HUB, OPENAPI_HUB } from './portal-rotas';
 
-const FIXOS = ['bko.macuxifdv.com.br', 'config.macuxifdv.com.br'];
+const FIXOS = ['fdv.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br'];
 
-describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
-  it('produção (bko. e config.) sempre permitida; os hosts da demo não entram', () => {
+describe('hosts do BKO atrás do túnel (T-0038, T-0086, ADR 0071)', () => {
+  it('produção (fdv. primeiro, e os antigos bko. e config.) sempre permitida; os hosts da demo não entram', () => {
     expect(hostsDoBko(undefined)).toEqual(FIXOS);
     expect(hostsDoBko(undefined).some((h) => h.includes('-demo.'))).toBe(false);
-    // build arg do workflow "producao — publicar"
+    // build arg do workflow "producao — publicar" (o padrão do Dockerfile passa a fdv.; o antigo bko. também não acrescenta nada)
+    expect(hostsDoBko('https://fdv.macuxifdv.com.br')).toEqual(FIXOS);
     expect(hostsDoBko('https://bko.macuxifdv.com.br')).toEqual(FIXOS);
   });
   it('MACUXI_BKO_ORIGEM acrescenta o host da origem (ex.: túnel rápido de reserva)', () => {
@@ -25,7 +26,7 @@ describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
     expect(hostDaOrigem('https://x .com')).toBeNull();
   });
   it('MACUXI_BKO_ORIGEM em lista separada por vírgula; item vazio ou inválido é ignorado', () => {
-    expect(hostsDoBko('https://bko.macuxifdv.com.br, https://config.macuxifdv.com.br')).toEqual(FIXOS);
+    expect(hostsDoBko('https://bko.macuxifdv.com.br, https://config.macuxifdv.com.br, https://fdv.macuxifdv.com.br/bko')).toEqual(FIXOS);
     expect(hostsDoBko('https://a.trycloudflare.com,, https://x .com ,http://192.168.0.10:3100')).toEqual([...FIXOS, 'a.trycloudflare.com', '192.168.0.10:3100']);
   });
   it('next.config: allowedDevOrigins e serverActions.allowedOrigins com produção; /api-proxy segue para a API', async () => {
@@ -56,5 +57,10 @@ describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
     expect(origemDaApi('http://api:8100/v1')).toBe('http://api:8100');
     expect(origemDaApi('http://127.0.0.1:8100/v1/')).toBe('http://127.0.0.1:8100');
     expect(origemDaApi('https://api.exemplo.com.br')).toBe('https://api.exemplo.com.br');
+  });
+  it('Dockerfile: MACUXI_BKO_ORIGEM padrão em fdv.', async () => {
+    const { readFileSync } = await import('node:fs');
+    const docker = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
+    expect(docker).toMatch(/^ARG MACUXI_BKO_ORIGEM=https:\/\/fdv\.macuxifdv\.com\.br$/m);
   });
 });

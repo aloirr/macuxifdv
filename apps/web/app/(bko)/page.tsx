@@ -1,8 +1,11 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { PaginaInicio } from '@/components/inicio-page';
+import { INICIO_DO_BKO } from '@/lib/portal';
 
-/** Início do BKO (T-0189, RN-CORE-64): `/` monta o Início do Core. */
-export default function Inicio() {
-  return <PaginaInicio />;
+/**
+ * Raiz `/` (ADR 0071 §3): o Início do BKO mora em `/bko`. Quem redireciona é o `proxy.ts` (307, antes de renderizar); esta
+ * página só cobre o caso de a requisição chegar sem passar por ele.
+ */
+export default function Raiz(): never {
+  redirect(INICIO_DO_BKO);
 }

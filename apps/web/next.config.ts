@@ -26,14 +26,13 @@ export const PROXY_GUIA_PDF_HUB = '/api-proxy/_publico/integracao/v1/guia.pdf';
  * `next dev` (allowedDevOrigins) e para a checagem de origem das Server Actions (hoje o BKO não tem nenhuma; fica
  * pronto). Endereço da API: o rewrite `/api-proxy` abaixo (no v1 o navegador só fala com a própria origem; a API não
  * precisa de CORS para o BKO).
- * Produção (T-0086, ADR 0028): `bko.macuxifdv.com.br` e `config.macuxifdv.com.br` (portal da T-0087, mesmo serviço
- * `bko:3100` atrás do túnel `macuxi-prod`) entram fixos, então a imagem de produção aceita os dois hosts qualquer que
- * seja o `MACUXI_BKO_ORIGEM` do build. O roteamento do `config.` para o portal fica no `proxy.ts`.
+ * Produção (ADR 0071, v1.0.33): `fdv.` e os antigos `bko.` e `config.macuxifdv.com.br`, fixos, sem variável: a imagem de
+ * produção aceita os três qualquer que seja o `MACUXI_BKO_ORIGEM` do build. O que cada host abre: `lib/portal.ts`.
  * Só hosts explícitos, sem curinga (sem os hosts da demo, desligada pelo ADR 0051).
  */
-export const HOSTS_DO_BKO_PADRAO = ['bko.macuxifdv.com.br', 'config.macuxifdv.com.br'] as const;
+export const HOSTS_DO_BKO_PADRAO = ['fdv.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br'] as const;
 
-/** Host (sem esquema, caminho nem porta padrão) de uma origem como `https://bko.macuxifdv.com.br/`; vazio/inválido = null. */
+/** Host (sem esquema, caminho nem porta padrão) de uma origem como `https://fdv.macuxifdv.com.br/`; vazio/inválido = null. */
 export function hostDaOrigem(origem: string | undefined | null): string | null {
   const o = origem?.trim();
   if (!o) return null;

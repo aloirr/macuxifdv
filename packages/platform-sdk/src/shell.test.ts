@@ -122,3 +122,59 @@ describe('link interno do app (RD-0032: fonte única para o Início do shell e a
     expect(linkInternoNavegavel('/m/rota/hoje', existe)).toBeNull();
   });
 });
+
+describe('pendenciasParaAtualizar (ADR 0070 §D8, RN-CORE-80)', () => {
+  const armazenamento = {
+    ler: async <T,>(k: string) => (k === 'rascunhos' ? ({ a: 1, b: 2 } as T) : null),
+    gravar: async () => {},
+    remover: async () => {},
+    chaves: async () => [],
+  };
+  const AGORA = new Date('2026-11-25T12:00:00Z');
+  const chamados: string[] = [];
+  const vendedorComPendencia = definirModuloShell({
+    ...vendedor,
+    pendenciasParaAtualizar: async ({ app, armazenamento: arm, agora }) => {
+      chamados.push(`vendedor/${app}/${agora.toISOString()}`);
+      const r = await arm.ler<Record<string, number>>('rascunhos');
+      return { total: Object.keys(r ?? {}).length, href: '/m/pedidos?aba=rascunhos' };
+    },
+  });
+  const coreSemPendencia = definirModuloShell({ ...core, pendenciasParaAtualizar: async () => ({ total: 0, href: '/m/clientes' }) });
+  const visao = (modulosAtivos: readonly ('core' | 'vendedor')[], app: 'campo' = 'campo', modulos = [coreSemPendencia, vendedorComPendencia]) =>
+    criarShell(app, modulos).montar({ perfil: 'vendedor', modulosAtivos });
+
+  it('junta só os módulos efetivos com total > 0, com o link interno validado pela visão', async () => {
+    chamados.length = 0;
+    expect(await visao(['core', 'vendedor']).pendenciasParaAtualizar({ armazenamento, agora: AGORA })).toEqual([
+      { modulo: 'vendedor', total: 2, href: '/m/pedidos?aba=rascunhos' },
+    ]);
+    expect(chamados).toEqual(['vendedor/campo/2026-11-25T12:00:00.000Z']);
+  });
+
+  it('módulo fora dos efetivos ou sem a variante no manifesto não é chamado', async () => {
+    chamados.length = 0;
+    expect(await visao(['core']).pendenciasParaAtualizar({ armazenamento, agora: AGORA })).toEqual([]);
+    const soWeb = definirModuloShell<string>({
+      manifesto: defineModule({ id: 'vendedor', versao: '1.0.0', depende: ['core'], perfis: ['vendedor'], apps: { web: { menus: [] } } }),
+      pendenciasParaAtualizar: async () => {
+        chamados.push('soWeb');
+        return { total: 1, href: '/m/clientes' };
+      },
+    });
+    expect(await visao(['core', 'vendedor'], 'campo', [core, soWeb]).pendenciasParaAtualizar({ armazenamento, agora: AGORA })).toEqual([]);
+    expect(chamados).toEqual([]);
+  });
+
+  it('link fora de /m/ ou de tela que não está na visão vira href null (o total continua)', async () => {
+    const fora = definirModuloShell({ ...vendedor, pendenciasParaAtualizar: async () => ({ total: 1, href: 'https://x.com' }) });
+    const semTela = definirModuloShell({ ...vendedor, pendenciasParaAtualizar: async () => ({ total: 3, href: '/m/alcadas' }) });
+    expect(await visao(['core', 'vendedor'], 'campo', [core, fora]).pendenciasParaAtualizar({ armazenamento, agora: AGORA })).toEqual([{ modulo: 'vendedor', total: 1, href: null }]);
+    expect(await visao(['core', 'vendedor'], 'campo', [core, semTela]).pendenciasParaAtualizar({ armazenamento, agora: AGORA })).toEqual([{ modulo: 'vendedor', total: 3, href: null }]);
+  });
+
+  it('erro do módulo é propagado (o shell nunca diz "nada pendente" sem saber)', async () => {
+    const quebra = definirModuloShell({ ...vendedor, pendenciasParaAtualizar: async () => Promise.reject(new Error('sqlite fora')) });
+    await expect(visao(['core', 'vendedor'], 'campo', [core, quebra]).pendenciasParaAtualizar({ armazenamento, agora: AGORA })).rejects.toThrow('sqlite fora');
+  });
+});

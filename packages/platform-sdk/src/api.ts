@@ -20,6 +20,7 @@
  */
 import type { z } from 'zod';
 import type { ErroApi } from './acesso';
+import type { PortaVersaoApp } from './app-versao';
 import type { MetodoHttp } from './ambiente';
 import type { InfoArquivo, NovoArquivo } from './arquivos';
 import { caminhoConectorParaRoteador, problemasApiConector, type ApiConector } from './conector';
@@ -270,6 +271,12 @@ export interface ContextoBase {
    * `criarServicoPacotesMemoria()`. A rota decide quem pode pedir e audita; o link nunca vai para log.
    */
   pacotes?: ServicoPacotes;
+  /**
+   * T-0195 (ADR 0070 §D7, RN-CORE-80): o app que chamou (`CABECALHO_APP`) e a última versão publicada de cada variante, a mesma
+   * fonte do 426 `APP_DESATUALIZADO`. Use com `situacaoDaVersao` (ex.: o aviso do sininho do Core). A API sempre preenche nas
+   * rotas de módulo; contexto falso de teste usa `criarPortaVersaoAppMemoria()`.
+   */
+  versaoApp?: PortaVersaoApp;
   /**
    * T-0191 (RN-CORE-77): geocodificação do endereço do cliente (Nominatim, fila de 1 req/s e cache no processo). A API sempre
    * preenche nas rotas de módulo (`MACUXI_NOMINATIM_URL=desligado` ou sem serviço: `disponivel() = false` e `localizar` lança 503
