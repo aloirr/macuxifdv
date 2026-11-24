@@ -139,6 +139,21 @@ describe('T-0117: renovação pelo cookie', () => {
     expect((chamadas[0]!.init.headers as Record<string, string>)[CABECALHO_CSRF]).toBe('1');
     expect((chamadas[1]!.init.headers as Record<string, string>)[CABECALHO_CSRF]).toBeUndefined();
   });
+  it('semToken: não manda o token; o 401 (senha atual errada) não renova nem encerra a sessão', async () => {
+    const s = await carregar();
+    s.saveSession('acesso-1', USUARIO);
+    respostas.push(json(401, { codigo: 'SENHA_ATUAL_INCORRETA', mensagem: 'Senha atual incorreta.' }));
+    await expect(
+      s.api('/auth/senha/trocar', { method: 'POST', body: { senha_atual: 'x', senha_nova: 'y' }, sessaoWeb: true, semToken: true }),
+    ).rejects.toMatchObject({ name: 'ApiRequestError', status: 401, code: 'SENHA_ATUAL_INCORRETA', message: 'Senha atual incorreta.' });
+    expect(chamadas).toHaveLength(1);
+    const h = chamadas[0]!.init.headers as Record<string, string>;
+    expect(h.Authorization).toBeUndefined();
+    expect(h[CABECALHO_CSRF]).toBe('1');
+    expect(chamadas[0]!.url).toBe('/api-proxy/auth/senha/trocar');
+    expect(s.getToken()).toBe('acesso-1');
+    expect(local.getItem('macuxi.web.user')).toBe(JSON.stringify(USUARIO));
+  });
 });
 
 describe('T-0117: aba nova se restaura pelo cookie', () => {
