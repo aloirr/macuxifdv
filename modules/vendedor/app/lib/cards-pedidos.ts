@@ -17,7 +17,7 @@ export function valorDoCard(q: QuantidadeEValor | null): string | null {
 }
 
 /**
- * RD-0263: período sem nenhum pedido (total zerado e lista do período vazia, sem busca). A tela esconde os cartões e os chips
+ * RD-0307: período sem nenhum pedido (total zerado e lista do período vazia, sem busca). A tela esconde os cartões e os chips
  * e fica só com a frase do vazio. Sem resposta do servidor (resumo nulo) não é vazio: o cartão mostra o estado.
  */
 export function periodoSemPedidos(e: { resumo: ResumoDePedidos | null; itensNoPeriodo: number; buscando: boolean }): boolean {

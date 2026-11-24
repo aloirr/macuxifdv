@@ -30,7 +30,7 @@ describe('RN-VEN-47: cards de Pedidos', () => {
   });
 });
 
-describe('RD-0263: período vazio mostra só a frase do vazio', () => {
+describe('RD-0307: período vazio mostra só a frase do vazio', () => {
   const zero = { quantidade: 0, valor_cents: 0 };
   const vazio = { orcamentos: zero, enviados: zero, total: zero };
   it('RN-VEN-47: total zerado e lista do período vazia, sem busca: esconde cartões e chips', () => {

@@ -1,10 +1,8 @@
 /**
  * Visão da tela "Aparelhos" do BKO (RN-CORE-15): funções puras sobre `GET /v1/core/dispositivos`. Sem React e sem rede.
  */
-import { BOM_CSV } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
 import type { DispositivoItem } from '../../contracts';
-
-const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 /** Data/hora curta no fuso informado (o tenant); sem data = "Nunca". */
 export function quandoEmPortugues(iso: string | null, fuso: string): string {
@@ -20,7 +18,7 @@ export function textoDoBloqueio(d: Pick<DispositivoItem, 'bloqueado_em'>): 'Bloq
 export function csvDeAparelhos(itens: readonly DispositivoItem[], fuso: string): string {
   const cab = ['Aparelho', 'Usuário', 'Plataforma', 'Último acesso', 'Situação', 'Bloqueado em'];
   const linhas = itens.map((d) =>
-    [d.nome ?? d.id, d.usuario_nome, d.plataforma ?? '', quandoEmPortugues(d.ultimo_acesso_em, fuso), textoDoBloqueio(d), d.bloqueado_em ? quandoEmPortugues(d.bloqueado_em, fuso) : ''].map(aspas).join(';'),
+    [d.nome ?? d.id, d.usuario_nome, d.plataforma ?? '', quandoEmPortugues(d.ultimo_acesso_em, fuso), textoDoBloqueio(d), d.bloqueado_em ? quandoEmPortugues(d.bloqueado_em, fuso) : ''].map(celulaCsv).join(';'),
   );
-  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[cab.map(celulaCsv).join(';'), ...linhas].join('\r\n')}\r\n`;
 }

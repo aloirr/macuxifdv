@@ -10,6 +10,7 @@
  * - datas ISO 8601: instante em UTC (`...Z`) ou data civil `AAAA-MM-DD`.
  */
 import { z } from 'zod';
+import { CodigoFdvClienteSchema } from './cliente-pre-cadastro';
 
 export const API_PREFIX = '/v1';
 
@@ -136,6 +137,8 @@ export const CustomerSummary = z.object({
   avg_monthly_cents: Cents,
   positivated_this_month: z.boolean(),
   price_table_id: Id.nullable(),
+  /** v1.0.32 (aditivo): Código FDV do cliente, para a busca do editor de rota do BKO casar por ele (`clienteCasaBusca`). */
+  codigo_fdv: CodigoFdvClienteSchema.nullish(),
 });
 export type CustomerSummary = z.infer<typeof CustomerSummary>;
 

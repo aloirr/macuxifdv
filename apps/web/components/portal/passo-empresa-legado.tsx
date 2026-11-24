@@ -10,7 +10,7 @@
  * - Empresa nova (servidor sem planos): Empresa, Administrador (`AdminInicial`, RN-CORE-34), Módulos e licenças, Parâmetros
  *   iniciais, "Conferir sem gravar" (`simular: true`) e "Criar empresa". A senha só vive no estado da tela e é limpa depois de gravar.
  * - Empresa existente sem plano (RD-2613): só as caixas dos módulos ainda não licenciados e "Acrescentar módulos", dentro do cartão
- *   "Módulos licenciados (o cabeçalho já mostra a empresa e o cartão "Administradores", os administradores). Tudo licenciado: nada. Com "Escolher plano"
+ *   "Módulos licenciados" (o cabeçalho já mostra a empresa e o cartão "Administradores", os administradores). Tudo licenciado: nada. Com "Escolher plano"
  *   no cartão (`secundario`), "Acrescentar módulos" vira secundário: um principal por cartão.
  */
 import { useRouter } from 'next/navigation';
@@ -129,12 +129,16 @@ export function errosDaEmpresa(corpo: unknown): Record<string, string> {
 
 const ROTULO_RESULTADO: Record<Resposta['resultado'], string> = { criado: 'Empresa criada', atualizado: 'Empresa atualizada', sem_mudanca: 'Nada mudou' };
 
-/** Linha do administrador no resultado (spec §6). `null` quando ele não veio no pedido. */
-export function textoDoAdminNoResultado(r: Pick<Resposta, 'admin' | 'simulado'>, email: string | null): string | null {
-  // no Conferir nada foi gravado: "não muda"; depois de gravar, "não mudou" (spec §6; R-20261107-174216 🟡 6)
-  if (r.admin === 'existente') return r.simulado ? 'Administrador mantido: a senha não muda.' : 'Administrador mantido: a senha não mudou.';
-  if (r.admin === 'criado') return r.simulado ? `Administrador que será criado: ${email ?? ''}.` : `Administrador criado: ${email ?? ''}.`;
-  return null;
+/** Módulos da lista do resultado: sem Core e Integração, que entram em toda empresa (RD-2617). */
+const modulosNaLista = (ids: readonly string[]): string[] => ids.filter((m) => !ehModuloSempre(m));
+
+/**
+ * Linha única do "Conferir sem gravar" (RD-0284): a empresa nova, os módulos que entram ou nada. Os `avisos` vêm embaixo.
+ */
+export function textoDaConferencia(r: Pick<Resposta, 'resultado' | 'modulos_adicionados'>): string {
+  if (r.resultado === 'criado') return 'Conferido: a empresa será criada.';
+  const entram = modulosNaLista(r.modulos_adicionados);
+  return entram.length > 0 ? `Conferido: entram ${entram.map(nomeDoModulo).join(', ')}.` : 'Conferido: nada muda.';
 }
 
 export type { AdminDoForm };
@@ -167,8 +171,6 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
   // tentou conferir ou gravar com a senha fora da RN-CORE-32: a lista pinta as faltas de vermelho
   const [destacarSenha, setDestacarSenha] = useState(false);
   const [erroAdmin, setErroAdmin] = useState<string | null>(null);
-  // e-mail do administrador do último envio (o resultado diz "Administrador criado: <e-mail>.")
-  const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
   const faltasDaSenha = f.admin ? faltasNaSenha(f.admin.senha) : [];
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
@@ -196,7 +198,6 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
     setDestacarSenha(faltasDaSenha.length > 0);
     if (Object.keys(e).length > 0) return setErro('Confira os campos marcados.');
     setEnviando(simular ? 'conferir' : 'gravar');
-    setEmailEnviado(f.admin ? f.admin.email.trim().toLowerCase() : null);
     try {
       const r = await chamarPortal(ROTAS_PORTAL.empresas, { metodo: 'POST', corpo, schema: CriarEmpresaRespostaSchema });
       setResultado(r);
@@ -265,7 +266,7 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
           <Notice tone="danger">{erro}</Notice>
         </div>
       )}
-      {resultado && <ResultadoEmpresa r={resultado} emailAdmin={emailEnviado} />}
+      {resultado && <ResultadoEmpresa r={resultado} />}
     </>
   );
 
@@ -324,7 +325,6 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
                 </option>
               ))}
             </SelectField>
-            <span className="text-[12px] text-ink-2">Datas e horários do app e do BKO aparecem neste fuso.</span>
           </div>
         </div>
       </Panel>
@@ -360,18 +360,14 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
   );
 }
 
-function ResultadoEmpresa({ r, emailAdmin }: { r: Resposta; emailAdmin: string | null }) {
-  const admin = textoDoAdminNoResultado(r, emailAdmin);
-  // Core e Integração entram em toda empresa e não aparecem em lista (RD-2617)
-  const adicionados = r.modulos_adicionados.filter((m) => !ehModuloSempre(m));
+function ResultadoEmpresa({ r }: { r: Resposta }) {
+  const entram = modulosNaLista(r.modulos_adicionados);
   return (
     <div data-testid="empresa.resultado">
       <Notice tone={r.simulado ? 'info' : 'success'}>
         <span className="flex flex-col gap-1">
-          <strong>{r.simulado ? `Conferido, nada gravado: ${ROTULO_RESULTADO[r.resultado].toLowerCase()} ao gravar.` : `${ROTULO_RESULTADO[r.resultado]}.`}</strong>
-          {adicionados.length > 0 && <span>Módulos {r.simulado ? 'que entram' : 'que entraram'}: {adicionados.map(nomeDoModulo).join(', ')}.</span>}
-          {r.parametros_gravados.length > 0 && <span>Parâmetros {r.simulado ? 'que serão gravados' : 'gravados'}: {r.parametros_gravados.length}.</span>}
-          {admin && <span data-testid="empresa.resultado-admin">{admin}</span>}
+          <strong>{r.simulado ? textoDaConferencia(r) : `${ROTULO_RESULTADO[r.resultado]}.`}</strong>
+          {!r.simulado && entram.length > 0 && <span>Módulos que entraram: {entram.map(nomeDoModulo).join(', ')}.</span>}
           {r.avisos.map((a) => (
             <span key={a}>{a}</span>
           ))}

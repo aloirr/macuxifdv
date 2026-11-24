@@ -2,11 +2,9 @@
  * Visão da tela Indicadores do BKO (T-0020 fase 1): funções puras sobre `GET /v1/core/indicadores`. Os textos vêm de
  * `app/lib/metas-formato`, os mesmos do app, então o número que o supervisor vê é o que o vendedor vê no aparelho.
  */
-import { BOM_CSV } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
 import type { IndicadoresLista } from '../../contracts';
 import { formatarIndicador, textoDaLinha, textoNecessidadeDiaria } from '../../app/lib/metas-formato';
-
-const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export type LinhaDaTabela = IndicadoresLista['itens'][number];
 
@@ -29,8 +27,8 @@ export function celulasDoUsuario(u: LinhaDaTabela): string[] {
 export const CABECALHO = ['Vendedor ou promotor', 'Visitados', 'Cobertura', 'Positivados', 'Realizado', 'Meta de venda', 'Atingimento', 'Necessidade diária'];
 
 export function csvDeIndicadores(l: IndicadoresLista): string {
-  const linhas = l.itens.map((u) => celulasDoUsuario(u).map(aspas).join(';'));
-  return BOM_CSV + `${[CABECALHO.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  const linhas = l.itens.map((u) => celulasDoUsuario(u).map(celulaCsv).join(';'));
+  return BOM_CSV + `${[CABECALHO.map(celulaCsv).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
 
 /** Valor mensal em reais digitado → centavos inteiros (vírgula ou ponto); inválido → null. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Order } from '../../contracts';
-import { CSV_BOM, csvNumber, ORDERS_CSV_HEADER, ordersToCsv, toCsv } from './csv';
+import { BOM_CSV } from '@macuxi/comum/csv';
+import { csvNumber, ORDERS_CSV_HEADER, ordersToCsv, toCsv } from './csv';
 
 const order = (over: Partial<Order> = {}): Order => ({
   id: 'o1',
@@ -31,15 +32,17 @@ const order = (over: Partial<Order> = {}): Order => ({
 });
 
 describe('csv', () => {
-  it('Unifica (14/11): aspas em toda célula, internas dobradas, vazio vira "" e fórmula ganha apóstrofo (byte a byte)', () => {
-    const csv = toCsv([['=SOMA(A1)', '-5', '+1', '@x', 'a;b', 'diz "oi"', null], [1, 'linha\r\nnova', '']]);
-    expect(CSV_BOM).toBe('\uFEFF');
+  it('usa BOM, ; e CRLF, com quebra de linha dentro da célula (byte a byte)', () => {
+    const csv = toCsv([['a', 'b'], ['linha\r\nnova', '']]);
     expect(Array.from(Buffer.from(csv, 'utf8').subarray(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
-    expect(csv).toBe('\uFEFF"\'=SOMA(A1)";"\'-5";"\'+1";"\'@x";"a;b";"diz ""oi""";""\r\n"1";"linha\r\nnova";""\r\n');
+    expect(csv).toBe(`${BOM_CSV}"a";"b"\r\n"linha\r\nnova";""\r\n`);
   });
 
-  it('usa BOM, ; e CRLF', () => {
-    expect(toCsv([['a', 'b'], ['1', '2']])).toBe(`${CSV_BOM}"a";"b"\r\n"1";"2"\r\n`);
+  it('CWE-1236: cliente e motivo que começam como fórmula saem como texto no CSV de pedidos', () => {
+    const csv = ordersToCsv([order({ customer_name: '=HYPERLINK("x")', pending_reason: '-5% extra' })]);
+    const linha = csv.slice(1).trimEnd().split('\r\n')[1]!;
+    expect(linha).toContain(';"\'=HYPERLINK(""x"")";');
+    expect(linha).toContain(';"\'-5% extra";');
   });
 
   it('número com vírgula decimal e sem milhar', () => {
@@ -49,7 +52,7 @@ describe('csv', () => {
 
   it('gera a tabela de pedidos com o motivo certo por status', () => {
     const csv = ordersToCsv([order(), order({ id: 'o2', number: '10493', status: 'rejected', pending_reason: '', rejection_reason: 'Preço divergente; revisar', discount_pct: 0, total_cents: 338550 })]);
-    expect(csv.startsWith(CSV_BOM)).toBe(true);
+    expect(csv.startsWith(BOM_CSV)).toBe(true);
     const lines = csv.slice(1).trimEnd().split('\r\n');
     expect(lines[0]).toBe(ORDERS_CSV_HEADER.map((h) => `"${h}"`).join(';'));
     expect(lines[1]).toBe('"10494";"Freios & Cia Cidade Nova";"Rafael S.";"CD Manaus";"4917,46";"7,0";"Aguardando aprovação";"Desconto 7,0% · alçada do vendedor 5,0%";"12/10/2026 08:05";"";"";"";""');

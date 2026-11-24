@@ -22,7 +22,7 @@ const STATUS: Record<ParadaServidor['status'], RouteStop['status']> = { feita: '
 
 const diasDesde = (iso: string | null, hoje: string): number | null => (iso ? Math.max(0, Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${iso}T12:00:00Z`)) / 86_400_000)) : null);
 
-function resumo(base: { id: string; nome: string; razao: string; codigo?: string | null; documento?: string | null; cidade: string | null; bairro: string | null; lat: number | null; lng: number | null; ultima: string | null }, hoje: string): CustomerSummary {
+function resumo(base: { id: string; nome: string; razao: string; codigo?: string | null; codigoFdv?: string | null; documento?: string | null; cidade: string | null; bairro: string | null; lat: number | null; lng: number | null; ultima: string | null }, hoje: string): CustomerSummary {
   return {
     id: base.id,
     erp_code: base.codigo ?? '',
@@ -51,11 +51,12 @@ function resumo(base: { id: string; nome: string; razao: string; codigo?: string
     avg_monthly_cents: 0,
     positivated_this_month: false,
     price_table_id: null,
+    codigo_fdv: base.codigoFdv ?? null,
   };
 }
 
 export function clienteDaCarteira(c: ClienteDaCarteira, hoje: string): CustomerSummary {
-  return resumo({ id: c.id, nome: c.nome, razao: c.razao_social, codigo: c.external_id, documento: c.documento, cidade: c.cidade, bairro: c.bairro, lat: c.lat, lng: c.lng, ultima: c.ultima_compra_em }, hoje);
+  return resumo({ id: c.id, nome: c.nome, razao: c.razao_social, codigo: c.external_id, codigoFdv: c.codigo_fdv, documento: c.documento, cidade: c.cidade, bairro: c.bairro, lat: c.lat, lng: c.lng, ultima: c.ultima_compra_em }, hoje);
 }
 
 /** Rota do servidor → `RouteDay` do editor. `inicio` (a base do vendedor) serve ao cálculo de km (base → paradas, estrada ≈ 1,3 × reta). */

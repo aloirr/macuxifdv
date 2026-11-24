@@ -3,26 +3,11 @@
  * mostra. Padrão do Excel brasileiro (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens e mensagens do Hub: nenhum
  * valor de linha (o payload pode ter CPF/CNPJ) — §14 do hub-api.md.
  */
-import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta, type ValorCsv } from '@macuxi/comum/csv';
 import type { LinhaErro, LoteListagemItem } from '../../contracts';
 
-/** BOM para o Excel abrir em UTF-8 sem perguntar. */
-export const CSV_BOM = BOM_CSV;
-
-type Celula = string | number | null | undefined;
-
-/**
- * Escapa a célula: aspas quando houver `;`, `"` ou quebra de linha. Texto que começa com `=`, `+`, `-` ou `@` (código vindo do
- * ERP) (ou tabulação/retorno) ganha um apóstrofo na frente (`protegerFormula` de @macuxi/comum/csv) para o Excel não executar como fórmula.
- */
-export function csvCell(v: Celula): string {
-  if (v === null || v === undefined) return '';
-  const s = typeof v === 'number' ? String(v) : protegerFormula(v);
-  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-export function toCsv(rows: ReadonlyArray<ReadonlyArray<Celula>>): string {
-  return CSV_BOM + rows.map((r) => r.map(csvCell).join(';')).join('\r\n') + '\r\n';
+export function toCsv(rows: ReadonlyArray<ReadonlyArray<ValorCsv>>): string {
+  return BOM_CSV + rows.map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
 
 export const ROTULO_MODO: Record<LoteListagemItem['modo'], string> = { completo: 'Carga completa', delta: 'Delta' };

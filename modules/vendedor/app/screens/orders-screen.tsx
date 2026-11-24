@@ -180,7 +180,7 @@ export default function OrdersScreen() {
     () => (semResposta ? null : resumoDePedidos(itens.map((i) => ({ ...i.pedido, emitido_em: i.emitido_em })), { periodo, tz })),
     [itens, periodo, tz, semResposta],
   );
-  // RD-0263: período sem pedido fica só com a frase do vazio (sem os 3 cartões zerados nem o chip "Todos" sozinho)
+  // RD-0307: período sem pedido fica só com a frase do vazio (sem os 3 cartões zerados nem o chip "Todos" sozinho)
   const periodoVazio = periodoSemPedidos({ resumo: cards, itensNoPeriodo: base.length, buscando });
   const abrirCard = (c: CardDePedidos) => setSituacao(c === 'orcamentos' ? 'card_orc' : 'card_env');
   // T-0090: a folha Período e a etiqueta; tudo derivado do período em vigor (cálculo barato, refeito só quando ele muda)

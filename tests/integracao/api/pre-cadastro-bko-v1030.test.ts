@@ -6,7 +6,7 @@
  * (`web/lib/pre-cadastro.ts`, `app/lib/pre-cadastro-formulario.ts`, `codigos-cliente.tsx`) e comparado com o esperado pela regra
  * (valor × regra: contador da aba, situação × selo, data no fuso do tenant, códigos ERP/FDV).
  * Parâmetros › Clientes: GET|PUT /v1/core/parametros/campos-obrigatorios e o efeito no formulário do app (pull) e do BKO.
- * Perfil errado (403) e outro tenant (RLS: não vê, 404).
+ * Perfil errado nos Parâmetros (403); perfil e outro tenant das rotas do pré-cadastro: pre-cadastro-revisao-v1030.test.ts.
  */
 import { semBanco } from '@macuxi/db/teste/estado';
 import { ApiRequestError } from '@macuxi/platform-sdk/web';

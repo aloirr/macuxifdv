@@ -25,6 +25,8 @@ describe('formulários do BKO de conteúdo (RF-CAT-07)', () => {
     const csv = produtosParaCsv([{ id: '00000000-0000-4000-8000-000000000001', erp_code: 'CAF-500', description: 'Café; 500 g', brand: 'Aroma', line: 'Mercearia', unit: 'UN', ean: null, thumbnail_url: null, is_campaign: true, price: null, availability: null, price_stock_visible: false }]);
     expect(csv.startsWith('﻿Código;Produto')).toBe(true);
     expect(csv).toContain('CAF-500;"Café; 500 g";Aroma;Mercearia;UN;;Sim\r\n');
+    const formula = produtosParaCsv([{ id: '00000000-0000-4000-8000-000000000002', erp_code: '=1+1', description: 'Chá', brand: 'Aroma', line: 'Mercearia', unit: 'UN', ean: null, thumbnail_url: null, is_campaign: false, price: null, availability: null, price_stock_visible: false }]);
+    expect(formula).toContain("\r\n'=1+1;Chá;Aroma;Mercearia;UN;;Não\r\n");
   });
 
   it('filtros na URL: aba, texto e nível da hierarquia; aba desconhecida volta para produtos', () => {

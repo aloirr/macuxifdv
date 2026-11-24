@@ -563,7 +563,7 @@ export function searchWallet(customers: CustomerSummary[], q: string, exclude: S
   const termo = q.trim().length >= MINIMO_BUSCA_CLIENTE_BKO ? q : '';
   return customers
     .filter((c) => !exclude.has(c.id))
-    .filter((c) => clienteCasaBusca(termo, { razao_social: c.legal_name, nome_fantasia: c.trade_name, external_id: c.erp_code, documento: c.cnpj }))
+    .filter((c) => clienteCasaBusca(termo, { razao_social: c.legal_name, nome_fantasia: c.trade_name, external_id: c.erp_code, codigo_fdv: c.codigo_fdv, documento: c.cnpj }))
     .sort((a, b) => rank(a) - rank(b) || a.trade_name.localeCompare(b.trade_name, 'pt-BR'))
     .slice(0, limit);
 }

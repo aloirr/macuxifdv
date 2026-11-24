@@ -2,7 +2,7 @@
  * Formulários do BKO de conteúdo (RF-CAT-07), puros e testáveis: texto da tela ↔ contrato. A API revalida tudo
  * (Zod + domain); aqui só a conversão com mensagem em português.
  */
-import { BOM_CSV } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import { SalvarCadastroCatalogo, SalvarConteudo, SalvarSinonimo, type FichaProduto, type ItemVitrine, type Sinonimo } from '../../contracts';
 import { LIMITES_CADASTRO_CATALOGO, validarCadastroCatalogo } from '../../domain/cadastro-catalogo';
 
@@ -157,16 +157,11 @@ export function sinonimoDoForm(f: FormSinonimo): ResultadoForm<SalvarSinonimo> {
   return { ok: true, valor: r.data };
 }
 
-const celula = (v: string | number | null | undefined) => {
-  const s = v === null || v === undefined ? '' : String(v);
-  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-
 /** CSV dos produtos da tela (padrão do Excel brasileiro: `;`, CRLF e BOM). */
 export function produtosParaCsv(itens: readonly ItemVitrine[]): string {
   const cab = ['Código', 'Produto', 'Marca', 'Categoria', 'Unidade', 'EAN', 'Destaque'];
   const corpo = itens.map((i) => [i.erp_code, i.description, i.brand, i.line, i.unit, i.ean ?? '', i.is_campaign ? 'Sim' : 'Não']);
-  return BOM_CSV + [cab, ...corpo].map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + [cab, ...corpo].map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
 
 export type AbaBko = 'produtos' | 'sinonimos' | 'sem-resultado';

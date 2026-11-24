@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_PADRAO } from '../../domain/parametros';
 import { camposDoPainel, type PainelParametroTrade } from './parametros-trade';
-import { CSV_BOM, csvCelula, rupturaCsv, shareCsv } from './csv';
+import { BOM_CSV } from '@macuxi/comum/csv';
+import { paraCsv, rupturaCsv, shareCsv } from './csv';
 import { lerFiltrosTrade, paraBuscaTrade, paraQueryTrade } from './filtros';
 
 const LOJA = '00000000-0000-4000-8000-0000000000c1';
@@ -23,11 +24,8 @@ describe('filtros do BKO de trade na URL', () => {
 });
 
 describe('CSV do BKO de trade', () => {
-  it('célula com ; ou aspas vai entre aspas; número com vírgula decimal', () => {
-    expect(csvCelula('A;B')).toBe('"A;B"');
-    expect(csvCelula('diz "oi"')).toBe('"diz ""oi"""');
-    expect(csvCelula(83.33)).toBe('83,33');
-    expect(csvCelula(null)).toBe('');
+  it('paraCsv: texto que começa com = sai com apóstrofo (CWE-1236); número negativo/decimal sai com vírgula', () => {
+    expect(paraCsv([['=SOMA(A1:A2)', -10.5, 83.33]])).toBe(`${BOM_CSV}'=SOMA(A1:A2);-10,5;83,33\r\n`);
   });
 
   it('share × meta e ruptura por loja, com BOM e CRLF', () => {
@@ -37,7 +35,7 @@ describe('CSV do BKO de trade', () => {
       resumo: { share_medio_pct: 30, meta_media_pct: 40, atingimento_pct: 75, categorias_medidas: 1 },
       linhas: [{ cliente_id: LOJA, cliente_nome: 'Mercado; Centro', categoria_gondola_id: CAT, categoria_nome: null, share_pct: 30, meta_pct: 40, atingimento_pct: 75, desvio_pp: -10, situacao: 'abaixo', medido_em: '2026-11-03T13:05:00.000Z' }],
     });
-    expect(s.startsWith(CSV_BOM)).toBe(true);
+    expect(s.startsWith(BOM_CSV)).toBe(true);
     expect(s.split('\r\n')[1]).toBe(`"Mercado; Centro";${CAT};30;40;75;-10;Abaixo da meta;2026-11-03T13:05:00.000Z`);
     const r = rupturaCsv({
       de: '2026-10-05',

@@ -1,16 +1,10 @@
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../contracts';
-import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsv, type ValorCsv } from '@macuxi/comum/csv';
 import { DEFAULT_TZ, formatDateTimeFull } from '@macuxi/ui/web';
 
-/**
- * CSV do BKO do Vendedor. Decisão "Unifica" (dono do produto, 14/11/2026, RD-0051): BOM e célula vêm do `@macuxi/comum/csv`;
- * `celulaCsv` põe aspas em toda célula, dobra as internas e prefixa `'` em `=`, `+`, `-`, `@`, tab e CR (CWE-1236).
- */
-export const CSV_BOM = BOM_CSV;
-
-/** Monta o CSV no padrão brasileiro do Excel: separador ;, CRLF e BOM. Vazio vira `""`. */
-export function toCsv(rows: Array<Array<string | number | null | undefined>>): string {
-  return CSV_BOM + rows.map((r) => r.map((v) => celulaCsv(v === null || v === undefined ? '' : String(v))).join(';')).join('\r\n') + '\r\n';
+/** Monta o CSV no padrão brasileiro do Excel: separador ;, CRLF e BOM (RD-0051: célula do `@macuxi/comum/csv`). */
+export function toCsv(rows: ValorCsv[][]): string {
+  return BOM_CSV + rows.map((r) => r.map(celulaCsv).join(';')).join('\r\n') + '\r\n';
 }
 
 /** Número com vírgula decimal e casas fixas (sem separador de milhar, para o Excel somar). */

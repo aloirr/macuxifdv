@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
-import { corpoDaEmpresa, errosDaEmpresa, sugerirCodigo, textoDoAdminNoResultado } from '@/components/portal/passo-empresa-legado';
+import { corpoDaEmpresa, errosDaEmpresa, sugerirCodigo, textoDaConferencia } from '@/components/portal/passo-empresa-legado';
 import { abaDoEndereco } from '@/components/portal/tela-empresa';
 import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
@@ -71,12 +71,10 @@ describe('passo Empresa: administrador inicial (RN-CORE-34, RN-CORE-32; spec por
   it('empresa existente (sem bloco do admin) não manda admin', () => {
     expect(corpoDaEmpresa(form, false)).not.toHaveProperty('admin');
   });
-  it('resultado: criado com o e-mail; existente sem trocar a senha; sem admin no pedido = nada', () => {
-    expect(textoDoAdminNoResultado({ admin: 'criado', simulado: false }, 'ana@empresa.com.br')).toBe('Administrador criado: ana@empresa.com.br.');
-    expect(textoDoAdminNoResultado({ admin: 'existente', simulado: false }, 'ana@empresa.com.br')).toBe('Administrador mantido: a senha não mudou.');
-    // no Conferir nada foi gravado (R-20261107-174216 🟡 6)
-    expect(textoDoAdminNoResultado({ admin: 'existente', simulado: true }, null)).toBe('Administrador mantido: a senha não muda.');
-    expect(textoDoAdminNoResultado({ admin: null, simulado: false }, null)).toBeNull();
+  it('conferência (RD-0284): uma linha só; Core e Integração não aparecem', () => {
+    expect(textoDaConferencia({ resultado: 'criado', modulos_adicionados: ['core', 'integracao', 'vendedor'] })).toBe('Conferido: a empresa será criada.');
+    expect(textoDaConferencia({ resultado: 'atualizado', modulos_adicionados: ['integracao', 'vendedor', 'promotor'] })).toBe('Conferido: entram Vendedor, Promotor.');
+    expect(textoDaConferencia({ resultado: 'sem_mudanca', modulos_adicionados: [] })).toBe('Conferido: nada muda.');
   });
 });
 

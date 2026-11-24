@@ -1,16 +1,9 @@
 /** Exportação CSV do BKO de trade (padrão brasileiro do Excel: `;`, vírgula decimal, CRLF e BOM). */
-import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import type { RelatorioRupturaApi, RelatorioShareApi } from '../../contracts';
 
-export const CSV_BOM = BOM_CSV;
-
-export function csvCelula(v: string | number | null | undefined): string {
-  const s = v === null || v === undefined ? '' : typeof v === 'number' ? String(v).replace('.', ',') : protegerFormula(v); // fórmula do Excel vira texto (CWE-1236); número fica de fora
-  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 export function paraCsv(linhas: ReadonlyArray<ReadonlyArray<string | number | null | undefined>>): string {
-  return CSV_BOM + linhas.map((l) => l.map(csvCelula).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + linhas.map((l) => l.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
 }
 
 export const ROTULO_SITUACAO_SHARE: Readonly<Record<RelatorioShareApi['linhas'][number]['situacao'], string>> = {

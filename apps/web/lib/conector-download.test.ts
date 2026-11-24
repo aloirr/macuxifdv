@@ -154,6 +154,7 @@ describe('falhaDoDownload', () => {
     expect(gestao?.textos.baixar('Gestao-Oficial-v1.0.19.apk')).toBe('Baixar Gestao-Oficial-v1.0.19.apk');
     expect(campo?.textos.emBreve).toBe('em breve.');
     expect(gestao?.textos.emBreve).toBe('em breve.');
+    expect(DOWNLOAD_CONECTOR.textos.emBreve).toBe('em breve.'); // RD-0299: um texto só para o mesmo estado
     expect(campo?.textos.semLicenca).toBe('sem licença. Peça ao suporte para ativar o módulo.');
   });
 });

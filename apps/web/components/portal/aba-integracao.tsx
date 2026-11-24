@@ -544,7 +544,7 @@ export function CartaoGuia() {
   );
 }
 
-export function AbaIntegracao({ tenant }: { tenant: string }) {
+export function AbaIntegracao({ tenant, fuso }: { tenant: string; fuso?: string }) {
   const qc = useQueryClient();
   const toast = useToast();
   const chave = ['portal', tenant, 'conectores'] as const;
@@ -596,7 +596,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
           Integração via Conector
         </h2>
         <Panel title={<Passo n={1}>Baixar o Conector</Passo>}>
-          <BaixarPacote produto={DOWNLOAD_CONECTOR} tenant={tenant} />
+          <BaixarPacote produto={DOWNLOAD_CONECTOR} tenant={tenant} fuso={fuso} />
         </Panel>
         <Panel title={<Passo n={2}>Gerar a credencial</Passo>}>
           <GerarCredencial tenant={tenant} tipo="conector" todos={todos} carregando={q.isPending} principal escolheBases={false} inicial={{ identificador: 'erp', nome: 'Conector do ERP', recebePedidos: true }} testId="integracao." aoCriar={aoMudar} />

@@ -48,10 +48,10 @@ export interface LinhaHistoricoCurva {
   pedidos: number;
 }
 
-const DIMENSOES: ReadonlyArray<{ dimensao: DimensaoCurva; nome: string; campo: 'valor_cents' | 'itens' | 'pedidos' }> = [
-  { dimensao: 'faturamento', nome: 'Faturamento', campo: 'valor_cents' },
-  { dimensao: 'volume', nome: 'Volume', campo: 'itens' },
-  { dimensao: 'frequencia', nome: 'Frequência', campo: 'pedidos' },
+const DIMENSOES: ReadonlyArray<{ dimensao: DimensaoCurva; campo: 'valor_cents' | 'itens' | 'pedidos' }> = [
+  { dimensao: 'faturamento', campo: 'valor_cents' },
+  { dimensao: 'volume', campo: 'itens' },
+  { dimensao: 'frequencia', campo: 'pedidos' },
 ];
 
 export function curvaPelaVariacao(pct: number, faixas: FaixasCurvaAbc): CurvaAbc {
@@ -86,7 +86,7 @@ export function curvasAbcDoCliente(historico: readonly LinhaHistoricoCurva[], ho
     if (media <= 0) continue;
     const pct = ((somaDoMes(historico, atual, d.campo) - media) / media) * 100;
     const curva = curvaPelaVariacao(pct, parametros[d.dimensao]);
-    saida.push({ dimensao: d.dimensao, curva, rotulo: `${d.nome} ${curva}` });
+    saida.push({ dimensao: d.dimensao, curva, rotulo: `${ROTULOS_DIMENSAO_CURVA[d.dimensao]} ${curva}` });
   }
   return saida;
 }
