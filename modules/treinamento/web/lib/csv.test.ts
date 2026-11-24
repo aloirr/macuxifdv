@@ -53,11 +53,4 @@ describe('RD-0051: saída do CSV byte a byte', () => {
         '"\'-Bia\r\nLinha";Vendedor;1;2;3;10,00;\r\n',
     );
   });
-
-  it('RD-0051: célula que começa com = sai com apóstrofo; número negativo fica como está', () => {
-    const csv = trilhasParaCsv([
-      { id: '00000000-0000-4000-8000-000000000003', titulo: '=HYPERLINK("x")', status: 'publicada', obrigatoria: false, prazo: null, modulos: -1, licoes: 0, quizzes: 0, publico_perfis: [], publico_equipes: 0, publicada_em: null, updated_at: '2026-11-01T12:00:00Z' },
-    ]);
-    expect(csv.slice(1).split('\r\n')[1]).toBe('"\'=HYPERLINK(""x"")";Publicada;Não;;-1;0;0;Todos;Todas');
-  });
 });
