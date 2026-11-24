@@ -18,7 +18,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')
 const HOSTIS = ['=SOMA(A1)', '+1', '-1', '@cmd', '\tA', 'Loja "Boa"'] as const;
 const bytes = (csv: string) => JSON.stringify(csv).replace(/^"\uFEFF/, '"<BOM>');
 
-describe('RD-0044/RD-0051: saída dos CSVs do core pelo comum', () => {
+describe('RD-0044/RD-0051: saída dos CSVs do core pelo comum (fórmula protegida, CWE-1236)', () => {
   it('aparelhos', () => {
     const d: DispositivoItem = { id: id(1), usuario_id: id(2), usuario_nome: 'Vera', nome: 'Aparelho', plataforma: 'android', ultimo_acesso_em: '2026-10-31T15:30:00.000Z', bloqueado_em: null };
     const csv = csvDeAparelhos([d, ...HOSTIS.map((h) => ({ ...d, nome: h, usuario_nome: h, bloqueado_em: '2026-10-31T16:00:00.000Z' }))], 'America/Manaus');
@@ -94,28 +94,5 @@ describe('RD-0044/RD-0051: saída dos CSVs do core pelo comum', () => {
     };
     const csv = csvDeVisitas([v, ...HOSTIS.map((h) => ({ ...v, usuario_nome: h, cliente_nome: h, justificativa_fora_raio: h, motivo_texto: h, checkout_em: null, resultado: null, foto_fachada_id: null, etapas_pendentes: 2 }))], 'America/Manaus');
     expect(bytes(csv)).toMatchInlineSnapshot(`""<BOM>\\"Data\\";\\"Vendedor\\";\\"Cliente\\";\\"Check-in\\";\\"Checkout\\";\\"Minutos\\";\\"Resultado\\";\\"Motivo\\";\\"Distância (m)\\";\\"Sinais\\";\\"Justificativa\\";\\"Foto da fachada\\";\\"Etapas pendentes\\"\\r\\n\\"2026-10-31\\";\\"Vera\\";\\"Auto\\";\\"31/10/2026, 09:00\\";\\"31/10/2026, 09:40\\";\\"40\\";\\"Cliente fechado\\";\\"Loja fechada\\";\\"850\\";\\"Fora do raio, Visita extra\\";\\"Atendeu ao lado\\";\\"sim\\";\\"0\\"\\r\\n\\"2026-10-31\\";\\"'=SOMA(A1)\\";\\"'=SOMA(A1)\\";\\"31/10/2026, 09:00\\";\\"\\";\\"\\";\\"Em atendimento\\";\\"Loja fechada\\";\\"850\\";\\"Fora do raio, Visita extra\\";\\"'=SOMA(A1)\\";\\"\\";\\"2\\"\\r\\n\\"2026-10-31\\";\\"'+1\\";\\"'+1\\";\\"31/10/2026, 09:00\\";\\"\\";\\"\\";\\"Em atendimento\\";\\"Loja fechada\\";\\"850\\";\\"Fora do raio, Visita extra\\";\\"'+1\\";\\"\\";\\"2\\"\\r\\n\\"2026-10-31\\";\\"'-1\\";\\"'-1\\";\\"31/10/2026, 09:00\\";\\"\\";\\"\\";\\"Em atendimento\\";\\"Loja fechada\\";\\"850\\";\\"Fora do raio, Visita extra\\";\\"'-1\\";\\"\\";\\"2\\"\\r\\n\\"2026-10-31\\";\\"'@cmd\\";\\"'@cmd\\";\\"31/10/2026, 09:00\\";\\"\\";\\"\\";\\"Em atendimento\\";\\"Loja fechada\\";\\"850\\";\\"Fora do raio, Visita extra\\";\\"'@cmd\\";\\"\\";\\"2\\"\\r\\n\\"2026-10-31\\";\\"'\\tA\\";\\"'\\tA\\";\\"31/10/2026, 09:00\\";\\"\\";\\"\\";\\"Em atendimento\\";\\"Loja fechada\\";\\"850\\";\\"Fora do raio, Visita extra\\";\\"'\\tA\\";\\"\\";\\"2\\"\\r\\n\\"2026-10-31\\";\\"Loja \\"\\"Boa\\"\\"\\";\\"Loja \\"\\"Boa\\"\\"\\";\\"31/10/2026, 09:00\\";\\"\\";\\"\\";\\"Em atendimento\\";\\"Loja fechada\\";\\"850\\";\\"Fora do raio, Visita extra\\";\\"Loja \\"\\"Boa\\"\\"\\";\\"\\";\\"2\\"\\r\\n""`);
-  });
-
-  it('CWE-1236: célula que começa com "=" sai com apóstrofo nos 6 CSVs que tinham aspas locais', () => {
-    const f = '=SOMA(A1)';
-    const protegida = `"'${f}"`;
-    const d: DispositivoItem = { id: id(1), usuario_id: id(2), usuario_nome: f, nome: f, plataforma: 'android', ultimo_acesso_em: null, bloqueado_em: null };
-    const c = { id: id(21), nome: f, razao_social: 'X', cidade: null, bairro: null, lat: null, lng: null, ultima_compra_em: null, frequencia_semanas: 1, dia_semana: 1 };
-    const ind = { periodo: '2026-10', base_apuracao: 'aprovado', itens: [{ usuario_id: id(1), usuario_nome: f, indicadores: { planejados: 0, visitados: 0, cobertura_pct: 0, carteira: 0 }, metas: [] }] } as unknown as IndicadoresLista;
-    const lic: LicencasEstado = { modulos: ['core'], dependencias: {}, tenant: { core: true }, perfis: {}, usuarios: [{ id: id(1), nome: f, email: f, perfil: 'vendedor', removidos: [] }] } as unknown as LicencasEstado;
-    const meta: LinhaMetaBko = { usuario_id: id(1), usuario_nome: f, equipe_id: null, indicador: 'visitas', tipo: 'pedido', meta: 0, realizado: 0, atingimento_pct: null, editavel: true };
-    const v = { id: id(40), usuario_id: id(1), usuario_nome: f, cliente_id: id(21), cliente_nome: f, data_local: '2026-10-31', checkin_em: '2026-10-31T13:00:00Z', checkout_em: null, fora_do_raio: false, distancia_m: null, justificativa_fora_raio: null, sem_gps: false, sugere_coordenada: false, extra: false, resultado: null, fechada_por: null, motivo_codigo: null, motivo_descricao: null, motivo_texto: null, foto_fachada_id: null, etapas: [] } as unknown as VisitaBko;
-    const saidas = [
-      csvDeAparelhos([d], 'America/Manaus'),
-      csvDaCarteira([c], f),
-      csvDeIndicadores(ind),
-      csvDeLicencas(lic),
-      csvDeMetas([meta]),
-      csvDeVisitas([v], 'America/Manaus'),
-    ];
-    for (const csv of saidas) {
-      expect(csv).toContain(protegida);
-      expect(csv).not.toContain(`"${f}"`);
-    }
   });
 });
