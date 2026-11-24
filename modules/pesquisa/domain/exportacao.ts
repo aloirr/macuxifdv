@@ -2,24 +2,17 @@
  * Exportação de resultados (RF-PES-06): CSV em UTF-8 com BOM e `;` — o Excel em pt-BR abre direto, com acentos.
  * Uma linha por resposta; uma coluna por pergunta (id estável, RN-PES-01: a mesma pergunta em várias versões vira uma
  * coluna só, com o enunciado da versão mais nova). Datas e horas no fuso do tenant; número com vírgula decimal.
- * Células que começam com `=`, `+`, `@`, `-`, tabulação ou retorno de carro (`protegerFormula` do comum) ganham `'` na frente (injeção de fórmula).
+ * Célula pelo `celulaCsvCompacta` do comum (RD-0051): fórmula protegida com `'` e aspas só com `;`, `"` ou quebra.
  */
-import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import { zonedParts } from '@macuxi/comum/fuso';
 import type { ItemResposta, Pergunta, QuestionarioVersao, RespostaPesquisa } from '../contracts';
 
+/** Nome antigo, usado em `tests/modulos/t0140-csv-pesquisa-formula.test.ts`. */
+export { celulaCsvCompacta as celulaCsv } from '@macuxi/comum/csv';
+
 const SEP = ';';
 const FIM = '\r\n';
-
-/**
- * Escapa uma célula: fórmula neutralizada, aspas dobradas, entre aspas se tiver separador, aspas ou quebra.
- * Fica local porque o `celulaCsv` do comum sempre põe aspas e mudaria a saída (RD-0051).
- */
-export function celulaCsv(valor: string): string {
-  let v = protegerFormula(valor);
-  if (/[;"\r\n]/.test(v)) v = `"${v.replace(/"/g, '""')}"`;
-  return v;
-}
 
 const dois = (n: number) => String(n).padStart(2, '0');
 
@@ -80,7 +73,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
   const definicao = (versaoId: string, perguntaId: string) => versoes.find((v) => v.id === versaoId)?.perguntas.find((p) => p.id === perguntaId);
 
   const cabecalho = ['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'respondida_por', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita', ...colunas.map((c) => c.enunciado)];
-  const linhas = [cabecalho.map(celulaCsv).join(SEP)];
+  const linhas = [cabecalho.map(celulaCsvCompacta).join(SEP)];
   const ordenadas = e.respostas.slice().sort((a, b) => (a.respondida_em < b.respondida_em ? -1 : a.respondida_em > b.respondida_em ? 1 : a.id < b.id ? -1 : 1));
   for (const r of ordenadas) {
     const porPergunta = new Map(r.itens.map((i) => [i.pergunta_id, i] as const));
@@ -101,7 +94,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
       const it = porPergunta.get(c.id);
       return it ? valorDoItem(definicao(r.versao_id, c.id), it) : '';
     });
-    linhas.push([...fixas, ...respostas].map(celulaCsv).join(SEP));
+    linhas.push([...fixas, ...respostas].map(celulaCsvCompacta).join(SEP));
   }
   return `${BOM_CSV}${linhas.join(FIM)}${FIM}`;
 }
