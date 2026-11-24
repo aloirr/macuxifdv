@@ -360,6 +360,10 @@ describe('busca na carteira', () => {
   it('RF-CORE-02: CNPJ casa com máscara', () => {
     expect(searchWallet(list, '12.345.678', new Set()).map((c) => c.id)).toEqual(['1']);
   });
+  it('RF-CORE-02: acha o cliente pelo Código FDV', () => {
+    const comFdv = [...list, customer('5', 0, 0, { trade_name: 'Pneus Rio', codigo_fdv: '00042' })];
+    expect(searchWallet(comFdv, '00042', new Set()).map((c) => c.id)).toEqual(['5']);
+  });
   it('RF-CORE-02: termo com menos de 3 caracteres não filtra (mínimo da busca do BKO)', () => {
     expect(searchWallet(list, '12', new Set()).map((c) => c.id)).toEqual(['4', '2', '3', '1']);
   });

@@ -4,6 +4,7 @@
  */
 import { ehEmail } from '@macuxi/comum/email';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
+import { SUFIXO_EMAIL_PROVISORIO } from './vinculo-erp';
 
 export type SituacaoTituloCore = 'aberto' | 'liquidado' | 'cancelado';
 
@@ -20,7 +21,7 @@ export function emailDoVendedorErp(email: string | null | undefined, externalId:
   const limpo = (email ?? '').trim().toLowerCase();
   if (ehEmail(limpo)) return { email: limpo, provisorio: false };
   const hex = [...new TextEncoder().encode(externalId)].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return { email: `erp-${hex}@sem-email.invalid`, provisorio: true };
+  return { email: `erp-${hex}${SUFIXO_EMAIL_PROVISORIO}`, provisorio: true };
 }
 
 /**

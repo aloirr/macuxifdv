@@ -2,10 +2,8 @@
  * Visão das telas Visitas, Coordenadas sugeridas e Motivos do BKO (T-0018): funções puras sobre
  * `GET /v1/core/visitas`, `coordenadas-sugeridas` e `motivos`. Sem React e sem rede.
  */
-import { BOM_CSV } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
 import type { VisitaBko } from '../../contracts';
-
-const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 const RESULTADO: Record<string, string> = {
   pedido: 'Com pedido',
@@ -54,10 +52,10 @@ export function csvDeVisitas(itens: readonly (VisitaBko & { etapas_pendentes?: n
       v.foto_fachada_id ? 'sim' : '',
       String(v.etapas_pendentes ?? 0),
     ]
-      .map(aspas)
+      .map(celulaCsv)
       .join(';'),
   );
-  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[cab.map(celulaCsv).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
 
 /** Link do mapa para uma coordenada sugerida. */
