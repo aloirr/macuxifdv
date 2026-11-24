@@ -28,14 +28,14 @@ const nada = () => undefined;
 
 describe('Cadeado', () => {
   it('botão "Travado" com a regra como descrição (tooltip)', () => {
-    const a = nos(Cadeado({ id: 'l-trava', mensagem: 'Vendedor nunca entra no BKO (RN-CORE-33).' }));
+    const a = nos(Cadeado({ id: 'l-trava', mensagem: 'Vendedor nunca entra no BKO.' }));
     const botao = porTestId(a, 'cadeado.botao');
     expect(botao?.props['aria-label']).toBe('Travado');
     expect(botao?.props['aria-describedby']).toBe('l-trava');
     const tip = porTestId(a, 'cadeado.texto');
     expect(tip?.props.role).toBe('tooltip');
     expect(tip?.props.id).toBe('l-trava');
-    expect(texto(tip)).toBe('Vendedor nunca entra no BKO (RN-CORE-33).');
+    expect(texto(tip)).toBe('Vendedor nunca entra no BKO.');
     // aparece no hover e no foco (o toque liga um dos dois)
     expect(String(tip?.props.className)).toContain('group-hover:block');
     expect(String(tip?.props.className)).toContain('group-focus-within:block');
@@ -86,7 +86,7 @@ describe('SeletorDeNivel', () => {
   const opcoes = [
     { valor: 'carteira', rotulo: 'Carteira própria' },
     { valor: 'equipe', rotulo: 'Equipe' },
-    { valor: 'tenant', rotulo: 'Toda a empresa', desabilitada: true, motivo: 'Acima do perfil base Supervisor (RN-CORE-04).' },
+    { valor: 'tenant', rotulo: 'Toda a empresa', desabilitada: true, motivo: 'Acima do perfil base Supervisor.' },
   ];
 
   it('radiogroup com rádios nativos (setas do teclado) e a opção marcada', () => {
@@ -104,10 +104,10 @@ describe('SeletorDeNivel', () => {
     expect(porTestId(a, 'nivel.tenant')?.props.disabled).toBe(true);
     expect(porTestId(a, 'nivel.carteira')?.props.disabled).toBe(false);
     const labelTenant = a.filter((n) => n.type === 'label')[2];
-    expect(texto(labelTenant)).toBe('Toda a empresa, travado: Acima do perfil base Supervisor (RN-CORE-04).');
+    expect(texto(labelTenant)).toBe('Toda a empresa, travado: Acima do perfil base Supervisor.');
     const nota = porTestId(a, 'nivel.motivos');
     expect(nota?.props['aria-hidden']).toBe('true');
-    expect(JSON.stringify(nota?.props.children)).toContain('Acima do perfil base Supervisor (RN-CORE-04).');
+    expect(JSON.stringify(nota?.props.children)).toContain('Acima do perfil base Supervisor.');
   });
 
   it('escolher chama onChange com o valor; o grupo travado desabilita tudo', () => {
@@ -127,7 +127,7 @@ describe('LinhaDePermissao', () => {
       LinhaDePermissao({
         id: 'acesso-bko',
         rotulo: 'BKO',
-        trava: { mensagem: 'Vendedor nunca entra no BKO (RN-CORE-33).' },
+        trava: { mensagem: 'Vendedor nunca entra no BKO.' },
         padrao: 'Padrão: Não',
         erro: 'A empresa ficaria sem admin.',
         children: Interruptor({ ligado: false, onChange: nada, rotuloId: 'acesso-bko-rotulo', desabilitado: true, descricaoId: descricaoDaLinha('acesso-bko', { travada: true }) }),
@@ -156,7 +156,7 @@ describe('SeletorDePerfis', () => {
   const opcoes = [
     { valor: 'vendedor', rotulo: 'Vendedor', selo: 'Padrão' },
     { valor: 'vendedor_jr', rotulo: 'Vendedor júnior', detalhe: 'Base: Vendedor' },
-    { valor: 'admin', rotulo: 'Admin', desabilitada: true, motivo: 'A senha de um admin não é redefinida por aqui (RN-CORE-35).' },
+    { valor: 'admin', rotulo: 'Admin', desabilitada: true, motivo: 'A senha de um admin não é redefinida por aqui.' },
   ];
 
   it('caixas nativas num fieldset com legenda; marcados; admin travado com motivo', () => {
@@ -169,7 +169,7 @@ describe('SeletorDePerfis', () => {
       ['vendedor_jr', true, false],
       ['admin', false, true],
     ]);
-    expect(texto(a.filter((n) => n.type === 'label')[2])).toContain('(RN-CORE-35)');
+    expect(texto(a.filter((n) => n.type === 'label')[2])).toContain('não é redefinida por aqui.');
   });
 
   it('"todos" marcado: as outras aparecem marcadas e desabilitadas (menos a travada)', () => {

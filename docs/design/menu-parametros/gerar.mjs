@@ -1,7 +1,8 @@
 // Simulação 2a do menu Parâmetros do BKO (v1.0.18, R-20261120-191213): o menu de hoje (main e6a3a33) ao lado do proposto,
-// a página /parametros com uma seção aberta e a seção de módulo sem licença. Gera os HTMLs e os PNGs desta pasta.
-// Uso, a partir da raiz do repositório: node docs/design/menu-parametros/gerar.mjs
-// Falha se um balão ou uma nota cobrir conteúdo, se o menu rolar em 1366×768 com qualquer grupo aberto ou se um item for cortado.
+// a página /parametros/<secao> (sem lista de seções; a seção ativa só no menu, R-20261124-094002) e a seção de módulo sem
+// licença. Gera os HTMLs e os PNGs desta pasta. Uso, a partir da raiz do repositório: node docs/design/menu-parametros/gerar.mjs
+// Falha se um balão ou uma nota cobrir conteúdo, se o menu rolar em 1366×768 com qualquer grupo fora Parâmetros aberto ou se
+// um item for cortado. Com Parâmetros aberto (13 seções), só a lista do menu rola.
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -20,26 +21,26 @@ const HOJE = [
   ['Comunicação', [['Alertas'], ['Recados'], ['Regras de alerta', 'Parâmetros']]],
   ['Operação', [['Aprovações'], ['Pedidos'], ['Rotas'], ['Visitas']]],
   ['Parâmetros', [['Integração', 'Seção']]],
-  ['Pesquisa', [['Pesquisas', 'Item direto']]],
+  ['Pesquisa', [['Pesquisas']]],
   ['Produtos', [['Catálogo'], ['Fotos em lote'], ['Marcas concorrentes'], ['Preço e custo'], ['Tabelas de preço']]],
   ['Sistema', [['Auditoria'], ['Carga por arquivo'], ['Integração ERP']]],
   ['Trade', [['Cadastros'], ['Indicadores']]],
-  ['Treinamento', [['Trilhas', 'Item direto']]],
+  ['Treinamento', [['Trilhas']]],
 ];
 
-// Menu proposto (ADR 0060: o que o SDK monta com `menuParametros: true`). { g, itens }: grupo; { i }: item direto (D9).
-// Parâmetros fixo logo acima de Sistema (D1).
+// Menu proposto (ADR 0060: o que o SDK monta com `menuParametros: true`). Todo grupo tem a seta, mesmo com um item só
+// (R-20261124-094002: D3, D9 e D10 deixam de valer). Parâmetros fixo logo acima de Sistema (D1); as opções dele são as seções.
 const MENU = [
   { g: 'Acesso', itens: ['Aparelhos', 'Usuários'] },
   { g: 'Análise', itens: ['Indicadores', 'Metas', 'Painel da equipe', 'Ranking', 'Trajeto do dia'] },
   { g: 'Cadastros', itens: ['Carteira', 'Clientes', 'Coordenadas sugeridas', 'Filiais', 'Formas de pagamento e prazos', 'Transportadoras'] },
   { g: 'Comunicação', itens: ['Alertas', 'Recados'] },
   { g: 'Operação', itens: ['Aprovações', 'Pedidos', 'Rotas', 'Visitas'] },
-  { i: 'Pesquisa', modulo: true },
+  { g: 'Pesquisa', itens: ['Pesquisas'], modulo: true },
   { g: 'Produtos', itens: ['Catálogo', 'Fotos em lote', 'Marcas concorrentes', 'Preço e custo', 'Tabelas de preço'] },
   { g: 'Trade', itens: ['Cadastros', 'Indicadores'], modulo: true },
-  { i: 'Treinamento', modulo: true },
-  { i: 'Parâmetros' },
+  { g: 'Treinamento', itens: ['Trilhas'], modulo: true },
+  { g: 'Parâmetros', itens: [] },
   { g: 'Sistema', itens: ['Auditoria', 'Carga por arquivo', 'Integração ERP'] },
 ];
 
@@ -61,6 +62,7 @@ const SECOES = [
 ];
 // Cenário único: empresa sem a licença de Pesquisa e de Treinamento; com Trade. Perfil Administrador.
 const SEM = ['Pesquisa', 'Treinamento'];
+MENU.find((e) => e.g === 'Parâmetros').itens = SECOES.map(([s]) => s);
 const DICA = 'Contrate o módulo para usar';
 
 const seta = (aberto) =>
@@ -70,44 +72,50 @@ const cadeado = (t = 14) =>
 const pontos = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`;
 const slug = (t) => t.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
 
-// Menu lateral proposto. aberto: grupo aberto; ativo: [entrada de primeiro nível, item]; dica: entrada com o balão visível.
+// Menu lateral proposto. aberto: grupo aberto; ativo: [grupo, item]; dica: item com o balão visível ("grupo›item" ou o grupo).
+// Seção de Parâmetros de módulo sem licença: opção com cadeado.
 function menu({ aberto = null, ativo = [], dica = null } = {}) {
   const [ativoG, ativoI] = ativo;
   const linhas = MENU.map((e) => {
-    const nome = e.g ?? e.i;
+    const nome = e.g;
     if (e.modulo && SEM.includes(nome)) {
       return `<div class="titulo bloq" id="m-${slug(nome)}" role="link" aria-disabled="true" aria-describedby="dica" tabindex="0"${dica === nome ? ' data-dica' : ''}><span>${nome}</span>${cadeado()}</div>`;
     }
-    if (e.i) {
-      const sel = ativoG === nome;
-      return `<a class="titulo direto${sel ? ' ativo' : ''}"${sel ? ' aria-current="page"' : ''}><span>${nome}</span></a>`;
-    }
     const abre = aberto === nome;
     const lista = abre
-      ? e.itens.map((i) => `<a class="item${ativoG === nome && ativoI === i ? ' ativo" aria-current="page' : ''}">${i}</a>`).join('')
+      ? e.itens
+          .map((i) => {
+            const sel = ativoG === nome && ativoI === i;
+            const bloq = nome === 'Parâmetros' && SEM.includes(i);
+            const cls = `item${bloq ? ' bloq' : ''}${sel ? ' ativo' : ''}`;
+            const attrs = `${sel ? ' aria-current="page"' : ''}${bloq ? ` aria-disabled="true" aria-describedby="dica"${dica === `${nome}›${i}` ? ' data-dica' : ''}` : ''}`;
+            return `<a class="${cls}"${attrs}><span>${i}</span>${bloq ? cadeado() : ''}</a>`;
+          })
+          .join('')
       : '';
     return `<div class="grupo"><div class="titulo${abre ? ' aberto' : ''}" aria-expanded="${abre}"><span>${nome}</span>${seta(abre)}</div>${lista}</div>`;
   }).join('');
-  return `<nav class="menu"><div class="brand"><img src="${LOGO}" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista">${linhas}</div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><div class="dica" id="dica" role="tooltip"${dica ? '' : ' hidden'}>${DICA}</div>`;
+  return `<nav class="menu"><div class="fixo"><div class="brand"><img src="${LOGO}" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista">${linhas}</div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></div></nav><div class="dica" id="dica" role="tooltip"${dica ? '' : ' hidden'}>${DICA}</div>`;
 }
 
 // Depois das fontes: posiciona o balão e confere que nem o balão nem a nota de simulação cobrem conteúdo.
-const SCRIPT = `<script>document.fonts.ready.then(()=>{const d=document.getElementById('dica'),t=document.querySelector('[data-dica]');if(t&&!d.hidden){const r=t.getBoundingClientRect();d.style.left=(r.right+10)+'px';d.style.top=(r.top+r.height/2-d.offsetHeight/2)+'px';}
+const SCRIPT = `<script>document.fonts.ready.then(()=>{const a=document.querySelector('.lista [aria-current]');if(a)a.scrollIntoView({block:'center'});const d=document.getElementById('dica'),t=document.querySelector('[data-dica]');if(t&&!d.hidden){const r=t.getBoundingClientRect();d.style.left=(r.right+10)+'px';d.style.top=(r.top+r.height/2-d.offsetHeight/2)+'px';}
 const sobre=[...document.querySelectorAll('.dica:not([hidden]),.nota')].map(e=>e.getBoundingClientRect());const conflitos=[];
-for(const el of document.querySelectorAll('main *')){if(el.closest('.nota'))continue;if(el.children.length&&!el.matches('td,th,.input,.btn,.selo,h1,h2,legend,small,.dia,.sec'))continue;const r=el.getBoundingClientRect();if(!r.width||!r.height)continue;for(const s of sobre){if(r.left<s.right&&r.right>s.left&&r.top<s.bottom&&r.bottom>s.top)conflitos.push(el.tagName+'.'+el.className+': '+el.textContent.trim().slice(0,30));}}
+for(const el of document.querySelectorAll('main *')){if(el.closest('.nota'))continue;if(el.children.length&&!el.matches('td,th,.input,.btn,.selo,h1,h2,legend,small,.dia'))continue;const r=el.getBoundingClientRect();if(!r.width||!r.height)continue;for(const s of sobre){if(r.left<s.right&&r.right>s.left&&r.top<s.bottom&&r.bottom>s.top)conflitos.push(el.tagName+'.'+el.className+': '+el.textContent.trim().slice(0,30));}}
 const l=document.querySelector('.lista');document.body.dataset.info=JSON.stringify({conflitos,lista:l.scrollHeight,visivel:l.clientHeight});document.body.dataset.pronto='1';});</script>`;
 
 const CSS = `
 *{box-sizing:border-box;margin:0}
 body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background:#F8F6F1;color:#16202A;width:1366px;min-height:768px;display:flex;position:relative}
-.menu{width:240px;min-height:768px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.menu{width:240px;min-height:768px;background:#16202A;color:#fff;flex-shrink:0}
+.fixo{position:sticky;top:0;height:768px;display:flex;flex-direction:column;padding:20px 12px 16px}
 .brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
 .brand img{display:block;height:28px;width:auto}
 .brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
-.lista{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;overflow:hidden}
-.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
-.titulo.direto.ativo{background:#2B3743;color:#fff}
+.lista{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#4A5562 transparent}
+.titulo{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
 .titulo.bloq{color:#8B96A3;cursor:not-allowed}
+.item.bloq{justify-content:space-between;color:#8B96A3;cursor:not-allowed}
 .item{display:flex;align-items:center;min-height:32px;padding:6px 10px 6px 20px;line-height:20px;border-radius:8px;font-size:15px;color:#C9CED5;position:relative}
 .item.ativo{background:#2B3743;color:#fff;font-weight:600}
 .item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
@@ -118,12 +126,6 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .rodape b{font-size:15px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
 main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:20px;max-width:1212px}
 h1{font-weight:700;font-size:24px;line-height:1.2;min-height:42px;display:flex;align-items:center}
-.corpo{display:flex;gap:24px;min-height:0;flex:1}
-.secoes{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:2px}
-.sec{display:flex;align-items:center;justify-content:space-between;height:40px;padding:0 12px 0 16px;border-radius:10px;font-size:15px;color:#34404D;position:relative}
-.sec.ativo{background:#fff;color:#16202A;font-weight:600;box-shadow:0 0 0 1px #DFE2E6}
-.sec.ativo:before{content:'';position:absolute;left:6px;top:10px;bottom:10px;width:3px;border-radius:2px;background:#1E3350}
-.sec.bloq{color:#5B6673}
 .conteudo{flex:1;min-width:0;display:flex;flex-direction:column;gap:20px}
 .quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
 .quadro .topo{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -156,15 +158,13 @@ tr:last-child td{border-bottom:0}
 .vazio{align-items:center;justify-content:center;text-align:center;padding:56px 16px;gap:10px;color:#34404D}
 .vazio b{font-size:15px;color:#16202A}
 .nota{font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #C9CED5;border-radius:8px;padding:8px 12px;box-shadow:0 4px 12px rgba(22,32,42,.08);z-index:9}
-.secoes .nota{margin-top:auto}
-.comp{display:grid;grid-template-columns:250px 250px minmax(0,1fr);gap:20px;align-items:start}
+.comp{display:grid;grid-template-columns:250px minmax(0,1fr);gap:20px;align-items:start}
 .col{display:flex;flex-direction:column;gap:8px}
 .col h2{font-size:15px}
 .mini{background:#16202A;border-radius:12px;padding:10px 8px;display:flex;flex-direction:column;gap:2px}
 .mini .titulo{height:26px}
 .mini .item{min-height:26px;padding:3px 8px 3px 16px;font-size:13px;line-height:18px;justify-content:space-between;gap:6px}
 .mini .item b{font-size:12px;font-weight:600;color:#C9CED5;white-space:nowrap}
-.mini .titulo b{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#C9CED5}
 .arv{background:#fff;border:1px solid #DFE2E6;border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
 .no{display:flex;flex-direction:column;gap:2px;font-size:13px;color:#34404D}
 .no > b{font-size:13px;color:#16202A;display:flex;align-items:center;gap:6px}
@@ -178,16 +178,13 @@ tr:last-child td{border-bottom:0}
 const pagina = (titulo, opcoes, corpo) =>
   `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${titulo}</title><style>${CSS}</style><body>${menu(opcoes)}<main>${corpo}</main>${SCRIPT}</body></html>`;
 
-// Página Parâmetros: lista de seções à esquerda (a selecionada em branco; as de módulo sem licença com cadeado) e o conteúdo à direita.
-const parametros = (secao, conteudo, nota) =>
+// Página /parametros/<secao>: sem lista de seções; os painéis usam a largura toda e a seção ativa aparece só no menu
+// (Parâmetros aberto, a seção selecionada; as de módulo sem licença com cadeado).
+const parametros = (secao, conteudo, nota, dica = null) =>
   pagina(
     `Parâmetros — ${secao}`,
-    { ativo: ['Parâmetros'] },
-    `<h1>Parâmetros</h1><div class="corpo"><nav class="secoes" aria-label="Seções de Parâmetros">${SECOES.map(([s]) =>
-      SEM.includes(s)
-        ? `<a class="sec bloq${s === secao ? ' ativo" aria-current="page' : ''}"><span>${s}</span>${cadeado()}</a>`
-        : `<a class="sec${s === secao ? ' ativo" aria-current="page' : ''}">${s}</a>`,
-    ).join('')}<div class="nota">${nota}</div></nav><div class="conteudo">${conteudo}</div></div>`,
+    { aberto: 'Parâmetros', ativo: ['Parâmetros', secao], dica },
+    `<h1>Parâmetros</h1><div class="conteudo">${conteudo}<div class="nota">${nota}</div></div>`,
   );
 
 const campo = (rotulo, valor, unidade, editado = false) =>
@@ -195,15 +192,10 @@ const campo = (rotulo, valor, unidade, editado = false) =>
 const linhaMenu = `<td class="ac"><span class="dots">${pontos}</span></td>`;
 
 // ---------- 01: menu de hoje × proposto, e a árvore da página Parâmetros ----------
+// O menu proposto é o menu lateral da própria tela (com a seta em todo grupo); não há coluna repetindo-o.
 const colHoje = HOJE.map(
   ([g, itens]) => `<div class="titulo"><span>${g}</span></div>${itens.map(([i, para]) => `<div class="item"><span>${i}</span>${para ? `<b>→ ${para}</b>` : ''}</div>`).join('')}`,
 ).join('');
-const colProposto = MENU.map((e) => {
-  const nome = e.g ?? e.i;
-  const bloq = e.modulo && SEM.includes(nome);
-  if (e.i) return `<div class="titulo${bloq ? ' bloq' : ''}"><span>${nome}</span>${bloq ? cadeado(12) : '<b>item direto</b>'}</div>`;
-  return `<div class="titulo"><span>${nome}</span></div>${e.itens.map((i) => `<div class="item"><span>${i}</span></div>`).join('')}`;
-}).join('');
 const TAG = { l: '<i class="tag l">leitura</i>', f: '<i class="tag f">falta</i>' };
 // Selo "leitura" no título quando todos os painéis da seção são só leitura; por painel, só quando a seção mistura.
 const arvore = SECOES.map(([s, paineis]) => {
@@ -212,13 +204,12 @@ const arvore = SECOES.map(([s, paineis]) => {
 }).join('');
 const html01 = pagina(
   'Menu de hoje e proposto',
-  { ativo: ['Parâmetros'] },
+  { aberto: 'Parâmetros' },
   `<h1>Menu do BKO: hoje e proposto</h1>
   <div class="comp">
   <section class="col"><h2>Hoje (main)</h2><div class="mini">${colHoje}</div></section>
-  <section class="col"><h2>Proposto</h2><div class="mini">${colProposto}</div></section>
-  <section class="col"><h2>Página Parâmetros · 13 seções · 34 painéis</h2><div class="arv">${arvore}</div>
-  <div class="nota"><b>Simulação.</b> À esquerda, o menu proposto com Parâmetros selecionado; empresa sem Pesquisa e Treinamento (cadeado). "falta": painel ainda não existe. Hoje, 28 dos 32 painéis que já existem não abrem (sem a rota /parametros).</div></section>
+  <section class="col"><h2>Parâmetros · 13 seções · 34 painéis</h2><div class="arv">${arvore}</div>
+  <div class="nota"><b>Simulação.</b> À esquerda, o menu proposto com Parâmetros aberto; empresa sem Pesquisa e Treinamento (cadeado). "falta": painel ainda não existe. Hoje, 28 dos 32 painéis que já existem não abrem (sem a rota /parametros).</div></section>
   </div>`,
 );
 
@@ -253,7 +244,8 @@ const html02 = parametros(
 const html03 = parametros(
   'Pesquisa',
   `<section class="quadro vazio">${cadeado(28)}<b>${DICA}</b></section>`,
-  '<b>Simulação.</b> Seção de módulo sem licença: cadeado na lista; escolhida, mostra só o aviso.',
+  '<b>Simulação.</b> Seção de módulo sem licença: cadeado no menu (Parâmetros › Pesquisa); escolhida, mostra só o aviso.',
+  'Parâmetros›Pesquisa',
 );
 
 const TELAS = [
@@ -271,15 +263,13 @@ for (const [nome, html] of TELAS) {
   await page.goto(pathToFileURL(arq).href);
   await page.waitForSelector('body[data-pronto]');
   const info = JSON.parse(await page.evaluate(() => document.body.dataset.info));
-  const altura = await page.evaluate(() => {
-    const fundo = (sel) => Math.max(...[...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect().bottom));
-    return { menu: Math.round(fundo('.lista > *')), limiteMenu: Math.round(document.querySelector('.lista').getBoundingClientRect().bottom) };
-  });
-  if (info.conflitos.length || altura.menu > altura.limiteMenu) falhou = true;
+  // As três telas têm Parâmetros aberto: a lista do menu rola (esperado); a conferência de altura fica no pior caso abaixo.
+  if (info.conflitos.length) falhou = true;
   await page.screenshot({ path: join(AQUI, `${nome}.png`), fullPage: true });
-  console.log(nome, JSON.stringify({ conflitos: info.conflitos, ...altura }));
+  console.log(nome, JSON.stringify({ conflitos: info.conflitos }));
 }
-// Pior caso do menu proposto: cada grupo aberto, um de cada vez (sem gravar arquivo), em 1366×768.
+// Pior caso do menu proposto: cada grupo aberto, um de cada vez (sem gravar arquivo), em 1366×768. Item cortado vale para
+// todos; a altura, para os grupos fora Parâmetros (com Parâmetros aberto a lista do menu rola).
 const base = `<base href="${pathToFileURL(AQUI + '/').href}">`;
 let pior = { grupo: '', menu: 0, limiteMenu: 0 };
 for (const e of MENU.filter((x) => x.g && !(x.modulo && SEM.includes(x.g)))) {
@@ -295,12 +285,12 @@ for (const e of MENU.filter((x) => x.g && !(x.modulo && SEM.includes(x.g)))) {
     console.error(`Item cortado no menu (${e.g}): ${m.cortados.join(', ')}`);
     falhou = true;
   }
-  if (m.menu > pior.menu) pior = { grupo: e.g, menu: m.menu, limiteMenu: m.limiteMenu };
+  if (e.g !== 'Parâmetros' && m.menu > pior.menu) pior = { grupo: e.g, menu: m.menu, limiteMenu: m.limiteMenu };
 }
 console.log('pior caso do menu', JSON.stringify({ ...pior, cabeEm1366x768: pior.menu <= pior.limiteMenu }));
 if (pior.menu > pior.limiteMenu) falhou = true;
 await browser.close();
 if (falhou) {
-  console.error('Falha: balão ou nota cobrindo conteúdo, menu rolando (algum grupo aberto) ou item cortado.');
+  console.error('Falha: balão ou nota cobrindo conteúdo, menu rolando (algum grupo fora Parâmetros aberto) ou item cortado.');
   process.exit(1);
 }
