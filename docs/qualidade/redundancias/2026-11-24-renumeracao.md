@@ -311,3 +311,20 @@ Nenhum recado foi enviado nesta tarefa, como o pedido mandou. O gerente-projetos
 - **Não liberado (1):** ca4f270 (RD-2751).
 - **Corrigidos nos branches (11):** RD-0051, RD-0284 e RD-2741 a RD-2749 (RD-2741, RD-2742, RD-2743, RD-2744, RD-2745, RD-2746, RD-2747, RD-2748 e RD-2749).
 - **Abertos (2):** RD-2750 (gerente-projetos, doc) e RD-2751 (modulo-treinamento, corpo de teste). Os dois seguram.
+
+### Reteste 2 (sessão G): RD-2750 e RD-2751
+
+Mesmo critério. Diffs lidos: `ca4f270..c49fed1` e `origin/main` (0865039)`..85e9dd8`. Graphify: 0 consultas (os dois diffs têm uma mudança cada, lida direto no git).
+
+| Branch | SHA | Veredito |
+|---|---|---|
+| `nuvem/v1032-csv-modulo-treinamento` | c49fed1 | **LIBERADO**. RD-2751 corrigido: só saiu o caso `csv.test.ts:57-62`; a foto byte a byte (`:41-55`) segue garantindo a fórmula e os números, e nada mais mudou |
+| `nuvem/v1032-docs-gerente-projetos` | 85e9dd8 | **LIBERADO**. RD-2750 corrigido: `docs/producao/sabado.md:63` espera `"Empresa criada." e "Módulos que entraram: <módulos>."`, igual ao `aba-empresa.tsx` e ao `passo-empresa-legado.tsx` do b9008a7 e à spec do b530e3d; só essa linha mudou |
+
+**Fechados:** RD-2750 e RD-2751, status "corrigido" no catálogo (confirmação no merge).
+
+### Resumo final da sessão G
+- **Liberados (15):** b9008a7 (engenheiro-apps), 32fe2e8 (core), b530e3d (designer-ux), 579a785 (engenheiro-software), 3dc1593 (catálogo), 8d4e621 (gestor), cd4903b (promotor), 3309c6c (integração), c49fed1 (treinamento), c01675b (vendedor), f922696 e e67a0bb (testes), 26e05c1 (vendedor, comentários), 3ebfd15 (pesquisa) e 85e9dd8 (gerente-projetos, docs).
+- **Não liberados:** nenhum.
+- **Corrigidos (13):** RD-0051, RD-0284 e RD-2741 a RD-2751.
+- **Abertos da sessão G:** nenhum. Os dois pontos do "Encaminhar ao testes" e a observação sem número do gestor seguem fora do catálogo.
