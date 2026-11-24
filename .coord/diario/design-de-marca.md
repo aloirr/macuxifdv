@@ -56,3 +56,5 @@
 2026-11-20 — v1.0.17 — proposta frase do Início (R-20261120-055304, item 1): Sol claro #F59A52 700 (5,85:1), alternativa Branco (12,77:1); aguarda aprovação; caixa de recados com HTTP 403 nesta sessão.
 2026-11-21 — T-0191 (rotas do BKO) — liberado com ajustes: MC-1900 (média, peso), MC-1901 e MC-1902 (baixas); casa, pino, OpcaoCartao e cor por dia conformes. Parecer pareceres/2026-11-21-T-0191-rotas.md.
 2026-11-21 — T-0191 (reteste) — portado para a árvore macuxifdv-int; MC-1900, MC-1901 e MC-1902 fechados no código e nos prints3; Dialog media/media-larga conforme. Validado sem achados em aberto.
+2026-11-23 — v1.0.31 "Zerar dados" (rodada 2, SHA ad16c5a86) — liberado com ajustes: MC-2000 (média, nome de entidade cortado no painel do Monitor; corrigir antes do build), MC-2001 e MC-2002 (baixas). Paleta, kit e tom conformes. Parecer pareceres/2026-11-23-v1030-zerar-dados.md.
+2026-11-23 — v1.0.31 "Zerar dados" (rodada 3, SHA 78f30c70a + 7b96e4cc6) — liberado: MC-2001 e MC-2002 fechados; MC-2000 fechado em 1280 px, corte com reticências aceito só no celular (não cabe em 390 px; nome completo acessível). Parecer pareceres/2026-11-23-v1030-zerar-dados.md.
