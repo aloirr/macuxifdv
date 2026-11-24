@@ -38,7 +38,7 @@ describe('exportar CSV (RF-TRE-05, RF-TRE-01)', () => {
 describe('RD-0051: saída do CSV byte a byte', () => {
   const pessoa = (nome: string, nota: number | null) => ({ usuario_id: '0b000000-0000-4000-8000-000000000001', nome, perfil: 'vendedor' as const, equipe_id: null, licoes_no_mes: 1, trilhas_concluidas: 2, obrigatorias_pendentes: 3, nota_media_pct: nota, ultima_atividade_em: null });
 
-  it('RD-0051: BOM, ; , CRLF, aspas, nomes com cara de fórmula e vírgula decimal', () => {
+  it('RD-0051: BOM, ; , CRLF, aspas, nomes com cara de fórmula protegidos (CWE-1236) e vírgula decimal', () => {
     const csv = pessoasParaCsv(
       [pessoa('Ana "Aninha"; Silva', 87.5), pessoa('=1+1', 33.333), pessoa('+Davi', 0), pessoa('@Caio', null), pessoa('-Bia\r\nLinha', 10)],
       'America/Manaus',
@@ -47,10 +47,17 @@ describe('RD-0051: saída do CSV byte a byte', () => {
       '\uFEFF' +
         'Pessoa;Perfil;Lições no mês;Trilhas concluídas;Obrigatórias pendentes;Nota média (%);Última atividade\r\n' +
         '"Ana ""Aninha""; Silva";Vendedor;1;2;3;87,50;\r\n' +
-        '=1+1;Vendedor;1;2;3;33,33;\r\n' +
-        '+Davi;Vendedor;1;2;3;0,00;\r\n' +
-        '@Caio;Vendedor;1;2;3;;\r\n' +
-        '"-Bia\r\nLinha";Vendedor;1;2;3;10,00;\r\n',
+        "'=1+1;Vendedor;1;2;3;33,33;\r\n" +
+        "'+Davi;Vendedor;1;2;3;0,00;\r\n" +
+        "'@Caio;Vendedor;1;2;3;;\r\n" +
+        '"\'-Bia\r\nLinha";Vendedor;1;2;3;10,00;\r\n',
     );
+  });
+
+  it('RD-0051: célula que começa com = sai com apóstrofo; número negativo fica como está', () => {
+    const csv = trilhasParaCsv([
+      { id: '00000000-0000-4000-8000-000000000003', titulo: '=HYPERLINK("x")', status: 'publicada', obrigatoria: false, prazo: null, modulos: -1, licoes: 0, quizzes: 0, publico_perfis: [], publico_equipes: 0, publicada_em: null, updated_at: '2026-11-01T12:00:00Z' },
+    ]);
+    expect(csv.slice(1).split('\r\n')[1]).toBe('"\'=HYPERLINK(""x"")";Publicada;Não;;-1;0;0;Todos;Todas');
   });
 });
