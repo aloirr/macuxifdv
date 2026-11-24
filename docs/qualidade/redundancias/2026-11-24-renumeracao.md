@@ -191,3 +191,65 @@ O critério de "segura" é o de sempre (R-20261111-190159): achado de gravidade 
 - **RD-2733 a RD-2736:** reconstruídos pelos 4 blocos que o a3fdace30 tirou do teste.
 - **RD-2648:** a única aspa aberta em comentário que a v1.0.27 trouxe, e o 98c9ef55b é o commit do S19 que a pôs. É o achado.
 - **Bloco do designer-ux de 22/11 (RD-2697 a RD-2702):** está num branch sem PR. Recebe número porque foi o primeiro uso do RD-2639, mas a correção vale só quando a spec entrar no main.
+
+## Parecer v1.0.32 (sessão G)
+
+- **Data:** 24/11/2026 (horário de Manaus). Pedido do gerente-projetos (decisão "3 A", R-20261123-190212-alexandre e R-20261123-222635-alexandre).
+- **Bases:** `origin/main` 0865039 para os 6 primeiros branches e d2f2438 para os branches de CSV dos módulos. Diffs com `git diff <base>..<sha>`. Grep final das células de CSV no `main` 0865039, comparado com cada branch.
+- **Critério:** nenhum achado aberto, de qualquer gravidade (R-20261110-062506). A exceção (R-20261111-190159) vale só para comentário ou título de teste de gravidade baixa. Corpo de teste repetido também segura. O veredito é de cada branch. O resíduo achado fora dos branches ganha número e segura o lote do dono.
+- **Graphify:** 2 consultas (`query` das células de CSV e `affected "protegerFormula"`).
+
+### Veredito por branch
+
+| Branch | SHA | Veredito | Achados do §4 | Achados novos ou reabertos |
+|---|---|---|---|---|
+| `nuvem/v1032-portal-engenheiro-apps` | 72c92bf | **NÃO LIBERADO** | RD-0274, RD-0281, RD-0299 e RD-2648 corrigidos. RD-0284 corrigido no Conferir | RD-0284 (resta o resultado gravado), RD-2742 |
+| `nuvem/v1032-core-modulo-core` | e372cf8 | **NÃO LIBERADO** | RD-0042, RD-0268, RD-1278, RD-2739 e a parte do Core no RD-0051 corrigidos. O `codigo_fdv` no `CustomerSummary` e na busca do editor de rota está sem repetição | RD-2744 |
+| `nuvem/v1032-comentarios-testes` | e67a0bb | **LIBERADO** | RD-0317, RD-1266, RD-1275 e RD-2738 corrigidos. O motivo do horizonte fica só no JSDoc de `esperarHorizonte` (`tests/integracao/apoio/campo.ts:261`) | nenhum |
+| `nuvem/v1032-comentarios-modulo-vendedor` | 26e05c1 | **LIBERADO** | RD-0321 corrigido. Não sobra "RD-0263" em `modules/vendedor` | nenhum no diff (o RD-2741 e o RD-2747 do vendedor vão num branch novo do lote de CSV) |
+| `nuvem/v1032-ux-designer-ux` | 509ec65 | **LIBERADO** | RD-2572b e RD-2740 corrigidos. A spec não cita mais `cliente_campos_obrigatorios` | nenhum no diff (o RD-2743 é novo e vai num commit novo) |
+| `nuvem/v1032-csv-engenheiro-software` | d2f2438 | **NÃO LIBERADO** | `celulaCsvCompacta` criada | RD-2741 (o comum não aceita número nem nulo), RD-2745 |
+| `nuvem/v1032-csv-modulo-catalogo` | c5d88a9 | **NÃO LIBERADO** | células locais saíram de `marcas.ts`, `tabelas-preco.ts` e `formularios.ts` | RD-2741 |
+| `nuvem/v1032-csv-modulo-gestor` | 5420e21 | **NÃO LIBERADO** | célula local saiu | RD-2741 |
+| `nuvem/v1032-csv-modulo-promotor` | 41e16fa | **NÃO LIBERADO** | célula local saiu | RD-2741, RD-2747 (o `CSV_BOM` ficou) |
+| `nuvem/v1032-csv-modulo-integracao` | 6bc880a | **NÃO LIBERADO** | `csvCell` saiu | RD-2741, RD-2747, RD-2748 |
+| `nuvem/v1032-csv-modulo-treinamento` | f19fe03 | **NÃO LIBERADO** | `csvCell` local saiu, e a fórmula passou a ser protegida | RD-2741 |
+| `nuvem/v1032-csv-modulo-pesquisa` | 3ebfd15 (99e2d6b + 3ebfd15) | **LIBERADO** | a célula local e o apelido `celulaCsv` saíram. Só entra texto, com `map(celulaCsvCompacta)` direto. O teste passa pela exportação (`exportacao.test.ts:68`) | nenhum |
+| `nuvem/v1032-csv-testes` | e62cea1 | **NÃO LIBERADO** | o t0140 importa do comum | RD-2746 |
+
+**RD-0051:** segue **aberto** até o RD-2741, o RD-2747 e o RD-2748 fecharem. Hoje há dois formatos de célula, cada um por um motivo: `celulaCsv` (aspas sempre: os 6 do Core, `farol.ts`, `plano-rv.ts`, `catalogo/domain/fotos-lote.ts`, `catalogo/web/exportacao/excel.ts` e o vendedor) e `celulaCsvCompacta` (os demais). Isso não é repetição: são dois formatos de saída que já existiam, e cada um tem uma função só no comum.
+
+### Achados novos e reabertos
+
+| RD | Grav. | Tipo | Onde (SHA) | O que se repete | Proposta (antes → depois) | Dono | Segura |
+|---|---|---|---|---|---|---|---|
+| RD-0284 (reaberto em parte) | média | texto | `apps/web/components/portal/passo-empresa-legado.tsx:394-395` (72c92bf), no resultado gravado | Depois de gravar ficam `Parâmetros gravados: N.` e `Administrador criado: <e-mail>.` / `Administrador mantido: a senha não mudou.`. O "N" não serve para decidir, e o e-mail é o que está digitado logo acima (proposta original de 14/11, `2026-11-14-portal-config.md`, RD-0284) | Gravado: `Empresa criada.` + `Módulos que entraram: Vendedor, Promotor.` (só com 1 ou mais) + `avisos`. Saem a linha dos parâmetros e a do administrador, e com ela o `textoDoAdminNoResultado` e o teste dele (`apps/web/lib/portal-telas.test.ts:74-78`) | engenheiro-apps · designer-ux | sim |
+| RD-2742 | baixa | código | `passo-empresa-legado.tsx:138` × `:387` (72c92bf) | `r.modulos_adicionados.filter((m) => !ehModuloSempre(m))` 2× no mesmo arquivo. A moldura `<div data-testid="empresa.resultado"><Notice><span …>` + `r.avisos.map(…)` 2× (`:372-384` × `:389-401`) | Um `ResultadoEmpresa` só: `const entram = modulosNaLista(r.modulos_adicionados)` (uma função, usada também em `textoDaConferencia`), `tone={r.simulado ? 'info' : 'success'}`, `<strong>{r.simulado ? textoDaConferencia(r) : ROTULO_RESULTADO[r.resultado] + '.'}</strong>`, a linha dos módulos só quando `!r.simulado`, e os `avisos` uma vez | engenheiro-apps | sim (código de produção) |
+| RD-2743 | baixa | doc | `docs/design/portal-entrar.md:139-140` (72c92bf e main) | A spec ainda manda mostrar no Conferir **"Administrador que será criado: <e-mail>."** e **"Administrador mantido: a senha não muda."**. O código saiu delas pelo RD-0284 | `No Conferir: uma linha só ("Conferido: a empresa será criada." · "Conferido: entram <módulos>." · "Conferido: nada muda.") e os avisos, sem o administrador (RD-0284).` Se o RD-0284 do gravado fechar, a linha do "Resultado" também sai | designer-ux | sim (doc) |
+| RD-2744 | baixa | teste | `modules/core/web/lib/csv-saida.test.ts:99-120` (e372cf8) | O caso novo "CWE-1236 … nos 6 CSVs" confere `"'=SOMA(A1)"` nos 6 CSVs, e as fotos byte a byte logo acima (`:22-97`) já mostram a mesma célula protegida em cada um | Tirar o caso `:99-120`. A intenção fica no título do `describe` (`:21`): `'RD-0044/RD-0051: saída dos CSVs do core pelo comum (fórmula protegida, CWE-1236)'` | modulo-core | sim (corpo de teste) |
+| RD-2741 | média | código | adaptador da célula (nulo → `''`, número sem proteção, texto pelo comum) reescrito 8×: `modules/gestor/web/lib/csv.ts:9-12` (5420e21), `modules/promotor/web/lib/csv.ts:8-11` (41e16fa), `modules/integracao/web/lib/csv.ts:19` (6bc880a), `modules/treinamento/web/lib/csv.ts:11-12` (f19fe03), `modules/catalogo/web/lib/marcas.ts:40`, `tabelas-preco.ts:129` e `formularios.ts:164` (c5d88a9, `String(v ?? '')`), e `modules/vendedor/web/lib/csv.ts:13` (main, com `celulaCsv`) | A mesma regra ("número negativo não é fórmula") está escrita em 4 comentários diferentes (gestor `:8`, promotor `:7`, integração `:14-16`, treinamento `:9`). O catálogo diverge: com `String(v ?? '')`, o número passa pela proteção | **engenheiro-software:** `celulaCsvCompacta(v: string \| number \| null \| undefined)` e `celulaCsv` com a mesma assinatura: nulo → `''` (e `""` no `celulaCsv`); número → `String(v).replace('.', ',')`, sem proteção; texto como hoje. Uma linha no JSDoc do comum: "número não passa pela proteção: `-5` continua número". **Donos dos módulos:** `r.map(celulaCsvCompacta)` direto, e saem os adaptadores e os comentários. O gestor mantém só o arredondamento (`Math.round(v * 100) / 100` antes da célula) | engenheiro-software · modulo-catalogo · modulo-gestor · modulo-promotor · modulo-integracao · modulo-treinamento · modulo-vendedor | sim |
+| RD-2745 | baixa | teste | `packages/comum/src/csv.test.ts:42-44` (d2f2438) | `it.each(['=SOMA(A1)', '+1', '-2', '@x', '\tA'])` da `celulaCsvCompacta` repete 5 dos 6 valores do `protegerFormula` (`:5-7`). Que a compacta chama a proteção já se vê em `:50-53` (`'=A;B'` e `'=HYPERLINK("x")'`) | Tirar o `it.each` de `:42-44`. Ficam o caso do CR (`:46-48`) e o "apóstrofo antes das aspas" | engenheiro-software | sim (corpo de teste) |
+| RD-2746 | baixa | teste | `tests/modulos/t0140-csv-pesquisa-formula.test.ts:19-32` (e62cea1) | O arquivo não toca mais a Pesquisa. O P1 (`=1+1`, `+1+1`, `@SOMA(A1)`, `-A1`, tabulação) e o P3 (texto comum fica igual) repetem o `packages/comum/src/csv.test.ts`. O título diz "CSV da Pesquisa", e quem testa a Pesquisa é o `modules/pesquisa/domain/exportacao.test.ts:68` (3ebfd15) | O P1, o P2 e o P3 passam a chamar `exportarRespostasCsv` com uma resposta de texto (o valor do lote 03), que é o que o T-0140 quer garantir. Ou: o P2 (`-1+1`, `-1-1`, `- 1+1`, `-.5+1`, `-,5+1`) vai para o `it.each` do `protegerFormula` no comum, e o arquivo sai, com a nota na matriz `docs/testes/T-0140.md` | testes (com o engenheiro-software, se o P2 for para o comum) | sim (corpo de teste) |
+| RD-2747 | baixa | código | `export const CSV_BOM = BOM_CSV;` 3×: `modules/promotor/web/lib/csv.ts:5` (41e16fa), `modules/integracao/web/lib/csv.ts:10` (6bc880a) e `modules/vendedor/web/lib/csv.ts:9` (main) | Dois nomes para a mesma constante do comum. Fora do próprio arquivo, só os testes usam (`promotor/web/lib/web.test.ts:4,45`, `integracao/web/lib/csv.test.ts:3,5,13`, `vendedor/web/lib/csv.test.ts:3,36,42,52`) | `CSV_BOM` sai. O código e os testes importam `BOM_CSV` de `@macuxi/comum/csv`. O `expect(CSV_BOM).toBe('﻿')` do vendedor (`:36`) sai, porque já está no comum (`csv.test.ts:24`) | modulo-promotor · modulo-integracao · modulo-vendedor | sim |
+| RD-2748 | baixa | código | `modules/integracao/kit-thathyany/lib/modelos-csv.ts:401-403` (`function celulaCsv`) e `kit-thathyany/scripts/migrar-csv-1.0.5.ts:35` (`const celula`), no main 0865039 | A mesma célula 2× no kit. A da lib tem o nome da `celulaCsv` do comum, que tem outro comportamento (aspas sempre e fórmula protegida) | Uma célula só no kit, exportada de `lib/modelos-csv.ts` como `celulaDoModelo` e importada pelo `migrar-csv-1.0.5.ts`, sem proteger fórmula, porque o arquivo vai para o importador e o apóstrofo viraria dado. JSDoc: `/** Sem protegerFormula: o arquivo vai para o importador, não para o Excel. */` | modulo-integracao | sim (código do kit) |
+| RD-2749 | baixa | código | `apps/mock-api/src/services/goals.ts:325-326` (main 0865039) | `const esc = …replace(/"/g, '""')…` e o BOM literal. É a última célula de CSV à mão fora do kit, e o pacote já depende de `@macuxi/comum` | `import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';` e `return BOM_CSV + [head, ...lines].map((r) => r.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';` | engenheiro-software | sim |
+
+**Grep final** (`replace(/"/g, '""')` e afins, sem `.md`), no `main` 0865039 menos o que os branches tiram. Sobram:
+- `packages/comum/src/csv.ts`, com as duas funções do comum;
+- o kit da integração (RD-2748);
+- o `apps/mock-api` (RD-2749);
+- `packages/platform-sdk/src/busca.ts:81`, que põe aspas no termo da busca textual (não é CSV);
+- `packages/platform-sdk/src/sqlite/armazenamento.ts:705`, um identificador SQL (não é CSV).
+
+O §4 dizia que não sobrava nenhum BOM literal fora de teste. O `goals.ts:326` desmente isso, e o RD-2749 corrige.
+
+### Encaminhar ao testes (defeito funcional ou mudança de comportamento, sem RD)
+- `apps/web/components/portal/base.tsx:270` (72c92bf): "Sessão até" passou a usar o `formatTime` com o padrão America/Manaus. Antes era o fuso do navegador do operador, e o comentário retirado dizia que "o portal não é de um tenant". É preciso confirmar se o operador fora de Manaus deve ver a hora de Manaus.
+- CSVs que passaram a proteger fórmula (Core 6×, treinamento, catálogo): o valor negativo em texto ganha apóstrofo (`'-R$ 5` e `'-0,20%` no `csvDeMetas`, `csv-saida.test.ts`). É o efeito esperado da CWE-1236, mas muda o arquivo que o usuário abre no Excel. O testes confere valor × regra.
+
+Nenhum recado foi enviado nesta tarefa, como o pedido mandou. O gerente-projetos repassa aos donos.
+
+### Resumo do parecer
+- **Liberados (4):** e67a0bb, 26e05c1, 509ec65 e 3ebfd15.
+- **Não liberados (9):** 72c92bf, e372cf8, d2f2438, c5d88a9, 5420e21, 41e16fa, 6bc880a, f19fe03 e e62cea1.
+- **Abertos:** 9, todos seguram. São 8 novos (RD-2741 a RD-2749) e o RD-0284 reaberto em parte. O RD-0051 continua aberto, preso ao RD-2741, ao RD-2747 e ao RD-2748.
