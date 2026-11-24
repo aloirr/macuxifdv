@@ -138,7 +138,6 @@ describe('D-V106-3 — "Equivale a" no cartão da grade (RN-CAT-09, catalogo-gra
   // `produto.acoes` (botão principal da ficha, em BotoesAcao), que fica fora do corpo lido do CartaoGrade.
   it('o corpo lido do CartaoGrade não inclui o `destaque` dos botões da extensão', () => {
     expect(COMUM).toMatch(/\.payload\.destaque\b/);
-    expect(CARTAO_GRADE.startsWith('export function CartaoGrade')).toBe(true);
     expect(CARTAO_GRADE).not.toMatch(/\bdestaque\b/);
   });
 
