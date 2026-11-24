@@ -9,6 +9,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { abrirGrupo } from './apoio';
+
 type Perfil = 'admin' | 'analista' | 'gerente';
 
 interface Cenario {
@@ -144,34 +146,47 @@ async function entrar(page: Page, c: Cenario = {}) {
 
 const menu = (page: Page) => page.getByTestId('menu-bko');
 
-/** Rótulos do 1º nível do menu lateral (grupo, item direto ou entrada com cadeado), na ordem da tela. */
+/** Rótulos do 1º nível do menu lateral (grupo com seta ou entrada com cadeado), na ordem da tela. */
 async function primeiroNivel(page: Page): Promise<string[]> {
-  await expect(menu(page).getByTestId('nav-plataforma-parametros')).toBeVisible({ timeout: 60_000 });
+  await expect(menu(page).getByTestId('nav-grupo-parametros')).toBeVisible({ timeout: 60_000 });
   return menu(page)
-    .locator('[data-testid^="nav-grupo-"], [data-testid="nav-plataforma-parametros"], [data-testid^="nav-pesquisa-"], [data-testid^="nav-treinamento-"]')
+    .locator('[data-testid^="nav-grupo-"]')
     .evaluateAll((els) => els.filter((e) => !e.getAttribute('data-testid')?.endsWith('-dica')).map((e) => (e.textContent ?? '').trim()));
 }
 
 test.describe('ADR 0060 — menu Parâmetros do BKO (API simulada)', () => {
-  test('menu na ordem da spec (D1); o item Parâmetros abre a 1ª seção e fica aceso, com a seção escolhida na lista', async ({ page }) => {
+  test('menu na ordem da spec (D1), todo grupo com seta; o grupo Parâmetros abre com uma opção por seção (a escolha da seção fica só no menu) e a opção da seção fica acesa', async ({ page }) => {
     await entrar(page);
     await page.goto('/');
     expect(await primeiroNivel(page)).toEqual(['Acesso', 'Análise', 'Cadastros', 'Comunicação', 'Operação', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Parâmetros', 'Sistema']);
-    await menu(page).getByTestId('nav-plataforma-parametros').click();
+    await expect(menu(page).getByTestId('nav-plataforma-parametros'), 'Parâmetros não é mais item direto').toHaveCount(0);
+    await abrirGrupo(page, 'parametros');
+    await menu(page).getByTestId('nav-parametros-acesso').click();
     await expect(page).toHaveURL(/\/parametros\/acesso$/, { timeout: 30_000 });
-    await expect(menu(page).getByTestId('nav-plataforma-parametros')).toHaveAttribute('aria-current', 'page');
-    await page.getByTestId('parametros-secao-clientes').click();
+    await expect(menu(page).getByTestId('nav-parametros-acesso')).toHaveAttribute('aria-current', 'page');
+    // rótulo × destino: cada opção do grupo é uma seção (`nav-parametros-<secao>` → /parametros/<secao>), em ordem alfabética
+    const opcoes = await menu(page)
+      .locator('#menu-grupo-parametros a[data-testid^="nav-parametros-"]')
+      .evaluateAll((els) => els.map((e) => ({ secao: e.getAttribute('data-testid')!.slice('nav-parametros-'.length), rotulo: (e.textContent ?? '').trim(), href: e.getAttribute('href') })));
+    expect(opcoes.length, 'o grupo Parâmetros tem as seções').toBeGreaterThan(1);
+    expect(opcoes.filter((o) => o.href !== `/parametros/${o.secao}`), 'opção fora de /parametros/<secao>').toEqual([]);
+    const rotulos = opcoes.map((o) => o.rotulo);
+    expect(rotulos).toEqual([...rotulos].sort((a, b) => a.localeCompare(b, 'pt-BR')));
+    // empresa sem Pesquisa e Treinamento: as duas seções com cadeado (texto lido pelo leitor de tela); Trade contratado, sem cadeado
+    expect(opcoes.filter((o) => o.rotulo.endsWith(', sem licença')).map((o) => o.secao)).toEqual(['pesquisa', 'treinamento']);
+    await expect(page.getByTestId('parametros-secao-acesso'), 'a escolha da seção fica só no menu').toHaveCount(0);
+    await menu(page).getByTestId('nav-parametros-clientes').click();
     await expect(page.getByTestId('parametros-core-farol')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('parametros-core-curvas-abc')).toBeVisible();
-    await expect(page.getByTestId('parametros-secao-clientes')).toHaveAttribute('aria-current', 'page');
-    await expect(menu(page).getByTestId('nav-plataforma-parametros')).toHaveAttribute('aria-current', 'page');
+    await expect(menu(page).getByTestId('nav-parametros-clientes')).toHaveAttribute('aria-current', 'page');
+    await expect(menu(page).getByTestId('nav-parametros-acesso')).not.toHaveAttribute('aria-current', 'page');
   });
 
   test('sem licença da empresa: Pesquisa e Treinamento com cadeado não navegam e mostram o balão; a seção mostra só o aviso', async ({ page }) => {
     await entrar(page);
     await page.goto('/parametros/clientes');
     await primeiroNivel(page);
-    for (const nav of ['nav-pesquisa-pesquisas', 'nav-treinamento-trilhas']) {
+    for (const nav of ['nav-grupo-pesquisa', 'nav-grupo-treinamento']) {
       const entrada = menu(page).getByTestId(nav);
       const dica = page.getByTestId(`${nav}-dica`);
       await entrada.hover();
@@ -184,9 +199,8 @@ test.describe('ADR 0060 — menu Parâmetros do BKO (API simulada)', () => {
       await page.mouse.move(900, 450);
       await expect(dica).toBeHidden();
     }
-    await expect(page.getByTestId('parametros-secao-treinamento')).toHaveAttribute('data-bloqueado', '');
-    await expect(page.getByTestId('parametros-secao-trade')).not.toHaveAttribute('data-bloqueado', '');
-    await page.getByTestId('parametros-secao-pesquisa').click();
+    await abrirGrupo(page, 'parametros');
+    await menu(page).getByTestId('nav-parametros-pesquisa').click();
     await expect(page).toHaveURL(/\/parametros\/pesquisa$/);
     await expect(page.getByTestId('parametros-sem-licenca')).toHaveText(TEXTO_SEM_LICENCA);
     await expect(page.getByTestId('parametros-conteudo-pesquisa').locator('[data-testid^="parametros-pesquisa-"]')).toHaveCount(0);
@@ -203,7 +217,9 @@ test.describe('ADR 0060 — menu Parâmetros do BKO (API simulada)', () => {
     await page.waitForTimeout(500);
     await expect(page).toHaveURL(/\/parametros\/clientes$/);
     for (const n of ['nav-promotor-cadastros', 'nav-promotor-trade']) await expect(page.getByTestId(n), n).toHaveCount(0);
-    await page.getByTestId('parametros-secao-trade').click();
+    await abrirGrupo(page, 'parametros');
+    await menu(page).getByTestId('nav-parametros-trade').click();
+    await expect(page).toHaveURL(/\/parametros\/trade$/);
     await expect(page.getByTestId('parametros-sem-licenca')).toHaveText(TEXTO_SEM_LICENCA);
     await expect(page.getByTestId('parametros-promotor-validade')).toHaveCount(0);
   });
@@ -225,8 +241,10 @@ test.describe('ADR 0060 — menu Parâmetros do BKO (API simulada)', () => {
     await entrar(page, { ativos: TODOS, contratados: TODOS });
     await page.goto('/');
     await primeiroNivel(page);
+    await abrirGrupo(page, 'pesquisa');
     await menu(page).getByTestId('nav-pesquisa-pesquisas').click();
     await expect(page.getByTestId('pagina-pesquisa-pesquisas')).toBeVisible({ timeout: 30_000 });
+    await abrirGrupo(page, 'treinamento');
     await menu(page).getByTestId('nav-treinamento-trilhas').click();
     await expect(page.getByTestId('pagina-treinamento-trilhas')).toBeVisible({ timeout: 30_000 });
     for (const [secao, paineis] of [
