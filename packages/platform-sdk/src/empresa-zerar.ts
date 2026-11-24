@@ -36,8 +36,6 @@ export const ROTAS_ZERAR_EMPRESA = Object.freeze({
 export const CONSULTA_PREVIA_ZERAR_MS = 2_000;
 
 // ---------- prazos ----------
-/** Dias em que a cópia das linhas (`plataforma.limpeza_copia`) do zerar do portal fica para desfazer; depois o worker a descarta. */
-export const RETENCAO_COPIA_ZERAR_DIAS = 7;
 /** Tentativas do worker em falha de concorrência (FK, serialização, deadlock, `lock_timeout`) antes de fechar como `falhou`. */
 export const TENTATIVAS_ZERAR = 3;
 /** Teto de linhas do resultado na prévia e na contagem (uma por tabela e modo; folga para as tabelas novas). */
@@ -106,8 +104,7 @@ const sai = (t: { modo: ModoLimpeza }): boolean => MODOS_QUE_SAEM.has(t.modo);
 export const LinhaLimpezaSchema = z.object({ tabela: Tabela, modo: z.enum(MODOS_LIMPEZA), linhas: Contagem }).strict();
 export type LinhaLimpeza = z.infer<typeof LinhaLimpezaSchema>;
 /** Linhas que saem (`MODOS_QUE_SAEM`) de um resultado da limpeza. */
-export const linhasQueSaem = (l: readonly LinhaLimpeza[]): number => somaQueSai(l);
-function somaQueSai(l: readonly { modo: ModoLimpeza; linhas: number }[]): number {
+export function linhasQueSaem(l: readonly { modo: ModoLimpeza; linhas: number }[]): number {
   return l.reduce((a, x) => a + (sai(x) ? x.linhas : 0), 0);
 }
 const ResultadoLimpeza = z.array(LinhaLimpezaSchema).max(MAX_TABELAS_ZERAR);
@@ -298,7 +295,7 @@ export const PreviaZerarSchema = z
         ? 'prévia pronta tem linhas, entidades_afetadas e total'
         : (p.situacao === 'falhou') !== (p.erro_codigo !== null)
           ? 'erro_codigo só (e sempre) na prévia que falhou'
-          : p.linhas !== null && p.total !== null && somaQueSai(p.linhas) !== p.total
+          : p.linhas !== null && p.total !== null && linhasQueSaem(p.linhas) !== p.total
             ? 'total é a soma das linhas que saem'
             : null;
     if (problema) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problema, path: ['situacao'] });

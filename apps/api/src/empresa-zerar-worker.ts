@@ -34,6 +34,7 @@
  */
 import {
   CODIGOS_ZERAR_EMPRESA,
+  CONSULTA_PREVIA_ZERAR_MS,
   ERROS_WORKER_ZERAR,
   PreviaZerarSchema,
   TENTATIVAS_ZERAR,
@@ -60,8 +61,8 @@ export const SQLSTATE_CONCORRENCIA = new Set(['23503', '40001', '40P01', '55P03'
 /** Recusas da `executar_zerar` (código no `hint`) que fecham o pedido com o próprio código, sem nova tentativa. */
 export const RECUSAS_EXECUTAR_ZERAR: ReadonlySet<string> = new Set([CODIGOS_ZERAR_EMPRESA.hubProcessando, CODIGOS_ZERAR_EMPRESA.volumeAlto]);
 export const INTERVALO_ZERAR_MS = 10_000;
-/** O mesmo ritmo da tela (`CONSULTA_PREVIA_ZERAR_MS`). */
-export const INTERVALO_PREVIA_ZERAR_MS = 2_000;
+/** O mesmo ritmo da tela. */
+export const INTERVALO_PREVIA_ZERAR_MS = CONSULTA_PREVIA_ZERAR_MS;
 /** Prévias por ciclo, no máximo (uma que falha só volta depois da concessão; o teto evita girar no mesmo pedido). */
 export const LOTE_PREVIA_ZERAR = 10;
 export const INTERVALO_EXPURGO_ZERAR_MS = 60 * 60_000;
@@ -142,7 +143,7 @@ export function criarWorkerZerar(op: OpcoesWorkerZerar) {
         const concorrencia = SQLSTATE_CONCORRENCIA.has(estado);
         if (concorrencia && tentativa < TENTATIVAS_ZERAR) {
           log.warn({ ...base, tentativa, sqlstate: estado }, 'zerar dados: escrita concorrente, nova tentativa');
-          await esperar(ESPERAS_ZERAR_MS[Math.min(tentativa, ESPERAS_ZERAR_MS.length) - 1] ?? 5_000);
+          await esperar(ESPERAS_ZERAR_MS[Math.min(tentativa, ESPERAS_ZERAR_MS.length) - 1]!);
           continue;
         }
         const erroCodigo = RECUSAS_EXECUTAR_ZERAR.has(hint)
