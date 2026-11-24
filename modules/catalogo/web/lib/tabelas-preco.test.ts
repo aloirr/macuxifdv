@@ -72,6 +72,8 @@ describe('BKO Tabelas de preço: preço da UN e aba Escalonada (RN-VEN-23, RN-VE
   it('CSV do preço da UN: uma linha por produto', () => {
     const csv = precosParaCsv([{ produto_id: P1, sku: 'P-1', nome: 'Pastilha', preco_cents: 1890, vigencia_inicio: null, vigencia_fim: '2026-12-31T00:00:00.000000Z' }]);
     expect(csv.replace(/^\uFEFF/, '').split('\r\n').slice(0, 2)).toEqual(['Código;Produto;Preço da unidade (R$);Início;Fim', 'P-1;Pastilha;18,90;;2026-12-31']);
+    const formula = precosParaCsv([{ produto_id: P1, sku: '=P-1', nome: 'Pastilha', preco_cents: 1890, vigencia_inicio: null, vigencia_fim: null }]);
+    expect(formula.split('\r\n')[1]).toBe("'=P-1;Pastilha;18,90;;");
   });
 
   it('RN-VEN-23: a vigência cabe numa célula (com fim, sem fim, sem início) e aceita instante ISO', () => {
