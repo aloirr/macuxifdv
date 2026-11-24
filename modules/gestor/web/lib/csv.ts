@@ -2,16 +2,12 @@
  * Exportação CSV das páginas do Gestor (padrão do BKO: `;` como separador, vírgula decimal, dinheiro em reais).
  * Só dados que a API já devolveu no escopo de quem exporta (RN-CORE-04).
  */
-import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsvCompacta, type ValorCsv } from '@macuxi/comum/csv';
 import type { RankingEquipe, VisaoEquipe } from '../../contracts';
 
-/** Número sai formatado, sem a proteção de fórmula: o `-5` continua número no Excel (RD-0051). Texto passa pela célula do comum. */
-const celula = (v: string | number | null | undefined): string => {
-  if (v === null || v === undefined) return '';
-  return typeof v === 'number' ? v.toLocaleString('pt-BR', { useGrouping: false, maximumFractionDigits: 2 }) : celulaCsvCompacta(v);
-};
+const duasCasas = (v: ValorCsv): ValorCsv => (typeof v === 'number' ? Math.round(v * 100) / 100 : v);
 const reais = (cents: number | null | undefined) => (cents === null || cents === undefined ? null : cents / 100);
-const linhas = (rows: (string | number | null | undefined)[][]) => BOM_CSV + rows.map((r) => r.map(celula).join(';')).join('\n') + '\n';
+const linhas = (rows: ValorCsv[][]) => BOM_CSV + rows.map((r) => r.map(duasCasas).map(celulaCsvCompacta).join(';')).join('\n') + '\n';
 
 export const CABECALHO_EQUIPE = ['Data', 'Nome', 'Perfil', 'Situação', 'Visitas realizadas', 'Visitas planejadas', 'Cobertura %', 'Vendas (R$)', 'Pedidos', 'A faturar (R$)', 'Lojas (promotor)'];
 
