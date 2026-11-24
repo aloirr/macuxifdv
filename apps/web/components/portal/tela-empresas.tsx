@@ -21,7 +21,7 @@ import { codigoDaLicenca, mascararCnpj } from '@/lib/portal-formato';
 import { TEXTOS_NOVA_EMPRESA } from '@/lib/portal-nova-empresa';
 import { TEXTOS_PLANO } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
+import { CAMINHO_EMPRESAS, CAMINHO_NOVA_EMPRESA, caminhoDaEmpresa, destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { LinkBotao, MolduraPortal, useSessaoPortal } from './base';
 import { CelulaBackup, MenuDaEmpresa, useAcoesDasEmpresas } from './empresas-acoes';
 import { NovaEmpresa } from './passo-empresa';
@@ -82,7 +82,7 @@ export function TelaEmpresas() {
           <PageHeader
             title="Empresas"
             actions={
-              <LinkBotao href="/empresas/nova" testId="empresas.nova" primario>
+              <LinkBotao href={CAMINHO_NOVA_EMPRESA} testId="empresas.nova" primario>
                 {TEXTOS_NOVA_EMPRESA.titulo}
               </LinkBotao>
             }
@@ -135,7 +135,7 @@ export function ListaEmpresas() {
               {q.data.map((e) => (
                 <tr key={e.id} data-testid={`empresas.linha-${e.codigo}`} className="hover:bg-ground">
                   <td className={`${td} whitespace-nowrap`}>
-                    <Link href={`/empresas/${e.id}`} data-testid={`empresas.abrir-${e.codigo}`} className="font-semibold text-ink no-underline hover:text-accent-ink hover:underline">
+                    <Link href={caminhoDaEmpresa(e.id)} data-testid={`empresas.abrir-${e.codigo}`} className="font-semibold text-ink no-underline hover:text-accent-ink hover:underline">
                       {e.razao_social}
                     </Link>
                   </td>
@@ -170,7 +170,7 @@ export function TelaNovaEmpresa() {
   const pode = useSoTimeMacuxi();
   return (
     <MolduraPortal
-      voltar={{ href: '/empresas', rotulo: 'Empresas' }}
+      voltar={{ href: CAMINHO_EMPRESAS, rotulo: 'Empresas' }}
       titulo={pode ? <PageHeader title={TEXTOS_NOVA_EMPRESA.titulo} /> : undefined}
     >
       {/* A lista em cache ainda não tem a empresa nova: invalida antes de ir à página dela (sem o aviso "não encontrada"). */}

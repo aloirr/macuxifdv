@@ -49,6 +49,7 @@ import {
 } from '@/lib/portal-nova-empresa';
 import { ESCOLHA_VAZIA, semCatalogoDePlanos, totalDaEscolha, type EscolhaDaTela } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { caminhoDaEmpresa } from '@/lib/portal-sessao';
 
 import { AdminInicial } from './admin-inicial';
 import { PassoEmpresa as PassoEmpresaLegado } from './passo-empresa-legado';
@@ -190,7 +191,7 @@ function NovaEmpresaComPlano({ aoGravar }: { aoGravar?: () => void }) {
       aoGravar?.();
       if (r.tenant_id) {
         guardarEmpresaCriada(r.tenant_id, r.codigo);
-        router.push(`/empresas/${r.tenant_id}`);
+        router.push(caminhoDaEmpresa(r.tenant_id));
       }
     } catch (x) {
       const doCnpj = estadoDoErroCnpj(x);

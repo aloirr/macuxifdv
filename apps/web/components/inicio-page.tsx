@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Início do BKO em `/` (T-0189, RN-CORE-64): o shell monta o Início do Core (`InicioBkoPage`, `@macuxi/core/web`), que traz
+ * Início do BKO em `/bko` (T-0189, RN-CORE-64; ADR 0071): o shell monta o Início do Core (`InicioBkoPage`, `@macuxi/core/web`), que traz
  * "Precisa de você", "Hoje" e "Equipe no mês". Só com `inicio_bko.ver` (o `pode`
  * da visão já cobre módulo efetivo, licença e perfil); sem ela (ex.: perfil de campo no BKO), só o título, sem texto.
  * Só exibição: a API revalida perfil, escopo e licença em `GET /v1/core/inicio-bko`.

@@ -4,7 +4,7 @@
  * Peças comuns do portal `config.` (T-0087; T-0093): moldura, cabeçalho com a sessão (e o "Trocar de empresa" do admin do
  * cliente) e a guarda de sessão. Os campos são o `Campo` de `components/campo-acesso.tsx`. O campo de senha é o `CampoSenha` do kit (R-20261115-071000).
  * Visual pelos tokens e componentes de `@macuxi/ui/web` (os do login do BKO); sem menu dos módulos (o portal não é o BKO).
- * Caminhos sem o prefixo `/config`: no host `config.` o navegador vê `/empresas` e o `proxy.ts` reescreve.
+ * Caminhos com o prefixo `/config` (`noPortal`, `lib/portal.ts`).
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -13,8 +13,12 @@ import { cx, formatTime, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
+import { CAMINHO_DIAGNOSTICOS } from '@/lib/portal-diagnosticos';
+import { CAMINHO_FRASES_CARGA } from '@/lib/portal-frases-carga';
+import { ehCaminhoDoPortal, ENTRADA_DO_PORTAL, noPortal } from '@/lib/portal';
 import {
   assinarSessaoPortal,
+  CAMINHO_EMPRESAS,
   CAMINHO_ESCOLHER_EMPRESA,
   destinoDaSessao,
   ehTimeMacuxi,
@@ -136,7 +140,7 @@ export function useTimeMacuxi(): boolean | null {
 const CHECAR_MS = 30_000;
 
 /**
- * Guarda das páginas internas: sem sessão (ou vencida) → `/entrar`. Com uso recente, renova o token antes do fim; sem uso, deixa
+ * Guarda das páginas internas: sem sessão (ou vencida) → `/config/entrar`. Com uso recente, renova o token antes do fim; sem uso, deixa
  * vencer (o próximo clique leva ao login). Conta o uso por clique e tecla.
  */
 export function GuardaPortal({ children }: { children: ReactNode }) {
@@ -155,7 +159,7 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
       // "Sair" não guarda volta nem aviso; o resto volta para esta página (com o #aba) depois do login (R-20261106-023316 🟡 10)
       if (!retirarSaidaPedida()) guardarRetornoPortal({ caminho: `${window.location.pathname}${window.location.hash}`, sessaoTerminou: teveSessao.current || sessao !== null });
       if (sessao) limparSessaoPortal();
-      router.replace('/entrar');
+      router.replace(ENTRADA_DO_PORTAL);
     }
   }, [sessao, router]);
 
@@ -201,14 +205,18 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
  * o admin do cliente não vê nenhum.
  */
 export const MENU_TIME_MACUXI = [
-  { href: '/empresas', rotulo: 'Empresas', testId: 'portal.menu.empresas' },
-  { href: '/diagnosticos', rotulo: 'Diagnósticos', testId: 'portal.menu.diagnosticos' },
-  { href: '/frases-carga', rotulo: 'Frases da carga', testId: 'portal.menu.frases-carga' },
+  { href: CAMINHO_EMPRESAS, rotulo: 'Empresas', testId: 'portal.menu.empresas' },
+  { href: CAMINHO_DIAGNOSTICOS, rotulo: 'Diagnósticos', testId: 'portal.menu.diagnosticos' },
+  { href: CAMINHO_FRASES_CARGA, rotulo: 'Frases da carga', testId: 'portal.menu.frases-carga' },
 ] as const;
 
-/** Item ativo pelo caminho (no host `config.` o navegador vê `/diagnosticos`; no PC sem o host, `/config/diagnosticos`). */
+/**
+ * Item ativo pelo caminho: `/config/diagnosticos` (os links do portal) ou `/diagnosticos` (endereço reescrito por um favorito
+ * antigo do host `config.`).
+ */
 export function itemAtivoDoMenu(caminho: string | null): string | null {
-  const c = (caminho ?? '').replace(/^\/config(?=\/|$)/, '') || '/';
+  const bruto = caminho || '/';
+  const c = ehCaminhoDoPortal(bruto) ? bruto : noPortal(bruto);
   return MENU_TIME_MACUXI.find((i) => c === i.href || c.startsWith(`${i.href}/`))?.href ?? null;
 }
 
@@ -223,13 +231,13 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
   const router = useRouter();
   const ativo = itemAtivoDoMenu(usePathname());
   const sair = () => {
-    void sairDoPortal().then(() => router.replace('/entrar'));
+    void sairDoPortal().then(() => router.replace(ENTRADA_DO_PORTAL));
   };
   const trocar = () => router.push(CAMINHO_ESCOLHER_EMPRESA);
-  const inicio = sessao ? destinoDaSessao(sessao) : '/empresas';
+  const inicio = sessao ? destinoDaSessao(sessao) : CAMINHO_EMPRESAS;
   const cliente = sessao?.tipo === 'admin_cliente';
   // o admin do cliente não tem a lista de empresas: o "← Empresas" não aparece para ele
-  const voltarVisivel = voltar && !(cliente && voltar.href === '/empresas') ? voltar : undefined;
+  const voltarVisivel = voltar && !(cliente && voltar.href === CAMINHO_EMPRESAS) ? voltar : undefined;
 
   return (
     <GuardaPortal>

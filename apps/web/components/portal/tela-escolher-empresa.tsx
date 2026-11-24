@@ -19,6 +19,7 @@ import { Badge, Button, cx, IconChevronRight, LoadingBlock, Notice } from '@macu
 
 import { chamarPortal, ErroPortal, mensagemDoErro, sairDoPortal } from '@/lib/portal-api';
 import { codigoDaLicenca } from '@/lib/portal-formato';
+import { ENTRADA_DO_PORTAL } from '@/lib/portal';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import {
   apagarRetornoPortal,
@@ -88,7 +89,7 @@ export function TelaEscolherEmpresa() {
   useEffect(() => {
     if (vencida) {
       if (!retirarSaidaPedida() && (teveSessao.current || sessao !== null)) guardarRetornoPortal({ caminho: null, sessaoTerminou: true });
-      router.replace('/entrar');
+      router.replace(ENTRADA_DO_PORTAL);
     } else if (naoEscolhe && sessao) router.replace(destinoDaSessao(sessao));
   }, [vencida, naoEscolhe, sessao, router]);
 
@@ -157,7 +158,7 @@ export function TelaEscolherEmpresa() {
   }
 
   const sair = () => {
-    void sairDoPortal().then(() => router.replace('/entrar'));
+    void sairDoPortal().then(() => router.replace(ENTRADA_DO_PORTAL));
   };
 
   return (
