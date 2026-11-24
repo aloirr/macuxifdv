@@ -249,7 +249,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
       expect(s.usuario.filial_cadastro_id).toBe(padraoA);
       expect([...(s.usuario.filial_venda_ids ?? [])].sort()).toEqual([padraoA, boaVistaA.id].sort());
       const v = await sessao('vendedor@exemplo.com.br', 'campo');
-      await esperarHorizonte(); // o destravar do caso anterior tocou o updated_at; o pull só entrega o que é anterior ao horizonte
+      await esperarHorizonte(); // o destravar do caso anterior tocou o updated_at
       const pull = await api.chamar(v.access_token, { method: 'GET', url: '/v1/sync/pull?entidade=usuario' });
       expect(pull.statusCode, pull.body).toBe(200);
       const minha = (pull.json() as { itens: (UsuarioSync & FiliaisDoUsuario)[] }).itens.find((l) => l.id === A.usuarios.vendedor1);
@@ -415,7 +415,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
       expect(outra, 'com filial: alguma entidade além de usuario').toBeDefined();
 
       await deixarSemFilial(api.admin, id);
-      await esperarHorizonte(); // o deixarSemFilial tocou o updated_at; o pull só entrega o que é anterior ao horizonte (agora − 2 s)
+      await esperarHorizonte(); // o deixarSemFilial tocou o updated_at
       try {
         const nov = await api.chamar(t, { method: 'GET', url: '/v1/sync/novidades' });
         expect(nov.statusCode, nov.body).toBe(200);

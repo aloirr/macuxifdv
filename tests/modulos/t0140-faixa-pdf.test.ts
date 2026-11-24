@@ -25,7 +25,7 @@ vi.mock('@macuxi/ui/mobile', async () => {
   const { createElement: ce } = await import('react');
   return {
     colors: new Proxy({}, { get: () => '#000' }),
-    // fonte do sistema v1.0.13: o kit troca `fonts` por `fonte` (estilos com peso); o mock entrega os dois
+    // fontes: ver meta-de-hoje-rd0001-t0124.test.ts
     fonts: new Proxy({}, { get: () => 'f' }),
     fonte: new Proxy({}, { get: () => ({}) }),
     type: new Proxy({}, { get: () => ({}) }),
