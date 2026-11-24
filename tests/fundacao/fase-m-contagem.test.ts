@@ -129,8 +129,8 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
   {
     origem: 'apps/web/lib/csv.test.ts',
     titulo: 'escapa ; aspas e quebra de linha',
-    novo: 'Unifica (14/11): aspas em toda célula, internas dobradas, vazio vira "" e fórmula ganha apóstrofo (byte a byte)',
-    decisao: '"Unifica" (dono do produto, 14/11/2026, recado R-20261114-070800-alexandre; RD-0051, PR #221) — o CSV do BKO do Vendedor usa o celulaCsv de @macuxi/comum/csv: aspas em toda célula e apóstrofo antes de = + - @; o caso segue coberto byte a byte',
+    novo: 'CWE-1236: cliente e motivo que começam como fórmula saem como texto no CSV de pedidos',
+    decisao: '"Unifica" (dono do produto, 14/11/2026, recado R-20261114-070800-alexandre; RD-0051, PR #221) — o CSV do BKO do Vendedor usa o celulaCsv de @macuxi/comum/csv: aspas em toda célula e apóstrofo antes de = + - @. Desde a v1.0.32 (PR #684, RD-2747) os casos isolados de aspas, nulo e fórmula ficam em packages/comum/src/csv.test.ts, e o Vendedor testa a proteção pela saída de ordersToCsv',
   },
   {
     origem: 'apps/web/lib/routes.test.ts',
