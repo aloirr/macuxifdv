@@ -60,7 +60,7 @@ import {
   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
   WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
   modoDosRecados, regraDoRecadoNovo, ErroRecados, conexaoDeRecados, atualizarIndiceDeRecados, recadosDoIndice,
-  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub, ehRemetenteDeSistema,
+  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub, ehRemetenteDeSistema, lerRetroativas, retroativasNoTopo,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -362,6 +362,13 @@ function verificarPorCommit(intervalo, regras) {
     return { sha, curto: sha.slice(0, 7), merge: pais.trim().split(/\s+/).filter(Boolean).length > 1, assunto, corpo: corpo || '' };
   });
   console.log(`Verificação de donos por commit — ${de}..${ate} (${commits.length} commit(s))`);
+  // ADR 0045: squash da lista retroativa conta como do alexandre
+  let retroativas;
+  try {
+    retroativas = lerRetroativas(retroativasNoTopo(ate, RAIZ));
+  } catch (e) {
+    erroUso(e.message, false);
+  }
   if (!commits.length) {
     console.log('\nResultado: OK — nenhum commit no intervalo.');
     process.exit(0);
@@ -374,7 +381,8 @@ function verificarPorCommit(intervalo, regras) {
   for (const c of commits) {
     const cab = `\n== ${c.curto} ${c.assunto}`;
     if (c.merge) { console.log(`${cab}\n   commit de merge — ignorado`); continue; }
-    const nomes = trailersAgente(c.corpo);
+    const retro = retroativas.get(c.sha);
+    const nomes = retro ? ['alexandre'] : trailersAgente(c.corpo);
     const invalidos = nomes.filter((n) => !PESSOAS.includes(n));
     if (!nomes.length || invalidos.length || nomes.length > 1) {
       const motivo = !nomes.length ? 'sem o trailer "Agente: <nome>"'
@@ -390,8 +398,8 @@ function verificarPorCommit(intervalo, regras) {
       agente, mudancas: mudancasDoCommit(c.sha), regras, estrito: true, lockAcompanha: true, workspaceSoBuilds: workspaceSoBuildsCommit(c.sha),
       recados: recadosDoCommit(c.sha),
     });
-    console.log(`${cab} — agente: ${agente} (trailer)`);
-    if (agente === 'alexandre') {
+    console.log(`${cab} — agente: ${agente} (${retro ? `lista retroativa, PR #${retro.pr}, ${retro.recado}` : 'trailer'})`);
+    if (agente === 'alexandre' && !retro) {
       console.log(`   Atenção: ${DECLARADA_TRAILER} (aceita aqui; o CI de governança cobre o resto)`);
       declarados.push(c);
     }
