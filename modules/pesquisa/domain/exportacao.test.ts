@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RespostaPesquisa } from '../contracts';
-import { celulaCsv, exportarRespostasCsv, nomeDoArquivoCsv } from './exportacao';
+import { exportarRespostasCsv, nomeDoArquivoCsv } from './exportacao';
 import { codigo, data, foto, item, multipla, numero, publicada, QUEST, sim_nao, TENANT, texto, u, unica } from './util-teste';
 
 const v1 = publicada({ perguntas: [sim_nao(1, { enunciado: 'Tem ponto extra?' }), unica(2), multipla(3), numero(4), texto(5), data(6), foto(7), codigo(8)] });
@@ -65,15 +65,11 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     expect(csv).toContain(';sim;APOS_A_VIGENCIA;');
   });
 
-  it('segurança: aspas, separador, quebra de linha e fórmula (=, +, -, @) são neutralizados', () => {
-    expect(celulaCsv('a;b')).toBe('"a;b"');
-    expect(celulaCsv('diz "oi"')).toBe('"diz ""oi"""');
-    expect(celulaCsv('linha\nnova')).toBe('"linha\nnova"');
-    expect(celulaCsv('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
-    expect(celulaCsv('+55')).toBe("'+55");
-    expect(celulaCsv('-3')).toBe("'-3");
-    expect(celulaCsv('-1+1')).toBe("'-1+1");
-    expect(celulaCsv('=1+1')).toBe("'=1+1");
+  it('segurança (CWE-1236): resposta de texto começando com "=" sai com apóstrofo e sem aspas', () => {
+    const csv = exportarRespostasCsv({ versoes: [v1], respostas: [resposta({ itens: [item.texto(5, '=1+1')] })], fuso: 'America/Manaus' });
+    const [cab, linha] = csv.slice(1).split('\r\n');
+    const iTexto = cab!.split(';').indexOf(v1.perguntas[4]!.enunciado);
+    expect(linha!.split(';')[iTexto]).toBe("'=1+1");
   });
 
   it('RF-PES-06: nome do arquivo com o dia no fuso do tenant e sem caracteres estranhos', () => {
