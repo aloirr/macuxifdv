@@ -3,6 +3,7 @@
  * `protegerFormula` evita a injeção de fórmula (CWE-1236): a célula que começa com `=`, `+`, `-`, `@`, tabulação ou retorno de
  * carro ganha um apóstrofo na frente, e o Excel a mostra como texto. Era copiada em `modules/core/web/lib/farol.ts`,
  * `plano-rv.ts` e no `erros.csv` da Integração (R-20261106-062452, item 4).
+ * Há dois formatos de célula, ambos com a fórmula protegida: `celulaCsv` e `celulaCsvCompacta` (RD-0051).
  */
 export const BOM_CSV = '﻿';
 
@@ -14,4 +15,10 @@ export function protegerFormula(v: string): string {
 /** Célula entre aspas, com as aspas internas dobradas e a fórmula protegida. */
 export function celulaCsv(v: string): string {
   return `"${protegerFormula(v).replace(/"/g, '""')}"`;
+}
+
+/** Célula com aspas só quando há `;`, `"`, `\n` ou `\r`; a fórmula é protegida antes do teste. */
+export function celulaCsvCompacta(v: string): string {
+  const s = protegerFormula(v);
+  return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
