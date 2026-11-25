@@ -324,8 +324,7 @@ export const ProdutoUnidadePayload = RegistroBase.extend({
     .trim()
     .toUpperCase()
     .regex(SIGLA_MEDIDA_FORMATO, 'unidade deve ter de 1 a 4 letras'),
-  /** Quantidade de unidades base em uma desta embalagem (CX com 12 = 12). */
-  /** ADR 0076 (RN-VEN-15): até 4 casas, > 0, ≤ EMBALAGEM_QUANTIDADE_MAX. Fator fracionário só entra com a trava aberta (D6). */
+  /** Unidades base em uma desta embalagem (CX com 12 = 12); até 4 casas, > 0, ≤ EMBALAGEM_QUANTIDADE_MAX; fracionário só com a trava aberta (ADR 0076, RN-VEN-15). */
   fator: FatorDecimalSchema,
   ean: z
     .string()

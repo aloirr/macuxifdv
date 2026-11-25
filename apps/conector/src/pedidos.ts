@@ -420,13 +420,6 @@ export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: Res
   return r;
 }
 
-/**
- * Itens faturados NESTA nota (RN-INT-08): colunas OBRIGATÓRIAS `sequencia`, `quantidade` (> 0, até 4 casas decimais desde o 1.6.0, ADR 0076), `valor_cents` (centavos
- * inteiros >= 0) e `produto_external_id` (chave do produto no ERP; decisão do Alexandre na T-0023). Linhas da mesma sequência somam
- * (o ERP pode partir o item em lotes) e devem trazer o mesmo produto. Nunca inventa valor nem produto: se qualquer linha vier sem
- * um deles ou fora do formato, o retorno segue SEM `itens_faturados` (campo opcional do retorno) e o aviso `itens_faturados_omitidos`
- * traz o motivo e a linha, para o operador corrigir a consulta `consultaItensNota`.
- */
 function escalaDaQuantidade(bruto: unknown): number | null {
   const t = typeof bruto === 'number' || typeof bruto === 'bigint' ? String(bruto) : typeof bruto === 'string' ? bruto.trim().replace(',', '.') : '';
   const n = Number(t);
@@ -438,6 +431,13 @@ function escalaDaQuantidade(bruto: unknown): number | null {
   }
 }
 
+/**
+ * Itens faturados NESTA nota (RN-INT-08): colunas OBRIGATÓRIAS `sequencia`, `quantidade` (> 0, até 4 casas decimais desde o 1.6.0, ADR 0076), `valor_cents` (centavos
+ * inteiros >= 0) e `produto_external_id` (chave do produto no ERP; decisão do Alexandre na T-0023). Linhas da mesma sequência somam
+ * (o ERP pode partir o item em lotes) e devem trazer o mesmo produto. Nunca inventa valor nem produto: se qualquer linha vier sem
+ * um deles ou fora do formato, o retorno segue SEM `itens_faturados` (campo opcional do retorno) e o aviso `itens_faturados_omitidos`
+ * traz o motivo e a linha, para o operador corrigir a consulta `consultaItensNota`.
+ */
 async function itensDaNota(ctx: Contexto, cfg: PedidosConfig, uuid: string, nota: string, serie: string | undefined): Promise<ItemFaturado[] | undefined> {
   const linhas = await ctx.erp.consultar(cfg.status.consultaItensNota as string, { pedido_uuid: uuid, nota_numero: nota, nota_serie: serie ?? null });
   const porSequencia = new Map<number, ItemFaturado>();

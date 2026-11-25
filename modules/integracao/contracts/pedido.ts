@@ -4,7 +4,7 @@
  * Conector → Hub: `POST /integracao/v1/pedidos/{pedido_uuid}/retorno`.
  */
 import { z } from 'zod';
-import { FatorDecimalSchema, QuantidadeDecimalSchema, QUANTIDADE_DECIMAL_MAX } from '@macuxi/platform-sdk';
+import { FatorDecimalSchema, QuantidadeDecimalSchema, QuantidadePositivaSchema } from '@macuxi/platform-sdk';
 import { CentavosNaoNegativos, DataHoraUtc, ExternalId, PercentualAjuste, Texto, TextoOpcional, Uuid, VERSAO_CONTRATO } from './base';
 
 export const ESTADOS_PEDIDO_ERP = ['pendente', 'enviado', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado'] as const;
@@ -16,8 +16,7 @@ const PercentualOpcional = z.number().min(0).max(100).nullish();
 export const ItemPedidoErp = z.object({
   sequencia: z.number().int().positive(),
   produto_external_id: ExternalId,
-  /** SEMPRE na unidade base (ADR 0016): `quantidade = quantidade_venda x fator` quando a venda é por embalagem. */
-  /** ADR 0076: até 4 casas (fração só em KG/M, RN-VEN-02 v3). */
+  /** SEMPRE na unidade base (ADR 0016): `quantidade = quantidade_venda x fator` quando a venda é por embalagem; até 4 casas (ADR 0076). */
   quantidade: QuantidadeDecimalSchema,
   preco_unitario_cents: CentavosNaoNegativos,
   desconto_cents: CentavosNaoNegativos.default(0),
@@ -25,8 +24,7 @@ export const ItemPedidoErp = z.object({
   // ---- ADR 0016 (opcionais; o Conector 1.2.x ignora): medida de venda, desconto/acréscimo
   /** Sigla da medida vendida (RN-CORE-19), ex.: CX. */
   unidade: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,6}$/).nullish(),
-  /** Unidades base de uma unidade vendida (1 na medida da unidade). */
-  /** ADR 0076: até 4 casas (RN-VEN-15); fator e quantidade nunca fracionários no mesmo item. */
+  /** Unidades base de uma unidade vendida (1 na medida da unidade); até 4 casas, nunca fracionário junto com a quantidade (ADR 0076). */
   fator: FatorDecimalSchema.nullish(),
   /** Quantidade na medida vendida. */
   quantidade_venda: QuantidadeDecimalSchema.nullish(),
@@ -183,13 +181,6 @@ export type StatusRetornoErp = z.infer<typeof StatusRetornoErp>;
  * antes não se repete: o consumidor soma os retornos. `valor_cents` é o valor faturado do item (centavos inteiros).
  * `produto_external_id` e `valor_cents` são OBRIGATÓRIOS (decisão do Alexandre, T-0023): o item leva produto e valor em centavos.
  */
-/**
- * Quantidade que volta do ERP (ADR 0076): decimal positivo. As 4 casas e a trava NÃO são conferidas aqui, e sim no domain
- * (`avaliarFracaoRetorno`), para o excesso de casas voltar como 422 `quantidade_fracionaria_invalida` e não como 400.
- */
-const QuantidadeRetornada = (nome: string) =>
-  z.number().finite().positive(`${nome} deve ser maior que zero`).max(QUANTIDADE_DECIMAL_MAX, `${nome} deve ser no máximo ${QUANTIDADE_DECIMAL_MAX}`);
-
 export const ItemFaturado = z.object({
   sequencia: z.number().int().positive(),
   /**
@@ -197,7 +188,7 @@ export const ItemFaturado = z.object({
    * `produto_id` interno pela `sequencia` do pedido enviado e confere pelo `external_id`.
    */
   produto_external_id: ExternalId,
-  quantidade: QuantidadeRetornada('quantidade faturada'),
+  quantidade: QuantidadePositivaSchema,
   /** Obrigatório: valor faturado do item nesta nota, em centavos inteiros. */
   valor_cents: CentavosNaoNegativos,
 });
@@ -262,7 +253,7 @@ export const ItemFaturadoDescartado = z.object({
   indice: z.number().int().nonnegative(),
   sequencia: z.number().int().positive(),
   produto_external_id: ExternalId,
-  quantidade: QuantidadeRetornada('quantidade'),
+  quantidade: QuantidadePositivaSchema,
   codigo: z.enum(CODIGOS_ITEM_DESCARTADO),
   codigos: z.array(z.enum(CODIGOS_ITEM_DESCARTADO)).min(1),
   campo: z.string().min(1),
