@@ -659,6 +659,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarRotaAppVersao(app, {
     fonte: fonteVersoesApp,
     urlApiPublica: op.urlApiPublica ?? urlApiPublicaDoAmbiente(process.env),
+    relogio,
     validar,
   });
 
