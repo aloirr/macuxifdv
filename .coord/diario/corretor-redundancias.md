@@ -158,3 +158,4 @@
 - 2026-11-25 (Manaus, 11h25) — T-0196, S12: parecer curto dos heads novos. RD-3625 a RD-3627 fechados; RD-3628 (core) e RD-3629 (testes, não segura) novos. LIBERADOS: banco-dados 4ba210405, vendedor fc0e5211d, engenheiro-apps-2 de3c68d79, testes-2 97099b243. NÃO LIBERADO: modulo-core f5239e5aa.
 - 2026-11-25 (Manaus, 11h46) — T-0196, S12: parecer curto do head novo do Core. RD-3628 fechado; nenhum achado novo. LIBERADO: modulo-core 8553368f5. Ao testes, mantido: KG sem 3 casas no Histórico.
 - 2026-11-25 (Manaus, 11h55) — T-0196, S12: parecer curto dos heads do semSigla. Nenhum achado novo. LIBERADOS: engenheiro-software 51b768876, modulo-core 4f7a13d92, modulo-vendedor ff3704d27.
+- 2026-11-25 (Manaus, 12h20) — T-0196, S12: parecer curto do passoLargo (designer-ux-2) e do aviso do campo (modulo-vendedor). RD-3613 fechado; novo RD-3630 (baixo, condição 2x em componentes.ts). LIBERADO: modulo-vendedor cc5b1cbf3. NÃO LIBERADO: designer-ux-2 2ad8d0ff9.
