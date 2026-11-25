@@ -24,3 +24,24 @@ Achados só em teste e comentário de teste, baixos (não seguram; lote seguinte
 | RD-3561 | baixa (só comentário) | `pagamento-web-v1035.test.ts:1-13` | Cabeçalho de 13 linhas; o parágrafo `:11-13` repete o título do W1 e a fixture que o `beforeAll` (`:87-90`) já confere | Deixar as linhas 1-10 (critérios) e tirar o parágrafo final | testes |
 
 Sem defeito funcional para encaminhar ao testes.
+
+## C) Reteste `nuvem/v1035-web-engenheiro-apps` @ aec0723 (`git diff e5a5c4a aec0723`) — NÃO LIBERADO (RD-3572)
+
+| ID | Resultado |
+|---|---|
+| RD-3555 | corrigido: `comCabecalhoApp` saiu de `cabecalho-app.ts` e de `portal-api.ts` (volta `headers: cabecalhos`); o teste do portal passa a URL do `chamarPortal` pelo `proxy` e confere `web/<VERSAO_WEB>`; os comentários tiraram "o cliente do portal também o manda" |
+| RD-3556 | corrigido: `portal-api.ts` usa o `PROXY_BASE` do SDK e `portal.ts` usa a constante do web em `CAMINHOS_DE_FORA`; a constante local virou o RD-3572 |
+| RD-3557 | corrigido: saíram o `it` do valor do cabeçalho e o de `comCabecalhoApp` |
+
+Achado novo:
+
+| ID | Grav. | Onde | O que se repete | Proposta | Dono |
+|---|---|---|---|---|---|
+| RD-3572 | baixa | `apps/web/lib/cabecalho-app.ts:13` (`PROXY_BASE_NO_SERVIDOR`) × `packages/platform-sdk/src/web/api.ts:81` (`PROXY_BASE`) × `packages/platform-sdk/src/cookie-sessao.ts:25` (`CAMINHO_COOKIE_SESSAO = '/api-proxy/auth'`) | O prefixo `/api-proxy` com três fontes em código de produção. O motivo da cópia é real (`@macuxi/platform-sdk/web` carrega `session.ts` com `'use client'` e quebra o `proxy.ts`), mas a raiz do SDK já é segura para servidor e o web já a importa (`CABECALHO_APP`, `valorCabecalhoWeb`). O teste de igualdade só amarra a cópia: ela continua existindo, e o literal do cookie fica fora da amarra | **engenheiro-software:** levar `PROXY_BASE` à raiz do SDK, num arquivo sem `'use client'` (ex.: `cookie-sessao.ts`), com `CAMINHO_COOKIE_SESSAO = `${PROXY_BASE}/auth``; `web/api.ts` importa e reexporta (sem quebrar quem usa `@macuxi/platform-sdk/web`). **engenheiro-apps**, depois: `import { PROXY_BASE } from '@macuxi/platform-sdk'` em `cabecalho-app.ts` e `portal.ts`, tirar `PROXY_BASE_NO_SERVIDOR`, o comentário dele e o `describe('prefixo do proxy no servidor')` | engenheiro-software + engenheiro-apps |
+
+Mantidos (sem achado):
+- Comentário do limite em `proxy.ts:71-72` (10 MiB padrão, parte de 8 MiB): diz o risco do 2º matcher e aponta o teste; os números ajudam a leitura e o teste pega se mudarem. `manter`.
+- Teste `PARTE_ENVIO_BYTES < defaultConfig.experimental.proxyClientMaxBodySize` e `proxyClientMaxBodySize` indefinido no `next.config`: guarda nova, sem par em outro teste.
+- Linha em branco dupla em `portal-api.ts:15-16` (sobra do import tirado): formatação, não redundância; fica para o lint/prettier do dono.
+
+Sem defeito funcional para encaminhar ao testes.
