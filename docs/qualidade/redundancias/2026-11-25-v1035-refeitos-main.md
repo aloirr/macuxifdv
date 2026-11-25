@@ -1,12 +1,22 @@
-# Corretor de redundâncias · v1.0.35 · branches refeitos a partir do main (25/11/2026)
+# Parecer do corretor-redundancias: v1.0.35, branches refeitos a partir do main (3ee9539, com a 0103)
 
-Escopo: os três branches do web refeitos a partir do `main` (b20ffcbed) com um commit só do dono, comparados ao SHA já liberado.
-Comando: `for f in $(git show --name-only --format= <novo>); do git diff <liberado> <novo> -- $f; done`.
+Data: 25/11/2026 (horário de Manaus). Sessão S11. Escopo: só excessos, duplicidades e redundâncias.
+Base: `origin/main` @ 3ee9539c32a1cf18668a1aa8a37d94913230103e.
 
-| Branch | Liberado antes | Head conferido | Diferença | Parecer |
-|---|---|---|---|---|
-| `nuvem/v1035-web-engenheiro-apps-2` | 442aae1 | 3edfd6a46a6e49cd9b2bf678fef9439c18ce6d62 | só `apps/web/lib/cabecalho-app.test.ts:51`: `'/api-proxy/:path*'` → `` `${PROXY_BASE}/:path*` `` (sugestão do corretor; `PROXY_BASE` já importado na linha 9) | LIBERADO |
-| `nuvem/v1035-web-engenheiro-apps-dados-2` | 46fd1b2 | b06ce89b1ec9e25d4f14cad3ba816c9d8f999850 | só `apps/web/lib/portal-telas.test.ts`: imports e teste do código da empresa vindos do `main` (#791; `sugerirCodigo` saiu do `main`); o commit do dono só acrescenta `abasDaSessao` e a aba Dados, como antes | LIBERADO |
-| `nuvem/v1035-web-testes-2` | 844eee6 | 2d89b3f1ebcad4d89c7d85a374c15ee810a18a5d | nenhuma (`tests/integracao/api/pagamento-web-v1035.test.ts` idêntico) | LIBERADO |
+## A) `nuvem/v1035-web-modulo-core-2` @ 6531293604a391ccebb487a532bb7e1b3a149875
+- 3 commits (e17a549, bc24b5c, 6531293); os 2 últimos tiram os `.js` emitidos por engano. Diff líquido contra o main: 4 arquivos
+  (`modules/core/api/super-admin-repositorio.ts`, `super-admin.test.ts`, `super-admin.ts`, `modules/core/contracts/plataforma.ts`), nenhum `.js`.
+- `git diff 0017f74 6531293` (e contra a9d9a6e) nesses 4 arquivos: 9 linhas, todas `0107` → `0103` em comentário JSDoc, comentário de código e título de teste. Nenhuma linha adicionada cita 0107.
+- Resultado: **LIBERADO no SHA 6531293604a391ccebb487a532bb7e1b3a149875**.
 
-Achados novos: nenhum (faixa RD-3574 a RD-3599 não usada). Catálogo sem alteração.
+## B) `nuvem/v1035-web-engenheiro-apps-senha-2` @ a6a67dd4283bce10494c7290b31eb82c8fbff4ee
+- 1 commit; 10 arquivos em `apps/web`. `git diff e716ec5 a6a67dd` nos 10 arquivos: vazio (conteúdo idêntico ao liberado).
+- Resultado: **LIBERADO no SHA a6a67dd4283bce10494c7290b31eb82c8fbff4ee**.
+
+## C) `nuvem/v1035-web-testes-senha-2` @ 4f8be9f24576e1e648437350dd9f8627a07a72b3
+- 1 commit; 2 arquivos (`tests/integracao/api/troca-senha-portal-v1034.test.ts`, `tests/e2e/web/portal-01b-04-api.spec.ts`).
+- `git diff 726816e 4f8be9f`: o spec e2e é idêntico; no teste de integração, 6 linhas, todas `0107` → `0103` em comentário e título de `describe`.
+- Resultado: **LIBERADO no SHA 4f8be9f24576e1e648437350dd9f8627a07a72b3**.
+
+## Achados
+Nenhum. Faixa reservada RD-3574 a RD-3599 não usada; catálogo sem alteração.
