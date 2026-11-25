@@ -622,8 +622,8 @@ export function useVendedor() {
         : det
           ? copiaDoDetalhe(det, { condicaoId: v1 ? (linhaPedido?.condicao_pagamento_id ?? null) : null, observacao: linhaPedido?.observacao ?? null, transportadoras: unidadesTransportadoras() })
           : null;
-      const c = copia ? rascunhoDaCopia(copia, catalogo, { manterAplicacao: modo === 'edit' }) : null;
-      const r = c ? null : prefillLines(src.lines, catalogo);
+      const c = copia ? rascunhoDaCopia(copia, catalogo, { manterAplicacao: modo === 'edit', fracaoLiberada: ambiente.fracaoLiberada() }) : null;
+      const r = c ? null : prefillLines(src.lines, catalogo, ambiente.fracaoLiberada());
       const linhasDoRascunho = c ? c.rascunho.lines : r!.lines;
       const aviso = c ? c.aviso : prefillNotice(r!);
       if (Object.keys(linhasDoRascunho).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${aviso}`);

@@ -1,4 +1,5 @@
 import { applyPct, type Cents, formatBRL } from '@macuxi/comum';
+import { quantidadeDaEscala, quantidadeEmEscala, quantidadeValida, totalDaLinhaCents } from '@macuxi/comum/quantidade';
 
 export interface OrderLineInput {
   product_id: string;
@@ -23,17 +24,18 @@ export function computeOrderTotals(lines: OrderLineInput[], discountPct: number)
   const pct = clampPct(discountPct);
   let subtotal = 0;
   let discount = 0;
-  let units = 0;
+  let unitsEscala = 0; // ADR 0076: quantidade em 1/10.000, sem float
   const out = lines
     .filter((l) => l.quantity > 0)
     .map((l) => {
-      const gross = l.unit_price_cents * Math.trunc(l.quantity);
+      const gross = totalDaLinhaCents(l.unit_price_cents, l.quantity);
       const disc = applyPct(gross, pct);
       subtotal += gross;
       discount += disc;
-      units += Math.trunc(l.quantity);
-      return { ...l, quantity: Math.trunc(l.quantity), gross_cents: gross, discount_cents: disc, total_cents: gross - disc };
+      unitsEscala += quantidadeEmEscala(l.quantity);
+      return { ...l, gross_cents: gross, discount_cents: disc, total_cents: gross - disc };
     });
+  const units = quantidadeDaEscala(unitsEscala);
   return { units, lines: out, subtotal_cents: subtotal, discount_cents: discount, total_cents: subtotal - discount };
 }
 
@@ -135,7 +137,8 @@ export function validateOrder(input: ValidateOrderInput): OrderValidation {
   const issues: OrderIssue[] = [];
   const priced: OrderLineInput[] = [];
   for (const l of input.lines) {
-    if (!Number.isInteger(l.quantity) || l.quantity < 0) {
+    // RN-VEN-02 v3: quantidade ≥ 0 com até 4 casas (a fração em KG/M é conferida por `exigirQuantidade`)
+    if (!quantidadeValida(l.quantity) || l.quantity < 0) {
       issues.push({ code: 'invalid_quantity', message: 'Quantidade inválida em um dos itens.', blocking: true, needs_approval: false });
       continue;
     }

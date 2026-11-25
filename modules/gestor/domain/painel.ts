@@ -7,6 +7,7 @@
 import { perfilUsaApp } from '@macuxi/platform-sdk';
 import { necessidadeDiaria } from '@macuxi/core/contracts';
 import { diasUteisDoPeriodo, localDate, type BusinessDays } from '@macuxi/comum';
+import { quantidadeEmEscala, somarQuantidades } from '@macuxi/comum/quantidade';
 import { ATENDIMENTO_POR_DESFECHO, type PainelDia, type PainelFaturamento, type PainelMes, type PainelPesquisa, type PainelTrade, type PainelTreinamento, type PainelVendas, type PainelVisitas, type StatusDia, type VisitaLojaConcluidaV1 } from '../contracts';
 import { situacaoDaRota } from './agora';
 import { statusAtual, vendasApuradas } from './apuracao';
@@ -187,6 +188,13 @@ export function vendasDoPeriodo(estado: EstadoProjecao, vendedorId: string, inic
   };
 }
 
+/** total × q ÷ pedida, em centavos meio para cima, com as quantidades em 1/10.000 (ADR 0076) e BigInt (sem estourar o inteiro seguro). */
+function proporcionalCents(totalCents: number, q: number, pedida: number): number {
+  const num = BigInt(totalCents) * BigInt(quantidadeEmEscala(q));
+  const den = BigInt(quantidadeEmEscala(pedida));
+  return Number((2n * num + den) / (2n * den));
+}
+
 /**
  * RN-GES-06: quanto o ERP já faturou do pedido, em centavos. Faturamento total (evento com `parcial: false` ou status
  * `faturado_total`) = total do pedido. Parcial = Σ por item de (quantidade faturada acumulada, limitada à pedida) ÷
@@ -200,17 +208,17 @@ export function faturadoDoPedido(p: PedidoFato): number {
   if (total) return c.total_cents;
   if (!c.itens || fats.length === 0) return 0;
   const faturada = new Map<string, number>();
-  for (const f of fats) for (const i of f.itens) faturada.set(i.produto_id, (faturada.get(i.produto_id) ?? 0) + i.quantidade);
+  for (const f of fats) for (const i of f.itens) faturada.set(i.produto_id, somarQuantidades(faturada.get(i.produto_id) ?? 0, i.quantidade));
   const pedido = new Map<string, { quantidade: number; total_cents: number }>();
   for (const i of c.itens) {
     const g = pedido.get(i.produto_id) ?? { quantidade: 0, total_cents: 0 };
-    pedido.set(i.produto_id, { quantidade: g.quantidade + i.quantidade, total_cents: g.total_cents + i.total_cents });
+    pedido.set(i.produto_id, { quantidade: somarQuantidades(g.quantidade, i.quantidade), total_cents: g.total_cents + i.total_cents });
   }
   let valor = 0;
   for (const [produto, linha] of pedido) {
     const q = Math.min(faturada.get(produto) ?? 0, linha.quantidade);
     if (q <= 0) continue;
-    valor += q === linha.quantidade ? linha.total_cents : (dividirCents(linha.total_cents * q, linha.quantidade) ?? 0);
+    valor += q === linha.quantidade ? linha.total_cents : proporcionalCents(linha.total_cents, q, linha.quantidade);
   }
   return Math.min(valor, c.total_cents);
 }

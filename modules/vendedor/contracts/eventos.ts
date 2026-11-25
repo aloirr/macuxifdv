@@ -3,7 +3,7 @@
  * Registro: `.coord/contratos/eventos.md`. Mudança incompatível = nova versão + ADR.
  */
 import { z } from 'zod';
-import { definirEvento } from '@macuxi/platform-sdk';
+import { definirEvento, FatorDecimalSchema, QuantidadeDecimalSchema } from '@macuxi/platform-sdk';
 import { Id, IsoDateTime } from '@macuxi/core/contracts';
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 
@@ -17,7 +17,7 @@ export const PedidoFaturadoEvento = z.object({
   vendedor_id: Id,
   faturado_em: IsoDateTime,
   parcial: z.boolean(),
-  itens: z.array(z.object({ produto_id: Id, quantidade: z.number().int().positive() })).min(1),
+  itens: z.array(z.object({ produto_id: Id, quantidade: QuantidadeDecimalSchema })).min(1),
 });
 export type PedidoFaturadoEvento = z.infer<typeof PedidoFaturadoEvento>;
 
@@ -53,6 +53,15 @@ export const PedidoCriadoEvento = z.object({
   status: StatusEvento,
 });
 export type PedidoCriadoEvento = z.infer<typeof PedidoCriadoEvento>;
+
+/**
+ * `vendedor.pedido.criado@2` (ADR 0076): igual ao `@1`, com `itens[].quantidade` decimal (até 4 casas, KG e M). O `@1` continua
+ * publicado em paralelo (sem os pedidos com item fracionário) até a desativação (ADR 0076 D8).
+ */
+export const PedidoCriadoEventoV2 = PedidoCriadoEvento.extend({
+  itens: z.array(z.object({ produto_id: Id, quantidade: QuantidadeDecimalSchema, total_cents: CentsNaoNeg })),
+});
+export type PedidoCriadoEventoV2 = z.infer<typeof PedidoCriadoEventoV2>;
 
 /** `vendedor.pedido.status_alterado@1` — cada transição (RN-VEN-30); `de` null na criação. */
 export const PedidoStatusAlteradoEvento = z.object({
@@ -188,14 +197,14 @@ export const PedidoAprovadoEvento = z.object({
       z.object({
         sequencia: z.number().int().min(1),
         produto_external_id: z.string().nullable(),
-        quantidade: z.number().int().positive(),
+        quantidade: QuantidadeDecimalSchema,
         preco_unitario_cents: CentsNaoNeg,
         desconto_cents: CentsNaoNeg,
         total_cents: CentsNaoNeg,
         // T-0061 (aditivos): `quantidade` é a UNIDADE BASE; a medida vendida vem aqui
         unidade: z.string().nullable().optional(),
-        fator: z.number().int().positive().optional(),
-        quantidade_venda: z.number().int().positive().optional(),
+        fator: FatorDecimalSchema.optional(),
+        quantidade_venda: QuantidadeDecimalSchema.optional(),
         preco_tabela_cents: CentsNaoNeg.optional(),
         desconto_pct: z.number().min(0).max(100).optional(),
         acrescimo_pct: z.number().min(0).max(100).optional(),
@@ -249,6 +258,7 @@ export type PedidoCanceladoEvento = z.infer<typeof PedidoCanceladoEvento>;
 
 // ---------- definições (publicação na outbox: `tx.publicar(EVENTO_..., payload, agregadoId)`) ----------
 export const EVENTO_PEDIDO_CRIADO = definirEvento('vendedor.pedido.criado@1', PedidoCriadoEvento);
+export const EVENTO_PEDIDO_CRIADO_V2 = definirEvento('vendedor.pedido.criado@2', PedidoCriadoEventoV2);
 export const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pedido.status_alterado@1', PedidoStatusAlteradoEvento);
 export const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento('vendedor.pedido.aprovacao_solicitada@1', AprovacaoSolicitadaEvento);
 export const EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2 = definirEvento('vendedor.pedido.aprovacao_solicitada@2', AprovacaoSolicitadaEventoV2);

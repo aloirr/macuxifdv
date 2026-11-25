@@ -25,7 +25,7 @@ import {
   type MedalhaConquistadaV1,
   type MetaDefinidaV1,
   type MetaDoMes,
-  type PedidoCriadoV1,
+  type PedidoCriadoV2,
   type PedidoFaturadoV1,
   type PrecoColetadoV1,
   type RespostaRegistradaV1,
@@ -67,7 +67,7 @@ export interface FaturamentoPedido {
 }
 
 export interface PedidoFato {
-  criado?: Versionado<PedidoCriadoV1>;
+  criado?: Versionado<PedidoCriadoV2>;
   /** Conjunto por `evento_id` (ordem de chegada irrelevante). */
   historico: Record<string, EntradaHistoricoPedido>;
   /** RN-GES-06: faturamentos recebidos, conjunto por `evento_id` (o consumidor soma os itens). */
@@ -220,7 +220,7 @@ const IDS_DO_VENDEDOR = ['pedido_id', 'vendedor_id', 'cliente_id'] as const;
 
 /** Campos de instante dos eventos do Vendedor que o schema do dono não restringe a ISO UTC (RN-GES-03/06: prazo e faturado dependem deles). */
 const INSTANTES_DO_VENDEDOR: Record<string, readonly string[]> = {
-  'vendedor.pedido.criado@1': ['criado_em'],
+  'vendedor.pedido.criado@2': ['criado_em'],
   'vendedor.pedido.aprovacao_solicitada@1': ['solicitada_em'],
   'vendedor.pedido.aprovacao_solicitada@2': ['solicitada_em'],
   'vendedor.pedido.aprovacao_decidida@1': ['decidida_em'],
@@ -316,8 +316,8 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
       const meta: MetaDoMes = { usuario_id: d.usuario_id, mes: d.periodo, meta_cents: d.valor };
       return ok({ ...base, metas: gravar(base.metas, `${d.usuario_id}|${d.periodo}`, { ...meta, v }) });
     }
-    case 'vendedor.pedido.criado@1': {
-      const d = p as PedidoCriadoV1;
+    case 'vendedor.pedido.criado@2': {
+      const d = p as PedidoCriadoV2;
       const atual = pedidoDe(base, d.pedido_id);
       if (atual.criado && atual.criado.v >= v) return ok(base);
       return ok({ ...base, pedidos: { ...base.pedidos, [d.pedido_id]: { ...atual, criado: { ...d, v } } } });

@@ -2,7 +2,7 @@
  * Leitura TOLERANTE do evento `vendedor.pedido.faturado@1` ("pedido faturado"), RF-TRE-06. O XP é pago no FATURAMENTO
  * (status vindo do ERP pelo Hub), não na criação do pedido. T-0024: o schema é o OFICIAL do Vendedor
  * (`modules/vendedor/contracts`, importado por caminho relativo; sem cópia do payload), lido com `tolerante`: chave
- * desconhecida some em qualquer nível; tipos, `quantidade` inteira > 0, `itens` com pelo menos 1 e `parcial` obrigatório
+ * desconhecida some em qualquer nível; tipos, `quantidade` > 0 (até 4 casas, ADR 0076), `itens` com pelo menos 1 e `parcial` obrigatório
  * seguem o contrato do dono. Payload fora do contrato = recusado (não pontua). Campo que falta = recado ao Vendedor.
  * `itens` = o que foi faturado NESTE retorno (o consumidor soma). O consumidor é idempotente por `evento_id`, que vem
  * do ENVELOPE (não do payload): quem consome o junta ao payload com `lerPedidoFaturado` (T-0036).

@@ -24,6 +24,7 @@ export const manifest = defineModule({
   sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'alerta_ruptura'],
   publica: [
     'vendedor.pedido.criado@1',
+    'vendedor.pedido.criado@2',
     'vendedor.pedido.status_alterado@1',
     'vendedor.pedido.aprovacao_solicitada@1',
     'vendedor.pedido.aprovacao_solicitada@2',

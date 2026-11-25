@@ -5,6 +5,7 @@
  * (`direcao: 'pull'`, `servidor_vence`): cadastro vem do ERP/BKO.
  * Mesma definição no app (`app/index.ts`) e na API (`api/sync.ts`) — o motor valida o schema dos dois lados.
  */
+import { FatorDecimalSchema } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
 import { EtapasPendentesSchema } from './etapas-pendencia';
@@ -174,7 +175,8 @@ export const ProdutoUnidadeSyncSchema = z
     ...Base,
     produto_id: z.string().uuid(),
     unidade: z.string(),
-    fator: z.number().int().positive(),
+    /** RN-VEN-15 v3 (ADR 0076): até 4 casas, > 0 (CX com 12,5 kg). */
+    fator: FatorDecimalSchema,
     ean: z.string().nullable(),
     padrao: z.boolean(),
     ativo: z.boolean(),
