@@ -32,6 +32,5 @@ export * from './rascunhos';
 export * from './endereco-pedido';
 export * from './filial-pedido';
 export * from './reserva-filial';
-export * from './destino-apos-salvar';
 export * from './credito-pedido';
 export * from './tabela-vencida';

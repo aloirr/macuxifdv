@@ -61,7 +61,7 @@ import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, t
 import { errorMessage } from '../lib/erros';
 import { TEXTOS_ENDERECO } from '../lib/endereco-pedido';
 import { textoDoEndereco } from '../lib/novo-pedido';
-import { pedidoSomenteLeitura } from '../lib/somente-leitura';
+import { pedidoSomenteLeitura } from '../../domain/acoes-da-lista';
 import { estadoNaFila, notaDaEtapaNaFila } from '../lib/salvar-na-fila';
 import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
@@ -133,9 +133,9 @@ export default function OrderDetailScreen() {
   const [conferencia, setConferencia] = useState<{ mudancas: string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number; precos: DadosDosPrecosDeHoje } | null>(null);
   /** T-0141 G: "Ver os N itens" da folha Preços de hoje */
   const [todosOsPrecos, setTodosOsPrecos] = useState(false);
-  /** desenho §1.5: a folha do Transformar abre sempre (toque 1); o envio é o toque 2 */
+  /** desenho §1.5: a folha do Converter abre sempre (toque 1); o envio é o toque 2 */
   const [transformarAberto, setTransformarAberto] = useState(false);
-  // T-0137: "Transformar em pedido" da edição do orçamento salva e chega aqui com a folha do Transformar já aberta (uma vez)
+  // T-0137: "Converter em pedido" da edição do orçamento salva e chega aqui com a folha do Converter já aberta (uma vez)
   const transformarAoAbrir = useRef<(() => void) | null>(null);
   const jaAbriuTransformar = useRef(false);
   useEffect(() => {
@@ -333,7 +333,7 @@ export default function OrderDetailScreen() {
     setActionError(null);
     try {
       const r = await app.prepararRascunhoDoPedido(id ?? '', mode);
-      irParaNovoPedido(mode === 'edit' ? { customerId: r.customerId, editId: id } : { customerId: r.customerId });
+      irParaNovoPedido(mode === 'edit' ? { customerId: r.customerId, editId: id } : { customerId: r.customerId, rascunhoId: r.chave });
     } catch (e) {
       setActionError(errorMessage(e));
     } finally {

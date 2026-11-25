@@ -5,6 +5,8 @@
 > `telas/T-0168-campo-1..6-*.png` e `telas/T-0168-gestao-1-em-nome.png`. Vale a imagem aprovada.
 > BKO: modulo-core. Campo: modulo-vendedor. Gestão (pedido em nome): modulo-gestor.
 
+> **2026-11-25 (v1.0.34):** Resumo, folha de saída e Ações: vale pedido-v2.md §2.2–2.5.
+
 ## 1. BKO › Usuários › Editar usuário
 - O `Dialog` ganha `Abas`: **Dados** (o formulário de hoje, sem mudança) e **Parâmetros**. Vale também em "Novo usuário".
 - Aba **Parâmetros**, nesta ordem, linhas separadas por traço `line-2`:
@@ -21,13 +23,13 @@
   de quem faz o pedido, uma casa (RD-0196). Toque leva à aba Itens. Mesma frase no detalhe do orçamento, na recusa da API
   (`desconto_pedido_acima_limite`) e na lista.
 - **Ordem** (§6.5): logo depois das linhas de item acima do máximo (imagem 3: o item antes do pedido).
-- **Botões** iguais aos do item acima do máximo: **Salvar como orçamento** (principal) · **Apenas salvar** · Cancelar (imagens 1 a 3).
+- **Botões** iguais aos do item acima do máximo: **Salvar** (principal, escolha Orçamento / Pedido) · Cancelar (imagens 1 a 3; `pedido-v2.md` §2.2–2.3).
 - **Sem marca em outro lugar**: o "Desconto (%)" dos Totais e o geral da aba Itens ficam em `ink`; o problema está só nos Alertas.
 - **Alçada** (imagem 4): abaixo do limite, nada muda (`Desconto acima da sua alçada` e "Enviar para aprovação?"). Acima do limite,
   a linha da alçada sai: o pedido só sai como orçamento, a aprovação não se aplica.
 - **"Por item" desligada** (imagem 5): a folha aceita o desconto sem o "Máx. X%" no campo e sem linha do item nos Alertas.
   Ligada, fica como hoje (T-0166, imagem 5).
-- **Orçamento salvo** (imagem 6): a linha fica nos Alertas do detalhe; ação principal **Editar**, sem Transformar.
+- **Orçamento salvo** (imagem 6): a linha fica nos Alertas do detalhe; ação principal **Editar**, sem Converter em pedido.
 - **Acréscimo** nunca mostra a linha. Sem sinal, o app aplica com o limite do sync.
 
 ## 3. Gestão, pedido em nome do vendedor (imagem 7)

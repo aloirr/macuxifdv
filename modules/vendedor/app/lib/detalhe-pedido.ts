@@ -7,7 +7,7 @@
  */
 import { TEXTOS_PRECOS_DE_HOJE } from './precos-de-hoje';
 import { ROTULO_CORRIGIR_PEDIDO } from './salvar-na-fila';
-import { ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
+import { ROTULOS_DA_EDICAO } from '../../domain/botoes-resumo';
 import { alertasDoPedido, type AlertaDoPedido } from '../../domain/alertas-pedido';
 import { ajusteDoItemEmPct, linhasDosTotais, semRs, siglaDaMedida } from '../../domain/apresentacao-totais';
 
@@ -78,7 +78,7 @@ export interface EntradaAcoesDoDetalhe {
   alertaImpedeTransformar?: boolean;
 }
 
-const TRANSFORMAR: AcaoDoDetalhe = { id: 'transformar', rotulo: ROTULOS_DO_SALVAR.transformar, rotuloAcessivel: 'Transformar o orçamento em pedido', icone: 'send' };
+const TRANSFORMAR: AcaoDoDetalhe = { id: 'transformar', rotulo: ROTULOS_DA_EDICAO.transformar, rotuloAcessivel: 'Converter o orçamento em pedido', icone: 'send' };
 const CONTINUAR: AcaoDoDetalhe = { id: 'continuar', rotulo: 'Continuar pedido', rotuloAcessivel: 'Continuar o pedido salvo', icone: 'edit' };
 const CORRIGIR: AcaoDoDetalhe = { id: 'corrigir', rotulo: ROTULO_CORRIGIR_PEDIDO, rotuloAcessivel: 'Corrigir o pedido', icone: 'edit' };
 const PEDIDO_GERADO: AcaoDoDetalhe = { id: 'pedido', rotulo: 'Pedido', rotuloAcessivel: 'Abrir o pedido gerado', icone: 'chevron' };

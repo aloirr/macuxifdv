@@ -25,7 +25,7 @@ describe('RN-VEN-38 (T-0128): as saídas do Novo pedido passam pela folha "Sair 
     expect(tela).toMatch(/const pedirSaida = \(prosseguir: \(\) => void\) => \{\s*if \(!alterado\) \{\s*prosseguir\(\);\s*return;/);
   });
   it('RN-VEN-38 (RN-VEN-42): salvar com pendência fecha a folha, cancela a saída e abre o Resumo; os Alertas do topo dizem o que falta', () => {
-    expect(tela).toMatch(/destinoDoSalvarDaSaida\(pendencias\.length\) === 'mostrar_pendencias'[\s\S]*?saidaPedida\.current = null;[\s\S]*?setAba\('resumo'\)/);
+    expect(tela).toMatch(/const salvarPelaSaida = \(\) => \{[\s\S]*?saidaPedida\.current = null;[\s\S]*?destinoDoSalvarDaSaida\(pendencias\.length\) === 'mostrar_pendencias'[\s\S]*?setAba\('resumo'\)/);
     expect(tela).not.toContain('anuncioPendencias');
     expect(tela).toContain('<AreaAlertas alertas={alertasNaAba(aba, alertasDoTopo)}');
   });

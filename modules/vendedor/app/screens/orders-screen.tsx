@@ -7,10 +7,10 @@
  * plataforma (a cada `sync_auto_min`, ao abrir o app e ao voltar ao primeiro plano depois de 30 min); puxar = Sincronizar.
  */
 import { formatBRL } from '@macuxi/comum';
-import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, BotaoFiltro, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { SePode, useAmbiente, usePode, useVisaoShell } from '@macuxi/platform-sdk/react';
+import { Badge, Botao, BotaoFiltro, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Dialogo, Empty, EtiquetaFiltro, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -45,21 +45,103 @@ import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelh
 import { periodoSemPedidos } from '../lib/cards-pedidos';
 import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
+import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { statusBadgeDaLinha } from '../lib/order-status';
 import { TEXTOS_RASCUNHOS } from '../lib/rascunhos-lista';
 import type { PedidoDaLista } from '../lib/pedidos';
+import { rascunhosDaTela, rascunhosSalvosComoPedidos } from '../lib/rascunhos-salvos';
 import { PedidosPage, type Order } from '../../contracts';
-import { irParaPedido, irParaRascunhos } from '../rotas';
+import { irParaNovoPedido, irParaPedido, irParaRascunhos } from '../rotas';
+import { AvisoRapido, useAviso } from '../components/aviso';
+import { DeleteOrderSheet } from '../components/order-sheets';
+import { FolhaDeOpcoes } from '../components/folha-de-opcoes';
+import { acoesDaLinha, opcoesDaFolhaDeAcoes, ROTULO_DO_BOTAO_ACOES, rotuloAcessivelDoBotaoAcoes, tituloDaFolhaDeAcoes } from '../lib/acoes-da-lista';
+import { AVISO_NA_FILA_SEM_SINAL, AVISO_PEDIDO_ENVIADO } from '../lib/salvar-na-fila';
+import { PERGUNTA_DA_ALCADA } from '../../domain/botoes-resumo';
+import { errorMessage } from '../lib/erros';
+import type { AcaoDaLista } from '../../domain/acoes-da-lista';
 import { useVendedor } from '../state/use-vendedor';
 
 type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'card_orc' | 'card_env';
 
 export default function OrdersScreen() {
-  const { dados, rascunhosDaLista, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, aguardandoMinhaDecisao } = useVendedor();
+  const app = useVendedor();
+  const { dados, rascunhosDaLista, pedidos: pedidosDoApp, vendedor, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, aguardandoMinhaDecisao } = app;
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
   const ambiente = useAmbiente();
+  const avisos = useAviso();
+  // RN-VEN-48: ações de cada item (permissões do perfil; promotor nunca vê, regra 7)
+  const podeCriar = usePode('pedido.criar');
+  const podeEditar = usePode('pedido.editar');
+  const podeCancelar = usePode('pedido.cancelar');
+  const pode = useMemo(() => ({ criar: podeCriar, editar: podeEditar, cancelar: podeCancelar }), [podeCriar, podeEditar, podeCancelar]);
+  const [acoesDe, setAcoesDe] = useState<PedidoDaLista | null>(null);
+  // a folha fica montada para a animação de saída: segura o último item enquanto fecha
+  const ultimoDaFolha = useRef<PedidoDaLista | null>(null);
+  if (acoesDe) ultimoDaFolha.current = acoesDe;
+  const daFolha = acoesDe ?? ultimoDaFolha.current;
+  const [excluirDe, setExcluirDe] = useState<PedidoDaLista | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
+  const [erroExcluir, setErroExcluir] = useState<string | null>(null);
+  // Editar, Duplicar e Converter correm um por vez (a leitura do rascunho e a ida ao servidor); o duplo toque no Enviar é do hook (`enviandoSalvos`)
+  const emAcao = useRef(false);
+  // RN-VEN-10 / RN-VEN-48: o pedido salvo acima da alçada espera o "Enviar" da pergunta antes de entrar na fila
+  const [perguntaAlcadaDe, setPerguntaAlcadaDe] = useState<PedidoDaLista | null>(null);
+  const executarAcao = async (acao: AcaoDaLista, o: PedidoDaLista, confirmouAlcada = false) => {
+    const trava = acao === 'editar' || acao === 'duplicar' || acao === 'converter';
+    if (trava) {
+      if (emAcao.current) return;
+      emAcao.current = true;
+    }
+    setAcoesDe(null);
+    try {
+      if (acao === 'excluir') {
+        setErroExcluir(null);
+        setExcluirDe(o);
+      } else if (acao === 'editar' && o.status === 'draft') {
+        // pedido salvo: o cliente pode ter vários, cada um com a própria chave (o id da linha); Editar reabre aquele no Resumo
+        irParaNovoPedido({ customerId: o.customer_id, rascunhoId: o.id });
+      } else if (acao === 'duplicar' && o.status === 'draft') {
+        // RN-VEN-48: Duplicar do salvo cria outro rascunho (chave nova) e abre no Novo pedido; ao salvar, vira mais um salvo
+        const r = await app.duplicarPedidoSalvo(o.id);
+        irParaNovoPedido({ customerId: r.customerId, rascunhoId: r.chave });
+      } else if (acao === 'editar' || acao === 'duplicar') {
+        const r = await app.prepararRascunhoDoPedido(o.id, acao === 'editar' ? 'edit' : 'duplicate');
+        irParaNovoPedido(acao === 'editar' ? { customerId: r.customerId, editId: o.id } : { customerId: r.customerId, rascunhoId: r.chave });
+      } else if (acao === 'converter') {
+        const r = await app.converterOrcamento(o.id);
+        if (r.kind === 'sent') irParaPedido(r.order.id);
+        else avisos.mostrar(AVISO_NA_FILA_SEM_SINAL);
+      } else {
+        // enviar: o pedido salvo vai pela fila offline (sem sinal, entra na fila e nada se perde)
+        const r = await app.enviarPedidoSalvo(o.id, confirmouAlcada);
+        if (r.kind === 'pergunta_alcada') setPerguntaAlcadaDe(o);
+        // 2º toque com o 1º em curso: ignorado, sem aviso
+        else if (r.kind !== 'em_envio') avisos.mostrar(r.kind === 'sent' ? AVISO_PEDIDO_ENVIADO : AVISO_NA_FILA_SEM_SINAL);
+      }
+    } catch (e) {
+      avisos.mostrar(errorMessage(e));
+    } finally {
+      if (trava) emAcao.current = false;
+    }
+  };
+  const confirmarExclusao = async (motivo: string) => {
+    if (!excluirDe) return;
+    setExcluindo(true);
+    setErroExcluir(null);
+    try {
+      if (excluirDe.status === 'draft') await app.descartarRascunho(excluirDe.id);
+      else await app.excluirPedido(excluirDe.id, motivo);
+      setExcluirDe(null);
+      avisos.mostrar(excluirDe.tipo === 'orcamento' ? 'Orçamento excluído' : 'Pedido excluído');
+    } catch (e) {
+      setErroExcluir(errorMessage(e));
+    } finally {
+      setExcluindo(false);
+    }
+  };
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [busca, setBusca] = useState('');
   // T-0077: seletor de vendedor só no Gestão; o filtro vale antes da busca, do período, dos chips e do resumo
@@ -83,13 +165,24 @@ export default function OrdersScreen() {
   // RN-CORE-23: ao focar, só relê o aparelho (sem rede, sem timer)
   useFocusEffect(
     useCallback(() => {
+      const aviso = pegarAvisoPendente();
+      if (aviso) avisos.mostrar(aviso);
       void refreshOrders();
-    }, [refreshOrders]),
+    }, [refreshOrders, avisos]),
   );
 
   const agora = new Date();
   // T-0141 (RN-VEN-39, spec F.1): a linha "Rascunhos (n)" só aparece com 1 ou mais; Gestão e Campo (pedido em nome) iguais
-  const totalRascunhos = useMemo(() => rascunhosDaLista(new Date()).length, [rascunhosDaLista, dados.rascunhos]);
+  // RN-VEN-48: o pedido salvo (rascunho com "salvo_em") entra na lista como "draft" para o botão Ações (Enviar, Editar, Duplicar, Excluir); sem duplicar por id
+  const linhasDosRascunhos = useMemo(() => rascunhosDaLista(new Date()), [rascunhosDaLista, dados.rascunhos]);
+  const orders = useMemo(() => {
+    if (!gestao && !vendedor) return pedidosDoApp;
+    const salvos = rascunhosSalvosComoPedidos({ linhas: linhasDosRascunhos, rascunhos: dados.rascunhos, vendedor: vendedor ?? null, emNome: gestao, idsNaLista: new Set(pedidosDoApp.map((p) => p.id)) });
+    return salvos.length > 0 ? [...salvos, ...pedidosDoApp] : pedidosDoApp;
+  }, [gestao, vendedor, pedidosDoApp, linhasDosRascunhos, dados.rascunhos]);
+  // RN-VEN-35/48: documento da equipe que não está no aparelho: nenhuma ação (no Gestão só o pedido salvo em nome do vendedor tem Ações)
+  const ehDoAparelho = (p: PedidoDaLista) => !gestao || p.status === 'draft';
+  const totalRascunhos = useMemo(() => rascunhosDaTela(linhasDosRascunhos, dados.rascunhos).length, [linhasDosRascunhos, dados.rascunhos]);
   const razaoDe = useMemo(() => new Map(dados.clientes.map((c) => [c.id, c.legal_name])), [dados.clientes]);
   const opcoes = useMemo(() => (gestao ? opcoesDeVendedor(orders) : []), [gestao, orders]);
   const vendedorAtivo = gestao && opcoes.some((o) => o.id === vendedorId) ? vendedorId : TODOS_OS_VENDEDORES;
@@ -279,6 +372,8 @@ export default function OrdersScreen() {
               mostrarVendedor={gestao}
               diasValidade={diasValidade}
               numeroDoPedido={numeroDoPedido}
+              temAcoes={acoesDaLinha(pedido, { agora: relogioReal().agora(), pode, comAcoes: ehDoAparelho(pedido) }).lista.length > 0}
+              onAcoes={setAcoesDe}
             />
           ) : null;
         }}
@@ -398,6 +493,33 @@ export default function OrdersScreen() {
           </View>
         }
       />
+      <Dialogo
+        visivel={perguntaAlcadaDe !== null}
+        titulo={PERGUNTA_DA_ALCADA.titulo}
+        cancelar={{ rotulo: PERGUNTA_DA_ALCADA.voltar, onPress: () => setPerguntaAlcadaDe(null), testID: 'alcada-voltar' }}
+        confirmar={{
+          rotulo: PERGUNTA_DA_ALCADA.enviar,
+          testID: 'alcada-enviar',
+          onPress: () => {
+            const o = perguntaAlcadaDe;
+            setPerguntaAlcadaDe(null);
+            if (o) void executarAcao('enviar', o, true);
+          },
+        }}
+        testID="pergunta-alcada"
+      />
+      <FolhaDeOpcoes
+        visivel={acoesDe !== null}
+        titulo={daFolha ? tituloDaFolhaDeAcoes(daFolha) : ''}
+        testID="orders-acoes-folha"
+        opcoes={daFolha ? opcoesDaFolhaDeAcoes(acoesDaLinha(daFolha, { agora: relogioReal().agora(), pode, comAcoes: ehDoAparelho(daFolha) })) : []}
+        onFechar={() => setAcoesDe(null)}
+        onEscolher={(id) => acoesDe && void executarAcao(id as AcaoDaLista, acoesDe)}
+      />
+      {excluirDe ? (
+        <DeleteOrderSheet visible title={tituloDaFolhaDeAcoes(excluirDe)} queued={excluirDe.local || excluirDe.status === 'draft'} ehOrcamento={excluirDe.tipo === 'orcamento'} busy={excluindo} error={erroExcluir} onClose={() => setExcluirDe(null)} onConfirm={(r) => void confirmarExclusao(r)} />
+      ) : null}
+      <AvisoRapido aviso={avisos.aviso} />
     </View>
   );
 }
@@ -431,7 +553,7 @@ const TEXTOS_DA_FOLHA = {
   diaComPedido: 'tem pedido',
 };
 
-const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, mostrarVendedor, diasValidade, numeroDoPedido }: { o: PedidoDaLista; razao: string; busca: string; primeiro: boolean; last: boolean; tz: string; mostrarVendedor: boolean; diasValidade: number; numeroDoPedido: (id: string) => string | null }) {
+const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, mostrarVendedor, diasValidade, numeroDoPedido, temAcoes, onAcoes }: { o: PedidoDaLista; razao: string; busca: string; primeiro: boolean; last: boolean; tz: string; mostrarVendedor: boolean; diasValidade: number; numeroDoPedido: (id: string) => string | null; temAcoes: boolean; onAcoes: (o: PedidoDaLista) => void }) {
   const b = statusBadgeDaLinha(o);
   const buscando = normalizarTexto(busca) !== '';
   // RD-0206: a linha 2 tem um fato só (o número que a busca achou; senão o vendedor, no Gestão; senão quando) e o selo
@@ -469,6 +591,11 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
         {seloOrc ? <Selo texto={seloOrc.texto} tom={seloOrc.tom} tamanho="p" pilula /> : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
       </View>
     </Pressable>
+    {temAcoes ? (
+      <View style={styles.acoes}>
+        <Botao testID={`order-acoes-${o.number || o.id}`} rotulo={ROTULO_DO_BOTAO_ACOES} rotuloAcessivel={rotuloAcessivelDoBotaoAcoes(o)} onPress={() => onAcoes(o)} />
+      </View>
+    ) : null}
     </View>
   );
 });
@@ -501,6 +628,7 @@ const styles = StyleSheet.create({
   destaque: { backgroundColor: colors.accentSoft, color: colors.accentInk },
   row: { gap: 3, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  acoes: { alignItems: 'flex-end', paddingHorizontal: 14, paddingBottom: 10 },
   line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   cancelledTotal: { color: colors.ink3, textDecorationLine: 'line-through' },
 });

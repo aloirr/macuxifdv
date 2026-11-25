@@ -7,6 +7,7 @@ import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contr
 import type { Product } from '@macuxi/catalogo/contracts';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import { TEXTO_LIMITE_EXCEDIDO, TEXTO_TITULO_VENCIDO } from '../../domain/alertas-pedido';
+import { chaveDoRascunhoNovo } from '../../domain/rascunhos';
 import { motivosFinanceirosDoPedido } from '../../domain/credito-pedido';
 import { resultadoDosAvisos, validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
@@ -38,7 +39,7 @@ export interface Rascunho {
   visit_id: string | null;
   route_stop_id: string | null;
   updated_at: string;
-  /** T-0137 (RN-VEN-38): "Apenas salvar" — quando o vendedor guardou o rascunho de propósito (aceita pendências); reabre no Resumo e não vira "Pedido não terminado" */
+  /** T-0137 (RN-VEN-38): Salvar > Pedido — quando o vendedor guardou o rascunho de propósito (aceita pendências); reabre no Resumo e não vira "Pedido não terminado" */
   salvo_em?: string | null;
   /** T-0141 (RN-VEN-39): aba em que o vendedor parou; a lista Rascunhos retoma por ela (gravar a aba não renova as 24 h) */
   aba?: 'venda' | 'itens' | 'entrega' | 'resumo';
@@ -101,9 +102,12 @@ export function rascunhoVazio(customerId: string): Rascunho {
   return { customer_id: customerId, lines: {}, discount_pct: 0, payment_terms: PRAZO_PADRAO, visit_id: null, route_stop_id: null, updated_at: '' };
 }
 
-/** Chave do rascunho: novo pedido usa o id do cliente; edição usa `edit:<id do pedido>`. */
-export function draftKeyFor(customerId: string, editOrderId?: string | null): string {
-  return editOrderId ? `edit:${editOrderId}` : customerId;
+/**
+ * Chave do rascunho: edição usa `edit:<id do pedido>`; o pedido salvo ou a cópia (RN-VEN-48) usa a chave própria (`rascunhoId`, UUID do aparelho);
+ * o Novo pedido em digitação usa o id do cliente, um por cliente (RN-VEN-39).
+ */
+export function draftKeyFor(customerId: string, editOrderId?: string | null, rascunhoId?: string | null): string {
+  return editOrderId ? `edit:${editOrderId}` : (rascunhoId ?? chaveDoRascunhoNovo(customerId));
 }
 
 export interface OrderLineDisplay {

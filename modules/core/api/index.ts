@@ -11,7 +11,7 @@
  * Segredo do JWT: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres); sem ele o login responde 503 e ninguém autentica (falha fechada).
  */
 import { definirModuloApi, definirTarefa, type ModuloApi } from '@macuxi/platform-sdk';
-import { EscolherEmpresaPortalSchema, EsqueciSenhaRequestSchema, LoginPortalSchema, LoginSenhaRequestSchema, LogoutRequestSchema, RefreshRequestSchema, TrocarSenhaRequestSchema } from '../contracts';
+import { EscolherEmpresaPortalSchema, EsqueciSenhaRequestSchema, LoginPortalSchema, LoginSenhaRequestSchema, LogoutRequestSchema, RefreshRequestSchema, TrocarSenhaPortalSchema, TrocarSenhaRequestSchema } from '../contracts';
 import { REFRESH_DIAS } from '../domain/auth';
 import { manifest } from '../manifest';
 import { criarAutenticacao, type DepsAutenticacao } from './autenticacao';
@@ -145,6 +145,8 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
       { metodo: 'POST', caminho: 'plataforma/auth/login', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: LoginPortalSchema, executar: (ctx) => sa.login(ctx) },
       { metodo: 'POST', caminho: 'plataforma/auth/empresa', conexao: 'portal', limite: { max: 30, janelaMs: CINCO_MINUTOS }, corpo: EscolherEmpresaPortalSchema, executar: (ctx) => sa.escolherEmpresa(ctx) },
       { metodo: 'POST', caminho: 'plataforma/auth/renovar', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.renovar(ctx) },
+      // ADR 0075: troca da própria senha pela sessão do portal
+      { metodo: 'POST', caminho: 'plataforma/auth/senha', conexao: 'portal', status: 204, limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: TrocarSenhaPortalSchema, executar: (ctx) => sa.trocarSenha(ctx) },
       { metodo: 'POST', caminho: 'plataforma/auth/sair', conexao: 'portal', status: 204, limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.sair(ctx) },
     ],
     servicos: {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { abaInicialDoRascunho, AVISO_PEDIDO_SALVO, ABA_INICIAL_DO_PEDIDO, abaAnteriorDoPedido, abasDoPedido, proximaAbaDoPedido, type AbaNovoPedido, itemCompacto, linhaDeEntrega, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync } from './textos-pedido';
+import { abaInicialDoRascunho, AVISO_ORCAMENTO_SALVO, AVISO_PEDIDO_SALVO, ABA_INICIAL_DO_PEDIDO, abaAnteriorDoPedido, abasDoPedido, proximaAbaDoPedido, type AbaNovoPedido, itemCompacto, linhaDeEntrega, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync } from './textos-pedido';
 
 describe('rotuloCurtoDaCondicao (referência enxuta, §6.1)', () => {
   it('RN-VEN-14: "À vista", "28 d" e "28/56" cabem no chip', () => {
@@ -68,13 +68,14 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
   });
 });
 
-describe('RN-VEN-38 (T-0137): Apenas salvar', () => {
+describe('RN-VEN-38 (T-0137): Salvar > Pedido', () => {
   it('RN-VEN-38: o rascunho guardado reabre no Resumo e o novo abre em Venda', () => {
     expect(abaInicialDoRascunho({ salvo_em: '2026-11-08T14:00:00Z' })).toBe('resumo');
     expect(abaInicialDoRascunho({})).toBe(ABA_INICIAL_DO_PEDIDO);
     expect(abaInicialDoRascunho({ salvo_em: null })).toBe('venda');
   });
-  it('RN-VEN-38: o aviso depois de Apenas salvar', () => {
+  it('RN-VEN-38: o aviso depois de Salvar > Pedido', () => {
     expect(AVISO_PEDIDO_SALVO).toBe('Pedido salvo');
+    expect(AVISO_ORCAMENTO_SALVO).toBe('Orçamento salvo');
   });
 });

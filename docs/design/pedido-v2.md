@@ -15,6 +15,8 @@
 > árvore/"Catálogo" da aba Itens), §1.4 (sai a frase do frete; endereço editável só no pedido), §2.3 (sai "Válido até"), §4.1,
 > §4.3 e §5.1 (orçamento sem validade: "Orçamento · preço de dd/mm", sem "vencido"), §8 (textos). Onde as duas divergem, vale a v3.
 
+> **2026-11-25 (v1.0.34, item 16, R-20261124-114951/115055):** §2.2–2.5 e §8 refeitos.
+
 ## 0. Princípios
 1. **Informação antes de botão.** No detalhe, o que o pedido é ocupa a tela; as ações cabem num rodapé de 2 linhas.
 2. **Um principal por tela**, sempre o próximo passo natural. As outras ações são secundárias ou ícone + rótulo curto.
@@ -37,10 +39,9 @@
 - A tela **abre na aba Venda**. Toque na aba muda sem animação. Cada aba guarda a própria rolagem.
 - **Sem título grande dentro da aba** (a aba já diz onde se está; poupa altura no 6"). As seções usam `RotuloSecao`.
 - Rodapé fixo nas 3 primeiras abas: `RodapeTotal` **"Total do pedido" · R$ x · [Avançar ›]** (Venda → Itens → Entrega →
-  Resumo). No Resumo, o rodapé fixo sai e os botões ficam no fim do conteúdo (§2.3).
+  Resumo). No Resumo, o rodapé fixo sai e os botões ficam no fim do conteúdo (§2.2).
 - **Toques do pedido mais simples** (cliente sem alerta, CIF, 1 item): escolher forma e prazo, Avançar, incluir o item, tocar
-  na aba Resumo (ou Avançar 2×), Salvar e enviar pedido = 3 toques de navegação/salvar, contra 4 na versão de 3 abas (a folha
-  intermediária saiu). Nenhum toque a mais.
+  na aba Resumo (ou Avançar 2×), Salvar (com uma opção só, grava direto, §2.3). Enviar fica na aba Pedidos (§2.5).
 
 ### 1.2 Aba Venda
 De cima para baixo:
@@ -63,7 +64,7 @@ CRÉDITO DO CLIENTE          ← substituído (T-0141): tabela Limite · Dispon�
   | título vencido (RN-VEN-13) | `aviso` | `alertaInadimplencia({ titulos, valorCents, dias, consequencia: CONSEQUENCIA_VENCIDO })` → "Cliente inadimplente · 1 título vencido · R$ 3.400,00 · 12 dias" / "Só à vista ou com aprovação" |
   | bloqueado (RN-VEN-13) | `erro` | "Cliente bloqueado · só orçamento" |
   | inativo | `erro` | "Cliente inativo · só orçamento" |
-  | cadastro incompleto | `erro` | "Cadastro incompleto · só orçamento" |
+  | cadastro incompleto | `erro` | "Cadastro do cliente incompleto: falta X, Y." (os campos que faltam) |
   | crédito excedido (RN-VEN-12) | `aviso` | "Limite excedido · disponível R$ 4.000,00" / "Vai para aprovação" |
   | nenhum | `ok` | `TEXTO_CLIENTE_LIBERADO` = "Cliente liberado · sem título vencido" (uma linha só; sem o rótulo ALERTAS) |
   Ordem: erro antes de aviso. Os textos da consequência vêm do domain do Vendedor (a regra é dele); estes são os aprovados.
@@ -120,9 +121,7 @@ Total                                    R$ 19,70
 ⚠ FALTA PARA SALVAR                               ← só quando houver
 •  Transportadora do frete FOB — aba Entrega      ›
 
-[        Salvar e enviar pedido        ]          ← principal, largura total
-            Vai direto ao ERP
-[ Apenas salvar ]  [ Salvar como orçamento ]      ← secundários, metade cada
+[               Salvar                 ]          ← principal, largura total
                Cancelar                           ← texto, abre "Sair do pedido?"
 ```
 - Cliente: 16 `bodyStrong` `ink`, "Nome · cód. C5002".
@@ -135,35 +134,40 @@ Total                                    R$ 19,70
   supervisor"; erro só se o domain bloquear).
 - Bloco **Falta para salvar**: `BlocoPendencias`, logo acima dos botões (`formulario-pendencias.md` §1, com "aba Venda/Entrega").
 
-### 2.2 Os 4 botões: hierarquia
-| Botão | Nível | Tamanho | Texto embaixo |
-|---|---|---|---|
-| **Salvar e enviar pedido** | `Botao nivel="principal"` | 52 dp, largura total | destino, 12 `ink2` centralizado: "Vai direto ao ERP" ou "Vai para o supervisor" (RN-VEN-10/13) |
-| **Apenas salvar** | `Botao nivel="secundario" alto quebrarLinha` | 52 dp, metade | — |
-| **Salvar como orçamento** | `Botao nivel="secundario" alto quebrarLinha` | 52 dp, metade (quebra em 2 linhas no 6") | — |
-| **Cancelar** | texto 14/600 `ink2`, centralizado, alvo 48 dp (o mesmo do rodapé da `Folha`) | — | — |
+### 2.2 Os 2 botões: hierarquia
+| Botão | Nível | Tamanho |
+|---|---|---|
+| **Salvar** | `Botao nivel="principal"` | 52 dp, largura total |
+| **Cancelar** | texto 14/600 `ink2`, centralizado, alvo 48 dp (o mesmo do rodapé da `Folha`) | — |
 
-Cancelar não é laranja nem botão: é a saída, não uma ação do pedido. Vão de 8 dp entre os secundários e 10 dp entre as linhas.
+Cancelar não é laranja nem botão: é a saída, não uma ação do pedido. Vão de 10 dp entre as linhas.
 
-### 2.3 Estados
-| Estado | Salvar e enviar pedido | Apenas salvar | Salvar como orçamento | Outros |
-|---|---|---|---|---|
-| sem pendência | habilitado, com o destino | habilitado | habilitado | — |
-| com pendência | tocável; o toque é a tentativa (T-0166, `formulario-pendencias.md` §0.0) | **habilitado** (grava `rascunho` com pendência) | tocável; o toque é a tentativa | marca no campo |
-| cliente da RN-VEN-13 | **não aparece** | secundário, largura total | **principal**, largura total, texto embaixo "Válido até 15/11" | `Faixa erro` acima dos botões: "Cliente bloqueado: só dá para salvar como orçamento" (e variantes de `formulario-pendencias.md` §2.3) |
-| Editar orçamento | **Salvar orçamento** (principal, largura total) | — | — | **Transformar em pedido** (secundário, largura total) · Cancelar |
-| Editar pedido (`rascunho`, rejeitado) | igual a "sem/com pendência" | igual | igual | — |
-| `na_fila` ou depois | sem abas (detalhe só leitura, §4) | | | |
+### 2.3 Salvar: a escolha Orçamento / Pedido (R-20261124-114951/115055)
+Salvar abre uma `Folha` com título **"Salvar como"** e as opções que valem para o cliente; **com uma opção só, grava direto**, sem folha.
+| Opção | Aparece quando | Faz |
+|---|---|---|
+| **Orçamento** | pré-venda ligada ou cliente só-orçamento (RN-VEN-13) | congela os preços (RN-VEN-18) |
+| **Pedido** | sempre, menos com cliente só-orçamento | Campo e Gestão (pedido em nome, RN-VEN-35): só grava o pedido salvo, **mesmo com pendência** (RN-CORE-36); o envio sai pelas Ações (§2.5) |
 
-- Salvar e enviar pedido: segue a Frente G (grava `na_fila`, fecha a tela em < 1 s, sem indicador girando).
-- Apenas salvar: grava `rascunho`, fecha a tela e mostra `AvisoRodape` **"Pedido salvo"** (sem Desfazer). Na lista Pedidos, tag
-  **Salvo**; ao reabrir, o Resumo mostra o bloco do que falta.
-- Salvar como orçamento: congela os preços (RN-VEN-18) e abre o detalhe do orçamento.
-- Sem folha intermediária: cada botão faz o que diz em 1 toque.
+- Com pendência, Orçamento é a tentativa (T-0166, `formulario-pendencias.md` §0.0): marcam o campo e não gravam.
+- Depois de salvar: vai para a aba Pedidos com `AvisoRodape` **"Pedido salvo"** ou **"Orçamento salvo"** (sem Desfazer).
+- `na_fila` ou depois: sem abas (detalhe só leitura, §4).
 
-### 2.4 Folha "Sair do pedido?" com os rótulos novos (RN-VEN-38)
-Atualizada em `formulario-pendencias.md` §2.2: **Salvar e enviar pedido · Apenas salvar · Salvar como orçamento · Descartar ·
-Continuar editando**. O kit tem a opção nova `apenasSalvar` em `FolhaSairDoFormulario` (ação `apenas_salvar`).
+### 2.4 Folha "Sair do pedido?" (RN-VEN-38)
+Opções: **Salvar pedido · Salvar orçamento · Descartar** (cada uma só quando vale, pela tabela do §2.3).
+
+### 2.5 Aba Pedidos: botão Ações
+Cada item do Vendedor no Campo e, no Gestão, cada pedido salvo no aparelho (pedido em nome, RN-VEN-35) tem **Ações** (`Botao nivel="secundario"`), que abre uma `Folha` com título "Pedido 000123",
+"Orçamento 000045" ou a razão do cliente (pedido salvo sem número). Promotor: sem Ações.
+| Opção | Quando | Detalhe |
+|---|---|---|
+| **Enviar pedido** | só pedido salvo | revalida; se não pode, motivo numa linha: "Falta preencher <campos>. Edite o pedido para enviar." (pendência, RN-CORE-36), "AGU-1500 acima do desconto máximo. Ajuste o item para enviar." (sem pré-venda) ou "… Edite o item ou salve como orçamento." (com pré-venda) |
+| **Converter em pedido** | só orçamento | — |
+| **Editar** | não enviado ao ERP | — |
+| **Duplicar** | sempre | cópia em rascunho novo |
+| **Excluir** | não enviado ao ERP | com confirmação |
+
+Enviado ao ERP: só Duplicar. Enviado, o aviso "Pedido enviado"; sem sinal, o envio fica na fila: "Pedido na fila · vai quando houver sinal".
 
 ## 3. Desconto compacto, o mesmo no item e no pedido (`DescontoCompacto`)
 ```
@@ -205,7 +209,7 @@ Pix · À vista · CIF
 HISTÓRICO
 [Salvo · 08/11 10:35]
 
-[ ↑ Transformar em pedido ]
+[ ↑ Converter em pedido ]
  ✎ Editar     ▤ PDF     ⧉ Duplicar
 ```
 1. **Cabeçalho em destaque** (sem cartão, direto no fundo): `BackLink` à esquerda e `MenuMais` (⋮) à direita, na mesma linha.
@@ -232,9 +236,9 @@ estoque nem consome crédito" (é regra, não estado).
 ### 4.3 Ações por estado
 | Registro / estado | Principal (botão grande) | Ícone + rótulo curto (ordem) | Menu ⋮ |
 |---|---|---|---|
-| orçamento aberto | **Transformar em pedido** (`send`) | Editar (`edit`) · PDF (`file`) · Duplicar (`copy`) | Cancelar orçamento |
+| orçamento aberto | **Converter em pedido** (`send`) | Editar (`edit`) · PDF (`file`) · Duplicar (`copy`) | Cancelar orçamento |
 | orçamento vencido | **Duplicar** (`copy`), texto embaixo "Entra pelos preços de hoje" | PDF | — |
-| orçamento transformado | — | PDF · Duplicar · "Pedido" (`chevron`, abre o pedido gerado) | — |
+| orçamento convertido | — | PDF · Duplicar · "Pedido" (`chevron`, abre o pedido gerado) | — |
 | pedido `rascunho` (Salvo) | **Continuar pedido** (`edit`) | — | Descartar pedido |
 | pedido `na_fila` | — (o "Enviar agora" da faixa, se houver sinal) | PDF | — |
 | pedido não aceito | **Corrigir pedido** (`edit`) | PDF · Duplicar | Cancelar pedido |
@@ -288,7 +292,7 @@ couber; o TalkBack lê inteiro).
 | Evento | Tag | Tom | Motivo |
 |---|---|---|---|
 | `salvo` (ou `aberto`, `rascunho`) | **Salvo** | neutro | — |
-| `convertido` / `transformado` | **Transformado em pedido nº 000013** | sucesso | — |
+| `convertido` / `transformado` | **Convertido em pedido nº 000013** | sucesso | — |
 | `vencido` | **Vencido** | aviso | — |
 | `cancelado` | **Cancelado** | erro | sim |
 
@@ -328,8 +332,8 @@ tags, em `<ul>`, com a leitura em `sr-only`). **Gestão**: os mesmos componentes
 | limite, prazo médio, itens, totais | `LinhaValor`, `BlocoTotais` | `valores.tsx` |
 | linhas do Resumo | `LinhaResumo` (novo) | `valores.tsx` |
 | desconto do item e do pedido | **`DescontoCompacto`** (novo), `equivalenteDoAjuste`, `TIPOS_AJUSTE` | `desconto-rn.tsx`, `desconto.ts` |
-| botões do Resumo | `Botao` (nova prop `quebrarLinha` para "Salvar como orçamento" na metade) | `base.tsx` |
-| pendências e saída | `BlocoPendencias`, `FolhaSairDoFormulario` (nova opção `apenasSalvar`) | `pendencias-rn.tsx` |
+| botão do Resumo, Ações da lista | `Botao`, `Folha` | `base.tsx` |
+| pendências e saída | `BlocoPendencias`, `FolhaSairDoFormulario` | `pendencias-rn.tsx` |
 | tag do cabeçalho | `Selo tamanho="m" pilula` | `valores.tsx` |
 | histórico | **`TagHistorico`**, **`HistoricoEmTags`** (novos), `tagsDoHistorico` | `historico-rn.tsx`, `../comum/historico.ts`; web: `web/historico.tsx` |
 | ações do detalhe | **`RodapeAcoes`** (novo), **`MenuMais`** (novo, ícone `mais`) | `acoes-rn.tsx`, `acoes.ts` |
@@ -342,11 +346,15 @@ tags, em `<ul>`, com a leitura em `sr-only`). **Gestão**: os mesmos componentes
 | aba Venda | `Alertas` · `Cliente liberado · sem título vencido` · `Forma de pagamento` · `Prazo` · `Escolha` · `Limite` · `R$ x · disponível R$ y` · `Prazo médio do cliente` · `Atualizado hoje às 10:27` |
 | aba Entrega | `Endereço de entrega` · `Trocar` · `Frete` · `CIF` · `FOB` · `Frete incluso no preço` · `Frete por conta do cliente` · `Transportadora` · `Escolha a transportadora` · `Observações` |
 | Resumo | `Venda` · `Itens` · `Entrega` · `Obs.` · `Desconto do pedido` · `Tabela` · `Descontos` · `Total` · `Falta para salvar` |
-| botões do Resumo | `Salvar e enviar pedido` (`Vai direto ao ERP` / `Vai para o supervisor`) · `Apenas salvar` · `Salvar como orçamento` · `Cancelar` |
-| editar orçamento | `Salvar orçamento` · `Transformar em pedido` · `Cancelar` |
-| depois de Apenas salvar | `Pedido salvo` |
+| botões do Resumo | `Salvar` · `Cancelar` |
+| escolha do Salvar | `Salvar como` · `Orçamento` · `Pedido` |
+| editar orçamento | `Salvar orçamento` · `Converter em pedido` · `Cancelar` |
+| editar pedido | `Salvar alterações` (`Salvar alterações no aparelho` se ainda não foi ao servidor) · `Cancelar` |
+| sair do pedido | `Salvar pedido` · `Salvar orçamento` · `Descartar` |
+| depois de salvar | `Pedido salvo` · `Orçamento salvo` |
+| Ações (aba Pedidos) | `Ações` · `Enviar pedido` · `Converter em pedido` · `Editar` · `Duplicar` · `Excluir` · `Pedido enviado` · `Pedido na fila · vai quando houver sinal` |
 | detalhe | `Orçamento 000012` · `Orçamento · até 15/11` · `Vendedor: <nome>` · `Itens` · `Total` · `Histórico` |
-| ações | `Transformar em pedido` · `Continuar pedido` · `Corrigir pedido` · `Editar` · `PDF` · `Duplicar` · `Pedido` |
+| ações | `Converter em pedido` · `Continuar pedido` · `Corrigir pedido` · `Editar` · `PDF` · `Duplicar` · `Pedido` |
 | menu ⋮ | `Cancelar orçamento` · `Cancelar pedido` · `Descartar pedido` · `Voltar` |
 | confirmação | `Cancelar este orçamento?` · `Ele continua na lista como cancelado e não pode mais virar pedido.` · `Cancelar este pedido?` · `O pedido não será enviado ao ERP.` |
 | tags | §5.1 |
@@ -355,8 +363,8 @@ tags, em `<ul>`, com a leitura em `sr-only`). **Gestão**: os mesmos componentes
 1. 4 abas com os rótulos exatos, abrindo em Venda; bolinha só na aba da pendência; nenhum alerta de pendência fora do Resumo.
 2. Aba Venda com a caixa Alertas (ou a linha do cliente liberado), forma, prazo, limite, prazo médio e a atualização; aba
    Entrega sem valor de frete; Leve mais e Combina no fim da aba Itens.
-3. Resumo com todos os dados, na ordem do §2.1; desconto do pedido numa linha (`DescontoCompacto`); 4 botões com a hierarquia e
-   os estados do §2.2–2.3; nenhuma folha intermediária.
+3. Resumo com todos os dados, na ordem do §2.1; desconto do pedido numa linha (`DescontoCompacto`); Salvar e Cancelar com a
+   escolha do §2.3 (grava direto com uma opção); Ações da aba Pedidos pelo §2.5.
 4. O mesmo `DescontoCompacto` no item e no pedido, sem − e +, com o equivalente ao lado.
 5. Detalhe na ordem do §4.1; 1 principal no máximo; ícone + rótulo curto; Cancelar só no ⋮, com confirmação.
 6. Histórico só com tags (§5); nenhum "Recebido pelo servidor" no app; Gestão e BKO com os mesmos componentes.
@@ -368,4 +376,3 @@ tags, em `<ul>`, com a leitura em `sr-only`). **Gestão**: os mesmos componentes
 - O evento "Editado" sai do histórico (não é status).
 - Orçamento vencido: Duplicar vira a ação principal (é a única que resta, RN-VEN-18).
 - No Resumo, Cancelar é texto neutro (`ink2`), não link laranja.
-- Editar orçamento não mostra "Válido até" embaixo de Salvar orçamento até a Frente J definir se a edição renova a validade.
