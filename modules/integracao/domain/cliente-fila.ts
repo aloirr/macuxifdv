@@ -34,6 +34,8 @@ export interface ClienteNaFila<P = Record<string, unknown>> {
 /** Campos que o Hub acrescenta a cada cliente entregue (ADR 0069 §8 e §10). */
 export interface EntregaCliente {
   codigo_fdv: string | null;
+  /** `external_id` do vendedor que fez o pré-cadastro; null sem código no ERP ou se não foi vendedor. */
+  vendedor_external_id: string | null;
   revisao: number;
   hash: string | null;
   tentativa: number;
@@ -63,8 +65,8 @@ export function selecionarClientesPendentes<P>(fila: readonly ClienteNaFila<P>[]
     // payload antigo (v1.0.27) trazia `aprovado_em`: sai e a coluna `recebido_em` é a fonte do campo público;
     // `revisao` e `hash` vêm das colunas (ADR 0069), nunca do payload; `codigo_fdv` vem do payload (consulta do Core), tolerante
     entregar: candidatos.map(({ c }) => {
-      const { aprovado_em: _antigo, revisao: _revisao, hash: _hash, codigo_fdv, ...payload } = c.payload as Record<string, unknown>;
-      return { ...payload, recebido_em: c.recebido_em, codigo_fdv: codigoFdvOuNulo(codigo_fdv), revisao: c.revisao, hash: c.hash, tentativa: c.tentativas + 1 } as unknown as P & EntregaCliente;
+      const { aprovado_em: _antigo, revisao: _revisao, hash: _hash, codigo_fdv, vendedor_external_id, ...payload } = c.payload as Record<string, unknown>;
+      return { ...payload, recebido_em: c.recebido_em, codigo_fdv: codigoFdvOuNulo(codigo_fdv), vendedor_external_id: typeof vendedor_external_id === 'string' ? vendedor_external_id : null, revisao: c.revisao, hash: c.hash, tentativa: c.tentativas + 1 } as unknown as P & EntregaCliente;
     }),
     atualizacoes: candidatos.map(({ c }) => ({ cliente_uuid: c.cliente_uuid, estado: 'enviado' as const, enviado_em: agora, tentativas: c.tentativas + 1 })),
     reenviados: candidatos.filter(({ t }) => t.reenviado).map(({ c }) => c.cliente_uuid),

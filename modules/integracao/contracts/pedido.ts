@@ -198,6 +198,8 @@ export const NotaRetorno = z.object({
   serie: TextoOpcional(10),
   emitida_em: DataHoraUtc,
   total_cents: CentavosNaoNegativos,
+  /** Chave de acesso da NF-e (44 dígitos). Opcional e nula quando o ERP não a tem; campo novo compatível com `v1` (RN-INT-08, RN-INT-09). Sai no evento `integracao.pedido.retorno_erp@1`, dentro de `nota`. */
+  chave_acesso: z.string().trim().regex(/^\d{44}$/, 'chave_acesso deve ter exatamente 44 dígitos (somente números)').nullish(),
 });
 export type NotaRetorno = z.infer<typeof NotaRetorno>;
 

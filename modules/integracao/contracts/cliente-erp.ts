@@ -51,6 +51,11 @@ export const ClienteParaErp = z.object({
    * referência. `null` nos clientes que entraram antes da v1.0.30. O código do cliente no ERP continua sendo o `external_id` do retorno.
    */
   codigo_fdv: CodigoFdvClienteSchema.nullable().optional(),
+  /**
+   * Código no ERP (`external_id`) do vendedor que fez o pré-cadastro. `null` quando ele não tem código ou o pré-cadastro não foi feito
+   * por vendedor; ausente nos clientes que entraram antes. Fora do hash da revisão.
+   */
+  vendedor_external_id: TextoNulo.optional(),
   /** Revisão dos dados (v1.0.30): sobe quando o cadastro recusado é corrigido e reenviado. Devolva-a no retorno. */
   revisao: RevisaoCliente.optional(),
   /** sha256 (hex minúsculo) dos dados desta revisão; nulo nos clientes que entraram antes da v1.0.30. */

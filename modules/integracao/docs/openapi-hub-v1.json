@@ -1872,7 +1872,8 @@
                       "numero": "8855",
                       "serie": "1",
                       "emitida_em": "2026-11-06T10:15:00Z",
-                      "total_cents": 19000
+                      "total_cents": 19000,
+                      "chave_acesso": "13261104252011000110550010000088551234567890"
                     },
                     "itens_faturados": [
                       {
@@ -2169,6 +2170,7 @@
                           "longitude": null,
                           "filial_external_id": null,
                           "codigo_fdv": "00012",
+                          "vendedor_external_id": "V-007",
                           "revisao": 1,
                           "hash": "3b7f0c2a9e4d5b6c8a1f2e3d4c5b6a7980716253443526170819a0b1c2d3e4f5",
                           "tentativa": 1
@@ -3400,6 +3402,17 @@
               {
                 "type": "string",
                 "pattern": "^\\d{5,}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendedor_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -5407,6 +5420,17 @@
           "total_cents": {
             "type": "integer",
             "minimum": 0
+          },
+          "chave_acesso": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{44}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

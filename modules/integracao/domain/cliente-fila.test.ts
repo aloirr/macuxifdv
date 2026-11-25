@@ -18,7 +18,17 @@ describe('RN-INT-22: entrega ao Conector', () => {
   });
   it('RN-INT-22: payload da v1.0.27 (aprovado_em) sai com recebido_em da coluna, sem o campo antigo', () => {
     const s = selecionarClientesPendentes([linha({ payload: { cliente_uuid: U1, aprovado_em: '2026-11-20T10:00:00.000Z' } })], T0);
-    expect(s.entregar[0]).toEqual({ cliente_uuid: U1, recebido_em: '2026-11-23T10:00:00.000Z', codigo_fdv: null, revisao: 1, hash: null, tentativa: 1 });
+    expect(s.entregar[0]).toEqual({ cliente_uuid: U1, recebido_em: '2026-11-23T10:00:00.000Z', codigo_fdv: null, vendedor_external_id: null, revisao: 1, hash: null, tentativa: 1 });
+  });
+  it('RN-INT-22: entrega o vendedor_external_id do payload; vendedor sem código sai null', () => {
+    const s = selecionarClientesPendentes(
+      [
+        linha({ payload: { cliente_uuid: U1, vendedor_external_id: 'V-007' } }),
+        linha({ cliente_uuid: U2, payload: { cliente_uuid: U2, vendedor_external_id: null } }),
+      ],
+      T0,
+    );
+    expect(s.entregar.map((c) => c.vendedor_external_id)).toEqual(['V-007', null]);
   });
   it('RN-INT-22: entrega o Código FDV do payload (ADR 0069 §10); ausente ou fora do formato sai null', () => {
     const s = selecionarClientesPendentes([linha({ payload: { cliente_uuid: U1, codigo_fdv: '00012' } }), linha({ cliente_uuid: U2, payload: { cliente_uuid: U2, codigo_fdv: 12 } })], T0);

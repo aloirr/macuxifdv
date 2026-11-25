@@ -9,9 +9,6 @@ describe('RN-INT-09: versão do contrato', () => {
     expect(r).toMatchObject({ ok: false, codigo: 'versao_nao_suportada', suportadas: ['v1', 'v2'] });
     if (!r.ok) expect(r.mensagem).toMatch(/v1, v2/);
   });
-  it('RN-INT-09: versões suportadas são parâmetro (convivência v1 + v2)', () => {
-    expect(validarVersaoContrato('v2', { suportadas: ['v1', 'v2'] }).ok).toBe(true);
-  });
   it('RN-INT-09: valor que não é texto é recusado', () => {
     expect(validarVersaoContrato(1).ok).toBe(false);
     expect(validarVersaoContrato(undefined).ok).toBe(false);

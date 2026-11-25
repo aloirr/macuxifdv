@@ -185,7 +185,6 @@ export async function enviarLote(ctx: Ctx): Promise<RespostaConector> {
   const parametros = lerParametrosHub(ctx.parametros(), ctx.log);
   const validado = validarEnvelope(ctx.corpo, {
     limiteRegistros: parametros.limiteRegistrosLote,
-    versoesSuportadas: parametros.versoesSuportadas,
     entidadesDoConector: ctx.conector.entidades,
   });
   if (!validado.ok) {

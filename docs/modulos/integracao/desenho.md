@@ -165,7 +165,7 @@ O evento `integracao.produto.atualizado@1` leva `embalagem_medida` e `embalagem_
 | `external_id` | 1–200 caracteres (T-0027; era 100) | contrato |
 | Paradas por rota | 500 | contrato |
 | Contatos por cliente | 20 | contrato |
-| Versões aceitas | `v1` | `versoesSuportadas` |
+| Versões aceitas | `v1`, `v2` | contrato (`VERSOES_CONTRATO_ENTRADA`), igual para todas as empresas; não é parâmetro |
 | Tolerância de contagem | 0 | `toleranciaContagem` (RN-INT-07) |
 | Tolerância de soma | 0,5 % | `toleranciaSomaPct` |
 | Reenvio de pedido `enviado` | 10 min | `timeoutEnvioMin` |
@@ -198,7 +198,7 @@ Pedido ao ERP e retorno (RN-INT-08):
 
 ## 9. Versionamento do `/integracao/v1` (RN-INT-09)
 
-- Versão no caminho (`/integracao/v1/...`) **e** no envelope (`versao_contrato: "v1"`). Versão fora de `versoesSuportadas` → `versao_nao_suportada` (recusa inteira, mensagem lista as aceitas).
+- Versão no caminho (`/integracao/v1/...`) **e** no envelope (`versao_contrato: "v1"`). Versão fora de `VERSOES_CONTRATO_ENTRADA` → `versao_nao_suportada` (recusa inteira, mensagem lista as aceitas).
 - **Compatível** (continua `v1`): campo novo opcional, valor novo de enum, endpoint novo. **Incompatível** (`/v2` + ADR): campo obrigatório novo, campo tornado obrigatório, remoção, renomeação, mudança de tipo, valor de enum removido, limite reduzido (`classificarMudancaContrato`).
 - `/v2` e `/v1` convivem **6 meses** após a substituição (`situacaoVersao`: `ativa` → `em_descontinuacao` → `encerrada`); o BKO alerta o tenant cujo Conector ainda usa a versão em descontinuação.
 - OpenAPI publicado é gerado dos schemas Zod de `modules/integracao/contracts` (tarefa da API).
