@@ -54,3 +54,4 @@ export * from './privacidade-localizacao';
 export * from './geocodificador';
 export * from './segredos-log';
 export * from './coleta-erp';
+export * from './fracao-porta';
