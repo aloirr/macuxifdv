@@ -298,6 +298,13 @@ describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
     expect(notas).toMatch(/THEN\s+'F'\s+ELSE\s+'P'\s+END/i);
   });
 
+  it('ADR 0076 (Conector 1.6.0): fator e quantidade em DECIMAL(13,4), nunca ponto flutuante', () => {
+    const expr = (v: string, c: string) => porEntidade.get(v)?.colunas.find((x) => x.alias === c)?.expressao;
+    expect(expr('produto_unidade', 'fator')).toMatch(/^CAST\(.+ AS DECIMAL\(13,4\)\)\s+AS\s+\w+$/);
+    expect(expr('pedido_nota_item', 'quantidade')).toMatch(/^CAST\(.+ AS DECIMAL\(13,4\)\)\s+AS\s+\w+$/);
+    expect(semComentarios(SQL)).not.toMatch(/\b(FLOAT|REAL|BINARY_DOUBLE|BINARY_FLOAT)\b/i);
+  });
+
   it('o leitor do SELECT recusa coluna sem alias e para no FROM de nível zero', () => {
     expect(() => lerViews('CREATE VIEW vw_macuxi_x AS SELECT a.b AS external_id, a.c FROM t a;')).toThrow(/sem "AS <campo>"/);
     const [v] = lerViews(

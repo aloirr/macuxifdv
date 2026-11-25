@@ -10,7 +10,8 @@
  * Cadastro vindo do ERP/BKO no pull (`servidor_vence`); o pré-cadastro do Campo chega pelo push e vira pendente (RN-CORE-78).
  */
 import { sqlCodigoFdv } from './codigo-fdv';
-import { definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
+import { unidadesParaCliente } from './sync-fracao';
+import { clienteAceitaFracao, definirEntidadeSync, variacaoFracao, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
 import {
   PARAMETRO_ALERTAS_PRODUTIVIDADE,
   PARAMETRO_ALMOCO_PADRAO,
@@ -273,6 +274,8 @@ function puxarDe(t: Tabela) {
     return ctx.comTenant(async (db) => {
       const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
       if (t.tabela === 'core.produto') return comDescontoEfetivo(linhas, await padraoDeDesconto(db));
+      // ADR 0076 D6: fator numeric -> número; app sem cabeçalho ou < VERSAO_APP_FRACAO (1.0.36) não recebe unidade de fator fracionário
+      if (t.tabela === 'core.produto_unidade') return unidadesParaCliente(linhas, clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null));
       // RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor (a mesma regra, `perfilVeRecusa`).
       if (t.tabela === 'core.cliente') {
         return linhas.map((l) => {
@@ -354,7 +357,7 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeClienteVisitaResumo, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_visita_resumo) },
   { entidade: entidadeFotoTipo, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.foto_tipo) },
   { entidade: entidadeClienteFoto, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_foto), receber: receberFotosPdv },
-  { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade) },
+  { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade), variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null) },
   { entidade: entidadeClienteEndereco, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_endereco) },
   { entidade: entidadeClienteContato, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_contato) },
   { entidade: entidadeClienteFinanceiro, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_financeiro) },

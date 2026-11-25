@@ -93,6 +93,8 @@ export const OBRIGATORIOS_EXTRA: Record<string, readonly string[]> = { filial: C
 export const REGRA_EXTRA_DO_CAMPO: Record<string, Partial<Regra>> = {
   'filial.cnpj': { cnpj: true },
   'tabela_escalonada.preco_unidade_cents': { min: 1 },
+  // ADR 0076 (RN-VEN-15): fator > 0 (exclusivo), até 4 casas, ≤ 9999 (FatorDecimalSchema, platform-sdk)
+  'produto_unidade.fator': { min: 0, min_exclusivo: true, casas: 4 },
 };
 
 /** Regras entre campos da mesma linha (todas em superRefine do Zod). */
@@ -123,7 +125,11 @@ export interface Regra {
   /** número inteiro? (só para tipo número) */
   inteiro?: boolean;
   min?: number;
+  /** `min` não vale: o valor tem de ser maior que ele (fator > 0) */
+  min_exclusivo?: boolean;
   max?: number;
+  /** máximo de casas decimais (ADR 0076: 4); a coluna SQL vira DECIMAL(13, 4) */
+  casas?: number;
   opcoes?: string[];
   /** quantidades de dígitos aceitas (ean, documento) */
   digitos?: number[];
@@ -198,7 +204,7 @@ export function tipoSql(c: CampoDicionario, regra: Regra): string {
       return `NVARCHAR(${n > 4000 ? 'MAX' : n}) ${nulo}`;
     }
     case 'número':
-      return `${regra.inteiro ? 'INT' : 'DECIMAL(18, 6)'} ${nulo}`;
+      return `${regra.inteiro ? 'INT' : regra.casas === 4 ? 'DECIMAL(13, 4)' : 'DECIMAL(18, 6)'} ${nulo}`;
     case 'centavos':
       return `DECIMAL(19, 0) ${nulo}`;
     case 'sim/não':

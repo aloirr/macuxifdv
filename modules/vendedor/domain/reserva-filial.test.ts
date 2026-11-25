@@ -45,4 +45,14 @@ describe('RN-VEN-20: estoque pela filial do pedido', () => {
     expect(reservadoLocalNaFilial(pedidos, MAO).get('p1')).toBe(30);
     expect(reservadoLocalNaFilial(pedidos, BVB).get('p1')).toBe(7);
   });
+  it('RN-VEN-02 v3: saldo somado em float (1,1 + 2,2 = 3.3000000000000003) é normalizado a 4 casas, sem RangeError', () => {
+    expect(disponivel(1.1 + 2.2, 0)).toBe(3.3);
+    expect(disponivel(1.1 + 2.2, 1.1)).toBe(2.2);
+    expect(produtosSemEstoqueNaFilial([{ produto_id: 'p1', quantidade_base: 3 }], new Map([['p1', 1.1 + 2.2]]), new Map())).toEqual([]);
+    expect(produtosSemEstoqueNaFilial([{ produto_id: 'p1', quantidade_base: 3.4 }], new Map([['p1', 1.1 + 2.2]]), new Map())).toHaveLength(1);
+  });
+  it('RN-VEN-02 v3: saldo inteiro segue igual', () => {
+    expect(disponivel(10, 4)).toBe(6);
+    expect(disponivel(3, 5)).toBe(0);
+  });
 });

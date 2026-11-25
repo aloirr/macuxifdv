@@ -5,6 +5,8 @@
  * (ADR-0005, T-0007). O Vendedor não define tipo de produto: o pedido só referencia `product_id`.
  */
 import { z } from 'zod';
+import { FatorDecimalSchema, QuantidadeDecimalSchema } from '@macuxi/platform-sdk';
+import { QuantidadeNaoNeg } from './quantidade';
 import {
   Cents,
   CheckoutVisitRequest,
@@ -74,21 +76,21 @@ export const OrderItem = z.object({
   product_id: Id,
   erp_code: z.string(),
   description: z.string(),
-  quantity: z.number().int(),
+  quantity: QuantidadeDecimalSchema,
   unit_price_cents: Cents,
   discount_pct: Pct,
   total_cents: Cents,
   /** T-0054: unidades já faturadas pelo ERP (soma dos retornos), na UNIDADE BASE; ausente = sem retorno de faturamento */
-  quantity_invoiced: z.number().int().nonnegative().optional(),
+  quantity_invoiced: QuantidadeNaoNeg.optional(),
   /** 0013 (desenho T-0061 §2.1): quantidade na unidade base (quantidade x fator); compara com `quantity_invoiced` */
-  quantity_base: z.number().int().nonnegative().optional(),
+  quantity_base: QuantidadeNaoNeg.optional(),
   // --- T-0061 (RN-VEN-15, RN-CORE-19): medida vendida e acréscimo do item; opcionais (pedido antigo = UN) ---
   /** sigla da medida vendida (UN, CX) */
   unit: z.string().optional(),
   /** unidades base por unidade vendida (UN = 1) */
-  factor: z.number().int().positive().optional(),
+  factor: FatorDecimalSchema.optional(),
   /** igual a `quantity_base` (nome do desenho T-0061): quantidade em unidades base */
-  base_quantity: z.number().int().nonnegative().optional(),
+  base_quantity: QuantidadeNaoNeg.optional(),
   /** coluna Medida do PDF e do detalhe: "UN" / "CX c/ 12" */
   unit_label: z.string().optional(),
   /** acréscimo do item (RN-VEN-02); `discount_pct` passa a ser o desconto do item */
@@ -151,7 +153,7 @@ export const Order = z.object({
   /** T-0077 D1: data da última mudança de status (pedido_evento); ausente = usar updated_at */
   status_changed_at: IsoDateTime.nullable().optional(),
   items_count: z.number().int(),
-  units: z.number().int(),
+  units: z.number().nonnegative(),
   /** T-0029: nível que decide o pedido pendente e se QUEM CONSULTA pode decidir agora (a lista do BKO mostra os botões só a quem pode) */
   nivel_aprovacao: z.enum(NIVEIS_APROVACAO).nullable().optional(),
   pode_decidir: z.boolean().optional(),
@@ -255,7 +257,7 @@ export const FaturamentoDoPedido = z.object({
       faturado_em: IsoDateTime,
       parcial: z.boolean(),
       total_cents: z.number().int().nonnegative().nullable(),
-      unidades: z.number().int().nonnegative(),
+      unidades: QuantidadeNaoNeg,
       /** chave de acesso da NF (44 dígitos); ausente = ERP não informou */
       chave_acesso: z.string().nullable().optional(),
     }),
@@ -300,7 +302,7 @@ export const CreateOrderRequest = z.object({
    * visita enquanto ele está na fila. A API NUNCA confia nele: recalcula tudo (RN-VEN preço/alçada).
    */
   total_cents: z.number().int().nonnegative().optional(),
-  items: z.array(z.object({ product_id: Id, quantity: z.number().int().positive() })).min(1),
+  items: z.array(z.object({ product_id: Id, quantity: QuantidadeDecimalSchema })).min(1),
 });
 export type CreateOrderRequest = z.infer<typeof CreateOrderRequest>;
 
@@ -381,7 +383,7 @@ export const UpdateOrderRequest = z.object({
   branch_id: Id.optional(),
   discount_pct: Pct.min(0).max(100),
   payment_terms: z.string().default('28/56 dias'),
-  items: z.array(z.object({ product_id: Id, quantity: z.number().int().positive() })).min(1),
+  items: z.array(z.object({ product_id: Id, quantity: QuantidadeDecimalSchema })).min(1),
 });
 export type UpdateOrderRequest = z.infer<typeof UpdateOrderRequest>;
 export const CancelOrderRequest = z.object({ reason: z.string().max(500).optional() });
