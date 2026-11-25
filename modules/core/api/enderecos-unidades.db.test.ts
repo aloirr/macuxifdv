@@ -5,6 +5,7 @@
  * (2) o pull por escopo de carteira, (3) o Cliente 360 da API (404 fora da carteira, só endereços ativos, padrão primeiro),
  * (4) as unidades no cadastro do BKO e (5) a consulta `core.cadastro_resumo@1`. Pula sem Postgres.
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { definirTenant, comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { ErroNaoEncontrado, type AcessoBanco, type ClienteBanco, type ConsumidorEvento, type ContextoBase, type ContextoConsulta, type ContextoConsumo, type LinhaSync, type PedidoPull, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
@@ -155,7 +156,9 @@ describe.skipIf(semBanco())('Core T-0061 × Postgres: endereços de entrega e un
     const cliente = () => ev('cliente', 'C-T61', { razao_social: 'Mercado T61', documento: '99000030000106', inscricao_estadual: 'ISENTO', endereco: { logradouro: 'Rua A', numero: '1', bairro: 'Centro', cidade: 'Boa Vista', uf: 'RR', cep: '69301000' } });
     const end = (ext: string, extra: Record<string, unknown> = {}) =>
       ev('cliente_endereco', ext, { cliente_external_id: 'C-T61', tipo: 'entrega', descricao: 'Depósito', logradouro: 'Av. do Depósito', numero: '100', bairro: 'Industrial', cidade: 'Boa Vista', uf: 'RR', cep: '69301-000', latitude: 2.82, longitude: -60.67, principal: false, ...extra });
-    const unidades = (t: Teste) => t.q<{ external_id: string; unidade: string; fator: number; padrao: boolean; ativo: boolean }>("select external_id, unidade, fator, padrao, ativo from core.produto_unidade where external_id like 'PU-T61%' and deleted_at is null order by unidade");
+    // ADR 0076: `fator` é numeric (texto no node-pg); o teste converte como a produção
+    const unidades = async (t: Teste) =>
+      (await t.q<{ external_id: string; unidade: string; fator: string | number; padrao: boolean; ativo: boolean }>("select external_id, unidade, fator, padrao, ativo from core.produto_unidade where external_id like 'PU-T61%' and deleted_at is null order by unidade")).map((u) => ({ ...u, fator: quantidadeDoBanco(u.fator) }));
     const enderecos = (t: Teste) => t.q<{ external_id: string; principal: boolean; ativo: boolean; uf: string; cep: string | null }>("select external_id, principal, ativo, uf, cep from core.cliente_endereco where external_id like 'E-T61%' and deleted_at is null order by external_id");
 
     describe('produto_unidade', () => {
