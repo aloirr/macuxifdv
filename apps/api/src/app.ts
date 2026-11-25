@@ -39,6 +39,10 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { erroModuloInativo, ROTA_ME_MODULOS } from '@macuxi/core/contracts';
 import {
+  autorizarRotaPeloCargo,
+  camposPeloCargo,
+  diferencasEntreMotores,
+  modelosDePerfil,
   consultasSemImplementacao,
   corpoDoErro,
   corpoDoErroModulo,
@@ -108,7 +112,7 @@ import { corpoBinarioDoDocumento, corpoDoDocumento, criarMemoEtag, ifNoneMatchAt
 import { criarLimitador, recusarPorLimite } from './limitador';
 import { prepararSessaoWeb, SESSAO_WEB_PADRAO, type OpcoesSessaoWeb } from './sessao-web';
 import { registrarConector, ehRotaConector } from './conector';
-import { licencasDoBanco, licencasDoTenantNoBanco, type FonteLicencas, type FonteLicencasTenant } from './licencas';
+import { licencasDoBanco, licencasDoTenantNoBanco, motorDoTenant, type FonteLicencas, type FonteLicencasTenant, type LicencasUsuario } from './licencas';
 import { MODULOS_API } from './modulos';
 import { motorPermissoesDe, registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
@@ -325,6 +329,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   // ADR 0033 (T-0111): padrão de fábrica dos perfis de acesso (plataforma + `perfis` das ações dos manifestos instalados)
   const motorPermissoes = motorPermissoesDe(manifestos);
   const matriz = motorPermissoes.matriz;
+  // ADR 0073 (E4): o super-admin, no motor 'cargo', recebe o modelo `admin` dos manifestos instalados (código `admin`)
+  const adminDoModelo = { codigo: 'admin', ...modelosDePerfil(manifestos).admin };
   const dependencias = dependenciasDosManifestos(manifestos);
   const porId = new Map(modulos.map((m) => [m.manifesto.id, m] as const));
   const consultas = registroDeConsultas(modulos);
@@ -530,6 +536,26 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       modulos: efetivos,
       perfis: perfisDeAcesso.map((p) => resolverPerfil(p, matriz)),
     };
+    // ADR 0073 (E4, RN-CORE-35): motor do tenant pela marca `plataforma.catalogo_aplicado`. No 'cargo', `cargo` e `perfil_acesso`
+    // vêm do perfil sem base (super-admin: o modelo admin) e a rota decide por eles (`montarRota`); os perfis antigos seguem
+    // lidos (leitura dupla até a E6) e a divergência entre os dois vai ao log, sem dado pessoal (só chaves e o código do perfil)
+    const motor = motorDoTenant(licencas.catalogo);
+    if (motor === 'cargo') {
+      Object.assign(usuario, camposPeloCargo(doSA ? adminDoModelo : (licencas as LicencasUsuario).perfilPorCargo));
+      const diferencas = diferencasEntreMotores(usuario.perfis, usuario.perfil_acesso);
+      if (diferencas.length > 0)
+        req.log.warn(
+          {
+            evento: 'perfis.motores_divergem',
+            tenant_id: usuario.tenant_id,
+            modulo: modulo ?? 'plataforma',
+            request_id: req.id,
+            perfil: usuario.perfil_acesso?.codigo ?? null,
+            chaves: diferencas.map((d) => d.chave),
+          },
+          'Motores de permissão divergem (ADR 0073, leitura dupla)',
+        );
+    }
     // ADR 0025: `tx.consultar(..., { licenca: 'tenant' })`: efetivos do TENANT (todos os instalados no lugar do perfil), com as
     // mesmas dependências (RN-CORE-03) e o core sempre ativo. Em escrita (≠ GET/HEAD; o pull do sync é GET, o push não) só
     // para consulta `configuracaoDoTenant`, executada num savepoint somente leitura (§4.1, T-0114)
@@ -612,7 +638,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       versaoApp: portaVersaoApp(fonteVersoesApp, req.headers),
       geocodificador,
     });
-    return { ctx: contexto(modulo), licencas, doModulo: contexto, restritoSemFilial };
+    return { ctx: contexto(modulo), licencas, doModulo: contexto, restritoSemFilial, motor };
   };
 
   const plataforma: Plataforma = { manifestos, modulos, permissoes, preparar, relogio, banco };
@@ -800,6 +826,20 @@ interface ConfigRotaModulo {
   limiteCorpoProprio?: boolean;
 }
 
+/**
+ * Passos 2 e 3 de `montarRota` no motor 'cargo' (ADR 0073 E4; RN-CORE-33, RN-PRO-01 e RN-CORE-35 pelo cargo e pela concessão):
+ * `autorizarRotaPeloCargo`. Leitura dupla SEGURA até a E6: a rota sem `acao` com lista `perfis` própria ainda não tem chave no
+ * catálogo e o cargo não a abre sozinho: vale também a lista de hoje.
+ */
+function autorizarPeloCargo(u: UsuarioDaRequisicao, permissoes: ReturnType<typeof criarPermissoes>, modulo: ModuloId, rota: RotaModulo): void {
+  const r = autorizarRotaPeloCargo(u, permissoes, modulo, rota);
+  if (!r.ok) negar(r, rota.acao ? (permissoes.moduloDaAcao(rota.acao) ?? modulo) : modulo);
+  if (!rota.acao && rota.perfis) {
+    const hoje = verificarAcesso(u, { modulo, perfis: rota.perfis });
+    if (!hoje.ok) negar(hoje, modulo);
+  }
+}
+
 /** RN-PRO-01 com RN-CORE-35: o usuário só tem perfis de base promotor (sem a lista resolvida, o perfil do token). */
 function soPromotor(u: UsuarioDaRequisicao): boolean {
   return u.perfis && u.perfis.length > 0 ? u.perfis.every((p) => p.base === 'promotor') : u.perfil === 'promotor';
@@ -829,14 +869,15 @@ function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<
     ...(limite !== undefined ? { bodyLimit: limite, config: { limiteCorpoProprio: true } satisfies ConfigRotaModulo } : {}),
     ...(ganchos.length > 0 ? { onRequest: ganchos } : {}),
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
-      const { ctx } = await p.preparar(req, modulo, { superAdmin: rota.superAdmin, semFilial: rota.liberadaSemFilial ? 'aceita' : undefined });
+      const { ctx, motor } = await p.preparar(req, modulo, { superAdmin: rota.superAdmin, semFilial: rota.liberadaSemFilial ? 'aceita' : undefined });
       const u = ctx.usuario;
       // 1) licença do módulo da rota (403 MODULO_INATIVO); para o super-admin, a licença do tenant
       const lic = verificarAcesso(u, { modulo, perfis: [u.perfil] });
       if (!lic.ok) negar(lic, modulo);
       // ADR 0029 §5: o super-admin numa rota com `superAdmin` não passa por ação/perfil (a opção da rota é a autorização) e
       // tem carteira 'tenant'; licença, Zod e RLS valem. Usuário do tenant em rota 'exige' já saiu com 403 no preparar.
-      if (!ctx.superAdmin) {
+      if (!ctx.superAdmin && motor === 'cargo') autorizarPeloCargo(u, permissoes, manifesto.id, rota);
+      else if (!ctx.superAdmin) {
       // 2) superfície (T-0094, RN-CORE-33/35): rota só do BKO recusa quem não entra no BKO — perfil fora de PERFIS_DO_APP.web, ou
       //    multiperfil com algum perfil que não entra (regra mais restritiva nos acessos) —, qualquer que seja o app do token
       if (rota.superficie === 'bko' && !(u.perfis ? podeEntrar(u.perfis, 'bko') : perfilUsaSuperficie(u.perfil, 'bko'))) {

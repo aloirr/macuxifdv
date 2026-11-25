@@ -14,9 +14,18 @@
  * com o mesmo nome). Assim chegam ao aparelho pelo `GET /v1/me/modulos` e pelo `GET /v1/sync/novidades`, e trocar a logo ou
  * o nome muda o `versao_licencas`.
  * Rotas de Conector (ADR 0013): `licencasDoTenantNoBanco`, só a parte do tenant (não há usuário nem perfil).
+ *
+ * ADR 0073 (E4, troca de leitura dos perfis): a marca do tenant (`plataforma.catalogo_aplicado`, 0105) vem na mesma linha do
+ * tenant (subconsulta, sem ida a mais ao banco) e decide o motor (`motorDoTenant`). Só no motor 'cargo' a fonte lê também o
+ * perfil sem base do usuário (cargo + `plataforma.perfil_concessao`, `lerPerfilPorCargo`); no 'base' (tenant em 'legado', sem
+ * marca ou atrás da versão do código) nada muda. Leitura dupla até a E6: os perfis antigos continuam lidos nos dois motores.
  */
 import {
+  CargoSchema,
   ehModulo,
+  motorDePermissao,
+  type MotorPermissao,
+  type PerfilPorCargo,
   NIVEIS_ALCADA,
   parametrosDaEmpresa,
   NIVEIS_ESCOPO,
@@ -46,6 +55,30 @@ export interface LicencasUsuario {
    * a fonte ainda não lê perfis (vale o perfil de fábrica do token); vazio = usuário sem perfil (nada permitido, RN-CORE-01).
    */
   perfis?: PerfilDeAcesso[];
+  /** ADR 0073 (E4): marca da transição do tenant (`plataforma.catalogo_aplicado`). Ausente = sem marca (motor antigo). */
+  catalogo?: CatalogoAplicado | null;
+  /**
+   * ADR 0073 (E4): perfil sem base do usuário (vivo e ativo: código, cargo e concessões), lido só no motor 'cargo'. Ausente =
+   * não lido (motor 'base'); `null` = usuário sem perfil vivo e ativo (nada permitido no caminho novo, falha fechada).
+   */
+  perfilPorCargo?: PerfilDoUsuarioPorCargo | null;
+}
+
+/** Linha viva de `plataforma.catalogo_aplicado` (0105): versão do catálogo aplicada e a leitura do tenant na transição. */
+export interface CatalogoAplicado {
+  versao: number;
+  leitura: 'legado' | 'concessao';
+}
+
+/** O que `camposPeloCargo` precisa do perfil do usuário. */
+export type PerfilDoUsuarioPorCargo = Pick<PerfilPorCargo, 'codigo' | 'cargo' | 'permissoes'>;
+
+/**
+ * Motor da permissão do tenant (ADR 0073 §6, RN-CORE-35): 'cargo' só com a leitura 'concessao' E o catálogo na versão do código
+ * (`motorDePermissao`); 'legado', sem marca ou versão atrás = 'base' (o motor de hoje).
+ */
+export function motorDoTenant(catalogo: CatalogoAplicado | null | undefined): MotorPermissao {
+  return motorDePermissao(catalogo?.leitura === 'concessao' ? catalogo.versao : null);
 }
 
 export type FonteLicencas = (usuario: UsuarioAutenticado, banco: AcessoBanco) => Promise<LicencasUsuario>;
@@ -72,6 +105,8 @@ export interface LicencasTenant {
   ativosNoTenant: ModuloId[];
   parametros: LicencasUsuario['parametros'];
   fuso?: string | null;
+  /** ADR 0073 (E4): marca da transição (também do super-admin, que usa a parte do tenant). */
+  catalogo?: CatalogoAplicado | null;
 }
 
 export type FonteLicencasTenant = (tenantId: string, banco: AcessoBanco) => Promise<LicencasTenant>;
@@ -85,15 +120,30 @@ async function lerTenant(db: ClienteBanco): Promise<LicencasTenant> {
   // fuso (T-0035), nome e logo (T-0182) do tenant: o módulo não lê plataforma.tenant (regra 1, S0-014).
   // `ocultar_marca_macuxi` (0091, item 15) lido pelo jsonb da linha: antes da 0091 vem `null` (= false) em vez de 42703, que
   // derrubaria o login e o `/v1/me/modulos` de todos se a API subir antes da migração.
+  // catálogo aplicado (0105, ADR 0073 E4): a linha viva de versão mais alta, na mesma consulta (RLS do tenant)
   const linha = (
-    await db.query<LinhaMarcaTenant & { fuso: string }>(
+    await db.query<LinhaMarcaTenant & { fuso: string; catalogo: unknown }>(
       `select fuso, nome, nome_fantasia, logo_sha256, logo_tipo, logo_largura_px, logo_altura_px,
-              (to_jsonb(t) ->> 'ocultar_marca_macuxi')::boolean as ocultar_marca_macuxi
+              (to_jsonb(t) ->> 'ocultar_marca_macuxi')::boolean as ocultar_marca_macuxi,
+              (select jsonb_build_object('versao', c.versao, 'leitura', c.leitura) from plataforma.catalogo_aplicado c
+                where c.tenant_id = t.id and c.deleted_at is null order by c.versao desc limit 1) as catalogo
          from plataforma.tenant t where t.id = plataforma.tenant_atual()`,
     )
   ).rows[0];
   const ativosNoTenant = modulos(tenant.rows);
-  return { ativosNoTenant, parametros: comEmpresa(parametrosPorModulo(params.rows, ativosNoTenant), linha), fuso: linha?.fuso ?? null };
+  return {
+    ativosNoTenant,
+    parametros: comEmpresa(parametrosPorModulo(params.rows, ativosNoTenant), linha),
+    fuso: linha?.fuso ?? null,
+    catalogo: catalogoDe(linha?.catalogo),
+  };
+}
+
+/** jsonb `{ versao, leitura }` → `CatalogoAplicado`; fora do formato = sem marca (motor antigo). */
+function catalogoDe(bruto: unknown): CatalogoAplicado | null {
+  const c = bruto as { versao?: unknown; leitura?: unknown } | null | undefined;
+  if (!c || !Number.isInteger(c.versao) || (c.leitura !== 'legado' && c.leitura !== 'concessao')) return null;
+  return { versao: c.versao as number, leitura: c.leitura };
 }
 
 /** Chaves reservadas `empresa_nome`/`empresa_logo` nos parâmetros do Core (T-0182); sem a linha do tenant ou sem o Core, nada muda. */
@@ -139,6 +189,44 @@ async function lerPerfis(db: ClienteBanco, usuarioId: string): Promise<{ perfis:
   };
 }
 
+/** Concessões (jsonb `{ chave: { nivel?, alvos? } }`) → permissões; item fora do formato é ignorado (o banco valida na escrita). */
+function concessoesDe(bruto: unknown): PerfilPorCargo['permissoes'] {
+  const saida: Record<string, { nivel?: NivelPermissao; alvos?: string[] }> = {};
+  if (!bruto || typeof bruto !== 'object') return saida;
+  for (const [chave, v] of Object.entries(bruto as Record<string, { nivel?: unknown; alvos?: unknown } | null>)) {
+    if (!v || typeof v !== 'object') continue;
+    const alvos = Array.isArray(v.alvos) ? v.alvos.filter((a): a is string => typeof a === 'string') : null;
+    saida[chave] = { ...(ehNivel(v.nivel) ? { nivel: v.nivel } : {}), ...(alvos && alvos.length > 0 ? { alvos } : {}) };
+  }
+  return saida;
+}
+
+/**
+ * ADR 0073 §2.7 (E4): o perfil vivo e ativo do usuário (um só, RN-CORE-54: `usuario_perfil_um_vivo`, 0069) com o cargo e as
+ * concessões vivas (`perfil_concessao_leitura_ix`). Sem perfil ou cargo desconhecido = `null` (falha fechada). Faz o papel de
+ * `plataforma.perfil_do_usuario` (plano de migração, passo 3) até o banco publicar a função.
+ */
+async function lerPerfilPorCargo(db: ClienteBanco, usuarioId: string): Promise<PerfilDoUsuarioPorCargo | null> {
+  const r = await db.query<{ codigo: string; cargo: string; permissoes: unknown }>(
+    `select p.codigo, p.cargo,
+            coalesce(jsonb_object_agg(c.chave, jsonb_strip_nulls(jsonb_build_object('nivel', c.nivel, 'alvos', to_jsonb(c.alvos))))
+                       filter (where c.chave is not null), '{}'::jsonb) as permissoes
+       from plataforma.usuario_perfil up
+       join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
+       left join plataforma.perfil_concessao c on c.tenant_id = p.tenant_id and c.perfil_id = p.id and c.deleted_at is null
+      where up.tenant_id = plataforma.tenant_atual() and up.usuario_id = $1 and up.deleted_at is null
+        and p.ativo and p.deleted_at is null
+      group by p.id, p.codigo, p.cargo
+      order by p.codigo
+      limit 1`,
+    [usuarioId],
+  );
+  const l = r.rows[0];
+  const cargo = CargoSchema.safeParse(l?.cargo);
+  if (!l || !cargo.success) return null;
+  return { codigo: l.codigo, cargo: cargo.data, permissoes: concessoesDe(l.permissoes) };
+}
+
 export const licencasDoBanco: FonteLicencas = (usuario, banco) =>
   banco.comTenant(usuario.tenant_id, async (db) => {
     const t = await lerTenant(db);
@@ -147,7 +235,9 @@ export const licencasDoBanco: FonteLicencas = (usuario, banco) =>
       "select modulo from plataforma.usuario_modulo where usuario_id = $1 and efeito = 'remover' and deleted_at is null",
       [usuario.id],
     );
-    return { ...t, doPerfil, removidosDoUsuario: modulos(removidos.rows), perfis };
+    // ADR 0073 (E4): o perfil sem base só no motor 'cargo' (no 'base' o tenant pode não ter concessões)
+    const perfilPorCargo = motorDoTenant(t.catalogo) === 'cargo' ? { perfilPorCargo: await lerPerfilPorCargo(db, usuario.id) } : {};
+    return { ...t, doPerfil, removidosDoUsuario: modulos(removidos.rows), perfis, ...perfilPorCargo };
   });
 
 /** Licenças do tenant da chave do Conector (`plataforma.tenant_modulo`, `parametro`, `tenant.fuso`), uma transação. */
