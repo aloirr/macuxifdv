@@ -1,9 +1,9 @@
--- Diagnóstico da 0104_plataforma_perfis_sem_base_derivacao (perfis sem perfil base, ADR 0073; plano
+-- Diagnóstico da 0106_plataforma_perfis_sem_base_derivacao (perfis sem perfil base, ADR 0073; plano
 -- docs/banco/plano-migracao-perfis-sem-base.md §4.4). Só leitura; rode como administrador do banco (vê todos os tenants) ou como
 -- macuxi_app com app.tenant_id (vê só o tenant). Sem dado pessoal: ids e códigos. Dicionário: docs/banco/plataforma.md
--- ("0103 a 0105").
+-- ("0105 a 0107").
 --
--- Consulta 1 — ANTES da 0103 (não usa nada novo): os casos que PARAM o tenant e não dependem do catálogo.
+-- Consulta 1 — ANTES da 0105 (não usa nada novo): os casos que PARAM o tenant e não dependem do catálogo.
 --   CARGO_DIFERENTE_DA_BASE com usuário; sobreposição concedida que a trava do CARGO corta (acesso.campo fora de vendedor e
 --   promotor; acesso.gestao fora de supervisor e gerente; acesso.portal fora do administrativo ou em perfil sem a gestão
 --   completa); perfil ativo com usuário cujas sobreposições revogam todo acesso.* que a base dá.
@@ -44,7 +44,7 @@ select f.tenant_id, f.codigo, 'PERFIL_SEM_ACESSO', null, f.base, f.cargo
        = case f.base when 'gerente' then 2 when 'admin' then 2 else 1 end
  order by 1, 2, 3, 4;
 
--- Consulta 2 — DEPOIS da 0104 (ou numa cópia restaurada com as migrações): o diagnóstico completo, por tenant ainda em 'legado'.
+-- Consulta 2 — DEPOIS da 0106 (ou numa cópia restaurada com as migrações): o diagnóstico completo, por tenant ainda em 'legado'.
 -- select t.codigo, d.* from plataforma.tenant t
 --   cross join lateral plataforma.diagnosticar_perfis_sem_base(t.id) d
 --  where plataforma.leitura_de_perfis(t.id) = 'legado' order by t.codigo, d.efeito, d.tipo, d.perfil_codigo;

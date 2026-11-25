@@ -1,5 +1,5 @@
 /**
- * 0103 — travas por CARGO em plataforma.perfil_concessao e RLS das 4 tabelas (ADR 0073 §2.5 itens 1, 2, 3 e 5; plano §2.1).
+ * 0105 — travas por CARGO em plataforma.perfil_concessao e RLS das 4 tabelas (ADR 0073 §2.5 itens 1, 2, 3 e 5; plano §2.1).
  * O que o BANCO garante (23514, constraint perfil_concessao_trava_do_cargo, hint = a RN):
  * - RN-PRO-01: cargo promotor sem escrita de pedido (pedido.criar, pedido.aprovar, pedido_x.editar); pedido.ver passa;
  * - RN-CORE-33: acesso.bko nos cargos vendedor, promotor e supervisor; acesso.portal fora do administrativo; acesso.campo fora de
@@ -23,7 +23,7 @@ const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const perfilA = (base: string) => idPerfilFabrica(A.tenantId, base);
 
-describe.skipIf(semBanco())('0103 travas por cargo e RLS (fixture, ROLLBACK)', () => {
+describe.skipIf(semBanco())('0105 travas por cargo e RLS (fixture, ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });

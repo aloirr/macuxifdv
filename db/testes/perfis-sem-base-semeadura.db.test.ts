@@ -1,5 +1,5 @@
 /**
- * 0105 — tenant novo nasce migrado (gatilho tenant_semear_perfis_concessao, depois de tenant_semear_perfis; plano §5 passo 2).
+ * 0107 — tenant novo nasce migrado (gatilho tenant_semear_perfis_concessao, depois de tenant_semear_perfis; plano §5 passo 2).
  * O que o BANCO garante: o tenant novo tem os 7 perfis padrão com as concessões do modelo v1 (plataforma.modelo_permissao) e
  * catalogo_aplicado (versão 1) em 'concessao', sem nenhum achado; o mesmo pelo provisionamento do portal (sa_* SECURITY DEFINER).
  * Fixture dois-tenants (ROLLBACK).
@@ -12,9 +12,9 @@ import { banco, semBanco } from './estado';
 import { concessoesDoPerfil, leitura, normalizar } from './perfis-sem-base-apoio';
 import { emTransacao } from './util';
 
-const T = 'cccccccc-0105-4000-8000-00000000a001';
+const T = 'cccccccc-0107-4000-8000-00000000a001';
 
-describe.skipIf(semBanco())('0105 semeadura do tenant novo (fixture, ROLLBACK)', () => {
+describe.skipIf(semBanco())('0107 semeadura do tenant novo (fixture, ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });

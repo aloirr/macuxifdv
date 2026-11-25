@@ -1,14 +1,14 @@
 /**
- * 0104 — conflitos na migração por tenant (plano §4.4; ADR 0073 §2.0 decisões 3 a 5). O que o BANCO garante:
+ * 0106 — conflitos na migração por tenant (plano §4.4; ADR 0073 §2.0 decisões 3 a 5). O que o BANCO garante:
  * - com usuário: CARGO_DIFERENTE_DA_BASE, TRAVA_NOVA_CORTA e PERFIL_SEM_ACESSO param o tenant ('para_tenant'): nenhuma concessão
  *   nova, catalogo_aplicado em 'legado', achados gravados (ids e códigos, sem dado pessoal); o outro tenant migra;
  * - sem usuário: o perfil é acertado ('ajustado': cargo da base com auditoria 'perfil.migracao_cargo'; a chave cortada sai) e o
  *   tenant migra; perfil ativo sem acesso e sem usuário = 'aviso';
  * - a chave cortada no perfil sem usuário vai à auditoria 'perfil.migracao_corte' (só chave e valor);
- * - a Consulta 1 de db/scripts/diagnostico-0104.sql (cópia que roda antes da 0103) = subconjunto 'para_tenant' do diagnóstico;
+ * - a Consulta 1 de db/scripts/diagnostico-0106.sql (cópia que roda antes da 0105) = subconjunto 'para_tenant' do diagnóstico;
  * - depois de corrigir, a nova rodada migra e os achados antigos ganham resolvido_em; rodar de novo não duplica achado.
- * Fixture dois-tenants com tenants criados no caso (ROLLBACK): o tenant novo nasce migrado (0105) e é posto em 'legado' para
- * simular um tenant de antes da 0103.
+ * Fixture dois-tenants com tenants criados no caso (ROLLBACK): o tenant novo nasce migrado (0107) e é posto em 'legado' para
+ * simular um tenant de antes da 0105.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -19,19 +19,19 @@ import { banco, semBanco } from './estado';
 import { achados, concessoesDoPerfil, leitura, retratoConcessoes } from './perfis-sem-base-apoio';
 import { emTransacao, HASH_TESTE } from './util';
 
-const T1 = 'cccccccc-0104-4000-8000-00000000c001';
-const T2 = 'cccccccc-0104-4000-8000-00000000c002';
+const T1 = 'cccccccc-0106-4000-8000-00000000c001';
+const T2 = 'cccccccc-0106-4000-8000-00000000c002';
 const P = {
-  supDoVendedor: 'cccccccc-0104-4000-8000-00000000c101', // base vendedor, cargo supervisor, COM usuário -> para
-  gerCampo: 'cccccccc-0104-4000-8000-00000000c102', // base gerente + acesso.campo, COM usuário -> para
-  semAcesso: 'cccccccc-0104-4000-8000-00000000c103', // base vendedor sem acesso.campo, COM usuário -> para
-  analVend: 'cccccccc-0104-4000-8000-00000000c201', // T2: base analista, cargo vendedor, SEM usuário -> ajustado
-  gerCampoLivre: 'cccccccc-0104-4000-8000-00000000c202', // T2: base gerente + acesso.campo, SEM usuário -> ajustado (corta)
-  semAcessoLivre: 'cccccccc-0104-4000-8000-00000000c203', // T2: sem acesso, SEM usuário -> aviso
+  supDoVendedor: 'cccccccc-0106-4000-8000-00000000c101', // base vendedor, cargo supervisor, COM usuário -> para
+  gerCampo: 'cccccccc-0106-4000-8000-00000000c102', // base gerente + acesso.campo, COM usuário -> para
+  semAcesso: 'cccccccc-0106-4000-8000-00000000c103', // base vendedor sem acesso.campo, COM usuário -> para
+  analVend: 'cccccccc-0106-4000-8000-00000000c201', // T2: base analista, cargo vendedor, SEM usuário -> ajustado
+  gerCampoLivre: 'cccccccc-0106-4000-8000-00000000c202', // T2: base gerente + acesso.campo, SEM usuário -> ajustado (corta)
+  semAcessoLivre: 'cccccccc-0106-4000-8000-00000000c203', // T2: sem acesso, SEM usuário -> aviso
 };
-const U = { u1: 'cccccccc-0104-4000-8000-00000000c301', u2: 'cccccccc-0104-4000-8000-00000000c302', u3: 'cccccccc-0104-4000-8000-00000000c303' };
+const U = { u1: 'cccccccc-0106-4000-8000-00000000c301', u2: 'cccccccc-0106-4000-8000-00000000c302', u3: 'cccccccc-0106-4000-8000-00000000c303' };
 
-describe.skipIf(semBanco())('0104 conflitos por tenant (fixture, ROLLBACK)', () => {
+describe.skipIf(semBanco())('0106 conflitos por tenant (fixture, ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -51,7 +51,7 @@ describe.skipIf(semBanco())('0104 conflitos por tenant (fixture, ROLLBACK)', () 
     await q('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [u]);
     await q('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [t, u, p]);
   };
-  /** Tenant "de antes": criado (nasce migrado), volta a 'legado' e perde as concessões, como se a 0103 ainda não tivesse rodado. */
+  /** Tenant "de antes": criado (nasce migrado), volta a 'legado' e perde as concessões, como se a 0105 ainda não tivesse rodado. */
   const tenantDeAntes = async (t: string, codigo: string) => {
     await q("insert into plataforma.tenant (id, codigo, nome) values ($1, $2, 'Tenant 104')", [t, codigo]);
     await q("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = $1", [t]);
@@ -125,8 +125,8 @@ describe.skipIf(semBanco())('0104 conflitos por tenant (fixture, ROLLBACK)', () 
     });
   });
 
-  it('a Consulta 1 de db/scripts/diagnostico-0104.sql (antes da 0103) só traz casos que o diagnóstico dá como para_tenant', async () => {
-    const arquivo = readFileSync(fileURLToPath(new URL('../scripts/diagnostico-0104.sql', import.meta.url)), 'utf8');
+  it('a Consulta 1 de db/scripts/diagnostico-0106.sql (antes da 0105) só traz casos que o diagnóstico dá como para_tenant', async () => {
+    const arquivo = readFileSync(fileURLToPath(new URL('../scripts/diagnostico-0106.sql', import.meta.url)), 'utf8');
     const inicio = arquivo.indexOf('with perfis as (');
     const consulta1 = arquivo.slice(inicio, arquivo.indexOf(';', inicio));
     await emTransacao(admin, null, async () => {

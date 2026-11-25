@@ -1,7 +1,7 @@
 /**
- * Apoio dos testes das migrações 0103 a 0105 (perfis sem perfil base, ADR 0073; plano docs/banco/plano-migracao-perfis-sem-base.md).
+ * Apoio dos testes das migrações 0105 a 0107 (perfis sem perfil base, ADR 0073; plano docs/banco/plano-migracao-perfis-sem-base.md).
  * Fonte do SDK: `modelosDePerfil` e `linhasDosModelos` (E1, perfis-por-cargo.ts) quando já exportados; antes disso, o
- * `matrizDeFabrica` de hoje (a 0103 congelou a versão 1 a partir dele). O motor antigo (`resolverPerfil` + `matrizDeFabrica`) é a
+ * `matrizDeFabrica` de hoje (a 0105 congelou a versão 1 a partir dele). O motor antigo (`resolverPerfil` + `matrizDeFabrica`) é a
  * referência da gêmea SQL `plataforma.permissoes_legado_do_perfil` enquanto existir no SDK.
  */
 import * as sdk from '@macuxi/platform-sdk';
@@ -16,7 +16,7 @@ import { manifest as promotor } from '../../modules/promotor/manifest';
 import { manifest as treinamento } from '../../modules/treinamento/manifest';
 import { manifest as vendedor } from '../../modules/vendedor/manifest';
 
-/** Os 8 manifestos instalados (os mesmos da matriz congelada na 0103). */
+/** Os 8 manifestos instalados (os mesmos da matriz congelada na 0105). */
 export const MANIFESTOS: readonly Manifesto[] = [core, catalogo, vendedor, promotor, gestor, pesquisa, treinamento, integracao];
 
 export type Valor = { nivel?: string; alvos?: string[] };
@@ -86,7 +86,7 @@ export function travaNoSdk(cargo: string, chave: string, gestaoDoAcesso: boolean
   return t ? t.regra : null;
 }
 
-/** Chave -> { nivel?, alvos? } com alvos em ordem e sem repetição (a comparação da 0105). */
+/** Chave -> { nivel?, alvos? } com alvos em ordem e sem repetição (a comparação da 0107). */
 export function normalizar(p: Readonly<Record<string, { nivel?: string | null; alvos?: readonly string[] | null }>> | null | undefined): Permissoes {
   const saida: Permissoes = {};
   for (const chave of Object.keys(p ?? {}).sort()) {
