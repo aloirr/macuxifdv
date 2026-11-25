@@ -2,7 +2,7 @@
  * RN-VEN-20 (T-0149; RN-CORE-39): estoque e reserva pela FILIAL do pedido. Funções puras, usadas pela API (confere ao receber) e
  * pelo app (estoque mostrado e validação offline). Quais depósitos valem para a filial é regra do Catálogo (`@macuxi/catalogo/contracts`).
  */
-import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
+import { quantidadeDaEscala, quantidadeEmEscala, somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 
 
 /** Pedido que segura estoque: aceito pela API e ainda não faturado por inteiro, cancelado ou rejeitado (migração 0061). */
@@ -10,8 +10,14 @@ export const STATUS_QUE_RESERVAM = ['received', 'pending_approval', 'approved', 
 
 export const reservaEstoque = (tipo: string | null | undefined, status: string): boolean => (tipo ?? 'pedido') === 'pedido' && (STATUS_QUE_RESERVAM as readonly string[]).includes(status);
 
+/**
+ * Saldo vindo do Catálogo é soma em float (1,1 + 2,2 = 3.3000000000000003): arredonda ao mais próximo em 4 casas antes da conta exata.
+ * Local por ora; o engenheiro-software leva ao `@macuxi/comum/quantidade` no lote seguinte.
+ */
+const em4Casas = (q: number): number => quantidadeDaEscala(Math.round(q * quantidadeEmEscala(1)));
+
 /** Disponível = saldo − reservado, nunca negativo (RN-VEN-20). Única definição, usada pelo app e pela API. */
-export const disponivel = (saldo: number, reservado: number): number => Math.max(0, subtrairQuantidades(saldo, reservado));
+export const disponivel = (saldo: number, reservado: number): number => Math.max(0, subtrairQuantidades(em4Casas(saldo), em4Casas(reservado)));
 
 export interface ItemParaEstoque {
   produto_id: string;

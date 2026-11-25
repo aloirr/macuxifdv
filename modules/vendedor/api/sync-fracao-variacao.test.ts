@@ -4,7 +4,7 @@
  */
 import { criarPortaVersaoAppMemoria, type ContextoBase } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { provedoresSyncVendedor } from './sync';
+import { FILTRO_SEM_FRACAO, provedoresSyncVendedor } from './sync';
 
 const ctxCom = (versao: string | null): ContextoBase =>
   ({ versaoApp: criarPortaVersaoAppMemoria({}, versao ? { variante: 'campo', versao } : null) }) as unknown as ContextoBase;
@@ -16,5 +16,9 @@ describe('variação de escopo do pull de pedido (ADR 0076 D6)', () => {
       expect(prov.variacaoEscopo, nome).toBeDefined();
       expect(await prov.variacaoEscopo!(ctxCom('1.0.35'))).not.toBe(await prov.variacaoEscopo!(ctxCom('1.0.36')));
     }
+  });
+  it('RN-VEN-02 v3: o filtro do app antigo olha toda coluna decimal do item (inclusive quantidade_faturada)', () => {
+    for (const c of ['quantidade', 'fator', 'quantidade_base', 'quantidade_faturada', 'quantidade_embalagem', 'quantidade_unidades'])
+      expect(FILTRO_SEM_FRACAO, c).toContain(`fi.${c} <> trunc(fi.${c})`);
   });
 });

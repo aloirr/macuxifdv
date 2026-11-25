@@ -108,8 +108,9 @@ export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5
  * fracionário (nem os itens e eventos dele): o schema antigo do app derrubaria o pull inteiro. Filtro em SQL, para o cursor seguir.
  * Funciona antes e depois da 0104 (`trunc` aceita inteiro e numeric).
  */
+const COLUNAS_DECIMAIS_ITEM = ['quantidade', 'fator', 'quantidade_base', 'quantidade_faturada', 'quantidade_embalagem', 'quantidade_unidades'] as const;
 export const FILTRO_SEM_FRACAO = `and not exists (select 1 from vendedor.pedido_item fi where fi.tenant_id = p.tenant_id and fi.pedido_id = p.id
-       and (fi.quantidade <> trunc(fi.quantidade) or fi.fator <> trunc(fi.fator)))`;
+       and (${COLUNAS_DECIMAIS_ITEM.map((c) => `fi.${c} <> trunc(fi.${c})`).join(' or ')}))`;
 const appDoCliente = (ctx: ContextoBase) => ctx.versaoApp?.doCliente ?? null;
 const variacaoEscopo = (ctx: ContextoBase): string => variacaoFracao(appDoCliente(ctx));
 const semFracao = (ctx: ContextoBase): boolean => !clienteAceitaFracao(appDoCliente(ctx));
