@@ -70,7 +70,7 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
   };
   const noBanco = async (pid: string) => {
     const [p] = await q('select * from vendedor.pedido where id = $1', [pid]);
-    // ADR 0076 (0106): quantidade, fator e quantidade_base são numeric(14,4) e o pg entrega texto; compara como número
+    // ADR 0076 (0107): quantidade, fator e quantidade_base são numeric(14,4) e o pg entrega texto; compara como número
     const it = (await q('select * from vendedor.pedido_item where pedido_id = $1 order by sequencia', [pid])).map((l): Record<string, unknown> => ({
       ...l,
       quantidade: Number(l.quantidade),
