@@ -1662,13 +1662,14 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
   gerente, analista, assistente e admin; `questionario.ver` (pesquisa), `cadastro_trade.ver` e `relatorio_trade.ver` (promotor)
   nos mesmos, menos o assistente. São os perfis das rotas de hoje (`ACOES_DA_TRANSICAO` do SDK): ninguém ganha nem perde acesso.
 - `permissoes_legado_do_perfil` passa a ler a v2 (a chave nova vale pela base, como a rota de hoje); derivação, espelho,
-  conferência e a migração de tenant em `legado` seguem coerentes sem mudar de corpo.
+  conferência e a derivação de tenant ainda não derivado seguem coerentes sem mudar de corpo.
 - `aplicar_catalogo_v2(tenant)` → `aplicado` | `ja_aplicado` | `sem_catalogo` (sem EXECUTE para ninguém; mesma trava de
-  `migrar_perfis_sem_base`): no tenant `concessao`, cada perfil vivo ganha as chaves novas de `concessoes_derivadas` (o
+  `migrar_perfis_sem_base`): no tenant derivado (`perfis_derivados`), cada perfil vivo ganha as chaves novas de `concessoes_derivadas` (o
   personalizado administrativo de base assistente fica sem as 3 de pesquisa e promotor), sem mexer nas outras concessões; depois,
   `catalogo_aplicado.versao` passa de 1 a 2 **na mesma linha** (o id segue `<tenant>:plataforma.catalogo_aplicado:1`, o do upsert
-  de `migrar_perfis_sem_base`). Tenant `legado`: só a versão (a migração dele já deriva da v2). Rodada em todos os tenants; tenant
-  novo: `tenant_semear_concessoes` aplica a v2 depois da migração. Idempotente.
+  de `migrar_perfis_sem_base`). Tenant não derivado (parado): só a versão (a derivação dele já é da v2). A leitura não muda:
+  nenhum tenant passa a `concessao` (motor desligado na v1.0.37; quem liga é a 0109). Rodada em todos os tenants; tenant novo:
+  `tenant_semear_concessoes` aplica a v2 depois da derivação (nasce na v2, em `legado`). Idempotente.
 - **Volta** (`.down.sql` da 0108): versão 2 → 1, as concessões das 7 chaves com soft delete (a chave desmarcada pela API nova volta
   a valer pela base: perda documentada), a gêmea na v1, o gatilho do tenant novo da 0107 e a v2 do modelo apagada.
 
