@@ -74,9 +74,8 @@ describe.skipIf(semBanco())('0106/0107 parâmetros que viram caixa (fixture, ROL
       await q("delete from plataforma.parametro where tenant_id = $1 and chave = 'promotor_ve_preco_estoque'", [A.tenantId]);
       await q("insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, $2, 'produto.ver_preco_estoque', false)", [A.tenantId, VENDEDOR]);
       expect(await tem(VENDEDOR, 'produto.ver_preco_estoque')).toBe(true);
-      // a lista do tenant sai da migração (o tenant volta a 'legado' e migra de novo; nenhuma concessão muda)
-      await q("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = $1", [A.tenantId]);
-      expect(await q('select plataforma.migrar_perfis_sem_base($1) as r', [A.tenantId])).toEqual([{ r: 'migrado' }]);
+      // a lista do tenant sai da derivação (o tenant, em 'legado', é derivado de novo; nenhuma concessão muda)
+      expect(await q('select plataforma.migrar_perfis_sem_base($1) as r', [A.tenantId])).toEqual([{ r: 'derivado' }]);
       expect(await achados(admin, A.tenantId)).toEqual(['REVOGACAO_SEM_EFEITO/aviso/vendedor/produto.ver_preco_estoque']);
       expect(await q("select antes, depois from plataforma.perfil_migracao_conflito where tenant_id = $1 and tipo = 'REVOGACAO_SEM_EFEITO'", [A.tenantId]))
         .toEqual([{ antes: { concedida: false }, depois: { concedida: true } }]);

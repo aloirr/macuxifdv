@@ -1,8 +1,10 @@
 /**
- * 0107 — espelho da janela de transição (plano §5; ADR 0073 §2.0 decisão 6). Com o tenant em 'concessao', o que o caminho de
- * hoje grava (sobreposição, "restaurar padrão", perfil novo, troca de cargo) refaz as concessões do perfil; o que a trava do cargo
- * corta vira aviso TRAVA_NOVA_CORTA (resolvido quando deixa de valer); tenant 'legado' não é tocado; nada muda (nem o updated_at)
- * quando o conjunto já é o mesmo. Fixture dois-tenants (ROLLBACK).
+ * 0107 — espelho da janela de transição (plano §5; ADR 0073 §2.0 decisão 6). Com o tenant derivado (perfis_derivados; na
+ * v1.0.37 todos ficam em 'legado', com o motor novo desligado), o que o caminho de hoje grava (sobreposição, "restaurar padrão",
+ * perfil novo, troca de cargo) refaz as concessões do perfil; o que a trava do cargo corta vira aviso TRAVA_NOVA_CORTA (resolvido
+ * quando deixa de valer); o espelho nunca apaga nem altera o modelo antigo (sobreposições, parâmetros, perfis); tenant não
+ * derivado (parado com 'para_tenant') não é tocado; nada muda (nem o updated_at) quando o conjunto já é o mesmo. Fixture
+ * dois-tenants (ROLLBACK).
  */
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -78,9 +80,34 @@ describe.skipIf(semBanco())('0107 espelho do caminho de hoje (fixture, ROLLBACK)
     });
   });
 
-  it('tenant legado: o espelho não grava nada', async () => {
+  it('o espelho não apaga nem altera nada do modelo antigo (sobreposições, parâmetros, perfis)', async () => {
     await emTransacao(admin, null, async () => {
-      await q("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = $1", [B.tenantId]);
+      const t = A.tenantId;
+      const hash = async (tabela: string) =>
+        (await q<{ h: string; n: number }>(`select md5(coalesce(string_agg(x::text, '|' order by x.id), '')) as h, count(*)::int as n from ${tabela} x where x.tenant_id = $1`, [t]))[0]!;
+      const modeloAntigo = async () => ({ sob: await hash('plataforma.perfil_permissao'), par: await hash('plataforma.parametro'), perfil: await hash('plataforma.perfil') });
+      const antes = await modeloAntigo();
+      expect(antes.sob.n).toBeGreaterThan(0);
+      await q('select plataforma.migrar_perfis_sem_base($1)', [t]);
+      await q('select plataforma.espelhar_perfil(id) from plataforma.perfil where tenant_id = $1', [t]);
+      expect(await modeloAntigo()).toEqual(antes);
+      // gravações pelo caminho de hoje: só a linha gravada muda; as outras ficam iguais
+      const sobAntes = await q('select * from plataforma.perfil_permissao where tenant_id = $1 order by id', [t]);
+      await comoApp("insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, $2, 'produto.consultar', false)", [t, VENDEDOR]);
+      await comoApp("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'core', 'promotor_ve_pedidos', 'false') on conflict do nothing", [t]);
+      await comoApp("update plataforma.perfil set cargo = 'vendedor' where id = $1", [A.perfis.vendedorExterno]);
+      const sobDepois = await q<{ chave: string; perfil_id: string }>('select * from plataforma.perfil_permissao where tenant_id = $1 order by id', [t]);
+      expect(sobDepois.filter((x) => !(x.perfil_id === VENDEDOR && x.chave === 'produto.consultar'))).toEqual(sobAntes);
+      expect(sobDepois).toHaveLength(sobAntes.length + 1);
+      expect((await modeloAntigo()).perfil.n).toBe(antes.perfil.n);
+      expect((await linha(VENDEDOR, 'produto.consultar')).map((x) => x.vivo)).toEqual([false]);
+    });
+  });
+
+  it('tenant não derivado (parado com para_tenant em aberto): o espelho não grava nada', async () => {
+    await emTransacao(admin, null, async () => {
+      await q("insert into plataforma.perfil_migracao_conflito (id, tenant_id, tipo, efeito) values (gen_random_uuid(), $1, 'TENANT_SEM_ADMIN', 'para_tenant')", [B.tenantId]);
+      expect(await q('select plataforma.perfis_derivados($1) as d', [B.tenantId])).toEqual([{ d: false }]);
       const antes = await retratoConcessoes(admin, B.tenantId);
       await comoApp("insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, $2, 'produto.consultar', false)", [B.tenantId, idPerfilFabrica(B.tenantId, 'vendedor')], B.tenantId);
       await comoApp("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'core', 'promotor_ve_pedidos', 'false')", [B.tenantId], B.tenantId);
