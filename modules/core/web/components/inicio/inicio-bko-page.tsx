@@ -7,7 +7,9 @@ import { formatBRL0 } from '@macuxi/comum';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
 import { ErrorBlock, LoadingBlock, Panel, Progresso } from '@macuxi/ui/web';
+import { z } from 'zod';
 import { InicioBkoSchema } from '../../../contracts';
+import { textoBaseVendas } from '../../lib/indicadores';
 import { aprovacaoMaisAntiga, aprovacoesSolicitadasHoje, cargasAtrasadas, lotesFalhosParaOInicio, montarAlertasInicio, pedidosDeHoje, type AlertaInicio } from '../../../domain';
 import {
   AlertasParaInicioSchema,
@@ -79,6 +81,9 @@ export function InicioBkoPage() {
   const aprovacoes = useOpcional('aprovacoes', CAMINHOS_INICIO_BKO.aprovacoes, comAprovacoes, (b) => AprovacoesParaInicioSchema.parse(b));
   const alertas = useOpcional('alertas', CAMINHOS_INICIO_BKO.alertas, comAlertas, (b) => AlertasParaInicioSchema.parse(b));
   const ranking = useOpcional('ranking', CAMINHOS_INICIO_BKO.ranking, comRanking, (b) => RankingParaInicioSchema.parse(b));
+
+  // Base das vendas (RN-CORE-21): o ranking não a traz; vem de /core/indicadores (mesmo valor da tela de Indicadores).
+  const base = useOpcional('base', `/core/indicadores?periodo=${(inicio.data?.agora ?? '').slice(0, 7)}`, comRanking && !!inicio.data, (b) => z.object({ base_apuracao: z.enum(['aprovado', 'faturado']) }).parse(b));
 
   const consultas = [
     { q: monitor, ligada: comIntegracao, assunto: 'a integração com o ERP', id: 'monitor' },
@@ -196,7 +201,12 @@ export function InicioBkoPage() {
       {top.length > 0 && (
         <Panel
           label="Equipe no mês"
-          title={<Titulo>Equipe no mês</Titulo>}
+          title={
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <Titulo>Equipe no mês</Titulo>
+              {base.data && <span className="text-[13px] font-normal normal-case text-ink-2" data-testid="inicio-bko.equipe.base">{textoBaseVendas(base.data.base_apuracao)}</span>}
+            </span>
+          }
           aside={
             comPagina('ranking') ? (
               <Link href="/ranking" className={LINK_ACAO}>
