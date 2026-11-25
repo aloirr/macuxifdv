@@ -26,7 +26,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { ALVO_TOQUE, CASAS_MAX_PASSO, folgaDeToque, lerQuantidade, lerQuantidadeComCasas, limitarPasso, mostrarDicaDaBusca, proximoPasso, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador, tecladoDoPasso, textoDoPasso } from './componentes';
+import { ALVO_TOQUE, CASAS_MAX_PASSO, folgaDeToque, lerQuantidade, lerQuantidadeComCasas, limitarPasso, mostrarDicaDaBusca, passoLargo, proximoPasso, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador, tecladoDoPasso, textoDoPasso } from './componentes';
 import { Icon, type IconName } from './icon';
 import { useReduzirMovimento } from './movimento-rn';
 import { PASSO_COMPACTO, passoComTexto, sanearDecimal, SEGMENTADO_COMPACTO } from './selecao';
@@ -302,7 +302,7 @@ export function Passo({
         keyboardType={tecladoDoPasso(decimal ? casas : undefined)}
         selectTextOnFocus
         accessibilityLabel={rotulo}
-        style={compacto ? [s.passoValor, s.passoValorCompacto] : [s.passoValor, s.passoInput, decimal && s.passoInputDecimal]}
+        style={compacto ? [s.passoValor, s.passoValorCompacto] : [s.passoValor, s.passoInput, passoLargo(decimal ? casas : undefined) && s.passoInputDecimal]}
       />
     ) : (
       <Text

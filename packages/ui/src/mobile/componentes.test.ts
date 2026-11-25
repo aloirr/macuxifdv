@@ -9,6 +9,7 @@ import {
   lerQuantidade,
   lerQuantidadeComCasas,
   limitarPasso,
+  passoLargo,
   proximoPasso,
   tecladoDoPasso,
   textoDoPasso,
@@ -86,6 +87,14 @@ describe('componentes genéricos (T-0071, fatia 4): parte pura', () => {
     expect(tecladoDoPasso(4)).toBe('decimal-pad');
     expect(tecladoDoPasso(0)).toBe('number-pad');
     expect(tecladoDoPasso(undefined)).toBe('number-pad');
+  });
+
+  it('passoLargo: 88 dp só com casas > 0; trava fechada (casas 0, CX/UN) e passo inteiro ficam na largura do inteiro (ADR 0076)', () => {
+    expect(passoLargo(2)).toBe(true);
+    expect(passoLargo(4)).toBe(true);
+    expect(passoLargo(0)).toBe(false);
+    expect(passoLargo(0.5)).toBe(false);
+    expect(passoLargo(undefined)).toBe(false);
   });
 
   it('textoDoPasso: vírgula e sem zeros à direita com casas; inteiro sem casas', () => {

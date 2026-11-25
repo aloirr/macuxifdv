@@ -64,6 +64,12 @@ export function tecladoDoPasso(casas?: number): 'number-pad' | 'decimal-pad' {
   return casas !== undefined && Math.trunc(casas) > 0 ? 'decimal-pad' : 'number-pad';
 }
 
+/** Largura de 88 dp do campo do passo (ADR 0076): só com casas > 0, quando "1,25" precisa de espaço; com a trava fechada
+ * (casas 0, CX/UN) o campo fica na largura do inteiro, e quem copia a largura dele (seletor de embalagem) também. */
+export function passoLargo(casas?: number): boolean {
+  return casas !== undefined && Math.trunc(casas) > 0;
+}
+
 /** Texto do passo: com casas, vírgula e sem zeros à direita (1,25 · 3); sem casas, o inteiro. */
 export function textoDoPasso(valor: number, casas = 0): string {
   return String(truncarCasas(valor, casas)).replace('.', ',');
