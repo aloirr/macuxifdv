@@ -15,17 +15,55 @@ export function rotuloComContador(rotulo: string, contador?: number | null): str
   return `${rotulo} (${Math.trunc(contador)})`;
 }
 
-/** Limita o valor do passo (stepper) a inteiro entre `min` e `max` (sem `max`, sem teto). */
-export function limitarPasso(valor: number, min = 0, max?: number): number {
+/** Casas que o passo decimal aceita no máximo (quantidade em KG e M, ADR 0076). */
+export const CASAS_MAX_PASSO = 4;
+
+/** Corta (sem arredondar) em `casas` casas; 0 = inteiro. Sem conta solta em float: a escala absorve o erro de representação. */
+function cortarCasas(valor: number, casas: number): number {
+  if (casas <= 0) return Math.trunc(valor);
+  const e = 10 ** casas;
+  return Math.trunc(Number((valor * e).toFixed(6))) / e;
+}
+
+/** Limita o valor do passo (stepper) entre `min` e `max` (sem `max`, sem teto), cortado em `casas` casas (0 = inteiro). */
+export function limitarPasso(valor: number, min = 0, max?: number, casas = 0): number {
   if (!Number.isFinite(valor)) return min;
-  const n = Math.trunc(valor);
+  const n = cortarCasas(valor, casas);
   const comTeto = max === undefined ? n : Math.min(max, n);
   return Math.max(min, comTeto);
 }
 
-/** Próximo valor do passo ao tocar − (`-1`) ou + (`+1`), já limitado. */
-export function proximoPasso(valor: number, direcao: -1 | 1, passo = 1, min = 0, max?: number): number {
-  return limitarPasso(valor + direcao * passo, min, max);
+/**
+ * Próximo valor do passo ao tocar − (`-1`) ou + (`+1`), já limitado. Com `casas` > 0 a conta é em inteiros na escala
+ * (1,25 + 1 = 2,25 exato) e o − que passaria do mínimo deixa o valor como está (0,5 kg não vira o mínimo).
+ */
+export function proximoPasso(valor: number, direcao: -1 | 1, passo = 1, min = 0, max?: number, casas = 0): number {
+  if (casas <= 0) return limitarPasso(valor + direcao * passo, min, max);
+  const e = 10 ** casas;
+  const novo = (Math.round(valor * e) + direcao * Math.round(passo * e)) / e;
+  if (novo < min) return limitarPasso(valor, min, max, casas);
+  return limitarPasso(novo, min, max, casas);
+}
+
+/**
+ * Lê a quantidade digitada no passo decimal ("1,25", "1.25", "3"): vírgula ou ponto separa as casas; casas além de `casas` são
+ * cortadas. Com `casas` 0 vale só o inteiro e `fracaoRecusada` avisa que a pessoa digitou a vírgula (a tela mostra o aviso).
+ * Sem dígito → valor null (a tela mantém o valor anterior).
+ */
+export function lerQuantidadeComCasas(texto: string, casas: number): { valor: number | null; fracaoRecusada: boolean } {
+  const limpo = texto.replace(/[^\d.,]/g, '');
+  const sep = limpo.search(/[.,]/);
+  const inteiro = (sep < 0 ? limpo : limpo.slice(0, sep)).replace(/\D/g, '');
+  const fracao = sep < 0 ? '' : limpo.slice(sep + 1).replace(/\D/g, '').slice(0, Math.max(0, casas));
+  const fracaoRecusada = casas <= 0 && sep >= 0;
+  if (inteiro === '' && fracao === '') return { valor: null, fracaoRecusada };
+  const valor = Number(`${inteiro || '0'}${fracao ? `.${fracao}` : ''}`);
+  return { valor, fracaoRecusada };
+}
+
+/** Texto do passo: com casas, vírgula e sem zeros à direita (1,25 · 3); sem casas, o inteiro. */
+export function textoDoPasso(valor: number, casas = 0): string {
+  return String(cortarCasas(valor, casas)).replace('.', ',');
 }
 
 /** Lê a quantidade digitada ("12", " 3 ", "1.000"). Texto sem dígito → null (a tela mantém o valor anterior). */

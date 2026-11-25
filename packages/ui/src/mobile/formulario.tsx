@@ -26,10 +26,10 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, mostrarDicaDaBusca, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador } from './componentes';
+import { ALVO_TOQUE, CASAS_MAX_PASSO, folgaDeToque, lerQuantidade, lerQuantidadeComCasas, limitarPasso, mostrarDicaDaBusca, proximoPasso, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador, textoDoPasso } from './componentes';
 import { Icon, type IconName } from './icon';
 import { useReduzirMovimento } from './movimento-rn';
-import { PASSO_COMPACTO, passoComTexto, SEGMENTADO_COMPACTO } from './selecao';
+import { PASSO_COMPACTO, passoComTexto, sanearDecimal, SEGMENTADO_COMPACTO } from './selecao';
 import { colors, fonte, radius, type as t } from './theme';
 
 function folga(visual: number) {
@@ -213,6 +213,7 @@ export function Passo({
   desligado,
   desligadoAumentar,
   compacto,
+  decimal,
   testID = 'passo',
 }: {
   valor: number;
@@ -235,37 +236,56 @@ export function Passo({
    * dentro do próprio contêiner (124 × 44 dp), sem hitSlop. Sem a prop, os botões de 40 dp de antes.
    */
   compacto?: boolean;
+  /**
+   * Passo decimal (quantidade em KG e M, ADR 0076): teclado com vírgula e até `casas` casas (máx. 4; a conta é em inteiros na
+   * escala). `casas` 0 = só o inteiro: a vírgula digitada fica à vista com `avisoSemCasas` embaixo e, ao sair do campo, vale o
+   * inteiro. Quem decide as casas (unidade, trava) é o módulo. Só no passo normal (o compacto não tem largura para as casas).
+   */
+  decimal?: { casas: number; avisoSemCasas: string };
   testID?: string;
 }) {
-  const [texto, setTexto] = useState(String(valor));
+  const casas = decimal ? Math.min(Math.max(0, Math.trunc(decimal.casas)), CASAS_MAX_PASSO) : 0;
+  const texto0 = textoDoPasso(valor, casas);
+  const [texto, setTexto] = useState(texto0);
+  const [aviso, setAviso] = useState(false);
   // refs: o toque no − / + com o teclado aberto lê o texto e o valor do momento (sem closure velha) — T-0089, bug do "+"
-  const vivo = useRef({ texto: String(valor), valor, focado: false });
+  const vivo = useRef({ texto: texto0, valor, focado: false });
   vivo.current.valor = valor;
   useEffect(() => {
-    vivo.current.texto = String(valor);
-    setTexto(String(valor));
-  }, [valor]);
+    vivo.current.texto = textoDoPasso(valor, casas);
+    setTexto(vivo.current.texto);
+  }, [valor, casas]);
   const mudarTexto = (t: string) => {
-    vivo.current.texto = t;
-    setTexto(t);
+    // decimal sem casas: a vírgula fica à vista (com o aviso) para "1,5" não virar "15" ao digitar
+    const novo = decimal ? sanearDecimal(t, casas > 0 ? casas : CASAS_MAX_PASSO) : t;
+    vivo.current.texto = novo;
+    setTexto(novo);
+    if (decimal) setAviso(lerQuantidadeComCasas(novo, casas).fracaoRecusada);
   };
   const aplicar = (n: number) => {
-    const novo = limitarPasso(n, min, max);
-    vivo.current.texto = String(novo);
+    const novo = limitarPasso(n, min, max, casas);
+    vivo.current.texto = textoDoPasso(novo, casas);
     if (novo !== vivo.current.valor) {
       vivo.current.valor = novo;
       onChange(novo);
     }
-    setTexto(String(novo));
+    setTexto(vivo.current.texto);
+    setAviso(false);
   };
   const confirmarTexto = () => {
     vivo.current.focado = false;
-    const lido = lerQuantidade(vivo.current.texto);
-    if (lido === null) mudarTexto(String(vivo.current.valor));
-    else aplicar(lido);
+    if (!decimal) {
+      const lido = lerQuantidade(vivo.current.texto);
+      if (lido === null) mudarTexto(String(vivo.current.valor));
+      else aplicar(lido);
+      return;
+    }
+    // decimal: abaixo do mínimo (0, vazio) volta ao valor anterior em vez de virar o mínimo
+    const lido = lerQuantidadeComCasas(vivo.current.texto, casas).valor;
+    aplicar(lido !== null && lido >= min ? lido : vivo.current.valor);
   };
-  const tocar = (direcao: -1 | 1) => aplicar(passoComTexto(vivo.current, direcao, passo, min, max));
-  const podeDiminuir = !desligado && valor > min;
+  const tocar = (direcao: -1 | 1) => aplicar(passoComTexto(vivo.current, direcao, passo, min, max, decimal ? casas : undefined));
+  const podeDiminuir = !desligado && (decimal ? proximoPasso(valor, -1, passo, min, max, casas) < valor : valor > min);
   const podeAumentar = !desligado && !desligadoAumentar && (max === undefined || valor < max);
   const C = PASSO_COMPACTO;
   const valorTela =
@@ -279,10 +299,10 @@ export function Passo({
         }}
         onBlur={confirmarTexto}
         onSubmitEditing={confirmarTexto}
-        keyboardType="number-pad"
+        keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
         selectTextOnFocus
         accessibilityLabel={rotulo}
-        style={compacto ? [s.passoValor, s.passoValorCompacto] : [s.passoValor, s.passoInput]}
+        style={compacto ? [s.passoValor, s.passoValorCompacto] : [s.passoValor, s.passoInput, decimal && s.passoInputDecimal]}
       />
     ) : (
       <Text
@@ -297,7 +317,7 @@ export function Passo({
           if (e.nativeEvent.actionName === 'increment' && podeAumentar) tocar(1);
           if (e.nativeEvent.actionName === 'decrement') tocar(-1);
         }}>
-        {valor}
+        {textoDoPasso(valor, casas)}
       </Text>
     );
   if (compacto) {
@@ -314,11 +334,22 @@ export function Passo({
       </View>
     );
   }
-  return (
+  const linha = (
     <View style={s.passo} testID={testID}>
       <BotaoPasso icone="minus" rotulo={rotuloDiminuir} desligado={!podeDiminuir} onPress={() => tocar(-1)} lado="esquerda" testID={`${testID}-menos`} />
       {valorTela}
       <BotaoPasso icone="plus" rotulo={rotuloAumentar} desligado={!podeAumentar} onPress={() => tocar(1)} lado="direita" testID={`${testID}-mais`} />
+    </View>
+  );
+  if (!decimal) return linha;
+  return (
+    <View style={s.passoComAviso}>
+      {linha}
+      {aviso ? (
+        <Text style={s.passoAviso} accessibilityLiveRegion="polite" testID={`${testID}-aviso`}>
+          {decimal.avisoSemCasas}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -585,6 +616,11 @@ const s = StyleSheet.create({
   passoBotao: { width: LADO_PASSO, height: LADO_PASSO, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   passoValor: { minWidth: 32, textAlign: 'center', ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
   passoInput: { height: LADO_PASSO, minWidth: 44, padding: 0, borderBottomWidth: 1, borderBottomColor: colors.lineStrong },
+  // decimal: cabe "1234,5678" sem cortar (9 dígitos tabulares de 16 pt)
+  passoInputDecimal: { minWidth: 88 },
+  passoComAviso: { gap: 4 },
+  // como o erro do CampoTexto: 12 pt, perigo (contraste 7,1:1 na folha branca, 6,4:1 no fundo)
+  passoAviso: { ...fonte.body, fontSize: 12, color: colors.danger },
   // caixa "− n +" (T-0089, .qty da referência das 7h03): contêiner de 44 dp de altura com os alvos dentro; moldura de 30 dp atrás
   passoCompacto: { flexDirection: 'row', alignItems: 'center', height: PASSO_COMPACTO.alvo, width: PASSO_COMPACTO.largura },
   passoMoldura: {
