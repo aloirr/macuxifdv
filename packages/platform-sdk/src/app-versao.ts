@@ -226,6 +226,42 @@ export interface PortaVersaoApp {
   publicada(variante: VarianteCliente): Promise<VersaoPublicadaApp | null>;
 }
 
+// ---------- ADR 0076 (RN-VEN-02 v3): trava da quantidade fracionária ----------
+
+/** Primeira versão dos apps que lê e grava quantidade e fator com casas decimais. */
+export const VERSAO_APP_FRACAO = '1.0.36';
+
+/** A variante já obriga a `VERSAO_APP_FRACAO`: publicada maior, ou igual e com as 24 h de convivência vencidas. */
+function varianteObrigaFracao(v: VersaoPublicadaApp | null, agora: Date): boolean {
+  if (v === null || !versaoAppValida(v.versao)) return false;
+  if (haVersaoNova(VERSAO_APP_FRACAO, v.versao)) return true;
+  if (v.versao !== VERSAO_APP_FRACAO) return false;
+  const publicadaMs = v.publicada_em !== null && ISO_DATA_RE.test(v.publicada_em) ? Date.parse(v.publicada_em) : Number.NaN;
+  const agoraMs = agora.getTime();
+  return Number.isFinite(publicadaMs) && Number.isFinite(agoraMs) && agoraMs >= publicadaMs + PRAZO_ATUALIZACAO_APP_MS;
+}
+
+/**
+ * ADR 0076 D6: a fração está liberada para a plataforma (API e app) só quando o Campo e o Gestão já obrigam a 1.0.36
+ * (`varianteObrigaFracao`). Sem versão, sem hora, versão menor ou inválida = fechada. Publicar uma versão maior não fecha de novo.
+ */
+export function fracaoLiberada({
+  campo,
+  gestao,
+  agora,
+}: {
+  campo: VersaoPublicadaApp | null;
+  gestao: VersaoPublicadaApp | null;
+  agora: Date;
+}): boolean {
+  return varianteObrigaFracao(campo, agora) && varianteObrigaFracao(gestao, agora);
+}
+
+/** ADR 0076 D6 (pull filtrado): o app que chamou lê fração? Só com o `CABECALHO_APP` e versão ≥ `VERSAO_APP_FRACAO`. */
+export function clienteAceitaFracao(app: AppDoCabecalho | null): boolean {
+  return app !== null && versaoAppValida(app.versao) && !haVersaoNova(app.versao, VERSAO_APP_FRACAO);
+}
+
 /** Porta fixa para os testes de módulo. */
 export function criarPortaVersaoAppMemoria(
   publicadas: Partial<Record<VarianteApp, VersaoPublicadaApp>>,

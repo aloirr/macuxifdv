@@ -53,6 +53,7 @@ export * from './empresa-zerar';
 export * from './frase-carga';
 export * from './empresa-logo';
 export * from './app-versao';
+export * from './quantidade';
 export * from './privacidade-localizacao';
 export * from './geocodificador';
 export * from './segredos-log';
