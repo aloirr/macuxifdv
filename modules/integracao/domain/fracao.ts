@@ -1,5 +1,5 @@
 /**
- * Quantidade fracionária no Hub (ADR 0076, RN-VEN-02 v3 e RN-VEN-15): trava do lote e do retorno enquanto os apps 1.0.35 ainda não
+ * Quantidade fracionária no Hub (ADR 0076, RN-VEN-02 v3 e RN-VEN-15): trava do lote e do retorno enquanto os apps 1.0.36 ainda não
  * são obrigatórios (D6) e conta exata em escala de 1/10.000 (D3). Funções puras; a API chama e transforma em 422.
  */
 import { quantidadeDaEscala, quantidadeEmEscala, temFracao } from '@macuxi/comum/quantidade';

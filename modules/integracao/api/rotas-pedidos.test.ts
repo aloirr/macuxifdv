@@ -114,14 +114,14 @@ describe('ADR 0076 D6 / RN-VEN-02 v3: trava da quantidade fracionária no retorn
     await expect(executar(a.ctx(faturado(1.23456)))).rejects.toMatchObject({ status: 422, corpo: { codigo: 'quantidade_fracionaria_invalida' } });
   });
 
-  it('ADR 0076 D6: trava aberta (Campo e Gestão 1.0.35 há mais de 24 h) aceita a quantidade fracionária', async () => {
+  it('ADR 0076 D6: trava aberta (Campo e Gestão 1.0.36 há mais de 24 h) aceita a quantidade fracionária', async () => {
     const a = ambiente();
-    await expect(executar(comVersao(a, faturado(1.25), '1.0.35', '1.0.36'))).resolves.toMatchObject({ pedido_uuid: UUID });
+    await expect(executar(comVersao(a, faturado(1.25), '1.0.36', '1.0.37'))).resolves.toMatchObject({ pedido_uuid: UUID });
   });
 
-  it('ADR 0076 D6: só uma variante na 1.0.35 mantém a trava fechada', async () => {
+  it('ADR 0076 D6: só uma variante na 1.0.36 mantém a trava fechada', async () => {
     const a = ambiente();
-    await expect(executar(comVersao(a, faturado(1.25), '1.0.35', '1.0.34'))).rejects.toMatchObject({ corpo: { codigo: 'quantidade_fracionaria_bloqueada' } });
+    await expect(executar(comVersao(a, faturado(1.25), '1.0.36', '1.0.35'))).rejects.toMatchObject({ corpo: { codigo: 'quantidade_fracionaria_bloqueada' } });
   });
 
   it('quantidade inteira não consulta a trava e segue como hoje', async () => {

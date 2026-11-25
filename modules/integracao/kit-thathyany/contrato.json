@@ -1111,11 +1111,13 @@
           "exemplo": "1",
           "observacao": null,
           "coluna": "fator",
-          "tipo_sql": "DECIMAL(18, 6) NOT NULL",
+          "tipo_sql": "DECIMAL(13, 4) NOT NULL",
           "regra": {
             "inteiro": false,
             "min": 0,
-            "max": 9999
+            "max": 9999,
+            "min_exclusivo": true,
+            "casas": 4
           }
         },
         {
