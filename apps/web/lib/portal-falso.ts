@@ -898,7 +898,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (tenant !== sessao.empresa) return erro(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha outra.');
   }
   if (!tenant || !e.empresas.some((x) => x.id === tenant)) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
-  if (MONITOR_FALSO_M.test(caminho)) return responderMonitorFalso(metodo, caminhoComQuery, tenant, sessao.tipo === 'super_admin');
+  if (MONITOR_FALSO_M.test(caminho)) return responderMonitorFalso(metodo, caminhoComQuery, tenant, sessao.tipo === 'super_admin', e.conectores[tenant] ?? []);
   if (rota === `GET ${ROTAS_PORTAL.conectores}`) {
     // `?tipo=` (desenho config-credencial-api): `conector` à esquerda e `nuvem` (credencial de API) à direita da aba Integração
     const tipo = new URLSearchParams(caminhoComQuery.split('?')[1] ?? '').get('tipo');

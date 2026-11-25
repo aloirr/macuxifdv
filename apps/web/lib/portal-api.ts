@@ -10,8 +10,9 @@
  * - Modo falso (`NEXT_PUBLIC_PORTAL_FALSO=1`, só fora de produção): as mesmas chamadas respondidas no navegador por
  *   `lib/portal-falso.ts`, contra os mesmos schemas, para navegar o fluxo antes de as rotas reais chegarem.
  */
-import { CABECALHO_TENANT_PLATAFORMA, SessaoPortalSchema } from '@macuxi/platform-sdk';
+import { CABECALHO_TENANT_PLATAFORMA, PROXY_BASE, SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { downloadBlob, filenameFromDisposition } from '@macuxi/platform-sdk/web';
+
 
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
 import {
@@ -90,7 +91,7 @@ async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabe
     const { responderFalso } = await import('./portal-falso');
     return responderFalso(metodo, caminho, corpo, cabecalhos);
   }
-  return fetch(`/api-proxy${caminho}`, {
+  return fetch(`${PROXY_BASE}${caminho}`, {
     method: metodo,
     headers: cabecalhos,
     // bytes crus (a logo, T-0182) vão como estão; o resto, em JSON
