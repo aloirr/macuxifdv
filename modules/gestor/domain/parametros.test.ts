@@ -88,6 +88,12 @@ describe('parâmetros vindos da plataforma (T-0055)', () => {
     expect(r.erro).toMatch(/prazo_aprovacao_dias_uteis/);
   });
 
+  it('RN-CORE-21: a base de apuração é a mesma do Core (`metas.base_apuracao`), para as vendas do Gestor baterem com Indicadores e Metas', () => {
+    expect(parametrosDoTenant({ 'metas.base_apuracao': 'faturado' }, 'America/Manaus').params.base_apuracao).toBe('faturado');
+    expect(parametrosDoTenant({ base_apuracao: 'faturado', 'metas.base_apuracao': 'aprovado' }, 'America/Manaus').params.base_apuracao).toBe('faturado');
+    expect(parametrosDoTenant({}, 'America/Manaus').params.base_apuracao).toBe('aprovado');
+  });
+
   it('RN-CORE-26: inicio.parado_min do tenant vira parado_min (padrão 60); valor inválido volta ao padrão com aviso', () => {
     expect(PARAMETROS_PADRAO.parado_min).toBe(60);
     expect(parametrosDoTenant({ 'inicio.parado_min': 45 }, 'America/Manaus').params.parado_min).toBe(45);
