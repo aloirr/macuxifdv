@@ -44,6 +44,8 @@
 --        SQL Server: CONVERT(CHAR(10), x, 23)        Oracle: TO_CHAR(x, 'YYYY-MM-DD')
 --   7. Booleanos (ativo, bloqueado, padrao, principal, cancelada) saem como 1/0 por CASE (igual nos dois bancos).
 --   8. Coluna NULA = campo AUSENTE no Hub = o Macuxi não altera o valor que já tem. Para LIMPAR uma lista, devolva '[]'.
+--   9. Quantidade e fator (ADR 0076; Conector 1.6.0): DECIMAL(13,4), até 4 casas, NUNCA FLOAT/REAL (arredonda errado):
+--        SQL Server: CAST(x AS DECIMAL(13,4))      Oracle: CAST(x AS NUMBER(13,4))
 --
 -- DIALETOS (SQL Server e Oracle, alvos de conector.exemplo.json e conector.oracle.exemplo.json)
 --   O corpo ativo das views está em SQL Server (2017+). Cada ponto que diverge traz a forma Oracle (12.2+) comentada,
@@ -258,7 +260,9 @@ FROM erp_produto p;
 
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- 7. produto_unidade — medidas/embalagens do produto (UN, CX, FD...). Mapeamento: fator inteiro; padrao booleano.
+-- 7. produto_unidade — medidas/embalagens do produto (UN, CX, FD...). Mapeamento: fator número; padrao booleano.
+--    ADR 0076 (Conector 1.6.0): fator DECIMAL(13,4), > 0 até 9999, até 4 casas (regra 9). Fator fracionário só entra no
+--    Hub com a trava de fração aberta (senão o lote volta 422 quantidade_fracionaria_bloqueada e o Conector repete).
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_produto_unidade AS
 SELECT
@@ -271,7 +275,9 @@ SELECT
     CASE WHEN u.ativo = 'S' THEN 1 ELSE 0 END                AS ativo,
     CAST(u.id_produto AS VARCHAR(200))                       AS produto_external_id,
     UPPER(u.unidade)                                         AS unidade,         -- sigla de 1 a 4 letras (RN-CORE-19)
-    u.fator                                                  AS fator,           -- unidades base em uma embalagem (1 a 9999)
+    -- [Oracle]     CAST(u.fator AS NUMBER(13,4))            AS fator,
+    -- [SQL Server]
+    CAST(u.fator AS DECIMAL(13,4))                           AS fator,           -- unidades base em uma embalagem (> 0 a 9999)
     u.cod_barras                                             AS ean,
     CASE WHEN u.padrao = 'S' THEN 1 ELSE 0 END               AS padrao
 FROM erp_produto_unidade u;
@@ -644,7 +650,8 @@ WHERE n.tipo_operacao <> 'D'                                                    
 -- 18. pedido_nota_item (T-0162; RN-INT-08) — itens faturados em CADA nota do pedido, não é entidade de carga. O Conector
 --     consulta em "pedidos.status.consultaItensNota" (WHERE pedido_uuid = :pedido_uuid AND nota_numero = :nota_numero e a
 --     série) e manda como itens_faturados. Colunas OBRIGATÓRIAS: sequencia (a do item no pedido do Macuxi, gravada pela
---     entrada; inteiro > 0), quantidade (inteiro > 0, na unidade base), valor_cents (centavos >= 0) e produto_codigo (a
+--     entrada; inteiro > 0), quantidade (> 0, na unidade base, DECIMAL(13,4) até 4 casas desde o Conector 1.6.0, ADR 0076;
+--     regra 9), valor_cents (centavos >= 0) e produto_codigo (a
 --     MESMA chave da vw_macuxi_produto.external_id). Linha fora disso = o retorno vai SEM itens_faturados e o monitor avisa.
 --     Linhas da mesma sequência na mesma nota SOMAM (o ERP pode partir o item em lotes): não repita a mesma linha.
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -654,7 +661,9 @@ SELECT
     CAST(n.numero AS VARCHAR(40))                            AS nota_numero,
     CAST(n.serie AS VARCHAR(10))                             AS nota_serie,
     i.seq_pedido_macuxi                                      AS sequencia,       -- sequência do item no pedido do Macuxi
-    i.qtd_unidade_base                                       AS quantidade,      -- inteiro > 0, na unidade base
+    -- [Oracle]     CAST(i.qtd_unidade_base AS NUMBER(13,4)) AS quantidade,
+    -- [SQL Server]
+    CAST(i.qtd_unidade_base AS DECIMAL(13,4))                AS quantidade,      -- > 0, na unidade base, até 4 casas
     CAST(ROUND(i.valor_total * 100, 0) AS DECIMAL(19,0))     AS valor_cents,
     CAST(i.id_produto AS VARCHAR(200))                       AS produto_codigo   -- external_id do produto (view 6)
 FROM erp_nota_item i
