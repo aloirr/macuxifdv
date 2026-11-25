@@ -1,13 +1,27 @@
 /**
- * Seção "Monitor" da aba Integração no portal (desenho empresa-zerar.md §6.4): o cliente do painel no portal, o texto das células do
- * detalhe, quais entidades têm o "Zerar dados" e o monitor falso (contratos do módulo, só super-admin, zerar e reprocessar).
+ * Monitor da empresa no portal (desenho empresa-zerar.md §6.4; R-20261124-090510): o cliente no portal, o texto das células do
+ * Conector e da aba Dados, a Situação, quais entidades têm o "Zerar dados", o "Reprocessar" da entidade e o monitor falso (contratos
+ * do módulo, só super-admin, zerar e reprocessar).
  */
 import { ErrosLoteResposta, MonitorDetalhes, MonitorResumo, type EntidadeDetalhe } from '@macuxi/integracao/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { limparMonitorFalso, responderMonitorFalso } from './portal-falso-monitor';
 import { limparZerarFalso, responderZerarFalso } from './portal-falso-zerar';
-import { celulasDaEntidade, clienteDoPortal, INTERVALO_MONITOR_PORTAL_MS, SAUDE_DO_CONECTOR, temDadosNoHub, textoCorrigirNoErp, textoCursor, textoFila, textoRegistros } from './portal-monitor';
+import {
+  celulasDaEntidade,
+  clienteDoPortal,
+  INTERVALO_MONITOR_PORTAL_MS,
+  reprocessarEntidade,
+  SAUDE_DO_CONECTOR,
+  situacaoDaEntidade,
+  temDadosNoHub,
+  textoCorrigirNoErp,
+  textoCursor,
+  textoDoReprocesso,
+  textoFila,
+  textoRegistros,
+} from './portal-monitor';
 
 const T = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const detalhe = (x: Partial<EntidadeDetalhe> = {}): EntidadeDetalhe => ({
@@ -38,11 +52,35 @@ describe('detalhe por entidade e Conector', () => {
     const lote = { lote_id: '0b6f0c3e-0001-4a00-8000-000000000001', conector_id: 'erp', modo: 'delta' as const, status: 'concluido' as const, recebido_em: '2026-11-23T12:00:00.000Z', concluido_em: null };
     expect(temDadosNoHub(detalhe({ registros: { ativos: 3, inativos: 0 }, ultimo_lote: lote }))).toBe(true);
   });
-  it('linha da "Dados no Hub" (RD-2678): sem dados, "Sem dados" e as outras duas vazias; com dados, o "—" de cada célula', () => {
-    expect(celulasDaEntidade(detalhe(), 'America/Manaus')).toEqual({ registros: 'Sem dados', cursor: '', corrigir: '' });
+  it('linha da aba Dados (RD-2678): sem dados, "Sem dados" e as outras vazias; com dados, o "—" de cada célula e a carga no fuso', () => {
+    expect(celulasDaEntidade(detalhe(), 'America/Manaus')).toEqual({ carga: '', registros: 'Sem dados', cursor: '', corrigir: '' });
     const cursor = { conector_id: 'erp', alterado_em: null, external_id: null, atualizado_em: '2026-11-23T12:00:00.000Z' };
-    expect(celulasDaEntidade(detalhe({ cursores: [cursor] }), 'America/Manaus')).toEqual({ registros: '—', cursor: '—', corrigir: '—' });
-    expect(celulasDaEntidade(detalhe({ registros: { ativos: 5, inativos: 0 } }), 'America/Manaus')).toEqual({ registros: '5 ativos', cursor: '—', corrigir: '—' });
+    expect(celulasDaEntidade(detalhe({ cursores: [cursor] }), 'America/Manaus')).toEqual({ carga: '—', registros: '—', cursor: '—', corrigir: '—' });
+    expect(celulasDaEntidade(detalhe({ registros: { ativos: 5, inativos: 0 } }), 'America/Manaus')).toEqual({ carga: '—', registros: '5 ativos', cursor: '—', corrigir: '—' });
+    const lote = { lote_id: '0b6f0c3e-0001-4a00-8000-000000000001', conector_id: 'erp', modo: 'delta' as const, status: 'concluido' as const, recebido_em: '2026-11-23T15:30:00.000Z', concluido_em: null };
+    expect(celulasDaEntidade(detalhe({ ultimo_lote: lote }), 'America/Manaus').carga).toBe('23/11 às 11:30');
+  });
+  it('Situação: "Com falha" com lote a reprocessar (lista da API), "Em dia" com lote, sem selo sem lote', () => {
+    const lote = { lote_id: '0b6f0c3e-0001-4a00-8000-000000000001', conector_id: 'erp', modo: 'delta' as const, status: 'falhou' as const, recebido_em: '2026-11-23T15:30:00.000Z', concluido_em: null };
+    expect(situacaoDaEntidade(detalhe({ ultimo_lote: lote, lotes_reprocessaveis: [lote.lote_id] }))).toEqual({ rotulo: 'Com falha', tom: 'danger' });
+    expect(situacaoDaEntidade(detalhe({ ultimo_lote: { ...lote, status: 'concluido' } }))).toEqual({ rotulo: 'Em dia', tom: 'success' });
+    expect(situacaoDaEntidade(detalhe())).toBeNull();
+  });
+  it('Reprocessar a entidade (RN-INT-15): um lote de cada vez, na ordem da API; o recusado não para os outros; o aviso diz quantos', async () => {
+    const chamadas: string[] = [];
+    const chamar = vi.fn(async (caminho: string) => {
+      chamadas.push(caminho);
+      if (caminho.includes('/b/')) throw new Error('expirado');
+      return { lote_id: caminho.includes('/a/') ? '0b6f0c3e-0001-4a00-8000-00000000000a' : '0b6f0c3e-0001-4a00-8000-00000000000c', reenfileiradas: 1, status: 'recebido' } as never;
+    });
+    const r = await reprocessarEntidade({ chamar }, ['a', 'b', 'c']);
+    expect(chamadas).toEqual(['/integracao/lotes/a/reprocessar', '/integracao/lotes/b/reprocessar', '/integracao/lotes/c/reprocessar']);
+    expect(chamar).toHaveBeenCalledWith('/integracao/lotes/a/reprocessar', { method: 'POST', body: {} });
+    expect(r.feitos).toBe(2);
+    const msg = (e: unknown) => (e as Error).message;
+    expect(textoDoReprocesso(r, msg)).toBe('2 de 3 lotes reprocessados. expirado');
+    expect(textoDoReprocesso({ feitos: 0, erros: [new Error('fora')] }, msg)).toBe('Nenhum lote reprocessado. fora');
+    expect(textoDoReprocesso({ feitos: 1, erros: [] }, msg)).toBe('Reprocessamento iniciado.');
   });
   it('textos: registros, cursor no fuso, "Corrigir no ERP" (só a classe corrigir_no_erp), fila e saúde', () => {
     expect(textoRegistros({ ativos: 1180, inativos: 60 })).toBe('1.180 ativos · 60 inativos');

@@ -2,7 +2,7 @@
 
 /**
  * Aba "Integração" do portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §10.2; R-20261114-132000 e R-20261114-170200):
- * ou é Conector, ou é API, em dois lados com a mesma largura e uma divisória de 1 px no meio (`line`), com 24 px de folga para cada
+ * no topo, o "Monitor" do Conector (só o time da Macuxi, `SecaoMonitor`; R-20261124-090510); abaixo, ou é Conector, ou é API, em dois lados com a mesma largura e uma divisória de 1 px no meio (`line`), com 24 px de folga para cada
  * lado; abaixo de 768 px, empilhados (Conector primeiro) com a divisória na horizontal, 24 px antes da API.
  * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar o Conector) e a
  *   tabela "Conectores" (tipos `conector` e `arquivo`; só o `conector` tem "Bases" e "Gerar nova chave").
@@ -590,6 +590,7 @@ export function AbaIntegracao({ tenant, fuso }: { tenant: string; fuso?: string 
 
   return (
     <div data-testid="integracao.aba" className="grid md:grid-cols-2">
+      <SecaoMonitor tenant={tenant} fuso={fuso} />
       {/* divisória: filete de 1 px (`line`) no meio, da altura do lado mais alto, 24 px de folga; abaixo de 768 px, horizontal */}
       <section aria-labelledby="integracao-conector" className="flex min-w-0 flex-col gap-4 border-b border-line pb-6 md:border-r md:border-b-0 md:pr-6 md:pb-0">
         <h2 id="integracao-conector" className="m-0 text-[20px] font-bold">
@@ -632,7 +633,6 @@ export function AbaIntegracao({ tenant, fuso }: { tenant: string; fuso?: string 
         <Panel title="Credenciais">{lista(todos.filter((c) => c.tipo === 'nuvem'), 'Nenhuma credencial.', 'integracao.api-credenciais')}</Panel>
       </section>
 
-      <SecaoMonitor tenant={tenant} />
       <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmarAcao()} />
       <DialogoBases
         alvo={bases?.conector ?? null}

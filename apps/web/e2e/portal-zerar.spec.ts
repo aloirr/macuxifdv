@@ -1,7 +1,8 @@
 /**
  * e2e do "Zerar dados" (ADR 0068; RN-PLA-12) no portal config., modo falso: o item no menu "⋯" ao lado do Excluir, o diálogo com a
- * prévia calculando (o worker conta) e depois por grupo, o código e a senha, o andamento e o concluído; e, na aba Integração (desenho §6.4), a seção Monitor com o
- * "Zerar dados" no "⋯" de cada entidade da "Dados no Hub", o "Leva junto:" da cascata e o resultado com o lote e os comandos de reenvio. Prints em
+ * prévia calculando (o worker conta) e depois por grupo, o código e a senha, o andamento e o concluído; e (desenho §6.4, R-20261124-090510)
+ * o Monitor no topo da aba Integração e a aba Dados, uma tabela por entidade com "Reprocessar" e "Zerar dados" no "⋯", o "Leva junto:"
+ * da cascata e o resultado com o lote e os comandos de reenvio. Prints em
  * docs/prints/zerar-dados, 1280 e 390 px (escala 2).
  * Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1`, no `config.localhost` e no `fdv.localhost/config` (projetos do
  * `playwright.config.mjs`; ADR 0071).
@@ -73,7 +74,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
 const UMA = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 
 for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
-  test(`Zerar dados por entidade na aba Integração (${largura} px)`, async ({ browser }) => {
+  test(`Monitor no topo da Integração; aba Dados com Reprocessar e Zerar dados por entidade (${largura} px)`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
     await page.goto(urlDoPortal('/entrar'));
@@ -83,25 +84,38 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
     await page.goto(urlDoPortal(`/empresas/${UMA}`));
     await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
-    const monitor = page.getByTestId('integracao.monitor');
-    await expect(monitor.getByTestId('integracao.monitor.entidade.estoque')).toBeVisible({ timeout: 60000 });
-    await expect(monitor.getByText('Cargas recentes', { exact: true })).toBeVisible();
+
+    // Integração: o Monitor (só o Conector) vem antes das seções Conector e API; nada por entidade nesta aba
+    const integracao = page.getByTestId('integracao.aba');
+    const monitor = integracao.getByTestId('integracao.monitor');
+    await expect(monitor.getByTestId('integracao.monitor.conector.erp')).toBeVisible({ timeout: 60000 });
+    const yMonitor = (await monitor.boundingBox())!.y;
+    const yConector = (await page.locator('#integracao-conector').boundingBox())!.y;
+    expect(yMonitor).toBeLessThan(yConector);
+    // RD-2679: a coluna do quadro "Conector" é o identificador
+    await expect(monitor.getByTestId('integracao.monitor.conectores').getByText('Identificador', { exact: true })).toBeVisible();
+    for (const fora of ['Cargas recentes', 'Dados no Hub']) await expect(integracao.getByText(fora, { exact: true })).toHaveCount(0);
+    await expect(integracao.getByTestId('dados.entidades')).toHaveCount(0);
+    await expect(integracao.getByTestId('integracao.entidades')).toHaveCount(0);
+    await monitor.screenshot({ animations: 'disabled', path: `${prints()}/05-monitor${nome}.png` });
+
+    // Dados: uma tabela só, por entidade (o primeiro clique pode chegar antes da hidratação: repete até a aba abrir)
+    await expect(async () => {
+      await page.getByTestId('empresa-pagina.aba-dados').click();
+      await expect(page.getByTestId('dados.entidades')).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 30000 });
+    await expect(page).toHaveURL(/#dados$/);
+    const dados = page.getByTestId('dados.aba');
+    await expect(dados.getByTestId('dados.entidade.estoque')).toBeVisible({ timeout: 60000 });
+    await expect(dados.locator('table')).toHaveCount(1);
     // "Corrigir no ERP" tem prioridade 3: some no quadro estreito
-    await expect(monitor.getByText('Corrigir no ERP', { exact: true })).toBeVisible({ visible: largura > 500 });
-    // nenhuma tabela passa da tela (no celular: Entidade + Situação + "⋯" no painel; Entidade + "⋯" no "Dados no Hub")
-    for (const t of ['integracao.monitor.conectores', 'integracao.entidades', 'integracao.monitor.entidades']) {
-      const caixa = await monitor.getByTestId(t).boundingBox();
-      expect(caixa && caixa.x + caixa.width).toBeLessThanOrEqual(largura);
-    }
-    // os nomes mais largos cabem inteiros na célula da Entidade (truncate sem reticências), com folga ≥ 4 px: "Endereços de
-    // clientes" (156,3 px) nas duas tabelas e "Formas de pagamento" (158,5 px) na Cargas recentes, onde sobram 163 px a 390 px
-    const nomes = [
-      ['integracao.monitor.entidades', 'Endereços de clientes'],
-      ['integracao.entidades', 'Endereços de clientes'],
-      ['integracao.entidades', 'Formas de pagamento'],
-    ] as const;
-    for (const [t, nomeEntidade] of nomes) {
-      const celula = monitor.getByTestId(t).locator('td', { hasText: new RegExp(`^${nomeEntidade}$`) }).first();
+    await expect(dados.getByText('Corrigir no ERP', { exact: true })).toBeVisible({ visible: largura > 500 });
+    // a tabela não passa da tela (no celular: Entidade + Situação + "⋯")
+    const caixa = await dados.getByTestId('dados.entidades').boundingBox();
+    expect(caixa && caixa.x + caixa.width).toBeLessThanOrEqual(largura);
+    // os nomes mais largos cabem inteiros na célula da Entidade (truncate sem reticências), com folga ≥ 4 px
+    for (const nomeEntidade of ['Endereços de clientes', 'Formas de pagamento']) {
+      const celula = dados.getByTestId('dados.entidades').locator('td', { hasText: new RegExp(`^${nomeEntidade}$`) }).first();
       await expect(celula).toBeVisible();
       const { texto, util } = await celula.evaluate((el) => {
         const r = document.createRange();
@@ -111,8 +125,8 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       });
       expect(util - texto).toBeGreaterThanOrEqual(4);
     }
-    // o selo "Com falha" (o mais largo da Situação, 74,2 px) sai inteiro: texto sem corte e ≥ 4 px da borda direita da célula
-    const selos = monitor.getByTestId('integracao.entidades').getByText('Com falha', { exact: true });
+    // o selo "Com falha" (o mais largo da Situação) sai inteiro: texto sem corte e ≥ 4 px da borda direita da célula
+    const selos = dados.getByText('Com falha', { exact: true });
     await expect(selos.first()).toBeVisible();
     for (const selo of await selos.all()) {
       const { corte, esquerda, direita } = await selo.evaluate((el) => {
@@ -124,21 +138,30 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       expect(esquerda).toBeGreaterThanOrEqual(0);
       expect(direita).toBeGreaterThanOrEqual(4);
     }
-    // "Zerar dados" num lugar só: o "⋯" da "Dados no Hub" (com ou sem lote recente); o "⋯" do painel tem Reprocessar e Histórico
-    await expect(monitor.getByTestId('integracao.entidades.acoes.produto')).toBeVisible();
-    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.estoque')).toBeVisible();
-    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente')).toBeVisible();
-    // RD-2679: a coluna do quadro "Conector" é o identificador; RD-2678: a linha sem dados diz "Sem dados" uma vez só
-    await expect(monitor.getByTestId('integracao.monitor.conectores').getByText('Identificador', { exact: true })).toBeVisible();
-    await expect(monitor.getByTestId('integracao.monitor.entidade.filial')).toContainText('Sem dados');
-    await expect(monitor.getByTestId('integracao.monitor.entidade.filial')).not.toContainText('—');
-    await monitor.screenshot({ animations: 'disabled', path: `${prints()}/05-monitor${nome}.png` });
+    // "⋯" em toda entidade com o que fazer (com ou sem lote recente); RD-2678: a linha sem dados diz "Sem dados" uma vez só
+    for (const e of ['produto', 'estoque', 'cliente']) await expect(dados.getByTestId(`dados.entidades.acoes.${e}`)).toBeVisible();
+    await expect(dados.getByTestId('dados.entidades.acoes.filial')).toHaveCount(0);
+    if (largura > 500) await expect(dados.getByTestId('dados.entidade.filial')).toContainText('Sem dados');
+    await expect(dados.getByTestId('dados.entidade.filial')).not.toContainText('—');
+    await page.screenshot({ animations: 'disabled', fullPage: true, path: `${prints()}/05-dados${nome}.png` });
 
-    // o primeiro clique pode chegar antes da hidratação: repete até o diálogo abrir
+    // Reprocessar (Produtos com falha): o menu tem Reprocessar e Zerar dados; depois, a linha fica "Em dia" e o menu só com Zerar
+    await dados.getByTestId('dados.entidades.acoes.produto').click();
+    await expect(page.getByTestId('dados.entidade.zerar.produto')).toBeVisible();
+    await page.getByTestId('dados.entidade.reprocessar.produto').click();
+    await expect(page.getByText('Reprocessamento iniciado.')).toBeVisible({ timeout: 20000 });
+    await expect(dados.getByTestId('dados.entidade.produto')).toContainText('Em dia', { timeout: 20000 });
+    await expect(dados.getByTestId('dados.entidade.produto')).not.toContainText('Com falha');
+    await dados.getByTestId('dados.entidades.acoes.produto').click();
+    await expect(page.getByTestId('dados.entidade.zerar.produto')).toBeVisible();
+    await expect(page.getByTestId('dados.entidade.reprocessar.produto')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    // Zerar dados de Clientes: o diálogo leva junto os Endereços
     await expect(async () => {
       if (!(await page.getByTestId('empresa-zerar.dialogo').isVisible())) {
-        if (!(await page.getByTestId('integracao.entidade.zerar.cliente').isVisible())) await monitor.getByTestId('integracao.monitor.entidades.acoes.cliente').click();
-        await page.getByTestId('integracao.entidade.zerar.cliente').click({ timeout: 2000 });
+        if (!(await page.getByTestId('dados.entidade.zerar.cliente').isVisible())) await dados.getByTestId('dados.entidades.acoes.cliente').click();
+        await page.getByTestId('dados.entidade.zerar.cliente').click({ timeout: 2000 });
       }
       await expect(page.getByTestId('empresa-zerar.previa')).toBeVisible({ timeout: 5000 });
     }).toPass({ timeout: 30000 });
@@ -156,12 +179,12 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('empresa-zerar.lote')).toContainText(/Lote \d{8}T\d{6}Z-[0-9a-f]{8}/);
     await page.screenshot({ animations: 'disabled', path: `${prints()}/07-resultado${nome}.png` });
 
-    // o painel recarrega: Clientes e Endereços saem (sem lote nem registro) e ficam sem "Zerar dados"
+    // a tabela recarrega: Clientes e Endereços saem (sem lote nem registro) e ficam sem "⋯"
     await page.getByTestId('empresa-acao.cancelar').click();
-    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente')).toHaveCount(0, { timeout: 20000 });
-    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.cliente_endereco')).toHaveCount(0);
-    await expect(monitor.getByTestId('integracao.monitor.entidade.cliente')).toContainText('Sem dados');
-    await expect(monitor.getByTestId('integracao.monitor.entidades.acoes.produto')).toHaveCount(1);
+    await expect(dados.getByTestId('dados.entidades.acoes.cliente')).toHaveCount(0, { timeout: 20000 });
+    await expect(dados.getByTestId('dados.entidades.acoes.cliente_endereco')).toHaveCount(0);
+    if (largura > 500) await expect(dados.getByTestId('dados.entidade.cliente')).toContainText('Sem dados');
+    await expect(dados.getByTestId('dados.entidades.acoes.produto')).toHaveCount(1);
     await ctx.close();
   });
 }

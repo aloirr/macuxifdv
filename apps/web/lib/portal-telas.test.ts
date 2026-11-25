@@ -4,7 +4,7 @@ import { mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
 import { corpoDaEmpresa, errosDaEmpresa, sugerirCodigo, textoDaConferencia } from '@/components/portal/passo-empresa-legado';
-import { abaDoEndereco } from '@/components/portal/tela-empresa';
+import { abaDoEndereco, abasDaSessao } from '@/components/portal/tela-empresa';
 import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
 import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
@@ -121,11 +121,17 @@ describe('textos do portal (revisão de UX R-20261106-023316)', () => {
 });
 
 describe('aba Integração', () => {
-  it('abas Integração · Empresa: a Integração abre por padrão; o `#bases` antigo e `#` desconhecido caem nela (spec §10.1)', () => {
+  it('abas Integração · Dados · Empresa: a Integração abre por padrão; o `#bases` antigo e `#` desconhecido caem nela (spec §10.1)', () => {
     expect(abaDoEndereco('')).toBe('integracao');
     expect(abaDoEndereco('#integracao')).toBe('integracao');
     expect(abaDoEndereco('#empresa')).toBe('empresa');
+    expect(abaDoEndereco('#dados')).toBe('dados');
+    expect(abasDaSessao(true).map((a) => a.rotulo)).toEqual(['Integração', 'Dados', 'Empresa']);
     expect(abaDoEndereco('#bases')).toBe('integracao');
     expect(abaDoEndereco('#qualquer')).toBe('integracao');
+  });
+  it('a aba Dados é só do time da Macuxi (R-20261124-090510): o admin do cliente não a vê e o `#dados` cai na Integração', () => {
+    expect(abasDaSessao(false).map((a) => a.rotulo)).toEqual(['Integração', 'Empresa']);
+    expect(abaDoEndereco('#dados', false)).toBe('integracao');
   });
 });

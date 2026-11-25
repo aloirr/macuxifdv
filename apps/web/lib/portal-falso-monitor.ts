@@ -3,7 +3,7 @@
  * `GET /integracao/monitor/detalhes`, `GET /integracao/lotes/:id/erros` e `POST /integracao/lotes/:id/reprocessar`, validados pelos
  * contratos do módulo, para o e2e e os prints da aba Integração. Só o time da Macuxi (o admin do cliente recebe 403). Exemplo: um
  * Conector `erp`; Produtos com um lote que falhou (Reprocessar); Estoque e Títulos com dados no Hub e sem lote (o "Zerar dados" fica
- * em "Dados no Hub"). O que o zerar falso (`portal-falso-zerar.ts`) já apagou some daqui: sem lote e sem registro.
+ * na aba Dados). O que o zerar falso (`portal-falso-zerar.ts`) já apagou some daqui: sem lote e sem registro.
  */
 import {
   ConectorDetalhe,
@@ -107,10 +107,11 @@ function cursorFalso(ultimo: LoteListagemItem | null, agora: number): EntidadeDe
   return { conector_id: 'erp', alterado_em: iso(Date.parse(ultimo.recebido_em) - 5 * MIN), external_id: null, atualizado_em: ultimo.concluido_em ?? ultimo.recebido_em };
 }
 
+/** Como a API: as entidades do Conector e as que têm dado no Hub (lote ou registro), na ordem de carga. */
 function detalhes(tenant: string, agora: number): MonitorDetalhes {
   const zeradas = entidadesZeradasFalso(tenant, agora);
   const lotes = lotesDe(tenant, agora);
-  const entidades = ORDEM_CARGA_ENTIDADES.filter((e) => ENTIDADES_DO_ERP.includes(e) || (REGISTROS_FALSOS[e] && !zeradas.has(e))).map((e) => {
+  const entidades = ORDEM_CARGA_ENTIDADES.filter((e) => ENTIDADES_DO_ERP.includes(e) || lotes.some((l) => l.entidade === e) || (REGISTROS_FALSOS[e] && !zeradas.has(e))).map((e) => {
     const r = zeradas.has(e) ? undefined : REGISTROS_FALSOS[e];
     const daEntidade = lotes.filter((l) => l.entidade === e);
     const ultimo = daEntidade[0] ?? null;
