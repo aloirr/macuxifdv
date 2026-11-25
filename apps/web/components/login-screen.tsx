@@ -101,8 +101,13 @@ function LoginReal() {
   const [troca, setTroca] = useState<TrocaPendente | null>(null);
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   const refs = useRef<Partial<Record<'codigo_empresa' | 'email', HTMLInputElement | null>>>({});
+  // Defeito 7 (revisão geral 24/11): antes da hidratação, o que se digitava sumia ao hidratar e o "Entrar" fazia o envio nativo
+  // do formulário (GET na própria página), e a tela voltava vazia e sem a mensagem de erro. Campos e botão só valem com o React no
+  // ar (o Enter também, sem botão ativo).
+  const [pronto, setPronto] = useState(false);
 
   useEffect(() => {
+    setPronto(true);
     try {
       const salvo = window.localStorage.getItem(CHAVE_CODIGO_EMPRESA);
       if (salvo) setCampos((c) => (c.codigo_empresa ? c : { ...c, codigo_empresa: salvo }));
@@ -201,6 +206,7 @@ function LoginReal() {
       value={campos[nome]}
       onChange={mudar(nome)}
       erro={erros[nome]}
+      readOnly={!pronto}
       {...props}
     />
   );
@@ -259,9 +265,10 @@ function LoginReal() {
           value={campos.senha}
           onChange={mudar('senha')}
           erro={erros.senha}
+          readOnly={!pronto}
         />
         <div className="flex flex-col gap-1">
-          <Button data-testid="login.entrar" type="submit" variant="primary" disabled={entrando}>
+          <Button data-testid="login.entrar" type="submit" variant="primary" disabled={entrando || !pronto}>
             {entrando ? 'Entrando…' : 'Entrar'}
           </Button>
           <Button

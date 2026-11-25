@@ -27,7 +27,7 @@ export const TEXTOS_ZERAR = Object.freeze({
   zerar: 'Zerar dados',
   titulo: (empresa: string) => `Zerar dados de ${empresa}?`,
   tituloAndamento: (empresa: string) => `Zerar dados de ${empresa}`,
-  /** Por entidade (aba Integração): "Zerar Clientes de <empresa>?". */
+  /** Por entidade (aba Dados): "Zerar Clientes de <empresa>?". */
   tituloEntidades: (rotulos: string, empresa: string) => `Zerar ${rotulos} de ${empresa}?`,
   tituloAndamentoEntidades: (rotulos: string, empresa: string) => `Zerar ${rotulos} de ${empresa}`,
   levaJunto: 'Leva junto:',

@@ -1,16 +1,17 @@
 /**
- * v1.0.34 (ADR 0075; migração 0102; RN-CORE-31/32/34, RN-CORE-01): `usuario` {nome, perfil, cargo} na sessão do portal e
- * `POST /v1/plataforma/auth/senha` (204), com API real (`createApp` + Core + módulos), banco efêmero do arquivo, pool do
+ * v1.0.34 (ADR 0075; migração 0102; RN-CORE-31/32/34, RN-CORE-01) e v1.0.35 (migração 0103, troca do admin do cliente):
+ * `usuario` {nome, perfil, cargo} na sessão do portal e `POST /v1/plataforma/auth/senha` (204), com API real (`createApp` + Core + módulos), banco efêmero do arquivo, pool do
  * `macuxi_app` e do `macuxi_portal` e logger real em `trace` capturado. Prova, pela rota e pelo banco:
  *  - TS-01  super-admin ponta a ponta: login → troca (204) → as DUAS sessões dele caem (401) → login com a antiga 401 e com a nova 200;
  *  - TS-02  super-admin: senha atual errada conta falha no mesmo bloqueio do login; 4 erros = 401, o 5º = 423 BLOQUEADO; durante o
  *           bloqueio a senha atual CERTA = 423 e o login também = 423; a senha não muda;
  *  - TS-03  super-admin: nova fraca (RN-CORE-32) e igual à atual (RN-CORE-34) = 422, sem gravar; a função recusa admin do cliente (42501);
- *  - TS-04  admin do cliente com empresa: 403 TROCA_SO_SUPER_ADMIN (ele troca pela rota pública `POST /v1/auth/senha/trocar`);
- *           hash e `sessao_versao` iguais, nenhuma sessão do portal revogada, a sessão segue viva e a senha antiga segue entrando;
- *  - TS-05  admin do cliente: senha atual errada também = 403 (a rota não confere a senha dele) e `tentativas_falhas` não muda;
- *  - TS-06  admin sem empresa escolhida (2 empresas) também = 403 TROCA_SO_SUPER_ADMIN (a rota olha o tipo, não a empresa);
- *  - TS-07  isolamento: o mesmo e-mail em A e B; na sessão de A com `x-macuxi-tenant` de B = 403 e nem A nem B mudam;
+ *  - TS-04  admin do cliente com empresa (0103): 204; hash novo, `sessao_versao` + 1, as sessões dele no portal e no app caem
+ *           (contagens na auditoria = as revogadas no banco); a antiga 401 e a nova 200 no portal e no BKO;
+ *  - TS-05  admin do cliente: senha atual errada = 401 e conta 1 em `tentativas_falhas` (RN-CORE-01); nada grava, a sessão segue
+ *           viva e o login seguinte com a senha atual entra; TS-05b: 4 × 401, a 5ª = 423 e o bloqueio vivo recusa a senha certa (423);
+ *  - TS-06  admin sem empresa escolhida (2 empresas) = 403 EMPRESA_NAO_PERMITIDA (42501 da 0103) e nem A nem B mudam;
+ *  - TS-07  isolamento: o mesmo e-mail em A e B; na sessão de A (mesmo com `x-macuxi-tenant` de B) só a conta de A muda;
  *  - TS-08  `usuario` na sessão: login, escolha de empresa e renovar (super-admin: nome, perfil e cargo nulos; admin: nome do
  *           core.usuario + nome e cargo do 1º perfil vivo, conferidos contra o banco pela regra da 0102);
  *  - TS-09  nem log nem auditoria têm e-mail, nome, senha ou hash.
@@ -62,6 +63,12 @@ const ADM_SID = {
   nome: 'Admin Da Funcao Fictício',
   senha: 'Sid#Alfa-2026',
 };
+const ADM_BLOQ = {
+  email: 'admbloq.v1035@exemplo.com.br',
+  nome: 'Admin Bloqueio Fictício',
+  senha: 'AdmBloq#Alfa-2026',
+  nova: 'AdmBloq#Nova-2027',
+};
 const MULTI = {
   email: 'multi.v1034@exemplo.com.br',
   nome: 'Admin Duas Empresas Fictício',
@@ -90,6 +97,10 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.34 troca de senha pelo portal 
     ADM_SID.email,
     ADM_SID.nome,
     ADM_SID.senha,
+    ADM_BLOQ.email,
+    ADM_BLOQ.nome,
+    ADM_BLOQ.senha,
+    ADM_BLOQ.nova,
     MULTI.email,
     MULTI.nome,
     MULTI.senha,
@@ -97,6 +108,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.34 troca de senha pelo portal 
     SENHA_ERRADA,
   ];
   let admId = '';
+  let admBloqId = '';
   let multiA = '';
   let multiB = '';
 
@@ -140,11 +152,21 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.34 troca de senha pelo portal 
         [id],
       )
     ).rows[0]!.n;
-  /** Admin do cliente na rota do portal (ADR 0075, v1.0.34): 403 TROCA_SO_SUPER_ADMIN. */
-  const esperarSoSuperAdmin = (r: LightMyRequestResponse) => {
-    expect(r.statusCode, r.body).toBe(403);
-    expect(erroDe(r).codigo).toBe(CODIGOS_PORTAL.trocaSoSuperAdmin);
-    expect(erroDe(r).mensagem).toBe('Troque a sua senha no backoffice, com o código da empresa.');
+  /** Sessões vivas da conta (portal pela portal_sessao_empresa, como a 0103 revoga; app pela core.sessao). */
+  const vivasDaConta = async (tenantId: string, id: string) =>
+    (
+      await api.admin.query<{ portal: number; app: number }>(
+        `select (select count(*)::int from plataforma.portal_sessao x
+                  where x.tipo = 'admin_cliente' and x.revogada_em is null
+                    and exists (select 1 from plataforma.portal_sessao_empresa e
+                                 where e.sessao_id = x.id and e.tenant_alvo_id = $1 and e.usuario_id = $2 and e.deleted_at is null)) as portal,
+                (select count(*)::int from core.sessao s where s.tenant_id = $1 and s.usuario_id = $2 and s.revogado_em is null) as app`,
+        [tenantId, id],
+      )
+    ).rows[0]!;
+  const esperarCredenciais = (r: LightMyRequestResponse) => {
+    expect(r.statusCode, r.body).toBe(401);
+    expect(erroDe(r).codigo).toBe(CODIGOS_PORTAL.credenciais);
   };
   /** Regra da 0102 (sa_quem_sou), calculada pelo teste: nome do core.usuario + nome e cargo do 1º perfil vivo (created_at, id). */
   const esperadoDoAdmin = async (tenantId: string, id: string) => {
@@ -179,6 +201,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.34 troca de senha pelo portal 
       [A.tenantId, admId, p.rows[0]!.id],
     );
     await criarUsuarioNoTenant(api.admin, { tenantId: A.tenantId, ...ADM_SID });
+    admBloqId = await criarUsuarioNoTenant(api.admin, { tenantId: A.tenantId, ...ADM_BLOQ });
     multiA = await criarUsuarioNoTenant(api.admin, { tenantId: A.tenantId, ...MULTI });
     multiB = await criarUsuarioNoTenant(api.admin, { tenantId: B.tenantId, ...MULTI });
   }, 180_000);
@@ -223,52 +246,119 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.34 troca de senha pelo portal 
   });
 
   describe('TS-06/07 admin: sem empresa e isolamento', () => {
-    it('TS-06 admin sem empresa escolhida = 403 TROCA_SO_SUPER_ADMIN e nada muda em A nem em B', async () => {
+    it('TS-06 admin sem empresa escolhida = 403 EMPRESA_NAO_PERMITIDA e nada muda em A nem em B', async () => {
       const antesA = await usuario(multiA);
       const antesB = await usuario(multiB);
       const s = await sessaoDoPortal(api, MULTI.email, MULTI.senha);
       expect(s.empresa).toBeNull();
-      esperarSoSuperAdmin(await trocar(s.token, MULTI.senha, MULTI.nova));
+      const r = await trocar(s.token, MULTI.senha, MULTI.nova);
+      expect(r.statusCode, r.body).toBe(403);
+      expect(erroDe(r).codigo).toBe(CODIGOS_PORTAL.empresaNaoPermitida);
       expect(await usuario(multiA)).toEqual(antesA);
       expect(await usuario(multiB)).toEqual(antesB);
+      expect((await empresas(s.token)).statusCode).toBe(200);
     });
 
-    it('TS-07 admin na sessão de A (com x-macuxi-tenant de B) = 403 TROCA_SO_SUPER_ADMIN; nem A nem B mudam', async () => {
+    it('TS-07 admin na sessão de A (com x-macuxi-tenant de B) = 204 e só a conta de A muda; B segue com a senha antiga', async () => {
       const antesA = await usuario(multiA);
       const antesB = await usuario(multiB);
       const s = await sessaoDoPortal(api, MULTI.email, MULTI.senha);
       const esc = await escolherEmpresa(api, s.token, A.tenantId);
       expect(esc.statusCode, esc.body).toBe(200);
       const tokenA = SessaoPortalSchema.parse(esc.json()).token;
-      esperarSoSuperAdmin(await trocar(tokenA, MULTI.senha, MULTI.nova, { 'x-macuxi-tenant': B.tenantId }));
-      expect(await usuario(multiA)).toEqual(antesA);
+      const r = await trocar(tokenA, MULTI.senha, MULTI.nova, { 'x-macuxi-tenant': B.tenantId });
+      expect(r.statusCode, r.body).toBe(204);
+      const depoisA = await usuario(multiA);
+      segredos.push(antesA.h, depoisA.h);
+      expect(depoisA.h).not.toBe(antesA.h);
+      expect(depoisA.v).toBe(antesA.v + 1);
       expect(await usuario(multiB)).toEqual(antesB);
-      expect((await api.entrar(MULTI.email, { senha: MULTI.senha, tenant: A })).statusCode).toBe(200);
+      expect((await api.entrar(MULTI.email, { senha: MULTI.senha, tenant: A })).statusCode).toBe(401);
+      expect((await api.entrar(MULTI.email, { senha: MULTI.nova, tenant: A })).statusCode).toBe(200);
       expect((await api.entrar(MULTI.email, { senha: MULTI.senha, tenant: B })).statusCode).toBe(200);
     });
   });
 
-  describe('TS-04/05 admin do cliente com empresa: a rota do portal não troca a senha dele', () => {
-    it('TS-04 403 TROCA_SO_SUPER_ADMIN: hash e sessao_versao iguais, nada revogado, a sessão segue viva, a antiga entra no portal e no BKO', async () => {
+  describe('TS-04/05 admin do cliente com empresa troca a própria senha (0103)', () => {
+    it('TS-05 senha atual errada = 401 e conta 1 falha (RN-CORE-01); nada grava, a sessão segue viva e o login seguinte com a senha atual entra', async () => {
       const antes = await usuario(admId);
       const s = await sessaoDoPortal(api, ADM.email, ADM.senha);
-      expect((await empresas(s.token)).statusCode).toBe(200);
-      const revogadasAntes = await revogadasDoUsuario(admId);
-      esperarSoSuperAdmin(await trocar(s.token, ADM.senha, ADM.nova));
-      expect(await usuario(admId)).toEqual(antes);
-      expect(await revogadasDoUsuario(admId)).toBe(revogadasAntes);
+      const r = await trocar(s.token, SENHA_ERRADA, ADM.nova);
+      esperarCredenciais(r);
+      expect(erroDe(r).mensagem).toBe('Senha atual incorreta. Confira e tente de novo.');
+      expect(await usuario(admId)).toEqual({ ...antes, f: antes.f + 1 });
       expect((await empresas(s.token)).statusCode).toBe(200);
       expect((await entrarNoPortal(api, ADM.email, ADM.nova)).statusCode).toBe(401);
       expect((await sessaoDoPortal(api, ADM.email, ADM.senha)).empresa?.id).toBe(A.tenantId);
       expect((await api.entrar(ADM.email, { senha: ADM.senha, tenant: A })).statusCode).toBe(200);
+      expect((await usuario(admId)).h).toBe(antes.h);
     });
 
-    it('TS-05 senha atual errada também = 403 (a rota não confere a senha do admin) e tentativas_falhas não muda', async () => {
+    it('TS-04 204: hash novo, sessao_versao + 1, as sessões dele no portal e no app caem; antiga 401 e nova 200 no portal e no BKO', async () => {
       const antes = await usuario(admId);
-      const s = await sessaoDoPortal(api, ADM.email, ADM.senha);
-      esperarSoSuperAdmin(await trocar(s.token, SENHA_ERRADA, ADM.nova));
-      expect(await usuario(admId)).toEqual(antes);
-      expect((await empresas(s.token)).statusCode).toBe(200);
+      const s1 = await sessaoDoPortal(api, ADM.email, ADM.senha);
+      const s2 = await sessaoDoPortal(api, ADM.email, ADM.senha);
+      expect((await api.entrar(ADM.email, { senha: ADM.senha, tenant: A })).statusCode).toBe(200);
+      const vivas = await vivasDaConta(A.tenantId, admId);
+      expect(vivas.portal).toBeGreaterThanOrEqual(2);
+      expect(vivas.app).toBeGreaterThanOrEqual(1);
+      const revogadasAntes = await revogadasDoUsuario(admId);
+
+      const r = await trocar(s1.token, ADM.senha, ADM.nova);
+      expect(r.statusCode, r.body).toBe(204);
+      expect(r.body).toBe('');
+      const depois = await usuario(admId);
+      segredos.push(antes.h, depois.h);
+      expect(depois.h).not.toBe(antes.h);
+      expect(depois.h).toMatch(/^\$argon2id\$/);
+      expect(depois).toMatchObject({ v: antes.v + 1, f: 0 });
+      expect((await empresas(s1.token)).statusCode).toBe(401);
+      expect((await empresas(s2.token)).statusCode).toBe(401);
+      expect(await vivasDaConta(A.tenantId, admId)).toEqual({ portal: 0, app: 0 });
+      expect(await revogadasDoUsuario(admId)).toBeGreaterThanOrEqual(revogadasAntes + 2);
+
+      // valor × regra: as contagens da auditoria são as sessões vivas antes da troca
+      const aud = (await auditoriaDoPortal(api.admin)).filter((l) => l.acao === 'sa.senha.trocada' && l.usuario_id === admId);
+      expect(aud).toHaveLength(1);
+      expect(aud[0]).toMatchObject({ ator_tipo: 'admin_cliente', super_admin_id: null, tenant_alvo_id: A.tenantId });
+      expect(aud[0]!.detalhes).toEqual({ origem: 'banco', sessoes_revogadas: vivas.portal, sessoes_app_revogadas: vivas.app });
+      const doTenant = await api.admin.query<{ depois: unknown }>(
+        "select depois from plataforma.auditoria where tenant_id = $1 and usuario_id = $2 and acao = 'usuario.senha_trocar'",
+        [A.tenantId, admId],
+      );
+      expect(doTenant.rows.map((x) => x.depois)).toEqual([{ motivo: 'voluntaria', sessoes_revogadas: true, origem: 'portal' }]);
+
+      expect((await entrarNoPortal(api, ADM.email, ADM.senha)).statusCode).toBe(401);
+      expect((await sessaoDoPortal(api, ADM.email, ADM.nova)).empresa?.id).toBe(A.tenantId);
+      expect((await api.entrar(ADM.email, { senha: ADM.senha, tenant: A })).statusCode).toBe(401);
+      expect((await api.entrar(ADM.email, { senha: ADM.nova, tenant: A })).statusCode).toBe(200);
+    });
+
+    it('TS-05b RN-CORE-01: 4 × 401, a 5ª = 423 BLOQUEADO por 15 min; com o bloqueio vivo a senha certa = 423 e nada grava', async () => {
+      const antes = await usuario(admBloqId);
+      const s = await sessaoDoPortal(api, ADM_BLOQ.email, ADM_BLOQ.senha);
+      for (let i = 1; i <= 4; i += 1) {
+        esperarCredenciais(await trocar(s.token, SENHA_ERRADA, ADM_BLOQ.nova));
+        expect((await usuario(admBloqId)).f, `falha ${i}`).toBe(i);
+      }
+      const quinto = await trocar(s.token, SENHA_ERRADA, ADM_BLOQ.nova);
+      expect(quinto.statusCode, quinto.body).toBe(423);
+      expect(erroDe(quinto).codigo).toBe(CODIGOS_PORTAL.bloqueado);
+      const bloqueio = (
+        await api.admin.query<{ f: number; seg: number }>(
+          'select tentativas_falhas::int as f, extract(epoch from bloqueio_ate - now())::int as seg from core.usuario where id = $1',
+          [admBloqId],
+        )
+      ).rows[0]!;
+      expect(bloqueio.f).toBe(5);
+      expect(bloqueio.seg).toBeGreaterThan(14 * 60);
+      expect(bloqueio.seg).toBeLessThanOrEqual(15 * 60);
+      const certa = await trocar(s.token, ADM_BLOQ.senha, ADM_BLOQ.nova);
+      expect(certa.statusCode, certa.body).toBe(423);
+      expect(erroDe(certa).codigo).toBe(CODIGOS_PORTAL.bloqueado);
+      expect((await usuario(admBloqId)).h).toBe(antes.h);
+      expect((await usuario(admBloqId)).v).toBe(antes.v);
+      expect((await api.entrar(ADM_BLOQ.email, { senha: ADM_BLOQ.senha, tenant: A })).statusCode).toBe(423);
     });
   });
 
@@ -300,7 +390,8 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('v1.0.34 troca de senha pelo portal 
       const nova = await sessaoDoPortal(api, SA.email, SA.nova);
       expect(nova.tipo).toBe('super_admin');
       expect((await empresas(nova.token)).statusCode).toBe(200);
-      const aud = (await auditoriaDoPortal(api.admin)).filter((l) => l.acao === 'sa.senha.trocada');
+      // só a do super-admin: as trocas do admin do cliente (TS-04 e TS-07) também gravam `sa.senha.trocada` (0103)
+      const aud = (await auditoriaDoPortal(api.admin)).filter((l) => l.acao === 'sa.senha.trocada' && l.ator_tipo === 'super_admin');
       expect(aud).toHaveLength(1);
       expect(aud[0]!.detalhes).toMatchObject({ sessoes_revogadas: vivasAntes });
     });

@@ -11,6 +11,7 @@ import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from 
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, FormaPagamentoSync, PedidoEventoSync, PedidoItemSync, PedidoSync, PrazoPagamentoSync } from '../../contracts/sync';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { TransportadoraSync } from '../../contracts/frete';
+import { somarQuantidades } from '@macuxi/comum/quantidade';
 import { limiteDoUsuario } from '../../domain/limite-desconto';
 import { precoMinimoBaseCents, rotuloMedida } from '../../domain/preco-pedido';
 import type { EnderecoDaTela, ProdutoComMinimo, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
@@ -331,7 +332,7 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     received_at: p.recebido_em ?? p.created_at,
     updated_at: p.updated_at,
     items_count: itens.length,
-    units: itens.reduce((s, i) => s + i.quantidade, 0),
+    units: itens.reduce((s, i) => somarQuantidades(s, i.quantidade), 0),
     nivel_aprovacao: p.status === 'pending_approval' ? (p.nivel_aprovacao ?? null) : null,
     // T-0054: resumo do retorno do ERP (faturado/devolução) que veio no pull; offline como o resto
     ...camposFaturamento(p),

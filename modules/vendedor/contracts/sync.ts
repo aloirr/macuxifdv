@@ -5,6 +5,8 @@
  */
 import { PercentualAjuste } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
+import { FatorDecimalSchema, QuantidadeDecimalSchema } from '@macuxi/platform-sdk';
+import { QuantidadeNaoNeg } from './quantidade';
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
@@ -110,7 +112,8 @@ export const PedidoItemSyncSchema = z
     pedido_id: z.string().uuid(),
     sequencia: z.number().int().min(1),
     produto_id: z.string().uuid(),
-    quantidade: z.number().int().positive(),
+    /** ADR 0076: decimal (até 4 casas) só em KG/M; o pull não entrega a linha fracionária a app sem o cabeçalho ou abaixo da `VERSAO_APP_FRACAO` (platform-sdk) */
+    quantidade: QuantidadeDecimalSchema,
     preco_tabela_cents: z.number().int().nonnegative(),
     preco_unitario_cents: z.number().int().nonnegative(),
     desconto_pct: z.number().min(0).max(100),
@@ -120,10 +123,10 @@ export const PedidoItemSyncSchema = z
     produto_nome: z.string().nullable().optional(),
     unidade: z.string().nullable().optional(),
     /** T-0054: unidades já faturadas (soma dos retornos do ERP), na UNIDADE BASE (0013) */
-    quantidade_faturada: z.number().int().nonnegative().nullable().optional(),
+    quantidade_faturada: QuantidadeNaoNeg.nullable().optional(),
     /** 0013 (desenho T-0061 §2.1): quantidade x fator (unidade base) e o fator da unidade vendida */
-    quantidade_base: z.number().int().nonnegative().nullable().optional(),
-    fator: z.number().int().positive().nullable().optional(),
+    quantidade_base: QuantidadeNaoNeg.nullable().optional(),
+    fator: FatorDecimalSchema.nullable().optional(),
     /** T-0061: acréscimo do item (RN-VEN-02); `desconto_pct` é o desconto do item */
     acrescimo_pct: z.number().min(0).max(100).nullable().optional(),
     preco_minimo_cents: z.number().int().nonnegative().nullable().optional(),

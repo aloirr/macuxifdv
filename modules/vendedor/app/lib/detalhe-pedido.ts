@@ -9,6 +9,8 @@ import { TEXTOS_PRECOS_DE_HOJE } from './precos-de-hoje';
 import { ROTULO_CORRIGIR_PEDIDO } from './salvar-na-fila';
 import { ROTULOS_DA_EDICAO } from '../../domain/botoes-resumo';
 import { alertasDoPedido, type AlertaDoPedido } from '../../domain/alertas-pedido';
+import { totalDaLinhaCents } from '@macuxi/comum/quantidade';
+import { quantidadeDoPdf } from '../../domain/pdf-pedido';
 import { ajusteDoItemEmPct, linhasDosTotais, semRs, siglaDaMedida } from '../../domain/apresentacao-totais';
 
 export { linhasDosTotais, semRs, siglaDaMedida };
@@ -149,8 +151,8 @@ export function linhaDeItemEmTabela(l: { description: string; brand?: string | n
     codigo: l.erp_code,
     emb: siglaDaMedida(rotulo),
     fator: rotulo.split(/\s+/).slice(1).join(' '),
-    qtd: String(l.quantity),
-    valorTabela: semRs(l.unit_price_cents * l.quantity),
+    qtd: quantidadeDoPdf({ quantity: l.quantity, unit_label: rotulo }),
+    valorTabela: semRs(totalDaLinhaCents(l.unit_price_cents, l.quantity)),
     ajuste: ajusteDoItemEmPct(l),
     total: semRs(l.total_cents),
   };

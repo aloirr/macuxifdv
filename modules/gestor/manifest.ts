@@ -43,7 +43,7 @@ export const manifest = defineModule({
     'core.visita.checkin@1',
     'core.visita.checkout@1',
     'core.meta.definida@1',
-    'vendedor.pedido.criado@1',
+    'vendedor.pedido.criado@2', // ADR 0076 D8: só o @2 (quantidade decimal); o @1 não é lido
     'vendedor.pedido.status_alterado@1',
     'vendedor.pedido.aprovacao_solicitada@1',
     'vendedor.pedido.aprovacao_solicitada@2',

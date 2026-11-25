@@ -173,7 +173,13 @@ describe('revalidarPedido (servidor)', () => {
   });
   it('item vazio ou quantidade inválida = PAYLOAD_INVALIDO', () => {
     expect(revalidarPedido(entrada({ itens: [] }))).toMatchObject({ ok: false, codigo: 'PAYLOAD_INVALIDO' });
-    expect(revalidarPedido(entrada({ itens: [{ product_id: 'p1', sku: 'A', quantity: 0.5 }] }))).toMatchObject({ ok: false, codigo: 'PAYLOAD_INVALIDO' });
+    expect(revalidarPedido(entrada({ itens: [{ product_id: 'p1', sku: 'A', quantity: 0 }] }))).toMatchObject({ ok: false, codigo: 'PAYLOAD_INVALIDO' });
+  });
+  it('RN-VEN-02 v3: fração fora de KG/M = quantidade_fracionaria_invalida; em KG passa e soma sem float', () => {
+    expect(revalidarPedido(entrada({ itens: [{ product_id: 'p1', sku: 'A', quantity: 0.5 }] }))).toMatchObject({ ok: false, codigo: 'quantidade_fracionaria_invalida', http: 422 });
+    const r = revalidarPedido(entrada({ itens: [{ product_id: 'p1', sku: 'A', quantity: 0.1, unidade: 'KG' }, { product_id: 'p1', sku: 'A', quantity: 0.2, unidade: 'KG' }] }));
+    expect(r).toMatchObject({ ok: true });
+    if (r.ok) expect(r.itens[0]!.quantity).toBe(0.3);
   });
 });
 

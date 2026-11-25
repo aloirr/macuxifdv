@@ -4,6 +4,7 @@
  * `quantidade` do item = unidade BASE; a medida vendida, os descontos/acréscimos, o frete (sem valor, RN-VEN-16) e o endereço
  * de entrega vão em campos aditivos. Lê só `vendedor.*` (e o cadastro do Core pela consulta).
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import type { ClienteBanco, TransacaoTenant } from '@macuxi/platform-sdk';
 import { enderecoParaEvento, montarPedidoAprovado, type EnderecoEvento, type FreteEvento, type PedidoAprovadoPayload } from '../domain';
@@ -62,7 +63,7 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
     )
   ).rows[0]!;
   const itens = (
-    await db.query<{ produto_id: string; quantidade: number; quantidade_base: number; fator: number; unidade: string | null; preco_tabela_cents: number; desconto_pct: number; acrescimo_pct: number; total_cents: number; aplicacao: string | null }>(
+    await db.query<{ produto_id: string; quantidade: string | number; quantidade_base: string | number; fator: string | number; unidade: string | null; preco_tabela_cents: number; desconto_pct: number; acrescimo_pct: number; total_cents: number; aplicacao: string | null }>(
       `select produto_id, quantidade, quantidade_base, fator, unidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
               acrescimo_pct::float8 as acrescimo_pct, total_cents::float8 as total_cents, aplicacao
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
@@ -112,12 +113,12 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
     ...(filial ? { filial } : {}),
     itens: itens.map((i) => ({
       produto_external_id: cad.produtos.find((x) => x.id === i.produto_id)?.external_id ?? null,
-      quantidade: Number(i.quantidade_base),
+      quantidade: quantidadeDoBanco(i.quantidade_base),
       preco_tabela_cents: Number(i.preco_tabela_cents),
       total_cents: Number(i.total_cents),
       unidade: i.unidade,
-      fator: Number(i.fator),
-      quantidade_venda: Number(i.quantidade),
+      fator: quantidadeDoBanco(i.fator),
+      quantidade_venda: quantidadeDoBanco(i.quantidade),
       desconto_pct: Number(i.desconto_pct),
       acrescimo_pct: Number(i.acrescimo_pct),
       aplicacao: i.aplicacao,

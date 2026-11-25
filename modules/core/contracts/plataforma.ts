@@ -26,7 +26,7 @@ export const CODIGOS_PORTAL = {
   sessao: 'SESSAO_PLATAFORMA_INVALIDA',
   /** 503: falta o segredo do portal no ambiente (falha fechada). */
   indisponivel: 'PORTAL_INDISPONIVEL',
-  /** 403: empresa fora da lista da sessão, ou `x-macuxi-tenant` diferente da empresa escolhida. */
+  /** 403: empresa fora da lista da sessão, ou `x-macuxi-tenant` diferente da empresa escolhida. Vale para as rotas de dados (`autenticarPortal`); `POST /plataforma/auth/senha` usa só o token e ignora `x-macuxi-tenant`. */
   empresaNaoPermitida: 'EMPRESA_NAO_PERMITIDA',
   /** 409: admin do cliente com 2+ empresas que ainda não escolheu uma. */
   empresaNaoEscolhida: 'EMPRESA_NAO_ESCOLHIDA',
@@ -34,7 +34,7 @@ export const CODIGOS_PORTAL = {
   senhaATrocar: 'SENHA_A_TROCAR',
   /** 409 (ADR 0075): a senha do super-admin mudou entre a conferência e a gravação; entre de novo e repita. */
   senhaMudou: 'SENHA_MUDOU',
-  /** 403 (ADR 0075): a troca de senha pelo portal é só do super-admin; o admin do cliente usa `POST /v1/auth/senha/trocar`. */
+  /** @deprecated A API não devolve mais este código (v1.0.35: o admin do cliente troca a senha pelo portal, 0103); fica até o `apps/web` (portal-falso, portal-senha) e os testes de `tests/` deixarem de citá-lo. */
   trocaSoSuperAdmin: 'TROCA_SO_SUPER_ADMIN',
 } as const;
 

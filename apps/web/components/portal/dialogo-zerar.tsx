@@ -9,7 +9,7 @@
  * Frases das recusas e das falhas: `mensagemDoZerar`. A espera pela prévia tem prazo (`PRAZO_PREVIA_ZERAR_MS`): com o worker fora,
  * a tela passa à falha da contagem (`mensagemDaPreviaZerar(ZERAR_FALHOU)`) com "Tentar de novo" (id novo), em vez de girar até 1 h.
  * A senha vai só no corpo do pedido e sai do estado ao enviar e ao fechar.
- * `entidades` (aba Integração, desenho §6.4): a prévia e o pedido levam só elas; a prévia diz as que a cascata leva junto. No
+ * `entidades` (aba Dados, desenho §6.4): a prévia e o pedido levam só elas; a prévia diz as que a cascata leva junto. No
  * concluído, o lote (chave do `restaurar`) e o `conector carga-completa` de cada entidade afetada, para o ERP reenviar.
  */
 import { useEffect, useId, useRef, useState } from 'react';
@@ -109,7 +109,7 @@ export function DialogoZerar({
   inicial,
 }: {
   empresa: EmpresaDoZerar;
-  /** Só estas entidades do ERP (aba Integração); ausente = a empresa inteira (menu ⋯). */
+  /** Só estas entidades do ERP (aba Dados); ausente = a empresa inteira (menu ⋯). */
   entidades?: readonly EntidadeZerar[];
   aoFechar: () => void;
   /** O zerar concluiu ou falhou (a lista recarrega). */

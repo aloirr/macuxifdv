@@ -4,6 +4,7 @@
  * Funções puras: quem calcula o total de cada item é o domain (`reconferirOrcamento`); aqui só o que a folha escreve.
  */
 import { formatBRL } from '@macuxi/comum';
+import { formatarQuantidade } from '@macuxi/comum/quantidade';
 
 import type { ItemAntesHoje, MudancaNaConversao } from '../../domain/orcamento';
 
@@ -69,7 +70,7 @@ export function folhaPrecosDeHoje(a: {
       { id: 'hoje', rotulo: TEXTOS_PRECOS_DE_HOJE.hoje, valor: formatBRL(r.total_hoje_cents) },
       { id: 'diferenca', rotulo: TEXTOS_PRECOS_DE_HOJE.diferenca, valor: dinheiroComSinal(diferenca), ...(diferenca < 0 ? { tom: 'sucesso' as const } : {}) },
     ],
-    mudaram: visiveis.map((i) => ({ id: `${i.product_id}@${i.unidade}`, rotulo: `${a.nome(i.product_id)} · ${i.quantity} ${i.unidade}`, valor: `${formatBRL(i.antes_cents)} → ${formatBRL(i.hoje_cents)}` })),
+    mudaram: visiveis.map((i) => ({ id: `${i.product_id}@${i.unidade}`, rotulo: `${a.nome(i.product_id)} · ${formatarQuantidade(i.quantity, i.unidade)}`, valor: `${formatBRL(i.antes_cents)} → ${formatBRL(i.hoje_cents)}` })),
     verTodos: !a.todos && mudaram.length > LIMITE_ITENS_DA_FOLHA ? `Ver os ${mudaram.length} itens` : null,
     semPreco,
     acao: semPreco.length === 0 ? TEXTOS_PRECOS_DE_HOJE.acao : semPreco.length === 1 ? TEXTOS_PRECOS_DE_HOJE.acaoSemUm : TEXTOS_PRECOS_DE_HOJE.acaoSemVarios,

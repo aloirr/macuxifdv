@@ -15,7 +15,7 @@
  */
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { faltasNaSenha } from '@macuxi/core/contracts';
+import { CODIGO_EMPRESA_REGEX, CODIGO_EMPRESA_TAMANHO, faltasNaSenha } from '@macuxi/core/contracts';
 import { CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
 import { Button, CLASSE_CAMPO_BASE, cx, nomeDoModulo, Notice, Panel, parseDecimalInput, SelectField } from '@macuxi/ui/web';
 
@@ -57,17 +57,23 @@ interface Form {
   admin?: AdminDoForm;
 }
 
-/** Sugestão de código a partir da razão social: minúsculas, sem acento, hífens, até 40. */
-export function sugerirCodigo(razao: string): string {
-  return razao
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\b(ltda|me|epp|eireli|s\/?a|sa)\b/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
-    .replace(/-+$/g, '');
+/** Ajuda e erro do código da empresa nova: o formato do login (UF + 4 dígitos, `CODIGO_EMPRESA_REGEX` do Core). */
+export const TEXTOS_CODIGO_EMPRESA = Object.freeze({
+  ajuda: 'Sigla da UF e quatro números, como AM4821. Não muda depois.',
+  invalido: 'Use a sigla da UF e quatro números, como AM4821.',
+});
+
+/** O que o campo aceita ao digitar: maiúsculas, só letras e números, até 6 (o login usa o mesmo formato). */
+export function mascararCodigoEmpresa(v: string): string {
+  return v
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, CODIGO_EMPRESA_TAMANHO);
+}
+
+/** Erro do código da empresa NOVA no formato do login (UF + 4 dígitos); `null` se vale. A existente mantém o código que tem. */
+export function erroDoCodigoNovo(codigo: string): string | null {
+  return CODIGO_EMPRESA_REGEX.test(codigo.trim()) ? null : TEXTOS_CODIGO_EMPRESA.invalido;
 }
 
 const num = (s: string): number | undefined => {
@@ -100,7 +106,7 @@ export function corpoDaEmpresa(f: Form, simular: boolean): unknown {
  * ("Number must be less than or equal to 100"). Regex e refine do schema já trazem a mensagem em português e ficam.
  */
 const MENSAGEM_DO_CAMPO: Record<string, string> = {
-  codigo: 'Use de 2 a 40 letras minúsculas, dígitos ou hífen.',
+  codigo: TEXTOS_CODIGO_EMPRESA.invalido,
   razao_social: 'Informe a razão social, de 2 a 200 caracteres.',
   cnpj: 'O CNPJ tem 14 dígitos.',
   fuso: 'Escolha o fuso da empresa.',
@@ -164,7 +170,6 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
     aplicacao_no_orcamento_padrao: true,
     ...(existente ? {} : { admin: { nome: '', email: '', senha: '' } }),
   }));
-  const [codigoTocado, setCodigoTocado] = useState(!!existente);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resposta | null>(null);
@@ -192,7 +197,8 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
   const enviar = async (simular: boolean) => {
     if (enviando) return;
     const corpo = corpoDaEmpresa(f, simular);
-    const e = { ...errosDaEmpresa(corpo), ...(f.admin ? errosDoAdmin(f.admin) : {}) };
+    const erroCodigo = existente ? null : erroDoCodigoNovo(f.codigo);
+    const e = { ...errosDaEmpresa(corpo), ...(erroCodigo ? { codigo: erroCodigo } : {}), ...(f.admin ? errosDoAdmin(f.admin) : {}) };
     setErros(e);
     setErro(null);
     setErroAdmin(null);
@@ -301,7 +307,7 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
             erro={erros.razao_social}
             onChange={(e) => {
               const v = e.target.value;
-              setF((x) => ({ ...x, razao_social: v, codigo: codigoTocado ? x.codigo : sugerirCodigo(v) }));
+              setF((x) => ({ ...x, razao_social: v }));
               setResultado(null);
             }}
           />
@@ -311,12 +317,11 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
             testId="empresa.codigo"
             value={f.codigo}
             erro={erros.codigo}
-            ajuda="Usado no login do BKO e do app. Letras minúsculas, números e hífen; não muda depois."
+            ajuda={TEXTOS_CODIGO_EMPRESA.ajuda}
+            maxLength={CODIGO_EMPRESA_TAMANHO}
+            autoCapitalize="characters"
             spellCheck={false}
-            onChange={(e) => {
-              setCodigoTocado(true);
-              set('codigo', e.target.value.toLowerCase());
-            }}
+            onChange={(e) => set('codigo', mascararCodigoEmpresa(e.target.value))}
           />
           <div className="flex flex-col gap-1">
             <SelectField label="Fuso" data-testid="empresa.fuso" value={f.fuso} onChange={(e) => set('fuso', e.target.value)}>
