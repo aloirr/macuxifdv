@@ -23,9 +23,12 @@ async function entrarComoTime(page: Page) {
   await page.getByTestId('entrar.entrar').click();
   await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
 }
-/** Abre o "⋯" do Conector na tabela do topo até a ação aparecer (o primeiro clique pode vir antes da hidratação; rolar fecha o menu). */
-async function acaoDoConector(page: Page, id: string, acao: 'bases' | 'desativar' | 'reativar') {
-  const botao = page.getByTestId(`integracao.conectores.acoes.${id}`);
+/** Tabela "Credenciais" do lado da API. */
+const API = 'integracao.api-credenciais';
+
+/** Abre o "⋯" da linha (por padrão na tabela "Conectores") até a ação aparecer (o primeiro clique pode vir antes da hidratação; rolar fecha o menu). */
+async function acaoDoConector(page: Page, id: string, acao: 'bases' | 'nova-chave' | 'desativar' | 'reativar', tabela = 'integracao.conectores') {
+  const botao = page.getByTestId(`${tabela}.acoes.${id}`);
   const item = page.getByTestId(`integracao.${acao}-${id}`);
   await expect(async () => {
     await botao.scrollIntoViewIfNeeded();
@@ -124,10 +127,10 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.locator('legend', { hasText: 'Bases' })).toHaveCount(0);
     await page.getByTestId('integracao.api-ja-copiei').click();
     await expect(page.getByTestId('integracao.api-sem-bases')).toBeVisible();
-    await page.getByTestId('integracao.nova-chave-erp-api').click();
+    await (await acaoDoConector(page, 'erp-api', 'nova-chave', API)).click();
     await expect(page.getByRole('dialog', { name: 'Gerar nova chave para a credencial erp-api?' })).toContainText('Troque a chave no sistema que chama a API.');
     await page.getByTestId('integracao.acao-cancelar').click();
-    await page.getByTestId('integracao.desativar-erp-api').click();
+    await (await acaoDoConector(page, 'erp-api', 'desativar', API)).click();
     await expect(page.getByRole('dialog', { name: 'Desativar a credencial erp-api?' })).toContainText('As chamadas com esta chave passam a ser recusadas.');
     await page.getByTestId('integracao.acao-cancelar').click();
 
@@ -139,7 +142,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(dialogo).not.toContainText('erp-api');
     await expect(dialogo.locator('fieldset > legend')).toHaveText('Bases');
     await dialogo.getByTestId('integracao.bases-cancelar').click();
-    await page.getByTestId('integracao.bases-erp-api').click();
+    await (await acaoDoConector(page, 'erp-api', 'bases', API)).click();
     const dialogoApi = page.getByRole('dialog', { name: 'Bases da credencial erp-api' });
     await expect(dialogoApi.locator('[data-testid^="integracao.bases."]')).toHaveCount(1);
     await expect(dialogoApi.getByTestId('integracao.bases.forma_pagamento')).toBeChecked();
@@ -156,7 +159,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       ['erp', 'conector', false, SEM_FORMA],
       ['erp-api', 'nuvem', false, ['forma_pagamento']],
     ]);
-    await page.getByTestId('integracao.bases-erp-api').click();
+    await (await acaoDoConector(page, 'erp-api', 'bases', API)).click();
     await expect(dialogoApi.getByTestId('integracao.bases-recebe-pedidos')).toBeEnabled();
     await dialogoApi.getByTestId('integracao.bases-cancelar').click();
 

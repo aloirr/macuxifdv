@@ -146,7 +146,7 @@ describe('aba Integração em dois lados', () => {
     expect(credenciais).not.toMatch(/>erp<|velho|implantacao-csv/);
   });
 
-  it('linha ativa: Bases e nova chave fora do de arquivo (Conector no "⋯", credencial de API em botões); desativada: só "Reativar", fora do de arquivo', () => {
+  it('linha ativa: Bases e nova chave fora do de arquivo, no "⋯" das duas tabelas; desativada: só "Reativar", fora do de arquivo', () => {
     const ids = (c: ConectorResumo) => acoesDoConector(c, false, () => {}, () => {}).map((a) => a.testId);
     const [erp, csv, , velho, csvVelho] = lista as [ConectorResumo, ConectorResumo, ConectorResumo, ConectorResumo, ConectorResumo];
     expect(ids(erp)).toEqual(['integracao.bases-erp', 'integracao.nova-chave-erp', 'integracao.desativar-erp']);
@@ -156,8 +156,9 @@ describe('aba Integração em dois lados', () => {
     expect(ids(csvVelho)).toEqual([]);
     expect(acoesDoConector(erp, true, () => {}, () => {}).every((a) => a.desligada)).toBe(true);
     expect(html).toContain('data-testid="integracao.conectores.acoes.erp"');
-    expect(html).toContain('data-testid="integracao.bases-erp-api"');
-    expect(html).toContain('data-testid="integracao.nova-chave-erp-api"');
+    // RD-3562: a credencial de API no mesmo "⋯", sem botões repetidos na linha
+    expect(html).toContain('data-testid="integracao.api-credenciais.acoes.erp-api"');
+    expect(html).not.toContain('data-testid="integracao.bases-erp-api"');
     expect(html).not.toContain('data-testid="integracao.chave"');
   });
 
