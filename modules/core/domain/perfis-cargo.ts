@@ -6,15 +6,33 @@
  */
 import {
   AREAS_PERMISSAO,
+  CHAVE_ACESSO,
+  protegidoDaSenha,
+  type Cargo,
   type DefinicaoChave,
+  type LugarDeAcesso,
   type ModelosDePerfil,
   type ModuloId,
   type PerfilPorCargo,
   type PermissoesDoPerfil,
   resolverPerfilPeloCargo,
+  temGestaoDoAcesso,
+  tetoDeEscopoDoCargo,
+  travaDaChavePeloCargo,
+  type ValorPermissao,
+  type ViolacaoLimite,
 } from '@macuxi/platform-sdk';
 
-import { CODIGOS_ERRO_PERFIL_V2, MOTIVO_MODULO_SEM_LICENCA, STATUS_PERFIL_ALTERADO, type CatalogoResposta, type CopiarDe } from '../contracts/perfis';
+import {
+  CODIGOS_ERRO_PERFIL_V2,
+  MOTIVO_MODULO_SEM_LICENCA,
+  STATUS_PERFIL_ALTERADO,
+  type CatalogoResposta,
+  type CopiarDe,
+  type PerfilDetalheV2,
+  type PermissaoConcedidaV2,
+} from '../contracts/perfis';
+import { mesmosAlvos } from './perfis';
 
 /** Rótulo de cada área na tabela de permissões. */
 export const ROTULO_AREA: Readonly<Record<(typeof AREAS_PERMISSAO)[number], string>> = {
@@ -37,6 +55,20 @@ export const ROTULO_AREA: Readonly<Record<(typeof AREAS_PERMISSAO)[number], stri
  * `GET /v1/core/permissoes/catalogo`: chaves por área (ordem das áreas, depois da chave) com `disponivel` pela licença do tenant
  * (RN-CORE-02): módulo sem licença → `disponivel: false`, `motivo: MODULO_SEM_LICENCA`. O Core é sempre licenciado.
  */
+/** O core é sempre licenciado (RN-CORE-02); os demais módulos dependem da licença do tenant. */
+export const moduloLicenciado = (modulo: ModuloId, licencas: ReadonlySet<ModuloId>): boolean => modulo === 'core' || licencas.has(modulo);
+
+/** O valor de uma concessão a partir do que vem do banco ou do corpo: só leva nível e alvos que existem. */
+export function valorDaConcessao(nivel: ValorPermissao['nivel'] | null | undefined, alvos: readonly string[] | null | undefined): ValorPermissao {
+  return { ...(nivel ? { nivel } : {}), ...(alvos ? { alvos: [...alvos] } : {}) };
+}
+
+/** RN-CORE-35: o nome já é de outro perfil ativo (sem diferenciar caixa); `ignorarId` é o próprio perfil, na edição. */
+export function nomeJaUsado(perfis: readonly { id: string; nome: string; ativo: boolean }[], nome: string, ignorarId?: string): boolean {
+  const n = nome.trim().toLowerCase();
+  return perfis.some((p) => p.id !== ignorarId && p.ativo && p.nome.toLowerCase() === n);
+}
+
 export function montarCatalogoPorArea(
   catalogo: readonly DefinicaoChave[],
   licencas: ReadonlySet<ModuloId>,
@@ -49,7 +81,7 @@ export function montarCatalogoPorArea(
       .filter((d) => d.area === area)
       .sort((a, b) => a.chave.localeCompare(b.chave))
       .map((d) => {
-        const disponivel = d.modulo === 'core' || licencas.has(d.modulo);
+        const disponivel = moduloLicenciado(d.modulo, licencas);
         return {
           chave: d.chave,
           descricao: d.descricao,
@@ -91,4 +123,110 @@ export function conferirTravaOtimista(gravado: string, enviado: string): { ok: t
   const a = Date.parse(gravado);
   const b = Date.parse(enviado);
   return a === b ? { ok: true } : { ok: false, status: STATUS_PERFIL_ALTERADO, codigo: CODIGOS_ERRO_PERFIL_V2.alterado };
+}
+
+// ---------------------------------------------------------------- E4b: detalhe, corpo, diferença e violações novas
+
+export type MapaDeConcessoes = Readonly<Record<string, ValorPermissao>>;
+
+/** Perfil ativo do tenant como o detalhe o enxerga: o suficiente para "onde entra" e para os alvos da senha. */
+export interface PerfilAtivoParaDetalhe {
+  codigo: string;
+  nome: string;
+  cargo: Cargo;
+  permissoes: MapaDeConcessoes;
+}
+
+const LUGARES: readonly LugarDeAcesso[] = ['campo', 'gestao', 'bko', 'portal'];
+
+/** Onde o perfil entra, já com as travas do cargo (RN-CORE-33): o que o cargo trava não conta. */
+export function ondeEntraPeloCargo(cargo: Cargo, permissoes: MapaDeConcessoes): LugarDeAcesso[] {
+  const r = resolverPerfilPeloCargo({ codigo: '', cargo, permissoes }).permissoes;
+  return LUGARES.filter((l) => Object.hasOwn(r, CHAVE_ACESSO[l]));
+}
+
+export interface EntradaDetalheV2 {
+  codigo: string;
+  nome: string;
+  descricao: string | null;
+  cargo: Cargo;
+  ativo: boolean;
+  usuarios: number;
+  /** Instante gravado do perfil (ISO, UTC): a trava otimista do PUT. */
+  atualizado_em: string;
+  permissoes: MapaDeConcessoes;
+  /** As chaves que a tela mostra (o catálogo sem as fixas do aparelho). */
+  catalogo: readonly DefinicaoChave[];
+  licencas: ReadonlySet<ModuloId>;
+  perfisAtivos: readonly PerfilAtivoParaDetalhe[];
+  modulos?: readonly string[];
+}
+
+/**
+ * `PerfilDetalheV2` (ADR 0073 §4.2): uma linha por chave do catálogo, com o valor gravado, o cadeado do cargo
+ * (`travaDaChavePeloCargo`: RN-PRO-01, RN-CORE-33), a licença do módulo (RN-CORE-02) e o teto do escopo (RN-CORE-04).
+ * Os alvos da senha deixam de fora quem tem `perfil.gerir` (RN-CORE-34).
+ */
+export function montarDetalheV2(e: EntradaDetalheV2): PerfilDetalheV2 {
+  const gestaoDoAcesso = temGestaoDoAcesso(e.permissoes);
+  const permissoes = [...e.catalogo]
+    .sort((a, b) => a.chave.localeCompare(b.chave))
+    .map((d) => {
+      const v = e.permissoes[d.chave];
+      const trava = travaDaChavePeloCargo(e.cargo, d.chave, { gestaoDoAcesso });
+      return {
+        chave: d.chave,
+        concedida: !!v,
+        nivel: v?.nivel ?? null,
+        alvos: v?.alvos ? [...v.alvos] : null,
+        trava: trava ? { regra: trava.regra, mensagem: trava.mensagem } : null,
+        disponivel: moduloLicenciado(d.modulo, e.licencas),
+      };
+    });
+  return {
+    perfil: {
+      codigo: e.codigo,
+      nome: e.nome,
+      descricao: e.descricao,
+      cargo: e.cargo,
+      ativo: e.ativo,
+      usuarios: e.usuarios,
+      onde_entra: ondeEntraPeloCargo(e.cargo, e.permissoes),
+    },
+    permissoes,
+    teto_escopo: tetoDeEscopoDoCargo(e.cargo),
+    alvos_possiveis: e.perfisAtivos
+      .filter((p) => !protegidoDaSenha(p.permissoes))
+      .map((p) => ({ codigo: p.codigo, nome: p.nome, cargo: p.cargo, onde_entra: ondeEntraPeloCargo(p.cargo, p.permissoes) })),
+    modulos: [...(e.modulos ?? [])],
+    atualizado_em: e.atualizado_em,
+  };
+}
+
+/** O conjunto enviado no corpo vira o mapa de concessões (chave repetida vale a última; o que não vem fica desmarcado). */
+export function permissoesDoCorpo(lista: readonly PermissaoConcedidaV2[]): Record<string, ValorPermissao> {
+  const r: Record<string, ValorPermissao> = {};
+  for (const p of lista) r[p.chave] = valorDaConcessao(p.nivel, p.alvos);
+  return r;
+}
+
+/** O que mudou entre dois conjuntos de concessões: chaves que entraram, saíram e mudaram de nível ou de alvos. */
+export function diffConcessoes(antes: MapaDeConcessoes, depois: MapaDeConcessoes): { entrou: string[]; saiu: string[]; mudou: string[] } {
+  const entrou = Object.keys(depois).filter((c) => !Object.hasOwn(antes, c)).sort();
+  const saiu = Object.keys(antes).filter((c) => !Object.hasOwn(depois, c)).sort();
+  const mudou = Object.keys(depois)
+    .filter((c) => Object.hasOwn(antes, c) && (antes[c]!.nivel !== depois[c]!.nivel || !mesmosAlvos(antes[c]!.alvos, depois[c]!.alvos)))
+    .sort();
+  return { entrou, saiu, mudou };
+}
+
+const chaveDaViolacao = (v: ViolacaoLimite) => `${v.codigo}|${v.perfil ?? ''}|${v.chave ?? ''}|${v.usuario_id ?? ''}`;
+
+/**
+ * Violações que a escrita traz: as do perfil escrito sempre valem; as dos outros perfis só se já não existiam no estado gravado
+ * (a migração deixa avisos, ex.: perfil sem acesso e sem usuários, que não podem travar a edição de um perfil sem relação).
+ */
+export function violacoesNovas(antes: readonly ViolacaoLimite[], depois: readonly ViolacaoLimite[], perfilEscrito: string | null): ViolacaoLimite[] {
+  const jaExistiam = new Set(antes.map(chaveDaViolacao));
+  return depois.filter((v) => (perfilEscrito !== null && v.perfil === perfilEscrito) || !jaExistiam.has(chaveDaViolacao(v)));
 }
