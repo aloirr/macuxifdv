@@ -22,7 +22,7 @@ export function shareCsv(r: RelatorioShareApi): string {
 
 export function rupturaCsv(r: RelatorioRupturaApi): string {
   return paraCsv([
-    ['Loja', 'Itens do mix', 'Presentes', 'Falta na gôndola (reposição)', 'Ruptura total', 'Ruptura (%)', 'Falha de reposição (%)', 'Ruptura total (%)', 'Unidades repostas', 'Check-in (UTC)'],
+    ['Loja', 'Itens do mix', 'Presentes', 'Falta na gôndola (reposição)', 'Ruptura total', 'Ruptura (%)', 'Falha de reposição (%)', 'Sem estoque (%)', 'Unidades repostas', 'Check-in (UTC)'],
     ...r.linhas.map((l) => [l.cliente_nome ?? l.cliente_id, l.total, l.presentes, l.ruptura_gondola, l.ruptura_total, l.ruptura_pct, l.falha_reposicao_pct, l.ruptura_total_pct, l.quantidade_reposta, l.checkin_em]),
   ]);
 }

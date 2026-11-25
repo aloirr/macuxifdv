@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classificarPresenca, quantidadeRepostaValida, resumirRuptura, type StatusPresenca } from './ruptura';
+import { classificarPresenca, quantidadeRepostaValida, ROTULO_COLUNA_RUPTURA, resumirRuptura, type StatusPresenca } from './ruptura';
 
 const itens = (...s: StatusPresenca[]) => s.map((status) => ({ status }));
 
@@ -41,6 +41,20 @@ describe('RN-PRO-05 / RF-PRO-06: presença e ruptura do mix obrigatório', () =>
     const r = resumirRuptura(itens('presente', 'presente', 'ruptura_gondola', 'ruptura_total'), { incluirFalhaDeReposicao: false });
     expect(r.ruptura_pct).toBe(25);
     expect(r.falha_reposicao_pct).toBe(25);
+  });
+
+  it('RN-PRO-05: a ruptura geral é a soma das partes e nunca menor que uma delas', () => {
+    const r = resumirRuptura(itens('presente', 'presente', 'presente', 'ruptura_gondola', 'ruptura_total', 'ruptura_total', 'ruptura_gondola', 'presente', 'presente', 'presente'));
+    expect(r.ruptura_pct).toBe(40);
+    expect(r.ruptura_pct).toBe((r.falha_reposicao_pct ?? 0) + (r.ruptura_total_pct ?? 0));
+    expect(r.ruptura_pct ?? 0).toBeGreaterThanOrEqual(r.falha_reposicao_pct ?? 0);
+    expect(r.ruptura_pct ?? 0).toBeGreaterThanOrEqual(r.ruptura_total_pct ?? 0);
+  });
+
+  it('RN-PRO-05: só a coluna geral se chama ruptura; a parte sem estoque não usa o rótulo "Ruptura total"', () => {
+    expect(ROTULO_COLUNA_RUPTURA.geral).toBe('Ruptura (total)');
+    expect(ROTULO_COLUNA_RUPTURA.sem_estoque).toBe('Sem estoque (depósito vazio)');
+    expect(ROTULO_COLUNA_RUPTURA.falha_reposicao).toBe('Falha de reposição (tem no depósito)');
   });
 
   it('RN-PRO-05: mix vazio não divide por zero', () => {

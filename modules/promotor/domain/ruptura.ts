@@ -55,6 +55,13 @@ export interface OpcoesRuptura {
   incluirFalhaDeReposicao?: boolean;
 }
 
+/** Rótulos das colunas de ruptura (RN-PRO-05): a geral é a soma das duas partes, que não repetem o nome "ruptura total". */
+export const ROTULO_COLUNA_RUPTURA = {
+  geral: 'Ruptura (total)',
+  falha_reposicao: 'Falha de reposição (tem no depósito)',
+  sem_estoque: 'Sem estoque (depósito vazio)',
+} as const;
+
 export function resumirRuptura(itens: readonly ItemMix[], opcoes: OpcoesRuptura = {}): ResumoRuptura {
   const incluir = opcoes.incluirFalhaDeReposicao ?? true;
   const total = itens.length;
