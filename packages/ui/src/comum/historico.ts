@@ -24,7 +24,7 @@ interface DefinicaoTag {
   tom: TomTag;
   /** mostra o motivo em 1 linha (Rejeitado, Cancelado) */
   comMotivo?: boolean;
-  /** "Transformado em pedido nº 000013" */
+  /** "Convertido em pedido nº 000013" */
   comNumero?: boolean;
 }
 
@@ -61,14 +61,14 @@ const TAGS_PEDIDO: Readonly<Record<string, DefinicaoTag | null>> = {
   cancelled: CANCELADO,
 };
 
-/** Orçamento (RN-VEN-30 e RN-VEN-18): Salvo · Transformado em pedido nº · Vencido · Cancelado. */
+/** Orçamento (RN-VEN-30 e RN-VEN-18): Salvo · Convertido em pedido nº · Vencido · Cancelado. */
 const TAGS_ORCAMENTO: Readonly<Record<string, DefinicaoTag | null>> = {
   salvo: SALVO,
   aberto: SALVO,
   rascunho: SALVO,
   draft: SALVO,
-  convertido: { rotulo: 'Transformado em pedido', tom: 'sucesso', comNumero: true },
-  transformado: { rotulo: 'Transformado em pedido', tom: 'sucesso', comNumero: true },
+  convertido: { rotulo: 'Convertido em pedido', tom: 'sucesso', comNumero: true },
+  transformado: { rotulo: 'Convertido em pedido', tom: 'sucesso', comNumero: true },
   vencido: { rotulo: 'Vencido', tom: 'aviso' },
   cancelado: CANCELADO,
   cancelled: CANCELADO,
@@ -95,13 +95,13 @@ export interface EventoDoHistorico {
   autor?: string | null;
   /** O autor é o vendedor do pedido: o nome não aparece (RN-VEN-30). */
   autorEhVendedor?: boolean;
-  /** Orçamento transformado: número do pedido gerado ("000013"). */
+  /** Orçamento convertido: número do pedido gerado ("000013"). */
   numeroPedido?: string | null;
 }
 
 export interface TagDoHistorico {
   id: string;
-  /** "Salvo", "Rejeitado", "Transformado em pedido nº 000013" */
+  /** "Salvo", "Rejeitado", "Convertido em pedido nº 000013" */
   rotulo: string;
   /** "08/11 10:35" (no fuso do tenant; de outro ano, "08/11/25 10:35") */
   quando: string;

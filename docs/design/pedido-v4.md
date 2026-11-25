@@ -17,13 +17,15 @@
 > §4.1 (detalhe) e a regra "a última tag é o estado de agora" do §5.1. No `formulario-pendencias.md`, o bloco "Falta para salvar"
 > e a bolinha na aba valem só fora do Novo pedido (visita, pesquisa, cadastro); no pedido, valem os Alertas (§0.1).
 
+> **2026-11-25 (v1.0.34):** Resumo, folha de saída e Ações: vale pedido-v2.md §2.2–2.5.
+
 ## 0. Regras que valem para todas
 1. **Uma informação, um lugar** (RN-VEN-42; regra permanente do corretor-redundancias, para todas as telas). Se uma seção mostra
    uma informação, ela não aparece em outro lugar da mesma tela: o **Histórico** mostra a situação, os **Totais** mostram o %, os
    **Alertas** mostram o problema. Contagem na aba não se repete no título da seção; total só nos Totais.
 2. **Alçada só na área Alertas** (regra 3 do R-20261112-031456; RD-0142): uma linha `Desconto acima da sua alçada`, uma por
    pedido, venha o desconto do Desc./Acrésc. geral ou de um item (RN-VEN-10 olha o desconto do pedido inteiro). Ao tocar em
-   "Salvar e enviar pedido", a pergunta `Enviar para aprovação?` (sem texto) com **Enviar** (principal) e **Voltar** (texto).
+   Enviar pedido (Ações), a pergunta `Enviar para aprovação?` (sem texto) com **Enviar** (principal) e **Voltar** (texto).
    Orçamento não pergunta.
 3. **Nenhum aviso solto.** Todo problema que pede atenção ou correção vai para a área **Alertas** (§0.1). Fora dela não há linha
    de motivo acima dos botões, texto embaixo do botão, faixa colorida, bolinha na aba nem número em vermelho na tabela.
@@ -46,14 +48,14 @@
   |---|---|---|---|
   | Desconto acima do máximo (RN-VEN-11) | `AGU-1500 acima do desconto máximo` (um por item) | popup do item | só orçamento |
   | Sem estoque (RN-VEN-20) | `BIS-400 sem estoque` (um por item) | popup do item | só orçamento |
-  | Informação faltante (RN-CORE-36; T-0166, RD-0170) | **só depois da tentativa** (§6.1): `Falta a transportadora · aba Entrega`, `Falta a forma de pagamento · aba Venda` ("· aba X" em `ink2`), nunca a da aba aberta: o campo já diz (RD-0189). Pedido recém-aberto: 0 alertas | a aba e o campo | o toque em salvar com falta não salva e leva à 1ª aba com falta; Apenas salvar continua |
+  | Informação faltante (RN-CORE-36; T-0166, RD-0170) | **só depois da tentativa** (§6.1): `Falta a transportadora · aba Entrega`, `Falta a forma de pagamento · aba Venda` ("· aba X" em `ink2`), nunca a da aba aberta: o campo já diz (RD-0189). Pedido recém-aberto: 0 alertas | a aba e o campo | o toque em salvar com falta não salva e leva à 1ª aba com falta; Salvar › Pedido continua |
   | Recusa do servidor (RN-VEN-40) | o motivo devolvido, curto; preço mínimo = `AGU-1500 acima do desconto máximo` | popup do item, se houver item | o que a recusa disser |
   | Recusa do supervisor | o motivo dele numa linha (o nome fica na etapa "Rejeitado" do Histórico) | — | — |
   | Crédito (RN-VEN-12) | `Limite de crédito excedido` | — | conforme o parâmetro (aprovação ou bloqueio) |
   | Alçada (RN-VEN-10; T-0165, RD-0142) | `Desconto acima da sua alçada` (uma por pedido) | a aba Itens | vai para aprovação (pergunta `Enviar para aprovação?`) |
   | Título vencido (RN-VEN-13; RD-0172) | `Título vencido`, **só quando muda o resultado**: atraso acima do limite do tenant com prazo a prazo (a conta da aprovação por vencido). Fora disso não aparece | — | só à vista ou com aprovação |
   | Cliente (RN-VEN-13; RD-0171) | **uma linha só**, a primeira que vale: `Cliente bloqueado` > `Cliente inativo` > `Cadastro do cliente incompleto: falta CEP e telefone` (os campos que faltam, RN-CORE-17; RD-0138) | — | só orçamento |
-  | Sem forma para o cliente (RN-VEN-25; RD-0173) | `Sem forma de pagamento para este cliente` (junta "falta forma aceita" e "Cadastre as formas no BKO"); o campo Forma fica desligado com "—" | — | Salvar e enviar desligado |
+  | Sem forma para o cliente (RN-VEN-25; RD-0173) | `Sem forma de pagamento para este cliente` (junta "falta forma aceita" e "Cadastre as formas no BKO"); o campo Forma fica desligado com "—" | — | Enviar pedido mostra o motivo (`pedido-v2.md` §2.5) |
   | Item fora da cópia (Duplicar; RD-0174) | `AGU-1500 fora da cópia: sem preço` ou `AGU-1500 fora da cópia: inativo` (um por item; sai a faixa) | — | nenhum |
   | Sem sinal na edição de pedido enviado (RD-0175) | `Sem sinal para salvar a alteração` (sai a faixa vermelha); os botões de salvar desligados | — | não salva |
 
@@ -80,14 +82,8 @@ Ordem: **Alertas (§0.1, só se houver) · Cliente · Venda · Itens · Entrega 
 - **Totais** (cartão): **Tabela** ··· R$ · **linha líquida** ··· ± R$ · **Total** (15/600 · 22/700 tabular, traço `line` acima).
   Linha líquida = resultado de itens e pedido sobre a tabela: "Acréscimo 5,8%" ··· "+ R$ 6,94" ou "Desconto 8,8%" ··· "− R$ 10,53"
   (U+2212). Sem ajuste, a linha não aparece. **Sem caixa verde.**
-- Botões sem alerta: **Salvar e enviar pedido** (principal 52) · **Apenas salvar** e **Salvar como orçamento** (secundários 52,
-  metade cada, quebram em 2 linhas) · **Cancelar** (texto). **Nada embaixo do botão.**
-- **Com alerta que só permite orçamento** (acima do máximo, sem estoque, cliente bloqueado; RN-VEN-11, RN-VEN-20, RN-VEN-13):
-  **Salvar como orçamento** (principal 52) · **Apenas salvar** (secundário 52, largura toda) · **Cancelar** (texto). Nenhuma
-  linha acima dos botões.
-- **Com informação faltante** (RN-CORE-36; T-0166, §6.1): os botões ficam **tocáveis**. O toque em Salvar e enviar pedido ou
-  Salvar como orçamento com falta não salva: liga o modo "tentou", leva à 1ª aba com falta e marca os campos. Apenas salvar
-  continua salvando com falta.
+- Botões: **Salvar** (principal 52) · **Cancelar** (texto), com a escolha Orçamento / Pedido (`pedido-v2.md` §2.2–2.3). **Nada
+  embaixo do botão** e nenhuma linha acima. Com informação faltante, a tentativa segue o §6.1.
 - **Aba Venda:** sai a faixa verde "Cliente liberado · sem título vencido" e a faixa do crédito; crédito e título viram alertas.
   A tabela Limite · Disponível · Prazo médio continua, sem vermelho (é dado, não alerta).
 - **Saem**: a linha "AGU-1500 acima do desconto máximo" acima dos botões, o bloco "Falta para salvar" e a bolinha na aba (a linha
@@ -99,7 +95,7 @@ rodapé de ações**.
 - Título 22/700 "Pedido 000013" / "Orçamento 000012". Cliente 15 `ink` "Nome · cód. C5007".
 - **Sem selo no topo.** A situação aparece só no Histórico (RN-VEN-42). Sai também o selo roxo "Preço de 09/11" do orçamento: a
   etapa "Salvo · 09/11" do Histórico já é a data do preço congelado (RN-VEN-18).
-- **Alertas** (§0.1): a recusa (motivo numa linha) e, no orçamento, os problemas que impedem o Transformar (acima do máximo, sem
+- **Alertas** (§0.1): a recusa (motivo numa linha) e, no orçamento, os problemas que impedem o Converter em pedido (acima do máximo, sem
   estoque, cliente). Pedido enviado, aprovado ou faturado normalmente não tem alerta.
 - Tabela Pagamento ("Boleto · 28/56 dias") e Entrega ("CIF · endereço"). Gestão e BKO: + linha **Vendedor**.
 - ITENS (n) e Totais: iguais ao Resumo (§1). Aqui o título leva a contagem (não há aba).
@@ -108,10 +104,10 @@ rodapé de ações**.
   - Aprovado, Recebido no ERP, Faturado: `successBg`/`success`;
   - Em aprovação: `warningBg`/`warningInk`;
   - Rejeitado, Cancelado: `dangerBg`/`danger`;
-  - as demais (Salvo, Na fila, Enviado, Faturado parcial, Transformado em pedido nº): fundo `ink`, texto branco.
+  - as demais (Salvo, Na fila, Enviado, Faturado parcial, Convertido em pedido nº): fundo `ink`, texto branco.
   As anteriores ficam neutras (`neutralBg`/`neutralInk`, 500).
 - Rodapé: as ações da tabela do `pedido-v2.md` §4.3 (ex.: rejeitado = **Corrigir pedido** + PDF · Duplicar). Orçamento com
-  alerta que impede o pedido: principal **Editar** (sem Transformar) + PDF · Duplicar.
+  alerta que impede o pedido: principal **Editar** (sem Converter em pedido) + PDF · Duplicar.
 - Sai: o selo de situação, o motivo solto embaixo do selo, "Desconto efetivo (sem frete)", o cartão de aprovação, a linha de
   alçada no Campo e "Corrija e salve de novo".
 
@@ -310,7 +306,7 @@ e não leva selo de estado no cabeçalho: a atualização da lista não mostra m
   ajuste de cada item).
 - **Acima da alçada** (regra 3 aprovada, com o RD-0142): quando o desconto do pedido inteiro passa da alçada do vendedor
   (RN-VEN-10), venha do geral ou dos itens, entra **uma** linha nos Alertas, `Desconto acima da sua alçada` (toque leva à aba
-  Itens); some quando o desconto volta para dentro da alçada. Ao salvar, a pergunta `Enviar para aprovação?` (§0, regra 2).
+  Itens); some quando o desconto volta para dentro da alçada. Ao tocar em Enviar pedido (Ações), a pergunta `Enviar para aprovação?` (§0, regra 2).
 - **Acima do desconto máximo** de um produto (RN-VEN-11): o % entra no item, o item vai para os Alertas
   (`AGU-1500 acima do desconto máximo`, toque abre a folha) e o pedido só sai como orçamento, igual ao item digitado na folha.
 - **Componentes:** `DescontoCompacto` (2 tipos), `Botao` secundário, `Dialogo`. Novos em `@macuxi/ui/mobile` (designer-ux):
@@ -357,9 +353,10 @@ e não leva selo de estado no cabeçalho: a atualização da lista não mostra m
 ### 6.1 Falta no campo: só na tentativa (RN-CORE-36; RD-0170)
 1. **Antes de tentar**, o campo vazio fica no estado normal ("Escolher", "Itens (0)", campo em branco). Sem vermelho e sem
    linha em Alertas. **Pedido recém-aberto: 0 alertas.**
-2. **Avançar** (troca de aba) não bloqueia, porque Apenas salvar aceita pendência (RN-VEN-38). As faltas da aba que o vendedor
+2. **Avançar** (troca de aba) não bloqueia, porque Salvar › Pedido aceita pendência no Campo e no Gestão (RN-VEN-38). As faltas da aba que o vendedor
    **deixou** ficam marcadas nos campos dela e entram em Alertas enquanto ele estiver em outra aba (RD-0189).
-3. **Salvar e enviar pedido**, **Salvar como orçamento** e **Transformar** ficam **tocáveis**. Com falta, o toque não salva:
+3. **Salvar › Orçamento** e **Converter em pedido** ficam **tocáveis** (**Enviar pedido**
+   das Ações mostra o motivo, `pedido-v2.md` §2.5). Com falta, o toque não salva:
    liga o modo "tentou" (os campos com falta ficam marcados, e as faltas das outras abas entram em Alertas) e a tela leva à
    **1ª aba com falta**, rolando até o 1º campo marcado. O TalkBack lê a 1ª falta do campo. No Resumo, que não tem campo
    obrigatório, aparecem todas as faltas.

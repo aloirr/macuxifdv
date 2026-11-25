@@ -9,10 +9,9 @@
 > (`FolhaSairDoFormulario`, `FolhaRetomarRascunho`); a marca do campo é a do §0.0 item 3.
 > Telas: modulo-vendedor (T-0127 Frente D, T-0128 Frente E, T-0130 Frente G). Interceptação da saída: engenheiro-apps (T-0128).
 > **Atualizado em 08/11 tarde (T-0133, Novo pedido v2):** o pedido tem 4 abas (**Venda · Itens (n) · Entrega · Resumo**);
-> "aba Detalhes" virou **aba Venda** (forma, prazo, alertas) ou **aba Entrega** (endereço, frete, transportadora, observações);
-> o Resumo tem 4 botões (Salvar e enviar pedido · Apenas salvar · Salvar como orçamento · Cancelar), sem a folha intermediária
-> "Salvar pedido"; a folha "Sair do pedido?" usa os mesmos rótulos (§2.2). Padrão das abas, Resumo, detalhe e tags:
-> `pedido-v2.md`.
+> "aba Detalhes" virou **aba Venda** (forma, prazo, alertas) ou **aba Entrega** (endereço, frete, transportadora, observações).
+> Padrão das abas, Resumo, detalhe e tags: `pedido-v2.md`.
+> **2026-11-25 (v1.0.34):** Resumo, folha de saída e Ações: vale pedido-v2.md §2.2–2.5.
 > **Substitui**: o `PendenciasDoPedido` (Banner vermelho com os erros juntos + botão "Corrigir frete") e o `DialogoDescartar`
 > solto do Cancelar. Atualiza `novo-pedido-itens.md` §1 ("as pendências do pedido ficam antes do Avançar" deixa de valer).
 
@@ -24,8 +23,8 @@
 
 1. **Antes de tentar**, campo vazio é estado normal: sem vermelho, sem bolinha, sem linha de falta, sem chip "Obrigatória" em
    vermelho. Formulário recém-aberto não mostra nenhuma falta.
-2. **Tentativa** = o toque no botão que conclui (Salvar e enviar, Salvar como orçamento, Transformar, Concluir checkout,
-   Enviar pesquisa) ou, no formulário com abas, sair da aba pelo Avançar (só as faltas daquela aba). O botão fica **sempre
+2. **Tentativa** = o toque no botão que conclui (Salvar orçamento, Converter em pedido, Enviar pedido,
+   Concluir checkout, Enviar pesquisa) ou, no formulário com abas, sair da aba pelo Avançar (só as faltas daquela aba). O botão fica **sempre
    tocável**; com falta, o toque não conclui: marca os campos, leva ao 1º campo marcado e o TalkBack lê a 1ª falta.
 3. **Marca do campo** (kit: `faltaVisivel`, `TextoDaFalta`, `bordaDaFalta`; o `CampoEscolha` já traz a prop `falta`): borda
    `danger` 2 dp e, embaixo, ícone `alerta` 14 + texto curto 12,5/600 `danger` ("Obrigatório", "CNPJ inválido"…). Valor
@@ -82,31 +81,29 @@ ponto de extensão reutilizável: o formulário diz "estou alterado" e recebe "a
 depois que a tela liberar.
 
 ### 2.2 Conteúdo (`FolhaSairDoFormulario`)
-Título **"Sair do pedido?"**. Opções (`OpcaoFolha`, 56 dp), nesta ordem, com os **mesmos rótulos dos botões do Resumo**
-(T-0133, RN-VEN-38):
+Título **"Sair do pedido?"**. Opções (`OpcaoFolha`, 56 dp), nesta ordem, cada uma só quando vale para o cliente (a tabela de
+`pedido-v2.md` §2.3):
 
 | Opção | Prop do kit | Ícone / tom | O que faz |
 |---|---|---|---|
-| **Salvar e enviar pedido** | `salvar` | `send` · destaque | valida; sem falta, segue o §4.1 (fecha na hora); com falta, fecha a folha e faz a tentativa (§0.0 item 2) |
-| **Apenas salvar** | `apenasSalvar` | `file` · neutro | grava `rascunho` **com ou sem falta** e segue para a saída pedida; aviso "Pedido salvo" |
-| **Salvar como orçamento** | `salvarAlternativo` | `edit` · neutro | valida como o Resumo; com falta, fecha a folha e faz a tentativa (§0.0 item 2); sem, salva (RN-VEN-18) e abre o orçamento |
+| **Salvar pedido** | `salvar` | `file` · destaque | Campo e Gestão (RN-VEN-35): só grava, não envia; grava o pedido salvo **mesmo com falta** (RN-CORE-36) e segue para a saída pedida, aviso "Pedido salvo" |
+| **Salvar orçamento** | `salvarAlternativo` | `edit` · neutro | valida como o Resumo; sem falta, salva (RN-VEN-18) e segue para a saída pedida, aviso "Orçamento salvo"; com falta, fecha a folha e faz a tentativa |
 | **Descartar** | `descartar` | `trash` · perigo | abre a confirmação (§2.4) |
 | Continuar editando | `continuar` | rodapé de texto | fecha a folha e fica no formulário |
 
 Sem subtítulo nas opções (RD-0193): cada uma mostra só o rótulo.
 
-- Com falta, os dois botões continuam tocáveis: o toque é a tentativa.
-- A saída pedida (ex.: aba Pedidos) é **cancelada** quando a pessoa salva com falta (Salvar e enviar pedido ou Salvar como
-  orçamento) ou escolhe Continuar editando; segue depois de Apenas salvar, de salvar sem falta ou de descartar.
+- Com falta, Salvar orçamento continua tocável: o toque é a tentativa e **cancela** a saída pedida (ex.: aba Pedidos), como
+  Continuar editando; ela segue depois de salvar ou de descartar.
 - Toque fora da folha e Voltar do Android com a folha aberta = **Continuar editando** (nunca descartam).
-- Tenant sem orçamento (pré-venda desligada): sem a linha Salvar como orçamento.
-- Com o "Salvar e enviar pedido" a folha tem um só destaque laranja (o ícone); não há botão principal dentro dela.
+- Tenant sem orçamento (pré-venda desligada): sem a linha Salvar orçamento.
+- A folha tem um só destaque laranja (o ícone de Salvar pedido; sem ela, o de Salvar orçamento); não há botão principal dentro dela.
 - Edição de pedido já salvo (não é Novo pedido): mesmo padrão com "Salvar alterações".
 - Editar orçamento: **Salvar orçamento** · **Descartar** · **Continuar editando**, só com os rótulos (RD-0234).
 
 ### 2.3 Variante do cliente da RN-VEN-13 (bloqueado, inativo, cadastro incompleto)
-A mesma folha **sem** Salvar e enviar pedido: só **Apenas salvar**, **Salvar como orçamento** e **Descartar** (+ Continuar
-editando). **Sem linha de motivo** abaixo do título (T-0166, RD-0176): o motivo já está na área Alertas do pedido.
+A mesma folha **sem** Salvar pedido: só **Salvar orçamento** e **Descartar** (+ Continuar editando). **Sem linha de motivo**
+abaixo do título (T-0166, RD-0176): o motivo já está na área Alertas do pedido.
 
 ### 2.4 Confirmação do Descartar
 `Dialogo` com `perigo` (mesmo do kit), aberto **no lugar** da folha (a folha fecha e o diálogo aparece; não empilha):
@@ -136,18 +133,18 @@ aberto, na **primeira tela depois de reabrir** (o Início, ou a tela que o shell
 ## 3. Textos finais (copiar exatamente)
 | Onde | Texto |
 |---|---|
-| folha | `Sair do pedido?` · `Salvar e enviar pedido` · `Apenas salvar` · `Salvar como orçamento` · `Descartar` · `Continuar editando` |
+| folha | `Sair do pedido?` · `Salvar pedido` · `Salvar orçamento` · `Descartar` · `Continuar editando` |
 | confirmação | `Descartar este pedido?` · `Os itens e os dados deste pedido serão apagados do aparelho.` · `Voltar` · `Descartar` |
 | retomada | `Pedido não terminado` · `Continuar pedido de <cliente>` / `<n> itens · R$ x · alterado às hh:mm` · `Descartar` · `Agora não` |
-| salvo | `Pedido salvo · enviando` (§4) · `Pedido salvo` (Apenas salvar) |
+| salvo | `Pedido salvo` · `Orçamento salvo` (aviso do Salvar; a faixa do pedido na fila está no §4.2) |
 
 ## 4. Salvar e fila (RN-VEN-30, acréscimo de 08/11; RF-VEN-04, RN-CORE-23, RN-VEN-33)
 
-### 4.1 O toque em "Salvar e enviar pedido" (Resumo ou folha Sair)
-1. Valida no aparelho (offline). Com falta, faz a tentativa (§0.0 item 2).
-2. Grava o pedido como `na_fila` e **fecha a tela em menos de 1 s**. Sem `ocupado` girando no [Salvar], sem esperar a rede.
-   Vibração leve do principal no toque; transição de avançar (240 ms; sem animação com "reduzir movimento").
-3. O editor sai da pilha (`replace`) e abre o **detalhe do pedido** (de lá, o voltar leva para onde o pedido começou, §6.1).
+### 4.1 O toque em "Enviar pedido" (Ações da aba Pedidos, no Campo e no Gestão)
+1. Valida no aparelho (offline). Com falta, não envia e a folha Ações mostra o motivo numa linha (`pedido-v2.md` §2.5).
+2. A tela fica na lista Pedidos. Acima da alçada (RN-VEN-10), abre a pergunta `Enviar para aprovação?` com **Enviar**
+   (principal) e **Voltar** (texto); Voltar não envia.
+3. Enviado, aviso no rodapé `Pedido enviado`; sem sinal, `Pedido na fila · vai quando houver sinal`.
 4. O envio sai pela fila comum, em segundo plano, com retentativa e o UUID do aparelho (reenvio não duplica).
 
 ### 4.2 Detalhe do pedido enquanto `na_fila` (somente leitura)
@@ -175,27 +172,29 @@ De cima para baixo: BackLink · título "Pedido 000013" · cliente · `ChipEstad
   | `estoque_insuficiente` | `estoque de AGU-1500 não atende a quantidade` |
   | outro | `o Macuxi recusou o pedido. Fale com seu supervisor` (sem "Corrija…") |
 - Botão **principal "Corrigir pedido"**: reabre o editor com o pedido (volta a `rascunho`, RN-VEN-31) na aba do problema
-  quando o motivo apontar uma (preço → Itens). Ao salvar, segue o §4.1 de novo. Um só principal na tela.
+  quando o motivo apontar uma (preço → Itens). Ao salvar, volta à aba Pedidos como pedido salvo (`pedido-v2.md` §2.3); o
+  novo envio é o Enviar pedido das Ações (§4.1). Um só principal na tela.
 - Sem "Rejeitado" aqui: "Rejeitado" é decisão do supervisor (RN-VEN-30); "Não aceito" é a recusa do Macuxi.
 
 ## 5. Contraste (regra do `componentes.md` §1.1, vale para todas as peças acima)
 - **Texto laranja sobre claro = `accentInk` `#8F3D06`** (6,7:1 no fundo, 7,4:1 no branco). Nenhum texto em `colors.accent`.
 - **Sobre o laranja cheio = `onAccent`** (branco, 4,6:1): o [Salvar] principal e o contador da aba Pedidos.
-- O `accent` é só preenchimento e gráfico: botão principal, borda da aba ativa, ícone da opção "Salvar e enviar pedido" no quadrado
+- O `accent` é só preenchimento e gráfico: botão principal, borda da aba ativa, ícone da opção "Salvar pedido" no quadrado
   `accentSoft` (3,9:1, gráfico ≥ 3:1).
 - Desabilitado: texto `#5B6673` sobre `#ECEEF1` (5,03:1), sem transparência.
 
 ## 6. Componentes do kit a usar
 | Peça | Componente | Observação |
 |---|---|---|
-| salvar | `Botao nivel="principal"` sempre tocável; secundários `Botao alto quebrarLinha` | um só principal; `pedido-v2.md` §2.2 |
+| salvar | `Botao nivel="principal"` sempre tocável | um só principal; `pedido-v2.md` §2.2 |
 | cancelar | texto 14/600 `ink2`, alvo 48 dp | abre a folha de saída se alterado |
-| folha de saída | `FolhaSairDoFormulario` (`salvar`, `apenasSalvar`, `salvarAlternativo`, `descartar`) | sem `salvar` = variante RN-VEN-13 |
+| folha de saída | `FolhaSairDoFormulario` (`salvar`, `salvarAlternativo`, `descartar`, `continuar`; §2.2) | sem `salvar` = variante RN-VEN-13 |
 | retomada | `FolhaRetomarRascunho` | na 1ª tela depois de reabrir |
 | detalhe na fila / não aceito | `ChipEstado`, `Banner` (`anunciar`), `Botao`, `AvisoRodape` | §4 |
 
 ## 7. Critérios de revisão (designer-ux, nas T-0127, T-0128 e T-0130)
 1. Formulário recém-aberto sem nenhuma marca de falta; na tentativa, os campos marcados e o foco no 1º.
 2. As 5 saídas abrem a folha com o formulário alterado; nenhuma apaga sem a confirmação.
-3. Salvar fecha a tela em < 1 s, sem indicador girando; detalhe com "Pedido salvo · enviando" e nenhuma ação de edição.
+3. Salvar grava em < 1 s, sem indicador girando, e leva à aba Pedidos com "Pedido salvo" (§2.2, `pedido-v2.md` §2.3); o envio
+   é o Enviar pedido das Ações (§4.1), e o detalhe na fila (§4.2) não tem nenhuma ação de edição.
 4. Contraste do §5 (texto laranja só `accentInk`).
