@@ -19,25 +19,34 @@ export interface ColunaPedido {
   /** fixa na borda quando a tabela rola na horizontal (prancha 04, opção A) */
   fixa?: 'esquerda' | 'direita';
   numero?: boolean;
-  /** largura em px (soma 1610, como na prancha) */
+  /** largura em px */
   largura: number;
+  /** prioridade baixa (UX-15): some em tela estreita (abaixo de 1500 px); o conteúdo continua no detalhe do pedido */
+  baixa?: boolean;
 }
 
+/** UX-15: Valor logo depois de Cliente; Motivo e Observação de prioridade baixa; sem rolagem lateral perto de 1.060 px. */
 export const COLUNAS_DA_TABELA: readonly ColunaPedido[] = [
   { id: 'codigo', titulo: 'Código do cliente', fixa: 'esquerda', largura: 76 },
-  { id: 'cliente', titulo: 'Cliente', fixa: 'esquerda', largura: 160 },
-  { id: 'uf', titulo: 'UF', largura: 44 },
-  { id: 'cidade', titulo: 'Cidade', largura: 92 },
-  { id: 'numero', titulo: 'Nº', largura: 72 },
+  { id: 'cliente', titulo: 'Cliente', fixa: 'esquerda', largura: 150 },
+  { id: 'valor', titulo: 'Valor', numero: true, largura: 100 },
+  { id: 'uf', titulo: 'UF', largura: 40 },
+  { id: 'cidade', titulo: 'Cidade', largura: 90 },
+  { id: 'numero', titulo: 'Nº', largura: 70 },
   { id: 'vendedor', titulo: 'Vendedor', largura: 100 },
-  { id: 'supervisor', titulo: 'Supervisor', largura: 104 },
-  { id: 'recebido', titulo: 'Recebido', largura: 100 },
-  { id: 'valor', titulo: 'Valor', numero: true, largura: 104 },
-  { id: 'motivo', titulo: 'Motivo', largura: 116 },
-  { id: 'observacao', titulo: 'Observação do pedido', largura: 170 },
-  { id: 'situacao', titulo: 'Situação', fixa: 'direita', largura: 172 },
-  { id: 'acoes', titulo: 'Ações', fixa: 'direita', largura: 300 },
+  { id: 'supervisor', titulo: 'Supervisor', largura: 112 },
+  { id: 'recebido', titulo: 'Recebido', largura: 90 },
+  { id: 'motivo', titulo: 'Motivo', largura: 116, baixa: true },
+  { id: 'observacao', titulo: 'Observação do pedido', largura: 170, baixa: true },
+  { id: 'situacao', titulo: 'Situação', fixa: 'direita', largura: 140 },
+  { id: 'acoes', titulo: 'Ações', fixa: 'direita', largura: 48 },
 ];
+
+/** A coluna Ações só existe quando algum pedido da lista tem ação (largura justa, sem faixa vazia). */
+export function colunasVisiveis(pedidos: readonly Pick<Order, 'status' | 'pode_decidir'>[]): readonly ColunaPedido[] {
+  const comAcao = pedidos.some((o) => acoesDoPedido(o).length > 0);
+  return COLUNAS_DA_TABELA.filter((c) => c.id !== 'acoes' || comAcao);
+}
 
 export interface AcaoDoPendente {
   id: 'aprovar' | 'rejeitar' | 'devolver';
