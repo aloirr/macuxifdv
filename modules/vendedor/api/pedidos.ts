@@ -31,7 +31,6 @@ import {
   type Order,
   type OrderDetail,
 } from '../contracts';
-import { STATUS_FORA_DO_TOTAL } from '../domain/totais';
 import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
@@ -209,20 +208,19 @@ export const rotaListarPedidos: RotaModulo = {
           limit $9`,
         valores,
       );
-      // §P6 (regra 3): quantidade e soma do filtro inteiro, só na primeira página e só a pedido (`totais=1`); mesmo filtro e mesmo escopo da lista.
-      let total_filtro: { quantidade: number; soma_cents: number } | undefined;
+      // §P6 (regra 3): quantidade do filtro inteiro, só na primeira página e só a pedido (`totais=1`); mesmo filtro e mesmo escopo da lista.
+      let total_filtro: { quantidade: number } | undefined;
       if (q.totais === '1' && !cursor) {
         const t = (
-          await db.query<{ quantidade: number; soma_cents: number }>(
-            `select count(*)::int as quantidade,
-                    coalesce(sum(p.total_cents) filter (where p.status <> all($18::text[])), 0)::float8 as soma_cents
+          await db.query<{ quantidade: number }>(
+            `select count(*)::int as quantidade
                from vendedor.pedido p
                ${filtro}
                 and ($9::int is not null and ($11::timestamptz is null or $12::uuid is not null))`,
-            [...valores, [...STATUS_FORA_DO_TOTAL]],
+            valores,
           )
         ).rows[0];
-        total_filtro = { quantidade: Number(t?.quantidade ?? 0), soma_cents: Math.round(Number(t?.soma_cents ?? 0)) };
+        total_filtro = { quantidade: Number(t?.quantidade ?? 0) };
       }
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
