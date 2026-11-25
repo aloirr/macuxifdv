@@ -362,7 +362,7 @@ export function equivaleAHtml(it: Pick<OrderPdfItem, 'references'>, view: OrderP
 /** RN-VEN-02 v3 (ADR 0076): quantidade da coluna do PDF; KG/M com vírgula e 3 a 4 casas (a unidade já está na coluna Emb.), o resto como sempre. */
 export function quantidadeDoPdf(item: Pick<OrderPdfItem, 'quantity' | 'unit_label'>): string {
   const sigla = siglaDaMedida(item.unit_label);
-  return unidadeFracionaria(sigla) || temFracao(item.quantity) ? formatarQuantidade(item.quantity, sigla).replace(/ \S+$/, '') : String(item.quantity);
+  return unidadeFracionaria(sigla) || temFracao(item.quantity) ? formatarQuantidade(item.quantity, sigla, { semSigla: true }) : String(item.quantity);
 }
 
 /** RN-CORE-19: quantidade somada por embalagem ("2 FD + 4 CX + 10 UN"); a medida "CX c/ 12" conta como CX. */
