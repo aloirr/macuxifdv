@@ -153,3 +153,4 @@
 - 2026-11-24 — revisão geral das telas — BKO, portal, apps, PDF e e-mails: RD-2753 a RD-2789 (4 altos, 17 médios, 16 baixos; 10 donos), 7 ao testes, 2 para a S3 (Parâmetros). Relatório docs/qualidade/redundancias/2026-11-24-revisao-geral.md.
 - 2026-11-25 (Manaus) — T-0196, S12: ADR 0076 no head 6c017ff9 (branch nuvem/v1036-frac-engenheiro-software-adr): conteúdo idêntico ao 7c685c0f8, LIBERADO, sem achado novo.
 - 2026-11-25 (Manaus) — S7, migração 0108 (catálogo v2), SHA 45422839e, banco-dados: NÃO LIBERADO, RD-3705 a RD-3707 (baixos, teste). Relatório docs/qualidade/redundancias/2026-11-25-s7-catalogo-v2-0108.md.
+- 2026-11-25 (Manaus) — S7: reteste 0108 88b23c06f LIBERADO (RD-3705 a RD-3707 corrigidos); E6 nos módulos NÃO LIBERADO: core e6fb29e (RD-3708), pesquisa 06e19a1 (RD-3709), promotor e08cc5c (RD-3710, RD-3711), baixos. Relatório docs/qualidade/redundancias/2026-11-25-s7-perfis-modulos-e6.md.
