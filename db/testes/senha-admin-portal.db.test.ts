@@ -1,6 +1,6 @@
 /**
- * 0107 — troca da senha do admin do cliente pela sessão do portal (v1.0.35, item 3). Dicionário: docs/banco/plataforma.md,
- * "Senha do admin do cliente no portal (0107)". O que o BANCO garante:
+ * 0103 — troca da senha do admin do cliente pela sessão do portal (v1.0.35, item 3). Dicionário: docs/banco/plataforma.md,
+ * "Senha do admin do cliente no portal (0103)". O que o BANCO garante:
  * - as 3 funções exigem sessão viva de admin do cliente COM empresa escolhida (inválida 28000; super-admin ou sem empresa 42501)
  *   e agem só na conta da empresa atual da sessão (isolamento entre tenants);
  * - sa_reautenticar_admin: hash e estado do bloqueio da conta (core.usuario), auditada 'sa.reautenticar' quando acha a conta;
@@ -18,11 +18,11 @@ import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0107, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA_0103, FUNCOES_SA_ATUAIS } from './funcoes-sa';
 import { comoPapel, emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
-const VERSAO = '0107';
+const VERSAO = '0103';
 const m107 = migracoes.find((m) => m.versao === VERSAO)!;
 const ANTERIOR = migracoes[migracoes.indexOf(m107) - 1]!.versao;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
@@ -32,13 +32,13 @@ const A = DOIS_TENANTS.A.tenantId;
 const B = DOIS_TENANTS.B.tenantId;
 const ADMIN_A = DOIS_TENANTS.A.usuarios.admin;
 const ADMIN_B = DOIS_TENANTS.B.usuarios.admin;
-const SEM_SESSAO = '00000000-0000-4000-8000-000000000107';
+const SEM_SESSAO = '00000000-0000-4000-8000-000000000103';
 const HASH_NOVO = '$argon2id$v=19$m=1,t=1,p=1$bm92bw$bm92b2hhc2g';
 
-describe('0107 senha do admin do cliente no portal (estático)', () => {
+describe('0103 senha do admin do cliente no portal (estático)', () => {
   it('nome; só as 3 funções: SECURITY DEFINER, search_path fixo, EXECUTE só ao portal; o down apaga as 3', () => {
     expect(m107.nome).toBe('plataforma_senha_admin_portal');
-    for (const f of FUNCOES_SA_0107) {
+    for (const f of FUNCOES_SA_0103) {
       const nome = f.slice(0, f.indexOf('('));
       const i = up.indexOf(`create function ${nome}(`);
       expect(i, f).toBeGreaterThanOrEqual(0);
@@ -53,11 +53,11 @@ describe('0107 senha do admin do cliente no portal (estático)', () => {
     expect(up.match(/\bcreate function\b/g)).toHaveLength(3);
     expect(down.match(/\bdrop function\b/g)).toHaveLength(3);
     expect(up).not.toMatch(/create (unique )?index|create policy|alter policy|create table|alter table|create or replace/);
-    expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_0107]));
+    expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_0103]));
   });
 });
 
-describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0103 senha do admin do cliente no portal (banco, fixture dois-tenants)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -74,7 +74,7 @@ describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (banco, fi
   const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0]!.sessao_id;
   const adminDe = (t: string, u: string) => abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: t, usuario_id: u }] });
   async function superAdmin() {
-    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.0107@macuxi.exemplo', nome: 'Operador 0107', senha_hash: HASH_TESTE })]))[0]!.r;
+    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.0103@macuxi.exemplo', nome: 'Operador 0103', senha_hash: HASH_TESTE })]))[0]!.r;
     return abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id });
   }
   const semEmpresa = () => abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: A, usuario_id: ADMIN_A }, { tenant_id: B, usuario_id: ADMIN_B }] });
@@ -236,7 +236,7 @@ describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (banco, fi
 
   it('grants: EXECUTE só ao macuxi_portal; app e worker 42501; o portal não lê core.usuario', async () => {
     await emTransacao(admin, null, async () => {
-      for (const f of FUNCOES_SA_0107) {
+      for (const f of FUNCOES_SA_0103) {
         expect(await q(`select has_function_privilege('macuxi_portal', $1, 'EXECUTE') as p, has_function_privilege('macuxi_app', $1, 'EXECUTE') as a, has_function_privilege('macuxi_worker', $1, 'EXECUTE') as w, has_function_privilege('public', $1, 'EXECUTE') as pub`, [f]), f).toEqual([{ p: true, a: false, w: false, pub: false }]);
       }
       for (const papel of ['macuxi_app', 'macuxi_worker']) {
@@ -247,7 +247,7 @@ describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (banco, fi
   });
 });
 
-describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (up/down, banco efêmero)', () => {
+describe.skipIf(semBanco())('0103 senha do admin do cliente no portal (up/down, banco efêmero)', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
@@ -260,7 +260,7 @@ describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (up/down, 
     await comAdmin(b.nome, async (c: pg.Client) => {
       await migrarUp(c, { ate: ANTERIOR });
       const antes = await retratoDoCatalogo(c);
-      expect((await migrarUp(c, { ate: VERSAO })).aplicadas).toEqual(['0107_plataforma_senha_admin_portal']);
+      expect((await migrarUp(c, { ate: VERSAO })).aplicadas).toEqual(['0103_plataforma_senha_admin_portal']);
       const depois = await retratoDoCatalogo(c);
       expect(antes.filter((x) => !depois.includes(x))).toEqual([]);
       expect(depois.filter((x) => !antes.includes(x))).toEqual([
@@ -268,7 +268,7 @@ describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (up/down, 
         'fn plataforma.sa_gravar_senha_admin(p_sid uuid, p_hash_atual text, p_hash_novo text)',
         'fn plataforma.sa_reautenticar_admin(p_sid uuid)',
       ]);
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0107_plataforma_senha_admin_portal']);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0103_plataforma_senha_admin_portal']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
       await migrarUp(c, { ate: VERSAO });
       expect(await retratoDoCatalogo(c)).toEqual(depois);

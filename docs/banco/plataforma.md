@@ -1549,8 +1549,8 @@ select nome, perfil, cargo from plataforma.sa_quem_sou($1);        -- topo do po
 select plataforma.sa_gravar_senha_super_admin($1, $2, $3) as r;    -- troca da senha, depois da sa_reautenticar e do argon2
 ```
 
-## Senha do admin do cliente no portal (0107, v1.0.35 item 3) — só funções. Fora do sync
-Migração `0107_plataforma_senha_admin_portal` (aditiva: 3 funções, nenhuma tabela, coluna, política ou grant existente muda).
+## Senha do admin do cliente no portal (0103, v1.0.35 item 3) — só funções. Fora do sync
+Migração `0103_plataforma_senha_admin_portal` (aditiva: 3 funções, nenhuma tabela, coluna, política ou grant existente muda).
 Volta: `.down.sql`, que apaga as 3 funções; nada de dado se perde (a senha trocada fica em `core.usuario.senha_hash`, a
 auditoria é append-only); antes do down, volte a API ao 403 `TROCA_SO_SUPER_ADMIN` para o admin do cliente. Teste:
 `db/testes/senha-admin-portal.db.test.ts`.

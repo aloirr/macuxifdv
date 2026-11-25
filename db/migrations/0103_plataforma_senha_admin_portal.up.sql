@@ -1,6 +1,6 @@
--- 0107_plataforma_senha_admin_portal (up) — troca da senha do ADMIN DO CLIENTE pela sessão do portal (v1.0.35, item 3; a rota
+-- 0103_plataforma_senha_admin_portal (up) — troca da senha do ADMIN DO CLIENTE pela sessão do portal (v1.0.35, item 3; a rota
 -- POST /v1/plataforma/auth/senha deixa de responder 403 TROCA_SO_SUPER_ADMIN para ele). Dicionário: docs/banco/plataforma.md,
--- "Senha do admin do cliente no portal (0107)". Teste: db/testes/senha-admin-portal.db.test.ts. Migração ADITIVA: só 3 funções
+-- "Senha do admin do cliente no portal (0103)". Teste: db/testes/senha-admin-portal.db.test.ts. Migração ADITIVA: só 3 funções
 -- novas; nenhuma tabela, coluna, política ou grant existente muda.
 --
 -- O mecanismo de bloqueio é o da conta do admin na empresa, o mesmo do login do BKO/app e da rota pública
@@ -28,7 +28,7 @@
 --     cliente que têm a conta em portal_sessao_empresa (inclusive a atual). Audita no tenant 'usuario.senha_trocar' (a mesma
 --     ação da rota pública, origem 'portal') e na plataforma 'sa.senha.trocada' { sessoes_revogadas, sessoes_app_revogadas }.
 --
--- Caminho de volta: 0107_plataforma_senha_admin_portal.down.sql (apaga as 3 funções). Nada de dado se perde: a senha trocada fica
+-- Caminho de volta: 0103_plataforma_senha_admin_portal.down.sql (apaga as 3 funções). Nada de dado se perde: a senha trocada fica
 -- em core.usuario.senha_hash e as linhas de auditoria ficam (append-only). Antes do down, volte a API ao 403 TROCA_SO_SUPER_ADMIN
 -- (sem as funções a rota responde 503).
 
