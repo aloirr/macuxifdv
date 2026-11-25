@@ -160,3 +160,7 @@
 - 2026-11-25 (Manaus, 11h55) — T-0196, S12: parecer curto dos heads do semSigla. Nenhum achado novo. LIBERADOS: engenheiro-software 51b768876, modulo-core 4f7a13d92, modulo-vendedor ff3704d27.
 - 2026-11-25 (Manaus, 12h20) — T-0196, S12: parecer curto do passoLargo (designer-ux-2) e do aviso do campo (modulo-vendedor). RD-3613 fechado; novo RD-3630 (baixo, condição 2x em componentes.ts). LIBERADO: modulo-vendedor cc5b1cbf3. NÃO LIBERADO: designer-ux-2 2ad8d0ff9.
 - 2026-11-25 (Manaus, 12h54) — T-0196, S12: parecer curto do teste do saldo da filial em float (testes-2). Novos RD-3631 e RD-3632 (baixos, só teste, não seguram). LIBERADO: testes-2 9171c6275.
+- 2026-11-25 (Manaus) — S7, migração 0108 (catálogo v2), SHA 45422839e, banco-dados: NÃO LIBERADO, RD-3705 a RD-3707 (baixos, teste). Relatório docs/qualidade/redundancias/2026-11-25-s7-catalogo-v2-0108.md.
+- 2026-11-25 (Manaus) — S7: reteste 0108 88b23c06f LIBERADO (RD-3705 a RD-3707 corrigidos); E6 nos módulos NÃO LIBERADO: core e6fb29e (RD-3708), pesquisa 06e19a1 (RD-3709), promotor e08cc5c (RD-3710, RD-3711), baixos. Relatório docs/qualidade/redundancias/2026-11-25-s7-perfis-modulos-e6.md.
+- 2026-11-25 (Manaus) — S7: renumeração 0105–0107 LIBERADO 64a7396 (#771) e 0108 LIBERADO 3bd7f4e, sem achado.
+- 2026-11-25 (Manaus) — S7: reteste E4b 5d21f97c7 (modulo-core) LIBERADO; RD-3716 a RD-3719 corrigidos; RD-3720 baixa (JSDoc órfão, só comentário) aberto para o próximo lote.

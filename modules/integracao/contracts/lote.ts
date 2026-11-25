@@ -114,6 +114,9 @@ export const CODIGOS_ERRO_ENVELOPE = [
   'versao_conector_nao_suportada',
   // T-0027 (P-6, RN-INT-13): a entidade é alimentada por outro Conector da empresa (um Conector por entidade por empresa na v1).
   'entidade_de_outro_conector',
+  // ADR 0076 (RN-VEN-02 v3): quantidade/fator com casas decimais
+  'quantidade_fracionaria_bloqueada',
+  'quantidade_fracionaria_invalida',
 ] as const;
 export const CodigoErroEnvelope = z.enum(CODIGOS_ERRO_ENVELOPE);
 export type CodigoErroEnvelope = z.infer<typeof CodigoErroEnvelope>;

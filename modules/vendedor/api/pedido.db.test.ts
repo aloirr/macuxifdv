@@ -200,17 +200,18 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect(ev[1].motivo).toMatch(/Dentro da alçada/);
       expect(registro.auditoria).toMatchObject([{ acao: 'pedido.criar', entidade_id: id(1), depois: { status: 'approved' } }]);
       expect(registro.eventos.map((e) => e.nome)).toEqual([
+        'vendedor.pedido.criado@2', // ADR 0076: o @2 e o @1 saem juntos (o @1 só sem item fracionário)
         'vendedor.pedido.criado@1',
         'vendedor.pedido.status_alterado@1',
         'vendedor.pedido.status_alterado@1',
         'vendedor.pedido.aprovado@1',
       ]);
-      expect(registro.eventos[2]!.payload).toMatchObject({ de: 'recebido', para: 'aprovado' });
-      expect(registro.eventos[3]!.payload).toMatchObject({ pedido_uuid: id(1), total_cents: 242_500 });
+      expect(registro.eventos[3]!.payload).toMatchObject({ de: 'recebido', para: 'aprovado' });
+      expect(registro.eventos[4]!.payload).toMatchObject({ pedido_uuid: id(1), total_cents: 242_500 });
       // RN-CORE-39 (T-0149): filial EFETIVA do cliente gravada no recebimento, os dois campos juntos e o id do retrato em minúsculas; o evento leva o retrato
       expect(p.filial_id).toBe('0f490000-0000-4000-8000-000000000001');
       expect(p.filial).toEqual({ id: p.filial_id, codigo: '0001', nome: 'Manaus', cidade: 'Manaus', uf: 'AM', external_id: 'FIL-01', padrao: true });
-      expect(registro.eventos[3]!.payload).toMatchObject({ filial: { codigo: '0001', external_id: 'FIL-01', nome: 'Manaus', padrao: true } });
+      expect(registro.eventos[4]!.payload).toMatchObject({ filial: { codigo: '0001', external_id: 'FIL-01', nome: 'Manaus', padrao: true } });
       // sem dado pessoal no payload
       expect(JSON.stringify(registro.eventos)).not.toMatch(/Auto Peças|33333333000191/);
     });

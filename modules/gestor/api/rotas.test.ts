@@ -433,7 +433,7 @@ describe('API do Gestor: fluxo de ponta a ponta com eventos (RF-GES-01..07)', ()
 
   it('consumidor: evento fora do contrato não derruba a fila do despachante (vira aviso) e reentrega não duplica', async () => {
     const c = cenario();
-    const ruim: EventoRecebido = { evento_id: 'ruim-1', nome: 'vendedor.pedido.criado@1', ocorrido_em: c.relogio.iso(), payload: { pedido_id: 'x' } };
+    const ruim: EventoRecebido = { evento_id: 'ruim-1', nome: 'vendedor.pedido.criado@2', ocorrido_em: c.relogio.iso(), payload: { pedido_id: 'x' } };
     await expect(c.publicar([ruim])).resolves.toBeUndefined();
     const dia = diaDeVendas(c.relogio);
     await c.publicar(dia);

@@ -7,8 +7,12 @@ import {
   formaDoBadge,
   leituraDoAtalho,
   lerQuantidade,
+  lerQuantidadeComCasas,
   limitarPasso,
+  passoLargo,
   proximoPasso,
+  tecladoDoPasso,
+  textoDoPasso,
   RESPIRO_ABA_ROLAVEL,
   rolagemAteAba,
   rotuloComContador,
@@ -47,6 +51,56 @@ describe('componentes genéricos (T-0071, fatia 4): parte pura', () => {
     expect(lerQuantidade('1.000')).toBe(1000);
     expect(lerQuantidade('')).toBeNull();
     expect(lerQuantidade('abc')).toBeNull();
+  });
+
+  it('passo decimal (ADR 0076): corta em casas, conta na escala e o − não passa do mínimo', () => {
+    expect(limitarPasso(1.25678, 0.0001, undefined, 4)).toBe(1.2567);
+    expect(limitarPasso(1.25, 1)).toBe(1); // sem casas segue inteiro
+    expect(proximoPasso(1.25, 1, 1, 0.0001, undefined, 4)).toBe(2.25);
+    expect(proximoPasso(0.1255, 1, 1, 0.0001, undefined, 4)).toBe(1.1255);
+    expect(proximoPasso(1.5, -1, 1, 0.0001, undefined, 4)).toBe(0.5);
+    expect(proximoPasso(0.5, -1, 1, 0.0001, undefined, 4)).toBe(0.5);
+    expect(proximoPasso(999_999, 1, 1, 0.0001, 999_999, 4)).toBe(999_999);
+  });
+
+  it('passo decimal com a trava fechada (casas 0): o − que passaria do mínimo não muda o valor; sem modo decimal encosta no mínimo', () => {
+    expect(proximoPasso(1.5, -1, 1, 1, undefined, 0)).toBe(1);
+    expect(proximoPasso(3, -1, 5, 1, undefined, 0)).toBe(3);
+    expect(proximoPasso(3, -1, 1, 1, undefined, 0)).toBe(2);
+    expect(proximoPasso(3, 1, 5, 1, 6, 0)).toBe(6);
+    expect(proximoPasso(3, -1, 5, 1)).toBe(1);
+  });
+
+  it('lerQuantidadeComCasas: vírgula ou ponto, corta casas; sem casas vale o inteiro e avisa', () => {
+    expect(lerQuantidadeComCasas('1,25', 4)).toEqual({ valor: 1.25, fracaoRecusada: false });
+    expect(lerQuantidadeComCasas('1.25', 4)).toEqual({ valor: 1.25, fracaoRecusada: false });
+    expect(lerQuantidadeComCasas('0,123456', 4)).toEqual({ valor: 0.1234, fracaoRecusada: false });
+    expect(lerQuantidadeComCasas(',5', 4)).toEqual({ valor: 0.5, fracaoRecusada: false });
+    expect(lerQuantidadeComCasas('3', 4)).toEqual({ valor: 3, fracaoRecusada: false });
+    expect(lerQuantidadeComCasas('1,5', 0)).toEqual({ valor: 1, fracaoRecusada: true });
+    expect(lerQuantidadeComCasas(',', 0)).toEqual({ valor: null, fracaoRecusada: true });
+    expect(lerQuantidadeComCasas('', 4)).toEqual({ valor: null, fracaoRecusada: false });
+  });
+
+  it('tecladoDoPasso: casas > 0 abre decimal-pad; trava fechada (casas 0) e passo inteiro abrem number-pad (ADR 0076 E4)', () => {
+    expect(tecladoDoPasso(2)).toBe('decimal-pad');
+    expect(tecladoDoPasso(4)).toBe('decimal-pad');
+    expect(tecladoDoPasso(0)).toBe('number-pad');
+    expect(tecladoDoPasso(undefined)).toBe('number-pad');
+  });
+
+  it('passoLargo: 88 dp só com casas > 0; trava fechada (casas 0, CX/UN) e passo inteiro ficam na largura do inteiro (ADR 0076)', () => {
+    expect(passoLargo(2)).toBe(true);
+    expect(passoLargo(4)).toBe(true);
+    expect(passoLargo(0)).toBe(false);
+    expect(passoLargo(0.5)).toBe(false);
+    expect(passoLargo(undefined)).toBe(false);
+  });
+
+  it('textoDoPasso: vírgula e sem zeros à direita com casas; inteiro sem casas', () => {
+    expect(textoDoPasso(1.25, 4)).toBe('1,25');
+    expect(textoDoPasso(3, 4)).toBe('3');
+    expect(textoDoPasso(12)).toBe('12');
   });
 
   it('folgaDeToque leva qualquer visual menor ao alvo de 48 dp', () => {

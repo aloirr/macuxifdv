@@ -38,10 +38,11 @@ describe('RF-CORE-12 / RN-VEN-17: Cliente 360 com endereços de entrega (aditivo
 });
 
 describe('RN-VEN-15: unidades de venda no cadastro do produto (aditivo)', () => {
-  it('RN-VEN-15: a unidade exige fator inteiro positivo e rótulo', () => {
+  it('RN-VEN-15: a unidade exige fator positivo (até 4 casas) e rótulo', () => {
     expect(UnidadeProdutoResumoSchema.safeParse({ unidade: 'CX', fator: 12, padrao: true, ativo: true, rotulo: 'CX c/ 12' }).success).toBe(true);
     expect(UnidadeProdutoResumoSchema.safeParse({ unidade: 'CX', fator: 0, padrao: true, ativo: true, rotulo: 'CX' }).success).toBe(false);
-    expect(UnidadeProdutoResumoSchema.safeParse({ unidade: 'CX', fator: 1.5, padrao: true, ativo: true, rotulo: 'CX' }).success).toBe(false);
+    expect(UnidadeProdutoResumoSchema.safeParse({ unidade: 'CX', fator: 1.5, padrao: true, ativo: true, rotulo: 'CX c/ 1,5' }).success).toBe(true);
+    expect(UnidadeProdutoResumoSchema.safeParse({ unidade: 'CX', fator: 1.23456, padrao: true, ativo: true, rotulo: 'CX' }).success).toBe(false);
   });
 
   it('RN-VEN-15: o produto do BKO aceita o campo novo `unidades` e continua válido sem ele', () => {

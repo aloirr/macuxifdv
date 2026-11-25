@@ -82,6 +82,8 @@ describe('RN-CORE-16: contrato do cadastro mínimo', () => {
       enderecos: [{ id: U, cliente_id: U, tipo: 'principal', logradouro: 'Rua A', numero: null, complemento: null, bairro: null, cidade: 'Boa Vista', uf: 'RR', cep: null, principal: true, ativo: true, external_id: null }],
     });
     expect(saida.produtos[0]?.unidades?.[0]?.fator).toBe(12);
+    const fracionada = CadastroResumoSaidaSchema.parse({ ...saida, produtos: [{ ...saida.produtos[0], unidades: [{ unidade: 'CX', fator: 12.5, padrao: false, ativo: true, external_id: null }] }] });
+    expect(fracionada.produtos[0]?.unidades?.[0]?.fator).toBe(12.5);
     expect(CadastroResumoSaidaSchema.safeParse({ clientes: [], produtos: [], usuarios: [] }).success).toBe(true);
   });
   it('RN-CAT-01: core.cadastro_resumo@1 traz marca, categoria e ean do produto como aditivo opcional (T-0119)', () => {
@@ -101,11 +103,15 @@ describe('RN-CORE-16: contrato do cadastro mínimo', () => {
 });
 
 describe('RN-VEN-15/17: entidades de unidade e endereço', () => {
-  it('RN-VEN-15: produto_unidade exige fator inteiro positivo', () => {
+  it('RN-VEN-15 v3 (ADR 0076): produto_unidade exige fator positivo com até 4 casas (12,5 vale; 1,23456 e 10000 não)', () => {
     const l = { ...base, produto_id: U, unidade: 'CX', fator: 12, ean: null, padrao: false, ativo: true };
     expect(ProdutoUnidadeSyncSchema.safeParse(l).success).toBe(true);
     expect(ProdutoUnidadeSyncSchema.safeParse({ ...l, fator: 0 }).success).toBe(false);
-    expect(ProdutoUnidadeSyncSchema.safeParse({ ...l, fator: 1.5 }).success).toBe(false);
+    expect(ProdutoUnidadeSyncSchema.safeParse({ ...l, fator: 12.5 }).success).toBe(true);
+    expect(ProdutoUnidadeSyncSchema.safeParse({ ...l, fator: 0.0001 }).success).toBe(true);
+    expect(ProdutoUnidadeSyncSchema.safeParse({ ...l, fator: 1.23456 }).success).toBe(false);
+    expect(ProdutoUnidadeSyncSchema.safeParse({ ...l, fator: 10000 }).success).toBe(false);
+    expect(ProdutoUnidadeSyncSchema.safeParse({ ...l, fator: '12.5' }).success).toBe(false);
   });
   it('RN-VEN-17: cliente_endereco valida o tipo e aceita coordenada em texto ou número', () => {
     const l = { ...base, cliente_id: U, tipo: 'entrega', descricao: null, logradouro: 'Rua A', numero: '1', complemento: null, bairro: null, cidade: 'Boa Vista', uf: 'RR', cep: '69300000', latitude: '2.8', longitude: -60.6, principal: false, ativo: true };
