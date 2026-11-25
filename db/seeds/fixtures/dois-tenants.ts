@@ -1218,10 +1218,10 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       { id: A.sobreposicoes.vendedorExternoEscopo, tenant_id: tA, perfil_id: A.perfis.vendedorExterno, chave: 'dados.escopo', concedida: true, nivel: 'proprio', alvos: null, external_id: null },
       { id: B.sobreposicoes.vendedorBalcaoCampo, tenant_id: tB, perfil_id: B.perfis.vendedorBalcao, chave: 'acesso.campo', concedida: false, nivel: null, alvos: null, external_id: null },
     ],
-    // 0105 a 0107 (ADR 0073): os dois tenants em 'concessao' (catálogo v2 desde a 0108, na mesma linha da v1); o escopo de cada personalizado; o achado do espelho em B
+    // 0105 a 0108 (ADR 0073): os dois tenants derivados em 'legado' (motor novo desligado na v1.0.37; catálogo v2 desde a 0108, na mesma linha da v1); o escopo de cada personalizado; o achado do espelho em B
     // (vendedor_balcao ativo sem nenhum acesso.*, sem usuário = aviso) e, em A, um achado já resolvido (acesso.gestao marcado e
     // desmarcado no vendedor_externo pela API antiga, cortado pelo cargo vendedor)
-    'plataforma.catalogo_aplicado': [tA, tB].map((t) => ({ id: idCatalogoAplicado(t, 1), tenant_id: t, versao: 2, leitura: 'concessao', external_id: null })),
+    'plataforma.catalogo_aplicado': [tA, tB].map((t) => ({ id: idCatalogoAplicado(t, 1), tenant_id: t, versao: 2, leitura: 'legado', external_id: null })),
     'plataforma.perfil_concessao': [
       { id: idPerfilConcessao(tA, A.perfis.vendedorExterno, 'dados.escopo'), tenant_id: tA, perfil_id: A.perfis.vendedorExterno, chave: 'dados.escopo', nivel: 'proprio', alvos: null, external_id: null },
       { id: idPerfilConcessao(tB, B.perfis.vendedorBalcao, 'dados.escopo'), tenant_id: tB, perfil_id: B.perfis.vendedorBalcao, chave: 'dados.escopo', nivel: 'carteira', alvos: null, external_id: null },

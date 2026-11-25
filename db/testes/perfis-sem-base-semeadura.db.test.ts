@@ -1,7 +1,7 @@
 /**
- * 0107 — tenant novo nasce migrado (gatilho tenant_semear_perfis_concessao, depois de tenant_semear_perfis; plano §5 passo 2).
+ * 0107 — tenant novo nasce derivado (gatilho tenant_semear_perfis_concessao, depois de tenant_semear_perfis; plano §5 passo 2).
  * O que o BANCO garante: o tenant novo tem os 7 perfis padrão com as concessões do modelo v1 (plataforma.modelo_permissao) e
- * catalogo_aplicado (versão 1) em 'concessao', sem nenhum achado; o mesmo pelo provisionamento do portal (sa_* SECURITY DEFINER).
+ * catalogo_aplicado (versão 1) em 'legado' (motor novo desligado na v1.0.37; a 0109 liga), sem nenhum achado; o mesmo pelo provisionamento do portal (sa_* SECURITY DEFINER).
  * Fixture dois-tenants (ROLLBACK).
  */
 import pg from 'pg';
@@ -25,11 +25,12 @@ describe.skipIf(semBanco())('0107 semeadura do tenant novo (fixture, ROLLBACK)',
   });
   const q = async <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await admin.query<T>(sql, params)).rows;
 
-  it('os 7 perfis com as concessões do modelo, catalogo_aplicado em concessao, nenhum achado; o gatilho roda depois do da semeadura', async () => {
+  it('os 7 perfis com as concessões do modelo, catalogo_aplicado em legado, nenhum achado; o gatilho roda depois do da semeadura', async () => {
     await emTransacao(admin, null, async () => {
       await q("insert into plataforma.tenant (id, codigo, nome) values ($1, 't105-novo', 'Novo 105')", [T]);
-      expect(await leitura(admin, T)).toBe('concessao');
-      expect(await q('select id, versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [T])).toEqual([{ id: idCatalogoAplicado(T, 1), versao: 2, leitura: 'concessao' }]);
+      expect(await leitura(admin, T)).toBe('legado');
+      expect(await q('select plataforma.perfis_derivados($1) as d', [T])).toEqual([{ d: true }]);
+      expect(await q('select id, versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [T])).toEqual([{ id: idCatalogoAplicado(T, 1), versao: VERSAO_DO_BANCO, leitura: 'legado' }]);
       for (const base of PERFIS) {
         const modelo = await q<{ p: Record<string, { nivel?: string; alvos?: string[] }> }>(
           `select coalesce(jsonb_object_agg(chave, jsonb_strip_nulls(jsonb_build_object('nivel', nivel, 'alvos', to_jsonb(alvos)))), '{}') as p
