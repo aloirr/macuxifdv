@@ -7,7 +7,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { Product } from '@macuxi/catalogo/contracts';
-import { quantidadeBase, totalDaLinhaCents, unidadeFracionaria } from '@macuxi/comum/quantidade';
+import { quantidadeBase, totalDaLinhaCents } from '@macuxi/comum/quantidade';
 import { Botao, colors, fonte, Folha, Icon, Passo, Segmentado, type as t } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -105,11 +105,7 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
         <View style={s.linhaDupla}>
           <View style={{ gap: 6 }} onLayout={(e) => setLarguraQtd(e.nativeEvent.layout.width)}>
             <Text style={s.rotulo}>QUANTIDADE</Text>
-            {unidadeFracionaria(medida.unidade) ? (
-              <Passo editavel valor={qtd} {...propsDoPassoDaQuantidade(medida.unidade, ambiente.fracaoLiberada())} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
-            ) : (
-              <Passo editavel valor={qtd} min={1} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
-            )}
+            <Passo editavel valor={qtd} {...propsDoPassoDaQuantidade(medida.unidade, ambiente.fracaoLiberada())} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
           </View>
           <View style={{ gap: 6, flex: 1 }}>
             <Text style={s.rotulo}>DESC./ACRÉSC.</Text>

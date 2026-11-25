@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CODIGO_FRACAO_BLOQUEADA, CODIGO_FRACAO_INVALIDA } from '@macuxi/platform-sdk';
 
-import { exigirFator, exigirQuantidade, limitarDesconto, podeEnviarPedido, quantidadePermitida, MENSAGEM_FRACAO_INVALIDA_PEDIDO, recusaDeFracao, truncarEm4Casas } from './quantidade';
+import { exigirFator, exigirQuantidade, limitarDesconto, podeEnviarPedido, quantidadePermitida, MENSAGEM_FRACAO_INVALIDA_PEDIDO, recusaDeFracao } from './quantidade';
 
 describe('limites do pedido', () => {
   it('RN-VEN-04: a quantidade não passa do estoque nem fica negativa', () => {
@@ -70,9 +70,5 @@ describe('trava da fração (ADR 0076 D6)', () => {
   });
   it('RN-VEN-02 v3: a recusa de fração tem um texto só', () => {
     expect(recusaDeFracao([{ quantidade: 1.5, unidade: 'CX', fator: 1 }], true)?.mensagem).toBe(MENSAGEM_FRACAO_INVALIDA_PEDIDO);
-  });
-  it('RN-VEN-04: truncarEm4Casas corta sem arredondar e sem erro de float', () => {
-    expect(truncarEm4Casas(0.29)).toBe(0.29);
-    expect(truncarEm4Casas(1.23456)).toBe(1.2345);
   });
 });

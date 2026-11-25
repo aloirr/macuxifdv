@@ -10,7 +10,7 @@
  * TODO(fiscal): impostos (ST, ICMS, DIFAL) são calculados no faturamento pelo ERP; o PDF mostra valores sem impostos.
  */
 import { formatarCep, formatarDocumento, formatBRL } from '@macuxi/comum';
-import { formatarQuantidade, temFracao, unidadeFracionaria } from '@macuxi/comum/quantidade';
+import { formatarQuantidade, somarQuantidades, temFracao, unidadeFracionaria } from '@macuxi/comum/quantidade';
 import { PILHA_MONO, PILHA_SISTEMA } from '@macuxi/comum/fonte';
 import type { FilialDadosFiscais } from '@macuxi/core/contracts';
 
@@ -18,7 +18,6 @@ import { ajusteDoItemEmPct, linhasDosTotais, ROTULO_VALOR_FINAL, semRs, siglaDaM
 import { LOGO_PADRAO_DATA_URI } from './logo-padrao';
 import { dataDaValidade } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
-import { somarQuantidades } from '@macuxi/comum/quantidade';
 
 /** Data/hora no fuso (Intl); local ao domínio para não importar a UI (E5 move isto para @macuxi/comum). */
 function zonedParts(at: string, tz: string): { year: number; month: number; day: number; hour: number; minute: number } {
@@ -364,6 +363,12 @@ export function equivaleAHtml(it: Pick<OrderPdfItem, 'references'>, view: OrderP
 export function quantidadeDoPdf(item: Pick<OrderPdfItem, 'quantity' | 'unit_label'>): string {
   const sigla = siglaDaMedida(item.unit_label);
   return unidadeFracionaria(sigla) || temFracao(item.quantity) ? formatarQuantidade(item.quantity, sigla).replace(/ \S+$/, '') : String(item.quantity);
+}
+
+/** RN-VEN-02 v3: quantidade com a sigla onde a unidade não está ao lado (BKO: coluna "Faturado"); fora de KG/M é o número puro de `quantidadeDoPdf`. */
+export function quantidadeComSigla(item: Pick<OrderPdfItem, 'quantity' | 'unit_label'>): string {
+  const sigla = siglaDaMedida(item.unit_label);
+  return unidadeFracionaria(sigla) ? formatarQuantidade(item.quantity, sigla) : quantidadeDoPdf(item);
 }
 
 /** RN-CORE-19: quantidade somada por embalagem ("2 FD + 4 CX + 10 UN"); a medida "CX c/ 12" conta como CX. */

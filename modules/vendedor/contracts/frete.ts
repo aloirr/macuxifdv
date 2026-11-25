@@ -3,9 +3,9 @@
  * (RN-VEN-16): CIF = a empresa paga, FOB = o cliente paga (transportadora obrigatória, cadastrada OU digitada).
  * Só Zod aqui; as regras (CNPJ com dígito verificador, XOR) ficam no domain (`validarFrete`) e a API revalida.
  */
+import { QuantidadePositivaSchema } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { Id, Pct } from '@macuxi/core/contracts';
-import { QuantidadeEnvio } from './quantidade';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
 
 export const TransportadoraDigitada = z
@@ -35,7 +35,7 @@ export type Frete = z.infer<typeof Frete>;
 export const ItemPush = z.object({
   product_id: Id,
   /** RN-VEN-02 v3 (ADR 0076): até 4 casas; fração só em KG e M (a API recusa com 422 `quantidade_fracionaria_invalida`) */
-  quantity: QuantidadeEnvio,
+  quantity: QuantidadePositivaSchema,
   unidade: z.string().regex(/^[A-Z0-9]{1,6}$/).optional(),
   desconto_pct: Pct.min(0).max(100).optional(),
   acrescimo_pct: Pct.min(0).max(100).optional(),

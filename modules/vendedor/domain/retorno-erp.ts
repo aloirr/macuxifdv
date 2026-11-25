@@ -17,8 +17,8 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { PedidoFaturadoEvento } from '../contracts/eventos';
-import { formatarQuantidade } from '@macuxi/comum/quantidade';
 import type { OrderStatus } from './order';
+import { quantidadeDoPdf } from './pdf-pedido';
 import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 
 /** Retorno do ERP como o Vendedor precisa (subconjunto de `integracao.pedido.retorno_erp@1`). */
@@ -385,6 +385,6 @@ export function textoItemFaturado(quantidade: number, faturada: number | null | 
   if (faturada === undefined || faturada === null) return null;
   if (faturada <= 0) return 'Não faturado';
   if (faturada >= quantidade) return 'Faturado';
-  const n = (q: number): string => (Number.isInteger(q) ? String(q) : formatarQuantidade(q, null));
+  const n = (q: number): string => quantidadeDoPdf({ quantity: q, unit_label: undefined });
   return `Faturado ${n(faturada)} de ${n(quantidade)}`;
 }

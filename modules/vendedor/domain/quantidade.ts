@@ -4,7 +4,7 @@
  */
 
 import { CODIGO_FRACAO_BLOQUEADA, CODIGO_FRACAO_INVALIDA, MENSAGEM_FRACAO_BLOQUEADA } from '@macuxi/platform-sdk';
-import { ESCALA_QUANTIDADE, quantidadeValida, temFracao, unidadeFracionaria } from '@macuxi/comum/quantidade';
+import { quantidadeValida, temFracao, truncarCasas, unidadeFracionaria } from '@macuxi/comum/quantidade';
 
 /**
  * RN-VEN-15 (ADR 0076): o fator (unidades base por embalagem) é > 0 com até 4 casas. Fonte única: o preço do item e o do pedido
@@ -56,11 +56,6 @@ export function recusaDeFracao(itens: ReadonlyArray<{ quantidade: number; unidad
   return null;
 }
 
-/** Trunca em 4 casas (nunca arredonda) sem o erro do float: `0,29 × 10.000` vira 2.900, não 2.899. */
-export function truncarEm4Casas(n: number): number {
-  return Math.trunc(Number((n * ESCALA_QUANTIDADE).toFixed(6))) / ESCALA_QUANTIDADE;
-}
-
 /**
  * RN-VEN-04: quantidade de 0 até o estoque. Em KG/M trunca em 4 casas; nas demais unidades (ou sem unidade) trunca no inteiro.
  */
@@ -69,7 +64,7 @@ export function quantidadePermitida(estoque: number, quantidade: number, unidade
     const max = Math.max(0, Math.trunc(estoque));
     return Math.max(0, Math.min(max, Math.trunc(quantidade)));
   }
-  return Math.max(0, Math.min(truncarEm4Casas(Math.max(0, estoque)), truncarEm4Casas(quantidade)));
+  return Math.max(0, Math.min(truncarCasas(Math.max(0, estoque)), truncarCasas(quantidade)));
 }
 
 /** Percentual de desconto limitado a 0..100 com 2 casas. */

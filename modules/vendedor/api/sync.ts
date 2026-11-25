@@ -106,10 +106,13 @@ export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5
 /**
  * ADR 0076 D6 (pull filtrado): app sem o cabeçalho de versão ou abaixo da `VERSAO_APP_FRACAO` não recebe pedido com item de quantidade ou fator
  * fracionário (nem os itens e eventos dele): o schema antigo do app derrubaria o pull inteiro. Filtro em SQL, para o cursor seguir.
- * Funciona antes e depois da 0107 (`trunc` aceita inteiro e numeric).
+ * Funciona antes e depois da 0104 (`trunc` aceita inteiro e numeric).
  */
 export const FILTRO_SEM_FRACAO = `and not exists (select 1 from vendedor.pedido_item fi where fi.tenant_id = p.tenant_id and fi.pedido_id = p.id
        and (fi.quantidade <> trunc(fi.quantidade) or fi.fator <> trunc(fi.fator)))`;
+const appDoCliente = (ctx: ContextoBase) => ctx.versaoApp?.doCliente ?? null;
+const variacaoEscopo = (ctx: ContextoBase): string => variacaoFracao(appDoCliente(ctx));
+const semFracao = (ctx: ContextoBase): boolean => !clienteAceitaFracao(appDoCliente(ctx));
 const filtroFracao = (semFracao: boolean): string => (semFracao ? FILTRO_SEM_FRACAO : '');
 
 /** Colunas `numeric` do item chegam do `node-pg` como texto: voltam a `number` com até 4 casas (ADR 0076 D2). */
@@ -168,7 +171,7 @@ async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido, fuso: string, se
   // O-3: promotor com `promotor_ve_pedidos` desligada não recebe pedido, item nem evento
   if (!(await leituraDePedidosLiberada(ctx))) return [];
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
-  const { sql, valores: v } = montar(pedido, e, ctx.fuso(), !clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null));
+  const { sql, valores: v } = montar(pedido, e, ctx.fuso(), semFracao(ctx));
   return ctx.comTenant(async (db) => {
     const rows = (await db.query(sql, v)).rows as unknown as LinhaSync[];
     return item ? rows.map(itemComQuantidadeNumerica) : rows;
@@ -196,7 +199,7 @@ export async function marcarAceiteDeCancelamento(linhas: LinhaSync[], tx: Transa
 async function puxarPedidos(ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
   if (!(await leituraDePedidosLiberada(ctx))) return [];
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
-  const { sql, valores: v } = sqlPedido(pedido, e, FATURAMENTO_LIGADO, ctx.fuso(), !clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null));
+  const { sql, valores: v } = sqlPedido(pedido, e, FATURAMENTO_LIGADO, ctx.fuso(), semFracao(ctx));
   return ctx.comTenant(async (db, tx) => marcarAceiteDeCancelamento((await db.query(sql, v)).rows as unknown as LinhaSync[], tx));
 }
 
@@ -261,9 +264,9 @@ export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: u
  * `VERSAO_APP_FRACAO` muda de `fracao=0` para `fracao=1` e baixa de novo as linhas fracionárias que ficaram atrás do cursor.
  */
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
-  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null), puxar: (ctx, p) => puxarPedidos(ctx, p), receber: receberPedidos },
-  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null), puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, semFracao), ctx, p, true) },
-  { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null), puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoEvento(x, e, semFracao), ctx, p) },
+  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], variacaoEscopo, puxar: (ctx, p) => puxarPedidos(ctx, p), receber: receberPedidos },
+  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], variacaoEscopo, puxar: (ctx, p) => puxarDe((x, e, _f, sem) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, sem), ctx, p, true) },
+  { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], variacaoEscopo, puxar: (ctx, p) => puxarDe((x, e, _f, sem) => sqlPedidoEvento(x, e, sem), ctx, p) },
   {
     entidade: entidadeCondicaoPagamento,
     escopo: 'tenant',
