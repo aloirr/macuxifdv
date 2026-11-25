@@ -1,4 +1,4 @@
--- 0107_quantidade_fracionaria (down) — desfaz a 0107: as colunas voltam a integer, os gatilhos e os CHECKs voltam ao texto
+-- 0104_quantidade_fracionaria (down) — desfaz a 0104: as colunas voltam a integer, os gatilhos e os CHECKs voltam ao texto
 -- da 0013/0018 (sem round) e pedido_retorno_erro_numeros_validos volta a quantidade >= 1.
 -- SÓ SEM FRAÇÃO: se alguma linha (viva ou apagada) tiver fração nessas colunas, a volta FALHA (P0001) e diz a tabela, a
 -- coluna e quantas linhas; nada é arredondado nem truncado. Valor acima de 2.147.483.647 falha no cast (22003).
@@ -24,7 +24,7 @@ begin
     execute format('select count(*) from %I.%I where %I <> trunc(%I)', alvo.esquema, alvo.tabela, alvo.coluna, alvo.coluna)
       into qtd;
     if qtd > 0 then
-      raise exception '0107 down recusado: %.%.% tem % linha(s) com fração; a volta para integer perderia a fração',
+      raise exception '0104 down recusado: %.%.% tem % linha(s) com fração; a volta para integer perderia a fração',
         alvo.esquema, alvo.tabela, alvo.coluna, qtd;
     end if;
   end loop;

@@ -1472,8 +1472,8 @@ como a 0098 deixou, válidos para o código da v1.0.28) e o Código FDV do clien
 coluna: **perde os códigos**; reaplicar renumera os clientes vivos por `created_at, id`). Idempotente. Volte antes o código do Core e do Hub que lê a tabela ou as
 colunas (senão 42P01/42703). Testes: `db/testes/cliente-pre-cadastro-revisao.db.test.ts` e `db/testes/cliente-codigo-fdv.db.test.ts` (Código FDV).
 
-## 0107 — fator fracionário na unidade de venda (`0107_quantidade_fracionaria`; ADR 0076)
+## 0104 — fator fracionário na unidade de venda (`0104_quantidade_fracionaria`; ADR 0076)
 `core.produto_unidade.fator`: int → **numeric(9,4)**, > 0 (`produto_unidade_fator_positivo`, recriado com o mesmo texto), padrão
 1. Ex.: "CX c/ 0,5" = 0,5 unidade base. Driver `pg`: chega como string (`'12.0000'`); o Drizzle (`produtoUnidade.fator`) usa
 `mode: 'number'`; SQL cru precisa de `Number(...)`. `core.produto.embalagem_quantidade` (2 a 9999) continua inteiro.
-Volta: o down da 0107 só sem fração gravada (`P0001`). Teste: `db/testes/quantidade-fracionaria.db.test.ts`.
+Volta: o down da 0104 só sem fração gravada (`P0001`). Teste: `db/testes/quantidade-fracionaria.db.test.ts`.

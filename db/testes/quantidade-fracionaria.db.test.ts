@@ -1,5 +1,5 @@
 /**
- * 0107 — quantidade fracionária (v1.0.36, ADR 0076). Dicionário: docs/banco/core.md, vendedor.md e integracao.md (seção 0107).
+ * 0104 — quantidade fracionária (v1.0.36, ADR 0076). Dicionário: docs/banco/core.md, vendedor.md e integracao.md (seção 0104).
  * O que o BANCO garante:
  * - core.produto_unidade.fator e vendedor.pedido_item.fator numeric(9,4) > 0; quantidade, quantidade_base,
  *   quantidade_faturada, quantidade_embalagem e quantidade_unidades do item e integracao.pedido_retorno_erro.quantidade
@@ -21,9 +21,9 @@ import { banco, semBanco } from './estado';
 import { emTransacao, erroNoSavepoint, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
-const VERSAO = '0107';
-const m107 = migracoes.find((m) => m.versao === VERSAO)!;
-const ANTERIOR = migracoes[migracoes.indexOf(m107) - 1]!.versao;
+const VERSAO = '0104';
+const m104 = migracoes.find((m) => m.versao === VERSAO)!;
+const ANTERIOR = migracoes[migracoes.indexOf(m104) - 1]!.versao;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
 const A = DOIS_TENANTS.A;
 
@@ -38,14 +38,14 @@ const COLUNAS: ReadonlyArray<readonly [PgTable, string, string, string]> = [
   [pedidoRetornoErro, 'integracao.pedido_retorno_erro', 'quantidade', 'numeric(14, 4)'],
 ];
 
-describe('0107 quantidade fracionária (estático)', () => {
-  it('nome e posição: 0107_quantidade_fracionaria logo depois da 0106', () => {
-    expect(m107.nome).toBe('quantidade_fracionaria');
-    expect(ANTERIOR).toBe('0106');
+describe('0104 quantidade fracionária (estático)', () => {
+  it('nome e posição: 0104_quantidade_fracionaria logo depois da 0103', () => {
+    expect(m104.nome).toBe('quantidade_fracionaria');
+    expect(ANTERIOR).toBe('0103');
   });
 
   it('up: tipos novos, round nos gatilhos e CHECKs, item descartado > 0; down com a trava da fração', () => {
-    const up = semComentarios(m107.up);
+    const up = semComentarios(m104.up);
     for (const [, tabela, coluna, tipo] of COLUNAS) {
       expect(up, `${tabela}.${coluna}`).toContain(`alter column ${coluna} type ${tipo} using ${coluna}::${tipo}`);
     }
@@ -56,8 +56,8 @@ describe('0107 quantidade fracionária (estático)', () => {
     expect(up).toContain('new.quantidade_unidades := round(new.quantidade * new.fator, 4);');
     expect(up).toContain('check (indice >= 0 and sequencia >= 1 and quantidade > 0)');
     expect(up).not.toMatch(/create table|policy|\bgrant\b|\brevoke\b/);
-    const down = semComentarios(m107.down);
-    expect(down).toContain("raise exception '0107 down recusado");
+    const down = semComentarios(m104.down);
+    expect(down).toContain("raise exception '0104 down recusado");
     expect(down).toContain('check (quantidade_base = quantidade * fator)');
     expect(down).toContain('check (indice >= 0 and sequencia >= 1 and quantidade >= 1)');
   });
@@ -71,7 +71,7 @@ describe('0107 quantidade fracionária (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0107 quantidade fracionária (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0104 quantidade fracionária (banco, fixture dois-tenants)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -130,14 +130,14 @@ describe.skipIf(semBanco())('0107 quantidade fracionária (banco, fixture dois-t
   it('down com fração gravada falha (P0001) e diz tabela e coluna', async () => {
     await emTransacao(admin, null, async () => {
       expect(await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 2.5, quantidade_faturada = 0 where id = $1', [await umItem()])).toBeNull();
-      const e = await erroNoSavepoint(admin, m107.down);
+      const e = await erroNoSavepoint(admin, m104.down);
       expect(e?.code).toBe('P0001');
       expect(e?.message).toContain('vendedor.pedido_item.quantidade tem 1 linha(s) com fração');
     });
   });
 });
 
-describe.skipIf(semBanco())('0107 quantidade fracionária (up/down, banco efêmero)', () => {
+describe.skipIf(semBanco())('0104 quantidade fracionária (up/down, banco efêmero)', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
@@ -153,14 +153,14 @@ describe.skipIf(semBanco())('0107 quantidade fracionária (up/down, banco efême
      where (table_schema, table_name) in (('core', 'produto_unidade'), ('vendedor', 'pedido_item'), ('integracao', 'pedido_retorno_erro'))
        and (column_name like 'quantidade%' or column_name = 'fator')`;
 
-  it('up troca os tipos; down volta ao catálogo da 0106; up de novo igual', async () => {
+  it('up troca os tipos; down volta ao catálogo da 0103; up de novo igual', async () => {
     await comAdmin(b.nome, async (c: pg.Client) => {
       await migrarUp(c, { ate: ANTERIOR });
       const antes = await retratoDoCatalogo(c);
       const tiposAntes = (await c.query(TIPOS)).rows[0].tipos as string;
       expect(tiposAntes.split(';').every((t) => t.endsWith('=integer(32,0)'))).toBe(true);
 
-      expect((await migrarUp(c, { ate: VERSAO })).aplicadas).toEqual([`${VERSAO}_${m107.nome}`]);
+      expect((await migrarUp(c, { ate: VERSAO })).aplicadas).toEqual([`${VERSAO}_${m104.nome}`]);
       const tiposDepois = (await c.query(TIPOS)).rows[0].tipos as string;
       expect(tiposDepois.split(';')).toHaveLength(8);
       expect(tiposDepois).toContain('core.produto_unidade.fator=numeric(9,4)');
@@ -169,9 +169,9 @@ describe.skipIf(semBanco())('0107 quantidade fracionária (up/down, banco efême
       expect(tiposDepois.split(';').filter((t) => t.endsWith('=numeric(14,4)'))).toHaveLength(6);
       const depois = await retratoDoCatalogo(c);
 
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${VERSAO}_${m107.nome}`]);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual([`${VERSAO}_${m104.nome}`]);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await c.query(m107.down); // idempotente
+      await c.query(m104.down); // idempotente
       expect(await retratoDoCatalogo(c)).toEqual(antes);
 
       await migrarUp(c, { ate: VERSAO });

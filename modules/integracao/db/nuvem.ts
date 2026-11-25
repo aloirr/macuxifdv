@@ -469,7 +469,7 @@ export const pedidoRetornoErro = integracao.table('pedido_retorno_erro', {
   indice: integer('indice').notNull(),
   sequencia: integer('sequencia').notNull(),
   produto_external_id: text('produto_external_id').notNull(),
-  /** 0107 (ADR 0076): numeric(14,4) > 0, fracionária; mode 'number' (o `pg` entrega numeric como string). */
+  /** 0104 (ADR 0076): numeric(14,4) > 0, fracionária; mode 'number' (o `pg` entrega numeric como string). */
   quantidade: numeric('quantidade', { precision: 14, scale: 4, mode: 'number' }).notNull(),
   codigo: text('codigo', { enum: CODIGOS_ITEM_DESCARTADO_BANCO }).notNull(),
   codigos: text('codigos', { enum: CODIGOS_ITEM_DESCARTADO_BANCO }).array().notNull(),

@@ -539,10 +539,10 @@ A correção do pré-cadastro recusado é uma revisão nova do mesmo cliente (de
 Índice do poll sem mudança. Drizzle: `clienteFilaErp.revisao`, `hash` e `erros`. Volta: o down da 0098 apaga as 3 colunas (com os
 CHECKs e o grant). Teste: `db/testes/cliente-pre-cadastro-revisao.db.test.ts`.
 
-## 0107 — quantidade fracionária no item descartado (`0107_quantidade_fracionaria`; ADR 0076)
+## 0104 — quantidade fracionária no item descartado (`0104_quantidade_fracionaria`; ADR 0076)
 `integracao.pedido_retorno_erro.quantidade`: int → **numeric(14,4)**; `pedido_retorno_erro_numeros_validos` troca
 `quantidade >= 1` por **`quantidade > 0`** (0,5 KG descartado é válido). Driver `pg`: chega como string; o Drizzle
-(`pedidoRetornoErro.quantidade`) usa `mode: 'number'`. Volta: o down da 0107 só sem fração gravada (`P0001`) e volta o `>= 1`.
+(`pedidoRetornoErro.quantidade`) usa `mode: 'number'`. Volta: o down da 0104 só sem fração gravada (`P0001`) e volta o `>= 1`.
 Teste: `db/testes/quantidade-fracionaria.db.test.ts`.
 
 ## Kit do Conector — quantidade fracionária (ADR 0076; Conector 1.6.0)

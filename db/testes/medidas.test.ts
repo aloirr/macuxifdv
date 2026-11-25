@@ -222,7 +222,7 @@ describe.skipIf(semBanco())('0018 medidas (banco, papel de aplicação)', () => 
 
   it('item do pedido: medida, quantidade_embalagem e quantidade_unidades DERIVADAS de unidade/fator/quantidade (o que vier nelas é ignorado)', async () => {
     type Item = { medida: string | null; unidade: string | null; fator: number; quantidade_embalagem: number; quantidade_unidades: number; quantidade_base: number };
-    // numeric desde a 0107 (o pg entrega string): ::float8 compara como número
+    // numeric desde a 0104 (o pg entrega string): ::float8 compara como número
     const COLS = 'medida, unidade, fator::float8 as fator, quantidade_embalagem::float8 as quantidade_embalagem, quantidade_unidades::float8 as quantidade_unidades, quantidade_base::float8 as quantidade_base';
     await emTransacao(app, A, async () => {
       const ped = (await q<{ id: string; produto_id: string }>('select pedido_id as id, produto_id from vendedor.pedido_item limit 1')).rows[0]!;
