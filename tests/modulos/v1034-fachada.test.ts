@@ -27,7 +27,7 @@ import {
   type ResultadoEnvioArquivo,
   type ResultadoItemPush,
 } from '@macuxi/platform-sdk';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ClienteFotoPushSchema, type ClienteFotoPush, type ClienteFotoSync, type ClienteSync, type FotoTipoSync } from '../../modules/core/contracts';
 import { podeEnviarFoto, type FotoPdvPush } from '../../modules/core/domain';
@@ -188,9 +188,21 @@ function montar(o: { servidorJaTem?: LinhaServidor } = {}) {
 
 afterEach(() => definirCapturaFotoPdv(null));
 
+// A captura usa o relógio do aparelho (`new Date()` em enviar-foto-pdv.ts): o teste fixa a virada do dia em Manaus (AGORA).
+// Só `Date`, para não travar promises e timers do motor.
+function fixarRelogioNoAgora(): void {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(AGORA));
+  });
+  afterEach(() => vi.useRealTimers());
+}
+
 const antiga = (o: Partial<LinhaServidor> = {}): LinhaServidor => ({ id: FOTO_ANTIGA, cliente_id: CLIENTE, foto_tipo_id: FACHADA.id, arquivo_id: U(31), origem: 'camera', tirada_em: '2026-10-01T15:00:00.000Z', deleted_at: null, updated_at: '2026-10-01T15:00:01.000Z', ...o });
 
 describe('v1.0.34 A — guarda: foto tirada e ainda na fila (ficha REAL, fuso do tenant)', () => {
+  fixarRelogioNoAgora();
+
   it('sem sinal: a Fachada sai de "Falta" para "Na fila" e a Data é a da captura no fuso de Manaus (23h30 de 24/11 = 24/11, não 25/11)', async () => {
     const t = montar();
     t.ligarSinal(false);
@@ -212,6 +224,8 @@ describe('v1.0.34 A — guarda: foto tirada e ainda na fila (ficha REAL, fuso do
 });
 
 describe('v1.0.34 A — foto tirada com foto viva do tipo no servidor (RN-CORE-38 × decisão "só adicionar")', () => {
+  fixarRelogioNoAgora();
+
   it('servidor já tem a fachada que o aparelho ainda não puxou → a foto tirada é aceita e a linha fica "Na fila" com a data dela', async () => {
     const t = montar({ servidorJaTem: antiga() });
     await t.motor.aplicarModulosAtivos(['core']);
