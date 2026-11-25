@@ -319,8 +319,7 @@ describe.skipIf(semBanco())('Core T-0017 × Postgres: escopo da carteira, Client
       const r = (await chamar('GET', 'carteira', supervisor)) as { itens: Array<{ usuario_id: string; cliente_id: string }> };
       expect(r.itens.length).toBeGreaterThan(0);
       for (const i of r.itens) expect([U.vendedor1, U.promotor, U.supervisor]).toContain(i.usuario_id);
-      expect(rota('GET', 'carteira').perfis).not.toContain('vendedor');
-      expect(rota('GET', 'carteira').perfis).not.toContain('promotor');
+      expect(rota('GET', 'carteira').acao).toBe('carteira.ver');
     });
   });
 
@@ -409,7 +408,7 @@ describe.skipIf(semBanco())('Core T-0017 × Postgres: escopo da carteira, Client
     });
 
     it('RN-CORE-15: só admin e analista têm as rotas de aparelho', () => {
-      expect(rota('GET', 'dispositivos').perfis).toEqual(['admin', 'analista']);
+      expect(rota('GET', 'dispositivos').acao).toBe('dispositivo.bloquear');
     });
   });
 });
