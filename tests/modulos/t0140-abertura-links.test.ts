@@ -7,7 +7,8 @@
  * (B) desde o 8b79045 (T-0170; D2, R-20261113-054158; RD-0249) o cartão Recados saiu do Início e o recado ficou só no sino:
  * `destinoDaNotificacao` e `recadosDoInicio` (apps/mobile/src/lib/inicio.ts) foram apagados. Hoje o toque no recado mora no Core,
  * em três entradas: o balão do sino (`BalaoRecadosETarefas`), a tela "Recados e tarefas" e a central antiga (`TelaNotificacoes`);
- * as três chamam `linkInternoNavegavel(link, (c) => visao.pagina(c) !== null)`. O shell só abre o balão, o "Ver todos"
+ * as três chamam `destinoDaNotificacao(n, (c) => visao.pagina(c) !== null)` (#722, RN-CORE-80: o aviso de versão do app abre
+ * /atualizar-app; o resto vai a `linkInternoNavegavel`). O shell só abre o balão, o "Ver todos"
  * (`destinoVerTodos`) e a tarefa (`destinoDaTarefa`), em apps/mobile/src/lib/sino.ts.
  * Convenção (a de kit-piloto-t0162.test.ts): `it` = vale hoje; `it.fails` = desvio aberto D-T0140-n (fica vermelho quando
  * corrigido e vira `it` no mesmo commit).
@@ -37,6 +38,7 @@ vi.mock('expo-router', () => ({
 
 import { caminhoDoLinkInterno as caminhoDoLink, linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk';
 import { destinoDaTarefa, destinoVerTodos } from '../../apps/mobile/src/lib/sino';
+import { destinoDaNotificacao } from '../../modules/core/app/lib/destino-notificacao';
 import { CAMINHO_NOVO_PEDIDO, hrefNovoPedido, irParaNovoPedido } from '../../modules/vendedor/app/rotas';
 import { CHECKIN_NA_FICHA, SO_ORCAMENTO } from './apoio/estado-prs';
 
@@ -198,11 +200,13 @@ const CENTRAL = '/m/recados-e-tarefas';
 const BALAO = 'modules/core/app/telas/recados-e-tarefas/balao-recados-e-tarefas.tsx';
 const TELA_RECADOS = 'modules/core/app/telas/recados-e-tarefas/tela-recados-e-tarefas.tsx';
 const NOTIFICACOES = 'modules/core/app/telas/notificacoes.tsx';
-/** As três entradas do toque no recado e o nome com que cada uma importa a regra do SDK. */
+/** Desde o #722 (T-0195, RN-CORE-80) as três entradas chamam `destinoDaNotificacao`, que chama a regra do SDK. */
+const DESTINO_NOTIFICACAO = 'modules/core/app/lib/destino-notificacao.ts';
+/** As três entradas do toque no recado e o caminho com que cada uma importa `destinoDaNotificacao`. */
 const ENTRADAS = [
-  [BALAO, 'linkInternoNavegavel'],
-  [TELA_RECADOS, 'linkInternoNavegavel'],
-  [NOTIFICACOES, 'linkNavegavel'],
+  [BALAO, '../../lib/destino-notificacao'],
+  [TELA_RECADOS, '../../lib/destino-notificacao'],
+  [NOTIFICACOES, '../lib/destino-notificacao'],
 ] as const;
 
 /** Corpo da função `abrir` da tela (de `const abrir =` até o `};` que a fecha). Falha alto se sumir, para o `it.fails` não passar por erro de leitura. */
@@ -220,7 +224,7 @@ describe('T-0140 B — link do recado: só abre tela que o perfil tem; senão, a
   ] as const) {
     const telaExiste = (c: string) => paginas.has(c);
     it.each(LINKS.map((l) => [JSON.stringify(l), l] as const))(`B1 ${app}: %s — a regra do SDK só devolve link interno de tela da visão`, (_n, link) => {
-      // as três entradas chamam assim (B4): `linkInternoNavegavel(link ?? null, (c) => visao.pagina(c) !== null)`
+      // as três entradas chamam assim (B4, via `destinoDaNotificacao`): `linkInternoNavegavel(link ?? null, (c) => visao.pagina(c) !== null)`
       const destino = linkNavegavel(link ?? null, telaExiste);
       expect(destino).toBe(linkNavegavel(link, telaExiste)); // null e undefined decidem igual
       if (destino) {
@@ -269,11 +273,24 @@ describe('T-0140 B — link do recado: só abre tela que o perfil tem; senão, a
   });
 
   it('B4. o toque no recado passa pela visão do perfil nas três entradas do Core (balão, Recados e tarefas, central antiga); o Início não tem mais recado', () => {
-    for (const [rel, nome] of ENTRADAS) {
+    // #722 (T-0195, RN-CORE-80): as três entradas chamam `destinoDaNotificacao`; o aviso de versão do app abre /atualizar-app
+    for (const [rel, de] of ENTRADAS) {
       const fonte = ler(rel);
-      // a regra é a ÚNICA do SDK (RD-0032), sem cópia própria
-      expect(fonte, rel).toMatch(new RegExp(`import \\{ linkInternoNavegavel${nome === 'linkInternoNavegavel' ? '' : ` as ${nome}`} \\} from '@macuxi/platform-sdk'`));
-      expect(corpoDoAbrir(rel), rel).toMatch(new RegExp(`${nome}\\(\\w+\\.(notificacao\\.)?link( \\?\\? null)?, \\(c\\) => visao\\.pagina\\(c\\) !== null\\)`));
+      expect(fonte, rel).toContain(`import { destinoDaNotificacao } from '${de}';`);
+      expect(fonte, rel).not.toMatch(/linkInternoNavegavel/); // sem cópia nem atalho para a regra fora de `destinoDaNotificacao`
+      expect(corpoDoAbrir(rel), rel).toMatch(/destinoDaNotificacao\((\w+\.notificacao|n), \(c\) => visao\.pagina\(c\) !== null\)/);
+    }
+    // a regra do link continua a ÚNICA do SDK (RD-0032), sem cópia própria
+    const destino = ler(DESTINO_NOTIFICACAO);
+    expect(destino).toContain("import { linkInternoNavegavel } from '@macuxi/platform-sdk';");
+    // comportamento: o aviso de versão (sistema/app_versao_nova, sem link) abre /atualizar-app; o resto segue a regra do SDK
+    const campo = (c: string) => PAGINAS_CAMPO.has(c);
+    const gestao = (c: string) => PAGINAS_GESTAO.has(c);
+    expect(destinoDaNotificacao({ tipo: 'sistema', subtipo: 'app_versao_nova' }, gestao)).toBe('/atualizar-app');
+    expect(destinoDaNotificacao({ tipo: 'recado', subtipo: 'app_versao_nova', link: null }, campo)).toBeNull();
+    for (const l of LINKS) {
+      expect(destinoDaNotificacao({ tipo: 'recado', link: l }, campo), String(l)).toBe(linkNavegavel(l ?? null, campo));
+      expect(destinoDaNotificacao({ tipo: 'recado', link: l }, gestao), String(l)).toBe(linkNavegavel(l ?? null, gestao));
     }
     // 8b79045 (D2, RD-0249): o Início só mostra o sino; o recado não tem mais cartão nem navegação própria no Início
     const inicio = ler('apps/mobile/src/app/(tabs)/index.tsx');
