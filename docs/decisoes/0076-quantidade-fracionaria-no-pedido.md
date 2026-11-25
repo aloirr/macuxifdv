@@ -3,7 +3,7 @@
 - **Status**: proposta (número 0076 reservado pelo gerente-projetos da S12, ainda não escrito no `.coord/quadro.md` do `origin/main`;
   conferido livre em `docs/decisoes/` do `origin/main` em 25/11/2026 03h40, Manaus).
 - **Data**: 2026-11-25 (Manaus)
-- **Versão**: v1.0.35 (sessão S12; número da tarefa a confirmar pelo gerente-projetos — citar "quantidade fracionária, ADR 0076").
+- **Versão**: v1.0.36 (sessão S12, tarefa T-0196). Saiu da v1.0.35 para a v1.0.36 por decisão do gerente-projetos de 25/11/2026 04h37 (Manaus).
 - **Autor**: engenheiro-software
 - **Origem**: decisão do dono do produto (vender por peso e por metro, com fração) e a avaliação do engenheiro de 25/11, que
   classificou a mudança como **incompatível** (quantidade inteira em contratos, eventos, banco e app).
@@ -98,11 +98,11 @@ comparações e `quantidade_base` usam esse inteiro. O total do item multiplica 
 | `QuantidadeDecimalSchema` | `src/quantidade.ts` | `z.number().finite().positive()` + no máximo 4 casas (mensagem `quantidade deve ter no máximo 4 casas decimais`) e `≤ QUANTIDADE_DECIMAL_MAX` |
 | `FatorDecimalSchema` | `src/quantidade.ts` | idem, `> 0`, 4 casas, `≤ 9999` (mesmo teto de `EMBALAGEM_QUANTIDADE_MAX`) |
 | `QUANTIDADE_DECIMAL_MAX` | `src/quantidade.ts` | `999_999_999.9999` |
-| `VERSAO_APP_FRACAO` | `src/app-versao.ts` | `'1.0.35'` |
+| `VERSAO_APP_FRACAO` | `src/app-versao.ts` | `'1.0.36'` |
 | `fracaoLiberada` | `src/app-versao.ts` | `({ campo, gestao, agora }: { campo: VersaoPublicadaApp \| null; gestao: VersaoPublicadaApp \| null; agora: Date }) => boolean` (D6) |
 | `clienteAceitaFracao` | `src/app-versao.ts` | `(app: AppDoCabecalho \| null) => boolean`: cabeçalho presente e versão ≥ `VERSAO_APP_FRACAO` |
 | `CODIGO_FRACAO_BLOQUEADA` | `src/quantidade.ts` | `'quantidade_fracionaria_bloqueada'` (422, D6) |
-| `MENSAGEM_FRACAO_BLOQUEADA` | `src/quantidade.ts` | "Quantidade com casas decimais só é aceita 24 h depois da publicação do Macuxi Campo e do Macuxi Gestão 1.0.35. Envie a quantidade inteira ou tente de novo mais tarde." (o designer-ux pode reescrever; o código não muda) |
+| `MENSAGEM_FRACAO_BLOQUEADA` | `src/quantidade.ts` | "Quantidade com casas decimais só é aceita 24 h depois da publicação do Macuxi Campo e do Macuxi Gestão 1.0.36. Envie a quantidade inteira ou tente de novo mais tarde." (o designer-ux pode reescrever; o código não muda) |
 | `CODIGO_FRACAO_INVALIDA` | `src/quantidade.ts` | `'quantidade_fracionaria_invalida'` (422: fração fora de KG/M, mais de 4 casas, ou quantidade e fator fracionários juntos; RN-VEN-02 v3) |
 
 **`modules/vendedor/domain/quantidade.ts`** (modulo-vendedor):
@@ -145,10 +145,10 @@ tenant.
 
 - versão publicada **maior** que `VERSAO_APP_FRACAO` → atende; ou
 - versão publicada **igual** a `VERSAO_APP_FRACAO`, com `publicada_em` válido e `agora ≥ publicada_em + PRAZO_ATUALIZACAO_APP_MS`
-  (24 h: a partir daí a API bloqueia com 426 todo app ≥ 1.0.33 abaixo da 1.0.35);
+  (24 h: a partir daí a API bloqueia com 426 todo app ≥ 1.0.33 abaixo da 1.0.36);
 - qualquer outro caso (sem versão, sem hora, menor, porta ausente) → **fechada**.
 
-Publicar uma 1.0.36 depois não fecha a trava de novo (a primeira regra). Sem `ctx.versaoApp` na rota = fechada.
+Publicar uma 1.0.37 depois não fecha a trava de novo (a primeira regra). Sem `ctx.versaoApp` na rota = fechada.
 
 **Onde a trava é aplicada (fechada):**
 
@@ -161,12 +161,12 @@ Publicar uma 1.0.36 depois não fecha a trava de novo (a primeira regra). Sem `c
 **Sempre (aberta ou fechada):**
 
 - **Pull filtrado por versão do cliente** (`clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null)`): para cliente sem o cabeçalho
-  ou abaixo da 1.0.35, o Core **omite** as linhas de `produto_unidade` com fator fracionário e o Vendedor **omite** os pedidos que
+  ou abaixo da 1.0.36, o Core **omite** as linhas de `produto_unidade` com fator fracionário e o Vendedor **omite** os pedidos que
   tenham algum item com quantidade ou fator fracionário. Protege os apps até a 1.0.32, que nunca recebem 426.
 - **Conector**: `exigeConector` devolve `VERSAO_CONECTOR_FRACAO = '1.6.0'` (`modules/integracao/domain/pedido-versao.ts`) quando
   algum item tem `quantidade`, `quantidade_venda` ou `fator` fracionário (a exigência maior vence, como a da filial). O pedido
   espera na fila com o alerta do monitor (`pedidosAguardandoConector`) até o Conector 1.6.0.
-- **App 1.0.35**: o teclado decimal só aparece quando `unidadeFracionaria(unidade)` **e** `fracaoLiberada(...)` com as duas
+- **App 1.0.36**: o teclado decimal só aparece quando `unidadeFracionaria(unidade)` **e** `fracaoLiberada(...)` com as duas
   últimas respostas guardadas de `GET /v1/app/versao` (Campo e Gestão). Offline sem resposta guardada = inteiro. Diferença de
   cache (até 10 min) entre app e API vira, no pior caso, um "Não aceito" corrigível.
 
@@ -185,7 +185,7 @@ Publicar uma 1.0.36 depois não fecha a trava de novo (a primeira regra). Sem `c
 
 ### D8 — Desativação do `vendedor.pedido.criado@1`
 
-O servidor para de publicar o `@1` na **primeira versão a partir da v1.0.36** em que as três condições valem, conferidas pelo
+O servidor para de publicar o `@1` na **primeira versão a partir da v1.0.37** em que as três condições valem, conferidas pelo
 engenheiro-software na revisão:
 
 1. nenhum módulo declara o `@1` em `consome` (Gestor e Core já leem o `@2`; `grep "vendedor.pedido.criado@1"` só em histórico);
@@ -196,7 +196,11 @@ Depois disso o `@1` vira "só histórico" em `eventos.md` (como o `aprovacao_sol
 ficam para o que ainda estiver na outbox. Cada consumidor lê **uma** versão só (quem migrou para o `@2` deixa de declarar o `@1`),
 para não contar o pedido duas vezes.
 
-### D9 — Ordem das etapas (tudo na v1.0.35; E2 a E5 em paralelo depois da E1)
+**O `@1` continua aceito na entrada até o Gestor consumir o `@2`** (decisão do gerente-projetos, 25/11/2026 04h37, Manaus, T-0196):
+enquanto o `modulo-gestor` não declarar o `@2` em `consome`, o `@1` segue publicado e aceito por todos os consumidores que o declaram,
+e nenhum deles deixa de aceitá-lo por conta própria. A condição 1 acima só conta depois que o Gestor passar a ler o `@2`.
+
+### D9 — Ordem das etapas (tudo na v1.0.36; E2 a E5 em paralelo depois da E1)
 
 | Etapa | Dono | O quê |
 |---|---|---|
@@ -207,8 +211,8 @@ para não contar o pedido duas vezes.
 | E3c | modulo-integracao | contratos do Hub (D5), trava no lote e no retorno (D6), `VERSAO_CONECTOR_FRACAO` no `exigeConector`, **Conector 1.6.0** (`apps/conector`) lendo e gravando decimal |
 | E3d | modulo-gestor | consumir `vendedor.pedido.criado@2` no lugar do `@1` (projeção com quantidade decimal) e tolerância ao `faturado@1` decimal |
 | E4 | engenheiro-apps | teclado `decimal-pad` com vírgula só em KG/M e só com `fracaoLiberada`, 4 casas; `formatarQuantidade` no carrinho e no detalhe; guardar a última resposta de `GET /v1/app/versao` das duas variantes |
-| E5 | testes | roteiro: inteiro idêntico ao de hoje; 1,250 kg × R$ 19,99 = R$ 24,99; trava fechada → 422; app 1.0.34 sem linha fracionária no pull; Conector 1.5 → pedido esperando |
-| E6 | gerente + dono do produto | deploy v1.0.35 e publicação dos dois APKs 1.0.35; a trava abre sozinha 24 h depois |
+| E5 | testes | roteiro: inteiro idêntico ao de hoje; 1,250 kg × R$ 19,99 = R$ 24,99; trava fechada → 422; app 1.0.35 sem linha fracionária no pull; Conector 1.5 → pedido esperando |
+| E6 | gerente + dono do produto | deploy v1.0.36 e publicação dos dois APKs 1.0.36; a trava abre sozinha 24 h depois |
 
 Ninguém emite fração antes da E6 + 24 h, então E2 e E3 podem entrar em qualquer ordem **dentro do mesmo lote** (a 0106 e as leituras
 com `quantidadeDoBanco` precisam estar no mesmo deploy: sem elas o código atual leria string).

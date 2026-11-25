@@ -265,17 +265,17 @@ O recusado pelo ERP é corrigido no mesmo cliente como revisão nova (Campo ou B
 | `GET /v1/core/clientes/pre-cadastro/recusados`, `GET /v1/core/clientes/:id/pre-cadastro` e `GET /v1/core/clientes/:id/pre-cadastro/historico` | core | ação `cliente.pre_cadastro_recusados` (analista, admin), superfície BKO; motivo e erros só na resposta | novas |
 | `PUT /v1/core/clientes/:id/pre-cadastro` | core | ação `cliente.pre_cadastro_corrigir` (analista, admin); revisão nova de origem `bko`, auditada sem valores nem motivo | nova |
 
-## Quantidade fracionária no pedido (v1.0.35, 25/11, ADR 0076)
+## Quantidade fracionária no pedido (v1.0.36, T-0196, 25/11, ADR 0076)
 
 Fração só em KG e M, até 4 casas; no fio, número JSON (inteiro segue idêntico); no domain, inteiro de 1/10.000; no banco, `numeric`
 (migração 0106) lido com `quantidadeDoBanco`. Nomes compartilhados: `@macuxi/comum/quantidade` e `@macuxi/platform-sdk`
-(`QuantidadeDecimalSchema`, `FatorDecimalSchema`, `fracaoLiberada`, `clienteAceitaFracao`, `VERSAO_APP_FRACAO = '1.0.35'`).
+(`QuantidadeDecimalSchema`, `FatorDecimalSchema`, `fracaoLiberada`, `clienteAceitaFracao`, `VERSAO_APP_FRACAO = '1.0.36'`).
 
 | Contrato | Dono | Mudança | Compatibilidade / situação |
 |---|---|---|---|
 | `vendedor.pedido.criado@2` | vendedor | evento novo (`eventos.md`), `@1` em paralelo até o D8 do ADR | nova versão |
-| entidade de sync `pedido_item` (`PedidoItemSyncSchema`) | vendedor | `quantidade`, `fator`, `quantidade_base`, `quantidade_faturada` decimais (push e pull) | push com trava 422 `quantidade_fracionaria_bloqueada`; pull omite pedido com fração para cliente sem `x-macuxi-app` ou abaixo da 1.0.35 |
-| entidade de sync `produto_unidade` (`ProdutoUnidadeSyncSchema`) | core | `fator: FatorDecimalSchema` | pull omite a linha com fator fracionário para cliente sem `x-macuxi-app` ou abaixo da 1.0.35 |
+| entidade de sync `pedido_item` (`PedidoItemSyncSchema`) | vendedor | `quantidade`, `fator`, `quantidade_base`, `quantidade_faturada` decimais (push e pull) | push com trava 422 `quantidade_fracionaria_bloqueada`; pull omite pedido com fração para cliente sem `x-macuxi-app` ou abaixo da 1.0.36 |
+| entidade de sync `produto_unidade` (`ProdutoUnidadeSyncSchema`) | core | `fator: FatorDecimalSchema` | pull omite a linha com fator fracionário para cliente sem `x-macuxi-app` ou abaixo da 1.0.36 |
 | Hub e Conector: `ItemPedidoErp`, `ItemFaturado`, `ItemFaturadoDescartado`, `ProdutoUnidadePayload` | integracao | `fator`, `quantidade`, `quantidade_venda` com até 4 casas | v1 do Hub; pedido com fração exige Conector **1.6.0** (`VERSAO_CONECTOR_FRACAO` no `exigeConector`); trava fechada = 422 `quantidade_fracionaria_bloqueada` no lote e no retorno |
 | 422 `quantidade_fracionaria_bloqueada` (`CODIGO_FRACAO_BLOQUEADA`, `MENSAGEM_FRACAO_BLOQUEADA`) | SDK | Hub (lote e retorno) e Vendedor (push, orçamento) enquanto `fracaoLiberada` for falso | novo |
 | 422 `quantidade_fracionaria_invalida` (`CODIGO_FRACAO_INVALIDA`) | SDK | fração fora de KG/M, mais de 4 casas, ou quantidade e fator fracionários juntos (RN-VEN-02 v3) | novo |
