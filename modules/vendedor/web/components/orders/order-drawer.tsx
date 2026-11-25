@@ -11,7 +11,7 @@ import { copiarChaveNf } from '../../../app/lib/copiar-chave';
 import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { descontoDoPedidoPct } from '../../../domain/preco-pedido';
-import { quantidadeComSigla, quantidadeDoPdf, type OrderPdfView } from '../../../domain/pdf-pedido';
+import { quantidadeDoPdf, type OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from '../../lib/detalhe-pedido';
 import { usePedido } from '../../lib/queries';
 import { ERRO_IMPRESSAO, exportarPdfDoPedido } from './exportar-pdf';
@@ -241,7 +241,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.unit_price_cents)}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{textoDoAjusteDoItem(it)}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.total_cents)}</td>
-                          {temFaturado && <td className={tdNum}>{`${quantidadeComSigla({ quantity: it.quantity_invoiced ?? 0, unit_label: it.unit_label })} de ${quantidadeComSigla({ quantity: it.quantity_base ?? it.quantity, unit_label: it.unit_label })}`}</td>}
+                          {temFaturado && <td className={tdNum}>{`${quantidadeDoPdf({ quantity: it.quantity_invoiced ?? 0, unit_label: it.unit_label })} de ${quantidadeDoPdf({ quantity: it.quantity_base ?? it.quantity, unit_label: it.unit_label })}`}</td>}
                         </tr>
                       ))}
                     </tbody>

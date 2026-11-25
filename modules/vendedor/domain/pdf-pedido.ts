@@ -365,12 +365,6 @@ export function quantidadeDoPdf(item: Pick<OrderPdfItem, 'quantity' | 'unit_labe
   return unidadeFracionaria(sigla) || temFracao(item.quantity) ? formatarQuantidade(item.quantity, sigla).replace(/ \S+$/, '') : String(item.quantity);
 }
 
-/** RN-VEN-02 v3: quantidade com a sigla onde a unidade não está ao lado (BKO: coluna "Faturado"); fora de KG/M é o número puro de `quantidadeDoPdf`. */
-export function quantidadeComSigla(item: Pick<OrderPdfItem, 'quantity' | 'unit_label'>): string {
-  const sigla = siglaDaMedida(item.unit_label);
-  return unidadeFracionaria(sigla) ? formatarQuantidade(item.quantity, sigla) : quantidadeDoPdf(item);
-}
-
 /** RN-CORE-19: quantidade somada por embalagem ("2 FD + 4 CX + 10 UN"); a medida "CX c/ 12" conta como CX. */
 export function quantidadePorEmbalagem(items: ReadonlyArray<Pick<OrderPdfItem, 'quantity' | 'unit_label'>>): string {
   const porMedida = new Map<string, number>();
