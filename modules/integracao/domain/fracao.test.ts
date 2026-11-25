@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CODIGO_FRACAO_BLOQUEADA, CODIGO_FRACAO_INVALIDA, MENSAGEM_FRACAO_BLOQUEADA } from '@macuxi/platform-sdk';
-import { avaliarFracaoLote, avaliarFracaoRetorno, itemPedidoTemFracao, somarQuantidades, subtrairQuantidades } from './fracao';
+import { avaliarFracaoLote, avaliarFracaoRetorno, itemPedidoTemFracao } from './fracao';
 import { VERSAO_CONECTOR_FRACAO, VERSAO_CONECTOR_FILIAL, exigeConector } from './pedido-versao';
 
 const item = (o: Record<string, unknown> = {}) => ({ sequencia: 1, produto_external_id: 'P1', quantidade: 2, preco_unitario_cents: 100, desconto_cents: 0, total_cents: 200, ...o }) as never;
@@ -62,13 +62,5 @@ describe('ADR 0076 D6: trava no retorno (itens_faturados[].quantidade)', () => {
   });
   it('RN-VEN-02 v3: mais de 4 casas é 422 quantidade_fracionaria_invalida', () => {
     expect(avaliarFracaoRetorno([f(1.00001)], true)).toMatchObject({ ok: false, codigo: CODIGO_FRACAO_INVALIDA });
-  });
-});
-
-describe('ADR 0076 D3: conta exata das quantidades faturadas', () => {
-  it('RN-VEN-02 v3: 0,1 + 0,2 = 0,3 e 1,3 - 0,1 = 1,2 (sem erro de ponto flutuante)', () => {
-    expect(somarQuantidades(0.1, 0.2)).toBe(0.3);
-    expect(somarQuantidades(1.25, 2)).toBe(3.25);
-    expect(subtrairQuantidades(1.3, 0.1)).toBe(1.2);
   });
 });

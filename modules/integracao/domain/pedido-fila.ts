@@ -21,7 +21,7 @@ import {
 // T-0024: o tipo vem do dono do evento (só tipo: o domain não carrega o contracts do Vendedor em tempo de execução)
 import type { PedidoAprovadoEvento as PedidoAprovadoConsumido } from '../../vendedor/contracts';
 import { aplicarTimeoutEnvio, chaveNotaRetorno, podeEntrarNaFila, transicionarRetornoPedidoErp, type NotaChave } from './estados';
-import { somarQuantidades, subtrairQuantidades } from './fracao';
+import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 import { hashRegistro } from './idempotencia';
 import { PARAMETROS_PADRAO } from './parametros';
 import { conectorAtendePedido, exigeConector } from './pedido-versao';

@@ -83,4 +83,4 @@ export const LIMITE_PEDIDOS_POLL_PADRAO = 50;
 export const LIMITE_PEDIDOS_POLL_MAX = 100;
 
 /** ADR 0076: conta da quantidade em inteiro de 1/10.000 (sem float); o Conector 1.6.0 soma os itens faturados por aqui. */
-export { quantidadeDaEscala, quantidadeEmEscala } from '@macuxi/comum/quantidade';
+export { quantidadeDaEscala, quantidadeEmEscala, somarQuantidades } from '@macuxi/comum/quantidade';

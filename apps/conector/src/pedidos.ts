@@ -13,7 +13,7 @@
  *    o pedido é devolvido ao Hub como `rejeitado_erp` com o motivo (sem dado pessoal).
  *  - Cada retorno é persistido numa fila local e reenviado até o Hub aceitar (o Hub é idempotente); recusa por regra (4xx) não repete.
  */
-import { type ItemFaturado, PedidoParaErp, quantidadeDaEscala, quantidadeEmEscala, RetornoErp, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
+import { type ItemFaturado, PedidoParaErp, quantidadeDaEscala, quantidadeEmEscala, RetornoErp, somarQuantidades, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 import type { PedidoLocal } from './armazenamento/armazenamento';
 import type { PedidosConfig } from './config/esquema';
 import { type Contexto, resumoErro } from './contexto';
@@ -459,7 +459,7 @@ async function itensDaNota(ctx: Contexto, cfg: PedidosConfig, uuid: string, nota
     const atual = porSequencia.get(sequencia);
     if (atual) {
       if (atual.produto_external_id !== produto) return invalida(i, `sequencia ${sequencia} com produtos diferentes na mesma nota`);
-      atual.quantidade = quantidadeDaEscala(quantidadeEmEscala(atual.quantidade) + escala); // soma em 1/10.000, sem float (ADR 0076)
+      atual.quantidade = somarQuantidades(atual.quantidade, quantidadeDaEscala(escala)); // soma em 1/10.000, sem float (ADR 0076)
       atual.valor_cents += valor;
     } else {
       porSequencia.set(sequencia, { sequencia, produto_external_id: produto, quantidade: quantidadeDaEscala(escala), valor_cents: valor });
