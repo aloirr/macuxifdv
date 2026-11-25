@@ -518,8 +518,8 @@ export type SyncPushResult = z.infer<typeof SyncPushResult>;
 
 
 /** `GET /v1/vendedor/pedidos`: página com cursor `(created_at desc, id)` (T-0029 §6). */
-/** Quantidade e soma (centavos, sem cancelados e rejeitados, RN-VEN-05) do filtro inteiro, não das linhas carregadas. */
-export const TotalDoFiltro = z.object({ quantidade: z.number().int().nonnegative(), soma_cents: z.number().int() });
+/** Quantidade do filtro inteiro, não das linhas carregadas. */
+export const TotalDoFiltro = z.object({ quantidade: z.number().int().nonnegative() });
 export type TotalDoFiltro = z.infer<typeof TotalDoFiltro>;
 export const PedidosPage = z.object({ itens: z.array(Order), proximo_cursor: z.string().nullable(), total_filtro: TotalDoFiltro.optional() });
 export type PedidosPage = z.infer<typeof PedidosPage>;

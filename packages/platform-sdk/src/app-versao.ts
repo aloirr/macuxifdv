@@ -93,31 +93,54 @@ export function haVersaoNova(atual: string, publicada: string): boolean {
 // `ROTAS_LIBERADAS_APP_DESATUALIZADO` (ADR 0070 §D4). A hora de referência é o `publicado_em` do manifesto `ultimo.json`.
 
 /**
- * Cabeçalho que o app manda em toda chamada à API: `<variante>/<X.Y.Z>` (ex.: `campo/1.0.33`). Sem ele (BKO, portal, apps até
- * a v1.0.32) a API não bloqueia nada.
+ * Cabeçalho que o cliente manda em toda chamada à API: `<variante>/<X.Y.Z>` (ex.: `campo/1.0.33`, `web/1.0.35`). Sem ele (portal,
+ * apps até a v1.0.32) a API não bloqueia nada e as regras por versão do cliente (ex.: RN-VEN-25) ficam no comportamento antigo.
  */
 export const CABECALHO_APP = 'x-macuxi-app';
 
-/** O app que chamou, lido do `CABECALHO_APP`. */
+/**
+ * v1.0.35 (RN-VEN-25 no BKO e no Gestor web): o shell web (Next.js) também se identifica, com a variante `web`. Não é variante de
+ * APK (fica fora de `VARIANTES_APP`): não tem versão publicada, não recebe o 426 nem o aviso de atualização; serve só para as
+ * regras que dependem da versão do cliente (`ctx.versaoApp.doCliente.versao`).
+ */
+export const VARIANTE_WEB = 'web';
+/** Quem chama a API com o `CABECALHO_APP`: uma variante de APK ou o shell web. */
+export type VarianteCliente = VarianteApp | typeof VARIANTE_WEB;
+
+/**
+ * Versão de recursos do shell web no `CABECALHO_APP`. O web sai junto com a API (mesmo deploy), sem versão própria de build
+ * (`apps/web/package.json` fica em 0.1.0): esta constante diz até que versão do sistema o web já segue as regras por versão do
+ * cliente. Sobe (no SDK, pelo engenheiro-software) quando o web passa a cumprir uma regra nova condicionada à versão; nunca desce.
+ * v1.0.35: o web aplica o teto de prazo médio do cliente (RN-VEN-25, a partir da 1.0.34).
+ */
+export const VERSAO_WEB = '1.0.35';
+
+/** O app que chamou, lido do `CABECALHO_APP`. `variante: 'web'` = BKO / Gestor web (use `ehAppAndroid` antes de olhar o APK). */
 export interface AppDoCabecalho {
-  variante: VarianteApp;
+  variante: VarianteCliente;
   versao: string;
 }
 
-const CABECALHO_APP_RE = /^(campo|gestao)\/((?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3}))$/;
+/** O cabeçalho é de um APK (`campo`/`gestao`)? Só os APKs têm versão publicada, 426 e aviso de atualização. */
+export const ehAppAndroid = (c: AppDoCabecalho): c is AppDoCabecalho & { variante: VarianteApp } => c.variante !== VARIANTE_WEB;
+
+const CABECALHO_APP_RE = /^(campo|gestao|web)\/((?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3}))$/;
 
 /** Valor do `CABECALHO_APP`. Versão fora de X.Y.Z = erro de programação (o shell lê a versão do próprio build). */
-export function valorCabecalhoApp(variante: VarianteApp, versao: string): string {
+export function valorCabecalhoApp(variante: VarianteCliente, versao: string): string {
   const valor = `${variante}/${versao}`;
   if (!CABECALHO_APP_RE.test(valor)) throw new Error(`versão do app fora de X.Y.Z: ${JSON.stringify(versao)}`);
   return valor;
 }
 
+/** Valor do `CABECALHO_APP` do shell web: `web/<VERSAO_WEB>` (ex.: `web/1.0.35`). O web manda em toda chamada à API. */
+export const valorCabecalhoWeb = (): string => valorCabecalhoApp(VARIANTE_WEB, VERSAO_WEB);
+
 /** Lê o `CABECALHO_APP` (string do Fastify ou do `fetch`). Ausente, repetido ou fora do formato = `null` (não bloqueia). */
 export function lerCabecalhoApp(valor: unknown): AppDoCabecalho | null {
   if (typeof valor !== 'string' || valor.length > 32) return null;
   const m = CABECALHO_APP_RE.exec(valor.trim());
-  return m ? { variante: m[1] as VarianteApp, versao: m[2]! } : null;
+  return m ? { variante: m[1] as VarianteCliente, versao: m[2]! } : null;
 }
 
 /** Prazo de convivência depois da publicação: 24 h exatas. Às 24h00 o app antigo já fica bloqueado. */
@@ -197,9 +220,10 @@ export type VersaoPublicadaApp = Pick<AppVersaoPublicadaV2, 'versao' | 'publicad
  * A API sempre preenche; é opcional só para os contextos falsos dos testes dos módulos.
  */
 export interface PortaVersaoApp {
-  /** `CABECALHO_APP` desta requisição; `null` = sem cabeçalho (BKO, app antigo). */
+  /** `CABECALHO_APP` desta requisição; `null` = sem cabeçalho (portal, app antigo). */
   doCliente: AppDoCabecalho | null;
-  publicada(variante: VarianteApp): Promise<VersaoPublicadaApp | null>;
+  /** Última publicada do APK; `web` = sempre `null` (o web não tem versão publicada). */
+  publicada(variante: VarianteCliente): Promise<VersaoPublicadaApp | null>;
 }
 
 /** Porta fixa para os testes de módulo. */
@@ -207,7 +231,7 @@ export function criarPortaVersaoAppMemoria(
   publicadas: Partial<Record<VarianteApp, VersaoPublicadaApp>>,
   doCliente: AppDoCabecalho | null = null,
 ): PortaVersaoApp {
-  return { doCliente, publicada: (v) => Promise.resolve(publicadas[v] ?? null) };
+  return { doCliente, publicada: (v) => Promise.resolve((v === VARIANTE_WEB ? undefined : publicadas[v]) ?? null) };
 }
 
 /**

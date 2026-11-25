@@ -1,18 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { quantidadeNaoCancelada, STATUS_FORA_DO_TOTAL } from './totais';
+import { quantidadeNaoCancelada } from './totais';
 
 const L = [
-  { status: 'approved', total_cents: 1000 },
-  { status: 'cancelled', total_cents: 500 },
-  { status: 'rejected', total_cents: 300 },
-  { status: 'pending_approval', total_cents: 200 },
+  { status: 'approved' },
+  { status: 'cancelled' },
+  { status: 'rejected' },
+  { status: 'pending_approval' },
 ];
 
 describe('totais da lista de pedidos', () => {
-  it('RN-VEN-05: a soma do filtro inteiro da API usa a mesma lista de status fora do total', () => {
-    expect([...STATUS_FORA_DO_TOTAL]).toEqual(['cancelled', 'rejected']);
-  });
   it('RN-VEN-05: a contagem ignora só os cancelados', () => {
     expect(quantidadeNaoCancelada(L)).toBe(3);
   });

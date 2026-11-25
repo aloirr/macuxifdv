@@ -38,7 +38,7 @@ export type FamiliaNivel = keyof typeof FAMILIAS_NIVEL;
 export type NivelPermissao = NivelEscopo | NivelAlcada;
 
 /** Família e posição de um nível (as famílias não repetem nomes). `null` = nível desconhecido. */
-function posicaoDoNivel(n: string): { familia: FamiliaNivel; i: number } | null {
+export function posicaoDoNivel(n: string): { familia: FamiliaNivel; i: number } | null {
   for (const familia of Object.keys(FAMILIAS_NIVEL) as FamiliaNivel[]) {
     const i = (FAMILIAS_NIVEL[familia] as readonly string[]).indexOf(n);
     if (i >= 0) return { familia, i };
@@ -238,6 +238,12 @@ export interface PerfilDaRequisicao {
   permissoes: PermissoesDoPerfil;
 }
 
+/** Zod das permissões de um perfil (chave → nível e alvos), comum a `PerfilDaRequisicaoSchema` e `PerfilDaRequisicaoV2Schema`. */
+export const PermissoesDoPerfilSchema = z.record(
+  z.string().regex(ACAO_RE),
+  z.object({ nivel: z.enum([...NIVEIS_ESCOPO, ...NIVEIS_ALCADA]).optional(), alvos: z.array(z.string().min(1)).optional() }).strict(),
+);
+
 /**
  * Zod de `PerfilDaRequisicao` para respostas ao cliente (R-20261107-233521, item 3): `GET /v1/me/modulos` passa a levar os
  * perfis resolvidos (campo aditivo `perfis?` no contrato do Core) para os shells montarem a visão com o que o tenant mudou.
@@ -247,10 +253,7 @@ export const PerfilDaRequisicaoSchema = z
   .object({
     codigo: z.string().regex(CODIGO_PERFIL_RE),
     base: z.enum(PERFIS),
-    permissoes: z.record(
-      z.string().regex(ACAO_RE),
-      z.object({ nivel: z.enum([...NIVEIS_ESCOPO, ...NIVEIS_ALCADA]).optional(), alvos: z.array(z.string().min(1)).optional() }).strict(),
-    ),
+    permissoes: PermissoesDoPerfilSchema,
   })
   .strict();
 
@@ -432,7 +435,13 @@ export type CodigoViolacao =
   | 'USUARIO_SEM_PERFIL'
   | 'PERFIL_INDISPONIVEL'
   | 'ULTIMO_ADMIN'
-  | 'AUTOGESTAO';
+  | 'AUTOGESTAO'
+  // ADR 0073 (perfis sem base, `perfis-por-cargo.ts`)
+  | 'ESCOPO_ACIMA_DO_CARGO'
+  | 'PERFIL_SEM_ACESSO_ALGUM'
+  | 'PERMISSAO_SEM_LICENCA'
+  | 'PERFIL_EM_USO'
+  | 'CARGO_EM_USO';
 
 export interface ViolacaoLimite {
   codigo: CodigoViolacao;
@@ -457,7 +466,7 @@ export interface EstadoAcessoTenant {
   usuarios: readonly UsuarioDoAcesso[];
 }
 
-const violacao = (codigo: CodigoViolacao, regra: string, mensagem: string, extra: Omit<ViolacaoLimite, 'codigo' | 'regra' | 'mensagem'> = {}): ViolacaoLimite => ({
+export const violacaoLimite = (codigo: CodigoViolacao, regra: string, mensagem: string, extra: Omit<ViolacaoLimite, 'codigo' | 'regra' | 'mensagem'> = {}): ViolacaoLimite => ({
   codigo,
   regra,
   mensagem,
@@ -473,7 +482,7 @@ export function validarPerfil(perfil: PerfilDeAcesso, perfisDoTenant: ReadonlyMa
   const erros: ViolacaoLimite[] = [];
   const P = { perfil: perfil.codigo };
   if (!CODIGO_PERFIL_RE.test(perfil.codigo) || (perfil.fabrica && perfil.codigo !== perfil.base)) {
-    erros.push(violacao('CODIGO_INVALIDO', REGRA_LIMITES_PERFIL, 'Código de perfil inválido.', P));
+    erros.push(violacaoLimite('CODIGO_INVALIDO', REGRA_LIMITES_PERFIL, 'Código de perfil inválido.', P));
   }
   const defs = new Map<string, Partial<DefinicaoChave>>(Object.entries(CHAVES_PLATAFORMA));
   for (const d of catalogo ?? []) defs.set(d.chave, d);
@@ -481,32 +490,32 @@ export function validarPerfil(perfil: PerfilDeAcesso, perfisDoTenant: ReadonlyMa
     const C = { ...P, chave: s.chave };
     const def = defs.get(s.chave);
     if (!def && catalogo) {
-      erros.push(violacao('CHAVE_DESCONHECIDA', REGRA_LIMITES_PERFIL, `Permissão desconhecida: ${s.chave}.`, C));
+      erros.push(violacaoLimite('CHAVE_DESCONHECIDA', REGRA_LIMITES_PERFIL, `Permissão desconhecida: ${s.chave}.`, C));
       continue;
     }
     if (!s.concedida) continue;
     const trava = travaDaChave(perfil.base, s.chave);
     if (trava) {
-      erros.push(violacao('TRAVA_DO_PERFIL', trava.regra, trava.mensagem, C));
+      erros.push(violacaoLimite('TRAVA_DO_PERFIL', trava.regra, trava.mensagem, C));
       continue;
     }
     if (s.nivel != null) {
       const pos = posicaoDoNivel(s.nivel);
-      if (!def?.nivel || !pos || pos.familia !== def.nivel) erros.push(violacao('VALOR_INVALIDO', REGRA_LIMITES_PERFIL, `Nível inválido em ${s.chave}.`, C));
+      if (!def?.nivel || !pos || pos.familia !== def.nivel) erros.push(violacaoLimite('VALOR_INVALIDO', REGRA_LIMITES_PERFIL, `Nível inválido em ${s.chave}.`, C));
       else if (s.chave === 'dados.escopo' && pos.i > NIVEIS_ESCOPO.indexOf(escopoMaximoDaBase(perfil.base))) {
-        erros.push(violacao('ESCOPO_ACIMA_DA_BASE', 'RN-CORE-04', `O escopo de dados não pode passar o do perfil base ${ROTULO_BASE[perfil.base]}.`, C));
+        erros.push(violacaoLimite('ESCOPO_ACIMA_DA_BASE', 'RN-CORE-04', `O escopo de dados não pode passar o do perfil base ${ROTULO_BASE[perfil.base]}.`, C));
       }
     }
     if (s.alvos != null) {
       if (!def?.alvos) {
-        erros.push(violacao('VALOR_INVALIDO', REGRA_LIMITES_PERFIL, `Perfis-alvo não se aplicam a ${s.chave}.`, C));
+        erros.push(violacaoLimite('VALOR_INVALIDO', REGRA_LIMITES_PERFIL, `Perfis-alvo não se aplicam a ${s.chave}.`, C));
         continue;
       }
       for (const a of s.alvos) {
         if (a === ALVO_TODOS) continue;
         const base = perfisDoTenant.get(a);
-        if (!base) erros.push(violacao('SENHA_ALVO_INVALIDO', REGRA_LIMITES_PERFIL, `Perfil-alvo inexistente: ${a}.`, C));
-        else if (base === 'admin') erros.push(violacao('SENHA_ALVO_INVALIDO', REGRA_LIMITES_PERFIL, 'A senha de um perfil de admin não é redefinida por aqui.', C));
+        if (!base) erros.push(violacaoLimite('SENHA_ALVO_INVALIDO', REGRA_LIMITES_PERFIL, `Perfil-alvo inexistente: ${a}.`, C));
+        else if (base === 'admin') erros.push(violacaoLimite('SENHA_ALVO_INVALIDO', REGRA_LIMITES_PERFIL, 'A senha de um perfil de admin não é redefinida por aqui.', C));
       }
     }
   }
@@ -542,7 +551,7 @@ export function validarAcessoDoTenant(e: EntradaValidacaoAcesso): ViolacaoLimite
   const erros: ViolacaoLimite[] = [];
   const porCodigo = new Map<string, PerfilDeAcesso>();
   for (const p of e.depois.perfis) {
-    if (porCodigo.has(p.codigo)) erros.push(violacao('CODIGO_REPETIDO', REGRA_LIMITES_PERFIL, `Já existe um perfil com o código ${p.codigo}.`, { perfil: p.codigo }));
+    if (porCodigo.has(p.codigo)) erros.push(violacaoLimite('CODIGO_REPETIDO', REGRA_LIMITES_PERFIL, `Já existe um perfil com o código ${p.codigo}.`, { perfil: p.codigo }));
     porCodigo.set(p.codigo, p);
   }
   const bases = new Map([...porCodigo].map(([c, p]) => [c, p.base] as const));
@@ -550,31 +559,31 @@ export function validarAcessoDoTenant(e: EntradaValidacaoAcesso): ViolacaoLimite
   for (const base of PERFIS) {
     const f = porCodigo.get(base);
     if (!f || !f.fabrica || f.base !== base || !f.ativo) {
-      erros.push(violacao('PERFIL_FABRICA_AUSENTE', REGRA_LIMITES_PERFIL, `O perfil de fábrica ${ROTULO_BASE[base]} não pode ser apagado nem desativado.`, { perfil: base }));
+      erros.push(violacaoLimite('PERFIL_FABRICA_AUSENTE', REGRA_LIMITES_PERFIL, `O perfil de fábrica ${ROTULO_BASE[base]} não pode ser apagado nem desativado.`, { perfil: base }));
     }
   }
   for (const a of e.antes?.perfis ?? []) {
     const d = porCodigo.get(a.codigo);
-    if (d && d.base !== a.base) erros.push(violacao('BASE_ALTERADA', REGRA_LIMITES_PERFIL, 'O perfil base não muda depois de criado.', { perfil: a.codigo }));
+    if (d && d.base !== a.base) erros.push(violacaoLimite('BASE_ALTERADA', REGRA_LIMITES_PERFIL, 'O perfil base não muda depois de criado.', { perfil: a.codigo }));
   }
   for (const u of e.depois.usuarios) {
     if (u.perfis.length === 0) {
-      erros.push(violacao('USUARIO_SEM_PERFIL', 'RN-CORE-01', 'Todo usuário precisa de pelo menos um perfil.', { usuario_id: u.id }));
+      erros.push(violacaoLimite('USUARIO_SEM_PERFIL', 'RN-CORE-01', 'Todo usuário precisa de pelo menos um perfil.', { usuario_id: u.id }));
       continue;
     }
     for (const c of u.perfis) {
-      if (!porCodigo.get(c)?.ativo) erros.push(violacao('PERFIL_INDISPONIVEL', 'RN-CORE-01', 'Perfil inexistente ou desativado no usuário.', { usuario_id: u.id, perfil: c }));
+      if (!porCodigo.get(c)?.ativo) erros.push(violacaoLimite('PERFIL_INDISPONIVEL', 'RN-CORE-01', 'Perfil inexistente ou desativado no usuário.', { usuario_id: u.id, perfil: c }));
     }
   }
   if (!e.depois.usuarios.some((u) => ehAdminComGestao(u, porCodigo, e.matriz))) {
-    erros.push(violacao('ULTIMO_ADMIN', REGRA_LIMITES_PERFIL, 'A empresa ficaria sem nenhum admin ativo com a gestão de usuários e perfis.'));
+    erros.push(violacaoLimite('ULTIMO_ADMIN', REGRA_LIMITES_PERFIL, 'A empresa ficaria sem nenhum admin ativo com a gestão de usuários e perfis.'));
   }
   if (e.atorId && e.antes) {
     const antesPorCodigo = new Map(e.antes.perfis.map((p) => [p.codigo, p] as const));
     const atorAntes = e.antes.usuarios.find((u) => u.id === e.atorId);
     const atorDepois = e.depois.usuarios.find((u) => u.id === e.atorId);
     if (atorAntes && ehAdminComGestao(atorAntes, antesPorCodigo, e.matriz) && !(atorDepois && ehAdminComGestao(atorDepois, porCodigo, e.matriz))) {
-      erros.push(violacao('AUTOGESTAO', REGRA_LIMITES_PERFIL, 'Você não pode tirar de si mesmo a gestão de usuários e perfis. Peça a outro admin.', { usuario_id: e.atorId }));
+      erros.push(violacaoLimite('AUTOGESTAO', REGRA_LIMITES_PERFIL, 'Você não pode tirar de si mesmo a gestão de usuários e perfis. Peça a outro admin.', { usuario_id: e.atorId }));
     }
   }
   return erros;

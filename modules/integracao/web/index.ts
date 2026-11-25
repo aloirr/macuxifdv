@@ -28,6 +28,7 @@ export { podeCancelarLote as loteEmAndamento } from '../domain/status-lote';
  * do portal em cada entidade; o detalhe por entidade e Conector; a chave do cache para atualizar depois de reprocessar ou zerar.
  */
 export { MonitorPainel, type MonitorPainelProps } from './components/monitor-painel';
+export { reprocessarLote, type CorpoReprocessarLote } from './lib/reprocessar-lote';
 export { type ClienteIntegracao, type OpcoesChamadaIntegracao } from './lib/cliente';
 export { type LinhaEntidade } from './lib/entidades';
 export { chaveDoCacheIntegracao, useMonitorDetalhes } from './lib/queries';

@@ -6,6 +6,8 @@
  */
 import { z } from 'zod';
 import type { ModuloId, Perfil } from './nomes';
+import type { Cargo } from './cargos';
+import type { PerfilDaRequisicaoV2 } from './perfis-por-cargo';
 import type { PerfilDaRequisicao } from './permissoes-perfil';
 
 /**
@@ -35,6 +37,13 @@ export interface UsuarioAcesso {
    * Presentes, a lista `perfis` da regra aceita qualquer perfil base deles, e a ação (`verificarAcao`) consulta o motor.
    */
   perfis?: readonly PerfilDaRequisicao[];
+  /** ADR 0073 §2.8 (E3): cargo do perfil do usuário ("onde está na hierarquia"). Igual a `perfil_acesso.cargo`. */
+  cargo?: Cargo;
+  /**
+   * ADR 0073 §2.7 (E3): o perfil resolvido sem base (`resolverPerfilPeloCargo`). Só o caminho novo (`verificarAcaoPeloCargo`,
+   * `autorizarRotaPeloCargo`) o lê; o motor antigo continua com `perfis` até a troca de leitura (E6).
+   */
+  perfil_acesso?: PerfilDaRequisicaoV2;
 }
 
 export type CodigoAcesso = 'NAO_AUTENTICADO' | 'MODULO_INATIVO' | 'PERFIL_SEM_ACESSO' | 'FORA_DA_CARTEIRA';
@@ -47,11 +56,18 @@ export interface RegraRota {
   perfis: readonly Perfil[];
 }
 
-export function verificarAcesso(usuario: UsuarioAcesso | null | undefined, regra: RegraRota): ResultadoAcesso {
+/** Só a licença do módulo (RN-CORE-02/01): o módulo está nos módulos efetivos do usuário (401 sem usuário). */
+export function verificarLicenca(usuario: UsuarioAcesso | null | undefined, modulo: ModuloId): ResultadoAcesso {
   if (!usuario) return { ok: false, status: 401, codigo: 'NAO_AUTENTICADO', mensagem: 'Faça login para continuar.' };
-  if (![...usuario.modulos].includes(regra.modulo)) {
-    return { ok: false, status: 403, codigo: 'MODULO_INATIVO', mensagem: `O módulo ${regra.modulo} não está ativo para você.` };
+  if (![...usuario.modulos].includes(modulo)) {
+    return { ok: false, status: 403, codigo: 'MODULO_INATIVO', mensagem: `O módulo ${modulo} não está ativo para você.` };
   }
+  return { ok: true };
+}
+
+export function verificarAcesso(usuario: UsuarioAcesso | null | undefined, regra: RegraRota): ResultadoAcesso {
+  const lic = verificarLicenca(usuario, regra.modulo);
+  if (!lic.ok || !usuario) return lic;
   if (!regra.perfis.includes(usuario.perfil) && !usuario.perfis?.some((p) => regra.perfis.includes(p.base))) {
     return { ok: false, status: 403, codigo: 'PERFIL_SEM_ACESSO', mensagem: 'Seu perfil não tem acesso a esta ação.' };
   }
