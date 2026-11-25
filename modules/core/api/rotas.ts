@@ -24,7 +24,7 @@ import {
   type RotasLista,
   type VisitasLista,
 } from '../contracts';
-import { carteiraParaEvento, checkinPodeSubstituirCoordenada, copiarRota, enderecoPermiteGerar, type OrigemCoordenada, PERFIS_GESTAO, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
+import { carteiraParaEvento, checkinPodeSubstituirCoordenada, copiarRota, enderecoPermiteGerar, type OrigemCoordenada, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import { auditar } from './auditoria';
 import { basesDosUsuarios, calendarioDoTenantNaTransacao } from './base-usuario';
@@ -213,7 +213,7 @@ const rotasDeRotas: RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'rotas',
-    perfis: PERFIS_GESTAO,
+    acao: 'rota.ver',
     carteira: 'filtrar_no_dominio',
     query: RotasQuerySchema,
     executar: async (ctx): Promise<RotasLista> => {
@@ -237,7 +237,7 @@ const rotasDeRotas: RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'rotas/:usuarioId/:data',
-    perfis: PERFIS_GESTAO,
+    acao: 'rota.ver',
     carteira: 'filtrar_no_dominio',
     params: UsuarioDataParamsSchema,
     executar: async (ctx): Promise<RotaDia> =>
@@ -340,7 +340,7 @@ const rotasDeCarteiraDoUsuario: RotaModulo[] = [
     // Carteira do usuário para montar a rota no BKO ("adicionar da carteira"): só vínculos vigentes, com o que o editor mostra
     metodo: 'GET',
     caminho: 'usuarios/:id/clientes',
-    perfis: PERFIS_GESTAO,
+    acao: 'carteira.ver',
     carteira: 'filtrar_no_dominio',
     params: IdParam,
     executar: (ctx) =>
@@ -368,7 +368,7 @@ const rotasDeVisitas: RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'visitas',
-    perfis: PERFIS_GESTAO,
+    acao: 'visita.ver',
     carteira: 'filtrar_no_dominio',
     query: VisitasQuerySchema,
     executar: async (ctx): Promise<VisitasLista> => {

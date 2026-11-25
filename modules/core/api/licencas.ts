@@ -77,7 +77,7 @@ export const rotasDeLicencas: readonly RotaModulo[] = [
     metodo: 'GET',
     caminho: 'licencas',
     superficie: 'bko',
-    perfis: ['admin'],
+    acao: 'modulo.gerir_licencas',
     carteira: 'nao_se_aplica',
     executar: (ctx) => ctx.comTenant((db) => lerEstadoDeLicencas(db, dependenciasDoContexto(ctx))),
   },

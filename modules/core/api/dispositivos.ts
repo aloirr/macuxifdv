@@ -18,7 +18,7 @@ export const rotasDeDispositivos: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'dispositivos',
-    perfis: ['admin', 'analista'],
+    acao: 'dispositivo.bloquear',
     carteira: 'nao_se_aplica',
     query: DispositivoListaQuerySchema,
     executar: async (ctx) => {
