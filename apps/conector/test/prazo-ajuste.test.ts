@@ -83,7 +83,7 @@ describe('RN-INT-15: % de ajuste no pedido (Hub para ERP), só informativo', () 
     expect(o).toContain(':pagamento_percentual_ajuste');
   });
 
-  it('RN-INT-15: o Conector é a versão 1.5.0', () => {
+  it('RN-INT-15: o Conector é a versão 1.5.0 ou mais nova', () => {
     expect(compararVersoes(VERSAO_CONECTOR, '1.5.0')).toBeGreaterThanOrEqual(0);
   });
 });
