@@ -1,4 +1,4 @@
--- 0106_quantidade_fracionaria (up) — quantidade fracionária no pedido (v1.0.35, ADR 0076): o ERP e o vendedor passam a
+-- 0106_quantidade_fracionaria (up) — quantidade fracionária no pedido (v1.0.36, ADR 0076): o ERP e o vendedor passam a
 -- poder usar fração (2,5 KG; "CX c/ 0,5"). Inteiro vira numeric com 4 casas:
 --   core.produto_unidade.fator                       integer -> numeric(9,4)  (check produto_unidade_fator_positivo > 0 recriado)
 --   vendedor.pedido_item.fator                       integer -> numeric(9,4)  (check pedido_item_fator_positivo > 0 recriado)

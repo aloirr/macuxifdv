@@ -2,7 +2,7 @@
 -- da 0013/0018 (sem round) e pedido_retorno_erro_numeros_validos volta a quantidade >= 1.
 -- SÓ SEM FRAÇÃO: se alguma linha (viva ou apagada) tiver fração nessas colunas, a volta FALHA (P0001) e diz a tabela, a
 -- coluna e quantas linhas; nada é arredondado nem truncado. Valor acima de 2.147.483.647 falha no cast (22003).
--- Pré-condição: API, Conector e app sem gravar fração (a versão anterior à v1.0.35).
+-- Pré-condição: API, Conector e app sem gravar fração (a versão anterior à v1.0.36).
 
 do $$
 declare

@@ -1,5 +1,5 @@
 /**
- * 0106 — quantidade fracionária (v1.0.35, ADR 0076). Dicionário: docs/banco/core.md, vendedor.md e integracao.md (seção 0106).
+ * 0106 — quantidade fracionária (v1.0.36, ADR 0076). Dicionário: docs/banco/core.md, vendedor.md e integracao.md (seção 0106).
  * O que o BANCO garante:
  * - core.produto_unidade.fator e vendedor.pedido_item.fator numeric(9,4) > 0; quantidade, quantidade_base,
  *   quantidade_faturada, quantidade_embalagem e quantidade_unidades do item e integracao.pedido_retorno_erro.quantidade
