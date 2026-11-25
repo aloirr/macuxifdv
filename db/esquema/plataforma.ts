@@ -11,7 +11,7 @@
  * 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por função), 0083_plataforma_tenant_logo.up.sql
  * (logo e nome fantasia em plataforma.tenant), 0086_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano,
  * ADR 0047), 0091_plataforma_tenant_ocultar_marca_macuxi.up.sql (ocultar a marca do Macuxi), 0102_plataforma_dados_da_empresa.up.sql
- * (endereço, contato e inscrição estadual da empresa) e 0103_plataforma_perfil_concessao.up.sql (perfis sem perfil base, ADR
+ * (endereço, contato e inscrição estadual da empresa) e 0104_plataforma_perfil_concessao.up.sql (perfis sem perfil base, ADR
  * 0073), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
@@ -150,7 +150,7 @@ export const perfilPermissao = plataforma.table('perfil_permissao', {
 });
 
 /**
- * O que está marcado no perfil (0103, ADR 0073 §2.1): só a concessão vira linha; desmarcar = soft delete. Única viva por
+ * O que está marcado no perfil (0104, ADR 0073 §2.1): só a concessão vira linha; desmarcar = soft delete. Única viva por
  * (tenant, perfil, chave). Travas pelo CARGO no banco (gatilho perfil_concessao_travas: RN-PRO-01, RN-CORE-33, apps e
  * RN-CORE-04). Vale para o tenant com plataforma.leitura_de_perfis = 'concessao'. Fora do sync.
  */
@@ -163,7 +163,7 @@ export const perfilConcessao = plataforma.table('perfil_concessao', {
   alvos: text('alvos').array(),
 });
 
-/** Os 7 modelos de perfil por versão do catálogo (0103, ADR 0073 §2.3): cópia do SDK, sem tenant_id; o app só lê. */
+/** Os 7 modelos de perfil por versão do catálogo (0104, ADR 0073 §2.3): cópia do SDK, sem tenant_id; o app só lê. */
 export const modeloPermissao = plataforma.table('modelo_permissao', {
   id: uuid('id').primaryKey(),
   versao: integer('versao').notNull(),
@@ -175,7 +175,7 @@ export const modeloPermissao = plataforma.table('modelo_permissao', {
   ...auditaveis(),
 });
 
-/** Versão do catálogo aplicada ao tenant e a chave da transição (0103): 'legado' (ou sem linha) ou 'concessao'. */
+/** Versão do catálogo aplicada ao tenant e a chave da transição (0104): 'legado' (ou sem linha) ou 'concessao'. */
 export const catalogoAplicado = plataforma.table('catalogo_aplicado', {
   ...comuns(),
   versao: integer('versao').notNull(),
@@ -183,7 +183,7 @@ export const catalogoAplicado = plataforma.table('catalogo_aplicado', {
   leitura: text('leitura', { enum: ['legado', 'concessao'] }).notNull(),
 });
 
-/** Achados da migração para perfis sem base (0104/0105; plano §4.4): o macuxi_app só lê. Sem dado pessoal. */
+/** Achados da migração para perfis sem base (0105/0106; plano §4.4): o macuxi_app só lê. Sem dado pessoal. */
 export const perfilMigracaoConflito = plataforma.table('perfil_migracao_conflito', {
   ...comuns(),
   perfil_id: uuid('perfil_id'),

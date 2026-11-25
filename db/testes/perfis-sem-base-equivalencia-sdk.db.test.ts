@@ -1,12 +1,12 @@
 /**
- * 0103/0104 × SDK (ADR 0073 §2.3 e §5; plano §7.2). O que o BANCO garante:
+ * 0104/0105 × SDK (ADR 0073 §2.3 e §5; plano §7.2). O que o BANCO garante:
  * - plataforma.modelo_permissao versão 1 = os modelos do SDK (`modelosDePerfil` + `linhasDosModelos` da E1; antes dela,
  *   `matrizDeFabrica` com os 8 manifestos), linha a linha, com o cargo de cada modelo (CARGO_DA_BASE);
  * - a gêmea SQL plataforma.permissoes_legado_do_perfil = `resolverPerfil` do SDK (motor de hoje) em perfis com sobreposições
  *   sorteadas (semente fixa), em todas as bases;
  * - plataforma.perfil_compat = `perfilDeCompatibilidade` e plataforma.trava_da_chave_do_cargo = `travaDaChavePeloCargo` (E1),
  *   quando o SDK já as exporta.
- * Mudou o catálogo do SDK sem migração nova = este teste cai (a 0103 é cópia congelada; a versão seguinte entra por migração).
+ * Mudou o catálogo do SDK sem migração nova = este teste cai (a 0104 é cópia congelada; a versão seguinte entra por migração).
  */
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -30,7 +30,7 @@ function sorteio(semente: number): () => number {
   };
 }
 
-describe.skipIf(semBanco())('0103/0104 × SDK (fixture dois-tenants, ROLLBACK)', () => {
+describe.skipIf(semBanco())('0104/0105 × SDK (fixture dois-tenants, ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -83,7 +83,7 @@ describe.skipIf(semBanco())('0103/0104 × SDK (fixture dois-tenants, ROLLBACK)',
           }
           const sdk = resolverLegadoNoSdk(base, sob);
           if (sdk) expect(await legadoDoPerfil(admin, id), `${base} #${i}`).toEqual(sdk);
-          // o espelho (0105) mantém as concessões = acesso de hoje cortado pelo cargo (aqui o cargo é o da base: nada a cortar)
+          // o espelho (0106) mantém as concessões = acesso de hoje cortado pelo cargo (aqui o cargo é o da base: nada a cortar)
           const conc = await admin.query<{ p: Record<string, { nivel?: string; alvos?: string[] }> }>('select plataforma.concessoes_do_perfil($1) as p', [id]);
           const derivada = await admin.query<{ p: Record<string, { nivel?: string; alvos?: string[] }> }>(
             'select plataforma.concessoes_derivadas($1, plataforma.cargo_da_base($2)) as p', [id, base],

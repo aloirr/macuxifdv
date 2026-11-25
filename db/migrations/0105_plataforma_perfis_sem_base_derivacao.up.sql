@@ -1,7 +1,7 @@
--- 0104_plataforma_perfis_sem_base_derivacao (up) — v1.0.35, etapa E2 do plano docs/banco/plano-migracao-perfis-sem-base.md
+-- 0105_plataforma_perfis_sem_base_derivacao (up) — v1.0.35, etapa E2 do plano docs/banco/plano-migracao-perfis-sem-base.md
 -- (§3, §4.2, §4.4 e §2.0 da ADR 0073). Diagnóstico por tenant e derivação base + sobreposições -> concessões explícitas
 -- (plataforma.perfil_concessao). RN-CORE-04, RN-CORE-33, RN-CORE-35, RN-PRO-01, RN-CAT-05. Dicionário: docs/banco/plataforma.md
--- ("0103 a 0105 — perfis sem perfil base").
+-- ("0104 a 0106 — perfis sem perfil base").
 --
 -- Funções (todas SECURITY INVOKER, search_path fixo, sem EXECUTE para PUBLIC; as de leitura pura também para o macuxi_app):
 -- 1. permissoes_legado_do_perfil(perfil, parametros) — gêmea SQL de resolverPerfil do SDK: modelo v1 da base
@@ -13,7 +13,7 @@
 --    linha = ligado) e tem produto.ver_preco_estoque só se catalogo.promotor_ve_preco_estoque = true; as outras bases sempre
 --    têm produto.ver_preco_estoque (PERFIS_PRECO_ESTOQUE do Catálogo: o preço aparece pelo nome, mesmo com a chave revogada).
 --    Saída: jsonb { chave: { nivel?, alvos? } }.
--- 2. aplicar_travas_do_cargo(permissoes, cargo) — tira o que a trava do CARGO proíbe (plataforma.trava_da_chave_do_cargo, 0103),
+-- 2. aplicar_travas_do_cargo(permissoes, cargo) — tira o que a trava do CARGO proíbe (plataforma.trava_da_chave_do_cargo, 0104),
 --    corta dados.escopo no teto do cargo e tira acesso.portal sem a gestão do acesso completa (ADR 0073 §2.5 item 2).
 -- 3. concessoes_derivadas(perfil, cargo) = aplicar_travas_do_cargo(permissoes_legado_do_perfil(perfil, true), cargo).
 -- 4. concessoes_do_perfil(perfil) — o que está gravado em perfil_concessao (vivo), no mesmo formato.
@@ -52,7 +52,7 @@
 -- 'perfil.migracao_cargo', modulo core, antes/depois); a chave cortada pela trava num perfil SEM usuários fica na auditoria
 -- 'perfil.migracao_corte' (uma linha por perfil e chave; antes/depois só com a chave e o valor, sem dado pessoal).
 --
--- Caminho de volta: 0104_plataforma_perfis_sem_base_derivacao.down.sql (recalcula as sobreposições dos perfis cujas concessões
+-- Caminho de volta: 0105_plataforma_perfis_sem_base_derivacao.down.sql (recalcula as sobreposições dos perfis cujas concessões
 -- mudaram fora da derivação, devolve o cargo dos perfis ajustados, apaga concessões, conflitos e catalogo_aplicado, e as funções).
 
 -- 1. Gêmea de resolverPerfil -------------------------------------------------------------------------------------------------
@@ -488,7 +488,7 @@ begin
   select string_agg(x.tipo || '/' || x.efeito || '=' || x.n, ', ' order by x.tipo, x.efeito) into v_tipos
     from (select c.tipo, c.efeito, count(*) as n from plataforma.perfil_migracao_conflito c
            where c.deleted_at is null group by c.tipo, c.efeito) x;
-  raise notice '0104: % tenant(s) migrado(s), % parado(s), % sem mudança; achados: %', v_migrados, v_parados, v_outros,
+  raise notice '0105: % tenant(s) migrado(s), % parado(s), % sem mudança; achados: %', v_migrados, v_parados, v_outros,
     coalesce(v_tipos, 'nenhum');
 end
 $$;

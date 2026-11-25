@@ -1,6 +1,6 @@
--- 0105_plataforma_perfis_sem_base_conferencia_espelho (down) — volta ao catálogo da 0104: apaga os 4 gatilhos de espelho e as
--- funções desta migração. As concessões, os achados e catalogo_aplicado ficam como estão (o down da 0104 é quem os desfaz).
--- Tenant criado depois da 0105 já nasceu 'concessao' e continua assim até o down da 0104.
+-- 0106_plataforma_perfis_sem_base_conferencia_espelho (down) — volta ao catálogo da 0105: apaga os 4 gatilhos de espelho e as
+-- funções desta migração. As concessões, os achados e catalogo_aplicado ficam como estão (o down da 0105 é quem os desfaz).
+-- Tenant criado depois da 0106 já nasceu 'concessao' e continua assim até o down da 0105.
 drop trigger if exists tenant_semear_perfis_concessao on plataforma.tenant;
 drop function if exists plataforma.tenant_semear_concessoes();
 drop trigger if exists parametro_espelho on plataforma.parametro;

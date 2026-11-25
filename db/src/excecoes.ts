@@ -42,7 +42,7 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.zerar_empresa': 'job do zerar dados da empresa, sobrevive à exclusão do tenant (ADR 0068); só por função',
   'plataforma.limpeza_copia': 'cópia das linhas que a limpeza muda, por lote (ADR 0068; a public.macuxi_limpeza_backup do #675); só por função',
   'plataforma.zerar_previa': 'prévia do zerar dados da empresa, contada pelo worker, vale 1 hora (ADR 0068); só por função',
-  /** Modelos de perfil (0103, ADR 0073 §2.3): cópia do SDK, igual para todos os tenants; o macuxi_app só lê as linhas vivas. */
+  /** Modelos de perfil (0104, ADR 0073 §2.3): cópia do SDK, igual para todos os tenants; o macuxi_app só lê as linhas vivas. */
   'plataforma.modelo_permissao': 'os 7 modelos de perfil por versão do catálogo, cópia do SDK (ADR 0073); o app só lê',
 } as const;
 
@@ -107,7 +107,7 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.perfil',
   'plataforma.perfil_permissao',
   'plataforma.usuario_perfil',
-  /** Perfis sem perfil base (0103, ADR 0073): concessões, versão do catálogo por tenant e achados da migração; a API lê por requisição. */
+  /** Perfis sem perfil base (0104, ADR 0073): concessões, versão do catálogo por tenant e achados da migração; a API lê por requisição. */
   'plataforma.perfil_concessao',
   'plataforma.catalogo_aplicado',
   'plataforma.perfil_migracao_conflito',

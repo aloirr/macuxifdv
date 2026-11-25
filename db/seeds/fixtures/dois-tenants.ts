@@ -759,7 +759,7 @@ export const ORDEM_TABELAS = [
   // 0041 (T-0111): perfis personalizados e sobreposições (os 7 de fábrica vêm do gatilho do tenant), antes da FK de perfil_modulo
   'plataforma.perfil',
   'plataforma.perfil_permissao',
-  // 0103 a 0105 (ADR 0073): o tenant nasce migrado (gatilho tenant_semear_perfis_concessao) e o espelho refaz as concessões a
+  // 0104 a 0106 (ADR 0073): o tenant nasce migrado (gatilho tenant_semear_perfis_concessao) e o espelho refaz as concessões a
   // cada sobreposição; aqui, as MESMAS linhas que os gatilhos gravam (ids determinísticos; a carga é upsert por id), para as
   // tabelas terem linha em A e em B
   'plataforma.catalogo_aplicado',
@@ -1218,7 +1218,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       { id: A.sobreposicoes.vendedorExternoEscopo, tenant_id: tA, perfil_id: A.perfis.vendedorExterno, chave: 'dados.escopo', concedida: true, nivel: 'proprio', alvos: null, external_id: null },
       { id: B.sobreposicoes.vendedorBalcaoCampo, tenant_id: tB, perfil_id: B.perfis.vendedorBalcao, chave: 'acesso.campo', concedida: false, nivel: null, alvos: null, external_id: null },
     ],
-    // 0103 a 0105 (ADR 0073): os dois tenants em 'concessao'; o escopo de cada personalizado; o achado do espelho em B
+    // 0104 a 0106 (ADR 0073): os dois tenants em 'concessao'; o escopo de cada personalizado; o achado do espelho em B
     // (vendedor_balcao ativo sem nenhum acesso.*, sem usuário = aviso) e, em A, um achado já resolvido (acesso.gestao marcado e
     // desmarcado no vendedor_externo pela API antiga, cortado pelo cargo vendedor)
     'plataforma.catalogo_aplicado': [tA, tB].map((t) => ({ id: idCatalogoAplicado(t, 1), tenant_id: t, versao: 1, leitura: 'concessao', external_id: null })),

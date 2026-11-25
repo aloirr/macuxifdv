@@ -148,10 +148,10 @@ const TABELAS_0090 = ['core.documento_tipo', 'core.documento_cliente', 'core.doc
 const TABELAS_0098 = ['core.cliente_pre_cadastro_tentativa', 'core.cliente_codigo_fdv_contador'] as const;
 /** Tabelas novas da 0100 (ADR 0068: o job do zerar e a prévia, sem tenant_id, e a cópia da limpeza; só por função; empresa-zerar.db.test.ts). */
 const TABELAS_0100 = ['plataforma.zerar_empresa', 'plataforma.limpeza_copia', 'plataforma.zerar_previa'] as const;
-/** Tabelas novas da 0103 (ADR 0073: perfis sem perfil base; o modelo sem tenant_id; perfis-sem-base-migracao.db.test.ts). */
-const TABELAS_0103 = ['plataforma.modelo_permissao', 'plataforma.perfil_concessao', 'plataforma.catalogo_aplicado', 'plataforma.perfil_migracao_conflito'] as const;
-/** Funções SECURITY DEFINER dos gatilhos de espelho da 0105 (ADR 0073, janela de transição). */
-const ESPELHO_0105 = ['plataforma.perfil_permissao_espelho', 'plataforma.perfil_espelho', 'plataforma.parametro_espelho', 'plataforma.tenant_semear_concessoes'];
+/** Tabelas novas da 0104 (ADR 0073: perfis sem perfil base; o modelo sem tenant_id; perfis-sem-base-migracao.db.test.ts). */
+const TABELAS_0104 = ['plataforma.modelo_permissao', 'plataforma.perfil_concessao', 'plataforma.catalogo_aplicado', 'plataforma.perfil_migracao_conflito'] as const;
+/** Funções SECURITY DEFINER dos gatilhos de espelho da 0106 (ADR 0073, janela de transição). */
+const ESPELHO_0106 = ['plataforma.perfil_permissao_espelho', 'plataforma.perfil_espelho', 'plataforma.parametro_espelho', 'plataforma.tenant_semear_concessoes'];
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -259,7 +259,7 @@ describe('migrações (estático)', () => {
     expect(nomes[96]).toBe('0097_core_cliente_pre_cadastro_erp'); // v1.0.28 (RN-CORE-78, RN-INT-22): core.cliente sem aprovado_por, com motivo_recusa (até 500, só com 'recusado', sem macuxi_leitura) e o índice cliente_pre_cadastro_fila_ix; cliente_fila_erp.aprovado_em vira recebido_em (cliente-pre-cadastro-erp.db.test.ts)
     expect(nomes[97]).toBe('0098_core_integracao_pre_cadastro_revisao'); // v1.0.30 (ADR 0069, RN-CORE-78, RN-INT-22): core.cliente.revisao_cadastro e erros_recusa, core.cliente_pre_cadastro_tentativa (carga das tentativas existentes, sem hash, motivo e erros no macuxi_leitura), revisao, hash e erros na cliente_fila_erp , o parâmetro unificado com o espelho legado e o Código FDV do cliente com o contador core.cliente_codigo_fdv_contador (cliente-pre-cadastro-revisao.db.test.ts)
     expect(nomes[98]).toBe('0099_plataforma_resumo_outbox_vivos'); // v1.0.30 (limpeza da AM2808): plataforma.resumo_outbox sem o evento apagado (deleted_at) e SELECT do deleted_at da outbox ao macuxi_worker (resumo-outbox-vivos.db.test.ts)
-    expect(nomes.slice(102, 105)).toEqual(['0103_plataforma_perfil_concessao', '0104_plataforma_perfis_sem_base_derivacao', '0105_plataforma_perfis_sem_base_conferencia_espelho']); // v1.0.35 (ADR 0073): perfis sem perfil base — tabelas, derivação e espelho (perfis-sem-base-*.db.test.ts)
+    expect(nomes.slice(103, 106)).toEqual(['0104_plataforma_perfil_concessao', '0105_plataforma_perfis_sem_base_derivacao', '0106_plataforma_perfis_sem_base_conferencia_espelho']); // v1.0.35 (ADR 0073): perfis sem perfil base — tabelas, derivação e espelho (perfis-sem-base-*.db.test.ts)
     expect(nomes[101]).toBe('0102_plataforma_dados_da_empresa'); // v1.0.34: endereço, contato e IE em plataforma.tenant (10 colunas nulas com CHECK de formato), sa_dados_da_empresa, sa_gravar_dados_da_empresa, sa_quem_sou e sa_gravar_senha_super_admin no portal (dados-empresa.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
@@ -330,7 +330,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0090,
         ...TABELAS_0098,
         ...TABELAS_0100,
-        ...TABELAS_0103,
+        ...TABELAS_0104,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -913,9 +913,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0100 (ADR 0068): as 4 sa_* do zerar (portal), as 6 do worker e a regra plataforma.limpar_cadastros (sem EXECUTE para ninguém);
     // a volta, o descarte e as internas são invoker (empresa-zerar.db.test.ts)
     // 0102 (v1.0.34): as 4 sa_* do cadastro da empresa, do "quem sou eu" e da senha do super-admin (dados-empresa.db.test.ts)
-    // 0105 (ADR 0073, janela de transição): as 4 funções dos gatilhos de espelho, sem EXECUTE para ninguém (perfis-sem-base-espelho.db.test.ts)
+    // 0106 (ADR 0073, janela de transição): as 4 funções dos gatilhos de espelho, sem EXECUTE para ninguém (perfis-sem-base-espelho.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv', ...FUNCOES_SA_CARGA.map(nome), 'plataforma.frases_carga_ativas', ...FUNCOES_SA_LOGO.map(nome), ...FUNCOES_SA_PLANOS.map(nome), 'core.expurgar_rastreamento', ...FUNCOES_SA_OCULTAR_MARCA.map(nome), 'core.cliente_codigo_fdv', ...FUNCOES_SA_ZERAR.map(nome), ...FUNCOES_WORKER_ZERAR.map(nome), 'plataforma.limpar_cadastros', ...FUNCOES_SA_0102.map(nome), ...ESPELHO_0105].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir', ...FUNCOES_SA_0070.map(nome), ...FUNCOES_SA_0072.map(nome), ...FUNCOES_WORKER_0072.map(nome), nome(DADOS_LEGAIS_PUBLICOS), ...FUNCOES_SA_0073.map(nome), 'core.filial_cadastro_conferir', 'plataforma.sa_sessao_valida', 'plataforma.trabalho_reservar', 'plataforma.trabalho_devolver', 'plataforma.trabalho_renovar', 'core.usuario_codigo_fdv', ...FUNCOES_SA_CARGA.map(nome), 'plataforma.frases_carga_ativas', ...FUNCOES_SA_LOGO.map(nome), ...FUNCOES_SA_PLANOS.map(nome), 'core.expurgar_rastreamento', ...FUNCOES_SA_OCULTAR_MARCA.map(nome), 'core.cliente_codigo_fdv', ...FUNCOES_SA_ZERAR.map(nome), ...FUNCOES_WORKER_ZERAR.map(nome), 'plataforma.limpar_cadastros', ...FUNCOES_SA_0102.map(nome), ...ESPELHO_0106].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
@@ -1090,7 +1090,7 @@ describe('fixture dois-tenants (estático)', () => {
     // treinamento (0017): fixture própria, carregada logo depois da dois-tenants (testes/fixture-treinamento.ts)
     // super-admin (0035, ADR 0029): fora dos tenants e só por função; não é dado de tenant (super-admin.test.ts cria as linhas)
     // catálogo de planos (0070; o app lê o do próprio tenant desde a 0086): fora dos tenants, gravado antes por planosDaFixture
-    // modelos de perfil (0103, ADR 0073): cópia do SDK, fora dos tenants, gravada pela própria migração
+    // modelos de perfil (0104, ADR 0073): cópia do SDK, fora dos tenants, gravada pela própria migração
     const deTenant = [...tabelasCriadas().keys()].filter((t) => !(TABELAS_SO_POR_FUNCAO as readonly string[]).includes(t) && t !== 'plataforma.plano' && t !== 'plataforma.modelo_permissao');
     expect([...ORDEM_TABELAS, ...TABELAS_PESQUISA_DO_GATILHO, ...ORDEM_TREINAMENTO].sort()).toEqual(deTenant.sort());
     for (const t of comTenant.filter((x) => !(TABELAS_PESQUISA_DO_GATILHO as readonly string[]).includes(x))) {
@@ -1140,7 +1140,7 @@ describe('fixture dois-tenants (estático)', () => {
           expect(l.id).toBe(idUsuarioPerfil(String(l.tenant_id), String(l.usuario_id), String(l.perfil_id)));
           continue;
         }
-        // 0103 a 0105 (ADR 0073): ids determinísticos dos gatilhos de semeadura e de espelho (a carga e o gatilho gravam a MESMA linha)
+        // 0104 a 0106 (ADR 0073): ids determinísticos dos gatilhos de semeadura e de espelho (a carga e o gatilho gravam a MESMA linha)
         if (t === 'plataforma.catalogo_aplicado') {
           expect(l.id).toBe(idCatalogoAplicado(String(l.tenant_id), Number(l.versao)));
           continue;

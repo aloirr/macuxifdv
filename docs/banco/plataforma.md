@@ -1549,12 +1549,12 @@ select nome, perfil, cargo from plataforma.sa_quem_sou($1);        -- topo do po
 select plataforma.sa_gravar_senha_super_admin($1, $2, $3) as r;    -- troca da senha, depois da sa_reautenticar e do argon2
 ```
 
-## 0103 a 0105 — perfis sem perfil base (v1.0.35, ADR 0073; plano [plano-migracao-perfis-sem-base.md](plano-migracao-perfis-sem-base.md)). Fora do sync
-Etapa E2 do plano. Três migrações, aplicadas juntas no mesmo deploy (o backfill da 0104 e o espelho da 0105 andam juntos):
-- `0103_plataforma_perfil_concessao` (aditiva): as 4 tabelas, a cópia v1 dos 7 modelos e as travas por cargo.
-- `0104_plataforma_perfis_sem_base_derivacao`: diagnóstico e derivação base + sobreposições → concessões, e a rodada em todos
+## 0104 a 0106 — perfis sem perfil base (v1.0.35, ADR 0073; plano [plano-migracao-perfis-sem-base.md](plano-migracao-perfis-sem-base.md)). Fora do sync
+Etapa E2 do plano. Três migrações, aplicadas juntas no mesmo deploy (o backfill da 0105 e o espelho da 0106 andam juntos):
+- `0104_plataforma_perfil_concessao` (aditiva): as 4 tabelas, a cópia v1 dos 7 modelos e as travas por cargo.
+- `0105_plataforma_perfis_sem_base_derivacao`: diagnóstico e derivação base + sobreposições → concessões, e a rodada em todos
   os tenants.
-- `0105_plataforma_perfis_sem_base_conferencia_espelho`: conferência por usuário, espelho da janela de transição e semeadura
+- `0106_plataforma_perfis_sem_base_conferencia_espelho`: conferência por usuário, espelho da janela de transição e semeadura
   do tenant novo já migrado.
 
 O modelo de hoje **fica** (fase 1): `perfil.base`, `perfil.fabrica`, `perfil_permissao`, os 2 parâmetros e `core.usuario.perfil`
@@ -1578,7 +1578,7 @@ fora do administrativo; `acesso.campo` fora de vendedor e promotor; `acesso.gest
 (`dados.escopo` acima de `teto_escopo_do_cargo`). O que depende do conjunto (portal só com a gestão completa, perfil ativo com
 algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a migração confere.
 
-### Derivação (0104)
+### Derivação (0105)
 - `permissoes_legado_do_perfil(perfil, parametros)`: gêmea SQL de `resolverPerfil` (modelo v1 da base − revogações ∪
   concessões das sobreposições − travas da base; escopo fora da família → `carteira`, acima do da base → o da base). Com
   `parametros = true`, o efeito de hoje dos 2 parâmetros: base promotor sem `pedido.ver` com `core.promotor_ve_pedidos = false` e
@@ -1604,14 +1604,14 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
 - **Idempotente**: ids determinísticos (`<tenant>:plataforma.perfil_concessao:<perfil>:<chave>`); `sincronizar_concessoes` só
   grava o que muda (nem o `updated_at` anda); tenant em `concessao` é pulado; achado repetido não muda, o que sumiu ganha
   `resolvido_em`.
-- **Volta** (`.down.sql` da 0104): o perfil cujas concessões mudaram fora da derivação recebe as sobreposições = diferença para o
+- **Volta** (`.down.sql` da 0105): o perfil cujas concessões mudaram fora da derivação recebe as sobreposições = diferença para o
   modelo da base (cortadas pelas travas da base: perda documentada); o cargo dos ajustados volta; concessões, achados e
-  `catalogo_aplicado` são apagados. Diagnóstico à mão: `db/scripts/diagnostico-0104.sql`.
+  `catalogo_aplicado` são apagados. Diagnóstico à mão: `db/scripts/diagnostico-0105.sql`.
 
-### Conferência e espelho (0105)
+### Conferência e espelho (0106)
 - `conferir_perfis_sem_base(tenant)` → `(usuario_id, perfil_codigo, chave, antes, depois, tipo)`: `DIFERENCA` por chave (acesso
   de hoje com os parâmetros × concessões, alvos em ordem) e `NOME_DIVERGENTE`. Esperado: zero `DIFERENCA` em todo tenant
-  `concessao`; no deploy, a equivalência é a de `migrar_perfis_sem_base` (0104), que aborta com 23514.
+  `concessao`; no deploy, a equivalência é a de `migrar_perfis_sem_base` (0105), que aborta com 23514.
 - Espelho (gatilhos AFTER por linha, funções `SECURITY DEFINER`, sem EXECUTE para ninguém), só no tenant `concessao`:
   `perfil_permissao_espelho` (sobreposição gravada ou apagada), `perfil_espelho` (perfil novo, troca de cargo),
   `parametro_espelho` (os 2 parâmetros; refaz os perfis de base promotor) e `tenant_semear_perfis_concessao` (tenant novo nasce
