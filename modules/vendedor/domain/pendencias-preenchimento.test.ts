@@ -53,6 +53,7 @@ describe('pendenciasDePreenchimento (RN-CORE-36, RN-VEN-16)', () => {
     const p = (codigo: CodigoErroPagamento) => pendenciasDePreenchimento({ ...ok, pagamento: { tipo: 'invalido', codigo, mensagem: 'x' } })[0]!;
     expect(p('forma_indisponivel')).toMatchObject({ texto: 'Forma de pagamento (a escolhida saiu da lista)', aba: 'venda' });
     expect(p('prazo_indisponivel').texto).toBe('Prazo de pagamento (o escolhido não vale para esta forma)');
+    expect(p('prazo_acima_do_cliente').texto).toBe('Prazo de pagamento (passa do prazo médio do cliente)');
     expect(p('forma_nao_aceita').texto).toBe('Forma de pagamento aceita pelo cliente');
   });
   it('RN-CORE-36: ordem dos campos na tela (Venda, Itens, Entrega) e todas juntas', () => {

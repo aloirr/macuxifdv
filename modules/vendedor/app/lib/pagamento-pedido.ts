@@ -3,7 +3,7 @@
  * as opções das duas listas suspensas (o Prazo mostra só o prazo, nunca "médio 42"), o padrão do cliente, a troca de forma
  * e as pendências do envio. Tudo sai das linhas do aparelho (vale offline); a API revalida.
  */
-import { descricaoPrazo, formasDaLista, formasDoCliente, pagamentoPadrao, prazosDaForma, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
+import { descricaoDoPrazo, descricaoPrazo, formasDaLista, formasDoCliente, pagamentoPadrao, prazosDaForma, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
 import type { EntradaPendencias } from '../../domain/pendencias-preenchimento';
 import { percentualAjusteParaBp, valorMantendoPercentualCents } from '../../domain/preco-pedido';
 import { ajustesNaTrocaDePrazo, percentualDoPrazoNoDocumento } from '../../domain/troca-prazo';
@@ -19,6 +19,8 @@ export interface OpcaoDaLista {
 
 export interface LimitesDoCliente {
   formas_pagamento: readonly string[] | null | undefined;
+  /** RN-VEN-25 (ADR 0072): prazo médio máximo do cadastro do cliente; nulo ou ausente = sem teto */
+  prazo_medio_max_dias?: number | null | undefined;
 }
 
 export const TEXTO_ESCOLHA_A_FORMA = 'Escolha a forma';
@@ -28,23 +30,29 @@ export function opcoesDeForma(formas: readonly FormaDePagamento[], cliente: Limi
   return formasDaLista(formas, cliente.formas_pagamento).map((x) => ({ id: x.forma.id, rotulo: x.forma.nome, ...(x.habilitada ? {} : { desabilitada: true, motivo: x.motivo }) }));
 }
 
-/** Prazos ativos da forma escolhida: só o texto do prazo (RN-VEN-25). */
-export function opcoesDePrazo(prazos: readonly PrazoDePagamento[], formaId: string | null): OpcaoDaLista[] {
+/** Prazos ativos da forma escolhida que cabem no teto do cliente (RN-VEN-25), pela descrição vinda do ERP. */
+export function opcoesDePrazo(prazos: readonly PrazoDePagamento[], formaId: string | null, cliente?: LimitesDoCliente): OpcaoDaLista[] {
   if (!formaId) return [];
-  return prazosDaForma(prazos, formaId).map((x) => ({
+  return prazosDaForma(prazos, formaId, cliente?.prazo_medio_max_dias).map((x) => ({
     id: x.id,
-    rotulo: x.descricao || descricaoPrazo(x.parcelas_dias),
+    rotulo: descricaoDoPrazo(x),
   }));
+}
+
+/** Campo "Parcelas" do Novo pedido (somente leitura): só os dias do prazo escolhido ("30/60/90 dias"; `[0]` = "À vista"). Sem prazo escolhido: vazio. */
+export function textoDasParcelas(prazos: readonly PrazoDePagamento[], prazoId: string | null | undefined): string {
+  const prazo = prazoId ? prazos.find((p) => p.id === prazoId) : undefined;
+  return prazo ? descricaoPrazo(prazo.parcelas_dias) : '';
 }
 
 /**
  * Pagamento do rascunho para este cliente. Sem forma e sem prazo (rascunho novo): o padrão (primeira forma permitida e o primeiro
- * prazo ativo dela, por ordem; RN-VEN-25: todos os prazos ativos da forma valem). Com escolha do vendedor nunca há troca silenciosa (T-0129): o rascunho fica como está e, se a forma ou o prazo
+ * prazo ativo dela que cabe no teto do cliente, por ordem; RN-VEN-25). Com escolha do vendedor nunca há troca silenciosa (T-0129): o rascunho fica como está e, se a forma ou o prazo
  * não servem ao cliente, `situacaoDoPagamento` diz o que corrigir.
  */
 export function rascunhoComPagamentoPadrao(r: Rascunho, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): Rascunho {
   if (!r.forma_pagamento_id && !r.prazo_pagamento_id) {
-    const padrao = pagamentoPadrao(formasDoCliente(formas, cliente.formas_pagamento), prazos);
+    const padrao = pagamentoPadrao(formasDoCliente(formas, cliente.formas_pagamento), prazos, cliente.prazo_medio_max_dias);
     return padrao ? comPagamento(r, padrao.forma, padrao.prazo) : r;
   }
   return r;
@@ -94,8 +102,8 @@ export function comPagamento(r0: Rascunho, forma: FormaDePagamento, prazo: Prazo
 }
 
 /** Trocar a forma: o prazo atual só fica se ele for dessa forma e estiver ativo; senão volta ao placeholder (o campo fica com erro até escolher). */
-export function comForma(r: Rascunho, forma: FormaDePagamento, prazos: readonly PrazoDePagamento[]): Rascunho {
-  const prazo = prazosDaForma(prazos, forma.id).find((x) => x.id === r.prazo_pagamento_id);
+export function comForma(r: Rascunho, forma: FormaDePagamento, prazos: readonly PrazoDePagamento[], cliente?: LimitesDoCliente): Rascunho {
+  const prazo = prazosDaForma(prazos, forma.id, cliente?.prazo_medio_max_dias).find((x) => x.id === r.prazo_pagamento_id);
   if (prazo) return comPagamento(r, forma, prazo);
   return { ...comValoresMantendoPercentual(r, 0), forma_pagamento_id: forma.id, prazo_pagamento_id: null, prazo_percentual_ajuste: 0, payment_terms: forma.nome, condicao_pagamento_id: null };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { descricaoPrazo, prazoMedioDias, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
-import { comForma, comValoresMantendoPercentual, comPrazo, opcoesDeForma, opcoesDePrazo, rascunhoComPagamentoPadrao, situacaoDoPagamento } from './pagamento-pedido';
+import { comForma, comValoresMantendoPercentual, comPrazo, opcoesDeForma, opcoesDePrazo, rascunhoComPagamentoPadrao, situacaoDoPagamento, textoDasParcelas } from './pagamento-pedido';
 import { rascunhoVazio } from './pedidos';
 
 const f = (id: string, codigo: string, ordem: number): FormaDePagamento => ({ id, codigo, nome: codigo === 'PIX' ? 'Pix' : 'Boleto', ativo: true, ordem });
@@ -65,6 +65,11 @@ describe('RN-VEN-24: padrão, troca de forma e pendências', () => {
     expect(r).toMatchObject({ forma_pagamento_id: 'fbol', prazo_pagamento_id: null });
     expect(situacaoDoPagamento(r, formas, prazos, cliente).tipo).toBe('prazo');
   });
+  it('RN-VEN-25: trocar a forma limpa o prazo que passa do teto do cliente', () => {
+    const r = comPrazo(r0, 'b306090', formas, prazos);
+    expect(comForma(r, formas[1]!, prazos, { formas_pagamento: null, prazo_medio_max_dias: 30 })).toMatchObject({ prazo_pagamento_id: null });
+    expect(comForma(r, formas[1]!, prazos, { formas_pagamento: null })).toMatchObject({ prazo_pagamento_id: 'b306090' });
+  });
   it('RN-VEN-24: pagamento completo e permitido não tem pendência; sem forma, pede a forma', () => {
     expect(situacaoDoPagamento(comPrazo(r0, 'b28', formas, prazos), formas, prazos, cliente).tipo).toBe('ok');
     expect(situacaoDoPagamento(r0, formas, prazos, cliente).tipo).toBe('forma');
@@ -88,5 +93,27 @@ describe('troca de prazo: desconto do pedido em R$ (legado)', () => {
     expect(r.ajustes).toBe(base.ajustes);
     expect(r.desconto_valor_cents).toBe(983);
     expect(comValoresMantendoPercentual(base, 0)).toBe(base);
+  });
+});
+
+describe('RN-VEN-25 (ADR 0072): prazo médio máximo do cliente no Novo pedido', () => {
+  const teto = { formas_pagamento: null, prazo_medio_max_dias: 30 };
+  it('RN-VEN-25: o Prazo lista só os prazos da forma com prazo médio até o teto, pela descrição do ERP', () => {
+    const erp = [{ ...p('x1', 'fbol', [30], 1), descricao: 'Boleto 30' }, { ...p('x2', 'fbol', [30, 60, 90], 2), descricao: 'Boleto 30/60/90' }];
+    expect(opcoesDePrazo(erp, 'fbol', teto).map((x) => x.rotulo)).toEqual(['Boleto 30']);
+    expect(opcoesDePrazo(erp, 'fbol', { formas_pagamento: null, prazo_medio_max_dias: null }).map((x) => x.rotulo)).toEqual(['Boleto 30', 'Boleto 30/60/90']);
+  });
+  it('RN-VEN-25: o padrão pula o prazo acima do teto', () => {
+    const r = rascunhoComPagamentoPadrao(r0, formas, [p('longo', 'fpix', [90], 1), p('curto', 'fpix', [0], 2)], teto);
+    expect(r.prazo_pagamento_id).toBe('curto');
+  });
+  it('RN-VEN-25: rascunho com prazo acima do teto fica pendente (prazo_acima_do_cliente), sem troca silenciosa', () => {
+    const r = { ...r0, forma_pagamento_id: 'fbol', prazo_pagamento_id: 'b306090' };
+    expect(situacaoDoPagamento(r, formas, prazos, teto)).toMatchObject({ tipo: 'invalido', codigo: 'prazo_acima_do_cliente' });
+  });
+  it('RN-VEN-24: o campo Parcelas mostra só os dias ("30/60/90 dias"; [0] = "À vista"; sem prazo, vazio)', () => {
+    expect(textoDasParcelas(prazos, 'b306090')).toBe('30/60/90 dias');
+    expect(textoDasParcelas(prazos, 'avista')).toBe('À vista');
+    expect(textoDasParcelas(prazos, null)).toBe('');
   });
 });
