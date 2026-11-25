@@ -77,4 +77,33 @@ Reteste (`git diff 3ed4022 844eee6`, `tests/integracao/api/pagamento-web-v1035.t
 - Observação sem achado: `quemDe(claims, viva)` aparece em 3 `return` de ramos exclusivos (só um roda por pedido).
 - RD-3569 (export morto, depois de C e D no `main`) segue aberto; não é deste diff.
 
-Sem achado novo (RD-3571 a RD-3599 não usados). Sem defeito funcional para encaminhar ao testes.
+Sem achado novo nesta parte. Sem defeito funcional para encaminhar ao testes.
+
+## G) Reteste por SHA dos commits novos (A, B e C de novo)
+
+### Branch da migração da senha do admin @ b191527 (`git diff cbcae6d b191527`, banco-dados) — LIBERADO no SHA b191527
+
+- 0107: `sa_gravar_senha_admin` não grava com bloqueio vivo (`and (u.bloqueio_ate is null or u.bloqueio_ate <= now())`);
+  `sa_reautenticar_admin` só audita com `if found`. Nenhuma regra nova repetida em outra função.
+- `db/testes/senha-admin-portal.db.test.ts`: o caso "conta bloqueada + hash certo = false" é novo (nenhum outro teste do banco ou
+  de `tests/` cobre o bloqueio dentro da gravação); a conta apagada sem auditoria entra no caso que já existia do reautenticar, sem
+  `it` novo. Cabeçalho atualizado, sem linha velha.
+- `docs/banco/plataforma.md`: as 3 linhas acompanham a migração (convenção aceita no parecer A acima).
+- Um achado baixo, só em comentário (não segura, como o RD-3563):
+
+| ID | Grav. | Onde | O que se repete | Proposta | Dono |
+|---|---|---|---|---|---|
+| RD-3571 | baixa (só comentário; não segura) | `db/migrations/0107_plataforma_senha_admin_portal.up.sql:156` × `:25-26` | O motivo "pedidos paralelos que passaram juntos pelo 423 da rota" e o "false, como hash divergente" ditos 2 vezes no mesmo arquivo: no cabeçalho da função (`:25-26`) e no comentário da linha do `where` (`:156`) | Tirar o comentário de `:156` (o cabeçalho já explica). Se a 0107 já estiver aplicada em algum banco, deixar para a próxima mudança dela | banco-dados |
+
+### `nuvem/v1035-web-modulo-core` @ 0017f74 (`git diff a9d9a6e 0017f74`, tirando o merge de b191527; modulo-core) — LIBERADO no SHA 0017f74
+
+- Só o JSDoc de `CODIGOS_PORTAL.empresaNaoPermitida` (`modules/core/contracts/plataforma.ts:29`): diz onde o 403 vale e que
+  `POST /plataforma/auth/senha` ignora `x-macuxi-tenant`. Não repete outro JSDoc nem a tabela de códigos. Sem achado.
+- RD-3569 segue aberto (não é deste diff).
+
+### `nuvem/v1035-web-testes-senha` @ 726816e (merge de 0017f74; testes) — LIBERADO no SHA 726816e
+
+- `git diff 0017f74 726816e` só toca `tests/` (o que já foi liberado em e3099dc) e `git diff e3099dc 726816e` só traz o core e a
+  0107 liberados acima e em F. Merge limpo, sem mudança de teste. Sem achado novo. RD-3567 e RD-3568 seguem abertos (lote seguinte).
+
+Faixa: usado RD-3571; RD-3572 a RD-3599 livres.
