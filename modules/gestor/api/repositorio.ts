@@ -70,7 +70,7 @@ export function criarRepositorioEmMemoria(): RepositorioGestor & { limpar(): voi
       const d = dados(a.tenant_id);
       for (const c of ops.abrir) {
         const id = o.novoId();
-        d.alertas.set(id, { ...c, id, status: 'aberto', aberto_em: o.agora, encerrado_em: null, motivo_encerramento: null });
+        d.alertas.set(id, { ...c, id, status: 'aberto', aberto_em: c.desde ?? o.agora, encerrado_em: null, motivo_encerramento: null });
       }
       for (const x of ops.atualizar) {
         const atual = d.alertas.get(x.id);
