@@ -25,3 +25,13 @@ Escopo: commit `9a1b03d` (engenheiro-software, ADR 0073 E4, 1 commit sobre `4b69
 - `autorizarPeloCargo` × SDK: delega a `autorizarRotaPeloCargo` (licença, BKO, RN-PRO-01, ação) sem copiar regra; a chamada extra a `verificarAcesso` é a leitura dupla segura da ADR (transitória). A licença roda de novo dentro do SDK (`verificarLicenca`, uma função só): repetição de chamada, não de regra — `manter?` até a E6 tirar o passo 1 do motor antigo.
 - `motorDoTenant` só traduz a marca para `motorDePermissao`; `adminDoModelo` reaproveita `modelosDePerfil`; `catalogo` em `LicencasTenant` e `LicencasUsuario` vem do mesmo `lerTenant`.
 - `super-admin.test.ts`: caso do super-admin no 'cargo' não repete os outros.
+
+## Reteste em 5d8f361 (amend de 9a1b03d, noite de Manaus)
+
+**Parecer: LIBERADO em 5d8f36192bf0a752cb6e531569fb3436877d3a93.**
+
+- RD-3712 corrigido: `app.ts:832` sem a citação a `PENDENTES_DA_E6`.
+- RD-3713 corrigido: `it` "leitura dupla: os modelos dão o mesmo resultado" apagado de `motor-permissao.test.ts` (a matriz fica em `acesso-por-cargo.test.ts`).
+- RD-3714 corrigido: só a linha do `LEGADO` pela rota; `V1` segue só em `motorDoTenant(V1)`.
+- RD-3715 corrigido: `perfis-motor.banco.test.ts` sem `Writable`, `opcoesLogger`, `linhas` e as 4 asserções de log; título "(403) e não muda o 'legado' (201)".
+- Delta: 3 inserções e 40 remoções, sem texto, regra ou teste novo; sem achado.
