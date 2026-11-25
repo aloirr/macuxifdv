@@ -81,7 +81,7 @@ import {
 import { ConectorAtualizar, ConectorCriar, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
 import { localIsoDate } from '@macuxi/comum/fuso';
 
-import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
+import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, TrocarSenhaRequestSchema } from '@macuxi/core/contracts';
 
 import { MONITOR_FALSO_M, responderMonitorFalso } from './portal-falso-monitor';
 import { responderZerarFalso, ZERAR_FALSO_M } from './portal-falso-zerar';
@@ -743,6 +743,31 @@ function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorRe
   };
 }
 
+/**
+ * `POST /auth/senha/trocar` falso (v1.0.34): senha atual `errada` ou conta desconhecida = 401 `CREDENCIAIS_INVALIDAS`; senha nova fora
+ * da RN-CORE-32 = 422 com as faltas; igual à atual = 422 RN-CORE-34. Senão, como a API: revoga as sessões do portal do admin (a versão
+ * da sessão do usuário muda) e devolve a sessão do tenant do modo cookie (sem o token de renovação, que iria no cookie).
+ */
+function trocarSenhaFalsa(e: Estado, corpo: unknown): Response {
+  const c = lerCorpo(TrocarSenhaRequestSchema, corpo);
+  if (c instanceof Response) return c;
+  const conta = CONTAS_FALSAS[c.email.trim().toLowerCase()];
+  if (!conta || c.senha_atual === 'errada') return erro(401, 'CREDENCIAIS_INVALIDAS', 'Código da empresa, e-mail ou senha incorretos.');
+  const faltas = faltasNaSenha(c.senha_nova);
+  if (faltas.length > 0) return erro(422, 'RN-CORE-32', mensagemDaSenha(faltas) ?? 'Senha fora da regra.', { faltas });
+  if (c.senha_nova === c.senha_atual) return erro(422, 'RN-CORE-34', 'A senha nova precisa ser diferente da atual.');
+  const sessoes = Object.fromEntries(Object.entries(e.sessoes).filter(([, s]) => !(s.tipo === 'admin_cliente' && s.empresas.some((id) => conta.includes(id)))));
+  gravar({ ...e, sessoes });
+  const tenant = conta[0] ?? '';
+  return json(200, {
+    access_token: 'acesso-falso',
+    token_type: 'Bearer',
+    expires_in: 900,
+    usuario: { id: '0b6f1a52-5c1e-4c4e-9a43-0000000000a1', nome: 'Admin', nome_curto: null, email: c.email, perfil: 'admin' },
+    tenant: { id: tenant, codigo: c.codigo_empresa, nome: 'Empresa', fuso: 'America/Manaus' },
+  });
+}
+
 export async function responderFalso(metodo: string, caminhoComQuery: string, corpo: unknown, cabecalhos: Record<string, string>): Promise<Response> {
   await new Promise((r) => setTimeout(r, 250));
   const [caminho = ''] = caminhoComQuery.split('?');
@@ -773,6 +798,8 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar(r.estado);
     return json(200, r.corpo);
   }
+  // v1.0.34 (menu do usuário): troca voluntária do admin do cliente, pela rota pública do Core
+  if (rota === `POST ${ROTAS_PORTAL.trocarSenha}`) return trocarSenhaFalsa(e, corpo);
   const token = (cabecalhos.Authorization ?? '').replace(/^Bearer /, '');
   const sessao = autenticado ? e.sessoes[token] : undefined;
   if (!sessao) return erro(401, 'SESSAO_PLATAFORMA_INVALIDA', 'Sua sessão do portal expirou. Entre de novo.');

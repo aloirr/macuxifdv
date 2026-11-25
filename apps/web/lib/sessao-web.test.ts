@@ -133,6 +133,19 @@ describe('T-0117: login e troca de senha no modo cookie', () => {
     expect(s.getToken()).toBe('acesso-da-troca');
   });
 
+  it('troca voluntária (menu do usuário, semToken): sem Authorization; o 401 da senha atual errada não encerra a sessão aberta', async () => {
+    const s = await carregar();
+    respostas.push(json(200, SESSAO_WEB));
+    s.salvarSessaoReal(await s.pedirLogin(LOGIN));
+    respostas.push(json(401, { codigo: 'CREDENCIAIS_INVALIDAS', mensagem: 'x' }));
+    await expect(s.pedirTrocaDeSenha(TROCA, { semToken: true })).rejects.toMatchObject({ status: 401, code: 'CREDENCIAIS_INVALIDAS' });
+    const c = chamadas.at(-1);
+    expect(c?.url).toBe(`${PROXY_BASE}/auth/senha/trocar`);
+    expect(cabecalhos(c!.init).authorization).toBeUndefined();
+    expect(cabecalhos(c!.init)[CABECALHO_CSRF]).toBe(VALOR_CSRF);
+    expect(s.getToken()).toBe(SESSAO_WEB.access_token);
+  });
+
   it('erro do login (403 CSRF_RECUSADO) chega à tela com a frase da API e nada é guardado', async () => {
     const s = await carregar();
     respostas.push(json(403, { codigo: 'CSRF_RECUSADO', mensagem: 'Pedido recusado por segurança. Atualize a página e entre de novo.' }));

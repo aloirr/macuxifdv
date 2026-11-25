@@ -12,6 +12,9 @@ import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from
 import { cx, formatTime, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
+import { MenuUsuario, type TrocaDeSenhaNoMenu } from '@/components/menu-usuario';
+import { identidadeDoPortal } from '@/lib/menu-usuario';
+import { podeTrocarSenhaNoPortal, trocarSenhaNoPortal } from '@/lib/portal-senha';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
 import { CAMINHO_DIAGNOSTICOS } from '@/lib/portal-diagnosticos';
 import { CAMINHO_FRASES_CARGA } from '@/lib/portal-frases-carga';
@@ -221,10 +224,26 @@ export function itemAtivoDoMenu(caminho: string | null): string | null {
 }
 
 /**
- * Moldura das páginas internas: cabeçalho com a marca, o fim da sessão e "Sair"; para o admin do cliente, o nome da empresa atual
- * e, com 2+ empresas, "Trocar de empresa" (T-0093; spec docs/design/portal-entrar.md §3). A marca leva à página inicial de quem
- * entrou (time da Macuxi: Empresas; admin do cliente: a empresa dele), e o "← voltar" para a lista só aparece para o time da
- * Macuxi.
+ * "Trocar a senha" do menu do usuário do portal: só o admin do cliente com a empresa escolhida (o código dela vai no pedido; o
+ * e-mail ele digita). O time Macuxi não tem a opção nesta versão (sem rota de troca para o super-admin).
+ */
+function trocaDeSenhaDoPortal(sessao: SessaoPortal, irParaEntrada: () => void): TrocaDeSenhaNoMenu | undefined {
+  if (!podeTrocarSenhaNoPortal(sessao)) return undefined;
+  return {
+    email: null,
+    enviar: async (p) => {
+      const r = await trocarSenhaNoPortal(lerSessaoPortal() ?? sessao, p);
+      if (r === 'entrar_de_novo') irParaEntrada();
+      return r === 'continua';
+    },
+  };
+}
+
+/**
+ * Moldura das páginas internas: cabeçalho com a marca, o fim da sessão e o menu do usuário (com o "Sair"); para o admin do
+ * cliente, o nome da empresa atual e, com 2+ empresas, "Trocar de empresa" (T-0093; spec docs/design/portal-entrar.md §3). A
+ * marca leva à página inicial de quem entrou (time da Macuxi: Empresas; admin do cliente: a empresa dele), e o "← voltar" para
+ * a lista só aparece para o time da Macuxi.
  */
 export function MolduraPortal({ children, titulo, voltar }: { children: ReactNode; titulo?: ReactNode; voltar?: { href: string; rotulo: string } }) {
   const sessao = useSessaoPortal();
@@ -244,15 +263,13 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
       <div className="min-h-screen bg-ground">
         <AvisoModoFalso />
         <header className="bg-faixa">
-          {/* < 768 px (spec §10.2): logo e "Sair" na 1ª linha; abas e "Sessão até" na de baixo. A partir de 768 px, tudo numa linha. */}
+          {/* < 768 px (spec §10.2): logo e o menu do usuário (no lugar do "Sair") na 1ª linha; abas e "Sessão até" na de baixo. A partir de 768 px, tudo numa linha. */}
           <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center gap-x-3 px-4">
             <Link href={inicio} className="order-1 py-3 no-underline md:py-0" data-testid="portal.marca">
               <Marca naBarra />
             </Link>
-            <div className="order-2 ml-auto py-3 md:order-5 md:ml-0">
-              <BotaoDaFaixa testId="portal.sair" onClick={sair}>
-                Sair
-              </BotaoDaFaixa>
+            <div className="order-2 ml-auto py-2 md:order-5 md:ml-0">
+              {sessao && <MenuUsuario identidade={identidadeDoPortal(sessao)} onSair={sair} trocarSenha={trocaDeSenhaDoPortal(sessao, () => router.replace(ENTRADA_DO_PORTAL))} tom="escuro" />}
             </div>
             <div aria-hidden className="order-3 h-0 basis-full md:hidden" />
             {ehTimeMacuxi(sessao) && (

@@ -233,8 +233,8 @@ describe('403/409 de empresa (desenho T-0093 §4; spec §4)', () => {
 });
 
 describe('rotas do portal sem primeiro acesso, TOTP nem convite', () => {
-  it('só o login é público; escolher empresa leva o token', () => {
-    expect(ROTAS_PUBLICAS_PORTAL).toEqual(['/plataforma/auth/login']);
+  it('só o login e a troca de senha do Core (v1.0.34) são públicos; escolher empresa leva o token', () => {
+    expect(ROTAS_PUBLICAS_PORTAL).toEqual(['/plataforma/auth/login', '/auth/senha/trocar']);
     expect(ROTAS_PORTAL.escolherEmpresa).toBe('/plataforma/auth/empresa');
     expect(Object.values(ROTAS_PORTAL).filter((r) => typeof r === 'string' && /primeiro-acesso|totp|segundo-fator|recuperacao|convite/.test(r))).toEqual([]);
   });

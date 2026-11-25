@@ -5,6 +5,8 @@
  */
 import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, rotaPortalAssinatura, ROTA_PORTAL_CNPJ, ROTA_PORTAL_EMPRESA_COM_PLANO, ROTA_PORTAL_FRASES_CARGA, ROTA_PORTAL_PLANOS } from '@macuxi/platform-sdk';
 
+import { CAMINHO_TROCAR_SENHA } from './ciclo-senha';
+
 /** Caminho do SDK (`/v1/...`) relativo ao `/v1`, como o portal e o `api()` do BKO chamam. */
 export const semV1 = (caminho: string) => caminho.replace(/^\/v1(?=\/)/, '');
 
@@ -18,6 +20,11 @@ export const ROTAS_PORTAL = {
   escolherEmpresa: '/plataforma/auth/empresa',
   renovar: '/plataforma/auth/renovar',
   sair: '/plataforma/auth/sair',
+  /**
+   * v1.0.34 (menu do usuário, R-20261124-083356): "Trocar a senha" do admin do cliente, pela rota pública do Core (código da
+   * empresa da sessão, e-mail digitado, senha atual e nova), no modo cookie: a resposta não traz o token de renovação.
+   */
+  trocarSenha: CAMINHO_TROCAR_SENHA,
   // API da plataforma
   empresas: '/plataforma/empresas',
   /** T-0094 fatia S: admins da empresa (`ListaAdminsDaEmpresaSchema`); só o time da Macuxi. Tenant no caminho, sem `x-macuxi-tenant`. */
@@ -72,5 +79,8 @@ export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.js
  */
 export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf', viaProxy: '/api-proxy/_publico/integracao/v1/guia.pdf' });
 
-/** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
-export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];
+/**
+ * Rotas públicas (sem token): a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo) e a troca de senha
+ * do Core (v1.0.34). Sem token, o 401 delas (senha atual errada) não derruba a sessão do portal.
+ */
+export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login, ROTAS_PORTAL.trocarSenha];

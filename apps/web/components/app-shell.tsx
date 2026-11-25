@@ -25,11 +25,11 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ItemMenu } from '@macuxi/core/contracts';
+import { TrocarSenhaRequestSchema, type ItemMenu } from '@macuxi/core/contracts';
 import { ehUsuarioSemFilial, entraEm, rotuloDaLogo, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
-import { cx, ErrorBlock, IconChevronRight, IconLock, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconChevronRight, IconLock, LoadingBlock } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
@@ -49,14 +49,16 @@ import {
   type GrupoMenuBko,
   type ItemMenuBko,
 } from '@/lib/menu-bko';
+import { identidadeDoBko } from '@/lib/menu-usuario';
 import { SHELL_WEB } from '@/lib/modulos';
 import { ehRotaParametros, secoesParametros } from '@/lib/parametros';
 import { INICIO_DO_BKO } from '@/lib/portal';
 import { aoSemFilial } from '@/lib/sem-filial';
 import { consultaLogoDaEmpresa, consultaMeusModulos, qk, useLogoQueSubstituiAMarca, useMe, useModulosContratados, useModulosEfetivos, useParametrosDosModulos } from '@/lib/queries';
-import { encerrarSessao, useSessao } from '@/lib/session';
+import { encerrarSessao, pedirTrocaDeSenha, salvarSessaoReal, useSessao, type UsuarioSessao } from '@/lib/session';
 import { useUrlDoBlob } from '@/lib/url-do-blob';
 import { CHAVE_MINHA_FILIAL, EscolherFilial } from './escolher-filial';
+import { MenuUsuario, useTelaLarga, type PedidoDeTroca, type TrocaDeSenhaNoMenu } from './menu-usuario';
 import { SessaoSemConexao } from './sessao-sem-conexao';
 
 /** Largura do logo A a 28 px de altura (viewBox 514,41 × 110,85 → ≈ 130 px). */
@@ -464,7 +466,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     [usuario, perfil, qc, parametros],
   );
 
-  const switchProfile = () => {
+  const telaLarga = useTelaLarga();
+  const sair = () => {
     void encerrarSessao();
     qc.clear();
     router.replace('/login');
@@ -505,8 +508,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   // API real: empresa do login (Core); demonstração: `GET /me` do mock-api
   const company = MODO_API === 'demo' ? (me.data?.tenant.name ?? '') : (session.user?.empresa ?? '');
   const user = session.user;
-  // RD-0014: nome curto do perfil, o mesmo do login, do portal e do app (kit)
-  const roleLabel = perfil ? rotuloDoPerfil(perfil) : '';
   const grupos = montarGruposMenu({
     navegacao: visao.navegacao,
     mais: visao.extensoes<ItemMenu>('menu.itens').map((i) => i.payload),
@@ -522,7 +523,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   });
 
   // T-0176 (spec §5): sem filial de cadastro, o BKO abre só a "Escolha a sua filial" (moldura do login, sem menu)
-  if (conteudo === 'sem_filial') return <EscolherFilial onSalvo={filialSalva} onSair={switchProfile} />;
+  if (conteudo === 'sem_filial') return <EscolherFilial onSalvo={filialSalva} onSair={sair} />;
+
+  // R-20261124-083005/083110/083356: nome, perfil e cargo só no menu do usuário, no canto superior direito
+  const menuUsuario = user ? (
+    <MenuUsuario identidade={identidadeDoBko(user, company || null)} onSair={sair} trocarSenha={trocaDeSenhaDoBko(user)} tom={telaLarga ? 'claro' : 'escuro'} className="shrink-0" />
+  ) : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-ground md:flex-row">
@@ -532,34 +538,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Brand company={company} logoCliente={logoCliente} />
         </div>
         <MenuLateral grupos={grupos} ativo={ativo} />
-        <div className="mt-1 flex shrink-0 flex-col gap-0.5 border-t border-nav-active px-2 pt-3">
-          <div className="flex flex-col">
-            <span className="truncate text-[15px] leading-5 font-semibold">{user?.name ?? '—'}</span>
-            <span className="text-[12px] leading-4 text-nav-text">{roleLabel}</span>
-          </div>
-          <button type="button" data-testid="trocar-perfil" onClick={switchProfile} className={cx('flex h-8 items-center gap-2 rounded-lg px-0 text-[13px] font-semibold text-nav-text hover:text-white', FOCO)}>
-            <IconLogout size={15} />
-            Trocar perfil
-          </button>
-        </div>
       </nav>
 
       {/* menu no topo (tela estreita) */}
       <nav aria-label="Menu do backoffice" className="flex flex-col gap-3 bg-ink px-4 pt-4 pb-3 text-white md:hidden">
         <div className="flex items-start justify-between gap-3">
           <Brand company={company} logoCliente={logoCliente} />
-          <button type="button" onClick={switchProfile} className={cx('flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] border border-nav-active px-3 text-[12px] font-semibold text-nav-text', FOCO)}>
-            <IconLogout size={14} />
-            Trocar perfil
-          </button>
+          {!telaLarga && menuUsuario}
         </div>
         <MenuEstreito grupos={grupos} ativo={ativo} />
-        <span className="text-[12px] text-nav-text">
-          {user?.name} · {roleLabel}
-        </span>
       </nav>
 
-      <main className="flex min-w-0 flex-1 flex-col gap-5 px-4 pt-5 pb-10 md:px-8 md:pt-7">
+      <main className="flex min-w-0 flex-1 flex-col gap-5 px-4 pt-5 pb-10 md:px-8 md:pt-4">
+        {/* barra do topo (tela larga): o menu do usuário no canto superior direito, em todas as páginas do BKO */}
+        {telaLarga && <div className="-mb-2 flex justify-end">{menuUsuario}</div>}
         {conteudo === 'erro_me' ? (
           <ErrorBlock message={errorMessage(me.error)} onRetry={() => void me.refetch()} />
         ) : conteudo === 'perfil_fora_do_bko' ? (
@@ -578,6 +570,23 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
     </div>
   );
+}
+
+/**
+ * "Trocar a senha" do BKO (só na API real; a demonstração não tem a rota): o código da empresa vem da sessão (login da v1.0.34
+ * em diante; antes disso a gaveta pede) e a sessão nova substitui a atual (a troca revoga as antigas).
+ */
+function trocaDeSenhaDoBko(u: UsuarioSessao): TrocaDeSenhaNoMenu | undefined {
+  if (MODO_API !== 'v1') return undefined;
+  return {
+    email: u.email,
+    pedirCodigo: !u.codigoEmpresa,
+    enviar: async (p: PedidoDeTroca) => {
+      const corpo = TrocarSenhaRequestSchema.parse({ codigo_empresa: p.codigo_empresa ?? u.codigoEmpresa, email: p.email, senha_atual: p.senha_atual, senha_nova: p.senha_nova, app: 'web' });
+      salvarSessaoReal(await pedirTrocaDeSenha(corpo, { semToken: true }));
+      return true;
+    },
+  };
 }
 
 /** Sessão de um perfil sem backoffice (ex.: aberta antes da RN-CORE-33): encerra e volta ao Entrar com o aviso do SDK. */
