@@ -258,6 +258,9 @@ export function leitorDeParametros(mapa?: ParametrosModulos): (modulo: ModuloId)
   return (modulo) => mapa?.[modulo] ?? SEM_PARAMETROS;
 }
 
+/** Padrão do `AmbienteModulo.fracaoLiberada` quando o shell não preenche (ADR 0076 D6): trava fechada. */
+const fracaoFechada = (): boolean => false;
+
 /**
  * Completa o ambiente do shell (`AmbienteAparelho` → `AmbienteModulo`): `extra` (o do motor) vale sobre o do shell; sem
  * nenhum dos dois, `consultar` lança `ConsultaIndisponivel` e `parametros` devolve `SEM_PARAMETROS`.
@@ -273,5 +276,6 @@ export function completarAmbiente(base: AmbienteAparelho, extra: Partial<Pick<Am
       }),
     parametros: extra.parametros ?? base.parametros ?? (() => SEM_PARAMETROS),
     posicaoAgora: base.posicaoAgora ?? semPosicao,
+    fracaoLiberada: base.fracaoLiberada ?? fracaoFechada,
   };
 }
