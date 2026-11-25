@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField } from '@macuxi/ui/web';
+import { Badge, Button, ErrorBlock, formatDataHoraCurta, LoadingBlock, Notice, PageHeader, Panel, SelectField } from '@macuxi/ui/web';
 import { EnviarNotificacaoRespostaSchema, HierarquiaEquipeSchema, NotificacaoSyncSchema, RecadoDoDiaDesmarcadoSchema, RecadoDoDiaMarcadoSchema, RecadosEnviadosRespostaSchema, type NotificacaoSync } from '../../../contracts';
 import { useMe } from '../../lib/queries';
 import { ACAO_RECADO_DO_DIA, agruparPorEnvio, mensagemDoRecadoDoDia, podeMarcarRecadoDoDia } from '../../lib/recado-do-dia';
@@ -165,7 +165,7 @@ export function RecadosPage() {
                       )}
                     </td>
                     <td className="py-1 pr-2">{e.destinatarios}</td>
-                    <td className="py-1 pr-2">{new Date(e.enviada_em).toLocaleString('pt-BR')}</td>
+                    <td className="py-1 pr-2">{formatDataHoraCurta(e.enviada_em, fuso)}</td>
                     <td className="py-1 pr-2">
                       {e.lidas} de {e.destinatarios}
                     </td>
@@ -204,8 +204,8 @@ export function RecadosPage() {
                   <tr key={r.id} className="border-t border-line" data-testid={`recados.enviado.${r.id}`}>
                     <td className="py-1 pr-2">{r.titulo}</td>
                     <td className="py-1 pr-2">{r.destinatario_nome}</td>
-                    <td className="py-1 pr-2">{new Date(r.enviada_em).toLocaleString('pt-BR')}</td>
-                    <td className="py-1">{r.lida_em ? `Lida em ${new Date(r.lida_em).toLocaleString('pt-BR')}` : <span className="font-semibold text-accent-ink">Não lida</span>}</td>
+                    <td className="py-1 pr-2">{formatDataHoraCurta(r.enviada_em, fuso)}</td>
+                    <td className="py-1">{r.lida_em ? `Lida em ${formatDataHoraCurta(r.lida_em, fuso)}` : <span className="font-semibold text-accent-ink">Não lida</span>}</td>
                   </tr>
                 ))}
               </tbody>
