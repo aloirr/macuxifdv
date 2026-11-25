@@ -11,7 +11,7 @@ const ctxOrc = { tipo: 'orcamento' as const, tz: TZ, agora: AGORA };
 describe('histórico em tags (RN-VEN-30, T-0133)', () => {
   it('cobre todos os rótulos do pedido e do orçamento da RN-VEN-30, sem texto técnico', () => {
     expect(rotulosDoHistorico('pedido')).toEqual(['Salvo', 'Na fila', 'Enviado', 'Em aprovação', 'Aprovado', 'Rejeitado', 'Recebido no ERP', 'Faturado parcial', 'Faturado', 'Cancelado']);
-    expect(rotulosDoHistorico('orcamento')).toEqual(['Salvo', 'Transformado em pedido nº', 'Vencido', 'Cancelado']);
+    expect(rotulosDoHistorico('orcamento')).toEqual(['Salvo', 'Convertido em pedido nº', 'Vencido', 'Cancelado']);
     for (const r of [...rotulosDoHistorico('pedido'), ...rotulosDoHistorico('orcamento')]) expect(r).not.toMatch(/servidor|recebido pelo/i);
   });
 
@@ -83,9 +83,9 @@ describe('histórico em tags (RN-VEN-30, T-0133)', () => {
     expect(vendedor?.texto).toBe('Aprovado · 08/11 11:20');
   });
 
-  it('orçamento transformado mostra o número do pedido gerado', () => {
-    expect(tagDoHistorico({ status: 'convertido', em: '2026-11-09T13:00:00Z', numeroPedido: '000013' }, ctxOrc)?.texto).toBe('Transformado em pedido nº 000013 · 09/11 09:00');
-    expect(tagDoHistorico({ status: 'convertido', em: '2026-11-09T13:00:00Z' }, ctxOrc)?.rotulo).toBe('Transformado em pedido');
+  it('orçamento convertido mostra o número do pedido gerado', () => {
+    expect(tagDoHistorico({ status: 'convertido', em: '2026-11-09T13:00:00Z', numeroPedido: '000013' }, ctxOrc)?.texto).toBe('Convertido em pedido nº 000013 · 09/11 09:00');
+    expect(tagDoHistorico({ status: 'convertido', em: '2026-11-09T13:00:00Z' }, ctxOrc)?.rotulo).toBe('Convertido em pedido');
   });
 
   it('status sem tag, evento técnico ou data inválida não aparecem (nunca o código cru)', () => {

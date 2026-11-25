@@ -10,13 +10,14 @@
  * - sem `MACUXI_JWT_SEGREDO_PLATAFORMA` a rota responde 503 (falha fechada);
  * - tudo auditado em `plataforma.auditoria_plataforma` (sa_auditar), sem e-mail, senha nem token; nada disso vai a log.
  */
-import { type AcessoBanco, type AcessoPortalAutenticado, type ContextoPublico } from '@macuxi/platform-sdk';
-import { chaveBloqueada, decidirAcessoDoLogin, expiracaoDoTokenPlataforma } from '../domain/super-admin';
-import { CODIGOS_PORTAL, MENSAGEM_PORTAL_SENHA_A_TROCAR, type EscolherEmpresaPortal, type LoginPortal, type SessaoPortal } from '../contracts/plataforma';
-import { exigirChaveLivre } from './bloqueio-portal';
+import { type AcessoBanco, type AcessoPortalAutenticado, type ContextoPublico, type UsuarioDoPortal } from '@macuxi/platform-sdk';
+import { decidirAcessoDoLogin, expiracaoDoTokenPlataforma } from '../domain/super-admin';
+import { CODIGOS_PORTAL, MENSAGEM_PORTAL_SENHA_A_TROCAR, type EscolherEmpresaPortal, type LoginPortal, type SessaoPortal, type TrocarSenhaPortal } from '../contracts/plataforma';
+import { validarSenhaNova } from '../domain/acesso-senha';
+import { barrarSeBloqueado, contarFalhaDeSenha } from './bloqueio-portal';
 import { erroHttp } from './erros';
 import { fabricaSuperAdminSql, type EmpresaDaSessao, type FabricaSuperAdmin, type LinhaAuditoriaAuth, type RepositorioSuperAdmin, type SessaoViva } from './super-admin-repositorio';
-import { gastarTempoDeSenha, tokenDoCabecalho, verificarSenha } from './seguranca';
+import { gastarTempoDeSenha, hashSenha, tokenDoCabecalho, verificarSenha } from './seguranca';
 import { ConfiguracaoPlataformaInvalida, assinarTokenPlataforma, chaveDeTentativa, exigirSegredoPlataforma, verificarTokenPlataforma, type ClaimsPlataforma } from './seguranca-plataforma';
 
 export interface DepsSuperAdmin {
@@ -24,7 +25,7 @@ export interface DepsSuperAdmin {
   segredo(): string | undefined;
   repo?: FabricaSuperAdmin;
   /** Conferência de senha (teste injeta contadores). Padrão: argon2id real. */
-  senha?: { verificar(senha: string, hash: string): Promise<boolean>; gastar(senha: string): Promise<void> };
+  senha?: { verificar(senha: string, hash: string): Promise<boolean>; gastar(senha: string): Promise<void>; hash?(senha: string): Promise<string> };
 }
 
 const MENSAGEM_CREDENCIAIS = 'E-mail ou senha incorretos. Confira e tente de novo.';
@@ -60,6 +61,7 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
   const fabrica = deps.repo ?? fabricaSuperAdminSql;
   const conferir = deps.senha?.verificar ?? verificarSenha;
   const gastar = deps.senha?.gastar ?? gastarTempoDeSenha;
+  const gerarHash = deps.senha?.hash ?? ((s: string) => hashSenha(s));
 
   /** Confere o segredo; sem ele, 503 antes de qualquer consulta. */
   const config = (): string => {
@@ -85,9 +87,14 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
   };
 
   /** Monta a resposta e o token do estado da sessão: super-admin, admin sem empresa (escolher) ou admin com empresa. */
-  async function sessaoDoPortal(repo: RepositorioSuperAdmin, sid: string, viva: SessaoViva, agora: Date, segredo: string): Promise<SessaoPortal> {
+  async function sessaoDoPortal(repo: RepositorioSuperAdmin, sid: string, viva: SessaoViva, agora: Date, segredo: string, ctx: Pick<Ctx<unknown>, 'log' | 'requestId'>): Promise<SessaoPortal> {
     const expiraEm = expiracaoDoTokenPlataforma(agora, viva.expira_em);
-    const base = { expira_em: expiraEm.toISOString(), sessao_expira_em: viva.expira_em.toISOString() };
+    // ADR 0075: o nome para o topo do portal; sem nome = `null` (a tela mostra sem ele).
+    const usuario: UsuarioDoPortal | null = await repo.quemSou(sid).catch((e: unknown) => {
+      ctx.log.warn({ request_id: ctx.requestId, erro: e instanceof Error ? e.name : 'desconhecido' }, 'portal: quemSou falhou');
+      return null;
+    });
+    const base = { expira_em: expiraEm.toISOString(), sessao_expira_em: viva.expira_em.toISOString(), usuario };
     if (viva.tipo === 'super_admin') {
       if (!viva.super_admin_id) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
       return { ...base, token: assinarTokenPlataforma({ sub: viva.super_admin_id, sid, typ: 'sa' }, agora, expiraEm, segredo), tipo: 'super_admin', empresa: null, empresas: [] };
@@ -110,11 +117,10 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
 
     // RN-CORE-31: bloqueado = 423 para QUALQUER senha e QUALQUER e-mail (existente ou não), sem conferir nem contar
     const estado = await repo.tentativaEstado(chave);
-    if (chaveBloqueada(estado.bloqueado_ate, agora)) {
+    await barrarSeBloqueado(estado.bloqueado_ate, agora, async () => {
       await gastar(ctx.corpo.senha);
       await auditar(repo, ctx, 'sa.login.falha', 423, rota, ANONIMO, { motivo: 'bloqueado' });
-      exigirChaveLivre(estado.bloqueado_ate, agora);
-    }
+    });
 
     const contas = await repo.contasParaLogin(ctx.corpo.email);
     // em paralelo: 0, 1 ou poucas contas custam o tempo de uma conferência
@@ -129,10 +135,9 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
       throw erroHttp(403, CODIGOS_PORTAL.senhaATrocar, MENSAGEM_PORTAL_SENHA_A_TROCAR);
     }
     if (!decidido) {
-      const r = await repo.tentativaFalha(chave);
-      await auditar(repo, ctx, 'sa.login.falha', chaveBloqueada(r.bloqueado_ate, agora) ? 423 : 401, rota, ANONIMO, { motivo: 'credenciais', falhas: r.falhas });
-      exigirChaveLivre(r.bloqueado_ate, agora);
-      throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
+      return contarFalhaDeSenha(() => repo.tentativaFalha(chave), agora, MENSAGEM_CREDENCIAIS, (status, falhas) =>
+        auditar(repo, ctx, 'sa.login.falha', status, rota, ANONIMO, { motivo: 'credenciais', falhas }),
+      );
     }
 
     await repo.tentativaSucesso(chave);
@@ -145,7 +150,7 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     if (!aberta) throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
     const viva = await repo.sessaoValida(aberta.sessao_id);
     if (!viva) throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
-    const sessao = await sessaoDoPortal(repo, aberta.sessao_id, viva, agora, segredo);
+    const sessao = await sessaoDoPortal(repo, aberta.sessao_id, viva, agora, segredo, ctx);
     await auditar(
       repo,
       ctx,
@@ -188,13 +193,13 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     }
     const nova = await repo.sessaoValida(claims.sid);
     if (!nova) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
-    return sessaoDoPortal(repo, claims.sid, nova, ctx.agora(), segredo);
+    return sessaoDoPortal(repo, claims.sid, nova, ctx.agora(), segredo, ctx);
   }
 
   async function renovar(ctx: Ctx<unknown>): Promise<SessaoPortal> {
     const segredo = config();
     const { claims, viva } = await sessaoDoCabecalho(ctx, segredo);
-    return sessaoDoPortal(fabrica(ctx.banco), claims.sid, viva, ctx.agora(), segredo);
+    return sessaoDoPortal(fabrica(ctx.banco), claims.sid, viva, ctx.agora(), segredo, ctx);
   }
 
   async function sair(ctx: Ctx<unknown>): Promise<void> {
@@ -203,6 +208,48 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     const repo = fabrica(ctx.banco);
     await repo.revogarSessao(claims.sid);
     await auditar(repo, ctx, 'sa.sair', 204, '/v1/plataforma/auth/sair', quemDe(claims, viva));
+  }
+
+  /**
+   * `POST /v1/plataforma/auth/senha` (ADR 0075): troca da PRÓPRIA senha pela sessão do portal; responde 204.
+   * - super-admin: a senha atual é conferida com o hash da própria sessão, no mesmo bloqueio do login (5 erros = 423 por 15 min);
+   *   a nova segue a RN-CORE-32 (422) e difere da atual (422 RN-CORE-34); gravada só se o hash não mudou (senão 409); todas as
+   *   sessões dele caem (inclusive esta);
+   * - admin do cliente: 403 TROCA_SO_SUPER_ADMIN (ele troca pela rota pública `POST /v1/auth/senha/trocar`).
+   */
+  async function trocarSenha(ctx: Ctx<TrocarSenhaPortal>): Promise<void> {
+    const segredo = config();
+    const { claims, viva } = await sessaoDoCabecalho(ctx, segredo);
+    const repo = fabrica(ctx.banco);
+    const rota = '/v1/plataforma/auth/senha';
+    const quem = quemDe(claims, viva);
+    const { senha_atual: atual, senha_nova: nova } = ctx.corpo;
+    const agora = ctx.agora();
+
+    if (viva.tipo === 'admin_cliente') {
+      throw erroHttp(403, CODIGOS_PORTAL.trocaSoSuperAdmin, 'Troque a sua senha no backoffice, com o código da empresa.');
+    }
+
+    const conta = await repo.reautenticar(claims.sid);
+    if (!conta) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+    const chave = chaveDeTentativa(segredo, conta.email.toLowerCase());
+    const estado = await repo.tentativaEstado(chave);
+    await barrarSeBloqueado(estado.bloqueado_ate, agora, () => auditar(repo, ctx, 'sa.senha.falha', 423, rota, quem, { motivo: 'bloqueado' }));
+    if (!(await conferir(atual, conta.senha_hash))) {
+      return contarFalhaDeSenha(() => repo.tentativaFalha(chave), agora, 'Senha atual incorreta. Confira e tente de novo.', (status, falhas) =>
+        auditar(repo, ctx, 'sa.senha.falha', status, rota, quem, { motivo: 'senha_atual', falhas }),
+      );
+    }
+    await repo.tentativaSucesso(chave);
+    const recusa = validarSenhaNova(nova, conta.email, await conferir(nova, conta.senha_hash));
+    if (recusa) {
+      await auditar(repo, ctx, 'sa.senha.falha', 422, rota, quem, { motivo: recusa.codigo });
+      throw erroHttp(422, recusa.codigo, recusa.mensagem, recusa.codigo === 'RN-CORE-32' ? { faltas: recusa.faltas } : undefined);
+    }
+    if (!(await repo.gravarSenhaSuperAdmin(claims.sid, conta.senha_hash, await gerarHash(nova)))) {
+      await auditar(repo, ctx, 'sa.senha.falha', 409, rota, quem, { motivo: 'mudou_no_meio' });
+      throw erroHttp(409, CODIGOS_PORTAL.senhaMudou, 'A senha mudou enquanto você a trocava. Entre de novo e repita a troca.');
+    }
   }
 
   /**
@@ -222,7 +269,7 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     return { tipo: 'admin_cliente', sessao_id: claims.sid, empresa: { tenant_id: viva.tenant_id, usuario_id: viva.usuario_id, ...(viva.sem_filial === true ? { sem_filial: true } : {}) } };
   }
 
-  return { login, escolherEmpresa, renovar, sair, autenticarPortal };
+  return { login, escolherEmpresa, renovar, sair, trocarSenha, autenticarPortal };
 }
 
 export type SuperAdmin = ReturnType<typeof criarSuperAdmin>;
