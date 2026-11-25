@@ -1,6 +1,6 @@
 /**
- * v1.0.35, item 3 — troca da senha do ADMIN DO CLIENTE pela sessão do portal (0107_plataforma_senha_admin_portal; dicionário
- * docs/banco/plataforma.md, "Senha do admin do cliente no portal (0107)"; RN-CORE-01: 5 falhas seguidas = 15 min).
+ * v1.0.35, item 3 — troca da senha do ADMIN DO CLIENTE pela sessão do portal (0103_plataforma_senha_admin_portal; dicionário
+ * docs/banco/plataforma.md, "Senha do admin do cliente no portal (0103)"; RN-CORE-01: 5 falhas seguidas = 15 min).
  * Cenários do agente `testes`, independentes de db/testes/senha-admin-portal.db.test.ts (do banco-dados):
  *  - SA-01 sessão com duas empresas: a função age só na conta da empresa ESCOLHIDA; a outra fica intacta;
  *  - SA-02 bloqueio vencido recomeça a contagem: 4 falhas não bloqueiam; a 5ª bloqueia exatamente now() + 15 min;
@@ -40,7 +40,7 @@ interface Estado {
   bloqueado_ate: Date | null;
 }
 
-describe.skipIf(semBanco())('v1.0.35 item 3: senha do admin do cliente no portal (0107)', () => {
+describe.skipIf(semBanco())('v1.0.35 item 3: senha do admin do cliente no portal (0103)', () => {
   let admin: pg.Client;
 
   beforeAll(async () => {
