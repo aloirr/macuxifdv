@@ -195,10 +195,11 @@ describe('RN-INT-08: itens faturados no retorno (campo opcional, continua v1)', 
     expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota }).success).toBe(true);
   });
 
-  it('RN-INT-08: itens_faturados em outro status, vazio, com quantidade fracionária ou valor fracionário é recusado', () => {
+  it('RN-INT-08: itens_faturados em outro status, vazio, com valor fracionário ou quantidade zero é recusado; quantidade decimal é aceita (ADR 0076)', () => {
     expect(RetornoErp.safeParse({ ...ret, status: 'integrado', itens_faturados: itens }).success).toBe(false);
     expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [] }).success).toBe(false);
-    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 1.5, valor_cents: 100 }] }).success).toBe(false);
+    // ADR 0076: quantidade decimal passa no schema (a trava e as 4 casas são do domain, 422 próprio)
+    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 1.5, valor_cents: 100 }] }).success).toBe(true);
     expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 1, valor_cents: 10.5 }] }).success).toBe(false);
     expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 0, valor_cents: 100 }] }).success).toBe(false);
   });

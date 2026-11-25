@@ -52,7 +52,7 @@ describe('projeção idempotente dos eventos consumidos (read-model painel_vende
 
   it('payload inválido é recusado sem alterar o estado; evento desconhecido é ignorado', () => {
     const s0 = estadoInicial();
-    const ruim = aplicarEvento(s0, ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { pedido_id: 'x' }));
+    const ruim = aplicarEvento(s0, ev('vendedor.pedido.criado@2', '2026-10-30T14:00:00Z', { pedido_id: 'x' }));
     expect(ruim.situacao).toBe('invalido');
     expect(ruim.motivo).toBeTruthy();
     expect(ruim.estado).toBe(s0);
@@ -112,7 +112,7 @@ describe('apuração do pedido (RN-CORE-21, RN-VEN-30)', () => {
 
   it('T-0024: instante do Vendedor que não é data válida deixa o evento inválido (o schema do dono aceita texto livre)', () => {
     const base = pedidoCriado({ total: 10_000 }).payload as Record<string, unknown>;
-    const r = aplicarEvento(estadoInicial(), ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { ...base, criado_em: '30/10/2026' }));
+    const r = aplicarEvento(estadoInicial(), ev('vendedor.pedido.criado@2', '2026-10-30T14:00:00Z', { ...base, criado_em: '30/10/2026' }));
     expect(r.situacao).toBe('invalido');
     expect(r.motivo).toContain('criado_em');
     expect(r.estado).toEqual(estadoInicial());
@@ -120,13 +120,13 @@ describe('apuração do pedido (RN-CORE-21, RN-VEN-30)', () => {
 
   it('T-0024: id do Vendedor que não é UUID deixa o evento inválido (o schema do dono aceita texto livre)', () => {
     const base = pedidoCriado({ total: 10_000 }).payload as Record<string, unknown>;
-    const r = aplicarEvento(estadoInicial(), ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { ...base, pedido_id: 'x' }));
+    const r = aplicarEvento(estadoInicial(), ev('vendedor.pedido.criado@2', '2026-10-30T14:00:00Z', { ...base, pedido_id: 'x' }));
     expect(r.situacao).toBe('invalido');
     expect(r.motivo).toContain('pedido_id');
   });
 
   it('RN-VEN-32: orçamento não é venda (o contrato do Vendedor só publica tipo pedido; orçamento é evento inválido)', () => {
-    const orcamento = ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { ...(pedidoCriado({ total: 10_000 }).payload as Record<string, unknown>), tipo: 'orcamento' });
+    const orcamento = ev('vendedor.pedido.criado@2', '2026-10-30T14:00:00Z', { ...(pedidoCriado({ total: 10_000 }).payload as Record<string, unknown>), tipo: 'orcamento' });
     const s = montar([orcamento, statusAlterado({ para: 'aprovado', em: '2026-10-30T15:00:00Z' })]);
     expect(vendasApuradas(s, 'aprovado')).toEqual([]);
   });

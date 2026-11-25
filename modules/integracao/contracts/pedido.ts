@@ -4,7 +4,8 @@
  * Conector → Hub: `POST /integracao/v1/pedidos/{pedido_uuid}/retorno`.
  */
 import { z } from 'zod';
-import { CentavosNaoNegativos, DataHoraUtc, ExternalId, PercentualAjuste, Quantidade, Texto, TextoOpcional, Uuid, VERSAO_CONTRATO } from './base';
+import { FatorDecimalSchema, QuantidadeDecimalSchema, QuantidadePositivaSchema } from '@macuxi/platform-sdk';
+import { CentavosNaoNegativos, DataHoraUtc, ExternalId, PercentualAjuste, Texto, TextoOpcional, Uuid, VERSAO_CONTRATO } from './base';
 
 export const ESTADOS_PEDIDO_ERP = ['pendente', 'enviado', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado'] as const;
 export const EstadoPedidoErp = z.enum(ESTADOS_PEDIDO_ERP);
@@ -15,18 +16,18 @@ const PercentualOpcional = z.number().min(0).max(100).nullish();
 export const ItemPedidoErp = z.object({
   sequencia: z.number().int().positive(),
   produto_external_id: ExternalId,
-  /** SEMPRE na unidade base (ADR 0016): `quantidade = quantidade_venda x fator` quando a venda é por embalagem. */
-  quantidade: Quantidade.refine((q) => q > 0, 'quantidade deve ser maior que zero'),
+  /** SEMPRE na unidade base (ADR 0016): `quantidade = quantidade_venda x fator` quando a venda é por embalagem; até 4 casas (ADR 0076). */
+  quantidade: QuantidadeDecimalSchema,
   preco_unitario_cents: CentavosNaoNegativos,
   desconto_cents: CentavosNaoNegativos.default(0),
   total_cents: CentavosNaoNegativos,
   // ---- ADR 0016 (opcionais; o Conector 1.2.x ignora): medida de venda, desconto/acréscimo
   /** Sigla da medida vendida (RN-CORE-19), ex.: CX. */
   unidade: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,6}$/).nullish(),
-  /** Unidades base de uma unidade vendida (1 na medida da unidade). */
-  fator: z.number().int().positive().nullish(),
+  /** Unidades base de uma unidade vendida (1 na medida da unidade); até 4 casas, nunca fracionário junto com a quantidade (ADR 0076). */
+  fator: FatorDecimalSchema.nullish(),
   /** Quantidade na medida vendida. */
-  quantidade_venda: Quantidade.refine((q) => q > 0, 'quantidade deve ser maior que zero').nullish(),
+  quantidade_venda: QuantidadeDecimalSchema.nullish(),
   preco_tabela_cents: CentavosNaoNegativos.nullish(),
   preco_unitario_venda_cents: CentavosNaoNegativos.nullish(),
   desconto_pct: PercentualOpcional,
@@ -187,7 +188,7 @@ export const ItemFaturado = z.object({
    * `produto_id` interno pela `sequencia` do pedido enviado e confere pelo `external_id`.
    */
   produto_external_id: ExternalId,
-  quantidade: z.number().int('quantidade faturada deve ser inteira').positive('quantidade faturada deve ser maior que zero'),
+  quantidade: QuantidadePositivaSchema,
   /** Obrigatório: valor faturado do item nesta nota, em centavos inteiros. */
   valor_cents: CentavosNaoNegativos,
 });
@@ -252,7 +253,7 @@ export const ItemFaturadoDescartado = z.object({
   indice: z.number().int().nonnegative(),
   sequencia: z.number().int().positive(),
   produto_external_id: ExternalId,
-  quantidade: z.number().int().positive(),
+  quantidade: QuantidadePositivaSchema,
   codigo: z.enum(CODIGOS_ITEM_DESCARTADO),
   codigos: z.array(z.enum(CODIGOS_ITEM_DESCARTADO)).min(1),
   campo: z.string().min(1),

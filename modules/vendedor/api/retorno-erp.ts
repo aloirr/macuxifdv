@@ -15,6 +15,7 @@
  * BASE, desenho T-0061 §2.1). `DEVOLUCAO_LIGADA` (ligada, migração 0050): `pedido_devolucao` guarda as notas de devolução; o devolvido
  * é a soma das linhas vivas e a nota toca `pedido.updated_at` para o pull levar a mudança (docs/modulos/vendedor/retorno-erp.md).
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { criarConsumidorFormaPagamentoDoErp, criarConsumidorPrazoPagamentoDoErp } from './formas-erp';
 import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo, type LogRota } from '@macuxi/platform-sdk';
 import { EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../contracts';
@@ -253,13 +254,13 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
       ).rows[0];
       if (!p) return null;
       const itens = (
-        await db.query<{ sequencia: number; produto_id: string; quantidade: number; total_cents: number }>(
+        await db.query<{ sequencia: number; produto_id: string; quantidade: string | number; total_cents: number }>(
           `select sequencia, produto_id, ${comFaturamento ? 'quantidade_base' : 'quantidade'} as quantidade, total_cents::float8 as total_cents
              from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
           [id],
         )
       ).rows;
-      return { ...p, itens: itens.map((i) => ({ sequencia: i.sequencia, product_id: i.produto_id, quantity: i.quantidade, total_cents: num(i.total_cents) })) };
+      return { ...p, itens: itens.map((i) => ({ sequencia: i.sequencia, product_id: i.produto_id, quantity: quantidadeDoBanco(i.quantidade), total_cents: num(i.total_cents) })) };
     },
     async faturamentos(pedidoId) {
       if (!comFaturamento) return null;
@@ -376,7 +377,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
       );
       await db.query(
         `update vendedor.pedido_item i set quantidade_faturada = x.q
-           from (select unnest($2::int[]) as seq, unnest($3::int[]) as q) x
+           from (select unnest($2::int[]) as seq, unnest($3::numeric[]) as q) x
           where i.pedido_id = $1 and i.sequencia = x.seq and i.deleted_at is null and i.quantidade_faturada is distinct from x.q`,
         [pedidoId, r.itens.map((i) => i.sequencia), r.itens.map((i) => i.faturada)],
       );

@@ -7,6 +7,7 @@ import { alertasDoPedido, textoDoAlertaNoItem, type AlertaDoPedido } from '../..
 import { ajusteDoGeral, type AjusteGeral } from '../../domain/desconto-geral';
 import { rotuloMedida } from '../../domain/preco-pedido';
 import { chaveDaLinha, type Ajuste, type UnidadeDaTela } from './novo-pedido';
+import { quantidadeDoItem } from './quantidade-digitada';
 
 export interface EstadoDoItem {
   /** índice da embalagem em `medidas` */
@@ -36,6 +37,8 @@ export function aplicarItemNoRascunho(
   produtoId: string,
   medidas: readonly UnidadeDaTela[],
   estado: Pick<EstadoDoItem, 'idx' | 'qtd' | 'ajuste'> | null,
+  /** ADR 0076 D6: com a trava fechada, KG e M ficam inteiros */
+  fracaoLiberada = false,
 ): { lines: Record<string, number>; ajustes: Record<string, Ajuste> } {
   const chaves = chavesDoProduto(produtoId, medidas);
   const l = { ...lines };
@@ -46,7 +49,7 @@ export function aplicarItemNoRascunho(
   }
   if (estado && estado.qtd > 0) {
     const k = chaves[estado.idx] ?? chaves[0]!;
-    l[k] = Math.trunc(estado.qtd);
+    l[k] = quantidadeDoItem(estado.qtd, medidas[estado.idx]?.unidade ?? medidas[0]?.unidade, fracaoLiberada) || 1;
     if (Object.keys(estado.ajuste).length > 0) a[k] = estado.ajuste;
   }
   return { lines: l, ajustes: a };

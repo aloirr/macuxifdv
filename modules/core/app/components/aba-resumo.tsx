@@ -4,6 +4,7 @@
  * (modo avião). Sem alerta financeiro na ficha (R-20261119-0440).
  */
 import { Badge, BotaoCelula, CelulaTexto, colors, ObservacoesCliente, SectionHeader, TabelaDados, TabelaRotuloValor, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
+import { formatarQuantidade } from '@macuxi/comum/quantidade';
 import { useState, type ReactNode } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
 
@@ -184,7 +185,7 @@ export function AbaResumo({
               key: i.produto_id,
               celulas: [
                 <CelulaTexto key="p" principal={i.nome} segunda={i.codigo} segundaCodigo />,
-                <CelulaTexto key="q" principal={`${i.quantidade}${i.unidade ? ` ${i.unidade}` : ''}`} dir />,
+                <CelulaTexto key="q" principal={formatarQuantidade(i.quantidade, i.unidade ?? null)} dir />,
                 <CelulaTexto key="d" principal={dataCurta(i.data_local)} mudo />,
                 <CelulaTexto key="t" principal={valorSemMoeda(i.total_cents)} dir />,
               ],

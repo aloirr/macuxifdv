@@ -19,13 +19,13 @@ function httpQue(responde: (caminho: string, query: unknown) => unknown): Pick<C
   };
 }
 
-const publicada = (versao: string, variante = 'campo') => ({ variante, versao, publicada_em: null });
+const publicada = (versao: string, variante = 'campo') => ({ variante, versao, publicada_em: null, fracao_liberada: false });
 
 describe('verificarAtualizacao (item 19)', () => {
-  it('chama GET /app/versao com a variante do app e o contrato 2 (relativo ao /v1, como o ClienteHttp do shell)', async () => {
+  it('chama GET /app/versao com a variante do app e o contrato 3 (ADR 0076 D6; relativo ao /v1, como o ClienteHttp do shell)', async () => {
     const http = httpQue(() => publicada('1.0.16'));
     await verificarAtualizacao(http, 'gestao', '1.0.16');
-    expect(http.pedidos).toEqual([['/app/versao', { variante: 'gestao', contrato: '2' }]]);
+    expect(http.pedidos).toEqual([['/app/versao', { variante: 'gestao', contrato: '3' }]]);
   });
 
   it('versão publicada maior: "nova", sem linha (o botão diz a versão), e a resposta vai à guardada do app', async () => {
@@ -71,6 +71,8 @@ describe('verificarAtualizacao (item 19)', () => {
       () => ({ ...publicada('1.0.17'), apk_url: 'http://inseguro.exemplo.com/a.apk' }),
       () => ({ ...publicada('1.0.17'), extra: 1 }),
       () => publicada('1.0.17', 'gestao'),
+      // V2 (sem fracao_liberada): fora do contrato V3
+      () => ({ variante: 'campo', versao: '1.0.17', publicada_em: null }),
       () => null,
     ];
     for (const responde of respostas) {

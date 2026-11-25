@@ -36,7 +36,7 @@ vi.mock('@macuxi/platform-sdk/react', () => ({
   useHttp: () => ({
     get: async (caminho: string, query: unknown) => {
       sim.pedidos.push([caminho, query]);
-      return { variante: 'campo', versao: '1.0.17', publicada_em: null };
+      return { variante: 'campo', versao: '1.0.17', publicada_em: null, fracao_liberada: true };
     },
   }),
 }));
@@ -64,9 +64,9 @@ describe('BotaoVerificarAtualizacao (item 19)', () => {
     renderToStaticMarkup(createElement(BotaoVerificarAtualizacao));
     sim.toques.at(-1)!();
     await new Promise((r) => setTimeout(r, 0));
-    expect(sim.pedidos).toEqual([['/app/versao', { variante: 'campo', contrato: '2' }]]);
+    expect(sim.pedidos).toEqual([['/app/versao', { variante: 'campo', contrato: '3' }]]);
     // a resposta vai para a versão guardada do app (a folha mostra a mesma versão)
-    expect(sim.recebidas).toEqual([{ variante: 'campo', versao: '1.0.17', publicada_em: null }]);
+    expect(sim.recebidas).toEqual([{ variante: 'campo', versao: '1.0.17', publicada_em: null, fracao_liberada: true }]);
   });
 
   it('T-0195: versão nova = "Versão 1.0.17 disponível", sem linha de instrução, e o toque abre a folha /atualizar-app', () => {

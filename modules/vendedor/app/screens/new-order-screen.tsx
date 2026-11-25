@@ -997,7 +997,7 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
                 : null
             }
             onConfirmar={(estado) => {
-              const r = aplicarItemNoRascunho(draft.lines, draft.ajustes ?? {}, popupId, unidadesDoProduto(popupId, app.unidades, byId.get(popupId)!.unit), estado);
+              const r = aplicarItemNoRascunho(draft.lines, draft.ajustes ?? {}, popupId, unidadesDoProduto(popupId, app.unidades, byId.get(popupId)!.unit), estado, ambiente.fracaoLiberada());
               setLinhas(r.lines, r.ajustes);
               setPopupId(null);
             }}

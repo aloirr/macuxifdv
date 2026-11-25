@@ -997,6 +997,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     usuario: () => ambiente.usuario(),
     consultar: ambiente.consultar,
     parametros: ambiente.parametros,
+    fracaoLiberada: () => ambiente.fracaoLiberada(),
   });
 
   // ---------- geração da base (ADR 0021) ----------
