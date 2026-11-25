@@ -156,3 +156,4 @@
 - 2026-11-25 (Manaus) — S7: reteste 0108 88b23c06f LIBERADO (RD-3705 a RD-3707 corrigidos); E6 nos módulos NÃO LIBERADO: core e6fb29e (RD-3708), pesquisa 06e19a1 (RD-3709), promotor e08cc5c (RD-3710, RD-3711), baixos. Relatório docs/qualidade/redundancias/2026-11-25-s7-perfis-modulos-e6.md.
 - 2026-11-25 (Manaus) — S7: renumeração 0105–0107 LIBERADO 64a7396 (#771) e 0108 LIBERADO 3bd7f4e, sem achado.
 - 2026-11-25 (Manaus) — S7: reteste E4b 5d21f97c7 (modulo-core) LIBERADO; RD-3716 a RD-3719 corrigidos; RD-3720 baixa (JSDoc órfão, só comentário) aberto para o próximo lote.
+- 2026-11-25 (Manaus) — S7: ensaio das migrações (governança) d02ebd533 NÃO LIBERADO; RD-3723 (média) e RD-3724 a RD-3728 (baixas). Relatório docs/qualidade/redundancias/2026-11-25-s7-ensaio-migracoes.md.
