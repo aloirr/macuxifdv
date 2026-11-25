@@ -6,7 +6,7 @@ import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { ALTURA, BotaoIcone, Button, Cartao, ChipEstado, colors, fonte, Icon, type IconName, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Clipboard, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from 'react-native';
-import { acoesDaTela, type AcaoProduto, type ContextoProduto, type ItemVitrine, type MiniaturaProduto as Miniatura } from '../../contracts';
+import { acoesDaTela, executarAcaoProduto, type AcaoProduto, type ContextoProduto, type ItemVitrine, type MiniaturaProduto as Miniatura } from '../../contracts';
 import { rotuloPreco } from '../lib/apresentacao';
 import { AVISO_CODIGO_COPIADO, copiarCodigo, rotuloAcessivelCopiar } from '../lib/copiar-codigo';
 import { estoqueCarregandoVisivel, LEITURA_ESTOQUE_CARREGANDO, TEXTO_ESTOQUE_CARREGANDO } from '../lib/carga-do-cartao';
@@ -18,6 +18,17 @@ import { MiniaturaProduto } from './miniatura';
 export function useAcoesProduto(dentroDoPedido = false): { id: string; payload: AcaoProduto }[] {
   const todas = useExtensoes<AcaoProduto>('produto.acoes').map((e) => ({ id: e.id, payload: e.payload }));
   return acoesDaTela(todas, dentroDoPedido);
+}
+
+/** Aviso único das telas: toast no Android, leitor de tela fora dele. */
+function avisarDaAcao(texto: string): void {
+  if (Platform.OS === 'android') ToastAndroid.show(texto, ToastAndroid.SHORT);
+  else AccessibilityInfo.announceForAccessibility(texto);
+}
+
+/** Toque na ação do slot, na lista e na ficha: é o único caminho, com o aviso das telas. */
+function tocarAcao(acao: AcaoProduto, ctx: ContextoProduto): Promise<void> {
+  return executarAcaoProduto(acao, ctx, avisarDaAcao);
 }
 
 export function contextoDoProduto(item: ItemVitrine, clienteId: string | null, pedidoEmCurso: string | null = null): ContextoProduto {
@@ -34,8 +45,7 @@ export function BotaoCopiarCodigo({ codigo }: { codigo: string }) {
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const copiar = async () => {
     const r = await copiarCodigo(codigo, (t) => Clipboard.setString(t));
-    if (Platform.OS === 'android') ToastAndroid.show(r.aviso, ToastAndroid.SHORT);
-    else AccessibilityInfo.announceForAccessibility(r.aviso);
+    avisarDaAcao(r.aviso);
     setCopiado(r.ok);
     if (timer.current) clearTimeout(timer.current);
     if (r.ok) timer.current = setTimeout(() => setCopiado(false), 2000);
@@ -70,7 +80,7 @@ export function BotoesAcao({ item, clienteId, pedidoEmCurso = null }: { item: It
           icon={a.payload.icone as IconName | undefined}
           variant={a.payload.destaque ? 'accent' : 'outline'}
           height={a.payload.destaque ? ALTURA.principal : ALTURA.toque}
-          onPress={() => a.payload.abrir(ctx)}
+          onPress={() => void tocarAcao(a.payload, ctx)}
         />
       ))}
     </View>
@@ -93,7 +103,7 @@ function BotoesAcaoDoCartao({ item, clienteId, pedidoEmCurso, acoes }: { item: I
           rotuloAcessivel={`${a.payload.rotulo}: ${item.description}`}
           tamanho={44}
           cor={colors.ink}
-          onPress={() => a.payload.abrir(ctx)}
+          onPress={() => void tocarAcao(a.payload, ctx)}
         />
       ))}
     </View>
