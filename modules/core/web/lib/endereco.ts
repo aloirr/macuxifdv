@@ -1,9 +1,9 @@
 /**
- * Formulário do endereço com o ponto no mapa (T-0191; RN-CORE-75): o mesmo componente na gaveta "Editar usuário" (casa) e no
- * diálogo "Endereço base" (Outro endereço). Puro: sem React nem rede. CEP com 8 dígitos e UF com 2 letras, como no cliente.
+ * Formulário do endereço (T-0191; RN-CORE-75): a casa do usuário nas gavetas "Novo usuário" e "Editar usuário", sem mapa, e a base
+ * das rotas ("Endereço base", Outro endereço), com o ponto no mapa. Puro: sem React nem rede. O Salvar exige `cepValido` (8 dígitos, sem 00000-000) e UF com 2 letras, como no cliente; a PESQUISA do CEP só exige o formato (`cepTemOitoDigitos`).
  */
 import { cepValido, ehUf, formatarCep, normalizarCep } from '@macuxi/comum/endereco';
-import type { Endereco } from '../../contracts';
+import { cepTemOitoDigitos, ERRO_CEP_INVALIDO, ERRO_CEP_RECUSADO, type Endereco } from '../../contracts';
 import { centroDosPontos } from '../../domain';
 
 export interface FormEndereco {
@@ -28,7 +28,7 @@ export const enderecoEmBranco = (f: FormEndereco): boolean => f.cep.trim() === '
 
 export function errosDoEndereco(f: FormEndereco, opcoes: { exigePonto: boolean }): Partial<Record<CampoEndereco, string>> {
   const e: Partial<Record<CampoEndereco, string>> = {};
-  if (!cepValido(f.cep)) e.cep = 'CEP com 8 dígitos.';
+  if (!cepValido(f.cep)) e.cep = cepTemOitoDigitos(f.cep) ? ERRO_CEP_RECUSADO : ERRO_CEP_INVALIDO;
   if (f.logradouro.trim() === '') e.logradouro = 'Informe a rua.';
   if (f.numero.trim() === '') e.numero = 'Informe o número (ou S/N).';
   if (f.bairro.trim() === '') e.bairro = 'Informe o bairro.';
@@ -49,3 +49,14 @@ export function centroDosClientes(pontos: ReadonlyArray<{ lat: number | null; ln
   const c = centroDosPontos(pontos);
   return c ? [c.lat!, c.lng!] : CENTRO_PADRAO;
 }
+
+/** Resultado da pesquisa no formulário: rua, bairro, cidade e UF vêm da resposta (vazio onde ela não trouxe); CEP, número e ponto ficam. */
+export function aplicarCep(f: FormEndereco, c: { logradouro: string; bairro: string; cidade: string; uf: string }): FormEndereco {
+  return { ...f, logradouro: c.logradouro, bairro: c.bairro, cidade: c.cidade, uf: c.uf };
+}
+
+/**
+ * RN-CORE-75 (R-20261124-191902-alexandre, item 08): o corpo da CASA não leva o ponto. Quem decide é a API: endereço mudou, o ponto
+ * antigo é apagado; endereço igual, o ponto gravado fica (`pontoDaCasaAposSalvar`). A base "Outro endereço" segue com `corpoDoEndereco`.
+ */
+export const corpoDaCasa = (f: FormEndereco): Endereco => ({ ...corpoDoEndereco(f), lat: null, lng: null });

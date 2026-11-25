@@ -24,6 +24,19 @@ export function casaDoUsuario(c: EnderecoCru): Endereco | null {
   return { cep: c.cep ?? '', logradouro: c.logradouro ?? '', numero: c.numero ?? '', bairro: c.bairro ?? '', cidade: c.cidade ?? '', uf: c.uf ?? '', lat: c.lat, lng: c.lng };
 }
 
+const CAMPOS_DO_ENDERECO = ['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf'] as const;
+
+/**
+ * RN-CORE-75 (decisão do dono do produto R-20261124-191902-alexandre, item 08): ao salvar a casa, se algum campo do endereço (CEP, rua,
+ * número, bairro, cidade, UF) mudou em relação ao gravado, o ponto antigo é apagado; se nada mudou, o ponto gravado fica.
+ * O ponto que a tela manda não conta.
+ */
+export function pontoDaCasaAposSalvar(gravada: EnderecoCru | null, nova: Pick<Endereco, (typeof CAMPOS_DO_ENDERECO)[number]>): { lat: number | null; lng: number | null } {
+  if (!gravada) return { lat: null, lng: null };
+  const igual = CAMPOS_DO_ENDERECO.every((c) => (gravada[c] ?? '').trim() === nova[c].trim());
+  return igual ? { lat: gravada.lat, lng: gravada.lng } : { lat: null, lng: null };
+}
+
 /**
  * RN-CORE-75: a base resolvida. `casa` usa o ponto da casa (sem ele, não há base); `outro` usa o ponto próprio; sem tipo = sem base.
  */

@@ -50,6 +50,7 @@ export * from './inicio-parametros';
 export * from './inicio-bko';
 export * from './nome';
 export * from './jornada';
+export * from './cep';
 export * from './alertas-produtividade';
 export * from './lembretes-produtividade';
 export * from './farol';

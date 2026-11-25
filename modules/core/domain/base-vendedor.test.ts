@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseResolvida, casaDoUsuario, linhaDoEndereco, perfilTemEndereco, resumoDaBase, type EnderecoCru } from './base-vendedor';
+import { baseResolvida, pontoDaCasaAposSalvar, casaDoUsuario, linhaDoEndereco, perfilTemEndereco, resumoDaBase, type EnderecoCru } from './base-vendedor';
 
 const casa: EnderecoCru = { cep: '69053000', logradouro: 'Rua das Palmeiras', numero: '100', bairro: 'Centro', cidade: 'Manaus', uf: 'AM', lat: -3.1, lng: -60.0 };
 const outro: EnderecoCru = { cep: '69010000', logradouro: 'Av. Eduardo Ribeiro', numero: '5', bairro: 'Centro', cidade: 'Manaus', uf: 'AM', lat: -3.13, lng: -60.02 };
@@ -37,5 +37,20 @@ describe('RN-CORE-75: o endereço numa linha', () => {
   it('RN-CORE-75: rua, número, bairro e cidade/UF separados por ponto médio, sem sobras quando falta parte', () => {
     expect(linhaDoEndereco({ logradouro: 'Rua das Palmeiras', numero: '100', bairro: 'Parque 10', cidade: 'Manaus', uf: 'AM' })).toBe('Rua das Palmeiras, 100 · Parque 10 · Manaus/AM');
     expect(linhaDoEndereco({ logradouro: '', numero: '', bairro: '', cidade: 'Manaus', uf: '' })).toBe('Manaus');
+  });
+});
+
+describe('RN-CORE-75 (R-20261124-191902-alexandre, item 08): mudar o endereço da casa apaga o ponto', () => {
+  const gravada: EnderecoCru = { cep: '69053000', logradouro: 'Av. Djalma Batista', numero: '12', bairro: 'Flores', cidade: 'Manaus', uf: 'AM', lat: -3.1, lng: -60 };
+  const nova = { cep: '69053000', logradouro: 'Av. Djalma Batista', numero: '12', bairro: 'Flores', cidade: 'Manaus', uf: 'AM' };
+
+  it('RN-CORE-75: endereço igual mantém o ponto gravado (o que a tela manda não conta)', () => {
+    expect(pontoDaCasaAposSalvar(gravada, nova)).toEqual({ lat: -3.1, lng: -60 });
+  });
+  it.each(['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf'] as const)('RN-CORE-75: mudou %s, o ponto é apagado', (campo) => {
+    expect(pontoDaCasaAposSalvar(gravada, { ...nova, [campo]: 'X' })).toEqual({ lat: null, lng: null });
+  });
+  it('RN-CORE-75: sem casa gravada, o ponto fica nulo', () => {
+    expect(pontoDaCasaAposSalvar(null, nova)).toEqual({ lat: null, lng: null });
   });
 });

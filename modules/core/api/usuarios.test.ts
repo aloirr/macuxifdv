@@ -124,6 +124,12 @@ describe('RF-CORE-02: criar usuário', () => {
     [/from core.usuario u left join/, [linhaItem({ equipe_id: EQUIPE, equipe_nome: 'Equipe 1', external_id: 'V-100' })]],
   ];
 
+  it('RN-CORE-44: criar com horário de almoço inválido dá 422 e não grava (a criação aceita o horário próprio)', async () => {
+    const { db, chamadas } = fakeDb(respostas);
+    await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, filial_cadastro_id: FIL, almoco_inicio_min: 780, almoco_fim_min: 720 } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS' });
+    expect(chamadas.some((c) => /insert into core.usuario/.test(c.sql))).toBe(false);
+  });
+
   it('RN-CORE-39: criar sem filial de cadastro dá 422 e não grava; quem não é admin nem analista leva 403', async () => {
     const { db, chamadas } = fakeDb(respostas);
     const { filial_cadastro_id: _f, ...semFilial } = { ...corpo, filial_cadastro_id: FIL };

@@ -172,11 +172,12 @@ describe.skipIf(semBanco())('Core T-0191 × Postgres: base, prévia, lote e Gera
   describe('endereço da casa e base (RN-CORE-75)', () => {
     it('RN-CORE-75: a casa se grava e se lê (CEP normalizado), o vendedor só vê a casa de quem o escopo deixa e não há endereço na auditoria', async () => {
       const salvo = await chamar('PUT', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor1 }, corpo: { endereco: { ...ENDERECO_CASA, cep: '69053-000' } } });
-      expect(salvo.endereco).toMatchObject({ cep: '69053000', logradouro: 'Rua das Palmeiras', uf: 'AM', lat: BASE.lat, lng: BASE.lng });
+      expect(salvo.endereco).toMatchObject({ cep: '69053000', logradouro: 'Rua das Palmeiras', uf: 'AM', lat: null, lng: null }); // RN-CORE-75 (item 08): o ponto que a tela manda não conta; a casa nova nasce sem ponto
+      await sql('update core.usuario set casa_lat = $2, casa_lng = $3 where id = $1', [U.vendedor1, BASE.lat, BASE.lng]); // ponto já gravado no cadastro (a tela não marca mais)
       expect((await chamar('GET', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor1 } })).endereco).toMatchObject({ cidade: 'Manaus' });
       expect((await chamar('GET', 'usuarios/:id/endereco', supervisor, { params: { id: U.vendedor1 } })).endereco).toMatchObject({ cep: '69053000' });
       const aud = await sql<{ antes: unknown; depois: unknown }>("select antes, depois from plataforma.auditoria where acao = 'usuario.endereco_editar' and entidade_id = $1 order by created_at desc limit 1", [U.vendedor1]);
-      expect(aud[0]!.depois).toEqual({ definido: true, ponto_marcado: true });
+      expect(aud[0]!.depois).toEqual({ definido: true, ponto_marcado: false });
       for (const t of TEXTOS_DO_ENDERECO) expect(JSON.stringify(aud)).not.toContain(t);
     });
 
@@ -201,6 +202,31 @@ describe.skipIf(semBanco())('Core T-0191 × Postgres: base, prévia, lote e Gera
       await rejeita(chamar('PUT', 'usuarios/:id/base', adminB, { params: { id: U.vendedor1 }, corpo: { tipo: 'outro', endereco: ENDERECO_OUTRO } }), ErroNaoEncontrado, 'USUARIO_NAO_ENCONTRADO');
       const idsDoA = new Set(Object.values(U));
       expect(Object.keys((await chamar('GET', 'rotas', adminB)).bases).filter((id) => idsDoA.has(id))).toEqual([]);
+    });
+
+    it('RN-CORE-75 (decisão R-20261124-191902, item 08): mudar o endereço apaga o ponto; reenviar o mesmo endereço mantém, mesmo se a tela mandar outro ponto', async () => {
+      const ponto = async () => (await sql<{ casa_lat: number | null; casa_lng: number | null }>('select casa_lat::float8 as casa_lat, casa_lng::float8 as casa_lng from core.usuario where id = $1', [U.vendedor2]))[0]!;
+      await chamar('PUT', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor2 }, corpo: { endereco: ENDERECO_CASA } });
+      await sql('update core.usuario set casa_lat = $2, casa_lng = $3 where id = $1', [U.vendedor2, BASE.lat, BASE.lng]);
+      await chamar('PUT', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor2 }, corpo: { endereco: { ...ENDERECO_CASA, cep: '69053-000', lat: -9, lng: -9 } } });
+      expect(await ponto()).toEqual({ casa_lat: BASE.lat, casa_lng: BASE.lng });
+      await sql('update core.usuario set casa_lat = $2, casa_lng = $3 where id = $1', [U.vendedor2, BASE.lat, BASE.lng]);
+      await chamar('PUT', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor2 }, corpo: { endereco: { ...ENDERECO_CASA, cep: '69010000' } } });
+      expect(await ponto()).toEqual({ casa_lat: null, casa_lng: null });
+      await chamar('PUT', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor2 }, corpo: { endereco: ENDERECO_CASA } });
+    });
+
+    it('RN-CORE-75 (item 08): com a base Casa, o endereço novo é localizado pela porta de geocodificação; sem achar, fica sem ponto (sem base)', async () => {
+      await sql('update core.usuario set casa_lat = $2, casa_lng = $3, base_tipo = $4 where id = $1', [U.vendedor2, BASE.lat, BASE.lng, 'casa']);
+      chamadasGeocodificador.length = 0;
+      respostaGeocodificador = async () => ({ lat: -3.2, lng: -60.2, precisao: 'numero' });
+      await chamar('PUT', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor2 }, corpo: { endereco: { ...ENDERECO_CASA, numero: '999' } } });
+      expect(chamadasGeocodificador).toHaveLength(1);
+      expect((await chamar('GET', 'usuarios/:id/base', analista, { params: { id: U.vendedor2 } })).base).toMatchObject({ tipo: 'casa', numero: '999', lat: -3.2, lng: -60.2 });
+      respostaGeocodificador = async () => null;
+      await chamar('PUT', 'usuarios/:id/endereco', admin, { params: { id: U.vendedor2 }, corpo: { endereco: { ...ENDERECO_CASA, numero: '1000' } } });
+      expect((await chamar('GET', 'usuarios/:id/base', analista, { params: { id: U.vendedor2 } })).base).toBeNull();
+      await sql('update core.usuario set base_tipo = null where id = $1', [U.vendedor2]);
     });
 
     it('RN-CORE-75: base Casa sem o ponto da casa marcado é 422 BASE_SEM_PONTO; com o ponto usa a casa; Outro endereço usa o ponto próprio; troca grava base_alterada_em e audita', async () => {

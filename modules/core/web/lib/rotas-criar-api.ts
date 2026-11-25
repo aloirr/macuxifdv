@@ -6,14 +6,17 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
+import { normalizarCep } from '@macuxi/comum/endereco';
 import {
   BaseDoUsuarioRespostaSchema,
+  CepEncontradoSchema,
   EnderecoBaseSchema,
   EnderecoCasaRespostaSchema,
   GerarCoordenadaRespostaSchema,
   PreviaRotaRespostaSchema,
   RotasListaSchema,
   SalvarRotasLoteRespostaSchema,
+  type CepEncontrado,
   type PreviaRotaPedido,
   type SalvarBase,
   type SalvarRotasLote,
@@ -91,4 +94,9 @@ export function useGerarCoordenada() {
       await qc.invalidateQueries({ queryKey: ['core', 'coordenadas-sugeridas'] });
     },
   });
+}
+
+/** `GET /core/cep?cep=` (o servidor consulta BrasilAPI e ViaCEP): rua, bairro, cidade e UF do CEP. */
+export async function pesquisarCep(cep: string): Promise<CepEncontrado> {
+  return CepEncontradoSchema.parse(await api<unknown>('/core/cep', { query: { cep: normalizarCep(cep) } }));
 }

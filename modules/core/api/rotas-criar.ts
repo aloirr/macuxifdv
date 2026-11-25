@@ -32,6 +32,7 @@ import {
   decidirGeracaoDeCoordenada,
   limiteVisitasPorDia,
   perfilTemEndereco,
+  pontoDaCasaAposSalvar,
   rotaProtegida,
   totaisDaPrevia,
   type ClienteParaRota,
@@ -46,8 +47,6 @@ import { linhasVivas } from './metas-produtividade';
 const IdParam = z.object({ id: z.string().uuid() });
 
 // ---------- endereço da casa e base (RN-CORE-75) ----------
-
-const COLUNAS_CASA = ['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'lat', 'lng'] as const;
 
 async function usuarioComEndereco(ctx: ContextoBase, db: ClienteBanco, id: string) {
   await checarUsuario(ctx, db, id);
@@ -73,15 +72,33 @@ const rotasDeEnderecoEBase: RotaModulo[] = [
     carteira: 'filtrar_no_dominio',
     params: IdParam,
     corpo: SalvarEnderecoCasaSchema,
-    executar: (ctx): Promise<EnderecoCasaResposta> =>
-      ctx.comTenant(async (db) => {
+    executar: async (ctx): Promise<EnderecoCasaResposta> => {
+      const e = ctx.corpo.endereco;
+      const lido = await ctx.comTenant(async (db) => {
         const antes = await usuarioComEndereco(ctx, db, ctx.params.id);
         if (!perfilTemEndereco(antes.perfil)) throw new ErroRegraNegocio('USUARIO_SEM_ENDERECO', 'Só vendedor e promotor têm endereço de casa. Escolha outro usuário.');
-        const e = ctx.corpo.endereco;
-        const valores = COLUNAS_CASA.map((c) => e?.[c] ?? null);
+        return antes;
+      });
+      // RN-CORE-75 (item 08): a base Casa passa a ser o endereço novo; sem ponto, localiza o endereço (mesma porta do cliente, fora da transação)
+      let localizado: { lat: number; lng: number } | null = null;
+      if (e && lido.base_tipo === 'casa' && pontoDaCasaAposSalvar(casaDaLinha(lido), e).lat === null && ctx.geocodificador?.disponivel()) {
+        try {
+          const achou = await ctx.geocodificador.localizar({ logradouro: e.logradouro, numero: e.numero, bairro: e.bairro, cidade: e.cidade, uf: e.uf, cep: e.cep });
+          if (achou) localizado = { lat: arredondarCoordenada(achou.lat), lng: arredondarCoordenada(achou.lng) };
+        } catch (erro) {
+          ctx.log.warn({ usuario_id: ctx.params.id, motivo: erro instanceof Error ? erro.name : 'desconhecido' }, 'geocodificação do endereço de casa falhou');
+          localizado = null; // serviço fora: o endereço salva sem ponto e a base fica sem ponto até a próxima tentativa
+        }
+      }
+      return ctx.comTenant(async (db) => {
+        const antes = await usuarioComEndereco(ctx, db, ctx.params.id);
+        // RN-CORE-75: o ponto vem do banco e do endereço, nunca da tela
+        const ponto = e ? pontoDaCasaAposSalvar(casaDaLinha(antes), e) : { lat: null, lng: null };
+        const lat = ponto.lat ?? localizado?.lat ?? null;
+        const lng = ponto.lng ?? localizado?.lng ?? null;
         await db.query(
           `update core.usuario set casa_cep = $2, casa_logradouro = $3, casa_numero = $4, casa_bairro = $5, casa_cidade = $6, casa_uf = $7, casa_lat = $8, casa_lng = $9 where id = $1`,
-          [ctx.params.id, ...valores],
+          [ctx.params.id, e?.cep ?? null, e?.logradouro ?? null, e?.numero ?? null, e?.bairro ?? null, e?.cidade ?? null, e?.uf ?? null, lat, lng],
         );
         // sem o endereço: só se há casa e se o ponto está marcado
         await auditar(db, ctx, {
@@ -89,10 +106,11 @@ const rotasDeEnderecoEBase: RotaModulo[] = [
           entidade: 'usuario',
           entidadeId: ctx.params.id,
           antes: { definido: casaDaLinha(antes) !== null },
-          depois: { definido: e !== null, ponto_marcado: e?.lat != null },
+          depois: { definido: e !== null, ponto_marcado: lat !== null },
         });
         return EnderecoCasaRespostaSchema.parse({ endereco: casaDaLinha(await usuarioComEndereco(ctx, db, ctx.params.id)) });
-      }),
+      });
+    },
   },
   {
     // o diálogo "Endereço base" lê a casa e a base de quem pode editar rotas (o analista pode não ter `usuario.ver`)
