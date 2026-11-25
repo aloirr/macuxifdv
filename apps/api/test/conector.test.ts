@@ -8,6 +8,7 @@ import { Writable } from 'node:stream';
 import { manifest as catalogo } from '@macuxi/catalogo/manifest';
 import { manifest as integracao } from '@macuxi/integracao/manifest';
 import {
+  CABECALHO_APP,
   definirApiConector,
   definirModuloApi,
   ErroConector,
@@ -17,6 +18,7 @@ import {
   type ClienteBanco,
   type ModuloApi,
   type ModuloId,
+  valorCabecalhoApp,
 } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { describe, expect, it } from 'vitest';
@@ -92,6 +94,16 @@ const conectorApi: ApiConector = definirApiConector<ConectorFixture>({
     },
     { id: 'sinal', metodo: 'POST', caminho: '/sinal', corpo: z.object({ versao_conector: z.string() }), executar: async (ctx) => ({ ok: true, versao: ctx.corpo.versao_conector }) },
     { id: 'pequena', metodo: 'POST', caminho: '/pequena', executar: async () => ({ ok: true }) },
+    {
+      id: 'versao_app',
+      metodo: 'GET',
+      caminho: '/versao-app',
+      executar: async (ctx) => ({
+        cliente: ctx.versaoApp ? ctx.versaoApp.doCliente : 'sem porta',
+        campo: (await ctx.versaoApp?.publicada('campo')) ?? null,
+        gestao: (await ctx.versaoApp?.publicada('gestao')) ?? null,
+      }),
+    },
     {
       id: 'conflito',
       metodo: 'POST',
@@ -366,6 +378,17 @@ describe('rotas de Conector /integracao/v1 (ADR 0013, T-0032)', () => {
     expect(log).not.toMatch(/"detail"|"where"|duplicate key/);
     const erro = linhas.map((l) => JSON.parse(l) as { msg?: string; err?: Record<string, unknown> }).find((l) => l.msg?.startsWith('erro não tratado'));
     expect(erro?.err).toEqual({ type: 'DatabaseError', code: '23505', message: 'erro do Postgres (SQLSTATE 23505)', constraint: 'contato_email_key', table: 'contato' });
+  });
+
+  it('ADR 0076 D6: ctx.versaoApp traz as versões publicadas do Campo e do Gestão (a fonte do 426); doCliente sempre null', async () => {
+    const campo = { versao: '1.0.35', publicada_em: '2026-11-26T10:00:00.000Z' };
+    const app = montar({ versoesApp: { campo: { variante: 'campo', ...campo }, gestao: { variante: 'gestao', versao: '1.0.36', publicada_em: null } } });
+    // o cabeçalho do app não vale no Conector: ele não é o app
+    const r = await app.inject({ method: 'GET', url: '/integracao/v1/versao-app', headers: { ...cabA, [CABECALHO_APP]: valorCabecalhoApp('campo', '1.0.35') } });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toEqual({ cliente: null, campo, gestao: { versao: '1.0.36', publicada_em: null } });
+    const semVersao = await montar({ versoesApp: {} }).inject({ method: 'GET', url: '/integracao/v1/versao-app', headers: cabA });
+    expect(semVersao.json()).toEqual({ cliente: null, campo: null, gestao: null });
   });
 
   it('createApp recusa rotas de Conector em módulo sem apps.conector (fixture montada sem definirModuloApi)', () => {

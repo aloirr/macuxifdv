@@ -789,7 +789,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     for (const rota of m.rotasPublicas ?? [])
       montarRotaPublica(app, m.manifesto.id, rota.conexao === 'portal' ? (bancoPortal ?? null) : acesso, relogio, rota, email, sessaoWeb);
     // ADR 0013: rotas do Conector em /<modulo>/v1 (chave de API, licença do tenant da chave)
-    if (m.conector) registrarConector(app, m, { manifestos, acesso, relogio, licencasTenant: op.licencasTenant ?? licencasDoTenantNoBanco });
+    if (m.conector) registrarConector(app, m, { manifestos, acesso, relogio, licencasTenant: op.licencasTenant ?? licencasDoTenantNoBanco, versoesApp: fonteVersoesApp });
   }
 
   return app;
