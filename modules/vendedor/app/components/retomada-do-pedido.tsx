@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 
 import { rascunhoParaRetomar, textoAlteradoEm, textoDeItens, TEXTOS_DA_SAIDA } from '../../domain/sair-do-pedido';
 import { criarRepositorio } from '../lib/repositorio';
+import { rascunhoIdNaRota } from '../../domain/rascunhos';
 import { irParaNovoPedido } from '../rotas';
 
 /** Uma oferta por abertura do app: "Agora não" não pergunta de novo até o sistema fechar o app outra vez. */
@@ -64,7 +65,7 @@ export function RetomadaDoPedido() {
       onAcao={(acao) => {
         const o = oferta;
         fechar();
-        if (acao === 'continuar') irParaNovoPedido({ customerId: o.customerId });
+        if (acao === 'continuar') irParaNovoPedido({ customerId: o.customerId, rascunhoId: rascunhoIdNaRota(o.chave, o.customerId) });
         else if (acao === 'descartar' && motor) void criarRepositorio(motor.armazenamentoDoModulo('vendedor')).limparRascunho(o.chave);
       }}
     />

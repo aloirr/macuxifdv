@@ -58,6 +58,9 @@ import {
   type Recusa,
   type PrazoGravado,
 } from '../domain';
+import { enviadoAoErp } from '../domain/order';
+import { verificarAcaoDaLista } from '../domain/acoes-da-lista';
+import { MENSAGEM_CLIENTE_FORA_DA_CARTEIRA } from '../domain/orcamento';
 import { payloadAprovado } from './aprovado-erp';
 import { financeiroDoCliente } from './financeiro-aprovacao';
 import { gravarAprovacoes } from './aprovacoes';
@@ -319,6 +322,8 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   const situacao = situacaoDoEnvio({ existente: ja ? { dono_id: ja.autor_id ?? ja.vendedor_id, status: ja.status, hash_envio: ja.hash_envio } : undefined, eu, hash });
   if (situacao === 'id_em_uso') return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
   if (situacao === 'idempotente') return aceito(item.id, await relogioDoBanco(db));
+  // RN-VEN-48: pedido já enviado ao ERP não se edita pelo reenvio; a recusa é a mesma da lista de Pedidos
+  if (situacao === 'conflito' && enviadoAoErp(ja!.status)) return recusa(item.id, verificarAcaoDaLista('editar', { tipo: 'pedido', status: ja!.status })!);
   if (situacao === 'conflito') {
     return { id: item.id, status: 'conflito', mensagem: 'Este pedido já foi recebido com outro conteúdo. Duplique-o para fazer um novo.', atual: { id: p.id, status: ja!.status, numero: ja!.numero } };
   }
@@ -327,7 +332,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   // 3) carteira
   const carteira = await ctx.carteira();
   if (carteira !== 'tenant' && !carteira.has(p.customer_id)) {
-    return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.');
+    return rejeitado(item.id, 'FORA_DA_CARTEIRA', MENSAGEM_CLIENTE_FORA_DA_CARTEIRA);
   }
   if (!UUID.test(p.customer_id) || p.items.some((i) => !UUID.test(i.product_id))) {
     return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'Cliente ou produto com identificador inválido.');

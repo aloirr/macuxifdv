@@ -11,15 +11,21 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
   const bloco = hook.slice(hook.indexOf('const enviarPedido = useCallback('), hook.indexOf('const unidadesTransportadoras'));
 
   it('RN-VEN-30: salvar grava na fila com o UUID do aparelho e devolve na hora, sem esperar o envio (com ou sem sinal)', () => {
-    expect(bloco).toContain('const id = ambiente.novoId()');
+    expect(bloco).toContain('const id = idDoPedidoNoEnvio(chave, cliente.id, ambiente.novoId())');
     expect(bloco).toContain("motor.enfileirar({ id, entidade: 'pedido'");
     expect(bloco).not.toContain('await motor.enviar()');
     expect(bloco).toContain('return { kind: \'queued\', id }');
   });
 
   it('RN-CORE-23 item 2: com sinal o envio sobe sozinho, em segundo plano, pela fila comum do motor', () => {
-    expect(bloco).toContain('if (ambiente.online()) void seguirEnvioEmSegundoPlano(id)');
+    expect(bloco).toContain('if (!aguardarEnvio && ambiente.online()) void seguirEnvioEmSegundoPlano(id)');
     expect(hook).toContain('(await motor.enviar()).find((x) => x.id === id)');
+  });
+
+  it('D-S9-1 (RN-VEN-48): o Enviar do pedido salvo espera o servidor e devolve "sent"; sem sinal ou recusa, "queued"', () => {
+    expect(bloco).toContain('aguardarEnvio && ambiente.online() && (await seguirEnvioEmSegundoPlano(id))');
+    expect(bloco).toContain("return { kind: 'sent', order: det }");
+    expect(hook).toContain('return await enviarPedido(r, cliente, catalogo, chave, true, preparado)');
   });
 
   it('RN-VEN-30: a recusa da API não descarta o pedido: ele fica na fila como não aceito, para corrigir', () => {
@@ -32,13 +38,12 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
     expect(hook).toContain("motor.enviar({ incluirFalhos: true })");
   });
 
-  it('RN-VEN-30: a tela fecha na hora e vai para a ficha (com check-in) ou para Pedidos, não para o detalhe do pedido', () => {
-    const envio = tela.slice(tela.indexOf('const send = async'), tela.indexOf('const docEdicao'));
-    expect(envio).toContain('destinoAposSalvar(');
+  it('RN-VEN-30: a tela fecha na hora e vai para Pedidos (com ou sem check-in), não para o detalhe do pedido', () => {
+    const envio = tela.slice(tela.indexOf('const irParaPedidosAposSalvar'), tela.indexOf('const docEdicao'));
     expect(envio).not.toContain('hrefPedido(destino)');
+    expect(envio).not.toContain('hrefFichaDoCliente');
     expect(envio).toContain('hrefPedidos()');
-    expect(envio.indexOf('destinoAposSalvar(')).toBeLessThan(envio.indexOf('setSent('));
-    expect(envio.indexOf('router.replace')).toBeLessThan(envio.indexOf('setSent('));
+    expect(envio.indexOf('irParaPedidosAposSalvar()')).toBeLessThan(envio.indexOf('setSent('));
   });
 
   it('RF-VEN-04: o detalhe na fila é só de leitura (faixa "Pedido salvo · enviando", sem Editar); o recusado mostra "Corrigir pedido"', () => {

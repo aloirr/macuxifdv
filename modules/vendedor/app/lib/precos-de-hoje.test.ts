@@ -43,7 +43,7 @@ describe('RN-VEN-18: folha "Preços de hoje" (T-0141 G, prancha 2)', () => {
     expect(f.mudaram[0]!.valor).toMatch(/^R\$\s23,22 → R\$\s24,30$/);
     expect(f.mudaram[1]!.valor).toMatch(/^R\$\s39,60 → R\$\s40,66$/);
     expect(f.verTodos).toBeNull();
-    expect(f.acao).toBe('Transformar com os preços de hoje');
+    expect(f.acao).toBe('Converter com os preços de hoje');
     expect(f.semPreco).toEqual([]);
   });
   it('RN-VEN-18: mais de 8 itens: mostra 8 e "Ver os 12 itens"', () => {
@@ -53,13 +53,13 @@ describe('RN-VEN-18: folha "Preços de hoje" (T-0141 G, prancha 2)', () => {
     expect(f.verTodos).toBe('Ver os 12 itens');
     expect(folhaPrecosDeHoje({ ...base, todos: true, r: reconf({ itens_hoje: itens, total_hoje_cents: 8000 }) })!.mudaram).toHaveLength(12);
   });
-  it('RN-VEN-18: item sem preço hoje aparece em "Sem preço hoje" e o principal vira "Transformar sem este item" (2 ou mais: "estes itens")', () => {
+  it('RN-VEN-18: item sem preço hoje aparece em "Sem preço hoje" e o principal vira "Converter sem este item" (2 ou mais: "estes itens")', () => {
     const sem = (id: string): MudancaNaConversao => ({ tipo: 'sem_preco', produto_id: id });
     const um = folhaPrecosDeHoje({ ...base, r: reconf({ mudancas: [sem('agua')] }) })!;
     expect(um.semPreco).toEqual(['Água mineral 1,5 L']);
-    expect(um.acao).toBe('Transformar sem este item');
+    expect(um.acao).toBe('Converter sem este item');
     const dois = folhaPrecosDeHoje({ ...base, r: reconf({ mudancas: [sem('agua'), sem('acucar')] }) })!;
-    expect(dois.acao).toBe('Transformar sem estes itens');
+    expect(dois.acao).toBe('Converter sem estes itens');
   });
   it('RN-VEN-18: com bloqueio (abaixo do mínimo, estoque, cliente) a folha é a da conferência, não esta', () => {
     expect(folhaPrecosDeHoje({ ...base, r: reconf({ bloqueio: 'Um item ficou abaixo do preço mínimo de hoje.' }) })).toBeNull();

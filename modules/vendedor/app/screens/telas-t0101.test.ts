@@ -57,7 +57,8 @@ describe('T-0127 (RN-CORE-36, RN-VEN-16): pendências só no Resumo', () => {
     expect(s).toContain('abasDoPedido(calculo.linhas.length)');
     expect(s).toContain('pendenciasDasAbasTentadas(pendencias.filter(');
     expect(s).toContain(', tentou)');
-    expect(s).toContain('botoesDoResumo(');
+    expect(s).toContain('botoesDoSalvarNovo(');
+    expect(s).toContain('botoesDaEdicao(');
   });
   it('RN-VEN-13 (T-0129): o crédito do cliente é carregado ao abrir o pedido, não só na aba Venda', () => {
     const efeito = s.slice(s.indexOf('void creditoDoCliente(customerId)') - 120, s.indexOf('void creditoDoCliente(customerId)'));
@@ -90,15 +91,18 @@ describe('T-0136 (RF-VEN-11): Novo pedido em 4 abas', () => {
   });
 });
 
-describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo e os 4 botões', () => {
+describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo, com só Salvar e Cancelar', () => {
   const s = fonte('new-order-screen.tsx');
   const abas = fonte('../components/novo-pedido-abas.tsx');
-  it('RN-VEN-38: acabou a folha intermediária "Salvar pedido"; cada botão faz o que diz em 1 toque', () => {
-    expect(s).not.toContain('FolhaSalvar');
-    expect(s).not.toContain('salvarAberto');
-    expect(abas).not.toContain('FolhaSalvar');
-    expect(s).toContain("sendRef.current('pedido')");
-    expect(s).toContain("sendRef.current('orcamento')");
+  it('RN-VEN-38: o Resumo do Novo pedido tem só Salvar e Cancelar; o Salvar abre Orçamento / Pedido ou grava direto', () => {
+    for (const antigo of ['Salvar e enviar', 'Apenas salvar', 'Salvar como orçamento', 'botoesDoResumo']) {
+      expect(s).not.toContain(antigo);
+      expect(abas).not.toContain(antigo);
+    }
+    expect(s).toContain('botoesNovo.direto');
+    expect(s).toContain('<FolhaDeOpcoes');
+    expect(s).toContain("sendRef.current()");
+    expect(abas).toContain("testID: 'salvar-pedido'");
   });
   it('RF-VEN-11: o desconto é só o DescontoCompacto do kit (no item e no geral), sem os 4 botões grandes nem o campo com − e +', () => {
     expect(fonte('../components/desconto-geral.tsx')).toContain('<DescontoCompacto');
@@ -110,9 +114,12 @@ describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo e os 4 botões', () => 
     for (const id of ['resumo-venda', 'resumo-itens', 'resumo-entrega', 'resumo-obs']) expect(abas).toContain(`testID="${id}"`);
     expect(abas).toContain('resumo-cliente');
   });
-  it('RN-VEN-38: a folha Sair do pedido trata Apenas salvar e Apenas salvar não exige o Resumo sem pendência', () => {
-    expect(s).toContain("acao === 'apenas_salvar'");
-    expect(fonte('../components/saida-do-pedido.tsx')).toContain('apenasSalvar=');
+  it('RN-VEN-38: a folha Sair do pedido segue o mesmo Salvar (pedido e orçamento); o pedido salvo não exige o Resumo sem pendência', () => {
+    expect(s).toContain("acao === 'salvar'");
+    expect(s).toContain('salvarPedido(destinoDaSaida())');
+    const saida = fonte('../components/saida-do-pedido.tsx');
+    expect(saida).toContain('opcoes.pedido');
+    expect(saida).not.toContain('apenasSalvar=');
   });
   it('revisão técnica T-0089 (🟡): confirmar o campo não depende de setTimeout; salvar usa o rascunho do render seguinte', () => {
     expect(s).not.toContain('setTimeout(fn');

@@ -13,9 +13,9 @@ export const TEXTOS_PRECOS_DE_HOJE = {
   diferenca: 'Diferença',
   mudaram: 'Mudaram',
   semPrecoHoje: 'Sem preço hoje',
-  acao: 'Transformar com os preços de hoje',
-  acaoSemUm: 'Transformar sem este item',
-  acaoSemVarios: 'Transformar sem estes itens',
+  acao: 'Converter com os preços de hoje',
+  acaoSemUm: 'Converter sem este item',
+  acaoSemVarios: 'Converter sem estes itens',
   apoioDoBotao: 'Entra pelos preços de hoje',
   voltar: 'Voltar',
 } as const;

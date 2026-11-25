@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { CancelarOrcamentoRequest, EditarOrcamentoRequest, PedidoPush } from '../contracts';
-import { acoesDoOrcamento, conteudoDoEnvio, precoDoOrcamentoVale, situacaoDoOrcamento, validadeDoPreco, validadeOrcamentoDias } from '../domain';
+import { MENSAGEM_CLIENTE_FORA_DA_CARTEIRA, acoesDoOrcamento, conteudoDoEnvio, precoDoOrcamentoVale, situacaoDoOrcamento, validadeDoPreco, validadeOrcamentoDias } from '../domain';
 import { calcularDocumento } from './receber';
 import { valoresPagamento, valorPercentualPrazo } from './pagamento';
 import { preVenda } from './pre-venda';
@@ -76,7 +76,7 @@ export const rotaEditarOrcamento: RotaModulo = {
       if (!atual) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
       const carteira = await ctx.carteira();
       if (carteira !== 'tenant' && !carteira.has(p.customer_id)) {
-        throw new ErroHttpModulo(403, 'FORA_DA_CARTEIRA', 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.');
+        throw new ErroHttpModulo(403, 'FORA_DA_CARTEIRA', MENSAGEM_CLIENTE_FORA_DA_CARTEIRA);
       }
       if (p.customer_id !== atual.cliente_id) throw new ErroHttpModulo(422, 'PAYLOAD_INVALIDO', 'O orçamento não troca de cliente: duplique para fazer um novo.');
       const doc = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id);

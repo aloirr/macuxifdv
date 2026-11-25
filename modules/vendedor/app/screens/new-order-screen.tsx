@@ -1,12 +1,12 @@
 /**
  * Novo pedido de distribuidora (T-0061/T-0071/T-0089/T-0136/T-0137), em 4 abas: Venda, Itens, Entrega e Resumo. O Resumo é completo
- * (só leitura, desconto do pedido numa linha) e traz os botões Salvar e enviar pedido, Apenas salvar, Salvar como orçamento e Cancelar
- * (`botoesDoResumo`); não há folha intermediária.
+ * (só leitura, desconto do pedido numa linha) e traz só Salvar e Cancelar (`botoesDoSalvarNovo`, RN-VEN-38): o Salvar grava direto
+ * ou abre a folha Orçamento / Pedido; o Pedido fica salvo, sem enviar (o envio é da aba Pedidos, RN-VEN-48). Na edição, `botoesDaEdicao`.
  * Preço da tabela do cliente, medidas (UN/CX), endereços e transportadoras vêm das linhas locais (funciona sem sinal).
  * Preço, desconto e acréscimo por item e por pedido, desconto efetivo e alçada: domain de preço (`lib/novo-pedido`), a mesma
  * regra que a API revalida. Frete CIF/FOB sem valor (RN-VEN-16); endereço de entrega do cadastro (RN-VEN-17).
  * Modo edição (`editId`): "Editar pedido 10xxx", mesmo cliente; rascunho em `edit:<id>` (preenchido pelo detalhe).
- * Duplicar chega aqui como novo pedido com o rascunho do cliente já preenchido.
+ * Duplicar chega aqui como novo pedido com o rascunho do cliente já preenchido; o pedido salvo e a cópia dele abrem pela chave própria (`rascunhoId`, RN-VEN-48).
  */
 import { ROTULO_BUSCA_CLIENTE } from '@macuxi/core/contracts';
 import { formatarDocumento } from '@macuxi/comum';
@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { OrderDetail } from '../../contracts';
-import { botoesDoResumo, PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
+import { botoesDaEdicao, botoesDoSalvarNovo, PERGUNTA_DA_ALCADA, perguntaDaAlcada, type QualSalvar } from '../../domain/botoes-resumo';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasDiferentesDoGeral, type AjusteGeral } from '../../domain/desconto-geral';
 import { podeEnviarPedido } from '../../domain/quantidade';
@@ -36,11 +36,11 @@ import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, rascunhoMantendoPrecoFinal, situacaoDoPagamento } from '../lib/pagamento-pedido';
 import { enderecoDoRascunho } from '../lib/endereco-pedido';
 import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
-import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
+import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_ORCAMENTO_SALVO, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA, type ItemBuscaCatalogo } from '../lib/busca-catalogo';
 import { alertasDoNovoPedido, alertasNaAba, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
-import { impedeEnviarPorAlertas, soOrcamentoPorAlertas, vencidosComEfeito } from '../../domain/alertas-pedido';
+import { vencidosComEfeito } from '../../domain/alertas-pedido';
 import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
 import { DescontoGeral } from '../components/desconto-geral';
@@ -53,12 +53,12 @@ import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
 import { congeladosDoRascunho, draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
-import { hrefFichaDoCliente, hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
-import { destinoAposSalvar } from '../../domain/destino-apos-salvar';
+import { hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { pendenciasDePreenchimento, type AbaDoPedido } from '../../domain/pendencias-preenchimento';
 import { destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado } from '../../domain/sair-do-pedido';
 import { FolhaSaidaDoPedido } from '../components/saida-do-pedido';
+import { FolhaDeOpcoes } from '../components/folha-de-opcoes';
 import { useBloquearSaida } from '../lib/bloquear-saida';
 import { deixarAvisoPendente } from '../lib/aviso-pendente';
 import { aplicarValorPendente } from '../lib/valor-pendente';
@@ -70,7 +70,7 @@ function chavesDasLinhas(lines: Record<string, number>): string[] {
 }
 
 export default function NewOrderScreen() {
-  const { customerId, editId, visitId, stopId, vendedorId, vendedorNome, emNome } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; vendedorNome?: string; emNome?: string }>();
+  const { customerId, editId, rascunhoId, visitId, stopId, vendedorId, vendedorNome, emNome } = useLocalSearchParams<{ customerId?: string; editId?: string; rascunhoId?: string; visitId?: string; stopId?: string; vendedorId?: string; vendedorNome?: string; emNome?: string }>();
   // T-0187: aberto pela ficha do cliente no Gestão (`emNome=1`): o vendedor sai do campo "Em nome de" da aba Venda
   const emNomeLivre = emNome === '1' && !vendedorId && !editId;
   const { carregado, dados } = useVendedor();
@@ -78,7 +78,7 @@ export default function NewOrderScreen() {
   // RN-VEN-35: o gestor faz o pedido pelo vendedor e não tem carteira de vendedor (`me`) no aparelho
   if ((!dados.me && !vendedorId && !emNomeLivre) || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
   if (!customerId) return <CustomerPicker />;
-  return <OrderEditor key={`${customerId}:${editId ?? ''}:${vendedorId ?? ''}:${emNomeLivre ? 'livre' : ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} vendedorEmNomeId={editId ? null : vendedorId || null} vendedorEmNomeNome={editId ? null : vendedorNome || null} emNomeLivre={emNomeLivre} />;
+  return <OrderEditor key={`${customerId}:${editId ?? ''}:${rascunhoId ?? ''}:${vendedorId ?? ''}:${emNomeLivre ? 'livre' : ''}`} customerId={customerId} editId={editId || null} rascunhoId={editId ? null : rascunhoId || null} visitId={visitId || null} stopId={stopId || null} vendedorEmNomeId={editId ? null : vendedorId || null} vendedorEmNomeNome={editId ? null : vendedorNome || null} emNomeLivre={emNomeLivre} />;
 }
 
 /** Mensagem dentro de Screen (área segura) e com caminho de volta para Pedidos. */
@@ -171,13 +171,16 @@ function usarSemMembros(): MembroEquipeEmNome[] {
   return SEM_MEMBROS;
 }
 
-function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: vendedorEmNomeIdDaRota, vendedorEmNomeNome: vendedorEmNomeNomeDaRota, emNomeLivre }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null; vendedorEmNomeNome: string | null; emNomeLivre: boolean }) {
+function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedorEmNomeId: vendedorEmNomeIdDaRota, vendedorEmNomeNome: vendedorEmNomeNomeDaRota, emNomeLivre }: { customerId: string; editId: string | null; rascunhoId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null; vendedorEmNomeNome: string | null; emNomeLivre: boolean }) {
   const app = useVendedor();
   const avisoRodape = useAvisoRodape();
   const [chaveDaRemocao, setChaveDaRemocao] = useState(0);
   const podeEditar = usePode('pedido.editar');
   const { dados, tz, offline, garantirProdutos: ensureProducts, enviarPedido: submitOrder, salvarEdicao: saveOrderEdit, condicoesDe, v1, formas, prazos, limitesDe, creditoDoCliente } = app;
-  const draftKey = draftKeyFor(customerId, editId);
+  // RN-VEN-39/48: o Novo pedido do cliente é um rascunho por cliente; o pedido salvo e a cópia têm chave própria (`rascunhoId`). Ao salvar, a chave passa
+  // a ser a própria (`chaveSalva`) e a do cliente fica livre. Estável durante a tela: `pedidoEmCurso`, o "+" do Catálogo grava direto nele.
+  const [chaveSalva, setChaveSalva] = useState<string | null>(null);
+  const draftKey = chaveSalva ?? draftKeyFor(customerId, editId, rascunhoId);
   const updateDraft = (_customerId: string, fn: (d: Draft) => Draft) => void app.atualizarRascunho(draftKey, customerId, fn);
   /** pedido em edição (servidor ou fila do aparelho) */
   const editTarget = editId ? (app.pedidos.find((o) => o.id === editId) ?? null) : null;
@@ -282,7 +285,9 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const fretePadrao = modalidadePadraoDosParametros(parametrosVendedor);
   const [aba, setAba] = useState<AbaNovoPedido>(() => abaInicialDoRascunho(draft));
   const saveEditRef = useRef<(opcoes?: { transformar?: boolean }) => Promise<void>>(async () => undefined);
-  const sendRef = useRef<(tipo?: 'pedido' | 'orcamento') => Promise<boolean>>(async () => false);
+  const sendRef = useRef<() => Promise<boolean>>(async () => false);
+  // RN-VEN-38: a folha do Salvar do Novo pedido (Orçamento ou Pedido)
+  const [escolhaDoSalvar, setEscolhaDoSalvar] = useState(false);
   // RN-VEN-38: folha "Sair do pedido?" e a saída que a pessoa pediu (cabeçalho, Android, barra inferior ou Cancelar)
   const [saidaAberta, setSaidaAberta] = useState(false);
   const saidaPedida = useRef<(() => void) | null>(null);
@@ -613,7 +618,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
       } else {
         deixarAvisoPendente(offline ? 'Pedido da fila atualizado no aparelho' : 'Pedido da fila atualizado');
       }
-      // T-0137: Transformar em pedido abre o detalhe já com a folha do Transformar (RN-VEN-18)
+      // T-0137: Converter em pedido abre o detalhe já com a folha do Converter (RN-VEN-18)
       if (opcoes.transformar) router.replace(hrefPedido(editId, true) as never);
       else if (router.canGoBack()) router.back();
       else router.replace(hrefPedido(editId) as never);
@@ -624,22 +629,23 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
     }
   };
 
-  /** Devolve `true` quando o pedido foi aceito (enviado ou na fila); `false` quando deu erro e a pessoa segue no formulário. */
-  const send = async (tipo: 'pedido' | 'orcamento' = 'pedido'): Promise<boolean> => {
+  const irParaPedidosAposSalvar = () => router.replace(hrefPedidos() as never);
+  /**
+   * Orçamento (Novo pedido > Salvar > Orçamento).
+   * Devolve `true` quando foi aceito (enviado ou na fila); `false` quando deu erro e a pessoa segue no formulário.
+   */
+  const send = async (): Promise<boolean> => {
     setSending(true);
     setError(null);
-    const rascunhoEnviado: Draft = { ...draft, tipo };
+    const rascunhoEnviado: Draft = { ...draft, tipo: 'orcamento' };
     const snapshot: Snapshot = { calculo, nomes: [...nomes.entries()], payment_terms: draft.payment_terms, rascunho: rascunhoEnviado };
     try {
-      const res = await submitOrder(rascunhoEnviado, customer, catalog);
-      // RN-VEN-30: o editor fecha na hora e o envio segue em segundo plano. Com check-in aberto neste cliente volta para a ficha dele;
-      // sem check-in vai para a lista de Pedidos, onde o pedido aparece com o status. Nenhuma das duas lê aviso pendente: não deixa um.
+      const res = await submitOrder(rascunhoEnviado, customer, catalog, draftKey);
+      // RN-VEN-30: o editor fecha na hora e vai para a lista de Pedidos, onde o documento aparece com o status; o aviso curto vai junto (RN-VEN-48).
       const destino = res.kind === 'sent' ? res.order.id : (res.id ?? null);
       if (destino) {
-        const depois = destinoAposSalvar({ clienteId: customerId, visitaAtivaNoCliente: Boolean(visitId) });
-        if (depois.tela === 'pedidos') router.replace(hrefPedidos() as never);
-        else if (router.canGoBack()) router.back();
-        else router.replace(hrefFichaDoCliente(depois.clienteId) as never);
+        deixarAvisoPendente(AVISO_ORCAMENTO_SALVO);
+        irParaPedidosAposSalvar();
         return true;
       }
       setSent(res.kind === 'sent' ? { kind: 'sent', order: res.order, snapshot } : { kind: 'queued', snapshot });
@@ -657,17 +663,14 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const editandoTipo = editId ? (editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orcamento' : 'pedido') : null;
-  const botoesBase = botoesDoResumo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, editando: editandoTipo, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: semEstoque.map((x) => x.codigo), preco_data: precoData, editando_no_servidor: editingServer });
-  // permissão e sinal (edição de pedido já no servidor) valem além das pendências; na edição de pedido o rótulo diz para onde vai
+  const botoesNovo = editId ? null : botoesDoSalvarNovo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada });
+  const botoesEdicaoBase = editandoTipo ? botoesDaEdicao({ cliente: situacaoCliente, editando: editandoTipo, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: semEstoque.map((x) => x.codigo), editando_no_servidor: editingServer }) : null;
+  // permissão e sinal (edição de pedido já no servidor) valem além das pendências
   const podeAgir = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: false, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
-  const liberaSalvar = (b: typeof botoesBase.enviar) => ({ ...b, habilitado: b.habilitado && podeAgir });
-  const botoes = {
-    ...botoesBase,
-    enviar: liberaSalvar(botoesBase.enviar),
-    orcamento: liberaSalvar(botoesBase.orcamento),
-    salvarOrcamento: liberaSalvar(botoesBase.salvarOrcamento),
-    transformar: liberaSalvar(botoesBase.transformar),
-  };
+  const liberaSalvar = <B extends { habilitado: boolean }>(b: B): B => ({ ...b, habilitado: b.habilitado && podeAgir });
+  const botoesEdicao = botoesEdicaoBase
+    ? { ...botoesEdicaoBase, salvarAlteracoes: liberaSalvar(botoesEdicaoBase.salvarAlteracoes), salvarOrcamento: liberaSalvar(botoesEdicaoBase.salvarOrcamento), transformar: liberaSalvar(botoesEdicaoBase.transformar) }
+    : null;
   /** RD-0170: salvar, enviar e transformar ficam tocáveis; com falta, o toque marca todas as abas e leva à 1ª com falta */
   const comTentativa = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A) => {
     const primeira = primeiraAbaComFalta(pendencias);
@@ -702,94 +705,106 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
     depoisDeConfirmar(() => setAba(destino));
   };
   /**
-   * RN-VEN-10 (T-0151): a alçada só aparece ao salvar o PEDIDO, numa pergunta ("Enviar para aprovação" / "Voltar"). Dentro da
-   * alçada, orçamento e Apenas salvar não perguntam. Lê o cálculo do render que já tem o número digitado (`calculoRef`).
+   * RN-VEN-10 (T-0151): a alçada aparece na edição do pedido e no "Enviar" das Ações (RN-VEN-48), numa pergunta ("Enviar para aprovação" /
+   * "Voltar"). Dentro da alçada não pergunta; orçamento e pedido salvo (Salvar > Pedido) não perguntam. Lê o cálculo do render que já tem o número digitado (`calculoRef`).
    */
   const perguntarAlcada = (seguir: () => void) => {
     if (perguntaDaAlcada({ tipo: 'pedido', nivel: calculoRef.current?.nivel ?? null }) === null) seguir();
     else setPerguntaAlcada({ seguir });
   };
   const sairDoPedido = () => (router.canGoBack() ? router.back() : router.replace(hrefPedidos() as never));
-  /** Salvar e enviar pedido (novo) ou salvar as alterações (edição). Sem folha: 1 toque. */
-  const aoEnviar = () => {
+  /** Edição de pedido: salvar as alterações. Sem folha: 1 toque. */
+  const aoSalvarAlteracoes = () => {
     aplicarValorPendente();
-    if (editId) depoisDeConfirmar(() => perguntarAlcada(() => void saveEditRef.current()));
-    else depoisDeConfirmar(() => perguntarAlcada(() => void sendRef.current('pedido')));
+    depoisDeConfirmar(() => perguntarAlcada(() => void saveEditRef.current()));
   };
-  /** Salvar como orçamento: valida e congela os preços (RN-VEN-18); abre o detalhe do orçamento. */
-  const aoSalvarComoOrcamento = () => {
+  /** Orçamento: valida e congela os preços (RN-VEN-18); vai para a lista de Pedidos. */
+  const salvarComoOrcamento = () => void sendRef.current();
+  /** RN-VEN-38: Salvar do Novo pedido. Uma opção só tocável grava direto; senão a folha pergunta Orçamento ou Pedido. */
+  const aoSalvarNovo = () => {
     aplicarValorPendente();
-    depoisDeConfirmar(() => void sendRef.current('orcamento'));
+    depoisDeConfirmar(() => {
+      if (!botoesNovo) return;
+      if (botoesNovo.direto) executarSalvar(botoesNovo.direto);
+      else setEscolhaDoSalvar(true);
+    });
+  };
+  /** Núcleo do Salvar > Orçamento / Pedido, já dentro de uma rodada de confirmação (um render por toque). */
+  const executarSalvar = (qual: QualSalvar) => {
+    setEscolhaDoSalvar(false);
+    // RN-CORE-36: o pedido do Campo só guarda o que foi digitado (grava mesmo com pendência); o orçamento valida tudo
+    if (qual === 'orcamento') comTentativa(salvarComoOrcamento)();
+    else gravarPedidoSalvo();
   };
   /** Editar orçamento: Salvar orçamento. */
   const aoSalvarOrcamentoEditado = () => {
     aplicarValorPendente();
     depoisDeConfirmar(() => void saveEditRef.current());
   };
-  /** Editar orçamento: Transformar em pedido salva a edição e abre o detalhe com a folha do Transformar (RN-VEN-18 reconfere preço, estoque e alçada lá). */
+  /** Editar orçamento: Converter em pedido salva a edição e abre o detalhe com a folha do Converter (RN-VEN-18 reconfere preço, estoque e alçada lá). */
   const aoTransformarEmPedido = () => {
     aplicarValorPendente();
     depoisDeConfirmar(() => void saveEditRef.current({ transformar: true }));
   };
   /**
-   * Apenas salvar (RN-VEN-38): guarda o rascunho sem enviar e ACEITA pendências; a tela fecha com "Pedido salvo". Ao reabrir, abre no
-   * Resumo com o que falta. Pedido sem nada preenchido não guarda (não há o que salvar).
+   * Salvar > Pedido (RN-VEN-38, RN-VEN-48): guarda o pedido SALVO (`salvo_em`), sem enviar, e ACEITA pendências; o envio é do "Enviar pedido"
+   * da aba Pedidos. Vai para a lista de Pedidos (RN-VEN-30) ou para onde a saída pedida ia. Pedido sem nada preenchido não guarda.
    */
-  const apenasSalvar = (depois?: (() => void) | null) => {
-    aplicarValorPendente();
-    depoisDeConfirmar(() => {
-      if (pedidoAlterado(draftAtual.current)) {
-        updateDraft(customerId, (d) => ({ ...d, salvo_em: new Date().toISOString() }));
-        deixarAvisoPendente(AVISO_PEDIDO_SALVO);
-      }
-      if (depois) depois();
-      else sairDoPedido();
-    });
+  const gravarPedidoSalvo = (depois?: (() => void) | null) => {
+    if (pedidoAlterado(draftAtual.current)) {
+      const salvo = app.guardarComoPedidoSalvo(draftKey, customerId, (d) => ({ ...d, salvo_em: new Date().toISOString() }));
+      setChaveSalva(salvo.chave);
+      void salvo.gravado;
+      deixarAvisoPendente(AVISO_PEDIDO_SALVO);
+    }
+    if (depois) depois();
+    else irParaPedidosAposSalvar();
   };
-  const aoApenasSalvar = () => {
+  const salvarPedido = (depois?: (() => void) | null) => {
+    aplicarValorPendente();
+    depoisDeConfirmar(() => gravarPedidoSalvo(depois));
+  };
+  const destinoDaSaida = () => {
     const destino = saidaPedida.current;
     saidaPedida.current = null;
-    apenasSalvar(destino);
+    return destino;
   };
   const descartar = async () => {
     await app.descartarRascunho(draftKey);
-    const destino = saidaPedida.current;
-    saidaPedida.current = null;
+    const destino = destinoDaSaida();
     if (destino) destino();
     else if (router.canGoBack()) router.back();
     else router.replace(hrefPedidos() as never);
   };
-  /** RN-VEN-38: salvar pela folha valida tudo. Com pendência, fecha a folha, cancela a saída e abre o Resumo. */
-  const salvarPelaSaida = (tipo: 'pedido' | 'orcamento') => {
+  /** RN-VEN-38: Salvar orçamento ou a edição pela folha valida tudo. Com pendência, fecha a folha, cancela a saída e abre o Resumo. */
+  const salvarPelaSaida = () => {
     setSaidaAberta(false);
     aplicarValorPendente();
+    saidaPedida.current = null;
     if (destinoDoSalvarDaSaida(pendencias.length) === 'mostrar_pendencias') {
-      saidaPedida.current = null;
       depoisDeConfirmar(() => setAba('resumo'));
       return;
     }
     if (editId) {
-      saidaPedida.current = null;
       depoisDeConfirmar(() => (editandoTipo === 'orcamento' ? void saveEditRef.current() : perguntarAlcada(() => void saveEditRef.current())));
       return;
     }
-    const destino = saidaPedida.current;
-    saidaPedida.current = null;
-    const enviar = () => void sendRef.current(tipo).then((ok) => (ok && tipo === 'pedido' ? destino?.() : undefined));
-    depoisDeConfirmar(() => (tipo === 'pedido' ? perguntarAlcada(enviar) : enviar()));
+    depoisDeConfirmar(() => void sendRef.current());
   };
-  const aoEscolherNaSaida = (acao: 'salvar' | 'apenas_salvar' | 'salvar_alternativo' | 'descartar' | 'continuar') => {
+  const aoEscolherNaSaida = (acao: 'salvar' | 'salvar_alternativo' | 'descartar' | 'continuar') => {
     if (acao === 'continuar') {
       setSaidaAberta(false);
       saidaPedida.current = null;
     } else if (acao === 'descartar') {
       setSaidaAberta(false);
       void descartar();
-    } else if (acao === 'apenas_salvar') {
-      // Apenas salvar aceita pendências: grava e segue para onde a pessoa ia
+    } else if (editId) {
+      salvarPelaSaida();
+    } else if (acao === 'salvar') {
+      // Salvar pedido: grava o pedido salvo e segue para onde a pessoa ia (aceita pendências, como o Salvar > Pedido)
       setSaidaAberta(false);
-      aoApenasSalvar();
-    } else salvarPelaSaida(acao === 'salvar' ? 'pedido' : 'orcamento');
+      salvarPedido(destinoDaSaida());
+    } else salvarPelaSaida();
   };
 
   return (
@@ -927,10 +942,10 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
             fretePadrao={fretePadrao}
             onRascunho={emRascunho}
             aoAbrirItem={setPopupId}
-            botoes={botoes}
-            onEnviar={comTentativa(aoEnviar)}
-            onApenasSalvar={comTentativa(aoApenasSalvar)}
-            onOrcamento={comTentativa(aoSalvarComoOrcamento)}
+            botoesNovo={botoesNovo}
+            botoesEdicao={botoesEdicao}
+            onSalvar={aoSalvarNovo}
+            onSalvarAlteracoes={comTentativa(aoSalvarAlteracoes)}
             onSalvarOrcamento={comTentativa(aoSalvarOrcamentoEditado)}
             onTransformar={comTentativa(aoTransformarEmPedido)}
             onCancelar={() => (editId ? pedirSaidaDaEdicao() : alterado ? pedirSaida(sairDoPedido) : void descartar())}
@@ -1006,7 +1021,17 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
         testID="pergunta-alcada"
       />
       <AvisoRodape {...avisoRodape.props} respiroInferior={16} {...(avisoRodape.props.chave === chaveDaRemocao ? { duracaoMs: AVISO_ITEM_REMOVIDO.duracao_ms } : {})} />
-      <FolhaSaidaDoPedido visivel={saidaAberta} edicao={editId ? opcoesDaSaidaEdicao({ tipo: editandoTipo ?? 'pedido' }) : null} opcoes={opcoesDaSaida({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, preco_data: precoData, alertas_impedem_enviar: soOrcamentoPorAlertas(alertasDoTopo) || impedeEnviarPorAlertas(alertasDoTopo) })} onAcao={aoEscolherNaSaida} />
+      <FolhaSaidaDoPedido visivel={saidaAberta} edicao={editId ? opcoesDaSaidaEdicao({ tipo: editandoTipo ?? 'pedido' }) : null} opcoes={opcoesDaSaida({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada })} onAcao={aoEscolherNaSaida} />
+      {botoesNovo ? (
+        <FolhaDeOpcoes
+          visivel={escolhaDoSalvar}
+          titulo={botoesNovo.escolha.titulo}
+          opcoes={(['orcamento', 'pedido'] as const).filter((q) => botoesNovo.escolha[q].visivel).map((q) => ({ id: q, rotulo: botoesNovo.escolha[q].rotulo, testID: `salvar-como-${q}` }))}
+          onEscolher={(id) => executarSalvar(id as QualSalvar)}
+          onFechar={() => setEscolhaDoSalvar(false)}
+          testID="folha-salvar"
+        />
+      ) : null}
     </View>
   );
 }
