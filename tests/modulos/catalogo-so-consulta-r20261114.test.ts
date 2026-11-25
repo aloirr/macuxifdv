@@ -64,14 +64,16 @@ describe('R-20261114-151000 — o Catálogo não cria pedido (a)', () => {
   it('a única ação que o Vendedor põe no Catálogo: "Adicionar ao orçamento" (sem abrir pedido novo); antes do PR, "Adicionar ao pedido"', () => {
     const bloco = semComentarios(blocoProdutoAcoes());
     expect(bloco, 'extensão produto.acoes do Vendedor').not.toBe('');
-    // uma extensão só no slot
-    expect(INDEX_VENDEDOR.split("slot: 'produto.acoes'").length - 1).toBe(1);
+    // R-20261124-110151 (RN-VEN-49): duas extensões no slot, a do orçamento (consulta) e o "+" do Catálogo aberto do pedido
+    expect(INDEX_VENDEDOR.split("slot: 'produto.acoes'").length - 1).toBe(2);
     if (!SO_ORCAMENTO) {
       expect(bloco).toContain("rotulo: 'Adicionar ao pedido'");
       return;
     }
     expect(bloco).toContain("id: 'adicionar-ao-orcamento'");
     expect(bloco).toContain("rotulo: 'Adicionar ao orçamento'");
+    // R-20261124-110151: o orçamento fica só no Catálogo de consulta
+    expect(bloco).toContain("onde: 'consulta'");
     expect(bloco).toContain("acao: 'pedido.criar'");
     expect(bloco).toMatch(/apps: \['campo'\]/);
     expect(bloco).toMatch(/abrir: \(ctx\) => irParaAdicionarAoOrcamento\(ctx\.produtoId, ctx\.nomeProduto\)/);
