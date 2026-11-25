@@ -91,6 +91,33 @@ export function temFracao(q: number): boolean {
   return quantidadeEmEscala(q) % ESCALA_QUANTIDADE !== 0;
 }
 
+/**
+ * Corta `n` em `casas` casas decimais, sem arredondar (`1.23456` → `1.2345`; `casas` 0 = `Math.trunc`). O corte é feito no
+ * texto decimal mais curto do JS (`String(n)`; a notação exponencial vira forma fixa deslocando a vírgula no texto), sem
+ * multiplicar em float: `0.29` continua `0.29`. `RangeError` se `n` não for finito ou `casas` não for inteiro de 0 a 100.
+ */
+export function truncarCasas(n: number, casas: number = CASAS_QUANTIDADE): number {
+  if (!Number.isInteger(casas) || casas < 0 || casas > 100) {
+    throw new RangeError(`casas deve ser inteiro de 0 a 100: ${String(casas)}`);
+  }
+  if (typeof n !== 'number' || !Number.isFinite(n)) throw new RangeError(`número inválido: ${String(n)}`);
+  if (casas === 0) {
+    const r = Math.trunc(n);
+    return r === 0 ? 0 : r;
+  }
+  let texto = String(n);
+  const exp = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/i.exec(texto);
+  if (exp) {
+    const expoente = Number(exp[4]);
+    if (expoente >= 0) return n; // ≥ 1e21: já é inteiro
+    // |n| < 1e-6: desloca a vírgula no texto (`9.99e-7` → `0.000000999`).
+    texto = `${exp[1]}0.${'0'.repeat(-expoente - 1)}${exp[2]}${exp[3] ?? ''}`;
+  }
+  const ponto = texto.indexOf('.');
+  const r = Number(ponto < 0 ? texto : texto.slice(0, ponto + 1 + casas));
+  return r === 0 ? 0 : r;
+}
+
 const NUMERIC_RE = /^-?\d+(?:\.\d+)?$/;
 
 /**

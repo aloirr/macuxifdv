@@ -6,6 +6,7 @@ import {
   MENSAGEM_FRACAO_BLOQUEADA,
   QUANTIDADE_DECIMAL_MAX,
   QuantidadeDecimalSchema,
+  QuantidadePositivaSchema,
 } from './quantidade';
 import * as raiz from './index';
 
@@ -31,6 +32,24 @@ describe('QuantidadeDecimalSchema (RN-VEN-02 v3)', () => {
 
   it('teto = 999.999.999,9999', () => {
     expect(QUANTIDADE_DECIMAL_MAX).toBe(999_999_999.9999);
+  });
+});
+
+describe('QuantidadePositivaSchema (ADR 0076 D4)', () => {
+  it.each([[1], [1.25], [1.23456], [0.00005], [QUANTIDADE_DECIMAL_MAX]])('aceita %s (as casas ficam com o domain)', (q) => {
+    expect(QuantidadePositivaSchema.parse(q)).toBe(q);
+  });
+
+  it.each([[0], [-1], [Number.NaN], [Infinity], [QUANTIDADE_DECIMAL_MAX + 1], ['1']])('recusa %s', (q) => {
+    expect(QuantidadePositivaSchema.safeParse(q).success).toBe(false);
+  });
+
+  it('mensagens do zero e do teto', () => {
+    expect(QuantidadePositivaSchema.safeParse(0).error?.issues[0]?.message).toBe('quantidade deve ser maior que zero');
+    expect(QuantidadePositivaSchema.safeParse(QUANTIDADE_DECIMAL_MAX + 1).error?.issues[0]?.message).toBe(
+      `quantidade deve ser no máximo ${QUANTIDADE_DECIMAL_MAX}`,
+    );
+    expect(raiz.QuantidadePositivaSchema).toBe(QuantidadePositivaSchema);
   });
 });
 

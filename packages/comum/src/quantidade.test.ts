@@ -13,6 +13,7 @@ import {
   subtrairQuantidades,
   temFracao,
   totalDaLinhaCents,
+  truncarCasas,
   unidadeFracionaria,
 } from './quantidade';
 
@@ -263,5 +264,32 @@ describe('formatarQuantidade (RN-VEN-02 v3)', () => {
 
   it('mais de 4 casas → RangeError', () => {
     expect(() => formatarQuantidade(0.00005, 'KG')).toThrow(RangeError);
+  });
+});
+
+describe('truncarCasas (ADR 0076 D4)', () => {
+  it('0,29 → 0,29; 1,23456 → 1,2345; casas 0: 1,9 → 1', () => {
+    expect(truncarCasas(0.29)).toBe(0.29);
+    expect(truncarCasas(1.23456)).toBe(1.2345);
+    expect(truncarCasas(1.9, 0)).toBe(1);
+  });
+
+  it.each([
+    [1.99999, 4, 1.9999],
+    [-1.23456, 4, -1.2345],
+    [-0.00001, 4, 0],
+    [1.2345, 2, 1.23],
+    [1e-7, 4, 0],
+    [1.5e-7, 7, 0.0000001],
+    [9.99e-7, 7, 9e-7],
+    [-1.5e-7, 7, -1e-7],
+    [1e21, 4, 1e21],
+    [12, 4, 12],
+  ])('%s com %s casas → %s', (n, casas, esperado) => {
+    expect(truncarCasas(n, casas)).toBe(esperado);
+  });
+
+  it.each([[Number.NaN, 4], [Infinity, 4], [1, -1], [1, 1.5], [1, 101]])('recusa %s com %s casas', (n, casas) => {
+    expect(() => truncarCasas(n, casas)).toThrow(RangeError);
   });
 });

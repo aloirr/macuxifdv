@@ -18,8 +18,21 @@ const decimal4 = (nome: string, max: number) =>
     .max(max, `${nome} deve ser no máximo ${max}`)
     .refine(quantidadeValida, `${nome} deve ter no máximo ${CASAS_QUANTIDADE} casas decimais`);
 
+/**
+ * Quantidade do item: > 0 e ≤ `QUANTIDADE_DECIMAL_MAX`, sem conferir as casas: mais de 4 é 422
+ * quantidade_fracionaria_invalida do domain (ADR 0076 D4).
+ */
+export const QuantidadePositivaSchema = z
+  .number()
+  .finite()
+  .positive('quantidade deve ser maior que zero')
+  .max(QUANTIDADE_DECIMAL_MAX, `quantidade deve ser no máximo ${QUANTIDADE_DECIMAL_MAX}`);
+
 /** Quantidade do item: > 0, até 4 casas, ≤ `QUANTIDADE_DECIMAL_MAX`. Fração só em KG/M é regra do domain (RN-VEN-02 v3). */
-export const QuantidadeDecimalSchema = decimal4('quantidade', QUANTIDADE_DECIMAL_MAX);
+export const QuantidadeDecimalSchema = QuantidadePositivaSchema.refine(
+  quantidadeValida,
+  `quantidade deve ter no máximo ${CASAS_QUANTIDADE} casas decimais`,
+);
 /** Fator da embalagem (unidades base por embalagem): > 0, até 4 casas, ≤ 9999 (RN-VEN-15). */
 export const FatorDecimalSchema = decimal4('fator', FATOR_DECIMAL_MAX);
 
