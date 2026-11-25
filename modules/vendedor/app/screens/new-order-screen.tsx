@@ -48,6 +48,7 @@ import { hrefCatalogoNoPedido, leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, 
 import { chaveDoVeiculo, escopoDoCliente, modoDaListaDoPedido, type VeiculoDoPedido } from '../lib/veiculo-pedido';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
+import { fracaoLiberadaNoAparelho } from '../lib/quantidade-digitada';
 import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, vendedoresPorCliente, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
@@ -997,7 +998,7 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
                 : null
             }
             onConfirmar={(estado) => {
-              const r = aplicarItemNoRascunho(draft.lines, draft.ajustes ?? {}, popupId, unidadesDoProduto(popupId, app.unidades, byId.get(popupId)!.unit), estado);
+              const r = aplicarItemNoRascunho(draft.lines, draft.ajustes ?? {}, popupId, unidadesDoProduto(popupId, app.unidades, byId.get(popupId)!.unit), estado, fracaoLiberadaNoAparelho());
               setLinhas(r.lines, r.ajustes);
               setPopupId(null);
             }}

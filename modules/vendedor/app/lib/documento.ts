@@ -26,6 +26,7 @@ import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import { precoTabelaDaUnidade, type AjusteItem } from '../../domain/preco-pedido';
 import { chaveDaLinha, minimoDoProdutoNoPrazo, unidadesDoProduto, type Ajuste, type ProdutoComMinimo, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
 import { prefillLines, prefillNotice } from './order-prefill';
+import { fracaoLiberadaNoAparelho } from './quantidade-digitada';
 import type { Rascunho } from './pedidos';
 
 type ExtraCopia = {
@@ -198,6 +199,7 @@ export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opc
   const r = prefillLines(
     c.itens.map((i) => ({ product_id: i.product_id, quantity: i.quantity, unidade: i.unidade ?? null })),
     catalogo,
+    fracaoLiberadaNoAparelho(),
   );
   const ajustes: Record<string, Ajuste> = {};
   for (const i of c.itens) {

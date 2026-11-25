@@ -14,6 +14,7 @@ import type { LimiteDesconto } from '@macuxi/core/contracts';
 import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
 import type { ErroDeCalculo } from '../../domain/pendencias-preenchimento';
 import { faixasDaConsulta, medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
+import { somarQuantidades } from '../../domain/quantidade';
 import { precoDoItemNoPrazo } from '../../domain/troca-prazo';
 import {
   ajusteDePct,
@@ -361,7 +362,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     bloqueado,
     acima_do_maximo: acimaDoMaximo,
     acima_do_limite: acimaDoLimite,
-    unidades_base: linhas.reduce((s, l) => s + l.quantidade_base, 0),
+    unidades_base: linhas.reduce((s, l) => somarQuantidades(s, l.quantidade_base), 0),
   };
 }
 

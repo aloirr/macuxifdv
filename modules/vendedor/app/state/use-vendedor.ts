@@ -25,6 +25,7 @@ import type { CustomerDetail, DecisaoAprovacaoResposta, DecisaoAprovador, Editar
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
+import { fracaoLiberadaNoAparelho } from '../lib/quantidade-digitada';
 import { copiaDoDetalhe, copiaDoPayload, percentualDoDetalhe, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
 import { criarTravaDeEnvio } from '../lib/trava-de-envio';
 import { MENSAGEM_CLIENTE_FORA_DA_CARTEIRA, precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
@@ -623,7 +624,7 @@ export function useVendedor() {
           ? copiaDoDetalhe(det, { condicaoId: v1 ? (linhaPedido?.condicao_pagamento_id ?? null) : null, observacao: linhaPedido?.observacao ?? null, transportadoras: unidadesTransportadoras() })
           : null;
       const c = copia ? rascunhoDaCopia(copia, catalogo, { manterAplicacao: modo === 'edit' }) : null;
-      const r = c ? null : prefillLines(src.lines, catalogo);
+      const r = c ? null : prefillLines(src.lines, catalogo, fracaoLiberadaNoAparelho());
       const linhasDoRascunho = c ? c.rascunho.lines : r!.lines;
       const aviso = c ? c.aviso : prefillNotice(r!);
       if (Object.keys(linhasDoRascunho).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${aviso}`);
