@@ -123,7 +123,7 @@ describe.skipIf(semBanco())('0108 na fixture dois-tenants (ROLLBACK)', () => {
       await q('update plataforma.catalogo_aplicado set versao = 1 where tenant_id = $1', [NOVO]);
       expect(await q('select plataforma.aplicar_catalogo_v2($1) as r', [NOVO])).toEqual([{ r: 'aplicado' }]);
       expect(await retratoConcessoes(admin, NOVO)).toEqual(antes);
-      // o espelho (0105) refaz o perfil pela v2: as chaves novas ficam
+      // o espelho (0107) refaz o perfil pela v2: as chaves novas ficam
       await q('select plataforma.espelhar_perfil($1)', [assX]);
       expect(await retratoConcessoes(admin, NOVO)).toEqual(antes);
     });

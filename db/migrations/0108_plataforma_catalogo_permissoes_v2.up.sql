@@ -12,9 +12,9 @@
 --    própria tabela; a v1 é congelada) + as 32 das chaves novas = 438 (vendedor 29, promotor 33, supervisor 57, gerente 71,
 --    analista 104, assistente 26, admin 118). Id plataforma.uuid_de_chave('plataforma.modelo_permissao:2:<modelo>:<chave>').
 --    A v1 fica (histórico e caminho de volta). db/testes/catalogo-v2.db.test.ts compara a v2 com o SDK.
--- 2. plataforma.permissoes_legado_do_perfil (gêmea de resolverPerfil, 0104) passa a ler o modelo v2: é o acesso de hoje com as
+-- 2. plataforma.permissoes_legado_do_perfil (gêmea de resolverPerfil, 0106) passa a ler o modelo v2: é o acesso de hoje com as
 --    chaves novas pela BASE do perfil (a rota de hoje aceita o perfil pela base). Com ela, concessoes_derivadas, o espelho da
---    0105 (espelhar_perfil), conferir_perfis_sem_base e a migração de um tenant ainda em 'legado' (migrar_perfis_sem_base)
+--    0107 (espelhar_perfil), conferir_perfis_sem_base e a migração de um tenant ainda em 'legado' (migrar_perfis_sem_base)
 --    ficam coerentes com a v2 sem mudar de corpo.
 -- 3. plataforma.aplicar_catalogo_v2(tenant) -> 'aplicado' | 'ja_aplicado' | 'sem_catalogo'. Sem EXECUTE para ninguém. Trava do
 --    tenant (a mesma de migrar_perfis_sem_base). Tenant 'concessao': todo perfil vivo (padrão ou personalizado, ativo ou não)
@@ -25,11 +25,11 @@
 --    deriva da v2). Por fim, e só então, catalogo_aplicado do tenant passa de versao 1 a 2 (a mesma linha: o id segue o da
 --    primeira aplicação, plataforma.uuid_de_chave('<tenant>:plataforma.catalogo_aplicado:1'), que migrar_perfis_sem_base
 --    usa no upsert). Idempotente.
--- 4. Tenant novo: tenant_semear_concessoes (0105) roda migrar_perfis_sem_base e depois aplicar_catalogo_v2 (nasce na v2).
+-- 4. Tenant novo: tenant_semear_concessoes (0107) roda migrar_perfis_sem_base e depois aplicar_catalogo_v2 (nasce na v2).
 -- 5. Rodada em todos os tenants (bloco no fim), com raise notice da contagem por resultado (sem dado pessoal).
 --
 -- Caminho de volta: 0108_plataforma_catalogo_permissoes_v2.down.sql (catalogo_aplicado volta a 1, as concessões das 7 chaves
--- saem com soft delete, a gêmea volta a ler a v1, tenant_semear_concessoes volta ao da 0105 e a v2 do modelo é apagada).
+-- saem com soft delete, a gêmea volta a ler a v1, tenant_semear_concessoes volta ao da 0107 e a v2 do modelo é apagada).
 
 -- 1. Modelo v2 ---------------------------------------------------------------------------------------------------------------
 insert into plataforma.modelo_permissao (id, versao, modelo, cargo, chave, nivel, alvos)
@@ -76,7 +76,7 @@ select plataforma.uuid_de_chave('plataforma.modelo_permissao:2:' || v.modelo || 
   ) as v (modelo, cargo, chave)
 on conflict (id) do nothing;
 
--- 2. Gêmea de resolverPerfil no modelo v2 (o corpo da 0104 com versao = 2; grants mantidos) --------------------------------
+-- 2. Gêmea de resolverPerfil no modelo v2 (o corpo da 0106 com versao = 2; grants mantidos) --------------------------------
 create or replace function plataforma.permissoes_legado_do_perfil(p_perfil uuid, p_parametros boolean default false) returns jsonb
   language sql stable
   set search_path = pg_catalog, plataforma, pg_temp
@@ -179,7 +179,7 @@ end
 $$;
 revoke all on function plataforma.aplicar_catalogo_v2(uuid) from public;
 
--- 4. Tenant novo nasce na v2 (o corpo da 0105 + a aplicação da v2) ------------------------------------------------------------
+-- 4. Tenant novo nasce na v2 (o corpo da 0107 + a aplicação da v2) ------------------------------------------------------------
 create or replace function plataforma.tenant_semear_concessoes() returns trigger
   language plpgsql security definer
   set search_path = pg_catalog, plataforma, pg_temp

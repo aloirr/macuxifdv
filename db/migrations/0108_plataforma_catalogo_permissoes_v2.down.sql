@@ -1,9 +1,9 @@
--- 0108_plataforma_catalogo_permissoes_v2 (down) — volta ao catálogo v1 (0103 a 0105):
+-- 0108_plataforma_catalogo_permissoes_v2 (down) — volta ao catálogo v1 (0105 a 0107):
 -- 1. catalogo_aplicado de todo tenant volta de versao 2 a 1 (a mesma linha);
 -- 2. as concessões das 7 chaves que só a v2 tem saem com soft delete (a v1 não as conhece; o acesso volta a ser o da rota pela
 --    base, o de antes da 0108). Perda documentada: a chave desmarcada pela API nova num perfil volta a valer pela base;
--- 3. a gêmea plataforma.permissoes_legado_do_perfil volta a ler o modelo v1 (o corpo da 0104);
--- 4. tenant_semear_concessoes volta ao corpo da 0105 e aplicar_catalogo_v2 é apagada;
+-- 3. a gêmea plataforma.permissoes_legado_do_perfil volta a ler o modelo v1 (o corpo da 0106);
+-- 4. tenant_semear_concessoes volta ao corpo da 0107 e aplicar_catalogo_v2 é apagada;
 -- 5. as linhas versao 2 de plataforma.modelo_permissao são apagadas (catálogo da plataforma; a v1 fica).
 update plataforma.catalogo_aplicado set versao = 1 where versao = 2;
 

@@ -1662,7 +1662,7 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
   de `migrar_perfis_sem_base`). Tenant `legado`: só a versão (a migração dele já deriva da v2). Rodada em todos os tenants; tenant
   novo: `tenant_semear_concessoes` aplica a v2 depois da migração. Idempotente.
 - **Volta** (`.down.sql` da 0108): versão 2 → 1, as concessões das 7 chaves com soft delete (a chave desmarcada pela API nova volta
-  a valer pela base: perda documentada), a gêmea na v1, o gatilho do tenant novo da 0105 e a v2 do modelo apagada.
+  a valer pela base: perda documentada), a gêmea na v1, o gatilho do tenant novo da 0107 e a v2 do modelo apagada.
 
 ### Desempenho
 - Rodada no fixture (2 tenants, 16 perfis, ~870 concessões): menos de 1 s. Por perfil: uma derivação (~100 chaves) por gravação
