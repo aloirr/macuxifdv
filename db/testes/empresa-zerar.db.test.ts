@@ -27,7 +27,7 @@ import { TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { agoraDaFixture, semBanco } from './estado';
 import { carregarFixtureDosTestes } from './fixture-treinamento';
-import { FUNCOES_SA_ATUAIS, FUNCOES_SA_ZERAR, FUNCOES_WORKER_ZERAR } from './funcoes-sa';
+import { FUNCOES_SA_0102, FUNCOES_SA_ATUAIS, FUNCOES_SA_ZERAR, FUNCOES_WORKER_ZERAR } from './funcoes-sa';
 import { comoPapel, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -221,7 +221,8 @@ describe('0100 zerar dados da empresa (estático)', () => {
       expect(up).toContain(`revoke all on function ${f} from public, macuxi_app, macuxi_worker;`);
       expect(up).toContain(`grant execute on function ${f} to macuxi_portal;`);
     }
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(42);
+    // 42 depois da 0100 (o if v_n <> 42 dela); as migrações seguintes somam as delas
+    expect(FUNCOES_SA_ATUAIS).toHaveLength(42 + FUNCOES_SA_0102.length);
     expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_ZERAR]));
     expect(up).toContain('if v_n <> 42 then');
     for (const f of FUNCOES_WORKER_ZERAR) {

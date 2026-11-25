@@ -10,7 +10,8 @@
  * primeira carga, ADR 0054), 0079_catalogo_foto_lote.up.sql (tipos de arquivo e trabalho sob demanda, ADR 0058) e
  * 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por função), 0083_plataforma_tenant_logo.up.sql
  * (logo e nome fantasia em plataforma.tenant), 0086_plataforma_planos_troca_licencas.up.sql (histórico das trocas de plano,
- * ADR 0047) e 0091_plataforma_tenant_ocultar_marca_macuxi.up.sql (ocultar a marca do Macuxi), para consultas da API.
+ * ADR 0047), 0091_plataforma_tenant_ocultar_marca_macuxi.up.sql (ocultar a marca do Macuxi) e 0102_plataforma_dados_da_empresa.up.sql
+ * (endereço, contato e inscrição estadual da empresa), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -74,6 +75,20 @@ export const tenant = plataforma.table('tenant', {
    * sa_gravar_ocultar_marca (super-admin, RN-CORE-33); o app lê a própria linha.
    */
   ocultar_marca_macuxi: boolean('ocultar_marca_macuxi').notNull().default(false),
+  /**
+   * 0102 (v1.0.34): cadastro da empresa (razão social = `nome`, CNPJ = `documento`); formatos nos CHECKs tenant_<col>_formato;
+   * grava só a sa_gravar_dados_da_empresa.
+   */
+  logradouro: text('logradouro'),
+  numero: text('numero'),
+  complemento: text('complemento'),
+  bairro: text('bairro'),
+  municipio: text('municipio'),
+  uf: text('uf'),
+  cep: text('cep'),
+  telefone: text('telefone'),
+  email: text('email'),
+  inscricao_estadual: text('inscricao_estadual'),
   ...auditaveis(),
 });
 
