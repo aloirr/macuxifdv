@@ -1531,7 +1531,7 @@ pela `sa_gravar_nome_fantasia`). Todas text nulas; CHECK `tenant_<coluna>_format
 O `macuxi_app` lê a própria linha (`isolamento_tenant`, 0001) e não grava; o portal não lê a tabela; o `macuxi_leitura` ganha
 SELECT nas 10 (nenhuma sensível pelo nome).
 
-### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 4 `sa_*`, 46 no total)
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 4 `sa_*`, 46 no total até a 0106)
 Sessão inválida = 28000. `DadosDaEmpresa` = `{ tenant_id, cnpj, razao_social, nome_fantasia, logradouro, numero, complemento,
 bairro, municipio, uf, cep, telefone, email, inscricao_estadual, atualizado_em }` (`atualizado_em` = `tenant.updated_at` em ISO UTC).
 
@@ -1547,4 +1547,32 @@ select plataforma.sa_dados_da_empresa($1, $2) as r;                -- GET …/em
 select plataforma.sa_gravar_dados_da_empresa($1, $2, $3) as r;     -- PUT …/empresas/:tenant_id/cadastro
 select nome, perfil, cargo from plataforma.sa_quem_sou($1);        -- topo do portal
 select plataforma.sa_gravar_senha_super_admin($1, $2, $3) as r;    -- troca da senha, depois da sa_reautenticar e do argon2
+```
+
+## Senha do admin do cliente no portal (0107, v1.0.35 item 3) — só funções. Fora do sync
+Migração `0107_plataforma_senha_admin_portal` (aditiva: 3 funções, nenhuma tabela, coluna, política ou grant existente muda).
+Volta: `.down.sql`, que apaga as 3 funções; nada de dado se perde (a senha trocada fica em `core.usuario.senha_hash`, a
+auditoria é append-only); antes do down, volte a API ao 403 `TROCA_SO_SUPER_ADMIN` para o admin do cliente. Teste:
+`db/testes/senha-admin-portal.db.test.ts`.
+
+A rota `POST /v1/plataforma/auth/senha` passa a atender o admin do cliente na conta da **empresa atual da sessão**
+(`portal_sessao.tenant_atual_id`/`usuario_atual_id`). O bloqueio é o da conta, o mesmo do login do BKO/app e da rota pública
+`POST /v1/auth/senha/trocar`: `core.usuario.tentativas_falhas` e `bloqueio_ate` (0004; RN-CORE-01: 5 falhas seguidas = 15 min;
+vencido recomeça; vivo não conta nem estende). O super-admin segue na `sa_reautenticar` + `sa_tentativa_*` +
+`sa_gravar_senha_super_admin` (0072/0039/0102).
+
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 3 `sa_*`, 49 no total)
+Todas: sessão inválida = 28000; super-admin ou admin do cliente sem empresa escolhida = 42501. Nunca hash nem e-mail em erro ou
+auditoria.
+
+| Função | Retorno e regra | Erros |
+|---|---|---|
+| `sa_reautenticar_admin(p_sid uuid) returns table (tenant_id uuid, usuario_id uuid, email text, senha_hash text, falhas integer, bloqueado_ate timestamptz)` | a conta para a API conferir a senha atual com o argon2; `bloqueado_ate` só quando vivo; `falhas` = 0 se o bloqueio venceu. Audita `sa.reautenticar` | 28000, 42501 |
+| `sa_falha_senha_admin(p_sid uuid) returns table (falhas integer, bloqueado_ate timestamptz)` | senha atual errada: bloqueio vivo = nada muda (devolve o estado); senão `falhas` = (vencido ? 0 : falhas) + 1 e, na 5ª, `bloqueio_ate = now() + 15 min` (falhas fica 5). `for update` na linha. Audita `sa.bloqueio` `{ minutos: 15 }` ao bloquear | 28000, 42501 |
+| `sa_gravar_senha_admin(p_sid uuid, p_hash_atual text, p_hash_novo text) returns boolean` | grava só se `senha_hash = p_hash_atual` (senão false, nada muda). Como a `trocarSenha` da rota pública: sem senha a trocar nem temporária, falhas e bloqueio zerados, `sessao_versao + 1`, `core.sessao` revogadas; revoga também as `portal_sessao` de admin do cliente com a conta em `portal_sessao_empresa` (inclusive a atual). Audita no tenant `usuario.senha_trocar` `{ motivo: 'voluntaria', sessoes_revogadas: true, origem: 'portal' }` e na plataforma `sa.senha.trocada` `{ sessoes_revogadas, sessoes_app_revogadas }` | 28000, 42501, 22023 (hash atual nulo; hash novo fora do PHC argon2id) |
+
+```sql
+select * from plataforma.sa_reautenticar_admin($1);              -- hash e bloqueio (423 se bloqueado_ate não nulo)
+select * from plataforma.sa_falha_senha_admin($1);               -- senha atual errada (401/423 pelo estado devolvido)
+select plataforma.sa_gravar_senha_admin($1, $2, $3) as r;        -- false = 409 (a senha mudou no meio)
 ```
