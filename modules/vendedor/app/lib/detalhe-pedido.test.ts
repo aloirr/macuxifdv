@@ -79,7 +79,7 @@ describe('RN-VEN-30/18 (T-0138): histórico do orçamento', () => {
   });
   it('RN-VEN-30: sem eventos usa a criação; transformado vem da situação calculada; orçamento nunca vence (RN-VEN-18)', () => {
     expect(t([], { situacao: 'aberto' })).toEqual(['Salvo · 08/11 10:35']);
-    expect(t([], { situacao: 'convertido', convertidoEm: '2026-11-09T13:00:00.000Z', numeroPedido: '000013' })).toEqual(['Salvo · 08/11 10:35', 'Transformado em pedido nº 000013 · 09/11 09:00']);
+    expect(t([], { situacao: 'convertido', convertidoEm: '2026-11-09T13:00:00.000Z', numeroPedido: '000013' })).toEqual(['Salvo · 08/11 10:35', 'Convertido em pedido nº 000013 · 09/11 09:00']);
   });
   it('RN-VEN-30: cancelado leva o motivo', () => {
     const tg = tags(eventosDoOrcamento([ev('received', '2026-11-08T14:35:00.000Z'), ev('cancelled', '2026-11-08T18:00:00.000Z', 'Lucas Andrade', 'Cliente desistiu')], { ...base, situacao: 'cancelado' }), 'orcamento');
@@ -109,7 +109,7 @@ describe('RF-VEN-05 / RN-VEN-31 (T-0138): onde fica cada ação (pedido-v2 §4.3
   const base: EntradaAcoesDoDetalhe = { tipo: 'pedido', status: 'received', situacao: null, naFila: false, recusado: false, somenteLeitura: false, podeEditar: false, podeCancelar: false, podeDuplicar: true, podePdf: true, podeConverter: false, pedidoGeradoId: null };
   const ids = (a: ReturnType<typeof acoesDoDetalhe>) => ({ principal: a.principal?.id ?? null, icones: a.icones.map((x) => x.id), menu: a.menu.map((x) => x.id) });
 
-  it('RF-VEN-05: orçamento aberto: Transformar em pedido grande; Editar, PDF, Duplicar em ícone; Cancelar no ⋮', () => {
+  it('RF-VEN-05: orçamento aberto: Converter em pedido grande; Editar, PDF, Duplicar em ícone; Cancelar no ⋮', () => {
     expect(ids(acoesDoDetalhe({ ...base, tipo: 'orcamento', situacao: 'aberto', podeConverter: true, podeEditar: true, podeCancelar: true }))).toEqual({ principal: 'transformar', icones: ['editar', 'pdf', 'duplicar'], menu: ['cancelar'] });
   });
   it('RN-VEN-18 (T-0141 G): com o preço congelado vencido, o principal Transformar traz o apoio "Entra pelos preços de hoje"; vigente, sem apoio', () => {

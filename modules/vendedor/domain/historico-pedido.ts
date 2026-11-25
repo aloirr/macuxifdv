@@ -59,7 +59,7 @@ export function eventosDoPedido(historico: ReadonlyArray<OrderEvent>, ctx: { ven
 }
 
 /**
- * Eventos do ORÇAMENTO (RN-VEN-30/18): Salvo (o primeiro evento) · Transformado em pedido nº (calculado) · Cancelado (+ motivo).
+ * Eventos do ORÇAMENTO (RN-VEN-30/18): Salvo (o primeiro evento) · Convertido em pedido nº (calculado) · Cancelado (+ motivo).
  * O orçamento não tem status próprio nem vence (RN-VEN-18, 09/11): `convertido` vem da situação calculada.
  */
 export function eventosDoOrcamento(

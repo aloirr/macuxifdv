@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { alertasDoPedido, soOrcamentoPorAlertas } from '../../domain/alertas-pedido';
-import { botoesDoResumo } from '../../domain/botoes-resumo';
+import { botoesDaEdicao, botoesDoSalvarNovo } from '../../domain/botoes-resumo';
 import { abaDaCorrecao, motivoDaRecusa } from './salvar-na-fila';
 
 const CLIENTE = { ativo: true, bloqueado: false } as never;
@@ -14,10 +14,11 @@ describe('RN-VEN-11a: Alertas e botões do pedido acima do limite', () => {
   it('RN-VEN-11a: sem excesso não há alerta de limite', () => {
     expect(alertasDoPedido({ cliente: CLIENTE, acima_do_limite: null })).toEqual([]);
   });
-  it('RN-VEN-11a: acima do limite só "Salvar como orçamento" (o enviar fica desligado)', () => {
-    const b = botoesDoResumo({ cliente: CLIENTE, pre_venda_ligada: true, editando: null, acima_do_limite: true } as never);
-    expect(b.enviar.habilitado).toBe(false);
-    expect(b.principal).toBe('orcamento');
+  it('RN-VEN-11a: acima do limite o pedido salva (Salvar > Pedido), mas a edição não envia nem transforma em pedido', () => {
+    const novo = botoesDoSalvarNovo({ cliente: CLIENTE, pre_venda_ligada: true });
+    expect(novo.escolha.pedido.visivel).toBe(true);
+    expect(botoesDaEdicao({ cliente: CLIENTE, editando: 'pedido', acima_do_limite: true }).salvarAlteracoes.habilitado).toBe(false);
+    expect(botoesDaEdicao({ cliente: CLIENTE, editando: 'orcamento', acima_do_limite: true }).transformar.habilitado).toBe(false);
   });
   it('RN-VEN-11a: a recusa da API leva ao Resumo, com a frase em português', () => {
     expect(abaDaCorrecao('Pedido acima do desconto máximo do vendedor (8,0%)')).toBe('resumo');

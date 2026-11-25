@@ -154,20 +154,17 @@ export interface SituacaoCliente {
   campos_faltantes: readonly string[];
 }
 
+/** RN-VEN-13: a frase do cadastro incompleto, num lugar só: alerta do pedido, recusa da API e conversão. Sem campos, sem o "falta". */
+export function textoCadastroIncompleto(campos: readonly string[]): string {
+  return campos.length > 0 ? `Cadastro do cliente incompleto: falta ${campos.join(', ')}.` : 'Cadastro do cliente incompleto.';
+}
+
 /** Por que o cliente só faz orçamento (texto curto da folha do Salvar); `null` = faz pedido. */
 export function motivoSoOrcamento(c: SituacaoCliente): string | null {
   if (c.bloqueado) return 'Cliente bloqueado.';
   if (!c.ativo) return 'Cliente inativo.';
-  if (c.cadastro_incompleto) return c.campos_faltantes.length > 0 ? `Cadastro incompleto: falta ${c.campos_faltantes.join(', ')}.` : 'Cadastro incompleto.';
+  if (c.cadastro_incompleto) return textoCadastroIncompleto(c.campos_faltantes);
   return null;
-}
-
-/** RN-VEN-38 / RN-VEN-13: a linha que explica a falta do "Salvar pedido" (texto do designer, §2.3 da spec). */
-export function avisoSoOrcamento(c: SituacaoCliente): string | null {
-  if (motivoSoOrcamento(c) === null) return null;
-  if (c.bloqueado) return 'Cliente bloqueado: só dá para salvar como orçamento';
-  if (!c.ativo) return 'Cliente inativo: só dá para salvar como orçamento';
-  return 'Cadastro do cliente incompleto: só dá para salvar como orçamento';
 }
 
 /**
@@ -516,3 +513,6 @@ function totalDosItens(lista: ReadonlyArray<ItemOrcado>, ajustePedido: AjustePed
     ajustePedido,
   ).total_cents;
 }
+
+/** RN-VEN-13 / RN-CORE-27: a frase única quando o cliente do documento não está na carteira (aparelho e API). */
+export const MENSAGEM_CLIENTE_FORA_DA_CARTEIRA = 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.';

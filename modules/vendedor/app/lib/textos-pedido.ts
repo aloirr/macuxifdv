@@ -5,7 +5,7 @@
 import { formatBRL, formatPct } from '@macuxi/comum';
 
 import { textoPrecoDe, type SituacaoCliente, type SituacaoOrcamento } from '../../domain/orcamento';
-import { ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
+import { ROTULOS_DA_EDICAO } from '../../domain/botoes-resumo';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 
 export type AbaNovoPedido = 'venda' | 'itens' | 'entrega' | 'resumo';
@@ -14,15 +14,17 @@ export type AbaNovoPedido = 'venda' | 'itens' | 'entrega' | 'resumo';
 export const ABA_INICIAL_DO_PEDIDO: AbaNovoPedido = 'venda';
 
 /**
- * T-0137: o pedido guardado por "Apenas salvar" reabre no Resumo.
+ * T-0137: o pedido guardado por Salvar > Pedido reabre no Resumo.
  * T-0141 (RN-VEN-39): o rascunho retomado pela lista Rascunhos abre na aba em que o vendedor parou (`aba`); o novo abre em Venda.
  */
 export function abaInicialDoRascunho(r: { salvo_em?: string | null; aba?: AbaNovoPedido }): AbaNovoPedido {
   return r.salvo_em ? 'resumo' : (r.aba ?? ABA_INICIAL_DO_PEDIDO);
 }
 
-/** Aviso ao fechar a tela depois de "Apenas salvar" (sem Desfazer). */
+/** Aviso ao fechar a tela depois de Salvar > Pedido (sem Desfazer). */
 export const AVISO_PEDIDO_SALVO = 'Pedido salvo';
+/** Aviso na lista de Pedidos depois de Salvar > Orçamento (sem Desfazer). */
+export const AVISO_ORCAMENTO_SALVO = 'Orçamento salvo';
 
 /** Próxima aba do "Avançar": Venda → Itens → Entrega → Resumo. */
 export function proximaAbaDoPedido(aba: AbaNovoPedido): AbaNovoPedido {
@@ -138,14 +140,14 @@ export function avisoSalvoNoAparelho(tipo: 'pedido' | 'orcamento'): { titulo: st
 export const ROTULO_IR_PARA_PEDIDOS_RODAPE = ROTULO_IR_PARA_PEDIDOS;
 
 /**
- * RN-VEN-18 / desenho §1.5: a folha do Transformar abre SEMPRE (toque 1), com o "Enviar pedido" (toque 2); a alçada vira a pergunta ao enviar (RN-VEN-10, T-0151). Sem mudança
- * o título é "Transformar em pedido"; com mudança ou bloqueio, "Mudou desde o orçamento" (com o total novo).
+ * RN-VEN-18 / desenho §1.5: a folha do Converter abre SEMPRE (toque 1), com o "Enviar pedido" (toque 2); a alçada vira a pergunta ao enviar (RN-VEN-10, T-0151). Sem mudança
+ * o título é "Converter em pedido"; com mudança ou bloqueio, "Mudou desde o orçamento" (com o total novo).
  * `null` = sem tabela no aparelho para conferir (a plataforma confere ao receber).
  */
 export function folhaDoTransformar(c: { mudancas: readonly string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number | null } | null): { titulo: string; podeEnviar: boolean; mostrarTotal: boolean } {
-  if (!c) return { titulo: ROTULOS_DO_SALVAR.transformar, podeEnviar: true, mostrarTotal: false };
+  if (!c) return { titulo: ROTULOS_DA_EDICAO.transformar, podeEnviar: true, mostrarTotal: false };
   const mudou = c.mudancas.length > 0 || c.bloqueio !== null;
-  return { titulo: mudou ? 'Mudou desde o orçamento' : ROTULOS_DO_SALVAR.transformar, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
+  return { titulo: mudou ? 'Mudou desde o orçamento' : ROTULOS_DA_EDICAO.transformar, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
 }
 
 /**

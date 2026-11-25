@@ -29,7 +29,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { MSG_SEM_VENDEDORES_EM_NOME, type OpcaoEmNome } from '../../domain/pedido-em-nome';
-import { type BotaoDoResumo, type BotoesDoResumo } from '../../domain/botoes-resumo';
+import { ROTULOS_DO_SALVAR_NOVO, type BotoesDaEdicao, type BotoesDoSalvarNovo } from '../../domain/botoes-resumo';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, TEXTO_ESCOLHA_A_FORMA, textoDasParcelas, type LimitesDoCliente } from '../lib/pagamento-pedido';
@@ -384,7 +384,7 @@ function BlocoSugestoes({
 /**
  * Resumo completo (RF-VEN-11, T-0137, T-0165; docs/design/pedido-v4.md §5.4): Cliente, Condição de pagamento, Itens (só o código, com balão), Entrega,
  * a Observação do pedido (editável), os Totais e os botões. Não há desconto do pedido: o ajuste fica no item. Os botões e
- * os estados vêm do domain (`botoesDoResumo`); aqui só desenha. Sem folha intermediária: cada botão faz o que diz em 1 toque.
+ * os estados vêm do domain (`botoesDoSalvarNovo` no Novo pedido, `botoesDaEdicao` na edição); aqui só desenha. O Novo pedido tem só Salvar e Cancelar.
  */
 export function AbaResumo({
   emNomeDe,
@@ -401,10 +401,10 @@ export function AbaResumo({
   fretePadrao,
   onRascunho,
   aoAbrirItem,
-  botoes,
-  onEnviar,
-  onApenasSalvar,
-  onOrcamento,
+  botoesNovo,
+  botoesEdicao,
+  onSalvar,
+  onSalvarAlteracoes,
   onSalvarOrcamento,
   onTransformar,
   onCancelar,
@@ -430,10 +430,13 @@ export function AbaResumo({
   onRascunho: OnRascunho;
   /** tocar na linha do item (fora do código) abre a folha do item */
   aoAbrirItem: (produtoId: string) => void;
-  botoes: BotoesDoResumo;
-  onEnviar: () => void;
-  onApenasSalvar: () => void;
-  onOrcamento: () => void;
+  /** Novo pedido: Salvar e Cancelar; `null` na edição */
+  botoesNovo: BotoesDoSalvarNovo | null;
+  /** edição de pedido ou orçamento existente; `null` no Novo pedido */
+  botoesEdicao: BotoesDaEdicao | null;
+  /** Novo pedido: o Salvar (grava direto ou abre a folha Orçamento / Pedido, quem decide é a tela) */
+  onSalvar: () => void;
+  onSalvarAlteracoes: () => void;
   onSalvarOrcamento: () => void;
   onTransformar: () => void;
   onCancelar: () => void;
@@ -488,81 +491,50 @@ export function AbaResumo({
         <CartaoDeTotais linhas={linhasDosTotais({ subtotal_cents: calculo.total_tabela_cents, total_cents: calculo.total_cents }, { fixas: true })} total={formatBRL(calculo.total_cents)} testIDTotal="totais-pedido-total" />
       </View>
       {somenteLeitura ? null : (
-        <BotoesDoResumoView botoes={botoes} salvando={salvando} onEnviar={onEnviar} onApenasSalvar={onApenasSalvar} onOrcamento={onOrcamento} onSalvarOrcamento={onSalvarOrcamento} onTransformar={onTransformar} onCancelar={onCancelar} />
+        <BotoesDoResumoView botoesNovo={botoesNovo} botoesEdicao={botoesEdicao} salvando={salvando} onSalvar={onSalvar} onSalvarAlteracoes={onSalvarAlteracoes} onSalvarOrcamento={onSalvarOrcamento} onTransformar={onTransformar} onCancelar={onCancelar} />
       )}
     </View>
   );
 }
 
-interface BotaoNaTela {
-  chave: string;
-  botao: BotaoDoResumo;
-  onPress: () => void;
-  testID: string;
-}
-
-/** Os botões do Resumo, na hierarquia da spec (§2.2): um principal de largura total, os secundários e o Cancelar em texto. */
+/** Os botões do Resumo (spec §2.2): um principal de largura total (Salvar; na edição, o salvar da edição), o Transformar só na edição de orçamento e o Cancelar em texto. */
 function BotoesDoResumoView({
-  botoes: b,
+  botoesNovo,
+  botoesEdicao,
   salvando,
-  onEnviar,
-  onApenasSalvar,
-  onOrcamento,
+  onSalvar,
+  onSalvarAlteracoes,
   onSalvarOrcamento,
   onTransformar,
   onCancelar,
 }: {
-  botoes: BotoesDoResumo;
+  botoesNovo: BotoesDoSalvarNovo | null;
+  botoesEdicao: BotoesDaEdicao | null;
   salvando: boolean;
-  onEnviar: () => void;
-  onApenasSalvar: () => void;
-  onOrcamento: () => void;
+  onSalvar: () => void;
+  onSalvarAlteracoes: () => void;
   onSalvarOrcamento: () => void;
   onTransformar: () => void;
   onCancelar: () => void;
 }) {
-  const principal: BotaoNaTela =
-    b.principal === 'enviar'
-      ? { chave: 'enviar', botao: b.enviar, onPress: onEnviar, testID: 'send-order' }
-      : b.principal === 'orcamento'
-        ? { chave: 'orcamento', botao: b.orcamento, onPress: onOrcamento, testID: 'salvar-orcamento' }
-        : { chave: 'salvar_orcamento', botao: b.salvarOrcamento, onPress: onSalvarOrcamento, testID: 'send-order' };
-  const secundarios = [
-    b.apenasSalvar.visivel ? { chave: 'apenas', botao: b.apenasSalvar, onPress: onApenasSalvar, testID: 'apenas-salvar' } : null,
-    b.principal !== 'orcamento' && b.orcamento.visivel ? { chave: 'orcamento', botao: b.orcamento, onPress: onOrcamento, testID: 'salvar-orcamento' } : null,
-    b.transformar.visivel ? { chave: 'transformar', botao: b.transformar, onPress: onTransformar, testID: 'transformar-em-pedido' } : null,
-  ].filter((x): x is BotaoNaTela => x !== null);
-  // dois secundários dividem a linha (metade cada); um só ocupa a largura toda
-  const linhaDupla = secundarios.length === 2;
+  const principal = botoesNovo
+    ? { rotulo: botoesNovo.salvar.rotulo, desligado: false, onPress: onSalvar, testID: 'salvar-pedido' }
+    : botoesEdicao?.principal === 'salvar_orcamento'
+      ? { rotulo: botoesEdicao.salvarOrcamento.rotulo, desligado: !botoesEdicao.salvarOrcamento.habilitado, onPress: onSalvarOrcamento, testID: 'send-order' }
+      : botoesEdicao
+        ? { rotulo: botoesEdicao.salvarAlteracoes.rotulo, desligado: !botoesEdicao.salvarAlteracoes.habilitado, onPress: onSalvarAlteracoes, testID: 'send-order' }
+        : null;
+  const transformar = botoesEdicao?.transformar.visivel ? botoesEdicao.transformar : null;
   return (
     <View style={s.botoesResumo} testID="botoes-resumo">
-      <Botao
-        testID={principal.testID}
-        nivel="principal"
-        rotulo={principal.botao.rotulo}
-        rotuloAcessivel={principal.botao.rotulo}
-        desligado={!principal.botao.habilitado}
-        ocupado={salvando}
-        onPress={principal.onPress}
-      />
-      <View style={linhaDupla ? s.linhaDupla : s.colunaSecundarios}>
-        {secundarios.map((x) => (
-          <Botao
-            key={x.chave}
-            testID={x.testID}
-            nivel="secundario"
-            alto
-            quebrarLinha
-            rotulo={x.botao.rotulo}
-            rotuloAcessivel={x.botao.rotulo}
-            desligado={!x.botao.habilitado}
-            style={linhaDupla ? { flex: 1 } : undefined}
-            onPress={x.onPress}
-          />
-        ))}
-      </View>
-      <Pressable testID="cancelar-pedido" accessibilityRole="button" accessibilityLabel="Cancelar" onPress={onCancelar} style={({ pressed }) => [s.cancelar, pressed && { opacity: 0.6 }]}>
-        <Text style={s.cancelarTexto}>Cancelar</Text>
+      {principal ? (
+        <Botao testID={principal.testID} nivel="principal" rotulo={principal.rotulo} rotuloAcessivel={principal.rotulo} desligado={principal.desligado} ocupado={salvando} onPress={principal.onPress} />
+      ) : null}
+      {transformar ? (
+        <Botao testID="transformar-em-pedido" nivel="secundario" alto quebrarLinha rotulo={transformar.rotulo} rotuloAcessivel={transformar.rotulo} desligado={!transformar.habilitado} onPress={onTransformar} />
+      ) : null}
+      <Pressable testID="cancelar-pedido" accessibilityRole="button" accessibilityLabel={ROTULOS_DO_SALVAR_NOVO.cancelar} onPress={onCancelar} style={({ pressed }) => [s.cancelar, pressed && { opacity: 0.6 }]}>
+        <Text style={s.cancelarTexto}>{ROTULOS_DO_SALVAR_NOVO.cancelar}</Text>
       </Pressable>
     </View>
   );
@@ -571,8 +543,6 @@ function BotoesDoResumoView({
 const s = StyleSheet.create({
   linhaPagamento: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   botoesResumo: { gap: 10 },
-  linhaDupla: { flexDirection: 'row', gap: 8 },
-  colunaSecundarios: { gap: 8 },
   cancelar: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   cancelarTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
   sugestao: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6 },

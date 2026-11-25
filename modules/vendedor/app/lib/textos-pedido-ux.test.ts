@@ -25,7 +25,7 @@ describe('confirmacaoDoEnvio (T-0071, revisão de UX 🔴 2): orçamento nunca �
 describe('folhaDoTransformar (RN-VEN-18, desenho §1.5, revisão de UX 🔴 3)', () => {
   it('RN-VEN-18: nada mudou, a folha abre mesmo assim com o Enviar pedido (sem destino nem alçada)', () => {
     const f = folhaDoTransformar({ mudancas: [], bloqueio: null, nivel: null, total_cents: null });
-    expect(f.titulo).toBe('Transformar em pedido');
+    expect(f.titulo).toBe('Converter em pedido');
     expect('subtitulo' in f).toBe(false);
     expect(f.podeEnviar).toBe(true);
     expect(f.mostrarTotal).toBe(false);
@@ -43,7 +43,7 @@ describe('folhaDoTransformar (RN-VEN-18, desenho §1.5, revisão de UX 🔴 3)',
   });
   it('RN-VEN-18: sem tabela no aparelho para conferir, a folha ainda abre e diz que a conferência é no envio', () => {
     const f = folhaDoTransformar(null);
-    expect(f.titulo).toBe('Transformar em pedido');
+    expect(f.titulo).toBe('Converter em pedido');
     expect(f.podeEnviar).toBe(true);
   });
 });

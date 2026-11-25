@@ -25,40 +25,32 @@ describe('RN-VEN-38: pedido alterado', () => {
 });
 
 describe('RN-VEN-38: opções da folha e RN-VEN-13', () => {
-  const base = { pre_venda_ligada: true, preco_data: '2026-11-09' };
-  it('RN-VEN-38: cliente normal vê Salvar e enviar pedido, Apenas salvar, Salvar como orçamento (sem subtítulo de preço) e Descartar', () => {
-    expect(opcoesDaSaida({ ...base, cliente: ok })).toEqual({ salvar: true, apenasSalvar: true, orcamento: true });
+  const base = { pre_venda_ligada: true };
+  it('RN-VEN-38: cliente normal vê Salvar pedido, Salvar orçamento e Descartar (o mesmo Salvar do Resumo)', () => {
+    expect(opcoesDaSaida({ ...base, cliente: ok })).toEqual({ pedido: true, orcamento: true });
   });
   it.each([
     ['bloqueado', { ...ok, bloqueado: true }],
     ['inativo', { ...ok, ativo: false }],
     ['incompleto', { ...ok, cadastro_incompleto: true, campos_faltantes: ['CNPJ'] }],
-  ])('RN-VEN-13: cliente %s vê só Apenas salvar, Salvar como orçamento e Descartar (RD-0176: sem a linha do motivo, que está em Alertas)', (_n, cliente) => {
+  ])('RN-VEN-13: cliente %s vê só Salvar orçamento e Descartar (RD-0176: sem a linha do motivo, que está em Alertas)', (_n, cliente) => {
     const o = opcoesDaSaida({ ...base, cliente });
-    expect(o.salvar).toBe(false);
-    expect(o.apenasSalvar).toBe(true);
-    expect(o.orcamento).toBe(true);
+    expect(o).toEqual({ pedido: false, orcamento: true });
     expect(o).not.toHaveProperty('aviso');
   });
-  it('RN-VEN-38: tenant sem pré-venda não oferece orçamento', () => {
-    expect(opcoesDaSaida({ ...base, pre_venda_ligada: false, cliente: ok }).orcamento).toBe(false);
-  });
-  it('RN-VEN-42 (e)/RN-VEN-11/RN-VEN-20: com alerta de bloqueio a folha não oferece Salvar e enviar pedido, só orçamento e Apenas salvar', () => {
-    const o = opcoesDaSaida({ ...base, cliente: ok, alertas_impedem_enviar: true });
-    expect(o).toMatchObject({ salvar: false, orcamento: true, apenasSalvar: true });
+  it('RN-VEN-38: tenant sem pré-venda não oferece orçamento; o pedido salvo segue', () => {
+    expect(opcoesDaSaida({ ...base, pre_venda_ligada: false, cliente: ok })).toEqual({ pedido: true, orcamento: false });
   });
   it('RN-VEN-13: cliente só-orçamento mantém o orçamento mesmo sem pré-venda ligada (a folha nunca fica sem salvar)', () => {
-    expect(opcoesDaSaida({ pre_venda_ligada: false, preco_data: '2026-11-09', cliente: { ...ok, bloqueado: true } }).orcamento).toBe(true);
+    expect(opcoesDaSaida({ pre_venda_ligada: false, cliente: { ...ok, bloqueado: true } }).orcamento).toBe(true);
   });
 });
 
 describe('RN-VEN-38: textos da folha (T-0137)', () => {
-  it('RN-VEN-38: rótulos novos da folha Sair do pedido', () => {
-    expect(TEXTOS_DA_SAIDA.salvar.rotulo).toBe('Salvar e enviar pedido');
-    expect(TEXTOS_DA_SAIDA.apenasSalvar).toEqual({ rotulo: 'Apenas salvar' });
-    expect(TEXTOS_DA_SAIDA.salvar).toEqual({ rotulo: 'Salvar e enviar pedido' });
+  it('RN-VEN-38: rótulos da folha Sair do pedido seguem o Salvar do Resumo; Descartar sai sem salvar', () => {
+    expect(TEXTOS_DA_SAIDA.pedido).toEqual({ rotulo: 'Salvar pedido' });
+    expect(TEXTOS_DA_SAIDA.orcamento).toEqual({ rotulo: 'Salvar orçamento' });
     expect(TEXTOS_DA_SAIDA.descartar).toEqual({ rotulo: 'Descartar' });
-    expect(TEXTOS_DA_SAIDA.orcamento.rotulo).toBe('Salvar como orçamento');
   });
 });
 
@@ -82,7 +74,7 @@ describe('RN-VEN-38: retomada depois que o sistema fecha o app', () => {
   it('RN-VEN-38: rascunho sem alteração e edição de pedido salvo não são oferecidos', () => {
     expect(rascunhoParaRetomar({ c1: rasc(), 'edit:p1': rasc({ lines: { a: 1 }, edit_order_id: 'p1' }) })).toBeNull();
   });
-  it('RN-VEN-38: rascunho guardado por Apenas salvar não é oferecido como pedido não terminado', () => {
+  it('RN-VEN-38: rascunho guardado como pedido salvo não é oferecido como pedido não terminado', () => {
     expect(rascunhoParaRetomar({ c1: rasc({ lines: { a: 1 }, salvo_em: '2026-11-08T11:00:00Z' }) })).toBeNull();
     expect(rascunhoParaRetomar({ c1: rasc({ lines: { a: 1 }, salvo_em: '2026-11-08T11:00:00Z' }), c2: rasc({ customer_id: 'c2', lines: { b: 1 } }) })?.chave).toBe('c2');
   });

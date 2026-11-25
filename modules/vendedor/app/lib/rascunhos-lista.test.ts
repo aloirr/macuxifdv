@@ -62,7 +62,7 @@ describe('RN-VEN-39: tela Rascunhos (T-0141 F.2)', () => {
     expect(TEXTOS_RASCUNHOS.erro).toEqual({ titulo: 'Não foi possível abrir os rascunhos', apoio: 'Puxe a tela para tentar de novo.' });
     expect(lista({ c1: r({}) }, [], () => null)[0]!.total_cents).toBeNull();
   });
-  it('RN-VEN-39: tocar retoma na aba em que parou; o "Apenas salvar" abre no Resumo; sem nada, Venda', () => {
+  it('RN-VEN-39: tocar retoma na aba em que parou; o pedido salvo abre no Resumo; sem nada, Venda', () => {
     expect(abaInicialDoRascunho({ aba: 'itens' })).toBe('itens');
     expect(abaInicialDoRascunho({ aba: 'entrega', salvo_em: '2026-11-09T10:00:00Z' })).toBe('resumo');
     expect(abaInicialDoRascunho({ salvo_em: '2026-11-09T10:00:00Z' })).toBe('resumo');

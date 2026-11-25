@@ -3,7 +3,7 @@
  * P-2 (T-0029): só o que ainda está no aparelho se edita; pedido aceito pelo servidor se duplica.
  * RN-PRO-01: a permissão por ação (`pedido.editar`, `pedido.cancelar`) chega pronta do SDK em `pode`.
  */
-import { editavelNaFatia, type OrderStatus } from '../../domain/order';
+import { acoesDoPedidoNaLista, motivoDaAcaoNegada, type EntradaAcoesDaLista } from '../../domain/acoes-da-lista';
 
 export interface EntradaAcoes {
   status: string;
@@ -31,13 +31,22 @@ export interface EstadoAcoes {
 
 export function estadoDasAcoes(e: EntradaAcoes): EstadoAcoes {
   const precisaSinal = !e.naFila && e.offline;
-  const editavel = !e.v1 ? e.acoes.can_edit && !precisaSinal : (e.naFila && e.recusado === true && editavelNaFatia(e.status as OrderStatus)) || (e.orcamentoAberto === true && !precisaSinal);
+  // RN-VEN-31/48: a regra de Editar é a mesma da lista de Pedidos (`acoesDoPedidoNaLista`); a Fase M (v1 falso) segue o domain antigo
+  const daLista: Omit<EntradaAcoesDaLista, 'pode'> = {
+    tipo: e.orcamentoAberto === true ? 'orcamento' : 'pedido',
+    status: e.status,
+    orcamento_aberto: e.orcamentoAberto === true,
+    na_fila: e.naFila,
+    recusado: e.recusado === true,
+    tem_itens: e.temItens,
+  };
+  const editavel = !e.v1 ? e.acoes.can_edit && !precisaSinal : acoesDoPedidoNaLista({ ...daLista, pode: { criar: true, editar: true, cancelar: true } }).editar && (e.orcamentoAberto === true ? !precisaSinal : e.naFila);
   const podeEditar = e.ehVendedor && e.pode.editar && editavel && e.temItens;
   // T-0130: na fila (sem recusa) não há Editar nem Excluir; o recusado pode ser corrigido ou descartado
   const podeExcluir = e.pode.cancelar && e.acoes.can_cancel && !precisaSinal && (!e.naFila || e.recusado === true);
   let motivoBloqueio = '';
   if (e.acoes.locked_reason) motivoBloqueio = e.acoes.locked_reason;
-  else if (e.v1 && !e.naFila && e.ehVendedor && !editavel && !e.orcamentoAberto) motivoBloqueio = 'Pedido já recebido pelo servidor: não pode ser editado. Duplique para fazer um novo.';
+  else if (e.v1 && !e.naFila && e.ehVendedor && !editavel && !e.orcamentoAberto) motivoBloqueio = motivoDaAcaoNegada('editar', daLista);
   else if (precisaSinal) motivoBloqueio = 'Sem sinal: editar ou excluir pedido já enviado precisa de conexão.';
   else if (!e.temItens) motivoBloqueio = TEXTO_SEM_ITENS;
   return { podeEditar, podeExcluir, motivoBloqueio };

@@ -19,6 +19,7 @@ import {
   type OrcamentoParaPedido,
   type OrcamentoParaReconferir,
   type SituacaoCliente,
+  motivoSoOrcamento,
 } from '../../domain/orcamento';
 import { ehUf } from '@macuxi/comum/endereco';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
@@ -325,6 +326,7 @@ export function textoDaMudanca(m: MudancaNaConversao, nome: (produtoId: string) 
     case 'medida_inativa':
       return `${nome(m.produto_id)}: a medida ${m.unidade} não está mais ativa. O item sai do pedido.`;
     case 'cliente':
-      return m.motivo === 'bloqueado' ? 'Cliente bloqueado: só orçamento.' : m.motivo === 'inativo' ? 'Cliente inativo: só orçamento.' : 'Cadastro do cliente incompleto: só orçamento.';
+      // RN-VEN-13: os três motivos saem pela mesma função (`motivoSoOrcamento`), no mesmo formato do alerta e da recusa
+      return motivoSoOrcamento({ ativo: m.motivo !== 'inativo', bloqueado: m.motivo === 'bloqueado', cadastro_incompleto: m.motivo === 'cadastro_incompleto', campos_faltantes: m.motivo === 'cadastro_incompleto' ? m.campos : [] }) ?? '';
   }
 }
