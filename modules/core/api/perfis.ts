@@ -47,8 +47,14 @@ import { cargoDaBase, type Cargo } from '@macuxi/platform-sdk';
 import { avaliarEstadoDePerfis, codigoDoPerfil, diffAuditavelDePerfil, sobreposicoesDoDesejado, validarNomeDoPerfil } from '../domain';
 import { auditar } from './auditoria';
 
-/** Chaves básicas que a página nunca edita (os apps dependem delas) e o parâmetro que virou `pedido.ver` (spec §5.13). */
-const FORA_DA_TELA = new Set(['notificacao.ler', 'dispositivo.registrar_push', 'app.atualizar', 'parametro.promotor_ve_pedidos']);
+/**
+ * Chaves básicas que a página nunca edita (os apps dependem delas) e o parâmetro que virou `pedido.ver` (spec §5.13).
+ * As 7 chaves `*.ver` do catálogo v2 ficam de fora até a E6 (ADR 0073): com o motor novo desligado, desmarcá-las fecharia rotas hoje fixas.
+ */
+const FORA_DA_TELA = new Set([
+  'notificacao.ler', 'dispositivo.registrar_push', 'app.atualizar', 'parametro.promotor_ve_pedidos',
+  'carteira.ver', 'equipe.ver', 'rota.ver', 'visita.ver', 'questionario.ver', 'cadastro_trade.ver', 'relatorio_trade.ver',
+]);
 
 interface LinhaPerfil {
   id: string;

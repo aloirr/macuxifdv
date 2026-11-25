@@ -159,6 +159,19 @@ describe('T-0111: limites na escrita (RN-CORE-33, RN-PRO-01, RN-CORE-04, RN-CORE
     expect(String(aud[0]!.valores[5])).toContain('acesso.campo');
   });
 
+  it('ADR 0073: as 7 chaves fixas do catálogo v2 ficam fora da página — o GET não as lista e o PUT não as revoga', async () => {
+    const FIXAS = ['carteira.ver', 'equipe.ver', 'rota.ver', 'visita.ver', 'questionario.ver', 'cadastro_trade.ver', 'relatorio_trade.ver'];
+    const d = await ler('vendedor');
+    expect(d.chaves.filter((c) => FIXAS.includes(c.chave))).toHaveLength(0);
+    const { db, chamadas } = fakeDb(tenant());
+    await executar(rota('PUT', 'perfis/:codigo'), contexto(db), { params: { codigo: 'vendedor' }, corpo: corpoDe(d, (c) => c) });
+    expect(escritas(chamadas)).toHaveLength(0);
+    const b = fakeDb(tenant());
+    await executar(rota('PUT', 'perfis/:codigo'), contexto(b.db), { params: { codigo: 'vendedor' }, corpo: corpoDe(d, (c) => c.filter((x) => x.chave !== 'acesso.campo')) });
+    const inserts = b.chamadas.filter((x) => /insert into plataforma.perfil_permissao/.test(x.sql));
+    expect(inserts.map((x) => x.valores.slice(1, 3))).toEqual([['acesso.campo', false]]);
+  });
+
   it('RN-CORE-35: criar com nome repetido é 422 CODIGO_REPETIDO; criar a partir de um perfil exige a mesma base', async () => {
     const { db } = fakeDb(tenant());
     await expect(executar(rota('POST', 'perfis'), contexto(db), { corpo: { nome: 'vendedor', base: 'vendedor', cargo: 'vendedor' } })).rejects.toMatchObject({ codigo: 'CODIGO_REPETIDO' });
