@@ -163,6 +163,12 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
   Acrésc R$) num menu do mesmo tipo e o valor digitável à direita. Moldura de 30 dp, alvo de 44 dp.
 - `Passo compacto`: caixa "− n +" de 100 × 30 dp num contêiner de 124 × 44 dp (− e + com 44 × 44 dp). Cada toque lê o número
   do momento (o "+" com o teclado aberto, bug do R-20261106-064754). `desligadoAumentar` tira só o "+".
+- `Passo` com `decimal` (KG e M, ADR 0076, T-0196): o mesmo passo de 40 dp (alvo de 48 dp) das outras embalagens, para a
+  troca UN | CX | KG na folha do item não mudar o tamanho do "− n +". Com `casas` > 0, teclado com vírgula, campo de 88 dp
+  ("1234,5678"), até `casas` casas (máx. 4) e "+"/"−" de 1 em 1 na escala (1,25 → 2,25; o "−" que passaria do mínimo não
+  mexe). Com `casas: 0` (trava fechada) o teclado é o numérico inteiro (`tecladoDoPasso`, ADR 0076 E4); se vier vírgula
+  colada, ela fica à vista e `avisoSemCasas` aparece embaixo (12 pt, `danger`, como o erro do `CampoTexto`); ao sair do
+  campo vale o inteiro ("1,5" → 1, nunca 15). Quem decide as casas é o módulo.
 - `Segmentado compacto`: 30 dp de visual (o visual não estica até o alvo), 44 × 44 dp de alvo por opção e 6 dp entre elas; largura mínima
   `larguraSegmentadoCompacto(n)` (2 → 94, 3 → 144). UN | CX da linha 3 do item; Dia | Mês | Ano da folha. Num pai com `flex: 1`,
   a linha passa a ter 44 dp de altura de layout (o alvo entra no layout, não é folga).

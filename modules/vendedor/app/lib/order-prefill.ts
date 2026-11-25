@@ -5,6 +5,9 @@
  */
 import type { Product } from '@macuxi/catalogo/contracts';
 
+import { somarQuantidades } from '@macuxi/comum/quantidade';
+import { quantidadeDoItem } from './quantidade-digitada';
+
 export interface PrefillLine {
   product_id: string;
   quantity: number;
@@ -23,15 +26,16 @@ export interface PrefillResult {
   short_stock: Array<{ product_id: string; label: string; stock: number }>;
 }
 
-export function prefillLines(source: PrefillLine[], catalog: Product[]): PrefillResult {
+export function prefillLines(source: PrefillLine[], catalog: Product[], fracaoLiberada = false): PrefillResult {
   const byId = new Map(catalog.map((p) => [p.id, p]));
   const lines: Record<string, number> = {};
   const removed: PrefillResult['removed'] = [];
   const short_stock: PrefillResult['short_stock'] = [];
   for (const l of source) {
-    const q = Math.trunc(l.quantity);
-    if (!(q > 0)) continue;
     const p = byId.get(l.product_id);
+    // RN-VEN-02 v3: KG e M mantêm as casas só com a trava liberada (ADR 0076 D6)
+    const q = quantidadeDoItem(l.quantity, l.unidade ?? p?.unit, fracaoLiberada);
+    if (!(q > 0)) continue;
     const label = p ? `${p.erp_code} ${p.description}` : [l.erp_code, l.description].filter(Boolean).join(' ') || l.product_id;
     if (!p) {
       removed.push({ product_id: l.product_id, label, codigo: l.erp_code || label, reason: 'inactive' });
@@ -42,7 +46,7 @@ export function prefillLines(source: PrefillLine[], catalog: Product[]): Prefill
       continue;
     }
     const chave = l.unidade ? `${p.id}@${l.unidade}` : p.id;
-    lines[chave] = (lines[chave] ?? 0) + q;
+    lines[chave] = somarQuantidades(lines[chave] ?? 0, q);
     if (!l.unidade && lines[chave]! > p.stock_total) short_stock.push({ product_id: p.id, label, stock: Math.max(0, p.stock_total) });
   }
   return { lines, removed, short_stock };

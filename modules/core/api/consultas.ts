@@ -1,4 +1,5 @@
 /** Consultas do Core a outros módulos (ADR 0012). SQL só em `core.*`, na transação de quem chama (RLS do tenant). */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { implementarConsulta } from '@macuxi/platform-sdk';
 import {
   CONSULTA_CADASTRO_CLIENTE,
@@ -66,7 +67,8 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
       'select produto_id, unidade, fator, padrao, ativo, external_id from core.produto_unidade where deleted_at is null and produto_id = any($1::uuid[]) order by produto_id, unidade',
     );
     for (const p of produtos) {
-      p.unidades = unidades.filter((u) => u.produto_id === p.id).map(({ produto_id: _p, ...u }) => u) as NonNullable<typeof p.unidades>;
+      // ADR 0076: `fator` é numeric no banco (texto no node-pg); sai como número, com até 4 casas
+      p.unidades = unidades.filter((u) => u.produto_id === p.id).map(({ produto_id: _p, ...u }) => ({ ...u, fator: quantidadeDoBanco(u.fator as string | number) })) as NonNullable<typeof p.unidades>;
     }
   }
   const usuarios = await lista(entrada.usuario_ids, 'select id, nome, perfil, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil from core.usuario where deleted_at is null and id = any($1::uuid[]) order by id');
