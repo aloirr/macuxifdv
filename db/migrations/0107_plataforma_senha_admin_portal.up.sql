@@ -16,13 +16,14 @@
 -- mensagem de erro ou auditoria.
 --   - sa_reautenticar_admin(p_sid uuid) -> table (tenant_id uuid, usuario_id uuid, email text, senha_hash text, falhas integer,
 --     bloqueado_ate timestamptz): a conta para a API conferir a senha atual com o argon2. bloqueado_ate só quando vivo (> now());
---     falhas = 0 se o bloqueio já venceu. Audita 'sa.reautenticar' (como a sa_reautenticar do super-admin, 0072).
+--     falhas = 0 se o bloqueio já venceu. Audita 'sa.reautenticar' quando acha a conta (como a sa_reautenticar, 0072).
 --   - sa_falha_senha_admin(p_sid uuid) -> table (falhas integer, bloqueado_ate timestamptz): senha atual errada. Bloqueio vivo =
 --     nada muda (devolve o estado); senão falhas = (bloqueio vencido ? 0 : falhas) + 1 e, na 5ª, bloqueio_ate = now() + 15 min
 --     (falhas fica 5, como o registrarFalhaDeLogin do domínio). Trava a linha (for update): duas falhas ao mesmo tempo contam
 --     duas. Audita 'sa.bloqueio' { minutos: 15 } quando bloqueia.
 --   - sa_gravar_senha_admin(p_sid uuid, p_hash_atual text, p_hash_novo text) -> boolean: hash atual nulo ou hash novo fora do
---     PHC argon2id = 22023. Grava só se senha_hash = p_hash_atual (false se não; nada muda). Zera falhas e bloqueio, tira senha
+--     PHC argon2id = 22023. Grava só se senha_hash = p_hash_atual e a conta não está bloqueada (bloqueio vivo: false, como hash
+--     divergente; nada muda; pedidos paralelos que passaram juntos pelo 423 da rota). Zera falhas e bloqueio, tira senha
 --     a trocar e temporária, sessao_versao + 1, revoga as core.sessao vivas da conta e as portal_sessao vivas de admin do
 --     cliente que têm a conta em portal_sessao_empresa (inclusive a atual). Audita no tenant 'usuario.senha_trocar' (a mesma
 --     ação da rota pública, origem 'portal') e na plataforma 'sa.senha.trocada' { sessoes_revogadas, sessoes_app_revogadas }.
@@ -58,7 +59,10 @@ begin
            case when u.bloqueio_ate > now() then u.bloqueio_ate end
       from core.usuario u
      where u.tenant_id = v_t and u.id = v_u and u.deleted_at is null;
-  perform plataforma.sa_registrar_auditoria('admin_cliente', null, v_u, p_sid, v_t, 'sa.reautenticar', '{}'::jsonb);
+  -- só audita quando achou a conta (return query liga o found)
+  if found then
+    perform plataforma.sa_registrar_auditoria('admin_cliente', null, v_u, p_sid, v_t, 'sa.reautenticar', '{}'::jsonb);
+  end if;
 end
 $$;
 revoke all on function plataforma.sa_reautenticar_admin(uuid) from public, macuxi_app, macuxi_worker;
@@ -148,7 +152,9 @@ begin
      set senha_hash = p_hash_novo, trocar_senha = false, senha_expira_em = null,
          senha_temporaria_hash = null, senha_temporaria_expira_em = null, senha_temporaria_criada_em = null,
          tentativas_falhas = 0, bloqueio_ate = null, sessao_versao = u.sessao_versao + 1
-   where u.tenant_id = v_t and u.id = v_u and u.senha_hash = p_hash_atual and u.deleted_at is null;
+   where u.tenant_id = v_t and u.id = v_u and u.senha_hash = p_hash_atual and u.deleted_at is null
+     -- pedidos paralelos que passaram juntos pelo 423 da rota não gravam com a conta já bloqueada (false, como hash divergente)
+     and (u.bloqueio_ate is null or u.bloqueio_ate <= now());
   if not found then
     return false;
   end if;

@@ -3,11 +3,11 @@
  * "Senha do admin do cliente no portal (0107)". O que o BANCO garante:
  * - as 3 funções exigem sessão viva de admin do cliente COM empresa escolhida (inválida 28000; super-admin ou sem empresa 42501)
  *   e agem só na conta da empresa atual da sessão (isolamento entre tenants);
- * - sa_reautenticar_admin: hash e estado do bloqueio da conta (core.usuario), auditada 'sa.reautenticar';
+ * - sa_reautenticar_admin: hash e estado do bloqueio da conta (core.usuario), auditada 'sa.reautenticar' quando acha a conta;
  * - sa_falha_senha_admin: o contador do login (RN-CORE-01): 5 falhas = 15 min; bloqueio vivo não conta nem estende; vencido
  *   recomeça; 'sa.bloqueio' ao bloquear;
- * - sa_gravar_senha_admin: argon2id; hash atual divergente = false sem mudar nada; sucesso zera falhas e bloqueio, sessao_versao
- *   + 1, derruba as core.sessao e as portal_sessao da conta (inclusive a atual); auditoria no tenant e na plataforma sem hash;
+ * - sa_gravar_senha_admin: argon2id; hash atual divergente ou bloqueio vivo = false sem mudar nada; sucesso zera falhas e
+ *   bloqueio, sessao_versao + 1, derruba as core.sessao e as portal_sessao da conta (inclusive a atual); auditoria no tenant e na plataforma sem hash;
  * - EXECUTE só ao macuxi_portal; up/down volta exatamente ao catálogo anterior.
  * Estático (sempre) + banco (fixture dois-tenants, sempre com ROLLBACK; up/down num banco efêmero).
  */
@@ -134,6 +134,10 @@ describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (banco, fi
       expect(aud).toHaveLength(3);
       expect(aud[0]).toEqual({ ator_tipo: 'admin_cliente', usuario_id: ADMIN_A, tenant_alvo_id: A, detalhes: { origem: 'banco' } });
       expect(JSON.stringify(aud)).not.toMatch(/argon2|@/);
+      // conta apagada: a sessão cai (28000) e nada é auditado
+      await q('update core.usuario set deleted_at = now() where tenant_id = $1 and id = $2', [A, ADMIN_A]);
+      expect((await erroDe(reautenticar(sid)))?.code).toBe('28000');
+      expect((await auditorias('sa.reautenticar')).filter((x) => x.ator_tipo === 'admin_cliente')).toHaveLength(3);
     });
   });
 
@@ -173,6 +177,22 @@ describe.skipIf(semBanco())('0107 senha do admin do cliente no portal (banco, fi
       const app = await sessaoApp(A, ADMIN_A);
       expect(await gravar(sid, HASH_NOVO, HASH_NOVO)).toBe(false);
       expect(await conta(A, ADMIN_A)).toEqual({ ...antes, tentativas_falhas: 2 });
+      expect(await vivas([sid])).toEqual([sid]);
+      expect(await q('select revogado_em from core.sessao where id = $1', [app])).toEqual([{ revogado_em: null }]);
+      expect(await auditorias('sa.senha.trocada')).toEqual([]);
+      expect(await q("select count(*)::int as n from plataforma.auditoria where acao = 'usuario.senha_trocar' and tenant_id = $1", [A])).toEqual([{ n: 0 }]);
+    });
+  });
+
+  it('gravar: conta bloqueada + hash certo = false sem mudar nada (pedidos paralelos que passaram juntos pelo 423 da rota)', async () => {
+    await emTransacao(admin, null, async () => {
+      const sid = await adminDe(A, ADMIN_A);
+      const ate = await agoraMais(10);
+      await q('update core.usuario set tentativas_falhas = 5, bloqueio_ate = $3 where tenant_id = $1 and id = $2', [A, ADMIN_A, ate]);
+      const antes = await conta(A, ADMIN_A);
+      const app = await sessaoApp(A, ADMIN_A);
+      expect(await gravar(sid, antes.senha_hash, HASH_NOVO)).toBe(false);
+      expect(await conta(A, ADMIN_A)).toEqual(antes);
       expect(await vivas([sid])).toEqual([sid]);
       expect(await q('select revogado_em from core.sessao where id = $1', [app])).toEqual([{ revogado_em: null }]);
       expect(await auditorias('sa.senha.trocada')).toEqual([]);
