@@ -4,7 +4,7 @@
  * política para ele: 0 linhas direto). Cada chamada é uma transação curta (`semTenant`); a atomicidade (contagem de falhas,
  * troca de empresa) é das funções. Nada daqui entra em log: e-mail, hash.
  */
-import type { AcessoBanco } from '@macuxi/platform-sdk';
+import type { AcessoBanco, UsuarioDoPortal } from '@macuxi/platform-sdk';
 
 /** Conta achada para o e-mail (`sa_contas_para_login`): super-admin ativo ou `admin` ativo de empresa ativa. */
 export interface ContaParaLogin {
@@ -81,6 +81,12 @@ export interface RepositorioSuperAdmin {
   /** Super-admin: todas as empresas; admin do cliente: só as da sessão. */
   listarEmpresas(sid: string): Promise<EmpresaDaSessao[]>;
   revogarSessao(sid: string): Promise<void>;
+  /** `sa_quem_sou(sid)` (0102): nome, perfil e cargo para o topo do portal; `null` = 0 linhas (admin sem empresa escolhida). Nunca vai a log. */
+  quemSou(sid: string): Promise<UsuarioDoPortal | null>;
+  /** `sa_reautenticar(sid)` (0072): conta e hash do super-admin da sessão; `null` = conta inativa. Só super-admin (admin do cliente = erro 42501). */
+  reautenticar(sid: string): Promise<{ super_admin_id: string; email: string; senha_hash: string } | null>;
+  /** `sa_gravar_senha_super_admin` (0102): grava só se o hash ainda é o atual; `false` = mudou no meio (409). Revoga todas as sessões dele. */
+  gravarSenhaSuperAdmin(sid: string, hashAtual: string, hashNovo: string): Promise<boolean>;
   auditar(linha: LinhaAuditoriaAuth): Promise<void>;
 }
 
@@ -147,6 +153,17 @@ export const fabricaSuperAdminSql: FabricaSuperAdmin = (banco) => {
     },
     async revogarSessao(sid) {
       await um('plataforma.sa_revogar($1)', [sid]);
+    },
+    async quemSou(sid) {
+      const r = (await linhasDe<{ nome: string | null; perfil: string | null; cargo: string | null }>('plataforma.sa_quem_sou($1)', [sid]))[0];
+      return r?.nome ? { nome: r.nome, perfil: r.perfil ?? null, cargo: r.cargo ?? null } : null;
+    },
+    async reautenticar(sid) {
+      const r = (await linhasDe<{ super_admin_id: string; email: string; senha_hash: string }>('plataforma.sa_reautenticar($1)', [sid]))[0];
+      return r ? { super_admin_id: String(r.super_admin_id), email: String(r.email), senha_hash: String(r.senha_hash) } : null;
+    },
+    async gravarSenhaSuperAdmin(sid, hashAtual, hashNovo) {
+      return (await um<boolean>('plataforma.sa_gravar_senha_super_admin($1, $2, $3)', [sid, hashAtual, hashNovo])) === true;
     },
     async auditar(l) {
       await um('plataforma.sa_auditar($1::jsonb)', [JSON.stringify({ ...l, tenant_id: null })]);
