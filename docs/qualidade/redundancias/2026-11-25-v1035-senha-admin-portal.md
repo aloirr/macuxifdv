@@ -106,4 +106,16 @@ Sem achado novo nesta parte. Sem defeito funcional para encaminhar ao testes.
 - `git diff 0017f74 726816e` só toca `tests/` (o que já foi liberado em e3099dc) e `git diff e3099dc 726816e` só traz o core e a
   0107 liberados acima e em F. Merge limpo, sem mudança de teste. Sem achado novo. RD-3567 e RD-3568 seguem abertos (lote seguinte).
 
+### PR de governança da migração da senha do admin @ ad3a55e (`git diff b191527 ad3a55e`) — LIBERADO no SHA ad3a55e
+
+- RD-3571 corrigido: o comentário da linha do `where` (antiga `:156`) saiu; o motivo segue uma vez só, no cabeçalho da função
+  (`0103_plataforma_senha_admin_portal.up.sql:26`).
+- Renumeração 0107 → 0103 (decisão do gerente): `git mv` do up e do down (similaridade 97% e 90%); o SQL é idêntico ao liberado em
+  b191527, salvo o comentário tirado e o número nos cabeçalhos. Acompanham `FUNCOES_SA_0103` (`db/testes/funcoes-sa.ts`),
+  `SA_PORTAL_0103` (conformidade), `nomes[102]` (`estatico.test.ts`), `VERSAO`/`describe`/e-mail de teste
+  (`senha-admin-portal.db.test.ts`), `empresa-zerar.db.test.ts`, `docs/banco/plataforma.md`, `docs/banco/rls.md` e
+  `tests/integracao/banco/senha-admin-portal-v1035.test.ts`.
+- `git grep 0107` no SHA: nada da migração ficou citando 0107 (só sobram a T-0107/D-T0107b de carga e busca, sem relação).
+- Sem achado novo.
+
 Faixa: usado RD-3571; RD-3572 a RD-3599 livres.
