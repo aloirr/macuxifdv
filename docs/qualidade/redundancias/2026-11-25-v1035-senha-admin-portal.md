@@ -1,7 +1,7 @@
 # Parecer de redundâncias — v1.0.35, item 3: senha do admin do cliente no portal (0107, API, testes, gaveta) e reteste RD-3558 a RD-3561
 
 Data: 25/11/2026 (Manaus). Rodada única, por SHA. Sem envio pela CLI de coordenação (403 no repositório de mensagens); achados
-relatados ao gerente-projetos na resposta. Faixa desta rodada: RD-3564 a RD-3599 (usados RD-3564 a RD-3570).
+relatados ao gerente-projetos na resposta. Faixa desta rodada: RD-3564 a RD-3599 (usados RD-3564 a RD-3570; RD-3571 a RD-3599 livres).
 
 ## A) branch da migração da senha do admin @ cbcae6d (banco-dados a7ed3e0 + testes) — LIBERADO no SHA cbcae6d
 
@@ -62,4 +62,19 @@ Reteste (`git diff 3ed4022 844eee6`, `tests/integracao/api/pagamento-web-v1035.t
 - **RD-3561 corrigido**: cabeçalho com 8 linhas, sem o parágrafo da fixture; critérios renumerados (W3 = "critérios 2 e 3").
 - Sem resto: `erroDe` segue usado (`:138`). Sem achado novo.
 
-Sem defeito funcional para encaminhar ao testes.
+## F) Reteste de RD-3566: `nuvem/v1035-web-modulo-core` @ a9d9a6e (modulo-core) — LIBERADO no SHA a9d9a6e
+
+`git diff fda8c26 a9d9a6e` (só `modules/core/api/super-admin.ts` e `super-admin.test.ts`):
+- **RD-3566 corrigido**: `trocarSenhaAdmin` saiu; o fluxo fica uma vez em `trocarSenhaDaConta` (`super-admin.ts:256-292`), com a
+  "porta" por tipo de conta (super-admin: `tentativaEstado`/`tentativaFalha`/`tentativaSucesso`/`gravarSenhaSuperAdmin`; admin:
+  `reautenticarAdmin`/`falhaSenhaAdmin`/`gravarSenhaAdmin` com `.catch(sqlParaHttp)`, sem `sucesso`). Os literais "Senha atual
+  incorreta…" e "A senha mudou enquanto você a trocava…", as auditorias 423/422/409 e a leitura de `ctx.corpo`/`ctx.agora()`
+  aparecem uma vez cada; `sqlParaHttp` ficou só no ramo do admin.
+- Testes: os 3 do super-admin e os 3 do admin (401/423, 422, 409) viraram um `describe.each(['super_admin', 'admin_cliente'])`;
+  ficam fora só os casos próprios de cada tipo (204 de cada um, sem token/sem segredo, 42501 = 403). Nenhum caso repetido.
+- Sem resto e sem export morto novo: `trocarSenhaAdmin` não aparece no repositório; nenhum export foi criado ou deixou de ter uso
+  (`trocarSenhaDaConta` é local). ESLint limpo nos 2 arquivos e `super-admin.test.ts` 39/39 verde na sessão, no SHA a9d9a6e.
+- Observação sem achado: `quemDe(claims, viva)` aparece em 3 `return` de ramos exclusivos (só um roda por pedido).
+- RD-3569 (export morto, depois de C e D no `main`) segue aberto; não é deste diff.
+
+Sem achado novo (RD-3571 a RD-3599 não usados). Sem defeito funcional para encaminhar ao testes.
