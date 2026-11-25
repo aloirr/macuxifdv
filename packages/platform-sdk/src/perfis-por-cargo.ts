@@ -46,7 +46,7 @@ import {
  * É a `versao` de `plataforma.modelo_permissao` e de `plataforma.catalogo_aplicado`. O teste de instantâneo dos manifestos
  * instalados falha se a lista de chaves mudar sem esta versão subir.
  */
-export const CATALOGO_PERMISSOES_VERSAO = 1;
+export const CATALOGO_PERMISSOES_VERSAO = 2;
 
 /** Permissão concedida a um perfil (chave ausente = negada). Mesma forma de `ValorPermissao`. */
 export type Concessao = ValorPermissao;
