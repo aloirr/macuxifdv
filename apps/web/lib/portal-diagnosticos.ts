@@ -39,7 +39,7 @@ export const TEXTOS_PORTAL_DIAGNOSTICOS = {
   copiado: 'Copiado',
   semSaida: 'Nenhuma saída registrada pelo Android.',
   semErro: 'Nenhum erro registrado.',
-  desligado: 'Diagnósticos desligados neste servidor.',
+  desligado: 'Desligados neste servidor.',
 } as const;
 
 /**

@@ -215,7 +215,7 @@ describe('cabeçalho do portal', () => {
 
 describe('lista: diagnósticos desligados no servidor (defeito 4 da revisão geral de 24/11)', () => {
   it('404 de rota = "desligados", sem tentar de novo; outro erro = mensagem padrão', () => {
-    expect(erroDaListaDeDiagnosticos(new ErroPortal(404, 'NAO_ENCONTRADO', 'Rota não encontrada.'))).toEqual({ desligado: true, mensagem: 'Diagnósticos desligados neste servidor.' });
+    expect(erroDaListaDeDiagnosticos(new ErroPortal(404, 'NAO_ENCONTRADO', 'Rota não encontrada.'))).toEqual({ desligado: true, mensagem: 'Desligados neste servidor.' });
     const outro = erroDaListaDeDiagnosticos(new ErroPortal(500, 'ERRO_INTERNO', 'Falhou.'));
     expect(outro.desligado).toBe(false);
     expect(outro.mensagem).not.toContain('Rota não encontrada');
