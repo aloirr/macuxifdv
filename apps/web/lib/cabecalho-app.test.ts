@@ -6,10 +6,13 @@
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CABECALHO_APP, VERSAO_WEB } from '@macuxi/platform-sdk';
+import { CABECALHO_APP, PARTE_ENVIO_BYTES, VERSAO_WEB } from '@macuxi/platform-sdk';
+import { PROXY_BASE } from '@macuxi/platform-sdk/web';
+import { defaultConfig } from 'next/dist/server/config-shared';
 
 import { config as configDoProxy, proxy } from '../proxy';
-import { cabecalhosParaApi, ehChamadaDaApi, PREFIXO_PROXY_API } from './cabecalho-app';
+import configDoNext from '../next.config';
+import { cabecalhosParaApi, ehChamadaDaApi, PROXY_BASE_NO_SERVIDOR } from './cabecalho-app';
 import { chamarPortal } from './portal-api';
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -91,8 +94,22 @@ describe('clientes (o que sai do navegador)', () => {
     vi.stubGlobal('fetch', fetchFalso);
     await chamarPortal(ROTAS_PORTAL.login, { metodo: 'POST', corpo: {}, cabecalhos: { [CABECALHO_APP]: 'campo/9.9.9' } });
     const [url, init] = fetchFalso.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe(`${PREFIXO_PROXY_API}${ROTAS_PORTAL.login}`);
+    expect(url).toBe(`${PROXY_BASE}${ROTAS_PORTAL.login}`);
     const r = proxy(pedido(url, init.headers as Record<string, string>));
     expect(doProxy(r, CABECALHO_APP)).toBe(WEB);
+  });
+});
+
+describe('prefixo do proxy no servidor', () => {
+  it('é o PROXY_BASE do SDK', () => {
+    expect(PROXY_BASE_NO_SERVIDOR).toBe(PROXY_BASE);
+  });
+});
+
+describe('limite de corpo do proxy (2º matcher `/api-proxy/:path*`)', () => {
+  it('a parte do envio de fotos (PARTE_ENVIO_BYTES) cabe no corpo que o proxy do Next guarda (proxyClientMaxBodySize)', () => {
+    // o next.config não muda o limite: vale o padrão do Next
+    expect(configDoNext.experimental?.proxyClientMaxBodySize).toBeUndefined();
+    expect(PARTE_ENVIO_BYTES).toBeLessThan(defaultConfig.experimental.proxyClientMaxBodySize);
   });
 });

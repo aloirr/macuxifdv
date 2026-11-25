@@ -6,12 +6,15 @@
  */
 import { CABECALHO_APP, valorCabecalhoWeb } from '@macuxi/platform-sdk';
 
-/** Prefixo do proxy same-origin da API (rewrite do `next.config.ts`). */
-export const PREFIXO_PROXY_API = '/api-proxy';
+/**
+ * Prefixo do proxy same-origin da API: o `PROXY_BASE` do SDK, que não entra aqui porque `@macuxi/platform-sdk/web` carrega a sessão
+ * do navegador (`'use client'`) e quebra o `proxy.ts`. O teste garante o mesmo valor.
+ */
+export const PROXY_BASE_NO_SERVIDOR = '/api-proxy';
 
 /** Chamada à API pelo proxy same-origin (`/api-proxy` ou `/api-proxy/...`). */
 export function ehChamadaDaApi(caminho: string): boolean {
-  return caminho === PREFIXO_PROXY_API || caminho.startsWith(`${PREFIXO_PROXY_API}/`);
+  return caminho === PROXY_BASE_NO_SERVIDOR || caminho.startsWith(`${PROXY_BASE_NO_SERVIDOR}/`);
 }
 
 /** Os cabeçalhos da requisição que segue para a API, com o `x-macuxi-app` do web (substitui o que veio). */

@@ -68,5 +68,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   // 1º: páginas (fora: arquivos do Next, proxy da API e o favicon; a regra pura também os deixa de fora).
   // 2º: o proxy da API, só para pôr o `x-macuxi-app` do web (v1.0.35); o rewrite do next.config segue levando à API.
+  // Limite: com este matcher o Next guarda o corpo de toda chamada e corta acima de `proxyClientMaxBodySize` (10 MiB padrão);
+  // a parte do envio de fotos (`PARTE_ENVIO_BYTES`, 8 MiB) cabe (teste em lib/cabecalho-app.test.ts).
   matcher: ['/((?!_next/static|_next/image|api-proxy|favicon.ico).*)', '/api-proxy/:path*'],
 };

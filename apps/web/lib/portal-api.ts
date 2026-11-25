@@ -11,9 +11,8 @@
  *   `lib/portal-falso.ts`, contra os mesmos schemas, para navegar o fluxo antes de as rotas reais chegarem.
  */
 import { CABECALHO_TENANT_PLATAFORMA, SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { downloadBlob, filenameFromDisposition } from '@macuxi/platform-sdk/web';
+import { downloadBlob, filenameFromDisposition, PROXY_BASE } from '@macuxi/platform-sdk/web';
 
-import { PREFIXO_PROXY_API } from './cabecalho-app';
 
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
 import {
@@ -92,7 +91,7 @@ async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabe
     const { responderFalso } = await import('./portal-falso');
     return responderFalso(metodo, caminho, corpo, cabecalhos);
   }
-  return fetch(`${PREFIXO_PROXY_API}${caminho}`, {
+  return fetch(`${PROXY_BASE}${caminho}`, {
     method: metodo,
     headers: cabecalhos,
     // bytes crus (a logo, T-0182) vão como estão; o resto, em JSON

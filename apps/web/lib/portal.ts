@@ -15,7 +15,7 @@
  * (`politicaDoPortal`): com o BKO e o portal na mesma origem, a CSP compensa a barreira de origem que sumiu (ADR 0071 §6).
  * Os links do portal já levam o `/config` (`noPortal`), então valem igual nos três hosts.
  */
-import { PREFIXO_PROXY_API } from './cabecalho-app';
+import { PROXY_BASE_NO_SERVIDOR } from './cabecalho-app';
 
 export const ROTA_DO_PORTAL = '/config';
 
@@ -51,7 +51,7 @@ export function tipoDoHost(host: string | null | undefined): TipoDeHost {
   return 'caminho';
 }
 
-const CAMINHOS_DE_FORA = ['/_next', PREFIXO_PROXY_API, ROTA_DO_PORTAL] as const;
+const CAMINHOS_DE_FORA = ['/_next', PROXY_BASE_NO_SERVIDOR, ROTA_DO_PORTAL] as const;
 
 /** Host da requisição (sem porta), em minúsculas. Atrás de proxy vale o `x-forwarded-host` (o 1º da lista). */
 export function hostDaRequisicao(host: string | null | undefined, hostEncaminhado?: string | null): string | null {
