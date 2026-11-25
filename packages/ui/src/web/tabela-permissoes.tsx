@@ -140,7 +140,7 @@ export function LinhaPermissao({ id, rotulo, marcada, onAlternar, descricao, tra
       data-testid={tid}
       data-travada={trava ? 'sim' : undefined}
     >
-      <div className="flex min-w-[220px] flex-1 items-center gap-3">
+      <div className="flex min-w-[120px] flex-1 basis-0 items-center gap-3">
         {!semCaixa && (
           <CaixaMarcar
             estado={marcada}
@@ -152,7 +152,7 @@ export function LinhaPermissao({ id, rotulo, marcada, onAlternar, descricao, tra
           />
         )}
         <div className="flex min-w-0 flex-col">
-          <span id={ids.rotulo} className={cx('text-[15px]', desabilitada || semEfeito ? 'text-ink-2' : 'text-ink')}>
+          <span id={ids.rotulo} className={cx('text-[15px] [overflow-wrap:anywhere]', desabilitada || semEfeito ? 'text-ink-2' : 'text-ink')}>
             {rotulo}
           </span>
           {descricao && (
@@ -163,13 +163,13 @@ export function LinhaPermissao({ id, rotulo, marcada, onAlternar, descricao, tra
         </div>
       </div>
       {comMotivo && (
-        <span id={ids.motivo} className="inline-flex items-center gap-1.5 text-[12px] text-ink-2" data-testid={`${tid}.motivo`}>
+        <span id={ids.motivo} className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-[12px] text-ink-2" data-testid={`${tid}.motivo`}>
           {trava && <IconLock size={13} className="shrink-0" />}
           {trava && motivo ? <span className="sr-only">Travado: </span> : null}
           {motivo}
         </span>
       )}
-      {direita}
+      {direita && <div className="ml-auto shrink-0">{direita}</div>}
     </div>
   );
 }
