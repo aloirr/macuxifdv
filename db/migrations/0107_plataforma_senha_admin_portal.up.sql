@@ -153,7 +153,6 @@ begin
          senha_temporaria_hash = null, senha_temporaria_expira_em = null, senha_temporaria_criada_em = null,
          tentativas_falhas = 0, bloqueio_ate = null, sessao_versao = u.sessao_versao + 1
    where u.tenant_id = v_t and u.id = v_u and u.senha_hash = p_hash_atual and u.deleted_at is null
-     -- pedidos paralelos que passaram juntos pelo 423 da rota não gravam com a conta já bloqueada (false, como hash divergente)
      and (u.bloqueio_ate is null or u.bloqueio_ate <= now());
   if not found then
     return false;
