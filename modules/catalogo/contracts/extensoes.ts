@@ -18,6 +18,8 @@ export interface ContextoProduto {
   clienteId: string | null;
   /** O item é vendável para o cliente em contexto (tem preço na tabela dele, RN-CAT-06). Nulo = sem cliente ou sem preço visível. */
   vendavel: boolean | null;
+  /** Código opaco do pedido em curso (o catálogo foi aberto a partir do Novo pedido); só repassado, o Catálogo não o interpreta. */
+  pedidoEmCurso?: string | null;
 }
 
 /** Slot `produto.acoes`: botão na ficha e no cartão do produto. */
@@ -29,6 +31,8 @@ export interface AcaoProduto {
   icone?: string;
   /** Destaque visual (padrão: botão secundário). */
   destaque?: boolean;
+  /** Em que tela aparece: `consulta` (catálogo/ficha avulsos) ou `pedido` (catálogo aberto do pedido). Ausente = nas duas. */
+  onde?: 'consulta' | 'pedido';
   /** Executa a ação (navega, abre folha…). */
   abrir: (ctx: ContextoProduto) => void;
 }
@@ -38,3 +42,9 @@ export interface SlotsCatalogo {
 }
 
 export const SLOTS_CATALOGO = ['produto.acoes'] as const;
+
+/** Ações visíveis na tela (regra em AcaoProduto.onde). */
+export function acoesDaTela<T extends { payload: Pick<AcaoProduto, 'onde'> }>(acoes: readonly T[], dentroDoPedido: boolean): T[] {
+  const alvo = dentroDoPedido ? 'pedido' : 'consulta';
+  return acoes.filter((a) => a.payload.onde === undefined || a.payload.onde === alvo);
+}

@@ -23,6 +23,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
     { id: 'catalogo', caminho: 'catalogo', titulo: 'Catálogo', navegacao: 'Catálogo', icone: 'search', ordem: 60, acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaCatalogo },
+    // sem navegacao: não é aba (ver contracts/navegacao.ts)
+    { id: 'catalogo-no-pedido', caminho: 'catalogo-no-pedido', titulo: 'Catálogo', acao: 'produto.consultar', apps: ['campo'], componente: TelaCatalogo },
     { id: 'produto', caminho: 'produto', titulo: 'Produto', acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaProduto },
   ],
   entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE, entidadeProdutoRelacao],
