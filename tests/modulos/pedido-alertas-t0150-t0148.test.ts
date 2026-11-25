@@ -5,7 +5,8 @@
  * Aqui:
  *   - área Alertas com os tipos da RN-VEN-42 (desconto acima do máximo, falta preencher, recusa, sem estoque, crédito/título vencido),
  *     cada um numa linha curta, sem alçada;
- *   - com alerta que bloqueia o envio, só "Salvar como orçamento" e "Apenas salvar" (premissa (e) da RN-VEN-42), também na folha de saída;
+ *   - com alerta que bloqueia o envio: o Novo pedido só tem "Salvar" (Orçamento ou Pedido; o Pedido fica salvo, sem enviar, R-20261124-114951);
+ *     o que trava é o Enviar da aba Pedidos (`motivoDeNaoEnviarOSalvo`, RN-VEN-48) e, na edição, o salvar/transformar (`botoesDaEdicao`);
  *   - situação só no Histórico (sem selo no topo do detalhe; a lista de Pedidos mantém o selo);
  *   - aba Itens com popup: 30 itens sem recalcular a cada toque (só ao confirmar o popup).
  * O ORÁCULO é o texto das RNs; as funções testadas são as que as telas chamam.
@@ -15,9 +16,9 @@ import { join } from 'node:path';
 import { tagsDoHistorico } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
-import { alertasDoPedido, impedeEnviarPorAlertas, soOrcamentoPorAlertas, textoDoMaximo, vencidosComEfeito, type AlertaDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
+import { alertasDoPedido, soOrcamentoPorAlertas, textoDoMaximo, vencidosComEfeito, type AlertaDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
 import { TITULO_VENCIDO_DIAS_PADRAO, tituloVencidoDias } from '../../modules/vendedor/domain/pagamento';
-import { botoesDoResumo, ROTULOS_DO_SALVAR, type BotoesDoResumo, type EntradaDosBotoes } from '../../modules/vendedor/domain/botoes-resumo';
+import { botoesDaEdicao, botoesDoSalvarNovo, motivoDeNaoEnviarOSalvo, ROTULOS_DA_EDICAO, type BotoesDaEdicao, type EntradaDaEdicao } from '../../modules/vendedor/domain/botoes-resumo';
 import { eventosDoPedido } from '../../modules/vendedor/domain/historico-pedido';
 import { opcoesDaSaida } from '../../modules/vendedor/domain/sair-do-pedido';
 import { pendenciasDePreenchimento } from '../../modules/vendedor/domain/pendencias-preenchimento';
@@ -31,15 +32,13 @@ import { politicaApi } from '../../modules/vendedor/app/lib/pull';
 
 const ler = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 const LIBERADO = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] as string[] };
-// RD-0235 (PR #169): `pendencias` sai do EntradaDosBotoes; a tela já passava 0. A constante só existe para compilar no main de antes do #169 e sai quando ele entrar.
-const SEM_PENDENCIA_LEGADO = { pendencias: 0 };
-const BASE: EntradaDosBotoes = { ...SEM_PENDENCIA_LEGADO, cliente: LIBERADO, pre_venda_ligada: true, editando: null, preco_data: '2026-11-10' };
+const EDITANDO_PEDIDO: EntradaDaEdicao = { cliente: LIBERADO, editando: 'pedido' };
+const EDITANDO_ORCAMENTO: EntradaDaEdicao = { cliente: LIBERADO, editando: 'orcamento' };
 
-/** O que o Resumo DESENHA (modules/vendedor/app/components/novo-pedido-abas.tsx, BotoesDoResumoView): o principal e os secundários visíveis. */
-function botoesNaTela(b: BotoesDoResumo): Array<{ rotulo: string; habilitado: boolean }> {
-  const principal = b.principal === 'enviar' ? b.enviar : b.principal === 'orcamento' ? b.orcamento : b.salvarOrcamento;
-  const sec = [b.apenasSalvar.visivel ? b.apenasSalvar : null, b.principal !== 'orcamento' && b.orcamento.visivel ? b.orcamento : null, b.transformar.visivel ? b.transformar : null].filter((x): x is NonNullable<typeof x> => x !== null);
-  return [principal, ...sec].map((x) => ({ rotulo: x.rotulo, habilitado: x.habilitado }));
+/** O que o Resumo da EDIÇÃO desenha (modules/vendedor/app/components/novo-pedido-abas.tsx, BotoesDoResumoView): o principal e o Converter, se visível. */
+function botoesDaEdicaoNaTela(b: BotoesDaEdicao): Array<{ rotulo: string; habilitado: boolean }> {
+  const principal = b.principal === 'salvar_orcamento' ? b.salvarOrcamento : b.salvarAlteracoes;
+  return [principal, ...(b.transformar.visivel ? [b.transformar] : [])].map((x) => ({ rotulo: x.rotulo, habilitado: x.habilitado }));
 }
 
 // ---------- área Alertas (RN-VEN-42) ----------
@@ -103,89 +102,90 @@ describe('T-0150 / T-0148 — área Alertas: os tipos da RN-VEN-42, uma linha cu
     const bloqueado = alertasDoPedido({ cliente: { ...LIBERADO, bloqueado: true } });
     expect(bloqueado.map((a) => [a.tipo, a.texto, a.so_orcamento])).toEqual([['cliente', 'Cliente bloqueado', true]]);
     expect(soOrcamentoPorAlertas(todos)).toBe(true);
-    expect(impedeEnviarPorAlertas(todos)).toBe(true);
+    expect(todos.some((a) => a.impede_enviar)).toBe(true);
   });
 });
 
-// ---------- botões com alerta de bloqueio (premissa (e) da RN-VEN-42) ----------
-describe('T-0150 — com alerta que bloqueia o envio, ficam só "Salvar como orçamento" e "Apenas salvar"', () => {
-  const SO_DOIS = [
-    { rotulo: ROTULOS_DO_SALVAR.orcamento, habilitado: true },
-    { rotulo: ROTULOS_DO_SALVAR.apenasSalvar, habilitado: true },
+// ---------- botões com alerta de bloqueio (premissa (e) da RN-VEN-42 × R-20261124-114951) ----------
+describe('T-0150 × R-20261124-114951 — alerta de bloqueio: o Novo pedido salva; o que trava é o Enviar da lista e a edição', () => {
+  const casos: Array<[string, { itens_acima_do_maximo?: string[]; itens_sem_estoque?: string[] }, Parameters<typeof alertasDoPedido>[0], string]> = [
+    ['RN-VEN-11 desconto acima do máximo', { itens_acima_do_maximo: ['AGU-1500'] }, { cliente: LIBERADO, itens_acima_do_maximo: [{ item: 'x', codigo: 'AGU-1500' }] }, 'AGU-1500 acima do desconto máximo. Edite o item ou salve como orçamento.'],
+    ['RN-VEN-20 sem estoque', { itens_sem_estoque: ['BIS-400'] }, { cliente: LIBERADO, itens_sem_estoque: [{ item: 'y', codigo: 'BIS-400' }] }, 'BIS-400 sem estoque. Edite o item ou salve como orçamento.'],
   ];
-  const casos: Array<[string, Partial<EntradaDosBotoes>, Parameters<typeof alertasDoPedido>[0]]> = [
-    ['RN-VEN-11 desconto acima do máximo', { itens_acima_do_maximo: ['AGU-1500'] }, { cliente: LIBERADO, itens_acima_do_maximo: [{ item: 'x', codigo: 'AGU-1500' }] }],
-    ['RN-VEN-20 sem estoque', { itens_sem_estoque: ['BIS-400'] }, { cliente: LIBERADO, itens_sem_estoque: [{ item: 'y', codigo: 'BIS-400' }] }],
-    ['RN-VEN-13 cliente bloqueado', { cliente: { ...LIBERADO, bloqueado: true } }, { cliente: { ...LIBERADO, bloqueado: true } }],
-  ];
-  for (const [nome, entrada, alertas] of casos) {
-    it(`${nome}: o Resumo desenha só os dois, e "Salvar e enviar pedido" sai`, () => {
-      const b = botoesDoResumo({ ...BASE, ...entrada });
-      expect(botoesNaTela(b)).toEqual(SO_DOIS);
-      expect(botoesNaTela(b).map((x) => x.rotulo)).not.toContain(ROTULOS_DO_SALVAR.enviar);
-      // a mesma decisão nos Alertas e nos botões (uma fonte)
+  for (const [nome, itens, alertas, motivo] of casos) {
+    it(`${nome}: o Enviar da lista recusa com uma linha; a edição desliga o salvar do pedido e o Converter`, () => {
+      // RN-VEN-48: o salvo não entra na fila; o motivo numa linha
+      expect(motivoDeNaoEnviarOSalvo({ cliente: LIBERADO, pre_venda_ligada: true, ...itens })).toBe(motivo);
+      expect(botoesDaEdicaoNaTela(botoesDaEdicao({ ...EDITANDO_PEDIDO, ...itens }))).toEqual([{ rotulo: ROTULOS_DA_EDICAO.alteracoes, habilitado: false }]);
+      expect(botoesDaEdicaoNaTela(botoesDaEdicao({ ...EDITANDO_ORCAMENTO, ...itens }))).toEqual([
+        { rotulo: ROTULOS_DA_EDICAO.salvarOrcamento, habilitado: true },
+        { rotulo: ROTULOS_DA_EDICAO.transformar, habilitado: false },
+      ]);
+      // a mesma decisão nos Alertas e no Enviar (uma fonte)
       expect(soOrcamentoPorAlertas(alertasDoPedido(alertas))).toBe(true);
     });
   }
 
-  it('controle: sem alerta, "Salvar e enviar pedido" é o principal; item fora da regra o desliga e "Apenas salvar" continua; a falta de preenchimento é barrada na tentativa', () => {
-    expect(botoesNaTela(botoesDoResumo(BASE))[0]).toEqual({ rotulo: ROTULOS_DO_SALVAR.enviar, habilitado: true });
-    // RN-VEN-11: item acima do máximo, sem pré-venda, o principal continua "Salvar e enviar", desligado
-    const foraDaRegra = botoesNaTela(botoesDoResumo({ ...BASE, pre_venda_ligada: false, itens_acima_do_maximo: ['AGU-1500'] }));
-    expect(foraDaRegra[0]).toEqual({ rotulo: ROTULOS_DO_SALVAR.enviar, habilitado: false });
-    expect(foraDaRegra).toContainEqual({ rotulo: ROTULOS_DO_SALVAR.apenasSalvar, habilitado: true });
+  it('RN-VEN-13 cliente bloqueado: o Enviar recusa; o Converter não aparece', () => {
+    const cliente = { ...LIBERADO, bloqueado: true };
+    expect(motivoDeNaoEnviarOSalvo({ cliente, pre_venda_ligada: true })).toBe('Cliente bloqueado. Só orçamento.');
+    expect(motivoDeNaoEnviarOSalvo({ cliente, pre_venda_ligada: false })).toBe('Cliente bloqueado.');
+    expect(botoesDaEdicaoNaTela(botoesDaEdicao({ ...EDITANDO_ORCAMENTO, cliente }))).toEqual([{ rotulo: ROTULOS_DA_EDICAO.salvarOrcamento, habilitado: true }]);
+    expect(soOrcamentoPorAlertas(alertasDoPedido({ cliente }))).toBe(true);
+  });
+
+  it('controle: sem alerta, o Enviar da lista passa (null) e a edição fica toda tocável; a falta de preenchimento é barrada na tentativa', () => {
+    for (const pre_venda_ligada of [true, false]) expect(motivoDeNaoEnviarOSalvo({ cliente: LIBERADO, pre_venda_ligada })).toBeNull();
+    expect(botoesDaEdicaoNaTela(botoesDaEdicao(EDITANDO_PEDIDO))).toEqual([{ rotulo: ROTULOS_DA_EDICAO.alteracoes, habilitado: true }]);
+    expect(botoesDaEdicaoNaTela(botoesDaEdicao({ ...EDITANDO_PEDIDO, editando_no_servidor: false }))[0]!.rotulo).toBe(ROTULOS_DA_EDICAO.alteracoesNoAparelho);
+    expect(botoesDaEdicaoNaTela(botoesDaEdicao(EDITANDO_ORCAMENTO)).every((x) => x.habilitado)).toBe(true);
     // RN-CORE-36 (T-0166): a falta não desliga o botão; o toque em Salvar leva à 1ª aba com falta (a forma de pagamento fica em Venda)
     const falta = pendenciasDePreenchimento({ itens: 1, quantidade_invalida: false, pagamento: { tipo: 'forma' }, frete: 'ok', erros_calculo: [] });
     expect(primeiraAbaComFalta(falta)).toBe('venda');
     expect(primeiraAbaComFalta(pendenciasDePreenchimento({ itens: 1, quantidade_invalida: false, pagamento: { tipo: 'ok' }, frete: 'ok', erros_calculo: [] }))).toBeNull();
   });
 
-  it('a tela do Resumo só desenha o "Salvar e enviar" como principal (não há outro caminho para ele no BotoesDoResumoView)', () => {
+  it('a tela do Resumo não tem botão de envio: o principal é o Salvar do Novo pedido ou o salvar da edição (BotoesDoResumoView)', () => {
     const tela = ler('modules/vendedor/app/components/novo-pedido-abas.tsx');
-    const view = tela.slice(tela.indexOf('function BotoesDoResumoView'));
-    expect(view.match(/b\.enviar\b/g)).toHaveLength(1);
-    expect(view).toContain("b.principal === 'enviar'");
+    const ini = tela.indexOf('function BotoesDoResumoView');
+    expect(ini).toBeGreaterThan(-1);
+    const view = tela.slice(ini, tela.indexOf('\nconst s = StyleSheet', ini));
+    expect(view).toContain('botoesNovo.salvar');
+    expect(view).not.toMatch(/\.enviar\b|apenasSalvar/);
   });
 
-  it('a tela passa ao domain os itens acima do máximo e os sem estoque calculados no aparelho', () => {
+  it('a tela passa ao domain da edição os itens acima do máximo, o limite do pedido e os sem estoque calculados no aparelho', () => {
     const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
     // os campos valem em qualquer ordem e com outros entre eles (a T-0168 pôs acima_do_limite, RN-VEN-11a)
-    const chamada = /botoesDoResumo\(\{[^}]*\}\)/.exec(tela)?.[0] ?? '';
+    const chamada = /botoesDaEdicao\(\{[^}]*\}\)/.exec(tela)?.[0] ?? '';
     expect(chamada).toContain('itens_acima_do_maximo: calculo.acima_do_maximo');
+    expect(chamada).toContain('acima_do_limite: calculo.acima_do_limite !== null');
     expect(chamada).toContain('itens_sem_estoque: semEstoque.map((x) => x.codigo)');
   });
 
-  // D-T0150-3 (folha de saída, RN-VEN-38 × RN-VEN-42 (e)): o domain ganhou `alertas_impedem_enviar` (sair-do-pedido.ts) — a parte do domain vale.
-  it('D-T0150-3 (domain): com alerta de bloqueio a folha tira "Salvar e enviar pedido" e mantém "Salvar como orçamento" e "Apenas salvar"', () => {
-    const o = opcoesDaSaida({ cliente: LIBERADO, pre_venda_ligada: true, preco_data: '2026-11-10', alertas_impedem_enviar: true });
-    expect(o).toMatchObject({ salvar: false, orcamento: true, apenasSalvar: true });
-    expect(opcoesDaSaida({ cliente: LIBERADO, pre_venda_ligada: true, preco_data: '2026-11-10', alertas_impedem_enviar: false }).salvar).toBe(true);
+  // RN-VEN-38 (R-20261124-114951): a folha de saída oferece o mesmo Salvar do Resumo (Pedido e Orçamento), mais Descartar.
+  it('folha de saída (domain): as opções são as da escolha do Salvar, em todas as situações do cliente e da pré-venda', () => {
+    const clientes = [LIBERADO, { ...LIBERADO, bloqueado: true }, { ...LIBERADO, ativo: false }, { ...LIBERADO, cadastro_incompleto: true, campos_faltantes: ['CEP'] }];
+    for (const cliente of clientes) {
+      for (const pre_venda_ligada of [true, false]) {
+        const e = { cliente, pre_venda_ligada };
+        const esc = botoesDoSalvarNovo(e).escolha;
+        expect(opcoesDaSaida(e), JSON.stringify(e)).toEqual({ pedido: esc.pedido.visivel, orcamento: esc.orcamento.visivel });
+      }
+    }
   });
 
-  // D-T0150-3b corrigido pelo modulo-vendedor: a tela passa `soOrcamentoPorAlertas(alertasDoTopo) || impedeEnviarPorAlertas(alertasDoTopo)`. Antes usava `.some((a) => a.impede_enviar)`, e os
-  // alertas de máximo e de estoque têm `impede_enviar: false` (só `so_orcamento: true`). Com só um item sem estoque/acima do máximo (sem pendência),
-  // a folha seguia oferecendo "Salvar e enviar pedido". O teste avalia a expressão REAL da tela sobre os alertas reais (era it.fails).
-  it('D-T0150-3b corrigido — tela: item sem estoque ou acima do máximo tira "Salvar e enviar pedido" da folha de saída (RN-VEN-42 (e), RN-VEN-20, RN-VEN-11)', () => {
+  it('folha de saída (tela): sem os alertas', () => {
     const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
-    const m = /opcoesDaSaida\(\{[^]*?alertas_impedem_enviar: (.+?) \}\)/.exec(tela);
-    expect(m, 'a tela passa alertas_impedem_enviar a opcoesDaSaida').not.toBeNull();
-    const flag = new Function('alertasDoTopo', 'soOrcamentoPorAlertas', 'impedeEnviarPorAlertas', `return (${m![1]});`) as (a: AlertaDoPedido[], s: typeof soOrcamentoPorAlertas, i: typeof impedeEnviarPorAlertas) => boolean;
-    const saida = (alertas: AlertaDoPedido[]) => opcoesDaSaida({ cliente: LIBERADO, pre_venda_ligada: true, preco_data: '2026-11-10', alertas_impedem_enviar: flag(alertas, soOrcamentoPorAlertas, impedeEnviarPorAlertas) });
-    expect(saida(alertasDoPedido({ cliente: LIBERADO, itens_sem_estoque: [{ item: 'p-bis', codigo: 'BIS-400', estoque: { quantidade: 0, unidade: 'UN' } }] })).salvar).toBe(false);
-    expect(saida(alertasDoPedido({ cliente: LIBERADO, itens_sem_estoque: [{ item: 'p-bis', codigo: 'BIS-400', estoque: { quantidade: 5, unidade: 'UN' } }] })).salvar).toBe(false);
-    expect(saida(alertasDoPedido({ cliente: LIBERADO, itens_acima_do_maximo: [{ item: 'p-agu', codigo: 'AGU-1500', maximo_pct: 10 }] })).salvar).toBe(false);
+    expect(tela).not.toContain('alertas_impedem_enviar');
   });
 
-  it('controle D-T0150-3b: sem alerta (ou só crédito/título) a folha mantém "Salvar e enviar pedido"; com falta de preenchimento ela tira', () => {
-    const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
-    const m = /opcoesDaSaida\(\{[^]*?alertas_impedem_enviar: (.+?) \}\)/.exec(tela)!;
-    const flag = new Function('alertasDoTopo', 'soOrcamentoPorAlertas', 'impedeEnviarPorAlertas', `return (${m[1]});`) as (a: AlertaDoPedido[], s: typeof soOrcamentoPorAlertas, i: typeof impedeEnviarPorAlertas) => boolean;
-    expect(flag([], soOrcamentoPorAlertas, impedeEnviarPorAlertas)).toBe(false);
-    expect(flag(alertasDoPedido({ cliente: LIBERADO, disponivel_cents: 100, total_cents: 200 }), soOrcamentoPorAlertas, impedeEnviarPorAlertas)).toBe(false);
-    expect(flag(alertasDoPedido({ cliente: LIBERADO, faltantes: [{ texto: 'Falta transportadora do frete FOB', aba: 'Entrega' }] }), soOrcamentoPorAlertas, impedeEnviarPorAlertas)).toBe(true);
+  it('RN-VEN-48 (tela): o Enviar da aba Pedidos passa a pré-venda do tenant ao motivo (enviarPedidoSalvo)', () => {
+    const estado = ler('modules/vendedor/app/state/use-vendedor.ts');
+    const i = estado.indexOf('motivoDeNaoEnviarOSalvo({');
+    expect(i).toBeGreaterThan(0);
+    expect(estado.slice(i, estado.indexOf('});', i))).toMatch(/pre_venda_ligada: /);
   });
-
-  it.todo('pergunta ao gerente/vendedor: tenant SEM pré-venda e item sem estoque/acima do máximo — hoje fica "Salvar e enviar" desligado + "Apenas salvar" (sem orçamento); a premissa (e) pede orçamento (como o cliente da RN-VEN-13, que ganha o orçamento mesmo sem pré-venda)');
 });
 
 // ---------- detalhe: Alertas, ações e situação só no Histórico ----------
@@ -193,13 +193,13 @@ describe('T-0150 — detalhe do pedido/orçamento: Alertas no topo, situação s
   const acoes = (o: Partial<EntradaAcoesDoDetalhe>) =>
     acoesDoDetalhe({ tipo: 'orcamento', status: 'received', situacao: 'aberto' as never, naFila: false, recusado: false, somenteLeitura: false, podeEditar: true, podeCancelar: true, podeDuplicar: true, podePdf: true, podeConverter: true, pedidoGeradoId: null, ...o });
 
-  it('orçamento com item sem estoque (reconferência): alerta "BIS-400 sem estoque"; a principal é Editar e o Transformar não aparece (premissa (c))', () => {
+  it('orçamento com item sem estoque (reconferência): alerta "BIS-400 sem estoque"; a principal é Editar e o Converter não aparece (premissa (c))', () => {
     const al = alertasDoDetalhe({ mudancas: [{ tipo: 'estoque', produto_id: 'p-bis', pedido_base: 10, disponivel_base: 3 }], codigoDoProduto: () => 'BIS-400' });
     expect(al.map((a) => a.texto)).toEqual(['BIS-400 sem estoque']);
     const a = acoes({ alertaImpedeTransformar: soOrcamentoPorAlertas(al) });
     expect(a.principal?.id).toBe('editar');
     expect([a.principal, ...a.icones, ...a.menu].map((x) => x?.id)).not.toContain('transformar');
-    // controle: sem alerta, o Transformar volta a ser a principal
+    // controle: sem alerta, o Converter volta a ser a principal
     expect(acoes({ alertaImpedeTransformar: false }).principal?.id).toBe('transformar');
   });
 
@@ -373,30 +373,29 @@ describe('T-0150 — pedido recusado na fila: a nota "Aguardando envio" (R-20261
 
 // ---------- T-0166 (RD-0176 e RD-0172) ----------
 describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título vencido" só acima do limite da RN-VEN-13 (RD-0172; à vista também desde a T-0184)', () => {
-  const ENTRADAS: Array<[string, EntradaDosBotoes]> = [
-    ['liberado', BASE],
-    ['cliente bloqueado', { ...BASE, cliente: { ...LIBERADO, bloqueado: true } }],
-    ['cliente inativo', { ...BASE, cliente: { ...LIBERADO, ativo: false } }],
-    ['cadastro incompleto', { ...BASE, cliente: { ...LIBERADO, cadastro_incompleto: true, campos_faltantes: ['CEP'] } }],
-    ['sem pré-venda', { ...BASE, pre_venda_ligada: false }],
-    ['item acima do máximo', { ...BASE, itens_acima_do_maximo: ['AGU-1500'] }],
-    ['item sem estoque', { ...BASE, itens_sem_estoque: ['BIS-400'] }],
+  const CLIENTES: Array<[string, typeof LIBERADO]> = [
+    ['liberado', LIBERADO],
+    ['cliente bloqueado', { ...LIBERADO, bloqueado: true }],
+    ['cliente inativo', { ...LIBERADO, ativo: false }],
+    ['cadastro incompleto', { ...LIBERADO, cadastro_incompleto: true, campos_faltantes: ['CEP'] }],
   ];
+  const ITENS = [{}, { itens_acima_do_maximo: ['AGU-1500'] }, { itens_sem_estoque: ['BIS-400'] }];
+  const semAviso = (b: object, nome: string) => {
+    expect(Object.keys(b), nome).not.toContain('aviso');
+    for (const v of Object.values(b)) if (v && typeof v === 'object') expect(Object.keys(v), nome).not.toContain('aviso');
+  };
 
-  it('RD-0176: botoesDoResumo não devolve o campo "aviso" em nenhuma situação (o motivo fica só na área Alertas)', () => {
-    for (const [nome, e] of ENTRADAS) {
-      const b = botoesDoResumo(e) as unknown as Record<string, unknown>;
-      expect(Object.keys(b), nome).not.toContain('aviso');
-      for (const v of Object.values(b)) if (v && typeof v === 'object') expect(Object.keys(v), nome).not.toContain('aviso');
+  it('RD-0176: botoesDaEdicao não devolve o campo "aviso" em nenhuma situação (o motivo fica só na área Alertas)', () => {
+    for (const [nome, cliente] of CLIENTES) {
+      for (const itens of ITENS) for (const editando of ['pedido', 'orcamento'] as const) semAviso(botoesDaEdicao({ cliente, editando, ...itens }), `${nome}, ${editando}, ${JSON.stringify(itens)}`);
     }
   });
 
   // T-0166: o subtituloOrcamento (sempre null desde a T-0141) também saiu do retorno
-  it('RD-0176: opcoesDaSaida devolve só salvar, apenasSalvar e orcamento (sem "aviso" nem linha de motivo)', () => {
-    for (const [nome, e] of ENTRADAS) {
-      for (const impede of [false, true]) {
-        const o = opcoesDaSaida({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, preco_data: e.preco_data, alertas_impedem_enviar: impede });
-        expect(Object.keys(o).sort(), `${nome}, impede=${impede}`).toEqual(['apenasSalvar', 'orcamento', 'salvar']);
+  it('RD-0176: opcoesDaSaida devolve só pedido e orcamento (sem "aviso" nem linha de motivo)', () => {
+    for (const [nome, cliente] of CLIENTES) {
+      for (const pre_venda_ligada of [true, false]) {
+        expect(Object.keys(opcoesDaSaida({ cliente, pre_venda_ligada })).sort(), `${nome}, pré-venda ${pre_venda_ligada}`).toEqual(['orcamento', 'pedido']);
       }
     }
   });

@@ -237,8 +237,8 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     const detalhe = ler('modules/vendedor/app/screens/order-detail-screen.tsx');
     expect(detalhe).toMatch(/pedidoSomenteLeitura\(\{ criar: podeCriar, editar: podeEditar, cancelar: podeCancelar \}\)/);
     expect(detalhe).toMatch(/\{somenteLeitura \? null : \(/);
-    const lib = ler('modules/vendedor/app/lib/somente-leitura.ts');
-    expect(lib).toContain('!pode.criar && !pode.editar && !pode.cancelar');
+    // a regra mora no domain do Vendedor (acoes-da-lista.ts), a mesma da lista de Pedidos (RN-VEN-48)
+    expect(detalhe).toMatch(/pedidoSomenteLeitura[^;]*from '\.\.\/\.\.\/domain\/acoes-da-lista'/);
   });
 
   it('S0-061 sem o Vendedor: o promotor não pode nem pedido.ver (módulo inativo)', () => {
