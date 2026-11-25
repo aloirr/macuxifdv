@@ -174,6 +174,15 @@ export const protegidoDaSenha = (permissoes: Readonly<Record<string, unknown>>):
   Object.hasOwn(permissoes, 'perfil.gerir');
 
 /**
+ * RN-PRO-01 pelo CARGO (ADR 0073 §2.5): o cargo promotor nunca executa ação de escrita de pedido, qualquer que seja a tabela de
+ * permissões (concessão gravada por engano, perfil montado à mão, manifesto que escape da validação). Leitura (`pedido.ver`) é
+ * a concessão do perfil.
+ */
+export function vetadaPeloCargo(acao: string, cargo: Cargo | null | undefined): boolean {
+  return cargo === 'promotor' && ehAcaoDeEscritaDePedido(acao);
+}
+
+/**
  * Trava de uma chave num perfil deste cargo (o cadeado da tabela, com a regra). `null` = a caixa é livre.
  * `gestaoDoAcesso` = o perfil tem a gestão do acesso completa (`temGestaoDoAcesso`): sem ela, o portal fica travado.
  * Não trava o nível (`dados.escopo` acima do teto é conferido por `validarPerfilPeloCargo`).
@@ -183,7 +192,7 @@ export function travaDaChavePeloCargo(
   chave: string,
   ctx: { gestaoDoAcesso: boolean },
 ): TravaDaChave | null {
-  if (cargo === 'promotor' && ehAcaoDeEscritaDePedido(chave)) {
+  if (vetadaPeloCargo(chave, cargo)) {
     return {
       regra: 'RN-PRO-01',
       mensagem: 'Perfil de promotor nunca cria, edita, cancela, exclui ou aprova pedido.',
@@ -239,7 +248,7 @@ export interface AlvoPorCargo {
 }
 
 /**
- * O perfil resolvido pode `chave`? Sem perfil = não (falha fechada). Com `alvo`: chave `nuncaNoProprio` recusa o próprio; chave
+ * O perfil resolvido pode `chave`? Sem perfil ou chave vetada pelo cargo (RN-PRO-01) = não (falha fechada). Com `alvo`: chave `nuncaNoProprio` recusa o próprio; chave
  * com alvos (`senha.redefinir`) cobre o perfil do alvo só se ele não tem `perfil.gerir` (RN-CORE-34) e está na lista (ou `*`).
  * A licença do módulo não é conferida aqui (vem antes, em `verificarAcao`).
  */
@@ -248,7 +257,8 @@ export function podePeloCargo(
   chave: string,
   alvo?: AlvoPorCargo,
 ): boolean {
-  const v = perfil?.permissoes[chave];
+  if (!perfil || vetadaPeloCargo(chave, perfil.cargo)) return false;
+  const v = perfil.permissoes[chave];
   if (!v) return false;
   if (!alvo) return true;
   const def = Object.hasOwn(CHAVES_PLATAFORMA, chave)

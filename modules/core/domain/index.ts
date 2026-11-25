@@ -42,6 +42,7 @@ export * from './cargos';
 export * from './senha';
 export * from './acesso-senha';
 export * from './perfis';
+export * from './perfis-cargo';
 export * from './metas-edicao';
 export * from './meta-do-dia';
 export * from './inicio';

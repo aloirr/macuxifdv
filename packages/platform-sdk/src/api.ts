@@ -33,6 +33,8 @@ import type { ServicoPacotes } from './pacotes';
 import type { Geocodificador } from './geocodificador';
 import { problemasCookieSessao, type CookieSessaoRota } from './cookie-sessao';
 import type { SuperficieRota } from './perfis';
+import type { Cargo } from './cargos';
+import type { PerfilDaRequisicaoV2 } from './perfis-por-cargo';
 import type { EntradaZip, LimitesZip, MotivoRecusaEntrada, MotivoRecusaZip } from './zip';
 import type { OpcoesGravarParametros } from './parametros';
 import { ehChavePlataforma, pode, type AlvoPermissao, type DefinicaoChave, type MatrizFabrica, type PerfilDaRequisicao } from './permissoes-perfil';
@@ -78,6 +80,18 @@ export interface UsuarioDaRequisicao extends UsuarioAutenticado {
    * perfil com um nome fixo. Ausente (contexto falso de teste) = nada permitido.
    */
   perfis?: readonly PerfilDaRequisicao[];
+  /**
+   * ADR 0073 §2.8 (E3): cargo do perfil (vendedor, promotor, supervisor, gerente, administrativo). Responde "onde está na
+   * hierarquia" (escopo, equipe, Início, app); "pode fazer X" é sempre chave. Sempre igual a `perfil_acesso.cargo` (os dois
+   * saem de `camposPeloCargo`). Ausente até a API preencher (E4, atrás de `plataforma.catalogo_aplicado`).
+   */
+  cargo?: Cargo;
+  /**
+   * ADR 0073 §2.7 (E3): perfil de acesso sem base, resolvido A CADA REQUISIÇÃO (`resolverPerfilPeloCargo`, falha fechada).
+   * Consulte com `podePeloCargo` / `exigirPermissaoPeloCargo`. Só decide a rota a partir da troca de leitura (E6); até lá,
+   * `perfis` (motor antigo) continua valendo. Ausente = nada permitido no caminho novo.
+   */
+  perfil_acesso?: PerfilDaRequisicaoV2;
 }
 
 /**
