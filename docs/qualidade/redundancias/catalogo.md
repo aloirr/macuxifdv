@@ -899,3 +899,7 @@ Severidade: **alta** (confunde ou contradiz) · **média** (polui) · **baixa** 
 2026-11-25 (S7, décima quinta rodada, manhã de Manaus) — NÃO LIBERADO b2e136a (modulo-core, Farol de clientes): RD-3080 (médio, regra de dedupe por cliente repetida entre domain e API). Testes novos sem repetição. Relatório 2026-11-24-s7-usuarios.md.
 
 2026-11-25 (S7, décima sexta rodada, manhã de Manaus) — RD-3080 corrigido. LIBERADO d1ea169 (modulo-core, Farol de clientes). RD-3081 (baixo, só comentário, não segura; lote seguinte). Relatório 2026-11-24-s7-usuarios.md.
+
+2026-11-25 (S12, T-0196, rodada única, madrugada de Manaus) — NÃO LIBERADO 6bd3233d9 (engenheiro-software, PR #773, ADR 0076): RD-3600 (médio, mensagem da trava explica o mecanismo), RD-3601 (médio, justificativa do alargamento repetida 4x em eventos.md e 2x no ADR), RD-3602 (baixo, parágrafo do D8 repete a condição 1), RD-3603 (baixo, histórico de processo no cabeçalho do ADR). Todos abertos. Relatório 2026-11-25-s12-t0196-adr0076.md.
+
+2026-11-25 (S12, T-0196, reteste, manhã de Manaus) — RD-3600, RD-3601, RD-3602 e RD-3603 corrigidos no branch. LIBERADO 7c685c0f8bcc6309ca5d9278a955c1887f0aa5d2 (engenheiro-software, ADR 0076). Adendo do D6 (contrato V3, AmbienteModulo.fracaoLiberada) sem achado novo. O main 420e5a94e (squash do #773) tem o conteúdo do 6bd3233d9: as correções precisam de PR novo. Relatório 2026-11-25-s12-t0196-adr0076.md.
