@@ -159,7 +159,7 @@ CREATE TABLE dbo.tha_produto_unidade (
     external_id VARCHAR(200) NOT NULL,
     produto_external_id NVARCHAR(200) NOT NULL,
     unidade NVARCHAR(200) NOT NULL,
-    fator INT NOT NULL,
+    fator DECIMAL(18, 6) NOT NULL,
     alterado_em DATETIME2(3) NOT NULL,
     ativo TINYINT NOT NULL CONSTRAINT df_tha_produto_unidade_ativo DEFAULT 1,
     ean NVARCHAR(200) NULL,
