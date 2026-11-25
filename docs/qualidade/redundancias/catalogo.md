@@ -953,3 +953,5 @@ Severidade: **alta** (confunde ou contradiz) · **média** (polui) · **baixa** 
 2026-11-25 (S7, reteste 0108, Manaus) — LIBERADO 88b23c06f1f364869d1ea3e4b81d0be0fa5562c9 (banco-dados): RD-3705, RD-3706 e RD-3707 corrigidos, sem achado novo. Relatório 2026-11-25-s7-catalogo-v2-0108.md.
 
 2026-11-25 (S7, E6 nos módulos, Manaus) — NÃO LIBERADO e6fb29e (modulo-core, RD-3708), 06e19a1 (modulo-pesquisa, RD-3709) e e08cc5c (modulo-promotor, RD-3710 e RD-3711); todos baixos, em código ou comentário de código de produção/teste que seguram. Manifesto × `ACOES_DA_TRANSICAO`: manter? transitório (o SDK diz que a entrada sai quando os três migrarem). Relatório 2026-11-25-s7-perfis-modulos-e6.md.
+
+2026-11-25 (S7, renumeração 0105–0107, Manaus) — LIBERADO 64a7396c7f2c22d4af68698857e73ca1d3393893 (#771) e 3bd7f4ead8c0e4fc3ac9304fbb8e319c2c77a790 (0108), banco-dados: só renumeração, sem achado novo.
