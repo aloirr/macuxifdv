@@ -20,6 +20,7 @@
  *   zerar), 42 no total, e 6 funções do worker (pegar, executar, fechar e expurgar o zerar; pegar e executar a prévia).
  * - v1.0.34 (0102, ADR 0075; R-20261124-191902): mais 4 sa_* do portal (ler e gravar o cadastro da empresa, quem sou e a
  *   troca de senha do super-admin), 46 no total.
+ * - v1.0.35, item 3 (0107): mais 3 sa_* do portal (reautenticar, falha e gravação da senha do admin do cliente), 49 no total.
  * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
  *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
  *   worker ou portal; as 3 tabelas novas do portal entram na varredura "nenhum privilégio efetivo em tabela" do portal.
@@ -112,12 +113,26 @@ const SA_PORTAL_0102: Record<string, string> = {
     'zera falhas e bloqueio; revoga todas as sessões do super-admin; audita sem o hash',
 };
 
+/** v1.0.35, item 3, 0107_plataforma_senha_admin_portal: a troca da senha do admin do cliente pela sessão do portal (conta da
+ * empresa atual da sessão; bloqueio no contador do login, RN-CORE-01). As 3 sa_* que a migração cria, e só elas. */
+const SA_PORTAL_0107: Record<string, string> = {
+  'plataforma.sa_reautenticar_admin(p_sid uuid)':
+    `${SA}; só admin do cliente com empresa escolhida (super-admin ou sem empresa 42501, sessão inválida 28000); ` +
+    'hash e estado do bloqueio da conta da sessão (vencido = 0 falhas); audita sa.reautenticar sem dado pessoal',
+  'plataforma.sa_falha_senha_admin(p_sid uuid)':
+    `${SA}; só admin do cliente com empresa escolhida; 5ª falha seguida bloqueia 15 min; bloqueio vivo não conta nem estende; ` +
+    'vencido recomeça; for update; audita sa.bloqueio ao bloquear',
+  'plataforma.sa_gravar_senha_admin(p_sid uuid, p_hash_atual text, p_hash_novo text)':
+    `${SA}; só admin do cliente com empresa escolhida; novo só argon2id (22023); hash atual divergente = false sem mudar nada; ` +
+    'zera falhas, bloqueio, senha a trocar e temporária; sessao_versao + 1; revoga as sessões do app e do portal da conta; audita sem o hash',
+};
+
 /**
- * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 46 plataforma.sa_* — as 12 da 0039
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 49 plataforma.sa_* — as 12 da 0039
  * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados), as 2 da 0042 (T-0094: o super-admin
  * redefine a senha do admin do cliente; R-20261108-001804-banco-dados), as 2 da 0058 (T-0158), a 1 da 0070 (ADR 0047), as 8 da 0072
  * (ADR 0052), as 2 da 0073 (rodapé legal), as 3 da 0081 (T-0181, SA_PORTAL_CARGA) e as 4 da 0083 (T-0182, SA_PORTAL_LOGO), as 3 da 0086
- * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA), as 4 da 0100 (ADR 0068, Zerar dados) e as 4 da 0102 (ADR 0075, SA_PORTAL_0102) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
+ * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA), as 4 da 0100 (ADR 0068, Zerar dados) e as 4 da 0102 (ADR 0075, SA_PORTAL_0102) e as 3 da 0107 (v1.0.35, SA_PORTAL_0107) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
  * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
 const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
@@ -175,6 +190,7 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   ...SA_PORTAL_LOGO,
   ...SA_PORTAL_OCULTAR_MARCA,
   ...SA_PORTAL_0102,
+  ...SA_PORTAL_0107,
   // ADR 0047 (0086_plataforma_planos_troca_licencas; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1).
   // A licencas_do_tenant() é SECURITY INVOKER (só o macuxi_app, sob RLS): não entra aqui; se virar DEFINER, o caso do papel
   // da aplicação reprova.
