@@ -1,5 +1,7 @@
 import { defineModule } from '@macuxi/platform-sdk';
 
+// Perfis que enxergam o escopo (carteira, equipe, rota, visita) — RN-CORE-04.
+const PERFIS_ESCOPO = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 /**
  * Manifesto do módulo Core (fonte da verdade; modelo em platform-sdk/manifestos-referencia.test.ts).
  * Extensões oferecidas documentadas em contracts/extensoes.ts (a criar na etapa de contratos da API).
@@ -18,6 +20,10 @@ export const manifest = defineModule({
   consome: ['core.notificacao.criada@1', 'core.meta.definida@1', 'vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.aprovacao_solicitada@2', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.cliente.retorno_erp@1', 'integracao.filial.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.vendedor.atualizado@1', 'integracao.titulo.atualizado@1', 'integracao.nota.atualizado@1', 'integracao.rota.atualizado@1', 'integracao.produto_unidade.atualizado@1', 'integracao.cliente_endereco.atualizado@1', 'pesquisa.resposta.registrada@1'],
   acoes: {
     // Equivalem a canEditRoutes / canManagePeriod / canEditParams da Fase M (web/lib/rules.ts); a API revalida (RN-CORE-04).
+    'carteira.ver': { perfis: [...PERFIS_ESCOPO], descricao: 'Ver a carteira de clientes do escopo: a lista, a de um cliente e a de um usuário (RN-CORE-04)' },
+    'equipe.ver': { perfis: [...PERFIS_ESCOPO], descricao: 'Ver a hierarquia das equipes do escopo (RN-CORE-04)' },
+    'rota.ver': { perfis: [...PERFIS_ESCOPO], descricao: 'Ver as rotas do escopo e a rota de um usuário num dia (RN-CORE-04)' },
+    'visita.ver': { perfis: [...PERFIS_ESCOPO], descricao: 'Ver as visitas do escopo (RN-CORE-04)' },
     'rota.editar': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Montar e alterar a rota da semana (BKO)' },
     'meta.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Ver metas e indicadores do próprio escopo (RF-CORE-08)' },
     'meta.editar': { perfis: ['supervisor', 'gerente', 'analista', 'admin'], descricao: 'Definir a meta mensal de um usuário do escopo; publica core.meta.definida@1 (RN-CORE-20)' },
