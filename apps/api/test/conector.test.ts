@@ -381,12 +381,12 @@ describe('rotas de Conector /integracao/v1 (ADR 0013, T-0032)', () => {
   });
 
   it('ADR 0076 D6: ctx.versaoApp traz as versões publicadas do Campo e do Gestão (a fonte do 426); doCliente sempre null', async () => {
-    const campo = { versao: '1.0.35', publicada_em: '2026-11-26T10:00:00.000Z' };
-    const app = montar({ versoesApp: { campo: { variante: 'campo', ...campo }, gestao: { variante: 'gestao', versao: '1.0.36', publicada_em: null } } });
+    const campo = { versao: '1.0.36', publicada_em: '2026-11-26T10:00:00.000Z' };
+    const app = montar({ versoesApp: { campo: { variante: 'campo', ...campo }, gestao: { variante: 'gestao', versao: '1.0.37', publicada_em: null } } });
     // o cabeçalho do app não vale no Conector: ele não é o app
-    const r = await app.inject({ method: 'GET', url: '/integracao/v1/versao-app', headers: { ...cabA, [CABECALHO_APP]: valorCabecalhoApp('campo', '1.0.35') } });
+    const r = await app.inject({ method: 'GET', url: '/integracao/v1/versao-app', headers: { ...cabA, [CABECALHO_APP]: valorCabecalhoApp('campo', '1.0.36') } });
     expect(r.statusCode, r.body).toBe(200);
-    expect(r.json()).toEqual({ cliente: null, campo, gestao: { versao: '1.0.36', publicada_em: null } });
+    expect(r.json()).toEqual({ cliente: null, campo, gestao: { versao: '1.0.37', publicada_em: null } });
     const semVersao = await montar({ versoesApp: {} }).inject({ method: 'GET', url: '/integracao/v1/versao-app', headers: cabA });
     expect(semVersao.json()).toEqual({ cliente: null, campo: null, gestao: null });
   });
