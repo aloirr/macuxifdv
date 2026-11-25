@@ -6,6 +6,8 @@
  *
  * RN-VEN-25 (ADR 0072, R-20261124-111421; reverte a R-20261118-224720): o cliente só usa prazos com prazo médio até o
  * prazo_medio_max_dias dele (nulo = sem teto; igual vale); a API revalida no push e na edição do orçamento (RN-VEN-25).
+ * O teto só vale para o app v1.0.34 em diante (cabeçalho `x-macuxi-app`, decisão pendente do dono do produto): R1, R1b e O2 mandam
+ * `campo/1.0.34`; o R1d prova que a v1.0.32 e a chamada sem cabeçalho (APK antigo, BKO) passam do teto.
  * ADR 0072: formas e prazos vêm só do ERP; o BKO só consulta e os PUTs respondem 403 FORMAS_DO_ERP.
  *
  * Fixture (db/seeds/fixtures/dois-tenants.ts): A.c1 tem prazo médio máximo 45 e só PIX e BOLETO; título NF-1001 1/2 vencido
@@ -45,6 +47,8 @@ const PED = {
   tetoAbaixo: id(18),
   tetoNulo: id(19),
   tetoZeroB: id(20),
+  tetoV1032: id(21),
+  tetoSemCabecalho: id(22),
   legado: id(15),
   promotor: id(16),
 } as const;
@@ -62,8 +66,10 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
   let prodB = '';
 
   const q = async <T extends pg.QueryResultRow = Linha>(sql: string, p: unknown[] = []) => (await api.admin.query<T>(sql, p)).rows;
-  const push = async (token: string, itens: object[]): Promise<ResultadoItemPush[]> => {
-    const r = await api.chamar(token, { method: 'POST', url: '/v1/sync/push', payload: { itens } });
+  /** Cabeçalho do app que já filtra os prazos pelo teto (RN-VEN-25, v1.0.34+). */
+  const APP_COM_TETO = { 'x-macuxi-app': 'campo/1.0.34' };
+  const push = async (token: string, itens: object[], headers: Record<string, string> = {}): Promise<ResultadoItemPush[]> => {
+    const r = await api.chamar(token, { method: 'POST', url: '/v1/sync/push', headers, payload: { itens } });
     expect(r.statusCode, r.body).toBe(200);
     return (r.json() as { resultados: ResultadoItemPush[] }).resultados;
   };
@@ -215,25 +221,25 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
 
   // ------------------------------------------------------------------------------------------------ RN-VEN-24 / RN-VEN-25
   describe('R. Recusas RN-VEN-24 e RN-VEN-25 (push: item rejeitado, nada gravado, nada na outbox)', () => {
-    it('R1. RN-VEN-25 (ADR 0072): BOLETO 30/60/90 (prazo médio 60) acima do prazo médio 45 do A.c1 → rejeitado com a mensagem do teto; nada gravado', async () => {
-      const [r] = await push(tk.vendedor, [pedidoA(PED.boleto60, PA.formas.boleto, PA.prazos.bol306090)]);
+    it('R1. RN-VEN-25 (ADR 0072), app campo/1.0.34: BOLETO 30/60/90 (prazo médio 60) acima do prazo médio 45 do A.c1 → rejeitado com a mensagem do teto; nada gravado', async () => {
+      const [r] = await push(tk.vendedor, [pedidoA(PED.boleto60, PA.formas.boleto, PA.prazos.bol306090)], APP_COM_TETO);
       recusado(r, 'RN-VEN-25', PED.boleto60);
       expect(r, JSON.stringify(r)).toMatchObject({ mensagem: 'Este prazo passa do prazo médio do cliente. Escolha um prazo menor.' });
       await nadaGravado(PED.boleto60);
     });
 
-    it('R1b. RN-VEN-25 (ADR 0072), limites do teto: igual ao prazo médio (42 = 42) aceito; um dia abaixo (41) rejeitado; nulo = sem teto (60 aceito)', async () => {
+    it('R1b. RN-VEN-25 (ADR 0072), app campo/1.0.34, limites do teto: igual ao prazo médio (42 = 42) aceito; um dia abaixo (41) rejeitado; nulo = sem teto (60 aceito)', async () => {
       try {
         await q('update core.cliente set prazo_medio_max_dias = 42 where id = $1', [A.clientes.c1]);
-        const [igual] = await push(tk.vendedor, [pedidoA(PED.tetoIgual, PA.formas.boleto, PA.prazos.bol2856)]);
+        const [igual] = await push(tk.vendedor, [pedidoA(PED.tetoIgual, PA.formas.boleto, PA.prazos.bol2856)], APP_COM_TETO);
         expect(igual, JSON.stringify(igual)).toMatchObject({ id: PED.tetoIgual, status: 'aceito' });
         expect((await linha(PED.tetoIgual))!).toMatchObject({ prazo_codigo: 'BOL-28-56', prazo_medio_dias: 42 });
         await q('update core.cliente set prazo_medio_max_dias = 41 where id = $1', [A.clientes.c1]);
-        const [abaixo] = await push(tk.vendedor, [pedidoA(PED.tetoAbaixo, PA.formas.boleto, PA.prazos.bol2856)]);
+        const [abaixo] = await push(tk.vendedor, [pedidoA(PED.tetoAbaixo, PA.formas.boleto, PA.prazos.bol2856)], APP_COM_TETO);
         recusado(abaixo, 'RN-VEN-25', PED.tetoAbaixo);
         await nadaGravado(PED.tetoAbaixo);
         await q('update core.cliente set prazo_medio_max_dias = null where id = $1', [A.clientes.c1]);
-        const [nulo] = await push(tk.vendedor, [pedidoA(PED.tetoNulo, PA.formas.boleto, PA.prazos.bol306090)]);
+        const [nulo] = await push(tk.vendedor, [pedidoA(PED.tetoNulo, PA.formas.boleto, PA.prazos.bol306090)], APP_COM_TETO);
         expect(nulo, JSON.stringify(nulo)).toMatchObject({ id: PED.tetoNulo, status: 'aceito' });
         expect((await linha(PED.tetoNulo))!).toMatchObject({ prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
       } finally {
@@ -251,6 +257,16 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       } finally {
         await restaurarC1();
       }
+    });
+
+    it('R1d. RN-VEN-25 só para o app v1.0.34 em diante: campo/1.0.32 e a chamada sem cabeçalho (APK antigo, BKO) aceitam BOLETO 30/60/90 (60 > 45)', async () => {
+      const [v1032] = await push(tk.vendedor, [pedidoA(PED.tetoV1032, PA.formas.boleto, PA.prazos.bol306090)], { 'x-macuxi-app': 'campo/1.0.32' });
+      expect(v1032, JSON.stringify(v1032)).toMatchObject({ id: PED.tetoV1032, status: 'aceito' });
+      expect((await linha(PED.tetoV1032))!).toMatchObject({ prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
+      const [sem] = await push(tk.vendedor, [pedidoA(PED.tetoSemCabecalho, PA.formas.boleto, PA.prazos.bol306090)]);
+      expect(sem, JSON.stringify(sem)).toMatchObject({ id: PED.tetoSemCabecalho, status: 'aceito' });
+      expect((await linha(PED.tetoSemCabecalho))!).toMatchObject({ prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
+      expect((await q('select prazo_medio_max_dias from core.cliente where id = $1', [A.clientes.c1]))[0]).toEqual({ prazo_medio_max_dias: 45 });
     });
 
     it('R2. RN-VEN-24: prazo de outra forma (PIX com o prazo BOL-28-56)', async () => {
@@ -320,16 +336,16 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       atualizado = (await q<{ a: string }>(`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as a from vendedor.pedido where id = $1`, [PED.orcamento]))[0]!.a;
     });
 
-    it('O2. PUT /v1/vendedor/orcamentos/:id com o prazo de outra forma → 422 RN-VEN-24; com o prazo 30/60/90 (60 > 45) → 422 RN-VEN-25 (ADR 0072); o orçamento não muda; sem teto (nulo) → 200', async () => {
+    it('O2. PUT /v1/vendedor/orcamentos/:id (app campo/1.0.34) com o prazo de outra forma → 422 RN-VEN-24; com o prazo 30/60/90 (60 > 45) → 422 RN-VEN-25 (ADR 0072); o orçamento não muda; sem teto (nulo) → 200', async () => {
       const base = (forma: string, prazo: string) => ({ ...corpo(A.clientes.c1, prodA, { forma, prazo }), atualizado_em: atualizado });
-      cod422(await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.pix, PA.prazos.bol2856) }), 'RN-VEN-24');
+      cod422(await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, headers: APP_COM_TETO, payload: base(PA.formas.pix, PA.prazos.bol2856) }), 'RN-VEN-24');
       expect((await linha(PED.orcamento))!).toMatchObject({ prazo_codigo: 'BOL-28-56', prazo_medio_dias: 42 });
-      const acima = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
+      const acima = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, headers: APP_COM_TETO, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
       cod422(acima, 'RN-VEN-25');
       expect((await linha(PED.orcamento))!).toMatchObject({ prazo_codigo: 'BOL-28-56', prazo_medio_dias: 42 });
       try {
         await q('update core.cliente set prazo_medio_max_dias = null where id = $1', [A.clientes.c1]);
-        const ok = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
+        const ok = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, headers: APP_COM_TETO, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
         expect(ok.statusCode, ok.body).toBe(200);
         expect((await linha(PED.orcamento))!).toMatchObject({ tipo: 'orcamento', prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
       } finally {
