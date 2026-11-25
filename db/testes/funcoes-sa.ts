@@ -228,12 +228,24 @@ export const FUNCOES_SA_0102 = [
 ] as const;
 
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA: as até a 0080 (FUNCOES_SA_ATE_0080) + uma constante por lote da v1.0.14
- * (FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS), a da v1.0.17 (FUNCOES_SA_OCULTAR_MARCA), as do zerar da v1.0.31 (FUNCOES_SA_ZERAR)
- * e as da 0102 (FUNCOES_SA_0102): 46. Use esta lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua
- * sendo a do banco parado na 0039, 0040 ou 0041.
+ * As 3 sa_* da 0103 (v1.0.35, item 3): a troca da senha do admin do cliente pela sessão do portal (conta da empresa atual da
+ * sessão): ler o hash e o bloqueio, contar a falha da senha atual (core.usuario.tentativas_falhas/bloqueio_ate, RN-CORE-01) e
+ * gravar a nova. Só admin do cliente com empresa escolhida (sessão inválida 28000; super-admin ou sem empresa 42501). EXECUTE só
+ * ao macuxi_portal.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS, ...FUNCOES_SA_OCULTAR_MARCA, ...FUNCOES_SA_ZERAR, ...FUNCOES_SA_0102] as const;
+export const FUNCOES_SA_0103 = [
+  'plataforma.sa_reautenticar_admin(uuid)',
+  'plataforma.sa_falha_senha_admin(uuid)',
+  'plataforma.sa_gravar_senha_admin(uuid, text, text)',
+] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA: as até a 0080 (FUNCOES_SA_ATE_0080) + uma constante por lote da v1.0.14
+ * (FUNCOES_SA_CARGA, FUNCOES_SA_LOGO, FUNCOES_SA_PLANOS), a da v1.0.17 (FUNCOES_SA_OCULTAR_MARCA), as do zerar da v1.0.31 (FUNCOES_SA_ZERAR),
+ * as da 0102 (FUNCOES_SA_0102) e as da 0103 (FUNCOES_SA_0103): 49. Use esta lista nas conferências pelo catálogo do banco migrado até o
+ * fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_CARGA, ...FUNCOES_SA_LOGO, ...FUNCOES_SA_PLANOS, ...FUNCOES_SA_OCULTAR_MARCA, ...FUNCOES_SA_ZERAR, ...FUNCOES_SA_0102, ...FUNCOES_SA_0103] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';
