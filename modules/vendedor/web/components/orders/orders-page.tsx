@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { formatBRL } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, CampoBusca, CLASSE_CAMPO_BASE, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, type AcaoDoMenu, MenuAcoes, type NoticeTone, PageHeader, rotuloComContagem, SelectField, useToast } from '@macuxi/ui/web';
@@ -62,7 +61,6 @@ export function OrdersPage() {
   };
   // §P6 regra 3: contagem e total são do filtro inteiro (vêm da API); sem eles, a contagem das linhas carregadas e o "+"
   const quantidade = totalDoFiltro ? totalDoFiltro.quantidade : pedidos.length;
-  const soma = totalDoFiltro ? totalDoFiltro.soma_cents : null;
   const titulo = lista.data ? rotuloComContagem('Pedidos', quantidade, !totalDoFiltro && !!lista.hasNextPage) : 'Pedidos';
 
   const acoesDaPagina: AcaoDoMenu[] = [
@@ -78,7 +76,6 @@ export function OrdersPage() {
     <>
       <PageHeader
         title={titulo}
-        badge={soma !== null && quantidade > 0 ? <span className="text-[17px] font-semibold text-ink-2" data-testid="pedidos.total">{formatBRL(soma)}</span> : undefined}
         actions={<MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" testId="pedidos.mais-acoes" />}
       />
 

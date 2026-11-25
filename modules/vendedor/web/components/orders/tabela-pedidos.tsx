@@ -5,17 +5,17 @@ import { formatBRL } from '@macuxi/comum';
 import { Button, CLASSE_CAMPO_BASE, nomeLegivel, SeloSituacao } from '@macuxi/ui/web';
 import type { NoticeTone } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
-import { ACOES_DO_PENDENTE, acoesDoPedido, COLUNAS_DA_TABELA, type ColunaPedido, motivoDoPedido, SEM_VALOR, textoOuTraco } from '../../lib/tabela-pedidos';
+import { ACOES_DO_PENDENTE, acoesDoPedido, colunasVisiveis, type ColunaPedido, motivoDoPedido, SEM_VALOR, textoOuTraco } from '../../lib/tabela-pedidos';
 import { DialogoDeRejeicao, useDecidir } from './decisao';
 import { seloDoPedido } from './status';
 
-const LARGURA_TOTAL = COLUNAS_DA_TABELA.reduce((s, c) => s + c.largura, 0);
+const OCULTA_ESTREITA = 'hidden min-[1500px]:table-cell';
 
 /** Posição das colunas fixas (`position: sticky`): soma das larguras entre a borda e a coluna. */
-function estiloDaColuna(c: ColunaPedido): CSSProperties | undefined {
-  const i = COLUNAS_DA_TABELA.indexOf(c);
-  if (c.fixa === 'esquerda') return { position: 'sticky', left: COLUNAS_DA_TABELA.slice(0, i).reduce((s, x) => s + x.largura, 0), zIndex: 1 };
-  if (c.fixa === 'direita') return { position: 'sticky', right: COLUNAS_DA_TABELA.slice(i + 1).reduce((s, x) => s + x.largura, 0), zIndex: 1 };
+function estiloDaColuna(c: ColunaPedido, colunas: readonly ColunaPedido[]): CSSProperties | undefined {
+  const i = colunas.indexOf(c);
+  if (c.fixa === 'esquerda') return { position: 'sticky', left: colunas.slice(0, i).reduce((s, x) => s + x.largura, 0), zIndex: 1 };
+  if (c.fixa === 'direita') return { position: 'sticky', right: colunas.slice(i + 1).reduce((s, x) => s + x.largura, 0), zIndex: 1 };
   return undefined;
 }
 
@@ -25,6 +25,8 @@ function sombraDaColuna(c: ColunaPedido): string {
   if (c.id === 'situacao') return 'shadow-[-8px_0_8px_-8px_rgba(22,32,42,0.25)]';
   return '';
 }
+
+const classeBaixa = (c: ColunaPedido) => (c.baixa ? ` ${OCULTA_ESTREITA}` : '');
 
 function Vazio({ texto }: { texto: string }) {
   return texto === SEM_VALOR ? <span className="text-ink-2">{SEM_VALOR}</span> : <>{texto}</>;
@@ -78,7 +80,7 @@ function AcoesDoPendente({ pedido, onFeito }: { pedido: Order; onFeito: (tom: No
 }
 
 /**
- * Tabela simples de Pedidos (prancha 04): 13 colunas, rolagem horizontal abaixo de 1610 px com Código e Cliente fixos à
+ * Tabela simples de Pedidos (prancha 04): até 13 colunas (Motivo e Observação só em tela larga, Ações só com ação), rolagem horizontal só em tela estreita com Código e Cliente fixos à
  * esquerda e Ações e Situação fixas à direita. Nada com reticências: cliente e observação quebram a linha.
  */
 export function TabelaPedidos({ pedidos, tz, dataCurta, onAbrir, onFeito }: { pedidos: Order[]; tz: string; dataCurta: (iso: string, tz: string) => string; onAbrir: (o: Order) => void; onFeito: (tom: NoticeTone, texto: string) => void }) {
@@ -99,19 +101,21 @@ export function TabelaPedidos({ pedidos, tz, dataCurta, onAbrir, onFeito }: { pe
       default: return <SeloSituacao selos={[seloDoPedido(o.status, o.situacao_orcamento)]} />;
     }
   };
+  const colunas = colunasVisiveis(pedidos);
+  const largura = (alta: boolean) => colunas.filter((c) => alta || !c.baixa).reduce((t, c) => t + c.largura, 0);
   return (
     <div className="overflow-x-auto" data-testid="pedidos.rolagem">
-      <table className="table-fixed border-separate border-spacing-0 text-[15px]" style={{ width: '100%', minWidth: LARGURA_TOTAL }} data-testid="pedidos.tabela">
+      <table className="table-fixed border-separate border-spacing-0 text-[15px]" style={{ width: '100%', minWidth: largura(false) }} data-testid="pedidos.tabela">
         <caption className="sr-only">Pedidos</caption>
         <colgroup>
-          {COLUNAS_DA_TABELA.map((c) => (
-            <col key={c.id} style={{ width: c.largura }} />
+          {colunas.map((c) => (
+            <col key={c.id} style={{ width: c.largura }} className={c.baixa ? OCULTA_ESTREITA : undefined} />
           ))}
         </colgroup>
         <thead>
           <tr>
-            {COLUNAS_DA_TABELA.map((c) => (
-              <th key={c.id} scope="col" style={estiloDaColuna(c)} className={`border-b border-line bg-surface px-2 py-2.5 align-bottom text-[12px] leading-4 font-semibold text-ink-2 ${c.numero ? 'text-right' : 'text-left'} ${sombraDaColuna(c)}`}>
+            {colunas.map((c) => (
+              <th key={c.id} scope="col" style={estiloDaColuna(c, colunas)} className={`border-b border-line bg-surface px-2 py-2.5 align-bottom text-[12px] leading-4 font-semibold text-ink-2 ${c.numero ? 'text-right' : 'text-left'} ${sombraDaColuna(c)}${classeBaixa(c)}`}>
                 {c.titulo}
               </th>
             ))}
@@ -120,11 +124,11 @@ export function TabelaPedidos({ pedidos, tz, dataCurta, onAbrir, onFeito }: { pe
         <tbody>
           {pedidos.map((o) => (
             <tr key={o.id} data-testid={`pedido.linha.${o.number}`} className="cursor-pointer hover:[&>td]:bg-ground" onClick={() => onAbrir(o)}>
-              {COLUNAS_DA_TABELA.map((c) => (
+              {colunas.map((c) => (
                 <td
                   key={c.id}
-                  style={estiloDaColuna(c)}
-                  className={`h-14 border-b border-line-2 bg-surface p-2 leading-5 ${c.numero ? 'text-right' : ''} ${sombraDaColuna(c)}`}
+                  style={estiloDaColuna(c, colunas)}
+                  className={`h-14 border-b border-line-2 bg-surface p-2 leading-5 ${c.numero ? 'text-right' : ''} ${sombraDaColuna(c)}${classeBaixa(c)}`}
                   onClick={c.id === 'acoes' ? (e) => e.stopPropagation() : undefined}
                 >
                   {celula(c.id, o)}
