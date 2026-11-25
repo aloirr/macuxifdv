@@ -101,6 +101,13 @@ export function rotuloDoPrazo(item: Pick<ItemFilaAprovacao, 'situacao' | 'horas_
   return { label: `No prazo · ${horas(item.horas_restantes)}`, tom: 'success' };
 }
 
+/** UX-27 (BKO): o prazo em selo curto, sem a contagem de horas, para a coluna caber ao lado do "⋯" ("Vencido", "Vence em 3 h", "No prazo"). */
+export function rotuloDoPrazoCurto(item: Pick<ItemFilaAprovacao, 'situacao' | 'horas_restantes'>): string {
+  if (item.situacao === 'vencido') return 'Vencido';
+  if (item.situacao === 'vencendo') return `Vence em ${Math.max(1, Math.round(item.horas_restantes))} h`;
+  return 'No prazo';
+}
+
 /** Nome de cada pessoa da visão (para a fila e os alertas, que trazem só ids). */
 export function nomesDaVisao(visao: Pick<VisaoEquipe, 'membros'> | null | undefined): Map<string, string> {
   return new Map((visao?.membros ?? []).map((m) => [m.membro.id, m.membro.nome]));

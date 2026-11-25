@@ -126,7 +126,12 @@ export interface EntradaAvaliacao {
   ultimo_contato_em?: Readonly<Record<string, string | null>>;
   /** T-0180 / RN-CORE-44: horário de almoço já resolvido de cada usuário (`core.produtividade_equipe@1`); sem o dado vale o padrão da empresa. */
   almoco?: Readonly<Record<string, HorarioAlmoco>>;
+  /** Nome (fantasia ou razão social) de cada cliente, pelo cadastro do Core (`core.cadastro_resumo@1`); sem ele a mensagem diz "Cliente". */
+  nomes_clientes?: Readonly<Record<string, string>>;
 }
+
+/** UX-22: número em pt-BR com uma casa ("1,2"; "15,8"). */
+const umaCasa = (n: number): string => n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 const chaveDe = (tipo: TipoAlerta, alvo: string) => `${tipo}:${alvo}`;
 /** D4 / ADR 0059 §7: os dois tipos de produtividade dividem a chave, para haver um alerta vivo por pessoa (o mais novo substitui). */
@@ -149,21 +154,25 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
   if (ativos.has('cliente_sem_visita')) {
     const r = e.regras.cliente_sem_visita;
     const ultima = new Map<string, string>(); // cliente → último dia com check-in (qualquer usuário)
+    const ultimoCheckin = new Map<string, string>(); // cliente → instante do último check-in (o "desde" do alerta)
     for (const v of Object.values(e.estado.visitas)) {
       // RN-GES-05 (T-0187, P2 A): o check-in de supervisor ou gerente é apoio, não visita de campo
       if (!v.checkin || !visitaContaParaCampo(e.membros, v.checkin.usuario_id)) continue;
       const dia = diaLocal(v.checkin.checkin_em, params.fuso);
       if (!ultima.has(v.checkin.cliente_id) || dia > ultima.get(v.checkin.cliente_id)!) ultima.set(v.checkin.cliente_id, dia);
+      if (!ultimoCheckin.has(v.checkin.cliente_id) || v.checkin.checkin_em > ultimoCheckin.get(v.checkin.cliente_id)!) ultimoCheckin.set(v.checkin.cliente_id, v.checkin.checkin_em);
     }
     for (const [clienteId, c] of Object.entries(e.estado.clientes)) {
       // T-0046: carteira pendente (evento sem o dono, mais novo) não alerta; vira aviso em `situacaoDaCarteira`
       if (!c.ativo || !ativoNoCadastro(c.vendedor_id) || carteiraPendente(e.estado, clienteId)) continue;
-      const nome = c.nome ?? 'Cliente';
+      const nome = e.nomes_clientes?.[clienteId] ?? c.nome ?? 'Cliente';
       const dia = ultima.get(clienteId);
       let valor: number | null;
       let limiar: number;
       let mensagem: string;
+      let desdeQuando: string | undefined;
       if (dia) {
+        desdeQuando = ultimoCheckin.get(clienteId);
         valor = diffDays(dia, hoje);
         limiar = limiteDiasSemVisita(c.frequencia_visita, params);
         if (valor <= limiar) continue;
@@ -174,6 +183,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         const naCarteira = desde ? diffDays(diaLocal(desde, params.fuso), hoje) : null;
         limiar = params.dias_carencia_cliente_novo;
         if (naCarteira === null || naCarteira <= limiar) continue; // RN-GES-02: só alerta ao PASSAR da carência
+        desdeQuando = desde ?? undefined;
         valor = null;
         mensagem = `${nome} nunca foi visitado (${naCarteira} dias na carteira; carência ${limiar}).`;
       }
@@ -187,6 +197,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         limiar,
         severidade: r.severidade,
         mensagem,
+        ...(desdeQuando ? { desde: desdeQuando } : {}),
       });
     }
   }
@@ -209,7 +220,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
           valor: ritmo,
           limiar: r.limiar,
           severidade: r.severidade,
-          mensagem: `${m.nome} está com ${ritmo}% do ritmo esperado da meta (mínimo ${r.limiar}%).`,
+          mensagem: `${m.nome} está com ${umaCasa(ritmo)}% do ritmo esperado da meta (mínimo ${r.limiar}%).`,
         });
       }
     }
@@ -236,7 +247,8 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         valor: horas,
         limiar: horasDoPrazo,
         severidade: r.severidade,
-        mensagem: `Pedido aguardando aprovação além do prazo de ${dias} ${dias === 1 ? 'dia útil' : 'dias úteis'} (${horas} horas úteis de espera).`,
+        desde: prazo.prazo_em,
+        mensagem: `Pedido aguardando aprovação além do prazo de ${dias} ${dias === 1 ? 'dia útil' : 'dias úteis'} (${umaCasa(horas)} horas úteis de espera).`,
       });
     }
   }
