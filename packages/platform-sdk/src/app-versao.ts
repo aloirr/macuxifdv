@@ -205,7 +205,7 @@ export interface PortaVersaoApp {
 // ---------- ADR 0076 (RN-VEN-02 v3): trava da quantidade fracionária ----------
 
 /** Primeira versão dos apps que lê e grava quantidade e fator com casas decimais. */
-export const VERSAO_APP_FRACAO = '1.0.35';
+export const VERSAO_APP_FRACAO = '1.0.36';
 
 /** A variante já obriga a `VERSAO_APP_FRACAO`: publicada maior, ou igual e com as 24 h de convivência vencidas. */
 function varianteObrigaFracao(v: VersaoPublicadaApp | null, agora: Date): boolean {
@@ -218,7 +218,7 @@ function varianteObrigaFracao(v: VersaoPublicadaApp | null, agora: Date): boolea
 }
 
 /**
- * ADR 0076 D6: a fração está liberada para a plataforma (API e app) só quando o Campo e o Gestão já obrigam a 1.0.35
+ * ADR 0076 D6: a fração está liberada para a plataforma (API e app) só quando o Campo e o Gestão já obrigam a 1.0.36
  * (`varianteObrigaFracao`). Sem versão, sem hora, versão menor ou inválida = fechada. Publicar uma versão maior não fecha de novo.
  */
 export function fracaoLiberada({

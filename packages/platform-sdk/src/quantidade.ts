@@ -32,9 +32,9 @@ export const QuantidadeDecimalSchema = decimal4('quantidade', QUANTIDADE_DECIMAL
 /** Fator da embalagem (unidades base por embalagem): > 0, até 4 casas, ≤ 9999 (RN-VEN-15). */
 export const FatorDecimalSchema = decimal4('fator', FATOR_DECIMAL_MAX);
 
-/** 422 com a trava fechada (ADR 0076 D6): a fração só entra 24 h depois da publicação dos dois apps 1.0.35. */
+/** 422 com a trava fechada (ADR 0076 D6): a fração só entra 24 h depois da publicação dos dois apps 1.0.36. */
 export const CODIGO_FRACAO_BLOQUEADA = 'quantidade_fracionaria_bloqueada';
 export const MENSAGEM_FRACAO_BLOQUEADA =
-  'Quantidade com casas decimais só é aceita 24 h depois da publicação do Macuxi Campo e do Macuxi Gestão 1.0.35. Envie a quantidade inteira ou tente de novo mais tarde.';
+  'Quantidade com casas decimais só é aceita 24 h depois da publicação do Macuxi Campo e do Macuxi Gestão 1.0.36. Envie a quantidade inteira ou tente de novo mais tarde.';
 /** 422 de RN-VEN-02 v3: fração fora de KG/M, mais de 4 casas, ou quantidade e fator fracionários no mesmo item. */
 export const CODIGO_FRACAO_INVALIDA = 'quantidade_fracionaria_invalida';

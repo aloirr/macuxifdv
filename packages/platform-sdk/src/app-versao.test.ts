@@ -218,44 +218,44 @@ describe('fracaoLiberada (ADR 0076 D6, RN-VEN-02 v3)', () => {
   const antes = new Date(Date.parse(pub) + PRAZO_ATUALIZACAO_APP_MS - 1);
   const v = (versao: string, publicada_em: string | null = pub): VersaoPublicadaApp => ({ versao, publicada_em });
 
-  it('versão da fração = 1.0.35', () => {
-    expect(VERSAO_APP_FRACAO).toBe('1.0.35');
+  it('versão da fração = 1.0.36', () => {
+    expect(VERSAO_APP_FRACAO).toBe('1.0.36');
   });
 
-  it('as duas na 1.0.35 há 24 h exatas → aberta', () => {
-    expect(fracaoLiberada({ campo: v('1.0.35'), gestao: v('1.0.35'), agora: depois })).toBe(true);
+  it('as duas na 1.0.36 há 24 h exatas → aberta', () => {
+    expect(fracaoLiberada({ campo: v('1.0.36'), gestao: v('1.0.36'), agora: depois })).toBe(true);
   });
 
   it('1 ms antes das 24 h → fechada', () => {
-    expect(fracaoLiberada({ campo: v('1.0.35'), gestao: v('1.0.35'), agora: antes })).toBe(false);
+    expect(fracaoLiberada({ campo: v('1.0.36'), gestao: v('1.0.36'), agora: antes })).toBe(false);
   });
 
-  it('publicada maior que a 1.0.35 → aberta, mesmo recém-publicada ou sem hora (não fecha de novo)', () => {
-    expect(fracaoLiberada({ campo: v('1.0.36', null), gestao: v('1.1.0'), agora: antes })).toBe(true);
+  it('publicada maior que a 1.0.36 → aberta, mesmo recém-publicada ou sem hora (não fecha de novo)', () => {
+    expect(fracaoLiberada({ campo: v('1.0.37', null), gestao: v('1.1.0'), agora: antes })).toBe(true);
   });
 
   it.each<[string, VersaoPublicadaApp | null, VersaoPublicadaApp | null]>([
-    ['campo sem versão', null, v('1.0.35')],
-    ['gestão sem versão', v('1.0.35'), null],
-    ['campo menor', v('1.0.34'), v('1.0.35')],
-    ['gestão sem hora', v('1.0.35'), v('1.0.35', null)],
-    ['hora inválida', v('1.0.35', 'ontem'), v('1.0.35')],
-    ['versão inválida', v('1.0.35-beta'), v('1.0.35')],
+    ['campo sem versão', null, v('1.0.36')],
+    ['gestão sem versão', v('1.0.36'), null],
+    ['campo menor', v('1.0.35'), v('1.0.36')],
+    ['gestão sem hora', v('1.0.36'), v('1.0.36', null)],
+    ['hora inválida', v('1.0.36', 'ontem'), v('1.0.36')],
+    ['versão inválida', v('1.0.36-beta'), v('1.0.36')],
   ])('%s → fechada', (_caso, campo, gestao) => {
     expect(fracaoLiberada({ campo, gestao, agora: depois })).toBe(false);
   });
 
-  it('agora inválido com a 1.0.35 → fechada', () => {
-    expect(fracaoLiberada({ campo: v('1.0.35'), gestao: v('1.0.35'), agora: new Date(Number.NaN) })).toBe(false);
+  it('agora inválido com a 1.0.36 → fechada', () => {
+    expect(fracaoLiberada({ campo: v('1.0.36'), gestao: v('1.0.36'), agora: new Date(Number.NaN) })).toBe(false);
   });
 });
 
 describe('clienteAceitaFracao (ADR 0076 D6: pull filtrado por versão do cliente)', () => {
   it.each([
     [null, false],
-    [{ variante: 'campo' as const, versao: '1.0.34' }, false],
-    [{ variante: 'campo' as const, versao: '1.0.35' }, true],
-    [{ variante: 'gestao' as const, versao: '1.0.36' }, true],
+    [{ variante: 'campo' as const, versao: '1.0.35' }, false],
+    [{ variante: 'campo' as const, versao: '1.0.36' }, true],
+    [{ variante: 'gestao' as const, versao: '1.0.37' }, true],
     [{ variante: 'gestao' as const, versao: '2.0.0' }, true],
     [{ variante: 'campo' as const, versao: 'x' }, false],
   ])('%j → %s', (app, esperado) => {

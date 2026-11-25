@@ -54,7 +54,7 @@ describe('códigos do 422 (ADR 0076 D4 e D6)', () => {
   it('valores fixos e exportados pela raiz', () => {
     expect(CODIGO_FRACAO_BLOQUEADA).toBe('quantidade_fracionaria_bloqueada');
     expect(CODIGO_FRACAO_INVALIDA).toBe('quantidade_fracionaria_invalida');
-    expect(MENSAGEM_FRACAO_BLOQUEADA).toContain('1.0.35');
+    expect(MENSAGEM_FRACAO_BLOQUEADA).toContain('1.0.36');
     expect(raiz.QuantidadeDecimalSchema).toBe(QuantidadeDecimalSchema);
     expect(raiz.fracaoLiberada).toBeTypeOf('function');
   });
