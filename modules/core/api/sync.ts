@@ -274,7 +274,7 @@ function puxarDe(t: Tabela) {
     return ctx.comTenant(async (db) => {
       const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
       if (t.tabela === 'core.produto') return comDescontoEfetivo(linhas, await padraoDeDesconto(db));
-      // ADR 0076 D6: fator numeric -> número; app sem cabeçalho ou < 1.0.35 não recebe unidade de fator fracionário
+      // ADR 0076 D6: fator numeric -> número; app sem cabeçalho ou < VERSAO_APP_FRACAO (1.0.36) não recebe unidade de fator fracionário
       if (t.tabela === 'core.produto_unidade') return unidadesParaCliente(linhas, clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null));
       // RN-CORE-78: o motivo e os erros por campo da recusa do ERP só vão ao vendedor (a mesma regra, `perfilVeRecusa`).
       if (t.tabela === 'core.cliente') {

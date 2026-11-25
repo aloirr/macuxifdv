@@ -1,7 +1,7 @@
 /**
  * Pull de `produto_unidade` com fator decimal (ADR 0076 D6; RN-VEN-15 v3): `core.produto_unidade.fator` é `numeric(9,4)` e o
  * `node-pg` o devolve como texto, então toda linha passa por `quantidadeDoBanco`. App sem o cabeçalho `x-macuxi-app` ou abaixo
- * da 1.0.35 valida o pull com `int()`: a unidade de fator fracionário NÃO vai para ele (as inteiras vão), e a variação de escopo
+ * da VERSAO_APP_FRACAO (1.0.36) valida o pull com `int()`: a unidade de fator fracionário NÃO vai para ele (as inteiras vão), e a variação de escopo
  * muda quando o app passa a aceitar fração, para quem atualiza baixar a entidade de novo.
  */
 import { quantidadeDoBanco, temFracao } from '@macuxi/comum/quantidade';
