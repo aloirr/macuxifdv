@@ -16,6 +16,9 @@ import {
   rotaAppVersao,
   ROTA_CORE_APP_APK,
   valorCabecalhoApp,
+  valorCabecalhoWeb,
+  versaoAppValida,
+  VERSAO_WEB,
   type PacotePublicado,
   type RotaModulo,
   type ServicoPacotes,
@@ -353,5 +356,40 @@ describe('426 APP_DESATUALIZADO no app antigo (RN-CORE-80, ADR 0070 §D4)', () =
     const emDia = montarApp(instante(24 * H), criarServicoPacotesMemoria({ campo: APK_CAMPO, gestao: GESTAO_HOJE }));
     expect((await emDia.inject({ ...ECO, headers: antigo })).statusCode).toBe(426);
     expect((await emDia.inject({ ...ECO, headers: gestaoAntigo })).statusCode).not.toBe(426);
+  });
+
+  it('v1.0.35: shell web (web/X.Y.Z) nunca recebe 426, nem com o APK vencido, e chega à rota em ctx.versaoApp sem versão publicada', async () => {
+    const app = createApp(
+      opcoesDeTeste(LICENCAS_PADRAO, {
+        modulos: modulosDeTeste({ vendedor: definirModuloApi({ ...vendedorApi, rotas: [...(vendedorApi.rotas ?? []), rotaEco, { ...rotaEco, caminho: 'eco-web', executar: async (ctx) => ({ cliente: ctx.versaoApp?.doCliente ?? null, publicada: (await ctx.versaoApp?.publicada('web')) ?? null }) }] }) }),
+        pacotes: criarServicoPacotesMemoria({ campo: APK_CAMPO, gestao: { versao: '9.9.9', arquivo: 'macuxi-gestao-9.9.9.apk', publicado_em: PUBLICADO } }),
+        versoesApp: {},
+        relogio: () => instante(48 * H),
+      }),
+    );
+    for (const valor of [valorCabecalhoWeb(), 'web/1.0.0', 'web/0.0.1']) {
+      for (const pedido of [ECO, { method: 'GET' as const, url: '/v1/sync/pacotes' }]) {
+        const r = await app.inject({ ...pedido, headers: { ...cab('vendedor'), [CABECALHO_APP]: valor } });
+        expect(r.statusCode, `${valor} ${pedido.url} ${r.body}`).not.toBe(426);
+        expect(r.statusCode, pedido.url).toBe((await app.inject({ ...pedido, headers: cab('vendedor') })).statusCode);
+      }
+    }
+    const r = await app.inject({ method: 'GET', url: '/v1/vendedor/eco-web', headers: { ...cab('vendedor'), [CABECALHO_APP]: valorCabecalhoWeb() } });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toEqual({ cliente: { variante: 'web', versao: VERSAO_WEB }, publicada: null });
+    // o APK vencido continua recusado no mesmo servidor
+    expect((await app.inject({ ...ECO, headers: antigo })).statusCode).toBe(426);
+  });
+
+  it('v1.0.35 RN-VEN-25: a versão que o Vendedor lê (ctx.versaoApp.doCliente.versao) com web/<VERSAO_WEB> passa do mínimo 1.0.34 do teto; sem cabeçalho = null (sem teto)', async () => {
+    const app = montarApp(instante(0));
+    const versaoNaRota = async (headers: Record<string, string>) =>
+      ((await app.inject({ ...ECO, headers: { ...cab('vendedor'), ...headers } })).json() as { cliente: { versao: string } | null }).cliente?.versao ?? null;
+    // a mesma condição de aplicaTetoDoCliente (modules/vendedor/domain/pagamento.ts): X.Y.Z válida e não menor que 1.0.34
+    const aplicaTeto = (v: string | null) => !!v && versaoAppValida(v) && !haVersaoNova(v, '1.0.34');
+    expect(aplicaTeto(await versaoNaRota({ [CABECALHO_APP]: valorCabecalhoWeb() }))).toBe(true);
+    expect(aplicaTeto(await versaoNaRota({ [CABECALHO_APP]: 'web/1.0.35' }))).toBe(true);
+    expect(await versaoNaRota({})).toBeNull();
+    expect(aplicaTeto(await versaoNaRota({}))).toBe(false);
   });
 });

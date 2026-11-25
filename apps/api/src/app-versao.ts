@@ -21,6 +21,7 @@ import {
   AppVersaoPublicadaSchema,
   CABECALHO_APP,
   CODIGO_APP_DESATUALIZADO,
+  ehAppAndroid,
   lerCabecalhoApp,
   MENSAGEM_APP_DESATUALIZADO,
   ROTA_CORE_APP_APK,
@@ -138,9 +139,9 @@ export function criarFonteVersoesApp(dep: {
   };
 }
 
-/** `ctx.versaoApp` da requisição (ADR 0070 §D7). */
+/** `ctx.versaoApp` da requisição (ADR 0070 §D7). `web/X.Y.Z` (BKO, Gestor web) chega em `doCliente`, sem versão publicada. */
 export function portaVersaoApp(fonte: FonteVersoesApp, cabecalhos: Record<string, unknown>): PortaVersaoApp {
-  return { doCliente: lerCabecalhoApp(cabecalhos[CABECALHO_APP]), publicada: (v) => fonte.publicada(v) };
+  return { doCliente: lerCabecalhoApp(cabecalhos[CABECALHO_APP]), publicada: (v) => (v === 'web' ? Promise.resolve(null) : fonte.publicada(v)) };
 }
 
 /**
@@ -182,7 +183,7 @@ export function rotaLiberadaAoAppDesatualizado(metodo: string, url: string | und
 /** Situação do app que chamou (`null` = sem versão publicada). */
 async function situacaoDoAppQueChamou(
   fonte: FonteVersoesApp,
-  cliente: AppDoCabecalho,
+  cliente: AppDoCabecalho & { variante: VarianteApp },
   agora: Date,
 ): Promise<{ publicada: VersaoPublicadaApp; situacao: ReturnType<typeof situacaoDaVersao> } | null> {
   const publicada = await fonte.publicada(cliente.variante);
@@ -192,13 +193,13 @@ async function situacaoDoAppQueChamou(
 
 /**
  * ADR 0070 §D4 (RN-CORE-80, a API sempre revalida): `onRequest` global. App (cabeçalho `x-macuxi-app`) com a situação `bloqueada`
- * recebe 426 `APP_DESATUALIZADO` em toda rota fora de `ROTAS_LIBERADAS_APP_DESATUALIZADO`. Sem cabeçalho (BKO, portal, apps até a
- * v1.0.32), sem versão publicada ou sem hora da publicação: nada muda.
+ * recebe 426 `APP_DESATUALIZADO` em toda rota fora de `ROTAS_LIBERADAS_APP_DESATUALIZADO`. Sem cabeçalho (portal, apps até a
+ * v1.0.32), cabeçalho do shell web (`web/X.Y.Z`, nunca bloqueado), sem versão publicada ou sem hora da publicação: nada muda.
  */
 export function registrarBloqueioVersaoApp(app: FastifyInstance, dep: { fonte: FonteVersoesApp; relogio: () => Date }): void {
   app.addHook('onRequest', async (req) => {
     const cliente = lerCabecalhoApp(req.headers[CABECALHO_APP]);
-    if (!cliente || rotaLiberadaAoAppDesatualizado(req.method, req.routeOptions.url)) return;
+    if (!cliente || !ehAppAndroid(cliente) || rotaLiberadaAoAppDesatualizado(req.method, req.routeOptions.url)) return;
     const r = await situacaoDoAppQueChamou(dep.fonte, cliente, dep.relogio());
     if (r?.situacao.situacao !== 'bloqueada' || r.publicada.publicada_em === null || r.situacao.prazoAte === null) return;
     req.log.info({ codigo: CODIGO_APP_DESATUALIZADO, variante: cliente.variante, versao: cliente.versao, request_id: req.id }, 'app desatualizado recusado');

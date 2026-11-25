@@ -14,7 +14,11 @@ import {
   PRAZO_ATUALIZACAO_APP_MS,
   rotaAppVersao,
   situacaoDaVersao,
+  ehAppAndroid,
   valorCabecalhoApp,
+  valorCabecalhoWeb,
+  VARIANTES_APP,
+  VERSAO_WEB,
 } from './app-versao';
 import { varianteDoPerfil } from './perfis';
 
@@ -166,7 +170,7 @@ describe('cabeçalho do app (T-0195, ADR 0070 §D2)', () => {
     expect(lerCabecalhoApp(' campo/1.0.33 ')).toEqual({ variante: 'campo', versao: '1.0.33' });
   });
 
-  it.each([undefined, '', 'campo', 'web/1.0.0', 'campo/1.0', 'campo/v1.0.33', 'campo/1.0.33-rc.1', 'campo/01.0.0', ['campo/1.0.33', 'campo/1.0.34'], 'campo/1.0.33'.padEnd(40, ' ')])(
+  it.each([undefined, '', 'campo', 'web', 'bko/1.0.35', 'Web/1.0.35', 'web/1.0', 'campo/1.0', 'campo/v1.0.33', 'campo/1.0.33-rc.1', 'campo/01.0.0', ['campo/1.0.33', 'campo/1.0.34'], 'campo/1.0.33'.padEnd(40, ' ')])(
     '%j = null (não bloqueia)',
     (valor) => {
       expect(lerCabecalhoApp(valor)).toBeNull();
@@ -175,6 +179,30 @@ describe('cabeçalho do app (T-0195, ADR 0070 §D2)', () => {
 
   it('valorCabecalhoApp recusa versão fora de X.Y.Z', () => {
     expect(() => valorCabecalhoApp('campo', '1.0.33-dev')).toThrow();
+    expect(() => valorCabecalhoApp('web', '1.0')).toThrow();
+  });
+});
+
+describe('cabeçalho do shell web (v1.0.35, RN-VEN-25 no BKO e no Gestor web)', () => {
+  it('valorCabecalhoWeb = web/<VERSAO_WEB>, lido como variante web; web fica fora das variantes de APK', () => {
+    expect(valorCabecalhoWeb()).toBe(`web/${VERSAO_WEB}`);
+    expect(lerCabecalhoApp(valorCabecalhoWeb())).toEqual({ variante: 'web', versao: VERSAO_WEB });
+    expect(lerCabecalhoApp(' web/1.0.35 ')).toEqual({ variante: 'web', versao: '1.0.35' });
+    expect(VARIANTES_APP).toEqual(['campo', 'gestao']);
+    expect(ehAppAndroid({ variante: 'web', versao: '1.0.35' })).toBe(false);
+    expect(ehAppAndroid({ variante: 'campo', versao: '1.0.35' })).toBe(true);
+    expect(ehAppAndroid({ variante: 'gestao', versao: '1.0.35' })).toBe(true);
+  });
+
+  it('VERSAO_WEB é X.Y.Z e não é menor que 1.0.34 (primeira com o teto de prazo médio, VERSAO_MINIMA_TETO_PRAZO do Vendedor)', () => {
+    expect(versaoAppValida(VERSAO_WEB)).toBe(true);
+    expect(haVersaoNova(VERSAO_WEB, '1.0.34')).toBe(false);
+  });
+
+  it('porta de memória: web não tem versão publicada', async () => {
+    const p = criarPortaVersaoAppMemoria({ campo: { versao: '1.0.35', publicada_em: null } }, { variante: 'web', versao: '1.0.35' });
+    expect(p.doCliente).toEqual({ variante: 'web', versao: '1.0.35' });
+    expect(await p.publicada('web')).toBeNull();
   });
 });
 
