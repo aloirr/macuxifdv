@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ROTA_DA_DECISAO, type Order } from '../../contracts';
-import { ACOES_DO_PENDENTE, acoesDoPedido, COLUNAS_DA_TABELA, motivoDoPedido, SEM_VALOR, textoOuTraco } from './tabela-pedidos';
+import { ACOES_DO_PENDENTE, acoesDoPedido, COLUNAS_DA_TABELA, colunasVisiveis, motivoDoPedido, SEM_VALOR, textoOuTraco } from './tabela-pedidos';
 
 const pedido = (over: Partial<Order> = {}): Order => ({
   id: 'o1', number: '000021', idempotency_key: 'o1', seller_id: 's1', seller_name: 'Carla Lima', customer_id: 'c1', customer_name: 'Mercado Bom Preço',
@@ -10,8 +10,18 @@ const pedido = (over: Partial<Order> = {}): Order => ({
 });
 
 describe('BKO > Pedidos: tabela simples (R-20261116-143000, R-20261118-214740)', () => {
-  it('colunas na ordem aprovada na prancha 04: Código do cliente a Observação, Situação e Ações por último (Ações na ponta, MC-1760)', () => {
-    expect(COLUNAS_DA_TABELA.map((c) => c.titulo)).toEqual(['Código do cliente', 'Cliente', 'UF', 'Cidade', 'Nº', 'Vendedor', 'Supervisor', 'Recebido', 'Valor', 'Motivo', 'Observação do pedido', 'Situação', 'Ações']);
+  it('UX-15: colunas com Valor logo depois de Cliente, Código do cliente a Observação, Situação e Ações por último (Ações na ponta, MC-1760)', () => {
+    expect(COLUNAS_DA_TABELA.map((c) => c.titulo)).toEqual(['Código do cliente', 'Cliente', 'Valor', 'UF', 'Cidade', 'Nº', 'Vendedor', 'Supervisor', 'Recebido', 'Motivo', 'Observação do pedido', 'Situação', 'Ações']);
+  });
+  it('UX-15: Motivo e Observação têm prioridade baixa; a soma do que sobra cabe em ~1.060 px; Ações só existe com ação', () => {
+    expect(COLUNAS_DA_TABELA.filter((c) => c.baixa).map((c) => c.titulo)).toEqual(['Motivo', 'Observação do pedido']);
+    expect(COLUNAS_DA_TABELA.filter((c) => !c.baixa && c.id !== 'acoes').reduce((t, c) => t + c.largura, 0)).toBeLessThanOrEqual(1000);
+    expect(colunasVisiveis([pedido({ status: 'received' })]).map((c) => c.id)).not.toContain('acoes');
+    expect(colunasVisiveis([pedido()]).map((c) => c.id)).toContain('acoes');
+    expect(COLUNAS_DA_TABELA.find((c) => c.id === 'acoes')?.largura).toBe(48);
+    const semBaixas = (ps: Parameters<typeof colunasVisiveis>[0]) => colunasVisiveis(ps).filter((c) => !c.baixa).reduce((t, c) => t + c.largura, 0);
+    expect(semBaixas([pedido()])).toBeLessThanOrEqual(1060);
+    expect(semBaixas([pedido({ status: 'received' })])).toBeLessThanOrEqual(1060);
   });
   it('largura menor: Código e Cliente fixos à esquerda; Ações e Situação fixos à direita', () => {
     const fixas = Object.fromEntries(COLUNAS_DA_TABELA.filter((c) => c.fixa).map((c) => [c.titulo, c.fixa]));
