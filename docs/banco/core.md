@@ -1475,5 +1475,5 @@ colunas (senão 42P01/42703). Testes: `db/testes/cliente-pre-cadastro-revisao.db
 ## 0104 — fator fracionário na unidade de venda (`0104_quantidade_fracionaria`; ADR 0076)
 `core.produto_unidade.fator`: int → **numeric(9,4)**, > 0 (`produto_unidade_fator_positivo`, recriado com o mesmo texto), padrão
 1. Ex.: "CX c/ 0,5" = 0,5 unidade base. Driver `pg`: chega como string (`'12.0000'`); o Drizzle (`produtoUnidade.fator`) usa
-`mode: 'number'`; SQL cru precisa de `Number(...)`. `core.produto.embalagem_quantidade` (2 a 9999) continua inteiro.
+`mode: 'number'`; SQL cru lê com `quantidadeDoBanco` (ADR 0076 D2). `core.produto.embalagem_quantidade` (2 a 9999) continua inteiro.
 Volta: o down da 0104 só sem fração gravada (`P0001`). Teste: `db/testes/quantidade-fracionaria.db.test.ts`.

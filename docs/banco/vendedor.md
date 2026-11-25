@@ -464,7 +464,7 @@ O item passa a aceitar fração (2,5 KG; "CX c/ 0,5"). Troca de tipo, sem coluna
 - Arredondamento: quantidade e fator têm 4 casas; o produto (até 8) é arredondado a 4 nos gatilhos `pedido_item_quantidade_base`
   e `pedido_item_medida` e nos CHECKs (0,3333 × 1,5 = 0,5000). Com inteiros o round não muda nada.
 - Driver `pg`: numeric chega como **string** (`'2.5000'`). O Drizzle (`pedidoItem`) usa `mode: 'number'` e segue `number`; SQL
-  cru precisa de `Number(...)` ou `::float8` antes do contrato.
+  cru lê com `quantidadeDoBanco` (ADR 0076 D2).
 - O índice `pedido_item_reserva_filial_ix` é refeito pelo ALTER TYPE (mesma definição). `pedido_faturamento.itens[].quantidade`
   (jsonb) já aceita fração.
 - **Volta** (`.down.sql`): só sem fração gravada (`P0001` com tabela, coluna e quantas linhas; nada é arredondado); volta os
