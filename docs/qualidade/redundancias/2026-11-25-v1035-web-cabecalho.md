@@ -45,3 +45,23 @@ Mantidos (sem achado):
 - Linha em branco dupla em `portal-api.ts:15-16` (sobra do import tirado): formatação, não redundância; fica para o lint/prettier do dono.
 
 Sem defeito funcional para encaminhar ao testes.
+
+## D) Reteste do RD-3572 por SHA — LIBERADO
+
+**A) `nuvem/v1035-web-engenheiro-software` @ efc75a4 (`git diff b59f3e6 efc75a4`)**: `PROXY_BASE` nasce em `packages/platform-sdk/src/proxy-base.ts` (sem `'use client'`), publicado por `index.ts`; `CAMINHO_COOKIE_SESSAO = \`${PROXY_BASE}/auth\``; `web/api.ts` só importa e reexporta. Uma fonte no SDK. Sem achado.
+
+**B) `nuvem/v1035-web-engenheiro-apps` @ 442aae1 (`git show 442aae1`; o resto de `aec0723..442aae1` veio pelo merge 83a45f2 de efc75a4 e b59f3e6)**: `cabecalho-app.ts`, `portal.ts`, `portal-api.ts`, `cabecalho-app.test.ts` e `sessao-web.test.ts` importam `PROXY_BASE` de `@macuxi/platform-sdk`; saíram `PROXY_BASE_NO_SERVIDOR`, o comentário dele e o `describe('prefixo do proxy no servidor')`. Nenhum import de `PROXY_BASE` por `@macuxi/platform-sdk/web` sobrou no `apps/web`. Sem achado.
+
+| ID | Resultado |
+|---|---|
+| RD-3572 | corrigido em efc75a4 + 442aae1 |
+
+Literais `/api-proxy` que ficam (julgados, `manter`):
+- `apps/web/proxy.ts:73` (`config.matcher`): o Next lê o matcher por análise estática no build; template ou constante importada não vale ali. A cópia é exigida pela ferramenta e o teste `cabecalho-app.test.ts:51` a confere.
+- `apps/web/next.config.ts:95` (`source` do rewrite geral): o `next.config.ts` hoje não importa pacote do workspace (só `node:path` e o tipo `next`), e trazer o SDK para o carregamento da config é mudança de build fora do escopo do RD; o `sessao-web.test.ts:194` procura a regra por `\`${PROXY_BASE}/:path*\``, então o literal já está amarrado à fonte única.
+- `PROXY_OPENAPI_HUB`/`PROXY_GUIA_PDF_HUB` (`next.config.ts:18,21`) × `OPENAPI_HUB.viaProxy`/`GUIA_PDF_HUB.viaProxy` (`portal-rotas.ts:92,98`): anteriores a este lote, mesmo motivo do item acima, amarrados por `hosts-bko.test.ts:46,52`.
+- Literais em comentários e em entradas de teste (`'/api-proxy/vendedor/pedidos'` etc.): descrevem o caminho para quem lê ou são o dado de entrada do caso; não são fonte do valor.
+
+Observação ao dono (sem RD): em `cabecalho-app.test.ts:51` o esperado `'/api-proxy/:path*'` poderia ser `\`${PROXY_BASE}/:path*\``, para o teste quebrar se o `PROXY_BASE` mudar e o matcher estático ficar para trás. É guarda, não repetição; fica a critério do engenheiro-apps.
+
+Sem defeito funcional para encaminhar ao testes. **LIBERADO no SHA 442aae1** (com efc75a4 no SDK).
