@@ -26,7 +26,7 @@ export const CODIGOS_PORTAL = {
   sessao: 'SESSAO_PLATAFORMA_INVALIDA',
   /** 503: falta o segredo do portal no ambiente (falha fechada). */
   indisponivel: 'PORTAL_INDISPONIVEL',
-  /** 403: empresa fora da lista da sessão, ou `x-macuxi-tenant` diferente da empresa escolhida. */
+  /** 403: empresa fora da lista da sessão, ou `x-macuxi-tenant` diferente da empresa escolhida. Vale para as rotas de dados (`autenticarPortal`); `POST /plataforma/auth/senha` usa só o token e ignora `x-macuxi-tenant`. */
   empresaNaoPermitida: 'EMPRESA_NAO_PERMITIDA',
   /** 409: admin do cliente com 2+ empresas que ainda não escolheu uma. */
   empresaNaoEscolhida: 'EMPRESA_NAO_ESCOLHIDA',

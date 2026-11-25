@@ -482,36 +482,6 @@ describe('ADR 0075: usuário da sessão e troca da própria senha no portal', ()
     expect((await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })))).status).toBe(401);
   });
 
-  it('RN-CORE-31: senha atual errada = 401 CREDENCIAIS_INVALIDAS e a 5ª seguida bloqueia 15 min (423) na chave do e-mail do login', async () => {
-    const s = await entrarSuper();
-    for (let i = 0; i < 4; i++) {
-      const e = await falha(sa().trocarSenha(ctx({ senha_atual: 'errada', senha_nova: NOVA }, bearer(s.token))));
-      expect([e.status, e.codigo]).toEqual([401, CODIGOS_PORTAL.credenciais]);
-    }
-    expect((await falha(sa().trocarSenha(ctx({ senha_atual: 'errada', senha_nova: NOVA }, bearer(s.token))))).status).toBe(423);
-    // bloqueado: nem a senha certa passa, e o login com o mesmo e-mail também fica bloqueado
-    expect((await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(s.token))))).status).toBe(423);
-    expect((await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })))).status).toBe(423);
-    expect(mem.tentativas.has(chaveDeTentativa(SEGREDO, EMAIL))).toBe(true);
-  });
-
-  it('RN-CORE-32: nova fraca = 422 com as faltas; igual à atual = 422 RN-CORE-34; nada é gravado', async () => {
-    const s = await entrarSuper();
-    const fraca = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: 'abc' }, bearer(s.token))));
-    expect([fraca.status, fraca.codigo]).toEqual([422, 'RN-CORE-32']);
-    const igual = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: SENHA }, bearer(s.token))));
-    expect([igual.status, igual.codigo]).toEqual([422, 'RN-CORE-34']);
-    expect(mem.contas[0]!.senha_hash).toBe(`h:${SENHA}`);
-  });
-
-  it('ADR 0075: hash que mudou no meio da troca = 409 SENHA_MUDOU', async () => {
-    const s = await entrarSuper();
-    const gravar = mem.repo.gravarSenhaSuperAdmin;
-    mem.repo.gravarSenhaSuperAdmin = async (sid, _atual, novo) => gravar(sid, 'h:outro', novo);
-    const e = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(s.token))));
-    expect([e.status, e.codigo]).toEqual([409, CODIGOS_PORTAL.senhaMudou]);
-  });
-
   it('ADR 0075: sem token = 401; sem segredo = 503; corpo estrito', async () => {
     expect((await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA })))).status).toBe(401);
     const semSegredo = criarSuperAdmin({ segredo: () => undefined, repo: () => mem.repo, senha: senhaFalsa });
@@ -528,34 +498,51 @@ describe('ADR 0075: usuário da sessão e troca da própria senha no portal', ()
     expect((await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })))).status).toBe(401);
   });
 
-  it('RN-CORE-01: admin do cliente com senha atual errada = 401; a 5ª seguida bloqueia (423) e a senha certa também é recusada', async () => {
-    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
-    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
-    for (let i = 0; i < 4; i++) {
-      const e = await falha(sa().trocarSenha(ctx({ senha_atual: 'errada', senha_nova: NOVA }, bearer(r.token))));
-      expect([e.status, e.codigo]).toEqual([401, CODIGOS_PORTAL.credenciais]);
-    }
-    expect((await falha(sa().trocarSenha(ctx({ senha_atual: 'errada', senha_nova: NOVA }, bearer(r.token))))).status).toBe(423);
-    const e = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(r.token))));
-    expect([e.status, e.codigo]).toEqual([423, CODIGOS_PORTAL.bloqueado]);
-    expect(mem.contas[0]!.senha_hash).toBe(`h:${SENHA}`);
-  });
+  describe.each(['super_admin', 'admin_cliente'] as const)('troca de senha, fluxo único (%s)', (tipo) => {
+    const entrar = async () => {
+      if (tipo === 'super_admin') return (await entrarSuper()).token;
+      mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
+      return (await sa().login(ctx({ email: EMAIL, senha: SENHA }))).token;
+    };
+    const trocar = (token: string, atual: string, nova: string) => sa().trocarSenha(ctx({ senha_atual: atual, senha_nova: nova }, bearer(token)));
 
-  it('RN-CORE-32 e RN-CORE-34: admin do cliente com senha nova fraca ou igual à atual = 422 e nada é gravado', async () => {
-    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
-    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
-    expect([(await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: 'abc' }, bearer(r.token))))).codigo]).toEqual(['RN-CORE-32']);
-    expect([(await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: SENHA }, bearer(r.token))))).codigo]).toEqual(['RN-CORE-34']);
-    expect(mem.contas[0]!.senha_hash).toBe(`h:${SENHA}`);
-  });
+    it('RN-CORE-31 e RN-CORE-01: senha atual errada = 401 CREDENCIAIS_INVALIDAS; a 5ª seguida bloqueia 15 min (423) e a senha certa também é recusada', async () => {
+      const token = await entrar();
+      for (let i = 0; i < 4; i++) {
+        const e = await falha(trocar(token, 'errada', NOVA));
+        expect([e.status, e.codigo]).toEqual([401, CODIGOS_PORTAL.credenciais]);
+      }
+      expect((await falha(trocar(token, 'errada', NOVA))).status).toBe(423);
+      const e = await falha(trocar(token, SENHA, NOVA));
+      expect([e.status, e.codigo]).toEqual([423, CODIGOS_PORTAL.bloqueado]);
+      expect(mem.contas[0]!.senha_hash).toBe(`h:${SENHA}`);
+      if (tipo === 'super_admin') {
+        expect((await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })))).status).toBe(423);
+        expect(mem.tentativas.has(chaveDeTentativa(SEGREDO, EMAIL))).toBe(true);
+      }
+    });
 
-  it('ADR 0075 (0107): hash do admin que mudou no meio da troca = 409 SENHA_MUDOU', async () => {
-    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
-    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
-    const gravar = mem.repo.gravarSenhaAdmin;
-    mem.repo.gravarSenhaAdmin = async (sid, _atual, novo) => gravar(sid, 'h:outro', novo);
-    const e = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(r.token))));
-    expect([e.status, e.codigo]).toEqual([409, CODIGOS_PORTAL.senhaMudou]);
+    it('RN-CORE-32 e RN-CORE-34: nova fraca = 422 com as faltas; igual à atual = 422; nada é gravado', async () => {
+      const token = await entrar();
+      const fraca = await falha(trocar(token, SENHA, 'abc'));
+      expect([fraca.status, fraca.codigo]).toEqual([422, 'RN-CORE-32']);
+      const igual = await falha(trocar(token, SENHA, SENHA));
+      expect([igual.status, igual.codigo]).toEqual([422, 'RN-CORE-34']);
+      expect(mem.contas[0]!.senha_hash).toBe(`h:${SENHA}`);
+    });
+
+    it('ADR 0075: hash que mudou no meio da troca = 409 SENHA_MUDOU', async () => {
+      const token = await entrar();
+      if (tipo === 'super_admin') {
+        const gravar = mem.repo.gravarSenhaSuperAdmin;
+        mem.repo.gravarSenhaSuperAdmin = async (sid, _atual, novo) => gravar(sid, 'h:outro', novo);
+      } else {
+        const gravar = mem.repo.gravarSenhaAdmin;
+        mem.repo.gravarSenhaAdmin = async (sid, _atual, novo) => gravar(sid, 'h:outro', novo);
+      }
+      const e = await falha(trocar(token, SENHA, NOVA));
+      expect([e.status, e.codigo]).toEqual([409, CODIGOS_PORTAL.senhaMudou]);
+    });
   });
 
   it('ADR 0075 (0107): admin com 2 empresas e sem escolha não troca a senha (42501 do banco = 403)', async () => {
