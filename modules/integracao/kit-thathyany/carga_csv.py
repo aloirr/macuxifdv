@@ -139,10 +139,15 @@ def _numero(texto: str, campo: dict[str, Any]) -> int | Decimal:
         if not valor.is_finite():
             raise ValueError("deve ser um número")
     minimo, maximo = regra.get("min"), regra.get("max")
-    if minimo is not None and valor < minimo:
+    if minimo is not None and regra.get("min_exclusivo") and valor <= minimo:
+        raise ValueError(f"deve ser maior que {minimo}")
+    if minimo is not None and not regra.get("min_exclusivo") and valor < minimo:
         raise ValueError(f"deve ser maior ou igual a {minimo}")
     if maximo is not None and valor > maximo:
         raise ValueError(f"deve ser menor ou igual a {maximo}")
+    casas = regra.get("casas")
+    if casas is not None and not inteiro and -Decimal(valor).as_tuple().exponent > casas:
+        raise ValueError(f"deve ter no máximo {casas} casas decimais")
     return valor
 
 
