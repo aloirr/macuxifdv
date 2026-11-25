@@ -2,10 +2,13 @@
  * Itens 01b e 04 da v1.0.34 (R-20261124-191902 e R-20261124-090942; ADR 0074 e 0075), cobertura do agente `testes` além dos specs
  * do engenheiro-apps (`apps/web/e2e/portal-menu-usuario.spec.ts` e `portal-empresa-cadastro.spec.ts`), com a API do portal
  * respondida pelo `page.route` (o modo falso roda no navegador e não deixa forçar os códigos abaixo):
- * - 01b, time Macuxi: `POST /plataforma/auth/senha` sem e-mail no corpo; 401 (a sessão fica, inclusive depois de recarregar), 423
- *   com os minutos, 409 `SENHA_MUDOU`, 422 RN-CORE-34 e 403 `TROCA_SO_SUPER_ADMIN`; 204 → entrada com "Senha trocada. Entre de novo.";
- * - 01b, admin do cliente: rota pública `/auth/senha/trocar` com o código da empresa e o e-mail DIGITADO, no modo cookie, sem token de
- *   renovação no navegador;
+ * - 01b (v1.0.35, ADR 0075), time Macuxi e admin do cliente com a empresa escolhida pela mesma gaveta e a mesma rota,
+ *   `POST /plataforma/auth/senha` com o token do portal, só `{ senha_atual, senha_nova }` (sem e-mail nem código da empresa); 401
+ *   na gaveta (a sessão fica, inclusive depois de recarregar), 423 com os minutos, 409 `SENHA_MUDOU` e 422 RN-CORE-34; 204 →
+ *   entrada com "Senha trocada. Entre de novo.", sem token de renovação no navegador; a rota pública `/auth/senha/trocar` não é
+ *   chamada;
+ * - 01b, admin do cliente: 403 `EMPRESA_NAO_PERMITIDA` na troca (1 empresa) → entrada com "Esta empresa não está mais disponível
+ *   para você."; sem empresa escolhida (2+), a "Escolha a empresa" não tem o menu nem chama a troca;
  * - 04, valor × regra no cartão do plano: valor por ciclo pela RN-PLA-06 (anual = (12 − meses grátis) × mensal), "N de M" de cada
  *   item e o selo: igual = "no limite", acima = "acima do contratado", abaixo e sem limite = nenhum;
  * - 04, Apps: "O link vale até DD/MM às HH:MM." no fuso da EMPRESA (Manaus e Boa Vista, UTC−4, e São Paulo, UTC−3; virada de
@@ -35,12 +38,14 @@ test.skip(process.env.PORTAL_MODO !== 'api', 'precisa do next dev sem o modo fal
 const PORTA = process.env.PORTAL_PORTA ?? '3348';
 const HOSTS = hostsDoPortal(PORTA);
 const CNPJ = '11222333000181';
+/** Segunda empresa do admin do cliente (só no caso sem empresa escolhida). */
+const DUAS = '0b6f1a52-5c1e-4c4e-9a43-000000000002';
 
 const emMinutos = (min: number) => new Date(Date.now() + min * 60_000).toISOString(); // hora-fixa-ok: a sessão do portal no navegador vence pelo relógio real
 
 type Quem = 'time' | 'admin';
 
-function sessao(quem: Quem, n: number) {
+function sessao(quem: Quem, n: number, semEscolha = false) {
   const base = {
     token: `token-portal-e2e-${quem}-${n}-xxxxxxxxxxxx`,
     expira_em: emMinutos(15),
@@ -55,11 +60,12 @@ function sessao(quem: Quem, n: number) {
       usuario: { nome: 'Carla Menezes', perfil: null, cargo: null },
     };
   const empresa = { id: UMA, codigo: 'AM4821', nome: 'Distribuidora Uma Ltda' };
+  const outra = { id: DUAS, codigo: 'RR1907', nome: 'Distribuidora Duas Ltda' };
   return {
     ...base,
     tipo: 'admin_cliente',
-    empresa,
-    empresas: [empresa],
+    empresa: semEscolha ? null : empresa,
+    empresas: semEscolha ? [empresa, outra] : [empresa],
     usuario: { nome: 'Paulo Ribeiro', perfil: 'Administrador', cargo: 'administrativo' },
   };
 }
@@ -120,8 +126,10 @@ const LICENCAS = [
 interface Opcoes {
   quem: Quem;
   fuso?: string;
-  /** Resposta da troca do super-admin, em ordem (a última se repete). */
-  trocaSuperAdmin?: { status: number; corpo?: unknown }[];
+  /** Admin do cliente com 2 empresas e nenhuma escolhida (vai à "Escolha a empresa"). */
+  semEscolha?: boolean;
+  /** Resposta da troca pela rota do portal, em ordem (a última se repete). */
+  trocaPortal?: { status: number; corpo?: unknown }[];
   cnpj?: { status: number; corpo?: unknown };
   /** 422 da API no PUT do cadastro (o formato que a tela não pega). */
   cadastro422?: boolean;
@@ -130,7 +138,7 @@ interface Opcoes {
 }
 
 interface Registro {
-  trocaSuperAdmin: { corpo: unknown }[];
+  trocaPortal: { corpo: unknown; cabecalhos: Record<string, string> }[];
   trocaPublica: { corpo: Record<string, unknown>; cabecalhos: Record<string, string> }[];
   renovar: number;
   putCadastro: unknown[];
@@ -140,7 +148,7 @@ interface Registro {
 
 async function apiDoPortal(ctx: BrowserContext, o: Opcoes): Promise<Registro> {
   const r: Registro = {
-    trocaSuperAdmin: [],
+    trocaPortal: [],
     trocaPublica: [],
     renovar: 0,
     putCadastro: [],
@@ -171,17 +179,17 @@ async function apiDoPortal(ctx: BrowserContext, o: Opcoes): Promise<Registro> {
     const req = route.request();
     const caminho = new URL(req.url()).pathname.replace(/^\/api-proxy/, '');
     const m = req.method();
-    if (caminho === '/plataforma/auth/login') return json(route, 200, sessao(o.quem, ++n));
+    if (caminho === '/plataforma/auth/login') return json(route, 200, sessao(o.quem, ++n, o.semEscolha));
     if (caminho === '/plataforma/auth/renovar') {
       r.renovar += 1;
       return revogada
         ? json(route, 401, { codigo: 'SESSAO_EXPIRADA', mensagem: 'Sessão encerrada.' })
-        : json(route, 200, sessao(o.quem, ++n));
+        : json(route, 200, sessao(o.quem, ++n, o.semEscolha));
     }
     if (caminho === '/plataforma/auth/sair') return json(route, 204);
     if (caminho === '/plataforma/auth/senha') {
-      r.trocaSuperAdmin.push({ corpo: req.postDataJSON() });
-      const lista = o.trocaSuperAdmin ?? [{ status: 204 }];
+      r.trocaPortal.push({ corpo: req.postDataJSON(), cabecalhos: req.headers() });
+      const lista = o.trocaPortal ?? [{ status: 204 }];
       const resp = lista[Math.min(trocas, lista.length - 1)] ?? { status: 204 };
       trocas += 1;
       if (resp.status === 204) revogada = true;
@@ -332,108 +340,126 @@ async function abrirAbaEmpresa(page: Page, base: string) {
 
 for (const host of HOSTS) {
   test.describe(`portal ${host.nome} com a API pelo page.route`, () => {
-    test('01b time Macuxi: troca de senha: 401 não derruba (nem ao recarregar); 423; 409; 422; 403; 204 → Entrar com o aviso', async ({
+    for (const quem of ['time', 'admin'] as const) {
+      const rotulo = quem === 'time' ? 'time Macuxi' : 'admin do cliente';
+      test(`01b ${rotulo}: troca pela sessão (só as senhas, com o token do portal): 401 não derruba (nem ao recarregar); 423; 409; 422; 204 → Entrar com o aviso`, async ({
+        browser,
+      }) => {
+        const ctx = await browser.newContext({ viewport: { width: 1366, height: 800 } });
+        const api = await apiDoPortal(ctx, {
+          quem,
+          trocaPortal: [
+            { status: 401, corpo: { codigo: 'CREDENCIAIS_INVALIDAS', mensagem: 'Senha atual incorreta.' } },
+            {
+              status: 423,
+              corpo: { codigo: 'BLOQUEADO', mensagem: 'Bloqueado.', detalhes: { minutos_restantes: 7 } },
+            },
+            { status: 409, corpo: { codigo: 'SENHA_MUDOU', mensagem: 'A senha mudou.' } },
+            {
+              status: 422,
+              corpo: { codigo: 'RN-CORE-34', mensagem: 'A senha nova precisa ser diferente da atual.' },
+            },
+            { status: 204 },
+          ],
+        });
+        const page = await ctx.newPage();
+        await entrar(page, host.base, quem === 'time' ? 'time@macuxi.com.br' : 'admin@uma.com.br');
+        const nome = quem === 'time' ? 'Carla Menezes' : 'Paulo Ribeiro';
+
+        await abrirTrocaDeSenha(page);
+        // a sessão diz quem é: nem e-mail nem código da empresa na gaveta
+        await expect(page.getByTestId('trocar-senha.email')).toHaveCount(0);
+        await expect(page.getByTestId('trocar-senha.codigo')).toHaveCount(0);
+        // 401: aviso na gaveta, a sessão do portal fica
+        await pedirTroca(page, 'Errada-123');
+        await expect(page.getByTestId('trocar-senha.aviso')).toHaveText(
+          'A senha atual está errada. Digite de novo.',
+        );
+        expect(api.trocaPortal[0]?.corpo).toEqual({
+          senha_atual: 'Errada-123',
+          senha_nova: 'Nova-senha-123',
+        });
+        expect(api.trocaPortal[0]?.cabecalhos.authorization).toMatch(
+          new RegExp(`^Bearer token-portal-e2e-${quem}-\\d+-`),
+        );
+        await page.reload();
+        await expect(page.getByTestId('menu-usuario.titulo')).toHaveText(nome, { timeout: 60000 });
+        await expect(page.getByTestId('entrar.email')).toHaveCount(0);
+        await semDevOverlay(page);
+
+        await abrirTrocaDeSenha(page);
+        // 423: bloqueio com os minutos
+        await pedirTroca(page, 'Senha-atual-1');
+        await expect(page.getByTestId('trocar-senha.aviso')).toContainText('7');
+        // 409: a senha mudou durante a troca
+        await pedirTroca(page, 'Senha-atual-1');
+        await expect(page.getByTestId('trocar-senha.aviso')).toHaveText(
+          'A senha mudou enquanto você a trocava. Saia, entre de novo e repita a troca.',
+        );
+        // 422 RN-CORE-34: a sessão fica
+        await pedirTroca(page, 'Senha-atual-1');
+        await expect(page.getByTestId('trocar-senha.aviso')).toContainText(/diferente/i);
+        await expect(page.getByTestId('menu-usuario.botao')).toBeVisible();
+        // 204: a sessão cai e a entrada mostra o aviso (sem o "Sua sessão terminou")
+        await pedirTroca(page, 'Senha-atual-1');
+        await expect(page.getByTestId('entrar.aviso')).toHaveText('Senha trocada. Entre de novo.', {
+          timeout: 30000,
+        });
+        expect(api.trocaPortal).toHaveLength(5);
+        for (const t of api.trocaPortal)
+          expect(Object.keys(t.corpo as object).sort()).toEqual(['senha_atual', 'senha_nova']);
+        // a rota pública do Core (v1.0.34) saiu do portal
+        expect(api.trocaPublica).toHaveLength(0);
+        await semTokenDeRenovacao(page);
+        // voltar a uma página interna não reabre o portal
+        await page.goto(`${host.base}/empresas`);
+        await expect(page.getByTestId('entrar.email')).toBeVisible({ timeout: 30000 });
+        await ctx.close();
+      });
+    }
+
+    test('01b admin do cliente: 403 EMPRESA_NAO_PERMITIDA na troca (1 empresa) → entrada com o aviso da empresa', async ({
       browser,
     }) => {
       const ctx = await browser.newContext({ viewport: { width: 1366, height: 800 } });
       const api = await apiDoPortal(ctx, {
-        quem: 'time',
-        trocaSuperAdmin: [
-          { status: 401, corpo: { codigo: 'CREDENCIAIS_INVALIDAS', mensagem: 'Senha atual incorreta.' } },
-          {
-            status: 423,
-            corpo: { codigo: 'BLOQUEADO', mensagem: 'Bloqueado.', detalhes: { minutos_restantes: 7 } },
-          },
-          { status: 409, corpo: { codigo: 'SENHA_MUDOU', mensagem: 'A senha mudou.' } },
-          {
-            status: 422,
-            corpo: { codigo: 'RN-CORE-34', mensagem: 'A senha nova precisa ser diferente da atual.' },
-          },
+        quem: 'admin',
+        trocaPortal: [
           {
             status: 403,
-            corpo: {
-              codigo: 'TROCA_SO_SUPER_ADMIN',
-              mensagem: 'Nesta versão, só o time Macuxi troca a senha por aqui.',
-            },
+            corpo: { codigo: 'EMPRESA_NAO_PERMITIDA', mensagem: 'Empresa não permitida.' },
           },
-          { status: 204 },
         ],
       });
       const page = await ctx.newPage();
-      await entrar(page, host.base, 'time@macuxi.com.br');
-
+      await entrar(page, host.base, 'admin@uma.com.br');
       await abrirTrocaDeSenha(page);
-      await expect(page.getByTestId('trocar-senha.email')).toHaveCount(0);
-      // 401: aviso na gaveta, a sessão do portal fica
-      await pedirTroca(page, 'Errada-123');
-      await expect(page.getByTestId('trocar-senha.aviso')).toHaveText(
-        'A senha atual está errada. Digite de novo.',
+      await pedirTroca(page, 'Senha-atual-1');
+      await expect(page.getByTestId('entrar.aviso')).toHaveText(
+        'Esta empresa não está mais disponível para você.',
+        { timeout: 30000 },
       );
-      expect(api.trocaSuperAdmin[0]?.corpo).toEqual({
-        senha_atual: 'Errada-123',
-        senha_nova: 'Nova-senha-123',
-      });
-      await page.reload();
-      await expect(page.getByTestId('menu-usuario.titulo')).toHaveText('Carla Menezes', { timeout: 60000 });
-      await expect(page.getByTestId('entrar.email')).toHaveCount(0);
-      await semDevOverlay(page);
-
-      await abrirTrocaDeSenha(page);
-      // 423: bloqueio com os minutos
-      await pedirTroca(page, 'Senha-atual-1');
-      await expect(page.getByTestId('trocar-senha.aviso')).toContainText('7');
-      // 409: a senha mudou durante a troca
-      await pedirTroca(page, 'Senha-atual-1');
-      await expect(page.getByTestId('trocar-senha.aviso')).toHaveText(
-        'A senha mudou enquanto você a trocava. Saia, entre de novo e repita a troca.',
-      );
-      // 422 RN-CORE-34
-      await pedirTroca(page, 'Senha-atual-1');
-      await expect(page.getByTestId('trocar-senha.aviso')).toContainText(/diferente/i);
-      // 403 TROCA_SO_SUPER_ADMIN: a mensagem da API, a sessão fica
-      await pedirTroca(page, 'Senha-atual-1');
-      await expect(page.getByTestId('trocar-senha.aviso')).toHaveText(
-        'Nesta versão, só o time Macuxi troca a senha por aqui.',
-      );
-      await expect(page.getByTestId('menu-usuario.botao')).toBeVisible();
-      // 204: a sessão cai e a entrada mostra o aviso (sem o "Sua sessão terminou")
-      await pedirTroca(page, 'Senha-atual-1');
-      await expect(page.getByTestId('entrar.aviso')).toHaveText('Senha trocada. Entre de novo.', {
-        timeout: 30000,
-      });
-      expect(api.trocaSuperAdmin).toHaveLength(6);
-      await semTokenDeRenovacao(page);
-      // voltar a uma página interna não reabre o portal
-      await page.goto(`${host.base}/empresas`);
-      await expect(page.getByTestId('entrar.email')).toBeVisible({ timeout: 30000 });
+      expect(api.trocaPortal).toHaveLength(1);
+      expect(api.trocaPublica).toHaveLength(0);
       await ctx.close();
     });
 
-    test('01b admin do cliente: rota pública com o código da empresa e o e-mail digitado; modo cookie; sem token de renovação', async ({
+    test('01b admin do cliente sem empresa escolhida (2 empresas): a Escolha não tem o menu e não chama a troca', async ({
       browser,
     }) => {
       const ctx = await browser.newContext({ viewport: { width: 1366, height: 800 } });
-      const api = await apiDoPortal(ctx, { quem: 'admin' });
+      const api = await apiDoPortal(ctx, { quem: 'admin', semEscolha: true });
       const page = await ctx.newPage();
-      await entrar(page, host.base, 'admin@uma.com.br');
-      await abrirTrocaDeSenha(page);
-      await page.getByTestId('trocar-senha.email').fill('  outro.email@uma.com.br ');
-      await pedirTroca(page, 'Senha-atual-1');
-      await expect(page.getByTestId('entrar.aviso')).toHaveText('Senha trocada. Entre de novo.', {
-        timeout: 30000,
-      });
-      expect(api.trocaSuperAdmin).toHaveLength(0);
-      expect(api.trocaPublica).toHaveLength(1);
-      const t = api.trocaPublica[0];
-      expect(t?.corpo).toMatchObject({
-        codigo_empresa: 'AM4821',
-        email: 'outro.email@uma.com.br',
-        senha_atual: 'Senha-atual-1',
-        senha_nova: 'Nova-senha-123',
-      });
-      // sem o token do portal na rota pública
-      expect(t?.cabecalhos.authorization).toBeUndefined();
-      await semTokenDeRenovacao(page);
+      await page.goto(`${host.base}/entrar`);
+      await page.getByTestId('entrar.email').fill('admin@uma.com.br');
+      await page.getByTestId('entrar.senha').fill('Senha#Forte2026');
+      await page.getByTestId('entrar.entrar').click();
+      await expect(page.getByTestId('escolher.tela')).toBeVisible({ timeout: 90000 });
+      await expect(page.getByTestId('escolher.empresa-AM4821')).toBeVisible();
+      await expect(page.getByTestId('menu-usuario.botao')).toHaveCount(0);
+      await expect(page.getByTestId('menu-usuario.trocar-senha')).toHaveCount(0);
+      expect(api.trocaPortal).toHaveLength(0);
+      expect(api.trocaPublica).toHaveLength(0);
       await ctx.close();
     });
 

@@ -27,7 +27,7 @@ export function disponibilidadePedidoEmNome(e: EntradaDisponibilidade): Disponib
   }
   const alvo = e.membros.find((x) => x.id === e.vendedor_id);
   if (alvo?.perfil === 'promotor') {
-    return { visivel: true, permitido: false, codigo: 'VENDEDOR_INVALIDO', mensagem: 'O promotor não faz pedido (RN-PRO-01). Escolha um vendedor.' };
+    return { visivel: true, permitido: false, codigo: 'VENDEDOR_INVALIDO', mensagem: 'O promotor não faz pedido. Escolha um vendedor.' };
   }
   if (!alvo || alvo.perfil !== 'vendedor' || !alvo.ativo) {
     return { visivel: true, permitido: false, codigo: 'VENDEDOR_INVALIDO', mensagem: 'Este vendedor está inativo. Escolha outro vendedor da equipe.' };

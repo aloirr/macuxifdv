@@ -32,6 +32,7 @@ export * from './api';
 export * from './parametros';
 export * from './sem-filial';
 export * from './cookie-sessao';
+export * from './proxy-base';
 export * from './conector';
 export * from './consultas';
 export * from './sync-simulado';

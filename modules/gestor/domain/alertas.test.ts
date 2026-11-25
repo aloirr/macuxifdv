@@ -336,6 +336,14 @@ describe('RF-GES-07: alertas do promotor (ruptura recorrente, visita curta, foto
     expect(cs[0]).toMatchObject({ chave: `fotos_sem_gps:${PROMOTOR}`, alvo_tipo: 'usuario', valor: 25, limiar: 20, responsavel_id: PROMOTOR });
   });
 
+  it('UX-22: visita curta com minuto fracionado diz minutos inteiros ("8 min") e fotos sem GPS usa vírgula e uma casa ("33,3%")', () => {
+    const curta = doTipo(avaliar(montar([lj(1, { em: '2026-10-30T13:00:00Z', min: 7.5 })]), AGORA), 'visita_curta');
+    expect(curta[0]!.mensagem).toBe('Visita de 8 min, abaixo do mínimo de 10 min.');
+    const fotos = doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [15, 5] })]), AGORA), 'fotos_sem_gps');
+    expect(fotos[0]!.valor).toBe(33.33);
+    expect(fotos[0]!.mensagem).toBe('33,3% das fotos dos últimos 7 dias sem GPS (limite 20%).');
+  });
+
   it('fotos sem GPS: exatamente no limite (20%), amostra pequena ou fora da janela não alertam', () => {
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [10, 2] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // 20%
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [4, 4] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // 4 fotos < 10
