@@ -37,3 +37,8 @@ export function centavosDoTexto(texto: string): number | null {
   if (!/^\d+(\.\d{1,2})?$/.test(limpo)) return null;
   return Math.round(Number(limpo) * 100);
 }
+
+/** Base das vendas (RN-CORE-21), em texto curto; mostrada uma vez por tela. */
+export function textoBaseVendas(base: 'aprovado' | 'faturado'): string {
+  return base === 'faturado' ? 'base: notas faturadas' : 'base: pedidos aprovados';
+}

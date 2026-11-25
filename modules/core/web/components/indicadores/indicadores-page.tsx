@@ -7,7 +7,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll, type NoticeTone } from '@macuxi/ui/web';
 import { IndicadoresListaSchema, ROTULO_INDICADOR_META } from '../../../contracts';
-import { CABECALHO, celulasDoUsuario, centavosDoTexto, csvDeIndicadores } from '../../lib/indicadores';
+import { CABECALHO, celulasDoUsuario, centavosDoTexto, csvDeIndicadores, textoBaseVendas } from '../../lib/indicadores';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
@@ -92,7 +92,7 @@ function IndicadoresConteudo() {
       {lista.isPending && <LoadingBlock label="Carregando os indicadores…" />}
 
       {d && (
-        <Panel title={`${d.itens.length} pessoa${d.itens.length === 1 ? '' : 's'} · base de apuração: ${d.base_apuracao}${d.situacao === 'parcial' && d.fechamento_em ? ` · parcial até o fechamento (${d.fechamento_em.split('-').reverse().join('/')})` : ''}`}>
+        <Panel title={`${d.itens.length} pessoa${d.itens.length === 1 ? '' : 's'} · ${textoBaseVendas(d.base_apuracao)}${d.situacao === 'parcial' && d.fechamento_em ? ` · parcial até o fechamento (${d.fechamento_em.split('-').reverse().join('/')})` : ''}`}>
           <TableScroll minWidth={1040}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
