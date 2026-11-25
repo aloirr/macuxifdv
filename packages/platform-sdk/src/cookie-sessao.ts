@@ -12,6 +12,8 @@
  * Funções puras: usadas pela API (montagem da rota pública) e pelo cliente web do SDK (nome do cabeçalho).
  */
 
+import { PROXY_BASE } from './proxy-base';
+
 /** Cabeçalho que pede o modo cookie e prova que a chamada saiu do próprio BKO (em minúsculas, como o Node entrega). */
 export const CABECALHO_CSRF = 'x-macuxi-csrf';
 /** Único valor aceito do `CABECALHO_CSRF`. */
@@ -22,7 +24,7 @@ export const VALOR_CSRF = '1';
  * senha/trocar}` e o rewrite manda a `/v1/auth/...`. Fora desse caminho o navegador não envia o cookie (nem às páginas, nem às
  * outras rotas da API).
  */
-export const CAMINHO_COOKIE_SESSAO = '/api-proxy/auth';
+export const CAMINHO_COOKIE_SESSAO = `${PROXY_BASE}/auth`;
 
 /** Nome com HTTPS (prefixo `__Secure-`: o navegador recusa o cookie sem `Secure`). */
 export const NOME_COOKIE_SESSAO_SEGURO = '__Secure-macuxi_rt';

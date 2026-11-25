@@ -17,7 +17,6 @@ import {
   ROTA_CORE_APP_APK,
   valorCabecalhoApp,
   valorCabecalhoWeb,
-  versaoAppValida,
   VERSAO_WEB,
   type PacotePublicado,
   type RotaModulo,
@@ -381,15 +380,11 @@ describe('426 APP_DESATUALIZADO no app antigo (RN-CORE-80, ADR 0070 §D4)', () =
     expect((await app.inject({ ...ECO, headers: antigo })).statusCode).toBe(426);
   });
 
-  it('v1.0.35 RN-VEN-25: a versão que o Vendedor lê (ctx.versaoApp.doCliente.versao) com web/<VERSAO_WEB> passa do mínimo 1.0.34 do teto; sem cabeçalho = null (sem teto)', async () => {
+  it('v1.0.35 RN-VEN-25: o Vendedor lê em ctx.versaoApp.doCliente.versao a VERSAO_WEB do cabeçalho web; sem cabeçalho = null (sem teto)', async () => {
     const app = montarApp(instante(0));
     const versaoNaRota = async (headers: Record<string, string>) =>
       ((await app.inject({ ...ECO, headers: { ...cab('vendedor'), ...headers } })).json() as { cliente: { versao: string } | null }).cliente?.versao ?? null;
-    // a mesma condição de aplicaTetoDoCliente (modules/vendedor/domain/pagamento.ts): X.Y.Z válida e não menor que 1.0.34
-    const aplicaTeto = (v: string | null) => !!v && versaoAppValida(v) && !haVersaoNova(v, '1.0.34');
-    expect(aplicaTeto(await versaoNaRota({ [CABECALHO_APP]: valorCabecalhoWeb() }))).toBe(true);
-    expect(aplicaTeto(await versaoNaRota({ [CABECALHO_APP]: 'web/1.0.35' }))).toBe(true);
+    expect(await versaoNaRota({ [CABECALHO_APP]: valorCabecalhoWeb() })).toBe(VERSAO_WEB);
     expect(await versaoNaRota({})).toBeNull();
-    expect(aplicaTeto(await versaoNaRota({}))).toBe(false);
   });
 });

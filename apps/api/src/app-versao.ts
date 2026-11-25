@@ -40,6 +40,7 @@ import {
   NOME_APP_VARIANTE,
   ROTA_APP_ATUALIZAR,
   ROTA_APP_VERSAO,
+  VARIANTE_WEB,
   VARIANTES_APP,
   versaoAppValida,
   type AppVersaoPublicadaV2,
@@ -141,7 +142,7 @@ export function criarFonteVersoesApp(dep: {
 
 /** `ctx.versaoApp` da requisição (ADR 0070 §D7). `web/X.Y.Z` (BKO, Gestor web) chega em `doCliente`, sem versão publicada. */
 export function portaVersaoApp(fonte: FonteVersoesApp, cabecalhos: Record<string, unknown>): PortaVersaoApp {
-  return { doCliente: lerCabecalhoApp(cabecalhos[CABECALHO_APP]), publicada: (v) => (v === 'web' ? Promise.resolve(null) : fonte.publicada(v)) };
+  return { doCliente: lerCabecalhoApp(cabecalhos[CABECALHO_APP]), publicada: (v) => (v === VARIANTE_WEB ? Promise.resolve(null) : fonte.publicada(v)) };
 }
 
 /**
