@@ -8,6 +8,9 @@ import {
   quantidadeDaEscala,
   quantidadeDoBanco,
   quantidadeEmEscala,
+  quantidadeValida,
+  somarQuantidades,
+  subtrairQuantidades,
   temFracao,
   totalDaLinhaCents,
   unidadeFracionaria,
@@ -72,6 +75,39 @@ describe('quantidadeEmEscala (RN-VEN-02 v3, ADR 0076 D3)', () => {
     [Number.MAX_SAFE_INTEGER],
   ])('%s → RangeError (mais de 4 casas, não finito ou fora do inteiro seguro)', (q) => {
     expect(() => quantidadeEmEscala(q)).toThrow(RangeError);
+  });
+});
+
+describe('quantidadeValida (RN-VEN-02 v3: até 4 casas, sem exceção)', () => {
+  it('aceita inteiro, até 4 casas e negativo', () => {
+    expect(quantidadeValida(3)).toBe(true);
+    expect(quantidadeValida(1.25)).toBe(true);
+    expect(quantidadeValida(0.0001)).toBe(true);
+    expect(quantidadeValida(-2.5)).toBe(true);
+    expect(quantidadeValida(0)).toBe(true);
+  });
+  it('recusa mais de 4 casas, não finito, fora do inteiro seguro e não número, sem lançar', () => {
+    expect(quantidadeValida(0.00005)).toBe(false);
+    expect(quantidadeValida(Number.NaN)).toBe(false);
+    expect(quantidadeValida(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(quantidadeValida(1e15)).toBe(false);
+    expect(quantidadeValida('1' as unknown as number)).toBe(false);
+  });
+});
+
+describe('somarQuantidades e subtrairQuantidades (RN-VEN-02 v3: conta em 1/10.000, sem float)', () => {
+  it('0,1 + 0,2 = 0,3 e 0,3 − 0,1 = 0,2', () => {
+    expect(somarQuantidades(0.1, 0.2)).toBe(0.3);
+    expect(subtrairQuantidades(0.3, 0.1)).toBe(0.2);
+  });
+  it('inteiros e resultado negativo', () => {
+    expect(somarQuantidades(2, 3)).toBe(5);
+    expect(subtrairQuantidades(1.25, 2)).toBe(-0.75);
+    expect(subtrairQuantidades(1.5, 1.5)).toBe(0);
+  });
+  it('RangeError com mais de 4 casas', () => {
+    expect(() => somarQuantidades(0.00005, 1)).toThrow(RangeError);
+    expect(() => subtrairQuantidades(1, 0.00005)).toThrow(RangeError);
   });
 });
 

@@ -3,21 +3,12 @@
  * A conta fica no inteiro de 1/10.000 de `@macuxi/comum/quantidade`; aqui só o schema e os códigos do 422.
  */
 import { z } from 'zod';
-import { CASAS_QUANTIDADE, quantidadeEmEscala } from '@macuxi/comum/quantidade';
+import { CASAS_QUANTIDADE, quantidadeValida } from '@macuxi/comum/quantidade';
 
 /** Teto da quantidade do item (cabe em `numeric(14,4)` e em 14 dígitos significativos, abaixo dos 15 do double). */
 export const QUANTIDADE_DECIMAL_MAX = 999_999_999.9999;
 /** Teto do fator (o mesmo de `EMBALAGEM_QUANTIDADE_MAX` do Hub). */
 export const FATOR_DECIMAL_MAX = 9999;
-
-const ate4Casas = (n: number): boolean => {
-  try {
-    quantidadeEmEscala(n);
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 const decimal4 = (nome: string, max: number) =>
   z
@@ -25,7 +16,7 @@ const decimal4 = (nome: string, max: number) =>
     .finite()
     .positive()
     .max(max, `${nome} deve ser no máximo ${max}`)
-    .refine(ate4Casas, `${nome} deve ter no máximo ${CASAS_QUANTIDADE} casas decimais`);
+    .refine(quantidadeValida, `${nome} deve ter no máximo ${CASAS_QUANTIDADE} casas decimais`);
 
 /** Quantidade do item: > 0, até 4 casas, ≤ `QUANTIDADE_DECIMAL_MAX`. Fração só em KG/M é regra do domain (RN-VEN-02 v3). */
 export const QuantidadeDecimalSchema = decimal4('quantidade', QUANTIDADE_DECIMAL_MAX);

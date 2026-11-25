@@ -61,6 +61,24 @@ export function quantidadeEmEscala(q: number): number {
   return r;
 }
 
+/**
+ * A quantidade (ou fator) é finita, tem até 4 casas e cabe no inteiro seguro (RN-VEN-02 v3)? Sem exceção: o `false` cobre o
+ * que `quantidadeEmEscala` recusaria. Negativo é aceito; o sinal positivo é regra de quem chama.
+ */
+export function quantidadeValida(q: number): boolean {
+  return typeof q === 'number' && Number.isFinite(q) && escalaDoTexto(String(q)) !== null;
+}
+
+/** `a + b` exato, em 1/10.000 (`0.1 + 0.2` → `0.3`). `RangeError` como em `quantidadeEmEscala`. */
+export function somarQuantidades(a: number, b: number): number {
+  return quantidadeDaEscala(quantidadeEmEscala(a) + quantidadeEmEscala(b));
+}
+
+/** `a − b` exato, em 1/10.000 (`0.3 − 0.1` → `0.2`). `RangeError` como em `quantidadeEmEscala`. */
+export function subtrairQuantidades(a: number, b: number): number {
+  return quantidadeDaEscala(quantidadeEmEscala(a) - quantidadeEmEscala(b));
+}
+
 /** Inteiro de 1/10.000 → quantidade (`12500` → `1.25`), só para o fio e a tela. `RangeError` se não for inteiro seguro. */
 export function quantidadeDaEscala(u: number): number {
   if (!Number.isSafeInteger(u)) throw new RangeError(`quantidade em escala não inteira: ${String(u)}`);
