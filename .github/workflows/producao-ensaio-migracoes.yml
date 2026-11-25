@@ -1,0 +1,150 @@
+name: producao — ensaio das migrações (termina em ROLLBACK)
+
+# Decisão do Alexandre (25/11/2026, 12h50 de Manaus, pelo gerente): ensaiar as migrações dos perfis (0105 a 0108) NA PRÓPRIA
+# PRODUÇÃO, sobre o banco da versão no ar, sem gravar nada. Só manual, só no environment PRODUCAO (aprovação do Alexandre).
+#
+# Como funciona (mesma conexão dos outros workflows de produção: SSH na VM e o pgcliente do compose, como o admin que o
+# deploy usa para migrar; nenhum segredo novo):
+# 1. O SHA informado precisa ser o head de um PR aberto ou estar no main (API do GitHub, GITHUB_TOKEN só leitura).
+# 2. Os scripts saem deste workflow (.github/scripts/ensaio-migracoes); do SHA só se LÊ a pasta db/migrations.
+# 3. aplicadas.sql (só leitura) lista public.macuxi_migracao; montar.sh confere os checksums como o migrador
+#    (db/src/migrador.ts) e monta o ensaio só com as migrações que faltam em produção, na ordem.
+# 4. Uma ÚNICA transação: BEGIN, lock_timeout 5s e statement_timeout 120s (SET LOCAL), a trava do migrador
+#    (pg_try_advisory_xact_lock), antes.sql, cada migração num DO com EXECUTE (o Postgres recusa ali comando de transação),
+#    diagnostico.sql e ROLLBACK. Erro em qualquer ponto: ON_ERROR_STOP encerra o psql e o Postgres desfaz a transação
+#    aberta. Não existe comando de gravação da transação em lugar nenhum (o passo "trava" falha se aparecer).
+# 5. conferir.sql, numa sessão nova e só leitura, sempre que o ensaio rodou: nenhuma migração do ensaio na tabela de controle.
+#
+# O log e o resumo só têm contagens, o código da empresa e o resultado da conferência (sem nome, e-mail, documento ou id).
+# Falha o job: conferência com DIFERENCA em tenant derivado, tenant em 'concessao', checksum divergente ou erro em qualquer passo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: SHA completo (40 caracteres) do head de um PR aberto ou de um commit do main
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ensaio:
+    name: migrações pendentes numa transação com ROLLBACK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: PRODUCAO
+    env:
+      PGCLIENTE: docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T -e PGAPPNAME=macuxi-ensaio-migracoes pgcliente psql -X -f -
+    steps:
+      - name: SHA de um PR aberto ou do main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha inválido: 40 caracteres hexadecimais minúsculos"; exit 1; }
+          prs="$(gh api "repos/$REPO/commits/$SHA/pulls" \
+            | jq -r --arg s "$SHA" '[.[] | select(.state == "open" and .head.sha == $s) | "#\(.number)"] | join(" ")')"
+          estado="$(gh api "repos/$REPO/compare/main...$SHA" --jq .status 2>/dev/null || true)"
+          if [ -n "$prs" ]; then origem="head do PR aberto $prs"
+          elif [ "$estado" = identical ] || [ "$estado" = behind ]; then origem="commit do main"
+          else echo "::error::o SHA não é head de PR aberto nem está no main"; exit 1; fi
+          echo "SHA $SHA: $origem"
+          { echo "## Ensaio das migrações (ROLLBACK)"; echo; echo "- SHA \`$SHA\`: $origem"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/actions
+            .github/scripts/ensaio-migracoes
+          persist-credentials: false
+
+      - name: migrações do SHA (só leitura)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          path: alvo
+          sparse-checkout: db/migrations
+          persist-credentials: false
+
+      - name: trava contra gravação nos scripts do ensaio
+        run: |
+          # nenhuma linha de SQL (fora de comentário) com o comando que grava a transação; o montar.sh confere o SQL gerado
+          if grep -n -i -E '^[^-]*\bcommit\b|^[[:space:]]*(end|abort)([[:space:]]+(work|transaction))?[[:space:]]*;' \
+               .github/scripts/ensaio-migracoes/*.sql; then
+            echo "::error::scripts do ensaio com comando de gravação da transação"; exit 1
+          fi
+
+      - name: chave SSH
+        id: chave
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: preparar
+          chave: ${{ secrets.PROD_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          conhecidos: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+
+      - name: migrações aplicadas em produção (só leitura)
+        timeout-minutes: 3
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec $PGCLIENTE" \
+            < .github/scripts/ensaio-migracoes/aplicadas.sql > "$RUNNER_TEMP/aplicadas.txt"
+          echo "aplicadas em produção: $(grep -c . "$RUNNER_TEMP/aplicadas.txt"), última $(tail -n 1 "$RUNNER_TEMP/aplicadas.txt" | cut -d' ' -f1)"
+
+      - name: montar o ensaio
+        run: |
+          bash .github/scripts/ensaio-migracoes/montar.sh alvo/db/migrations "$RUNNER_TEMP/aplicadas.txt" \
+            "$RUNNER_TEMP/ensaio.sql" "$RUNNER_TEMP/conferir.sql" | tee "$RUNNER_TEMP/montar.txt"
+          { echo; echo '```'; cat "$RUNNER_TEMP/montar.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: ensaio na produção (BEGIN → migrações → diagnóstico → ROLLBACK)
+        id: ensaio
+        timeout-minutes: 15
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          set +e
+          ssh -o ServerAliveInterval=30 -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec $PGCLIENTE" \
+            < "$RUNNER_TEMP/ensaio.sql" 2>&1 | tee "$RUNNER_TEMP/ensaio.txt"
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/ensaio.txt"
+            echo '```'
+            echo "saída: $status (0 ok · 3 erro no SQL ou ensaio reprovado: a sessão caiu e o Postgres desfez a transação · 255 falha do SSH)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: conferir que nada ficou gravado (sessão nova, só leitura)
+        if: ${{ always() && steps.ensaio.outcome != 'skipped' }}
+        timeout-minutes: 3
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          set +e
+          ssh -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec $PGCLIENTE" \
+            < "$RUNNER_TEMP/conferir.sql" 2>&1 | tee "$RUNNER_TEMP/conferir.txt"
+          status=${PIPESTATUS[0]}
+          set -e
+          { echo; echo '```'; cat "$RUNNER_TEMP/conferir.txt"; echo '```'; echo "conferência: saída $status"; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: limpar o runner
+        if: ${{ always() && steps.chave.outcome != 'skipped' }}
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: limpar
