@@ -5,8 +5,6 @@ import { linhaDeItemEmTabela } from './detalhe-pedido';
 import { aplicarItemNoRascunho } from './item-popup';
 import { prefillLines } from './order-prefill';
 import {
-  definirFracaoLiberada,
-  fracaoLiberadaNoAparelho,
   lerQuantidadeDigitada,
   MENSAGEM_SO_INTEIRO,
   passoDaQuantidade,
@@ -108,14 +106,7 @@ describe('exibição (RN-VEN-02 v3)', () => {
   });
 });
 
-describe('trava guardada do aparelho (ADR 0076 D6)', () => {
-  it('ADR 0076 D6: começa fechada e só abre quando o shell a libera', () => {
-    expect(fracaoLiberadaNoAparelho()).toBe(false);
-    definirFracaoLiberada(true);
-    expect(fracaoLiberadaNoAparelho()).toBe(true);
-    definirFracaoLiberada(false);
-    expect(fracaoLiberadaNoAparelho()).toBe(false);
-  });
+describe('quantidade decimal guardada no aparelho', () => {
   it('RN-VEN-02 v3: a quantidade decimal sobrevive ida e volta no armazenamento do aparelho (JSON), sem perder casas', () => {
     for (const q of [1.25, 0.1255, 999999.9999, 0.0001]) {
       expect(JSON.parse(JSON.stringify({ q })).q).toBe(q);

@@ -12,19 +12,6 @@ const CASAS = 4;
 /** Mensagem curta quando a pessoa tenta a vírgula com a trava fechada (KG e M ficam inteiros). */
 export const MENSAGEM_SO_INTEIRO = 'Só quantidade inteira por enquanto.';
 
-// Trava guardada do aparelho (ADR 0076 D6): o shell a atualiza com as respostas guardadas de GET /v1/app/versao.
-let fracaoLiberada = false;
-
-/** O shell informa se a fração está liberada (`fracaoLiberada` do `@macuxi/platform-sdk`, sobre as versões guardadas). */
-export function definirFracaoLiberada(liberada: boolean): void {
-  fracaoLiberada = liberada;
-}
-
-/** Fechada até o shell liberar (sem resposta guardada = fechada). */
-export function fracaoLiberadaNoAparelho(): boolean {
-  return fracaoLiberada;
-}
-
 /** KG e M abrem o teclado com vírgula; as demais unidades, o numérico inteiro. */
 export function tecladoDaQuantidade(unidade: string | null | undefined): 'decimal-pad' | 'number-pad' {
   return unidadeFracionaria(unidade) ? 'decimal-pad' : 'number-pad';

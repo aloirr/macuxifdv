@@ -26,7 +26,6 @@ import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import { precoTabelaDaUnidade, type AjusteItem } from '../../domain/preco-pedido';
 import { chaveDaLinha, minimoDoProdutoNoPrazo, unidadesDoProduto, type Ajuste, type ProdutoComMinimo, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
 import { prefillLines, prefillNotice } from './order-prefill';
-import { fracaoLiberadaNoAparelho } from './quantidade-digitada';
 import type { Rascunho } from './pedidos';
 
 type ExtraCopia = {
@@ -195,11 +194,11 @@ function ajusteDoRascunho(i: ItemParaCopia): Ajuste | null {
  * T-0084 (RN-VEN-19): Editar mantém o retrato da aplicação (`manterAplicacao`; desmarcado fica desmarcado); Duplicar não leva
  * o retrato: tira um novo, pelo padrão do tenant.
  */
-export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opcoes: { manterAplicacao?: boolean } = {}): RascunhoDaCopia {
+export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opcoes: { manterAplicacao?: boolean; fracaoLiberada?: boolean } = {}): RascunhoDaCopia {
   const r = prefillLines(
     c.itens.map((i) => ({ product_id: i.product_id, quantity: i.quantity, unidade: i.unidade ?? null })),
     catalogo,
-    fracaoLiberadaNoAparelho(),
+    opcoes.fracaoLiberada ?? false,
   );
   const ajustes: Record<string, Ajuste> = {};
   for (const i of c.itens) {

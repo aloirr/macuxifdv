@@ -45,7 +45,7 @@ export function haFracao(itens: ReadonlyArray<{ quantidade: number; fator: numbe
 
 /**
  * RN-VEN-02 v3 + ADR 0076 D6: a recusa (422) do pedido ou orçamento com quantidade fracionária. Primeiro a regra (`exigirQuantidade`:
- * fração só em KG/M, até 4 casas, nunca com fator fracionário); depois a trava: com `liberada` falso (as duas variantes 1.0.35 ainda
+ * fração só em KG/M, até 4 casas, nunca com fator fracionário); depois a trava: com `liberada` falso (as duas variantes na `VERSAO_APP_FRACAO` ainda
  * não obrigatórias), qualquer item com quantidade ou fator fracionário é recusado. Sem fração, `null`.
  */
 export function recusaDeFracao(itens: ReadonlyArray<{ quantidade: number; unidade: string | null; fator: number }>, liberada: boolean): { codigo: string; http: number; mensagem: string } | null {

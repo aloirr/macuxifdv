@@ -112,7 +112,7 @@ export const PedidoItemSyncSchema = z
     pedido_id: z.string().uuid(),
     sequencia: z.number().int().min(1),
     produto_id: z.string().uuid(),
-    /** ADR 0076: decimal (até 4 casas) só em KG/M; o pull não entrega a linha fracionária a app sem o cabeçalho ou abaixo da 1.0.35 */
+    /** ADR 0076: decimal (até 4 casas) só em KG/M; o pull não entrega a linha fracionária a app sem o cabeçalho ou abaixo da `VERSAO_APP_FRACAO` (platform-sdk) */
     quantidade: QuantidadeDecimalSchema,
     preco_tabela_cents: z.number().int().nonnegative(),
     preco_unitario_cents: z.number().int().nonnegative(),

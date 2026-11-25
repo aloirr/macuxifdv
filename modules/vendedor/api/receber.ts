@@ -170,7 +170,7 @@ export async function calcularDocumento(
     if (!u.ok) return rejeitado(itemId, u.codigo, 'Medida inválida para um dos produtos. Atualize o catálogo e escolha a medida de novo.');
     medidas.set(idx, { unidade: u.unidade, fator: u.fator });
   }
-  // RN-VEN-02 v3 (ADR 0076): a API revalida a fração (KG/M, 4 casas) e a trava das 24 h depois da publicação dos apps 1.0.35
+  // RN-VEN-02 v3 (ADR 0076): a API revalida a fração (KG/M, 4 casas) e a trava das 24 h depois da publicação dos apps na `VERSAO_APP_FRACAO`
   const itensFracao = p.items.map((i, idx) => ({ quantidade: i.quantity, unidade: medidas.get(idx)!.unidade, fator: medidas.get(idx)!.fator }));
   const comFracao = haFracao(itensFracao);
   // sem fração a trava não importa; com fração e sem `ctx.versaoApp` ela fica fechada

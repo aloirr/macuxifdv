@@ -27,15 +27,15 @@ const CADASTRO = (() => {
 const vendedor1: UsuarioAutenticado = { id: A.usuarios.vendedor1, tenant_id: A.tenantId, perfil: 'vendedor' };
 let AGORA!: Date;
 
-/** Campo e Gestão 1.0.35 publicados há 25 h: a trava está aberta. */
+/** Campo e Gestão 1.0.36 publicados há 25 h: a trava está aberta. */
 const ABERTA = (agora: Date) => {
   const em = new Date(agora.getTime() - 25 * 3_600_000).toISOString();
-  return { campo: { versao: '1.0.35', publicada_em: em }, gestao: { versao: '1.0.35', publicada_em: em } };
+  return { campo: { versao: '1.0.36', publicada_em: em }, gestao: { versao: '1.0.36', publicada_em: em } };
 };
 /** Publicados há 1 h: a trava segue fechada (24 h de convivência). */
 const FECHADA = (agora: Date) => {
   const em = new Date(agora.getTime() - 3_600_000).toISOString();
-  return { campo: { versao: '1.0.35', publicada_em: em }, gestao: { versao: '1.0.35', publicada_em: em } };
+  return { campo: { versao: '1.0.36', publicada_em: em }, gestao: { versao: '1.0.36', publicada_em: em } };
 };
 
 describe.skipIf(semBanco())('Vendedor × Postgres: quantidade fracionária (ADR 0076)', () => {
@@ -164,16 +164,16 @@ describe.skipIf(semBanco())('Vendedor × Postgres: quantidade fracionária (ADR 
     expect(await lerItem(id(5))).toBeUndefined();
   });
 
-  it('ADR 0076 D6: o pull não entrega o pedido fracionário a app sem cabeçalho ou abaixo da 1.0.35; a 1.0.35 recebe, com número', async () => {
+  it('ADR 0076 D6: o pull não entrega o pedido fracionário a app sem cabeçalho ou abaixo da 1.0.36; a 1.0.36 recebe, com número', async () => {
     const pull = (nome: string, doCliente: { variante: 'campo' | 'gestao'; versao: string } | null) =>
       provedoresSyncVendedor.find((p) => p.entidade.nome === nome)!.puxar!(contexto({ unidade: 'KG', versao: criarPortaVersaoAppMemoria({}, doCliente) }), pedidoPull());
     const doPedido = (linhas: Array<{ id: string }>, pid: string) => linhas.filter((l) => (l as unknown as { pedido_id?: string }).pedido_id === pid || l.id === pid);
-    for (const cliente of [null, { variante: 'campo' as const, versao: '1.0.34' }]) {
+    for (const cliente of [null, { variante: 'campo' as const, versao: '1.0.35' }]) {
       expect(doPedido(await pull('pedido', cliente), id(3))).toHaveLength(0);
       expect(doPedido(await pull('pedido_item', cliente), id(3))).toHaveLength(0);
       expect(doPedido(await pull('pedido', cliente), id(4))).toHaveLength(1); // o inteiro segue chegando
     }
-    const novo = { variante: 'campo' as const, versao: '1.0.35' };
+    const novo = { variante: 'campo' as const, versao: '1.0.36' };
     expect(valorCabecalhoApp(novo.variante, novo.versao)).toBeTruthy();
     expect(doPedido(await pull('pedido', novo), id(3))).toHaveLength(1);
     const itens = doPedido(await pull('pedido_item', novo), id(3));

@@ -14,7 +14,7 @@ const PRODUTO = U(30);
 const PEDIDO = U(40);
 const nomes: Record<string, { nome: string; perfil: string }> = { [VEND]: { nome: 'Vera Vendedora', perfil: 'vendedor' } };
 const AGORA = new Date('2026-11-05T12:00:00Z');
-const publicadaHa = (horas: number) => ({ versao: '1.0.35', publicada_em: new Date(AGORA.getTime() - horas * 3_600_000).toISOString() });
+const publicadaHa = (horas: number) => ({ versao: '1.0.36', publicada_em: new Date(AGORA.getTime() - horas * 3_600_000).toISOString() });
 const ABERTA = criarPortaVersaoAppMemoria({ campo: publicadaHa(25), gestao: publicadaHa(25) });
 const FECHADA = criarPortaVersaoAppMemoria({ campo: publicadaHa(1), gestao: publicadaHa(25) });
 

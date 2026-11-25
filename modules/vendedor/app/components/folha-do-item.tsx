@@ -19,9 +19,9 @@ import { descontoMaximoDoItemPct, rotuloMedida } from '../../domain/preco-pedido
 import { nomeComMarca } from '../lib/detalhe-pedido';
 import { alertasDoItem, chavesDoProduto, estadoInicialDoItem, estoqueNaEmbalagem, numeroDoEstoque, riscoDeRuptura, ROTULOS_DO_POPUP, TEXTO_RISCO_DE_RUPTURA, type EstadoDoItem } from '../lib/item-popup';
 import { alternarAplicacao, minimoDoProdutoNoPrazo, type Ajuste, type CalculoPedido, type ProdutoComMinimo, type UnidadeDaTela } from '../lib/novo-pedido';
-import { fracaoLiberadaNoAparelho } from '../lib/quantidade-digitada';
 import { CampoQuantidade } from './campo-quantidade';
 import { AreaAlertas } from './area-alertas';
+import { useAmbiente } from '@macuxi/platform-sdk/react';
 import { AjusteDoItem } from './novo-pedido-itens';
 import { CaixaAplicacao } from './novo-pedido';
 
@@ -51,6 +51,7 @@ function quantidadeBaseDoItem(qtd: number, fator: number): number {
 }
 
 export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral = null, percentualAjusteBp = 0, onConfirmar, onRemover, onFechar }: PropsFolhaDoItem) {
+  const ambiente = useAmbiente();
   const inicial = estadoInicialDoItem(p.id, medidas, lines, ajustes, geral);
   const [idx, setIdx] = useState(inicial.idx);
   const [qtd, setQtd] = useState(inicial.qtd);
@@ -105,7 +106,7 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
           <View style={{ gap: 6 }} onLayout={(e) => setLarguraQtd(e.nativeEvent.layout.width)}>
             <Text style={s.rotulo}>QUANTIDADE</Text>
             {unidadeFracionaria(medida.unidade) ? (
-              <CampoQuantidade valor={qtd} unidade={medida.unidade} fracaoLiberada={fracaoLiberadaNoAparelho()} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
+              <CampoQuantidade valor={qtd} unidade={medida.unidade} fracaoLiberada={ambiente.fracaoLiberada()} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
             ) : (
               <Passo editavel valor={qtd} min={1} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
             )}

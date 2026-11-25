@@ -104,7 +104,7 @@ export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5
               and (p.tipo = 'pedido' or p.convertido_em is null)))`;
 
 /**
- * ADR 0076 D6 (pull filtrado): app sem o cabeçalho de versão ou abaixo da 1.0.35 não recebe pedido com item de quantidade ou fator
+ * ADR 0076 D6 (pull filtrado): app sem o cabeçalho de versão ou abaixo da `VERSAO_APP_FRACAO` não recebe pedido com item de quantidade ou fator
  * fracionário (nem os itens e eventos dele): o schema antigo do app derrubaria o pull inteiro. Filtro em SQL, para o cursor seguir.
  * Funciona antes e depois da 0106 (`trunc` aceita inteiro e numeric).
  */
@@ -258,7 +258,7 @@ export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: u
 
 /**
  * ADR 0076 D6: o pull filtrado por versão entra na variação do escopo (cursor de novidades e `versao_escopo`): o app que sobe para a
- * 1.0.35 muda de `fracao=0` para `fracao=1` e baixa de novo as linhas fracionárias que ficaram atrás do cursor.
+ * `VERSAO_APP_FRACAO` muda de `fracao=0` para `fracao=1` e baixa de novo as linhas fracionárias que ficaram atrás do cursor.
  */
 export const variacaoFracaoDoPull = (ctx: ContextoBase): string => `fracao=${clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null) ? 1 : 0}`;
 
