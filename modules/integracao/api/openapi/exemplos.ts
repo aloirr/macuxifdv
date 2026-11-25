@@ -6,6 +6,7 @@
  * dinheiro em centavos, datas UTC com `Z`, UUID v4.
  */
 import type { z } from 'zod';
+import type { PrazoPagamentoPayloadV2 } from '../../contracts/entidades';
 import type {
   ClientesPendentes,
   RetornoCliente,
@@ -232,6 +233,17 @@ const RESUMO_ENTIDADE: Record<Entidade, string> = {
   filial: 'Filiais: unidades de onde saem as entregas (delta)',
 };
 
+/** Registro `v2` do prazo de pagamento (ADR 0072). */
+export const EXEMPLO_PRAZO_PAGAMENTO_V2: z.input<typeof PrazoPagamentoPayloadV2> = {
+  external_id: 'PRZ-30-60-90',
+  alterado_em: '2026-11-24T15:00:00Z',
+  forma_external_id: 'BOLETO',
+  codigo: '306090',
+  descricao: 'Boleto 30/60/90',
+  parcelas_dias: [30, 60, 90],
+  prazo_medio_dias: 60,
+};
+
 const loteDelta = (entidade: Entidade): z.input<typeof LoteEnvelope> => ({
   versao_contrato: 'v1',
   entidade,
@@ -248,6 +260,12 @@ const ORDEM_ENTIDADES: readonly Entidade[] = ['vendedor', 'cliente', 'produto', 
 /** `POST /lotes`: um exemplo por entidade, carga completa em partes (sessão) e lote só com linhas inválidas. */
 export const EXEMPLOS_LOTE: readonly Exemplo<z.input<typeof LoteEnvelope>>[] = [
   ...ORDEM_ENTIDADES.map((e) => ex(e, RESUMO_ENTIDADE[e], loteDelta(e))),
+  ex('prazo_pagamento_v2', 'Prazo de pagamento na v2: descrição e prazo médio obrigatórios', {
+    ...loteDelta('prazo_pagamento'),
+    versao_contrato: 'v2',
+    cursor: { alterado_em: '2026-11-24T15:00:00Z', external_id: 'PRZ-30-60-90' },
+    registros: [EXEMPLO_PRAZO_PAGAMENTO_V2],
+  }),
   ex('carga_completa_parte_1', 'Carga completa, parte 1 de 2 (sessão aberta)', {
     versao_contrato: 'v1',
     entidade: 'vendedor',

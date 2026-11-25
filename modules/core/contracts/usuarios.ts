@@ -254,4 +254,6 @@ export const CODIGOS_USUARIO = {
   senhaPropria: 'SENHA_PROPRIA',
   senhaDeAdmin: 'SENHA_DE_ADMIN',
   usuarioInativo: 'USUARIO_INATIVO',
+  /** 422 — redefinir senha / enviar acesso ao usuário provisório (e-mail técnico `@sem-email.invalid`, RN-CORE-58). */
+  semEmail: 'USUARIO_SEM_EMAIL',
 } as const;

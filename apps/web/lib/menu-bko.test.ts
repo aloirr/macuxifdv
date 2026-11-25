@@ -1,6 +1,7 @@
 /**
  * Menu do BKO (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M3; ADR 0060, spec docs/design/menu-parametros/spec.md
- * §2–§3): ordem (alfabética, Parâmetros e Sistema fixos no fim), item direto (D9), vitrine sem licença (cadeado), Auditoria em
+ * §2–§3): ordem (alfabética, Parâmetros e Sistema fixos no fim), todo grupo com seta (R-20261124-094002), Parâmetros com uma
+ * opção por seção, vitrine sem licença (cadeado), Auditoria em
  * Sistema, grupo "Mais", grupo vazio, tela atual pela rota mais longa, a altura que decide entre "tudo aberto" e a sanfona e
  * os endereços antigos que viraram Parâmetros.
  */
@@ -19,6 +20,7 @@ import {
   piorSanfona,
   type EntradaNavegacao,
   type GrupoMenuBko,
+  type SecaoMenuParametros,
 } from './menu-bko';
 import { montarMenuAdmin, TODOS_MODULOS } from './menu-bko.fixture';
 
@@ -62,6 +64,10 @@ const ADMIN: EntradaNavegacao[] = [
   n('sistema', 'integracao', 'Integração ERP', 'integracao'),
 ];
 
+/** Seções da página Parâmetros (as que o menu usa), na ordem de `secoesParametros`: alfabética do rótulo. */
+const secao = (s: string, rotulo: string, bloqueado = false): SecaoMenuParametros => ({ secao: s, rotulo, caminho: `parametros/${s}`, bloqueado }) as SecaoMenuParametros;
+const SECOES: SecaoMenuParametros[] = [secao('acesso', 'Acesso'), secao('clientes', 'Clientes')];
+
 /** Assistente com Core + Vendedor: 9 páginas de módulo + Auditoria + Parâmetros. */
 const ASSISTENTE: EntradaNavegacao[] = [
   n('operacao', 'pedidos', 'Pedidos', 'vendedor'),
@@ -84,21 +90,27 @@ const ALTURA_1366X650 = 470;
 const de = (grupos: readonly GrupoMenuBko[], id: string) => grupos.find((g) => g.id === id);
 
 describe('menu do BKO: entradas de 1º nível (spec §2, ADR 0060)', () => {
-  const grupos = montarGruposMenu({ navegacao: ADMIN, plataforma: true, parametros: true });
+  const grupos = montarGruposMenu({ navegacao: ADMIN, plataforma: true, parametros: SECOES });
 
   it('11 entradas: alfabéticas, com Parâmetros e Sistema fixos no fim (D1); sem Comercial nem Conteúdo de campo', () => {
     expect(grupos.map((g) => g.titulo)).toEqual(['Acesso', 'Análise', 'Cadastros', 'Comunicação', 'Operação', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Parâmetros', 'Sistema']);
-    expect(grupos.flatMap((g) => g.itens)).toHaveLength(29);
+    expect(grupos.flatMap((g) => g.itens)).toHaveLength(30);
   });
 
-  it('D9: grupo de um item só vira item direto, com o testID do item; os demais continuam grupos', () => {
-    expect(grupos.filter((g) => g.direto).map((g) => g.id)).toEqual(['pesquisa', 'treinamento', 'parametros']);
-    expect(de(grupos, 'pesquisa')).toMatchObject({ titulo: 'Pesquisa', testId: 'nav-pesquisa-pesquisas', itens: [{ href: '/pesquisas' }] });
-    expect(de(grupos, 'parametros')).toMatchObject({ titulo: 'Parâmetros', direto: true, testId: 'nav-plataforma-parametros', itens: [{ href: '/parametros' }] });
-    expect(de(grupos, 'trade')).toMatchObject({ direto: false, testId: 'nav-grupo-trade' });
-    // item direto que ganha a segunda página volta a ser grupo
-    const dois = montarGruposMenu({ navegacao: [...ADMIN, n('pesquisa', 'pesquisa-resultados', 'Resultados', 'pesquisa')], plataforma: true, parametros: true });
-    expect(de(dois, 'pesquisa')).toMatchObject({ direto: false, testId: 'nav-grupo-pesquisa' });
+  it('todo grupo tem a seta, mesmo com um item só (R-20261124-094002), testID nav-grupo-<id>', () => {
+    expect(de(grupos, 'pesquisa')).toMatchObject({ titulo: 'Pesquisa', testId: 'nav-grupo-pesquisa', itens: [{ href: '/pesquisas' }] });
+    expect(de(grupos, 'treinamento')).toMatchObject({ testId: 'nav-grupo-treinamento', itens: [{ href: '/trilhas' }] });
+  });
+
+  it('Parâmetros: uma opção por seção em /parametros/<secao>; seção de módulo sem licença com cadeado (navega)', () => {
+    expect(de(grupos, 'parametros')).toMatchObject({ titulo: 'Parâmetros', testId: 'nav-grupo-parametros', bloqueado: false });
+    expect(de(grupos, 'parametros')?.itens).toEqual([
+      { href: '/parametros/acesso', label: 'Acesso', testId: 'nav-parametros-acesso' },
+      { href: '/parametros/clientes', label: 'Clientes', testId: 'nav-parametros-clientes' },
+    ]);
+    const com = montarGruposMenu({ navegacao: ADMIN, plataforma: true, parametros: [...SECOES, secao('pesquisa', 'Pesquisa', true)] });
+    expect(de(com, 'parametros')?.itens.at(-1)).toEqual({ href: '/parametros/pesquisa', label: 'Pesquisa', testId: 'nav-parametros-pesquisa', cadeado: true });
+    expect(hrefsNavegaveis(com)).toContain('/parametros/pesquisa');
   });
 
   it('itens em ordem alfabética pt-BR, sem diferenciar acento e caixa', () => {
@@ -109,13 +121,13 @@ describe('menu do BKO: entradas de 1º nível (spec §2, ADR 0060)', () => {
     expect(itens('trade')).toEqual(['Cadastros', 'Indicadores']);
   });
 
-  it('sem seção de Parâmetros não há o item Parâmetros', () => {
+  it('sem seção de Parâmetros não há o grupo Parâmetros', () => {
     expect(de(montarGruposMenu({ navegacao: ADMIN, plataforma: true }), 'parametros')).toBeUndefined();
   });
 
   it('página de módulo no grupo Parâmetros em parametros/<secao> não vira item (é seção da página Parâmetros)', () => {
-    const com = montarGruposMenu({ navegacao: [...ADMIN, n('parametros', 'parametros/integracao', 'Integração', 'integracao')], plataforma: true, parametros: true });
-    expect(de(com, 'parametros')).toMatchObject({ direto: true, itens: [{ href: '/parametros' }] });
+    const com = montarGruposMenu({ navegacao: [...ADMIN, n('parametros', 'parametros/integracao', 'Integração', 'integracao')], plataforma: true, parametros: SECOES });
+    expect(de(com, 'parametros')?.itens.map((i) => i.href)).toEqual(['/parametros/acesso', '/parametros/clientes']);
   });
 
   it('Auditoria fica em Sistema, sem grupo "Plataforma"', () => {
@@ -135,7 +147,7 @@ describe('menu do BKO: entradas de 1º nível (spec §2, ADR 0060)', () => {
       { caminho: '/extra', rotulo: 'Extra', testID: 'nav-x-extra' },
       { caminho: 'outro', rotulo: 'Outro', testID: 'nav-x-outro' },
     ];
-    const com = montarGruposMenu({ navegacao: ADMIN, mais: extra, plataforma: true, parametros: true });
+    const com = montarGruposMenu({ navegacao: ADMIN, mais: extra, plataforma: true, parametros: SECOES });
     expect(com.map((g) => g.titulo).slice(-5)).toEqual(['Produtos', 'Trade', 'Treinamento', 'Parâmetros', 'Sistema']);
     expect(com.map((g) => g.titulo).indexOf('Mais')).toBe(4);
     expect(de(com, 'mais')?.itens).toEqual([
@@ -155,7 +167,7 @@ describe('menu do BKO: vitrine sem licença (ADR 0060, spec §3)', () => {
     n('pesquisa', 'pesquisas', 'Pesquisas', 'pesquisa', true),
     n('treinamento', 'trilhas', 'Trilhas', 'treinamento', true),
   ];
-  const grupos = montarGruposMenu({ navegacao, plataforma: true, parametros: true });
+  const grupos = montarGruposMenu({ navegacao, plataforma: true, parametros: SECOES });
 
   it('grupo com todos os itens bloqueados fica na posição dele, bloqueado; os outros não', () => {
     expect(grupos.filter((g) => g.bloqueado).map((g) => g.id)).toEqual(['pesquisa', 'treinamento']);
@@ -171,11 +183,11 @@ describe('menu do BKO: vitrine sem licença (ADR 0060, spec §3)', () => {
 
   it('grupo misto: o item bloqueado não aparece', () => {
     const misto = montarGruposMenu({ navegacao: [n('trade', 'trade', 'Indicadores', 'promotor'), n('trade', 'x', 'X', 'pesquisa', true)], plataforma: false });
-    expect(misto).toEqual([{ id: 'trade', titulo: 'Trade', itens: [{ href: '/trade', label: 'Indicadores', testId: 'nav-promotor-trade' }], direto: true, bloqueado: false, testId: 'nav-promotor-trade' }]);
+    expect(misto).toEqual([{ id: 'trade', titulo: 'Trade', itens: [{ href: '/trade', label: 'Indicadores', testId: 'nav-promotor-trade' }], bloqueado: false, testId: 'nav-grupo-trade' }]);
   });
 
   it('o balão da entrada bloqueada fica fora da lista: a altura é a mesma de uma entrada só com o título', () => {
-    const semBloqueio = grupos.map((g) => ({ ...g, bloqueado: false, direto: true }));
+    const semBloqueio = grupos.map((g) => ({ ...g, bloqueado: false }));
     expect(alturaDoMenu(grupos, new Set())).toBe(alturaDoMenu(semBloqueio, new Set()));
   });
 });
@@ -186,7 +198,6 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
 
   it('a árvore da spec §2: 11 entradas, Parâmetros e Sistema no fim, sem Administração, Comercial e Conteúdo de campo', () => {
     expect(grupos.map((g) => g.titulo)).toEqual(['Acesso', 'Análise', 'Cadastros', 'Comunicação', 'Operação', 'Pesquisa', 'Produtos', 'Trade', 'Treinamento', 'Parâmetros', 'Sistema']);
-    expect(grupos.filter((g) => g.direto).map((g) => g.id)).toEqual(['pesquisa', 'treinamento', 'parametros']);
   });
 
   it('Alertas e Recados em Comunicação; Clientes, Formas de pagamento e Transportadoras em Cadastros; Trade com Cadastros e Indicadores', () => {
@@ -236,7 +247,7 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
     expect(r.secoes.some((s) => s.secao === 'pesquisa')).toBe(false);
   });
 
-  it('sem barra de rolagem em 1366×768 (spec §3 e §5): pior caso Cadastros (6 itens) cabe mesmo com um rótulo em 2 linhas', () => {
+  it('sem barra de rolagem em 1366×768 (spec §3 e §5): fora Parâmetros, pior caso Cadastros (6 itens) cabe mesmo com um rótulo em 2 linhas', () => {
     /** Rótulo que quebra a linha ("Formas de pagamento e prazos"): +20 px (linha de 20 px). */
     const QUEBRA = 20;
     const pior = piorSanfona(grupos);
@@ -245,19 +256,24 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
     expect(pior + QUEBRA).toBeLessThanOrEqual(ALTURA_1366X768);
   });
 
+  it('Parâmetros aberto (13 seções) passa de 1366×768: é o grupo que rola a lista (spec §3, revisão de 24/11)', () => {
+    expect(alturaDoMenu(grupos, new Set(['parametros']))).toBe(11 * 30 + 13 * 32 + 10 * 2);
+    expect(alturaDoMenu(grupos, new Set(['parametros']))).toBeGreaterThan(ALTURA_1366X768);
+  });
+
   it('densidade compacta (v1.0.18): liga com 541 e não liga com 542', () => {
     expect(densidadeDoMenu(grupos, 541)).toBe('compacta');
     expect(densidadeDoMenu(grupos, 542)).toBe('normal');
   });
 
-  it('compacta em 1366×650: Cadastros aberto = 452 (11×24 + 6×28 + 10×2) e qualquer grupo aberto cabe em 470', () => {
+  it('compacta em 1366×650: Cadastros aberto = 452 (11×24 + 6×28 + 10×2) e qualquer grupo aberto, fora Parâmetros, cabe em 470', () => {
     expect(densidadeDoMenu(grupos, ALTURA_1366X650)).toBe('compacta');
     expect(piorSanfona(grupos, 'compacta')).toBe(452);
-    for (const g of grupos) expect(alturaDoMenu(grupos, new Set([g.id]), 'compacta')).toBeLessThanOrEqual(ALTURA_1366X650);
+    for (const g of grupos.filter((x) => x.id !== 'parametros')) expect(alturaDoMenu(grupos, new Set([g.id]), 'compacta')).toBeLessThanOrEqual(ALTURA_1366X650);
   });
 
   it('"tudo aberto" continua medido em 30/32', () => {
-    const itens = grupos.filter((g) => !g.direto && !g.bloqueado).reduce((soma, g) => soma + g.itens.length, 0);
+    const itens = grupos.filter((g) => !g.bloqueado).reduce((soma, g) => soma + g.itens.length, 0);
     const tudo = alturaDoMenu(grupos, 'todos');
     expect(tudo).toBe(11 * 30 + itens * 32 + 10 * 2);
     expect(cabeTudoAberto(grupos, tudo)).toBe(true);
@@ -266,7 +282,7 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
 });
 
 describe('menu do BKO: tela atual (§M3 item 4)', () => {
-  const grupos = montarGruposMenu({ navegacao: ADMIN, plataforma: true, parametros: true });
+  const grupos = montarGruposMenu({ navegacao: ADMIN, plataforma: true, parametros: SECOES });
   const hrefs = hrefsNavegaveis(grupos);
 
   it('vence a rota mais longa que casa', () => {
@@ -274,7 +290,8 @@ describe('menu do BKO: tela atual (§M3 item 4)', () => {
     expect(hrefAtivo('/catalogo', hrefs)).toBe('/catalogo');
     expect(hrefAtivo('/catalogo/123', hrefs)).toBe('/catalogo');
     expect(hrefAtivo('/pedidos/abc', hrefs)).toBe('/pedidos');
-    expect(hrefAtivo('/parametros/clientes', hrefs)).toBe('/parametros');
+    expect(hrefAtivo('/parametros/clientes', hrefs)).toBe('/parametros/clientes');
+    expect(hrefAtivo('/parametros', hrefs)).toBeNull();
   });
 
   it('prefixo sem barra não casa; tela fora do menu não acende nada', () => {
@@ -291,21 +308,20 @@ describe('menu do BKO: tela atual (§M3 item 4)', () => {
 });
 
 describe('menu do BKO: altura e sanfona (§M3 itens 1–3)', () => {
-  it('altura = 30 por entrada + 32 por item aberto (item direto e bloqueado não abrem) + 2 entre entradas', () => {
-    const grupos = montarGruposMenu({ navegacao: ASSISTENTE, plataforma: true, parametros: true });
+  it('altura = 30 por entrada + 32 por item aberto (entrada bloqueada não abre) + 2 entre entradas', () => {
+    const grupos = montarGruposMenu({ navegacao: ASSISTENTE, plataforma: true, parametros: SECOES });
     expect(grupos.map((g) => g.titulo)).toEqual(['Análise', 'Cadastros', 'Operação', 'Produtos', 'Parâmetros', 'Sistema']);
-    expect(grupos.filter((g) => g.direto).map((g) => g.id)).toEqual(['produtos', 'parametros', 'sistema']);
-    expect(alturaDoMenu(grupos, 'todos')).toBe(6 * 30 + (2 + 4 + 3) * 32 + 5 * 2);
-    expect(alturaDoMenu(grupos, new Set(['operacao', 'parametros']))).toBe(6 * 30 + 3 * 32 + 5 * 2);
+    expect(alturaDoMenu(grupos, 'todos')).toBe(6 * 30 + (2 + 4 + 3 + 1 + 2 + 1) * 32 + 5 * 2);
+    expect(alturaDoMenu(grupos, new Set(['operacao', 'parametros']))).toBe(6 * 30 + (3 + 2) * 32 + 5 * 2);
     expect(alturaDoMenu([], 'todos')).toBe(0);
   });
 
-  it('Assistente cabe todo aberto em 1366×768', () => {
-    expect(cabeTudoAberto(montarGruposMenu({ navegacao: ASSISTENTE, plataforma: true, parametros: true }), ALTURA_1366X768)).toBe(true);
+  it('Assistente sem seção de Parâmetros cabe todo aberto em 1366×768', () => {
+    expect(cabeTudoAberto(montarGruposMenu({ navegacao: ASSISTENTE, plataforma: true }), ALTURA_1366X768)).toBe(true);
   });
 
   it('Administrador não cabe todo aberto: sanfona; com o maior grupo (Cadastros, 6) aberto cabe (spec §2)', () => {
-    const grupos = montarGruposMenu({ navegacao: ADMIN, plataforma: true, parametros: true });
+    const grupos = montarGruposMenu({ navegacao: ADMIN, plataforma: true, parametros: SECOES });
     expect(alturaDoMenu(grupos, new Set())).toBe(11 * 30 + 10 * 2);
     expect(cabeTudoAberto(grupos, ALTURA_1366X768)).toBe(false);
     expect(alturaDoMenu(grupos, new Set(['cadastros']))).toBeLessThanOrEqual(ALTURA_1366X768);

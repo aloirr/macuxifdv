@@ -16,7 +16,7 @@
 import crypto from 'node:crypto';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { LinkDownloadAppSchema } from '@macuxi/core/contracts';
-import { CABECALHO_TENANT_PLATAFORMA, SERVICO_PACOTES_DESLIGADO, VALIDADE_LINK_PACOTE_S, type ServicoPacotes } from '@macuxi/platform-sdk';
+import { CABECALHO_TENANT_PLATAFORMA, SERVICO_PACOTES_DESLIGADO, VALIDADE_LINK_APP_S, VALIDADE_LINK_PACOTE_S, type ServicoPacotes } from '@macuxi/platform-sdk';
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -126,14 +126,15 @@ describe.skipIf(semBanco())('T-0190 — APKs por link temporário (createApp rea
   });
 
   describe('AD-01 critério 1: quem administra gera o link do APK vigente, e o link baixa', () => {
-    it('admin B de fábrica (token do BKO; empresa com Vendedor, exceção do usuário sem o Vendedor): 200 com o Campo 1.0.19, validade de no máximo 15 min, e o link baixa o APK', async () => {
+    it('admin B de fábrica (token do BKO; empresa com Vendedor, exceção do usuário sem o Vendedor): 200 com o Campo 1.0.19, validade de 24 h (ADR 0074), e o link baixa o APK', async () => {
       const antes = Date.now(); // hora-fixa-ok: a validade do link conta do relógio real da API
       const l = linkDe(await pedir(tk.adminB, 'campo'));
       expect(l).toMatchObject({ variante: 'campo', versao: '1.0.19', arquivo: APK_CAMPO.arquivo, tamanho_bytes: APK_CAMPO.bytes.byteLength, sha256: crypto.createHash('sha256').update(APK_CAMPO.bytes).digest('hex') });
       const validadeMs = Date.parse(l.expira_em) - antes;
       expect(validadeMs).toBeGreaterThan(0);
-      expect(validadeMs).toBeLessThanOrEqual(15 * 60_000 + 2_000); // RN-CORE-67: no máximo 15 minutos
-      expect(new URL(l.url).searchParams.get('X-Amz-Expires')).toBe(String(VALIDADE_LINK_PACOTE_S.max));
+      expect(validadeMs).toBeGreaterThanOrEqual(VALIDADE_LINK_APP_S * 1000 - 2_000); // ADR 0074 (R-20261124-090942): 24 h, não os 15 min do Conector
+      expect(validadeMs).toBeLessThanOrEqual(VALIDADE_LINK_APP_S * 1000 + 2_000);
+      expect(new URL(l.url).searchParams.get('X-Amz-Expires')).toBe(String(VALIDADE_LINK_APP_S));
       const r = await fetch(l.url);
       expect(r.status).toBe(200);
       expect(new Uint8Array(await r.arrayBuffer())).toEqual(APK_CAMPO.bytes);
@@ -169,7 +170,7 @@ describe.skipIf(semBanco())('T-0190 — APKs por link temporário (createApp rea
       const l = linkDe(await pedir(tk.adminB, 'campo'));
       const u = new URL(l.url);
       const adulterados = [
-        l.url.replace(`X-Amz-Expires=${VALIDADE_LINK_PACOTE_S.max}`, 'X-Amz-Expires=86400'),
+        l.url.replace(`X-Amz-Expires=${VALIDADE_LINK_APP_S}`, `X-Amz-Expires=${2 * VALIDADE_LINK_APP_S}`),
         l.url.replace(APK_CAMPO.arquivo, 'Campo-Oficial-v1.0.18.apk'),
         l.url.replace('/pacotes/campo/', '/pacotes/gestao/').replace(APK_CAMPO.arquivo, APK_GESTAO.arquivo),
         l.url.replace(/X-Amz-Signature=[0-9a-f]+/, `X-Amz-Signature=${'0'.repeat(64)}`),

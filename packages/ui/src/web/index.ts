@@ -6,6 +6,7 @@
 export * from './ui';
 export * from './icons';
 export * from './overlay';
+export * from './obrigatorios';
 export * from './format';
 export * from './erros';
 export * from './tones';

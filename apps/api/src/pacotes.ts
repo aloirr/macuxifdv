@@ -7,8 +7,9 @@
  *   `<prefixo><produto>/ultimo.json`    — o manifesto do último publicado (`PacotePublicadoSchema`), gravado DEPOIS do pacote.
  * Publicação: `pnpm --filter api publicar-pacote <conector|campo|gestao> <arquivo> --versao X.Y.Z` (`cli/publicar-pacote.ts`).
  *
+ * `manifestoDoUltimo` (T-0195, ADR 0070) só lê e valida o manifesto: a API tira dele a versão e o `publicado_em` dos APKs.
  * `linkDoUltimo` lê o manifesto com a chave da API e devolve um GET pré-assinado (SigV4 por query string) do pacote, com
- * validade `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s, de 60 a 900) e `Content-Disposition: attachment` com o nome do arquivo.
+ * a validade de `validadeDoLinkS` (SDK) e `Content-Disposition: attachment` com o nome do arquivo.
  * Só existe com `MACUXI_ARQUIVOS_DRIVER=s3`; no disco (dev, CI) a porta fica desligada e a rota responde 503.
  * Log: só status HTTP e código S3/da porta; nunca a URL assinada, a chave, o segredo nem o conteúdo do manifesto.
  */
@@ -20,7 +21,10 @@ import {
   PRODUTOS_PACOTE,
   SERVICO_PACOTES_DESLIGADO,
   VALIDADE_LINK_PACOTE_S,
+  validadeDoLinkS,
   type LogRota,
+  type PacotePublicado,
+  type ProdutoPacote,
   type ServicoPacotes,
 } from '@macuxi/platform-sdk';
 import { codigoDoErro, criarClienteS3, lerConfigS3DoAmbiente, PREFIXO_S3_RE, type ClienteS3 } from './armazenamento-s3';
@@ -32,7 +36,7 @@ export const PREFIXO_PACOTES_PADRAO = 'pacotes/';
 export interface OpcoesPacotesS3 {
   /** Prefixo dentro do bucket (termina em `/`). */
   prefixo: string;
-  /** Validade do link em segundos (`VALIDADE_LINK_PACOTE_S`). */
+  /** Validade do link do Conector em segundos (`VALIDADE_LINK_PACOTE_S`). */
   validadeS: number;
   log?: Pick<LogRota, 'warn'>;
 }
@@ -44,50 +48,59 @@ export function criarPacotesS3(cliente: ClienteS3, op: OpcoesPacotesS3): Servico
     throw new Error(`MACUXI_PACOTES_VALIDADE_S fora de ${min} a ${max} segundos`);
   const avisar = (dados: Record<string, unknown>) => op.log?.warn({ ...dados, operacao: 'pacote' }, 'pacote para download indisponível');
 
+  /** Manifesto `ultimo.json` validado; `null` = nenhum publicado; falha = 503 (log só com status e código). */
+  const lerManifesto = async (produto: ProdutoPacote): Promise<PacotePublicado | null> => {
+    if (!(PRODUTOS_PACOTE as readonly string[]).includes(produto)) throw new Error('produto de pacote inválido');
+    let r: Response;
+    try {
+      r = await cliente.chamar('GET', op.prefixo + chaveUltimoPacote(produto));
+    } catch (e) {
+      avisar({ produto, erro: e instanceof Error ? e.name : 'desconhecido' });
+      throw erroArmazenamentoIndisponivel();
+    }
+    if (r.status === 404) {
+      await r.body?.cancel();
+      return null;
+    }
+    if (!r.ok) {
+      avisar({ produto, status: r.status, codigo_s3: await codigoDoErro(r) });
+      throw erroArmazenamentoIndisponivel();
+    }
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    let manifesto: unknown = null;
+    if (bytes.byteLength <= BYTES_MAX_MANIFESTO_PACOTE) {
+      try {
+        manifesto = JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        manifesto = null;
+      }
+    }
+    const p = PacotePublicadoSchema.safeParse(manifesto);
+    if (!p.success) {
+      avisar({ produto, codigo: 'PACOTE_MANIFESTO_INVALIDO' });
+      throw erroArmazenamentoIndisponivel();
+    }
+    return p.data;
+  };
+
   return {
     disponivel: () => true,
+    // T-0195 (ADR 0070 §D1): versão e `publicado_em` dos APKs para o 426 e para `GET /v1/app/versao`, sem assinar link
+    manifestoDoUltimo: lerManifesto,
     async linkDoUltimo(produto) {
-      if (!(PRODUTOS_PACOTE as readonly string[]).includes(produto)) throw new Error('produto de pacote inválido');
-      let r: Response;
-      try {
-        r = await cliente.chamar('GET', op.prefixo + chaveUltimoPacote(produto));
-      } catch (e) {
-        avisar({ produto, erro: e instanceof Error ? e.name : 'desconhecido' });
-        throw erroArmazenamentoIndisponivel();
-      }
-      if (r.status === 404) {
-        await r.body?.cancel();
-        return null;
-      }
-      if (!r.ok) {
-        avisar({ produto, status: r.status, codigo_s3: await codigoDoErro(r) });
-        throw erroArmazenamentoIndisponivel();
-      }
-      const bytes = new Uint8Array(await r.arrayBuffer());
-      let manifesto: unknown = null;
-      if (bytes.byteLength <= BYTES_MAX_MANIFESTO_PACOTE) {
-        try {
-          manifesto = JSON.parse(new TextDecoder().decode(bytes));
-        } catch {
-          manifesto = null;
-        }
-      }
-      const p = PacotePublicadoSchema.safeParse(manifesto);
-      if (!p.success) {
-        avisar({ produto, codigo: 'PACOTE_MANIFESTO_INVALIDO' });
-        throw erroArmazenamentoIndisponivel();
-      }
-      const { url, expiraEm } = cliente.urlPreAssinada(op.prefixo + chaveDoPacote(produto, p.data.arquivo), op.validadeS, {
-        'response-content-disposition': `attachment; filename="${p.data.arquivo}"`,
+      const m = await lerManifesto(produto);
+      if (!m) return null;
+      const { url, expiraEm } = cliente.urlPreAssinada(op.prefixo + chaveDoPacote(produto, m.arquivo), validadeDoLinkS(produto, op.validadeS), {
+        'response-content-disposition': `attachment; filename="${m.arquivo}"`,
       });
-      return { ...p.data, url, expira_em: expiraEm.toISOString() };
+      return { ...m, url, expira_em: expiraEm.toISOString() };
     },
   };
 }
 
 /**
  * Porta pelo ambiente (`servidor.ts`): com `MACUXI_ARQUIVOS_DRIVER=s3`, o mesmo bucket e a mesma credencial das fotos
- * (`MACUXI_S3_*`), prefixo `MACUXI_PACOTES_PREFIXO` e validade `MACUXI_PACOTES_VALIDADE_S`, conferidos AQUI (valor inválido =
+ * (`MACUXI_S3_*`), prefixo `MACUXI_PACOTES_PREFIXO` e validade do Conector `MACUXI_PACOTES_VALIDADE_S`, conferidos AQUI (valor inválido =
  * a API não sobe; a mensagem leva só o NOME da variável). Sem S3 = `SERVICO_PACOTES_DESLIGADO` (a rota responde 503).
  * `criar(log)` monta a porta com o log do app.
  */

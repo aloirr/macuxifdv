@@ -1,6 +1,5 @@
-import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, validarLogin } from './login';
+import { camposIniciaisDoLogin, entrarComSenha, propsDoCampoCodigoEmpresa, validarLogin } from './login';
 import { MENSAGEM_SENHA_ESPACO_NAS_PONTAS } from '../../contracts';
 
 const U = '0b000000-0000-4000-8000-000000000001';
@@ -36,23 +35,6 @@ describe('RF-CORE-01: login do app', () => {
     expect(validarLogin({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'Ab1# cDef' }).senha).toBeUndefined();
   });
 
-  it('RF-CORE-01: mensagens por código de erro — credencial, bloqueio, limite, sem conexão', () => {
-    expect(mensagemDeErroDeLogin({ codigo: 'CREDENCIAIS_INVALIDAS' })).toContain('incorretos');
-    expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO' })).toBe('Seu acesso está bloqueado. Fale com o administrador da sua empresa.');
-    expect(mensagemDeErroDeLogin({ codigo: 'MUITAS_TENTATIVAS' })).toBe('Muitas tentativas. Tente de novo em 5 minutos.');
-    expect(mensagemDeErroDeLogin(new ErroSemConexao())).toContain('Sem conexão');
-    expect(mensagemDeErroDeLogin(new Error('boom'))).toContain('Tente de novo');
-  });
-
-  it('RN-CORE-01: bloqueio por tentativas avisa o tempo e não manda procurar o administrador; o 429 usa o retry_after_s', () => {
-    // mesmo código USUARIO_BLOQUEADO (o APK em uso segue funcionando); `minutos_restantes` marca o bloqueio temporário
-    const t = mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO', detalhes: { minutos_restantes: 12 } });
-    expect(t).toBe('Muitas tentativas. Tente de novo em 12 minutos.');
-    expect(t).not.toContain('administrador');
-    expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO', detalhes: { minutos_restantes: 1 } })).toBe('Muitas tentativas. Tente de novo em 1 minuto.');
-    expect(mensagemDeErroDeLogin({ codigo: 'MUITAS_TENTATIVAS', detalhes: { retry_after_s: 61 } })).toBe('Muitas tentativas. Tente de novo em 2 minutos.');
-  });
-
   it('RF-CORE-01: entrarComSenha envia o contrato (código sem espaços, aparelho) e valida a resposta', async () => {
     let enviado: unknown;
     const r = await entrarComSenha(
@@ -69,19 +51,6 @@ describe('RF-CORE-01: login do app', () => {
     await expect(entrarComSenha(async () => ({ ...resposta, token_type: 'Basic' }), { codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'x' })).rejects.toThrow();
   });
 
-  it('RF-CORE-01: três casos separados — sem conexão, servidor inválido, credencial incorreta', () => {
-    const semConexao = mensagemDeErroDeLogin(new ErroSemConexao());
-    const invalido = mensagemDeErroDeLogin({ codigo: 'SERVIDOR_INVALIDO' });
-    const credencial = mensagemDeErroDeLogin({ codigo: 'CREDENCIAIS_INVALIDAS' });
-    expect(invalido).toContain('não é um servidor Macuxi');
-    expect(semConexao).toContain('não respondeu');
-    expect(credencial).toContain('incorretos');
-    expect(new Set([semConexao, invalido, credencial]).size).toBe(3);
-    expect(mensagemDeErroDeLogin({ name: 'ZodError' })).toBe(invalido);
-    expect(mensagemDeErroDeLogin({ status: 404 })).toBe(invalido);
-    expect(ehServidorInvalido({ status: 401, codigo: 'CREDENCIAIS_INVALIDAS' })).toBe(false);
-    expect(mensagemDeErroDeLogin(new Error('boom'))).toContain('Não foi possível entrar agora');
-  });
 });
 
 describe('RF-CORE-01: TelaLogin reabre com o e-mail (T-0094)', () => {

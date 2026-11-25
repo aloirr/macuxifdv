@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  descricaoDoPrazo,
   descricaoPrazo,
   formasDaLista,
   formasDoCliente,
   pagamentoPadrao,
+  prazosDaForma,
   prazoMedioDias,
   tituloVencidoDias,
   validarPagamento,
@@ -37,6 +39,12 @@ describe('RN-VEN-24: prazo médio e descrição', () => {
     expect(descricaoPrazo([0])).toBe('À vista');
     expect(descricaoPrazo([28, 56])).not.toMatch(/médio/);
   });
+
+  it('RN-VEN-24: descricaoDoPrazo usa a descrição do ERP e, sem ela, o texto das parcelas', () => {
+    expect(descricaoDoPrazo({ descricao: ' Boleto 28/56 ', parcelas_dias: [28, 56] })).toBe('Boleto 28/56');
+    expect(descricaoDoPrazo({ descricao: '  ', parcelas_dias: [28, 56] })).toBe('28/56 dias');
+    expect(descricaoDoPrazo({ parcelas_dias: [0] })).toBe('À vista');
+  });
 });
 
 describe('RN-VEN-25: formas e prazos do cliente', () => {
@@ -57,6 +65,29 @@ describe('RN-VEN-25: formas e prazos do cliente', () => {
   it('RN-VEN-24: sem forma ou sem prazo, não há padrão', () => {
     expect(pagamentoPadrao([], prazos)).toBeNull();
     expect(pagamentoPadrao([f('f2', 'BOLETO')], [])).toBeNull();
+  });
+});
+
+describe('RN-VEN-25: prazo médio máximo do cliente (ADR 0072)', () => {
+  const prazos = [p('a', 'f1', [0], 1), p('b', 'f1', [30, 60], 2), p('c', 'f1', [30, 60, 90], 3)];
+  it('RN-VEN-25: só vale o prazo com prazo médio até o teto do cliente (igual ao teto vale)', () => {
+    expect(prazosDaForma(prazos, 'f1', 45).map((x) => x.id)).toEqual(['a', 'b']);
+    expect(prazosDaForma(prazos, 'f1', 60).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+  });
+  it('RN-VEN-25: teto nulo ou ausente = sem teto', () => {
+    expect(prazosDaForma(prazos, 'f1', null)).toHaveLength(3);
+    expect(prazosDaForma(prazos, 'f1')).toHaveLength(3);
+  });
+  it('RN-VEN-25: o padrão também respeita o teto', () => {
+    expect(pagamentoPadrao([f('f1', 'X')], prazos, 0)?.prazo.id).toBe('a');
+    expect(pagamentoPadrao([f('f1', 'X')], [prazos[1]!], 10)).toBeNull();
+  });
+  it('RN-VEN-25: prazo acima do teto é recusado com o motivo prazo_acima_do_cliente', () => {
+    const forma = f('f1', 'X');
+    const r = validarPagamento({ forma, prazo: prazos[2], cliente: { formas_pagamento: null, prazo_medio_max_dias: 45 } });
+    expect(r).toMatchObject({ ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_do_cliente', mensagem: 'Este prazo passa do prazo médio do cliente. Escolha um prazo menor.' });
+    expect(validarPagamento({ forma, prazo: prazos[2], cliente: { formas_pagamento: null, prazo_medio_max_dias: 60 } }).ok).toBe(true);
+    expect(validarPagamento({ forma, prazo: prazos[2], cliente: { formas_pagamento: null } }).ok).toBe(true);
   });
 });
 

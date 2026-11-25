@@ -38,13 +38,15 @@ export const consultaClientesPreCadastroSemErp = implementarConsulta(CONSULTA_CL
   const r = await ctx.db.query<Omit<ClientePreCadastroParaErp, 'recebido_em' | 'hash'> & { recebido_em: Date | string; filial_id: string | null }>(
     `select c.id as cliente_id, c.created_at as recebido_em, coalesce(c.revisao_cadastro, 1) as revisao, c.codigo_fdv, c.filial_id, c.razao_social, c.nome_fantasia, c.documento, c.inscricao_estadual, c.telefone, c.email,
             c.logradouro, c.numero, null::text as complemento, c.bairro, c.cidade, c.uf, c.cep,
-            c.latitude::float8 as latitude, c.longitude::float8 as longitude, f.external_id as filial_external_id
+            c.latitude::float8 as latitude, c.longitude::float8 as longitude, f.external_id as filial_external_id,
+            (select u.external_id from (select corrigido_por, corrigido_por_perfil from core.cliente_pre_cadastro_tentativa t where t.cliente_id = c.id and t.deleted_at is null order by t.revisao, t.created_at limit 1) p
+              join core.usuario u on u.id = p.corrigido_por and u.deleted_at is null where p.corrigido_por_perfil = 'vendedor') as vendedor_external_id
        from core.cliente c left join core.filial f on f.id = c.filial_id and f.deleted_at is null
       where c.external_id is null and c.status_cadastro = 'pendente' and c.deleted_at is null ${depois}
       order by c.created_at, c.id limit ${param(entrada.limite + 1)}`,
     valores,
   );
-  // ADR 0069 §C: o hash é o dos dados atuais, que são os da revisão atual; sai só para o Hub, nunca a log. O Código FDV fica fora do hash.
-  const pagina = r.rows.slice(0, entrada.limite).map(({ filial_id, recebido_em, codigo_fdv, ...l }) => ({ ...l, codigo_fdv, recebido_em: new Date(recebido_em).toISOString(), hash: hashPreCadastro({ ...l, filial_id }) }));
+  // ADR 0069 §C: o hash é o dos dados atuais, que são os da revisão atual; sai só para o Hub, nunca a log. O Código FDV e o vendedor_external_id ficam fora do hash.
+  const pagina = r.rows.slice(0, entrada.limite).map(({ filial_id, recebido_em, codigo_fdv, vendedor_external_id, ...l }) => ({ ...l, codigo_fdv, vendedor_external_id, recebido_em: new Date(recebido_em).toISOString(), hash: hashPreCadastro({ ...l, filial_id }) }));
   return { clientes: pagina, proximo: r.rows.length > entrada.limite ? pagina[pagina.length - 1]!.cliente_id : null };
 });

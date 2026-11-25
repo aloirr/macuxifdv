@@ -50,8 +50,8 @@ const frase = (numero: number, ativa = true, texto = `Frase ${numero}.`): FraseC
 describe('regras da tela', () => {
   it('menu: "Frases da carga" depois de "Diagnósticos"; item ativo pelo caminho', () => {
     expect(MENU_TIME_MACUXI.map((i) => i.rotulo)).toEqual(['Empresas', 'Diagnósticos', 'Frases da carga']);
-    expect(itemAtivoDoMenu('/frases-carga')).toBe('/frases-carga');
-    expect(itemAtivoDoMenu('/config/frases-carga')).toBe('/frases-carga');
+    expect(itemAtivoDoMenu('/frases-carga')).toBe('/config/frases-carga');
+    expect(itemAtivoDoMenu('/config/frases-carga')).toBe('/config/frases-carga');
   });
 
   it('selo e link da situação', () => {

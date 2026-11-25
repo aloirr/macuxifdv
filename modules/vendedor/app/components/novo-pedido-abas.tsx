@@ -12,6 +12,7 @@ import {
   colors,
   fonte,
   VALOR_SEM_DADO,
+  CampoLeitura,
   CampoTexto,
   Icon,
   ListaSuspensa,
@@ -31,7 +32,7 @@ import { MSG_SEM_VENDEDORES_EM_NOME, type OpcaoEmNome } from '../../domain/pedid
 import { type BotaoDoResumo, type BotoesDoResumo } from '../../domain/botoes-resumo';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
-import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, TEXTO_ESCOLHA_A_FORMA, type LimitesDoCliente } from '../lib/pagamento-pedido';
+import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, TEXTO_ESCOLHA_A_FORMA, textoDasParcelas, type LimitesDoCliente } from '../lib/pagamento-pedido';
 import { enderecosDoCliente, lerChaveDaLinha, type CalculoPedido, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
 import type { Rascunho } from '../lib/pedidos';
 import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
@@ -50,7 +51,7 @@ type OnRascunho = (fn: (r: Rascunho) => Rascunho) => void;
 export const TITULO_LEVE_MAIS_PAGUE_MENOS = 'Leve mais e pague menos';
 
 /**
- * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25), na aba Venda. O Prazo mostra só os prazos da forma, só o texto do prazo.
+ * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25), na aba Venda. O Prazo mostra só os prazos da forma que cabem no teto do cliente (RN-VEN-25), pela descrição do ERP; Parcelas mostra só os dias, somente leitura.
  * Sem formas no aparelho (antes do primeiro sync com a 0037) vale a lista de condições de antes.
  */
 export function CardPagamento({
@@ -76,7 +77,7 @@ export function CardPagamento({
 }) {
   const semFormas = formas.length === 0;
   const opcoesForma = opcoesDeForma(formas, cliente);
-  const opcoesPrazo = opcoesDePrazo(prazos, r.forma_pagamento_id ?? null);
+  const opcoesPrazo = opcoesDePrazo(prazos, r.forma_pagamento_id ?? null, cliente);
   return (
     <View style={{ gap: 10 }} testID="card-pagamento">
       {semFormas ? (
@@ -107,7 +108,7 @@ export function CardPagamento({
             rotuloFechar="Fechar a lista"
             onChange={(id) => {
               const forma = formas.find((f) => f.id === id);
-              if (forma) onRascunho((d) => comForma(d, forma, prazos));
+              if (forma) onRascunho((d) => comForma(d, forma, prazos, cliente));
             }}
           />
           <ListaSuspensa
@@ -124,6 +125,9 @@ export function CardPagamento({
           />
         </View>
       )}
+      {!semFormas && r.prazo_pagamento_id && opcoesPrazo.some((o) => o.id === r.prazo_pagamento_id) ? (
+        <CampoLeitura testID="parcelas" rotulo="Parcelas" valor={textoDasParcelas(prazos, r.prazo_pagamento_id)} />
+      ) : null}
     </View>
   );
 }

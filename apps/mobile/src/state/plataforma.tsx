@@ -36,6 +36,8 @@ import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
   CODIGO_USUARIO_SEM_FILIAL,
   ErroHttp,
+  ROTA_CORE_APP_APK,
+  ROTA_CORE_APP_AVISO_VERSAO,
   MENSAGEM_USUARIO_SEM_FILIAL,
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
@@ -74,7 +76,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import { router } from 'expo-router';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
 import { criarTratadorSemFilial } from '@/lib/sem-filial';
@@ -107,12 +109,32 @@ import { observarFalhasDeSync, type FalhaSync } from '@/lib/diagnostico-sync';
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import { shellDaVariante, type ComponenteTela } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
+import { caminhoDaRota } from '@/lib/verificar-atualizacao';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { enderecoSalvoValido, erroDaVerificacao, servidorEditavel } from '@/lib/endereco-do-build';
-import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
+import { rotaDeSaude, semPrefixoV1, type ModoApi } from '@/lib/modo-api';
 import type { ResultadoSegundoPlano } from '@/lib/segundo-plano';
 import { testarServidor } from '@/lib/servidor';
 import { contaDaSessao, sessaoDepoisDaTroca } from '@/lib/trocar-senha-shell';
+import {
+  contarParaAtualizar,
+  criarPortaoAtualizacao,
+  destinoDaAcao,
+  type AcaoQueAbre,
+  type DestinoQueResolve,
+  type PortaoAtualizacao,
+} from '@/lib/portao-atualizacao';
+import {
+  appInstalado,
+  comCabecalhoDoApp,
+  deveAvisarVersao,
+  estaBloqueada,
+  guardadaDaResposta,
+  guardadaDo426,
+  juntarGuardada,
+  telaDeBloqueioNaEntrada,
+  type VersaoPublicadaGuardada,
+} from '@/lib/versao-app';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
 import { ApiClient, HttpError, NetworkError } from '@/services/api';
 import {
@@ -155,6 +177,7 @@ import { abrirFoto } from '@/services/visor-foto';
 import { limparPdfsTemporarios } from '@/services/visor-pdf';
 import { ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
+import { gravarVersaoGuardada, lerVersaoGuardada } from '@/services/versao-guardada';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
 
 /** Usuário da sessão no shell: o do login real (Core) ou o fictício da Fase M (`role`, `team_name`...). */
@@ -365,6 +388,42 @@ function usePlataformaValor() {
     return e !== null && permissoesLiberadas(variante, e, permissoesDoUsuarioRef.current);
   }, [lerEGuardarPermissoes, variante]);
 
+  /**
+   * T-0195 (ADR 0070, RN-CORE-80): última versão publicada conhecida (guardada, vale sem sinal), a situação `bloqueada` (pela
+   * conta com o relógio ou por um 426) e a tela de bloqueio, que só troca na entrada (abrir, voltar ao primeiro plano, login).
+   */
+  const [versaoPublicada, setVersaoPublicada] = useState<VersaoPublicadaGuardada | null>(null);
+  const versaoPublicadaRef = useRef<VersaoPublicadaGuardada | null>(null);
+  const appBloqueadoRef = useRef(false);
+  const [telaBloqueio, setTelaBloqueio] = useState(false);
+  const telaBloqueioRef = useRef(false);
+  /** A tela que resolve um item do portão, aberta da tela de bloqueio (`chegou`: a rota dela já abriu). */
+  const [resolvendo, setResolvendo] = useState<{ destino: DestinoQueResolve; chegou: boolean } | null>(null);
+  const guardarVersao = useCallback((v: VersaoPublicadaGuardada) => {
+    versaoPublicadaRef.current = v;
+    setVersaoPublicada(v);
+    void gravarVersaoGuardada(v);
+  }, []);
+  /** A guardada lida do disco (abertura e cada entrada) junto da que está em memória (a marca do 426 não se perde). */
+  const aplicarGuardada = useCallback((disco: VersaoPublicadaGuardada | null) => {
+    const v = juntarGuardada(versaoPublicadaRef.current, disco);
+    if (!v || v === versaoPublicadaRef.current) return;
+    versaoPublicadaRef.current = v;
+    setVersaoPublicada(v);
+  }, []);
+  /**
+   * 426 no meio do uso (qualquer chamada, inclusive o push e o pull do transporte): só marca (o formulário aberto continua; o
+   * salvar vai para a fila, cujo envio é liberado). A versão vai guardada com a marca do servidor, que vale mesmo com o
+   * relógio do aparelho atrasado.
+   */
+  const appDesatualizadoRef = useRef<(e: HttpError) => void>(() => undefined);
+  appDesatualizadoRef.current = (e) => {
+    const v = guardadaDo426(e, variante, new Date());
+    if (!v) return;
+    appBloqueadoRef.current = true;
+    guardarVersao(v);
+  };
+
   const api = useCallback(
     () =>
       new ApiClient(
@@ -376,6 +435,8 @@ function usePlataformaValor() {
           void aparelhoBloqueadoRef.current?.(e).catch(() => undefined);
           // T-0176: 403 USUARIO_SEM_FILIAL em qualquer chamada (rota, módulos, sync) volta ao login sem apagar nada
           void semFilialRef.current?.(e).catch(() => undefined);
+          // T-0195: 426 APP_DESATUALIZADO em qualquer chamada marca o app bloqueado (a tela troca na próxima entrada)
+          appDesatualizadoRef.current(e);
         },
       ),
     [modo],
@@ -545,7 +606,7 @@ function usePlataformaValor() {
     // T-0144: o processo anterior caiu fora do React (erro nativo, memória, travamento)? O motivo do Android vai ao Diagnóstico
     void registrarSaidaAnterior();
     (async () => {
-      const [, settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano] = await Promise.all([
+      const [, settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano, versaoGuardada] = await Promise.all([
         // T-0145: as permissões são conferidas a cada abertura, antes do login e da sincronização; as que faltam, pedidas direto
         conferirPermissoes(true).catch(() => false),
         readJson<{ apiUrl?: string | null }>(keys.settings),
@@ -555,8 +616,12 @@ function usePlataformaValor() {
         readJson<string>(CHAVE_CODIGO_EMPRESA),
         readJson<FalhaSync>(CHAVE_FALHA_SYNC),
         lerUltimoSegundoPlano(),
+        // T-0195 (ADR 0070): a última versão publicada conhecida, lida ANTES do motor e do agendador (bloqueado = só envio)
+        lerVersaoGuardada(),
       ]);
       if (!vivo) return;
+      aplicarGuardada(versaoGuardada);
+      appBloqueadoRef.current = appBloqueadoRef.current || estaBloqueada(versaoPublicadaRef.current, appInstalado()?.versao, new Date());
       setCodigoSalvo(codigo);
       setFalhaSync(falha);
       setSegundoPlano(ultimoSegundoPlano);
@@ -588,7 +653,7 @@ function usePlataformaValor() {
     return () => {
       vivo = false;
     };
-  }, [abrirMotor, conferirPermissoes, modo, perfilBuild]);
+  }, [abrirMotor, aplicarGuardada, conferirPermissoes, modo, perfilBuild]);
 
   /** Módulos efetivos a cada sync (licença checada no servidor por requisição — RN-CORE-01/02). */
   const atualizarModulos = useCallback(async () => {
@@ -613,6 +678,13 @@ function usePlataformaValor() {
       const m = motorRef.current;
       // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
       if (!m || !permissoesOkRef.current) return Promise.resolve(false);
+      // T-0195 (ADR 0070): app bloqueado = só o envio da fila (liberado no 426); o pull não é tentado de novo em laço
+      if (appBloqueadoRef.current) {
+        return m.enviar().then(
+          () => false,
+          () => false,
+        );
+      }
       const emCurso = syncEmCursoRef.current;
       const decisao = decidirPedidoSync(pedido.tipo, emCurso ? tipoEmCursoRef.current : null);
       if (emCurso && decisao === 'juntar') return emCurso;
@@ -686,6 +758,8 @@ function usePlataformaValor() {
       sessaoRef.current = s;
       setSessao(s);
       await abrirMotor(s);
+      // T-0195: o login concluído também é uma entrada (a tela de bloqueio volta com a fila do usuário para enviar)
+      void entradaRef.current();
     },
     [abrirMotor],
   );
@@ -1026,6 +1100,156 @@ function usePlataformaValor() {
     return renovando.current;
   };
 
+  // ---------- T-0195 (ADR 0070, RN-CORE-80): atualização obrigatória do APK ----------
+  /** Recalcula a situação com a versão guardada e o relógio; na entrada, mostra ou tira a tela de bloqueio. */
+  const avaliarVersao = useCallback((entrada: boolean) => {
+    const bloqueada = estaBloqueada(versaoPublicadaRef.current, appInstalado()?.versao, new Date());
+    // o 426 marcado no meio do uso vale até a próxima conta com uma versão guardada que diga o contrário
+    appBloqueadoRef.current = bloqueada || (!entrada && appBloqueadoRef.current);
+    const mostrar = telaDeBloqueioNaEntrada({ mostrando: telaBloqueioRef.current, bloqueada, entrada });
+    if (entrada && mostrar) setResolvendo(null);
+    telaBloqueioRef.current = mostrar;
+    setTelaBloqueio(mostrar);
+  }, []);
+
+  /** Resposta de `GET /v1/app/versao?contrato=2` (aqui ou no "Verificar atualização" do Perfil) → a guardada; fora do contrato, nada. */
+  const receberVersaoPublicada = useCallback(
+    (corpo: unknown) => {
+      const v = guardadaDaResposta(corpo, variante, new Date(), { anterior: versaoPublicadaRef.current, instalada: appInstalado()?.versao });
+      if (v) guardarVersao(v);
+    },
+    [guardarVersao, variante],
+  );
+
+  /** `GET /v1/app/versao?contrato=2` (pública): guarda a resposta; sem sinal ou fora do contrato, vale a guardada. */
+  const consultarVersao = useCallback(async () => {
+    if (offlineRef.current || modo !== 'v1') return;
+    const { caminho, query } = caminhoDaRota(variante);
+    try {
+      const r = await api().request<unknown>('GET', caminho, { query, timeoutMs: 8000 });
+      receberVersaoPublicada(r.data);
+    } catch {
+      // sem sinal, 404 SEM_VERSAO ou erro do servidor: a última guardada continua valendo
+    }
+  }, [api, modo, receberVersaoPublicada, variante]);
+
+  /**
+   * O sininho é do servidor: o Core cria o aviso das primeiras 24 h (uma vez por usuário e versão). Só com a situação local
+   * `aviso` ou sem versão guardada (o servidor decide); com `atual` ou `bloqueada`, nenhuma chamada a cada primeiro plano.
+   */
+  const avisarVersao = useCallback(async () => {
+    if (offlineRef.current || modo !== 'v1' || !sessaoRef.current || appBloqueadoRef.current) return;
+    if (!deveAvisarVersao(versaoPublicadaRef.current, appInstalado()?.versao, new Date())) return;
+    await api()
+      .request('POST', semPrefixoV1(ROTA_CORE_APP_AVISO_VERSAO), { body: {}, timeoutMs: 8000 })
+      .catch(() => undefined);
+  }, [api, modo]);
+
+  /** Entrada (abrir, voltar ao primeiro plano, login): primeiro a guardada (vale sem sinal), depois a da API e o aviso. */
+  const entrada = useCallback(async () => {
+    // a tarefa sem tela pode ter gravado o 426 com a marca enquanto o app estava em segundo plano
+    aplicarGuardada(await lerVersaoGuardada());
+    avaliarVersao(true);
+    await consultarVersao();
+    avaliarVersao(true);
+    await avisarVersao();
+  }, [aplicarGuardada, avaliarVersao, avisarVersao, consultarVersao]);
+  const entradaRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  entradaRef.current = () => entrada().catch((e: unknown) => void gravarErro(e, 'nao-fatal', 'versão do app'));
+
+  useEffect(() => {
+    if (!ready) return;
+    void entradaRef.current();
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') void entradaRef.current();
+    });
+    return () => sub.remove();
+  }, [ready]);
+
+  /** Visão e "Modo sem sinal" lidos pelo portão (que existe uma vez por app); atualizados depois de montados, mais abaixo. */
+  const visaoRef = useRef<VisaoShell<ComponenteTela> | null>(null);
+  const setOfflineRef = useRef<(valor: boolean) => Promise<void>>(() => Promise.resolve());
+
+  /**
+   * Portão do D8 (a): a tela de bloqueio e a folha "Versão X.Y.Z disponível" contam a fila, os "Não aceito" e as pendências
+   * dos módulos (gancho do SDK `visao.pendenciasParaAtualizar`, sobre a BASE do armazenamento do motor) e só oferecem o link
+   * com os três em zero. Lê sessão, motor, visão e sinal por ref (uma instância por app).
+   */
+  const portaoAtualizacao = useMemo<PortaoAtualizacao>(() => {
+    return criarPortaoAtualizacao({
+      temSessao: () => sessaoRef.current !== null && motorRef.current !== null,
+      modoSemSinal: () => offlineRef.current,
+      desligarModoSemSinal: () => setOfflineRef.current(false),
+      async contar() {
+        const m = motorRef.current;
+        const base = armazenamentoRef.current?.armazenamento;
+        const visaoAtual = visaoRef.current;
+        if (!m) return contarParaAtualizar({ fila: [], arquivos: [] }, []);
+        // erro de um módulo: segura o link (nunca "nada pendente" sem saber)
+        const pendencias =
+          base && visaoAtual
+            ? await visaoAtual.pendenciasParaAtualizar({ armazenamento: base, agora: new Date() }).catch((e: unknown) => {
+                void gravarErro(e, 'nao-fatal', 'pendências para atualizar o app');
+                return { erro: e instanceof Error ? e.message : String(e) };
+              })
+            : { erro: 'armazenamento ou visão ainda não abertos' };
+        return contarParaAtualizar(m.estado(), pendencias);
+      },
+      async enviar() {
+        const m = motorRef.current;
+        if (!m || offlineRef.current) return 'sem_sinal';
+        try {
+          await api().request('GET', rotaDeSaude(modo), { timeoutMs: 5000 });
+        } catch (e) {
+          if (e instanceof NetworkError) return 'sem_sinal';
+        }
+        // o "Não aceito" não é reenviado sozinho: ele precisa de correção (ou de descarte de propósito, na tela do item)
+        await m.enviar({ incluirFalhos: false });
+        return 'ok';
+      },
+      async pedirLink() {
+        if (offlineRef.current) return { tipo: 'sem_sinal' };
+        try {
+          const r = await api().request<{ url?: unknown }>('POST', semPrefixoV1(ROTA_CORE_APP_APK), { body: {}, timeoutMs: 12_000 });
+          const url = r.data?.url;
+          return typeof url === 'string' && /^https?:\/\//.test(url) ? { tipo: 'ok', url } : { tipo: 'erro' };
+        } catch (e) {
+          return e instanceof NetworkError ? { tipo: 'sem_sinal' } : { tipo: 'erro' };
+        }
+      },
+      // o link vale minutos e vai direto ao navegador: nunca é guardado no aparelho
+      abrirNoNavegador: (url) => Linking.openURL(url).then(() => undefined),
+    });
+  }, [api, modo]);
+
+  /** A tela que resolve a ação da vez (login, "Não aceito" ou pendências do módulo), com a fila e a visão de agora. */
+  const destinoParaAtualizar = useCallback(
+    (acao: AcaoQueAbre): DestinoQueResolve => {
+      const e = motorRef.current?.estado();
+      return destinoDaAcao(acao, {
+        fila: e?.fila ?? [],
+        arquivos: e?.arquivos ?? [],
+        hrefRascunhos: portaoAtualizacao.estado().contagem?.hrefRascunhos ?? null,
+        telaExiste: (caminho) => visaoRef.current?.pagina(caminho) != null,
+      });
+    },
+    [portaoAtualizacao],
+  );
+
+  /** Abre só a tela que resolve o item (Rascunhos, pedido ou cliente "Não aceito", login); fora dela a tela de bloqueio volta. */
+  const resolverAtualizacao = useCallback((destino: DestinoQueResolve) => {
+    setResolvendo({ destino, chegou: false });
+    try {
+      router.push(destino.abrir as never);
+    } catch {
+      setResolvendo(null);
+    }
+  }, []);
+  /** O Gate avisa a rota: dentro das liberadas marca `chegou`; fora delas (depois de chegar), a tela de bloqueio volta. */
+  const rotaDuranteResolucao = useCallback((liberada: boolean) => {
+    setResolvendo((r) => (!r ? r : liberada ? (r.chegou ? r : { ...r, chegou: true }) : r.chegou ? null : r));
+  }, []);
+
   const setApiUrl = useCallback(
     async (url: string | null) => {
       // endereço fixo (T-0038): não há o que trocar; nada é salvo
@@ -1045,7 +1269,7 @@ function usePlataformaValor() {
       const r = await testarServidor(endereco, {
         rota: rotaDeSaude(modo),
         exigirHttps: EXIGIR_HTTPS,
-        buscar: (u, init) => fetch(u, init),
+        buscar: (u, init) => fetch(u, comCabecalhoDoApp(init)),
       });
       if (r.ok) servidorAprovadoRef.current = endereco;
       return { ok: r.ok, message: r.mensagem, testado: r.testado };
@@ -1065,6 +1289,7 @@ function usePlataformaValor() {
     },
     [enviarFila, sincronizar],
   );
+  setOfflineRef.current = setOffline;
 
   // ---------- RN-CORE-23: agendador único do app (nenhum timer de consulta abaixo de 15 min) ----------
   useEffect(() => {
@@ -1083,6 +1308,7 @@ function usePlataformaValor() {
       // automática só depois da carga inicial (antes dela, quem sincroniza é a tela de carga), com sessão e sinal
       podeSincronizar: () =>
         permissoesOkRef.current &&
+        !appBloqueadoRef.current &&
         !offlineRef.current &&
         sessaoRef.current !== null &&
         motorRef.current === m &&
@@ -1313,6 +1539,7 @@ function usePlataformaValor() {
     () => shell.montar({ perfil, modulosAtivos }),
     [shell, perfil, modulosAtivos],
   );
+  visaoRef.current = visao;
   /** Mesmo ambiente com identidade nova quando sinal/sessão mudam: telas que leem `online()` re-renderizam. */
   // `offline` e `sessao` entram só nas dependências, para trocar a identidade (as funções leem por ref)
   const ambienteTela = useMemo<AmbienteAparelho>(() => ({ ...ambiente }), [ambiente, offline, sessao]);
@@ -1363,6 +1590,14 @@ function usePlataformaValor() {
     permissoesLidas,
     pedindoPermissao,
     tocarBotaoPermissoes,
+    versaoPublicada,
+    receberVersaoPublicada,
+    telaBloqueio,
+    resolvendo: resolvendo?.destino ?? null,
+    portaoAtualizacao,
+    destinoParaAtualizar,
+    resolverAtualizacao,
+    rotaDuranteResolucao,
   };
 }
 

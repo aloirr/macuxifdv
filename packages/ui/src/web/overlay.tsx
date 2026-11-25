@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { IconX } from './icons';
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type SyntheticEvent } from 'react';
+import { IconAlert, IconX } from './icons';
+import { campoVazio, ESPERA_VALIDACAO_MS, lerCamposDaGaveta, mostraAvisoObrigatorio, TEXTO_AVISO_OBRIGATORIO, validacaoMudou } from './obrigatorios';
 import { Notice, type NoticeTone } from './ui';
 
 const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -194,14 +195,101 @@ export function Dialog({
   );
 }
 
+/** Regra: docs/design/componentes.md §5.6 (R-20261124-092046) */
+function AvisoObrigatorio() {
+  return (
+    <p role="alert" data-testid="gaveta.aviso-obrigatorio" className="m-0 flex basis-full items-start gap-1.5 text-[15px] font-semibold text-danger sm:min-w-[14rem] sm:flex-1 sm:basis-0">
+      <IconAlert size={16} className="mt-[2px] shrink-0" />
+      {TEXTO_AVISO_OBRIGATORIO}
+    </p>
+  );
+}
+
+/** Regra: docs/design/componentes.md §5.6 (R-20261124-092046) */
+function useAvisoObrigatorio(open: boolean, caixa: { current: HTMLElement | null }) {
+  const [visivel, setVisivel] = useState(false);
+  const pendente = useRef<number | null>(null);
+  const espera = useRef<{ obs: MutationObserver; fim: number } | null>(null);
+  const parar = useCallback(() => {
+    if (pendente.current !== null) window.clearTimeout(pendente.current);
+    pendente.current = null;
+    if (espera.current) {
+      espera.current.obs.disconnect();
+      window.clearTimeout(espera.current.fim);
+      espera.current = null;
+    }
+  }, []);
+  useEffect(() => {
+    setVisivel(false);
+    return parar;
+  }, [open, parar]);
+  const conferir = useCallback(() => {
+    parar();
+    const avaliar = () => {
+      const el = caixa.current;
+      if (el?.isConnected) setVisivel(mostraAvisoObrigatorio(lerCamposDaGaveta(el)));
+    };
+    // setTimeout 0: o React já aplicou a validação síncrona do clique (evento discreto, commit síncrono).
+    pendente.current = window.setTimeout(() => {
+      pendente.current = null;
+      avaliar();
+    }, 0);
+    // Validação assíncrona do módulo (marca o erro depois de um await): reavalia por um tempo curto.
+    const el = caixa.current;
+    if (!el || typeof MutationObserver === 'undefined') return;
+    const obs = new MutationObserver((mudancas) => validacaoMudou(mudancas) && avaliar());
+    obs.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-invalid'] });
+    espera.current = { obs, fim: window.setTimeout(parar, ESPERA_VALIDACAO_MS) };
+  }, [caixa, parar]);
+  const aoClicar = useCallback(
+    (e: ReactMouseEvent<HTMLElement>) => {
+      const botao = (e.target as HTMLElement).closest?.('button');
+      if (!botao || botao.disabled || !e.currentTarget.contains(botao)) return;
+      const marcador = botao.getAttribute('data-salvar');
+      if (marcador === 'false') return;
+      const rodape = botao.closest('[data-rodape]');
+      const ehSubmit = botao.type === 'submit' && !!botao.form;
+      // Captura: lê o DOM antes do clique mudar a tela. Sem campo editável, o botão abre algo, não salva.
+      const haviaCampo = () => lerCamposDaGaveta(e.currentTarget).some((c) => !c.ignorado && c.tipo !== 'hidden');
+      const ehSalvarDoRodape = !!rodape && Array.from(rodape.querySelectorAll('button')).pop() === botao && haviaCampo();
+      if (marcador !== null || ehSubmit || ehSalvarDoRodape) conferir();
+    },
+    [conferir],
+  );
+  const aoInvalido = useCallback((e: SyntheticEvent<HTMLElement>) => {
+    const alvo = e.target as HTMLInputElement;
+    if (typeof alvo.value === 'string' && campoVazio({ valor: alvo.value })) setVisivel(true);
+  }, []);
+  const aoAlterar = useCallback(() => {
+    parar();
+    setVisivel(false);
+  }, [parar]);
+  return { visivel, aoClicar, aoEnviar: conferir, aoInvalido, aoAlterar };
+}
+
 /**
  * Gaveta da direita. `rodape` (revisão do BKO §P8): a barra de botões do formulário (Salvar à direita, Cancelar ao lado),
  * fixa embaixo, sempre à vista; o corpo rola sozinho.
  */
-export function Drawer({ open, title, subtitle, children, onClose, rodape }: { open: boolean; title: ReactNode; subtitle?: ReactNode; children: ReactNode; onClose: () => void; rodape?: ReactNode }) {
+export function Drawer({
+  open,
+  title,
+  subtitle,
+  children,
+  onClose,
+  rodape,
+}: {
+  open: boolean;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  children: ReactNode;
+  onClose: () => void;
+  rodape?: ReactNode;
+}) {
   const id = useId();
   const ref = useRef<HTMLElement>(null);
   useEscape(open, onClose, ref);
+  const obrigatorio = useAvisoObrigatorio(open, ref);
   useEffect(() => {
     // Primeiro campo do painel; sem campo, o botão Fechar (fica no cabeçalho, sempre à vista).
     const caixa = ref.current;
@@ -212,7 +300,19 @@ export function Drawer({ open, title, subtitle, children, onClose, rodape }: { o
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-ink/35" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl outline-none">
+      <aside
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={id}
+        tabIndex={-1}
+        className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl outline-none"
+        onClickCapture={obrigatorio.aoClicar}
+        onSubmitCapture={obrigatorio.aoEnviar}
+        onInvalidCapture={obrigatorio.aoInvalido}
+        onInputCapture={obrigatorio.aoAlterar}
+        onChangeCapture={obrigatorio.aoAlterar}
+      >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line bg-surface px-5 py-4">
           <div className="flex min-w-0 flex-col gap-0.5">
             <h2 id={id} className="m-0 text-[20px] font-bold">
@@ -225,7 +325,15 @@ export function Drawer({ open, title, subtitle, children, onClose, rodape }: { o
           </button>
         </div>
         <div data-corpo className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
-        {rodape && <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line bg-surface px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{rodape}</div>}
+        {rodape && (
+          <div data-rodape className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line bg-surface px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            {obrigatorio.visivel && <AvisoObrigatorio />}
+            {/* Cancelar e Salvar num grupo que não se separa, sempre à direita (tela estreita incluída). */}
+            <div data-botoes-rodape className="ml-auto flex shrink-0 items-center justify-end gap-2">
+              {rodape}
+            </div>
+          </div>
+        )}
       </aside>
     </div>
   );

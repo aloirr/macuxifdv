@@ -3,7 +3,7 @@
  * Só o conteúdo: o sino, o balão flutuante (posição, sombra, fundo escurecido) e as rotas são do shell (engenheiro-apps), que
  * passa `onVerTodos` e `abrirTarefa`. Tocar num item marca como lido e abre o recado ou a tarefa.
  */
-import { linkInternoNavegavel } from '@macuxi/platform-sdk';
+import { destinoDaNotificacao } from '../../lib/destino-notificacao';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
 import { ALVO_TOQUE, colors, fonte, Icon, Pressionavel, space } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
@@ -33,7 +33,7 @@ export function BalaoRecadosETarefas({
     void r.marcarLido(item);
     onFechar?.();
     if (item.tipo === 'tarefa') return abrirTarefa(item.id);
-    const destino = linkInternoNavegavel(item.notificacao.link ?? null, (c) => visao.pagina(c) !== null);
+    const destino = destinoDaNotificacao(item.notificacao, (c) => visao.pagina(c) !== null);
     if (destino) router.navigate(destino as never);
   };
 

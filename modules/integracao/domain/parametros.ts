@@ -3,7 +3,7 @@
  * cada função do domain recebe o valor como argumento opcional e usa estes padrões quando omitido.
  * A API lê os valores do tenant (`plataforma.parametro`) e repassa.
  */
-import { LIMITE_LINHAS_INVALIDAS_PADRAO, LIMITE_REGISTROS_LOTE, VERSAO_CONTRATO } from '../contracts';
+import { LIMITE_LINHAS_INVALIDAS_PADRAO, LIMITE_REGISTROS_LOTE, VERSOES_CONTRATO_ENTRADA } from '../contracts';
 
 export interface ParametrosHub {
   /** RN-INT-01: registros por lote. */
@@ -50,7 +50,7 @@ export interface ParametrosHub {
 
 export const PARAMETROS_PADRAO: Readonly<ParametrosHub> = Object.freeze({
   limiteRegistrosLote: LIMITE_REGISTROS_LOTE,
-  versoesSuportadas: Object.freeze([VERSAO_CONTRATO]),
+  versoesSuportadas: Object.freeze([...VERSOES_CONTRATO_ENTRADA]),
   toleranciaContagem: 0,
   toleranciaSomaPct: 0.5,
   timeoutEnvioMin: 10,

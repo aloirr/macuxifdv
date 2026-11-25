@@ -10,7 +10,7 @@
  */
 import { BOM_CSV } from '@macuxi/comum/csv';
 import { z } from 'zod';
-import { ENTIDADES, SCHEMA_REGISTRO, VERSAO_CONTRATO, type Entidade, type LinhaInvalidaConector, type LoteEnvelopeValido, type ModoCarga } from '../../contracts';
+import { ENTIDADES, schemaRegistro, type Entidade, type LinhaInvalidaConector, type LoteEnvelopeValido, type ModoCarga } from '../../contracts';
 import { PARAMETROS_PADRAO } from '../../domain/parametros';
 import { sha256Hex } from '@macuxi/platform-sdk/sha256';
 
@@ -202,9 +202,12 @@ export function estruturaDoSchema(schema: z.ZodTypeAny): { estrutura: EstruturaE
   return { estrutura, bases };
 }
 
+/** ADR 0072: o kit manda a `v2` (prazo_pagamento com descricao e prazo_medio_dias obrigatórios); as outras entidades são iguais à `v1`. */
+export const VERSAO_ENVIADA = 'v2';
+
 /** As colunas aceitas no CSV de uma entidade, lidas do schema do contrato (a fonte da verdade: mudou lá, muda aqui). */
 export function colunasDaEntidade(entidade: Entidade): EstruturaEntidade {
-  return estruturaDoSchema(SCHEMA_REGISTRO[entidade]).estrutura;
+  return estruturaDoSchema(schemaRegistro(entidade, VERSAO_ENVIADA)).estrutura;
 }
 
 // ---------------------------------------------------------------------------------------------------------------- conversão
@@ -409,7 +412,7 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
         : { id: o.sessaoId ?? sessaoDoArquivo('sem-chave'), parte: 1, ultimo: true }
       : undefined;
   const envelope: LoteEnvelopeValido = {
-    versao_contrato: VERSAO_CONTRATO,
+    versao_contrato: VERSAO_ENVIADA,
     entidade: o.entidade,
     modo: o.modo,
     ...(sessao ? { sessao } : {}),

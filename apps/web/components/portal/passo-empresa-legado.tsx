@@ -24,6 +24,7 @@ import { FUSOS_BRASIL, mascararCnpj } from '@/lib/portal-formato';
 import { ehModuloSempre, modulosDoPortal } from '@/lib/portal-modulos';
 import { erroDoAdminNaApi, errosDoAdmin, semChaves, type AdminDoForm } from '@/lib/portal-nova-empresa';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { caminhoDaEmpresa } from '@/lib/portal-sessao';
 import { Campo } from '@/components/campo-acesso';
 
 import { AdminInicial } from './admin-inicial';
@@ -205,7 +206,7 @@ export function PassoEmpresa({ existente, secundario = false, aoGravar }: { exis
         // a senha master não fica na tela depois de gravar
         setF((x) => (x.admin ? { ...x, admin: { ...x.admin, senha: '' } } : x));
         aoGravar?.(r);
-        if (!existente && r.tenant_id) router.push(`/empresas/${r.tenant_id}`);
+        if (!existente && r.tenant_id) router.push(caminhoDaEmpresa(r.tenant_id));
       }
     } catch (x) {
       const doAdmin = erroDoAdminNaApi(x, f.admin?.senha ?? '');

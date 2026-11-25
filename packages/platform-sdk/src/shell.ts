@@ -13,7 +13,7 @@ import { ordenarPorDependencia, problemasDasConsultas, type Manifesto } from './
 import type { AppId, ModuloId, Perfil } from './nomes';
 import { criarPermissoes, type Permissoes } from './permissoes';
 import type { PerfilDaRequisicao } from './permissoes-perfil';
-import type { EtapaSync } from './motor-sync';
+import type { ArmazenamentoSync, EtapaSync } from './motor-sync';
 import type { DefinicaoEntidadeSync } from './sync';
 import { criarRegistroSync } from './sync';
 import { criarRegistroExtensoes, type ItemExtensao } from './extensoes';
@@ -48,7 +48,7 @@ export function linkInternoNavegavel(link: string | null | undefined, telaExiste
 /**
  * Grupos do menu do BKO (ADR 0050, revista pela ADR 0060; spec docs/design/menu-parametros/spec.md §2). O menu mostra
  * os grupos e os itens em ordem alfabética pelo rótulo (pt-BR, sem diferenciar acento e caixa), com Parâmetros e
- * Sistema fixos no fim, nesta ordem (`GRUPOS_FIXOS_NO_FIM`, D1). Grupo com uma página só vira item direto (D9, no shell).
+ * Sistema fixos no fim, nesta ordem (`GRUPOS_FIXOS_NO_FIM`, D1).
  */
 export const GRUPOS_MENU = [
   'acesso',
@@ -336,6 +336,35 @@ export interface ModuloShell<C> {
    * `ConsultaIndisponivel` no aparelho.
    */
   consultas?: readonly ImplementacaoConsultaAparelho[];
+  /**
+   * ADR 0070 §D8 (RN-CORE-80): o que o módulo tem digitado no aparelho e ainda não enviado (rascunho de orçamento, pedido,
+   * pré-cadastro...), para a tela "Versão desatualizada" mostrar antes do link do APK novo. Só leitura do armazenamento
+   * local; `null` ou `total` 0 = nada pendente; `href` = link interno `/m/<caminho>` da tela onde o usuário resolve.
+   * O shell chama pelo `visao.pendenciasParaAtualizar`, só nos módulos efetivos desta variante.
+   */
+  pendenciasParaAtualizar?: (ctx: ContextoPendenciasParaAtualizar) => Promise<PendenciaParaAtualizar | null>;
+}
+
+/** O que o shell entrega a `ModuloShell.pendenciasParaAtualizar` (ADR 0070 §D8). */
+export interface ContextoPendenciasParaAtualizar {
+  app: AppShell;
+  /** Armazenamento local do aparelho (o mesmo do motor de sync). Só leitura neste gancho. */
+  armazenamento: ArmazenamentoSync;
+  agora: Date;
+}
+
+/** Resposta de um módulo a `pendenciasParaAtualizar` (ADR 0070 §D8). */
+export interface PendenciaParaAtualizar {
+  total: number;
+  /** Link interno do app (`/m/<caminho>`) da tela onde o usuário envia ou revê o que está pendente. */
+  href: string;
+}
+
+/** Pendência de um módulo na visão do usuário: `href` null quando o link não é interno ou a tela não está na visão. */
+export interface PendenciaParaAtualizarVisivel {
+  modulo: ModuloId;
+  total: number;
+  href: string | null;
 }
 
 /** Item de extensão de UI registrado por um módulo (o `payload` é tipado pelo contrato do slot, no contracts do dono). */
@@ -613,6 +642,11 @@ export interface VisaoShell<C> {
   pode(acao: string): boolean;
   /** Itens de um slot de extensão de UI visíveis ao usuário (módulos efetivos, perfil e ação — ADR 0004). */
   extensoes<P = unknown>(slot: string): ItemExtensao<P>[];
+  /**
+   * ADR 0070 §D8: pendências dos módulos efetivos desta variante (`ModuloShell.pendenciasParaAtualizar`), em ordem de
+   * dependência, só as com `total` > 0. Erro de um módulo é propagado: o shell decide (nunca diga "nada pendente" sem saber).
+   */
+  pendenciasParaAtualizar(ctx: Omit<ContextoPendenciasParaAtualizar, 'app'>): Promise<PendenciaParaAtualizarVisivel[]>;
 }
 
 /** Comparador dos rótulos do menu do BKO (pt-BR, sem diferenciar maiúsculas nem acentos; ADR 0050). */
@@ -732,6 +766,16 @@ function montarVisao<C>(
     destinoParametros: (caminho) => destinos.get(semBarra(caminho)) ?? null,
     pagina: (caminho) => visiveis.get(semBarra(caminho)) ?? null,
     pode,
+    async pendenciasParaAtualizar(c) {
+      const comGancho = ativos.flatMap((id) => {
+        const m = modulos.find((x) => x.manifesto.id === id);
+        return m?.pendenciasParaAtualizar && (app === 'web' || m.manifesto.apps[app]) ? [{ id, gancho: m.pendenciasParaAtualizar }] : [];
+      });
+      const respostas = await Promise.all(comGancho.map(async ({ id, gancho }) => ({ id, r: await gancho({ ...c, app }) })));
+      return respostas.flatMap(({ id, r }) =>
+        r && r.total > 0 ? [{ modulo: id, total: r.total, href: linkInternoNavegavel(r.href, (caminho) => visiveis.has(caminho)) }] : [],
+      );
+    },
     extensoes: <P,>(slot: string) =>
       extensoes.listar(slot, { app, modulosAtivos: ativos, perfil: ctx.perfil ?? undefined, pode }) as ItemExtensao<P>[],
   };

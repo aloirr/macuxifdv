@@ -220,7 +220,7 @@ describe('alertas no escopo e dispensa (RF-GES-07)', () => {
   });
 
   it('RN-GES-01 / RN-GES-03: cliente_sem_visita e pedido_aguardando_aprovacao só ligam ou desligam (limite vem dos parâmetros)', () => {
-    expect(ajustarRegraAlerta({}, 'cliente_sem_visita', { limiar: 10 })).toMatchObject({ ok: false, erros: [expect.stringMatching(/RN-GES-01/)] });
+    expect(ajustarRegraAlerta({}, 'cliente_sem_visita', { limiar: 10 })).toMatchObject({ ok: false, erros: [expect.stringMatching(/frequência de visita do cliente/)] });
     expect(ajustarRegraAlerta({}, 'pedido_aguardando_aprovacao', { ativa: false })).toMatchObject({ ok: true });
   });
 

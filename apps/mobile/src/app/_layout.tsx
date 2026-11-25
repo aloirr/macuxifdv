@@ -18,11 +18,13 @@ import { AreaSeguraSuperior } from '@/components/area-segura';
 import { FolhaFotoPdv } from '@/components/folha-foto-pdv';
 import { TelaErroArmazenamento } from '@/components/preparo-aparelho';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
+import { TelaAtualizacaoApp } from '@/components/tela-atualizacao';
 import { TelaDeErroDaRaiz } from '@/components/tela-de-erro';
 import { TelaEntrada } from '@/components/tela-entrada';
 import { TelaPermissoes } from '@/components/tela-permissoes';
 import { percentualDaPassagem } from '@/lib/armazenamento-aparelho';
 import { ROTULO_ATUALIZANDO } from '@/lib/entrada';
+import { rotaLiberadaParaResolver } from '@/lib/portao-atualizacao';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { useVibracaoDoShell } from '@/services/vibracao';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
@@ -81,6 +83,13 @@ function Gate() {
     pedindoPermissao,
     tocarBotaoPermissoes,
     variante,
+    versaoPublicada,
+    telaBloqueio,
+    resolvendo,
+    portaoAtualizacao,
+    destinoParaAtualizar,
+    resolverAtualizacao,
+    rotaDuranteResolucao,
   } = usePlataforma();
   // pedido de 14/11/2026 (manual da marca §4): a faixa da barra de status segue a rota (Azul noite onde há cabeçalho)
   const rota = usePathname();
@@ -91,6 +100,19 @@ function Gate() {
   // T-0145: sem as permissões obrigatórias, só a tela de permissões (nada de login, carga ou abas por baixo)
   const semPermissao = permissoesLidas ? telaPermissoes : null;
   const show = ready && permissoesLidas;
+  // T-0195 (ADR 0070, RN-CORE-80): depois das 24 h, só a tela de reinstalar (a troca acontece na entrada, não no meio do uso);
+  // ela sai do caminho só enquanto a tela que resolve um item do portão está aberta (Rascunhos, "Não aceito", login)
+  useEffect(() => {
+    if (resolvendo) rotaDuranteResolucao(rotaLiberadaParaResolver(rota, resolvendo));
+  }, [rota, resolvendo, rotaDuranteResolucao]);
+  const bloqueioApp =
+    ready && telaBloqueio && !resolvendo && versaoPublicada && !preparo && !erroArmazenamento ? (
+      <TelaAtualizacaoApp
+        portao={portaoAtualizacao}
+        versao={versaoPublicada.versao}
+        aoAbrir={(acao) => resolverAtualizacao(destinoParaAtualizar(acao))}
+      />
+    ) : null;
   const sobre = !permissoesLidas ? null : preparo ? (
     <TelaEntrada
       variante={variante}
@@ -114,13 +136,15 @@ function Gate() {
         });
       }}
     />
-  ) : null;
+  ) : (
+    bloqueioApp
+  );
   const esconderSplash = useCallback(() => void SplashScreen.hideAsync().catch(() => {}), []);
   const visivel = show || sobre !== null || semPermissao !== null;
   useEffect(() => {
     if (visivel) esconderSplash();
   }, [visivel, esconderSplash]);
-  if (semPermissao) {
+  if (semPermissao && !bloqueioApp) {
     return (
       <TelaPermissoes
         tela={semPermissao}
@@ -177,6 +201,11 @@ function Gate() {
                   <Stack.Screen name="foto" options={{ animation: 'fade' }} />
                   {/* T-0186 (v1.0.16): o visor de PDF (NF e documentos do cliente), do mesmo jeito */}
                   <Stack.Screen name="pdf" options={{ animation: 'fade' }} />
+                  {/* T-0195: a folha "Versão X.Y.Z disponível" das primeiras 24 h, por cima da tela em que o vendedor está */}
+                  <Stack.Screen
+                    name="atualizar-app"
+                    options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
+                  />
                 </Stack>
               </AreaSeguraSuperior>
             </View>

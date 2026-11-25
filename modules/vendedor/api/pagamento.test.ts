@@ -50,6 +50,12 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
   it('RN-VEN-25: forma fora da lista do cliente é 422 RN-VEN-25', async () => {
     expect(await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, { ...cli, formas_pagamento: ['PIX'] }, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
   });
+  it('RN-VEN-25: prazo com prazo médio acima do teto do cliente é 422 RN-VEN-25 (prazo_acima_do_cliente); no teto ou sem teto passa', async () => {
+    const p = { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' };
+    expect(await resolverPagamento(ctx(), db, tx(null), p, { ...cli, prazo_medio_max_dias: 27 }, 'orcamento')).toMatchObject({ ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_do_cliente' });
+    expect(await resolverPagamento(ctx(), db, tx(null), p, { ...cli, prazo_medio_max_dias: 28 }, 'pedido')).toMatchObject({ ok: true });
+    expect(await resolverPagamento(ctx(), db, tx(null), p, { ...cli, prazo_medio_max_dias: null }, 'pedido')).toMatchObject({ ok: true });
+  });
   it('RN-VEN-24: pagamento válido devolve o retrato (8 colunas juntas) e o texto "Boleto · 28 dias"', async () => {
     const r = await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, cli, 'pedido');
     expect(r.ok && r.pagamento?.texto).toBe('Boleto · 28 dias');

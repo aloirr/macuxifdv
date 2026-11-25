@@ -28,6 +28,7 @@ import {
 
 import type { ErroRegistrado } from './erro-de-tela';
 import type { HistoricoShell } from './historico-telas';
+import { semPrefixoV1 } from './modo-api';
 import { ehQueda, JANELA_PRIMEIRA_LEITURA_MS, MESMO_FECHAMENTO_MS, type SaidaAndroid } from './saida-android';
 
 /**
@@ -75,7 +76,7 @@ export const MAX_DESCRICAO_DIAGNOSTICO = 1000;
 /** v1.0.5: quedas novas enviadas por abertura (as mais recentes; o servidor agrupa as repetidas). */
 export const MAX_QUEDAS_POR_ABERTURA = 3;
 /** Caminho da rota relativo ao endereço da API, que já termina em `/v1` (como `/arquivos/:id` no transporte). */
-export const CAMINHO_DIAGNOSTICOS = ROTA_DIAGNOSTICOS.replace(/^\/v1(?=\/)/, '');
+export const CAMINHO_DIAGNOSTICOS = semPrefixoV1(ROTA_DIAGNOSTICOS);
 
 /** Textos finais (imagem `docs/design/telas/T-0158-diagnostico-app.png`, quadro 7, aprovada em R-20261110-192152 sem "Vai junto"). */
 export const TEXTOS_DIAGNOSTICO = {

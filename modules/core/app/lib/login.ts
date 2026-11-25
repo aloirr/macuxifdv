@@ -4,58 +4,16 @@
  * O código da empresa fica salvo no aparelho depois do primeiro login (doc 03, esclarecimentos).
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
-import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { AVISO_APARELHO_LIMPO, MENSAGEM_BLOQUEADO_ADMIN, MENSAGEM_CREDENCIAIS, MENSAGEM_SESSAO, mensagemBloqueioPorTentativas, mensagemMuitasTentativas, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLoginNovo as validarLogin, type CamposLogin, type ErrosLogin, CODIGO_EMPRESA_TAMANHO, normalizarCodigoEmpresa, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { type AppComLogin } from '@macuxi/platform-sdk';
+import { LoginSenhaRequestSchema, validarLoginNovo as validarLogin, type CamposLogin, type ErrosLogin, CODIGO_EMPRESA_TAMANHO, normalizarCodigoEmpresa, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
 import { tolerante } from './leitor-tolerante';
 
 export { validarLogin, type CamposLogin, type ErrosLogin };
+export { ehServidorInvalido, mensagemDeErroDeLogin } from '../../contracts';
 
 /** Campos com que a TelaLogin abre: código lembrado do aparelho e e-mail devolvido pelo shell (volta de "Crie sua senha"/"Esqueci a senha"). A senha nunca volta. */
 export function camposIniciaisDoLogin(codigoSalvo?: string | null, emailInicial?: string | null): CamposLogin {
   return { codigo_empresa: codigoSalvo ?? '', email: emailInicial ?? '', senha: '' };
-}
-
-/** Códigos que o shell/SDK usam quando o endereço respondeu, mas não é um servidor Macuxi (ou a resposta não bate com o contrato). */
-export const CODIGOS_SERVIDOR_INVALIDO = ['SERVIDOR_INVALIDO', 'RESPOSTA_INVALIDA'] as const;
-
-/** Resposta que não é de um servidor Macuxi: código dedicado, falha de contrato (Zod) ou 404/405 sem código da API. */
-export function ehServidorInvalido(e: unknown): boolean {
-  const x = e as { codigo?: unknown; name?: unknown; status?: unknown } | null;
-  if (typeof x?.codigo === 'string' && (CODIGOS_SERVIDOR_INVALIDO as readonly string[]).includes(x.codigo)) return true;
-  if (x?.name === 'ZodError') return true;
-  return (x?.status === 404 || x?.status === 405) && typeof x?.codigo !== 'string';
-}
-
-/** Mensagem para o usuário a partir do erro da API (códigos de `CODIGOS_AUTH`) ou de rede. Três casos distintos de conexão/servidor/credencial. */
-export function mensagemDeErroDeLogin(e: unknown): string {
-  if (ehSemConexao(e)) return 'Sem conexão ou o servidor não respondeu. Confira a internet e o endereço do servidor e tente de novo.';
-  if (ehServidorInvalido(e)) return 'Este endereço não é um servidor Macuxi. Confira o endereço em Servidor, teste de novo e só então entre.';
-  const x = e as { codigo?: unknown; message?: unknown; detalhes?: Record<string, unknown> } | null;
-  const detalhes = x?.detalhes;
-  switch (x?.codigo) {
-    case CODIGOS_AUTH.credenciais:
-      return MENSAGEM_CREDENCIAIS;
-    case CODIGOS_AUTH.bloqueado:
-      // RN-CORE-01: `minutos_restantes` marca o bloqueio temporário por tentativas (mesmo código: o APK em uso segue funcionando)
-      return detalhes?.minutos_restantes === undefined ? MENSAGEM_BLOQUEADO_ADMIN : mensagemBloqueioPorTentativas(detalhes.minutos_restantes);
-    case CODIGO_DISPOSITIVO_BLOQUEADO:
-      return AVISO_APARELHO_LIMPO;
-    case CODIGOS_AUTH.muitasTentativas:
-      return mensagemMuitasTentativas(detalhes?.retry_after_s);
-    case CODIGOS_AUTH.sessao:
-      return MENSAGEM_SESSAO;
-    case CODIGOS_AUTH.senhaVencida:
-      return MENSAGEM_SENHA_VENCIDA;
-    case CODIGOS_AUTH.senhaATrocar:
-      // o app novo navega para "Crie sua senha" pelo código (senha.ts); este texto é só a rede de segurança
-      return MENSAGEM_SENHA_A_TROCAR;
-    case 'PERFIL_FORA_DO_APP':
-      return typeof x?.message === 'string' && x.message ? x.message : 'Este perfil não usa este aplicativo. Use o aplicativo ou o painel indicado pela sua empresa.';
-    case 'AUTENTICACAO_INDISPONIVEL':
-      return 'O login está indisponível no momento. Tente de novo em alguns minutos; se continuar, avise o suporte.';
-    default:
-      return 'Não foi possível entrar agora. Tente de novo; se continuar, avise o suporte.';
-  }
 }
 
 /** Propriedades do campo Código da empresa (login e "Esqueci a senha"): cabe só o código da licença, UF + 4 dígitos (ex.: AM4821). */

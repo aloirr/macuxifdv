@@ -164,7 +164,7 @@ describe.skipIf(semBanco())('"Esqueci a senha" de ponta a ponta (R-20261114-2045
         senha: anotado!.dados.senha,
       });
       const temp = carga.dados.senha;
-      expect(temp).toMatch(/^[A-Za-z2-9!@#$%&*?]{12}$/);
+      expect(temp).toMatch(/^[A-Za-z2-9_]{12}$/);
 
       // 2) o e-mail que sai: despachante real com a configuração das MACUXI_EMAIL_URL_* (logo e botão do backoffice)
       const cfg = lerConfigEmail({

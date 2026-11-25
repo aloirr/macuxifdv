@@ -12,5 +12,5 @@ export type ModuloInstalado = (typeof TODOS_MODULOS)[number];
 export function montarMenuAdmin(ativos: readonly ModuloInstalado[] = TODOS_MODULOS, contratados?: readonly ModuloInstalado[]) {
   const visao = SHELL_WEB.montar({ perfil: 'admin', modulosAtivos: [...ativos], menuParametros: true, ...(contratados ? { modulosContratados: [...contratados] } : {}) });
   const secoes = secoesParametros(visao);
-  return { visao, secoes, grupos: montarGruposMenu({ navegacao: visao.navegacao, plataforma: true, parametros: secoes.length > 0 }) };
+  return { visao, secoes, grupos: montarGruposMenu({ navegacao: visao.navegacao, plataforma: true, parametros: secoes }) };
 }

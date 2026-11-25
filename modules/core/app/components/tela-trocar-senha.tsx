@@ -25,12 +25,10 @@ import {
   faltasNaSenha,
   TEXTOS_ESQUECI,
   TEXTOS_TROCAR_SENHA,
-} from '../../contracts';
-import {
   erroDaTrocaVoluntaria,
   precheckDaTrocaVoluntaria,
   type ErroDaTrocaVoluntaria,
-} from '../lib/trocar-senha';
+} from '../../contracts';
 import { estilosDeAcesso } from './estilos-de-acesso';
 
 export interface PropsTelaTrocarSenha {

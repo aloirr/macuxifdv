@@ -389,6 +389,8 @@ export const pedidoFaturamento = vendedor.table('pedido_faturamento', {
   nota_serie: text('nota_serie'),
   nota_emitida_em: timestamp('nota_emitida_em', { withTimezone: true }),
   nota_total_cents: bigint('nota_total_cents', { mode: 'number' }),
+  /** 0101 (v1.0.34): chave de acesso da NF-e do ERP; 44 dígitos ou nula (`pedido_faturamento_chave_acesso_formato`). */
+  nota_chave_acesso: text('nota_chave_acesso'),
   itens: jsonb('itens').$type<ItemFaturamentoPedido[]>().notNull().default([]),
   faturado_em: timestamp('faturado_em', { withTimezone: true }).notNull(),
 });

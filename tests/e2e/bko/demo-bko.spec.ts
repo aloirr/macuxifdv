@@ -15,6 +15,8 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { abrirGrupo } from './apoio';
+
 const SENHA = 'demo-macuxi';
 /** O BKO trava em "Carregando…" ou cai em "Rota não encontrada." quando uma rota da Fase M responde 404. */
 const QUEBRA = /Carregando…|Carregando o plano|Rota não encontrada|This page could not be found/;
@@ -47,7 +49,7 @@ function vigiar(page: Page): Aberta {
  * limpar os campos entre o preencher e o clicar — o formulário volta com "Informe..." (T-0029: 3 casos caíram assim).
  * Preenche, confere, clica e espera `espera` (o menu, ou `login.erro` no login recusado); se não veio, repete.
  */
-async function entrar(page: Page, email: string, espera = 'nav-plataforma-parametros') {
+async function entrar(page: Page, email: string, espera = 'nav-grupo-parametros') {
   await page.goto('/login');
   const campos: Array<[string, string]> = [['login.codigo-empresa', 'demo'], ['login.email', email], ['login.senha', SENHA]];
   await expect(async () => {
@@ -67,8 +69,7 @@ async function mostrarItem(page: Page, nav: string): Promise<Locator> {
   const item = menu.getByTestId(nav).first();
   for (const g of await testIds(menu.locator('button[data-testid^="nav-grupo-"]'))) {
     if (await item.isVisible()) break;
-    const titulo = menu.getByTestId(g);
-    if ((await titulo.getAttribute('aria-expanded')) === 'false') await titulo.click();
+    await abrirGrupo(page, g.replace('nav-grupo-', ''));
   }
   await expect(item, nav).toBeVisible({ timeout: 10_000 });
   return item;
@@ -79,8 +80,7 @@ async function itensDoMenu(page: Page): Promise<string[]> {
   const menu = page.getByTestId('menu-bko');
   const itens = new Set(await testIds(menu.locator('a[data-testid^="nav-"]')));
   for (const g of await testIds(menu.locator('button[data-testid^="nav-grupo-"]'))) {
-    const titulo = menu.getByTestId(g);
-    if ((await titulo.getAttribute('aria-expanded')) === 'false') await titulo.click();
+    await abrirGrupo(page, g.replace('nav-grupo-', ''));
     for (const n of await testIds(menu.locator('a[data-testid^="nav-"]'))) itens.add(n);
   }
   return [...itens];
@@ -99,12 +99,11 @@ async function abrirPeloMenu(page: Page, a: Aberta, nav: string, pagina: string)
   await page.waitForTimeout(3_000);
 }
 
-/** Abre pelo item Parâmetros a seção e espera o painel (`parametros-<modulo>-<id>`). */
+/** Abre pelo grupo Parâmetros do menu a opção da seção e espera o painel (`parametros-<modulo>-<id>`). */
 async function abrirParametros(page: Page, a: Aberta, secao: string, painel: string) {
   limpar(a);
-  await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
+  await (await mostrarItem(page, `nav-parametros-${secao}`)).click();
   await expect(page.getByTestId('pagina-parametros')).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId(`parametros-secao-${secao}`).click();
   await expect(page).toHaveURL(new RegExp(`/parametros/${secao}$`));
   await expect(page.getByTestId(painel)).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(3_000);
@@ -121,7 +120,7 @@ test.describe('Login do BKO', () => {
     test.slow();
     for (const email of ['analista@exemplo.com.br', 'admin@exemplo.com.br']) {
       await entrar(page, email);
-      await expect(page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros')).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByTestId('menu-bko').getByTestId('nav-grupo-parametros')).toBeVisible({ timeout: 60_000 });
       await page.context().clearCookies();
       await page.evaluate(() => window.localStorage.clear());
     }
@@ -138,7 +137,7 @@ for (const quem of ['analista', 'admin'] as const) {
     test.beforeEach(async ({ page }) => {
       a = vigiar(page);
       await entrar(page, `${quem}@exemplo.com.br`);
-      await expect(page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros')).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByTestId('menu-bko').getByTestId('nav-grupo-parametros')).toBeVisible({ timeout: 60_000 });
     });
 
     test('D-B00: o menu tem as páginas dos módulos licenciados (Core e Vendedor); Perfis está em Parâmetros (admin)', async ({ page }) => {
@@ -292,12 +291,8 @@ for (const quem of ['analista', 'admin'] as const) {
         await (await mostrarItem(page, nav)).click();
         await conferir(nav);
       }
-      await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
-      await expect(page.getByTestId('pagina-parametros')).toBeVisible({ timeout: 30_000 });
-      for (const secao of await testIds(page.locator('a[data-testid^="parametros-secao-"]:not([data-bloqueado])'))) {
-        await page.getByTestId(secao).click();
-        await conferir(secao);
-      }
+      // as seções de Parâmetros são opções do grupo Parâmetros: já entraram em `navs` (nav-parametros-<secao>)
+      expect(navs.filter((n) => n.startsWith('nav-parametros-')).length, 'seções de Parâmetros no menu').toBeGreaterThan(1);
       expect(aninhadas, 'páginas com table table').toEqual([]);
       expect(comTabela, 'páginas com tabela (o caso não passa no vazio)').toBeGreaterThan(2);
     });
