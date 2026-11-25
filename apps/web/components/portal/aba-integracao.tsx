@@ -459,7 +459,7 @@ function CorpoDaTabela({ q, itens, colunas, rotulo, vazio, testId, linhaTestId, 
 }
 
 const colunaIdentificador: ColunaDaTabela<Conector> = { id: 'conector', titulo: 'Identificador', celula: (c) => <span className="font-mono">{c.conector_id}</span>, texto: (c) => c.conector_id };
-const colunaPedidos: ColunaDaTabela<Conector> = { id: 'pedidos', titulo: 'Pedidos', largura: '90px', celula: (c) => (c.recebe_pedidos ? 'Sim' : '—') };
+const colunaPedidos: ColunaDaTabela<Conector> = { id: 'pedidos', titulo: 'Pedidos', largura: '90px', celula: (c) => (c.recebe_pedidos ? 'Sim' : 'Não') };
 
 /**
  * Tabela "Conectores" no topo da aba (R-20261124-090510, RD-3550), uma linha por Conector (`conector` e `arquivo`): Identificador ·
@@ -488,12 +488,12 @@ export function TabelaConectores({ tenant, fuso, timeMacuxi, q, itens, ...acoes 
   );
 }
 
-/** Tabela "Credenciais" (lado da API, tipo `nuvem`): Identificador · Pedidos · Situação (Ativo ou Desativado) · "⋯". */
+/** Tabela "Credenciais" (lado da API, tipo `nuvem`), na ordem dos Conectores: Identificador · Situação (Ativo ou Desativado) · Pedidos · "⋯". */
 export function TabelaCredenciais({ q, itens, ...acoes }: AcoesDaLinha & { q: Consulta; itens: readonly Conector[] }) {
   const colunas: ColunaDaTabela<Conector>[] = [
     colunaIdentificador,
-    colunaPedidos,
     { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (c) => <Badge tone={c.ativo ? 'success' : 'neutral'}>{c.ativo ? 'Ativo' : 'Desativado'}</Badge> },
+    colunaPedidos,
   ];
   return (
     <Panel title="Credenciais">

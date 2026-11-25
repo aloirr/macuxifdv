@@ -20,8 +20,8 @@ import { celulasDaEntidade, clienteDoPortal, ehEntidadeZerar, reprocessarEntidad
 
 import { DialogoZerar } from './dialogo-zerar';
 
-/** Selo da Situação no respiro direito da célula: a 390 px, "Com falha" e a Entidade mais longa cabem inteiros. */
-const SELO = '-mr-2.5';
+/** Selo da Situação no respiro direito da célula, com 5 px de respiro lateral (o `px-2` do Badge não cabe): a 390 px, "Sem dados", "Com falha" e a Entidade mais longa cabem inteiros. */
+const SELO = '-mr-2.5 px-[5px]!';
 
 export function AbaDados({ empresa }: { empresa: { id: string; codigo: string; razao_social: string; fuso: string } }) {
   const qc = useQueryClient();
@@ -64,7 +64,7 @@ export function AbaDados({ empresa }: { empresa: { id: string; codigo: string; r
     { id: 'carga', titulo: 'Última carga', largura: '150px', numero: true, prioridade: 2, celula: (d) => celulasDaEntidade(d, tz).carga },
     { id: 'registros', titulo: 'Registros', largura: '200px', numero: true, prioridade: 2, celula: (d) => celulasDaEntidade(d, tz).registros },
     { id: 'cursor', titulo: 'Última alteração', largura: '150px', numero: true, prioridade: 3, celula: (d) => celulasDaEntidade(d, tz).cursor },
-    { id: 'corrigir', titulo: 'Corrigir no ERP', largura: '200px', prioridade: 3, celula: (d) => celulasDaEntidade(d, tz).corrigir, texto: (d) => celulasDaEntidade(d, tz).corrigir },
+    { id: 'corrigir', titulo: 'Corrigir no ERP', largura: '200px', prioridade: 2, celula: (d) => celulasDaEntidade(d, tz).corrigir, texto: (d) => celulasDaEntidade(d, tz).corrigir },
   ];
   /** "Reprocessar" com lote a reprocessar; "Zerar dados" com dados no Hub; sem nenhum dos dois, a lista vazia esconde o menu. */
   const acoesDaLinha = (x: EntidadeDetalhe): AcaoDoMenu[] => {
@@ -89,6 +89,7 @@ export function AbaDados({ empresa }: { empresa: { id: string; codigo: string; r
             chave={(x) => x.entidade}
             rotulo="Dados por entidade"
             acoes={acoesDaLinha}
+            vazio="Nenhuma entidade no Hub."
             testId="dados.entidades"
             linhaTestId={(x) => `dados.entidade.${x.entidade}`}
           />

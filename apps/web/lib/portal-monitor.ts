@@ -59,16 +59,16 @@ export function textoCorrigirNoErp(erros: EntidadeDetalhe['erros']): string {
   return `${formatInt(linhas)} · ${[...new Set(daClasse.map((e) => e.codigo))].join(', ')}`;
 }
 
-/** Estado vazio da linha da aba Dados (RD-2678): uma célula só diz que não há dados. */
+/** Estado vazio da linha da aba Dados (RD-2678): o selo neutro da Situação diz que não há dados. */
 export const TEXTO_SEM_DADOS = 'Sem dados';
 
 /**
  * Células de texto de uma linha da aba Dados: Última carga, Registros, Última alteração e Corrigir no ERP. Sem nada no Hub
- * (`temDadosNoHub`), "Sem dados" em Registros e as outras vazias; com dados, o "—" fica para "sem lote", "sem registro", "sem
- * cursor" e "sem erro".
+ * (`temDadosNoHub`), todas vazias (o "Sem dados" fica no selo da Situação); com dados, o "—" fica para "sem lote", "sem registro",
+ * "sem cursor" e "sem erro".
  */
 export function celulasDaEntidade(d: EntidadeDetalhe, tz: string): { carga: string; registros: string; cursor: string; corrigir: string } {
-  if (!temDadosNoHub(d)) return { carga: '', registros: TEXTO_SEM_DADOS, cursor: '', corrigir: '' };
+  if (!temDadosNoHub(d)) return { carga: '', registros: '', cursor: '', corrigir: '' };
   return {
     carga: d.ultimo_lote ? formatDateTime(d.ultimo_lote.recebido_em, tz) : '—',
     registros: textoRegistros(d.registros),
@@ -77,9 +77,13 @@ export function celulasDaEntidade(d: EntidadeDetalhe, tz: string): { carga: stri
   };
 }
 
-/** Selo da Situação: "Com falha" com lote a reprocessar (a API manda a lista, RN-INT-15); "Em dia" com lote; sem lote, sem selo. */
+/**
+ * Selo da Situação: "Com falha" com lote a reprocessar (a API manda a lista, RN-INT-15) ou com erro a corrigir no ERP; "Sem dados"
+ * (neutro) sem nada no Hub; "Em dia" com lote; com dados e sem lote, sem selo.
+ */
 export function situacaoDaEntidade(d: EntidadeDetalhe): { rotulo: string; tom: BadgeTone } | null {
-  if (d.lotes_reprocessaveis.length > 0) return { rotulo: 'Com falha', tom: 'danger' };
+  if (d.lotes_reprocessaveis.length > 0 || d.erros.some((e) => e.classe === 'corrigir_no_erp' && e.linhas > 0)) return { rotulo: 'Com falha', tom: 'danger' };
+  if (!temDadosNoHub(d)) return { rotulo: TEXTO_SEM_DADOS, tom: 'neutral' };
   return d.ultimo_lote ? { rotulo: 'Em dia', tom: 'success' } : null;
 }
 

@@ -465,7 +465,7 @@ describe('caso real: o ERP passa "Formas de pagamento" do Conector à API', () =
     const fim = aba(lista);
     expect(fim.slice(fim.indexOf('data-testid="integracao.conectores"'), fim.indexOf('integracao-api"'))).toContain('>erp<');
     expect(fim.slice(fim.indexOf('data-testid="integracao.api-credenciais"'))).toContain('>erp-api<');
-    expect(texto(fim)).toMatch(/erp-api — Ativo/);
+    expect(texto(fim)).toMatch(/erp-api Ativo Não/);
     expect(fim).toContain('data-testid="integracao.api-sem-bases"');
   });
 });

@@ -48,7 +48,7 @@ describe('aba Dados', () => {
     for (const e of ['produto', 'cliente', 'cliente_endereco', 'preco', 'vendedor', 'estoque', 'titulo']) expect(html.split(`data-testid="dados.entidades.acoes.${e}"`).length).toBe(2);
     expect(html).not.toContain('dados.entidades.acoes.filial');
   });
-  it('linha sem dados no Hub (RD-2678): "Sem dados" em Registros, sem selo nem "—"', async () => {
+  it('linha sem dados no Hub (RD-2678): selo neutro "Sem dados" na Situação, Registros vazio e sem "—"', async () => {
     const filial = linha(await montar(), 'filial');
     expect(filial).toContain('Sem dados');
     expect(filial).not.toContain('—');

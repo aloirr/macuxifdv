@@ -112,7 +112,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     const dados = page.getByTestId('dados.aba');
     await expect(dados.getByTestId('dados.entidade.estoque')).toBeVisible({ timeout: 60000 });
     await expect(dados.locator('table')).toHaveCount(1);
-    // "Corrigir no ERP" tem prioridade 3: some no quadro estreito
+    // "Corrigir no ERP" tem prioridade 2: some no quadro estreito
     await expect(dados.getByText('Corrigir no ERP', { exact: true })).toBeVisible({ visible: largura > 500 });
     // a tabela não passa da tela (no celular: Entidade + Situação + "⋯")
     const caixa = await dados.getByTestId('dados.entidades').boundingBox();
@@ -129,8 +129,8 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       });
       expect(util - texto).toBeGreaterThanOrEqual(4);
     }
-    // o selo "Com falha" (o mais largo da Situação) sai inteiro: texto sem corte e ≥ 4 px da borda direita da célula
-    const selos = dados.getByText('Com falha', { exact: true });
+    // os selos mais largos da Situação ("Com falha" e "Sem dados") saem inteiros: texto sem corte e ≥ 4 px da borda direita da célula
+    const selos = dados.getByText(/^(Com falha|Sem dados)$/);
     await expect(selos.first()).toBeVisible();
     for (const selo of await selos.all()) {
       const { corte, esquerda, direita } = await selo.evaluate((el) => {
@@ -142,10 +142,10 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       expect(esquerda).toBeGreaterThanOrEqual(0);
       expect(direita).toBeGreaterThanOrEqual(4);
     }
-    // "⋯" em toda entidade com o que fazer (com ou sem lote recente); RD-2678: a linha sem dados diz "Sem dados" uma vez só
+    // "⋯" em toda entidade com o que fazer (com ou sem lote recente); RD-2678: a linha sem dados diz "Sem dados" uma vez só, no selo da Situação (visível em toda largura)
     for (const e of ['produto', 'estoque', 'cliente']) await expect(dados.getByTestId(`dados.entidades.acoes.${e}`)).toBeVisible();
     await expect(dados.getByTestId('dados.entidades.acoes.filial')).toHaveCount(0);
-    if (largura > 500) await expect(dados.getByTestId('dados.entidade.filial')).toContainText('Sem dados');
+    await expect(dados.getByTestId('dados.entidade.filial')).toContainText('Sem dados');
     await expect(dados.getByTestId('dados.entidade.filial')).not.toContainText('—');
     await page.screenshot({ animations: 'disabled', fullPage: true, path: `${prints()}/05-dados${nome}.png` });
 
@@ -187,7 +187,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('empresa-acao.cancelar').click();
     await expect(dados.getByTestId('dados.entidades.acoes.cliente')).toHaveCount(0, { timeout: 20000 });
     await expect(dados.getByTestId('dados.entidades.acoes.cliente_endereco')).toHaveCount(0);
-    if (largura > 500) await expect(dados.getByTestId('dados.entidade.cliente')).toContainText('Sem dados');
+    await expect(dados.getByTestId('dados.entidade.cliente')).toContainText('Sem dados');
     await expect(dados.getByTestId('dados.entidades.acoes.produto')).toHaveCount(1);
     await ctx.close();
   });
