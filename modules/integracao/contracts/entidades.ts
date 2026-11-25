@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { cnpjValido } from '@macuxi/comum/documento';
+import { FatorDecimalSchema } from '@macuxi/platform-sdk';
 import { CAMPOS_OBRIGATORIOS_FILIAL, LIMITES_FILIAL } from '@macuxi/core/contracts';
 import {
   Centavos,
@@ -323,12 +324,8 @@ export const ProdutoUnidadePayload = RegistroBase.extend({
     .trim()
     .toUpperCase()
     .regex(SIGLA_MEDIDA_FORMATO, 'unidade deve ter de 1 a 4 letras'),
-  /** Quantidade de unidades base em uma desta embalagem (CX com 12 = 12). */
-  fator: z
-    .number()
-    .int('fator deve ser inteiro')
-    .positive('fator deve ser maior que zero')
-    .max(EMBALAGEM_QUANTIDADE_MAX, `fator deve ser no máximo ${EMBALAGEM_QUANTIDADE_MAX}`),
+  /** Unidades base em uma desta embalagem (CX com 12 = 12); até 4 casas, > 0, ≤ EMBALAGEM_QUANTIDADE_MAX; fracionário só com a trava aberta (ADR 0076, RN-VEN-15). */
+  fator: FatorDecimalSchema,
   ean: z
     .string()
     .trim()

@@ -163,6 +163,18 @@ describe('passo compacto (− n +) da linha 3 do item: bug do "+" e alvo de toqu
     expect(passoComTexto({ texto: '0', focado: false, valor: 0 }, -1)).toBe(0);
   });
 
+  it('passo decimal: com o teclado aberto parte do digitado com vírgula; sem casas, "1,5" conta como 1 (não 15)', () => {
+    expect(passoComTexto({ texto: '1,25', focado: true, valor: 1 }, 1, 1, 0.0001, undefined, 4)).toBe(2.25);
+    expect(passoComTexto({ texto: '1,5', focado: true, valor: 3 }, 1, 1, 1, undefined, 0)).toBe(2);
+    expect(passoComTexto({ texto: '0', focado: true, valor: 2 }, 1, 1, 0.0001, undefined, 4)).toBe(3);
+  });
+
+  it('passo decimal com a trava fechada (casas 0): o − que passaria do mínimo não muda o valor', () => {
+    expect(passoComTexto({ texto: '3', focado: true, valor: 3 }, -1, 5, 1, undefined, 0)).toBe(3);
+    expect(passoComTexto({ texto: '', focado: false, valor: 3 }, -1, 5, 1, undefined, 0)).toBe(3);
+    expect(passoComTexto({ texto: '3', focado: true, valor: 3 }, -1, 5, 1)).toBe(1);
+  });
+
   it('com o teclado aberto, o "+" parte do número digitado (digitar 5 e tocar + dá 6); texto vazio usa o valor', () => {
     expect(passoComTexto({ texto: '5', focado: true, valor: 1 }, 1)).toBe(6);
     expect(passoComTexto({ texto: '', focado: true, valor: 2 }, 1)).toBe(3);
@@ -174,7 +186,7 @@ describe('passo compacto (− n +) da linha 3 do item: bug do "+" e alvo de toqu
   it('o componente usa ref do momento, contêiner de 44 dp e nenhum hitSlop no modo compacto', () => {
     const f = ler('./formulario.tsx');
     const passo = bloco(f, 'Passo');
-    expect(passo).toContain('passoComTexto(vivo.current, direcao, passo, min, max)');
+    expect(passo).toContain('passoComTexto(vivo.current, direcao, passo, min, max, decimal ? casas : undefined)');
     expect(passo).toContain('vivo.current.focado = true');
     expect(f).toMatch(/passoCompacto: \{[^}]*height: PASSO_COMPACTO\.alvo[^}]*width: PASSO_COMPACTO\.largura/);
     expect(f).toMatch(/passoAlvoCompacto: \{[^}]*width: PASSO_COMPACTO\.alvo, height: PASSO_COMPACTO\.alvo/);

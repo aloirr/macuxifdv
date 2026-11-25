@@ -146,3 +146,37 @@ describe('posicaoAgora (GPS do aparelho em fonte única, RD-0046)', () => {
     await expect(motor.ambiente.posicaoAgora()).resolves.toEqual(POSICAO);
   });
 });
+
+describe('fracaoLiberada (ADR 0076 D6, adendo): o shell preenche, o módulo lê', () => {
+  const base: AmbienteAparelho = { http: criarClienteHttp(transporteGravando().requisitar), online: () => true, novoId: () => 'x', usuario: () => null };
+
+  it('shell sem o ponto (web, testes, app antigo): false', () => {
+    expect(completarAmbiente(base).fracaoLiberada()).toBe(false);
+    expect(completarAmbiente(ambienteIndisponivel()).fracaoLiberada()).toBe(false);
+  });
+
+  it('valor do shell lido a cada chamada (a resposta guardada do V3 pode mudar sem remontar o ambiente)', () => {
+    let guardado = false;
+    const amb = completarAmbiente({ ...base, fracaoLiberada: () => guardado });
+    expect(amb.fracaoLiberada()).toBe(false);
+    guardado = true;
+    expect(amb.fracaoLiberada()).toBe(true);
+  });
+
+  it('chega ao ctx das etapas e ao motor.ambiente (telas)', async () => {
+    const manifestos = [defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'] })];
+    const registro = criarRegistroSync(manifestos);
+    let lida: boolean | undefined;
+    const motor = criarMotorSync({
+      registro,
+      armazenamento: criarArmazenamentoEmMemoria(),
+      transporte: criarServidorSyncSimulado(registro, { modulosAtivos: ['core'] }),
+      ambiente: { ...ambienteIndisponivel(), online: () => true, fracaoLiberada: () => true },
+      etapas: [{ id: 'fracao', rotulo: 'Fração', modulo: 'core', executar: async (ctx) => void (lida = ctx.fracaoLiberada()) }],
+    });
+    await motor.aplicarModulosAtivos(['core']);
+    expect(await motor.sincronizar()).toBe(true);
+    expect(lida).toBe(true);
+    expect(motor.ambiente.fracaoLiberada()).toBe(true);
+  });
+});

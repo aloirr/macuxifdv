@@ -3,6 +3,7 @@
  * vêm do domínio (`produto-preco`), a mesma regra do app e da API de pedido. O CUSTO só sai aqui (ação `produto.editar_preco`);
  * o pull do app e o `cadastro_resumo` não o levam. Toda edição é auditada.
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { ProdutoMedidasPutSchema, ProdutoParametrosSchema, ProdutoPrecoPutSchema, ProdutosPrecoListaSchema, ProdutosPrecoQuerySchema, type ProdutoPreco, type UnidadeProdutoResumo } from '../contracts';
@@ -58,7 +59,7 @@ export async function unidadesDosProdutos(db: ClienteBanco, produtos: ReadonlyAr
     [produtos.map((p) => p.id)],
   );
   const porProduto = new Map<string, Array<UnidadeLinha & { ean: string | null }>>();
-  for (const u of r.rows) porProduto.set(u.produto_id, [...(porProduto.get(u.produto_id) ?? []), u]);
+  for (const u of r.rows) porProduto.set(u.produto_id, [...(porProduto.get(u.produto_id) ?? []), { ...u, fator: quantidadeDoBanco(u.fator) }]);
   for (const p of produtos) {
     const linhas = porProduto.get(p.id) ?? [];
     const ean = new Map(linhas.map((u) => [`${u.unidade}|${u.fator}`, u.ean]));
@@ -148,8 +149,9 @@ export const rotasDeProdutos: RotaModulo[] = [
         const antes = (await db.query<Linha>(`select ${COLUNAS} from core.produto where id = $1 and deleted_at is null`, [id])).rows[0];
         if (!antes) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado. Atualize a lista e tente de novo.');
         // RN-VEN-15: unidades de venda vivas do ERP (sigla -> fator); se a sigla da embalagem está aí, a quantidade tem de ser o fator.
-        const vendas = (await db.query<{ unidade: string; fator: number }>('select unidade, fator from core.produto_unidade where produto_id = $1 and deleted_at is null', [id])).rows;
-        const v = validarMedidasDoProduto(c, await medidasDoTenant(db), antes, new Map(vendas.map((u) => [u.unidade, u.fator])));
+        // ADR 0076: `fator` é numeric (texto no node-pg), lido por quantidadeDoBanco
+        const vendas = (await db.query<{ unidade: string; fator: string | number }>('select unidade, fator from core.produto_unidade where produto_id = $1 and deleted_at is null', [id])).rows;
+        const v = validarMedidasDoProduto(c, await medidasDoTenant(db), antes, new Map(vendas.map((u) => [u.unidade, quantidadeDoBanco(u.fator)])));
         if (!v.ok) throw new ErroRegraNegocio(v.codigo, v.mensagem);
         const m = v.valor;
         if (m.unidade !== antes.unidade || m.embalagem_medida !== (antes.embalagem_medida ?? null) || m.embalagem_quantidade !== (antes.embalagem_quantidade ?? null)) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { schemaOficialDe } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, EVENTO_META_DEFINIDA, EVENTO_ROTA_DIA_PLANEJADO, EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT, VisitaCheckoutSchema } from '@macuxi/core/contracts';
-import { EVENTO_PEDIDO_APROVACAO_DECIDIDA, EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_CRIADO, EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO, ESTADOS_APROVACAO_MOTIVO as ESTADOS_DO_VENDEDOR, MOTIVOS_APROVACAO as MOTIVOS_DO_VENDEDOR, NIVEIS_APROVACAO as NIVEIS_DO_VENDEDOR } from '../../vendedor/contracts';
+import { EVENTO_PEDIDO_APROVACAO_DECIDIDA, EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2, EVENTO_PEDIDO_CRIADO_V2, EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO, ESTADOS_APROVACAO_MOTIVO as ESTADOS_DO_VENDEDOR, MOTIVOS_APROVACAO as MOTIVOS_DO_VENDEDOR, NIVEIS_APROVACAO as NIVEIS_DO_VENDEDOR } from '../../vendedor/contracts';
 import { EVENTOS_PROMOTOR } from '../../promotor/contracts';
 import { DEF_RESPOSTA_REGISTRADA } from '../../pesquisa/contracts';
 import { DEFINICAO_LICAO_CONCLUIDA, DEFINICAO_MEDALHA_CONQUISTADA } from '../../treinamento/contracts';
@@ -74,7 +74,7 @@ describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () =
       'core.visita.checkout@1': EVENTO_VISITA_CHECKOUT.schema,
       'core.rota.dia_planejado@1': EVENTO_ROTA_DIA_PLANEJADO.schema,
       'core.meta.definida@1': EVENTO_META_DEFINIDA.schema,
-      'vendedor.pedido.criado@1': EVENTO_PEDIDO_CRIADO.schema,
+      'vendedor.pedido.criado@2': EVENTO_PEDIDO_CRIADO_V2.schema,
       'vendedor.pedido.status_alterado@1': EVENTO_PEDIDO_STATUS_ALTERADO.schema,
       'vendedor.pedido.aprovacao_solicitada@1': EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema,
       'vendedor.pedido.aprovacao_solicitada@2': EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2.schema,
@@ -95,7 +95,7 @@ describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () =
   });
 
   it('pedido criado: dinheiro em centavos inteiros; chave extra do publicador é ignorada (leitura tolerante)', () => {
-    const s = C['vendedor.pedido.criado@1'];
+    const s = C['vendedor.pedido.criado@2'];
     const ok = s.parse({ ...pedidoCriado, campo_novo_do_vendedor: 'x' });
     expect(ok.tipo).toBe('pedido');
     expect('campo_novo_do_vendedor' in ok).toBe(false);
@@ -132,7 +132,7 @@ describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () =
   });
 
   it('RN-GES-06: pedido criado sempre com itens (centavos) e faturamento pelos itens, igual ao publicado pelo Vendedor', () => {
-    const s = C['vendedor.pedido.criado@1'];
+    const s = C['vendedor.pedido.criado@2'];
     expect(s.parse(pedidoCriado).itens).toHaveLength(1);
     expect(s.safeParse({ ...pedidoCriado, itens: [{ produto_id: u(5), quantidade: 0, total_cents: 10_000 }] }).success).toBe(false);
     const f = C['vendedor.pedido.faturado@1'];

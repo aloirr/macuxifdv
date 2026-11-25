@@ -6,6 +6,7 @@
  * `itens_distintos`: produtos distintos de cada pedido (indicador `itens_por_pedido`), contados no domain.
  * Vendedor e promotor só recebem o próprio número; os demais perfis, os `usuario_ids` pedidos (o Core já os escopou).
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_PEDIDOS_DA_META } from '../contracts';
 import { DIAS_PRECO_RETROATIVO, itensDistintos, janelaDoPeriodo, STATUS_QUE_CONTAM_NA_META, statusParaMeta } from '../domain';
@@ -60,13 +61,13 @@ export const consultaPedidosDaMeta = implementarConsulta(CONSULTA_PEDIDOS_DA_MET
   );
   const itensPorPedido = new Map<string, LinhaItemMeta[]>();
   if (ped.rows.length > 0) {
-    const it = await ctx.db.query<LinhaItemMeta>(
-      `select pedido_id, produto_id, quantidade::float8 as quantidade
+    const it = await ctx.db.query<Omit<LinhaItemMeta, 'quantidade'> & { quantidade: string }>(
+      `select pedido_id, produto_id, quantidade::text as quantidade
          from vendedor.pedido_item
         where deleted_at is null and pedido_id = any($1::uuid[])`,
       [ped.rows.map((r) => r.id)],
     );
-    for (const i of it.rows) itensPorPedido.set(i.pedido_id, [...(itensPorPedido.get(i.pedido_id) ?? []), { ...i, quantidade: Number(i.quantidade) }]);
+    for (const i of it.rows) itensPorPedido.set(i.pedido_id, [...(itensPorPedido.get(i.pedido_id) ?? []), { ...i, quantidade: quantidadeDoBanco(i.quantidade) }]);
   }
   const fat = await ctx.db.query<LinhaFaturamentoMeta>(
     `select p.vendedor_id, p.cliente_id, (p.status = 'cancelled') as cancelado,

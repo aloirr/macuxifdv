@@ -431,7 +431,7 @@ describe('RN-GES-05: cobertura de rota limitada a 100% e visitas extras à parte
 describe('RN-GES-06: vendido × faturado (inclusive parcial pelos itens) e a faturar', () => {
   const P_A = u(800), P_B = u(801), P_C = u(802);
   const criado = (pedido: string, total: number, itens: { produto_id: string; quantidade: number; total_cents: number }[] | null, em = '2026-10-30T14:00:00Z', extra: Record<string, unknown> = {}) =>
-    ev('vendedor.pedido.criado@1', em, { pedido_id: pedido, vendedor_id: VENDEDOR, autor_id: VENDEDOR, cliente_id: CLIENTE_A, visita_id: null, tipo: 'pedido', total_cents: total, total_tabela_cents: total, criado_em: em, itens: itens ?? [], ...extra });
+    ev('vendedor.pedido.criado@2', em, { pedido_id: pedido, vendedor_id: VENDEDOR, autor_id: VENDEDOR, cliente_id: CLIENTE_A, visita_id: null, tipo: 'pedido', total_cents: total, total_tabela_cents: total, criado_em: em, itens: itens ?? [], ...extra });
   const faturou = (pedido: string, parcial: boolean, itens: { produto_id: string; quantidade: number }[], em = '2026-10-31T14:00:00Z', id?: string) =>
     ev('vendedor.pedido.faturado@1', em, { pedido_id: pedido, vendedor_id: VENDEDOR, faturado_em: em, parcial, itens }, id);
   const ITENS_A = [
@@ -464,6 +464,14 @@ describe('RN-GES-06: vendido × faturado (inclusive parcial pelos itens) e a fat
     expect(faturadoDoPedido(montar([criado(P_B, 1_000, itens), faturou(P_B, true, [{ produto_id: u(903), quantidade: 2 }])]).pedidos[P_B]!)).toBe(667);
     expect(faturadoDoPedido(montar([criado(P_B, 1_000, itens), faturou(P_B, true, [{ produto_id: u(903), quantidade: 5 }])]).pedidos[P_B]!)).toBe(1_000);
     expect(faturadoDoPedido(montar([criado(P_B, 1_000, itens), faturou(P_B, true, [{ produto_id: u(999), quantidade: 5 }])]).pedidos[P_B]!)).toBe(0); // item que não está no pedido
+  });
+
+  it('RN-GES-06 (ADR 0076): quantidade decimal soma sem float (0,1 + 0,2 = 0,3 de 0,3 kg = total) e o proporcional usa até 4 casas', () => {
+    const itens = [{ produto_id: u(904), quantidade: 0.3, total_cents: 900 }];
+    const duas = montar([criado(P_C, 900, itens), faturou(P_C, true, [{ produto_id: u(904), quantidade: 0.1 }]), faturou(P_C, true, [{ produto_id: u(904), quantidade: 0.2 }], '2026-11-01T14:00:00Z')]);
+    expect(faturadoDoPedido(duas.pedidos[P_C]!)).toBe(900);
+    const meia = [{ produto_id: u(905), quantidade: 2.5, total_cents: 1_001 }];
+    expect(faturadoDoPedido(montar([criado(P_C, 1_001, meia), faturou(P_C, true, [{ produto_id: u(905), quantidade: 1.2345 }])]).pedidos[P_C]!)).toBe(494); // 1001 × 1,2345 ÷ 2,5 = 494,28
   });
 
   it('reentrega do mesmo evento de faturamento não soma duas vezes', () => {

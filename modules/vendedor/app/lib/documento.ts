@@ -194,10 +194,11 @@ function ajusteDoRascunho(i: ItemParaCopia): Ajuste | null {
  * T-0084 (RN-VEN-19): Editar mantém o retrato da aplicação (`manterAplicacao`; desmarcado fica desmarcado); Duplicar não leva
  * o retrato: tira um novo, pelo padrão do tenant.
  */
-export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opcoes: { manterAplicacao?: boolean } = {}): RascunhoDaCopia {
+export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opcoes: { manterAplicacao?: boolean; fracaoLiberada?: boolean } = {}): RascunhoDaCopia {
   const r = prefillLines(
     c.itens.map((i) => ({ product_id: i.product_id, quantity: i.quantity, unidade: i.unidade ?? null })),
     catalogo,
+    opcoes.fracaoLiberada ?? false,
   );
   const ajustes: Record<string, Ajuste> = {};
   for (const i of c.itens) {

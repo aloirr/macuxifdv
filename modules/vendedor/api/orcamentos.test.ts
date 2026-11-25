@@ -31,6 +31,10 @@ describe('T-0071: rotas do orçamento recebido', () => {
     expect(rotaEditarOrcamento.corpo!.safeParse({ ...base, atualizado_em: '2026-11-03T12:00:00.000000Z' }).success).toBe(true);
     expect(rotaEditarOrcamento.corpo!.safeParse({ ...base, atualizado_em: 'x', tipo: 'pedido' }).success).toBe(false);
   });
+  it('RN-VEN-02 v3 (ADR 0076 D4): quantidade com mais de 4 casas passa pelo corpo do PUT (a revalidação responde 422 quantidade_fracionaria_invalida, não 400 VALIDACAO)', () => {
+    const corpo = { customer_id: '0f530000-0000-4000-8000-000000000001', discount_pct: 0, atualizado_em: '2026-11-03T12:00:00.000000Z', items: [{ product_id: '0f530000-0000-4000-8000-000000000002', quantity: 1.23456 }] };
+    expect(rotaEditarOrcamento.corpo!.safeParse(corpo).success).toBe(true);
+  });
   it('§1.4 g: OrderListQuery aceita tipo e situacao', () => {
     expect(OrderListQuery.parse({ tipo: 'orcamento', situacao: 'aberto' })).toMatchObject({ tipo: 'orcamento', situacao: 'aberto' });
     expect(OrderListQuery.safeParse({ tipo: 'outro' }).success).toBe(false);

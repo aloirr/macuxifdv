@@ -1,6 +1,7 @@
 /**
  * "Verificar atualização" do app (item 19 do teste de campo do Campo v1.0.16; desenho `docs/desenho/v1017-campo-versao-e-marca.md`
  * §2). Contrato no SDK (`app-versao.ts`), as duas públicas (sem sessão, sem dado de tenant), `public, max-age=300`:
+ *   GET /v1/app/versao?variante=campo|gestao&contrato=3   AppVersaoPublicadaV3 = V2 + `fracao_liberada` (apps a partir da v1.0.36)
  *   GET /v1/app/versao?variante=campo|gestao&contrato=2   AppVersaoPublicadaV2, sem `apk_url` (apps a partir da v1.0.19)
  *   GET /v1/app/versao?variante=campo|gestao              AppVersaoPublicada (apps v1.0.17 e v1.0.18, que não mudam)
  *   GET /v1/app/atualizar?variante=campo|gestao           página HTML que só orienta a pedir o link do APK
@@ -34,7 +35,10 @@ import {
   type ServicoPacotes,
   type VersaoPublicadaApp,
   AppVersaoPublicadaV2Schema,
+  AppVersaoPublicadaV3Schema,
   CODIGO_SEM_VERSAO,
+  CONTRATO_APP_VERSAO_V3,
+  fracaoLiberada,
   ConsultaAppAtualizarSchema,
   ConsultaAppVersaoSchema,
   NOME_APP_VARIANTE,
@@ -215,16 +219,30 @@ export function registrarBloqueioVersaoApp(app: FastifyInstance, dep: { fonte: F
 
 export function registrarRotaAppVersao(
   app: FastifyInstance,
-  dep: { fonte: FonteVersoesApp; urlApiPublica: string; validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown },
+  dep: {
+    fonte: FonteVersoesApp;
+    urlApiPublica: string;
+    relogio: () => Date;
+    validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown;
+  },
 ): void {
   app.get(ROTA_APP_VERSAO, async (req, reply) => {
     const { variante, contrato } = dep.validar(ConsultaAppVersaoSchema, req.query, 'query') as z.output<typeof ConsultaAppVersaoSchema>;
     const v = await dep.fonte.publicada(variante);
     if (!v) throw new ErroHttp(404, CODIGO_SEM_VERSAO, 'Nenhuma versão publicada para este app.');
     const { versao, publicada_em } = v;
-    const corpo = contrato
-      ? AppVersaoPublicadaV2Schema.parse({ variante, versao, publicada_em })
-      : AppVersaoPublicadaSchema.parse({ variante, versao, publicada_em, apk_url: `${dep.urlApiPublica}${ROTA_APP_ATUALIZAR}?variante=${variante}` });
+    let corpo: unknown;
+    if (contrato === CONTRATO_APP_VERSAO_V3) {
+      // ADR 0076 D6: a trava depende das duas variantes; o app só conhece a própria, então o servidor calcula
+      const daVariante = (x: VarianteApp) => (x === variante ? Promise.resolve(v) : dep.fonte.publicada(x));
+      const [campo, gestao] = await Promise.all([daVariante('campo'), daVariante('gestao')]);
+      const fracao_liberada = fracaoLiberada({ campo, gestao, agora: dep.relogio() });
+      corpo = AppVersaoPublicadaV3Schema.parse({ variante, versao, publicada_em, fracao_liberada });
+    } else if (contrato) {
+      corpo = AppVersaoPublicadaV2Schema.parse({ variante, versao, publicada_em });
+    } else {
+      corpo = AppVersaoPublicadaSchema.parse({ variante, versao, publicada_em, apk_url: `${dep.urlApiPublica}${ROTA_APP_ATUALIZAR}?variante=${variante}` });
+    }
     return reply.header('cache-control', CACHE_APP_VERSAO).send(corpo);
   });
 
