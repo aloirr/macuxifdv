@@ -8,8 +8,9 @@
  * e não cancelado). O orçamento não expira (RN-VEN-18): o aberto antigo continua na janela. Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos,
  * removidos incluídos. Item e evento: mesmo escopo e janela do pedido pai (join).
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
-import { ehConsultaIndisponivel, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { clienteAceitaFracao, ehConsultaIndisponivel, variacaoFracao, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   entidadeClienteCondicao,
   entidadeCondicaoPagamento,
@@ -102,53 +103,76 @@ export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5
           or (p.status <> all($7::text[])
               and (p.tipo = 'pedido' or p.convertido_em is null)))`;
 
+/**
+ * ADR 0076 D6 (pull filtrado): app sem o cabeçalho de versão ou abaixo da `VERSAO_APP_FRACAO` não recebe pedido com item de quantidade ou fator
+ * fracionário (nem os itens e eventos dele): o schema antigo do app derrubaria o pull inteiro. Filtro em SQL, para o cursor seguir.
+ * Funciona antes e depois da 0107 (`trunc` aceita inteiro e numeric).
+ */
+export const FILTRO_SEM_FRACAO = `and not exists (select 1 from vendedor.pedido_item fi where fi.tenant_id = p.tenant_id and fi.pedido_id = p.id
+       and (fi.quantidade <> trunc(fi.quantidade) or fi.fator <> trunc(fi.fator)))`;
+const filtroFracao = (semFracao: boolean): string => (semFracao ? FILTRO_SEM_FRACAO : '');
+
+/** Colunas `numeric` do item chegam do `node-pg` como texto: voltam a `number` com até 4 casas (ADR 0076 D2). */
+const COLUNAS_QUANTIDADE_ITEM = ['quantidade', 'quantidade_base', 'quantidade_faturada', 'fator'] as const;
+export function itemComQuantidadeNumerica(l: LinhaSync): LinhaSync {
+  const r: Record<string, unknown> = { ...l };
+  for (const c of COLUNAS_QUANTIDADE_ITEM) if (typeof r[c] === 'string') r[c] = quantidadeDoBanco(r[c] as string);
+  return r as unknown as LinhaSync;
+}
+
 /** O pg exige exatamente os parâmetros usados: `$8` (fuso) só existe na consulta do pedido (validade_ate); item e evento levam 7. */
 export function valores(pedido: PedidoPull, e: EscopoPedido, fuso?: string): unknown[] {
   const base = [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite, e.vendedores, e.clientes, [...ORDER_STATUSES_FINAIS]];
   return fuso === undefined ? base : [...base, fuso];
 }
 
-export function sqlPedido(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO, fuso = 'UTC'): { sql: string; valores: unknown[] } {
+export function sqlPedido(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO, fuso = 'UTC', semFracao = false): { sql: string; valores: unknown[] } {
   const sql = `select ${COLUNAS_PEDIDO}${comFaturamento ? COLUNAS_PEDIDO_FATURAMENTO : ''}
     from vendedor.pedido p ${comFaturamento ? JUNCAO_FATURAMENTO : ''}
    where p.updated_at < $1::timestamptz
      and ($2::timestamptz is null or (p.updated_at, p.id) > ($2::timestamptz, $3::uuid))
      ${FILTROS_PEDIDO}
+     ${filtroFracao(semFracao)}
    order by p.updated_at, p.id
    limit $4`;
   return { sql, valores: valores(pedido, e, fuso) };
 }
 
-export function sqlPedidoItem(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO): { sql: string; valores: unknown[] } {
+export function sqlPedidoItem(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO, semFracao = false): { sql: string; valores: unknown[] } {
   const sql = `select ${COLUNAS_ITEM}${comFaturamento ? COLUNAS_ITEM_FATURAMENTO : ''}
     from vendedor.pedido_item i
     join vendedor.pedido p on p.tenant_id = i.tenant_id and p.id = i.pedido_id
    where i.updated_at < $1::timestamptz
      and ($2::timestamptz is null or (i.updated_at, i.id) > ($2::timestamptz, $3::uuid))
      ${FILTROS_PEDIDO}
+     ${filtroFracao(semFracao)}
    order by i.updated_at, i.id
    limit $4`;
   return { sql, valores: valores(pedido, e) };
 }
 
-export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido): { sql: string; valores: unknown[] } {
+export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido, semFracao = false): { sql: string; valores: unknown[] } {
   const sql = `select ${COLUNAS_EVENTO}
     from vendedor.pedido_evento e
     join vendedor.pedido p on p.tenant_id = e.tenant_id and p.id = e.pedido_id
    where e.updated_at < $1::timestamptz
      and ($2::timestamptz is null or (e.updated_at, e.id) > ($2::timestamptz, $3::uuid))
      ${FILTROS_PEDIDO}
+     ${filtroFracao(semFracao)}
    order by e.updated_at, e.id
    limit $4`;
   return { sql, valores: valores(pedido, e) };
 }
 
-async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido, fuso: string) => { sql: string; valores: unknown[] }, ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
+async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido, fuso: string, semFracao: boolean) => { sql: string; valores: unknown[] }, ctx: ContextoBase, pedido: PedidoPull, item = false): Promise<LinhaSync[]> {
   // O-3: promotor com `promotor_ve_pedidos` desligada não recebe pedido, item nem evento
   if (!(await leituraDePedidosLiberada(ctx))) return [];
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
-  const { sql, valores: v } = montar(pedido, e, ctx.fuso());
-  return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
+  const { sql, valores: v } = montar(pedido, e, ctx.fuso(), !clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null));
+  return ctx.comTenant(async (db) => {
+    const rows = (await db.query(sql, v)).rows as unknown as LinhaSync[];
+    return item ? rows.map(itemComQuantidadeNumerica) : rows;
+  });
 }
 
 /**
@@ -172,7 +196,7 @@ export async function marcarAceiteDeCancelamento(linhas: LinhaSync[], tx: Transa
 async function puxarPedidos(ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
   if (!(await leituraDePedidosLiberada(ctx))) return [];
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
-  const { sql, valores: v } = sqlPedido(pedido, e, FATURAMENTO_LIGADO, ctx.fuso());
+  const { sql, valores: v } = sqlPedido(pedido, e, FATURAMENTO_LIGADO, ctx.fuso(), !clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null));
   return ctx.comTenant(async (db, tx) => marcarAceiteDeCancelamento((await db.query(sql, v)).rows as unknown as LinhaSync[], tx));
 }
 
@@ -232,10 +256,14 @@ export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: u
   return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite] };
 }
 
+/**
+ * ADR 0076 D6: o pull filtrado por versão entra na variação do escopo (cursor de novidades e `versao_escopo`): o app que sobe para a
+ * `VERSAO_APP_FRACAO` muda de `fracao=0` para `fracao=1` e baixa de novo as linhas fracionárias que ficaram atrás do cursor.
+ */
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
-  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarPedidos(ctx, p), receber: receberPedidos },
-  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO), ctx, p) },
-  { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe(sqlPedidoEvento, ctx, p) },
+  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null), puxar: (ctx, p) => puxarPedidos(ctx, p), receber: receberPedidos },
+  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null), puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, semFracao), ctx, p, true) },
+  { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null), puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoEvento(x, e, semFracao), ctx, p) },
   {
     entidade: entidadeCondicaoPagamento,
     escopo: 'tenant',

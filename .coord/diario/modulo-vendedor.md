@@ -165,3 +165,5 @@
 2026-11-20 — v1.0.16 S4 — RD-2437 (nivelMinimoDoAutor derivado de NIVEIS_APROVACAO) e RD-2451 (MembroDoSlot removido; usa MembroEquipeEmNome do contracts)
 2026-11-20 — v1.0.16 S4 — RD-2455 (MembrosEquipeEmNomeSchema sai do contrato) e RD-2456 (opcoesEmNome sem autor/visiveis; filtro só em equipeEmNomeDosMembros)
 2026-11-24 — v1.0.34 — busca do Novo pedido não pisca: sync não zera a tabela de preços; tabelaVencida (domain, base_sync) + recálculo por trás em garantirProdutos (lê as linhas frescas; orçamento e cópia aguardam); tela chama ensureProducts também em app.sincronizadoEm
+2026-11-25 — v1.0.35 E3 — quantidade fracionária (ADR 0076): domain, contratos, API (trava, pull filtrado, criado@2); telas na E4
+2026-11-25 — v1.0.35 E4 — telas do Campo com quantidade fracionária (ADR 0076): CampoQuantidade (KG/M, vírgula, 4 casas), trava guardada, 1,250 kg no detalhe, total por totalDaLinhaCents

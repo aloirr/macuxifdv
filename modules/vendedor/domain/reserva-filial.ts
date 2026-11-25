@@ -2,6 +2,8 @@
  * RN-VEN-20 (T-0149; RN-CORE-39): estoque e reserva pela FILIAL do pedido. Funções puras, usadas pela API (confere ao receber) e
  * pelo app (estoque mostrado e validação offline). Quais depósitos valem para a filial é regra do Catálogo (`@macuxi/catalogo/contracts`).
  */
+import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
+
 
 /** Pedido que segura estoque: aceito pela API e ainda não faturado por inteiro, cancelado ou rejeitado (migração 0061). */
 export const STATUS_QUE_RESERVAM = ['received', 'pending_approval', 'approved', 'sent_to_erp', 'integrated', 'invoiced_partial'] as const;
@@ -9,7 +11,7 @@ export const STATUS_QUE_RESERVAM = ['received', 'pending_approval', 'approved', 
 export const reservaEstoque = (tipo: string | null | undefined, status: string): boolean => (tipo ?? 'pedido') === 'pedido' && (STATUS_QUE_RESERVAM as readonly string[]).includes(status);
 
 /** Disponível = saldo − reservado, nunca negativo (RN-VEN-20). Única definição, usada pelo app e pela API. */
-export const disponivel = (saldo: number, reservado: number): number => Math.max(0, saldo - reservado);
+export const disponivel = (saldo: number, reservado: number): number => Math.max(0, subtrairQuantidades(saldo, reservado));
 
 export interface ItemParaEstoque {
   produto_id: string;
@@ -29,7 +31,7 @@ export interface FaltaDeEstoque {
  */
 export function produtosSemEstoqueNaFilial(itens: readonly ItemParaEstoque[], saldo: ReadonlyMap<string, number>, reservado: ReadonlyMap<string, number>): FaltaDeEstoque[] {
   const pedido = new Map<string, number>();
-  for (const i of itens) pedido.set(i.produto_id, (pedido.get(i.produto_id) ?? 0) + i.quantidade_base);
+  for (const i of itens) pedido.set(i.produto_id, somarQuantidades(pedido.get(i.produto_id) ?? 0, i.quantidade_base));
   const falta: FaltaDeEstoque[] = [];
   for (const [produto_id, pedido_base] of pedido) {
     const s = saldo.get(produto_id);
@@ -53,7 +55,7 @@ export function reservadoLocalNaFilial(pedidos: readonly ReservaLocal[], filialI
   const m = new Map<string, number>();
   for (const p of pedidos) {
     if (!reservaEstoque(p.tipo, p.status) || p.filial_id?.toLowerCase() !== alvo) continue;
-    for (const i of p.itens) m.set(i.produto_id, (m.get(i.produto_id) ?? 0) + Math.max(0, i.quantidade_base - (i.quantidade_faturada ?? 0)));
+    for (const i of p.itens) m.set(i.produto_id, somarQuantidades(m.get(i.produto_id) ?? 0, Math.max(0, subtrairQuantidades(i.quantidade_base, i.quantidade_faturada ?? 0))));
   }
   return m;
 }

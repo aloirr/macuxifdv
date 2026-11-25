@@ -7,6 +7,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { Product } from '@macuxi/catalogo/contracts';
+import { quantidadeBase, totalDaLinhaCents, unidadeFracionaria } from '@macuxi/comum/quantidade';
 import { Botao, colors, fonte, Folha, Icon, Passo, Segmentado, type as t } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,9 +17,11 @@ import { linhasDosTotais, ROTULO_VALOR_FINAL } from '../../domain/apresentacao-t
 import type { AjusteGeral } from '../../domain/desconto-geral';
 import { descontoMaximoDoItemPct, rotuloMedida } from '../../domain/preco-pedido';
 import { nomeComMarca } from '../lib/detalhe-pedido';
+import { propsDoPassoDaQuantidade } from '../lib/quantidade-digitada';
 import { alertasDoItem, chavesDoProduto, estadoInicialDoItem, estoqueNaEmbalagem, numeroDoEstoque, riscoDeRuptura, ROTULOS_DO_POPUP, TEXTO_RISCO_DE_RUPTURA, type EstadoDoItem } from '../lib/item-popup';
 import { alternarAplicacao, minimoDoProdutoNoPrazo, type Ajuste, type CalculoPedido, type ProdutoComMinimo, type UnidadeDaTela } from '../lib/novo-pedido';
 import { AreaAlertas } from './area-alertas';
+import { useAmbiente } from '@macuxi/platform-sdk/react';
 import { AjusteDoItem } from './novo-pedido-itens';
 import { CaixaAplicacao } from './novo-pedido';
 
@@ -38,7 +41,17 @@ export interface PropsFolhaDoItem {
   onFechar: () => void;
 }
 
+/** Base da quantidade do item (unidades base): sem float; quantidade e fator fracionários juntos não existem (RN-VEN-02 v3). */
+function quantidadeBaseDoItem(qtd: number, fator: number): number {
+  try {
+    return quantidadeBase(qtd, fator);
+  } catch {
+    return qtd * fator;
+  }
+}
+
 export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral = null, percentualAjusteBp = 0, onConfirmar, onRemover, onFechar }: PropsFolhaDoItem) {
+  const ambiente = useAmbiente();
   const inicial = estadoInicialDoItem(p.id, medidas, lines, ajustes, geral);
   const [idx, setIdx] = useState(inicial.idx);
   const [qtd, setQtd] = useState(inicial.qtd);
@@ -50,10 +63,10 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
   const linha = calc?.linhas[0] ?? null;
   const minimo = minimoDoProdutoNoPrazo(p as ProdutoComMinimo, percentualAjusteBp);
   const maximoPct = linha && minimo !== null ? descontoMaximoDoItemPct(linha.preco_tabela_cents, minimo * medida.fator) : null;
-  const alertas = alertasDoItem({ erp_code: p.erp_code, unidade_base: p.unit, estoque_base: p.stock_total, quantidade_base: qtd * medida.fator, acima_do_maximo: (calc?.acima_do_maximo.length ?? 0) > 0, maximo_pct: maximoPct });
+  const alertas = alertasDoItem({ erp_code: p.erp_code, unidade_base: p.unit, estoque_base: p.stock_total, quantidade_base: quantidadeBaseDoItem(qtd, medida.fator), acima_do_maximo: (calc?.acima_do_maximo.length ?? 0) > 0, maximo_pct: maximoPct });
   const acima = alertas.some((a) => a.tipo === 'maximo');
   const nome = `${p.description} ${rotuloMedida(medida.unidade, medida.fator)}`;
-  const tabelaTotal = linha ? linha.preco_tabela_cents * qtd : 0;
+  const tabelaTotal = linha ? totalDaLinhaCents(linha.preco_tabela_cents, qtd) : 0;
   const linhasTot = linha ? linhasDosTotais({ subtotal_cents: tabelaTotal, total_cents: linha.total_cents }, { fixas: true }) : [];
   const estoque = estoqueNaEmbalagem(p.stock_total, medida.fator);
   const risco = riscoDeRuptura(estoque);
@@ -92,7 +105,11 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
         <View style={s.linhaDupla}>
           <View style={{ gap: 6 }} onLayout={(e) => setLarguraQtd(e.nativeEvent.layout.width)}>
             <Text style={s.rotulo}>QUANTIDADE</Text>
-            <Passo editavel valor={qtd} min={1} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
+            {unidadeFracionaria(medida.unidade) ? (
+              <Passo editavel valor={qtd} {...propsDoPassoDaQuantidade(medida.unidade, ambiente.fracaoLiberada())} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
+            ) : (
+              <Passo editavel valor={qtd} min={1} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
+            )}
           </View>
           <View style={{ gap: 6, flex: 1 }}>
             <Text style={s.rotulo}>DESC./ACRÉSC.</Text>

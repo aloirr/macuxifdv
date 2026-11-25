@@ -17,7 +17,9 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { PedidoFaturadoEvento } from '../contracts/eventos';
+import { formatarQuantidade } from '@macuxi/comum/quantidade';
 import type { OrderStatus } from './order';
+import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 
 /** Retorno do ERP como o Vendedor precisa (subconjunto de `integracao.pedido.retorno_erp@1`). */
 export interface RetornoErpEntrada {
@@ -134,7 +136,7 @@ export interface DivergenciaFaturamento {
 
 function somaPorSequencia(l: readonly QuantidadeFaturada[]): Map<number, number> {
   const m = new Map<number, number>();
-  for (const x of l) m.set(x.sequencia, (m.get(x.sequencia) ?? 0) + x.quantidade);
+  for (const x of l) m.set(x.sequencia, somarQuantidades(m.get(x.sequencia) ?? 0, x.quantidade));
   return m;
 }
 
@@ -156,7 +158,7 @@ export function itensDoFaturamento(
 ): { itens: ItemFaturadoNoPedido[]; divergencias: DivergenciaFaturamento[] } {
   const ja = somaPorSequencia(jaFaturados ?? []);
   const porSeq = new Map(itensPedido.map((i) => [i.sequencia, i]));
-  const saldo = (seq: number) => Math.max(0, (porSeq.get(seq)?.quantity ?? 0) - (ja.get(seq) ?? 0));
+  const saldo = (seq: number) => Math.max(0, subtrairQuantidades(porSeq.get(seq)?.quantity ?? 0, ja.get(seq) ?? 0));
 
   if (!itensRetorno || itensRetorno.length === 0) {
     if (status !== 'faturado_total' || jaFaturados === null) return { itens: [], divergencias: [] };
@@ -172,7 +174,7 @@ export function itensDoFaturamento(
     const atual = pedidos.get(r.sequencia);
     const valor = r.valor_cents ?? null;
     if (!atual) pedidos.set(r.sequencia, { quantidade: r.quantidade, valor });
-    else pedidos.set(r.sequencia, { quantidade: atual.quantidade + r.quantidade, valor: atual.valor === null || valor === null ? null : atual.valor + valor });
+    else pedidos.set(r.sequencia, { quantidade: somarQuantidades(atual.quantidade, r.quantidade), valor: atual.valor === null || valor === null ? null : atual.valor + valor });
   }
   const itens: ItemFaturadoNoPedido[] = [];
   const divergencias: DivergenciaFaturamento[] = [];
@@ -198,7 +200,7 @@ export function eventoFaturadoDosItens(
   itens: readonly ItemFaturadoNoPedido[],
 ): PedidoFaturadoEvento | null {
   const soma = new Map<string, number>();
-  for (const i of itens) if (i.quantity > 0) soma.set(i.product_id, (soma.get(i.product_id) ?? 0) + i.quantity);
+  for (const i of itens) if (i.quantity > 0) soma.set(i.product_id, somarQuantidades(soma.get(i.product_id) ?? 0, i.quantity));
   if (soma.size === 0) return null;
   return {
     pedido_id: pedido.id,
@@ -287,7 +289,7 @@ export function resumoFaturamento(
       continue;
     }
     for (const i of f.itens) {
-      faturada.set(i.sequencia, (faturada.get(i.sequencia) ?? 0) + i.quantidade);
+      faturada.set(i.sequencia, somarQuantidades(faturada.get(i.sequencia) ?? 0, i.quantidade));
       const p = porSeq.get(i.sequencia);
       faturado += i.valor_cents ?? (p && p.quantity > 0 ? Math.round((p.total_cents * i.quantidade) / p.quantity) : 0);
     }
@@ -300,7 +302,7 @@ export function resumoFaturamento(
       .sort((a, b) => a.sequencia - b.sequencia)
       .map((i) => {
         const f = Math.min(i.quantity, faturada.get(i.sequencia) ?? 0);
-        return { sequencia: i.sequencia, quantidade: i.quantity, faturada: f, saldo: i.quantity - f };
+        return { sequencia: i.sequencia, quantidade: i.quantity, faturada: f, saldo: subtrairQuantidades(i.quantity, f) };
       }),
     faturado_cents: faturado,
     devolvido_cents: devolvido,
@@ -383,5 +385,6 @@ export function textoItemFaturado(quantidade: number, faturada: number | null | 
   if (faturada === undefined || faturada === null) return null;
   if (faturada <= 0) return 'Não faturado';
   if (faturada >= quantidade) return 'Faturado';
-  return `Faturado ${faturada} de ${quantidade}`;
+  const n = (q: number): string => (Number.isInteger(q) ? String(q) : formatarQuantidade(q, null));
+  return `Faturado ${n(faturada)} de ${n(quantidade)}`;
 }
