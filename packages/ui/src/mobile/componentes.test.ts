@@ -62,6 +62,14 @@ describe('componentes genéricos (T-0071, fatia 4): parte pura', () => {
     expect(proximoPasso(999_999, 1, 1, 0.0001, 999_999, 4)).toBe(999_999);
   });
 
+  it('passo decimal com a trava fechada (casas 0): o − que passaria do mínimo não muda o valor; sem modo decimal encosta no mínimo', () => {
+    expect(proximoPasso(1.5, -1, 1, 1, undefined, 0)).toBe(1);
+    expect(proximoPasso(3, -1, 5, 1, undefined, 0)).toBe(3);
+    expect(proximoPasso(3, -1, 1, 1, undefined, 0)).toBe(2);
+    expect(proximoPasso(3, 1, 5, 1, 6, 0)).toBe(6);
+    expect(proximoPasso(3, -1, 5, 1)).toBe(1);
+  });
+
   it('lerQuantidadeComCasas: vírgula ou ponto, corta casas; sem casas vale o inteiro e avisa', () => {
     expect(lerQuantidadeComCasas('1,25', 4)).toEqual({ valor: 1.25, fracaoRecusada: false });
     expect(lerQuantidadeComCasas('1.25', 4)).toEqual({ valor: 1.25, fracaoRecusada: false });

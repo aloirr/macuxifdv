@@ -169,6 +169,12 @@ describe('passo compacto (− n +) da linha 3 do item: bug do "+" e alvo de toqu
     expect(passoComTexto({ texto: '0', focado: true, valor: 2 }, 1, 1, 0.0001, undefined, 4)).toBe(3);
   });
 
+  it('passo decimal com a trava fechada (casas 0): o − que passaria do mínimo não muda o valor', () => {
+    expect(passoComTexto({ texto: '3', focado: true, valor: 3 }, -1, 5, 1, undefined, 0)).toBe(3);
+    expect(passoComTexto({ texto: '', focado: false, valor: 3 }, -1, 5, 1, undefined, 0)).toBe(3);
+    expect(passoComTexto({ texto: '3', focado: true, valor: 3 }, -1, 5, 1)).toBe(1);
+  });
+
   it('com o teclado aberto, o "+" parte do número digitado (digitar 5 e tocar + dá 6); texto vazio usa o valor', () => {
     expect(passoComTexto({ texto: '5', focado: true, valor: 1 }, 1)).toBe(6);
     expect(passoComTexto({ texto: '', focado: true, valor: 2 }, 1)).toBe(3);

@@ -34,11 +34,13 @@ export function limitarPasso(valor: number, min = 0, max?: number, casas = 0): n
 }
 
 /**
- * Próximo valor do passo ao tocar − (`-1`) ou + (`+1`), já limitado. Com `casas` > 0 a conta é em inteiros na escala
- * (1,25 + 1 = 2,25 exato) e o − que passaria do mínimo deixa o valor como está (0,5 kg não vira o mínimo).
+ * Próximo valor do passo ao tocar − (`-1`) ou + (`+1`), já limitado. No passo decimal (`casas` informado, inclusive 0 com a
+ * trava fechada) a conta é em inteiros na escala (1,25 + 1 = 2,25 exato) e o − que passaria do mínimo deixa o valor como
+ * está (0,5 kg não vira o mínimo). Sem `casas` (passo inteiro) o − encosta no mínimo.
  */
-export function proximoPasso(valor: number, direcao: -1 | 1, passo = 1, min = 0, max?: number, casas = 0): number {
-  if (casas <= 0) return limitarPasso(valor + direcao * passo, min, max);
+export function proximoPasso(valor: number, direcao: -1 | 1, passo = 1, min = 0, max?: number, casas?: number): number {
+  if (casas === undefined) return limitarPasso(valor + direcao * passo, min, max);
+  casas = Math.max(0, Math.trunc(casas));
   const e = 10 ** casas;
   const novo = (Math.round(valor * e) + direcao * Math.round(passo * e)) / e;
   if (novo < min) return limitarPasso(valor, min, max, casas);
