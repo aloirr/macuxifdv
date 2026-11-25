@@ -16,6 +16,7 @@ import {
 import type { BadgeTone } from '@macuxi/ui/web';
 
 import { noPortal } from './portal';
+import { ehRotaAusente, mensagemDoErro } from './portal-api';
 
 /** Página do portal, com o prefixo `/config` (`noPortal`). */
 export const CAMINHO_DIAGNOSTICOS = noPortal('/diagnosticos');
@@ -38,7 +39,16 @@ export const TEXTOS_PORTAL_DIAGNOSTICOS = {
   copiado: 'Copiado',
   semSaida: 'Nenhuma saída registrada pelo Android.',
   semErro: 'Nenhum erro registrado.',
+  desligado: 'Diagnósticos desligados neste servidor.',
 } as const;
+
+/**
+ * Erro da lista → tela. A API só registra `/v1/plataforma/diagnosticos` com `MACUXI_DIAGNOSTICOS=1`; sem ele, o 404 de rota
+ * (`NAO_ENCONTRADO`) vira "desligados", sem "Tentar de novo" (tentar de novo dá o mesmo 404).
+ */
+export function erroDaListaDeDiagnosticos(e: unknown): { desligado: true; mensagem: string } | { desligado: false; mensagem: string } {
+  return ehRotaAusente(e) ? { desligado: true, mensagem: TEXTOS_PORTAL_DIAGNOSTICOS.desligado } : { desligado: false, mensagem: mensagemDoErro(e) };
+}
 
 // ---------- origem e motivo ----------
 

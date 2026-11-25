@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mensagemBloqueioPorTentativas, mensagemMuitasTentativas } from '@macuxi/core/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
-import { corpoDaEmpresa, errosDaEmpresa, sugerirCodigo, textoDaConferencia } from '@/components/portal/passo-empresa-legado';
+import { corpoDaEmpresa, erroDoCodigoNovo, errosDaEmpresa, mascararCodigoEmpresa, TEXTOS_CODIGO_EMPRESA, textoDaConferencia } from '@/components/portal/passo-empresa-legado';
 import { abaDoEndereco } from '@/components/portal/tela-empresa';
 import { celulaDoPlano } from '@/components/portal/tela-empresas';
 import { rotuloDoStatus } from '@/lib/portal-empresa-acoes';
@@ -54,9 +54,15 @@ describe('passo Empresa', () => {
     expect(Object.values(e).join(' ')).not.toMatch(/must|String|Number/);
     expect(errosDaEmpresa(corpoDaEmpresa({ ...form, validade_orcamento_dias: '0' }, false))['parametros.validade_orcamento_dias']).toBe('Informe de 1 a 90 dias.');
   });
-  it('sugestão do código', () => {
-    expect(sugerirCodigo('Distribuidora São João Ltda.')).toBe('distribuidora-sao-joao');
-    expect(sugerirCodigo('ACME S/A')).toBe('acme');
+  it('código da empresa nova no formato do login (UF + 4 dígitos; defeito 5 da revisão geral de 24/11)', () => {
+    expect(mascararCodigoEmpresa('am-48 21x')).toBe('AM4821');
+    expect(mascararCodigoEmpresa('distribuidora')).toBe('DISTRI');
+    expect(erroDoCodigoNovo('AM4821')).toBeNull();
+    expect(erroDoCodigoNovo('rr0001')).toBeNull();
+    for (const c of ['demo', 'XX1234', 'AM482', 'distribuidora-norte', '']) expect(erroDoCodigoNovo(c), c).toBe(TEXTOS_CODIGO_EMPRESA.invalido);
+    expect(TEXTOS_CODIGO_EMPRESA.ajuda).not.toMatch(/minúsculas|hífen/);
+    // o contrato do POST aceita o formato novo (normaliza para minúsculas)
+    expect(errosDaEmpresa(corpoDaEmpresa({ ...form, codigo: 'AM4821' }, true))).toEqual({});
   });
 });
 
