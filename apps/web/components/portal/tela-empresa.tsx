@@ -2,7 +2,7 @@
 
 /**
  * Página de uma empresa no portal (T-0087; spec portal-config-enxuto §5, §8, §10.1 e §11.4): cabeçalho "Código AM4821 ·
- * Manaus (UTC−4)", abas "Integração" (abre por padrão; Monitor no topo, Conector ou API, `AbaIntegracao`), "Dados" (só o time da
+ * Manaus (UTC−4)", abas "Integração" (abre por padrão; Conectores no topo, Conector ou API, `AbaIntegracao`), "Dados" (só o time da
  * Macuxi: uma linha por entidade com Reprocessar e Zerar dados, `AbaDados`; R-20261124-090510) e "Empresa" (`AbaEmpresa`: Plano ·
  * Apps à esquerda; Dados da empresa, Administradores e Logo à direita). Sem CSV no portal: a aba Bases saiu
  * (R-20261114-132000). A aba fica no `#` do endereço (o F5 volta nela; o `#bases` antigo cai na Integração). testIDs: empresa-pagina.*.

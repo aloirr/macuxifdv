@@ -1,12 +1,14 @@
 /**
  * Monitor da Integração no modo falso do portal (desenho docs/desenho/empresa-zerar.md §6.4): `GET /integracao/monitor`,
  * `GET /integracao/monitor/detalhes`, `GET /integracao/lotes/:id/erros` e `POST /integracao/lotes/:id/reprocessar`, validados pelos
- * contratos do módulo, para o e2e e os prints da aba Integração. Só o time da Macuxi (o admin do cliente recebe 403). Exemplo: um
- * Conector `erp`; Produtos com um lote que falhou (Reprocessar); Estoque e Títulos com dados no Hub e sem lote (o "Zerar dados" fica
- * na aba Dados). O que o zerar falso (`portal-falso-zerar.ts`) já apagou some daqui: sem lote e sem registro.
+ * contratos do módulo, para o e2e e os prints da aba Integração. Só o time da Macuxi (o admin do cliente recebe 403). Os
+ * Conectores do detalhe são os da lista do falso; os lotes de exemplo vêm do `erp`: Produtos com um lote que falhou (Reprocessar);
+ * Estoque e Títulos com dados no Hub e sem lote (o "Zerar dados" fica na aba Dados). O que o zerar falso (`portal-falso-zerar.ts`)
+ * já apagou some daqui: sem lote e sem registro.
  */
 import {
   ConectorDetalhe,
+  type ConectorResumo,
   ErrosLoteResposta,
   MonitorDetalhes,
   MonitorResumo,
@@ -108,7 +110,7 @@ function cursorFalso(ultimo: LoteListagemItem | null, agora: number): EntidadeDe
 }
 
 /** Como a API: as entidades do Conector e as que têm dado no Hub (lote ou registro), na ordem de carga. */
-function detalhes(tenant: string, agora: number): MonitorDetalhes {
+function detalhes(tenant: string, agora: number, conectores: readonly ConectorResumo[]): MonitorDetalhes {
   const zeradas = entidadesZeradasFalso(tenant, agora);
   const lotes = lotesDe(tenant, agora);
   const entidades = ORDEM_CARGA_ENTIDADES.filter((e) => ENTIDADES_DO_ERP.includes(e) || lotes.some((l) => l.entidade === e) || (REGISTROS_FALSOS[e] && !zeradas.has(e))).map((e) => {
@@ -126,17 +128,20 @@ function detalhes(tenant: string, agora: number): MonitorDetalhes {
       lotes_reprocessaveis: comErro.map((l) => l.lote_id).reverse(),
     };
   });
-  const conector = ConectorDetalhe.parse({
-    conector_id: 'erp',
-    tipo: 'conector',
-    ativo: true,
-    entidades: ENTIDADES_DO_ERP,
-    versao_conector: '1.4.0',
-    ultimo_sinal_em: iso(agora - 3 * MIN),
-    saude: 'ok',
-    sinal: { fila: [{ estado: 'pendente', lotes: 2, linhas: 380, maisAntigo: iso(agora - 5 * MIN) }], entidades: [], atualizacao: null },
-  });
-  return MonitorDetalhes.parse({ gerado_em: iso(agora), entidades, conectores: [conector] });
+  // os Conectores são os da lista do falso (`GET /integracao/conectores`): a mesma saúde, versão e sinal; fila só com sinal recente
+  const doMonitor = conectores.map((c) =>
+    ConectorDetalhe.parse({
+      conector_id: c.conector_id,
+      tipo: c.tipo,
+      ativo: c.ativo,
+      entidades: c.entidades,
+      versao_conector: c.versao_conector,
+      ultimo_sinal_em: c.ultimo_sinal_em,
+      saude: c.saude,
+      sinal: c.saude === 'ok' || c.saude === 'atrasado' ? { fila: [{ estado: 'pendente', lotes: 2, linhas: 380, maisAntigo: iso(agora - 5 * MIN) }], entidades: [], atualizacao: null } : null,
+    }),
+  );
+  return MonitorDetalhes.parse({ gerado_em: iso(agora), entidades, conectores: doMonitor });
 }
 
 function erros(loteId: string, caminhoComQuery: string): ErrosLoteResposta {
@@ -149,14 +154,17 @@ function erros(loteId: string, caminhoComQuery: string): ErrosLoteResposta {
   return ErrosLoteResposta.parse({ itens, total: itens.length });
 }
 
-/** Responde as rotas do monitor. `superAdmin` = sessão do time da Macuxi; `tenant` já conferido pelo chamador. */
-export function responderMonitorFalso(metodo: string, caminhoComQuery: string, tenant: string, superAdmin: boolean): Response {
+/**
+ * Responde as rotas do monitor. `superAdmin` = sessão do time da Macuxi; `tenant` já conferido pelo chamador; `conectores` = a lista
+ * do falso desta empresa (o detalhe mostra os mesmos Conectores da aba Integração).
+ */
+export function responderMonitorFalso(metodo: string, caminhoComQuery: string, tenant: string, superAdmin: boolean, conectores: readonly ConectorResumo[] = []): Response {
   if (!superAdmin) return json(403, { codigo: 'PERFIL_SEM_ACESSO', mensagem: 'Só o time da Macuxi vê o monitor pelo portal.' });
   const caminho = caminhoComQuery.split('?')[0] ?? '';
   const m = MONITOR_FALSO_M.exec(caminho);
   const agora = Date.now();
   if (m?.[1] === 'monitor' && metodo === 'GET') return json(200, monitor(tenant, agora));
-  if (m?.[1] === 'monitor/detalhes' && metodo === 'GET') return json(200, detalhes(tenant, agora));
+  if (m?.[1] === 'monitor/detalhes' && metodo === 'GET') return json(200, detalhes(tenant, agora, conectores));
   const loteId = decodeURIComponent(m?.[3] ?? '');
   const lote = lotesDe(tenant, agora).find((l) => l.lote_id === loteId);
   if (m?.[4] && !lote) return json(404, { codigo: 'lote_nao_encontrado', mensagem: 'Lote não encontrado.' });

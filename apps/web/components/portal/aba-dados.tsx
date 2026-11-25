@@ -20,10 +20,7 @@ import { celulasDaEntidade, clienteDoPortal, ehEntidadeZerar, reprocessarEntidad
 
 import { DialogoZerar } from './dialogo-zerar';
 
-/**
- * Selo da Situação: a margem negativa à direita deixa o selo usar o respiro direito da célula (10 px), e a coluna fica em 89 px; a
- * 390 px (Entidade, Situação e "⋯") o selo mais largo ("Com falha") e o nome mais largo da Entidade cabem inteiros.
- */
+/** Selo da Situação no respiro direito da célula: a 390 px, "Com falha" e a Entidade mais longa cabem inteiros. */
 const SELO = '-mr-2.5';
 
 export function AbaDados({ empresa }: { empresa: { id: string; codigo: string; razao_social: string; fuso: string } }) {

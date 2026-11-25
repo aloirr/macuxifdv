@@ -4,8 +4,8 @@
  * entidade da aba Dados (`MonitorDetalhes`), e o "Reprocessar" da entidade. Funções puras; a regra (reprocessável, saúde, classe do
  * erro) vem pronta da API.
  */
-import type { ClienteIntegracao } from '@macuxi/integracao/web';
-import { ReprocessarLoteResposta, type ConectorDetalhe, type EntidadeDetalhe } from '@macuxi/integracao/contracts';
+import { reprocessarLote, type ClienteIntegracao } from '@macuxi/integracao/web';
+import type { ConectorDetalhe, EntidadeDetalhe } from '@macuxi/integracao/contracts';
 import { ENTIDADES_ZERAR, type EntidadeZerar } from '@macuxi/platform-sdk';
 import { formatDateTime, formatInt, type BadgeTone } from '@macuxi/ui/web';
 
@@ -91,7 +91,7 @@ export async function reprocessarEntidade(cliente: Pick<ClienteIntegracao, 'cham
   const r = { feitos: 0, erros: [] as unknown[] };
   for (const id of ids) {
     try {
-      ReprocessarLoteResposta.parse(await cliente.chamar<unknown>(`/integracao/lotes/${encodeURIComponent(id)}/reprocessar`, { method: 'POST', body: {} }));
+      await reprocessarLote(cliente, id);
       r.feitos += 1;
     } catch (e) {
       r.erros.push(e);

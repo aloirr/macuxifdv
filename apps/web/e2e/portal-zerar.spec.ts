@@ -1,8 +1,8 @@
 /**
  * e2e do "Zerar dados" (ADR 0068; RN-PLA-12) no portal config., modo falso: o item no menu "⋯" ao lado do Excluir, o diálogo com a
  * prévia calculando (o worker conta) e depois por grupo, o código e a senha, o andamento e o concluído; e (desenho §6.4, R-20261124-090510)
- * o Monitor no topo da aba Integração e a aba Dados, uma tabela por entidade com "Reprocessar" e "Zerar dados" no "⋯", o "Leva junto:"
- * da cascata e o resultado com o lote e os comandos de reenvio. Prints em
+ * a tabela "Conectores" no topo da aba Integração e a aba Dados, uma tabela por entidade com "Reprocessar" e "Zerar dados" no "⋯", o
+ * "Leva junto:" da cascata e o resultado com o lote e os comandos de reenvio. Prints em
  * docs/prints/zerar-dados, 1280 e 390 px (escala 2).
  * Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1`, no `config.localhost` e no `fdv.localhost/config` (projetos do
  * `playwright.config.mjs`; ADR 0071).
@@ -74,7 +74,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
 const UMA = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 
 for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
-  test(`Monitor no topo da Integração; aba Dados com Reprocessar e Zerar dados por entidade (${largura} px)`, async ({ browser }) => {
+  test(`Conectores no topo da Integração; aba Dados com Reprocessar e Zerar dados por entidade (${largura} px)`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
     await page.goto(urlDoPortal('/entrar'));
@@ -85,19 +85,23 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.goto(urlDoPortal(`/empresas/${UMA}`));
     await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
 
-    // Integração: o Monitor (só o Conector) vem antes das seções Conector e API; nada por entidade nesta aba
+    // Integração: "Conectores" no topo, antes das seções Conector e API, uma tabela só (RD-3550); nada por entidade nesta aba
     const integracao = page.getByTestId('integracao.aba');
-    const monitor = integracao.getByTestId('integracao.monitor');
-    await expect(monitor.getByTestId('integracao.monitor.conector.erp')).toBeVisible({ timeout: 60000 });
-    const yMonitor = (await monitor.boundingBox())!.y;
+    const topo = integracao.getByTestId('integracao.topo');
+    await expect(topo.getByText('Nenhum Conector.')).toBeVisible({ timeout: 60000 });
+    await page.getByTestId('integracao.gerar').click();
+    await page.getByTestId('integracao.ja-copiei').click();
+    const erp = topo.getByTestId('integracao.conector.erp');
+    await expect(erp).toContainText('Nunca conectou');
+    const yTopo = (await topo.boundingBox())!.y;
     const yConector = (await page.locator('#integracao-conector').boundingBox())!.y;
-    expect(yMonitor).toBeLessThan(yConector);
-    // RD-2679: a coluna do quadro "Conector" é o identificador
-    await expect(monitor.getByTestId('integracao.monitor.conectores').getByText('Identificador', { exact: true })).toBeVisible();
-    for (const fora of ['Cargas recentes', 'Dados no Hub']) await expect(integracao.getByText(fora, { exact: true })).toHaveCount(0);
+    expect(yTopo).toBeLessThan(yConector);
+    await expect(integracao.locator('table[data-testid="integracao.conectores"]')).toHaveCount(1);
+    // o time da Macuxi vê o Último sinal (prioridade 2: some no quadro estreito); "Monitor" não aparece mais
+    await expect(topo.getByText('Último sinal', { exact: true })).toBeVisible({ visible: largura > 500 });
+    for (const fora of ['Monitor', 'Cargas recentes', 'Dados no Hub']) await expect(integracao.getByText(fora, { exact: true })).toHaveCount(0);
     await expect(integracao.getByTestId('dados.entidades')).toHaveCount(0);
-    await expect(integracao.getByTestId('integracao.entidades')).toHaveCount(0);
-    await monitor.screenshot({ animations: 'disabled', path: `${prints()}/05-monitor${nome}.png` });
+    await topo.screenshot({ animations: 'disabled', path: `${prints()}/05-conectores${nome}.png` });
 
     // Dados: uma tabela só, por entidade (o primeiro clique pode chegar antes da hidratação: repete até a aba abrir)
     await expect(async () => {

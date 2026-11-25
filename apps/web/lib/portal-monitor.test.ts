@@ -3,7 +3,7 @@
  * Conector e da aba Dados, a Situação, quais entidades têm o "Zerar dados", o "Reprocessar" da entidade e o monitor falso (contratos
  * do módulo, só super-admin, zerar e reprocessar).
  */
-import { ErrosLoteResposta, MonitorDetalhes, MonitorResumo, type EntidadeDetalhe } from '@macuxi/integracao/contracts';
+import { ErrosLoteResposta, MonitorDetalhes, MonitorResumo, type ConectorResumo, type EntidadeDetalhe } from '@macuxi/integracao/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { limparMonitorFalso, responderMonitorFalso } from './portal-falso-monitor';
@@ -119,7 +119,28 @@ describe('monitor falso', () => {
     expect(new Set(m.lotes_recentes.map((l) => l.entidade))).toEqual(new Set(['produto', 'cliente', 'cliente_endereco', 'preco', 'vendedor', 'forma_pagamento']));
     const d = MonitorDetalhes.parse((await ler(responderMonitorFalso('GET', '/integracao/monitor/detalhes', T, true))).corpo);
     expect(d.entidades.filter((x) => x.ultimo_lote === null && temDadosNoHub(x)).map((x) => x.entidade)).toEqual(['estoque', 'titulo']);
-    expect(d.conectores.map((c) => [c.conector_id, c.saude])).toEqual([['erp', 'ok']]);
+    expect(d.conectores).toEqual([]);
+    // os Conectores do detalhe são os da lista do falso (a mesma da aba Integração)
+    const erp: ConectorResumo = {
+      id: '7c1d2e3f-4a5b-4c6d-8e9f-000000000001',
+      conector_id: 'erp',
+      nome: 'Conector do ERP',
+      tipo: 'conector',
+      ativo: false,
+      recebe_pedidos: true,
+      aceita_cancelamento: false,
+      entidades: [],
+      ips_permitidos: [],
+      versao_conector: null,
+      situacao_versao: 'sem_politica',
+      ultimo_sinal_em: null,
+      saude: 'desativado',
+      chave: null,
+      criado_em: '2026-11-14T12:00:00.000Z',
+    };
+    const lista = [erp];
+    const comLista = MonitorDetalhes.parse((await ler(responderMonitorFalso('GET', '/integracao/monitor/detalhes', T, true, lista))).corpo);
+    expect(comLista.conectores.map((c) => [c.conector_id, c.saude, c.sinal])).toEqual([['erp', 'desativado', null]]);
     expect((await ler(responderMonitorFalso('GET', '/integracao/monitor/detalhes', T, false))).status).toBe(403);
   });
   it('reprocessar: o lote com falha passa a concluído; erros do lote paginados no contrato', async () => {

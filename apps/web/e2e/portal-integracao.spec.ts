@@ -1,7 +1,7 @@
 /**
- * e2e do portal config. no modo falso (spec portal-config-enxuto §10.2 e §11): aba Integração em dois lados (Conector | API), o caso
- * do ERP (Bases do Conector e credencial de API), "Envia os pedidos" no diálogo "Bases", "Reativar" com a chave nova, o guia da API em
- * PDF, a aba Empresa com plano, o "Trocar de plano" no Dialog do kit (RD-2616), a empresa sem plano só com o "Acrescentar módulos" no
+ * e2e do portal config. no modo falso (spec portal-config-enxuto §10.2 e §11): aba Integração com "Conectores" no topo (ações no
+ * "⋯") e dois lados (Conector | API), o caso do ERP (Bases do Conector e credencial de API), "Envia os pedidos" no diálogo "Bases",
+ * "Reativar" com a chave nova, o guia da API em PDF, a aba Empresa com plano, o "Trocar de plano" no Dialog do kit (RD-2616), a empresa sem plano só com o "Acrescentar módulos" no
  * cartão "Módulos licenciados" (RD-2613), o Catálogo opcional (RD-2617), a Nova empresa preenchida e a marca com área de proteção
  * em Entrar e Escolha a empresa (MC-0022); refaz os prints 01, 03b, 05b, 05c, 05d, 05e, 06a, 06b, 06d e 09 em
  * 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1`, no `config.localhost` e no `fdv.localhost/config` (projetos do
@@ -22,6 +22,18 @@ async function entrarComoTime(page: Page) {
   await page.getByTestId('entrar.senha').fill('certa-123');
   await page.getByTestId('entrar.entrar').click();
   await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
+}
+/** Abre o "⋯" do Conector na tabela do topo até a ação aparecer (o primeiro clique pode vir antes da hidratação; rolar fecha o menu). */
+async function acaoDoConector(page: Page, id: string, acao: 'bases' | 'desativar' | 'reativar') {
+  const botao = page.getByTestId(`integracao.conectores.acoes.${id}`);
+  const item = page.getByTestId(`integracao.${acao}-${id}`);
+  await expect(async () => {
+    await botao.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    if (!(await item.isVisible())) await botao.click();
+    await expect(item).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 30000 });
+  return item;
 }
 const semIndicador = (page: Page) => page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
 
@@ -63,7 +75,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('integracao.openapi')).toBeVisible();
 
     // Conector > Bases > desmarca Formas de pagamento > Gravar
-    await page.getByTestId('integracao.bases-erp').click();
+    await (await acaoDoConector(page, 'erp', 'bases')).click();
     const dialogo = page.getByRole('dialog', { name: 'Bases do Conector erp' });
     await expect(dialogo).toBeVisible();
     const marcadas = dialogo.locator('[data-testid^="integracao.bases."]:checked');
@@ -85,7 +97,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.locator('fieldset[data-testid="integracao.api-bases"] > legend')).toHaveText('Bases');
 
     // no diálogo de novo: Formas de pagamento desmarcada; Gravar sem nenhuma base fica desabilitado
-    await page.getByTestId('integracao.bases-erp').click();
+    await (await acaoDoConector(page, 'erp', 'bases')).click();
     await expect(dialogo.getByTestId('integracao.bases.forma_pagamento')).not.toBeChecked();
     for (const e of SEM_FORMA) await dialogo.getByTestId(`integracao.bases.${e}`).uncheck();
     await expect(dialogo.getByTestId('integracao.bases-gravar')).toBeDisabled();
@@ -120,7 +132,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('integracao.acao-cancelar').click();
 
     // RD-2609: o diálogo do erp lista só as livres para ele (sem Formas de pagamento, que é da erp-api) e nada desabilitado
-    await page.getByTestId('integracao.bases-erp').click();
+    await (await acaoDoConector(page, 'erp', 'bases')).click();
     await expect(dialogo.locator('[data-testid^="integracao.bases."]')).toHaveCount(15);
     await expect(dialogo.locator('input[type=checkbox]:disabled')).toHaveCount(0);
     await expect(dialogo.getByTestId('integracao.bases.forma_pagamento')).toHaveCount(0);
@@ -136,7 +148,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await dialogoApi.getByTestId('integracao.bases-cancelar').click();
 
     // "Envia os pedidos" editável no diálogo: o erp deixa de enviar (PATCH { entidades, recebe_pedidos }) e a caixa da credencial abre
-    await page.getByTestId('integracao.bases-erp').click();
+    await (await acaoDoConector(page, 'erp', 'bases')).click();
     await dialogo.getByTestId('integracao.bases-recebe-pedidos').uncheck();
     await dialogo.getByTestId('integracao.bases-gravar').click();
     await expect(dialogo).toBeHidden();
@@ -149,14 +161,16 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await dialogoApi.getByTestId('integracao.bases-cancelar').click();
 
     // Desativar o erp: a linha fica só com "Reativar"
-    await page.getByTestId('integracao.desativar-erp').click();
+    await (await acaoDoConector(page, 'erp', 'desativar')).click();
     await page.getByTestId('integracao.acao-confirmar-desativar').click();
-    await expect(page.getByTestId('integracao.reativar-erp')).toHaveText('Reativar');
+    await expect(page.getByTestId('integracao.conector.erp')).toContainText('Desativado');
+    await expect(await acaoDoConector(page, 'erp', 'reativar')).toHaveText('Reativar');
     await expect(page.getByTestId('integracao.bases-erp')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page.screenshot({ path: `${prints()}/05b-integracao${nome}.png`, fullPage: true });
 
     // Reativar (caso da thathyany): as livres marcadas (sem Formas de pagamento, da erp-api); o erp volta enviando os pedidos; a chave nova uma vez
-    await page.getByTestId('integracao.reativar-erp').click();
+    await (await acaoDoConector(page, 'erp', 'reativar')).click();
     const reativar = page.getByRole('dialog', { name: 'Reativar o Conector erp?' });
     await expect(reativar.locator('[data-testid^="integracao.bases."]:checked')).toHaveCount(15);
     await expect(reativar.getByTestId('integracao.bases.forma_pagamento')).toHaveCount(0);
@@ -168,7 +182,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     const chave = page.getByTestId('integracao.nova-chave-erp.chave');
     await expect(chave).toHaveText(/^mx_falso_/);
     await expect(page.getByTestId('integracao.nova-chave-erp.copiar')).toHaveText('Copiar');
-    await expect(page.getByTestId('integracao.reativar-erp')).toHaveCount(0);
+    await expect(page.getByTestId('integracao.conector.erp')).toContainText('Nunca conectou');
     await chave.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${prints()}/05e-reativar${nome}.png`, fullPage: true });
     expect(await estado(page)).toEqual([
