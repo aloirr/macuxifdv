@@ -17,7 +17,7 @@ import { linhasDosTotais, ROTULO_VALOR_FINAL } from '../../domain/apresentacao-t
 import type { AjusteGeral } from '../../domain/desconto-geral';
 import { descontoMaximoDoItemPct, rotuloMedida } from '../../domain/preco-pedido';
 import { nomeComMarca } from '../lib/detalhe-pedido';
-import { MENSAGEM_SO_INTEIRO } from '../lib/quantidade-digitada';
+import { propsDoPassoDaQuantidade } from '../lib/quantidade-digitada';
 import { alertasDoItem, chavesDoProduto, estadoInicialDoItem, estoqueNaEmbalagem, numeroDoEstoque, riscoDeRuptura, ROTULOS_DO_POPUP, TEXTO_RISCO_DE_RUPTURA, type EstadoDoItem } from '../lib/item-popup';
 import { alternarAplicacao, minimoDoProdutoNoPrazo, type Ajuste, type CalculoPedido, type ProdutoComMinimo, type UnidadeDaTela } from '../lib/novo-pedido';
 import { AreaAlertas } from './area-alertas';
@@ -106,7 +106,7 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
           <View style={{ gap: 6 }} onLayout={(e) => setLarguraQtd(e.nativeEvent.layout.width)}>
             <Text style={s.rotulo}>QUANTIDADE</Text>
             {unidadeFracionaria(medida.unidade) ? (
-              <Passo editavel valor={qtd} min={0.0001} decimal={{ casas: ambiente.fracaoLiberada() ? 4 : 0, avisoSemCasas: MENSAGEM_SO_INTEIRO }} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
+              <Passo editavel valor={qtd} {...propsDoPassoDaQuantidade(medida.unidade, ambiente.fracaoLiberada())} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
             ) : (
               <Passo editavel valor={qtd} min={1} onChange={setQtd} rotulo={`Quantidade de ${nome}`} rotuloDiminuir={`Diminuir ${nome}`} rotuloAumentar={`Aumentar ${nome}`} desligadoAumentar={p.price_cents === null} testID="popup-item-qtd" />
             )}

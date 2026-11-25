@@ -1,6 +1,4 @@
 import { totalDaLinhaCents } from '@macuxi/comum/quantidade';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { quantidadeDoPdf } from '../../domain/pdf-pedido';
@@ -8,14 +6,21 @@ import { linhaDeItemEmTabela } from './detalhe-pedido';
 import { aplicarItemNoRascunho } from './item-popup';
 import { prefillLines } from './order-prefill';
 import { nomeDaSugestao } from './textos-pedido';
-import { MENSAGEM_SO_INTEIRO, quantidadeDoItem } from './quantidade-digitada';
+import { MENSAGEM_SO_INTEIRO, propsDoPassoDaQuantidade, quantidadeDoItem } from './quantidade-digitada';
 
 describe('campo da quantidade em KG e M (RN-VEN-02 v3, ADR 0076 D6)', () => {
-  it('RN-VEN-02 v3: o popup usa o Passo decimal do kit, com casas 0 enquanto a trava está fechada (o "1,5" vira 1 com aviso, e não 15: `lerQuantidadeComCasas` no teste do kit)', () => {
-    const f = readFileSync(resolve(__dirname, '../components/folha-do-item.tsx'), 'utf8');
-    expect(f).toContain('casas: ambiente.fracaoLiberada() ? 4 : 0');
-    expect(f).toContain('avisoSemCasas: MENSAGEM_SO_INTEIRO');
-    expect(f).not.toContain('CampoQuantidade');
+  it('RN-VEN-02 v3: KG/M com a trava fechada: mínimo 1, casas 0 e aviso (o "−" não leva 1 kg a 0,0001)', () => {
+    for (const u of ['KG', 'M']) {
+      expect(propsDoPassoDaQuantidade(u, false)).toEqual({ min: 1, decimal: { casas: 0, avisoSemCasas: MENSAGEM_SO_INTEIRO } });
+    }
+  });
+  it('RN-VEN-02 v3: KG/M com a trava aberta: mínimo 0,0001 e 4 casas', () => {
+    for (const u of ['KG', 'M']) {
+      expect(propsDoPassoDaQuantidade(u, true)).toEqual({ min: 0.0001, decimal: { casas: 4, avisoSemCasas: MENSAGEM_SO_INTEIRO } });
+    }
+  });
+  it('RN-VEN-02 v3: CX com a trava aberta continua inteira, mínimo 1', () => {
+    expect(propsDoPassoDaQuantidade('CX', true)).toMatchObject({ min: 1, decimal: { casas: 0 } });
   });
 });
 
