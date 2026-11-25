@@ -20,7 +20,7 @@ export class ReferenciaAusenteErp extends Error {
     public readonly entidade: string,
     quantidade = 1,
   ) {
-    super(`referencia_ausente: ${String(quantidade)} registro(s) de ${entidade} ainda não chegaram do ERP; a entrega será repetida (RN-INT-04)`);
+    super(`referencia_ausente: ${String(quantidade)} registro(s) de ${entidade} ainda não chegaram do ERP; a entrega será repetida`);
     this.name = 'ReferenciaAusenteErp';
   }
 }
