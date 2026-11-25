@@ -515,6 +515,7 @@ export * from './senha';
 export * from './necessidade-diaria';
 export * from './perfis';
 export * from './ciclo-senha';
+export * from './troca-senha-voluntaria';
 export * from './entrada-sync';
 export * from './tarefa';
 export * from './frases';
