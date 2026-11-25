@@ -1,6 +1,7 @@
 /**
  * "Verificar atualização" do app (item 19 do teste de campo do Campo v1.0.16; desenho `docs/desenho/v1017-campo-versao-e-marca.md`
  * §2). A API diz qual é a última versão publicada de cada variante (pública, sem sessão e sem dado de tenant):
+ *   GET /v1/app/versao?variante=campo|gestao&contrato=3   AppVersaoPublicadaV3 (apps a partir da v1.0.36): V2 + `fracao_liberada`
  *   GET /v1/app/versao?variante=campo|gestao&contrato=2   AppVersaoPublicadaV2 (apps a partir da v1.0.19), sem `apk_url`
  *   GET /v1/app/versao?variante=campo|gestao              AppVersaoPublicada (apps v1.0.17 e v1.0.18, que não mudam)
  * Desde a T-0190 (ADR 0065, RN-CORE-67) o APK só se baixa pelo link temporário que o administrador gera no portal
@@ -19,9 +20,15 @@ export const NOME_APP_VARIANTE: Readonly<Record<VarianteApp, string>> = { campo:
 export const ROTA_APP_VERSAO = '/v1/app/versao';
 /** Versão do contrato que o app novo pede na query (`contrato=2`): sem ela a API responde o contrato antigo. */
 export const CONTRATO_APP_VERSAO_V2 = '2';
-/** Rota do app a partir da v1.0.19 (contrato V2, T-0190). */
-export const rotaAppVersao = (variante: VarianteApp): string =>
-  `${ROTA_APP_VERSAO}?variante=${variante}&contrato=${CONTRATO_APP_VERSAO_V2}`;
+/**
+ * Contrato V3 (`contrato=3`, ADR 0076 D6): V2 + `fracao_liberada`. Versão nova porque o V2 é `.strict()` e os apps da v1.0.19 à
+ * v1.0.35 recusariam a chave a mais (deixariam de ver a versão nova); eles seguem pedindo o V2, que não muda.
+ */
+export const CONTRATO_APP_VERSAO_V3 = '3';
+export type ContratoAppVersao = typeof CONTRATO_APP_VERSAO_V2 | typeof CONTRATO_APP_VERSAO_V3;
+/** Rota do app: contrato V2 por padrão (a partir da v1.0.19, T-0190); V3 a partir da v1.0.36 (ADR 0076). */
+export const rotaAppVersao = (variante: VarianteApp, contrato: ContratoAppVersao = CONTRATO_APP_VERSAO_V2): string =>
+  `${ROTA_APP_VERSAO}?variante=${variante}&contrato=${contrato}`;
 
 /** Página pública que o `apk_url` do contrato antigo abre: só orienta a pedir o link do APK (T-0190, RN-CORE-67). */
 export const ROTA_APP_ATUALIZAR = '/v1/app/atualizar';
@@ -65,9 +72,17 @@ export type AppVersaoPublicada = z.output<typeof AppVersaoPublicadaSchema>;
 export const AppVersaoPublicadaV2Schema = AppVersaoPublicadaSchema.extend({ apk_url: ApkUrlSchema.optional() }).strict();
 export type AppVersaoPublicadaV2 = z.output<typeof AppVersaoPublicadaV2Schema>;
 
-/** Query da rota: sem `contrato` = contrato antigo (apps v1.0.17 e v1.0.18); `contrato=2` = V2. */
+/**
+ * Resposta de `GET /v1/app/versao?contrato=3` (ADR 0076 D6, RN-VEN-02 v3): V2 + `fracao_liberada`, calculado no servidor por
+ * `fracaoLiberada` com as versões publicadas do Campo e do Gestão (o app só conhece a da própria variante). `true` = a API já aceita
+ * quantidade e fator com casas decimais; o app só abre a digitação fracionária com `true`.
+ */
+export const AppVersaoPublicadaV3Schema = AppVersaoPublicadaV2Schema.extend({ fracao_liberada: z.boolean() }).strict();
+export type AppVersaoPublicadaV3 = z.output<typeof AppVersaoPublicadaV3Schema>;
+
+/** Query da rota: sem `contrato` = contrato antigo (apps v1.0.17 e v1.0.18); `contrato=2` = V2; `contrato=3` = V3. */
 export const ConsultaAppVersaoSchema = z
-  .object({ variante: z.enum(VARIANTES_APP), contrato: z.literal(CONTRATO_APP_VERSAO_V2).optional() })
+  .object({ variante: z.enum(VARIANTES_APP), contrato: z.enum([CONTRATO_APP_VERSAO_V2, CONTRATO_APP_VERSAO_V3]).optional() })
   .strict();
 
 /** Query da página de orientação. */
@@ -224,6 +239,42 @@ export interface PortaVersaoApp {
   doCliente: AppDoCabecalho | null;
   /** Última publicada do APK; `web` = sempre `null` (o web não tem versão publicada). */
   publicada(variante: VarianteCliente): Promise<VersaoPublicadaApp | null>;
+}
+
+// ---------- ADR 0076 (RN-VEN-02 v3): trava da quantidade fracionária ----------
+
+/** Primeira versão dos apps que lê e grava quantidade e fator com casas decimais. */
+export const VERSAO_APP_FRACAO = '1.0.36';
+
+/** A variante já obriga a `VERSAO_APP_FRACAO`: publicada maior, ou igual e com as 24 h de convivência vencidas. */
+function varianteObrigaFracao(v: VersaoPublicadaApp | null, agora: Date): boolean {
+  if (v === null || !versaoAppValida(v.versao)) return false;
+  if (haVersaoNova(VERSAO_APP_FRACAO, v.versao)) return true;
+  if (v.versao !== VERSAO_APP_FRACAO) return false;
+  const publicadaMs = v.publicada_em !== null && ISO_DATA_RE.test(v.publicada_em) ? Date.parse(v.publicada_em) : Number.NaN;
+  const agoraMs = agora.getTime();
+  return Number.isFinite(publicadaMs) && Number.isFinite(agoraMs) && agoraMs >= publicadaMs + PRAZO_ATUALIZACAO_APP_MS;
+}
+
+/**
+ * ADR 0076 D6: a fração está liberada para a plataforma (API e app) só quando o Campo e o Gestão já obrigam a 1.0.36
+ * (`varianteObrigaFracao`). Sem versão, sem hora, versão menor ou inválida = fechada. Publicar uma versão maior não fecha de novo.
+ */
+export function fracaoLiberada({
+  campo,
+  gestao,
+  agora,
+}: {
+  campo: VersaoPublicadaApp | null;
+  gestao: VersaoPublicadaApp | null;
+  agora: Date;
+}): boolean {
+  return varianteObrigaFracao(campo, agora) && varianteObrigaFracao(gestao, agora);
+}
+
+/** ADR 0076 D6 (pull filtrado): o app que chamou lê fração? Só com o `CABECALHO_APP` e versão ≥ `VERSAO_APP_FRACAO`. */
+export function clienteAceitaFracao(app: AppDoCabecalho | null): boolean {
+  return app !== null && versaoAppValida(app.versao) && !haVersaoNova(app.versao, VERSAO_APP_FRACAO);
 }
 
 /** Porta fixa para os testes de módulo. */

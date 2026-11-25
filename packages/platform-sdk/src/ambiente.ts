@@ -113,6 +113,12 @@ export interface AmbienteAparelho {
    * Ausente = shell sem suporte (o módulo trata como `null`).
    */
   logoDaEmpresa?: () => Promise<string | null>;
+  /**
+   * ADR 0076 D6 (adendo): a API já aceita quantidade e fator com casas decimais. O shell mobile devolve o último
+   * `fracao_liberada` guardado de `GET /v1/app/versao?contrato=3` (`AppVersaoPublicadaV3`); sem resposta guardada, `false`.
+   * Ausente = `false` (`completarAmbiente`).
+   */
+  fracaoLiberada?: () => boolean;
 }
 
 /**
@@ -127,6 +133,8 @@ export interface AmbienteModulo extends AmbienteAparelho {
   consultar: FuncaoConsultar;
   parametros(modulo: ModuloId): Readonly<Record<string, unknown>>;
   posicaoAgora(): Promise<PosicaoDoAparelho | null>;
+  /** Sempre presente: o do shell ou `() => false` (ADR 0076 D6). O módulo abre a digitação fracionária só com `true`. */
+  fracaoLiberada(): boolean;
 }
 
 export type FuncaoRequisitar = <T>(metodo: MetodoHttp, caminho: string, opcoes: OpcoesHttp) => Promise<T>;
