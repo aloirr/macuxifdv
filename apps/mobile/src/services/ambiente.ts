@@ -2,7 +2,8 @@
  * Ambiente do aparelho entregue aos módulos (platform-sdk `AmbienteAparelho`, T-0001 A3): HTTP com a sessão
  * sobre o `ApiClient`, modo sem sinal, UUID do aparelho, GPS do momento (`posicaoAgora`, RD-0046) e usuário logado. Chega às etapas de sync (`ctx`) e às
  * telas (`useAmbiente()` / `useHttp()`); os módulos nunca importam `apps/*`. RD-0088: também o visor de foto comum
- * (`abrirFoto`, services/visor-foto.ts), em tela cheia com zoom, para qualquer módulo abrir uma foto.
+ * (`abrirFoto`, services/visor-foto.ts), em tela cheia com zoom, para qualquer módulo abrir uma foto. ADR 0076 D6 (T-0196):
+ * `fracaoLiberada()`, lido da última versão publicada guardada (vale sem sinal).
  *
  * Erros traduzidos para o contrato do SDK: `NetworkError` → `ErroSemConexao`; `HttpError` → `ErroHttp`.
  */
@@ -23,6 +24,8 @@ export interface FontesAmbiente {
   abrirFoto?: (p: PedidoAbrirFoto) => boolean;
   /** T-0182: a logo da empresa como data URI (cópia guardada no aparelho), para o PDF; `null` = sem logo. */
   logoDaEmpresa?: () => Promise<string | null>;
+  /** ADR 0076 D6: `fracao_liberada` da última `GET /v1/app/versao?contrato=3` guardada; ausente = `false` (padrão do SDK). */
+  fracaoLiberada?: () => boolean;
 }
 
 /** Erro do `ApiClient` no contrato do SDK (o que módulos e a tela de login do Core entendem). */
@@ -52,6 +55,7 @@ export function criarAmbienteDoAparelho(f: FontesAmbiente): AmbienteAparelho {
     posicaoAgora,
     usuario: f.usuario,
     ...(f.logoDaEmpresa ? { logoDaEmpresa: f.logoDaEmpresa } : {}),
+    ...(f.fracaoLiberada ? { fracaoLiberada: f.fracaoLiberada } : {}),
     ...visor,
   };
 }
