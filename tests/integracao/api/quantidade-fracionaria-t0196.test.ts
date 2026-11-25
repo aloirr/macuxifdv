@@ -22,6 +22,9 @@
  *     recebe, com `quantidade: 1.25`.
  *  MT o tenant B não vê nada do A (pull de pedido e de unidade, fila do Conector de B); o promotor segue sem criar pedido (RN-PRO-01).
  *
+ * G1 Gestor (ADR 0076 D8): com o módulo ligado em A, a projeção aplica só o `criado@2`; o pedido inteiro, que publica os dois, conta
+ *     uma vez, com o total e a quantidade do `@2`.
+ *
  * Premissas (escritas pelo admin do banco efêmero): o produto ALFA-001 de A passa a ser vendido em KG com preço 1999 na tabela
  * padrão; o vendedor 1 de A ganha `external_id` (o Hub exige a chave do ERP do vendedor); a condição de pagamento é a da fixture.
  * Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
@@ -182,6 +185,14 @@ describe.skipIf(semBanco())(
         'select quantidade::text, total_cents::text from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia',
         [id],
       );
+    /** `updated_at` do pedido em ISO UTC com microssegundos (a trava otimista do PUT do orçamento). */
+    const atualizadoEm = async (id: string) => {
+      const [o] = await linhas<{ atualizado: string }>(
+        `select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as atualizado from vendedor.pedido where id = $1`,
+        [id],
+      );
+      return o!.atualizado;
+    };
     const versaoV3 = async (variante: 'campo' | 'gestao') => {
       const r = await api.app.inject({
         method: 'GET',
@@ -231,6 +242,8 @@ describe.skipIf(semBanco())(
       const admB = (await api.sessao('admin.b@exemplo.com.br', B)).access_token;
       for (const t of [admA, admB])
         expect((await licenca(api, t, 'tenant', 'integracao', true)).statusCode).toBe(200);
+      // o Gestor de A projeta os pedidos (caso D8: criado@2 × @1)
+      expect((await licenca(api, admA, 'tenant', 'gestor', true)).statusCode).toBe(200);
       tk.vendedorA = (await api.sessao('vendedor@exemplo.com.br', A)).access_token;
       tk.vendedorB = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
       tk.promotorA = (await api.sessao('promotor@exemplo.com.br', A)).access_token;
@@ -355,10 +368,7 @@ describe.skipIf(semBanco())(
         expect(
           await push(tk.vendedorA, PED.orcamento, [{ quantity: 3 }], { tipo: 'orcamento' }),
         ).toMatchObject({ status: 'aceito' });
-        const [o] = await linhas<{ atualizado: string }>(
-          `select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as atualizado from vendedor.pedido where id = $1`,
-          [PED.orcamento],
-        );
+        const atualizado = await atualizadoEm(PED.orcamento);
         const r = await api.chamar(tk.vendedorA, {
           method: 'PUT',
           url: `/v1/vendedor/orcamentos/${PED.orcamento}`,
@@ -367,7 +377,7 @@ describe.skipIf(semBanco())(
             customer_id: A.clientes.c1,
             discount_pct: 0,
             items: [{ product_id: prodKg, quantity: 1.25 }],
-            atualizado_em: o!.atualizado,
+            atualizado_em: atualizado,
           },
         });
         expect(r.statusCode, r.body).toBe(422);
@@ -440,18 +450,14 @@ describe.skipIf(semBanco())(
           codigo: INVALIDA,
         });
         const r5 = await push(tk.vendedorA, PED.cincoCasas, [{ quantity: 1.23456 }]);
-        // mais de 4 casas: o contrato do push recusa antes do domain (código da validação; ver o relatório da T-0196)
-        expect(r5).toMatchObject({ status: 'rejeitado' });
-        expect(JSON.stringify(r5)).toContain('4 casas');
+        // mais de 4 casas: 422 quantidade_fracionaria_invalida do domain (ADR 0076 D4)
+        expect(r5).toMatchObject({ status: 'rejeitado', codigo: INVALIDA });
         for (const id of [PED.cxFracao, PED.cincoCasas]) expect(await itensGravados(id)).toEqual([]);
       });
 
-      it('RN-VEN-02 v3: PUT do orçamento: CX com 1,5 = 422 invalida, 5 casas recusado; 1,25 kg passa e grava 2499', async () => {
+      it('RN-VEN-02 v3: PUT do orçamento: CX com 1,5 e 5 casas = 422 invalida (nada muda); 1,25 kg passa e grava 2499', async () => {
         abrir();
-        const [o] = await linhas<{ atualizado: string }>(
-          `select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as atualizado from vendedor.pedido where id = $1`,
-          [PED.orcamento],
-        );
+        const atualizado = await atualizadoEm(PED.orcamento);
         const editar = (item: { quantity: number; unidade?: string }) =>
           api.chamar(tk.vendedorA, {
             method: 'PUT',
@@ -461,16 +467,17 @@ describe.skipIf(semBanco())(
               customer_id: A.clientes.c1,
               discount_pct: 0,
               items: [{ product_id: prodKg, ...item }],
-              atualizado_em: o!.atualizado,
+              atualizado_em: atualizado,
             },
           });
         const cx = await editar({ quantity: 1.5, unidade: 'CX' });
         expect(cx.statusCode, cx.body).toBe(422);
         expect(cx.json()).toMatchObject({ codigo: INVALIDA });
-        // mais de 4 casas: recusado pelo contrato do corpo antes do domain (o código é o da validação; ver o relatório da T-0196)
+        // mais de 4 casas: a ROTA do PUT responde 422 quantidade_fracionaria_invalida (ADR 0076 D4), não só o schema
         const cinco = await editar({ quantity: 1.23456 });
-        expect([400, 422], cinco.body).toContain(cinco.statusCode);
-        expect(cinco.body).toContain('4 casas');
+        expect(cinco.statusCode, cinco.body).toBe(422);
+        expect(cinco.json()).toMatchObject({ codigo: INVALIDA });
+        expect(await itensGravados(PED.orcamento)).toEqual([{ quantidade: '3.0000', total_cents: '5997' }]);
         const r = await editar({ quantity: 1.25 });
         expect(r.statusCode, r.body).toBe(200);
         expect(r.json()).toMatchObject({ total_cents: 2499 });
@@ -537,6 +544,37 @@ describe.skipIf(semBanco())(
         );
         expect(ev!.payload.itens.map((i) => [i.quantidade, i.total_cents])).toEqual([[1.25, 2499]]);
         expect(await eventosDo(PED.meio)).toEqual(['vendedor.pedido.criado@2']);
+      });
+
+      it('ADR 0076 D8: o Gestor consome o criado@2 e ignora o @1; o pedido inteiro (que publica os dois) conta uma vez só', async () => {
+        await despachar();
+        const aplicados = async (id: string) =>
+          (
+            await linhas<{ nome: string }>(
+              `select e.nome from gestor.evento_aplicado a join plataforma.evento e on e.id::text = a.evento_id::text
+                where a.tenant_id = $1 and e.agregado_id = $2 and e.nome like 'vendedor.pedido.criado@%' and a.deleted_at is null
+                order by e.nome`,
+              [A.tenantId, id],
+            )
+          ).map((e) => e.nome);
+        expect(await aplicados(PED.inteiro)).toEqual(['vendedor.pedido.criado@2']);
+        expect(await aplicados(PED.fracao)).toEqual(['vendedor.pedido.criado@2']);
+        // o fato do pedido na projeção: uma linha por pedido, com o total e a quantidade do @2 (1,25 kg = 2499)
+        const fatos = await linhas<{ chave: string; total: number; qtds: number[] }>(
+          `select chave, (dados->'criado'->>'total_cents')::int as total,
+                  array(select (i->>'quantidade')::numeric::float8 from jsonb_array_elements(dados->'criado'->'itens') i) as qtds
+             from gestor.projecao_fato
+            where tenant_id = $1 and tabela = 'pedidos' and chave = any($2::text[]) and deleted_at is null
+            order by chave`,
+          [A.tenantId, [PED.fracao, PED.inteiro]],
+        );
+        expect(Object.fromEntries(fatos.map((f) => [f.chave, [f.total, f.qtds]]))).toEqual({
+          [PED.fracao]: [2499, [1.25]],
+          [PED.inteiro]: [5997, [3]],
+        });
+        // reentrega (o despachante roda de novo): nada muda, nenhum evento aplicado em dobro
+        await despachar();
+        expect(await aplicados(PED.inteiro)).toEqual(['vendedor.pedido.criado@2']);
       });
     });
 
