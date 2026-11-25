@@ -6,8 +6,8 @@ name: producao — ensaio das migrações (termina em ROLLBACK)
 # Como funciona (mesma conexão dos outros workflows de produção: SSH na VM e o pgcliente do compose, como o admin que o
 # deploy usa para migrar; nenhum segredo novo):
 # 1. O SHA informado precisa ser o head de um PR aberto ou estar no main (API do GitHub, GITHUB_TOKEN só leitura).
-# 2. Os scripts saem do ref do disparo (.github/scripts/ensaio-migracoes), por isso o job só roda disparado do main ou de uma
-#    tag v*; do SHA só se LÊ a pasta db/migrations.
+# 2. Os scripts saem do ref do disparo (.github/scripts/ensaio-migracoes), por isso o job `ref` FALHA (vermelho, não cinza)
+#    quando o disparo não vem do main nem de uma tag v*, e o ensaio depende dele; do SHA só se LÊ a pasta db/migrations.
 # 3. montar.sh monta o ensaio e o conferir.sql (fluxo e travas no cabeçalho dele). Não existe comando de gravação da
 #    transação em lugar nenhum (o montar.sh falha se aparecer). O psql do ensaio tem teto de 10 min (timeout no contêiner):
 #    se cair, a conexão fecha e o Postgres desfaz a transação.
@@ -37,9 +37,25 @@ defaults:
     shell: bash
 
 jobs:
+  ref:
+    name: disparo do main ou de tag v*
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: ref do disparo
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          case "$REF" in
+            refs/heads/main | refs/tags/v*) echo "ref $REF: ok" ;;
+            *) echo "::error::dispare do main ou de uma tag v* (veio de $REF): os scripts do ensaio saem do ref do disparo"; exit 1 ;;
+          esac
+
   ensaio:
     name: migrações pendentes numa transação com ROLLBACK
-    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+    needs: ref
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     environment: PRODUCAO
@@ -103,8 +119,13 @@ jobs:
         id: ensaio
         timeout-minutes: 15
         run: |
+          case "$PGCLIENTE" in
+            *" pgcliente psql "*) ;;
+            *) echo "::error::PGCLIENTE sem ' pgcliente psql ': o teto de 10 min do ensaio não entraria"; exit 1 ;;
+          esac
+          comando="${PGCLIENTE/ pgcliente psql / pgcliente timeout 600 psql }"
           set +e
-          ssh -o ServerAliveInterval=30 -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec ${PGCLIENTE/pgcliente psql/pgcliente timeout 600 psql}" \
+          ssh -o ServerAliveInterval=30 -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec $comando" \
             < "$RUNNER_TEMP/ensaio.sql" 2>&1 | tee "$RUNNER_TEMP/ensaio.txt"
           status=${PIPESTATUS[0]}
           set -e
