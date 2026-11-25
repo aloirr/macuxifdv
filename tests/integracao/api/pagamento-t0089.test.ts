@@ -4,8 +4,9 @@
  * o objeto `pagamento`, permissões das rotas de formas e prazos (Vendedor) e do pagamento do cliente (Core), licença e
  * isolamento entre tenants.
  *
- * RN-VEN-25 (R-20261118-224720, #506): o prazo médio máximo do cliente não limita mais o prazo; todos os prazos ativos da
- * forma ficam disponíveis. A RN-VEN-25 segue só com as formas aceitas pelo cliente.
+ * RN-VEN-25 (ADR 0072, R-20261124-111421; reverte a R-20261118-224720): o cliente só usa prazos com prazo médio até o
+ * prazo_medio_max_dias dele (nulo = sem teto; igual vale); a API revalida no push e na edição do orçamento (RN-VEN-25).
+ * ADR 0072: formas e prazos vêm só do ERP; o BKO só consulta e os PUTs respondem 403 FORMAS_DO_ERP.
  *
  * Fixture (db/seeds/fixtures/dois-tenants.ts): A.c1 tem prazo médio máximo 45 e só PIX e BOLETO; título NF-1001 1/2 vencido
  * há 10 dias (padrão `titulo_vencido_dias` = 5). Formas de A: AVISTA (semeada, ordem 0), PIX (PIX-AV, [0]) e BOLETO
@@ -40,6 +41,10 @@ const PED = {
   bComFormaDeA: id(10),
   orcamento: id(11),
   limiteIgual: id(13),
+  tetoIgual: id(17),
+  tetoAbaixo: id(18),
+  tetoNulo: id(19),
+  tetoZeroB: id(20),
   legado: id(15),
   promotor: id(16),
 } as const;
@@ -89,6 +94,7 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
     api.chamar(token, { method: 'PUT', url: `/v1/core/clientes/${cliente}/pagamento`, payload: { prazo_medio_max_dias: prazo, formas_pagamento: formas } });
   const restaurarC1 = async () => {
     await q('update core.cliente set prazo_medio_max_dias = 45, formas_pagamento = $2::text[] where id = $1', [A.clientes.c1, ['PIX', 'BOLETO']]);
+    await q('update core.cliente set prazo_medio_max_dias = 30 where id = $1', [B.clientes.c1]);
   };
   const limpar = async () => {
     const ids = Object.values(PED);
@@ -209,13 +215,42 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
 
   // ------------------------------------------------------------------------------------------------ RN-VEN-24 / RN-VEN-25
   describe('R. Recusas RN-VEN-24 e RN-VEN-25 (push: item rejeitado, nada gravado, nada na outbox)', () => {
-    it('R1. RN-VEN-25 (R-20261118-224720): BOLETO 30/60/90 (prazo médio 60) acima do máximo 45 do A.c1 é aceito; vai para aprovação só pela inadimplência', async () => {
+    it('R1. RN-VEN-25 (ADR 0072): BOLETO 30/60/90 (prazo médio 60) acima do prazo médio 45 do A.c1 → rejeitado com a mensagem do teto; nada gravado', async () => {
       const [r] = await push(tk.vendedor, [pedidoA(PED.boleto60, PA.formas.boleto, PA.prazos.bol306090)]);
-      expect(r, JSON.stringify(r)).toMatchObject({ id: PED.boleto60, status: 'aceito' });
-      const p = (await linha(PED.boleto60))!;
-      expect(p).toMatchObject({ status: 'pending_approval', forma_pagamento_codigo: 'BOLETO', prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
-      expect((p.prazo_parcelas_dias as number[]).map(Number)).toEqual([30, 60, 90]);
-      expect(p.motivos_aprovacao, 'o prazo médio do cliente não gera motivo: só a inadimplência').toEqual(['inadimplencia']);
+      recusado(r, 'RN-VEN-25', PED.boleto60);
+      expect(r, JSON.stringify(r)).toMatchObject({ mensagem: 'Este prazo passa do prazo médio do cliente. Escolha um prazo menor.' });
+      await nadaGravado(PED.boleto60);
+    });
+
+    it('R1b. RN-VEN-25 (ADR 0072), limites do teto: igual ao prazo médio (42 = 42) aceito; um dia abaixo (41) rejeitado; nulo = sem teto (60 aceito)', async () => {
+      try {
+        await q('update core.cliente set prazo_medio_max_dias = 42 where id = $1', [A.clientes.c1]);
+        const [igual] = await push(tk.vendedor, [pedidoA(PED.tetoIgual, PA.formas.boleto, PA.prazos.bol2856)]);
+        expect(igual, JSON.stringify(igual)).toMatchObject({ id: PED.tetoIgual, status: 'aceito' });
+        expect((await linha(PED.tetoIgual))!).toMatchObject({ prazo_codigo: 'BOL-28-56', prazo_medio_dias: 42 });
+        await q('update core.cliente set prazo_medio_max_dias = 41 where id = $1', [A.clientes.c1]);
+        const [abaixo] = await push(tk.vendedor, [pedidoA(PED.tetoAbaixo, PA.formas.boleto, PA.prazos.bol2856)]);
+        recusado(abaixo, 'RN-VEN-25', PED.tetoAbaixo);
+        await nadaGravado(PED.tetoAbaixo);
+        await q('update core.cliente set prazo_medio_max_dias = null where id = $1', [A.clientes.c1]);
+        const [nulo] = await push(tk.vendedor, [pedidoA(PED.tetoNulo, PA.formas.boleto, PA.prazos.bol306090)]);
+        expect(nulo, JSON.stringify(nulo)).toMatchObject({ id: PED.tetoNulo, status: 'aceito' });
+        expect((await linha(PED.tetoNulo))!).toMatchObject({ prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
+      } finally {
+        await restaurarC1();
+      }
+    });
+
+    it('R1c. RN-VEN-25 (ADR 0072), tenant B e teto zero: o B.c1 com teto 0 aceita o DIN-AV (prazo médio 0); o teto do A.c1 não muda nada em B', async () => {
+      try {
+        await q('update core.cliente set prazo_medio_max_dias = 0 where id = $1', [B.clientes.c1]);
+        await q('update core.cliente set prazo_medio_max_dias = 0 where id = $1', [A.clientes.c1]);
+        const [r] = await push(tk.vendedorB, [item(PED.tetoZeroB, corpo(B.clientes.c1, prodB, { forma: PB.formas.dinheiro, prazo: PB.prazos.dinAvista }))]);
+        expect(r, JSON.stringify(r)).toMatchObject({ id: PED.tetoZeroB, status: 'aceito' });
+        expect((await linha(PED.tetoZeroB))!).toMatchObject({ tenant_id: B.tenantId, prazo_codigo: 'DIN-AV', prazo_medio_dias: 0 });
+      } finally {
+        await restaurarC1();
+      }
     });
 
     it('R2. RN-VEN-24: prazo de outra forma (PIX com o prazo BOL-28-56)', async () => {
@@ -285,13 +320,21 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       atualizado = (await q<{ a: string }>(`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as a from vendedor.pedido where id = $1`, [PED.orcamento]))[0]!.a;
     });
 
-    it('O2. PUT /v1/vendedor/orcamentos/:id com o prazo de outra forma → 422 RN-VEN-24 e o orçamento não muda; com o prazo 30/60/90 (60 > 45) → 200 (RN-VEN-25, R-20261118-224720)', async () => {
+    it('O2. PUT /v1/vendedor/orcamentos/:id com o prazo de outra forma → 422 RN-VEN-24; com o prazo 30/60/90 (60 > 45) → 422 RN-VEN-25 (ADR 0072); o orçamento não muda; sem teto (nulo) → 200', async () => {
       const base = (forma: string, prazo: string) => ({ ...corpo(A.clientes.c1, prodA, { forma, prazo }), atualizado_em: atualizado });
       cod422(await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.pix, PA.prazos.bol2856) }), 'RN-VEN-24');
       expect((await linha(PED.orcamento))!).toMatchObject({ prazo_codigo: 'BOL-28-56', prazo_medio_dias: 42 });
-      const ok = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
-      expect(ok.statusCode, ok.body).toBe(200);
-      expect((await linha(PED.orcamento))!).toMatchObject({ tipo: 'orcamento', prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
+      const acima = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
+      cod422(acima, 'RN-VEN-25');
+      expect((await linha(PED.orcamento))!).toMatchObject({ prazo_codigo: 'BOL-28-56', prazo_medio_dias: 42 });
+      try {
+        await q('update core.cliente set prazo_medio_max_dias = null where id = $1', [A.clientes.c1]);
+        const ok = await api.chamar(tk.vendedor, { method: 'PUT', url: `/v1/vendedor/orcamentos/${PED.orcamento}`, payload: base(PA.formas.boleto, PA.prazos.bol306090) });
+        expect(ok.statusCode, ok.body).toBe(200);
+        expect((await linha(PED.orcamento))!).toMatchObject({ tipo: 'orcamento', prazo_codigo: 'BOL-30-60-90', prazo_medio_dias: 60 });
+      } finally {
+        await restaurarC1();
+      }
     });
   });
 
@@ -318,15 +361,14 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       }
     });
 
-    it('C3. forma inativada no Vendedor some da lista do Core; reativada, volta', async () => {
-      const salvarPix = (ativo: boolean) =>
-        api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${PA.formas.pix}`, payload: { id: PA.formas.pix, codigo: 'PIX', nome: 'Pix', ativo, ordem: 1 } });
+    it('C3. forma inativada no Vendedor (pelo ERP: ADR 0072, o BKO não inativa) some da lista do Core; reativada, volta', async () => {
+      const pixAtivo = (ativo: boolean) => q('update vendedor.forma_pagamento set ativo = $2 where id = $1', [PA.formas.pix, ativo]);
       const codigos = async () => ((await api.chamar(tk.analista, { method: 'GET', url: '/v1/core/formas-pagamento' })).json() as { formas: Array<{ codigo: string }> }).formas.map((f) => f.codigo);
-      expect((await salvarPix(false)).statusCode).toBe(200);
+      await pixAtivo(false);
       try {
         expect(await codigos()).not.toContain('PIX');
       } finally {
-        expect((await salvarPix(true)).statusCode).toBe(200);
+        await pixAtivo(true);
       }
       expect(await codigos()).toContain('PIX');
     });
@@ -412,7 +454,7 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
   });
 
   // ------------------------------------------------------------------------------------------------ Vendedor: formas e prazos (BKO)
-  describe('F. Vendedor — /v1/vendedor/formas-pagamento e /prazos-pagamento (Parâmetros do BKO)', () => {
+  describe('F. Vendedor — /v1/vendedor/formas-pagamento e /prazos-pagamento (Parâmetros do BKO, só consulta: ADR 0072)', () => {
     it('F1. perfil: vendedor, supervisor e promotor → 403 no GET e nos PUTs; nada gravado', async () => {
       const forma = { id: NOVAS.forma, codigo: 'CHEQUE', nome: 'Cheque', ativo: true, ordem: 5 };
       const prazo = { id: NOVAS.prazo, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-30-45', parcelas_dias: [30, 45] };
@@ -464,55 +506,57 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
       expect(erroDe(r).codigo).toBe('MODULO_INATIVO');
     });
 
-    it('F5. gerente cria a forma CHEQUE (código em maiúsculas) e o prazo 30/45 (prazo médio 38, arredondado para cima; descrição "30/45 dias"); repetir o PUT é idempotente; auditado', async () => {
-      const f = await api.chamar(tk.gerente, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.forma}`, payload: { id: NOVAS.forma, codigo: 'cheque', nome: ' Cheque ', ordem: 5 } });
-      expect(f.statusCode, f.body).toBe(200);
-      expect(f.json()).toMatchObject({ id: NOVAS.forma, codigo: 'CHEQUE', nome: 'Cheque', ativo: true, ordem: 5, external_id: null });
-      const corpoPrazo = { id: NOVAS.prazo, forma_pagamento_id: NOVAS.forma, codigo: 'chq-30-45', parcelas_dias: [30, 45] };
-      const p1 = await api.chamar(tk.gerente, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazo}`, payload: corpoPrazo });
-      expect(p1.statusCode, p1.body).toBe(200);
-      expect(p1.json()).toMatchObject({ codigo: 'CHQ-30-45', descricao: '30/45 dias', parcelas_dias: [30, 45], prazo_medio_dias: 38, ativo: true });
-      const p2 = await api.chamar(tk.gerente, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazo}`, payload: corpoPrazo });
-      expect(p2.statusCode, p2.body).toBe(200);
-      expect(await q('select 1 from vendedor.prazo_pagamento where id = $1', [NOVAS.prazo])).toHaveLength(1);
-      const aud = await q<{ acao: string }>('select acao from plataforma.auditoria where entidade_id = any($1::uuid[]) order by created_at', [[NOVAS.forma, NOVAS.prazo]]);
-      expect(aud.map((a) => a.acao)).toEqual(expect.arrayContaining(['forma_pagamento.criar', 'prazo_pagamento.criar']));
-      // a forma nova aparece na ficha do cliente (Core) e não aparece para B
+    // ADR 0072: formas e prazos vêm só do ERP; o BKO só consulta (as rotas PUT ficam para responder 403 FORMAS_DO_ERP ao BKO antigo)
+    const formasDoErp = (r: Erro) => {
+      expect(r.statusCode, r.body).toBe(403);
+      expect(erroDe(r).codigo).toBe('FORMAS_DO_ERP');
+    };
+    const fotoFormasA = async () => ({
+      formas: await q('select id, codigo, nome, ativo, ordem from vendedor.forma_pagamento where tenant_id = $1 order by id', [A.tenantId]),
+      prazos: await q('select id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem from vendedor.prazo_pagamento where tenant_id = $1 order by id', [A.tenantId]),
+    });
+
+    it('F5. ADR 0072, BKO só consulta: gerente e analista (com forma_pagamento.gerenciar) criando forma e prazo novos → 403 FORMAS_DO_ERP; nada gravado nem auditado', async () => {
+      for (const token of [tk.gerente, tk.analista]) {
+        formasDoErp(await api.chamar(token, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.forma}`, payload: { id: NOVAS.forma, codigo: 'cheque', nome: 'Cheque', ordem: 5 } }));
+        formasDoErp(await api.chamar(token, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazo}`, payload: { id: NOVAS.prazo, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-30-45', parcelas_dias: [30, 45] } }));
+      }
+      expect(await q('select 1 from vendedor.forma_pagamento where id = $1', [NOVAS.forma])).toEqual([]);
+      expect(await q('select 1 from vendedor.prazo_pagamento where id = $1', [NOVAS.prazo])).toEqual([]);
+      expect(await q('select acao from plataforma.auditoria where entidade_id = any($1::uuid[])', [[NOVAS.forma, NOVAS.prazo]])).toEqual([]);
       const core = (await api.chamar(tk.analista, { method: 'GET', url: '/v1/core/formas-pagamento' })).json() as { formas: Array<{ codigo: string }> };
-      expect(core.formas.map((x) => x.codigo)).toContain('CHEQUE');
-      const coreB = (await api.chamar(tk.adminB, { method: 'GET', url: '/v1/core/formas-pagamento' })).json() as { formas: Array<{ codigo: string }> };
-      expect(coreB.formas.map((x) => x.codigo)).not.toContain('CHEQUE');
+      expect(core.formas.map((x) => x.codigo)).not.toContain('CHEQUE');
     });
 
-    it('F6. validações: código de forma repetido → 422 FORMA_DUPLICADA; parcelas decrescentes → 400/422; id do corpo diferente do endereço → 422', async () => {
-      cod422(await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.formaB}`, payload: { id: NOVAS.formaB, codigo: 'BOLETO', nome: 'Outro boleto' } }), 'FORMA_DUPLICADA');
-      const dec = await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazoB}`, payload: { id: NOVAS.prazoB, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-60-30', parcelas_dias: [60, 30] } });
-      expect([400, 422], dec.body).toContain(dec.statusCode);
-      cod422(await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.formaB}`, payload: { id: NOVAS.forma, codigo: 'XX', nome: 'X' } }), 'PAYLOAD_INVALIDO');
-      expect(await q('select 1 from vendedor.forma_pagamento where id = $1', [NOVAS.formaB])).toEqual([]);
-      expect(await q('select 1 from vendedor.prazo_pagamento where id = $1', [NOVAS.prazoB])).toEqual([]);
-    });
-
-    it('F7. prazo vindo do ERP (PZ-2856): mudar as parcelas → 422 PRAZO_DO_ERP; parcelas no banco intactas', async () => {
-      const r = await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${PA.prazos.bol2856}`, payload: { id: PA.prazos.bol2856, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-28-56', parcelas_dias: [28, 56, 84] } });
-      cod422(r, 'PRAZO_DO_ERP');
+    it('F6. ADR 0072: editar forma e prazo existentes (inativar o PIX, renomear o BOLETO, mudar as parcelas do PZ-2856 e do 30/60/90) → 403 FORMAS_DO_ERP; formas e prazos de A intactos', async () => {
+      const antes = await fotoFormasA();
+      formasDoErp(await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${PA.formas.pix}`, payload: { id: PA.formas.pix, codigo: 'PIX', nome: 'Pix', ativo: false, ordem: 1 } }));
+      formasDoErp(await api.chamar(tk.gerente, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${PA.formas.boleto}`, payload: { id: PA.formas.boleto, codigo: 'BOLETO', nome: 'Boleto bancário' } }));
+      formasDoErp(await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${PA.prazos.bol2856}`, payload: { id: PA.prazos.bol2856, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-28-56', parcelas_dias: [28, 56, 84] } }));
+      formasDoErp(await api.chamar(tk.gerente, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${PA.prazos.bol306090}`, payload: { id: PA.prazos.bol306090, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-30-60-90', parcelas_dias: [30, 60] } }));
+      expect(await fotoFormasA()).toEqual(antes);
       const [z] = await q<{ parcelas_dias: number[]; prazo_medio_dias: number }>('select parcelas_dias, prazo_medio_dias from vendedor.prazo_pagamento where id = $1', [PA.prazos.bol2856]);
       expect(z!.parcelas_dias.map(Number)).toEqual([28, 56]);
       expect(z!.prazo_medio_dias).toBe(42);
     });
 
-    it('F8. tenant: o id da forma de A num PUT de prazo de B → 404 FORMA_NAO_ENCONTRADA; o id de um registro de A num PUT de forma de B não toca A', async () => {
+    it('F7. ADR 0072: o GET segue (analista): cada prazo com código, descrição, forma, parcelas e prazo médio para a tabela única', async () => {
+      const r = await api.chamar(tk.analista, { method: 'GET', url: '/v1/vendedor/formas-pagamento' });
+      expect(r.statusCode, r.body).toBe(200);
+      const b = r.json() as { formas: Array<{ id: string; nome: string }>; prazos: Linha[] };
+      expect(b.prazos.find((p) => p.id === PA.prazos.bol2856)).toMatchObject({ codigo: 'BOL-28-56', descricao: '28/56 dias', forma_pagamento_id: PA.formas.boleto, parcelas_dias: [28, 56], prazo_medio_dias: 42 });
+      expect(b.formas.find((f) => f.id === PA.formas.boleto)).toMatchObject({ nome: 'Boleto' });
+    });
+
+    it('F8. tenant: o admin de B (Vendedor ligado no usuário) num PUT com o id de uma forma de A → 403 FORMAS_DO_ERP; a forma de A intacta e o RLS só mostra B', async () => {
       // B precisa do Vendedor no admin para chegar à rota: o gerente não existe em B, então liga-se a licença do admin de B no nível do usuário
       expect((await licenca(api, tk.adminB, 'usuario', 'vendedor', true, B.usuarios.admin)).statusCode).toBe(200);
       try {
-        const r = await api.chamar(tk.adminB, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazoB}`, payload: { id: NOVAS.prazoB, forma_pagamento_id: PA.formas.boleto, codigo: 'B-30', parcelas_dias: [30] } });
-        expect(r.statusCode, r.body).toBe(404);
-        expect(erroDe(r).codigo).toBe('FORMA_NAO_ENCONTRADA');
-        const x = await api.chamar(tk.adminB, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${PA.formas.pix}`, payload: { id: PA.formas.pix, codigo: 'PIXB', nome: 'Pix de B' } });
-        // o id é chave primária global: B não cria outra linha com o id de A nem enxerga a de A (RLS)
-        cod422(x, 'ID_EM_USO');
+        formasDoErp(await api.chamar(tk.adminB, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazoB}`, payload: { id: NOVAS.prazoB, forma_pagamento_id: PA.formas.boleto, codigo: 'B-30', parcelas_dias: [30] } }));
+        formasDoErp(await api.chamar(tk.adminB, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${PA.formas.pix}`, payload: { id: PA.formas.pix, codigo: 'PIXB', nome: 'Pix de B' } }));
         const [pix] = await q<{ tenant_id: string; codigo: string; nome: string }>('select tenant_id, codigo, nome from vendedor.forma_pagamento where id = $1', [PA.formas.pix]);
         expect(pix, 'a forma de A não pode ser alterada por B').toEqual({ tenant_id: A.tenantId, codigo: 'PIX', nome: 'Pix' });
+        expect(await q('select 1 from vendedor.prazo_pagamento where id = $1', [NOVAS.prazoB])).toEqual([]);
         // RLS direto: no contexto de B, só formas de B
         const deB = await comTenant(api.pool, B.tenantId, (c) => c.query<{ tenant_id: string }>('select tenant_id from vendedor.forma_pagamento'));
         expect(deB.rows.length).toBeGreaterThan(0);
