@@ -23,3 +23,12 @@ Data: 25/11/2026 (Manaus). Base: catálogo v2 49323be. Commits revisados (1 cada
 | RD-3711 | `modules/promotor/api/rotas-cadastros.ts:3` | O comentário "leitura: `PERFIS_RELATORIO`" ficou desatualizado. Trocar por "leitura: ação `cadastro_trade.ver`". | baixa | modulo-promotor |
 
 Defeito funcional encaminhado: nenhum.
+
+## Reteste (tarde de Manaus, 25/11)
+
+- RD-3708 corrigido em 49413d8 (head 157355e58fceb5c5fb24ba497dba08fb1daf3851; o commit novo só troca `.perfis` por `acao` em `carteira.db.test.ts`).
+- RD-3709 corrigido em a781bea7e8b70725a5ed1f0f239fcf184161b675.
+- RD-3710 e RD-3711 corrigidos em ac62a1559ef4da8f1b1e339084e945fd9168c651.
+- Engenheiro-software 2481442496407bad27728b7176038ad4cd50409e (fim da transição): nenhum código morto (`git grep` sem `ACOES_DA_TRANSICAO`, `acoesDoModulo`, `AcaoDaTransicao`, `CHAVE_DA_PENDENTE`, `PENDENTES_DA_E6`), cabeçalho do teste sem citar a transição, teste de rotas simples (`fechadas` e `abertas` vazias). Sem achado novo.
+
+Parecer: LIBERADO os quatro SHAs, que entram juntos.
