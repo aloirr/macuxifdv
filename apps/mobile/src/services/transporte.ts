@@ -23,6 +23,7 @@ import {
 } from '@macuxi/platform-sdk';
 
 import type { ModoApi } from '@/lib/modo-api';
+import { ehAppDesatualizado } from '@/lib/versao-app';
 import { cederAVez } from '@/lib/trava-sync';
 
 import { HttpError, type ApiClient } from './api';
@@ -35,9 +36,17 @@ export function modoSync(modo: ModoApi): ModoSync {
 }
 
 // 401 = sessão (o item não tem culpa): o motor tenta de novo depois do novo login, sem rejeitar a fila. 403 USUARIO_SEM_FILIAL
-// (T-0176, ADR 0056) também é da conta, não do item: a fila fica pendente e segue quando a filial for informada
+// (T-0176, ADR 0056) também é da conta, não do item: a fila fica pendente e segue quando a filial for informada.
+// 426 APP_DESATUALIZADO (T-0195, ADR 0070) é do app, não do item: o push e os arquivos são liberados no bloqueio, e um servidor
+// que ainda os recuse não transforma pedido, orçamento ou pré-cadastro em "Não aceito"; a fila fica pendente
 const retentavel = (e: unknown) =>
-  !(e instanceof HttpError) || e.status >= 500 || e.status === 401 || e.status === 408 || e.status === 429 || ehUsuarioSemFilial(e);
+  !(e instanceof HttpError) ||
+  e.status >= 500 ||
+  e.status === 401 ||
+  e.status === 408 ||
+  e.status === 429 ||
+  ehUsuarioSemFilial(e) ||
+  ehAppDesatualizado(e);
 
 /** Lote inteiro recusado com 4xx (ex.: 403 MODULO_INATIVO na rota): vira rejeição de cada item. */
 function rejeitarLote(itens: ItemPush[], e: unknown): ResultadoItemPush[] {

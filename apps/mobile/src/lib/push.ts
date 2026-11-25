@@ -7,10 +7,12 @@
  *   JSON (`'["pedido"]'`, o FCM só leva texto) ou separada por vírgula. Sem a lista, o app faz a verificação de novidades.
  * - `data.link`: rota do app (`/m/pedido?id=...`, `/m/core/notificacoes`). Só caminhos internos começando por `/`.
  * - `data.pedido_id`: atalho para o detalhe do pedido quando não vem `link`.
+ * - `data.subtipo` `app_versao_nova` (T-0195, ADR 0070): o aviso de versão nova abre a folha `/atualizar-app`, como o toque na
+ *   linha do sininho (a notificação não leva link).
  * Push SILENCIOSO = sem título e sem corpo: só dispara o motor, nada aparece na bandeja.
  * FCM direto (v1.0.10): `data` chega como mapa de textos; `entidades` vem como texto JSON ou separado por vírgula.
  */
-import { PushTokenSchema } from '@macuxi/core/contracts';
+import { PushTokenSchema, ROTA_TELA_ATUALIZAR_APP, SUBTIPO_NOTIFICACAO_APP_VERSAO } from '@macuxi/core/contracts';
 
 /** Nome de entidade do sync: letras minúsculas, dígitos e `_` (ex.: `pedido`, `cliente_condicao`). */
 const NOME_ENTIDADE = /^[a-z][a-z0-9_]{0,62}$/;
@@ -45,6 +47,7 @@ export function rotaDoPush(dados: DadosPush): string | null {
     const l = link.trim();
     if (l.startsWith('/') && !l.startsWith('//') && !l.includes('\\') && l.length <= 500) return l;
   }
+  if (dados?.subtipo === SUBTIPO_NOTIFICACAO_APP_VERSAO) return ROTA_TELA_ATUALIZAR_APP;
   const pedido = dados?.pedido_id;
   if (typeof pedido === 'string' && /^[0-9a-fA-F-]{8,64}$/.test(pedido)) return `/m/pedido?id=${encodeURIComponent(pedido)}`;
   return null;

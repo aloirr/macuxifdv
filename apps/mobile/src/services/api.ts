@@ -22,6 +22,7 @@ import type { CreateOrderRequest, CustomerDetail, DiscountPolicy, Order, OrderDe
 import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
 
 import { erroDoTesteServidor, testarServidor } from '@/lib/servidor';
+import { cabecalhosDoApp, comCabecalhoDoApp } from '@/lib/versao-app';
 
 export class HttpError extends Error {
   constructor(
@@ -117,7 +118,8 @@ export class ApiClient {
   private async enviar<T>(method: string, path: string, opts: RequestOptions, token: string | null): Promise<{ status: number; data: T }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 12_000);
-    const headers: Record<string, string> = { Accept: 'application/json', ...opts.headers };
+    // T-0195 (ADR 0070 §D2): `x-macuxi-app` em toda chamada; o chamador não o sobrescreve
+    const headers: Record<string, string> = { Accept: 'application/json', ...opts.headers, ...cabecalhosDoApp() };
     if (token) headers.Authorization = `Bearer ${token}`;
     if (opts.bytes) headers['Content-Type'] = opts.bytes.tipo;
     else if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
@@ -164,7 +166,7 @@ export class ApiClient {
       try {
         let res: Response;
         try {
-          res = await fetch(this.url(path), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store', signal: controller.signal });
+          res = await fetch(this.url(path), { headers: { ...cabecalhosDoApp(), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, cache: 'no-store', signal: controller.signal });
         } catch (e) {
           const aborted = e instanceof Error && e.name === 'AbortError';
           throw new NetworkError(aborted ? 'O servidor demorou para responder.' : `Sem conexão com ${this.baseUrl}.`);
@@ -199,7 +201,7 @@ export class ApiClient {
    * `ErroSemConexao` ou `ErroHttp` `SERVIDOR_INVALIDO` com a mensagem do que falhou.
    */
   async health(caminho = '/health', opcoes: { exigirHttps?: boolean } = {}) {
-    const r = await testarServidor(this.baseUrl, { rota: caminho, exigirHttps: opcoes.exigirHttps ?? false, buscar: (url, init) => fetch(url, init) });
+    const r = await testarServidor(this.baseUrl, { rota: caminho, exigirHttps: opcoes.exigirHttps ?? false, buscar: (url, init) => fetch(url, comCabecalhoDoApp(init)) });
     if (!r.ok) throw erroDoTesteServidor(r);
     return r;
   }
