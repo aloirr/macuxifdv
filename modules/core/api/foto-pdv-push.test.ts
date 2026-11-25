@@ -1,5 +1,5 @@
 /**
- * Push `cliente_foto` (RN-CORE-38; T-0147): carteira, tipo, "só o que falta", perfis de leitura do arquivo e idempotência.
+ * Push `cliente_foto` (RN-CORE-38; T-0147): carteira, tipo, todo perfil só adiciona (a mais recente vale), perfis de leitura do arquivo e idempotência.
  * Sem banco: o `db` falso responde por trecho de SQL.
  */
 import { describe, expect, it, vi } from 'vitest';
@@ -67,9 +67,9 @@ describe('RN-CORE-38: receber o push cliente_foto', () => {
     const n = montar({ tipo: { sensivel: false, fachada: true, ativo: false } });
     expect(await receberFotosPdv(n.ctx, [item()])).toMatchObject([{ status: 'rejeitado', codigo: 'FOTO_TIPO_NAO_ENCONTRADO' }]);
   });
-  it('RN-CORE-38: vendedor só envia o que falta; supervisor substitui e a antiga sai logicamente', async () => {
+  it('RN-CORE-38: vendedor e supervisor ADICIONAM foto do tipo que já tem (nunca 422); enquanto o índice único da vigente existir, a antiga sai logicamente', async () => {
     const v = montar({ vigente: true });
-    expect(await receberFotosPdv(v.ctx, [item()])).toMatchObject([{ status: 'rejeitado', codigo: 'RN-CORE-38', mensagem: 'Esta foto já foi enviada.' }]);
+    expect(await receberFotosPdv(v.ctx, [item()])).toEqual([{ id: U(1), status: 'aceito' }]);
     const s = montar({ vigente: true, perfil: 'supervisor' });
     expect(await receberFotosPdv(s.ctx, [item()])).toEqual([{ id: U(1), status: 'aceito' }]);
     expect(s.sqls.some((q) => q.includes('update core.cliente_foto set deleted_at'))).toBe(true);

@@ -6,7 +6,7 @@
  */
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, StatusCadastro, TituloSync } from '../../contracts';
-import { clienteCasaBusca, fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, ultimaVisitaEntre, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
+import { clienteCasaBusca, fotoMaisRecente, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, ultimaVisitaEntre, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
 
 export interface LinhasCliente {
   cliente: ClienteSync;
@@ -54,17 +54,17 @@ export interface Cliente360Local {
   /** RN-CORE-39: filial efetiva do cliente ("0002 · Boa Vista/RR"); nula quando as filiais ainda não vieram no sync. */
   filial_rotulo?: string | null;
   /** RN-CORE-38: resumo tem/falta por tipo; `null` quando não há tipo cadastrado (a seção não aparece). */
-  fotos_pdv?: (Omit<ReturnType<typeof resumoFotos>, 'itens'> & { itens: Array<ReturnType<typeof resumoFotos>['itens'][number] & { na_fila: boolean }>; fachada_foto: { arquivo_id: string; tirada_em: string | null } | null }) | null;
+  fotos_pdv?: (Omit<ReturnType<typeof resumoFotos>, 'itens'> & { itens: Array<ReturnType<typeof resumoFotos>['itens'][number] & { na_fila: boolean; tirada_em: string | null; arquivo_id: string | null }> }) | null;
 }
 
-/** RN-CORE-38: resumo tem/falta e o estado do "Ver foto do PDV" (fachada enviada); sem tipo cadastrado, `null`. */
+/** RN-CORE-38: resumo tem/falta e a foto mais recente de cada tipo; sem tipo cadastrado, `null`. */
 export function resumoDeFotosDoPdv(l: { tipos: readonly FotoTipoSync[]; fotos: readonly ClienteFotoSync[]; na_fila?: readonly string[] } | undefined): Cliente360Local['fotos_pdv'] {
   const tipos = (l?.tipos ?? []).filter((t) => t.deleted_at === null);
   if (!l || tipos.length === 0) return null;
-  const f = fachadaDoPdv(tipos, l.fotos);
   const r = resumoFotos(tipos, l.fotos);
   const fila = new Set(l.na_fila ?? []);
-  return { ...r, itens: r.itens.map((i) => ({ ...i, na_fila: i.situacao === 'tem' && fila.has(i.tipo_id) })), fachada_foto: f?.arquivo_id ? { arquivo_id: f.arquivo_id, tirada_em: f.tirada_em } : null };
+  const recente = (tipoId: string) => fotoMaisRecente(l.fotos.filter((x) => !x.deleted_at && x.foto_tipo_id === tipoId));
+  return { ...r, itens: r.itens.map((i) => { const m = recente(i.tipo_id); return { ...i, na_fila: i.situacao === 'tem' && fila.has(i.tipo_id), tirada_em: m?.tirada_em ?? null, arquivo_id: m?.arquivo_id ?? null }; }) };
 }
 
 /** RN-CORE-39: rótulo da filial efetiva do cliente (nula, apagada ou inativa = padrão); sem filiais no aparelho, `null`. */

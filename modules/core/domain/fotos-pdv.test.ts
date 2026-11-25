@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apagarArquivoLocalAoEnviar, decidirApagarTipoFoto, fotosComPendentes, montarFotoPdvPush, perfisDeLeitura, PERFIS_DOC_SENSIVEL, podeAbrirFoto, podeEnviarFoto, fachadaDoPdv, resumoFotos, validarTipoFoto, type TipoFotoLike } from './fotos-pdv';
+import { apagarArquivoLocalAoEnviar, decidirApagarTipoFoto, fotosComPendentes, montarFotoPdvPush, perfisDeLeitura, PERFIS_DOC_SENSIVEL, podeAbrirFoto, podeEnviarFoto, fotoMaisRecente, resumoFotos, validarTipoFoto, type TipoFotoLike } from './fotos-pdv';
 
 const T = (id: string, nome: string, extra: Partial<TipoFotoLike> = {}): TipoFotoLike => ({ id, nome, obrigatorio: false, sensivel: false, fachada: false, ordem: 0, ativo: true, ...extra });
 const FACHADA = T('f', 'Fachada', { fachada: true, obrigatorio: true });
@@ -45,15 +45,22 @@ describe('RN-CORE-38: quem lê o quê', () => {
     for (const p of ['admin', 'analista', 'gerente', 'supervisor']) expect(podeAbrirFoto(p, CNH), p).toBe(true);
     expect(podeAbrirFoto('assistente', CNH)).toBe(false);
   });
-  it('RN-CORE-38: vendedor e promotor enviam só o que falta; admin, analista e supervisor substituem', () => {
-    expect(podeEnviarFoto('vendedor', false)).toEqual({ ok: true });
-    expect(podeEnviarFoto('vendedor', true)).toMatchObject({ ok: false, codigo: 'RN-CORE-38', mensagem: 'Esta foto já foi enviada.' });
-    expect(podeEnviarFoto('promotor', true)).toMatchObject({ ok: false });
-    for (const p of ['admin', 'analista', 'supervisor']) expect(podeEnviarFoto(p, true), p).toEqual({ ok: true });
+  it('RN-CORE-38: todo perfil que envia pode ADICIONAR foto de tipo que já tem foto (nunca troca nem 422)', () => {
+    for (const p of ['vendedor', 'promotor', 'admin', 'analista', 'supervisor']) {
+      expect(podeEnviarFoto(p, false), p).toEqual({ ok: true });
+      expect(podeEnviarFoto(p, true), p).toEqual({ ok: true });
+    }
+  });
+  it('RN-CORE-38: fotoMaisRecente pega a foto mais recente, não a primeira viva', () => {
+    const velha = { foto_tipo_id: 'f', arquivo_id: 'a1', tirada_em: '2026-10-01T10:00:00Z' };
+    const nova = { foto_tipo_id: 'f', arquivo_id: 'a2', tirada_em: '2026-11-01T10:00:00Z' };
+    expect(fotoMaisRecente([nova, velha])?.arquivo_id).toBe('a2');
+    expect(fotoMaisRecente([velha, nova])?.arquivo_id).toBe('a2');
+    expect(fotoMaisRecente([])).toBeNull();
   });
 });
 
-describe('RN-CORE-38: resumo tem/falta e "Ver foto do PDV"', () => {
+describe('RN-CORE-38: resumo tem/falta', () => {
   const tipos = [CONTRATO, FACHADA, CNH, T('i', 'Antigo', { ativo: false })];
   it('RN-CORE-38: um item por tipo ativo, obrigatórios primeiro, depois a ordem; conta as obrigatórias que faltam', () => {
     const r = resumoFotos(tipos, [{ foto_tipo_id: 'f' }]);
@@ -62,13 +69,6 @@ describe('RN-CORE-38: resumo tem/falta e "Ver foto do PDV"', () => {
   });
   it('RN-CORE-38: foto apagada não conta como tem', () => {
     expect(resumoFotos(tipos, [{ foto_tipo_id: 'f', deleted_at: '2026-11-01T00:00:00Z' }]).faltam_obrigatorias).toBe(2);
-  });
-  it('RN-CORE-38: fachadaDoPdv devolve a foto da fachada enviada ou null', () => {
-    expect(fachadaDoPdv(tipos, [{ foto_tipo_id: 'f', arquivo_id: 'a1' }])?.arquivo_id).toBe('a1');
-    expect(fachadaDoPdv(tipos, [{ foto_tipo_id: 'f' }])).toBeNull();
-    expect(fachadaDoPdv(tipos, [{ foto_tipo_id: 'f', arquivo_id: 'a1', deleted_at: '2026-11-01T00:00:00Z' }])).toBeNull();
-    expect(fachadaDoPdv(tipos, [{ foto_tipo_id: 'c', arquivo_id: 'a2' }])).toBeNull();
-    expect(fachadaDoPdv([], [])).toBeNull();
   });
 });
 
@@ -91,11 +91,13 @@ describe('RN-CORE-38: envio da foto do PDV pelo aparelho (push cliente_foto)', (
     const r = fotosComPendentes([], pend, [FACHADA, CNH, CONTRATO]);
     expect(r.map((f) => [f.foto_tipo_id, f.arquivo_id])).toEqual([['f', U(4)], ['c', null]]);
     expect(resumoFotos([FACHADA, CNH, CONTRATO], r).faltam_obrigatorias).toBe(0);
-    expect(fachadaDoPdv([FACHADA, CNH], r)?.arquivo_id).toBe(U(4));
   });
-  it('RN-CORE-38: a foto do pull vence a da fila do mesmo tipo (sem duplicar)', () => {
+  it('RN-CORE-38: a foto da fila entra ao lado da do pull (só adiciona) e a mais recente vale; a mesma foto do pull não duplica', () => {
     const pull = [{ id: U(9), cliente_id: U(2), foto_tipo_id: 'f', arquivo_id: U(8), origem: 'camera' as const, tirada_em: null, deleted_at: null, updated_at: 'x', external_id: null }];
     const pend = [{ id: U(1), cliente_id: U(2), foto_tipo_id: 'f', arquivo_id: U(4), origem: 'camera' as const, tirada_em: '2026-11-10T15:00:00.000Z' }];
-    expect(fotosComPendentes(pull, pend, [FACHADA]).map((f) => f.id)).toEqual([U(9)]);
+    const r = fotosComPendentes(pull, pend, [FACHADA]);
+    expect(r.map((f) => f.id)).toEqual([U(9), U(1)]);
+    expect(fotoMaisRecente(r.filter((f) => f.foto_tipo_id === 'f'))?.arquivo_id).toBe(U(4));
+    expect(fotosComPendentes(pull, [{ ...pend[0]!, id: U(9) }], [FACHADA]).map((f) => f.id)).toEqual([U(9)]);
   });
 });

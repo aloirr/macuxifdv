@@ -14,19 +14,26 @@ export type ResultadoEnvioFotoPdv =
   | { kind: 'erro'; mensagem: string };
 
 export const MSG_SEM_CAMERA_PDV = 'A câmera não está disponível neste aparelho. Confira a permissão do app e tente de novo.';
+export const MSG_FALHA_CAPTURA_PDV = 'Não foi possível abrir a câmera ou a galeria. Tente de novo.';
 export const MSG_FALHA_FOTO_PDV = 'Não foi possível guardar a foto neste aparelho. Libere espaço e tente de novo.';
+
+/** Título da folha de captura (spec cliente-documentacao-v1034): "Foto da fachada" ou "Foto: <Nome>". */
+export function tituloDaFolhaFotoPdv(tipo: { nome: string; fachada?: boolean }): string {
+  return tipo.fachada ? 'Foto da fachada' : `Foto: ${tipo.nome}`;
+}
 
 export async function enviarFotoPdv(
   c: { motor: Pick<MotorSync, 'enfileirar' | 'enfileirarArquivo' | 'enviar' | 'ambiente'> },
-  e: { clienteId: string; nomeCliente: string; tipo: Pick<FotoTipoSync, 'id' | 'nome' | 'sensivel'> },
+  e: { clienteId: string; nomeCliente: string; tipo: Pick<FotoTipoSync, 'id' | 'nome' | 'sensivel' | 'fachada'> },
 ): Promise<ResultadoEnvioFotoPdv> {
   const captura = capturaFotoPdvRegistrada();
   if (!captura) return { kind: 'erro', mensagem: MSG_SEM_CAMERA_PDV };
   let foto;
   try {
-    foto = await captura.escolher({ titulo: e.tipo.nome });
+    foto = await captura.escolher({ titulo: tituloDaFolhaFotoPdv(e.tipo) });
   } catch {
-    return { kind: 'erro', mensagem: MSG_SEM_CAMERA_PDV };
+    // a porta do shell lança quando a câmera/galeria devolve `erro` (cancelar e negar a câmera não lançam)
+    return { kind: 'erro', mensagem: MSG_FALHA_CAPTURA_PDV };
   }
   if (!foto) return { kind: 'cancelada' };
   try {

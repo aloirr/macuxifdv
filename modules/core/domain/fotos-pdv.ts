@@ -2,12 +2,11 @@
  * Fotos do PDV (RN-CORE-38; T-0147; ADR 0041). Funções puras, sem banco.
  * - Tipos do tenant (admin): nome de 1 a 60, único; um só tipo `fachada` (nunca sensível, nunca apagado ou inativado).
  * - Quem lê: o vendedor e o promotor abrem só a fachada (os demais tipos, sensíveis ou não, aparecem como tem/falta); os demais tipos abrem só para admin, analista, gerente e
- *   supervisor (e ainda dentro da carteira). Quem envia: vendedor e promotor só o que falta; admin, analista e supervisor substituem.
+ *   supervisor (e ainda dentro da carteira). Quem envia só adiciona: a foto nunca é trocada nem apagada (a mais recente vale).
  */
 
 /** Fonte única dos perfis que abrem documento sensível (CNH, contrato social); o Core grava em `plataforma.arquivo.perfis_leitura`. */
 export const PERFIS_DOC_SENSIVEL = ['admin', 'analista', 'gerente', 'supervisor'] as const;
-const PERFIS_SUBSTITUEM = ['admin', 'analista', 'supervisor'] as const;
 export const NOME_TIPO_FOTO_MAX = 60;
 
 export interface TipoFotoLike {
@@ -64,10 +63,19 @@ export function podeAbrirFoto(perfil: string, t: Pick<TipoFotoLike, 'fachada'>):
   return lista === null || lista.includes(perfil);
 }
 
-/** RN-CORE-38: vendedor e promotor enviam só o que falta (já existe viva do tipo = 422); admin, analista e supervisor substituem. */
-export function podeEnviarFoto(perfil: string, jaExiste: boolean): { ok: true } | ErroFotoPdv {
-  if (!jaExiste || (PERFIS_SUBSTITUEM as readonly string[]).includes(perfil)) return { ok: true };
-  return erro('RN-CORE-38', 'Esta foto já foi enviada.');
+/**
+ * RN-CORE-38 (decisão de 24/11/2026, v1.0.34): a foto nunca é trocada nem apagada, só ADICIONADA; quem envia (todos os perfis da carteira) pode
+ * adicionar mesmo com foto do tipo já enviada. A mais recente vale para a situação e a data (`fotoMaisRecente`).
+ */
+export function podeEnviarFoto(_perfil: string, _jaExiste: boolean): { ok: true } | ErroFotoPdv {
+  return { ok: true };
+}
+
+/** RN-CORE-38: a foto mais recente (por `tirada_em`; empate = a última da lista); sem data, vale a ordem da lista. */
+export function fotoMaisRecente<F extends { tirada_em?: string | null }>(fotos: readonly F[]): F | null {
+  let melhor: F | null = null;
+  for (const f of fotos) if (!melhor || (f.tirada_em ?? '') >= (melhor.tirada_em ?? '')) melhor = f;
+  return melhor;
 }
 
 export interface ResumoFotoItem {
@@ -90,12 +98,6 @@ export function resumoFotos(
     .sort((a, b) => Number(b.obrigatorio) - Number(a.obrigatorio) || a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'))
     .map((t) => ({ tipo_id: t.id, nome: t.nome, obrigatorio: t.obrigatorio, sensivel: t.sensivel, fachada: t.fachada, situacao: (com.has(t.id) ? 'tem' : 'falta') as 'tem' | 'falta' }));
   return { itens, faltam_obrigatorias: itens.filter((i) => i.obrigatorio && i.situacao === 'falta').length };
-}
-
-/** RN-CORE-38: fonte única da fachada: a foto viva do tipo de fachada ativo, com arquivo enviado; sem ela, `null` ("Ver foto do PDV" desligado). */
-export function fachadaDoPdv<F extends { foto_tipo_id: string; arquivo_id?: string | null; deleted_at?: string | null }>(tipos: readonly TipoFotoLike[], fotos: readonly F[]): F | null {
-  const fachada = tipos.find((t) => t.fachada && t.ativo);
-  return (fachada && fotos.find((f) => !f.deleted_at && f.foto_tipo_id === fachada.id && f.arquivo_id)) || null;
 }
 
 export type OrigemFotoPdv = 'camera' | 'galeria';
@@ -134,19 +136,18 @@ export interface FotoPdvLinha {
 }
 
 /**
- * RN-CORE-38: sobrepõe às linhas do pull o que ainda está na fila (offline primeiro): o tipo enviado entra na lista na hora; a ficha mostra "Na fila" até o servidor aceitar (`resumoDeFotosDoPdv`).
- * Pull vence (já há linha viva do tipo para o cliente); no tipo sensível o `arquivo_id` fica nulo, como no pull.
+ * RN-CORE-38: sobrepõe às linhas do pull o que ainda está na fila (offline primeiro): cada foto da fila entra na lista na hora (a foto só é adicionada, nunca troca a anterior;
+ * a mais recente vale na ficha, `fotoMaisRecente`); a ficha mostra "Na fila" até o servidor aceitar (`resumoDeFotosDoPdv`).
+ * A que o pull já trouxe (mesmo `id`) não duplica; no tipo sensível o `arquivo_id` fica nulo, como no pull.
  */
 export function fotosComPendentes<L extends FotoPdvLinha>(linhas: readonly L[], pendentes: readonly FotoPdvPush[], tipos: readonly Pick<TipoFotoLike, 'id' | 'fachada'>[]): FotoPdvLinha[] {
   const saida: FotoPdvLinha[] = [...linhas];
-  const chave = (c: string, t: string) => `${c}|${t}`;
-  const tem = new Set(linhas.filter((l) => !l.deleted_at).map((l) => chave(l.cliente_id, l.foto_tipo_id)));
+  const ids = new Set(linhas.map((l) => l.id));
   for (const p of pendentes) {
-    const k = chave(p.cliente_id, p.foto_tipo_id);
-    if (tem.has(k)) continue;
+    if (ids.has(p.id)) continue;
     const tipo = tipos.find((t) => t.id === p.foto_tipo_id);
     if (!tipo) continue;
-    tem.add(k);
+    ids.add(p.id);
     saida.push({ id: p.id, cliente_id: p.cliente_id, foto_tipo_id: p.foto_tipo_id, arquivo_id: tipo.fachada ? p.arquivo_id : null, origem: p.origem, tirada_em: p.tirada_em, deleted_at: null, updated_at: p.tirada_em, external_id: null });
   }
   return saida;
