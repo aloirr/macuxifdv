@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   AppVersaoPublicadaSchema,
   AppVersaoPublicadaV2Schema,
+  AppVersaoPublicadaV3Schema,
+  CONTRATO_APP_VERSAO_V3,
   CABECALHO_APP,
+  clienteAceitaFracao,
   CODIGO_APP_DESATUALIZADO,
   ConsultaAppVersaoSchema,
   criarPortaVersaoAppMemoria,
   ErroAppDesatualizadoSchema,
+  fracaoLiberada,
   haVersaoNova,
   versaoAppValida,
   lerCabecalhoApp,
@@ -18,7 +22,9 @@ import {
   valorCabecalhoApp,
   valorCabecalhoWeb,
   VARIANTES_APP,
+  VERSAO_APP_FRACAO,
   VERSAO_WEB,
+  type VersaoPublicadaApp,
 } from './app-versao';
 import { varianteDoPerfil } from './perfis';
 
@@ -78,7 +84,12 @@ describe('AppVersaoPublicadaSchema', () => {
     expect(rotaAppVersao('gestao')).toBe('/v1/app/versao?variante=gestao&contrato=2');
     expect(ConsultaAppVersaoSchema.parse({ variante: 'campo' })).toEqual({ variante: 'campo' });
     expect(ConsultaAppVersaoSchema.parse({ variante: 'campo', contrato: '2' })).toEqual({ variante: 'campo', contrato: '2' });
-    expect(ConsultaAppVersaoSchema.safeParse({ variante: 'campo', contrato: '3' }).success).toBe(false);
+    expect(ConsultaAppVersaoSchema.safeParse({ variante: 'campo', contrato: '4' }).success).toBe(false);
+  });
+
+  it('rotaAppVersao com o contrato V3 (ADR 0076 D6): o app 1.0.36 pede `fracao_liberada`', () => {
+    expect(rotaAppVersao('campo', CONTRATO_APP_VERSAO_V3)).toBe('/v1/app/versao?variante=campo&contrato=3');
+    expect(ConsultaAppVersaoSchema.parse({ variante: 'gestao', contrato: '3' })).toEqual({ variante: 'gestao', contrato: '3' });
   });
 });
 
@@ -99,6 +110,22 @@ describe('AppVersaoPublicadaV2Schema (T-0190, RN-CORE-67: o APK só sai por link
 
   it('o contrato antigo (apk_url obrigatório) recusa a resposta V2: por isso os apps v1.0.17 e v1.0.18 continuam no antigo', () => {
     expect(AppVersaoPublicadaSchema.safeParse(base).success).toBe(false);
+  });
+});
+
+describe('AppVersaoPublicadaV3Schema (ADR 0076 D6, RN-VEN-02 v3)', () => {
+  const base = { variante: 'campo', versao: '1.0.36', publicada_em: '2026-11-25T12:00:00.000Z', fracao_liberada: true };
+
+  it('V2 + fracao_liberada obrigatório (boolean)', () => {
+    expect(AppVersaoPublicadaV3Schema.parse(base)).toEqual(base);
+    expect(AppVersaoPublicadaV3Schema.safeParse({ ...base, fracao_liberada: false }).success).toBe(true);
+    const { fracao_liberada: _f, ...semTrava } = base;
+    expect(AppVersaoPublicadaV3Schema.safeParse(semTrava).success).toBe(false);
+    expect(AppVersaoPublicadaV3Schema.safeParse({ ...base, fracao_liberada: 'sim' }).success).toBe(false);
+  });
+
+  it('o V2 (strict) recusa a resposta V3: por isso os apps da v1.0.19 à v1.0.35 continuam no V2', () => {
+    expect(AppVersaoPublicadaV2Schema.safeParse(base).success).toBe(false);
   });
 });
 
@@ -233,5 +260,56 @@ describe('426 APP_DESATUALIZADO, porta e variante do perfil (T-0195)', () => {
     expect(varianteDoPerfil('admin')).toBeNull();
     expect(varianteDoPerfil('analista')).toBeNull();
     expect(varianteDoPerfil(null)).toBeNull();
+  });
+});
+
+describe('fracaoLiberada (ADR 0076 D6, RN-VEN-02 v3)', () => {
+  const pub = '2026-12-01T12:00:00.000Z';
+  const depois = new Date(Date.parse(pub) + PRAZO_ATUALIZACAO_APP_MS);
+  const antes = new Date(Date.parse(pub) + PRAZO_ATUALIZACAO_APP_MS - 1);
+  const v = (versao: string, publicada_em: string | null = pub): VersaoPublicadaApp => ({ versao, publicada_em });
+
+  it('versão da fração = 1.0.36', () => {
+    expect(VERSAO_APP_FRACAO).toBe('1.0.36');
+  });
+
+  it('as duas na 1.0.36 há 24 h exatas → aberta', () => {
+    expect(fracaoLiberada({ campo: v('1.0.36'), gestao: v('1.0.36'), agora: depois })).toBe(true);
+  });
+
+  it('1 ms antes das 24 h → fechada', () => {
+    expect(fracaoLiberada({ campo: v('1.0.36'), gestao: v('1.0.36'), agora: antes })).toBe(false);
+  });
+
+  it('publicada maior que a 1.0.36 → aberta, mesmo recém-publicada ou sem hora (não fecha de novo)', () => {
+    expect(fracaoLiberada({ campo: v('1.0.37', null), gestao: v('1.1.0'), agora: antes })).toBe(true);
+  });
+
+  it.each<[string, VersaoPublicadaApp | null, VersaoPublicadaApp | null]>([
+    ['campo sem versão', null, v('1.0.36')],
+    ['gestão sem versão', v('1.0.36'), null],
+    ['campo menor', v('1.0.35'), v('1.0.36')],
+    ['gestão sem hora', v('1.0.36'), v('1.0.36', null)],
+    ['hora inválida', v('1.0.36', 'ontem'), v('1.0.36')],
+    ['versão inválida', v('1.0.36-beta'), v('1.0.36')],
+  ])('%s → fechada', (_caso, campo, gestao) => {
+    expect(fracaoLiberada({ campo, gestao, agora: depois })).toBe(false);
+  });
+
+  it('agora inválido com a 1.0.36 → fechada', () => {
+    expect(fracaoLiberada({ campo: v('1.0.36'), gestao: v('1.0.36'), agora: new Date(Number.NaN) })).toBe(false);
+  });
+});
+
+describe('clienteAceitaFracao (ADR 0076 D6: pull filtrado por versão do cliente)', () => {
+  it.each([
+    [null, false],
+    [{ variante: 'campo' as const, versao: '1.0.35' }, false],
+    [{ variante: 'campo' as const, versao: '1.0.36' }, true],
+    [{ variante: 'gestao' as const, versao: '1.0.37' }, true],
+    [{ variante: 'gestao' as const, versao: '2.0.0' }, true],
+    [{ variante: 'campo' as const, versao: 'x' }, false],
+  ])('%j → %s', (app, esperado) => {
+    expect(clienteAceitaFracao(app)).toBe(esperado);
   });
 });
