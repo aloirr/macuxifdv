@@ -8,6 +8,9 @@
  *   `/v1/plataforma/auth/*`. O primeiro acesso com convite, o TOTP e os códigos de recuperação da ADR 0029 saíram.
  * Nada aqui vai ao log: e-mail e senha só trafegam no corpo.
  */
+import { somenteDigitos } from '@macuxi/comum/documento';
+import { ehEmail } from '@macuxi/comum/email';
+import { cepValido, ehUf, UFS_BRASIL, type Uf } from '@macuxi/comum/endereco';
 import { z } from 'zod';
 import { AcoesDaEmpresaSchema } from './empresa-acoes';
 import { MODULOS } from './nomes';
@@ -77,6 +80,16 @@ export const LoginPortalSchema = z.object({ email: Email, senha: z.string().min(
 /** Empresa em que o admin do cliente pode entrar (a senha conferiu nela no login). */
 export const EmpresaDoAcessoSchema = z.object({ id: Uuid, codigo: z.string(), nome: z.string() });
 /**
+ * Quem está no portal (ADR 0075; `sa_quem_sou`, 0102): o nome para o cabeçalho e o perfil e o cargo do admin do cliente na
+ * empresa escolhida (`null` para o super-admin e antes da escolha). Só para a tela: nunca vai a log.
+ */
+export const UsuarioDoPortalSchema = z.object({
+  nome: z.string().min(1).max(200),
+  perfil: z.string().min(1).max(60).nullable(),
+  cargo: z.string().min(1).max(120).nullable(),
+});
+export type UsuarioDoPortal = z.output<typeof UsuarioDoPortalSchema>;
+/**
  * Resposta do login, da escolha de empresa e do renovar. Token de 2 h, teto de 8 h (`SESSAO_PLATAFORMA`).
  * - `super_admin`: `empresa` nula e `empresas` vazia (a lista de todas vem de `GET /v1/plataforma/empresas`);
  * - `admin_cliente`: `empresas` = as que conferiram (1 a 20); com uma só, `empresa` já vem escolhida; com mais, `empresa`
@@ -90,6 +103,8 @@ export const SessaoPortalSchema = z
     tipo: z.enum(TIPOS_ACESSO_PORTAL),
     empresa: EmpresaDoAcessoSchema.nullable(),
     empresas: z.array(EmpresaDoAcessoSchema).max(MAX_EMPRESAS_LOGIN_PORTAL),
+    /** ADR 0075 (aditivo): quem entrou. Ausente = API anterior à 0102; `null` = sem o nome (o portal mostra sem ele). */
+    usuario: UsuarioDoPortalSchema.nullable().optional(),
   })
   .superRefine((s, ctx) => {
     const problema =
@@ -108,6 +123,16 @@ export const SessaoPortalSchema = z
   });
 /** `POST /v1/plataforma/auth/empresa` (token do admin do cliente): escolhe ou troca de empresa; devolve um token novo. */
 export const EscolherEmpresaPortalSchema = z.object({ tenant_id: Uuid }).strict();
+/**
+ * Troca da própria senha no portal (ADR 0075): `POST /v1/plataforma/auth/senha` com o token do portal. A senha nova segue a
+ * RN-CORE-32, conferida pela API com a regra do Core (o SDK não importa módulo). O super-admin troca sem segundo fator (o TOTP
+ * saiu na ADR 0039): a senha atual é a prova. Senha nunca volta em resposta nem vai a log.
+ */
+export const ROTA_PORTAL_TROCAR_SENHA = '/v1/plataforma/auth/senha';
+export const TrocarSenhaPortalSchema = z
+  .object({ senha_atual: z.string().min(1).max(200), senha_nova: z.string().min(1).max(200) })
+  .strict();
+export type TrocarSenhaPortal = z.output<typeof TrocarSenhaPortalSchema>;
 /**
  * Admin inicial do cliente no passo Empresa (RN-CORE-34): login e senha master definidos pelo time da Macuxi. A senha segue a
  * RN-CORE-32, conferida pela API com a regra do Core (o SDK não importa módulo). Nunca volta em resposta nem vai a log.
@@ -351,3 +376,141 @@ export const GravarDadosLegaisSchema = z
   })
   .strict();
 export type GravarDadosLegais = z.output<typeof GravarDadosLegaisSchema>;
+
+// ---------- dados cadastrais da empresa (ADR 0075) ----------
+/** Cadastro da empresa no portal: regras de acesso, rotas e campos na ADR 0075. */
+export const ROTA_PORTAL_CADASTRO_EMPRESA = '/v1/plataforma/empresas/:tenant_id/cadastro';
+export const rotaCadastroEmpresa = (tenantId: string): string => ROTA_PORTAL_CADASTRO_EMPRESA.replace(':tenant_id', tenantId);
+/** 422 de formato no PUT (corpo `ErroApi` com `detalhes.problemas`) e 503 do banco sem a 0102. */
+export const CODIGOS_CADASTRO_EMPRESA = Object.freeze({
+  invalido: 'CADASTRO_EMPRESA_INVALIDO',
+  indisponivel: 'CADASTRO_EMPRESA_INDISPONIVEL',
+} as const);
+export const LIMITES_CADASTRO_EMPRESA = Object.freeze({
+  razao_social: 200,
+  logradouro: 200,
+  numero: 20,
+  complemento: 100,
+  bairro: 100,
+  municipio: 100,
+  email: 254,
+} as const);
+
+/** Texto aparado; vazio vira `null`. */
+const TextoOpcional = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Use até ${max} caracteres.`)
+    .nullable()
+    .transform((s) => (s ? s : null));
+
+/** Só os dígitos; vazio vira `null`; com dígitos, confere o formato. */
+const DigitosOpcionais = (valido: (d: string) => boolean, mensagem: string) =>
+  z
+    .string()
+    .max(30)
+    .nullable()
+    .transform((s, ctx) => {
+      const d = somenteDigitos(s);
+      if (!d) return null;
+      if (!valido(d)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: mensagem });
+        return z.NEVER;
+      }
+      return d;
+    });
+
+const UfSchema = z.enum(UFS_BRASIL);
+/** Sigla da UF, aceita minúscula; vazio vira `null`. */
+const UfOpcional = z
+  .string()
+  .max(10)
+  .nullable()
+  .transform((s, ctx) => {
+    if (!(s ?? '').trim()) return null;
+    if (!ehUf(s)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'UF inválida: use a sigla, ex.: AM.' });
+      return z.NEVER;
+    }
+    return s.trim().toUpperCase() as Uf;
+  });
+
+const EmailOpcional = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(LIMITES_CADASTRO_EMPRESA.email)
+  .nullable()
+  .transform((s, ctx) => {
+    if (!s) return null;
+    if (!ehEmail(s)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'E-mail inválido.' });
+      return z.NEVER;
+    }
+    return s;
+  });
+
+/** Inscrição estadual: só os dígitos (2 a 14, sem pontos nem traços) ou `ISENTO`. */
+const InscricaoEstadualOpcional = z
+  .string()
+  .max(30)
+  .nullable()
+  .transform((s, ctx) => {
+    const bruto = (s ?? '').trim().toUpperCase();
+    if (!bruto) return null;
+    if (bruto === 'ISENTO') return bruto;
+    const d = bruto.replace(/[.\-/\s]/g, '');
+    if (!/^\d{2,14}$/.test(d)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Inscrição estadual inválida: use só os números ou ISENTO.' });
+      return z.NEVER;
+    }
+    return d;
+  });
+
+/**
+ * Resposta das duas rotas: o cadastro como o banco guarda. CNPJ com os 14 dígitos (`null` só na empresa antiga sem CNPJ, que
+ * segue sem ele: o portal não o grava); a razão social sempre existe; o resto pode faltar.
+ */
+export const DadosCadastraisEmpresaSchema = z.object({
+  tenant_id: Uuid,
+  cnpj: z.string().regex(/^\d{14}$/).nullable(),
+  razao_social: z.string(),
+  /** Só leitura aqui (grava pelo `PUT .../marca`, T-0182). */
+  nome_fantasia: z.string().nullable(),
+  logradouro: z.string().nullable(),
+  numero: z.string().nullable(),
+  complemento: z.string().nullable(),
+  bairro: z.string().nullable(),
+  municipio: z.string().nullable(),
+  uf: UfSchema.nullable(),
+  cep: z.string().regex(/^\d{8}$/).nullable(),
+  telefone: z.string().regex(/^\d{10,11}$/).nullable(),
+  email: z.string().nullable(),
+  inscricao_estadual: z.string().nullable(),
+  /** Última gravação da linha da empresa (UTC). */
+  atualizado_em: Instante,
+});
+export type DadosCadastraisEmpresa = z.output<typeof DadosCadastraisEmpresaSchema>;
+
+/**
+ * Corpo do PUT: exatamente as 11 chaves que a `sa_gravar_dados_da_empresa` recebe, nenhuma a mais (CNPJ e nome fantasia não
+ * entram). Normaliza (apara, vazio = `null`, só dígitos em CEP, telefone e inscrição, UF em maiúsculas) e confere o formato.
+ * A razão social é obrigatória.
+ */
+export const GravarDadosCadastraisEmpresaSchema = z
+  .object({
+    razao_social: z.string().trim().min(2, 'Informe a razão social.').max(LIMITES_CADASTRO_EMPRESA.razao_social),
+    logradouro: TextoOpcional(LIMITES_CADASTRO_EMPRESA.logradouro),
+    numero: TextoOpcional(LIMITES_CADASTRO_EMPRESA.numero),
+    complemento: TextoOpcional(LIMITES_CADASTRO_EMPRESA.complemento),
+    bairro: TextoOpcional(LIMITES_CADASTRO_EMPRESA.bairro),
+    municipio: TextoOpcional(LIMITES_CADASTRO_EMPRESA.municipio),
+    uf: UfOpcional,
+    cep: DigitosOpcionais(cepValido, 'CEP inválido: use os 8 números.'),
+    telefone: DigitosOpcionais((d) => d.length === 10 || d.length === 11, 'Telefone inválido: use o DDD e o número.'),
+    email: EmailOpcional,
+    inscricao_estadual: InscricaoEstadualOpcional,
+  })
+  .strict();
+export type GravarDadosCadastraisEmpresa = z.output<typeof GravarDadosCadastraisEmpresaSchema>;
