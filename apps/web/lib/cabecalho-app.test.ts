@@ -91,10 +91,11 @@ describe('clientes (o que sai do navegador)', () => {
   it('portal (chamarPortal): vai ao /api-proxy e o proxy põe o x-macuxi-app (o do chamador é trocado)', async () => {
     const fetchFalso = vi.fn(async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchFalso);
-    await chamarPortal(ROTAS_PORTAL.login, { metodo: 'POST', corpo: {}, cabecalhos: { [CABECALHO_APP]: 'campo/9.9.9' } });
+    await chamarPortal(ROTAS_PORTAL.login, { metodo: 'POST', corpo: {} });
     const [url, init] = fetchFalso.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${PROXY_BASE}${ROTAS_PORTAL.login}`);
-    const r = proxy(pedido(url, init.headers as Record<string, string>));
+    // o chamador não tem opção de cabeçalho; um valor forjado na requisição também é trocado pelo proxy
+    const r = proxy(pedido(url, { ...(init.headers as Record<string, string>), [CABECALHO_APP]: 'campo/9.9.9' }));
     expect(doProxy(r, CABECALHO_APP)).toBe(WEB);
   });
 });
