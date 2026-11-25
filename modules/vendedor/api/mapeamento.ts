@@ -2,6 +2,7 @@
  * Linhas do banco → respostas REST (`Order`, `OrderDetail`; T-0029 §3.3). Funções puras: o texto de pendência, o
  * `pode_decidir` e o histórico saem daqui, iguais para a lista, o detalhe e o PDF.
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import type { AprovacaoDoPedido, AprovacaoMotivo, ClienteDoPedido, FaturamentoDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
 import { camposFaturamento, dadosFiscaisDaFilial, maiorNivel, nomeDaFilialDoPedido, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
 import type { OrderStatus } from '../domain/order';
@@ -119,6 +120,8 @@ export interface LinhaEvento {
 }
 
 export const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
+/** ADR 0076: quantidade/fator lidos do banco (`numeric` chega como texto) → number com até 4 casas; `RangeError` se vier outra coisa. */
+export const qtd = (v: unknown): number => quantidadeDoBanco(v as string | number);
 
 /** RN-VEN-03/10: a alçada olha o desconto efetivo; pedido antigo (sem a coluna) usa o desconto do pedido. */
 function descontoParaAlcada(l: LinhaPedido): number {
@@ -191,7 +194,7 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     received_at: l.recebido_em ?? l.created_at,
     updated_at: l.updated_at,
     items_count: num(l.itens),
-    units: num(l.unidades),
+    units: l.unidades == null ? 0 : qtd(l.unidades),
     nivel_aprovacao: l.status === 'pending_approval' ? nivelPendente : null,
     pode_decidir: aguardando ? pendentes.some((a) => quemDecide(perfil, a.nivel).pode) : l.status === 'pending_approval' && l.nivel_aprovacao ? quemDecide(perfil, l.nivel_aprovacao).pode : false,
     ...(l.cliente_resumo?.codigo_erp ? { customer_code: l.cliente_resumo.codigo_erp } : {}),
@@ -234,7 +237,7 @@ export function paraFaturamento(l: LinhaPedido, notas: LinhaNotaFaturamento[], d
       faturado_em: n.faturado_em,
       parcial: n.parcial,
       total_cents: n.nota_total_cents === null ? null : num(n.nota_total_cents),
-      unidades: num(n.unidades),
+      unidades: qtd(n.unidades),
       chave_acesso: n.nota_chave_acesso ?? null,
     })),
     devolucoes: devolucoes.map((d) => ({ numero: d.nota_numero, serie: d.nota_serie, emitida_em: d.emitida_em, total_cents: num(d.total_cents) })),
@@ -263,14 +266,14 @@ export function paraItem(i: LinhaItem): OrderItem {
     product_id: i.produto_id,
     erp_code: i.produto_sku ?? '',
     description: i.produto_nome ?? '',
-    quantity: i.quantidade,
+    quantity: qtd(i.quantidade),
     // preço de TABELA por unidade (o PDF e a tela calculam o líquido pelo total do item)
     unit_price_cents: num(i.preco_tabela_cents),
     discount_pct: num(i.desconto_pct),
     total_cents: num(i.total_cents),
-    ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: num(i.quantidade_faturada) }),
-    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: num(i.quantidade_base), base_quantity: num(i.quantidade_base) }),
-    ...(i.unidade ? { unit: i.unidade, factor: num(i.fator ?? 1), unit_label: rotuloMedida(i.unidade, num(i.fator ?? 1)) } : {}),
+    ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: qtd(i.quantidade_faturada) }),
+    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: qtd(i.quantidade_base), base_quantity: qtd(i.quantidade_base) }),
+    ...(i.unidade ? { unit: i.unidade, factor: qtd(i.fator ?? 1), unit_label: rotuloMedida(i.unidade, qtd(i.fator ?? 1)) } : {}),
     ...(i.acrescimo_pct !== undefined && i.acrescimo_pct !== null && num(i.acrescimo_pct) > 0 ? { surcharge_pct: num(i.acrescimo_pct) } : {}),
     ...(i.ajuste_em ? { adjust_mode: i.ajuste_em, unit_discount_cents: num(i.desconto_unitario_cents ?? 0), unit_surcharge_cents: num(i.acrescimo_unitario_cents ?? 0) } : {}),
     ...(i.aplicacao ? { application: i.aplicacao } : {}),
