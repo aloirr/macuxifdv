@@ -4,11 +4,12 @@
  * "Baixar a NF …?" e busca a NF no servidor (P17); a NF não fica guardada. Sem internet: "Sem internet" e "Tentar de novo".
  */
 import { Badge, Botao, BotaoFiltro, CampoBusca, CampoTexto, CelulaTexto, Chip, colors, EtiquetaFiltro, Folha, Loading, TabelaDados, TabelaRotuloValor, type as t, type LinhaTabela } from '@macuxi/ui/mobile';
+import { formatarQuantidade } from '@macuxi/comum/quantidade';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { STATUS_NF, type LinhaHistoricoNfContrato, type StatusNf } from '../../contracts';
-import { filtrarNotas, rotuloStatusNf, statusDaParcela, tomStatusNf } from '../../domain';
+import { filtrarNotas, rotuloDaUnidade, rotuloStatusNf, statusDaParcela, tomStatusNf } from '../../domain';
 import { abrirArquivoRegistrado, podeAbrirFormato } from '../lib/abrir-arquivo';
 import {
   agruparNotasPorMes,
@@ -226,8 +227,8 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
             key: `${i.produto_codigo}-${n}`,
             celulas: [
               <CelulaTexto key="p" principal={i.produto_nome} segunda={i.produto_codigo} segundaCodigo />,
-              <CelulaTexto key="e" principal={i.unidade ?? '—'} segunda={i.fator ? `c/ ${i.fator}` : null} dir />,
-              <CelulaTexto key="q" principal={String(i.quantidade)} dir />,
+              <CelulaTexto key="e" principal={i.unidade ? rotuloDaUnidade(i.unidade, i.fator ?? 1) : '—'} dir />,
+              <CelulaTexto key="q" principal={formatarQuantidade(i.quantidade, i.unidade ?? null, { semSigla: true })} dir />,
               <CelulaTexto key="t" principal={valorSemMoeda(i.total_cents)} dir />,
             ],
           }))}

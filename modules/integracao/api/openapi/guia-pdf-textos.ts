@@ -346,7 +346,7 @@ export const DESCRICAO_CAMPO: Record<string, string> = {
   itens_faturados: 'Itens faturados NESTA nota. Só em `faturado_*`; nunca vazio.',
   'ItemFaturado.sequencia': '`sequencia` do item no pedido enviado.',
   'ItemFaturado.produto_external_id': '`external_id` do produto, igual ao do pedido enviado.',
-  'ItemFaturado.quantidade': 'Quantidade faturada, inteira, na unidade base.',
+  'ItemFaturado.quantidade': 'Quantidade faturada, na unidade base, com até 4 casas decimais (ADR 0076).',
   valor_cents: 'Valor, em centavos.',
   ocorrido_em: 'Instante do fato no ERP.',
   'ClientesPendentes.clientes': 'Clientes novos para criar no ERP (lista vazia é normal).',

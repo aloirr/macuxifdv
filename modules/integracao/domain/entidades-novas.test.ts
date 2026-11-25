@@ -23,14 +23,15 @@ describe('RN-INT-02: entidades novas do contrato canônico', () => {
     }
   });
 
-  it('RN-INT-03: produto_unidade válida passa; fator zero, fracionado e sigla inválida viram erro de linha legível', () => {
+  it('RN-INT-03: produto_unidade válida passa; fator zero, com mais de 4 casas e sigla inválida viram erro de linha legível; fator decimal de até 4 casas passa (ADR 0076)', () => {
     const r = validarLinhas('produto_unidade', [
       { ...base, external_id: 'PU1', produto_external_id: 'P1', unidade: 'cx', fator: 12, padrao: false },
       { ...base, external_id: 'PU2', produto_external_id: 'P1', unidade: 'CX', fator: 0 },
-      { ...base, external_id: 'PU3', produto_external_id: 'P1', unidade: 'CX', fator: 1.5 },
+      { ...base, external_id: 'PU3', produto_external_id: 'P1', unidade: 'CX', fator: 1.23456 },
       { ...base, external_id: 'PU4', produto_external_id: 'P1', unidade: 'CAIXA GRANDE', fator: 6 },
     ]);
     expect(r.validas.map((l) => l.external_id)).toEqual(['PU1']);
+    expect(validarLinhas('produto_unidade', [{ ...base, external_id: 'PU5', produto_external_id: 'P1', unidade: 'CX', fator: 12.5 }]).validas).toHaveLength(1);
     expect((r.validas[0]?.registro as { unidade: string }).unidade).toBe('CX');
     expect(r.erros.map((e) => e.campo)).toEqual(['fator', 'fator', 'unidade']);
   });

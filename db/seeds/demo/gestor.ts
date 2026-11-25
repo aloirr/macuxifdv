@@ -121,7 +121,7 @@ export function dadosGestorDemo(dados: DadosDemo): DadosGestorDemo {
     const linhaDoTempo = dados['vendedor.pedido_evento'].filter((x) => x.pedido_id === p.id);
     // status na criação (como o emissor real, receber.ts): o último `para` da linha do tempo no instante da criação
     const naCriacao = linhaDoTempo.filter((e) => iso(e.ocorrido_em) <= criado_em).at(-1)?.para ?? p.status;
-    evento(`pedido:${pedido_id}`, 'vendedor.pedido.criado@1', criado_em, {
+    evento(`pedido:${pedido_id}`, 'vendedor.pedido.criado@2', criado_em, {
       pedido_id, vendedor_id: String(p.vendedor_id), autor_id: String(p.autor_id), cliente_id: String(p.cliente_id), visita_id: p.visita_id ? String(p.visita_id) : null,
       tipo: 'pedido', total_cents: Number(p.total_cents), total_tabela_cents: Number(p.total_tabela_cents), criado_em,
       itens: itens.map((i) => ({ produto_id: String(i.produto_id), quantidade: Number(i.quantidade), total_cents: Number(i.total_cents) })),

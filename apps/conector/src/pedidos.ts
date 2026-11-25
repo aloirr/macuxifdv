@@ -13,7 +13,7 @@
  *    o pedido é devolvido ao Hub como `rejeitado_erp` com o motivo (sem dado pessoal).
  *  - Cada retorno é persistido numa fila local e reenviado até o Hub aceitar (o Hub é idempotente); recusa por regra (4xx) não repete.
  */
-import { type ItemFaturado, PedidoParaErp, RetornoErp, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
+import { type ItemFaturado, PedidoParaErp, quantidadeDaEscala, quantidadeEmEscala, RetornoErp, somarQuantidades, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 import type { PedidoLocal } from './armazenamento/armazenamento';
 import type { PedidosConfig } from './config/esquema';
 import { type Contexto, resumoErro } from './contexto';
@@ -190,7 +190,7 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
       await tx.executar(cfg.gravacao.cabecalho, parametrosCabecalho(pedido));
       if (cfg.gravacao.itens) {
         for (const it of pedido.itens) {
-          await tx.executar(cfg.gravacao.itens, { pedido_uuid: pedido.pedido_uuid, sequencia: it.sequencia, produto_external_id: it.produto_external_id, quantidade: it.quantidade, preco_unitario_cents: it.preco_unitario_cents, desconto_cents: it.desconto_cents, total_cents: it.total_cents });
+          await tx.executar(cfg.gravacao.itens, { pedido_uuid: pedido.pedido_uuid, sequencia: it.sequencia, produto_external_id: it.produto_external_id, quantidade: it.quantidade, fator: it.fator ?? null, quantidade_venda: it.quantidade_venda ?? null, unidade: it.unidade ?? null, preco_unitario_cents: it.preco_unitario_cents, desconto_cents: it.desconto_cents, total_cents: it.total_cents });
         }
       }
       const n = numeroGravado(await tx.consultar(cfg.gravacao.numeroErp, { pedido_uuid: pedido.pedido_uuid }));
@@ -420,8 +420,19 @@ export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: Res
   return r;
 }
 
+function escalaDaQuantidade(bruto: unknown): number | null {
+  const t = typeof bruto === 'number' || typeof bruto === 'bigint' ? String(bruto) : typeof bruto === 'string' ? bruto.trim().replace(',', '.') : '';
+  const n = Number(t);
+  if (t === '' || !Number.isFinite(n)) return null;
+  try {
+    return quantidadeEmEscala(n);
+  } catch {
+    return null; // mais de 4 casas ou fora do inteiro seguro
+  }
+}
+
 /**
- * Itens faturados NESTA nota (RN-INT-08): colunas OBRIGATÓRIAS `sequencia`, `quantidade` (inteiros > 0), `valor_cents` (centavos
+ * Itens faturados NESTA nota (RN-INT-08): colunas OBRIGATÓRIAS `sequencia`, `quantidade` (> 0, até 4 casas decimais desde o 1.6.0, ADR 0076), `valor_cents` (centavos
  * inteiros >= 0) e `produto_external_id` (chave do produto no ERP; decisão do Alexandre na T-0023). Linhas da mesma sequência somam
  * (o ERP pode partir o item em lotes) e devem trazer o mesmo produto. Nunca inventa valor nem produto: se qualquer linha vier sem
  * um deles ou fora do formato, o retorno segue SEM `itens_faturados` (campo opcional do retorno) e o aviso `itens_faturados_omitidos`
@@ -436,9 +447,9 @@ async function itensDaNota(ctx: Contexto, cfg: PedidosConfig, uuid: string, nota
   };
   for (const [i, l] of linhas.entries()) {
     const sequencia = Number(col(l, 'sequencia'));
-    const quantidade = Number(col(l, 'quantidade'));
+    const escala = escalaDaQuantidade(col(l, 'quantidade'));
     if (!Number.isInteger(sequencia) || sequencia < 1) return invalida(i, 'sequencia ausente ou inválida (esperado inteiro > 0, a sequência do pedido enviado)');
-    if (!Number.isInteger(quantidade) || quantidade < 1) return invalida(i, 'quantidade ausente ou fora do esperado (inteiro > 0, faturado nesta nota)');
+    if (escala === null || escala < 1) return invalida(i, 'quantidade ausente ou fora do esperado (número > 0 com até 4 casas decimais, faturado nesta nota)');
     const bruto = col(l, 'valor_cents');
     if (bruto === null || bruto === undefined || String(bruto).trim() === '') return invalida(i, 'valor_cents ausente: a consulta de itens da nota deve devolver o valor faturado do item em centavos');
     const valor = Number(bruto);
@@ -448,10 +459,10 @@ async function itensDaNota(ctx: Contexto, cfg: PedidosConfig, uuid: string, nota
     const atual = porSequencia.get(sequencia);
     if (atual) {
       if (atual.produto_external_id !== produto) return invalida(i, `sequencia ${sequencia} com produtos diferentes na mesma nota`);
-      atual.quantidade += quantidade;
+      atual.quantidade = somarQuantidades(atual.quantidade, quantidadeDaEscala(escala)); // soma em 1/10.000, sem float (ADR 0076)
       atual.valor_cents += valor;
     } else {
-      porSequencia.set(sequencia, { sequencia, produto_external_id: produto, quantidade, valor_cents: valor });
+      porSequencia.set(sequencia, { sequencia, produto_external_id: produto, quantidade: quantidadeDaEscala(escala), valor_cents: valor });
     }
   }
   return porSequencia.size > 0 ? [...porSequencia.values()].sort((a, b) => a.sequencia - b.sequencia) : undefined;
