@@ -140,7 +140,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, tx: Transaca
 export async function lerNotasDoPedido(db: ClienteBanco, id: string): Promise<{ notas: LinhaNotaFaturamento[]; devolucoes: LinhaNotaDevolucao[] }> {
   const notas = (
     await db.query<LinhaNotaFaturamento>(
-      `select nota_numero, nota_serie, to_char(faturado_em at time zone 'UTC', ${UTC}) as faturado_em, parcial, nota_total_cents::float8 as nota_total_cents,
+      `select nota_numero, nota_serie, nota_chave_acesso, to_char(faturado_em at time zone 'UTC', ${UTC}) as faturado_em, parcial, nota_total_cents::float8 as nota_total_cents,
               coalesce((select sum((x->>'quantidade')::int) from jsonb_array_elements(itens) x), 0)::int as unidades
          from vendedor.pedido_faturamento where pedido_id = $1 and deleted_at is null order by faturado_em, created_at`,
       [id],

@@ -7,6 +7,10 @@ import { PedidoFaturadoEvento } from '../contracts/eventos';
 import { ORDER_STATUSES, type OrderStatus } from './order';
 import {
   camposFaturamento,
+  chaveAcessoAgrupada,
+  chaveAcessoSoDigitos,
+  rotuloAcessivelCopiarChave,
+  rotuloCopiarChave,
   textoItemFaturado,
   decidirNotaDevolucao,
   eventoFaturadoDosItens,
@@ -246,5 +250,38 @@ describe('camposFaturamento e textoItemFaturado — o mesmo resumo na API e no a
     expect(textoItemFaturado(10, 0)).toBe('Não faturado');
     expect(textoItemFaturado(10, 6)).toBe('Faturado 6 de 10');
     expect(textoItemFaturado(10, 10)).toBe('Faturado');
+  });
+});
+
+describe('chave de acesso da NF (RF-VEN-05)', () => {
+  const CHAVE = '35261112345678000195550010000090011000090019';
+  it('RF-VEN-05: 44 dígitos aparecem agrupados de 4 em 4; ausente ou fora do padrão não aparece', () => {
+    expect(chaveAcessoAgrupada(CHAVE)).toBe('3526 1112 3456 7800 0195 5500 1000 0090 0110 0009 0019');
+    expect(chaveAcessoAgrupada(null)).toBeNull();
+    expect(chaveAcessoAgrupada(undefined)).toBeNull();
+    expect(chaveAcessoAgrupada('123')).toBeNull();
+    expect(chaveAcessoAgrupada(`${CHAVE}9`)).toBeNull();
+  });
+  it('RF-VEN-05: copiar leva os 44 dígitos sem espaços (também quando vierem agrupados); fora do padrão não copia', () => {
+    expect(chaveAcessoSoDigitos(CHAVE)).toBe(CHAVE);
+    expect(chaveAcessoSoDigitos(chaveAcessoAgrupada(CHAVE))).toBe(CHAVE);
+    expect(chaveAcessoSoDigitos(null)).toBeNull();
+    expect(chaveAcessoSoDigitos('123')).toBeNull();
+  });
+});
+
+describe('rótulo do botão de copiar a chave (RF-VEN-05)', () => {
+  it('RF-VEN-05: o rótulo de acessibilidade traz o número da NF (ou traço)', () => {
+    expect(rotuloAcessivelCopiarChave('9001')).toBe('Copiar chave da NF 9001');
+    expect(rotuloAcessivelCopiarChave(null)).toBe('Copiar chave da NF —');
+  });
+});
+
+describe('botão de copiar a chave por nota no BKO (RF-VEN-05)', () => {
+  it('RF-VEN-05: "Copiar de novo" só na nota que falhou; as outras seguem com o próprio estado', () => {
+    const falhouEm = 1;
+    const copiadaEm = 0;
+    const rotulo = (i: number) => rotuloCopiarChave({ falhou: falhouEm === i, copiada: copiadaEm === i });
+    expect([rotulo(0), rotulo(1), rotulo(2)]).toEqual(['Chave copiada', 'Copiar de novo', 'Copiar']);
   });
 });

@@ -333,6 +333,27 @@ export interface CamposFaturamento {
   situacao_faturamento: string[];
 }
 
+/** Chave de acesso da NF-e: 44 dígitos; na tela vai em grupos de 4. Fora do padrão (ou ausente) não aparece. */
+export function chaveAcessoAgrupada(chave: string | null | undefined): string | null {
+  const c = chaveAcessoSoDigitos(chave);
+  return c ? (c.match(/\d{4}/g) as string[]).join(' ') : null;
+}
+
+/** O que vai para a área de transferência: os 44 dígitos, sem espaços; fora do padrão (ou ausente) é `null`. */
+export function chaveAcessoSoDigitos(chave: string | null | undefined): string | null {
+  const c = (chave ?? '').replace(/\s/g, '');
+  return /^\d{44}$/.test(c) ? c : null;
+}
+
+/** Textos do botão de copiar a chave (app e BKO); "Copiar de novo" só na nota cuja cópia falhou (BKO). */
+export const ROTULO_COPIAR_CHAVE = 'Copiar';
+export const AVISO_CHAVE_COPIADA = 'Chave copiada';
+export const rotuloCopiarChave = ({ falhou, copiada }: { falhou: boolean; copiada: boolean }): string =>
+  falhou ? 'Copiar de novo' : copiada ? AVISO_CHAVE_COPIADA : ROTULO_COPIAR_CHAVE;
+
+/** Rótulo de acessibilidade do botão que copia a chave (app e BKO). */
+export const rotuloAcessivelCopiarChave = (numeroNota: string | null | undefined): string => `Copiar chave da NF ${numeroNota ?? '—'}`;
+
 /**
  * RF-VEN-05: o mesmo resumo na API (lista/detalhe) e no app (pull offline). Sem a coluna `faturado_cents` (antes da
  * migração ou linha antiga do aparelho) devolve `{}`: a tela não mostra nada.

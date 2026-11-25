@@ -72,6 +72,7 @@ export interface LinhaPedido {
 export interface LinhaNotaFaturamento {
   nota_numero: string | null;
   nota_serie: string | null;
+  nota_chave_acesso?: string | null;
   faturado_em: string;
   parcial: boolean;
   nota_total_cents: number | null;
@@ -234,6 +235,7 @@ export function paraFaturamento(l: LinhaPedido, notas: LinhaNotaFaturamento[], d
       parcial: n.parcial,
       total_cents: n.nota_total_cents === null ? null : num(n.nota_total_cents),
       unidades: num(n.unidades),
+      chave_acesso: n.nota_chave_acesso ?? null,
     })),
     devolucoes: devolucoes.map((d) => ({ numero: d.nota_numero, serie: d.nota_serie, emitida_em: d.emitida_em, total_cents: num(d.total_cents) })),
   };

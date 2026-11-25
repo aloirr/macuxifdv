@@ -256,6 +256,8 @@ export const FaturamentoDoPedido = z.object({
       parcial: z.boolean(),
       total_cents: z.number().int().nonnegative().nullable(),
       unidades: z.number().int().nonnegative(),
+      /** chave de acesso da NF (44 dígitos); ausente = ERP não informou */
+      chave_acesso: z.string().nullable().optional(),
     }),
   ),
   devolucoes: z.array(z.object({ numero: z.string(), serie: z.string().nullable(), emitida_em: IsoDateTime, total_cents: z.number().int().nonnegative() })),

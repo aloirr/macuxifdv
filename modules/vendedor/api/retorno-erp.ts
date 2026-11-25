@@ -60,6 +60,7 @@ export interface FaturamentoParaGravar {
   parcial: boolean;
   nota_numero: string | null;
   nota_serie: string | null;
+  nota_chave_acesso: string | null;
   nota_emitida_em: string | null;
   nota_total_cents: number | null;
   faturado_em: string;
@@ -178,6 +179,7 @@ export async function aplicarRetornoErp(repo: RepositorioRetornoErp, r: RetornoR
       parcial,
       nota_numero: r.nota?.numero ?? null,
       nota_serie: r.nota?.serie ?? null,
+      nota_chave_acesso: r.nota?.chave_acesso ?? null,
       nota_emitida_em: r.nota?.emitida_em ?? null,
       nota_total_cents: r.nota?.total_cents ?? null,
       faturado_em: r.ocorrido_em,
@@ -306,8 +308,8 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
       if (!comFaturamento) return true;
       const r = await db.query(
         `insert into vendedor.pedido_faturamento
-           (tenant_id, pedido_id, evento_id, parcial, numero_erp, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, faturado_em, itens)
-         values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+           (tenant_id, pedido_id, evento_id, parcial, numero_erp, nota_numero, nota_serie, nota_chave_acesso, nota_emitida_em, nota_total_cents, faturado_em, itens)
+         values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
          on conflict (tenant_id, evento_id) do nothing`,
         [
           f.pedido_id,
@@ -316,6 +318,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
           f.numero_erp,
           f.nota_numero,
           f.nota_serie,
+          f.nota_chave_acesso,
           f.nota_emitida_em,
           f.nota_total_cents,
           f.faturado_em,
