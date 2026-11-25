@@ -39,3 +39,9 @@ Observação funcional (não catalogada, vai ao `testes`): a consulta 4 do origi
 - RD-3727 corrigido: saiu o `\echo 'ensaio: outro migrador…'`; fica só o `raise`.
 - RD-3728 corrigido: `normalizar()` usado por `soma()` e na montagem.
 - Novidades sem achado: `timeout 600` no psql (teto do contêiner; o `timeout-minutes: 15` do passo é do runner, papel diferente) e a saída 124 na legenda; buraco na numeração e symlink agora falham (`erro`); `if:` do job só em main ou tag v*, explicado uma vez no cabeçalho. O `-type f` do `find` dos `.up.sql` ficou junto da checagem de symlink: filtro defensivo, `manter?` aceito.
+
+## Reteste — SHA `c76ac5d64d2e8e4665a4518bd570721a9ce84fc2` (25/11/2026, Manaus)
+**Parecer: LIBERADO**, sem achado em aberto. Delta só no yml.
+- Job `ref` (falha fora do main ou de tag v*) com o `ensaio` em `needs: ref`: o `if:` do job saiu, a trava fica num lugar só; o cabeçalho (item 2) troca o texto antigo em vez de somar outro.
+- `case "$PGCLIENTE"` antes de montar `$comando` com `timeout 600`: a substituição agora é conferida e feita uma vez; a mensagem de erro diz só o problema e o efeito.
+- `manter?` aceito: a mensagem do `ref` cita "os scripts do ensaio saem do ref do disparo", que o cabeçalho também diz; é a saída que o operador lê no vermelho, sem abrir o yml.
