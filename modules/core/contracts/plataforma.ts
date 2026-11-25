@@ -6,10 +6,11 @@
  * Nada disto vai a log: e-mail, senha e token só trafegam no corpo.
  */
 import type { z } from 'zod';
-import { EmpresaDoAcessoSchema, EscolherEmpresaPortalSchema, LoginPortalSchema, SessaoPortalSchema } from '@macuxi/platform-sdk';
+import { EmpresaDoAcessoSchema, EscolherEmpresaPortalSchema, LoginPortalSchema, SessaoPortalSchema, TrocarSenhaPortalSchema } from '@macuxi/platform-sdk';
 
-export { EmpresaDoAcessoSchema, EscolherEmpresaPortalSchema, LoginPortalSchema, SessaoPortalSchema };
+export { EmpresaDoAcessoSchema, EscolherEmpresaPortalSchema, LoginPortalSchema, SessaoPortalSchema, TrocarSenhaPortalSchema };
 
+export type TrocarSenhaPortal = z.output<typeof TrocarSenhaPortalSchema>;
 export type LoginPortal = z.output<typeof LoginPortalSchema>;
 export type SessaoPortal = z.output<typeof SessaoPortalSchema>;
 export type EmpresaDoAcesso = z.output<typeof EmpresaDoAcessoSchema>;
@@ -31,6 +32,10 @@ export const CODIGOS_PORTAL = {
   empresaNaoEscolhida: 'EMPRESA_NAO_ESCOLHIDA',
   /** 403 (T-0094, RN-CORE-34): a senha conferiu, mas o admin ainda tem senha temporária; a troca é no backoffice (BKO). */
   senhaATrocar: 'SENHA_A_TROCAR',
+  /** 409 (ADR 0075): a senha do super-admin mudou entre a conferência e a gravação; entre de novo e repita. */
+  senhaMudou: 'SENHA_MUDOU',
+  /** 403 (ADR 0075): a troca de senha pelo portal é só do super-admin; o admin do cliente usa `POST /v1/auth/senha/trocar`. */
+  trocaSoSuperAdmin: 'TROCA_SO_SUPER_ADMIN',
 } as const;
 
 export const MENSAGEM_PORTAL_SENHA_A_TROCAR = 'Antes de entrar no portal, crie a sua senha no backoffice com o código da empresa.';

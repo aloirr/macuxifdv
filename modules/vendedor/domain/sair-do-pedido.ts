@@ -2,9 +2,9 @@
  * RN-VEN-38 (T-0128): sair do Novo pedido. Função pura, sem React: a tela só liga as peças (folha "Sair do pedido?" do
  * `@macuxi/ui`). Nenhum pedido some sem escolha do vendedor (RN-VEN-30/31): o rascunho só é apagado por "Descartar" confirmado.
  */
+import type { EntradaDaSaidaCompat, OpcoesDaSaidaCompat } from './compat-v1034'; // TEMPORÁRIO (R-20261124-114951)
 import type { SituacaoCliente } from './orcamento';
-import { botoesDoResumo, ROTULOS_DO_SALVAR } from './botoes-resumo';
-
+import { botoesDoSalvarNovo, ROTULOS_DA_EDICAO } from './botoes-resumo';
 
 /** O que a regra precisa do rascunho (o `Rascunho` do app satisfaz esta forma). */
 export interface RascunhoAlteravel {
@@ -35,9 +35,9 @@ export function pedidoAlterado(r: RascunhoAlteravel): boolean {
 
 export const TITULO_SAIR_DO_PEDIDO = 'Sair do pedido?';
 export const TEXTOS_DA_SAIDA = {
-  salvar: { rotulo: ROTULOS_DO_SALVAR.enviar },
-  apenasSalvar: { rotulo: ROTULOS_DO_SALVAR.apenasSalvar },
-  orcamento: { rotulo: ROTULOS_DO_SALVAR.orcamento },
+  // o mesmo Salvar do Resumo (Pedido ou Orçamento, `botoesDoSalvarNovo`); "Descartar" sai sem salvar
+  pedido: { rotulo: 'Salvar pedido' },
+  orcamento: { rotulo: ROTULOS_DA_EDICAO.salvarOrcamento },
   descartar: { rotulo: 'Descartar' },
   continuar: 'Continuar editando',
   confirmacao: { titulo: 'Descartar este pedido?', mensagem: 'Os itens e os dados deste pedido serão apagados do aparelho.', voltar: 'Voltar', confirmar: 'Descartar' },
@@ -48,30 +48,27 @@ export const TEXTOS_DA_SAIDA = {
  * salvar as alterações, descartar as alterações (o documento fica como estava) e continuar editando.
  */
 export const TEXTOS_DA_SAIDA_EDICAO = {
-  salvarOrcamento: { rotulo: ROTULOS_DO_SALVAR.salvarOrcamento },
+  salvarOrcamento: { rotulo: ROTULOS_DA_EDICAO.salvarOrcamento },
   descartar: { rotulo: 'Descartar alterações' },
   confirmacao: { titulo: 'Descartar as alterações?', mensagem: 'O documento volta como estava antes desta edição.', voltar: 'Voltar', confirmar: 'Descartar' },
 } as const;
 
 export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento' }): { salvar: { rotulo: string }; descartar: { rotulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
-  const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: ROTULOS_DO_SALVAR.alteracoes };
+  const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: ROTULOS_DA_EDICAO.alteracoes };
   return { salvar, descartar: TEXTOS_DA_SAIDA_EDICAO.descartar, confirmacao: TEXTOS_DA_SAIDA_EDICAO.confirmacao };
 }
 
-export interface OpcoesDaSaida {
-  /** `false` = cliente da RN-VEN-13 (só orçamento) */
-  salvar: boolean;
-  /** T-0137: "Apenas salvar" (rascunho que aceita pendências) vale em toda saída de Novo pedido, inclusive na RN-VEN-13 */
-  apenasSalvar: boolean;
+export interface OpcoesDaSaida extends OpcoesDaSaidaCompat {
+  /** `false` = cliente da RN-VEN-13 (só orçamento): não há pedido para guardar */
+  pedido: boolean;
   /** `false` = tenant sem pré-venda (sem orçamento) */
   orcamento: boolean;
 }
 
-/** RN-VEN-38 (T-0137): opções da folha. Cliente da RN-VEN-13 vê só Apenas salvar, Salvar como orçamento e Descartar; sem pré-venda, Salvar e enviar pedido, Apenas salvar e Descartar. */
-export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; preco_data: string; alertas_impedem_enviar?: boolean }): OpcoesDaSaida {
-  const b = botoesDoResumo({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, editando: null, preco_data: e.preco_data });
-  // RN-VEN-42 (e), RN-VEN-11, RN-VEN-20: alerta de bloqueio (acima do máximo, sem estoque) tira o "Salvar e enviar pedido"
-  return { salvar: b.enviar.visivel && !e.alertas_impedem_enviar, apenasSalvar: b.apenasSalvar.visivel, orcamento: b.orcamento.visivel };
+/** RN-VEN-38 (R-20261124-114951): a folha oferece o mesmo Salvar do Resumo: Salvar pedido e Salvar orçamento (RN-VEN-13: só o orçamento), mais Descartar. */
+export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean } & EntradaDaSaidaCompat): OpcoesDaSaida {
+  const b = botoesDoSalvarNovo(e).escolha;
+  return { pedido: b.pedido.visivel, orcamento: b.orcamento.visivel };
 }
 
 export type DestinoDoSalvarDaSaida = 'salvar_agora' | 'mostrar_pendencias';
@@ -83,21 +80,21 @@ export function destinoDoSalvarDaSaida(pendencias: number): DestinoDoSalvarDaSai
 
 export interface RascunhoGuardado extends RascunhoAlteravel {
   customer_id: string;
-  /** T-0137: guardado de propósito por "Apenas salvar" */
+  /** T-0137: guardado de propósito pelo Salvar > Pedido */
   salvo_em?: string | null;
   updated_at: string;
   edit_order_id?: string | null;
 }
 
 /**
- * RN-VEN-38: depois que o sistema fechou o app, oferece o rascunho alterado mais recente de um Novo pedido (edição e "Apenas salvar" não contam).
+ * RN-VEN-38: depois que o sistema fechou o app, oferece o rascunho alterado mais recente de um Novo pedido (edição e pedido salvo não contam).
  * Os outros vêm nas aberturas seguintes, um de cada vez.
  */
 export function rascunhoParaRetomar<T extends RascunhoGuardado>(rascunhos: Readonly<Record<string, T>>): { chave: string; rascunho: T } | null {
   let melhor: { chave: string; rascunho: T } | null = null;
   for (const [chave, rascunho] of Object.entries(rascunhos)) {
     if (chave.startsWith('edit:') || rascunho.edit_order_id) continue;
-    // T-0137: o vendedor guardou de propósito (Apenas salvar); não é pedido esquecido
+    // T-0137: o vendedor guardou de propósito (Salvar > Pedido); não é pedido esquecido
     if (rascunho.salvo_em) continue;
     if (!pedidoAlterado(rascunho)) continue;
     if (!melhor || rascunho.updated_at > melhor.rascunho.updated_at) melhor = { chave, rascunho };

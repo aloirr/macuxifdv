@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertasDoPedido, impedeEnviarPorAlertas, soOrcamentoPorAlertas, textoDoAlertaNoItem, textoDoMaximo, vencidosComEfeito } from './alertas-pedido';
+import { alertasDoPedido, soOrcamentoPorAlertas, textoDoAlertaNoItem, textoDoMaximo, vencidosComEfeito } from './alertas-pedido';
 
 const cliente = { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] as string[] };
 
@@ -31,7 +31,6 @@ describe('RN-VEN-42: área única Alertas do pedido', () => {
     const a = alertasDoPedido({ cliente, faltantes: [{ texto: 'Falta a transportadora', aba: 'Entrega' }] });
     expect(a[0]).toMatchObject({ tipo: 'faltante', texto: 'Falta a transportadora', aba: 'Entrega', vai_para: { aba: 'Entrega' }, impede_enviar: true, so_orcamento: false });
     expect(soOrcamentoPorAlertas(a)).toBe(false);
-    expect(impedeEnviarPorAlertas(a)).toBe(true);
   });
 
   it('RN-VEN-13 (RD-0171): bloqueado, inativo e cadastro incompleto têm o mesmo efeito (só orçamento): uma linha, a primeira que vale', () => {
@@ -39,7 +38,7 @@ describe('RN-VEN-42: área única Alertas do pedido', () => {
     expect(tudo.map((x) => x.texto)).toEqual(['Cliente bloqueado']);
     expect(soOrcamentoPorAlertas(tudo)).toBe(true);
     expect(alertasDoPedido({ cliente: { bloqueado: false, ativo: false, cadastro_incompleto: true, campos_faltantes: ['CNPJ'] } }).map((x) => x.texto)).toEqual(['Cliente inativo']);
-    expect(alertasDoPedido({ cliente: { ...cliente, cadastro_incompleto: true, campos_faltantes: ['CEP'] } }).map((x) => x.texto)).toEqual(['Cadastro do cliente incompleto']);
+    expect(alertasDoPedido({ cliente: { ...cliente, cadastro_incompleto: true, campos_faltantes: ['CEP'] } }).map((x) => x.texto)).toEqual(['Cadastro do cliente incompleto: falta CEP.']);
   });
 
   it('RN-VEN-13 (RD-0172): título vencido só vira alerta acima do limite (5 dias), com qualquer prazo (P1 A)', () => {
@@ -99,7 +98,6 @@ describe('RN-VEN-10 (T-0165, RD-0142): a alçada vira uma linha nos Alertas', ()
     const l = a[1]!;
     expect(l).toMatchObject({ tipo: 'alcada', vai_para: { aba: 'Itens' }, so_orcamento: false, impede_enviar: false });
     expect(soOrcamentoPorAlertas([l])).toBe(false);
-    expect(impedeEnviarPorAlertas([l])).toBe(false);
   });
   it('RN-VEN-10: dentro da alçada não há alerta', () => {
     expect(alertasDoPedido({ cliente, acima_da_alcada: false })).toEqual([]);
@@ -115,13 +113,11 @@ describe('RN-VEN-10 (T-0165, RD-0142): a alçada vira uma linha nos Alertas', ()
     const a = alertasDoPedido({ cliente, itens_fora_da_copia: ['AGU-1500 fora da cópia: sem preço', 'CAF-500 fora da cópia: inativo'] });
     expect(a.map((x) => x.texto)).toEqual(['AGU-1500 fora da cópia: sem preço', 'CAF-500 fora da cópia: inativo']);
     expect(soOrcamentoPorAlertas(a)).toBe(false);
-    expect(impedeEnviarPorAlertas(a)).toBe(false);
   });
 
   it('RN-VEN-42 (RD-0175): editar pedido enviado sem sinal vira a linha "Sem sinal para salvar a alteração" e impede salvar', () => {
     const a = alertasDoPedido({ cliente, sem_sinal_para_salvar: true });
     expect(a.map((x) => x.texto)).toEqual(['Sem sinal para salvar a alteração']);
-    expect(impedeEnviarPorAlertas(a)).toBe(true);
   });
 
   it('RN-VEN-11 (RD-0177): o limite do desconto vai embaixo do campo do item como "Máx. 10,0%"', () => {

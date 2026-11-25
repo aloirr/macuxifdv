@@ -198,18 +198,18 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 ### 4.5 Formulário com abas: pendências, saída e salvar (T-0126; spec `docs/design/formulario-pendencias.md`)
 > **T-0166 (12/11):** vale a **falta no campo, só na tentativa** (`formulario-pendencias.md` §0.0; peças no §4.9).
 Vale para o app inteiro (Novo pedido; depois visita, pesquisa, cadastro). RN-CORE-36, RN-VEN-38, RN-VEN-30.
-- `FolhaSairDoFormulario`: "Sair do pedido?" · Salvar e enviar pedido · Apenas salvar (`apenasSalvar`, T-0133) · Salvar como
-  orçamento · Descartar (com `Dialogo perigo`) · Continuar editando, só com os rótulos (RD-0193). Sem `salvar` = variante da
-  RN-VEN-13. Toque fora = continuar editando.
+- `FolhaSairDoFormulario`: "Sair do pedido?" · Salvar pedido (`salvar`) · Salvar orçamento (`salvarAlternativo`) · Descartar
+  (com `Dialogo perigo`) · Continuar editando, só com os rótulos (RD-0193; rótulos da v1.0.34, `formulario-pendencias.md` §2.2).
+  Sem `salvar` = variante da RN-VEN-13. Toque fora = continuar editando.
 - `FolhaRetomarRascunho`: depois que o sistema fecha o app, "Continuar pedido de <cliente>" ou "Descartar"; "Agora não" guarda.
 - Parte pura (`pendencias.ts`): `eventoDaSaida`, `tituloDaRetomada`, `apoioDaRetomada`.
-- Salvar fecha a tela em < 1 s; o detalhe mostra "Pedido salvo · enviando" e fica só leitura enquanto `na_fila` (spec §4).
+- Salvar fecha a tela em < 1 s com "Pedido salvo" ou "Orçamento salvo"; no Campo e no Gestão, o envio é o Enviar pedido das Ações
+  (`pedido-v2.md` §2.3 e §2.5), e o pedido fica só leitura enquanto `na_fila` (spec §4).
 
 ### 4.6 Novo pedido v2: abas, Resumo, desconto, detalhe e histórico (T-0133; spec `docs/design/pedido-v2.md`)
 RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em nome) e, nas tags, no BKO.
-- 4 abas **Venda · Itens (n) · Entrega · Resumo**; Resumo com `TabelaRotuloValor` (§4.10) e 4 botões: principal
-  "Salvar e enviar pedido" (largura total, destino embaixo), "Apenas salvar" e "Salvar como orçamento" (`Botao alto
-  quebrarLinha`, metade cada), Cancelar em texto.
+- 4 abas **Venda · Itens (n) · Entrega · Resumo**; Resumo com `TabelaRotuloValor` (§4.10), principal "Salvar" (largura
+  total; abre a escolha Orçamento / Pedido, com uma opção só grava direto) e Cancelar em texto (v1.0.34, `pedido-v2.md` §2.2–2.5).
 - `DescontoCompacto`: o mesmo no item e no pedido; uma linha de 44 dp com o tipo (Desc %, Desc R$, Acrésc %, Acrésc R$), o
   valor sem − e + e o equivalente ao lado (`equivalenteDoAjuste`: "−R$ 0,20", "−1,0%", "+R$ 1,50/FD").
 - `TagHistorico` / `HistoricoEmTags` (mobile e web, mesmos nomes): "Salvo · 08/11 10:35"; Rejeitado e Cancelado com o motivo em
@@ -480,7 +480,7 @@ destas regras; elas valem para o voltar do Android e para o `BackLink` do kit (o
   uma `LinhaValor` ("Desconto do pedido 1,0% · −R$ 3,84").
 - **Sugestão com 1 toque** (+ / ⇄): a linha inteira é tocável, com `BotaoIcone` (`plus` ou `swap`; nunca o caractere ⇄ em texto),
   e o toque mostra `AvisoRodape` ("Açúcar cristal 1 kg adicionado" · Desfazer), porque a linha some da lista.
-- **Ação que não volta atrás** (Enviar, Transformar em pedido): sempre 2 toques, o segundo numa `Folha` que diz para onde vai
+- **Ação que não volta atrás** (Enviar, Converter em pedido): sempre 2 toques, o segundo numa `Folha` que diz para onde vai
   ("Vai direto ao ERP." / "Vai para o supervisor.").
 - **Ação que não se aplica** à situação (orçamento vencido, convertido, cancelado): some. Desabilitado só quando falta um dado que a
   pessoa pode resolver, e com o motivo perto.
@@ -499,7 +499,7 @@ Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.h
 - **Equivalente do desconto em verde** (`colors.success`, `.eq` da referência): "−R$ 0,89", "= 5,3%", "−R$ 3,84". O "+ desconto"
   (ainda sem ajuste) fica em `accentInk`; o equivalente do acréscimo, em `ink2`.
 - **Detalhe do orçamento = tela 5**: selo, um cartão (itens compactos, ajuste do pedido, Total, "CIF · 28 dias"), principal
-  "Transformar em pedido", linha Editar | PDF, depois Duplicar (`neutro`) | Cancelar orçamento (`perigo`, abre o `Dialogo`;
+  "Converter em pedido", linha Editar | PDF, depois Duplicar (`neutro`) | Cancelar orçamento (`perigo`, abre o `Dialogo`;
   decidido na conferência de 2026-11-05, R-20261105-114721) e o Histórico. Sem frase do frete,
   sem "Desconto efetivo", Filial e Tabela. Vencido: Duplicar vira o principal, com o PDF (secundário) abaixo; nenhuma frase explicando.
 - **Situação do orçamento**: "Orçamento · até 10/11" (`destaque`), "Vencido", "Cancelado" (`neutro`), "Virou pedido 000015"

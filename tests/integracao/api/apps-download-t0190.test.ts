@@ -16,7 +16,7 @@
 import crypto from 'node:crypto';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { LinkDownloadAppSchema } from '@macuxi/core/contracts';
-import { CABECALHO_TENANT_PLATAFORMA, SERVICO_PACOTES_DESLIGADO, VALIDADE_LINK_APP_S, VALIDADE_LINK_PACOTE_S, type ServicoPacotes } from '@macuxi/platform-sdk';
+import { CABECALHO_TENANT_PLATAFORMA, ROTA_CORE_APP_APK, SERVICO_PACOTES_DESLIGADO, VALIDADE_LINK_APP_S, VALIDADE_LINK_PACOTE_S, type ServicoPacotes } from '@macuxi/platform-sdk';
 import type { InjectOptions, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -400,8 +400,11 @@ describe.skipIf(semBanco())('T-0190 — APKs por link temporário (createApp rea
     });
 
     it('nenhuma rota da API devolve APK sem login: varredura das rotas registradas e dos caminhos óbvios', async () => {
-      const rotas = api.app.printRoutes({ commonPrefix: false });
-      expect(rotas.toLowerCase()).not.toContain('apk');
+      // única rota com "apk": `POST /v1/core/app/apk`, autenticada (T-0195, ADR 0070); qualquer outra continua proibida
+      const linhas = api.app.printRoutes({ commonPrefix: false }).split('\n');
+      const rotaApk = linhas.filter((l) => l.includes(ROTA_CORE_APP_APK));
+      expect(rotaApk.map((l) => l.replace(/^[\s│├└─]+/, '').trim())).toEqual([`${ROTA_CORE_APP_APK} (POST)`]);
+      expect(linhas.filter((l) => !l.includes(ROTA_CORE_APP_APK)).join('\n').toLowerCase()).not.toContain('apk');
       const candidatos = [
         '/v1/app/apk?variante=campo',
         '/v1/app/download?variante=campo',
@@ -412,18 +415,24 @@ describe.skipIf(semBanco())('T-0190 — APKs por link temporário (createApp rea
         `/pacotes/campo/${APK_CAMPO.arquivo}`,
         '/v1/arquivos/pacotes/campo/ultimo.json',
         '/v1/sync/pacotes',
+        ROTA_CORE_APP_APK,
       ];
       for (const url of candidatos) {
         const r = await api.app.inject({ method: 'GET', url });
         expect([401, 403, 404, 405, 400], `${url}: ${r.statusCode}`).toContain(r.statusCode);
         expect(r.headers['content-type'] ?? '', url).not.toContain('android.package-archive');
         expect(Buffer.from(r.rawPayload).includes(Buffer.from(APK_CAMPO.bytes)), url).toBe(false);
-        expect(r.body, url).not.toContain('X-Amz');
+        for (const proibido of ['https://', 'X-Amz']) expect(r.body, `${url} ${proibido}`).not.toContain(proibido);
       }
       // o POST do link sem login também não sai
       const semLogin = await api.app.inject({ method: 'POST', url: ROTA, payload: { variante: 'campo' } });
       expect(semLogin.statusCode).toBe(401);
       expect(semLogin.body).not.toContain('https://');
+      // a rota do APK sem login = 401, sem link
+      const apkSemLogin = await api.app.inject({ method: 'POST', url: ROTA_CORE_APP_APK });
+      expect(apkSemLogin.statusCode, apkSemLogin.body).toBe(401);
+      for (const proibido of ['https://', 'X-Amz']) expect(apkSemLogin.body, proibido).not.toContain(proibido);
+      expect(apkSemLogin.headers['content-type'] ?? '').not.toContain('android.package-archive');
     });
   });
 });

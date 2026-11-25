@@ -3,7 +3,7 @@
  * Spec: docs/design/pedido-v2.md §4.4.
  * - `RodapeAcoes`: rodapé compacto com 1 ação principal (botão de 52 dp, largura total; opcional) e as outras como ícone +
  *   rótulo curto numa linha só (até 4, alvo ≥ 48 dp cada):
- *     [ ↑ Transformar em pedido ]
+ *     [ ↑ Converter em pedido ]
  *      ✎ Editar    ▤ PDF    ⧉ Duplicar
  * - `MenuMais`: o ⋮ do cabeçalho, com uma folha de opções; a opção destrutiva (Cancelar orçamento) pede confirmação.
  * Nenhum texto fixo (tudo por props). Contraste: principal `onAccent` sobre `accent`; ícone + rótulo em `ink` (16,5:1);
@@ -51,7 +51,7 @@ export function RodapeAcoes({
   respiroInferior = 0,
   testID = 'rodape-acoes',
 }: {
-  /** A única ação grande da tela (orçamento: Transformar em pedido; rascunho: Continuar pedido). Sem ela, só a linha. */
+  /** A única ação grande da tela (orçamento: Converter em pedido; rascunho: Continuar pedido). Sem ela, só a linha. */
   principal?: AcaoPrincipal | null;
   /** Ícone + rótulo curto, na ordem do módulo. Até 4 na linha; o que passar não aparece (ponha no `MenuMais`). */
   acoes: ReadonlyArray<AcaoCompacta>;
