@@ -82,10 +82,11 @@ describe('RN-VEN-15: CX × UN pelo fator', () => {
   });
   it('RN-VEN-15: fator inválido é recusado', () => {
     expect(() => precoDoItem(item({ fator: 0 }))).toThrow();
-    expect(() => precoDoItem(item({ fator: 1.5 }))).toThrow();
+    expect(() => precoDoItem(item({ fator: 1.00001 }))).toThrow(); // ADR 0076: fator aceita até 4 casas
   });
   it('RN-CORE-19: rotuloMedida mostra "UN" para fator 1 e "CX c/ 12" para embalagem', () => {
     expect(rotuloMedida('UN', 1)).toBe('UN');
+    expect(rotuloMedida('CX', 12.5)).toBe('CX c/ 12,5'); // RN-VEN-15, ADR 0076
     expect(rotuloMedida('CX', 12)).toBe('CX c/ 12');
     expect(rotuloMedida('FD', 6)).toBe('FD c/ 6');
   });

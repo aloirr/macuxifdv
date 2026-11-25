@@ -10,6 +10,7 @@
  * retentativa sem fim; o Hub também barra o teto). RN-VEN-15: se a embalagem tem a mesma sigla de uma unidade de venda viva do ERP
  * (`core.produto_unidade`), o ERP prevalece: `embalagem_quantidade` passa a ser o `fator` (log só com external_id e sigla).
  */
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { decidirOrdemErp, planejarProdutoDoErp, reconciliarEmbalagemComErp, type EventoProdutoAtualizado } from '../domain';
 import { comMedidaAusente, ReferenciaAusenteErp } from './erp-apoio';
@@ -75,8 +76,8 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
     // RN-VEN-15: o ERP prevalece sobre a embalagem do produto quando a mesma sigla existe como unidade de venda viva.
     const produto = gravado.rows[0];
     if (produto?.embalagem_medida) {
-      const vendas = await ctx.db.query<{ unidade: string; fator: number }>('select unidade, fator from core.produto_unidade where produto_id = $1 and deleted_at is null', [produto.id]);
-      const r = reconciliarEmbalagemComErp(produto, new Map(vendas.rows.map((v) => [v.unidade, v.fator])));
+      const vendas = await ctx.db.query<{ unidade: string; fator: string | number }>('select unidade, fator from core.produto_unidade where produto_id = $1 and deleted_at is null', [produto.id]);
+      const r = reconciliarEmbalagemComErp(produto, new Map(vendas.rows.map((v) => [v.unidade, quantidadeDoBanco(v.fator)])));
       if (r.ajustada) {
         await ctx.db.query('update core.produto set embalagem_quantidade = $2 where id = $1', [produto.id, r.embalagem_quantidade]);
         ctx.log.warn({ external_id: l.external_id, embalagem_medida: r.embalagem_medida, fator: r.embalagem_quantidade }, 'embalagem do produto ajustada ao fator da unidade de venda do ERP');

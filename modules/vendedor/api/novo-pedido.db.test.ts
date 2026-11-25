@@ -181,7 +181,8 @@ describe.skipIf(semBanco())('Vendedor × Postgres: novo pedido de distribuidora 
       const [r] = await receber(ctx, push(id(1), { items: [{ product_id: prod1, quantity: 2, unidade: 'CX' }] }));
       expect(r).toMatchObject({ status: 'aceito' });
       const { p, it } = await lerPedido(id(1));
-      expect(it[0]).toMatchObject({ unidade: 'CX', fator: 12, quantidade: 2, quantidade_base: 24 });
+      expect(it[0]).toMatchObject({ unidade: 'CX' });
+      expect([Number(it[0].fator), Number(it[0].quantidade), Number(it[0].quantidade_base)]).toEqual([12, 2, 24]); // numeric(14,4) chega como texto (ADR 0076)
       expect(Number(it[0].preco_tabela_cents)).toBe(12_000);
       expect(Number(p.total_cents)).toBe(24_000);
       const aprovado = registro.eventos.find((e) => e.nome === 'vendedor.pedido.aprovado@1')!.payload as { itens: Array<Record<string, unknown>>; total_cents: number };

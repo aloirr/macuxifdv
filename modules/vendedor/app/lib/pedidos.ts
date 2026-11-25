@@ -11,7 +11,7 @@ import { chaveDoRascunhoNovo } from '../../domain/rascunhos';
 import { motivosFinanceirosDoPedido } from '../../domain/credito-pedido';
 import { resultadoDosAvisos, validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
-import { mensagemAcimaDoMaximo, percentualAjusteParaBp } from '../../domain/preco-pedido';
+import { mensagemAcimaDoMaximo, percentualAjusteParaBp, rotuloMedida } from '../../domain/preco-pedido';
 import type { PrazoGravado } from '../../domain/troca-prazo';
 import { toDomainPolicy } from './catalog';
 import { calcularPedido, fretePush, freteValido, linhasParaPush, politicaParaAutor, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
@@ -178,11 +178,6 @@ export interface EntradaPrepararPedido {
 /** `OrderValidation` com o cálculo do novo pedido (medidas, ajustes, desconto efetivo) anexado. */
 export type ValidacaoDoPedido = OrderValidation & { calculo: CalculoPedido };
 
-/** Rótulo curto da medida de uma linha: "UN" ou "CX c/ 12". */
-function rotuloDaLinha(sigla: string, fator: number): string {
-  return fator > 1 ? `${sigla} c/ ${fator}` : sigla;
-}
-
 /**
  * Valida o rascunho e monta o resumo da fila. Recusado = lança `Error` em português com o que corrigir.
  * T-0061: o cálculo é o do domain de preço (UN/CX, desconto e acréscimo por item e por pedido); a alçada olha só o
@@ -284,7 +279,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
       unit_price_cents: l.preco_tabela_cents,
       total_cents: l.total_cents,
       // RN-VEN-15 (T-0151): a medida vai sempre, também na unidade base (FD, CX…); sem ela o detalhe caía em UN
-      unit_label: rotuloDaLinha(l.unidade_sigla, l.fator),
+      unit_label: rotuloMedida(l.unidade_sigla, l.fator),
       discount_pct: l.desconto_pct,
       ...(l.acrescimo_pct > 0 ? { surcharge_pct: l.acrescimo_pct } : {}),
       ...(l.aplicacao ? { application: l.aplicacao } : {}),

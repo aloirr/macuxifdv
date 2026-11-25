@@ -3725,7 +3725,9 @@
           "pedido_nao_entregue",
           "transicao_invalida",
           "numero_erp_divergente",
-          "itens_faturados_invalidos"
+          "itens_faturados_invalidos",
+          "quantidade_fracionaria_bloqueada",
+          "quantidade_fracionaria_invalida"
         ]
       },
       "ContagensLote": {
@@ -4545,8 +4547,9 @@
             "maxLength": 200
           },
           "quantidade": {
-            "type": "integer",
-            "exclusiveMinimum": 0
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 999999999.9999
           },
           "valor_cents": {
             "type": "integer",
@@ -4577,8 +4580,9 @@
             "maxLength": 200
           },
           "quantidade": {
-            "type": "integer",
-            "exclusiveMinimum": 0
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 999999999.9999
           },
           "codigo": {
             "type": "string",
@@ -4636,6 +4640,8 @@
           },
           "quantidade": {
             "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 999999999.9999,
             "description": "SEMPRE na unidade base: `quantidade = quantidade_venda x fator` quando a venda é por embalagem."
           },
           "preco_unitario_cents": {
@@ -4665,8 +4671,9 @@
           "fator": {
             "anyOf": [
               {
-                "type": "integer",
-                "exclusiveMinimum": 0
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 9999
               },
               {
                 "type": "null"
@@ -4676,7 +4683,9 @@
           "quantidade_venda": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 999999999.9999
               },
               {
                 "type": "null"
@@ -6284,7 +6293,7 @@
             "pattern": "^[A-Z]{1,4}$"
           },
           "fator": {
-            "type": "integer",
+            "type": "number",
             "exclusiveMinimum": 0,
             "maximum": 9999
           },
