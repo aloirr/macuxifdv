@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ErroHttpModulo, type AcessoBanco, type ContextoPublico } from '@macuxi/platform-sdk';
-import { CODIGOS_PORTAL, EscolherEmpresaPortalSchema, LoginPortalSchema, SessaoPortalSchema } from '../contracts';
+import { CODIGOS_PORTAL, EscolherEmpresaPortalSchema, LoginPortalSchema, SessaoPortalSchema, TrocarSenhaPortalSchema } from '../contracts';
 import { decidirFalhaSuperAdmin } from '../domain/super-admin';
 import { bancoDeTeste, contextoPublico, logSilencioso } from './apoio-teste';
 import { assinarTokenPlataforma, chaveDeTentativa, verificarTokenPlataforma } from './seguranca-plataforma';
@@ -80,6 +80,24 @@ function repositorioEmMemoria() {
       const s = sessoes.get(sid);
       if (s) s.revogada = true;
     },
+    async quemSou(sid) {
+      const s = sessoes.get(sid);
+      if (!s || (s.tipo === 'admin_cliente' && !s.atual)) return null;
+      return s.tipo === 'super_admin' ? { nome: 'Sara Super', perfil: null, cargo: null } : { nome: 'Ana Admin', perfil: 'Administrador', cargo: 'Diretora' };
+    },
+    async reautenticar(sid) {
+      const s = sessoes.get(sid);
+      const c = s?.sa ? contas.find((x) => x.conta_id === s.sa) : undefined;
+      return c ? { super_admin_id: c.conta_id, email: c.email, senha_hash: c.senha_hash } : null;
+    },
+    async gravarSenhaSuperAdmin(sid, atual, novo) {
+      const s = sessoes.get(sid);
+      const c = s?.sa ? contas.find((x) => x.conta_id === s.sa) : undefined;
+      if (!c || c.senha_hash !== atual) return false;
+      c.senha_hash = novo;
+      for (const x of sessoes.values()) if (x.sa === s!.sa) x.revogada = true;
+      return true;
+    },
     async auditar(l) {
       auditoria.push(l);
     },
@@ -103,6 +121,7 @@ const senhaFalsa = {
   gastar: async () => {
     conferencias++;
   },
+  hash: async (senha: string) => `h:${senha}`,
 };
 const sa = () => criarSuperAdmin({ segredo: () => SEGREDO, repo: () => mem.repo, senha: senhaFalsa });
 
@@ -399,8 +418,93 @@ describe('ADR 0031: sessão, renovar, sair e autenticarPortal', () => {
   });
 
   it('ADR 0031: códigos do portal sem os de TOTP e de convite e com os da escolha de empresa', () => {
-    expect(Object.keys(CODIGOS_PORTAL).sort()).toEqual(['bloqueado', 'credenciais', 'empresaNaoEscolhida', 'empresaNaoPermitida', 'indisponivel', 'senhaATrocar', 'sessao']);
+    expect(Object.keys(CODIGOS_PORTAL).sort()).toEqual(['bloqueado', 'credenciais', 'empresaNaoEscolhida', 'empresaNaoPermitida', 'indisponivel', 'senhaATrocar', 'senhaMudou', 'sessao', 'trocaSoSuperAdmin']);
     expect(CODIGOS_PORTAL.empresaNaoPermitida).toBe('EMPRESA_NAO_PERMITIDA');
     expect(CODIGOS_PORTAL.empresaNaoEscolhida).toBe('EMPRESA_NAO_ESCOLHIDA');
+  });
+});
+
+describe('ADR 0075: usuário da sessão e troca da própria senha no portal', () => {
+  const NOVA = 'Nova-Senha-9!';
+  const entrarSuper = async () => {
+    mem.contas.push({ email: EMAIL, tipo: 'super_admin', conta_id: SA_ID, tenant_id: null, tenant_codigo: null, tenant_nome: null, senha_hash: `h:${SENHA}` });
+    return sa().login(ctx({ email: EMAIL, senha: SENHA }));
+  };
+
+  it('ADR 0075: login, escolha de empresa e renovar trazem o usuário (nome, perfil, cargo); sem escolha vem null', async () => {
+    const s = await entrarSuper();
+    expect(SessaoPortalSchema.safeParse(s).success).toBe(true);
+    expect(s.usuario).toEqual({ nome: 'Sara Super', perfil: null, cargo: null });
+    mem.contas.length = 0;
+    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'), contaAdmin(TENANT_B, USU_B, 'Beta'));
+    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
+    expect(r.usuario).toBeNull();
+    const e = await sa().escolherEmpresa(ctx({ tenant_id: TENANT_A }, bearer(r.token)));
+    expect(e.usuario).toEqual({ nome: 'Ana Admin', perfil: 'Administrador', cargo: 'Diretora' });
+    expect((await sa().renovar(ctx({}, bearer(e.token)))).usuario?.nome).toBe('Ana Admin');
+  });
+
+  it('ADR 0075: o nome do usuário nunca vai a log', async () => {
+    await entrarSuper();
+    expect(JSON.stringify(logSilencioso.linhas)).not.toContain('Sara');
+  });
+
+  it('RN-CORE-32: super-admin troca a senha (204), todas as sessões caem e a nova entra', async () => {
+    const s = await entrarSuper();
+    await sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(s.token)));
+    expect(await sa().autenticarPortal(bearer(s.token), banco, t0)).toBeNull();
+    expect((await sa().login(ctx({ email: EMAIL, senha: NOVA }))).tipo).toBe('super_admin');
+    expect((await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })))).status).toBe(401);
+  });
+
+  it('RN-CORE-31: senha atual errada = 401 CREDENCIAIS_INVALIDAS e a 5ª seguida bloqueia 15 min (423) na chave do e-mail do login', async () => {
+    const s = await entrarSuper();
+    for (let i = 0; i < 4; i++) {
+      const e = await falha(sa().trocarSenha(ctx({ senha_atual: 'errada', senha_nova: NOVA }, bearer(s.token))));
+      expect([e.status, e.codigo]).toEqual([401, CODIGOS_PORTAL.credenciais]);
+    }
+    expect((await falha(sa().trocarSenha(ctx({ senha_atual: 'errada', senha_nova: NOVA }, bearer(s.token))))).status).toBe(423);
+    // bloqueado: nem a senha certa passa, e o login com o mesmo e-mail também fica bloqueado
+    expect((await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(s.token))))).status).toBe(423);
+    expect((await falha(sa().login(ctx({ email: EMAIL, senha: SENHA })))).status).toBe(423);
+    expect(mem.tentativas.has(chaveDeTentativa(SEGREDO, EMAIL))).toBe(true);
+  });
+
+  it('RN-CORE-32: nova fraca = 422 com as faltas; igual à atual = 422 RN-CORE-34; nada é gravado', async () => {
+    const s = await entrarSuper();
+    const fraca = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: 'abc' }, bearer(s.token))));
+    expect([fraca.status, fraca.codigo]).toEqual([422, 'RN-CORE-32']);
+    const igual = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: SENHA }, bearer(s.token))));
+    expect([igual.status, igual.codigo]).toEqual([422, 'RN-CORE-34']);
+    expect(mem.contas[0]!.senha_hash).toBe(`h:${SENHA}`);
+  });
+
+  it('ADR 0075: hash que mudou no meio da troca = 409 SENHA_MUDOU', async () => {
+    const s = await entrarSuper();
+    const gravar = mem.repo.gravarSenhaSuperAdmin;
+    mem.repo.gravarSenhaSuperAdmin = async (sid, _atual, novo) => gravar(sid, 'h:outro', novo);
+    const e = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(s.token))));
+    expect([e.status, e.codigo]).toEqual([409, CODIGOS_PORTAL.senhaMudou]);
+  });
+
+  it('ADR 0075: sem token = 401; sem segredo = 503; corpo estrito', async () => {
+    expect((await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA })))).status).toBe(401);
+    const semSegredo = criarSuperAdmin({ segredo: () => undefined, repo: () => mem.repo, senha: senhaFalsa });
+    expect((await falha(semSegredo.trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA })))).status).toBe(503);
+    expect(TrocarSenhaPortalSchema.safeParse({ senha_atual: 'a', senha_nova: 'b', x: 1 }).success).toBe(false);
+  });
+
+  it('ADR 0075: admin do cliente não troca a senha pelo portal (403 TROCA_SO_SUPER_ADMIN)', async () => {
+    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'));
+    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
+    const e = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(r.token))));
+    expect([e.status, e.codigo]).toEqual([403, CODIGOS_PORTAL.trocaSoSuperAdmin]);
+  });
+
+  it('ADR 0075: admin com 2 empresas e sem escolha não troca a senha (403 TROCA_SO_SUPER_ADMIN)', async () => {
+    mem.contas.push(contaAdmin(TENANT_A, USU_A, 'Alfa'), contaAdmin(TENANT_B, USU_B, 'Beta'));
+    const r = await sa().login(ctx({ email: EMAIL, senha: SENHA }));
+    const e = await falha(sa().trocarSenha(ctx({ senha_atual: SENHA, senha_nova: NOVA }, bearer(r.token))));
+    expect([e.status, e.codigo]).toEqual([403, CODIGOS_PORTAL.trocaSoSuperAdmin]);
   });
 });
