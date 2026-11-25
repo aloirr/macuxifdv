@@ -36,7 +36,8 @@ describe('permissões e licença das rotas (regra 6)', () => {
   });
 
   it('relatórios: só supervisor, gerente, analista e admin (perfis do módulo)', () => {
-    for (const c of ['relatorios/share', 'relatorios/ruptura']) expect(rota('GET', c).perfis).toEqual([...PERFIS_RELATORIO]);
+    for (const c of ['relatorios/share', 'relatorios/ruptura']) expect(rota('GET', c).acao).toBe('relatorio_trade.ver');
+    expect(quem('relatorio_trade.ver')).toEqual([...PERFIS_RELATORIO]);
   });
 
   it('RN-PRO-01: nenhuma rota do Promotor é de pedido nem barrada como tal', () => {

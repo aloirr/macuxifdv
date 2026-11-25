@@ -4,6 +4,7 @@ import { defineModule } from '@macuxi/platform-sdk';
 const PERFIL_COLETA = ['promotor'] as const;
 /** Doc 03 §2: cadastros de trade (mix, metas de share, concorrentes, planogramas, checklists, tarefas) = analista e admin. */
 const PERFIS_CADASTRO = ['analista', 'admin'] as const;
+const PERFIS_LEITURA = ['supervisor', 'gerente', 'analista', 'admin'] as const;
 
 /**
  * Manifesto do Promotor.
@@ -77,6 +78,9 @@ export const manifest = defineModule({
     'checklist_modelo.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Checklists por loja, rede ou canal, com vigência (RN-PRO-10)' },
     'ponto_extra_negociado.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Pontos extras negociados com a loja' },
     'tarefa_trade.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Criar e acompanhar tarefas pontuais de trade' },
+    // --- leitura no BKO de trade (ADR 0073; mesmos perfis do catálogo v2) ---
+    'cadastro_trade.ver': { perfis: [...PERFIS_LEITURA], descricao: 'Ver os cadastros de trade: categorias, checklists, concorrentes, metas de share, mix e parâmetros (RN-PRO-10)' },
+    'relatorio_trade.ver': { perfis: [...PERFIS_LEITURA], descricao: 'Ver os relatórios de share e de ruptura no escopo do perfil' },
   },
 });
 
