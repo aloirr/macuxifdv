@@ -68,6 +68,16 @@ export function idPerfilFabrica(tenantId: string, base: string): string {
   return idDeChave(`${tenantId}:plataforma.perfil:${base}`);
 }
 
+/** Id da concessão gravada pela migração e pelo espelho (0104/0105): uuid_de_chave('<tenant>:plataforma.perfil_concessao:<perfil>:<chave>'). */
+export function idPerfilConcessao(tenantId: string, perfilId: string, chave: string): string {
+  return idDeChave(`${tenantId}:plataforma.perfil_concessao:${perfilId}:${chave}`);
+}
+
+/** Id da linha de catalogo_aplicado da versão (0104): uuid_de_chave('<tenant>:plataforma.catalogo_aplicado:<versao>'). */
+export function idCatalogoAplicado(tenantId: string, versao: number): string {
+  return idDeChave(`${tenantId}:plataforma.catalogo_aplicado:${versao}`);
+}
+
 /**
  * Id do vínculo usuário × perfil (0041): uuid_de_chave('<tenant>:plataforma.usuario_perfil:<usuario>:<perfil_id>'). É o id que o
  * gatilho usuario_perfil_principal e a semeadura da 0041 usam; seeds e fixtures que gravam o mesmo vínculo usam este também.
