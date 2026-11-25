@@ -26,13 +26,13 @@ import {
   MonitorResumo,
   ROTA_MONITOR,
   ROTA_MONITOR_DETALHES,
-  ReprocessarLoteResposta,
   type LinhaErro,
   type Mapeamento,
   type TipoMapeamento,
 } from '../../contracts';
 import { perfilDaSessao } from './apresentacao';
 import { useClienteIntegracao, useEscopoIntegracao, type ClienteIntegracao } from './cliente';
+import { reprocessarLote } from './reprocessar-lote';
 import { paraSeNaoForDoLote } from './reprocessar-lotes';
 
 /**
@@ -207,12 +207,7 @@ export function useReprocessarLote() {
   const cliente = useClienteIntegracao();
   return useMutation({
     mutationFn: async ({ loteId, autorizadorId, senha }: { loteId: string; autorizadorId?: string; senha?: string }) =>
-      ReprocessarLoteResposta.parse(
-        await cliente.chamar<unknown>(`/integracao/lotes/${encodeURIComponent(loteId)}/reprocessar`, {
-          method: 'POST',
-          body: autorizadorId && senha ? { autorizador_id: autorizadorId, senha } : {},
-        }),
-      ),
+      reprocessarLote(cliente, loteId, { autorizadorId, senha }),
     // a senha do autorizador está nas `variables`: sem `gcTime: 0` ela ficaria no MutationCache por 5 min
     gcTime: 0,
     onSettled: () => encerrarAcaoDeLote(qc, cliente.escopo),
