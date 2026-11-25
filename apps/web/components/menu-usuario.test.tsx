@@ -45,7 +45,7 @@ describe('gavetas', () => {
     expect(html).not.toContain('<input');
   });
 
-  it('Trocar a senha do BKO: senha atual, nova e repetição, a lista de regras, Cancelar e Salvar senha; sem e-mail nem código', () => {
+  it('Trocar a senha (BKO e portal): senha atual, nova e repetição, a lista de regras, Cancelar e Salvar senha; sem e-mail nem código', () => {
     const html = renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ enviar: async () => true }} onFechar={nada} onTrocada={nada} />);
     for (const t of ['trocar-senha.atual', 'trocar-senha.nova', 'trocar-senha.repita', 'trocar-senha.regras', 'trocar-senha.cancelar', 'trocar-senha.salvar']) expect(html).toContain(`data-testid="${t}"`);
     expect(html).toContain('Senha atual');
@@ -54,12 +54,9 @@ describe('gavetas', () => {
     expect(html).not.toContain('trocar-senha.codigo');
   });
 
-  it('sessão antiga do BKO: pede o código da empresa (sem o e-mail); admin do cliente no portal: pede o e-mail (sem o código)', () => {
+  it('sessão antiga do BKO: pede o código da empresa (sem o e-mail)', () => {
     const bko = renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ pedirCodigo: true, enviar: async () => true }} onFechar={nada} onTrocada={nada} />);
     expect(bko).toContain('trocar-senha.codigo');
     expect(bko).not.toContain('trocar-senha.email');
-    const portal = renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ pedirEmail: true, enviar: async () => true }} onFechar={nada} onTrocada={nada} />);
-    expect(portal).toContain('trocar-senha.email');
-    expect(portal).not.toContain('trocar-senha.codigo');
   });
 });

@@ -83,7 +83,7 @@ import {
 import { ConectorAtualizar, ConectorCriar, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
 import { localIsoDate } from '@macuxi/comum/fuso';
 
-import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, TrocarSenhaRequestSchema } from '@macuxi/core/contracts';
+import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
 import { CADASTRO_FALSO_M, responderCadastroFalso, zerarCadastroFalso } from './portal-falso-cadastro';
 import { MONITOR_FALSO_M, responderMonitorFalso } from './portal-falso-monitor';
@@ -766,40 +766,14 @@ function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorRe
 }
 
 /**
- * `POST /auth/senha/trocar` falso (v1.0.34, troca do admin do cliente): senha atual `errada` ou conta desconhecida = 401
- * `CREDENCIAIS_INVALIDAS`; senha nova fora da RN-CORE-32 = 422 com as faltas; igual à atual = 422 RN-CORE-34. Senão, como a API:
- * revoga as sessões do portal do admin (a versão da sessão do usuário muda) e devolve a sessão do tenant do modo cookie (sem o
- * token de renovação, que iria no cookie).
- */
-function trocarSenhaAdminFalsa(e: Estado, corpo: unknown): Response {
-  const c = lerCorpo(TrocarSenhaRequestSchema, corpo);
-  if (c instanceof Response) return c;
-  const conta = CONTAS_FALSAS[c.email.trim().toLowerCase()];
-  if (!conta || c.senha_atual === 'errada') return erro(401, 'CREDENCIAIS_INVALIDAS', 'Código da empresa, e-mail ou senha incorretos.');
-  const faltas = faltasNaSenha(c.senha_nova);
-  if (faltas.length > 0) return erro(422, 'RN-CORE-32', mensagemDaSenha(faltas) ?? 'Senha fora da regra.', { faltas });
-  if (c.senha_nova === c.senha_atual) return erro(422, 'RN-CORE-34', 'A senha nova precisa ser diferente da atual.');
-  const sessoes = Object.fromEntries(Object.entries(e.sessoes).filter(([, s]) => !(s.tipo === 'admin_cliente' && s.empresas.some((id) => conta.includes(id)))));
-  gravar({ ...e, sessoes });
-  const tenant = conta[0] ?? '';
-  return json(200, {
-    access_token: 'acesso-falso',
-    token_type: 'Bearer',
-    expires_in: 900,
-    usuario: { id: '0b6f1a52-5c1e-4c4e-9a43-0000000000a1', nome: 'Admin', nome_curto: null, email: c.email, perfil: 'admin' },
-    tenant: { id: tenant, codigo: c.codigo_empresa, nome: 'Empresa', fuso: 'America/Manaus' },
-  });
-}
-
-/**
- * `POST /plataforma/auth/senha` falso (ADR 0075), como a API: só o super-admin (admin do cliente = 403 `TROCA_SO_SUPER_ADMIN`); 5 erros seguidos = 423
- * `BLOQUEADO` (a mesma conta de falhas do login); senha atual `errada` = 401; `mudou` = 409 `SENHA_MUDOU`; nova fora da RN-CORE-32
+ * `POST /plataforma/auth/senha` falso (ADR 0075), como a API: o time Macuxi e o admin do cliente com a empresa escolhida (sem ela =
+ * 403 `EMPRESA_NAO_PERMITIDA`); 5 erros seguidos = 423 `BLOQUEADO` (a mesma conta de falhas do login); senha atual `errada` = 401; `mudou` = 409 `SENHA_MUDOU`; nova fora da RN-CORE-32
  * = 422 com as faltas; igual à atual = 422 RN-CORE-34. Trocou: todas as sessões da pessoa caem (inclusive esta) e responde 204.
  */
-function trocarSenhaSuperAdminFalsa(e: Estado, sessao: SessaoFalsa, corpo: unknown): Response {
+function trocarSenhaFalsa(e: Estado, sessao: SessaoFalsa, corpo: unknown): Response {
   const c = lerCorpo(TrocarSenhaPortalSchema, corpo);
   if (c instanceof Response) return c;
-  if (sessao.tipo !== 'super_admin') return erro(403, CODIGOS_PORTAL.trocaSoSuperAdmin, 'Nesta versão, só o time Macuxi troca a senha por aqui.');
+  if (sessao.tipo === 'admin_cliente' && !sessao.empresa) return erro(403, 'EMPRESA_NAO_PERMITIDA', 'Escolha a empresa antes de trocar a senha.');
   const chave = `senha:${sessao.nome ?? sessao.tipo}`;
   if ((falhas.get(chave) ?? 0) >= 5) return erro(423, CODIGOS_PORTAL.bloqueado, mensagemBloqueioPorTentativas(MINUTOS_BLOQUEIO_FALSO), { minutos_restantes: MINUTOS_BLOQUEIO_FALSO });
   if (c.senha_atual === 'errada') {
@@ -846,8 +820,6 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar(r.estado);
     return json(200, r.corpo);
   }
-  // v1.0.34 (menu do usuário): troca voluntária do admin do cliente, pela rota pública do Core
-  if (rota === `POST ${ROTAS_PORTAL.trocarSenha}`) return trocarSenhaAdminFalsa(e, corpo);
   const token = (cabecalhos.Authorization ?? '').replace(/^Bearer /, '');
   const sessao = autenticado ? e.sessoes[token] : undefined;
   if (!sessao) return erro(401, 'SESSAO_PLATAFORMA_INVALIDA', 'Sua sessão do portal expirou. Entre de novo.');
@@ -865,8 +837,8 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar(r.estado);
     return json(200, r.corpo);
   }
-  // ADR 0075: troca da própria senha do time Macuxi
-  if (rota === `POST ${ROTAS_PORTAL.trocarSenhaSuperAdmin}`) return trocarSenhaSuperAdminFalsa(e, sessao, corpo);
+  // ADR 0075: troca da própria senha (time Macuxi e admin do cliente com a empresa escolhida)
+  if (rota === `POST ${ROTAS_PORTAL.trocarSenha}`) return trocarSenhaFalsa(e, sessao, corpo);
   if (rota === `POST ${ROTAS_PORTAL.sair}`) {
     const sessoes = { ...e.sessoes };
     delete sessoes[token];
