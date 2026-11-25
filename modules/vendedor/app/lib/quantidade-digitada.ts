@@ -5,7 +5,7 @@
 import { truncarCasas, unidadeFracionaria } from '@macuxi/comum/quantidade';
 
 /** Aviso do campo quando a pessoa digita a vírgula com a trava fechada (KG e M ficam inteiros). */
-export const MENSAGEM_SO_INTEIRO = 'Só quantidade inteira por enquanto.';
+export const MENSAGEM_SO_INTEIRO = 'Só quantidade inteira.';
 
 /** Quantidade que fica no pedido: com fração só em KG/M com a trava aberta; senão, o inteiro. */
 export function quantidadeDoItem(q: number, unidade: string | null | undefined, liberada: boolean): number {

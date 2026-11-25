@@ -46,8 +46,8 @@ describe('campo da quantidade em KG e M (RN-VEN-02 v3, ADR 0076 D6)', () => {
 });
 
 describe('quantidade que fica no pedido (RN-VEN-02 v3)', () => {
-  it('RN-VEN-02 v3: o aviso do campo com a trava fechada é "Só quantidade inteira por enquanto."', () => {
-    expect(MENSAGEM_SO_INTEIRO).toBe('Só quantidade inteira por enquanto.');
+  it('RN-VEN-02 v3: o aviso do campo com a trava fechada é "Só quantidade inteira."', () => {
+    expect(MENSAGEM_SO_INTEIRO).toBe('Só quantidade inteira.');
   });
   it('RN-VEN-02 v3: KG com a trava aberta guarda as casas; trava fechada ou unidade inteira trunca', () => {
     expect(quantidadeDoItem(1.25, 'KG', true)).toBe(1.25);
