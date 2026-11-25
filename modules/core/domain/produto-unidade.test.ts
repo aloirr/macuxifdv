@@ -34,8 +34,12 @@ describe('RN-VEN-15: unidades de venda do produto vindas do ERP (integracao.prod
     expect(planejarProdutoUnidadeDoErp(ev())).toEqual(planejarProdutoUnidadeDoErp(ev()));
   });
 
-  it('RN-VEN-15: fator não inteiro ou menor que 1 é ignorado (o banco recusa e o lote não trava)', () => {
-    for (const fator of [0, -2, 1.5, Number.NaN]) {
+  it('RN-VEN-15 v3: fator fracionário com até 4 casas vale (CX com 12,5 kg)', () => {
+    expect(planejarProdutoUnidadeDoErp(ev({ registro: { ...registro, fator: 12.5 } }))).toMatchObject({ tipo: 'upsert', linha: { fator: 12.5 } });
+  });
+
+  it('RN-VEN-15: fator zero, negativo, com mais de 4 casas ou acima de 9999 é ignorado (o banco recusa e o lote não trava)', () => {
+    for (const fator of [0, -2, 1.23456, 10000, Number.NaN]) {
       expect(planejarProdutoUnidadeDoErp(ev({ registro: { ...registro, fator } }))).toEqual({ tipo: 'ignorar', motivo: 'fator_invalido' });
     }
   });
@@ -58,15 +62,17 @@ describe('RN-VEN-15: unidades de venda do produto vindas do ERP (integracao.prod
 describe('RN-VEN-15: unidade padrão e lista de unidades do produto (leitura pública, offline)', () => {
   const linha = (o: Record<string, unknown>) => ({ id: String(o.unidade), produto_id: 'p1', unidade: 'UN', fator: 1, padrao: false, ativo: true, deleted_at: null, ...o }) as Parameters<typeof unidadesDoProduto>[0][number];
 
-  it('RN-VEN-15: fator válido = inteiro maior que zero', () => {
+  it('RN-VEN-15 v3: fator válido = maior que zero, até 4 casas e até 9999', () => {
     expect(fatorValido(1)).toBe(true);
     expect(fatorValido(12)).toBe(true);
-    for (const f of [0, -1, 2.5, '12', null, undefined, Number.NaN]) expect(fatorValido(f)).toBe(false);
+    expect(fatorValido(2.5)).toBe(true);
+    for (const f of [0, -1, 1.23456, 10000, '12', null, undefined, Number.NaN]) expect(fatorValido(f)).toBe(false);
   });
 
   it('RN-CORE-19: rótulo mostra só a sigla com fator 1 e "CX c/ 12" com fator maior', () => {
     expect(rotuloDaUnidade('UN', 1)).toBe('UN');
     expect(rotuloDaUnidade('CX', 12)).toBe('CX c/ 12');
+    expect(rotuloDaUnidade('CX', 12.5)).toBe('CX c/ 12,5');
   });
 
   it('RN-VEN-15: unidade padrão = a marcada; sem marcada, a unidade base com fator 1', () => {
