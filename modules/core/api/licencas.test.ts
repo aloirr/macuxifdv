@@ -117,7 +117,7 @@ describe('RF-CORE-02: administração de licenças (tenant → perfil → usuár
     }
     expect(verificarAcao(ADMIN, permissoes, 'modulo.gerir_licencas').ok).toBe(true);
     for (const r of rotasDeLicencas.filter((x) => x.metodo !== 'GET')) expect(r.acao).toBe('modulo.gerir_licencas');
-    expect(rotasDeLicencas.find((x) => x.metodo === 'GET')?.perfis).toEqual(['admin']);
+    expect(rotasDeLicencas.find((x) => x.metodo === 'GET')?.acao).toBe('modulo.gerir_licencas');
   });
 
   it('o erro de regra do core é ErroRegraNegocio (422 na API)', async () => {
