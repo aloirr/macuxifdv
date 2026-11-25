@@ -11,6 +11,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { TEXTOS_RASCUNHOS, type LinhaDeRascunho } from '../lib/rascunhos-lista';
+import { rascunhosDaTela } from '../lib/rascunhos-salvos';
+import { rascunhoIdNaRota } from '../../domain/rascunhos';
 import { hrefPedidos, irParaNovoPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
@@ -34,11 +36,11 @@ export default function RascunhosScreen() {
   const leitura = useMemo((): { estado: 'carregando' } | { estado: 'erro' } | { estado: 'ok'; linhas: LinhaDeRascunho[] } => {
     if (!app.carregado) return { estado: 'carregando' };
     try {
-      return { estado: 'ok', linhas: app.rascunhosDaLista(agora) };
+      return { estado: 'ok', linhas: rascunhosDaTela(app.rascunhosDaLista(agora), app.dados.rascunhos) };
     } catch {
       return { estado: 'erro' };
     }
-  }, [app.carregado, app.rascunhosDaLista, agora]);
+  }, [app.carregado, app.rascunhosDaLista, app.dados.rascunhos, agora]);
 
   const puxar = async () => {
     setPuxando(true);
@@ -90,7 +92,7 @@ export default function RascunhosScreen() {
               accessibilityHint={l.foraDaCarteira ? undefined : TEXTOS_RASCUNHOS.dica}
               accessibilityState={{ disabled: l.foraDaCarteira }}
               disabled={l.foraDaCarteira}
-              onPress={() => irParaNovoPedido(l.edicao_de ? { customerId: l.customer_id, editId: l.edicao_de } : { customerId: l.customer_id })}
+              onPress={() => irParaNovoPedido(l.edicao_de ? { customerId: l.customer_id, editId: l.edicao_de } : { customerId: l.customer_id, rascunhoId: rascunhoIdNaRota(l.chave, l.customer_id) })}
               style={[s.linha, i > 0 && s.traco]}>
               <View style={s.l1}>
                 <Text style={[s.cliente, l.foraDaCarteira && s.apagado]} numberOfLines={2}>

@@ -25,21 +25,29 @@ import { orderActions, type OrderStatus } from '../../domain/order';
 import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, percentualDoDetalhe, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
-import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
+import { criarTravaDeEnvio } from '../lib/trava-de-envio';
+import { MENSAGEM_CLIENTE_FORA_DA_CARTEIRA, precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
 import { tabelaVencida } from '../../domain/tabela-vencida';
-import { limparRascunhosExpirados } from '../../domain/rascunhos';
+import { chaveDaCopiaDoPedido, chaveParaSalvar, idDoPedidoNoEnvio, copiaDoPedidoSalvo, limparRascunhosExpirados } from '../../domain/rascunhos';
+import { migrarSalvosGuardados } from '../lib/migrar-salvos';
 import { TEXTO_SEM_SINAL_PARA_SALVAR } from '../../domain/alertas-pedido';
 import { orcamentosEmAberto, type OrcamentoParaEscolha } from '../../domain/orcamento-em-aberto';
 import { avisoDoOrcamento, produtoNoOrcamento } from '../lib/produto-no-orcamento';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { calcularPedido, faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
+import { calcularPedido, faixasPorProduto, linhasParaPush, situacaoDoFrete } from '../lib/novo-pedido';
+import { situacaoDoPagamento } from '../lib/pagamento-pedido';
+import { pendenciasDePreenchimento } from '../../domain/pendencias-preenchimento';
 import { linhasDosRascunhos, type LinhaDeRascunho } from '../lib/rascunhos-lista';
 import type { DadosDosPrecosDeHoje } from '../lib/precos-de-hoje';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { idsSemTexto } from '../../domain/busca-seletor';
 import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
+import { aprovacoesFinanceiras } from '../../domain/credito-pedido';
+import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
+import { motivoDeNaoEnviarOSalvo, precisaPerguntarAlcadaNoEnvioSalvo } from '../../domain/botoes-resumo';
+import { itensSemEstoque } from '../lib/alertas-novo-pedido';
 import { financeiroParaAprovacao, modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
 import { tituloVencidoDias } from '../../domain/pagamento';
 import { percentualDoPrazoNoDocumento, type PrazoGravado } from '../../domain/troca-prazo';
@@ -92,7 +100,11 @@ const MSG_APP_CARREGANDO = 'Aplicativo ainda carregando. Aguarde um instante e t
 
 /** `id` do documento na fila (T-0071, V8): a tela abre o detalhe dele em vez de ficar no editor */
 export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; id?: string };
+/** RN-VEN-48: `em_envio` = o 2º toque no Enviar com o 1º em curso; nada entra na fila e a tela não avisa nada. */
+export type ResultadoEnvioSalvo = ResultadoEnvio | { kind: 'em_envio' } | { kind: 'pergunta_alcada' };
 export type ResultadoAlteracao = { kind: 'local' } | { kind: 'server'; order: OrderDetail };
+
+const MSG_SALVO_NAO_ENCONTRADO = 'Pedido salvo não encontrado neste aparelho. Atualize a lista e tente de novo.';
 
 export function useVendedor() {
   const { motor, estado } = useMotorSync();
@@ -112,6 +124,7 @@ export function useVendedor() {
   const v1 = Boolean(usuario?.fuso);
   const perfil = usuario?.perfil ?? '';
   const parametros = ambiente.parametros('vendedor');
+  const preVendaLigada = v1 && preVendaAtiva(parametros);
   const parametrosRef = useRef(parametros);
   parametrosRef.current = parametros;
 
@@ -122,8 +135,12 @@ export function useVendedor() {
   const recalculosRef = useRef(new Map<string, Promise<Product[]>>());
   /** geração dos rascunhos: sobe a cada toque/descarte, antes de gravar (R1: a leitura iniciada antes não sobrescreve) */
   const versaoRascunhos = useRef(0);
+  const migracaoSalvos = useRef<{ repo: unknown; feita: Promise<unknown> } | null>(null);
   const recarregar = useCallback(async () => {
     if (!repo) return;
+    // RN-VEN-48: uma vez por aparelho/sessão, o salvo guardado na chave do cliente passa para a chave própria (antes da primeira leitura)
+    if (migracaoSalvos.current?.repo !== repo) migracaoSalvos.current = { repo, feita: migrarSalvosGuardados(repo, ambiente.novoId).catch(() => []) };
+    await migracaoSalvos.current.feita;
     const geracaoAntes = versaoRascunhos.current;
     const [lidos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
     // rascunho com gravação em andamento vale o da memória: a leitura pode ter vindo antes do toque no +/− ser gravado
@@ -143,7 +160,7 @@ export function useVendedor() {
       const ids = new Set(ls.pedidos.map((p) => p.id));
       for (const id of Object.keys(novos.exibicoes)) if (ids.has(id)) void repo.removerExibicao(id);
     }
-  }, [repo, motor, v1]);
+  }, [repo, motor, v1, ambiente]);
 
   // recarrega ao abrir e a cada sincronização concluída; RN-VEN-02: a tabela vence pelo sync (tabelaVencida)
   useEffect(() => {
@@ -194,7 +211,7 @@ export function useVendedor() {
     const eu = { id: vendedor.id, name: vendedor.name, branch_id: vendedor.branch_id };
     const noServidor = new Set(dados.pedidos.map((o) => o.id));
     const todos = mergeOrders(dados.pedidos, fila, eu);
-    // T-0141 (RN-VEN-39, spec F.1): os rascunhos ("Apenas salvar" inclusive) saíram desta lista; moram só na tela Rascunhos
+    // T-0141 (RN-VEN-39, spec F.1): os rascunhos em digitação saíram desta lista; moram só na tela Rascunhos (o pedido salvo entra por `aceitosComoPedidos`, RN-VEN-48)
     return v1 ? [...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : todos;
   }, [dados.pedidos, fila, aceitos, vendedor, v1]);
 
@@ -446,6 +463,52 @@ export function useVendedor() {
     [repo],
   );
 
+  /**
+   * RN-VEN-48: Salvar > Pedido. Grava o rascunho como pedido salvo na chave própria (UUID do aparelho; o do cliente em digitação sai da chave do
+   * cliente, que fica livre para o próximo Novo pedido) e devolve na hora a chave em que ele mora (e a gravação). Nada digitado se perde.
+   */
+  const guardarComoPedidoSalvo = useCallback(
+    (chave: string, customerId: string, fn: (r: Rascunho) => Rascunho): { chave: string; gravado: Promise<void> } => {
+      if (!repo) throw new Error(MSG_APP_CARREGANDO);
+      const nova = chaveParaSalvar(chave, customerId, ambiente.novoId());
+      const atual = dadosRef.current.rascunhos[chave] ?? rascunhoVazio(customerId);
+      const novo = { ...fn(atual), updated_at: new Date().toISOString() };
+      const { [chave]: _saiu, ...resto } = dadosRef.current.rascunhos;
+      void _saiu;
+      const proximo = { ...dadosRef.current, rascunhos: { ...(nova === chave ? dadosRef.current.rascunhos : resto), [nova]: novo } };
+      dadosRef.current = proximo;
+      setDadosRepo(proximo);
+      versaoRascunhos.current += 1;
+      gravacoesDeRascunho.current += 1;
+      // a memória já vale (a tela troca de chave na hora); a gravação grava a nova antes de apagar a antiga
+      const gravado = (async () => {
+        try {
+          await repo.guardarRascunho(nova, novo);
+          if (nova !== chave) await repo.limparRascunho(chave);
+        } finally {
+          gravacoesDeRascunho.current -= 1;
+        }
+      })();
+      return { chave: nova, gravado };
+    },
+    [repo, ambiente],
+  );
+
+  /** RN-VEN-48: Duplicar do pedido salvo: outro rascunho (chave nova) com os mesmos itens e condições; o original fica como está. */
+  const duplicarPedidoSalvo = useCallback(
+    async (chave: string): Promise<{ customerId: string; chave: string }> => {
+      if (!repo) throw new Error(MSG_APP_CARREGANDO);
+      const r = dadosRef.current.rascunhos[chave];
+      if (!r) throw new Error(MSG_SALVO_NAO_ENCONTRADO);
+      const nova = ambiente.novoId();
+      const copia = copiaDoPedidoSalvo(r, new Date().toISOString());
+      await repo.guardarRascunho(nova, copia);
+      await recarregar();
+      return { customerId: r.customer_id, chave: nova };
+    },
+    [repo, ambiente, recarregar],
+  );
+
   // ---------- pedido ----------
   const custoDaFilaDoCliente = (customerId: string, ignorar?: string) =>
     filaRef.current.filter((o) => o.payload.customer_id === customerId && o.payload.id !== ignorar).reduce((s, o) => s + (o.display?.total_cents ?? 0), 0);
@@ -465,11 +528,13 @@ export function useVendedor() {
 
   /** Envio da fila em segundo plano (T-0130): aceito, traz a linha do servidor; recusado, o item fica `falhou` para o vendedor corrigir. */
   const seguirEnvioEmSegundoPlano = useCallback(
-    async (id: string): Promise<void> => {
-      if (!motor || !repo) return;
+    async (id: string): Promise<boolean> => {
+      if (!motor || !repo) return false;
+      let aceito = false;
       try {
         const r = (await motor.enviar()).find((x) => x.id === id);
         if (r && r.status === 'aceito') {
+          aceito = true;
           if (v1) await motor.sincronizar().catch(() => false);
           else {
             await carregarPedido(id);
@@ -480,6 +545,7 @@ export function useVendedor() {
         // sem rede no meio do caminho: o item segue `pendente` e o motor tenta de novo sozinho
       }
       await recarregar();
+      return aceito;
     },
     [motor, repo, v1, carregarPedido, recarregar],
   );
@@ -501,24 +567,34 @@ export function useVendedor() {
     [creditoDoCliente, prazos],
   );
 
+  /** Situação do cliente nos dados de agora do aparelho (RN-VEN-13), para os envios que não passam por render. */
+  const situacaoDoClienteLocal = (clienteId: string) => situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === clienteId), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === clienteId));
+
   /** Salva o pedido: grava na fila (persistida) e devolve na hora; o envio segue em segundo plano (T-0130). */
   const enviarPedido = useCallback(
-    async (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoEnvio> => {
+    async (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[], chave: string = draftKeyFor(cliente.id), aguardarEnvio = false, pronto?: ReturnType<typeof prepararDoRascunho>): Promise<ResultadoEnvio> => {
       if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
-      const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, undefined, await financeiroDoEnvio(rascunho, cliente.id));
-      const id = ambiente.novoId();
+      // `pronto`: o cálculo que o chamador já fez neste toque (enviarPedidoSalvo); sem ele, calcula aqui
+      const { v, display } = pronto ?? prepararDoRascunho(rascunho, cliente, catalogo, undefined, await financeiroDoEnvio(rascunho, cliente.id));
+      // RN-VEN-33/48: o salvo (chave própria) envia com a própria chave como id do pedido: o reenvio não duplica e dois salvos do cliente são dois pedidos
+      const id = idDoPedidoNoEnvio(chave, cliente.id, ambiente.novoId());
       const agora = new Date().toISOString();
       const payload: PedidoPush = montarPedido({ id, cliente, rascunho, v, semSinal: !ambiente.online(), agora });
       await repo.guardarExibicao(id, display);
       await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${cliente.trade_name}`, detalhe: `${(display.total_cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · ${display.items_count} ${display.items_count === 1 ? 'item' : 'itens'}` });
-      await repo.limparRascunho(draftKeyFor(cliente.id));
+      await repo.limparRascunho(chave);
       await recarregar();
       // T-0130 (RN-VEN-30, RN-CORE-23 item 2): a tela fecha na hora; o envio sai pela fila comum do motor, em segundo plano, com
       // retentativa e o UUID do aparelho. A recusa da API deixa o item `falhou` na fila ("Não aceito", com o motivo) para corrigir.
-      if (ambiente.online()) void seguirEnvioEmSegundoPlano(id);
+      // D-S9-1: o Enviar do pedido salvo espera o servidor aceitar e devolve `sent`; recusa ou falha de rede seguem como fila
+      if (aguardarEnvio && ambiente.online() && (await seguirEnvioEmSegundoPlano(id))) {
+        const det = detalheDoPedido(linhasRef.current, id, perfil, parametrosRef.current);
+        if (det) return { kind: 'sent', order: det };
+      }
+      if (!aguardarEnvio && ambiente.online()) void seguirEnvioEmSegundoPlano(id);
       return { kind: 'queued', id };
     },
-    [motor, repo, prepararDoRascunho, financeiroDoEnvio, recarregar, ambiente, seguirEnvioEmSegundoPlano],
+    [motor, repo, prepararDoRascunho, financeiroDoEnvio, recarregar, ambiente, seguirEnvioEmSegundoPlano, perfil],
   );
 
   const unidadesTransportadoras = useCallback(() => (v1 ? transportadorasDaTela(linhasRef.current) : []), [v1]);
@@ -548,7 +624,8 @@ export function useVendedor() {
       const linhasDoRascunho = c ? c.rascunho.lines : r!.lines;
       const aviso = c ? c.aviso : prefillNotice(r!);
       if (Object.keys(linhasDoRascunho).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${aviso}`);
-      const chave = draftKeyFor(cliente.id, modo === 'edit' ? orderId : null);
+      // RN-VEN-39/48: a cópia (duplicar) vai para chave nova e não sobrescreve o rascunho em digitação do cliente; a edição usa edit:<id>
+      const chave = chaveDaCopiaDoPedido(modo, orderId, ambiente.novoId());
       const ehOrcamento = naFila?.payload.tipo === 'orcamento' || linhaPedido?.tipo === 'orcamento';
       // T-0134/T-0151 (RN-VEN-18): editar ou corrigir (orçamento ou pedido) mantém os preços salvos, sem faixa de "preços atualizados"; duplicar entra pelos preços de hoje
       const congelados = modo === 'edit' ? precosCongeladosDoOrcamento(det, naFila?.display?.lines, unidadesDaTela(linhasRef.current)) : null;
@@ -576,7 +653,7 @@ export function useVendedor() {
       await recarregar();
       return { customerId: cliente.id, chave };
     },
-    [repo, garantirProdutos, recarregar, detalhe, clientes, v1, unidadesTransportadoras, prazos],
+    [repo, garantirProdutos, recarregar, detalhe, clientes, v1, unidadesTransportadoras, prazos, ambiente],
   );
 
   /** Salva a edição. P-2: só o pedido que ainda está na fila do aparelho (funciona sem sinal); o servidor não edita pedido aceito. */
@@ -744,6 +821,56 @@ export function useVendedor() {
   );
 
   /**
+   * RN-VEN-48 (R-20261124-114951): "Enviar pedido" da aba Pedidos. O pedido salvo é o rascunho do aparelho (chave `chave`); vai pela
+   * mesma fila offline do envio (sem sinal, entra na fila; nada digitado se perde).
+   */
+  const enviandoSalvos = useRef(criarTravaDeEnvio());
+  const enviarPedidoSalvo = useCallback(
+    async (chave: string, confirmouAlcada = false): Promise<ResultadoEnvioSalvo> => {
+      // idempotência pela chave do rascunho: o segundo toque enquanto o primeiro corre não põe outro pedido na fila
+      if (!enviandoSalvos.current.prender(chave)) return { kind: 'em_envio' };
+      try {
+        const r = dadosRef.current.rascunhos[chave];
+        if (!r) throw new Error(MSG_SALVO_NAO_ENCONTRADO);
+        const cliente = clientes.find((c) => c.id === r.customer_id);
+        if (!cliente) throw new Error(MENSAGEM_CLIENTE_FORA_DA_CARTEIRA);
+        const catalogo = await garantirProdutos(cliente);
+        // RN-CORE-36 / RN-VEN-48: o pedido do Campo grava com pendência, mas o Enviar exige tudo preenchido (antes de calcular, que recusa o incompleto)
+        const falta = pendenciasDePreenchimento({
+          itens: Object.values(r.lines).filter((q) => q > 0).length,
+          quantidade_invalida: Object.values(r.lines).some((q) => !Number.isFinite(q) || q < 0),
+          pagamento: situacaoDoPagamento(r, formas, prazos, limitesDe(cliente.id)),
+          frete: r.frete ? situacaoDoFrete(r.frete) : 'ok',
+          erros_calculo: [],
+        }).map((x) => x.texto);
+        // RN-VEN-48: o Enviar revalida (RN-VEN-13/11/11a/20); o pedido salvo continua salvo quando não pode entrar na fila
+        let calculado: { itens_acima_do_maximo: string[]; acima_do_limite: boolean; itens_sem_estoque: string[] } = { itens_acima_do_maximo: [], acima_do_limite: false, itens_sem_estoque: [] };
+        let fin: Awaited<ReturnType<typeof financeiroDoEnvio>> | undefined;
+        let preparado: ReturnType<typeof prepararDoRascunho> | undefined;
+        let v: ReturnType<typeof prepararDoRascunho>['v'] | undefined;
+        if (falta.length === 0) {
+          fin = await financeiroDoEnvio(r, cliente.id);
+          preparado = prepararDoRascunho(r, cliente, catalogo, undefined, fin);
+          v = preparado.v;
+          const porId = new Map(catalogo.map((p) => [p.id, p]));
+          calculado = { itens_acima_do_maximo: v.calculo.acima_do_maximo, acima_do_limite: v.calculo.acima_do_limite !== null, itens_sem_estoque: itensSemEstoque(v.calculo.linhas, (id) => porId.get(id)).map((x) => x.codigo) };
+        }
+        const motivo = motivoDeNaoEnviarOSalvo({ pre_venda_ligada: preVendaLigada, cliente: situacaoDoClienteLocal(cliente.id), ...calculado, pendencias_de_preenchimento: falta });
+        if (motivo) throw new Error(motivo);
+        // RN-VEN-10 / RN-VEN-48: acima da alçada do autor (desconto ou crédito), a tela pergunta "Enviar para aprovação?" antes de enfileirar
+        if (!confirmouAlcada && v) {
+          const aprov = fin ? aprovacoesFinanceiras({ prazo_medio_dias: fin.prazo_medio_dias, total_cents: v.calculo.total_cents, financeiro: fin, niveis: niveisDosParametros(parametrosRef.current) }) : [];
+          if (precisaPerguntarAlcadaNoEnvioSalvo({ nivel: aprov.length > 0 ? nivelComAprovacoes(v.calculo.nivel, aprov) : v.calculo.nivel })) return { kind: 'pergunta_alcada' };
+        }
+        return await enviarPedido(r, cliente, catalogo, chave, true, preparado);
+      } finally {
+        enviandoSalvos.current.soltar(chave);
+      }
+    },
+    [clientes, garantirProdutos, prepararDoRascunho, financeiroDoEnvio, enviarPedido, v1, parametros, formas, prazos, limitesDe],
+  );
+
+  /**
    * T-0053 (RF-VEN-03): converte o orçamento em pedido OFFLINE — pedido novo na fila com `orcamento_origem_id`; o servidor
    * revalida preço do dia, alçada e validade (RN-VEN-32). Sem sinal, segue na fila como qualquer pedido.
    */
@@ -796,7 +923,7 @@ export function useVendedor() {
         catalogo,
         unidades: unidadesDaTela(linhasRef.current),
         faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas,
-        cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
+        cliente: situacaoDoClienteLocal(cliente.id),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
         // RN-VEN-43/45: o % gravado do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
@@ -926,7 +1053,6 @@ export function useVendedor() {
     },
     [v1, ambiente],
   );
-  const preVendaLigada = v1 && preVendaAtiva(parametros);
 
   // RN-VEN-31 (T-0114/T-0138): `erpAceitaCancelamento` vem do pull (`erp_aceita_cancelamento` do pedido); sem ele, vale a regra de sempre
   const acoesDe = (status: string, erpAceitaCancelamento = false) => orderActions(status as OrderStatus, { erpAceitaCancelamento });
@@ -969,9 +1095,12 @@ export function useVendedor() {
     rascunhoDe,
     rascunhosDaLista,
     atualizarRascunho,
+    guardarComoPedidoSalvo,
+    duplicarPedidoSalvo,
     descartarRascunho,
     prepararDoRascunho,
     enviarPedido,
+    enviarPedidoSalvo,
     converterOrcamento,
     reconferirOrcamentoLocal,
     sugestoesDoPedido,

@@ -243,7 +243,7 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       lucas.online.valor = false;
       const payload = payloadOrcamento(ORC);
       await lucas.motor.enfileirar({ id: ORC, entidade: 'pedido', payload });
-      await lucas.motor.enfileirar({ id: ORC, entidade: 'pedido', payload }); // 2º toque em "Salvar como orçamento"
+      await lucas.motor.enfileirar({ id: ORC, entidade: 'pedido', payload }); // 2º toque em "Salvar" › "Orçamento" (R-20261124-114951)
       expect(filaIds(lucas), 'toque duplo: um item na fila').toEqual([ORC]);
       // Editar na fila (P-2, sem sinal): BIS-400 1 CX → 2 CX; mesmo id e mesma posição
       const editado = { ...payload, items: payload.items.map((i) => (i.product_id === prod.BIS ? { ...i, quantity: 2 } : i)) };
@@ -400,7 +400,7 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       expect(rotuloDoDocumento(det, new Date())).toBe('Orçamento');
     });
 
-    it('C5. Duplicar o de preço antigo → Salvar como orçamento: documento NOVO (número e validade novos, sem origem), mesma medida e ajustes, preço de hoje; o original não muda', async () => {
+    it('C5. Duplicar o de preço antigo → Salvar › Orçamento: documento NOVO (número e validade novos, sem origem), mesma medida e ajustes, preço de hoje; o original não muda', async () => {
       const { l, det, linha } = await naTela(lucas, VENC);
       const copia = copiaDoDetalhe(det, { condicaoId: linha.condicao_pagamento_id ?? null, observacao: linha.observacao ?? null, transportadoras: transportadorasDaTela(l) });
       const novo = randomUUID();

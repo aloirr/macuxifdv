@@ -740,7 +740,11 @@ describe('PR #248 (R-20261114-150000) — aba Pedidos: card "Pedidos", sem "+ No
       return;
     }
     expect(TELA).not.toContain('pedido-novo');
-    expect(TELA).not.toMatch(/\birParaNovoPedido\b/);
+    // RN-VEN-48 (R-20261124-114951): o Novo pedido só abre pelas Ações de um item (Editar, Duplicar), nunca por um botão da aba
+    const usos = [...codigo.matchAll(/\birParaNovoPedido\(/g)].map((m) => m.index!);
+    const inicioAcoes = codigo.indexOf('const executarAcao');
+    const fimAcoes = codigo.indexOf('const confirmarExclusao');
+    expect(usos.every((i) => inicioAcoes >= 0 && i > inicioAcoes && i < fimAcoes), 'irParaNovoPedido fora das Ações do item').toBe(true);
     expect(codigo).not.toMatch(/label="Novo"/);
     // o vazio do Campo não manda mais tocar em Novo
     expect(textoDoVazio({ fora: false, modoConsulta: null, estadoDoServidor: 'ok', buscando: false, situacao: 'todos', gestao: false })).toBe('Nenhum pedido neste período.');

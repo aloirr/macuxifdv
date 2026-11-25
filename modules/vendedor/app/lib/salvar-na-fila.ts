@@ -1,13 +1,15 @@
 /**
  * Salvar pela fila (T-0130, Frente G; RN-VEN-30 acréscimo de 08/11, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33).
  * Funções puras, sem React: o que a tela mostra para o pedido `na_fila` e a recusa da API com o motivo em português.
- * (T-0141: o rascunho de "Apenas salvar" saiu da lista Pedidos; mora na tela Rascunhos, `rascunhos-lista.ts`.)
+ * (T-0141: o rascunho em digitação mora na tela Rascunhos, `rascunhos-lista.ts`; o pedido salvo aparece em Pedidos, RN-VEN-48.)
  * Spec: docs/design/formulario-pendencias.md §4.
  */
 import { mensagemAcimaDoMaximo } from '../../domain/preco-pedido';
 
 export const AVISO_SALVO_ENVIANDO = 'Pedido salvo · enviando';
-export const AVISO_SALVO_SEM_SINAL = 'Pedido salvo · vai quando houver sinal';
+export const AVISO_PEDIDO_ENVIADO = 'Pedido enviado';
+/** O texto único do pedido que espera sinal no aviso da lista de Pedidos (depois do Salvar e do Enviar). */
+export const AVISO_NA_FILA_SEM_SINAL = 'Pedido na fila · vai quando houver sinal';
 export const ROTULO_CORRIGIR_PEDIDO = 'Corrigir pedido';
 
 /**
@@ -18,9 +20,9 @@ export function textoDaRecusa(motivo: string): string {
   return motivo.charAt(0).toLocaleUpperCase('pt-BR') + motivo.slice(1);
 }
 
-/** Texto do aviso do rodapé depois do toque em "Salvar e enviar pedido" (sem ponto final, guia de UX). */
+/** Faixa do detalhe do pedido `na_fila` (sem ponto final, guia de UX); sem sinal não repete o chip "Na fila". */
 export function avisoDoSalvar(offline: boolean): string {
-  return offline ? AVISO_SALVO_SEM_SINAL : AVISO_SALVO_ENVIANDO;
+  return offline ? 'Pedido salvo · vai quando houver sinal' : AVISO_SALVO_ENVIANDO;
 }
 
 /** Códigos que a API devolve na recusa, traduzidos; o código cru nunca aparece na tela (spec §4.3). */

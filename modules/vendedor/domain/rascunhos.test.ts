@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RASCUNHO_VALIDADE_HORAS, limparRascunhosExpirados, minutosParaSumir, rascunhoExpirou, rascunhosParaLista, textoSomeEm, type RascunhoMinimo } from './rascunhos';
+import { RASCUNHO_VALIDADE_HORAS, chaveDaCopiaDoPedido, chaveDoRascunhoNovo, chaveParaSalvar, idDoPedidoNoEnvio, copiaDoPedidoSalvo, limparRascunhosExpirados, rascunhoIdNaRota, migrarSalvosParaChavePropria, minutosParaSumir, rascunhoExpirou, rascunhosParaLista, textoSomeEm, type RascunhoMinimo } from './rascunhos';
 
 const HORA = 3_600_000;
 const T0 = '2026-11-09T10:00:00.000Z';
@@ -81,5 +81,91 @@ describe('RN-VEN-39: rascunho some 24 h depois da última alteração', () => {
     const { mantidos, removidos } = limparRascunhosExpirados(mapa, depois(T0, 24 * HORA));
     expect(mantidos).toEqual({});
     expect(removidos).toEqual(['edit:p9']);
+  });
+
+  it('RN-VEN-39/48: o pedido salvo nunca expira (mora na aba Pedidos até ser enviado); edição e orçamento salvo seguem as 24 h', () => {
+    const velho = '2026-11-01T09:00:00.000Z';
+    const agora = new Date('2026-11-24T13:00:00.000Z');
+    const salvo = r({ updated_at: velho, salvo_em: velho });
+    expect(rascunhoExpirou(salvo, agora)).toBe(false);
+    const { mantidos, removidos } = limparRascunhosExpirados({ salvo, edicao: r({ updated_at: velho, salvo_em: velho, edit_order_id: 'o1' }), orc: r({ updated_at: velho, salvo_em: velho, tipo: 'orcamento' }) }, agora);
+    expect(Object.keys(mantidos)).toEqual(['salvo']);
+    expect(removidos).toEqual(['edicao', 'orc']);
+    expect(rascunhosParaLista({ salvo }, agora).map((l) => l.chave)).toEqual(['salvo']);
+  });
+});
+
+describe('RN-VEN-39/48: vários pedidos salvos por cliente, cada um com id próprio', () => {
+  const salvo = (extra: Partial<RascunhoMinimo> = {}) => r({ salvo_em: T0, ...extra });
+  let n = 0;
+  const novoId = () => `uuid-${++n}`;
+
+  it('RN-VEN-39: o Novo pedido do cliente (em digitação) continua um por cliente: a chave é o cliente', () => {
+    expect(chaveDoRascunhoNovo('c1')).toBe('c1');
+  });
+
+  it('RN-VEN-39/48: duplicar pedido existente grava em chave nova (nunca na do cliente); editar usa edit:<id>', () => {
+    expect(chaveDaCopiaDoPedido('duplicate', 'o1', 'uuid-9')).toBe('uuid-9');
+    expect(chaveDaCopiaDoPedido('duplicate', 'o1', 'uuid-9')).not.toBe(chaveDoRascunhoNovo('c1'));
+    expect(chaveDaCopiaDoPedido('edit', 'o1', 'uuid-9')).toBe('edit:o1');
+  });
+
+  it('RN-VEN-48: a rota só leva o rascunhoId quando a chave é própria (salvo ou cópia)', () => {
+    expect(rascunhoIdNaRota('uuid-3', 'c1')).toBe('uuid-3');
+    expect(rascunhoIdNaRota('c1', 'c1')).toBeUndefined();
+    expect(rascunhoIdNaRota('edit:o1', 'c1')).toBeUndefined();
+  });
+
+  it('RN-VEN-33: o id do pedido no envio é sempre UUID (chave de salvo vale; edit:<uuid> reenvia o editado; o resto gera id novo)', () => {
+    const u = '3f2b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b';
+    expect(idDoPedidoNoEnvio('c1', 'c1', u)).toBe(u);
+    expect(idDoPedidoNoEnvio('7a1b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b', 'c1', u)).toBe('7a1b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b');
+    expect(idDoPedidoNoEnvio('edit:7a1b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b', 'c1', u)).toBe('7a1b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b');
+    expect(idDoPedidoNoEnvio('edit:o1', 'c1', u)).toBe(u);
+    expect(idDoPedidoNoEnvio('qualquer', 'c1', u)).toBe(u);
+  });
+
+  it('RN-VEN-48: ao salvar, o rascunho do cliente passa a uma chave própria; já salvo ou cópia (chave própria) mantém a chave', () => {
+    expect(chaveParaSalvar('c1', 'c1', 'uuid-9')).toBe('uuid-9');
+    expect(chaveParaSalvar('uuid-3', 'c1', 'uuid-9')).toBe('uuid-3');
+    expect(chaveParaSalvar('edit:o1', 'c1', 'uuid-9')).toBe('edit:o1');
+    // RN-VEN-33: a mesma chave é o id do pedido enviado (o reenvio do salvo não duplica)
+  });
+
+  it('RN-VEN-48: Duplicar do salvo cria um rascunho novo com os mesmos itens e condições, sem salvo_em, aberto no Resumo, e o original fica intacto', () => {
+    const original = salvo({ lines: { p1: 2, p2: 5 } });
+    const copia = copiaDoPedidoSalvo(original, '2026-11-25T10:00:00.000Z');
+    expect(copia).toMatchObject({ customer_id: 'c1', lines: { p1: 2, p2: 5 }, salvo_em: null, updated_at: '2026-11-25T10:00:00.000Z', aba: 'resumo' });
+    expect(copia.lines).not.toBe(original.lines);
+    expect(original.salvo_em).toBe(T0);
+  });
+
+  it('RN-VEN-39/48: migra o salvo guardado na chave do cliente para uma chave própria, sem perder nada', () => {
+    n = 0;
+    const entrada = { c1: salvo({ lines: { p1: 2 } }), c2: r({ customer_id: 'c2' }), 'edit:o1': r({ edit_order_id: 'o1', salvo_em: T0 }), c4: salvo({ customer_id: 'c4', tipo: 'orcamento' }) };
+    const { rascunhos, movidos } = migrarSalvosParaChavePropria(entrada, novoId);
+    expect(movidos).toEqual([{ de: 'c1', para: 'uuid-1' }]);
+    expect(Object.keys(rascunhos).sort()).toEqual(['c2', 'c4', 'edit:o1', 'uuid-1']);
+    expect(rascunhos['uuid-1']).toEqual(entrada.c1);
+    expect(rascunhos.c2).toBe(entrada.c2);
+  });
+
+  it('RN-VEN-39/48: a migração é idempotente (rodar de novo não muda nada) e não duplica o salvo já copiado', () => {
+    n = 0;
+    const entrada = { c1: salvo() };
+    const um = migrarSalvosParaChavePropria(entrada, novoId);
+    const dois = migrarSalvosParaChavePropria(um.rascunhos, novoId);
+    expect(dois.movidos).toEqual([]);
+    expect(dois.rascunhos).toEqual(um.rascunhos);
+    // gravação interrompida: a cópia já existe e a chave antiga também; a antiga só sai
+    const parcial = migrarSalvosParaChavePropria({ c1: salvo(), 'uuid-7': salvo() }, novoId);
+    expect(Object.keys(parcial.rascunhos)).toEqual(['uuid-7']);
+    expect(parcial.movidos).toEqual([{ de: 'c1', para: 'uuid-7' }]);
+  });
+
+  it('RN-VEN-48: dois salvos do mesmo cliente convivem na lista e nenhum vence em 24 h', () => {
+    const agora = depois(T0, 30 * HORA);
+    const lista = rascunhosParaLista({ 'uuid-1': salvo(), 'uuid-2': salvo({ updated_at: '2026-11-09T11:00:00.000Z' }), c1: r() }, agora);
+    expect(lista.map((l) => l.chave)).toEqual(['uuid-2', 'uuid-1']);
   });
 });

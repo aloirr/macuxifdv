@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { acoesDoOrcamento, avisoSoOrcamento, situacaoDoOrcamento, textoPrecoDe, validadeDoOrcamento, verificarTipoParaCliente } from './orcamento';
+import { acoesDoOrcamento, situacaoDoOrcamento, textoPrecoDe, validadeDoOrcamento, verificarTipoParaCliente } from './orcamento';
 
 const MANAUS = 'America/Manaus';
 
@@ -44,9 +44,7 @@ describe('RN-VEN-13 (T-0071): cadastro incompleto ou bloqueado só faz orçament
     }
     expect(verificarTipoParaCliente('pedido', { ...ok, cadastro_incompleto: true, campos_faltantes: ['CEP', 'e-mail'] })!.mensagem).toMatch(/CEP, e-mail/);
   });
-  it('RN-VEN-13: avisoSoOrcamento e textoPrecoDe (única montagem do texto da data do preço)', () => {
+  it('RN-VEN-13: textoPrecoDe (única montagem do texto da data do preço)', () => {
     expect(textoPrecoDe('2026-11-10')).toBe('Preço de 10/11');
-    expect(avisoSoOrcamento(ok)).toBeNull();
-    expect(avisoSoOrcamento({ ...ok, bloqueado: true })).toMatch(/bloqueado/);
   });
 });

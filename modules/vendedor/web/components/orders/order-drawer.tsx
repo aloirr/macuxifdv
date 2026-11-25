@@ -60,7 +60,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     }
   };
 
-  // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Transformado em pedido nº · Cancelado (o orçamento não vence); o pedido, o status de cada evento
+  // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Convertido em pedido nº · Cancelado (o orçamento não vence); o pedido, o status de cada evento
   const eventos = dados
     ? dados.tipo === 'orcamento'
       ? eventosDoOrcamento(dados.history, { vendedorNome: dados.seller_name, situacao: dados.situacao_orcamento ?? 'aberto', criadoEm: dados.received_at, convertidoEm: dados.updated_at, numeroPedido: null })

@@ -6,7 +6,7 @@
  */
 import { alertasDaVenda } from './alertas-venda';
 import { exigeAprovacaoPorInadimplencia } from './credito-pedido';
-import type { SituacaoCliente } from './orcamento';
+import { textoCadastroIncompleto, type SituacaoCliente } from './orcamento';
 
 export type TipoDoAlerta = 'cliente' | 'faltante' | 'maximo' | 'estoque' | 'credito' | 'titulo' | 'alcada' | 'limite_pedido' | 'recusa' | 'copia' | 'sinal';
 
@@ -22,7 +22,7 @@ export interface AlertaDoPedido {
   vai_para?: { item: string } | { aba: string };
   /** só o orçamento sai com este alerta (máximo, estoque, cliente) */
   so_orcamento: boolean;
-  /** "Salvar e enviar pedido" fica desligado (faltante); "Apenas salvar" continua */
+  /** o envio fica impedido (faltante); salvar o pedido continua */
   impede_enviar: boolean;
   /** só no máximo: o limite do produto, para o texto do popup */
   maximo_pct?: number;
@@ -117,7 +117,7 @@ export function alertasDoPedido(e: EntradaAlertasDoPedido): AlertaDoPedido[] {
   // RD-0171: bloqueado, inativo e cadastro incompleto têm o mesmo efeito (só orçamento): uma linha, a primeira que vale
   const motivoDoCliente = venda.find((a) => a.tipo === 'bloqueado') ?? venda.find((a) => a.tipo === 'inativo') ?? venda.find((a) => a.tipo === 'cadastro_incompleto');
   if (motivoDoCliente) {
-    const texto = motivoDoCliente.tipo === 'bloqueado' ? 'Cliente bloqueado' : motivoDoCliente.tipo === 'inativo' ? 'Cliente inativo' : 'Cadastro do cliente incompleto';
+    const texto = motivoDoCliente.tipo === 'bloqueado' ? 'Cliente bloqueado' : motivoDoCliente.tipo === 'inativo' ? 'Cliente inativo' : textoCadastroIncompleto(e.cliente.campos_faltantes);
     r.push(alerta({ id: `cliente-${motivoDoCliente.tipo}`, tipo: 'cliente', texto, so_orcamento: true }));
   }
   if (e.sem_forma_para_o_cliente) r.push(alerta({ id: 'sem-forma', tipo: 'faltante', texto: TEXTO_SEM_FORMA, aba: 'Venda', vai_para: { aba: 'Venda' }, impede_enviar: true }));
@@ -137,14 +137,12 @@ export function soOrcamentoPorAlertas(a: readonly AlertaDoPedido[]): boolean {
   return a.some((x) => x.so_orcamento);
 }
 
-/** RN-CORE-36: algum alerta desliga o "Salvar e enviar pedido". */
-export function impedeEnviarPorAlertas(a: readonly AlertaDoPedido[]): boolean {
-  return a.some((x) => x.impede_enviar);
-}
-
 /** §0.1: dentro do popup do item o código sai ("Sem estoque", "Acima do desconto máximo de 10,0%"); o estoque positivo ultrapassado vira "Acima do estoque" (RD-0087; a área Alertas do pedido mantém "BIS-400 acima do estoque (5 UN)"). */
 export function textoDoAlertaNoItem(a: AlertaDoPedido): string {
   if (a.tipo === 'estoque') return a.estoque_positivo ? 'Acima do estoque' : 'Sem estoque';
   if (a.tipo === 'maximo') return a.maximo_pct !== undefined ? `Acima do desconto máximo de ${pct(a.maximo_pct)}` : 'Acima do desconto máximo';
   return a.texto;
 }
+
+// TEMPORÁRIO (R-20261124-114951): ver compat-v1034.ts
+export { impedeEnviarPorAlertas } from './compat-v1034';

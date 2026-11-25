@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PedidoPush } from '../../contracts';
-import { alertasDoPedido, impedeEnviarPorAlertas, soOrcamentoPorAlertas } from '../../domain/alertas-pedido';
+import { alertasDoPedido, soOrcamentoPorAlertas } from '../../domain/alertas-pedido';
 import { disponivelParaAlerta } from '../../domain/credito-pedido';
 import { financeiroParaAprovacao, modeloDoCredito, type FinanceiroDaConsulta } from './credito-cliente';
 import { montarPedido, prepararPedido, rascunhoVazio } from './pedidos';
@@ -66,7 +66,6 @@ describe('RN-VEN-12 (critério 4): offline o app avisa e não bloqueia o envio',
   it('RN-VEN-12: o alerta de crédito aparece, mas não impede o envio nem força orçamento', () => {
     const a = alertasDoPedido({ cliente: { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] }, disponivel_cents: 0, total_cents: 10_000, vencidos: { titulos: 1, valor_cents: 500, dias: 12 } });
     expect(a.map((x) => x.texto)).toEqual(['Limite de crédito excedido', 'Título vencido']);
-    expect(impedeEnviarPorAlertas(a)).toBe(false);
     expect(soOrcamentoPorAlertas(a)).toBe(false);
   });
   it('RN-VEN-12: à vista não mostra o alerta de crédito; sem limite informado, a prazo, mostra', () => {

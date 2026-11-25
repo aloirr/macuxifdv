@@ -33,8 +33,10 @@ export interface AcaoProduto {
   destaque?: boolean;
   /** Em que tela aparece: `consulta` (catálogo/ficha avulsos) ou `pedido` (catálogo aberto do pedido). Ausente = nas duas. */
   onde?: 'consulta' | 'pedido';
-  /** Executa a ação (navega, abre folha…). */
-  abrir: (ctx: ContextoProduto) => void;
+  /**
+   * Se devolver um texto (direto ou ao resolver), o Catálogo o avisa; `void` não avisa.
+   */
+  abrir: (ctx: ContextoProduto) => void | string | Promise<void | string>;
 }
 
 export interface SlotsCatalogo {
@@ -47,4 +49,13 @@ export const SLOTS_CATALOGO = ['produto.acoes'] as const;
 export function acoesDaTela<T extends { payload: Pick<AcaoProduto, 'onde'> }>(acoes: readonly T[], dentroDoPedido: boolean): T[] {
   const alvo = dentroDoPedido ? 'pedido' : 'consulta';
   return acoes.filter((a) => a.payload.onde === undefined || a.payload.onde === alvo);
+}
+
+/**
+ * Executa a ação e entrega o texto devolvido (se houver) a `avisar`. Erro da ação
+ * não vira aviso aqui (fica com quem registrou a ação); texto vazio não avisa.
+ */
+export async function executarAcaoProduto(acao: Pick<AcaoProduto, 'abrir'>, ctx: ContextoProduto, avisar: (texto: string) => void): Promise<void> {
+  const r = await acao.abrir(ctx);
+  if (typeof r === 'string' && r.trim() !== '') avisar(r);
 }

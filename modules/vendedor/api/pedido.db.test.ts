@@ -261,6 +261,22 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect((await receber(outro.ctx, push(id(3), { customer_id: A.clientes.c1, discount_pct: 2, items: itens() })))[0]).toMatchObject({ status: 'rejeitado', codigo: 'ID_EM_USO' });
     });
 
+    it('RN-VEN-48: dois pedidos salvos do mesmo cliente (ids próprios do aparelho) viram dois pedidos; reenviar o mesmo id não duplica', async () => {
+      const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+      const um = push(id(901), { customer_id: A.clientes.c1, discount_pct: 0, items: itens() });
+      const dois = push(id(902), { customer_id: A.clientes.c1, discount_pct: 0, items: itens() });
+      const rs = await receber(ctx, um, dois);
+      expect(rs.map((r) => r.status)).toEqual(['aceito', 'aceito']);
+      const a = await lerPedido(id(901));
+      const b = await lerPedido(id(902));
+      expect(a.p.numero).not.toBe(b.p.numero);
+      // reenvio do primeiro (resposta perdida): nada novo
+      expect((await receber(ctx, um))[0]!.status).toBe('aceito');
+      expect((await lerPedido(id(901))).p.numero).toBe(a.p.numero);
+      const total = await comTenant(pool, A.tenantId, async (c) => Number((await c.query('select count(*) as n from vendedor.pedido where id = any($1)', [[id(901), id(902)]])).rows[0].n));
+      expect(total).toBe(2);
+    });
+
     it('RN-VEN-33: dois envios simultâneos do mesmo pedido gravam um só', async () => {
       const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
       const item = push(id(4), { customer_id: A.clientes.c1, discount_pct: 1, items: itens() });
