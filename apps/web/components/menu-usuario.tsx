@@ -3,7 +3,7 @@
 /**
  * Menu do usuário no canto superior direito de todas as telas web: BKO (`app-shell.tsx`) e portal de implantação
  * (`portal/base.tsx`); pedido do Alexandre, R-20261124-083005, 083110 e 083356, itens 01 e 02. O botão mostra quem entrou (nome,
- * perfil e cargo; no portal, sem nome, o perfil) e abre "Dados cadastrais" (quando há linha além do botão), "Trocar a senha"
+ * perfil e cargo; sem o nome, o perfil) e abre "Dados cadastrais" (quando há linha além do botão), "Trocar a senha"
  * (quando há rota para a pessoa) e "Sair". Uma informação, um lugar: nome, perfil e cargo só aqui, em nenhum outro ponto do
  * cabeçalho.
  * - Acessível: botão com `aria-haspopup="menu"`/`aria-expanded`; a lista abre com clique, Enter, Espaço ou seta para baixo, com o
@@ -15,7 +15,21 @@
  * testIDs: menu-usuario.{botao,lista,dados,trocar-senha,sair}, dados-cadastrais.<chave>, trocar-senha.*.
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
-import { CODIGO_EMPRESA_REGEX, CODIGO_EMPRESA_TAMANHO, ehEmailValido, erroDaTrocaVoluntaria, faltasNaSenha, MENSAGEM_CODIGO_EMPRESA, mensagemDaSenha, precheckDaTrocaVoluntaria, repeticaoDaSenha, SENHA_MIN_CARACTERES, TEXTOS_ESQUECI, TEXTOS_TROCAR_SENHA } from '@macuxi/core/contracts';
+import {
+  CODIGO_EMPRESA_REGEX,
+  CODIGO_EMPRESA_TAMANHO,
+  ehEmailValido,
+  erroDaTrocaVoluntaria,
+  faltasNaSenha,
+  MENSAGEM_CODIGO_EMPRESA,
+  mensagemDaSenha,
+  precheckDaTrocaVoluntaria,
+  repeticaoDaSenha,
+  SENHA_MIN_CARACTERES,
+  TEXTOS_ESQUECI,
+  TEXTOS_TROCAR_SENHA,
+  type ErroDaTrocaVoluntaria,
+} from '@macuxi/core/contracts';
 import {
   Button,
   CAMPO_REPITA_A_SENHA,
@@ -34,27 +48,29 @@ import {
 import { Campo } from '@/components/campo-acesso';
 import { erroNoFormatoDoCore, identificacaoDoBotao, iniciais, linhasDosDados, temDadosAlemDoBotao, TEXTOS_MENU_USUARIO as T, type IdentidadeDoUsuario } from '@/lib/menu-usuario';
 
-/** O que a gaveta manda a quem chama. `codigo_empresa` só quando a gaveta pediu o campo. */
+/** O que a gaveta manda a quem chama. `codigo_empresa` e `email` só quando a gaveta pediu o campo. */
 export interface PedidoDeTroca {
   codigo_empresa?: string;
-  email: string;
+  email?: string;
   senha_atual: string;
   senha_nova: string;
 }
 
 export interface TrocaDeSenhaNoMenu {
-  /** E-mail da sessão (BKO); `null` = a gaveta pede o e-mail (portal: a sessão não o traz). */
-  email: string | null;
   /** `true` = a gaveta pede o código da empresa (sessão do BKO de antes da v1.0.34, sem o código). */
   pedirCodigo?: boolean;
+  /** `true` = a gaveta pede o e-mail (admin do cliente no portal: a sessão do portal não traz o e-mail). */
+  pedirEmail?: boolean;
   /** Faz o pedido; lança o erro da API. `true` = mostra "Senha trocada."; `false` = a sessão saiu (quem chama já levou à entrada). */
   enviar: (p: PedidoDeTroca) => Promise<boolean>;
+  /** Erro da API → aviso da gaveta; sem ele, a tabela do Core (`erroDaTrocaVoluntaria`). O portal soma os códigos da rota dele. */
+  erro?: (e: unknown, senhaNova: string) => ErroDaTrocaVoluntaria;
 }
 
 export interface PropsMenuUsuario {
   identidade: IdentidadeDoUsuario;
   onSair: () => void;
-  /** Sem a prop, o menu não tem "Trocar a senha" (super-admin do portal: sem rota nesta versão). */
+  /** Sem a prop, o menu não tem "Trocar a senha" (ex.: BKO da demonstração, sem a rota). */
   trocarSenha?: TrocaDeSenhaNoMenu;
   /** `escuro`: na faixa do portal ou no menu grafite do BKO estreito; `claro`: na barra do topo do BKO. */
   tom: 'claro' | 'escuro';
@@ -306,7 +322,7 @@ export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aber
     setAviso(null);
     const novosErros: Destaque = {};
     if (troca.pedirCodigo && !CODIGO_EMPRESA_REGEX.test(codigo.trim())) novosErros.codigo = MENSAGEM_CODIGO_EMPRESA;
-    if (troca.email === null && !ehEmailValido(email)) novosErros.email = TEXTOS_ESQUECI.emailInvalido;
+    if (troca.pedirEmail && !ehEmailValido(email)) novosErros.email = TEXTOS_ESQUECI.emailInvalido;
     const p = precheckDaTrocaVoluntaria(atual, nova, repetida);
     if (p.atualVazia) novosErros.atual = T.atualVazia;
     setErros(novosErros);
@@ -320,13 +336,13 @@ export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aber
     try {
       const mostrar = await troca.enviar({
         ...(troca.pedirCodigo ? { codigo_empresa: codigo.trim().toUpperCase() } : {}),
-        email: (troca.email ?? email).trim(),
+        ...(troca.pedirEmail ? { email: email.trim() } : {}),
         senha_atual: atual,
         senha_nova: nova,
       });
       onTrocada(mostrar);
     } catch (x) {
-      const r = erroDaTrocaVoluntaria(erroNoFormatoDoCore(x), nova);
+      const r = troca.erro ? troca.erro(x, nova) : erroDaTrocaVoluntaria(erroNoFormatoDoCore(x), nova);
       if (r.texto) setAviso({ texto: r.texto, tom: r.tom });
       if (r.acao === 'limpar_atual') {
         setAtual('');
@@ -383,7 +399,7 @@ export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aber
             onChange={(e) => digitou(setCodigo)(e.target.value)}
           />
         )}
-        {troca.email === null && (
+        {troca.pedirEmail && (
           <Campo
             id={ids.email}
             rotulo={TEXTOS_ESQUECI.email}

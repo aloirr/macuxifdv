@@ -364,7 +364,7 @@ export function retirarDesvioPortal(): DesvioPortal | null {
 
 /** Aviso para a próxima tela (entrada ou escolha): só o texto fixo da spec, nunca dado pessoal. Vale uma vez. */
 export const CHAVE_AVISO_PORTAL = 'macuxi.portal.aviso';
-/** v1.0.34: o admin do cliente trocou a senha no menu do usuário e a troca encerrou a sessão do portal. */
+/** v1.0.34 (ADR 0075): a pessoa trocou a senha no menu do usuário e a troca encerrou a sessão do portal. */
 export const MENSAGEM_SENHA_TROCADA_ENTRE = 'Senha trocada. Entre de novo.';
 const AVISOS_ACEITOS: readonly string[] = [MENSAGEM_EMPRESA_INDISPONIVEL, MENSAGEM_PORTAL_SEM_FILIAL, MENSAGEM_SENHA_TROCADA_ENTRE];
 

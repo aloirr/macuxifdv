@@ -1,6 +1,6 @@
 /**
  * T-0182 — teste de componente do cartão "Logo" do portal (spec docs/design/telas/logo-cliente.md §2), com `react-dom/server`:
- * os estados desenhados pela `VistaCartaoLogo` e, nos `CartoesMarca`, o admin do cliente sem botões (RN-CORE-33).
+ * os estados desenhados pela `VistaCartaoLogo` e, nos `CartaoMarca`, o admin do cliente sem botões (RN-CORE-33) e, sem logo, sem o cartão.
  * Item 15 (v1.0.17): o liga/desliga "Ocultar o logo da Macuxi", só para o time da Macuxi.
  */
 import type { MarcaEmpresa } from '@macuxi/platform-sdk';
@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import { estadoDoCartao } from '@/lib/portal-logo';
 
-import { CartoesMarca, chaveMarca, VistaCartaoLogo, VistaOcultarMarca } from './cartao-logo';
+import { CartaoMarca, chaveMarca, VistaCartaoLogo, VistaOcultarMarca } from './cartao-logo';
 
 const TENANT = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
 const MARCA: MarcaEmpresa = { tenant_id: TENANT, razao_social: 'Distribuidora Exemplo Norte Ltda', nome_fantasia: 'Exemplo Norte', logo: null, ocultar_marca_macuxi: false };
@@ -68,34 +68,30 @@ function renderizarMarca(podeGravar: boolean, marca: MarcaEmpresa = MARCA): stri
   qc.setQueryData(chaveMarca(TENANT), marca);
   return renderToStaticMarkup(
     <QueryClientProvider client={qc}>
-      <CartoesMarca tenant={TENANT} podeGravar={podeGravar} />
+      <CartaoMarca tenant={TENANT} podeGravar={podeGravar} />
     </QueryClientProvider>,
   );
 }
 
-describe('cartões Logo e Nome fantasia', () => {
-  it('time da Macuxi: "Enviar logo", o seletor só de PNG e JPG, e o campo do nome fantasia', () => {
+describe('cartão Logo (o nome fantasia fica em Dados da empresa)', () => {
+  it('time da Macuxi: "Enviar logo" e o seletor só de PNG e JPG; sem o nome fantasia', () => {
     const html = renderizarMarca(true);
     expect(html).toContain('data-testid="empresa-logo.enviar"');
     expect(html).toContain('accept="image/png,image/jpeg"');
-    expect(html).toContain('data-testid="empresa-nome-fantasia.campo"');
-    expect(html).toContain('value="Exemplo Norte"');
-    // o Logo vem antes do Nome fantasia
-    expect(html.indexOf('empresa-logo')).toBeLessThan(html.indexOf('empresa-nome-fantasia'));
+    expect(html).not.toContain('empresa-nome-fantasia');
+    expect(html).not.toContain('Nome fantasia');
   });
-  it('admin do cliente: sem botões, sem seletor e sem limites; o nome fantasia só para ler', () => {
-    const html = renderizarMarca(false);
+  it('admin do cliente sem logo salva: o cartão não aparece (ele não pode agir ali)', () => {
+    expect(renderizarMarca(false)).toBe('');
+  });
+  it('admin do cliente com a logo salva: sem botões, sem seletor, sem limites e sem o nome fantasia', () => {
+    const logo = { sha256: 'a'.repeat(64), tipo: 'image/png', tamanho_bytes: 1000, largura_px: 400, altura_px: 100, atualizada_em: '2026-11-01T12:00:00.000Z' } as const;
+    const html = renderizarMarca(false, { ...MARCA, logo });
+    expect(html).toContain('data-testid="empresa-logo"');
     expect(html).not.toMatch(/<button/);
     expect(html).not.toContain('<input');
     expect(html).not.toContain('empresa-logo.limites');
-    expect(html).toMatch(/data-testid="empresa-nome-fantasia.valor"[^>]*>Exemplo Norte</);
-  });
-  it.each([null, '', '   '])('sem nome fantasia (%j), o admin do cliente vê o campo vazio, sem a razão social nem texto', (nome) => {
-    const html = renderizarMarca(false, { ...MARCA, nome_fantasia: nome });
-    expect(html).not.toContain('Distribuidora Exemplo Norte Ltda');
-    expect(html).not.toContain('empresa-nome-fantasia.valor');
-    expect(html).toMatch(/<div data-testid="empresa-nome-fantasia.vazio"[^>]*><\/div>/);
-    expect(html).not.toContain('<input');
+    expect(html).not.toContain('Exemplo Norte<');
   });
 });
 
@@ -105,8 +101,6 @@ describe('item 15: "Ocultar o logo da Macuxi"', () => {
     expect(desligado).toContain('data-testid="empresa-logo.ocultar-marca"');
     expect(desligado).toMatch(/role="switch"[^>]*aria-checked="false"[^>]*aria-labelledby="empresa-logo-ocultar-marca"/);
     expect(texto(desligado)).toContain('Ocultar o logo da Macuxi');
-    // dentro do cartão "Logo", antes do Nome fantasia
-    expect(desligado.indexOf('empresa-logo.ocultar-marca')).toBeLessThan(desligado.indexOf('empresa-nome-fantasia'));
     expect(renderizarMarca(true, { ...MARCA, ocultar_marca_macuxi: true })).toMatch(/role="switch"[^>]*aria-checked="true"/);
   });
   it('admin do cliente: não vê a opção', () => {

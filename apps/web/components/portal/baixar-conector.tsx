@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * `BaixarPacote`: download por link temporário no portal. Um componente para os três produtos (`lib/conector-download.ts`): o
- * Conector na aba Integração (T-0098) e os APKs do Macuxi Campo e do Macuxi Gestão no cartão "Apps" da aba Empresa (T-0190).
+ * `BaixarPacote`: download por link temporário no portal, o Conector na aba Integração (T-0098). Os APKs do Macuxi Campo e do
+ * Macuxi Gestão (T-0190) usam o mesmo `useLinkDoPacote` no cartão "Apps" da aba Empresa (`cartao-apps.tsx`).
  * Cada clique gera um link na API (presign de bucket privado, auditado) e mostra o link real para o operador clicar (gesto dele: o
  * navegador não bloqueia como pop-up), com a versão do pacote e até quando o link vale. Sem a rota neste servidor (ou sem pacote
  * publicado), fica o "em breve"; app sem licença na empresa (403 `APP_SEM_LICENCA`) vira uma linha no lugar do botão.
@@ -14,23 +14,16 @@ import { useState } from 'react';
 import { falhaDoDownload, textoDaValidade, textoDoPacote, type LinkDownloadConector, type ProdutoDownload } from '@/lib/conector-download';
 import { chamarPortal } from '@/lib/portal-api';
 
-/** `fuso`: o da empresa (`empresa.fuso`); sem ele, o padrão do `formatTime` (America/Manaus). */
-export function BaixarPacote({
-  produto,
-  tenant,
-  fuso,
-  inicial = null,
-}: {
-  produto: ProdutoDownload;
-  tenant: string;
-  fuso?: string;
-  inicial?: LinkDownloadConector | null;
-}) {
+/**
+ * Gera o link de um produto (um clique = um link novo; o anterior some). `linha`: o "em breve" ou o "sem licença", no lugar do
+ * botão. Usado pelo `BaixarPacote` (Conector) e pelo cartão "Apps" (`cartao-apps.tsx`).
+ */
+export function useLinkDoPacote(produto: ProdutoDownload, tenant: string, inicial: LinkDownloadConector | null = null) {
   const toast = useToast();
   const [link, setLink] = useState<LinkDownloadConector | null>(inicial);
   const [linha, setLinha] = useState<string | null>(null);
   const [gerando, setGerando] = useState(false);
-  const { textos, testId } = produto;
+  const { textos } = produto;
 
   const gerar = async () => {
     if (gerando) return;
@@ -47,6 +40,23 @@ export function BaixarPacote({
       setGerando(false);
     }
   };
+  return { link, linha, gerando, gerar };
+}
+
+/** `fuso`: o da empresa (`empresa.fuso`); sem ele, o padrão do `formatTime` (America/Manaus). */
+export function BaixarPacote({
+  produto,
+  tenant,
+  fuso,
+  inicial = null,
+}: {
+  produto: ProdutoDownload;
+  tenant: string;
+  fuso?: string;
+  inicial?: LinkDownloadConector | null;
+}) {
+  const { link, linha, gerando, gerar } = useLinkDoPacote(produto, tenant, inicial);
+  const { textos, testId } = produto;
 
   if (linha)
     return (

@@ -1,8 +1,8 @@
 /**
- * Cartão "Logo" e campo "Nome fantasia" da aba Empresa do portal `config.` (T-0182; spec docs/design/telas/logo-cliente.md §2;
- * desenho docs/desenho/T-0182-logo-cliente.md §2). Regras e textos puros, sem React: a tela (`components/portal/cartao-logo.tsx`)
- * só desenha o que sai daqui.
- * - Só o time da Macuxi grava (RN-CORE-33); o admin do cliente vê a logo e o nome fantasia, sem botões.
+ * Cartão "Logo" da aba Empresa do portal `config.` (T-0182; spec docs/design/telas/logo-cliente.md §2; desenho
+ * docs/desenho/T-0182-logo-cliente.md §2) e a comparação do nome fantasia (`nomeMudou`; o campo fica no cartão "Dados
+ * cadastrais"). Regras e textos puros, sem React: a tela (`components/portal/cartao-logo.tsx`) só desenha o que sai daqui.
+ * - Só o time da Macuxi grava (RN-CORE-33); o admin do cliente vê a logo, sem botões.
  * - A conferência do arquivo antes de enviar é a mesma da API (`conferirLogo` do SDK: tipo, tamanho, altura e lado máximo, pelo
  *   cabeçalho); o servidor revalida sempre.
  * - Erros: a frase exata da spec por código (`MENSAGENS_LOGO`); rota ausente = `TEXTO_INDISPONIVEL`; o resto
@@ -35,7 +35,6 @@ export const TEXTOS_LOGO = {
   falhaSalvar: 'Não foi possível salvar. Tente de novo.',
   /** A constante única do portal para rota ausente (RD-0288). */
   rotaAusente: TEXTO_INDISPONIVEL,
-  nomeFantasia: 'Nome fantasia',
   /** Item 15 (v1.0.17): liga/desliga do time da Macuxi, no cartão da logo. */
   ocultarMarca: 'Ocultar o logo da Macuxi',
 } as const;

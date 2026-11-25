@@ -39,6 +39,9 @@ export const MENSAGEM_PADRAO = 'Algo deu errado. Tente de novo; se continuar, av
 /** 503 do portal: faltam os segredos no servidor (quem resolve é quem opera o deploy; R-20261106-023316 🟡 3). */
 export const MENSAGEM_PORTAL_SEM_SEGREDOS = 'Faltam os segredos do portal neste servidor. Confira as chaves da plataforma no deploy deste ambiente.';
 
+/** 401 da troca de senha do super-admin com a senha atual errada (`CODIGOS_PORTAL.credenciais`): não é fim de sessão. */
+const CODIGO_SENHA_ATUAL_ERRADA = 'CREDENCIAIS_INVALIDAS';
+
 export class ErroPortal extends Error {
   constructor(
     readonly status: number,
@@ -168,7 +171,7 @@ export interface OpcoesChamada<T> {
   corpo?: unknown;
   /** Tenant em que o super-admin age (rotas de módulo com `superAdmin`). */
   tenant?: string;
-  /** Cabeçalhos a mais (v1.0.34: o modo cookie da troca de senha, `CABECALHOS_SESSAO_WEB`). */
+  /** Cabeçalhos a mais (v1.0.34: o modo cookie da troca de senha do admin do cliente, `CABECALHOS_SESSAO_WEB`). */
   cabecalhos?: Readonly<Record<string, string>>;
   query?: Record<string, string | number | boolean | undefined | null>;
   /** Schema da resposta (Zod do contrato): formato diferente = `ErroPortal` com mensagem amigável. */
@@ -196,8 +199,10 @@ async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; ten
       // corpo não é JSON
     }
     const erro = lerErroDaApi(res.status, corpo);
-    // a própria escolha (POST auth/empresa) trata o 403 na tela: só o 401 muda a sessão
-    if (!publica) desviarPeloErro(erro, caminho === ROTAS_PORTAL.escolherEmpresa, o.tenant);
+    // a própria escolha (POST auth/empresa) trata o 403 na tela: só o 401 muda a sessão; na troca de senha do super-admin (ADR
+    // 0075), o 401 de senha atual errada é da gaveta e a sessão segue
+    const senhaAtualErrada = caminho === ROTAS_PORTAL.trocarSenhaSuperAdmin && erro.codigo === CODIGO_SENHA_ATUAL_ERRADA;
+    if (!publica && !senhaAtualErrada) desviarPeloErro(erro, caminho === ROTAS_PORTAL.escolherEmpresa, o.tenant);
     throw erro;
   }
   return res;

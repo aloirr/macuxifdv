@@ -579,10 +579,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 function trocaDeSenhaDoBko(u: UsuarioSessao): TrocaDeSenhaNoMenu | undefined {
   if (MODO_API !== 'v1') return undefined;
   return {
-    email: u.email,
     pedirCodigo: !u.codigoEmpresa,
     enviar: async (p: PedidoDeTroca) => {
-      const corpo = TrocarSenhaRequestSchema.parse({ codigo_empresa: p.codigo_empresa ?? u.codigoEmpresa, email: p.email, senha_atual: p.senha_atual, senha_nova: p.senha_nova, app: 'web' });
+      const corpo = TrocarSenhaRequestSchema.parse({ codigo_empresa: p.codigo_empresa ?? u.codigoEmpresa, email: u.email, senha_atual: p.senha_atual, senha_nova: p.senha_nova, app: 'web' });
       salvarSessaoReal(await pedirTrocaDeSenha(corpo, { semToken: true }));
       return true;
     },

@@ -3,7 +3,18 @@
  * Todos relativos ao `/v1` da API (o navegador chama `/api-proxy<caminho>`, o proxy same-origin do Next). Um lugar só: se um
  * caminho mudar, muda aqui.
  */
-import { rotaLogoEmpresa, rotaMarcaEmpresa, rotaOcultarMarcaMacuxi, rotaPortalAssinatura, ROTA_PORTAL_CNPJ, ROTA_PORTAL_EMPRESA_COM_PLANO, ROTA_PORTAL_FRASES_CARGA, ROTA_PORTAL_PLANOS } from '@macuxi/platform-sdk';
+import {
+  rotaCadastroEmpresa,
+  rotaLogoEmpresa,
+  rotaMarcaEmpresa,
+  rotaOcultarMarcaMacuxi,
+  rotaPortalAssinatura,
+  ROTA_PORTAL_CNPJ,
+  ROTA_PORTAL_EMPRESA_COM_PLANO,
+  ROTA_PORTAL_FRASES_CARGA,
+  ROTA_PORTAL_PLANOS,
+  ROTA_PORTAL_TROCAR_SENHA,
+} from '@macuxi/platform-sdk';
 
 import { CAMINHO_TROCAR_SENHA } from './ciclo-senha';
 
@@ -25,6 +36,8 @@ export const ROTAS_PORTAL = {
    * empresa da sessão, e-mail digitado, senha atual e nova), no modo cookie: a resposta não traz o token de renovação.
    */
   trocarSenha: CAMINHO_TROCAR_SENHA,
+  /** ADR 0075: "Trocar a senha" do time Macuxi (só o super-admin; o admin do cliente leva 403), com o token do portal; 204 derruba a sessão. */
+  trocarSenhaSuperAdmin: semV1(ROTA_PORTAL_TROCAR_SENHA),
   // API da plataforma
   empresas: '/plataforma/empresas',
   /** T-0094 fatia S: admins da empresa (`ListaAdminsDaEmpresaSchema`); só o time da Macuxi. Tenant no caminho, sem `x-macuxi-tenant`. */
@@ -52,6 +65,11 @@ export const ROTAS_PORTAL = {
   planos: semV1(ROTA_PORTAL_PLANOS),
   empresaComPlano: semV1(ROTA_PORTAL_EMPRESA_COM_PLANO),
   assinatura: (tenantId: string) => semV1(rotaPortalAssinatura(encodeURIComponent(tenantId))),
+  /**
+   * ADR 0075: dados cadastrais da empresa (`GET` → `DadosCadastraisEmpresaSchema`; `PUT` com `GravarDadosCadastraisEmpresaSchema`).
+   * Time da Macuxi em qualquer empresa; admin do cliente só na dele. Tenant no caminho, sem `x-macuxi-tenant`.
+   */
+  cadastroDaEmpresa: (tenantId: string) => semV1(rotaCadastroEmpresa(encodeURIComponent(tenantId))),
   /** ADR 0048: `POST { cnpj }` → dados da Receita (`ConsultaCnpjRespostaSchema`). */
   cnpj: semV1(ROTA_PORTAL_CNPJ),
   // Integração (com `x-macuxi-tenant`)
@@ -81,6 +99,6 @@ export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf'
 
 /**
  * Rotas públicas (sem token): a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo) e a troca de senha
- * do Core (v1.0.34). Sem token, o 401 delas (senha atual errada) não derruba a sessão do portal.
+ * do Core do admin do cliente (v1.0.34). Sem token, o 401 dela (senha atual errada) não derruba a sessão do portal.
  */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login, ROTAS_PORTAL.trocarSenha];

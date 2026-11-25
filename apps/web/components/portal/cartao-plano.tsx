@@ -4,7 +4,7 @@
  * Cartão "Plano {nome}" da aba Empresa (spec docs/design/telas/portal-config-enxuto.md §8 e §11.4; R-20261114-170200,
  * R-20261115-123000): título e, à direita, "Trocar de plano" (só o time da Macuxi, a única ação principal da aba); embaixo do
  * título, o valor no ciclo ("/mês" ou "/ano" já diz o ciclo, P4) e o selo "Teste até …" (teste sem pagamento); as licenças em
- * blocos "{em uso} de {contratadas}" ("no limite" só com o selo, RD-a). O admin do cliente só vê (decidido em 14/11): valor e teste
+ * blocos "{em uso} de {contratadas}" ("no limite" ou "acima do contratado" só com o selo, RD-a). O admin do cliente só vê (decidido em 14/11): valor e teste
  * na linha do título. `GET`/`PUT rotaPortalAssinatura` (`FichaAssinaturaSchema`, `TrocarPlanoSchema` com `pedido_id`).
  * testIDs: empresa-plano.*.
  */
@@ -49,10 +49,10 @@ export function useFicha(tenant: string) {
   });
 }
 
-/** Blocos de licenças: 3 por linha na coluna do time da Macuxi, 5 na largura toda do admin do cliente, 2 abaixo de 768 px. */
-function BlocosDeLicencas({ ficha, largo }: { ficha: FichaAssinatura; largo: boolean }) {
+/** Blocos de licenças: 3 por linha na coluna da esquerda, 2 abaixo de 768 px. */
+function BlocosDeLicencas({ ficha }: { ficha: FichaAssinatura }) {
   return (
-    <ul className={cx('m-0 grid list-none grid-cols-2 gap-2.5 p-0', largo ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-3')}>
+    <ul className="m-0 grid list-none grid-cols-2 gap-2.5 p-0 md:grid-cols-3">
       {blocosDaFicha(ficha).map((b) => (
         <li key={b.item} data-testid={`empresa-plano.uso-${b.item}`} className="flex min-w-0 flex-col justify-center gap-1 rounded-xl border border-line px-3 py-2.5">
           <span className={cx('flex min-h-[22px] items-center gap-2 text-[13px] leading-tight', b.adicional ? 'font-semibold text-accent-ink' : 'font-semibold text-ink-2')}>
@@ -62,9 +62,9 @@ function BlocosDeLicencas({ ficha, largo }: { ficha: FichaAssinatura; largo: boo
           <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
             <span className="text-[20px] font-semibold tabular-nums text-ink">{b.emUso}</span>
             <span className="text-[13px] font-semibold tabular-nums text-ink-2">{b.complemento}</span>
-            {b.noLimite && (
-              <span className="self-center">
-                <Badge tone="warning">{TEXTOS_PLANO.noLimite}</Badge>
+            {b.limite && (
+              <span className="self-center" data-testid={`empresa-plano.limite-${b.item}`}>
+                <Badge tone={b.limite === 'acima' ? 'danger' : 'warning'}>{b.limite === 'acima' ? TEXTOS_PLANO.acimaDoContratado : TEXTOS_PLANO.noLimite}</Badge>
               </span>
             )}
           </span>
@@ -90,7 +90,7 @@ function ValorETeste({ ficha }: { ficha: FichaAssinatura }) {
   );
 }
 
-export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: string; podeTrocar: boolean; largo?: boolean }) {
+export function CartaoPlano({ tenant, podeTrocar }: { tenant: string; podeTrocar: boolean }) {
   const q = useFicha(tenant);
   const [aberto, setAberto] = useState(false);
   const [trocado, setTrocado] = useState<string | null>(null);
@@ -129,7 +129,7 @@ export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: str
                 </div>
               )}
             </div>
-            <BlocosDeLicencas ficha={q.data} largo={largo} />
+            <BlocosDeLicencas ficha={q.data} />
             {podeTrocar && aberto && (
               <DialogoTrocarPlano
                 tenant={tenant}

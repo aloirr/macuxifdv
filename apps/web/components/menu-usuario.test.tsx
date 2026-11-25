@@ -1,6 +1,6 @@
 /**
  * Menu do usuário (v1.0.34; R-20261124-083005, 083110 e 083356), renderizado com `react-dom/server`: o botão acessível com o nome,
- * o perfil e o cargo; as gavetas "Dados cadastrais" (só leitura) e "Trocar a senha" (campos conforme a superfície). A abertura,
+ * o perfil e o cargo (no portal, o nome da sessão, ADR 0075); as gavetas "Dados cadastrais" (só leitura) e "Trocar a senha". A abertura,
  * as setas, o Esc e o Sair estão no e2e (apps/web/e2e/portal-menu-usuario.spec.ts e bko-menu-usuario.spec.ts).
  */
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -26,10 +26,14 @@ describe('MenuUsuario', () => {
     expect(html).not.toContain('Distribuidora Uma');
   });
 
-  it('portal, time Macuxi: "Time Macuxi", sem cargo', () => {
-    const html = renderToStaticMarkup(<MenuUsuario identidade={identidadeDoPortal({ tipo: 'super_admin', empresa: null })} onSair={nada} tom="escuro" />);
+  it('portal, time Macuxi: o nome e, embaixo, "Time Macuxi" (ADR 0075); sem o nome (API anterior), só "Time Macuxi"', () => {
+    const html = renderToStaticMarkup(<MenuUsuario identidade={identidadeDoPortal({ tipo: 'super_admin', empresa: null, usuario: { nome: 'Carla Menezes', perfil: null, cargo: null } })} onSair={nada} tom="escuro" />);
+    expect(html).toContain('>Carla Menezes<');
     expect(html).toContain('>Time Macuxi<');
-    expect(html).not.toContain('menu-usuario.detalhe');
+    expect(html).toContain('aria-label="Menu do usuário: Carla Menezes, Time Macuxi"');
+    const antigo = renderToStaticMarkup(<MenuUsuario identidade={identidadeDoPortal({ tipo: 'super_admin', empresa: null })} onSair={nada} tom="escuro" />);
+    expect(antigo).toContain('>Time Macuxi<');
+    expect(antigo).not.toContain('menu-usuario.detalhe');
   });
 });
 
@@ -42,7 +46,7 @@ describe('gavetas', () => {
   });
 
   it('Trocar a senha do BKO: senha atual, nova e repetição, a lista de regras, Cancelar e Salvar senha; sem e-mail nem código', () => {
-    const html = renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ email: 'ana@uma.com.br', enviar: async () => true }} onFechar={nada} onTrocada={nada} />);
+    const html = renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ enviar: async () => true }} onFechar={nada} onTrocada={nada} />);
     for (const t of ['trocar-senha.atual', 'trocar-senha.nova', 'trocar-senha.repita', 'trocar-senha.regras', 'trocar-senha.cancelar', 'trocar-senha.salvar']) expect(html).toContain(`data-testid="${t}"`);
     expect(html).toContain('Senha atual');
     expect(html).toContain('Salvar senha');
@@ -50,8 +54,12 @@ describe('gavetas', () => {
     expect(html).not.toContain('trocar-senha.codigo');
   });
 
-  it('portal (e-mail digitado) e sessão antiga do BKO (código da empresa digitado)', () => {
-    expect(renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ email: null, enviar: async () => true }} onFechar={nada} onTrocada={nada} />)).toContain('trocar-senha.email');
-    expect(renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ email: 'a@b.com', pedirCodigo: true, enviar: async () => true }} onFechar={nada} onTrocada={nada} />)).toContain('trocar-senha.codigo');
+  it('sessão antiga do BKO: pede o código da empresa (sem o e-mail); admin do cliente no portal: pede o e-mail (sem o código)', () => {
+    const bko = renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ pedirCodigo: true, enviar: async () => true }} onFechar={nada} onTrocada={nada} />);
+    expect(bko).toContain('trocar-senha.codigo');
+    expect(bko).not.toContain('trocar-senha.email');
+    const portal = renderToStaticMarkup(<GavetaTrocarSenha aberta troca={{ pedirEmail: true, enviar: async () => true }} onFechar={nada} onTrocada={nada} />);
+    expect(portal).toContain('trocar-senha.email');
+    expect(portal).not.toContain('trocar-senha.codigo');
   });
 });

@@ -72,17 +72,20 @@ import {
   LoginPortalSchema,
   RedefinirSenhaAdminSchema,
   SessaoPortalSchema,
+  TrocarSenhaPortalSchema,
   linhasDosParametrosIniciais,
   type AdminDaEmpresa,
   type EmpresaLogo,
   type MarcaEmpresa,
   type RedefinirSenhaAdminResposta,
+  type UsuarioDoPortal,
 } from '@macuxi/platform-sdk';
 import { ConectorAtualizar, ConectorCriar, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
 import { localIsoDate } from '@macuxi/comum/fuso';
 
 import { CODIGOS_PORTAL, faltasNaSenha, mensagemBloqueioPorTentativas, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, TrocarSenhaRequestSchema } from '@macuxi/core/contracts';
 
+import { CADASTRO_FALSO_M, responderCadastroFalso, zerarCadastroFalso } from './portal-falso-cadastro';
 import { MONITOR_FALSO_M, responderMonitorFalso } from './portal-falso-monitor';
 import { responderZerarFalso, ZERAR_FALSO_M } from './portal-falso-zerar';
 import { fichaExemplo, PLANOS_EXEMPLO } from './portal-planos.fixture';
@@ -142,6 +145,8 @@ interface SessaoFalsa {
   empresas: string[];
   empresa: string | null;
   teto: string;
+  /** ADR 0075: o nome de quem entrou (`sa_quem_sou`); sem ele, a sessão vem sem `usuario` (como a API anterior à 0102). */
+  nome?: string;
 }
 interface Estado {
   sessoes: Record<string, SessaoFalsa>;
@@ -344,6 +349,22 @@ export const CONTAS_FALSAS: Readonly<Record<string, readonly string[] | null>> =
   'admin@uma.com.br': ['0b6f1a52-5c1e-4c4e-9a43-000000000001'],
   'admin@duas.com.br': ['0b6f1a52-5c1e-4c4e-9a43-000000000002', '0b6f1a52-5c1e-4c4e-9a43-000000000003'],
 });
+
+/** ADR 0075: nome de quem entra (fictício), por conta. */
+const NOMES_FALSOS: Readonly<Record<string, string>> = Object.freeze({
+  'time@macuxi.com.br': 'Carla Menezes',
+  'admin@uma.com.br': 'Paulo Ribeiro',
+  'admin@duas.com.br': 'Joana Lima',
+});
+/** Perfil e cargo do admin do cliente na empresa escolhida (`plataforma.perfil.nome` e `.cargo`). */
+const PERFIL_ADMIN_FALSO = { perfil: 'Administrador', cargo: 'administrativo' } as const;
+
+/** `usuario` da sessão como a `sa_quem_sou`: super-admin só com o nome; admin do cliente sem empresa escolhida = sem linha. */
+function usuarioDaSessao(s: SessaoFalsa): UsuarioDoPortal | null | undefined {
+  if (!s.nome) return undefined;
+  if (s.tipo === 'super_admin') return { nome: s.nome, perfil: null, cargo: null };
+  return s.empresa ? { nome: s.nome, ...PERFIL_ADMIN_FALSO } : null;
+}
 
 /** Conta falsa com a senha certa, mas ainda temporária: o portal responde 403 `SENHA_A_TROCAR` (T-0094). */
 export const CONTA_SENHA_A_TROCAR = 'troca@uma.com.br';
@@ -712,6 +733,7 @@ function emitirSessao(e: Estado, s: SessaoFalsa, tokenAnterior?: string): { esta
     tipo: s.tipo,
     empresa: escolhida ? nomeDaEmpresa(escolhida) : null,
     empresas: s.tipo === 'super_admin' ? [] : lista.map(nomeDaEmpresa),
+    usuario: usuarioDaSessao(s),
   });
   return { estado: { ...e, sessoes }, corpo };
 }
@@ -744,11 +766,12 @@ function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorRe
 }
 
 /**
- * `POST /auth/senha/trocar` falso (v1.0.34): senha atual `errada` ou conta desconhecida = 401 `CREDENCIAIS_INVALIDAS`; senha nova fora
- * da RN-CORE-32 = 422 com as faltas; igual à atual = 422 RN-CORE-34. Senão, como a API: revoga as sessões do portal do admin (a versão
- * da sessão do usuário muda) e devolve a sessão do tenant do modo cookie (sem o token de renovação, que iria no cookie).
+ * `POST /auth/senha/trocar` falso (v1.0.34, troca do admin do cliente): senha atual `errada` ou conta desconhecida = 401
+ * `CREDENCIAIS_INVALIDAS`; senha nova fora da RN-CORE-32 = 422 com as faltas; igual à atual = 422 RN-CORE-34. Senão, como a API:
+ * revoga as sessões do portal do admin (a versão da sessão do usuário muda) e devolve a sessão do tenant do modo cookie (sem o
+ * token de renovação, que iria no cookie).
  */
-function trocarSenhaFalsa(e: Estado, corpo: unknown): Response {
+function trocarSenhaAdminFalsa(e: Estado, corpo: unknown): Response {
   const c = lerCorpo(TrocarSenhaRequestSchema, corpo);
   if (c instanceof Response) return c;
   const conta = CONTAS_FALSAS[c.email.trim().toLowerCase()];
@@ -766,6 +789,31 @@ function trocarSenhaFalsa(e: Estado, corpo: unknown): Response {
     usuario: { id: '0b6f1a52-5c1e-4c4e-9a43-0000000000a1', nome: 'Admin', nome_curto: null, email: c.email, perfil: 'admin' },
     tenant: { id: tenant, codigo: c.codigo_empresa, nome: 'Empresa', fuso: 'America/Manaus' },
   });
+}
+
+/**
+ * `POST /plataforma/auth/senha` falso (ADR 0075), como a API: só o super-admin (admin do cliente = 403 `TROCA_SO_SUPER_ADMIN`); 5 erros seguidos = 423
+ * `BLOQUEADO` (a mesma conta de falhas do login); senha atual `errada` = 401; `mudou` = 409 `SENHA_MUDOU`; nova fora da RN-CORE-32
+ * = 422 com as faltas; igual à atual = 422 RN-CORE-34. Trocou: todas as sessões da pessoa caem (inclusive esta) e responde 204.
+ */
+function trocarSenhaSuperAdminFalsa(e: Estado, sessao: SessaoFalsa, corpo: unknown): Response {
+  const c = lerCorpo(TrocarSenhaPortalSchema, corpo);
+  if (c instanceof Response) return c;
+  if (sessao.tipo !== 'super_admin') return erro(403, CODIGOS_PORTAL.trocaSoSuperAdmin, 'Nesta versão, só o time Macuxi troca a senha por aqui.');
+  const chave = `senha:${sessao.nome ?? sessao.tipo}`;
+  if ((falhas.get(chave) ?? 0) >= 5) return erro(423, CODIGOS_PORTAL.bloqueado, mensagemBloqueioPorTentativas(MINUTOS_BLOQUEIO_FALSO), { minutos_restantes: MINUTOS_BLOQUEIO_FALSO });
+  if (c.senha_atual === 'errada') {
+    falhas.set(chave, (falhas.get(chave) ?? 0) + 1);
+    return erro(401, CODIGOS_PORTAL.credenciais, 'Senha atual incorreta. Confira e tente de novo.');
+  }
+  falhas.delete(chave);
+  const faltas = faltasNaSenha(c.senha_nova);
+  if (faltas.length > 0) return erro(422, 'RN-CORE-32', mensagemDaSenha(faltas) ?? 'Senha fora da regra.', { faltas });
+  if (c.senha_nova === c.senha_atual) return erro(422, 'RN-CORE-34', 'A senha nova precisa ser diferente da atual.');
+  if (c.senha_atual === 'mudou') return erro(409, CODIGOS_PORTAL.senhaMudou, 'A senha mudou enquanto você a trocava. Entre de novo e repita a troca.');
+  const sessoes = Object.fromEntries(Object.entries(e.sessoes).filter(([, s]) => !(s.tipo === sessao.tipo && s.nome === sessao.nome)));
+  gravar({ ...e, sessoes });
+  return json(204, null);
 }
 
 export async function responderFalso(metodo: string, caminhoComQuery: string, corpo: unknown, cabecalhos: Record<string, string>): Promise<Response> {
@@ -792,14 +840,14 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     const base: Estado = { ...e, empresas: [...e.empresas, ...empresasIniciais().filter((x) => !e.empresas.some((y) => y.id === x.id))] };
     const s: SessaoFalsa =
       conta === null
-        ? { tipo: 'super_admin', empresas: [], empresa: null, teto: agoraIso(480) }
-        : { tipo: 'admin_cliente', empresas: [...conta], empresa: conta.length === 1 ? (conta[0] ?? null) : null, teto: agoraIso(480) };
+        ? { tipo: 'super_admin', empresas: [], empresa: null, teto: agoraIso(480), nome: NOMES_FALSOS[c.email] }
+        : { tipo: 'admin_cliente', empresas: [...conta], empresa: conta.length === 1 ? (conta[0] ?? null) : null, teto: agoraIso(480), nome: NOMES_FALSOS[c.email] };
     const r = emitirSessao(base, s);
     gravar(r.estado);
     return json(200, r.corpo);
   }
   // v1.0.34 (menu do usuário): troca voluntária do admin do cliente, pela rota pública do Core
-  if (rota === `POST ${ROTAS_PORTAL.trocarSenha}`) return trocarSenhaFalsa(e, corpo);
+  if (rota === `POST ${ROTAS_PORTAL.trocarSenha}`) return trocarSenhaAdminFalsa(e, corpo);
   const token = (cabecalhos.Authorization ?? '').replace(/^Bearer /, '');
   const sessao = autenticado ? e.sessoes[token] : undefined;
   if (!sessao) return erro(401, 'SESSAO_PLATAFORMA_INVALIDA', 'Sua sessão do portal expirou. Entre de novo.');
@@ -817,6 +865,8 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar(r.estado);
     return json(200, r.corpo);
   }
+  // ADR 0075: troca da própria senha do time Macuxi
+  if (rota === `POST ${ROTAS_PORTAL.trocarSenhaSuperAdmin}`) return trocarSenhaSuperAdminFalsa(e, sessao, corpo);
   if (rota === `POST ${ROTAS_PORTAL.sair}`) {
     const sessoes = { ...e.sessoes };
     delete sessoes[token];
@@ -858,6 +908,15 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
 
   const adminsM = ADMINS_M.exec(caminho);
   if (adminsM) return responderAdmins(metodo, decodeURIComponent(adminsM[1] ?? ''), adminsM[2] ? decodeURIComponent(adminsM[2]) : undefined, sessao, e, corpo);
+  const cadastroM = CADASTRO_FALSO_M.exec(caminho);
+  if (cadastroM) {
+    const id = decodeURIComponent(cadastroM[1] ?? '');
+    const x = e.empresas.find((y) => y.id === id && !excluida(y));
+    const podeVer = sessao.tipo === 'super_admin' || sessao.empresa === id;
+    const marca = marcasFalsas.get(id);
+    const empresa = x ? { id: x.id, razao_social: x.razao_social, cnpj: x.cnpj, nome_fantasia: marca?.nome_fantasia ?? null } : null;
+    return responderCadastroFalso(metodo, empresa, podeVer, corpo, (razao_social) => gravar({ ...e, empresas: e.empresas.map((y) => (y.id === id ? { ...y, razao_social } : y)) }));
+  }
   const marcaM = MARCA_M.exec(caminho);
   if (marcaM) return responderMarca(metodo, decodeURIComponent(marcaM[1] ?? ''), marcaM[2] === 'logo' ? 'logo' : marcaM[2] === 'marca' ? 'marca' : 'ocultar', sessao, e, corpo);
 
@@ -922,6 +981,13 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     const arquivo = 'macuxi-conector-1.4.0-win-x64.zip';
     return json(200, { url: `https://pacotes.exemplo.invalid/${arquivo}`, expira_em: new Date(Date.now() + 15 * 60_000).toISOString(), versao: '1.4.0', arquivo, tamanho_bytes: 38 * 1024 * 1024, sha256: '3f9a7b2e5d81c0f4a96e2b7d3c58f01a4e9b6c2d7f3a8e15b0c4d9f62a7ec21e' });
   }
+  // T-0190: link temporário do APK (24 h, ADR 0074); a versão e o arquivo de exemplo de cada app
+  if (rota === `POST ${ROTAS_PORTAL.appDownload}`) {
+    const variante = (corpo as { variante?: string } | null)?.variante === 'gestao' ? 'gestao' : 'campo';
+    const arquivo = variante === 'gestao' ? 'Gestao-Oficial-v1.0.34.apk' : 'Campo-Oficial-v1.0.34.apk';
+    const sha256 = variante === 'gestao' ? '9b1c4e7a2f5d8063c1a9e4b7d2f6a0c3e8b5d1f47a2c9e6b3d0f8a5c1e7b4d92' : '5e2a9c1f7b4d8e30a6c2f9b5d1e7a4c8f3b0d6e2a9c5f1b8d4e7a0c3f6b9e215';
+    return json(200, { variante, url: `https://pacotes.exemplo.invalid/${arquivo}`, expira_em: new Date(Date.now() + 24 * HORA).toISOString(), versao: '1.0.34', arquivo, tamanho_bytes: (variante === 'gestao' ? 71 : 84) * 1024 * 1024, sha256 });
+  }
   // N1/N2 (nuvem) ainda não existem: igual à API real antes do merge
   return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
 }
@@ -968,5 +1034,6 @@ export function zerarModoFalso() {
   adminsSemeados = false;
   redefinicoesFalsas.clear();
   frasesFalsas.clear();
+  zerarCadastroFalso();
   gravar(vazio());
 }

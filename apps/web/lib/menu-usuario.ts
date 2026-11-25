@@ -29,15 +29,13 @@ export function rotuloDoCargo(perfil: Perfil | string): string {
   return ROTULO_CARGO[cargoDaBase(perfil)];
 }
 
-/** Quem entrou, como o menu mostra. `nome` nulo = portal (a sessão do portal não traz o nome). */
+/** Quem entrou, como o menu mostra. `nome` nulo = portal de API anterior à 0102 (a sessão sem `usuario`). */
 export interface IdentidadeDoUsuario {
   nome: string | null;
   perfil: string;
   cargo: string | null;
   email: string | null;
   empresa: string | null;
-  /** A tela já mostra a empresa fora do botão (portal: título da página da empresa); ela não conta como dado novo. */
-  empresaNaTela?: boolean;
 }
 
 /** Identidade do BKO, da sessão (login real: nome, e-mail, perfil e empresa; o cargo vem do perfil). */
@@ -51,14 +49,35 @@ export function identidadeDoBko(u: { name: string; email: string; perfil: Perfil
   };
 }
 
-/** Identidade do portal: time Macuxi (sem empresa nem cargo) ou o admin do cliente, com a empresa atual. */
-export function identidadeDoPortal(s: { tipo: 'super_admin' | 'admin_cliente'; empresa: { nome: string } | null }): IdentidadeDoUsuario {
-  if (s.tipo === 'super_admin') return { nome: null, perfil: PERFIL_TIME_MACUXI, cargo: null, email: null, empresa: null };
-  return { nome: null, perfil: rotuloDoPerfil('admin'), cargo: rotuloDoCargo('admin'), email: null, empresa: s.empresa?.nome ?? null, empresaNaTela: true };
+/** Rótulo do cargo que a sessão do portal traz (código `administrativo`...; outro texto volta como veio). */
+function rotuloDoCargoDoPortal(cargo: string | null | undefined): string | null {
+  if (!cargo) return null;
+  return (ROTULO_CARGO as Readonly<Record<string, string>>)[cargo] ?? cargo;
 }
 
 /**
- * O que o botão do menu mostra: o nome (ou o perfil, no portal) e, embaixo, o perfil e o cargo — o cargo igual ao perfil
+ * Identidade do portal (ADR 0075, `SessaoPortal.usuario`): o nome de quem entrou e, para o admin do cliente, o perfil e o cargo na
+ * empresa escolhida. Time Macuxi: perfil "Time Macuxi", sem empresa nem cargo. Sem `usuario` (API anterior à 0102), sem o nome e,
+ * no admin do cliente, o perfil e o cargo do perfil base `admin`.
+ */
+export function identidadeDoPortal(s: {
+  tipo: 'super_admin' | 'admin_cliente';
+  empresa: { nome: string } | null;
+  usuario?: { nome: string; perfil: string | null; cargo: string | null } | null;
+}): IdentidadeDoUsuario {
+  const nome = s.usuario?.nome.trim() || null;
+  if (s.tipo === 'super_admin') return { nome, perfil: PERFIL_TIME_MACUXI, cargo: null, email: null, empresa: null };
+  return {
+    nome,
+    perfil: s.usuario?.perfil?.trim() || rotuloDoPerfil('admin'),
+    cargo: s.usuario ? rotuloDoCargoDoPortal(s.usuario.cargo) : rotuloDoCargo('admin'),
+    email: null,
+    empresa: s.empresa?.nome ?? null,
+  };
+}
+
+/**
+ * O que o botão do menu mostra: o nome (sem ele, o perfil) e, embaixo, o perfil e o cargo — o cargo igual ao perfil
  * ("Supervisor · Supervisor") aparece uma vez. A empresa não entra no botão: o BKO já a mostra na marca do menu e o portal no
  * título da página da empresa (uma informação, um lugar); ela fica nos "Dados cadastrais".
  */
@@ -91,13 +110,13 @@ export function linhasDosDados(id: IdentidadeDoUsuario): { rotulo: string; valor
 }
 
 /**
- * "Dados cadastrais" só quando a gaveta mostra alguma linha além do que a tela já mostra: o botão e, no portal, a empresa do
- * título (designer-ux, S8; RD-3122: o time Macuxi fica com "Sair" e o admin do cliente com "Trocar a senha" e "Sair").
+ * "Dados cadastrais" só quando a gaveta mostra alguma linha além do que o botão já mostra (designer-ux, S8: o time Macuxi, só
+ * com o perfil, fica com "Sair").
  */
 export function temDadosAlemDoBotao(id: IdentidadeDoUsuario): boolean {
   const { titulo, detalhe } = identificacaoDoBotao(id);
   const noBotao = new Set([titulo, ...(detalhe ? detalhe.split(' · ') : [])]);
-  return linhasDosDados(id).some((l) => !noBotao.has(l.valor) && !(l.chave === 'empresa' && id.empresaNaTela));
+  return linhasDosDados(id).some((l) => !noBotao.has(l.valor));
 }
 
 /**

@@ -95,7 +95,7 @@ describe('aba Empresa: cartão "Plano {nome}" (§11.4)', () => {
   it('blocos: Vendedor, Gestor e BKO sempre; adicionais só contratados; "no limite" quando em uso = contratadas', () => {
     const b = blocosDaFicha(ficha);
     expect(b.map((x) => x.item)).toEqual(['vendedor', 'gestor', 'bko', 'promotor', 'pesquisa']);
-    expect(b.map((x) => `${x.rotulo} ${x.emUso} ${x.complemento}${x.noLimite ? ' no limite' : ''}`)).toEqual([
+    expect(b.map((x) => `${x.rotulo} ${x.emUso} ${x.complemento}${x.limite === 'no' ? ' no limite' : ''}`)).toEqual([
       'Vendedor 14 de 20',
       'Gestor 2 de 2 no limite',
       'BKO 1 de 3',
@@ -104,9 +104,18 @@ describe('aba Empresa: cartão "Plano {nome}" (§11.4)', () => {
     ]);
     expect(b.filter((x) => x.adicional).map((x) => x.item)).toEqual(['promotor', 'pesquisa']);
   });
+  it('em uso acima do contratado ("4 de 1") = "acima do contratado", não "no limite"', () => {
+    const f = { licencas: [{ item: 'pesquisa' as const, contratadas: 1, em_uso: 4 }, { item: 'treinamento' as const, contratadas: 1, em_uso: 1 }, { item: 'vendedor' as const, contratadas: 5, em_uso: 4 }] };
+    expect(blocosDaFicha(f).map((b) => [b.item, b.complemento, b.limite])).toEqual([
+      ['pesquisa', 'de 1', 'acima'],
+      ['treinamento', 'de 1', 'no'],
+      ['vendedor', 'de 5', null],
+    ]);
+    expect(TEXTOS_PLANO.acimaDoContratado).toBe('acima do contratado');
+  });
   it('contratadas `null` = "· sem limite"; rótulos pelo mapa único', () => {
     const f = { licencas: [{ item: 'vendedor' as const, contratadas: null, em_uso: 7 }] };
-    expect(blocosDaFicha(f)[0]).toMatchObject({ complemento: '· sem limite', noLimite: false });
+    expect(blocosDaFicha(f)[0]).toMatchObject({ complemento: '· sem limite', limite: null });
     expect(['vendedor', 'gestor', 'bko', 'treinamento'].map((i) => rotuloDoItem(i as 'vendedor'))).toEqual(['Vendedor', 'Gestor', 'BKO', 'Treinamento']);
   });
   it('valor e teste: "/mês" já diz o ciclo; teste só sem pagamento', () => {
