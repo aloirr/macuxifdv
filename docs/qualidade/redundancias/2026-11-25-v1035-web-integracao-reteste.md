@@ -28,3 +28,26 @@ Achados novos:
 | RD-3563 | baixa (só comentário, não segura) | `aba-integracao.tsx:5-6` × `:532-534` | As colunas da tabela "Conectores" (Situação, Versão, Último sinal, Fila "só para o time da Macuxi", Pedidos, ⋯) descritas duas vezes: no comentário do topo do arquivo e no JSDoc de `TabelaConectores` | No topo, só "No topo, a tabela Conectores (`TabelaConectores`)."; as colunas ficam no JSDoc da função | engenheiro-apps |
 
 Sem defeito funcional para encaminhar ao testes.
+
+## C) `nuvem/v1035-web-engenheiro-apps-dados` @ 46fd1b2 (engenheiro-apps) — LIBERADO no SHA 46fd1b2
+
+Diff conferido: `git diff 0b826a6 46fd1b2` (8 arquivos). Prints: aba Integração (v4, 1280), aba Dados (v4, 1280 e 390).
+
+Reteste:
+- **RD-3562 corrigido**: `ListaConectores`, o `lista`, o `Fragment`, o `td.replace` e os imports `TableScroll`/`td`/`th` saíram.
+  "Conectores" e "Credenciais" usam o mesmo `CorpoDaTabela` (`TabelaDados` + `acoesDoConector`), com `colunaIdentificador` e
+  `colunaPedidos` em comum. No print, as duas tabelas agem pelo "⋯"; nenhuma fileira de botões. Sem uso restante de `ListaConectores`.
+- **RD-3563 corrigido**: o topo de `aba-integracao.tsx` remete ao JSDoc de `TabelaConectores`; as colunas ficam descritas só lá.
+- Correções de UX do designer-ux conferidas:
+  - "Sem dados" vira selo neutro na Situação; `celulasDaEntidade` deixa Registros vazio. No print, Filiais diz "Sem dados" uma vez só,
+    também a 390 px (antes a coluna Registros sumia no celular). Uma informação, um lugar.
+  - "Corrigir no ERP" com prioridade 2; o comentário do e2e (`portal-zerar.spec.ts:115`) acompanha.
+  - "Credenciais" na ordem Identificador · Situação · Pedidos, a mesma dos Conectores; Pedidos "Sim"/"Não" nas duas tabelas
+    (antes "Sim"/"—"). Rótulo e valor batem.
+  - Vazio da aba Dados: "Nenhuma entidade no Hub.", uma frase.
+  - Selos com `px-[5px]!`: "Sem dados" e "Com falha" inteiros a 390 px no print.
+- "Com falha" com erro a corrigir no ERP (Produtos, Preços) e a coluna "Corrigir no ERP" com a contagem e o código: não é repetição;
+  o selo dá o estado (única coluna visível no celular) e a coluna diz o que corrigir.
+- Títulos e comentários dos testes alterados conferem com o código.
+
+Achados novos: nenhum. Sem defeito funcional para encaminhar ao testes.
