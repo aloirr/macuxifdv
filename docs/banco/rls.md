@@ -33,7 +33,8 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
   `create policy leitura on <t> for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());` (o repositório
   não usa `ALTER DEFAULT PRIVILEGES`); schema novo, `grant usage on schema <s> to macuxi_leitura;`. `conferir-rls.sql` e
   `papel-leitura.db.test.ts` acusam a falta. Coluna nova com nome sensível em tabela que tinha SELECT de tabela: a migração
-  troca por SELECT por coluna sem ela (0079: `catalogo.produto_midia.hash_conteudo`; o down volta o SELECT de tabela).
+  troca por SELECT por coluna sem ela (0079: `catalogo.produto_midia.hash_conteudo`; 0101:
+  `vendedor.pedido_faturamento.nota_chave_acesso`; o down volta o SELECT de tabela).
   Aplicado na 0079: `plataforma.trabalho`, `catalogo.foto_lote` e `catalogo.foto_lote_item`.
 - **Como o executor mexe no papel** (`garantirPapelDeLogin`, B0 do plano B do DBaaS, T-0075, 05/11): papel **novo** =
   `CREATE ROLE ... LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD ...`; papel **existente** =

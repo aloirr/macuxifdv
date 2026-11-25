@@ -29,9 +29,10 @@ import { BotaoPorFilialDaFicha, FolhaEstoquePorFilial } from './estoque-filial';
 type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' } | { fase: 'catalogo_carregando' };
 
 export default function TelaProduto() {
-  const params = useLocalSearchParams<{ id?: string; cliente?: string }>();
+  const params = useLocalSearchParams<{ id?: string; cliente?: string; pedido?: string }>();
   const id = String(params.id ?? '');
   const clienteId = params.cliente ? String(params.cliente) : null;
+  const pedido = params.pedido ? String(params.pedido) : null;
   const ambiente = useAmbiente();
   const { motor, estado: sync } = useMotorSync();
   const parametros = useParametros('catalogo');
@@ -177,7 +178,7 @@ export default function TelaProduto() {
 
       <FolhaEstoquePorFilial visivel={folhaAberta} onFechar={() => setFolhaAberta(false)} dados={folha} />
 
-      <BotoesAcao item={item} clienteId={clienteId} />
+      <BotoesAcao item={item} clienteId={clienteId} pedidoEmCurso={pedido} />
 
       {content.description || content.selling_points.length > 0 ? (
         <Card style={s.card}>
@@ -218,7 +219,7 @@ export default function TelaProduto() {
                 accessibilityLabel={`Abrir ${o.description}`}
                 accessibilityState={{ disabled: !e.toca }}
                 disabled={!e.toca}
-                onPress={() => irParaProduto(o.produto_id, clienteId)}
+                onPress={() => irParaProduto(o.produto_id, clienteId, pedido)}
                 style={({ pressed }) => [s.ofereceJunto, ultima && { borderBottomWidth: 0 }, pressed && { backgroundColor: colors.ground, transform: [{ scale: 0.97 }] }]}
               >
                 <View style={{ flex: 1, gap: 2 }}>

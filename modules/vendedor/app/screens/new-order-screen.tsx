@@ -249,8 +249,9 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId: ve
   }, [vendedorEmNomeId, vendedorEmNomeNome, editId, emNomeLivre, customerId, draft.vendedor_em_nome_id, draft.vendedor_em_nome_nome]);
 
   useEffect(() => {
-    if (customer && catalog.length === 0) void ensureProducts(customer);
-  }, [customer, catalog.length, ensureProducts]);
+    // vazia calcula; com sync novo (app.sincronizadoEm) recalcula por trás e troca a tabela de uma vez, sem esvaziar a lista
+    if (customer) void ensureProducts(customer);
+  }, [customer, catalog.length === 0, app.sincronizadoEm, ensureProducts]);
 
   const draftAtual = useRef(draft);
   draftAtual.current = draft;

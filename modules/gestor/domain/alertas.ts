@@ -65,12 +65,12 @@ export function resolverRegras(ajustes: Partial<Record<TipoAlerta, Partial<Regra
     }
     if (tipo === 'cliente_sem_visita' && r.data.limiar !== null) {
       throw new RangeError(
-        'Regra de alerta cliente_sem_visita: o limite vem da frequência de visita do cliente (RN-GES-01). Ajuste pct_tolerancia_frequencia, dias_sem_visita_padrao ou dias_carencia_cliente_novo nos parâmetros do tenant.',
+        'Regra de alerta cliente_sem_visita: o limite vem da frequência de visita do cliente. Ajuste pct_tolerancia_frequencia, dias_sem_visita_padrao ou dias_carencia_cliente_novo nos parâmetros do tenant.',
       );
     }
     if (tipo === 'pedido_aguardando_aprovacao' && r.data.limiar !== null) {
       throw new RangeError(
-        'Regra de alerta pedido_aguardando_aprovacao: o prazo vem do parâmetro do tenant prazo_aprovacao_dias_uteis (RN-GES-03), o mesmo da fila de aprovação; a regra só liga ou desliga.',
+        'Regra de alerta pedido_aguardando_aprovacao: o prazo vem do parâmetro do tenant prazo_aprovacao_dias_uteis, o mesmo da fila de aprovação; a regra só liga ou desliga.',
       );
     }
     out[tipo] = r.data;

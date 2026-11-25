@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { classificarMudancaContrato, situacaoVersao, validarVersaoContrato } from './versao';
 
 describe('RN-INT-09: versão do contrato', () => {
-  it('RN-INT-09: v1 é suportada por padrão; outras são recusadas listando as suportadas', () => {
+  it('RN-INT-09: v1 e v2 são suportadas por padrão (ADR 0072); outras são recusadas listando as suportadas', () => {
     expect(validarVersaoContrato('v1')).toEqual({ ok: true, versao: 'v1' });
-    const r = validarVersaoContrato('v2');
-    expect(r).toMatchObject({ ok: false, codigo: 'versao_nao_suportada', suportadas: ['v1'] });
-    if (!r.ok) expect(r.mensagem).toMatch(/v1/);
+    expect(validarVersaoContrato('v2')).toEqual({ ok: true, versao: 'v2' });
+    const r = validarVersaoContrato('v3');
+    expect(r).toMatchObject({ ok: false, codigo: 'versao_nao_suportada', suportadas: ['v1', 'v2'] });
+    if (!r.ok) expect(r.mensagem).toMatch(/v1, v2/);
   });
   it('RN-INT-09: versões suportadas são parâmetro (convivência v1 + v2)', () => {
     expect(validarVersaoContrato('v2', { suportadas: ['v1', 'v2'] }).ok).toBe(true);

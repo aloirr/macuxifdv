@@ -14,6 +14,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
+import { abrirGrupo } from './apoio';
+
 const SENHA = 'demo-macuxi';
 const API = process.env.MACUXI_API_URL ?? 'http://localhost:8100/v1';
 /** Rotas da Fase M que a página nova não pode chamar. */
@@ -71,8 +73,7 @@ async function entrar(page: Page, email: string) {
 /** Pedidos fica em Operação: na sanfona, abre o grupo antes. */
 async function abrirPedidos(page: Page) {
   const menu = page.getByTestId('menu-bko');
-  const operacao = menu.getByTestId('nav-grupo-operacao');
-  if ((await operacao.getAttribute('aria-expanded')) === 'false') await operacao.click();
+  await abrirGrupo(page, 'operacao');
   await menu.getByTestId('nav-vendedor-pedidos').click();
   await expect(page.getByTestId('pagina-vendedor-pedidos')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('pedidos.tabela')).toBeVisible({ timeout: 30_000 });
@@ -197,8 +198,8 @@ test.describe.serial('T-0029 — Pedidos no BKO (lista, filtro, detalhe, aprovar
   test('D-B28: Alçadas abre por Parâmetros › Pedidos com a política vigente (5/10/15%) pela API nova; as decisões recentes ficam em Pedidos (D5)', async ({ page }) => {
     const a = vigiar(page);
     await entrar(page, 'analista@exemplo.com.br');
-    await page.getByTestId('menu-bko').getByTestId('nav-plataforma-parametros').click();
-    await page.getByTestId('parametros-secao-pedidos').click();
+    await abrirGrupo(page, 'parametros');
+    await page.getByTestId('menu-bko').getByTestId('nav-parametros-pedidos').click();
     await expect(page.getByTestId('parametros-vendedor-alcadas')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('alcadas.decisoes')).toHaveCount(0);
     await expect(page.getByTestId('alcadas.tela')).toBeVisible({ timeout: 30_000 });

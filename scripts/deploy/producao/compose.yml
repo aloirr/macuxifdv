@@ -18,9 +18,10 @@
 #   certs/dbaas-ca.pem  CA do DBaaS (PROD_PG_CA_CERT, opcional): com ela o TLS confere o certificado (verify-full).
 #   imagens.env   referências das imagens POR DIGEST, versão (tag v*), perfis e modo do TLS; gravado pelo implantar.sh.
 #
-# Rotas do túnel macuxi-prod (painel da Cloudflare, criadas pelo Alexandre):
-#   api.macuxifdv.com.br → http://api:8100 · bko.macuxifdv.com.br → http://bko:3100 · config.macuxifdv.com.br → http://bko:3100
-# (config. é o portal de implantação da T-0087, uma rota do apps/web: o mesmo serviço bko, separado pelo Host.)
+# Rotas do túnel macuxi-prod (painel da Cloudflare, criadas pelo Alexandre; ADR 0071, v1.0.33):
+#   api. → http://api:8100; fdv., bko. e config. → http://bko:3100 (bko. e config. até o corte; ADR 0071, decisões 3 e 4)
+# O mesmo serviço bko atende os três hosts: no config. o portal segue reescrito pelo Host; no fdv. fica em /config.
+# O corte: ADR 0071, seção "O corte".
 # Nenhuma porta abre para a internet: o grupo de segurança só libera a 22 e o túnel é conexão de SAÍDA. As portas em
 # 127.0.0.1 servem só para a conferência local do implantar.sh e do alerta-saude.sh.
 #
@@ -126,7 +127,7 @@ services:
       - ./certs:/certs:ro
     networks: [macuxi]
 
-  # Imagem de PRODUÇÃO do BKO (macuxi-bko-prod): a origem pública (https://bko.macuxifdv.com.br) fica gravada no next build
+  # Imagem de PRODUÇÃO do BKO (macuxi-bko-prod): a origem pública (https://fdv.macuxifdv.com.br) fica gravada no next build
   # (apps/web/Dockerfile), por isso não é a mesma imagem da demo. Montada pelo producao-publicar.yml do commit da tag.
   bko:
     image: ${MACUXI_IMAGEM_BKO:-ghcr.io/aloirr/macuxi-bko-prod:ausente}

@@ -3,18 +3,21 @@
  * prévia calculando (o worker conta) e depois por grupo, o código e a senha, o andamento e o concluído; e, na aba Integração (desenho §6.4), a seção Monitor com o
  * "Zerar dados" no "⋯" de cada entidade da "Dados no Hub", o "Leva junto:" da cascata e o resultado com o lote e os comandos de reenvio. Prints em
  * docs/prints/zerar-dados, 1280 e 390 px (escala 2).
- * Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
+ * Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1`, no `config.localhost` e no `fdv.localhost/config` (projetos do
+ * `playwright.config.mjs`; ADR 0071).
  */
-import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
-const PRINTS = fileURLToPath(new URL('../docs/prints/zerar-dados', import.meta.url));
+import { urlDoPortal, pastaDosPrints } from './enderecos';
+
+/** Prints com `E2E_PRINTS=1` (ver `enderecos.ts`). */
+const prints = () => pastaDosPrints('zerar-dados');
 
 for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
   test(`Zerar dados: menu, prévia, andamento e concluído (${largura} px)`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    await page.goto('/entrar');
+    await page.goto(urlDoPortal('/entrar'));
     await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
     await page.getByTestId('entrar.senha').fill('certa-123');
     await page.getByTestId('entrar.entrar').click();
@@ -32,14 +35,14 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       }).toPass({ timeout: 30000 });
 
     await abrirMenu();
-    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/01-menu${nome}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${prints()}/01-menu${nome}.png` });
 
     await page.getByTestId('empresas.zerar-AM2290').click();
     // a prévia é do worker: o giro até ficar pronta, sem campos nem confirmar
     await expect(page.getByTestId('empresa-zerar.calculando')).toBeVisible({ timeout: 30000 });
     await expect(page.getByTestId('empresa-zerar.codigo')).toHaveCount(0);
     await expect(page.getByTestId('empresa-acao.confirmar')).toHaveCount(0);
-    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/02-calculando${nome}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${prints()}/02-calculando${nome}.png` });
     await expect(page.getByTestId('empresa-zerar.previa')).toBeVisible({ timeout: 30000 });
     await expect(page.getByTestId('empresa-zerar.grupo-usuarios')).toHaveText('Usuários não administradores18');
     await expect(page.getByRole('dialog')).toContainText('Mantém: empresa, plano, administradores, perfis, parâmetros e conectores.');
@@ -47,14 +50,14 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('empresa-zerar.codigo').fill('am2290');
     await page.getByTestId('empresa-zerar.senha').fill('certa-123');
     await expect(page.getByTestId('empresa-acao.confirmar')).toBeEnabled();
-    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/02-previa${nome}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${prints()}/02-previa${nome}.png` });
 
     await page.getByTestId('empresa-acao.confirmar').click();
     await expect(page.getByTestId('empresa-zerar.andamento')).toContainText('Em andamento…');
-    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/03-andamento${nome}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${prints()}/03-andamento${nome}.png` });
 
     await expect(page.getByTestId('empresa-zerar.concluido')).toHaveText('20.137 linhas apagadas.', { timeout: 20000 });
-    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/04-concluido${nome}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${prints()}/04-concluido${nome}.png` });
 
     // a empresa sem dados: só a linha e "Fechar"
     await page.getByTestId('empresa-acao.cancelar').click();
@@ -73,12 +76,12 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
   test(`Zerar dados por entidade na aba Integração (${largura} px)`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    await page.goto('/entrar');
+    await page.goto(urlDoPortal('/entrar'));
     await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
     await page.getByTestId('entrar.senha').fill('certa-123');
     await page.getByTestId('entrar.entrar').click();
     await expect(page).toHaveURL(/\/empresas/, { timeout: 60000 });
-    await page.goto(`/empresas/${UMA}`);
+    await page.goto(urlDoPortal(`/empresas/${UMA}`));
     await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
     const monitor = page.getByTestId('integracao.monitor');
     await expect(monitor.getByTestId('integracao.monitor.entidade.estoque')).toBeVisible({ timeout: 60000 });
@@ -129,7 +132,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(monitor.getByTestId('integracao.monitor.conectores').getByText('Identificador', { exact: true })).toBeVisible();
     await expect(monitor.getByTestId('integracao.monitor.entidade.filial')).toContainText('Sem dados');
     await expect(monitor.getByTestId('integracao.monitor.entidade.filial')).not.toContainText('—');
-    await monitor.screenshot({ animations: 'disabled', path: `${PRINTS}/05-monitor${nome}.png` });
+    await monitor.screenshot({ animations: 'disabled', path: `${prints()}/05-monitor${nome}.png` });
 
     // o primeiro clique pode chegar antes da hidratação: repete até o diálogo abrir
     await expect(async () => {
@@ -144,14 +147,14 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('empresa-zerar.codigo').fill('distribuidora-uma');
     await page.getByTestId('empresa-zerar.senha').fill('certa-123');
     await expect(page.getByTestId('empresa-acao.confirmar')).toBeEnabled();
-    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/06-entidade${nome}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${prints()}/06-entidade${nome}.png` });
 
     await page.getByTestId('empresa-acao.confirmar').click();
     await expect(page.getByTestId('empresa-zerar.concluido')).toHaveText('5.030 linhas apagadas.', { timeout: 20000 });
     await expect(page.getByTestId('empresa-zerar.reenvio')).toContainText('conector carga-completa cliente');
     await expect(page.getByTestId('empresa-zerar.reenvio')).toContainText('conector carga-completa cliente_endereco');
     await expect(page.getByTestId('empresa-zerar.lote')).toContainText(/Lote \d{8}T\d{6}Z-[0-9a-f]{8}/);
-    await page.screenshot({ animations: 'disabled', path: `${PRINTS}/07-resultado${nome}.png` });
+    await page.screenshot({ animations: 'disabled', path: `${prints()}/07-resultado${nome}.png` });
 
     // o painel recarrega: Clientes e Endereços saem (sem lote nem registro) e ficam sem "Zerar dados"
     await page.getByTestId('empresa-acao.cancelar').click();

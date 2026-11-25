@@ -34,9 +34,9 @@ describe('RN-INT-01: validar envelope do lote', () => {
   });
 
   it('RN-INT-01: recusa versão de contrato não suportada', () => {
-    const r = validarEnvelope(delta({ versao_contrato: 'v2' }));
+    const r = validarEnvelope(delta({ versao_contrato: 'v3' }));
     expect(codigos(r)).toEqual(['versao_nao_suportada']);
-    expect(validarEnvelope(delta({ versao_contrato: 'v2' }), { versoesSuportadas: ['v1', 'v2'] }).ok).toBe(true);
+    expect(validarEnvelope(delta({ versao_contrato: 'v3' }), { versoesSuportadas: ['v1', 'v3'] }).ok).toBe(true);
   });
 
   it('RN-INT-01/06: carga completa exige sessão; delta não leva sessão', () => {

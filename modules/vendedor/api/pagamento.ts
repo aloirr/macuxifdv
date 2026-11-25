@@ -59,7 +59,7 @@ export async function resolverPagamento(
   db: ClienteBanco,
   tx: TransacaoTenant,
   p: { forma_pagamento_id?: string | null; prazo_pagamento_id?: string | null; customer_id: string; prazo_percentual_ajuste?: number | null; created_offline_at?: string | null },
-  cliente: { formas_pagamento?: string[] | null },
+  cliente: { formas_pagamento?: string[] | null; prazo_medio_max_dias?: number | null },
   _tipo: 'pedido' | 'orcamento',
   /** RN-VEN-45 */
   gravado?: PrazoGravado,
@@ -74,7 +74,7 @@ export async function resolverPagamento(
   const r = validarPagamento({
     forma: forma as FormaDePagamento | undefined,
     prazo: prazo as PrazoDePagamento | undefined,
-    cliente: { formas_pagamento: cliente.formas_pagamento },
+    cliente: { formas_pagamento: cliente.formas_pagamento, prazo_medio_max_dias: cliente.prazo_medio_max_dias },
   });
   if (!r.ok) return r;
 

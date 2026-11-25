@@ -10,17 +10,20 @@
 Para ir de Itens a Detalhes e de Detalhes ao Resumo: botão **"Avançar"** no fim do conteúdo da aba (inline, rola com a lista;
 premissa do Vendedor aceita na T-0089). ~~As pendências do pedido ficam **antes** dele.~~ Superado em 08/11 (RN-CORE-36): pendências só no Resumo, no bloco "Falta para salvar" (`formulario-pendencias.md`).
 
-0. **Cabeçalho:** "{cliente} · cód. {código} · prazo médio do cliente {n} dias" (até 2 linhas; sem prazo médio, a parte final
-   não aparece). Explica por que alguns prazos aparecem desabilitados.
+0. **Cabeçalho:** "{cliente} · cód. {código}" (até 2 linhas; o prazo médio do cliente fica só no Crédito do cliente, RD-2952).
 
 1. **Card Pagamento** (`Cartao`):
    - linha com dois `ListaSuspensa` lado a lado (`flex: 1` cada, `gap: 8`): **FORMA DE PAGAMENTO** à esquerda, **PRAZO** à direita;
    - o Prazo mostra só os prazos da forma escolhida; antes da forma, o Prazo fica `desligado` com o placeholder "Escolha a forma";
-   - a lista do Prazo mostra **só o prazo** ("28/56 dias", "À vista"), sem "médio 42";
-   - prazo acima do prazo médio do cliente (RN-VEN-25): `desabilitada: true`, `motivo: 'Acima do prazo médio do cliente'`
-     (na tela, rótulo cinza com cadeado e sem toque, e o motivo numa linha abaixo, em `ink2`; o TalkBack lê os dois, T-0129);
-   - forma de pagamento que o cadastro do cliente não permite (RN-VEN-24, RN-VEN-13): o mesmo padrão, `desabilitada: true` com o
-     `motivo` que o domain do Vendedor devolve; nada de texto solto abaixo das listas;
+   - a lista do Prazo mostra **só a descrição do ERP** ("Antecipado", "Quinzenal"), sem "médio 42";
+   - os prazos vêm só do ERP (ADR 0072, R-20261124-111421-alexandre); prazo com prazo médio acima do máximo do cliente
+     (RN-VEN-25) **não aparece** na lista (nada desabilitado, sem cadeado e sem motivo);
+   - rascunho com um prazo antigo que passou do máximo: o Prazo continua mostrando o que foi escolhido e o pedido ganha a
+     pendência RN-VEN-25 no Resumo, "Prazo de pagamento (passa do prazo médio do cliente)", até trocar o prazo;
+   - abaixo das duas listas, **Parcelas** só leitura (`CampoLeitura`): "30/60/90 dias" ou "À vista"; antes do prazo, não aparece;
+   - forma de pagamento que o cadastro do cliente não permite (RN-VEN-24, RN-VEN-13): `desabilitada: true` com o
+     `motivo` que o domain do Vendedor devolve (rótulo cinza com cadeado, o motivo abaixo em `ink2`; o TalkBack lê os dois,
+     T-0129); nada de texto solto abaixo das listas;
    - trocar a forma e o prazo atual não existir nela: o Prazo volta ao placeholder e fica com `erro` até escolher;
    - divisor e, abaixo, **"Total do pedido · 2 itens"** à esquerda e **"R$ 99,09"** à direita (`t.number`, 18/600 tabular). O total
      não se repete no rótulo da aba Resumo.
@@ -95,7 +98,8 @@ Tabela de crédito (Limite · Disponível · Prazo médio): `pedido-v3.md` §A.
 | Rótulos | "Forma de pagamento" · "Prazo" · "Total do pedido · {n} itens" · "Valor total:" |
 | Placeholder | Forma: "Escolha" · Prazo sem forma: "Escolha a forma" |
 | Fechar o menu (TalkBack) | "Fechar a lista" |
-| Prazo desabilitado (TalkBack) | "Acima do prazo médio do cliente" |
+| Pendência do prazo (Resumo) | "Prazo de pagamento (passa do prazo médio do cliente)" |
+| Parcelas (só leitura) | rótulo "Parcelas" · valor "30/60/90 dias" ou "À vista" |
 | Tipo do ajuste (TalkBack) | "Tipo do ajuste de {produto}" · valor: "Valor do ajuste de {produto}" |
 | Passo (TalkBack) | "Quantidade de {produto}" · "Diminuir {produto}" · "Aumentar {produto}" |
 | Crédito | "Crédito do cliente" · "Limite total" · "Limite disponível" · alerta de `textoInadimplencia` · "Sem dados de crédito deste cliente." |

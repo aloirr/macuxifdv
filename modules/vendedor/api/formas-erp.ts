@@ -3,14 +3,14 @@
  * e `integracao.prazo_pagamento.atualizado@1`). A adoção segue o P7 do desenho: o tenant já nasce com a forma e o prazo `AVISTA`
  * (external_id nulo). Chegando a forma `AVISTA` do ERP, ela ADOTA a linha viva pelo código (grava o external_id e atualiza) em vez de
  * inserir outra (o código é único vivo no tenant: inserir daria 23505 e o evento voltaria em laço). A `AVISTA` apagada não é
- * reaproveitada: insere linha nova. O prazo médio é CALCULADO aqui (`prazoMedioDias`); o informado pelo ERP é só conferência.
+ * reaproveitada: insere linha nova. O prazo médio e a descrição recebidos são gravados como vieram (ADR 0072); só ausentes (emissor antigo) são calculados (`prazoMedioDias`, `descricaoDoPrazo`).
  *
  * Funções sobre o banco (`ClienteBanco`), testadas com banco de mentira; os consumidores de `integracao.forma_pagamento.atualizado@1`
  * e `integracao.prazo_pagamento.atualizado@1` (leitura tolerante) ficam no fim e são registrados em `apiVendedor`.
  */
 import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_ERP_FORMA_PAGAMENTO_ATUALIZADO, EVENTO_ERP_PRAZO_PAGAMENTO_ATUALIZADO, FormaPagamentoPayload, PrazoPagamentoPayload } from '../../integracao/contracts';
-import { descricaoPrazo, prazoMedioDias } from '../domain/pagamento';
+import { descricaoDoPrazo, prazoMedioDias } from '../domain/pagamento';
 
 export interface FormaDoErp {
   external_id: string;
@@ -26,7 +26,7 @@ export interface PrazoDoErp {
   codigo: string;
   descricao?: string | null;
   parcelas_dias: number[];
-  /** informativo: o Macuxi calcula; divergente = aviso no monitor do Hub, nunca erro */
+  /** ADR 0072: digitado no ERP e gravado como veio; ausente (emissor antigo) = média das parcelas, para cima */
   prazo_medio_dias?: number | null;
   ordem?: number | null;
   ativo?: boolean | null;
@@ -71,8 +71,9 @@ export async function aplicarPrazoDoErp(db: ClienteBanco, p: PrazoDoErp): Promis
   const forma = (await db.query<{ id: string }>('select id from vendedor.forma_pagamento where external_id = $1 and deleted_at is null', [p.forma_external_id])).rows[0];
   if (!forma) throw new ReferenciaAusente(`Forma de pagamento ${p.forma_external_id} ainda não chegou; o prazo ${p.codigo} será reprocessado.`);
   const codigo = p.codigo.trim().toUpperCase();
-  const medio = prazoMedioDias(p.parcelas_dias);
-  const descricao = p.descricao?.trim() || descricaoPrazo(p.parcelas_dias);
+  // ADR 0072: o prazo médio digitado no ERP é gravado como veio (o Hub garante a faixa); só sem ele (emissor antigo) calcula
+  const medio = p.prazo_medio_dias ?? prazoMedioDias(p.parcelas_dias);
+  const descricao = descricaoDoPrazo(p);
   const ativo = p.ativo ?? true;
   const percentual = p.percentual_ajuste ?? 0;
   const achada = await achar(db, 'prazo_pagamento', p.external_id, codigo);

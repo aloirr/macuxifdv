@@ -19,7 +19,7 @@ const chave = (c: string, area: string, extra: Partial<ChaveDoPerfil> = {}): Cha
 const detalhe = (base: 'vendedor' | 'gerente' = 'vendedor', chaves: ChaveDoPerfil[] = []): PerfilDetalhe => ({
   perfil: { codigo: base, nome: 'Vendedor', descricao: null, base, fabrica: true, ativo: true, usuarios: 3, onde_entra: ['campo'], cargo: base },
   chaves: [
-    chave('acesso.bko', 'acesso', { fabrica: v(false), atual: v(false), trava: { regra: 'RN-CORE-33', mensagem: 'Vendedor nunca entra no BKO (RN-CORE-33).' } }),
+    chave('acesso.bko', 'acesso', { fabrica: v(false), atual: v(false), trava: { regra: 'RN-CORE-33', mensagem: 'Vendedor nunca entra no BKO.' } }),
     chave('dados.escopo', 'dados', { nivel: 'escopo', fabrica: v(true, 'carteira'), atual: v(true, 'carteira') }),
     chave('senha.redefinir', 'usuarios', { alvos: true, fabrica: v(false), atual: v(false) }),
     chave('farol.ver', 'administracao'),
@@ -33,16 +33,26 @@ const detalhe = (base: 'vendedor' | 'gerente' = 'vendedor', chaves: ChaveDoPerfi
 describe('página Perfis de acesso (RN-CORE-35, RN-CORE-33, RN-CORE-04)', () => {
   it('RN-CORE-33: a linha do BKO do vendedor nasce travada com o texto do cadeado', () => {
     const { linhas } = montarLinhas(detalhe());
-    expect(linhas.find((l) => l.id === 'acesso-bko')?.trava).toBe('Vendedor nunca entra no BKO (RN-CORE-33).');
+    expect(linhas.find((l) => l.id === 'acesso-bko')?.trava).toBe('Vendedor nunca entra no BKO.');
   });
 
   it('RN-CORE-04: níveis acima do escopo da base vêm desabilitados com o cadeado; "Equipes abaixo" só no gerente', () => {
     const l = montarLinhas(detalhe()).linhas.find((x) => x.id === 'dados-escopo')!;
     expect(l.opcoes?.map((o) => o.valor)).toEqual(['carteira', 'equipe', 'tenant']);
-    expect(l.opcoes?.find((o) => o.valor === 'tenant')).toMatchObject({ desabilitada: true, motivo: 'Acima do perfil base Vendedor (RN-CORE-04).' });
+    expect(l.opcoes?.find((o) => o.valor === 'tenant')).toMatchObject({ desabilitada: true, motivo: 'Acima do perfil base Vendedor.' });
     expect(l.opcoes?.find((o) => o.valor === 'carteira')?.desabilitada).toBe(false);
     const g = montarLinhas(detalhe('gerente')).linhas.find((x) => x.id === 'dados-escopo')!;
     expect(g.opcoes?.map((o) => o.valor)).toContain('equipes_abaixo');
+  });
+
+  it('ADR 0072: a permissão sem efeito de formas de pagamento não aparece, mas a gravada segue no corpo ao salvar', () => {
+    const d = detalhe('vendedor', [chave('forma_pagamento.gerenciar', 'vendas'), chave('forma_pagamento.ver', 'vendas')]);
+    const { linhas, outras } = montarLinhas(d);
+    const rotulos = [...linhas.map((l) => l.rotulo), ...outras.flatMap((g) => g.linhas.map((l) => l.rotulo))];
+    expect(rotulos.some((r) => /Cadastrar formas de pagamento/.test(r))).toBe(false);
+    expect([...linhas.flatMap((l) => l.chaves), ...outras.flatMap((g) => g.linhas.flatMap((l) => l.chaves))]).not.toContain('forma_pagamento.gerenciar');
+    const corpo = corpoDoPerfil(edicaoInicial(d), { nome: 'V', descricao: '', ativo: true }, false);
+    expect(corpo.permissoes?.map((p) => p.chave)).toContain('forma_pagamento.gerenciar');
   });
 
   it('spec §13: linha cuja chave não existe no catálogo some; chave sem linha cai em "Outras permissões"', () => {

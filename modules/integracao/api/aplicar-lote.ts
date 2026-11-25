@@ -63,6 +63,7 @@ interface LinhaLote {
   status: EstadoLote;
   sessao_id: string | null;
   recebidas: number;
+  versao_contrato: string;
 }
 
 interface CorpoStaging {
@@ -86,7 +87,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   const agora = ctx.agora().toISOString();
 
   const { rows: lotes } = await db.query<LinhaLote>(
-    `select id, conector_id, entidade, modo, status, sessao_id, recebidas
+    `select id, conector_id, entidade, modo, status, sessao_id, recebidas, versao_contrato
        from integracao.lote where id = $1 and deleted_at is null for update`,
     [payload.lote_id],
   );
@@ -131,7 +132,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
     { limite: PARAMETROS_PADRAO.limiteLinhasInvalidas },
   );
   const registros = corpo.registros ?? [];
-  const v = validarLinhas(lote.entidade, registros);
+  const v = validarLinhas(lote.entidade, registros, lote.versao_contrato);
 
   // ---- referências (RN-INT-04): só quem cita registro existente é aceito
   const existentesRef: Partial<Record<Entidade, Set<string>>> = {};

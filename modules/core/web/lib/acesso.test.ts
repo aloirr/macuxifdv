@@ -90,6 +90,11 @@ describe('Acesso: rótulos das permissões', () => {
     expect(linhasPorModulo(catalogo, ['core']).core!.map((l) => l.rotulo)).toEqual(['Entrar no backoffice']);
   });
 
+  it('ADR 0072: a permissão sem efeito de formas de pagamento não entra na grade', () => {
+    const catalogo: ChaveDoCatalogo[] = [chave('forma_pagamento.ver', 'vendedor'), chave('forma_pagamento.gerenciar', 'vendedor')];
+    expect(linhasPorModulo(catalogo, ['vendedor']).vendedor!.flatMap((l) => l.chaves)).toEqual(['forma_pagamento.ver']);
+  });
+
   it('a caixa "marcar todos" tem rótulo acessível com o nome do módulo e liga e desliga o módulo inteiro', () => {
     expect(rotuloMarcarTodos('Vendedor')).toBe('Marcar todos de Vendedor');
     const linhas = [

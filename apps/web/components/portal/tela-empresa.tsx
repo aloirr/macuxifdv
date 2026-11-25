@@ -20,7 +20,7 @@ import { mensagemDoErro } from '@/lib/portal-api';
 import { rotuloDoStatus, tomDoStatus } from '@/lib/portal-empresa-acoes';
 import { DOWNLOAD_APPS } from '@/lib/conector-download';
 import { codigoDaLicenca, mascararCnpj, rotuloCurtoDoFuso } from '@/lib/portal-formato';
-import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
+import { CAMINHO_EMPRESAS, desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { AbaEmpresa, AvisoEmpresaCriada } from './aba-empresa';
 import { AbaIntegracao } from './aba-integracao';
 import { BaixarPacote } from './baixar-conector';
@@ -84,7 +84,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
 
   return (
     <MolduraPortal
-      voltar={{ href: '/empresas', rotulo: 'Empresas' }}
+      voltar={{ href: CAMINHO_EMPRESAS, rotulo: 'Empresas' }}
       titulo={
         empresa ? (
           <PageHeader

@@ -26,6 +26,7 @@ import { percentualAjusteParaBp, type NivelDePreco } from '../../domain/preco-pe
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, percentualDoDetalhe, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
 import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
+import { tabelaVencida } from '../../domain/tabela-vencida';
 import { limparRascunhosExpirados } from '../../domain/rascunhos';
 import { TEXTO_SEM_SINAL_PARA_SALVAR } from '../../domain/alertas-pedido';
 import { orcamentosEmAberto, type OrcamentoParaEscolha } from '../../domain/orcamento-em-aberto';
@@ -115,6 +116,10 @@ export function useVendedor() {
   parametrosRef.current = parametros;
 
   const gravacoesDeRascunho = useRef(0);
+  const sincronizadoEmRef = useRef<string | null>(estado.sincronizado_em ?? null);
+  sincronizadoEmRef.current = estado.sincronizado_em ?? null;
+  /** recálculo da tabela em andamento por tabela de preço (evita calcular duas vezes) */
+  const recalculosRef = useRef(new Map<string, Promise<Product[]>>());
   /** geração dos rascunhos: sobe a cada toque/descarte, antes de gravar (R1: a leitura iniciada antes não sobrescreve) */
   const versaoRascunhos = useRef(0);
   const recarregar = useCallback(async () => {
@@ -140,14 +145,10 @@ export function useVendedor() {
     }
   }, [repo, motor, v1]);
 
-  // recarrega ao abrir e a cada sincronização concluída (novo carimbo) ou mudança do módulo
+  // recarrega ao abrir e a cada sincronização concluída; RN-VEN-02: a tabela vence pelo sync (tabelaVencida)
   useEffect(() => {
-    void (async () => {
-      // o preço pode ter mudado no pull: refaz a tabela na próxima vez que a tela do pedido abrir
-      if (v1 && repo) await repo.gravar('produtos', {});
-      await recarregar();
-    })();
-  }, [recarregar, estado.sincronizado_em, v1, repo]);
+    void recarregar();
+  }, [recarregar, estado.sincronizado_em]);
 
   // T-0079 / V2: depois da troca de geração da base, exibição que não é de item da fila/aceito é órfã e sai (planoBaseRecriada)
   useEffect(() => {
@@ -307,7 +308,7 @@ export function useVendedor() {
   );
 
   /** T-0149 (RN-VEN-20): filial do cliente no aparelho; sem filial conhecida, vale o estoque de antes */
-  const filialDoCliente = useCallback((clienteId: string): string | null => linhasRef.current.clientes.find((c) => c.id === clienteId)?.filial_id ?? null, []);
+  const filialDoCliente = useCallback((clienteId: string, ls = linhasRef.current): string | null => ls.clientes.find((c) => c.id === clienteId)?.filial_id ?? null, []);
   /** O estoque mostrado e validado offline é o disponível da filial do cliente (saldo da filial − reservas dela). */
   const tabelaDe = useCallback(
     (cliente: CustomerSummary): Product[] => comEstoqueDaFilial(dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.items ?? [], linhasRef.current, filialDoCliente(cliente.id)),
@@ -316,31 +317,44 @@ export function useVendedor() {
 
   /** Garante a tabela do cliente no aparelho: v1 calcula pela consulta do Catálogo (offline); demonstração baixa com sinal. */
   const garantirProdutos = useCallback(
-    async (cliente: CustomerSummary): Promise<Product[]> => {
+    async (cliente: CustomerSummary, opcoes?: { aguardarVencida?: boolean }): Promise<Product[]> => {
       const atual = tabelaDe(cliente);
-      if (atual.length > 0 || !repo) return atual;
       const chave = cliente.price_table_id ?? 'default';
+      if (!repo) return atual;
+      // RN-VEN-02: com tabela e sem sync novo, vale a do aparelho; vencida, recalcula e troca de uma vez (a antiga serve até lá)
+      if (atual.length > 0 && !(v1 && tabelaVencida(dadosRef.current.produtos[chave], sincronizadoEmRef.current))) return atual;
       if (v1) {
-        try {
-          const ativos = linhasRef.current.produtos.filter((p) => p.ativo);
-          const precos = new Map<string, number | null>();
-          const itensConsulta: Array<{ produto_id: string }> = [];
-          const agora = new Date().toISOString();
-          for (let i = 0; i < ativos.length; i += LOTE_PRECOS) {
-            const r = await ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente.id, produto_ids: ativos.slice(i, i + LOTE_PRECOS).map((p) => p.id), em: agora });
-            for (const it of r.itens) {
-              precos.set(it.produto_id, it.preco_cents);
-              itensConsulta.push(it);
+        const emAndamento = recalculosRef.current.get(chave);
+        if (emAndamento) return atual.length > 0 && !opcoes?.aguardarVencida ? atual : emAndamento;
+        const calculo = (async (): Promise<Product[]> => {
+          try {
+            // o sync recém-concluído pode ainda não ter chegado ao estado da tela: lê as linhas do aparelho antes de calcular
+            const baseSync = sincronizadoEmRef.current;
+            const ls = motor ? await lerLinhas(motor) : linhasRef.current;
+            const ativos = ls.produtos.filter((p) => p.ativo);
+            const precos = new Map<string, number | null>();
+            const itensConsulta: Array<{ produto_id: string }> = [];
+            const agora = new Date().toISOString();
+            for (let i = 0; i < ativos.length; i += LOTE_PRECOS) {
+              const r = await ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente.id, produto_ids: ativos.slice(i, i + LOTE_PRECOS).map((p) => p.id), em: agora });
+              for (const it of r.itens) {
+                precos.set(it.produto_id, it.preco_cents);
+                itensConsulta.push(it);
+              }
             }
+            // T-0084 §12 (RN-VEN-19): a aplicação NÃO é carregada aqui (tabela inteira); a tela lê só dos itens visíveis (textosDeProdutos)
+            const items = produtosComPrecos(ls, precos, undefined, filialDoCliente(cliente.id, ls));
+            await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, base_sync: baseSync, faixas: faixasPorProduto(itensConsulta) } }));
+            await recarregar();
+            return items;
+          } catch {
+            return atual;
+          } finally {
+            recalculosRef.current.delete(chave);
           }
-          // T-0084 §12 (RN-VEN-19): a aplicação NÃO é carregada aqui (tabela inteira); a tela lê só dos itens visíveis (textosDeProdutos)
-          const items = produtosComPrecos(linhasRef.current, precos, undefined, filialDoCliente(cliente.id));
-          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, faixas: faixasPorProduto(itensConsulta) } }));
-          await recarregar();
-          return items;
-        } catch {
-          return atual;
-        }
+        })();
+        recalculosRef.current.set(chave, calculo);
+        return atual.length > 0 && !opcoes?.aguardarVencida ? atual : calculo;
       }
       if (!ambiente.online()) return atual;
       try {
@@ -352,7 +366,7 @@ export function useVendedor() {
         return atual;
       }
     },
-    [v1, repo, recarregar, tabelaDe, ambiente, filialDoCliente],
+    [v1, repo, motor, recarregar, tabelaDe, filialDoCliente, ambiente],
   );
 
   /** RN-VEN-13: situação do cliente na linha do sync (ativo, cadastro incompleto) */
@@ -373,7 +387,7 @@ export function useVendedor() {
   const limitesDe = useCallback(
     (clienteId: string) => {
       const c = linhas.clientes.find((x) => x.id === clienteId);
-      return { formas_pagamento: c?.formas_pagamento ?? null };
+      return { formas_pagamento: c?.formas_pagamento ?? null, prazo_medio_max_dias: c?.prazo_medio_max_dias ?? null };
     },
     [linhas.clientes],
   );
@@ -519,7 +533,7 @@ export function useVendedor() {
       if (!src) throw new Error('Itens do pedido ainda não estão no aparelho. Abra o pedido com sinal e tente de novo.');
       const cliente = clientes.find((c) => c.id === src.customer_id);
       if (!cliente) throw new Error('Cliente fora da carteira sincronizada no aparelho.');
-      const catalogo = await garantirProdutos(cliente);
+      const catalogo = await garantirProdutos(cliente, { aguardarVencida: true });
       if (catalogo.length === 0) throw new Error('Tabela de preços do cliente não está no aparelho. Sincronize com sinal.');
       // T-0071: a cópia leva medida, ajustes do item (% ou R$), ajuste do pedido, frete e endereço (RN-VEN-02/16/17)
       const naFila = filaRef.current.find((o) => o.payload.id === orderId);
@@ -651,7 +665,7 @@ export function useVendedor() {
       try {
         const cliente = clientes.find((c) => c.id === customerId);
         if (!cliente) throw new Error('Cliente fora da carteira sincronizada no aparelho.');
-        const catalogo = await garantirProdutos(cliente);
+        const catalogo = await garantirProdutos(cliente, { aguardarVencida: true });
         const base = dadosRef.current.rascunhos[chave];
         if (!base) throw new Error('Não foi possível abrir o orçamento. Tente de novo.');
         const r = produtoNoOrcamento(base, produtoId, catalogo);
@@ -774,7 +788,7 @@ export function useVendedor() {
       if (!d || d.items.length === 0) return null;
       const cliente = clientes.find((c) => c.id === d.customer_id);
       if (!cliente) return null;
-      const catalogo = await garantirProdutos(cliente);
+      const catalogo = await garantirProdutos(cliente, { aguardarVencida: true });
       if (catalogo.length === 0) return null;
       const nomes = new Map(d.items.map((i) => [i.product_id, `${i.erp_code} ${i.description}`.trim()]));
       const r = reconferirDocumento({

@@ -28,6 +28,8 @@ export interface PrazoDePagamento {
 /** O que o cadastro do cliente (Core) limita (RN-VEN-25). Nulo = sem restrição (premissa P1). */
 export interface LimitePagamentoDoCliente {
   formas_pagamento: readonly string[] | null | undefined;
+  /** RN-VEN-25 (ADR 0072): o cliente só usa prazos com `prazo_medio_dias` até este valor. Nulo ou ausente = sem teto. */
+  prazo_medio_max_dias?: number | null | undefined;
 }
 
 /** RN-VEN-24: média das parcelas, arredondada PARA CIMA (28/56 = 42; 30/45 = 38; premissa P2). Lista vazia é erro de programação. */
@@ -43,6 +45,11 @@ export function descricaoPrazo(parcelas: readonly number[]): string {
   return `${parcelas.join('/')} dias`;
 }
 
+/** Descrição do ERP; sem ela (emissor ou dado antigo), o texto das parcelas (`descricaoPrazo`). */
+export function descricaoDoPrazo(p: { descricao?: string | null | undefined; parcelas_dias: readonly number[] }): string {
+  return p.descricao?.trim() || descricaoPrazo(p.parcelas_dias);
+}
+
 function porOrdem<T extends { ordem: number; codigo: string }>(a: T, b: T): number {
   return a.ordem - b.ordem || a.codigo.localeCompare(b.codigo);
 }
@@ -55,18 +62,24 @@ export function formasDoCliente(formas: readonly FormaDePagamento[], codigosDoCl
   return todas.filter((f) => permitidos.has(f.codigo));
 }
 
-/** RN-VEN-24/25: os prazos ativos da forma, por ordem (o prazo médio do cliente não limita; R-20261118-2250). */
-export function prazosDaForma(prazos: readonly PrazoDePagamento[], formaId: string): PrazoDePagamento[] {
-  return prazos.filter((p) => p.ativo && p.forma_pagamento_id === formaId).sort(porOrdem);
+/** RN-VEN-25 (ADR 0072): o prazo cabe no teto de prazo médio do cliente (nulo ou ausente = sem teto; igual ao teto vale). */
+export function prazoDentroDoTeto(prazo: Pick<PrazoDePagamento, 'prazo_medio_dias'>, tetoDias: number | null | undefined): boolean {
+  return tetoDias === null || tetoDias === undefined || prazo.prazo_medio_dias <= tetoDias;
+}
+
+/** RN-VEN-24/25: os prazos ativos da forma, por ordem, só os que cabem no prazo médio máximo do cliente (`tetoDias`; nulo = sem teto). */
+export function prazosDaForma(prazos: readonly PrazoDePagamento[], formaId: string, tetoDias?: number | null): PrazoDePagamento[] {
+  return prazos.filter((p) => p.ativo && p.forma_pagamento_id === formaId && prazoDentroDoTeto(p, tetoDias)).sort(porOrdem);
 }
 
 /** RN-VEN-24: a primeira forma permitida que tenha prazo ativo, com o primeiro prazo dela; ou `null`. */
 export function pagamentoPadrao(
   formasPermitidas: readonly FormaDePagamento[],
   prazos: readonly PrazoDePagamento[],
+  tetoDias?: number | null,
 ): { forma: FormaDePagamento; prazo: PrazoDePagamento } | null {
   for (const forma of formasPermitidas) {
-    const prazo = prazosDaForma(prazos, forma.id)[0];
+    const prazo = prazosDaForma(prazos, forma.id, tetoDias)[0];
     if (prazo) return { forma, prazo };
   }
   return null;
@@ -74,7 +87,7 @@ export function pagamentoPadrao(
 
 export type CodigoRecusaPagamento = 'RN-VEN-24' | 'RN-VEN-25';
 /** `motivo` (RD-0037): código estável da recusa; a tela decide a pendência por ele, nunca pela mensagem. */
-export type MotivoRecusaPagamento = 'forma_indisponivel' | 'prazo_indisponivel' | 'forma_nao_aceita';
+export type MotivoRecusaPagamento = 'forma_indisponivel' | 'prazo_indisponivel' | 'forma_nao_aceita' | 'prazo_acima_do_cliente';
 export type ResultadoPagamento = { ok: true } | { ok: false; codigo: CodigoRecusaPagamento; motivo: MotivoRecusaPagamento; mensagem: string };
 
 /** RN-VEN-24 (forma/prazo existem, ativos, prazo da forma) e RN-VEN-25 (forma aceita pelo cliente). */
@@ -91,6 +104,9 @@ export function validarPagamento(i: {
   const lista = cliente.formas_pagamento;
   if (lista && lista.length > 0 && !lista.includes(forma.codigo)) {
     return { ok: false, codigo: 'RN-VEN-25', motivo: 'forma_nao_aceita', mensagem: 'Este cliente não aceita esta forma de pagamento. Escolha outra forma.' };
+  }
+  if (!prazoDentroDoTeto(prazo, cliente.prazo_medio_max_dias)) {
+    return { ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_do_cliente', mensagem: 'Este prazo passa do prazo médio do cliente. Escolha um prazo menor.' };
   }
   return { ok: true };
 }

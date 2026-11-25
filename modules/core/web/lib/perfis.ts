@@ -88,6 +88,9 @@ const LINHAS: readonly DefLinha[] = [
   I('monitor-ver', 'integracao', 'Ver o monitor', ['monitor.ver']),
 ];
 
+/** Chaves que o catálogo ainda carrega, mas já não têm efeito (ADR 0072: formas e prazos vêm só do ERP); a tela não as mostra e o salvar preserva o que está gravado. */
+export const CHAVES_SEM_EFEITO: ReadonlySet<string> = new Set(['forma_pagamento.gerenciar']);
+
 /** Rótulos curtos das chaves que ficam em "Outras permissões" (spec §5.13). */
 const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'cliente.pagamento_editar': 'Editar prazo e formas de pagamento do cliente',
@@ -96,7 +99,6 @@ const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'transportadora.ver': 'Ver transportadoras',
   'transportadora.gerenciar': 'Cadastrar transportadoras',
   'forma_pagamento.ver': 'Ver formas de pagamento',
-  'forma_pagamento.gerenciar': 'Cadastrar formas de pagamento',
   'tabela_preco.gerenciar': 'Cadastrar tabelas de preço',
   'ranking.ver': 'Ver o ranking dos treinamentos',
   'lote.reprocessar': 'Reprocessar lote',
@@ -204,7 +206,7 @@ export function montarLinhas(d: PerfilDetalhe): { linhas: LinhaDoPerfil[]; outra
   const outras = GRUPOS_OUTRAS.map((g) => ({
     ...g,
     linhas: d.chaves
-      .filter((c) => !usadas.has(c.chave) && c.area === g.area && c.nivel === null && !c.alvos)
+      .filter((c) => !usadas.has(c.chave) && !CHAVES_SEM_EFEITO.has(c.chave) && c.area === g.area && c.nivel === null && !c.alvos)
       .map<LinhaDoPerfil>((c) => ({
         id: idDaChave(c.chave),
         secao: 'outras',

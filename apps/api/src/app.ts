@@ -118,7 +118,7 @@ import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from '
 import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
 import { registrarRotasFrasesCarga, type FonteFrasesCarga } from './frases-carga';
 import { registrarRotasMarcaEmpresa, type FonteMarcaEmpresa } from './empresa-logo';
-import { registrarRotaAppVersao, urlApiPublicaDoAmbiente, versoesAppDoAmbiente, type VersoesApp } from './app-versao';
+import { criarFonteVersoesApp, portaVersaoApp, registrarBloqueioVersaoApp, registrarRotaAppVersao, urlApiPublicaDoAmbiente, versoesAppDoAmbiente, type VersoesApp } from './app-versao';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
@@ -373,6 +373,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const email: ServicoEmail = typeof op.email === 'function' ? op.email(logDoApp) : (op.email ?? SERVICO_EMAIL_DESLIGADO);
   // T-0098 (ADR 0037): a fábrica dos pacotes também recebe o log do app
   const pacotes: ServicoPacotes = typeof op.pacotes === 'function' ? op.pacotes(logDoApp) : (op.pacotes ?? SERVICO_PACOTES_DESLIGADO);
+  // T-0195 (ADR 0070, RN-CORE-80): versão publicada dos APKs (manifesto, senão ambiente) e o 426 do app antigo depois das 24 h
+  const fonteVersoesApp = criarFonteVersoesApp({ pacotes, doAmbiente: op.versoesApp ?? versoesAppDoAmbiente(process.env), relogio, log: logDoApp });
+  registrarBloqueioVersaoApp(app, { fonte: fonteVersoesApp, relogio });
   // T-0191: uma instância por processo (a fila de 1 req/s e o cache valem para todas as requisições)
   const geocodificador: Geocodificador =
     typeof op.geocodificador === 'function' ? op.geocodificador(logDoApp) : (op.geocodificador ?? GEOCODIFICADOR_DESLIGADO);
@@ -603,6 +606,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       ...(doSA ? { superAdmin: doSA.sa } : {}),
       email,
       pacotes,
+      versaoApp: portaVersaoApp(fonteVersoesApp, req.headers),
       geocodificador,
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto, restritoSemFilial };
@@ -650,7 +654,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   // item 19 (v1.0.17): "Verificar atualização" do app, pública como o `/v1/saude`
   registrarRotaAppVersao(app, {
-    versoes: op.versoesApp ?? versoesAppDoAmbiente(process.env),
+    fonte: fonteVersoesApp,
     urlApiPublica: op.urlApiPublica ?? urlApiPublicaDoAmbiente(process.env),
     validar,
   });

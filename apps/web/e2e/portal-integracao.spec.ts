@@ -4,17 +4,20 @@
  * PDF, a aba Empresa com plano, o "Trocar de plano" no Dialog do kit (RD-2616), a empresa sem plano só com o "Acrescentar módulos" no
  * cartão "Módulos licenciados" (RD-2613), o Catálogo opcional (RD-2617), a Nova empresa preenchida e a marca com área de proteção
  * em Entrar e Escolha a empresa (MC-0022); refaz os prints 01, 03b, 05b, 05c, 05d, 05e, 06a, 06b, 06d e 09 em
- * 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1` (config em `playwright.config.mjs`).
+ * 1280 e 390 px (escala 2). Roda contra o `next dev` com `NEXT_PUBLIC_PORTAL_FALSO=1`, no `config.localhost` e no `fdv.localhost/config` (projetos do
+ * `playwright.config.mjs`; ADR 0071).
  */
-import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
-const PRINTS = fileURLToPath(new URL('../docs/prints/portal-config-enxuto', import.meta.url));
+import { urlDoPortal, pastaDosPrints } from './enderecos';
+
+/** Prints com `E2E_PRINTS=1` (ver `enderecos.ts`). */
+const prints = () => pastaDosPrints('portal-config-enxuto');
 const SEM_FORMA = ['filial', 'vendedor', 'catalogo_no', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 
 /** Entra como o time da Macuxi, sem o indicador do next dev nos prints. */
 async function entrarComoTime(page: Page) {
-  await page.goto('/entrar');
+  await page.goto(urlDoPortal('/entrar'));
   await page.getByTestId('entrar.email').fill('time@macuxi.com.br');
   await page.getByTestId('entrar.senha').fill('certa-123');
   await page.getByTestId('entrar.entrar').click();
@@ -37,7 +40,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
   test(`ERP: Bases do Conector e credencial de API (${largura} px)`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    await page.goto('/entrar');
+    await page.goto(urlDoPortal('/entrar'));
     await page.getByTestId('entrar.email').fill('admin@uma.com.br');
     await page.getByTestId('entrar.senha').fill('certa-123');
     await page.getByTestId('entrar.entrar').click();
@@ -70,7 +73,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(dialogo.getByTestId('integracao.bases-recebe-pedidos')).toBeChecked();
     await expect(dialogo.getByTestId('integracao.bases-recebe-pedidos')).toBeEnabled();
     await expect(dialogo).toContainText('Envia os pedidos aprovados ao ERP');
-    await page.screenshot({ path: `${PRINTS}/05c-dialogo-bases${nome}.png` });
+    await page.screenshot({ path: `${prints()}/05c-dialogo-bases${nome}.png` });
     await dialogo.getByTestId('integracao.bases-gravar').click();
     await expect(dialogo).toBeHidden();
 
@@ -96,7 +99,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('integracao.api-copiar')).toHaveText('Copiar');
     await expect(page.getByTestId('integracao.api-credenciais')).toContainText('erp-api');
     await page.getByTestId('integracao.api-chave').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${PRINTS}/05d-gerar-credencial-api${nome}.png`, fullPage: true });
+    await page.screenshot({ path: `${prints()}/05d-gerar-credencial-api${nome}.png`, fullPage: true });
 
     expect(await estado(page)).toEqual([
       ['erp', 'conector', true, SEM_FORMA],
@@ -150,7 +153,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('integracao.acao-confirmar-desativar').click();
     await expect(page.getByTestId('integracao.reativar-erp')).toHaveText('Reativar');
     await expect(page.getByTestId('integracao.bases-erp')).toHaveCount(0);
-    await page.screenshot({ path: `${PRINTS}/05b-integracao${nome}.png`, fullPage: true });
+    await page.screenshot({ path: `${prints()}/05b-integracao${nome}.png`, fullPage: true });
 
     // Reativar (caso da thathyany): as livres marcadas (sem Formas de pagamento, da erp-api); o erp volta enviando os pedidos; a chave nova uma vez
     await page.getByTestId('integracao.reativar-erp').click();
@@ -167,7 +170,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await expect(page.getByTestId('integracao.nova-chave-erp.copiar')).toHaveText('Copiar');
     await expect(page.getByTestId('integracao.reativar-erp')).toHaveCount(0);
     await chave.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${PRINTS}/05e-reativar${nome}.png`, fullPage: true });
+    await page.screenshot({ path: `${prints()}/05e-reativar${nome}.png`, fullPage: true });
     expect(await estado(page)).toEqual([
       ['erp', 'conector', true, SEM_FORMA],
       ['erp-api', 'nuvem', false, ['forma_pagamento']],
@@ -181,14 +184,14 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
     await entrarComoTime(page);
-    await page.goto('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000001#empresa');
+    await page.goto(urlDoPortal('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000001#empresa'));
     await semIndicador(page);
     const conteudo = page.getByTestId('empresa-pagina.conteudo-empresa');
     await expect(conteudo).toBeVisible({ timeout: 60000 });
     await expect(conteudo).not.toHaveAttribute('data-sem-plano', 'sim');
     await expect(page.getByTestId('empresa-pagina.aba-empresa')).toHaveAttribute('aria-selected', 'true');
     await expect(conteudo).toContainText('Promotor Avulso');
-    await page.screenshot({ path: `${PRINTS}/06b-aba-empresa${nome}.png`, fullPage: true });
+    await page.screenshot({ path: `${prints()}/06b-aba-empresa${nome}.png`, fullPage: true });
     await ctx.close();
   });
 }
@@ -198,7 +201,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
     await entrarComoTime(page);
-    await page.goto('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000001#empresa');
+    await page.goto(urlDoPortal('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000001#empresa'));
     await semIndicador(page);
     await page.getByTestId('empresa-plano.trocar').click();
     const dialogo = page.getByRole('dialog');
@@ -210,7 +213,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     // o fim da transição de cor do principal (de desabilitado para habilitado) antes do print
     await page.waitForTimeout(400);
     await expect(dialogo.getByTestId('empresa-plano.total')).toContainText('Total:');
-    await page.screenshot({ path: `${PRINTS}/06d-trocar-plano${nome}.png` });
+    await page.screenshot({ path: `${prints()}/06d-trocar-plano${nome}.png` });
     if (!nome) {
       // RN-PLA-05: Light abaixo do uso, a frase do contrato embaixo dos planos e o principal desabilitado
       await dialogo.getByTestId('empresa.plano-light').click();
@@ -218,7 +221,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
       await expect(dialogo.getByTestId('empresa-plano.confirmar')).toBeDisabled();
       // o fim da transição de cor do principal (de habilitado para o desabilitado do kit) antes do print
       await page.waitForTimeout(400);
-      await page.screenshot({ path: `${PRINTS}/06d-trocar-plano-abaixo-do-uso.png` });
+      await page.screenshot({ path: `${prints()}/06d-trocar-plano-abaixo-do-uso.png` });
     }
     // Esc fecha sem gravar
     await page.keyboard.press('Escape');
@@ -231,7 +234,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
     await entrarComoTime(page);
-    await page.goto('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000011#empresa');
+    await page.goto(urlDoPortal('/empresas/0b6f1a52-5c1e-4c4e-9a43-000000000011#empresa'));
     await semIndicador(page);
     const conteudo = page.getByTestId('empresa-pagina.conteudo-empresa');
     await expect(conteudo).toHaveAttribute('data-sem-plano', 'sim', { timeout: 60000 });
@@ -243,7 +246,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     for (const t of ['empresa.razao-social', 'empresa.admin', 'empresa.conferir', 'empresa.modulo-vendedor', 'empresa.modulo-core', 'empresa.modulo-integracao']) await expect(page.getByTestId(t)).toHaveCount(0);
     await expect(conteudo).not.toContainText('Administrador da empresa');
     await expect(page.getByTestId('empresa-pagina.apps')).toBeVisible();
-    await page.screenshot({ path: `${PRINTS}/06a-aba-empresa-sem-plano${nome}.png`, fullPage: true });
+    await page.screenshot({ path: `${prints()}/06a-aba-empresa-sem-plano${nome}.png`, fullPage: true });
     await ctx.close();
   });
 
@@ -251,7 +254,7 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 900 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
     await entrarComoTime(page);
-    await page.goto('/empresas/nova');
+    await page.goto(urlDoPortal('/empresas/nova'));
     await semIndicador(page);
     await page.getByTestId('empresa.cnpj').fill('11.222.333/0001-81');
     await page.getByTestId('empresa.cnpj').blur();
@@ -265,11 +268,11 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
     await page.getByTestId('empresa.admin-email').fill('ana@uma.com.br');
     await page.getByTestId('empresa.admin-senha').fill('Norte#2026');
     await expect(page.getByTestId('empresa.total')).toHaveText('Total: R$ 1.537,00/mês');
-    await page.screenshot({ path: `${PRINTS}/03b-nova-empresa${nome}.png`, fullPage: true });
+    await page.screenshot({ path: `${prints()}/03b-nova-empresa${nome}.png`, fullPage: true });
     if (!nome) {
       await page.getByTestId('empresa.ciclo-anual').click();
       await expect(page.getByTestId('empresa.total')).toContainText('/ano');
-      await page.screenshot({ path: `${PRINTS}/03b-nova-empresa-anual.png`, fullPage: true });
+      await page.screenshot({ path: `${prints()}/03b-nova-empresa-anual.png`, fullPage: true });
     }
     await ctx.close();
   });
@@ -279,19 +282,19 @@ for (const [nome, largura] of [['', 1280], ['-celular', 390]] as const) {
   test(`Entrar e Escolha a empresa: logo a 104 px com 14 px de folga (MC-0022) (${largura} px)`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: largura, height: largura > 500 ? 800 : 844 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    await page.goto('/entrar');
+    await page.goto(urlDoPortal('/entrar'));
     await semIndicador(page);
     const logo = page.getByAltText('Macuxi Força de Vendas');
     await expect(logo).toBeVisible({ timeout: 60000 });
     expect((await logo.boundingBox())?.width).toBe(104);
-    await page.screenshot({ path: `${PRINTS}/01-entrar${nome}.png` });
+    await page.screenshot({ path: `${prints()}/01-entrar${nome}.png` });
     await page.getByTestId('entrar.email').fill('admin@duas.com.br');
     await page.getByTestId('entrar.senha').fill('certa-123');
     await page.getByTestId('entrar.entrar').click();
     await expect(page.getByTestId('escolher.lista')).toBeVisible({ timeout: 60000 });
     await semIndicador(page);
     expect((await page.getByAltText('Macuxi Força de Vendas').boundingBox())?.width).toBe(104);
-    await page.screenshot({ path: `${PRINTS}/09-escolher-empresa${nome}.png` });
+    await page.screenshot({ path: `${prints()}/09-escolher-empresa${nome}.png` });
     await ctx.close();
   });
 }

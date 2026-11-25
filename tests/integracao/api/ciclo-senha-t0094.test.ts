@@ -631,7 +631,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
         const m = await email.ultimoPara(api.admin, id);
         expect(m).toMatchObject({ modelo: 'nova_senha', dados: { motivo: 'redefinida', validade_horas: 72, login: E } });
         const temp = await senhaDoEmail(id);
-        expect(temp).toMatch(/^[A-Za-z2-9!@#$%&*?]{12}$/);
+        expect(temp).toMatch(/^[A-Za-z2-9_]{12}$/);
         expect((await api.entrar(E, { senha: SENHA_NOVA })).statusCode).toBe(401);
         expect(detalhesTrocar(await api.entrar(E, { senha: temp })).motivo).toBe('senha_temporaria');
         expect(await usuarioNoBanco(id)).toMatchObject({ trocar_senha: true, sessao_versao: 1 });
@@ -823,7 +823,7 @@ describe.skipIf(semBanco())('T-0094 acesso por perfil e ciclo de senha (critéri
       const carga = await cargaDaOutbox(api.admin, emailId, real.cifra);
       expect(carga).toMatchObject({ para: ADMIN3.email, dados: { login: ADMIN3.email, codigo_empresa: A.codigo, validade_horas: 72, motivo: 'redefinida', apps: ['web'] } });
       const temp = carga.dados.senha;
-      expect(temp).toMatch(/^(?=.*[A-Za-z])(?=.*[2-9])(?=.*[!@#$%&*?]).{12}$/);
+      expect(temp).toMatch(/^(?=.*[A-Za-z])(?=.*[2-9])(?=.*_).{12}$/);
       segredos.push(temp);
       doPortal.emailId = emailId;
       doPortal.senha = temp;

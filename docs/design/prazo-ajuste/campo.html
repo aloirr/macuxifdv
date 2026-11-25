@@ -13,7 +13,7 @@
 <div class="board">
 
   <div class="tela" id="t1">
-    <div class="legenda"><b>1</b>Venda · lista do Prazo aberta<span>Igual a hoje: só o prazo, sem percentual.</span></div>
+    <div class="legenda"><b>1</b>Venda · lista do Prazo aberta<span>Só os prazos do ERP com prazo médio até o do cliente (ADR 0072). Parcelas só leitura abaixo das listas.</span></div>
     <div class="phone" style="position:relative">
       <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
       <div class="cab">
@@ -28,8 +28,9 @@
         </div>
         <div class="duas" style="margin-top:2px">
           <div><div class="campo-r">Forma de pagamento</div><div class="suspensa"><span>Boleto</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
-          <div><div class="campo-r">Prazo</div><div class="suspensa aberta" id="campo-prazo"><span>À vista</span><i data-i="seta" data-t="16" data-c="#1E3350"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa aberta" id="campo-prazo"><span>Antecipado</span><i data-i="seta" data-t="16" data-c="#1E3350"></i></div></div>
         </div>
+        <div><div class="campo-r">Parcelas</div><div class="leitura" aria-disabled="true"><span>À vista</span></div></div>
         <div class="secao-t" style="margin-top:2px">Crédito do cliente</div>
         <div class="tabela">
           <div class="lin"><span class="r">Limite</span><span class="v">R$ 8.000,00</span></div>
@@ -38,28 +39,28 @@
         </div>
       </div>
       <div class="barra-abas" data-ativa="clientes"></div>
-      <div class="menu-lista" id="menu-prazo"><div class="op marcada"><span class="txt"><span class="rot">À vista</span></span><span class="ic"><i data-i="check" data-t="16" data-c="#1E3350" data-w="2.6"></i></span></div><div class="op"><span class="txt"><span class="rot">28 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">28/56 dias</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">60 dias</span></span><span class="ic"></span></div><div class="op off"><span class="txt"><span class="rot">30/60/90 dias</span><span class="mot">Acima do prazo médio do cliente</span></span><span class="ic"><i data-i="cadeado" data-t="14" data-c="#5B6673"></i></span></div></div>
+      <div class="menu-lista" id="menu-prazo"><div class="op marcada"><span class="txt"><span class="rot">Antecipado</span></span><span class="ic"><i data-i="check" data-t="16" data-c="#1E3350" data-w="2.6"></i></span></div><div class="op"><span class="txt"><span class="rot">Quinzenal</span></span><span class="ic"></span></div><div class="op"><span class="txt"><span class="rot">Mensal</span></span><span class="ic"></span></div></div>
     </div>
   </div>
 
   <div class="tela" id="t2">
-    <div class="legenda"><b>2</b>Resumo · Boleto à vista (−1,71%)<span>Valor de tabela já com o prazo: o filtro de R$ 100,00 sai a 98,29. Totais sem linha de prazo.</span></div>
+    <div class="legenda"><b>2</b>Resumo · Boleto Antecipado, à vista (−1,71%)<span>Outro cliente, com prazo médio até 60 dias. Valor de tabela já com o prazo: o filtro de R$ 100,00 sai a 98,29. Totais sem linha de prazo.</span></div>
     <div class="phone longo">
       <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
       <div class="cab">
-        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Mercearia Rio Negro</div><div class="cab-cod">cód. C5031 · Novo pedido</div></div></div>
         <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
       </div>
       <div class="conteudo">
         <div class="secao-t">Cliente</div>
         <div class="kv">
-          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
-          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+          <div class="l"><span class="r">Razão social</span><span class="t">Mercearia Rio Negro Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">34.567.890/0001-18</span></div>
         </div>
         <div class="secao-t">Condição de pagamento</div>
         <div class="kv">
           <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
-          <div class="l"><span class="r">Prazo</span><span class="t">À vista</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">Antecipado</span></div>
         </div>
         <div class="secao-t">Itens</div>
         <div class="ti-box b8" style="position:relative">
@@ -72,7 +73,7 @@
         <div class="secao-t">Entrega</div>
         <div class="kv">
           <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
-          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Av. Djalma Batista, 1200 · Chapada · Manaus/AM</span></div>
         </div>
         <div class="secao-t">Observação do pedido</div>
         <div class="texto-area" style="min-height:64px;color:var(--ink)">Entregar até sexta-feira.</div>
@@ -89,23 +90,23 @@
   </div>
 
   <div class="tela" id="t3">
-    <div class="legenda"><b>3</b>O mesmo pedido trocado para 60 dias (+2,50%)<span>Os valores de tabela são refeitos: o filtro vai a 102,50; o −5% do leite vale sobre a tabela nova.</span></div>
+    <div class="legenda"><b>3</b>O mesmo pedido trocado para Parcelado 3X (30/60/90 dias, +2,50%)<span>Os valores de tabela são refeitos: o filtro vai a 102,50; o −5% do leite vale sobre a tabela nova.</span></div>
     <div class="phone longo">
       <div class="status"><span>10:42</span><span>4G ▮▮▮ 71%</span></div>
       <div class="cab">
-        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Mercearia Rio Negro</div><div class="cab-cod">cód. C5031 · Novo pedido</div></div></div>
         <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
       </div>
       <div class="conteudo">
         <div class="secao-t">Cliente</div>
         <div class="kv">
-          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
-          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+          <div class="l"><span class="r">Razão social</span><span class="t">Mercearia Rio Negro Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">34.567.890/0001-18</span></div>
         </div>
         <div class="secao-t">Condição de pagamento</div>
         <div class="kv">
           <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
-          <div class="l"><span class="r">Prazo</span><span class="t">60 dias</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">Parcelado 3X</span></div>
         </div>
         <div class="secao-t">Itens</div>
         <div class="ti-box b8" style="position:relative">
@@ -118,7 +119,7 @@
         <div class="secao-t">Entrega</div>
         <div class="kv">
           <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
-          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Av. Djalma Batista, 1200 · Chapada · Manaus/AM</span></div>
         </div>
         <div class="secao-t">Observação do pedido</div>
         <div class="texto-area" style="min-height:64px;color:var(--ink)">Entregar até sexta-feira.</div>
@@ -135,10 +136,10 @@
   </div>
 
   <div class="tela" id="t4">
-    <div class="legenda"><b>4</b>Catálogo pela ficha do cliente<span>Preço no prazo padrão do cliente (Boleto 60 dias, +2,50%). Pelo menu, sem cliente, a tabela pura.</span></div>
+    <div class="legenda"><b>4</b>Catálogo pela ficha do cliente<span>Preço no prazo padrão do cliente (Boleto Parcelado 3X, +2,50%). Pelo menu, sem cliente, a tabela pura.</span></div>
     <div class="phone">
       <div class="status claro"><span>09:12</span><span>4G ▮▮▮ 82%</span></div>
-      <div class="fx"><span class="vl"><i data-i="voltar" data-t="18"></i>Padaria Trigo Fino</span><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>09:05</span></div></div>
+      <div class="fx"><span class="vl"><i data-i="voltar" data-t="18"></i>Mercearia Rio Negro</span><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>09:05</span></div></div>
       <div class="corpo">
         <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
         <div class="fil"><div class="chip on">Todos</div><div class="chip">Alimentos</div><div class="chip">Bebidas</div><div class="chip">Automotivo</div></div>

@@ -432,3 +432,19 @@ Uma aprovação por motivo e por ciclo do pedido. **Aditiva** no pedido (o defau
   do seed como `pendente`. Banco sem a 0088 = nada.
 - **Volta** (`.down.sql`): apaga a tabela (as decisões se perdem) e a coluna; tira `inadimplencia` dos arrays antes de recriar
   o CHECK da 0009. Volte antes Vendedor e Gestor. Testes: `db/testes/pedido-aprovacao.db.test.ts`.
+
+## 0101 — chave de acesso da NF no faturamento (`0101_vendedor_faturamento_chave_acesso`; v1.0.34, R-20261124-184958)
+O ERP manda `chave_acesso` (opcional) no NotaRetorno do `POST /integracao/v1/pedidos/{uuid}/retorno`. **Aditiva**, sem
+backfill (linhas antigas ficam nulas).
+
+| Tabela.coluna | Tipo | Regra |
+|---|---|---|
+| pedido_faturamento.nota_chave_acesso | text null | 44 dígitos ou nula (`pedido_faturamento_chave_acesso_formato`: `^[0-9]{44}$`) |
+
+- macuxi_app: select e insert da tabela cobrem a coluna; RLS igual. macuxi_leitura (0078, regra 8: "chave" no nome): passa
+  a SELECT por coluna, todas menos `nota_chave_acesso` (como a 0079).
+- Aparelho: `pedido_faturamento` não vai ao SQLite; o app recebe o resumo da NF no pedido (`JUNCAO_FATURAMENTO` em
+  `modules/vendedor/api/sync.ts`), campo novo opcional no contrato (o APK anterior ignora).
+- A nota de devolução (`pedido_devolucao`) fica fora.
+- **Volta** (`.down.sql`): tira o check e a coluna (a chave gravada se perde). Volte antes a API que lê ou grava a coluna.
+  Teste: `db/testes/faturamento-chave-acesso.db.test.ts`.

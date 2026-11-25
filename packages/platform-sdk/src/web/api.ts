@@ -59,6 +59,12 @@ export interface RequestOptions {
    * no cookie httpOnly e a resposta vem SEM o `refresh_token` (valide com o schema web do Core). Ignorado na demonstração.
    */
   sessaoWeb?: boolean;
+  /**
+   * Chamada que não usa a sessão aberta (ex.: troca voluntária de senha, que se prova pela senha atual): não manda o token de
+   * acesso e, no 401, não renova nem encerra a sessão; o 401 vira só o `ApiRequestError` (ex.: senha atual errada).
+   * Combina com `sessaoWeb` (cookie/CSRF).
+   */
+  semToken?: boolean;
 }
 
 /** Cabeçalhos do modo cookie (T-0117): pedem o cookie de sessão e provam que a chamada saiu do próprio BKO. */
@@ -196,7 +202,7 @@ export function buildUrl(path: string, query?: Query, base: string = API_URL): s
 /** fetch com token e tratamento de erro; devolve o Response cru (útil para CSV). */
 export async function apiFetch(path: string, opts: RequestOptions = {}, repetida = false): Promise<Response> {
   const headers: Record<string, string> = {};
-  const token = getToken();
+  const token = opts.semToken ? null : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.sessaoWeb && MODO_API === 'v1') Object.assign(headers, CABECALHOS_SESSAO_WEB);
