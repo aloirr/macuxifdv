@@ -6,7 +6,7 @@
 #   aplicadas.txt = saída do aplicadas.sql ("versao checksum checksum_down", uma por linha; pode ser vazio).
 #
 # Confere como o migrador (db/src/migrador.ts): arquivo NNNN_nome.up.sql com o .down.sql, checksum (sha256 com CRLF -> LF)
-# de toda migração aplicada igual ao do arquivo, nenhuma aplicada sem arquivo. Buraco na numeração só gera aviso.
+# de toda migração aplicada igual ao do arquivo, nenhuma aplicada sem arquivo, numeração sem buraco e nenhum .sql em symlink.
 # ensaio.sql: BEGIN, timeouts curtos, trava do migrador, antes.sql, as migrações pendentes na ordem (cada uma dentro de um
 # DO com EXECUTE: o Postgres recusa ali qualquer comando de transação, então nenhuma migração consegue gravar a transação),
 # a linha de cada uma em public.macuxi_migracao, diagnostico.sql e ROLLBACK. Erro em qualquer ponto: ON_ERROR_STOP encerra o
@@ -19,8 +19,9 @@ pasta="$1"; aplicadas="$2"; saida="$3"; conferir="$4"
 aqui="$(cd "$(dirname "$0")" && pwd)"
 erro() { echo "::error::$*" >&2; exit 1; }
 
-# sha256 do texto com CRLF -> LF (normalizar() do migrador)
-soma() { perl -0777 -pe 's/\r\n/\n/g' "$1" | sha256sum | cut -d' ' -f1; }
+# texto com CRLF -> LF e o sha256 dele (normalizar() do migrador)
+normalizar() { perl -0777 -pe 's/\r\n/\n/g' "$1"; }
+soma() { normalizar "$1" | sha256sum | cut -d' ' -f1; }
 
 declare -A ck=() ckd=()
 while read -r v c d; do
@@ -28,6 +29,9 @@ while read -r v c d; do
   [[ "$v" =~ ^[0-9]{4}$ && "$c" =~ ^[0-9a-f]{64}$ && "$d" =~ ^([0-9a-f]{64}|-)$ ]] || erro "linha inesperada em $aplicadas"
   ck[$v]="$c"; ckd[$v]="$d"
 done < "$aplicadas"
+
+links="$(find "$pasta" -maxdepth 1 -name '*.sql' ! -type f -printf '%f ')"
+[ -z "$links" ] || erro "migração que não é arquivo comum (symlink?): $links"
 
 declare -A nome_de=()
 versoes=()
@@ -51,7 +55,7 @@ done
 i=0
 for v in "${versoes[@]}"; do
   i=$((i + 1))
-  [ "$v" = "$(printf '%04d' "$i")" ] || { echo "::warning::numeração com buraco antes de $v (o migrador recusaria no deploy)"; i=$((10#$v)); }
+  [ "$v" = "$(printf '%04d' "$i")" ] || erro "numeração com buraco: falta a $(printf '%04d' "$i") (o migrador recusaria no deploy)"
 done
 
 pendentes=()
@@ -84,7 +88,6 @@ set local idle_in_transaction_session_timeout = '60s';
 select pg_try_advisory_xact_lock(120265047898217) as trava_ok \gset
 \if :trava_ok
 \else
-\echo 'ensaio: outro migrador está rodando agora'
 do $t$ begin raise exception 'ensaio: trava do migrador ocupada'; end $t$;
 \endif
 SQL
@@ -98,7 +101,7 @@ for v in "${pendentes[@]}"; do
   printf '\\echo %s\n' "'aplicando ${v}_${n}'" | emitir
   printf 'do $e%s$ begin\n  if exists (select 1 from public.macuxi_migracao where versao = %s) then\n    raise exception %s;\n  end if;\n  execute $%s$' \
     "$tag" "'$v'" "'ensaio: $v já aplicada'" "$tag" | emitir
-  perl -0777 -pe 's/\r\n/\n/g' "$arq" >> "$saida"
+  normalizar "$arq" >> "$saida"
   printf '$%s$;\nend $e%s$;\n' "$tag" "$tag" | emitir
   printf "insert into public.macuxi_migracao (versao, nome, checksum, checksum_down) values ('%s', '%s', '%s', '%s');\n" \
     "$v" "$n" "$(soma "$arq")" "$(soma "$pasta/${v}_${n}.down.sql")" | emitir
