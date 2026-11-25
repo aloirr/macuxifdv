@@ -460,9 +460,11 @@ O item passa a aceitar fração (2,5 KG; "CX c/ 0,5"). Troca de tipo, sem coluna
 | pedido_item.quantidade_unidades | int | numeric(14,4) | **gatilho**: `round(quantidade × fator, 4)` (`pedido_item_quantidade_unidades_coerente`) |
 | pedido_item.quantidade_embalagem | int | numeric(14,4) | **gatilho**: = fator (`pedido_item_embalagem_coerente`), > 0 |
 | pedido_item.quantidade_faturada | int | numeric(14,4) | 0 a `quantidade_base` (`pedido_item_faturada_faixa`), padrão 0 |
+| pedido_item (quantidade, fator) | — | — | **nunca os dois fracionários** (`pedido_item_fracao_coerente`: `quantidade = trunc(quantidade) or fator = trunc(fator)`; ADR 0076 D7): 1,25 × 1 e 3 × 12,5 sim; 1,5 × 12,5 recusado (23514) |
 
 - Arredondamento: quantidade e fator têm 4 casas; o produto (até 8) é arredondado a 4 nos gatilhos `pedido_item_quantidade_base`
-  e `pedido_item_medida` e nos CHECKs (0,3333 × 1,5 = 0,5000). Com inteiros o round não muda nada.
+  e `pedido_item_medida` e nos CHECKs. Com `pedido_item_fracao_coerente` um dos dois é inteiro, o produto tem no máximo 4 casas
+  e o round não muda nada (fica como defesa).
 - Driver `pg`: numeric chega como **string** (`'2.5000'`). O Drizzle (`pedidoItem`) usa `mode: 'number'` e segue `number`; SQL
   cru lê com `quantidadeDoBanco` (ADR 0076 D2).
 - O índice `pedido_item_reserva_filial_ix` é refeito pelo ALTER TYPE (mesma definição). `pedido_faturamento.itens[].quantidade`

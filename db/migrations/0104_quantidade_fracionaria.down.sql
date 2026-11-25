@@ -39,6 +39,7 @@ alter table integracao.pedido_retorno_erro
   add constraint pedido_retorno_erro_numeros_validos check (indice >= 0 and sequencia >= 1 and quantidade >= 1);
 
 -- vendedor.pedido_item --------------------------------------------------------------------------------------------------
+alter table vendedor.pedido_item drop constraint if exists pedido_item_fracao_coerente;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_quantidade_base_coerente;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_quantidade_unidades_coerente;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_faturada_faixa;

@@ -10,6 +10,7 @@
 -- comparar com o mesmo round (com inteiros, round = o produto: nada muda para as linhas atuais).
 -- pedido_item_faturada_faixa (0 <= quantidade_faturada <= quantidade_base) e os CHECKs de positivo e de embalagem = fator são
 -- recriados com o mesmo texto (sem isso o ALTER TYPE os guarda com cast e o down não voltaria ao catálogo da 0103).
+-- pedido_item_fracao_coerente (novo, ADR 0076 D7): quantidade = trunc(quantidade) or fator = trunc(fator).
 -- pedido_retorno_erro_numeros_validos: quantidade >= 1 vira quantidade > 0 (0,5 KG descartado é válido).
 -- Dependências conferidas no catálogo (pg_depend/pg_proc): nenhuma view nem função SQL usa essas colunas; o índice
 -- pedido_item_reserva_filial_ix (include quantidade_base, quantidade_faturada) é refeito pelo próprio ALTER TYPE. As views do
@@ -36,6 +37,7 @@ alter table vendedor.pedido_item drop constraint if exists pedido_item_fator_pos
 alter table vendedor.pedido_item drop constraint if exists pedido_item_quantidade_positiva;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_quantidade_embalagem_positiva;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_embalagem_coerente;
+alter table vendedor.pedido_item drop constraint if exists pedido_item_fracao_coerente;
 
 alter table vendedor.pedido_item
   alter column quantidade type numeric(14, 4) using quantidade::numeric(14, 4),
@@ -80,6 +82,9 @@ alter table vendedor.pedido_item add constraint pedido_item_fator_positivo check
 alter table vendedor.pedido_item add constraint pedido_item_quantidade_positiva check (quantidade > 0);
 alter table vendedor.pedido_item add constraint pedido_item_quantidade_embalagem_positiva check (quantidade_embalagem > 0);
 alter table vendedor.pedido_item add constraint pedido_item_embalagem_coerente check (quantidade_embalagem = fator);
+-- ADR 0076 D7: quantidade e fator nunca fracionários ao mesmo tempo (1,25 KG x 1 e 3 CX x 12,5 sim; 1,5 x 12,5 não).
+alter table vendedor.pedido_item
+  add constraint pedido_item_fracao_coerente check (quantidade = trunc(quantidade) or fator = trunc(fator));
 
 -- integracao.pedido_retorno_erro ----------------------------------------------------------------------------------------
 alter table integracao.pedido_retorno_erro drop constraint if exists pedido_retorno_erro_numeros_validos;

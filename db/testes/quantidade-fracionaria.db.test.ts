@@ -5,6 +5,7 @@
  *   quantidade_faturada, quantidade_embalagem e quantidade_unidades do item e integracao.pedido_retorno_erro.quantidade
  *   numeric(14,4); igual no Drizzle (mode 'number');
  * - gatilhos e CHECKs: quantidade_base = quantidade_unidades = round(quantidade x fator, 4); 0 <= faturada <= base;
+ * - pedido_item_fracao_coerente (ADR 0076 D7): quantidade e fator nunca fracionários ao mesmo tempo;
  * - item descartado (pedido_retorno_erro) aceita quantidade > 0 com fração;
  * - down só sem fração (P0001 com tabela e coluna); sem fração volta ao catálogo da anterior; up de novo igual.
  */
@@ -52,6 +53,7 @@ describe('0104 quantidade fracionária (estático)', () => {
     expect(up).toContain('check (quantidade_base = round(quantidade * fator, 4))');
     expect(up).toContain('check (quantidade_unidades = round(quantidade * fator, 4))');
     expect(up).toContain('check (quantidade_faturada between 0 and quantidade_base)');
+    expect(up).toContain('add constraint pedido_item_fracao_coerente check (quantidade = trunc(quantidade) or fator = trunc(fator))');
     expect(up).toContain('new.quantidade_base := round(new.quantidade * new.fator, 4);');
     expect(up).toContain('new.quantidade_unidades := round(new.quantidade * new.fator, 4);');
     expect(up).toContain('check (indice >= 0 and sequencia >= 1 and quantidade > 0)');
@@ -86,15 +88,28 @@ describe.skipIf(semBanco())('0104 quantidade fracionária (banco, fixture dois-t
   const lerItem = async (id: string) =>
     (await admin.query('select quantidade, fator, quantidade_base, quantidade_unidades, quantidade_embalagem, quantidade_faturada from vendedor.pedido_item where id = $1', [id])).rows[0];
 
-  it('item: 2,5 x 0,5 = 1,25 nos gatilhos; 0,3333 x 1,5 arredonda a 0,5 (4 casas); o pg entrega string', async () => {
+  it('item: 2,5 x 1 = 2,5 e 3 x 0,5 = 1,5 nos gatilhos; o pg entrega string', async () => {
     await emTransacao(admin, null, async () => {
       const id = await umItem();
-      expect(await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 2.5, fator = 0.5, quantidade_faturada = 0 where id = $1', [id])).toBeNull();
+      expect(await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 2.5, fator = 1, quantidade_faturada = 0 where id = $1', [id])).toBeNull();
       expect(await lerItem(id)).toEqual({
-        quantidade: '2.5000', fator: '0.5000', quantidade_base: '1.2500', quantidade_unidades: '1.2500', quantidade_embalagem: '0.5000', quantidade_faturada: '0.0000',
+        quantidade: '2.5000', fator: '1.0000', quantidade_base: '2.5000', quantidade_unidades: '2.5000', quantidade_embalagem: '1.0000', quantidade_faturada: '0.0000',
       });
-      expect(await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 0.3333, fator = 1.5 where id = $1', [id])).toBeNull();
-      expect(await lerItem(id)).toMatchObject({ quantidade_base: '0.5000', quantidade_unidades: '0.5000' });
+      expect(await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 3, fator = 0.5 where id = $1', [id])).toBeNull();
+      expect(await lerItem(id)).toMatchObject({ quantidade_base: '1.5000', quantidade_unidades: '1.5000', quantidade_embalagem: '0.5000' });
+    });
+  });
+
+  it('item: pedido_item_fracao_coerente aceita 1,25 x 1 e 3 x 12,5; recusa 1,5 x 12,5 (23514)', async () => {
+    await emTransacao(admin, null, async () => {
+      const id = await umItem();
+      expect(await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 1.25, fator = 1, quantidade_faturada = 0 where id = $1', [id])).toBeNull();
+      expect(await lerItem(id)).toMatchObject({ quantidade_base: '1.2500' });
+      expect(await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 3, fator = 12.5 where id = $1', [id])).toBeNull();
+      expect(await lerItem(id)).toMatchObject({ quantidade_base: '37.5000' });
+      const e = await erroNoSavepoint(admin, 'update vendedor.pedido_item set quantidade = 1.5, fator = 12.5 where id = $1', [id]);
+      expect(e?.code).toBe('23514');
+      expect(e?.message).toContain('pedido_item_fracao_coerente');
     });
   });
 
