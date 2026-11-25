@@ -167,7 +167,8 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       const ok = await entrarNoPortal(api, MULTI.email, MULTI.senha);
       expect(ok.statusCode, ok.body).toBe(200);
       const corpo = ok.json() as Record<string, unknown>;
-      expect(Object.keys(corpo).sort()).toEqual(['empresa', 'empresas', 'expira_em', 'sessao_expira_em', 'tipo', 'token']);
+      // ADR 0075 (v1.0.34): `usuario` entra na sessão
+      expect(Object.keys(corpo).sort()).toEqual(['empresa', 'empresas', 'expira_em', 'sessao_expira_em', 'tipo', 'token', 'usuario']);
       segredos.push(String(corpo.token));
     });
   });
