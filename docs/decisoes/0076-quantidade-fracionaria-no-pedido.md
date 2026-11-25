@@ -177,17 +177,27 @@ pede o V3, guarda o último `fracao_liberada` no aparelho e o repassa aos módul
 `AmbienteAparelho.fracaoLiberada?: () => boolean` (o shell preenche) → `AmbienteModulo.fracaoLiberada(): boolean` (o módulo lê
 em `useAmbiente().fracaoLiberada()` ou no `ctx` das etapas; `false` quando o shell não preenche). O módulo nunca importa o shell.
 
-### D7 — Banco (migração **0104**, reservada; banco-dados)
+### D7 — Banco (migração **0104**, banco-dados)
 
-- `core.produto_unidade.fator` → `numeric(9,4)`, check `fator > 0`.
-- `vendedor.pedido_item`: `quantidade`, `fator`, `quantidade_base`, `quantidade_faturada`, `quantidade_embalagem`,
-  `quantidade_unidades` → `numeric(14,4)`. Mantêm-se os checks atuais (`quantidade > 0`, `quantidade_base = quantidade * fator`,
-  `quantidade_faturada between 0 and quantidade_base`, `quantidade_embalagem = fator`, `quantidade_unidades = quantidade * fator`)
-  e entra `pedido_item_fracao_coerente check (quantidade = trunc(quantidade) or fator = trunc(fator))`. A função
-  `vendedor.pedido_item_quantidade_base()` e a do 0018 seguem iguais (a multiplicação `numeric` é exata).
-- `integracao.pedido_retorno_erro.quantidade` → `numeric(14,4)`.
-- Toda outra coluna, view ou índice que leia essas colunas (ex.: índice da reserva de filial da 0061, views do Conector, funções que
-  somem `quantidade_faturada`) é levantada e ajustada pelo banco-dados na mesma 0104. `numeric(14,4)` comporta o teto de D4.
+- Tipos: `core.produto_unidade.fator` e `vendedor.pedido_item.fator` → `numeric(9,4)` (check `fator > 0`);
+  `vendedor.pedido_item` (`quantidade`, `quantidade_base`, `quantidade_faturada`, `quantidade_embalagem`,
+  `quantidade_unidades`) e `integracao.pedido_retorno_erro.quantidade` → `numeric(14,4)`. Em `pedido_retorno_erro`, o check
+  `quantidade >= 1` vira `quantidade > 0` (0,5 KG descartado é válido).
+- `round(quantidade * fator, 4)`: os gatilhos `vendedor.pedido_item_quantidade_base()` e `vendedor.pedido_item_medida()` (0018)
+  gravam `quantidade_base` e `quantidade_unidades` com esse valor, e os checks `pedido_item_quantidade_base_coerente` e
+  `pedido_item_quantidade_unidades_coerente` comparam com o mesmo `round`. Motivo: o produto de dois `numeric` de 4 casas tem
+  até 8 casas e a coluna guarda 4; sem o `round`, o check compararia o valor gravado com o produto cheio e recusaria a linha.
+  Com inteiros o `round` não muda as linhas atuais.
+- `pedido_item_fracao_coerente check (quantidade = trunc(quantidade) or fator = trunc(fator))` grava no banco a regra "nunca
+  juntos" do D1; com ela, o `round` nunca descarta dígito.
+- `pedido_item_faturada_faixa check (quantidade_faturada between 0 and quantidade_base)`: o faturado nunca passa da base. Ele e
+  os checks de positivo e de `quantidade_embalagem = fator` são recriados com o mesmo texto (sem isso o `ALTER TYPE` os guarda
+  com cast e o down não voltaria ao catálogo da 0103).
+- Dependências: nenhuma view nem função SQL do Postgres lê essas colunas; o índice da reserva de filial
+  (`pedido_item_reserva_filial_ix`, 0061) é refeito pelo próprio `ALTER TYPE`. `numeric(14,4)` comporta o teto de D4.
+- Down (`0104_quantidade_fracionaria.down.sql`): se alguma linha, viva ou apagada, tiver fração numa dessas colunas, recusa
+  (P0001) e diz tabela, coluna e quantas linhas; nada é arredondado nem truncado. Sem fração, volta a `integer` e aos gatilhos
+  e checks da 0013/0018 (sem `round`).
 - A 0104 não mexe em funções `sa_*` nem no kit do Conector (se mexer, vale o PR conjunto `alexandre/migracao-*`).
 
 ### D8 — Desativação do `vendedor.pedido.criado@1`
