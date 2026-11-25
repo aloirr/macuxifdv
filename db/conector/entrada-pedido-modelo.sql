@@ -35,6 +35,11 @@
 --        pagamento_parcelas_dias = dias das parcelas separados por vírgula ('30,60,90'); pagamento_prazo_medio_dias inteiro.
 --      - pagamento_percentual_ajuste (v1.0.14, Conector 1.5.0; RN-INT-15): % do prazo no pedido, SÓ INFORMATIVO. Preço e
 --        total dos itens e do pedido JÁ VÊM AJUSTADOS: a importação NÃO reaplica o "% Acres.Fin." (dupla aplicação).
+--   6. ADR 0076 (v1.0.36, Conector 1.6.0): quantidade FRACIONÁRIA (só KG/M, RN-VEN-02 v3). quantidade (unidade base),
+--      quantidade_venda (na medida vendida) e fator (unidades base numa unidade vendida) com até 4 casas: DECIMAL(13,4)
+--      ([Oracle] NUMBER(13,4)), NUNCA FLOAT/REAL. quantidade = quantidade_venda x fator. fator, quantidade_venda e unidade
+--      (sigla da medida vendida, ex.: CX, KG) são NULOS quando ausentes (venda na unidade base ou Conector anterior ao
+--      1.6.0); parâmetros com padrão NULL: o EXEC de um Conector antigo continua válido.
 -- =====================================================================================================================
 
 
@@ -91,7 +96,10 @@ CREATE TABLE dbo.macuxi_pedido_entrada_item (
     pedido_uuid           UNIQUEIDENTIFIER NOT NULL REFERENCES dbo.macuxi_pedido_entrada (pedido_uuid),
     sequencia             INT NOT NULL,                      -- 1..n, na ordem do pedido
     produto               VARCHAR(200) NOT NULL,             -- produto_external_id
-    quantidade            DECIMAL(14, 3) NOT NULL,           -- na unidade base
+    quantidade            DECIMAL(13, 4) NOT NULL,           -- na unidade base, até 4 casas (regra 6); [Oracle] NUMBER(13,4)
+    fator                 DECIMAL(13, 4) NULL,               -- ADR 0076: unidades base numa unidade vendida; NULO = ausente
+    quantidade_venda      DECIMAL(13, 4) NULL,               -- ADR 0076: quantidade na medida vendida; NULO = ausente
+    unidade               VARCHAR(6) NULL,                   -- ADR 0076: sigla da medida vendida (RN-CORE-19); NULO = ausente
     preco_unitario_cents  DECIMAL(19, 0) NOT NULL,
     desconto_cents        DECIMAL(19, 0) NOT NULL,
     total_cents           DECIMAL(19, 0) NOT NULL,
@@ -150,14 +158,18 @@ END;
 GO
 
 CREATE PROCEDURE dbo.sp_macuxi_pedido_item_inserir
-    @pedido_uuid UNIQUEIDENTIFIER, @sequencia INT, @produto VARCHAR(200), @quantidade DECIMAL(14, 3),
-    @preco_unitario_cents DECIMAL(19, 0), @desconto_cents DECIMAL(19, 0), @total_cents DECIMAL(19, 0)
+    @pedido_uuid UNIQUEIDENTIFIER, @sequencia INT, @produto VARCHAR(200), @quantidade DECIMAL(13, 4),
+    @preco_unitario_cents DECIMAL(19, 0), @desconto_cents DECIMAL(19, 0), @total_cents DECIMAL(19, 0),
+    -- ADR 0076 (Conector 1.6.0; regra 6): padrão NULL = o EXEC de Conector antigo continua válido
+    @fator DECIMAL(13, 4) = NULL, @quantidade_venda DECIMAL(13, 4) = NULL, @unidade VARCHAR(6) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     IF NOT EXISTS (SELECT 1 FROM dbo.macuxi_pedido_entrada_item WHERE pedido_uuid = @pedido_uuid AND sequencia = @sequencia)
-        INSERT INTO dbo.macuxi_pedido_entrada_item (pedido_uuid, sequencia, produto, quantidade, preco_unitario_cents, desconto_cents, total_cents)
-        VALUES (@pedido_uuid, @sequencia, @produto, @quantidade, @preco_unitario_cents, @desconto_cents, @total_cents);
+        INSERT INTO dbo.macuxi_pedido_entrada_item
+            (pedido_uuid, sequencia, produto, quantidade, preco_unitario_cents, desconto_cents, total_cents, fator, quantidade_venda, unidade)
+        VALUES
+            (@pedido_uuid, @sequencia, @produto, @quantidade, @preco_unitario_cents, @desconto_cents, @total_cents, @fator, @quantidade_venda, @unidade);
 END;
 GO
 

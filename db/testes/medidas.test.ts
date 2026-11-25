@@ -222,7 +222,8 @@ describe.skipIf(semBanco())('0018 medidas (banco, papel de aplicação)', () => 
 
   it('item do pedido: medida, quantidade_embalagem e quantidade_unidades DERIVADAS de unidade/fator/quantidade (o que vier nelas é ignorado)', async () => {
     type Item = { medida: string | null; unidade: string | null; fator: number; quantidade_embalagem: number; quantidade_unidades: number; quantidade_base: number };
-    const COLS = 'medida, unidade, fator, quantidade_embalagem, quantidade_unidades, quantidade_base';
+    // numeric desde a 0107 (o pg entrega string): ::float8 compara como número
+    const COLS = 'medida, unidade, fator::float8 as fator, quantidade_embalagem::float8 as quantidade_embalagem, quantidade_unidades::float8 as quantidade_unidades, quantidade_base::float8 as quantidade_base';
     await emTransacao(app, A, async () => {
       const ped = (await q<{ id: string; produto_id: string }>('select pedido_id as id, produto_id from vendedor.pedido_item limit 1')).rows[0]!;
       const novo = async (extra: string, valores: string) =>
@@ -356,7 +357,7 @@ describe.skipIf(semBanco() || semSuperusuario !== null)(comMotivo('0018 up/down 
       expect(med.rows.map((x) => x.sigla)).toEqual([...SIGLAS_INICIAIS, 'GFA', 'PC'].sort());
       expect(med.rows.find((x) => x.sigla === 'PC')?.descricao).toBe('PC');
       expect((await c.query("select unidade from core.produto where sku = 'P1'")).rows[0].unidade).toBe('UN');
-      const itens = await c.query('select sequencia, medida, quantidade_embalagem, quantidade_unidades from vendedor.pedido_item where tenant_id = $1 order by sequencia', [T]);
+      const itens = await c.query('select sequencia, medida, quantidade_embalagem::float8 as quantidade_embalagem, quantidade_unidades::float8 as quantidade_unidades from vendedor.pedido_item where tenant_id = $1 order by sequencia', [T]);
       expect(itens.rows).toEqual([
         { sequencia: 1, medida: 'GFA', quantidade_embalagem: 6, quantidade_unidades: 18 },
         { sequencia: 2, medida: null, quantidade_embalagem: 1, quantidade_unidades: 2 },

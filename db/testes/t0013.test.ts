@@ -173,9 +173,9 @@ describe.skipIf(semBanco())('0013: catálogo, vendedor e core — regras garanti
           id: P(100 + id), tenant_id: tA, pedido_id: P(21), sequencia: id, produto_id: P(500), quantidade: 3, preco_tabela_cents: 100, preco_unitario_cents: 100, total_cents: 300, ...extra,
         });
       const r = await item(1, { unidade: 'CX', fator: 12, quantidade_base: 1 });
-      expect(r.rows[0].quantidade_base).toBe(36);
+      expect(Number(r.rows[0].quantidade_base)).toBe(36); // numeric desde a 0107: o pg entrega string
       const u = await app.query("update vendedor.pedido_item set quantidade = 5 where id = $1 returning quantidade_base", [P(101)]);
-      expect(u.rows[0].quantidade_base).toBe(60);
+      expect(Number(u.rows[0].quantidade_base)).toBe(60);
       // faturada na UNIDADE BASE (T-0061 §2.1): até 60 (5 CX c/ 12) passa; 61 não
       const fat = (n: number) => app.query('update vendedor.pedido_item set quantidade_faturada = $2 where id = $1', [P(101), n]);
       expect(await tentar(() => fat(60))).toBeNull();

@@ -213,13 +213,16 @@ export const pedidoAprovacao = vendedor.table('pedido_aprovacao', {
   texto_decisao: text('texto_decisao'),
 });
 
-/** Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. */
+/**
+ * Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. 0107 (ADR 0076): quantidades numeric(14,4)
+ * e fator numeric(9,4), fracionários; mode 'number' (o `pg` entrega numeric como string e o Drizzle converte).
+ */
 export const pedidoItem = vendedor.table('pedido_item', {
   ...comuns(),
   pedido_id: uuid('pedido_id').notNull(),
   sequencia: integer('sequencia').notNull(),
   produto_id: uuid('produto_id').notNull(),
-  quantidade: integer('quantidade').notNull(),
+  quantidade: numeric('quantidade', { precision: 14, scale: 4, mode: 'number' }).notNull(),
   preco_tabela_cents: bigint('preco_tabela_cents', { mode: 'number' }).notNull(),
   preco_unitario_cents: bigint('preco_unitario_cents', { mode: 'number' }).notNull(),
   desconto_pct: numeric('desconto_pct', { precision: 5, scale: 2 }).notNull().default('0'),
@@ -230,15 +233,15 @@ export const pedidoItem = vendedor.table('pedido_item', {
   unidade: text('unidade'),
   // --- 0013 (RN-VEN-15, RN-VEN-02, RN-VEN-11, RN-INT-08) ---
   /** Unidades base na unidade vendida (UN = 1, "CX c/ 12" = 12). */
-  fator: integer('fator').notNull().default(1),
-  /** quantidade x fator, preenchida pelo GATILHO: nunca grave (o valor enviado é sobrescrito). */
-  quantidade_base: integer('quantidade_base').notNull().default(0),
+  fator: numeric('fator', { precision: 9, scale: 4, mode: 'number' }).notNull().default(1),
+  /** round(quantidade x fator, 4), preenchida pelo GATILHO: nunca grave (o valor enviado é sobrescrito). */
+  quantidade_base: numeric('quantidade_base', { precision: 14, scale: 4, mode: 'number' }).notNull().default(0),
   /** Acréscimo do item, 0 a 100; excludente com desconto_pct (CHECK). */
   acrescimo_pct: numeric('acrescimo_pct', { precision: 5, scale: 2 }).notNull().default('0'),
   /** Retrato do preço mínimo do item na unidade vendida (RN-VEN-11). */
   preco_minimo_cents: bigint('preco_minimo_cents', { mode: 'number' }),
   /** Soma faturada pelo ERP, na mesma unidade do item; 0 a quantidade. */
-  quantidade_faturada: integer('quantidade_faturada').notNull().default(0),
+  quantidade_faturada: numeric('quantidade_faturada', { precision: 14, scale: 4, mode: 'number' }).notNull().default(0),
   // --- 0018 (RN-VEN-15, T-0063; espelho na T-0070): retrato da medida vendida, DERIVADO pelo gatilho pedido_item_medida
   // a partir de unidade/fator/quantidade, que SEMPRE sobrescreve — SOMENTE LEITURA, nunca grave. Sem FK para core.medida
   // (fronteira entre schemas); a API do Vendedor valida a sigla contra o Core. O $defaultFn só tira as duas NOT NULL do
@@ -246,9 +249,9 @@ export const pedidoItem = vendedor.table('pedido_item', {
   /** Sigla da medida vendida (vendedor.medida_do_item(unidade): ^[A-Z]{1,4}$ ou nula para unidade histórica fora do formato). */
   medida: text('medida'),
   /** Unidades por embalagem (= fator; 1 na unidade). */
-  quantidade_embalagem: integer('quantidade_embalagem').notNull().$defaultFn(() => 1),
-  /** Total em unidades (= quantidade x fator = quantidade_base). */
-  quantidade_unidades: integer('quantidade_unidades').notNull().$defaultFn(() => 0),
+  quantidade_embalagem: numeric('quantidade_embalagem', { precision: 14, scale: 4, mode: 'number' }).notNull().$defaultFn(() => 1),
+  /** Total em unidades (= round(quantidade x fator, 4) = quantidade_base). */
+  quantidade_unidades: numeric('quantidade_unidades', { precision: 14, scale: 4, mode: 'number' }).notNull().$defaultFn(() => 0),
   // --- 0020 (T-0071, RN-VEN-02/15): ajuste do ITEM em R$ por unidade da MEDIDA VENDIDA (1 FD, 1 CX, 1 UN) ---
   /**
    * R$ de desconto por unidade vendida, SEMPRE gravado (digitado, ou tabela − final no modo %); 0 a preco_tabela_cents.
