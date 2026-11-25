@@ -61,6 +61,12 @@ export function lerQuantidadeComCasas(texto: string, casas: number): { valor: nu
   return { valor, fracaoRecusada };
 }
 
+/** Teclado do passo (ADR 0076 E4): decimal com casas > 0 abre o teclado com vírgula; sem decimal ou com a trava
+ * fechada (casas 0) abre o numérico inteiro. */
+export function tecladoDoPasso(casas?: number): 'number-pad' | 'decimal-pad' {
+  return casas !== undefined && Math.trunc(casas) > 0 ? 'decimal-pad' : 'number-pad';
+}
+
 /** Texto do passo: com casas, vírgula e sem zeros à direita (1,25 · 3); sem casas, o inteiro. */
 export function textoDoPasso(valor: number, casas = 0): string {
   return String(cortarCasas(valor, casas)).replace('.', ',');

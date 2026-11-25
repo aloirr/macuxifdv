@@ -26,7 +26,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { ALVO_TOQUE, CASAS_MAX_PASSO, folgaDeToque, lerQuantidade, lerQuantidadeComCasas, limitarPasso, mostrarDicaDaBusca, proximoPasso, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador, textoDoPasso } from './componentes';
+import { ALVO_TOQUE, CASAS_MAX_PASSO, folgaDeToque, lerQuantidade, lerQuantidadeComCasas, limitarPasso, mostrarDicaDaBusca, proximoPasso, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador, tecladoDoPasso, textoDoPasso } from './componentes';
 import { Icon, type IconName } from './icon';
 import { useReduzirMovimento } from './movimento-rn';
 import { PASSO_COMPACTO, passoComTexto, sanearDecimal, SEGMENTADO_COMPACTO } from './selecao';
@@ -238,8 +238,8 @@ export function Passo({
   compacto?: boolean;
   /**
    * Passo decimal (quantidade em KG e M, ADR 0076): teclado com vírgula e até `casas` casas (máx. 4; a conta é em inteiros na
-   * escala). `casas` 0 = só o inteiro: a vírgula digitada fica à vista com `avisoSemCasas` embaixo e, ao sair do campo, vale o
-   * inteiro. Quem decide as casas (unidade, trava) é o módulo. Só no passo normal (o compacto não tem largura para as casas).
+   * escala). `casas` 0 = só o inteiro, com o teclado numérico inteiro (E4); se vier vírgula colada, ela fica à vista com
+   * `avisoSemCasas` embaixo e, ao sair do campo, vale o inteiro. Quem decide as casas (unidade, trava) é o módulo. Só no passo normal (o compacto não tem largura para as casas).
    */
   decimal?: { casas: number; avisoSemCasas: string };
   testID?: string;
@@ -299,7 +299,7 @@ export function Passo({
         }}
         onBlur={confirmarTexto}
         onSubmitEditing={confirmarTexto}
-        keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
+        keyboardType={tecladoDoPasso(decimal ? casas : undefined)}
         selectTextOnFocus
         accessibilityLabel={rotulo}
         style={compacto ? [s.passoValor, s.passoValorCompacto] : [s.passoValor, s.passoInput, decimal && s.passoInputDecimal]}

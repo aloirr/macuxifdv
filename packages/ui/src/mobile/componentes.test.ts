@@ -10,6 +10,7 @@ import {
   lerQuantidadeComCasas,
   limitarPasso,
   proximoPasso,
+  tecladoDoPasso,
   textoDoPasso,
   RESPIRO_ABA_ROLAVEL,
   rolagemAteAba,
@@ -70,6 +71,13 @@ describe('componentes genéricos (T-0071, fatia 4): parte pura', () => {
     expect(lerQuantidadeComCasas('1,5', 0)).toEqual({ valor: 1, fracaoRecusada: true });
     expect(lerQuantidadeComCasas(',', 0)).toEqual({ valor: null, fracaoRecusada: true });
     expect(lerQuantidadeComCasas('', 4)).toEqual({ valor: null, fracaoRecusada: false });
+  });
+
+  it('tecladoDoPasso: casas > 0 abre decimal-pad; trava fechada (casas 0) e passo inteiro abrem number-pad (ADR 0076 E4)', () => {
+    expect(tecladoDoPasso(2)).toBe('decimal-pad');
+    expect(tecladoDoPasso(4)).toBe('decimal-pad');
+    expect(tecladoDoPasso(0)).toBe('number-pad');
+    expect(tecladoDoPasso(undefined)).toBe('number-pad');
   });
 
   it('textoDoPasso: vírgula e sem zeros à direita com casas; inteiro sem casas', () => {
