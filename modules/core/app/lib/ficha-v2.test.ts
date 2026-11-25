@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { creditoDisponivel } from '../../../vendedor/contracts';
 
 import {
-  textoQuantidade,
   abasDoApp,
   agruparDocumentos,
   agruparNotasPorMes,
@@ -214,16 +213,5 @@ describe('Cliente 360 v2: Escolher datas e Carteira (spec §3.5 e §4)', () => {
   it('spec §4 (P17): datas além dos 90 dias consultam o servidor', () => {
     expect(filtroPrecisaDoServidor({ ...FILTRO_PADRAO, periodo: 'datas', de: '2026-01-10', ate: '2026-02-10' }, HOJE)).toBe(true);
     expect(filtroPrecisaDoServidor({ ...FILTRO_PADRAO, periodo: 'datas', de: '2026-10-10', ate: '2026-11-10' }, HOJE)).toBe(false);
-  });
-});
-
-describe('textoQuantidade', () => {
-  it('RN-VEN-02 v3: fração sai com vírgula, nunca com ponto', () => {
-    expect(textoQuantidade(1.25)).toBe('1,25');
-    expect(textoQuantidade(1.25, 'kg')).toBe('1,25 kg');
-  });
-  it('RN-VEN-02 v3: inteiro continua igual', () => {
-    expect(textoQuantidade(3)).toBe('3');
-    expect(textoQuantidade(3, 'CX')).toBe('3 CX');
   });
 });
