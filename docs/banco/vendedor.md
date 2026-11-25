@@ -448,3 +448,24 @@ backfill (linhas antigas ficam nulas).
 - A nota de devolução (`pedido_devolucao`) fica fora.
 - **Volta** (`.down.sql`): tira o check e a coluna (a chave gravada se perde). Volte antes a API que lê ou grava a coluna.
   Teste: `db/testes/faturamento-chave-acesso.db.test.ts`.
+
+## 0106 — quantidade fracionária no item (`0106_quantidade_fracionaria`; v1.0.35, ADR 0076)
+O item passa a aceitar fração (2,5 KG; "CX c/ 0,5"). Troca de tipo, sem coluna nova nem backfill (inteiro vira o mesmo número).
+
+| Tabela.coluna | Antes | Depois | Regra |
+|---|---|---|---|
+| pedido_item.quantidade | int | numeric(14,4) | > 0 (`pedido_item_quantidade_positiva`) |
+| pedido_item.fator | int | numeric(9,4) | > 0 (`pedido_item_fator_positivo`), padrão 1 |
+| pedido_item.quantidade_base | int | numeric(14,4) | **gatilho**: `round(quantidade × fator, 4)` (`pedido_item_quantidade_base_coerente` com o mesmo round) |
+| pedido_item.quantidade_unidades | int | numeric(14,4) | **gatilho**: `round(quantidade × fator, 4)` (`pedido_item_quantidade_unidades_coerente`) |
+| pedido_item.quantidade_embalagem | int | numeric(14,4) | **gatilho**: = fator (`pedido_item_embalagem_coerente`), > 0 |
+| pedido_item.quantidade_faturada | int | numeric(14,4) | 0 a `quantidade_base` (`pedido_item_faturada_faixa`), padrão 0 |
+
+- Arredondamento: quantidade e fator têm 4 casas; o produto (até 8) é arredondado a 4 nos gatilhos `pedido_item_quantidade_base`
+  e `pedido_item_medida` e nos CHECKs (0,3333 × 1,5 = 0,5000). Com inteiros o round não muda nada.
+- Driver `pg`: numeric chega como **string** (`'2.5000'`). O Drizzle (`pedidoItem`) usa `mode: 'number'` e segue `number`; SQL
+  cru precisa de `Number(...)` ou `::float8` antes do contrato.
+- O índice `pedido_item_reserva_filial_ix` é refeito pelo ALTER TYPE (mesma definição). `pedido_faturamento.itens[].quantidade`
+  (jsonb) já aceita fração.
+- **Volta** (`.down.sql`): só sem fração gravada (`P0001` com tabela, coluna e quantas linhas; nada é arredondado); volta os
+  tipos, os gatilhos e os CHECKs ao texto da 0013/0018. Teste: `db/testes/quantidade-fracionaria.db.test.ts`.

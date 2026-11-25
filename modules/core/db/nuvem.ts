@@ -358,7 +358,8 @@ export const produtoUnidade = core.table('produto_unidade', {
   ...comuns(),
   produto_id: uuid('produto_id').notNull(),
   unidade: text('unidade').notNull(),
-  fator: integer('fator').notNull().default(1),
+  /** 0106 (ADR 0076): numeric(9,4) > 0, fracionário; mode 'number' (o `pg` entrega numeric como string). */
+  fator: numeric('fator', { precision: 9, scale: 4, mode: 'number' }).notNull().default(1),
   ean: text('ean'),
   padrao: boolean('padrao').notNull().default(false),
   ativo: boolean('ativo').notNull().default(true),
