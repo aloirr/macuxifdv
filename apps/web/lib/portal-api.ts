@@ -10,8 +10,8 @@
  * - Modo falso (`NEXT_PUBLIC_PORTAL_FALSO=1`, só fora de produção): as mesmas chamadas respondidas no navegador por
  *   `lib/portal-falso.ts`, contra os mesmos schemas, para navegar o fluxo antes de as rotas reais chegarem.
  */
-import { CABECALHO_TENANT_PLATAFORMA, SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { downloadBlob, filenameFromDisposition, PROXY_BASE } from '@macuxi/platform-sdk/web';
+import { CABECALHO_TENANT_PLATAFORMA, PROXY_BASE, SessaoPortalSchema } from '@macuxi/platform-sdk';
+import { downloadBlob, filenameFromDisposition } from '@macuxi/platform-sdk/web';
 
 
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';

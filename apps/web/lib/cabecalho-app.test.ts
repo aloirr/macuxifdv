@@ -6,13 +6,12 @@
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CABECALHO_APP, PARTE_ENVIO_BYTES, VERSAO_WEB } from '@macuxi/platform-sdk';
-import { PROXY_BASE } from '@macuxi/platform-sdk/web';
+import { CABECALHO_APP, PARTE_ENVIO_BYTES, PROXY_BASE, VERSAO_WEB } from '@macuxi/platform-sdk';
 import { defaultConfig } from 'next/dist/server/config-shared';
 
 import { config as configDoProxy, proxy } from '../proxy';
 import configDoNext from '../next.config';
-import { cabecalhosParaApi, ehChamadaDaApi, PROXY_BASE_NO_SERVIDOR } from './cabecalho-app';
+import { cabecalhosParaApi, ehChamadaDaApi } from './cabecalho-app';
 import { chamarPortal } from './portal-api';
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -97,12 +96,6 @@ describe('clientes (o que sai do navegador)', () => {
     expect(url).toBe(`${PROXY_BASE}${ROTAS_PORTAL.login}`);
     const r = proxy(pedido(url, init.headers as Record<string, string>));
     expect(doProxy(r, CABECALHO_APP)).toBe(WEB);
-  });
-});
-
-describe('prefixo do proxy no servidor', () => {
-  it('é o PROXY_BASE do SDK', () => {
-    expect(PROXY_BASE_NO_SERVIDOR).toBe(PROXY_BASE);
   });
 });
 

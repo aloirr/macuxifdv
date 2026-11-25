@@ -4,17 +4,11 @@
  * em toda requisição ao `/api-proxy` (cliente do SDK, portal, sessão por cookie e os `fetch` próprios dos módulos). O chamador não
  * sobrescreve (mesma regra do app: `apps/mobile/src/services/api.ts`).
  */
-import { CABECALHO_APP, valorCabecalhoWeb } from '@macuxi/platform-sdk';
-
-/**
- * Prefixo do proxy same-origin da API: o `PROXY_BASE` do SDK, que não entra aqui porque `@macuxi/platform-sdk/web` carrega a sessão
- * do navegador (`'use client'`) e quebra o `proxy.ts`. O teste garante o mesmo valor.
- */
-export const PROXY_BASE_NO_SERVIDOR = '/api-proxy';
+import { CABECALHO_APP, PROXY_BASE, valorCabecalhoWeb } from '@macuxi/platform-sdk';
 
 /** Chamada à API pelo proxy same-origin (`/api-proxy` ou `/api-proxy/...`). */
 export function ehChamadaDaApi(caminho: string): boolean {
-  return caminho === PROXY_BASE_NO_SERVIDOR || caminho.startsWith(`${PROXY_BASE_NO_SERVIDOR}/`);
+  return caminho === PROXY_BASE || caminho.startsWith(`${PROXY_BASE}/`);
 }
 
 /** Os cabeçalhos da requisição que segue para a API, com o `x-macuxi-app` do web (substitui o que veio). */
