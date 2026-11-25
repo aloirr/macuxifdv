@@ -31,9 +31,9 @@ describe.skipIf(semBanco())('0105 a 0107 transição (fixture, ROLLBACK)', () =>
 
   it('leitura_de_perfis: concessao, legado e sem linha', async () => {
     await emTransacao(admin, null, async () => {
+      expect(await leitura(admin, A.tenantId)).toBe('legado'); // motor novo desligado na v1.0.37
+      await q("update plataforma.catalogo_aplicado set leitura = 'concessao' where tenant_id = $1", [A.tenantId]);
       expect(await leitura(admin, A.tenantId)).toBe('concessao');
-      await q("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = $1", [A.tenantId]);
-      expect(await leitura(admin, A.tenantId)).toBe('legado');
       await q('update plataforma.catalogo_aplicado set leitura = $2, deleted_at = now() where tenant_id = $1', [A.tenantId, 'concessao']);
       expect(await leitura(admin, A.tenantId)).toBe('legado');
     });

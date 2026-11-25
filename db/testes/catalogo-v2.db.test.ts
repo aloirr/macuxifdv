@@ -77,11 +77,12 @@ describe.skipIf(semBanco())('0108 na fixture dois-tenants (ROLLBACK)', () => {
   });
   const q = async <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await admin.query<T>(sql, params)).rows;
 
-  it('A e B na v2: conferir = zero linhas; cada perfil vivo = acesso de hoje; padrão com as chaves da v2 da base', async () => {
+  it('A e B na v2 em legado (motor desligado): conferir = zero linhas; cada perfil vivo = acesso de hoje; padrão com as chaves da v2 da base', async () => {
     await emTransacao(admin, null, async () => {
+      expect(await q("select count(*)::int as n from plataforma.catalogo_aplicado where leitura = 'concessao'")).toEqual([{ n: 0 }]);
       for (const t of [A.tenantId, B.tenantId]) {
         expect(await q('select id, versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1 and deleted_at is null', [t]))
-          .toEqual([{ id: idCatalogoAplicado(t, 1), versao: 2, leitura: 'concessao' }]);
+          .toEqual([{ id: idCatalogoAplicado(t, 1), versao: 2, leitura: 'legado' }]);
         expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [t])).toEqual([]);
         for (const base of sdk.PERFIS) {
           const c = await concessoesDoPerfil(admin, idPerfilFabrica(t, base));
@@ -93,7 +94,7 @@ describe.skipIf(semBanco())('0108 na fixture dois-tenants (ROLLBACK)', () => {
     });
   });
 
-  /** Tenant novo na transição (nasce migrado e na v2), para não disputar as linhas de A e B com os outros arquivos. */
+  /** Tenant novo na transição (nasce derivado, na v2 e em legado), para não disputar as linhas de A e B com os outros arquivos. */
   const NOVO = 'cccccccc-0108-4000-8000-0000000000a1';
   const novoTenant = async () => q("insert into plataforma.tenant (id, codigo, nome) values ($1, 't108-novo', 'Novo 108')", [NOVO]);
 
@@ -102,7 +103,7 @@ describe.skipIf(semBanco())('0108 na fixture dois-tenants (ROLLBACK)', () => {
     const anaX = 'cccccccc-0108-4000-8000-000000000002';
     await emTransacao(admin, null, async () => {
       await novoTenant();
-      expect(await q('select versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [NOVO])).toEqual([{ versao: 2, leitura: 'concessao' }]);
+      expect(await q('select versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [NOVO])).toEqual([{ versao: 2, leitura: 'legado' }]);
       await q("insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ($1, $2, 'assistente_x', 'Assistente X', 'assistente', 'administrativo')", [assX, NOVO]);
       await q("insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ($1, $2, 'analista_x', 'Analista X', 'analista', 'administrativo')", [anaX, NOVO]);
       // o estado de antes da 0108: sem as chaves novas e o tenant na v1
@@ -129,16 +130,17 @@ describe.skipIf(semBanco())('0108 na fixture dois-tenants (ROLLBACK)', () => {
     });
   });
 
-  it('tenant em legado: nenhuma concessão gravada, só a versão; a migração dele depois já deriva da v2', async () => {
+  it('tenant não derivado (parado com para_tenant): nenhuma concessão gravada, só a versão; a derivação dele depois já é da v2, em legado', async () => {
     await emTransacao(admin, null, async () => {
       await novoTenant();
-      await q("update plataforma.catalogo_aplicado set versao = 1, leitura = 'legado' where tenant_id = $1", [NOVO]);
+      await q('update plataforma.catalogo_aplicado set versao = 1 where tenant_id = $1', [NOVO]);
+      await q("insert into plataforma.perfil_migracao_conflito (id, tenant_id, tipo, efeito) values (gen_random_uuid(), $1, 'TENANT_SEM_ADMIN', 'para_tenant')", [NOVO]);
       await q('update plataforma.perfil_concessao set deleted_at = now() where tenant_id = $1 and deleted_at is null', [NOVO]);
       expect(await q('select plataforma.aplicar_catalogo_v2($1) as r', [NOVO])).toEqual([{ r: 'aplicado' }]);
       expect((await retratoConcessoes(admin, NOVO)).vivas).toBe(0);
       expect(await q('select versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [NOVO])).toEqual([{ versao: 2, leitura: 'legado' }]);
-      expect(await q('select plataforma.migrar_perfis_sem_base($1) as r', [NOVO])).toEqual([{ r: 'migrado' }]);
-      expect(await q('select versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [NOVO])).toEqual([{ versao: 2, leitura: 'concessao' }]);
+      expect(await q('select plataforma.migrar_perfis_sem_base($1) as r', [NOVO])).toEqual([{ r: 'derivado' }]);
+      expect(await q('select versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [NOVO])).toEqual([{ versao: 2, leitura: 'legado' }]);
       expect(Object.keys(await concessoesDoPerfil(admin, idPerfilFabrica(NOVO, 'analista'))).filter((k) => k in CHAVES_V2)).toHaveLength(7);
       expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [NOVO])).toEqual([]);
     });
@@ -186,7 +188,8 @@ describe.skipIf(semBanco())('0108 up/down/up com dados de antes (banco efêmero)
       expect((await migrarUp(c, { ate: '0108' })).aplicadas).toContain('0108_plataforma_catalogo_permissoes_v2');
       expect(await acessoPorUsuario(c, T, 'concessao')).toEqual(antes);
       expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [T])).toEqual([]);
-      expect(await q('select versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [T])).toEqual([{ versao: 2, leitura: 'concessao' }]);
+      expect(await q('select versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1', [T])).toEqual([{ versao: 2, leitura: 'legado' }]);
+      expect(await q("select count(*)::int as n from plataforma.catalogo_aplicado where leitura = 'concessao'")).toEqual([{ n: 0 }]);
       const ass = Object.keys(await concessoesDoPerfil(c, perfisX.assX));
       for (const k of TRES) expect(ass).not.toContain(k);
       expect(ass).toContain('carteira.ver');

@@ -44,7 +44,7 @@ select f.tenant_id, f.codigo, 'PERFIL_SEM_ACESSO', null, f.base, f.cargo
        = case f.base when 'gerente' then 2 when 'admin' then 2 else 1 end
  order by 1, 2, 3, 4;
 
--- Consulta 2 — DEPOIS da 0106 (ou numa cópia restaurada com as migrações): o diagnóstico completo, por tenant ainda em 'legado'.
+-- Consulta 2 — DEPOIS da 0106 (ou numa cópia restaurada com as migrações): o diagnóstico completo, por tenant em 'legado'.
 -- select t.codigo, d.* from plataforma.tenant t
 --   cross join lateral plataforma.diagnosticar_perfis_sem_base(t.id) d
 --  where plataforma.leitura_de_perfis(t.id) = 'legado' order by t.codigo, d.efeito, d.tipo, d.perfil_codigo;
@@ -54,6 +54,6 @@ select f.tenant_id, f.codigo, 'PERFIL_SEM_ACESSO', null, f.base, f.cargo
 --   from plataforma.perfil_migracao_conflito c join plataforma.tenant t on t.id = c.tenant_id
 --  where c.resolvido_em is null and c.deleted_at is null order by t.codigo, c.efeito, c.tipo, c.perfil_codigo;
 
--- Consulta 4 — conferência por usuário (esperado: zero linhas DIFERENCA nos tenants 'concessao').
+-- Consulta 4 — conferência por usuário (esperado: zero linhas DIFERENCA nos tenants derivados; é o critério da 0109 para ligar).
 -- select t.codigo, c.* from plataforma.tenant t cross join lateral plataforma.conferir_perfis_sem_base(t.id) c
---  where plataforma.leitura_de_perfis(t.id) = 'concessao';
+--  where plataforma.perfis_derivados(t.id);

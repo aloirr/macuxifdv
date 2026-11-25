@@ -38,13 +38,17 @@
 -- 9. sincronizar_concessoes(perfil, desejado) — grava o conjunto: soft delete do que saiu, update do que mudou, reativa a linha
 --    de id determinístico plataforma.uuid_de_chave('<tenant>:plataforma.perfil_concessao:<perfil>:<chave>') ou insere. Nada muda
 --    (nem o updated_at) quando o conjunto já é o desejado.
--- 10. migrar_perfis_sem_base(tenant) -> 'migrado' | 'ja_migrado' | 'parado'. Tenant já em 'concessao': nada. Grava os achados em
---    perfil_migracao_conflito (id determinístico por tenant, tipo, perfil e chave; o que deixou de aparecer ganha resolvido_em).
---    Com algum 'para_tenant': nenhuma concessão, catalogo_aplicado (versão 1) em 'legado' e o tenant segue no modelo de hoje.
---    Sem: aplica os ajustes (cargo e cortes dos perfis sem usuários), grava as concessões de todo perfil vivo (ativos e
---    inativos; apagados não), confere a equivalência de todo perfil com usuário (concessões = permissoes_legado_do_perfil com
---    os parâmetros; diferença = 23514 e a migração INTEIRA volta: defeito da derivação, não do tenant) e marca 'concessao'.
+-- 10. migrar_perfis_sem_base(tenant) -> 'derivado' | 'ja_migrado' | 'parado'. Tenant já em 'concessao': nada. Grava os achados
+--    em perfil_migracao_conflito (id determinístico por tenant, tipo, perfil e chave; o que deixou de aparecer ganha
+--    resolvido_em). Com algum 'para_tenant': nenhuma concessão, catalogo_aplicado (versão 1) em 'legado' e o tenant segue no
+--    modelo de hoje. Sem: aplica os ajustes (cargo e cortes dos perfis sem usuários), grava as concessões de todo perfil vivo
+--    (ativos e inativos; apagados não), confere a equivalência de todo perfil com usuário (concessões =
+--    permissoes_legado_do_perfil com os parâmetros; diferença = 23514 e a migração INTEIRA volta: defeito da derivação, não do
+--    tenant) e grava catalogo_aplicado (versão 1) em 'legado'. NENHUM tenant passa a 'concessao' aqui (decisão do dono do
+--    produto para a v1.0.37: o motor novo fica desligado; quem liga é a 0109, na v1.0.38, pela conferência).
 --    Sem EXECUTE para ninguém: só o dono do banco (migração, ou depois de o tenant corrigir os conflitos).
+-- 10b. perfis_derivados(tenant) -> boolean: o tenant tem as concessões derivadas e mantidas em dia (catalogo_aplicado vivo e,
+--    em 'legado', nenhum achado 'para_tenant' em aberto). É o que liga o espelho da 0107 (inclusive em 'legado').
 -- 11. Rodada em todos os tenants (bloco no fim), com raise notice da contagem por resultado e por tipo de achado (sem dado
 --    pessoal). Idempotente: rodar de novo não muda nenhuma linha.
 -- Perfis de hoje: nada é apagado. perfil.base, perfil.fabrica, perfil_permissao e core.usuario.perfil ficam (caminho de volta e
@@ -457,28 +461,43 @@ begin
 
   update plataforma.perfil_migracao_conflito c set resolvido_em = now()
    where c.tenant_id = p_tenant and c.efeito = 'ajustado' and c.resolvido_em is null;
+  -- derivado, mas a leitura fica 'legado' (motor novo desligado na v1.0.37; a 0109 liga pela conferência)
   insert into plataforma.catalogo_aplicado as c (id, tenant_id, versao, leitura)
-  values (plataforma.uuid_de_chave(p_tenant::text || ':plataforma.catalogo_aplicado:1'), p_tenant, 1, 'concessao')
-  on conflict (id) do update set leitura = 'concessao', aplicado_em = now(), deleted_at = null;
-  return 'migrado';
+  values (plataforma.uuid_de_chave(p_tenant::text || ':plataforma.catalogo_aplicado:1'), p_tenant, 1, 'legado')
+  on conflict (id) do update set deleted_at = null where c.deleted_at is not null;
+  return 'derivado';
 end
 $$;
 revoke all on function plataforma.migrar_perfis_sem_base(uuid) from public;
+
+-- 10b. Tenant com as concessões derivadas e mantidas em dia (liga o espelho da 0107) ------------------------------------------
+create function plataforma.perfis_derivados(p_tenant uuid) returns boolean
+  language sql stable
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+    select exists (select 1 from plataforma.catalogo_aplicado c where c.tenant_id = p_tenant and c.deleted_at is null)
+       and (plataforma.leitura_de_perfis(p_tenant) = 'concessao'
+            or not exists (select 1 from plataforma.perfil_migracao_conflito m
+                            where m.tenant_id = p_tenant and m.efeito = 'para_tenant' and m.resolvido_em is null
+                              and m.deleted_at is null))
+  $$;
+revoke all on function plataforma.perfis_derivados(uuid) from public;
+grant execute on function plataforma.perfis_derivados(uuid) to macuxi_app;
 
 -- 11. Rodada em todos os tenants ---------------------------------------------------------------------------------------------
 do $$
 declare
   v_t uuid;
   v_r text;
-  v_migrados integer := 0;
+  v_derivados integer := 0;
   v_parados integer := 0;
   v_outros integer := 0;
   v_tipos text;
 begin
   for v_t in select t.id from plataforma.tenant t order by t.id loop
     v_r := plataforma.migrar_perfis_sem_base(v_t);
-    if v_r = 'migrado' then
-      v_migrados := v_migrados + 1;
+    if v_r = 'derivado' then
+      v_derivados := v_derivados + 1;
     elsif v_r = 'parado' then
       v_parados := v_parados + 1;
     else
@@ -488,7 +507,7 @@ begin
   select string_agg(x.tipo || '/' || x.efeito || '=' || x.n, ', ' order by x.tipo, x.efeito) into v_tipos
     from (select c.tipo, c.efeito, count(*) as n from plataforma.perfil_migracao_conflito c
            where c.deleted_at is null group by c.tipo, c.efeito) x;
-  raise notice '0106: % tenant(s) migrado(s), % parado(s), % sem mudança; achados: %', v_migrados, v_parados, v_outros,
+  raise notice '0106: % tenant(s) derivado(s) (leitura legado), % parado(s), % sem mudança; achados: %', v_derivados, v_parados, v_outros,
     coalesce(v_tipos, 'nenhum');
 end
 $$;

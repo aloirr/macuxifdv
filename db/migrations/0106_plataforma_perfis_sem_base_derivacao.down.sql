@@ -70,6 +70,7 @@ delete from plataforma.perfil_concessao;
 delete from plataforma.perfil_migracao_conflito;
 delete from plataforma.catalogo_aplicado;
 
+drop function if exists plataforma.perfis_derivados(uuid);
 drop function if exists plataforma.migrar_perfis_sem_base(uuid);
 drop function if exists plataforma.sincronizar_concessoes(uuid, jsonb);
 drop function if exists plataforma.diagnosticar_perfis_sem_base(uuid);

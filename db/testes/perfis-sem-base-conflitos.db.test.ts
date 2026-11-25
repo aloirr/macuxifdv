@@ -51,10 +51,10 @@ describe.skipIf(semBanco())('0106 conflitos por tenant (fixture, ROLLBACK)', () 
     await q('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [u]);
     await q('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [t, u, p]);
   };
-  /** Tenant "de antes": criado (nasce migrado), volta a 'legado' e perde as concessões, como se a 0105 ainda não tivesse rodado. */
+  /** Tenant "de antes": criado (nasce derivado), perde catalogo_aplicado e as concessões, como se a 0105 ainda não tivesse rodado. */
   const tenantDeAntes = async (t: string, codigo: string) => {
     await q("insert into plataforma.tenant (id, codigo, nome) values ($1, $2, 'Tenant 104')", [t, codigo]);
-    await q("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = $1", [t]);
+    await q('delete from plataforma.catalogo_aplicado where tenant_id = $1', [t]);
     await q('delete from plataforma.perfil_concessao where tenant_id = $1', [t]);
   };
 
@@ -70,7 +70,7 @@ describe.skipIf(semBanco())('0106 conflitos por tenant (fixture, ROLLBACK)', () 
     await usuarioCom(T1, U.u2, 'gerente', P.gerCampo);
     await usuarioCom(T1, U.u3, 'vendedor', P.semAcesso);
     expect(await leitura(admin, T1)).toBe('legado');
-    // os gatilhos de espelho não fazem nada no tenant legado
+    // os gatilhos de espelho não fazem nada no tenant não derivado
     expect((await retratoConcessoes(admin, T1)).n).toBe(0);
 
     await tenantDeAntes(T2, 't104b');
@@ -81,7 +81,7 @@ describe.skipIf(semBanco())('0106 conflitos por tenant (fixture, ROLLBACK)', () 
     await sob(T2, P.semAcessoLivre, 'acesso.campo', false);
   };
 
-  it('para_tenant com usuário: nada gravado, legado, achados; o outro tenant (só ajustes e avisos) migra', async () => {
+  it('para_tenant com usuário: nada gravado, legado, achados; o outro tenant (só ajustes e avisos) é derivado e fica em legado', async () => {
     await emTransacao(admin, null, async () => {
       await fixtureConflitos();
       expect(await migrar(T1)).toBe('parado');
@@ -95,8 +95,9 @@ describe.skipIf(semBanco())('0106 conflitos por tenant (fixture, ROLLBACK)', () 
       const sup = await q('select antes, depois, usuario_id from plataforma.perfil_migracao_conflito where tenant_id = $1 and perfil_id = $2', [T1, P.supDoVendedor]);
       expect(sup).toEqual([{ antes: { base: 'vendedor', cargo: 'supervisor' }, depois: { base: 'vendedor', cargo: 'supervisor' }, usuario_id: null }]);
 
-      expect(await migrar(T2)).toBe('migrado');
-      expect(await leitura(admin, T2)).toBe('concessao');
+      expect(await migrar(T2)).toBe('derivado');
+      expect(await leitura(admin, T2)).toBe('legado');
+      expect(await q('select plataforma.perfis_derivados($1) as d1, plataforma.perfis_derivados($2) as d2', [T1, T2])).toEqual([{ d1: false, d2: true }]);
       expect(await achados(admin, T2, false)).toEqual([
         'CARGO_DIFERENTE_DA_BASE/ajustado/analista_vendedor/-',
         'PERFIL_SEM_ACESSO/aviso/sem_acesso_livre/-',
@@ -112,15 +113,16 @@ describe.skipIf(semBanco())('0106 conflitos por tenant (fixture, ROLLBACK)', () 
       expect((await concessoesDoPerfil(admin, P.gerCampoLivre))['acesso.gestao']).toEqual({});
       expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [T2])).toEqual([]);
 
-      // T1 corrigido (cargo do perfil acertado, sobreposições tiradas): migra; os achados antigos ficam resolvidos
+      // T1 corrigido (cargo do perfil acertado, sobreposições tiradas): é derivado (leitura legado); os achados antigos ficam resolvidos
       await q("update plataforma.perfil set cargo = 'vendedor' where id = $1", [P.supDoVendedor]);
       await q('delete from plataforma.perfil_permissao where tenant_id = $1', [T1]);
-      expect(await migrar(T1)).toBe('migrado');
+      expect(await migrar(T1)).toBe('derivado');
+      expect(await leitura(admin, T1)).toBe('legado');
       expect(await achados(admin, T1)).toEqual([]);
       expect(await achados(admin, T1, false)).toHaveLength(3);
       expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [T1])).toEqual([]);
       const n = await q('select count(*)::int as n from plataforma.perfil_migracao_conflito where tenant_id = any($1::uuid[])', [[T1, T2]]);
-      expect(await migrar(T1)).toBe('ja_migrado');
+      expect(await migrar(T1)).toBe('derivado');
       expect(await q('select count(*)::int as n from plataforma.perfil_migracao_conflito where tenant_id = any($1::uuid[])', [[T1, T2]])).toEqual(n);
     });
   });

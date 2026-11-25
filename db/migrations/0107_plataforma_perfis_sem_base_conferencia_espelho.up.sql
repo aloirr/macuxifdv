@@ -6,11 +6,12 @@
 --    não apagado do tenant, compara o acesso de hoje do seu perfil vivo (permissoes_legado_do_perfil com os 2 parâmetros) com as
 --    concessões gravadas (concessoes_do_perfil), por chave, nível e alvos (conjunto ordenado). Tipos: DIFERENCA (uma linha por
 --    chave que difere) e NOME_DIVERGENTE (perfil_compat(cargo, concessões) <> core.usuario.perfil; só aviso: a base fica
---    congelada). ESPERADO: zero linhas DIFERENCA em todo tenant 'concessao'. Só leitura, INVOKER (macuxi_app vê só o próprio
+--    congelada). ESPERADO: zero linhas DIFERENCA em todo tenant derivado. Só leitura, INVOKER (macuxi_app vê só o próprio
 --    tenant). Sem dado pessoal: ids e códigos.
 --    A equivalência no deploy é a de migrar_perfis_sem_base (0106, rodada em todo tenant): esta função é a do testes e do suporte.
 -- 2. Espelho da janela de transição (entre o deploy do banco e o da API nova, e enquanto a API antiga ou o app antigo gravarem
---    pelo caminho de hoje): no tenant 'concessao', toda gravação do modelo antigo refaz as concessões do perfil a partir dele
+--    pelo caminho de hoje): no tenant derivado (plataforma.perfis_derivados, 0106: 'concessao', ou 'legado' com as concessões
+--    derivadas e sem achado 'para_tenant' em aberto), toda gravação do modelo antigo refaz as concessões do perfil a partir dele
 --    (plataforma.espelhar_perfil -> concessoes_derivadas -> sincronizar_concessoes), sem mudar nada quando o conjunto já é o
 --    mesmo. O que a trava do cargo cortar entra em perfil_migracao_conflito como 'aviso' (TRAVA_NOVA_CORTA), e o perfil ativo sem
 --    nenhum acesso.* como 'aviso' (PERFIL_SEM_ACESSO); o achado que deixa de valer ganha resolvido_em. Gatilhos (AFTER, por
@@ -20,10 +21,11 @@
 --      parametro_espelho         insert/update/delete em plataforma.parametro de core.promotor_ve_pedidos ou
 --                                catalogo.promotor_ve_preco_estoque (refaz os perfis de base promotor; as outras bases têm
 --                                produto.ver_preco_estoque sempre)
---      tenant_semear_perfis_concessao  tenant NOVO nasce migrado: depois de tenant_semear_perfis (ordem alfabética dos gatilhos
---                                AFTER INSERT), roda migrar_perfis_sem_base (os 7 perfis com as concessões do modelo e
---                                catalogo_aplicado 'concessao'). Assim nenhum tenant novo entra em 'legado'.
---    Tenant 'legado': os gatilhos não fazem nada. Na exclusão do tenant (plataforma.excluir_tenant, ordem das FKs e alfabética),
+--      tenant_semear_perfis_concessao  tenant NOVO nasce derivado: depois de tenant_semear_perfis (ordem alfabética dos
+--                                gatilhos AFTER INSERT), roda migrar_perfis_sem_base (os 7 perfis com as concessões do modelo e
+--                                catalogo_aplicado em 'legado': o motor novo fica desligado na v1.0.37; a 0109 liga).
+--    O espelho só grava concessões e achados: nada do modelo antigo (perfil_permissao, parametro, perfil.base, os perfis) é
+--    apagado nem alterado. Tenant não derivado (sem catalogo_aplicado, ou parado com 'para_tenant'): os gatilhos não fazem nada. Na exclusão do tenant (plataforma.excluir_tenant, ordem das FKs e alfabética),
 --    catalogo_aplicado sai antes de perfil_permissao e parametro: o espelho não regrava nada no meio da exclusão.
 --    As funções dos gatilhos são SECURITY DEFINER (como as conferências da 0049): gravam concessões e achados (o macuxi_app só lê
 --    os achados) e rodam também dentro das sa_* do portal; search_path fixo, sem EXECUTE para ninguém. Saem na fase 2 (ADR
@@ -78,7 +80,7 @@ declare
 begin
   select p.tenant_id, p.id, p.codigo, p.cargo, p.ativo into v
     from plataforma.perfil p where p.id = p_perfil and p.deleted_at is null;
-  if v.id is null or plataforma.leitura_de_perfis(v.tenant_id) <> 'concessao' then
+  if v.id is null or not plataforma.perfis_derivados(v.tenant_id) then
     return;
   end if;
   v_legado := plataforma.permissoes_legado_do_perfil(v.id, true);
@@ -158,7 +160,7 @@ begin
                                      or (old.modulo = 'catalogo' and old.chave = 'promotor_ve_preco_estoque')))) then
     return null;
   end if;
-  if plataforma.leitura_de_perfis(v_tenant) <> 'concessao' then
+  if not plataforma.perfis_derivados(v_tenant) then
     return null;
   end if;
   for v_perfil in

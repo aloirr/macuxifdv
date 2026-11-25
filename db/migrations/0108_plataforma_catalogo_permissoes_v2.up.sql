@@ -14,18 +14,22 @@
 --    A v1 fica (histórico e caminho de volta). db/testes/catalogo-v2.db.test.ts compara a v2 com o SDK.
 -- 2. plataforma.permissoes_legado_do_perfil (gêmea de resolverPerfil, 0106) passa a ler o modelo v2: é o acesso de hoje com as
 --    chaves novas pela BASE do perfil (a rota de hoje aceita o perfil pela base). Com ela, concessoes_derivadas, o espelho da
---    0107 (espelhar_perfil), conferir_perfis_sem_base e a migração de um tenant ainda em 'legado' (migrar_perfis_sem_base)
+--    0107 (espelhar_perfil), conferir_perfis_sem_base e a derivação de um tenant ainda não derivado (migrar_perfis_sem_base)
 --    ficam coerentes com a v2 sem mudar de corpo.
 -- 3. plataforma.aplicar_catalogo_v2(tenant) -> 'aplicado' | 'ja_aplicado' | 'sem_catalogo'. Sem EXECUTE para ninguém. Trava do
---    tenant (a mesma de migrar_perfis_sem_base). Tenant 'concessao': todo perfil vivo (padrão ou personalizado, ativo ou não)
+--    tenant (a mesma de migrar_perfis_sem_base). Tenant derivado (perfis_derivados, 0106; na v1.0.37 todos em 'legado'): todo
+--    perfil vivo (padrão ou personalizado, ativo ou não)
 --    ganha cada chave nova que concessoes_derivadas(perfil, cargo) dá, isto é, conforme o modelo v2 da base (o personalizado de
 --    cargo administrativo derivado do assistente fica sem questionario.ver, cadastro_trade.ver e relatorio_trade.ver, decisão
 --    do gerente-projetos); nenhuma outra concessão muda (sincronizar_concessoes com as concessões de hoje + as novas; id
---    determinístico; nada muda quando já estão lá). Tenant 'legado': sem concessões a gravar (a migração dele, quando vier, já
---    deriva da v2). Por fim, e só então, catalogo_aplicado do tenant passa de versao 1 a 2 (a mesma linha: o id segue o da
+--    determinístico; nada muda quando já estão lá). Tenant não derivado (parado com 'para_tenant'): sem concessões a gravar (a
+--    derivação dele, quando vier, já deriva da v2). Por fim, e só então, catalogo_aplicado do tenant passa de versao 1 a 2 (a
+--    mesma linha: o id segue o da
 --    primeira aplicação, plataforma.uuid_de_chave('<tenant>:plataforma.catalogo_aplicado:1'), que migrar_perfis_sem_base
---    usa no upsert). Idempotente.
--- 4. Tenant novo: tenant_semear_concessoes (0107) roda migrar_perfis_sem_base e depois aplicar_catalogo_v2 (nasce na v2).
+--    usa no upsert). A leitura NÃO muda: nenhum tenant passa a 'concessao' (motor novo desligado na v1.0.37, decisão do dono
+--    do produto; quem liga é a 0109). Idempotente.
+-- 4. Tenant novo: tenant_semear_concessoes (0107) roda migrar_perfis_sem_base e depois aplicar_catalogo_v2 (nasce derivado na
+--    v2, em 'legado').
 -- 5. Rodada em todos os tenants (bloco no fim), com raise notice da contagem por resultado (sem dado pessoal).
 --
 -- Caminho de volta: 0108_plataforma_catalogo_permissoes_v2.down.sql (catalogo_aplicado volta a 1, as concessões das 7 chaves
@@ -164,7 +168,7 @@ begin
     from plataforma.modelo_permissao m2
    where m2.versao = 2 and m2.deleted_at is null
      and not exists (select 1 from plataforma.modelo_permissao m1 where m1.versao = 1 and m1.chave = m2.chave and m1.deleted_at is null);
-  if plataforma.leitura_de_perfis(p_tenant) = 'concessao' then
+  if plataforma.perfis_derivados(p_tenant) then
     for r in select p.id, p.cargo from plataforma.perfil p where p.tenant_id = p_tenant and p.deleted_at is null order by p.id loop
       perform plataforma.sincronizar_concessoes(r.id,
         plataforma.concessoes_do_perfil(r.id)

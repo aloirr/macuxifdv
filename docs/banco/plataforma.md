@@ -1583,7 +1583,11 @@ Etapa E2 do plano. Três migrações, aplicadas juntas no mesmo deploy (o backfi
 - `0106_plataforma_perfis_sem_base_derivacao`: diagnóstico e derivação base + sobreposições → concessões, e a rodada em todos
   os tenants.
 - `0107_plataforma_perfis_sem_base_conferencia_espelho`: conferência por usuário, espelho da janela de transição e semeadura
-  do tenant novo já migrado.
+  do tenant novo já derivado.
+
+**Motor novo desligado na v1.0.37** (decisão do dono do produto): a 0106 deriva e a 0107 mantém `perfil_concessao` em dia, mas
+**nenhum** tenant passa a `leitura = 'concessao'` (todos e o tenant novo ficam em `legado`). Quem liga é a 0109 (v1.0.38), pela
+conferência. `perfis_derivados(tenant)` diz se o tenant tem as concessões derivadas e mantidas (é o que liga o espelho).
 
 O modelo de hoje **fica** (fase 1): `perfil.base`, `perfil.fabrica`, `perfil_permissao`, os 2 parâmetros e `core.usuario.perfil`
 não mudam; a API de hoje continua certa. Só muda `perfil.cargo` de perfil **sem usuários** cujo cargo não é o da base (auditoria
@@ -1613,7 +1617,7 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
   com `produto.ver_preco_estoque` só com `catalogo.promotor_ve_preco_estoque = true`; as outras bases sempre com
   `produto.ver_preco_estoque`.
 - `concessoes_derivadas(perfil, cargo)` = `aplicar_travas_do_cargo(permissoes_legado_do_perfil(perfil, true), cargo)`.
-- `diagnosticar_perfis_sem_base(tenant)` (só leitura) e `migrar_perfis_sem_base(tenant)` → `migrado` | `ja_migrado` | `parado`
+- `diagnosticar_perfis_sem_base(tenant)` (só leitura) e `migrar_perfis_sem_base(tenant)` → `derivado` | `ja_migrado` | `parado`
   (sem EXECUTE para ninguém: só o dono). Achados:
 
 | Tipo | Com usuários | Sem usuários |
@@ -1628,7 +1632,10 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
 
   Com algum `para_tenant`: nenhuma concessão, `catalogo_aplicado` em `legado`, o tenant segue no modelo de hoje até o tenant
   decidir e o dono rodar `select plataforma.migrar_perfis_sem_base('<tenant>')` de novo. Sem: ajustes, concessões de todo perfil
-  vivo (ativos e inativos), equivalência dos perfis com usuário (diferença = 23514, a migração inteira volta) e `concessao`.
+  vivo (ativos e inativos), equivalência dos perfis com usuário (diferença = 23514, a migração inteira volta) e
+  `catalogo_aplicado` em `legado` (derivado; `ja_migrado` só para o tenant já em `concessao`).
+- `perfis_derivados(tenant)` (só leitura, também do `macuxi_app`): `catalogo_aplicado` vivo e, em `legado`, nenhum
+  `para_tenant` em aberto.
 - **Idempotente**: ids determinísticos (`<tenant>:plataforma.perfil_concessao:<perfil>:<chave>`); `sincronizar_concessoes` só
   grava o que muda (nem o `updated_at` anda); tenant em `concessao` é pulado; achado repetido não muda, o que sumiu ganha
   `resolvido_em`.
@@ -1639,11 +1646,12 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
 ### Conferência e espelho (0107)
 - `conferir_perfis_sem_base(tenant)` → `(usuario_id, perfil_codigo, chave, antes, depois, tipo)`: `DIFERENCA` por chave (acesso
   de hoje com os parâmetros × concessões, alvos em ordem) e `NOME_DIVERGENTE`. Esperado: zero `DIFERENCA` em todo tenant
-  `concessao`; no deploy, a equivalência é a de `migrar_perfis_sem_base` (0106), que aborta com 23514.
-- Espelho (gatilhos AFTER por linha, funções `SECURITY DEFINER`, sem EXECUTE para ninguém), só no tenant `concessao`:
+  derivado; no deploy, a equivalência é a de `migrar_perfis_sem_base` (0106), que aborta com 23514.
+- Espelho (gatilhos AFTER por linha, funções `SECURITY DEFINER`, sem EXECUTE para ninguém), só no tenant derivado
+  (`perfis_derivados`; em `legado` também), sem apagar nem alterar nada do modelo antigo:
   `perfil_permissao_espelho` (sobreposição gravada ou apagada), `perfil_espelho` (perfil novo, troca de cargo),
   `parametro_espelho` (os 2 parâmetros; refaz os perfis de base promotor) e `tenant_semear_perfis_concessao` (tenant novo nasce
-  migrado, depois de `tenant_semear_perfis`). O corte pelo cargo vira `TRAVA_NOVA_CORTA` `aviso`; perfil ativo sem acesso,
+  derivado, em `legado`, depois de `tenant_semear_perfis`). O corte pelo cargo vira `TRAVA_NOVA_CORTA` `aviso`; perfil ativo sem acesso,
   `PERFIL_SEM_ACESSO` `aviso`. Saem na fase 2, com `perfil.base`, `perfil_permissao` e os parâmetros.
 - Na `excluir_tenant`, `catalogo_aplicado` sai antes de `perfil_permissao` e `parametro` (ordem alfabética das folhas): o espelho
   não regrava nada no meio.
@@ -1654,13 +1662,14 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
   gerente, analista, assistente e admin; `questionario.ver` (pesquisa), `cadastro_trade.ver` e `relatorio_trade.ver` (promotor)
   nos mesmos, menos o assistente. São os perfis das rotas de hoje (`ACOES_DA_TRANSICAO` do SDK): ninguém ganha nem perde acesso.
 - `permissoes_legado_do_perfil` passa a ler a v2 (a chave nova vale pela base, como a rota de hoje); derivação, espelho,
-  conferência e a migração de tenant em `legado` seguem coerentes sem mudar de corpo.
+  conferência e a derivação de tenant ainda não derivado seguem coerentes sem mudar de corpo.
 - `aplicar_catalogo_v2(tenant)` → `aplicado` | `ja_aplicado` | `sem_catalogo` (sem EXECUTE para ninguém; mesma trava de
-  `migrar_perfis_sem_base`): no tenant `concessao`, cada perfil vivo ganha as chaves novas de `concessoes_derivadas` (o
+  `migrar_perfis_sem_base`): no tenant derivado (`perfis_derivados`), cada perfil vivo ganha as chaves novas de `concessoes_derivadas` (o
   personalizado administrativo de base assistente fica sem as 3 de pesquisa e promotor), sem mexer nas outras concessões; depois,
   `catalogo_aplicado.versao` passa de 1 a 2 **na mesma linha** (o id segue `<tenant>:plataforma.catalogo_aplicado:1`, o do upsert
-  de `migrar_perfis_sem_base`). Tenant `legado`: só a versão (a migração dele já deriva da v2). Rodada em todos os tenants; tenant
-  novo: `tenant_semear_concessoes` aplica a v2 depois da migração. Idempotente.
+  de `migrar_perfis_sem_base`). Tenant não derivado (parado): só a versão (a derivação dele já é da v2). A leitura não muda:
+  nenhum tenant passa a `concessao` (motor desligado na v1.0.37; quem liga é a 0109). Rodada em todos os tenants; tenant novo:
+  `tenant_semear_concessoes` aplica a v2 depois da derivação (nasce na v2, em `legado`). Idempotente.
 - **Volta** (`.down.sql` da 0108): versão 2 → 1, as concessões das 7 chaves com soft delete (a chave desmarcada pela API nova volta
   a valer pela base: perda documentada), a gêmea na v1, o gatilho do tenant novo da 0107 e a v2 do modelo apagada.
 
