@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { protegerFormula } from '@macuxi/comum/csv';
 import type { FarolCliente } from '../../contracts';
-import { aoEscolherEquipe, avisoDoMesPassado, consultaDoFarol, csvDoFarol, filtrosDaUrl, legendaDasFaixas, legendaEmLinhas, aoEscolherVendedor, mesMaximo, rotuloDoExportar, rotuloDaCor, ROTULO_COR_PLURAL, textoDeDias, textoDePositivacao, textoDoResumo, textosDosParametros, tomDaCor, validarFormularioDoFarol } from './farol';
+import { aoEscolherEquipe, avisoDoMesPassado, consultaDoFarol, csvDoFarol, filtrosDaUrl, dicaDaPositivacao, estadoDaPositivacao, legendaDoCliente, corAoClicarNoContador, tomDoContador, aoEscolherVendedor, mesMaximo, rotuloDoExportar, rotuloDaCor, ORDEM_DOS_CONTADORES, ROTULO_PLURAL_DA_COR, textoDeDias, textoDePositivacao, textosDosParametros, tomDaCor, validarFormularioDoFarol } from './farol';
 
 const PADRAO = { verde_ate_dias: 30, amarelo_ate_dias: 45, positivacao_verde_pct: 70, positivacao_amarelo_pct: 50 };
 const url = (o: Record<string, string>) => ({ get: (k: string) => o[k] ?? null });
 
 describe('RN-CORE-28: apresentação do farol no BKO', () => {
-  it('RN-CORE-28: rótulos no plural cobrem as 4 cores, inclusive "Clientes sem compra"', () => {
-    expect(ROTULO_COR_PLURAL).toEqual({ verde: 'Clientes verdes', amarelo: 'Clientes amarelos', vermelho: 'Clientes vermelhos', sem_compra: 'Clientes sem compra' });
+  it('RN-CORE-28: contadores da carteira na ordem Vermelhos, Amarelos, Sem compra, Verdes', () => {
+    expect(ORDEM_DOS_CONTADORES.map((c) => ROTULO_PLURAL_DA_COR[c])).toEqual(['Vermelhos', 'Amarelos', 'Sem compra', 'Verdes']);
   });
   it('RN-CORE-28: dias sem compra em texto e "sem compra" quando não há compra', () => {
     expect([textoDeDias(null), textoDeDias(0), textoDeDias(1), textoDeDias(46)]).toEqual(['—', 'hoje', '1 dia', '46 dias']);
@@ -16,12 +16,12 @@ describe('RN-CORE-28: apresentação do farol no BKO', () => {
   it('RN-CORE-28: positivação em pontos-base vira percentual pt-BR', () => {
     expect([textoDePositivacao(10000), textoDePositivacao(3333), textoDePositivacao(0), textoDePositivacao(7000)]).toEqual(['100%', '33,3%', '0%', '70%']);
   });
-  it('RN-CORE-28: a cor tem sempre texto e tom; carteira vazia é "Sem carteira"', () => {
-    expect([rotuloDaCor('vermelho'), rotuloDaCor('sem_compra'), rotuloDaCor(null)]).toEqual(['Vermelho', 'Sem compra', 'Sem carteira']);
-    expect([tomDaCor('verde'), tomDaCor('amarelo'), tomDaCor('vermelho'), tomDaCor('sem_compra'), tomDaCor(null)]).toEqual(['success', 'warning', 'danger', 'neutral', 'neutral']);
+  it('RN-CORE-28: positivação 489/699 (69,95%) mostra 69,9%, nunca 70% com a cor abaixo de 70%', () => {
+    expect([textoDePositivacao(6995), textoDePositivacao(6999), textoDePositivacao(4999)]).toEqual(['69,9%', '69,9%', '49,9%']);
   });
-  it('RN-CORE-28: resumo em frase', () => {
-    expect(textoDoResumo({ carteira: 3, positivados: 1, positivacao_pct: 3333, cor: 'vermelho', por_cor: { verde: 1, amarelo: 0, vermelho: 1, sem_compra: 1 } })).toBe('1 de 3 clientes positivados no mês (33,3%)');
+  it('RN-CORE-28: a cor tem sempre texto e tom (Verde neutro: só amarelo e vermelho pedem ação); carteira vazia é "Sem carteira"', () => {
+    expect([rotuloDaCor('vermelho'), rotuloDaCor('sem_compra'), rotuloDaCor(null)]).toEqual(['Vermelho', 'Sem compra', 'Sem carteira']);
+    expect([tomDaCor('verde'), tomDaCor('amarelo'), tomDaCor('vermelho'), tomDaCor('sem_compra'), tomDaCor(null)]).toEqual(['neutral', 'warning', 'danger', 'neutral', 'neutral']);
   });
   it('RN-CORE-28: filtros vêm da URL; cor inválida e busca longa são descartadas; só o preenchido vai à API', () => {
     const f = filtrosDaUrl(url({ mes: '2026-10', equipe: 'e1', cor: 'roxo', q: 'x'.repeat(100) }));
@@ -56,14 +56,27 @@ describe('RN-CORE-28: apresentação do farol no BKO', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(Object.keys(r.erros).sort()).toEqual(['amarelo_ate_dias', 'positivacao_verde_pct']);
   });
-  it('RN-CORE-28: a legenda cita os limites do tenant', () => {
-    expect(legendaDasFaixas({ ...PADRAO, verde_ate_dias: 20 })).toContain('até 20 dias');
+  it('RN-CORE-28: a legenda é uma linha só, com a regra do cliente e os limites do tenant', () => {
+    expect(legendaDoCliente(PADRAO)).toBe('Farol do cliente: verde até 30 dias sem compra ou positivado no mês · amarelo até 45 dias · vermelho acima de 45 dias.');
+    expect(legendaDoCliente({ ...PADRAO, verde_ate_dias: 20 })).toContain('verde até 20 dias');
   });
-  it('RN-CORE-28: a legenda em linhas separa cliente e vendedor com os limites do tenant', () => {
-    const l = legendaEmLinhas(PADRAO);
-    expect(l.map((x) => x.rotulo)).toEqual(['Cliente', 'Vendedor']);
-    expect(l[0]?.faixas[2]).toEqual({ cor: 'vermelho', texto: 'acima de 45 dias' });
-    expect(l[1]?.faixas[0]?.texto).toBe('a partir de 70%');
+  it('RN-CORE-28: clicar no contador ativo limpa o filtro; em outro, escolhe a cor', () => {
+    expect(corAoClicarNoContador('', 'vermelho')).toBe('vermelho');
+    expect(corAoClicarNoContador('vermelho', 'vermelho')).toBe('');
+    expect(corAoClicarNoContador('vermelho', 'amarelo')).toBe('amarelo');
+  });
+  it('RN-CORE-28: a dica da positivação traz a regra do vendedor', () => {
+    expect(dicaDaPositivacao(PADRAO)).toBe('Vendedor: verde a partir de 70%, amarelo a partir de 50%, vermelho abaixo de 50%.');
+  });
+  it('RN-CORE-28: positivação do mês só ganha cor abaixo do limite, sempre com texto; sem dados mostra o estado vazio', () => {
+    const r = { carteira: 30, positivados: 0, positivacao_pct: 0, cor: 'vermelho' as const, por_cor: { verde: 30, amarelo: 0, vermelho: 0, sem_compra: 0 } };
+    expect(estadoDaPositivacao(r, 'pedido', PADRAO)).toEqual({ valor: '0%', detalhe: '0 de 30 clientes', tom: 'danger', alerta: 'abaixo de 50%' });
+    expect(estadoDaPositivacao({ ...r, positivados: 18, positivacao_pct: 6000, cor: 'amarelo' }, 'nota_erp', PADRAO)).toEqual({ valor: '60%', detalhe: '18 de 30 clientes', tom: 'warning', alerta: 'abaixo de 70%' });
+    expect(estadoDaPositivacao({ ...r, positivados: 24, positivacao_pct: 8000, cor: 'verde' }, 'pedido', PADRAO)).toEqual({ valor: '80%', detalhe: '24 de 30 clientes', tom: 'neutral', alerta: null });
+    expect(estadoDaPositivacao(r, null, PADRAO)).toEqual({ valor: '—', detalhe: 'Sem pedidos nem notas', tom: 'neutral', alerta: null });
+  });
+  it('RN-CORE-28: só Vermelhos e Amarelos acima de zero ganham cor nos contadores da carteira', () => {
+    expect([tomDoContador('vermelho', 3), tomDoContador('vermelho', 0), tomDoContador('amarelo', 2), tomDoContador('amarelo', 0), tomDoContador('verde', 9), tomDoContador('sem_compra', 4)]).toEqual(['danger', 'neutral', 'warning', 'neutral', 'neutral', 'neutral']);
   });
   it('RN-CORE-28: mês passado avisa que carteira e dias sem compra são de hoje; mês atual não avisa', () => {
     expect(avisoDoMesPassado('2026-10', '2026-11-05')).toMatch(/carteira e os dias sem compra são os de hoje/);

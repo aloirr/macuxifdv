@@ -22,7 +22,7 @@ import {
   type ParametrosFarol,
   type ParametrosFarolPut,
 } from '../contracts';
-import { clienteCasaBusca, corDoCliente, dataLocal, diasSemCompraDoFarol, mascararDocumentoDoFarol, ordenarClientesDoFarol, parametrosFarolDasLinhas, resumirFarol, validarParametrosFarol, type LinhaFarol } from '../domain';
+import { clienteCasaBusca, corDoCliente, dataLocal, diasSemCompraDoFarol, mascararDocumentoDoFarol, ordenarClientesDoFarol, parametrosFarolDasLinhas, resumirFarol, umaLinhaPorCliente, validarParametrosFarol, type LinhaFarol } from '../domain';
 import { auditar } from './auditoria';
 import { licencaDoTenant } from './licenca-tenant';
 
@@ -147,7 +147,9 @@ export async function calcularFarol(db: ClienteBanco, tx: Partial<Pick<Transacao
     .sort((a, b) => (ordemNome.get(a.usuario_id) ?? 0) - (ordemNome.get(b.usuario_id) ?? 0));
 
   // Lista: cor e busca só afetam a lista; resumo e vendedores são do recorte inteiro.
-  const lista: FarolCliente[] = itens
+  // Uma linha por cliente, como no resumo: com dois vendedores vale a linha de quem positivou (senão a primeira),
+  // assim o número do contador e a lista filtrada pela cor batem.
+  const lista: FarolCliente[] = umaLinhaPorCliente(itens, (i) => i.v.cliente_id, (i) => i.positivado_mes)
     .map((i) => ({
       cliente_id: i.v.cliente_id,
       nome: i.v.nome_fantasia?.trim() || i.v.razao_social,

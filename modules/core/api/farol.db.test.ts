@@ -81,6 +81,22 @@ describe.skipIf(semBanco())('Core T-0081 x Postgres: farol de clientes (RN-CORE-
     }
   });
 
+  it('RN-CORE-28: filtro por vendedor com cliente compartilhado mantém o cliente na lista com a linha do vendedor e o resumo bate com a lista', async () => {
+    const vinculo = '00000000-0000-4000-8000-0000000c0de1';
+    await comTenant(pool, A.tenantId, (c) => c.query("insert into core.carteira (id, tenant_id, cliente_id, usuario_id, papel) values ($1, $2, $3, $4, 'vendedor')", [vinculo, A.tenantId, C.c1, U.vendedor2]));
+    try {
+      const f = await farol(admin, { usuario_id: U.vendedor2, limite: 200 });
+      const compartilhado = f.clientes.filter((c) => c.cliente_id === C.c1);
+      expect(compartilhado).toHaveLength(1);
+      expect(compartilhado[0]!.usuario_id).toBe(U.vendedor2);
+      expect(f.vendedores.map((v) => v.usuario_id)).toEqual([U.vendedor2]);
+      expect(f.resumo.carteira).toBe(f.clientes.length);
+      expect(f.resumo).toMatchObject({ carteira: f.vendedores[0]!.carteira, positivados: f.clientes.filter((c) => c.positivado_mes).length });
+    } finally {
+      await comTenant(pool, A.tenantId, (c) => c.query('delete from core.carteira where id = $1', [vinculo]));
+    }
+  });
+
   it('RN-CORE-04: vendedor fora do escopo do supervisor devolve lista vazia, nunca 403', async () => {
     const f = await farol(supervisor, { usuario_id: U.vendedor2 });
     expect(f.clientes).toEqual([]);
