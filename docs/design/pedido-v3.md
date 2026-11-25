@@ -16,6 +16,8 @@
 > **Aprovado pela imagem** (R-20261109-121700) com 2 ressalvas, já nas pranchas e nesta especificação: a barra inferior tem as
 > **5 abas** do Campo (§0.1) e o formulário do endereço funciona **sem sinal**, à mão, com Cidade e UF obrigatórias (§C.3).
 
+> **2026-11-25 (v1.0.34):** Resumo, folha de saída e Ações: vale pedido-v2.md §2.2–2.5.
+
 ## 0. O que a revisão de UX cobra (pedido do dono do produto)
 A revisão de UX **não aprova** tela fora desta especificação nem com aparência de rascunho. Na prática:
 1. Valor que o vendedor consulta (dinheiro, prazo, contagem) fica em **tabela ou linha rótulo ··· valor**, nunca em frase corrida.
@@ -255,8 +257,7 @@ Rascunhos
     "Edição do orçamento 000012 · 3 itens" / "Edição do pedido 000013 · 3 itens";
   - linha 3: "Alterado hoje às 05:51" 12 `ink2` (hoje / ontem / dd/mm, fuso do tenant) e, **faltando menos de 3 h** para sumir,
     o `Selo` aviso **Some em 2 h** (menos de 1 h: **Some em 40 min**). Cor sempre com texto.
-- **Tocar** abre o Novo pedido daquele rascunho **na aba em que o vendedor parou** (o rascunho de "Apenas salvar" abre no Resumo,
-  com o bloco "Falta para salvar", como hoje). Os mesmos itens, forma, prazo, entrega e desconto.
+- **Tocar** abre o Novo pedido daquele rascunho **na aba em que o vendedor parou**. Os mesmos itens, forma, prazo, entrega e desconto.
 - Sem ação de apagar na lista: Descartar fica dentro do pedido (Cancelar → Descartar, RN-VEN-38). O rascunho some sozinho em 24 h.
 - TalkBack da linha: "Atacadinho Cachoeirinha, 3 itens, R$ 69,96, alterado hoje às 5 e 51. Some em 2 horas." + dica "Continuar
   o pedido".
@@ -273,16 +274,16 @@ Rascunhos
 ### F.4 Ao sair do pedido sem a pergunta (RN-VEN-38)
 Quando uma saída grava o rascunho sem passar pela folha "Sair do pedido?" (Voltar do Android a partir de outra tela, troca de aba
 da barra, app em segundo plano), a próxima tela mostra o `AvisoRodape` **Pedido guardado em Rascunhos** com a ação **Abrir**
-(5 s, sem Desfazer). Pela folha (Apenas salvar), continua **Pedido salvo** (`pedido-v2.md` §2.3).
+(5 s, sem Desfazer). Pela folha (Salvar pedido), continua **Pedido salvo** (`pedido-v2.md` §2.3).
 A folha "Pedido não terminado" do Início (reabertura depois de o sistema fechar o app) continua igual.
 
 ## G. Orçamento: "preço de dd/mm" no lugar da validade (RN-VEN-18/32)
 - Etiqueta do orçamento (detalhe, lista Pedidos, Gestão e BKO): `Selo` roxo **Orçamento · preço de 09/11**, com a data em que os
   preços foram congelados (a emissão do orçamento; editar com novos preços muda a data), no fuso do tenant. Outro ano: "preço de
   09/11/25". Saem **"Orçamento · até 16/11"** e **"Orçamento · vencido"**. O selo é sempre roxo: o orçamento não vence.
-- Detalhe do orçamento, ação principal **Transformar em pedido** em qualquer data. Com o preço congelado vencido (depois de D+7
+- Detalhe do orçamento, ação principal **Converter em pedido** em qualquer data. Com o preço congelado vencido (depois de D+7
   23:59 do fuso, decisão do domain do Vendedor), o principal ganha o apoio 12 `ink2` **Entra pelos preços de hoje**.
-- Ao tocar com preço vencido e **total diferente**, sobe a folha **Preços de hoje** antes de transformar:
+- Ao tocar com preço vencido e **total diferente**, sobe a folha **Preços de hoje** antes de converter:
 ```
 Preços de hoje
 Orçamento (preço de 09/11)            R$ 69,96
@@ -291,14 +292,14 @@ Diferença                            +R$ 2,14
 MUDARAM
 Café torrado 500 g · 2 UN   R$ 12,90 → R$ 13,97
 Açúcar 1 kg · 6 UN          R$ 4,29 → R$ 4,49
-[  Transformar com os preços de hoje  ]          ← principal
+[    Converter com os preços de hoje  ]          ← principal
                 Voltar
 ```
   - Totais em `TabelaRotuloValor` (Diferença: aumento `ink` com "+", queda `success` com "−"); itens que mudaram em `LinhaValor`
     ("nome · qtd medida" ··· "R$ antes → R$ hoje"), até 8 e "Ver os 12 itens".
-  - Total igual: transforma direto, sem folha. Item que saiu da tabela de hoje: linha em `danger` "Sem preço hoje" e o principal
-    vira **Transformar sem este item** (premissa, §P).
-- Na aba Resumo do cliente da RN-VEN-13, sai o texto "Válido até 15/11" embaixo de Salvar como orçamento.
+  - Total igual: converte direto, sem folha. Item que saiu da tabela de hoje: linha em `danger` "Sem preço hoje" e o principal
+    vira **Converter sem este item** (premissa, §P).
+- Na aba Resumo do cliente da RN-VEN-13, sai o texto "Válido até 15/11" embaixo de Salvar.
 - Histórico do orçamento: sem a tag **Vencido** (RN-VEN-30).
 
 ## T. Textos finais (copiar exatamente)
@@ -312,7 +313,7 @@ Açúcar 1 kg · 6 UN          R$ 4,29 → R$ 4,49
 | Pedidos | `Rascunhos (2)` · `Somem 24 h após a última alteração` |
 | Rascunhos | `Rascunhos` · `cód. C5007 · 3 itens` · `Edição do orçamento 000012` · `Alterado hoje às 05:51` · `Some em 2 h` · `Some em 40 min` · `Nenhum rascunho` · `O pedido que você deixa sem enviar fica aqui por 24 h.` · `Voltar a Pedidos` · `Cliente fora da sua carteira` |
 | Saída | `Pedido guardado em Rascunhos` · `Abrir` |
-| Orçamento | `Orçamento · preço de 09/11` · `Transformar em pedido` · `Entra pelos preços de hoje` · `Preços de hoje` · `Orçamento (preço de 09/11)` · `Hoje` · `Diferença` · `Mudaram` · `Transformar com os preços de hoje` · `Sem preço hoje` · `Transformar sem este item` · `Voltar` |
+| Orçamento | `Orçamento · preço de 09/11` · `Converter em pedido` · `Entra pelos preços de hoje` · `Preços de hoje` · `Orçamento (preço de 09/11)` · `Hoje` · `Diferença` · `Mudaram` · `Converter com os preços de hoje` · `Sem preço hoje` · `Converter sem este item` · `Voltar` |
 
 ## K. Componentes do kit
 | Peça | Componente | Situação |
@@ -349,5 +350,5 @@ aparelho (R6) segue pendente.
 - Sem apagar na lista de Rascunhos (Descartar fica dentro do pedido).
 - Selo "Some em" só nas últimas 3 h.
 - Endereço editado sem busca pelo CEP (offline primeiro; confirmado pelo dono do produto: à mão, Cidade e UF obrigatórias); os campos e limites são os do contrato (§C.3: 60/20/60/60/60, UF 27, CEP 8).
-- Na folha "Preços de hoje", item sem preço hoje sai do pedido gerado ("Transformar sem este item"; com 2 ou mais, "Transformar
+- Na folha "Preços de hoje", item sem preço hoje sai do pedido gerado ("Converter sem este item"; com 2 ou mais, "Converter
   sem estes itens"); o domain do Vendedor decide se a regra é essa.

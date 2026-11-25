@@ -50,7 +50,7 @@ Código: `modules/vendedor/domain/pdf-pedido.ts` (`buildOrderPdfHtml`, `pdfDoPed
 - **Item:** 1, 2, 3… na ordem do PDF. A ordem do PDF é a alfabética do **código** (`erp_code`), comparada com `localeCompare(…, 'pt-BR', { numeric: true })` (`AGU-2` antes de `AGU-10`); código vazio vai para o fim; empate mantém a ordem do pedido. No app e no BKO a ordem não muda.
 - **Emb.:** coluna própria, alinhada à esquerda, com a sigla e o fator de `unit_label` (`UN`, `FD c/ 10`); vazio = `UN`. **Qtd:** inteiro, sem sigla, alinhada à direita. Some a coluna "Medida" do PDF de hoje.
 - **Desc./Acr. (escritório):** `−15,0%`, `+10,0%` ou `0,0%` (o mesmo formato do Resumo e do detalhe, `pedido-v4.md` §5.4; RD-0139).
-- **Histórico (escritório):** `10/11 05:55 Salvo → 10/11 05:56 Enviado → 10/11 05:58 Rejeitado`; a última etapa em negrito; nome só na etapa feita por outra pessoa que não o vendedor (RN-VEN-30). Orçamento: `Salvo`, `Transformado em pedido nº`, `Cancelado`. Só com 2 etapas ou mais: só `Salvo` (o caso comum do orçamento e do pedido ainda não enviado), o Histórico não sai.
+- **Histórico (escritório):** `10/11 05:55 Salvo → 10/11 05:56 Enviado → 10/11 05:58 Rejeitado`; a última etapa em negrito; nome só na etapa feita por outra pessoa que não o vendedor (RN-VEN-30). Orçamento: `Salvo`, `Convertido em pedido nº`, `Cancelado`. Só com 2 etapas ou mais: só `Salvo` (o caso comum do orçamento e do pedido ainda não enviado), o Histórico não sai.
 - **Continua fora:** "Gerado pelo/em", selo de situação, alçada, "Desconto efetivo", Alertas (inclusive "Motivo da pendência"), endereço do cadastro do cliente, "por conta da empresa/do cliente" no frete, % ou a palavra desconto na versão do cliente.
 
 ## 4. Mapeamento campo a campo (para o modulo-vendedor)
