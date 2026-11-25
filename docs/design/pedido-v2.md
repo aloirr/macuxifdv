@@ -12,7 +12,7 @@
 > ou **aba Entrega** (endereço, frete, transportadora, observações).
 
 > **2026-11-09 (T-0141):** partes desta spec foram substituídas por `pedido-v3.md`: §1.2 (crédito vira tabela), §1.3 (sai a
-> árvore/"Catálogo" da aba Itens), §1.4 (sai a frase do frete; endereço editável só no pedido), §2.3 (sai "Válido até"), §4.1,
+> árvore da aba Itens; o Catálogo volta como botão ao lado da busca, v3 §D), §1.4 (sai a frase do frete; endereço editável só no pedido), §2.3 (sai "Válido até"), §4.1,
 > §4.3 e §5.1 (orçamento sem validade: "Orçamento · preço de dd/mm", sem "vencido"), §8 (textos). Onde as duas divergem, vale a v3.
 
 > **2026-11-25 (v1.0.34, item 16, R-20261124-114951/115055):** §2.2–2.5 e §8 refeitos.

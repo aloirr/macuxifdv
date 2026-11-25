@@ -10,6 +10,7 @@
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
 import { escopoDoCliente } from '../lib/veiculo-pedido';
+import { aguardarPedidoEmCurso } from '../lib/pedido-em-curso';
 import { abrirFotoDoProduto, idsComFoto } from '../lib/foto-produto';
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_VEICULOS, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida, type VeiculoEscolhido, type VeiculoParcial, type VeiculosSaida } from '@macuxi/catalogo/contracts';
 import { CONSULTA_FINANCEIRO_CLIENTE, type CustomerSummary } from '@macuxi/core/contracts';
@@ -141,6 +142,8 @@ export function useVendedor() {
     // RN-VEN-48: uma vez por aparelho/sessão, o salvo guardado na chave do cliente passa para a chave própria (antes da primeira leitura)
     if (migracaoSalvos.current?.repo !== repo) migracaoSalvos.current = { repo, feita: migrarSalvosGuardados(repo, ambiente.novoId).catch(() => []) };
     await migracaoSalvos.current.feita;
+    // R-20261123-201347: o "+" do Catálogo ainda gravando? a leitura espera, senão a próxima edição apagaria o item
+    await aguardarPedidoEmCurso();
     const geracaoAntes = versaoRascunhos.current;
     const [lidos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
     // rascunho com gravação em andamento vale o da memória: a leitura pode ter vindo antes do toque no +/− ser gravado

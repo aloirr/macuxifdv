@@ -2,8 +2,8 @@
  * Spec docs/design/telas/portal-config-enxuto.md §8 e §11.4 — cartão "Plano {nome}" e a aba Empresa, renderizados com
  * `react-dom/server` e os dados já no cache do React Query (Distribuidora Uma, PME em teste, Promotor 3 e Pesquisa 10):
  * - time da Macuxi: "Trocar de plano" ao lado do título; valor e teste logo abaixo; blocos "{em uso} de {contratadas}"; "no limite"
- *   só com o selo; Plano e Administradores lado a lado;
- * - admin do cliente: só o Plano, sem "Trocar de plano" e sem Administradores;
+ *   só com o selo; à esquerda Plano e Apps, à direita Dados da empresa, Administradores e a marca (R-20261124-090942 item 04);
+ * - admin do cliente: o mesmo arranjo, sem "Trocar de plano" e sem Administradores;
  * - diálogo: os planos com "Atual", adicionais com um cabeçalho só, ciclo e o rodapé com Total, "Cancelar" e o principal;
  * - empresa sem plano (ficha 404 `SEM_ASSINATURA`, caso AM2808) e servidor sem planos (404 de rota, `MACUXI_PLANOS` desligado):
  *   "Módulos licenciados", sem "Trocar de plano"; a Nova empresa sem catálogo segue pelo passo antigo.
@@ -38,6 +38,24 @@ function comErro(qc: QueryClient, chave: QueryKey, erro: Error) {
   qc.getQueryCache().build(qc, { queryKey: chave }).setState({ status: 'error', error: erro, fetchStatus: 'idle' });
 }
 
+const CADASTRO = {
+  tenant_id: TENANT,
+  cnpj: '11222333000181',
+  razao_social: 'Distribuidora Uma Ltda',
+  nome_fantasia: null,
+  logradouro: null,
+  numero: null,
+  complemento: null,
+  bairro: null,
+  municipio: null,
+  uf: null,
+  cep: null,
+  telefone: null,
+  email: null,
+  inscricao_estadual: null,
+  atualizado_em: '2026-11-01T12:00:00.000Z',
+};
+
 const SEM_ASSINATURA = new ErroPortal(404, 'SEM_ASSINATURA', 'Esta empresa ainda não tem plano.');
 const ROTA_AUSENTE = new ErroPortal(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
 
@@ -48,6 +66,7 @@ function renderizar(no: ReactNode, { erroFicha, erroPlanos }: { erroFicha?: Erro
   if (erroPlanos) comErro(qc, CHAVE_PLANOS, erroPlanos);
   else qc.setQueryData(CHAVE_PLANOS, PLANOS_EXEMPLO);
   qc.setQueryData(['portal', TENANT, 'admins'], []);
+  qc.setQueryData(['portal', TENANT, 'cadastro'], CADASTRO);
   return renderToStaticMarkup(<QueryClientProvider client={qc}>{no}</QueryClientProvider>);
 }
 
@@ -76,7 +95,7 @@ describe('cartão Plano da aba Empresa (§11.4)', () => {
   });
 
   it('admin do cliente: só vê, sem "Trocar de plano"', () => {
-    const html = renderizar(<CartaoPlano tenant={TENANT} podeTrocar={false} largo />);
+    const html = renderizar(<CartaoPlano tenant={TENANT} podeTrocar={false} />);
     expect(html).toContain('>Plano PME<');
     expect(html).toContain('R$ 1.537,00/mês');
     expect(html).not.toContain('empresa-plano.trocar');
@@ -84,22 +103,26 @@ describe('cartão Plano da aba Empresa (§11.4)', () => {
 });
 
 describe('aba Empresa (planos-assinatura 03 e 04)', () => {
-  it('time da Macuxi: Plano e, à direita, Administradores com os cartões da coluna direita embaixo', () => {
+  /** Os testIDs estão todos no HTML, nesta ordem. */
+  const naOrdem = (html: string, ...ids: string[]) => {
+    const pos = ids.map((id) => html.indexOf(`data-testid="${id}"`));
+    return pos.every((p, i) => p > (i === 0 ? -1 : (pos[i - 1] ?? Infinity)));
+  };
+
+  it('time da Macuxi: Plano e Apps à esquerda; Dados da empresa, Administradores e a marca à direita', () => {
     const html = renderizar(
-      <AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} colunaDireita={<p data-testid="extra">extra</p>} semPlano={() => <p data-testid="so-sem-plano" />} />,
+      <AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi modulos={MODULOS} marca={<p data-testid="extra">extra</p>} semPlano={() => <p data-testid="so-sem-plano" />} />,
     );
     expect(html).toContain('md:grid-cols-[1.25fr_1fr]');
-    const direita = html.slice(html.indexOf('data-testid="empresa-pagina.coluna-direita"'));
-    expect(html.indexOf('empresa-plano.cartao')).toBeLessThan(html.indexOf('data-testid="empresa-pagina.coluna-direita"'));
-    expect(direita.indexOf('data-testid="empresa-admins"')).toBeGreaterThan(-1);
-    expect(direita.indexOf('data-testid="empresa-admins"')).toBeLessThan(direita.indexOf('data-testid="extra"'));
+    expect(naOrdem(html, 'empresa-pagina.coluna-esquerda', 'empresa-plano.cartao', 'empresa-pagina.apps', 'empresa-pagina.coluna-direita', 'empresa-cadastro', 'empresa-admins', 'extra')).toBe(true);
     expect(html).toContain('data-testid="empresa-plano.trocar"');
     expect(html).not.toContain('empresa-pagina.modulos');
     expect(html).not.toContain('so-sem-plano');
   });
-  it('admin do cliente: só o Plano, sem Administradores', () => {
+  it('admin do cliente: o mesmo arranjo, sem Administradores', () => {
     const html = renderizar(<AbaEmpresa tenant={TENANT} fuso="America/Manaus" timeMacuxi={false} modulos={MODULOS} />);
-    expect(html).toContain('empresa-plano.cartao');
+    expect(naOrdem(html, 'empresa-plano.cartao', 'empresa-pagina.apps', 'empresa-pagina.coluna-direita', 'empresa-cadastro')).toBe(true);
+    expect(html).toContain('data-testid="empresa-cadastro.editar"');
     expect(html).not.toContain('empresa-admins');
     expect(html).not.toContain('empresa-plano.trocar');
   });

@@ -71,6 +71,7 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
 describe('RN-VEN-38 (T-0137): Salvar > Pedido', () => {
   it('RN-VEN-38: o rascunho guardado reabre no Resumo e o novo abre em Venda', () => {
     expect(abaInicialDoRascunho({ salvo_em: '2026-11-08T14:00:00Z' })).toBe('resumo');
+    expect(abaInicialDoRascunho({ salvo_em: '2026-11-08T14:00:00Z', aba: 'itens' })).toBe('itens');
     expect(abaInicialDoRascunho({})).toBe(ABA_INICIAL_DO_PEDIDO);
     expect(abaInicialDoRascunho({ salvo_em: null })).toBe('venda');
   });

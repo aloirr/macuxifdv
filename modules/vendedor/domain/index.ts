@@ -10,6 +10,7 @@ export * from './quantidade';
 export * from './retorno-erp';
 export * from './orcamento';
 export * from './orcamento-em-aberto';
+export * from './produto-no-rascunho';
 export * from './preco-pedido';
 export * from './troca-prazo';
 export * from './leitura-pedido';

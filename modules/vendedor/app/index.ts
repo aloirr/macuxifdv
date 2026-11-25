@@ -8,6 +8,7 @@ import type { AcaoCliente, CardInicio } from '@macuxi/core/contracts';
 import { CardsPedidosInicio } from './components/cards-inicio';
 import { consultaPrecoPrazoPadraoAparelho } from './consulta-preco-prazo-padrao';
 import { etapasVendedor } from './etapas';
+import { adicionarAoPedidoEmCurso } from './lib/pedido-em-curso';
 import { pendenciasRascunhosParaAtualizar } from './lib/rascunhos-para-atualizar';
 import { irParaAdicionarAoOrcamento, irParaNovoPedido } from './rotas';
 import AdicionarAoOrcamentoScreen from './screens/adicionar-ao-orcamento-screen';
@@ -81,7 +82,23 @@ export const moduloApp = definirModuloShell<ComponentType>({
         rotulo: 'Adicionar ao orçamento',
         testID: 'produto-adicionar-orcamento',
         icone: 'plus',
+        onde: 'consulta',
         abrir: (ctx) => irParaAdicionarAoOrcamento(ctx.produtoId, ctx.nomeProduto),
+      } satisfies AcaoProduto,
+    },
+    // R-20261124-110151 (RN-VEN-49): dentro do Catálogo aberto a partir do Novo pedido, o "+" grava o produto direto no rascunho do
+    // aparelho (1 unidade, preço normal). Promotor nunca vê (acao pedido.criar).
+    {
+      slot: 'produto.acoes',
+      id: 'adicionar-ao-pedido',
+      acao: 'pedido.criar',
+      apps: ['campo'],
+      payload: {
+        rotulo: 'Adicionar',
+        testID: 'produto-adicionar-pedido',
+        icone: 'plus',
+        onde: 'pedido',
+        abrir: (ctx) => adicionarAoPedidoEmCurso(ctx.pedidoEmCurso, ctx.produtoId),
       } satisfies AcaoProduto,
     },
     // T-0085 (RF-GES-05, RN-VEN-35): o Gestor abre o novo pedido pelo vendedor da equipe/área. Só supervisor e gerente

@@ -11,7 +11,7 @@
 import { ROTULO_BUSCA_CLIENTE } from '@macuxi/core/contracts';
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
-import { useAmbiente, useExtensoes, usePode } from '@macuxi/platform-sdk/react';
+import { useAmbiente, useExtensoes, useMotorSync, usePode, useVisaoShell } from '@macuxi/platform-sdk/react';
 import type { EquipeEmNome, MembroEquipeEmNome } from '../../contracts/extensoes';
 import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, BotaoFiltro, Card, CampoBusca, colors, EstadoVazio, EtiquetaFiltro, fonte, FolhaVeiculo, Icon, LinhaEtiquetas, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -44,7 +44,7 @@ import { vencidosComEfeito } from '../../domain/alertas-pedido';
 import { AreaAlertas } from '../components/area-alertas';
 import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
 import { DescontoGeral } from '../components/desconto-geral';
-import { leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, NAVEGACAO_VEICULO, textoDaBuscaComVeiculo, TEXTOS_VEICULO } from '@macuxi/catalogo/contracts';
+import { hrefCatalogoNoPedido, leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, NAVEGACAO_VEICULO, textoDaBuscaComVeiculo, TEXTOS_VEICULO } from '@macuxi/catalogo/contracts';
 import { chaveDoVeiculo, escopoDoCliente, modoDaListaDoPedido, type VeiculoDoPedido } from '../lib/veiculo-pedido';
 import { FolhaDoItem } from '../components/folha-do-item';
 import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
@@ -61,6 +61,7 @@ import { FolhaSaidaDoPedido } from '../components/saida-do-pedido';
 import { FolhaDeOpcoes } from '../components/folha-de-opcoes';
 import { useBloquearSaida } from '../lib/bloquear-saida';
 import { deixarAvisoPendente } from '../lib/aviso-pendente';
+import { deixarArmazenamentoDoPedido } from '../lib/pedido-em-curso';
 import { aplicarValorPendente } from '../lib/valor-pendente';
 import { useVendedor } from '../state/use-vendedor';
 
@@ -182,6 +183,19 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
   const [chaveSalva, setChaveSalva] = useState<string | null>(null);
   const draftKey = chaveSalva ?? draftKeyFor(customerId, editId, rascunhoId);
   const updateDraft = (_customerId: string, fn: (d: Draft) => Draft) => void app.atualizarRascunho(draftKey, customerId, fn);
+  // R-20261124-110151 (RN-VEN-49): "Catálogo" na aba Itens só no Campo, com a ação de consulta e a licença do Catálogo (promotor nunca chega aqui)
+  const visao = useVisaoShell();
+  const { motor } = useMotorSync();
+  const podeConsultarProduto = usePode('produto.consultar');
+  const catalogoNoPedido = visao.app === 'campo' && podeConsultarProduto && visao.modulosAtivos.includes('catalogo') && Boolean(motor);
+  /** Grava o pedido (e a aba Itens) no aparelho antes de abrir o Catálogo. */
+  const abrirCatalogo = async () => {
+    if (!motor) return;
+    aplicarValorPendente();
+    await app.atualizarRascunho(draftKey, customerId, (d) => ({ ...d, aba: 'itens' }), { manterAlteracao: Boolean(dados.rascunhos[draftKey]) });
+    deixarArmazenamentoDoPedido(motor.armazenamentoDoModulo('vendedor'));
+    router.push(hrefCatalogoNoPedido({ clienteId: customerId, pedidoEmCurso: draftKey }) as never);
+  };
   /** pedido em edição (servidor ou fila do aparelho) */
   const editTarget = editId ? (app.pedidos.find((o) => o.id === editId) ?? null) : null;
   const editingServer = Boolean(editTarget && !editTarget.local);
@@ -284,6 +298,13 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
   const parametrosVendedor = ambiente.parametros('vendedor');
   const fretePadrao = modalidadePadraoDosParametros(parametrosVendedor);
   const [aba, setAba] = useState<AbaNovoPedido>(() => abaInicialDoRascunho(draft));
+  // o rascunho só chega depois de `app.carregado`: acerta a aba uma vez, na carga (volta do Catálogo e retomada pela lista Rascunhos)
+  const abaAcertada = useRef(false);
+  useEffect(() => {
+    if (!app.carregado || abaAcertada.current) return;
+    abaAcertada.current = true;
+    setAba(abaInicialDoRascunho(draft));
+  }, [app.carregado, draft]);
   const saveEditRef = useRef<(opcoes?: { transformar?: boolean }) => Promise<void>>(async () => undefined);
   const sendRef = useRef<() => Promise<boolean>>(async () => false);
   // RN-VEN-38: a folha do Salvar do Novo pedido (Orçamento ou Pedido)
@@ -862,6 +883,7 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
                 <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder={veiculoDisponivel ? TEXTOS_VEICULO.placeholderBusca : 'Código, descrição ou veículo'} dica={veiculoDisponivel ? TEXTOS_VEICULO.dicaBusca : undefined} rotuloAcessivel="Buscar produto" testID="product-search" />
               </View>
               {veiculoDisponivel ? <BotaoFiltro icone="carro" rotulo={leituraDoBotaoVeiculo(veiculo?.rotulos ?? null)} ativo={veiculoAtivo} onPress={() => setFolhaVeiculoAberta(true)} testID="botao-veiculo" /> : null}
+              {catalogoNoPedido ? <BotaoFiltro icone="pacote" rotulo="Catálogo" onPress={() => void abrirCatalogo().catch(() => avisoRodape.mostrar({ texto: errorMessage(null) }))} testID="itens-catalogo" /> : null}
             </View>
             {veiculoAtivo && veiculo ? (
               <LinhaEtiquetas>

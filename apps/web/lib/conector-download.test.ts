@@ -4,6 +4,7 @@
  * falha (rota ausente ou sem pacote = "em breve"; app sem licença = uma linha, RN-CORE-67).
  */
 import { describe, expect, it } from 'vitest';
+import { formatDateTime, formatTime } from '@macuxi/ui/web';
 
 import {
   DOWNLOAD_APPS,
@@ -110,8 +111,10 @@ describe('textos', () => {
     expect(tamanhoLegivel(10)).toBe('1 KB');
   });
 
-  it('validade com a hora de quem vê', () => {
-    expect(textoDaValidade(base, () => '01:15')).toBe('O link vale até 01:15. Depois disso, gere outro.');
+  it('validade no fuso da empresa: data e hora nos apps (24 h, ADR 0074), só a hora no Conector', () => {
+    const app = { ...base, expira_em: '2026-11-25T14:15:00.000Z' };
+    expect(textoDaValidade(app, (iso) => formatDateTime(iso, 'America/Manaus'))).toBe('O link vale até 25/11 às 10:15.');
+    expect(textoDaValidade(base, (iso) => formatTime(iso, 'America/Manaus'))).toBe('O link vale até 01:15.');
   });
 
   it('botão com o arquivo quando veio', () => {

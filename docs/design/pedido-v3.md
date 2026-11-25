@@ -1,4 +1,4 @@
-# Novo pedido v3: crédito em tabela, Entrega enxuta, endereço do pedido, Itens sem Catálogo, Rascunhos e "preço de" (T-0141)
+# Novo pedido v3: crédito em tabela, Entrega enxuta, endereço do pedido, Itens com busca e Catálogo, Rascunhos e "preço de" (T-0141)
 
 > **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../marca/manual.md#5-tipografia).
 > Famílias, pesos acima de 700 e tamanhos fora da escala citados abaixo ficam só como histórico.
@@ -196,16 +196,18 @@ R-20261109-100051-engenheiro-software): o endereço vai para a NF-e (campos até
 | PDFs (pedido e orçamento) | "Endereço de entrega:" com o endereço do pedido, sem marca (para o cliente, é o endereço da entrega) |
 | Devolução ao ERP | o endereço do pedido (modulo-integracao; contrato do engenheiro-software) |
 
-## D. Aba Itens sem "Catálogo"
+## D. Aba Itens: busca e "Catálogo"
 ```
 Total do pedido · 3 itens                 R$ 69,96
-[🔍 Código, descrição ou veículo            ]
+[🔍 Código, descrição ou veículo   ] [Catálogo]
 NO PEDIDO
 ...itens...
 LEVE MAIS E PAGUE MENOS · COMBINA COM O PEDIDO
 ```
-- **Sai a trilha "Catálogo ›"** (`Trilha compacta` com `irParaCatalogoDoPedido`) logo abaixo da busca. Item novo só pela
-  `CampoBusca` da aba (RF-VEN-11). Nenhum toque nesta aba leva para fora do pedido.
+- **Sai a trilha "Catálogo ›"** (`Trilha compacta` com `irParaCatalogoDoPedido`) logo abaixo da busca (T-0141).
+- **Volta o Catálogo** (R-20261124-110151, RN-VEN-49): `BotaoFiltro` ícone `pacote`, leitura "Catálogo", à direita da busca
+  (e do Veículo), só no Campo com o Catálogo ativo; grava o rascunho e abre o Catálogo do cliente; o "+" (Adicionar) põe
+  1 unidade no pedido com o aviso "Adicionado ao pedido"; o Voltar retorna à aba Itens.
 - Sem item e sem busca: `EstadoVazio` ícone `search`, título **Nenhum item ainda**, apoio **Busque pelo código, descrição ou
   veículo.** (sem ação; a busca está logo acima).
 - Busca sem resultado e busca com erro: como hoje (`textoBuscaSemResultado`, `MENSAGEM_ERRO_BUSCA`).
@@ -332,7 +334,7 @@ Açúcar 1 kg · 6 UN          R$ 4,29 → R$ 4,49
    atualização abaixo; nenhum "Limite R$ x · disponível R$ y" em frase.
 2. Aba Entrega: sem frase abaixo do CIF/FOB; cartão do endereço com selo de origem e a ação Alterar/Editar; folha e formulário
    como C.2 e C.3; o selo "Editado neste pedido" no cartão, no Resumo e no detalhe.
-3. Aba Itens: sem "Catálogo"; nenhum toque leva para fora do pedido.
+3. Aba Itens: botão Catálogo ao lado da busca; o '+' do Catálogo entra no pedido e o Voltar retorna à aba Itens.
 4. Pedidos: linha Rascunhos só com rascunho; tela Rascunhos com cliente, total, nº de itens, hora e o selo "Some em" (< 3 h);
    tocar retoma na aba em que parou.
 5. Orçamento: só "preço de dd/mm"; nenhum "até dd/mm", "vencido" ou "Válido até" no app, no BKO e no PDF.
