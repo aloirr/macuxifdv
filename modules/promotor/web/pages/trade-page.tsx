@@ -10,6 +10,7 @@ import { api, downloadBlob, errorMessage, useSession } from '@macuxi/platform-sd
 import { Button, DEFAULT_TZ, ErrorBlock, EstadoVazio, FilterBar, formatDateTime, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, PageHeader, Panel, rotuloComContagem, SeloSituacao, TabelaDados, TextField, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { useCallback, useEffect, useState } from 'react';
 import { RelatorioRupturaApi, RelatorioShareApi, type RelatorioRupturaApi as RelatorioRuptura, type RelatorioShareApi as RelatorioShare } from '../../contracts';
+import { ROTULO_COLUNA_RUPTURA } from '../../domain/ruptura';
 import { ROTULO_SITUACAO_SHARE, rupturaCsv, shareCsv } from '../lib/csv';
 import { lerFiltrosTrade, paraBuscaTrade, paraQueryTrade, type FiltrosTrade } from '../lib/filtros';
 
@@ -76,8 +77,8 @@ export function TradePage() {
   ];
 
   const colunasShare: ColunaDaTabela<LinhaShare>[] = [
-    { id: 'loja', titulo: 'Loja', celula: (l) => loja(l.cliente_nome), texto: (l) => loja(l.cliente_nome) },
-    { id: 'categoria', titulo: 'Categoria', celula: (l) => l.categoria_nome ?? 'Categoria sem cadastro', texto: (l) => l.categoria_nome ?? 'Categoria sem cadastro' },
+    { id: 'loja', titulo: 'Loja', celula: (l) => loja(l.cliente_nome), texto: (l) => loja(l.cliente_nome), largura: '260px' },
+    { id: 'categoria', titulo: 'Categoria', largura: '150px', celula: (l) => l.categoria_nome ?? 'Categoria sem cadastro', texto: (l) => l.categoria_nome ?? 'Categoria sem cadastro' },
     { id: 'share', titulo: 'Share', numero: true, prioridade: 2, celula: (l) => pct(l.share_pct) },
     { id: 'meta', titulo: 'Meta', numero: true, prioridade: 2, celula: (l) => pct(l.meta_pct) },
     { id: 'atingimento', titulo: 'Atingimento', numero: true, celula: (l) => pct(l.atingimento_pct) },
@@ -85,11 +86,11 @@ export function TradePage() {
     { id: 'medido', titulo: 'Medido em', prioridade: 3, celula: (l) => dataHora(l.medido_em), texto: (l) => dataHora(l.medido_em), largura: '150px' },
   ];
   const colunasRuptura: ColunaDaTabela<LinhaRuptura>[] = [
-    { id: 'loja', titulo: 'Loja', celula: (l) => loja(l.cliente_nome), texto: (l) => loja(l.cliente_nome) },
+    { id: 'loja', titulo: 'Loja', celula: (l) => loja(l.cliente_nome), texto: (l) => loja(l.cliente_nome), largura: '260px' },
     { id: 'total', titulo: 'Itens do mix', numero: true, prioridade: 2, celula: (l) => l.total },
-    { id: 'ruptura', titulo: 'Ruptura', numero: true, celula: (l) => pct(l.ruptura_pct) },
-    { id: 'falha', titulo: 'Falha de reposição', numero: true, prioridade: 2, celula: (l) => pct(l.falha_reposicao_pct) },
-    { id: 'total_pct', titulo: 'Ruptura total', numero: true, celula: (l) => pct(l.ruptura_total_pct) },
+    { id: 'ruptura', titulo: ROTULO_COLUNA_RUPTURA.geral, numero: true, celula: (l) => pct(l.ruptura_pct) },
+    { id: 'falha', titulo: ROTULO_COLUNA_RUPTURA.falha_reposicao, numero: true, prioridade: 2, celula: (l) => pct(l.falha_reposicao_pct) },
+    { id: 'total_pct', titulo: ROTULO_COLUNA_RUPTURA.sem_estoque, numero: true, celula: (l) => pct(l.ruptura_total_pct) },
     { id: 'repostos', titulo: 'Repostos (un.)', numero: true, prioridade: 3, celula: (l) => l.quantidade_reposta },
     { id: 'visita', titulo: 'Última visita', prioridade: 3, celula: (l) => dataHora(l.checkin_em), texto: (l) => dataHora(l.checkin_em), largura: '150px' },
   ];

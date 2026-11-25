@@ -1,6 +1,7 @@
 /** Exportação CSV do BKO de trade (padrão brasileiro do Excel: `;`, vírgula decimal, CRLF e BOM). */
 import { BOM_CSV, celulaCsvCompacta } from '@macuxi/comum/csv';
 import type { RelatorioRupturaApi, RelatorioShareApi } from '../../contracts';
+import { ROTULO_COLUNA_RUPTURA } from '../../domain/ruptura';
 
 export function paraCsv(linhas: ReadonlyArray<ReadonlyArray<string | number | null | undefined>>): string {
   return BOM_CSV + linhas.map((l) => l.map(celulaCsvCompacta).join(';')).join('\r\n') + '\r\n';
@@ -22,7 +23,7 @@ export function shareCsv(r: RelatorioShareApi): string {
 
 export function rupturaCsv(r: RelatorioRupturaApi): string {
   return paraCsv([
-    ['Loja', 'Itens do mix', 'Presentes', 'Falta na gôndola (reposição)', 'Ruptura total', 'Ruptura (%)', 'Falha de reposição (%)', 'Ruptura total (%)', 'Unidades repostas', 'Check-in (UTC)'],
+    ['Loja', 'Itens do mix', 'Presentes', 'Falta na gôndola (reposição)', ROTULO_COLUNA_RUPTURA.sem_estoque, `${ROTULO_COLUNA_RUPTURA.geral} (%)`, `${ROTULO_COLUNA_RUPTURA.falha_reposicao} (%)`, `${ROTULO_COLUNA_RUPTURA.sem_estoque} (%)`, 'Unidades repostas', 'Check-in (UTC)'],
     ...r.linhas.map((l) => [l.cliente_nome ?? l.cliente_id, l.total, l.presentes, l.ruptura_gondola, l.ruptura_total, l.ruptura_pct, l.falha_reposicao_pct, l.ruptura_total_pct, l.quantidade_reposta, l.checkin_em]),
   ]);
 }
