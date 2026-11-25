@@ -10,6 +10,7 @@
  * TODO(fiscal): impostos (ST, ICMS, DIFAL) são calculados no faturamento pelo ERP; o PDF mostra valores sem impostos.
  */
 import { formatarCep, formatarDocumento, formatBRL } from '@macuxi/comum';
+import { formatarQuantidade, temFracao, unidadeFracionaria } from '@macuxi/comum/quantidade';
 import { PILHA_MONO, PILHA_SISTEMA } from '@macuxi/comum/fonte';
 import type { FilialDadosFiscais } from '@macuxi/core/contracts';
 
@@ -17,6 +18,7 @@ import { ajusteDoItemEmPct, linhasDosTotais, ROTULO_VALOR_FINAL, semRs, siglaDaM
 import { LOGO_PADRAO_DATA_URI } from './logo-padrao';
 import { dataDaValidade } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
+import { somarQuantidades } from './quantidade';
 
 /** Data/hora no fuso (Intl); local ao domínio para não importar a UI (E5 move isto para @macuxi/comum). */
 function zonedParts(at: string, tz: string): { year: number; month: number; day: number; hour: number; minute: number } {
@@ -358,14 +360,20 @@ export function equivaleAHtml(it: Pick<OrderPdfItem, 'references'>, view: OrderP
   return `<span class="apl eqv">Equivale a: ${refs.map((r) => `${escapeHtml(r.brand.trim())} <strong>${escapeHtml(r.code.trim())}</strong>`).join(' · ')}</span>`;
 }
 
+/** RN-VEN-02 v3 (ADR 0076): quantidade da coluna do PDF; KG/M com vírgula e 3 a 4 casas (a unidade já está na coluna Emb.), o resto como sempre. */
+export function quantidadeDoPdf(item: Pick<OrderPdfItem, 'quantity' | 'unit_label'>): string {
+  const sigla = siglaDaMedida(item.unit_label);
+  return unidadeFracionaria(sigla) || temFracao(item.quantity) ? formatarQuantidade(item.quantity, sigla).replace(/ \S+$/, '') : String(item.quantity);
+}
+
 /** RN-CORE-19: quantidade somada por embalagem ("2 FD + 4 CX + 10 UN"); a medida "CX c/ 12" conta como CX. */
 export function quantidadePorEmbalagem(items: ReadonlyArray<Pick<OrderPdfItem, 'quantity' | 'unit_label'>>): string {
   const porMedida = new Map<string, number>();
   for (const i of items) {
     const medida = siglaDaMedida(i.unit_label);
-    porMedida.set(medida, (porMedida.get(medida) ?? 0) + i.quantity);
+    porMedida.set(medida, somarQuantidades(porMedida.get(medida) ?? 0, i.quantity));
   }
-  return [...porMedida].map(([m, q]) => `${q} ${m}`).join(' + ');
+  return [...porMedida].map(([m, q]) => (unidadeFracionaria(m) || temFracao(q) ? formatarQuantidade(q, m) : `${q} ${m}`)).join(' + ');
 }
 
 /** Descrição + Aplicação + Equivale a (uma célula). */
@@ -390,7 +398,7 @@ function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   const rows = itensEmOrdemDoCodigo(order.items)
     .map(
       (it, n) => `
-    <tr><td class="v n">${n + 1}</td><td class="cod">${escapeHtml(it.erp_code)}</td><td>${descricaoHtml(it, 'customer', ctx)}</td><td>${escapeHtml(it.brand?.trim())}</td><td class="emb">${escapeHtml(it.unit_label || 'UN')}</td><td class="v">${it.quantity}</td><td class="v">${semRs(netUnitCents(it))}</td><td class="v tot">${semRs(it.total_cents)}</td></tr>`,
+    <tr><td class="v n">${n + 1}</td><td class="cod">${escapeHtml(it.erp_code)}</td><td>${descricaoHtml(it, 'customer', ctx)}</td><td>${escapeHtml(it.brand?.trim())}</td><td class="emb">${escapeHtml(it.unit_label || 'UN')}</td><td class="v">${quantidadeDoPdf(it)}</td><td class="v">${semRs(netUnitCents(it))}</td><td class="v tot">${semRs(it.total_cents)}</td></tr>`,
     )
     .join('');
   return `
@@ -428,7 +436,7 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   const rows = itensEmOrdemDoCodigo(order.items)
     .map(
       (it, n) => `
-    <tr><td class="v n">${n + 1}</td><td class="cod">${escapeHtml(it.erp_code)}</td><td>${descricaoHtml(it, 'bko', ctx)}</td><td>${escapeHtml(it.brand?.trim())}</td><td class="emb">${escapeHtml(it.unit_label || 'UN')}</td><td class="v">${it.quantity}</td><td class="v">${semRs(it.unit_price_cents)}</td><td class="v">${itemAdjustText(it, pct)}</td><td class="v">${semRs(netUnitCents(it))}</td><td class="v tot">${semRs(it.total_cents)}</td></tr>`,
+    <tr><td class="v n">${n + 1}</td><td class="cod">${escapeHtml(it.erp_code)}</td><td>${descricaoHtml(it, 'bko', ctx)}</td><td>${escapeHtml(it.brand?.trim())}</td><td class="emb">${escapeHtml(it.unit_label || 'UN')}</td><td class="v">${quantidadeDoPdf(it)}</td><td class="v">${semRs(it.unit_price_cents)}</td><td class="v">${itemAdjustText(it, pct)}</td><td class="v">${semRs(netUnitCents(it))}</td><td class="v tot">${semRs(it.total_cents)}</td></tr>`,
     )
     .join('');
   return `

@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { Id, Pct } from '@macuxi/core/contracts';
+import { QuantidadeDecimalSchema } from '@macuxi/platform-sdk';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
 
 export const TransportadoraDigitada = z
@@ -33,7 +34,8 @@ export type Frete = z.infer<typeof Frete>;
 /** Item do push (T-0061): `unidade` ausente = unidade padrão do produto (APK antigo = base). O `fator` vem do Core, nunca do aparelho. */
 export const ItemPush = z.object({
   product_id: Id,
-  quantity: z.number().int().positive(),
+  /** RN-VEN-02 v3 (ADR 0076): até 4 casas; fração só em KG e M (a API recusa com 422 `quantidade_fracionaria_invalida`) */
+  quantity: QuantidadeDecimalSchema,
   unidade: z.string().regex(/^[A-Z0-9]{1,6}$/).optional(),
   desconto_pct: Pct.min(0).max(100).optional(),
   acrescimo_pct: Pct.min(0).max(100).optional(),

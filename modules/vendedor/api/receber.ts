@@ -13,11 +13,12 @@
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS, type LimiteDesconto } from '@macuxi/core/contracts';
-import { ErroHttpModulo, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, fracaoLiberada, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
   EVENTO_PEDIDO_APROVADO,
   EVENTO_PEDIDO_CRIADO,
+  EVENTO_PEDIDO_CRIADO_V2,
   EVENTO_PEDIDO_STATUS_ALTERADO,
   PedidoPush,
 } from '../contracts';
@@ -59,6 +60,8 @@ import {
   type PrazoGravado,
 } from '../domain';
 import { enviadoAoErp } from '../domain/order';
+import { haFracao, recusaDeFracao } from '../domain/quantidade';
+import { quantidadeBase, temFracao } from '@macuxi/comum/quantidade';
 import { verificarAcaoDaLista } from '../domain/acoes-da-lista';
 import { MENSAGEM_CLIENTE_FORA_DA_CARTEIRA } from '../domain/orcamento';
 import { payloadAprovado } from './aprovado-erp';
@@ -167,6 +170,13 @@ export async function calcularDocumento(
     if (!u.ok) return rejeitado(itemId, u.codigo, 'Medida inválida para um dos produtos. Atualize o catálogo e escolha a medida de novo.');
     medidas.set(idx, { unidade: u.unidade, fator: u.fator });
   }
+  // RN-VEN-02 v3 (ADR 0076): a API revalida a fração (KG/M, 4 casas) e a trava das 24 h depois da publicação dos apps 1.0.35
+  const itensFracao = p.items.map((i, idx) => ({ quantidade: i.quantity, unidade: medidas.get(idx)!.unidade, fator: medidas.get(idx)!.fator }));
+  const comFracao = haFracao(itensFracao);
+  // sem fração a trava não importa; com fração e sem `ctx.versaoApp` ela fica fechada
+  const liberada = !comFracao || (ctx.versaoApp ? fracaoLiberada({ campo: await ctx.versaoApp.publicada('campo'), gestao: await ctx.versaoApp.publicada('gestao'), agora: ctx.agora() }) : false);
+  const fracao = recusaDeFracao(itensFracao, liberada);
+  if (fracao) return recusa(itemId, fracao);
   const frete: FretePedido = p.frete ?? { modalidade: modalidadePadraoDosParametros(ctx.parametros()) };
   const recusaFrete = validarFrete(frete);
   if (recusaFrete) return rejeitado(itemId, recusaFrete, MSG_RECUSA_FRETE[recusaFrete]);
@@ -284,7 +294,7 @@ export async function calcularDocumento(
   if (!rv.ok) return recusa(itemId, rv);
   // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
   if (tipo === 'pedido') {
-    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: i.quantity * medidas.get(idx)!.fator })), retratoFilial?.filial_id ?? null, p.id);
+    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: quantidadeBase(i.quantity, medidas.get(idx)!.fator) })), retratoFilial?.filial_id ?? null, p.id);
     if (falta.length > 0) return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
   }
   // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
@@ -459,24 +469,25 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   if (tipo === 'orcamento') return aceito(item.id, await relogioDoBanco(db));
 
   // eventos (status no vocabulário RN-VEN-30; nenhum nome/documento/endereço); o reenvio não é um pedido novo, então não publica `criado`
-  if (!reenvio) await tx.publicar(
-    EVENTO_PEDIDO_CRIADO,
-    {
+  if (!reenvio) {
+    const criado = {
       pedido_id: p.id,
       vendedor_id: donoId,
       autor_id: eu,
       cliente_id: p.customer_id,
       visita_id: p.visita_id ?? null,
-      tipo: 'pedido',
+      tipo: 'pedido' as const,
       total_cents: v.total_cents,
       total_tabela_cents: v.total_tabela_cents,
       criado_em: recebidoEm,
       emitido_em: emitidoEm(p.created_offline_at, recebidoEm),
       itens: v.itens.map((i) => ({ produto_id: i.product_id, quantidade: i.quantidade_base, total_cents: i.total_cents })),
       status: statusDoContrato(v.status),
-    },
-    p.id,
-  );
+    };
+    // ADR 0076 D5: o `@2` (quantidade decimal) sempre; o `@1` em paralelo, na mesma transação, só sem item fracionário (D8: sai a partir da v1.0.36)
+    await tx.publicar(EVENTO_PEDIDO_CRIADO_V2, criado, p.id);
+    if (!criado.itens.some((i) => temFracao(i.quantidade))) await tx.publicar(EVENTO_PEDIDO_CRIADO, criado, p.id);
+  }
   for (const h of historico) {
     await tx.publicar(
       EVENTO_PEDIDO_STATUS_ALTERADO,

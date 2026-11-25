@@ -1,4 +1,5 @@
 import type { PedidoFaturadoEvento } from '../contracts/eventos';
+import { somarQuantidades, subtrairQuantidades } from './quantidade';
 
 /** Retorno do ERP (subconjunto de `integracao.pedido.retorno_erp@1`, sem importar a integração). */
 export interface RetornoFaturamento {
@@ -39,11 +40,11 @@ export function montarEventoFaturado(
     return null;
   } else {
     const ja = new Map<string, number>();
-    for (const i of opcoes.jaFaturados ?? []) ja.set(i.product_id, (ja.get(i.product_id) ?? 0) + i.quantity);
-    base = pedido.items.map((i) => ({ product_id: i.product_id, quantity: i.quantity - (ja.get(i.product_id) ?? 0) }));
+    for (const i of opcoes.jaFaturados ?? []) ja.set(i.product_id, somarQuantidades(ja.get(i.product_id) ?? 0, i.quantity));
+    base = pedido.items.map((i) => ({ product_id: i.product_id, quantity: subtrairQuantidades(i.quantity, ja.get(i.product_id) ?? 0) }));
   }
   const soma = new Map<string, number>();
-  for (const i of base) if (i.quantity > 0) soma.set(i.product_id, (soma.get(i.product_id) ?? 0) + i.quantity);
+  for (const i of base) if (i.quantity > 0) soma.set(i.product_id, somarQuantidades(soma.get(i.product_id) ?? 0, i.quantity));
   if (soma.size === 0) return null;
   return {
     pedido_id: pedido.id,
