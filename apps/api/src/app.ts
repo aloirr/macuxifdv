@@ -117,6 +117,7 @@ import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
 import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
 import { registrarRotasFrasesCarga, type FonteFrasesCarga } from './frases-carga';
+import { registrarRotasCadastroEmpresa, type FonteCadastroEmpresa } from './empresa-cadastro';
 import { registrarRotasMarcaEmpresa, type FonteMarcaEmpresa } from './empresa-logo';
 import { criarFonteVersoesApp, portaVersaoApp, registrarBloqueioVersaoApp, registrarRotaAppVersao, urlApiPublicaDoAmbiente, versoesAppDoAmbiente, type VersoesApp } from './app-versao';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
@@ -254,6 +255,8 @@ export interface OpcoesApp {
   urlApiPublica?: string;
   /** T-0182: fonte das funções da logo e do nome fantasia (padrão: `fonteMarcaNoBanco`). Testes injetam a sua. */
   fonteMarca?: FonteMarcaEmpresa;
+  /** ADR 0075: fonte das funções do cadastro da empresa (padrão: `fonteCadastroNoBanco`). Testes injetam a sua. */
+  fonteCadastro?: FonteCadastroEmpresa;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -750,6 +753,14 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     armazenamento: op.arquivos ?? null,
     relogio,
     plataforma,
+  });
+
+  // ADR 0075: dados cadastrais da empresa
+  registrarRotasCadastroEmpresa(app, {
+    acessoPortal,
+    ...(op.fonteCadastro ? { fonte: op.fonteCadastro } : {}),
+    autenticar: autenticarDoPortal,
+    validar,
   });
 
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
