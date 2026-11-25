@@ -7,7 +7,7 @@
  * O push do APK anterior (sem forma e prazo) segue pela condição de pagamento legada.
  */
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
-import { percentualAjusteParaBp, percentualDoPrazoNoDocumento, revalidarPercentualDoPrazo, validarPagamento, type FormaDePagamento, type PrazoDePagamento, type PrazoGravado } from '../domain';
+import { aplicaTetoDoCliente, percentualAjusteParaBp, percentualDoPrazoNoDocumento, revalidarPercentualDoPrazo, validarPagamento, type FormaDePagamento, type PrazoDePagamento, type PrazoGravado } from '../domain';
 
 interface FormaLinha {
   id: string;
@@ -74,7 +74,7 @@ export async function resolverPagamento(
   const r = validarPagamento({
     forma: forma as FormaDePagamento | undefined,
     prazo: prazo as PrazoDePagamento | undefined,
-    cliente: { formas_pagamento: cliente.formas_pagamento, prazo_medio_max_dias: cliente.prazo_medio_max_dias },
+    cliente: { formas_pagamento: cliente.formas_pagamento, prazo_medio_max_dias: aplicaTetoDoCliente(ctx.versaoApp?.doCliente?.versao) ? cliente.prazo_medio_max_dias : null },
   });
   if (!r.ok) return r;
 
