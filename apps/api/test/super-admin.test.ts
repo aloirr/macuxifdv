@@ -59,14 +59,21 @@ const comCli = (tenant: string | null = TENANT, escolhida: 'com' | 'sem' = 'com'
 /** Licenças do perfil admin no tenant (o admin do cliente usa as do perfil, como no BKO). */
 const LIC_COM_ADMIN = { ...LICENCAS_PADRAO, perfil: { ...LICENCAS_PADRAO.perfil, admin: ['core', 'catalogo', 'vendedor'] } } as typeof LICENCAS_PADRAO;
 
-const vistos: { id: string; perfil: string; superAdmin: boolean; carteira: unknown; modulos: readonly string[] }[] = [];
+const vistos: { id: string; perfil: string; superAdmin: boolean; carteira: unknown; modulos: readonly string[]; perfilAcesso?: string; cargo?: string }[] = [];
 const rota = (caminho: string, superAdmin?: RotaModulo['superAdmin']): RotaModulo => ({
   metodo: 'GET',
   caminho,
   carteira: 'nao_se_aplica',
   ...(superAdmin ? { superAdmin } : {}),
   executar: async (ctx) => {
-    vistos.push({ id: ctx.usuario.id, perfil: ctx.usuario.perfil, superAdmin: !!ctx.superAdmin, carteira: await ctx.carteira(), modulos: ctx.usuario.modulos });
+    vistos.push({
+      id: ctx.usuario.id,
+      perfil: ctx.usuario.perfil,
+      superAdmin: !!ctx.superAdmin,
+      carteira: await ctx.carteira(),
+      modulos: ctx.usuario.modulos,
+      ...(ctx.usuario.perfil_acesso ? { perfilAcesso: ctx.usuario.perfil_acesso.codigo, cargo: ctx.usuario.cargo } : {}),
+    });
     return { tenant: ctx.usuario.tenant_id, usuario: ctx.usuario.id };
   },
 });
@@ -230,6 +237,20 @@ describe('rota de módulo com superAdmin (ADR 0029 §5)', () => {
     vistos.length = 0;
     expect((await app.inject({ method: 'GET', url: '/v1/vendedor/sa/aceita', headers: cab('vendedor') })).statusCode).toBe(200);
     expect(vistos[0]).toMatchObject({ perfil: 'vendedor', superAdmin: false });
+  });
+
+  it("ADR 0073 E4: no tenant migrado (motor 'cargo') o super-admin recebe o modelo admin; no 'legado', nenhum perfil sem base", async () => {
+    const tenant = { ativosNoTenant: ['core', 'catalogo', 'vendedor', 'integracao'] as const, parametros: {}, fuso: 'America/Manaus' };
+    const migrado = montar({ [TENANT]: { ...tenant, ativosNoTenant: [...tenant.ativosNoTenant], catalogo: { versao: 2, leitura: 'concessao' } } }).app;
+    vistos.length = 0;
+    expect((await migrado.inject({ method: 'GET', url: '/v1/vendedor/sa/aceita', headers: comSA() })).statusCode).toBe(200);
+    // a ação que o admin não tem (pedido.criar) segue liberada pela opção da rota (ADR 0029 §5), nos dois motores
+    expect((await migrado.inject({ method: 'POST', url: '/v1/vendedor/sa/pedido', headers: comSA() })).statusCode).toBe(200);
+    expect(vistos[0]).toMatchObject({ perfil: 'admin', superAdmin: true, perfilAcesso: 'admin', cargo: 'administrativo' });
+    const legado = montar({ [TENANT]: { ...tenant, ativosNoTenant: [...tenant.ativosNoTenant], catalogo: { versao: 2, leitura: 'legado' } } }).app;
+    vistos.length = 0;
+    expect((await legado.inject({ method: 'GET', url: '/v1/vendedor/sa/aceita', headers: comSA() })).statusCode).toBe(200);
+    expect(vistos[0]).not.toHaveProperty('perfilAcesso');
   });
 
   it("'exige': só o super-admin; usuário do tenant 403, sem login 401", async () => {
