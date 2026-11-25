@@ -73,6 +73,9 @@ describe('RN-VEN-15: unidade padrão e lista de unidades do produto (leitura pú
     expect(rotuloDaUnidade('UN', 1)).toBe('UN');
     expect(rotuloDaUnidade('CX', 12)).toBe('CX c/ 12');
     expect(rotuloDaUnidade('CX', 12.5)).toBe('CX c/ 12,5');
+    expect(rotuloDaUnidade('CX', 1200)).toBe('CX c/ 1.200');
+    expect(rotuloDaUnidade('KG', 0.1255)).toBe('KG');
+    expect(rotuloDaUnidade('CX', 1.0001)).toBe('CX c/ 1,0001');
   });
 
   it('RN-VEN-15: unidade padrão = a marcada; sem marcada, a unidade base com fator 1', () => {

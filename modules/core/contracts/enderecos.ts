@@ -7,6 +7,7 @@
  * - Endereço padrão (RN-VEN-17) = o `principal` vivo e ativo; se o ERP não mandou principal, o primeiro de entrega ativo.
  * - Unidade padrão (RN-VEN-15) = a marcada `padrao` viva e ativa; sem marcada, a unidade base do produto com fator 1.
  */
+import { formatarQuantidade } from '@macuxi/comum/quantidade';
 import { FatorDecimalSchema } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import type { ClienteEnderecoSync, ProdutoUnidadeSync } from './sync';
@@ -99,9 +100,9 @@ export function fatorValido(fator: unknown): fator is number {
   return FatorDecimalSchema.safeParse(fator).success;
 }
 
-/** Fator 1 mostra só a sigla ("UN"); fator > 1 mostra "CX c/ 12" (RN-CORE-19, mesma regra do PDF do pedido). */
+/** Fator 1 mostra só a sigla ("UN"); fator > 1 mostra "CX c/ 12" (RN-CORE-19). Fonte única do rótulo: o número vem de `formatarQuantidade` (vírgula decimal, ponto de milhar). */
 export function rotuloDaUnidade(unidade: string, fator: number): string {
-  return fator > 1 ? `${unidade} c/ ${String(fator).replace('.', ',')}` : unidade;
+  return fator > 1 ? `${unidade} c/ ${formatarQuantidade(fator, null)}` : unidade;
 }
 
 const vivaUnidade = (u: Pick<UnidadeLinha, 'ativo' | 'deleted_at'>) => u.ativo && !u.deleted_at;

@@ -10,8 +10,8 @@
  * Cadastro vindo do ERP/BKO no pull (`servidor_vence`); o pré-cadastro do Campo chega pelo push e vira pendente (RN-CORE-78).
  */
 import { sqlCodigoFdv } from './codigo-fdv';
-import { unidadesParaCliente, variacaoFracaoUnidades } from './sync-fracao';
-import { clienteAceitaFracao, definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
+import { unidadesParaCliente } from './sync-fracao';
+import { clienteAceitaFracao, definirEntidadeSync, variacaoFracao, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
 import {
   PARAMETRO_ALERTAS_PRODUTIVIDADE,
   PARAMETRO_ALMOCO_PADRAO,
@@ -357,7 +357,7 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeClienteVisitaResumo, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_visita_resumo) },
   { entidade: entidadeFotoTipo, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.foto_tipo) },
   { entidade: entidadeClienteFoto, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_foto), receber: receberFotosPdv },
-  { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade), variacaoEscopo: (ctx) => variacaoFracaoUnidades(ctx.versaoApp?.doCliente ?? null) },
+  { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade), variacaoEscopo: (ctx) => variacaoFracao(ctx.versaoApp?.doCliente ?? null) },
   { entidade: entidadeClienteEndereco, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_endereco) },
   { entidade: entidadeClienteContato, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_contato) },
   { entidade: entidadeClienteFinanceiro, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_financeiro) },

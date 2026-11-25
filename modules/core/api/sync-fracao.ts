@@ -5,7 +5,7 @@
  * muda quando o app passa a aceitar fração, para quem atualiza baixar a entidade de novo.
  */
 import { quantidadeDoBanco, temFracao } from '@macuxi/comum/quantidade';
-import { clienteAceitaFracao, type AppDoCabecalho, type LinhaSync } from '@macuxi/platform-sdk';
+import type { LinhaSync } from '@macuxi/platform-sdk';
 
 /** Converte o `fator` do banco e, se o app não aceita fração, tira as unidades de fator fracionário. */
 export function unidadesParaCliente(linhas: LinhaSync[], aceitaFracao: boolean): LinhaSync[] {
@@ -16,9 +16,4 @@ export function unidadesParaCliente(linhas: LinhaSync[], aceitaFracao: boolean):
     saida.push({ ...l, fator } as unknown as LinhaSync);
   }
   return saida;
-}
-
-/** Texto estável da regra que muda o que o app vê (`variacaoEscopo`): lê fração ou não. */
-export function variacaoFracaoUnidades(app: AppDoCabecalho | null): string {
-  return `fracao=${clienteAceitaFracao(app) ? 'sim' : 'nao'}`;
 }

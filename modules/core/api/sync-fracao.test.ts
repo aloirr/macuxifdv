@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { VERSAO_APP_FRACAO } from '@macuxi/platform-sdk';
-import { unidadesParaCliente, variacaoFracaoUnidades } from './sync-fracao';
+import { VERSAO_APP_FRACAO, variacaoFracao } from '@macuxi/platform-sdk';
+import { unidadesParaCliente } from './sync-fracao';
 
 const linha = (fator: string | number, id = 'u1') => ({ id, updated_at: '2026-11-25T10:00:00.000000Z', deleted_at: null, produto_id: 'p1', unidade: 'CX', fator, ean: null, padrao: false, ativo: true }) as never;
 
@@ -17,13 +17,15 @@ describe('RN-VEN-15 v3 / ADR 0076 D6: pull de produto_unidade por versão do app
   });
 
   it('ADR 0076 D6: a variação do escopo muda quando o app passa a aceitar fração (o app que atualiza baixa de novo)', () => {
-    const antigo = variacaoFracaoUnidades(null);
-    const v1032 = variacaoFracaoUnidades({ variante: 'campo', versao: '1.0.32' });
-    const v1035 = variacaoFracaoUnidades({ variante: 'campo', versao: '1.0.35' });
-    const v1036 = variacaoFracaoUnidades({ variante: 'campo', versao: VERSAO_APP_FRACAO });
+    const antigo = variacaoFracao(null);
+    const v1032 = variacaoFracao({ variante: 'campo', versao: '1.0.32' });
+    const v1035 = variacaoFracao({ variante: 'campo', versao: '1.0.35' });
+    const v1036 = variacaoFracao({ variante: 'campo', versao: VERSAO_APP_FRACAO });
     expect(antigo).toBe(v1032);
     expect(v1035).toBe(antigo);
     expect(v1036).not.toBe(antigo);
-    expect(variacaoFracaoUnidades({ variante: 'gestao', versao: '1.0.36' })).toBe(v1036);
+    expect(v1036).toBe('fracao=1');
+    expect(antigo).toBe('fracao=0');
+    expect(variacaoFracao({ variante: 'gestao', versao: '1.0.36' })).toBe(v1036);
   });
 });
