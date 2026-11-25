@@ -29,13 +29,13 @@ import {
   EVENTO_PEDIDO_APROVACAO_DECIDIDA,
   EVENTO_PEDIDO_APROVACAO_SOLICITADA,
   EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
-  EVENTO_PEDIDO_CRIADO,
+  EVENTO_PEDIDO_CRIADO_V2,
   EVENTO_PEDIDO_FATURADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
   type AprovacaoDecididaEvento,
   type AprovacaoSolicitadaEvento,
   type AprovacaoSolicitadaEventoV2,
-  type PedidoCriadoEvento,
+  type PedidoCriadoEventoV2,
   type PedidoFaturadoEvento,
   type PedidoStatusAlteradoEvento,
 } from '../../vendedor/contracts';
@@ -79,9 +79,9 @@ export interface MetaDoMes {
 }
 
 // ---------- Vendedor ----------
-/** `vendedor.pedido.criado@1`: só `tipo: 'pedido'` (orçamento não é publicado, RN-VEN-32); `total_tabela_cents` e `itens` sempre presentes (RN-GES-06). */
-export type PedidoCriadoV1 = PedidoCriadoEvento;
-export type ItemPedidoV1 = PedidoCriadoEvento['itens'][number];
+/** `vendedor.pedido.criado@2` (ADR 0076 D8: o `@1` não é lido, para não contar o pedido duas vezes; `itens[].quantidade` decimal, até 4 casas): só `tipo: 'pedido'` (orçamento não é publicado, RN-VEN-32); `total_tabela_cents` e `itens` sempre presentes (RN-GES-06). */
+export type PedidoCriadoV2 = PedidoCriadoEventoV2;
+export type ItemPedidoV2 = PedidoCriadoEventoV2['itens'][number];
 /** `vendedor.pedido.faturado@1`: um por retorno do ERP aceito; `itens` = o faturado NESTE retorno; `parcial: false` = total. */
 export type PedidoFaturadoV1 = PedidoFaturadoEvento;
 export type PedidoStatusAlteradoV1 = PedidoStatusAlteradoEvento;
@@ -143,7 +143,7 @@ export const EVENTOS_CONSUMIDOS = {
   'core.visita.checkout@1': tolerante(EVENTO_VISITA_CHECKOUT.schema),
   'core.rota.dia_planejado@1': tolerante(EVENTO_ROTA_DIA_PLANEJADO.schema),
   'core.meta.definida@1': tolerante(EVENTO_META_DEFINIDA.schema),
-  'vendedor.pedido.criado@1': tolerante(EVENTO_PEDIDO_CRIADO.schema),
+  'vendedor.pedido.criado@2': tolerante(EVENTO_PEDIDO_CRIADO_V2.schema),
   'vendedor.pedido.status_alterado@1': tolerante(EVENTO_PEDIDO_STATUS_ALTERADO.schema),
   'vendedor.pedido.aprovacao_solicitada@1': tolerante(EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema),
   'vendedor.pedido.aprovacao_solicitada@2': tolerante(EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2.schema),

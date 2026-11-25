@@ -31,12 +31,11 @@ import {
   type Order,
   type OrderDetail,
 } from '../contracts';
-import { STATUS_FORA_DO_TOTAL } from '../domain/totais';
 import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
 import { aprovacoesComNomes, comNomesDosDecisores, gravarAprovacoes, gravarDecisoes, lerAprovacoes, nomesDosDecisores } from './aprovacoes';
-import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
+import { paraDetalhe, paraOrder, qtd, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
 import { exigirLeituraDePedidos } from './opcao-promotor';
@@ -85,7 +84,7 @@ const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.autor_id, p.vendedor_nome
   round(p.prazo_percentual_ajuste, 2)::float8 as prazo_percentual_ajuste,
   p.filial_id, p.filial`;
 const COLUNAS = `${COLUNAS_BASE}${FATURAMENTO_LIGADO ? COLUNAS_FATURAMENTO : ''}`;
-const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0)::int as unidades
+const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0) as unidades
     from vendedor.pedido_item i where i.tenant_id = p.tenant_id and i.pedido_id = p.id and i.deleted_at is null) x on true`;
 
 function codificarCursor(createdAt: string, id: string): string {
@@ -141,7 +140,7 @@ export async function lerNotasDoPedido(db: ClienteBanco, id: string): Promise<{ 
   const notas = (
     await db.query<LinhaNotaFaturamento>(
       `select nota_numero, nota_serie, nota_chave_acesso, to_char(faturado_em at time zone 'UTC', ${UTC}) as faturado_em, parcial, nota_total_cents::float8 as nota_total_cents,
-              coalesce((select sum((x->>'quantidade')::int) from jsonb_array_elements(itens) x), 0)::int as unidades
+              coalesce((select sum((x->>'quantidade')::numeric) from jsonb_array_elements(itens) x), 0) as unidades
          from vendedor.pedido_faturamento where pedido_id = $1 and deleted_at is null order by faturado_em, created_at`,
       [id],
     )
@@ -153,7 +152,7 @@ export async function lerNotasDoPedido(db: ClienteBanco, id: string): Promise<{ 
       [id],
     )
   ).rows;
-  return { notas, devolucoes };
+  return { notas: notas.map((n) => ({ ...n, unidades: qtd(n.unidades) })), devolucoes };
 }
 
 // ---------- leitura ----------
@@ -209,20 +208,19 @@ export const rotaListarPedidos: RotaModulo = {
           limit $9`,
         valores,
       );
-      // §P6 (regra 3): quantidade e soma do filtro inteiro, só na primeira página e só a pedido (`totais=1`); mesmo filtro e mesmo escopo da lista.
-      let total_filtro: { quantidade: number; soma_cents: number } | undefined;
+      // §P6 (regra 3): quantidade do filtro inteiro, só na primeira página e só a pedido (`totais=1`); mesmo filtro e mesmo escopo da lista.
+      let total_filtro: { quantidade: number } | undefined;
       if (q.totais === '1' && !cursor) {
         const t = (
-          await db.query<{ quantidade: number; soma_cents: number }>(
-            `select count(*)::int as quantidade,
-                    coalesce(sum(p.total_cents) filter (where p.status <> all($18::text[])), 0)::float8 as soma_cents
+          await db.query<{ quantidade: number }>(
+            `select count(*)::int as quantidade
                from vendedor.pedido p
                ${filtro}
                 and ($9::int is not null and ($11::timestamptz is null or $12::uuid is not null))`,
-            [...valores, [...STATUS_FORA_DO_TOTAL]],
+            valores,
           )
         ).rows[0];
-        total_filtro = { quantidade: Number(t?.quantidade ?? 0), soma_cents: Math.round(Number(t?.soma_cents ?? 0)) };
+        total_filtro = { quantidade: Number(t?.quantidade ?? 0) };
       }
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];

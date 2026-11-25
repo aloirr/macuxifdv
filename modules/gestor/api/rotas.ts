@@ -173,6 +173,7 @@ async function alertasAtualizados(g: ContextoGestor, repo: RepositorioGestor) {
   const existentes = await repo.alertas(g.acesso);
   const ajustes = await repo.ajustesRegras(g.acesso);
   const prod = await produtividadeDaEquipe(g);
+  const nomes = await nomesDosClientes(g.tx, Object.values(g.estado.clientes).filter((c) => c.ativo).map((c) => c.cliente_id));
   const ops = reconciliarParaViewer(existentes, {
     estado: g.estado,
     membros: g.membros,
@@ -183,6 +184,7 @@ async function alertasAtualizados(g: ContextoGestor, repo: RepositorioGestor) {
     produtividade: prod?.alertas,
     ultimo_contato_em: prod?.ultimo_contato_em,
     almoco: prod?.almoco,
+    nomes_clientes: Object.fromEntries([...nomes].map(([id, n]) => [id, n.nome])),
   });
   if (ops.abrir.length + ops.atualizar.length + ops.encerrar.length === 0) return existentes;
   await repo.aplicarOperacoesAlerta(g.acesso, ops, { agora: g.agora, novoId: uuidPadrao });

@@ -2,6 +2,9 @@
  * Preço do item no Novo pedido (T-0089): embalagem = unidade × quantidade (RN-VEN-15 nova) e tabela escalonada
  * (RN-VEN-23). A faixa é do Catálogo (`catalogo.precos_cliente@1`); aqui só se aplica. Funções puras.
  */
+import { totalDaLinhaCents } from '@macuxi/comum/quantidade';
+
+import { exigirFator } from './quantidade';
 
 /** Faixa vigente da tabela escalonada. `medida` nula = unidade base; o preço é da UNIDADE BASE (P3). */
 export interface FaixaEscalonada {
@@ -10,14 +13,10 @@ export interface FaixaEscalonada {
   preco_unidade_cents: number;
 }
 
-function exigirFator(fator: number): void {
-  if (!Number.isInteger(fator) || fator < 1) throw new Error('RN-VEN-15: fator da unidade inválido.');
-}
-
-/** RN-VEN-15: preço da embalagem = preço da unidade × quantidade da embalagem (inteiro, sem arredondar). UN = fator 1. */
+/** RN-VEN-15: preço da embalagem = preço da unidade × quantidade da embalagem; fator com fração arredonda ao centavo, meio para cima (ADR 0076). UN = fator 1. */
 export function precoDaMedida(precoUnidadeCents: number, fator: number): number {
   exigirFator(fator);
-  return precoUnidadeCents * fator;
+  return totalDaLinhaCents(precoUnidadeCents, fator);
 }
 
 /** A faixa guarda `null` para a unidade base: o item na unidade base (fator 1) procura por `null`. */

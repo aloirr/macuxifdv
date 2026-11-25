@@ -387,7 +387,7 @@ troca pelas do ERP dele. Formato:
   `nota_total_cents`, `ocorrido_em`; uma linha por fato (a situação e cada nota). Regras do `RetornoErp`: faturado (P/F) só
   sai **com nota** (o pedido faturado aparece como I, já informado, e cada nota sai no 2º `SELECT`) e rejeitado (R) sai
   **sempre com motivo**. Itens: `pedido_uuid`, `nota_numero`, `nota_serie`, `sequencia` (a do pedido do Macuxi), `quantidade`
-  (inteiro, unidade base), `valor_cents`, `produto_codigo` (= `vw_macuxi_produto.external_id`). O teste confere as colunas
+  (unidade base, `DECIMAL(13,4)` desde o Conector 1.6.0, ADR 0076), `valor_cents`, `produto_codigo` (= `vw_macuxi_produto.external_id`). O teste confere as colunas
   contra as consultas do `conector.exemplo.json`. A variante sobre a própria `macuxi_pedido_entrada` está no kit do piloto
   (`modules/integracao/kit-piloto/sql/03-pedido-extensao.sql`).
 
@@ -538,3 +538,19 @@ A correção do pré-cadastro recusado é uma revisão nova do mesmo cliente (de
 
 Índice do poll sem mudança. Drizzle: `clienteFilaErp.revisao`, `hash` e `erros`. Volta: o down da 0098 apaga as 3 colunas (com os
 CHECKs e o grant). Teste: `db/testes/cliente-pre-cadastro-revisao.db.test.ts`.
+
+## 0104 — quantidade fracionária no item descartado (`0104_quantidade_fracionaria`; ADR 0076)
+`integracao.pedido_retorno_erro.quantidade`: int → **numeric(14,4)**; `pedido_retorno_erro_numeros_validos` troca
+`quantidade >= 1` por **`quantidade > 0`** (0,5 KG descartado é válido). Driver `pg`: chega como string; o Drizzle
+(`pedidoRetornoErro.quantidade`) usa `mode: 'number'`. Volta: o down da 0104 só sem fração gravada (`P0001`) e volta o `>= 1`.
+Teste: `db/testes/quantidade-fracionaria.db.test.ts`.
+
+## Kit do Conector — quantidade fracionária (ADR 0076; Conector 1.6.0)
+Sem migração no Postgres. `db/conector/views-modelo.sql`: regra 9 (quantidade e fator em `DECIMAL(13,4)`, Oracle
+`NUMBER(13,4)`, nunca `FLOAT`/`REAL`); `vw_macuxi_produto_unidade.fator` e `vw_macuxi_pedido_nota_item.quantidade` com
+`CAST(... AS DECIMAL(13,4))`. `db/conector/entrada-pedido-modelo.sql`: `dbo.macuxi_pedido_entrada_item.quantidade`
+`DECIMAL(14,3)` → **`DECIMAL(13,4)`**; colunas novas, NULAS, `fator DECIMAL(13,4)`, `quantidade_venda DECIMAL(13,4)` e
+`unidade VARCHAR(6)`, e os parâmetros `@fator`, `@quantidade_venda`, `@unidade` (padrão `NULL`: o EXEC do Conector 1.5.x
+continua válido) em `dbo.sp_macuxi_pedido_item_inserir`. Volta: no ERP que já tem a tabela, `ALTER TABLE ... ALTER COLUMN
+quantidade DECIMAL(14,3)` só sem fração de 4ª casa gravada, e `DROP COLUMN` das 3 novas. Testes:
+`db/testes/entrada-pedido-modelo.test.ts` e `db/testes/views-modelo-conector.test.ts`.

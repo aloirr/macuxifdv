@@ -4,6 +4,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { cabecalhosParaApi, ehChamadaDaApi } from './lib/cabecalho-app';
 import { bloqueadoForaDoPortal, destinoNoPortal, ehPaginaDeConvite, ehPaginaDoPortal, hostDaRequisicao, politicaDoPortal, redirecionamentoDaRaiz } from './lib/portal';
 
 /** Nonce de 128 bits, novo a cada requisição (Web Crypto: roda no proxy do Next e no vitest). */
@@ -23,6 +24,8 @@ function comCsp(cabecalhos: Headers, csp: string): Headers {
 export function proxy(request: NextRequest) {
   const host = hostDaRequisicao(request.headers.get('host'), request.headers.get('x-forwarded-host'));
   const caminho = request.nextUrl.pathname;
+  // chamada à API (rewrite `/api-proxy` do next.config): só ganha o `x-macuxi-app` do web (v1.0.35, RN-VEN-25); nada do portal
+  if (ehChamadaDaApi(caminho)) return NextResponse.next({ request: { headers: cabecalhosParaApi(request.headers) } });
   if (bloqueadoForaDoPortal(host, caminho)) {
     return new NextResponse('Página não encontrada.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'x-robots-tag': 'noindex' } });
   }
@@ -63,6 +66,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // fora: arquivos do Next, proxy da API e o favicon (a regra pura também os deixa de fora)
-  matcher: ['/((?!_next/static|_next/image|api-proxy|favicon.ico).*)'],
+  // 1º: páginas (fora: arquivos do Next, proxy da API e o favicon; a regra pura também os deixa de fora).
+  // 2º: o proxy da API, só para pôr o `x-macuxi-app` do web (v1.0.35); o rewrite do next.config segue levando à API.
+  // Limite: com este matcher o Next guarda o corpo de toda chamada e corta acima de `proxyClientMaxBodySize` (10 MiB padrão);
+  // a parte do envio de fotos (`PARTE_ENVIO_BYTES`, 8 MiB) cabe (teste em lib/cabecalho-app.test.ts).
+  matcher: ['/((?!_next/static|_next/image|api-proxy|favicon.ico).*)', '/api-proxy/:path*'],
 };

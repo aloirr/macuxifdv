@@ -24,6 +24,7 @@ import {
   type RespostaReconciliacao,
 } from '../contracts';
 import {
+  avaliarFracaoLote,
   conteudoCanonicoLote,
   decidirIdempotenciaLote,
   estadoLoteNoHubV1,
@@ -35,6 +36,7 @@ import {
 import type { ConectorHub } from './autenticacao';
 import { EVENTO_LOTE_RECEBIDO, EVENTO_RECONCILIACAO_DIVERGENTE } from './eventos';
 import { lerParametrosHub } from './parametros';
+import { exigirFracaoLiberada } from './trava-fracao';
 
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoConector<ConectorHub, C, Q, P>;
 
@@ -193,6 +195,8 @@ export async function enviarLote(ctx: Ctx): Promise<RespostaConector> {
     throw new ErroConector(status, { codigo: primeiro.codigo, mensagem: primeiro.mensagem, erros: validado.erros });
   }
   const env: LoteEnvelopeValido = validado.envelope;
+  // ADR 0076 D6: fator fracionário de produto_unidade só com a trava aberta; mais de 4 casas é sempre inválido (422)
+  await exigirFracaoLiberada(ctx, (liberada) => avaliarFracaoLote(env.entidade, env.registros, liberada));
   const hashConteudo = createHash('sha256').update(conteudoCanonicoLote(ctx.corpo), 'utf8').digest('hex');
   const recebidas = env.registros.length + (env.linhas_invalidas?.length ?? 0) + (env.linhas_invalidas_omitidas ?? 0);
   const versaoConector = (env.versao_conector ?? ctx.cabecalhos['x-macuxi-conector-versao'] ?? null)?.slice(0, 40) ?? null;

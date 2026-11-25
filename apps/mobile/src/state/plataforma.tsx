@@ -129,6 +129,7 @@ import {
   comCabecalhoDoApp,
   deveAvisarVersao,
   estaBloqueada,
+  fracaoLiberadaDa,
   guardadaDaResposta,
   guardadaDo426,
   juntarGuardada,
@@ -451,6 +452,8 @@ function usePlataformaValor() {
         abrirFoto,
         // T-0182: a logo da empresa para o PDF, da cópia guardada (vale sem sinal)
         logoDaEmpresa: () => dataUriDaLogoGuardada(logoEmpresaRef.current),
+        // ADR 0076 D6 (T-0196): quantidade fracionária liberada pela API, da versão publicada guardada (vale sem sinal)
+        fracaoLiberada: () => fracaoLiberadaDa(versaoPublicadaRef.current),
         online: () => !offlineRef.current && sessaoRef.current !== null,
         usuario: () => {
           const s = sessaoRef.current;
@@ -1112,7 +1115,7 @@ function usePlataformaValor() {
     setTelaBloqueio(mostrar);
   }, []);
 
-  /** Resposta de `GET /v1/app/versao?contrato=2` (aqui ou no "Verificar atualização" do Perfil) → a guardada; fora do contrato, nada. */
+  /** Resposta de `GET /v1/app/versao?contrato=3` (aqui ou no "Verificar atualização" do Perfil) → a guardada; fora do contrato, nada. */
   const receberVersaoPublicada = useCallback(
     (corpo: unknown) => {
       const v = guardadaDaResposta(corpo, variante, new Date(), { anterior: versaoPublicadaRef.current, instalada: appInstalado()?.versao });
@@ -1121,7 +1124,7 @@ function usePlataformaValor() {
     [guardarVersao, variante],
   );
 
-  /** `GET /v1/app/versao?contrato=2` (pública): guarda a resposta; sem sinal ou fora do contrato, vale a guardada. */
+  /** `GET /v1/app/versao?contrato=3` (pública): guarda a resposta; sem sinal ou fora do contrato, vale a guardada. */
   const consultarVersao = useCallback(async () => {
     if (offlineRef.current || modo !== 'v1') return;
     const { caminho, query } = caminhoDaRota(variante);

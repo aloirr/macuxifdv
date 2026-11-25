@@ -1,13 +1,14 @@
 /**
  * Aba "Integração" do portal (spec portal-config-enxuto §10.2), renderizada com `react-dom/server` (lista no cache do React Query) e
  * as rotas atendidas pelo modo falso (`responderFalso`):
- * - dois lados (Conector | API), passos 1 a 3, "Conectores" (conector e arquivo) e "Credenciais" (nuvem);
+ * - "Conectores" no topo (conector e arquivo; saúde, e versão, sinal e fila só para o time da Macuxi; ações no "⋯"); dois lados
+ *   (Conector | API), passos 1 a 3 e "Credenciais" (nuvem);
  * - nova chave e desativar (v1.0.21 S10, confirmação e `corpoDesativar`), "Bases" do Conector (`PATCH { entidades, recebe_pedidos }`),
  *   "Reativar" no mesmo diálogo (`PATCH { ativo: true, ... }` e a chave nova) e a credencial de API com as bases livres e os pedidos
  *   (`POST { tipo: 'nuvem', entidades, recebe_pedidos }`);
  * - o caso real: o Conector com todas as bases passa "Formas de pagamento" à credencial de API, sem pedidos.
  */
-import { ConectorCriado, ENTIDADES, ORDEM_CARGA_ENTIDADES, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
+import { ConectorCriado, ENTIDADES, MonitorDetalhes, ORDEM_CARGA_ENTIDADES, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -15,10 +16,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErroPortal, lerErroDaApi, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
 import { responderFalso, zerarModoFalso } from '@/lib/portal-falso';
+import { responderMonitorFalso } from '@/lib/portal-falso-monitor';
+import { escopoDoPortal } from '@/lib/portal-monitor';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 import {
   AbaIntegracao,
+  acoesDoConector,
   CartaoGuia,
   corpoDaCredencial,
   corpoDesativar,
@@ -33,6 +37,7 @@ import {
   outroRecebePedidos,
   patchConector,
   reativarConector,
+  TabelaConectores,
   type Chamar,
 } from './aba-integracao';
 
@@ -114,16 +119,20 @@ describe('aba Integração em dois lados', () => {
     expect(t.indexOf('Integração via Conector')).toBeLessThan(t.indexOf('Integração via API'));
   });
 
-  it('Conector: passos 1 a 3 na ordem, botão principal no passo 2 e "Conectores" com o do ERP e o de arquivo', () => {
-    const ordem = ['1 Baixar o Conector', '2 Gerar a credencial', '3 Instalar o Conector', 'Conectores'].map((x) => t.indexOf(x));
+  it('"Conectores" no topo, antes dos dois lados, com o do ERP e o de arquivo; Conector: passos 1 a 3 na ordem e botão principal no passo 2', () => {
+    const ordem = ['Conectores', 'Integração via Conector', '1 Baixar o Conector', '2 Gerar a credencial', '3 Instalar o Conector'].map((x) => t.indexOf(x));
     expect(ordem.every((i) => i >= 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
     expect(t).toContain('Instale o Conector no servidor do ERP. Cole o identificador e a chave na configuração. Inicie o serviço.');
     expect(html).toMatch(/class="[^"]*bg-accent text-white[^"]*" data-testid="integracao\.gerar"/);
-    const conectores = html.slice(html.indexOf('data-testid="integracao.conectores"'), html.indexOf('integracao-api"'));
+    const conectores = html.slice(html.indexOf('data-testid="integracao.conectores"'), html.indexOf('integracao-conector"'));
     expect(conectores).toContain('>erp<');
     expect(conectores).toContain('>implantacao-csv<');
     expect(conectores).not.toContain('erp-api');
+    // RD-3550: um título só ("Conectores"), sem "Monitor" e sem a lista repetida no lado do Conector
+    expect(html.replace(/<caption[^>]*>[^<]*<\/caption>/g, '').split('>Conectores<')).toHaveLength(2);
+    expect(html).not.toContain('Monitor');
+    expect(html.slice(html.indexOf('integracao-conector"'))).not.toContain('integracao.conectores');
   });
 
   it('API: bases livres marcadas, "Envia os pedidos" desmarcada, botão neutro, Guia com o PDF e o OpenAPI e "Credenciais" com as de tipo nuvem', () => {
@@ -137,19 +146,27 @@ describe('aba Integração em dois lados', () => {
     expect(credenciais).not.toMatch(/>erp<|velho|implantacao-csv/);
   });
 
-  it('linha ativa: Bases e nova chave fora do de arquivo (Conector e credencial de API); desativada: só "Reativar", fora do de arquivo', () => {
-    expect(html).toContain('data-testid="integracao.bases-erp"');
-    expect(html).toContain('data-testid="integracao.bases-erp-api"');
-    expect(html).not.toContain('data-testid="integracao.bases-implantacao-csv"');
-    expect(html).toContain('data-testid="integracao.nova-chave-erp"');
-    expect(html).toContain('data-testid="integracao.nova-chave-erp-api"');
-    expect(html).not.toContain('data-testid="integracao.nova-chave-implantacao-csv"');
-    expect(html).toContain('data-testid="integracao.desativar-implantacao-csv"');
-    expect(html).not.toMatch(/integracao\.(bases|nova-chave|desativar)-(csv-)?velho/);
-    expect(html).toMatch(/data-testid="integracao\.reativar-velho"[^>]*>Reativar</);
-    expect(html).not.toContain('integracao.reativar-csv-velho');
-    expect(html).not.toMatch(/integracao\.reativar-(erp|erp-api|implantacao-csv)"/);
+  it('linha ativa: Bases e nova chave fora do de arquivo, no "⋯" das duas tabelas; desativada: só "Reativar", fora do de arquivo', () => {
+    const ids = (c: ConectorResumo) => acoesDoConector(c, false, () => {}, () => {}).map((a) => a.testId);
+    const [erp, csv, , velho, csvVelho] = lista as [ConectorResumo, ConectorResumo, ConectorResumo, ConectorResumo, ConectorResumo];
+    expect(ids(erp)).toEqual(['integracao.bases-erp', 'integracao.nova-chave-erp', 'integracao.desativar-erp']);
+    expect(acoesDoConector(erp, false, () => {}, () => {}).find((a) => a.id === 'desativar')?.perigo).toBe(true);
+    expect(ids(csv)).toEqual(['integracao.desativar-implantacao-csv']);
+    expect(ids(velho)).toEqual(['integracao.reativar-velho']);
+    expect(ids(csvVelho)).toEqual([]);
+    expect(acoesDoConector(erp, true, () => {}, () => {}).every((a) => a.desligada)).toBe(true);
+    expect(html).toContain('data-testid="integracao.conectores.acoes.erp"');
+    // RD-3562: a credencial de API no mesmo "⋯", sem botões repetidos na linha
+    expect(html).toContain('data-testid="integracao.api-credenciais.acoes.erp-api"');
+    expect(html).not.toContain('data-testid="integracao.bases-erp-api"');
     expect(html).not.toContain('data-testid="integracao.chave"');
+  });
+
+  it('Situação pela saúde ("Desativado" na desativada); fora do time da Macuxi, sem Versão, Último sinal e Fila', () => {
+    const topo = texto(html.slice(html.indexOf('data-testid="integracao.conectores"'), html.indexOf('integracao-conector"')));
+    expect(topo).toMatch(/erp Nunca conectou Sim/);
+    expect(topo).toMatch(/velho Desativado Sim/);
+    for (const fora of ['Versão', 'Último sinal', 'Fila', 'Ativo']) expect(topo, fora).not.toContain(fora);
   });
 
   it('sem a aba Bases, sem o diálogo de passar as bases (RD-2608) e sem seletor de Tipo: o tipo é fixo por lado', () => {
@@ -167,6 +184,24 @@ describe('aba Integração em dois lados', () => {
     expect(guia).toMatch(/data-testid="integracao\.guia"[^>]*>Baixar o guia \(PDF\)</);
     expect(guia).not.toContain(TEXTO_INDISPONIVEL);
     expect(erroDoGuia(lerErroDaApi(404, { codigo: 'NAO_ENCONTRADO', mensagem: 'Rota não encontrada.' }))).toEqual({ indisponivel: true });
+  });
+});
+
+describe('Conectores para o time da Macuxi', () => {
+  it('Identificador · Situação · Versão · Último sinal · Fila · Pedidos; a fila vem do detalhe do monitor do mesmo Conector', async () => {
+    const erp = conector(1, 'erp', { saude: 'ok', versao_conector: '1.4.0', ultimo_sinal_em: '2026-11-25T11:57:00.000Z' });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, refetchInterval: false } } });
+    const det = await responderMonitorFalso('GET', '/integracao/monitor/detalhes', TENANT, true, [erp]).json();
+    qc.setQueryData(['integracao', escopoDoPortal(TENANT), 'monitor', 'detalhes'], MonitorDetalhes.parse(det));
+    const q = { isPending: false, isError: false, error: null, refetch: () => undefined };
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <TabelaConectores tenant={TENANT} fuso="America/Manaus" timeMacuxi q={q} itens={[erp]} novaChave={null} agindo={false} aoAgir={() => {}} aoBases={() => {}} aoFecharChave={() => {}} />
+      </QueryClientProvider>,
+    );
+    const t = texto(html);
+    expect(t).toMatch(/Identificador Situação Versão Último sinal Fila Pedidos/);
+    expect(t).toMatch(/erp Em dia 1\.4\.0 25\/11\S* às 07:57 2 lotes · 380 linhas Sim/);
   });
 });
 
@@ -430,7 +465,7 @@ describe('caso real: o ERP passa "Formas de pagamento" do Conector à API', () =
     const fim = aba(lista);
     expect(fim.slice(fim.indexOf('data-testid="integracao.conectores"'), fim.indexOf('integracao-api"'))).toContain('>erp<');
     expect(fim.slice(fim.indexOf('data-testid="integracao.api-credenciais"'))).toContain('>erp-api<');
-    expect(texto(fim)).toMatch(/erp-api — Ativo/);
+    expect(texto(fim)).toMatch(/erp-api Ativo Não/);
     expect(fim).toContain('data-testid="integracao.api-sem-bases"');
   });
 });

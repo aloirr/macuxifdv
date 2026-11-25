@@ -42,6 +42,7 @@ describe('RF-GES-05: pedido em nome do vendedor (extensão pedido.criar_em_nome 
   it('RN-PRO-01: nunca em nome de promotor; vendedor inativo ou inexistente também é recusado', () => {
     expect(consulta({ id: SUP, perfil: 'supervisor' }, P1)).toMatchObject({ permitido: false, codigo: 'VENDEDOR_INVALIDO' });
     expect(consulta({ id: SUP, perfil: 'supervisor' }, P1).mensagem).toMatch(/promotor/i);
+    expect(consulta({ id: SUP, perfil: 'supervisor' }, P1).mensagem).toBe('O promotor não faz pedido. Escolha um vendedor.'); // RD-2785: o código RN fica fora do texto
     expect(consulta({ id: SUP, perfil: 'supervisor' }, u(14))).toMatchObject({ permitido: false, codigo: 'VENDEDOR_INVALIDO' });
     expect(consulta({ id: SUP, perfil: 'supervisor' }, u(999))).toMatchObject({ permitido: false, codigo: 'FORA_DO_ESCOPO' });
   });

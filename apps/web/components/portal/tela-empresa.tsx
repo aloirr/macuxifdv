@@ -2,7 +2,8 @@
 
 /**
  * Página de uma empresa no portal (T-0087; spec portal-config-enxuto §5, §8, §10.1 e §11.4): cabeçalho "Código AM4821 ·
- * Manaus (UTC−4)", abas "Integração" (abre por padrão; Conector ou API, `AbaIntegracao`) e "Empresa" (`AbaEmpresa`: Plano ·
+ * Manaus (UTC−4)", abas "Integração" (abre por padrão; Conectores no topo, Conector ou API, `AbaIntegracao`), "Dados" (só o time da
+ * Macuxi: uma linha por entidade com Reprocessar e Zerar dados, `AbaDados`; R-20261124-090510) e "Empresa" (`AbaEmpresa`: Plano ·
  * Apps à esquerda; Dados da empresa, Administradores e Logo à direita). Sem CSV no portal: a aba Bases saiu
  * (R-20261114-132000). A aba fica no `#` do endereço (o F5 volta nela; o `#bases` antigo cai na Integração). testIDs: empresa-pagina.*.
  * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
@@ -20,6 +21,7 @@ import { mensagemDoErro } from '@/lib/portal-api';
 import { rotuloDoStatus, tomDoStatus } from '@/lib/portal-empresa-acoes';
 import { codigoDaLicenca, rotuloCurtoDoFuso } from '@/lib/portal-formato';
 import { CAMINHO_EMPRESAS, desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
+import { AbaDados } from './aba-dados';
 import { AbaEmpresa, AvisoEmpresaCriada } from './aba-empresa';
 import { AbaIntegracao } from './aba-integracao';
 import { MolduraPortal, useSessaoPortal } from './base';
@@ -29,14 +31,18 @@ import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
 
 const ABAS = [
   { id: 'integracao', rotulo: 'Integração' },
+  { id: 'dados', rotulo: 'Dados' },
   { id: 'empresa', rotulo: 'Empresa' },
 ] as const;
 export type Aba = (typeof ABAS)[number]['id'];
 
-/** Aba pelo `#` do endereço: só as que existem; o resto (inclusive o `#bases` antigo) abre a Integração. */
-export function abaDoEndereco(hash: string): Aba {
+/** Abas que a sessão vê: "Dados" só para o time da Macuxi (a API recusa os detalhes do monitor ao admin do cliente). */
+export const abasDaSessao = (timeMacuxi: boolean) => ABAS.filter((a) => timeMacuxi || a.id !== 'dados');
+
+/** Aba pelo `#` do endereço: só as que a sessão vê; o resto (inclusive o `#bases` antigo) abre a Integração. */
+export function abaDoEndereco(hash: string, timeMacuxi = true): Aba {
   const h = hash.replace(/^#/, '');
-  return ABAS.find((a) => a.id === h)?.id ?? 'integracao';
+  return abasDaSessao(timeMacuxi).find((a) => a.id === h)?.id ?? 'integracao';
 }
 
 export function TelaEmpresa({ id }: { id: string }) {
@@ -73,10 +79,10 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
   };
   useEffect(() => {
     // `#bases` (aba que saiu) e `#` desconhecido ficam na Integração, a aba padrão
-    const h = abaDoEndereco(window.location.hash);
+    const h = abaDoEndereco(window.location.hash, timeMacuxi);
     setAba(h);
     setAbertas((x) => new Set([...x, h]));
-  }, []);
+  }, [timeMacuxi]);
 
   const empresa = empresas.data?.find((e) => e.id === id) ?? null;
 
@@ -105,7 +111,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
         <>
           <AvisoEmpresaCriada tenant={empresa.id} />
           <div role="tablist" aria-label="Seções da empresa" className="flex gap-1 border-b border-line">
-            {ABAS.map((a) => (
+            {abasDaSessao(timeMacuxi).map((a) => (
               <button
                 key={a.id}
                 type="button"
@@ -127,6 +133,11 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
           {abertas.has('integracao') && (
             <div role="tabpanel" id="empresa-painel-integracao" aria-labelledby="empresa-aba-integracao" hidden={aba !== 'integracao'}>
               <AbaIntegracao tenant={empresa.id} fuso={empresa.fuso} />
+            </div>
+          )}
+          {timeMacuxi && abertas.has('dados') && (
+            <div role="tabpanel" id="empresa-painel-dados" aria-labelledby="empresa-aba-dados" hidden={aba !== 'dados'}>
+              <AbaDados empresa={empresa} />
             </div>
           )}
           {abertas.has('empresa') && (

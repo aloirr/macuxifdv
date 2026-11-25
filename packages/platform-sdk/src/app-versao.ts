@@ -1,6 +1,7 @@
 /**
  * "Verificar atualização" do app (item 19 do teste de campo do Campo v1.0.16; desenho `docs/desenho/v1017-campo-versao-e-marca.md`
  * §2). A API diz qual é a última versão publicada de cada variante (pública, sem sessão e sem dado de tenant):
+ *   GET /v1/app/versao?variante=campo|gestao&contrato=3   AppVersaoPublicadaV3 (apps a partir da v1.0.36): V2 + `fracao_liberada`
  *   GET /v1/app/versao?variante=campo|gestao&contrato=2   AppVersaoPublicadaV2 (apps a partir da v1.0.19), sem `apk_url`
  *   GET /v1/app/versao?variante=campo|gestao              AppVersaoPublicada (apps v1.0.17 e v1.0.18, que não mudam)
  * Desde a T-0190 (ADR 0065, RN-CORE-67) o APK só se baixa pelo link temporário que o administrador gera no portal
@@ -19,9 +20,15 @@ export const NOME_APP_VARIANTE: Readonly<Record<VarianteApp, string>> = { campo:
 export const ROTA_APP_VERSAO = '/v1/app/versao';
 /** Versão do contrato que o app novo pede na query (`contrato=2`): sem ela a API responde o contrato antigo. */
 export const CONTRATO_APP_VERSAO_V2 = '2';
-/** Rota do app a partir da v1.0.19 (contrato V2, T-0190). */
-export const rotaAppVersao = (variante: VarianteApp): string =>
-  `${ROTA_APP_VERSAO}?variante=${variante}&contrato=${CONTRATO_APP_VERSAO_V2}`;
+/**
+ * Contrato V3 (`contrato=3`, ADR 0076 D6): V2 + `fracao_liberada`. Versão nova porque o V2 é `.strict()` e os apps da v1.0.19 à
+ * v1.0.35 recusariam a chave a mais (deixariam de ver a versão nova); eles seguem pedindo o V2, que não muda.
+ */
+export const CONTRATO_APP_VERSAO_V3 = '3';
+export type ContratoAppVersao = typeof CONTRATO_APP_VERSAO_V2 | typeof CONTRATO_APP_VERSAO_V3;
+/** Rota do app: contrato V2 por padrão (a partir da v1.0.19, T-0190); V3 a partir da v1.0.36 (ADR 0076). */
+export const rotaAppVersao = (variante: VarianteApp, contrato: ContratoAppVersao = CONTRATO_APP_VERSAO_V2): string =>
+  `${ROTA_APP_VERSAO}?variante=${variante}&contrato=${contrato}`;
 
 /** Página pública que o `apk_url` do contrato antigo abre: só orienta a pedir o link do APK (T-0190, RN-CORE-67). */
 export const ROTA_APP_ATUALIZAR = '/v1/app/atualizar';
@@ -65,9 +72,17 @@ export type AppVersaoPublicada = z.output<typeof AppVersaoPublicadaSchema>;
 export const AppVersaoPublicadaV2Schema = AppVersaoPublicadaSchema.extend({ apk_url: ApkUrlSchema.optional() }).strict();
 export type AppVersaoPublicadaV2 = z.output<typeof AppVersaoPublicadaV2Schema>;
 
-/** Query da rota: sem `contrato` = contrato antigo (apps v1.0.17 e v1.0.18); `contrato=2` = V2. */
+/**
+ * Resposta de `GET /v1/app/versao?contrato=3` (ADR 0076 D6, RN-VEN-02 v3): V2 + `fracao_liberada`, calculado no servidor por
+ * `fracaoLiberada` com as versões publicadas do Campo e do Gestão (o app só conhece a da própria variante). `true` = a API já aceita
+ * quantidade e fator com casas decimais; o app só abre a digitação fracionária com `true`.
+ */
+export const AppVersaoPublicadaV3Schema = AppVersaoPublicadaV2Schema.extend({ fracao_liberada: z.boolean() }).strict();
+export type AppVersaoPublicadaV3 = z.output<typeof AppVersaoPublicadaV3Schema>;
+
+/** Query da rota: sem `contrato` = contrato antigo (apps v1.0.17 e v1.0.18); `contrato=2` = V2; `contrato=3` = V3. */
 export const ConsultaAppVersaoSchema = z
-  .object({ variante: z.enum(VARIANTES_APP), contrato: z.literal(CONTRATO_APP_VERSAO_V2).optional() })
+  .object({ variante: z.enum(VARIANTES_APP), contrato: z.enum([CONTRATO_APP_VERSAO_V2, CONTRATO_APP_VERSAO_V3]).optional() })
   .strict();
 
 /** Query da página de orientação. */
@@ -93,31 +108,54 @@ export function haVersaoNova(atual: string, publicada: string): boolean {
 // `ROTAS_LIBERADAS_APP_DESATUALIZADO` (ADR 0070 §D4). A hora de referência é o `publicado_em` do manifesto `ultimo.json`.
 
 /**
- * Cabeçalho que o app manda em toda chamada à API: `<variante>/<X.Y.Z>` (ex.: `campo/1.0.33`). Sem ele (BKO, portal, apps até
- * a v1.0.32) a API não bloqueia nada.
+ * Cabeçalho que o cliente manda em toda chamada à API: `<variante>/<X.Y.Z>` (ex.: `campo/1.0.33`, `web/1.0.35`). Sem ele (portal,
+ * apps até a v1.0.32) a API não bloqueia nada e as regras por versão do cliente (ex.: RN-VEN-25) ficam no comportamento antigo.
  */
 export const CABECALHO_APP = 'x-macuxi-app';
 
-/** O app que chamou, lido do `CABECALHO_APP`. */
+/**
+ * v1.0.35 (RN-VEN-25 no BKO e no Gestor web): o shell web (Next.js) também se identifica, com a variante `web`. Não é variante de
+ * APK (fica fora de `VARIANTES_APP`): não tem versão publicada, não recebe o 426 nem o aviso de atualização; serve só para as
+ * regras que dependem da versão do cliente (`ctx.versaoApp.doCliente.versao`).
+ */
+export const VARIANTE_WEB = 'web';
+/** Quem chama a API com o `CABECALHO_APP`: uma variante de APK ou o shell web. */
+export type VarianteCliente = VarianteApp | typeof VARIANTE_WEB;
+
+/**
+ * Versão de recursos do shell web no `CABECALHO_APP`. O web sai junto com a API (mesmo deploy), sem versão própria de build
+ * (`apps/web/package.json` fica em 0.1.0): esta constante diz até que versão do sistema o web já segue as regras por versão do
+ * cliente. Sobe (no SDK, pelo engenheiro-software) quando o web passa a cumprir uma regra nova condicionada à versão; nunca desce.
+ * v1.0.35: o web aplica o teto de prazo médio do cliente (RN-VEN-25, a partir da 1.0.34).
+ */
+export const VERSAO_WEB = '1.0.35';
+
+/** O app que chamou, lido do `CABECALHO_APP`. `variante: 'web'` = BKO / Gestor web (use `ehAppAndroid` antes de olhar o APK). */
 export interface AppDoCabecalho {
-  variante: VarianteApp;
+  variante: VarianteCliente;
   versao: string;
 }
 
-const CABECALHO_APP_RE = /^(campo|gestao)\/((?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3}))$/;
+/** O cabeçalho é de um APK (`campo`/`gestao`)? Só os APKs têm versão publicada, 426 e aviso de atualização. */
+export const ehAppAndroid = (c: AppDoCabecalho): c is AppDoCabecalho & { variante: VarianteApp } => c.variante !== VARIANTE_WEB;
+
+const CABECALHO_APP_RE = /^(campo|gestao|web)\/((?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3})\.(?:0|[1-9]\d{0,3}))$/;
 
 /** Valor do `CABECALHO_APP`. Versão fora de X.Y.Z = erro de programação (o shell lê a versão do próprio build). */
-export function valorCabecalhoApp(variante: VarianteApp, versao: string): string {
+export function valorCabecalhoApp(variante: VarianteCliente, versao: string): string {
   const valor = `${variante}/${versao}`;
   if (!CABECALHO_APP_RE.test(valor)) throw new Error(`versão do app fora de X.Y.Z: ${JSON.stringify(versao)}`);
   return valor;
 }
 
+/** Valor do `CABECALHO_APP` do shell web: `web/<VERSAO_WEB>` (ex.: `web/1.0.35`). O web manda em toda chamada à API. */
+export const valorCabecalhoWeb = (): string => valorCabecalhoApp(VARIANTE_WEB, VERSAO_WEB);
+
 /** Lê o `CABECALHO_APP` (string do Fastify ou do `fetch`). Ausente, repetido ou fora do formato = `null` (não bloqueia). */
 export function lerCabecalhoApp(valor: unknown): AppDoCabecalho | null {
   if (typeof valor !== 'string' || valor.length > 32) return null;
   const m = CABECALHO_APP_RE.exec(valor.trim());
-  return m ? { variante: m[1] as VarianteApp, versao: m[2]! } : null;
+  return m ? { variante: m[1] as VarianteCliente, versao: m[2]! } : null;
 }
 
 /** Prazo de convivência depois da publicação: 24 h exatas. Às 24h00 o app antigo já fica bloqueado. */
@@ -197,9 +235,46 @@ export type VersaoPublicadaApp = Pick<AppVersaoPublicadaV2, 'versao' | 'publicad
  * A API sempre preenche; é opcional só para os contextos falsos dos testes dos módulos.
  */
 export interface PortaVersaoApp {
-  /** `CABECALHO_APP` desta requisição; `null` = sem cabeçalho (BKO, app antigo). */
+  /** `CABECALHO_APP` desta requisição; `null` = sem cabeçalho (portal, app antigo). */
   doCliente: AppDoCabecalho | null;
-  publicada(variante: VarianteApp): Promise<VersaoPublicadaApp | null>;
+  /** Última publicada do APK; `web` = sempre `null` (o web não tem versão publicada). */
+  publicada(variante: VarianteCliente): Promise<VersaoPublicadaApp | null>;
+}
+
+// ---------- ADR 0076 (RN-VEN-02 v3): trava da quantidade fracionária ----------
+
+/** Primeira versão dos apps que lê e grava quantidade e fator com casas decimais. */
+export const VERSAO_APP_FRACAO = '1.0.36';
+
+/** A variante já obriga a `VERSAO_APP_FRACAO`: publicada maior, ou igual e com as 24 h de convivência vencidas. */
+function varianteObrigaFracao(v: VersaoPublicadaApp | null, agora: Date): boolean {
+  if (v === null || !versaoAppValida(v.versao)) return false;
+  if (haVersaoNova(VERSAO_APP_FRACAO, v.versao)) return true;
+  if (v.versao !== VERSAO_APP_FRACAO) return false;
+  const publicadaMs = v.publicada_em !== null && ISO_DATA_RE.test(v.publicada_em) ? Date.parse(v.publicada_em) : Number.NaN;
+  const agoraMs = agora.getTime();
+  return Number.isFinite(publicadaMs) && Number.isFinite(agoraMs) && agoraMs >= publicadaMs + PRAZO_ATUALIZACAO_APP_MS;
+}
+
+/**
+ * ADR 0076 D6: a fração está liberada para a plataforma (API e app) só quando o Campo e o Gestão já obrigam a 1.0.36
+ * (`varianteObrigaFracao`). Sem versão, sem hora, versão menor ou inválida = fechada. Publicar uma versão maior não fecha de novo.
+ */
+export function fracaoLiberada({
+  campo,
+  gestao,
+  agora,
+}: {
+  campo: VersaoPublicadaApp | null;
+  gestao: VersaoPublicadaApp | null;
+  agora: Date;
+}): boolean {
+  return varianteObrigaFracao(campo, agora) && varianteObrigaFracao(gestao, agora);
+}
+
+/** ADR 0076 D6 (pull filtrado): o app que chamou lê fração? Só com o `CABECALHO_APP` e versão ≥ `VERSAO_APP_FRACAO`. */
+export function clienteAceitaFracao(app: AppDoCabecalho | null): boolean {
+  return app !== null && versaoAppValida(app.versao) && !haVersaoNova(app.versao, VERSAO_APP_FRACAO);
 }
 
 /** Porta fixa para os testes de módulo. */
@@ -207,7 +282,7 @@ export function criarPortaVersaoAppMemoria(
   publicadas: Partial<Record<VarianteApp, VersaoPublicadaApp>>,
   doCliente: AppDoCabecalho | null = null,
 ): PortaVersaoApp {
-  return { doCliente, publicada: (v) => Promise.resolve(publicadas[v] ?? null) };
+  return { doCliente, publicada: (v) => Promise.resolve((v === VARIANTE_WEB ? undefined : publicadas[v]) ?? null) };
 }
 
 /**

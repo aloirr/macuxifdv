@@ -1,32 +1,35 @@
 'use client';
 
 /**
- * Aba "Integração" do portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §10.2; R-20261114-132000 e R-20261114-170200):
- * ou é Conector, ou é API, em dois lados com a mesma largura e uma divisória de 1 px no meio (`line`), com 24 px de folga para cada
- * lado; abaixo de 768 px, empilhados (Conector primeiro) com a divisória na horizontal, 24 px antes da API.
- * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar o Conector) e a
- *   tabela "Conectores" (tipos `conector` e `arquivo`; só o `conector` tem "Bases" e "Gerar nova chave").
+ * Aba "Integração" do portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §10.2; R-20261114-132000 e R-20261114-170200).
+ * No topo, a tabela "Conectores" (R-20261124-090510, RD-3550; colunas no JSDoc de `TabelaConectores`). Abaixo, ou é Conector, ou é API, em
+ * dois lados com a mesma largura e uma divisória de 1 px no meio (`line`), 24 px de folga para cada lado; abaixo de 768 px,
+ * empilhados (Conector primeiro) com a divisória na horizontal, 24 px antes da API.
+ * - "Integração via Conector": passos numerados (1 Baixar o Conector, 2 Gerar a credencial, 3 Instalar o Conector).
  * - "Integração via API": "Gerar a credencial" (botão neutro) pela mesma rota com `tipo: 'nuvem'`, escolhendo entre as bases livres e
  *   se envia os pedidos; o cartão "Guia" (botão do PDF pela rota pública `GUIA_PDF_HUB`; link do OpenAPI 3.1) e a tabela "Credenciais".
- * - Linha ativa: "Bases" (`PATCH { entidades, recebe_pedidos }`, só as bases livres para ele) e "Gerar nova chave" (`POST
- *   ROTAS_PORTAL.chaveConector`) fora do de arquivo; "Desativar" (`PATCH { ativo: false }`); nova chave e desativar com confirmação, no
+ * - "⋯" das duas tabelas (`acoesDoConector`), na linha ativa: "Bases" (`PATCH { entidades, recebe_pedidos }`, só as bases livres
+ *   para ele) e "Gerar nova chave" (`POST ROTAS_PORTAL.chaveConector`) fora do de arquivo; "Desativar" (`PATCH { ativo: false }`); nova chave e desativar com confirmação, no
  *   texto do tipo (Conector ou credencial de API). Linha desativada: "Reativar" fora do de arquivo, no mesmo diálogo "Bases" (`PATCH
  *   { ativo: true, entidades, recebe_pedidos }` e a chave nova, porque desativar revogou as chaves, RN-INT-10).
  * A chave em claro vem só na resposta e aparece UMA vez, com "Copiar". Na v1 cada base vem de um único Conector por empresa
  * (RN-INT-13): a credencial nova leva só bases livres e a API revalida (409 `topologia_conflitante`). testIDs: integracao.*.
  */
-import { Fragment, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ConectorCriado, ConectorResumo, ENTIDADES, ORDEM_CARGA_ENTIDADES, type Entidade, type TipoConector } from '@macuxi/integracao/contracts';
-import { Badge, Button, cx, Dialog, ErrorBlock, LoadingBlock, Notice, Panel, TableScroll, td, th, useToast } from '@macuxi/ui/web';
+import { chaveDoCacheIntegracao, useMonitorDetalhes } from '@macuxi/integracao/web';
+import { Badge, Button, cx, Dialog, ErrorBlock, formatDateTime, LoadingBlock, Notice, Panel, TabelaDados, useToast, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 
 import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL, type OpcoesChamada } from '@/lib/portal-api';
 import { NOME_DA_BASE } from '@/lib/portal-bases';
 import { DOWNLOAD_CONECTOR } from '@/lib/conector-download';
+import { clienteDoPortal, SAUDE_DO_CONECTOR, textoFila } from '@/lib/portal-monitor';
 import { GUIA_PDF_HUB, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { ehTimeMacuxi } from '@/lib/portal-sessao';
 
 import { BaixarPacote } from './baixar-conector';
-import { SecaoMonitor } from './secao-monitor';
+import { useSessaoPortal } from './base';
 import { Campo } from '@/components/campo-acesso';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
@@ -415,96 +418,87 @@ export function DialogoBases({ alvo, modo = 'bases', todos, tenant, aoFechar, ao
 type Consulta = { isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
 
 /**
- * Tabela "Conectores" / "Credenciais": Identificador · Pedidos · Situação; os botões numa segunda linha (lado estreito e celular): na
- * ativa, Bases, nova chave e Desativar; na desativada, "Reativar" (fora do de arquivo). A chave nova aparece ali, uma vez.
+ * "⋯" das tabelas "Conectores" e "Credenciais": na linha ativa, "Bases" e "Gerar nova chave" (fora do de arquivo) e "Desativar" (perigo); na desativada,
+ * "Reativar" (fora do de arquivo). Sem ação, a lista vazia esconde o menu.
  */
-export function ListaConectores({
-  q,
-  itens,
-  vazio,
-  testId,
-  novaChave,
-  agindo,
-  aoAgir,
-  aoBases,
-  aoFecharChave,
-}: {
-  q: Consulta;
-  itens: readonly Conector[];
-  vazio: string;
-  testId: string;
-  novaChave: { id: string; chave: ChaveNova } | null;
-  agindo: boolean;
-  aoAgir: (c: Conector, acao: AcaoConector) => void;
-  aoBases: (c: Conector, modo: ModoBases) => void;
-  aoFecharChave: () => void;
-}) {
+export function acoesDoConector(c: Conector, agindo: boolean, aoAgir: (c: Conector, acao: AcaoConector) => void, aoBases: (c: Conector, modo: ModoBases) => void): AcaoDoMenu[] {
+  const id = c.conector_id;
+  if (!c.ativo) return c.tipo === 'arquivo' ? [] : [{ id: 'reativar', rotulo: 'Reativar', desligada: agindo, aoEscolher: () => aoBases(c, 'reativar'), testId: `integracao.reativar-${id}` }];
+  const acoes: AcaoDoMenu[] = [];
+  if (c.tipo !== 'arquivo') {
+    acoes.push({ id: 'bases', rotulo: 'Bases', desligada: agindo, aoEscolher: () => aoBases(c, 'bases'), testId: `integracao.bases-${id}` });
+    acoes.push({ id: 'chave', rotulo: 'Gerar nova chave', desligada: agindo, aoEscolher: () => aoAgir(c, 'chave'), testId: `integracao.nova-chave-${id}` });
+  }
+  acoes.push({ id: 'desativar', rotulo: 'Desativar', perigo: true, desligada: agindo, aoEscolher: () => aoAgir(c, 'desativar'), testId: `integracao.desativar-${id}` });
+  return acoes;
+}
+
+type AcoesDaLinha = { novaChave: { id: string; chave: ChaveNova } | null; agindo: boolean; aoAgir: (c: Conector, acao: AcaoConector) => void; aoBases: (c: Conector, modo: ModoBases) => void; aoFecharChave: () => void };
+
+/** Corpo das tabelas "Conectores" e "Credenciais": carregando, erro ou a `TabelaDados` com o "⋯"; a chave nova abaixo, uma vez. */
+function CorpoDaTabela({ q, itens, colunas, rotulo, vazio, testId, linhaTestId, novaChave, agindo, aoAgir, aoBases, aoFecharChave }: AcoesDaLinha & { q: Consulta; itens: readonly Conector[]; colunas: ColunaDaTabela<Conector>[]; rotulo: string; vazio: string; testId: string; linhaTestId: string }) {
   if (q.isPending) return <LoadingBlock label="Buscando…" />;
   if (q.isError) return <ErrorBlock message={mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />;
-  if (itens.length === 0) return <span className="text-[13px] text-ink-2">{vazio}</span>;
+  const comChave = novaChave && itens.find((c) => c.id === novaChave.id);
   return (
-    <TableScroll minWidth={320}>
-      <table data-testid={testId} className="w-full border-collapse text-[13px]">
-        <thead>
-          <tr>
-            <th className={th}>Identificador</th>
-            <th className={th}>Pedidos</th>
-            <th className={th}>Situação</th>
-          </tr>
-        </thead>
-        <tbody>
-          {itens.map((c) => {
-            // com botões (ativa, ou desativada fora do de arquivo): sem a borda de baixo, porque os botões vêm na linha seguinte
-            const botoes = c.ativo || c.tipo !== 'arquivo';
-            const cel = botoes ? td.replace(/\bborder-b border-line-2\b/, '').trim() : td;
-            return (
-              <Fragment key={c.id}>
-                <tr>
-                  <td className={cx(cel, 'font-mono')}>{c.conector_id}</td>
-                  <td className={cel}>{c.recebe_pedidos ? 'Sim' : '—'}</td>
-                  <td className={cel}>
-                    <Badge tone={c.ativo ? 'success' : 'neutral'}>{c.ativo ? 'Ativo' : 'Desativado'}</Badge>
-                  </td>
-                </tr>
-                {botoes && (
-                  <tr>
-                    <td colSpan={3} className={cx(td, 'pt-0')}>
-                      <span className="flex flex-wrap items-center gap-2">
-                        {!c.ativo && (
-                          <Button size="sm" data-testid={`integracao.reativar-${c.conector_id}`} disabled={agindo} onClick={() => aoBases(c, 'reativar')}>
-                            Reativar
-                          </Button>
-                        )}
-                        {c.ativo && c.tipo !== 'arquivo' && (
-                          <>
-                            <Button size="sm" data-testid={`integracao.bases-${c.conector_id}`} disabled={agindo} onClick={() => aoBases(c, 'bases')}>
-                              Bases
-                            </Button>
-                            <Button size="sm" data-testid={`integracao.nova-chave-${c.conector_id}`} disabled={agindo} onClick={() => aoAgir(c, 'chave')}>
-                              Gerar nova chave
-                            </Button>
-                          </>
-                        )}
-                        {c.ativo && (
-                          <Button size="sm" data-testid={`integracao.desativar-${c.conector_id}`} disabled={agindo} onClick={() => aoAgir(c, 'desativar')}>
-                            Desativar
-                          </Button>
-                        )}
-                      </span>
-                      {novaChave?.id === c.id && (
-                        <div className="mt-2">
-                          <Credencial c={novaChave.chave} testId={`integracao.nova-chave-${c.conector_id}.`} aoFechar={aoFecharChave} />
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
-    </TableScroll>
+    <div className="flex min-w-0 flex-col gap-3">
+      <TabelaDados
+        colunas={colunas}
+        linhas={itens}
+        chave={(c) => c.conector_id}
+        rotulo={rotulo}
+        acoes={(c) => acoesDoConector(c, agindo, aoAgir, aoBases)}
+        vazio={<span className="text-[13px] text-ink-2">{vazio}</span>}
+        testId={testId}
+        linhaTestId={(c) => `${linhaTestId}${c.conector_id}`}
+        esmaecida={(c) => !c.ativo}
+      />
+      {comChave && novaChave && <Credencial c={novaChave.chave} testId={`integracao.nova-chave-${comChave.conector_id}.`} aoFechar={aoFecharChave} />}
+    </div>
+  );
+}
+
+const colunaIdentificador: ColunaDaTabela<Conector> = { id: 'conector', titulo: 'Identificador', celula: (c) => <span className="font-mono">{c.conector_id}</span>, texto: (c) => c.conector_id };
+const colunaPedidos: ColunaDaTabela<Conector> = { id: 'pedidos', titulo: 'Pedidos', largura: '90px', celula: (c) => (c.recebe_pedidos ? 'Sim' : 'Não') };
+
+/**
+ * Tabela "Conectores" no topo da aba (R-20261124-090510, RD-3550), uma linha por Conector (`conector` e `arquivo`): Identificador ·
+ * Situação (a saúde; desativado, "Desativado") · Versão · Último sinal · Fila (estas três só para o time da Macuxi; a fila vem do
+ * detalhe do monitor) · Pedidos · "⋯".
+ */
+export function TabelaConectores({ tenant, fuso, timeMacuxi, q, itens, ...acoes }: AcoesDaLinha & { tenant: string; fuso?: string; timeMacuxi: boolean; q: Consulta; itens: readonly Conector[] }) {
+  const cliente = useMemo(() => clienteDoPortal(tenant, timeMacuxi), [tenant, timeMacuxi]);
+  const detalhes = useMonitorDetalhes(cliente);
+  const sinal = (c: Conector) => detalhes.data?.conectores.find((x) => x.conector_id === c.conector_id)?.sinal ?? null;
+  const saude = (c: Conector) => SAUDE_DO_CONECTOR[c.ativo ? c.saude : 'desativado'];
+
+  const colunas: ColunaDaTabela<Conector>[] = [colunaIdentificador, { id: 'saude', titulo: 'Situação', largura: '170px', celula: (c) => <Badge tone={saude(c).tom}>{saude(c).rotulo}</Badge> }];
+  if (timeMacuxi)
+    colunas.push(
+      { id: 'versao', titulo: 'Versão', largura: '100px', prioridade: 3, celula: (c) => c.versao_conector ?? '—' },
+      { id: 'sinal', titulo: 'Último sinal', largura: '150px', numero: true, prioridade: 2, celula: (c) => formatDateTime(c.ultimo_sinal_em, fuso) },
+      { id: 'fila', titulo: 'Fila', largura: '170px', numero: true, prioridade: 3, celula: (c) => textoFila(sinal(c)) },
+    );
+  colunas.push({ ...colunaPedidos, prioridade: 2 });
+
+  return (
+    <Panel title="Conectores">
+      <CorpoDaTabela q={q} itens={itens} colunas={colunas} rotulo="Conectores" vazio="Nenhum Conector." testId="integracao.conectores" linhaTestId="integracao.conector." {...acoes} />
+    </Panel>
+  );
+}
+
+/** Tabela "Credenciais" (lado da API, tipo `nuvem`), na ordem dos Conectores: Identificador · Situação (Ativo ou Desativado) · Pedidos · "⋯". */
+export function TabelaCredenciais({ q, itens, ...acoes }: AcoesDaLinha & { q: Consulta; itens: readonly Conector[] }) {
+  const colunas: ColunaDaTabela<Conector>[] = [
+    colunaIdentificador,
+    { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (c) => <Badge tone={c.ativo ? 'success' : 'neutral'}>{c.ativo ? 'Ativo' : 'Desativado'}</Badge> },
+    colunaPedidos,
+  ];
+  return (
+    <Panel title="Credenciais">
+      <CorpoDaTabela q={q} itens={itens} colunas={colunas} rotulo="Credenciais" vazio="Nenhuma credencial." testId="integracao.api-credenciais" linhaTestId="integracao.api-credencial." {...acoes} />
+    </Panel>
   );
 }
 
@@ -554,8 +548,12 @@ export function AbaIntegracao({ tenant, fuso }: { tenant: string; fuso?: string 
   const [agindo, setAgindo] = useState(false);
   const [bases, setBases] = useState<{ conector: Conector; modo: ModoBases } | null>(null);
 
+  const timeMacuxi = ehTimeMacuxi(useSessaoPortal());
   const todos = q.data ?? [];
-  const aoMudar = () => void qc.invalidateQueries({ queryKey: chave });
+  const aoMudar = () => {
+    void qc.invalidateQueries({ queryKey: chave });
+    void qc.invalidateQueries({ queryKey: chaveDoCacheIntegracao(clienteDoPortal(tenant, timeMacuxi).escopo) });
+  };
 
   const confirmarAcao = async () => {
     if (!alvo || agindo) return;
@@ -574,22 +572,27 @@ export function AbaIntegracao({ tenant, fuso }: { tenant: string; fuso?: string 
     }
   };
 
-  const lista = (itens: readonly Conector[], vazio: string, testId: string) => (
-    <ListaConectores
-      q={q}
-      itens={itens}
-      vazio={vazio}
-      testId={testId}
-      novaChave={novaChave}
-      agindo={agindo}
-      aoAgir={(c, acao) => setAlvo({ conector: c, acao })}
-      aoBases={(conector, modo) => setBases({ conector, modo })}
-      aoFecharChave={() => setNovaChave(null)}
-    />
-  );
+  const acoes: AcoesDaLinha = {
+    novaChave,
+    agindo,
+    aoAgir: (c, acao) => setAlvo({ conector: c, acao }),
+    aoBases: (conector, modo) => setBases({ conector, modo }),
+    aoFecharChave: () => setNovaChave(null),
+  };
 
   return (
     <div data-testid="integracao.aba" className="grid md:grid-cols-2">
+      {/* no topo (R-20261124-090510): ocupa as duas colunas e se separa dos dois lados pelo filete de 1 px */}
+      <div data-testid="integracao.topo" className="mb-6 min-w-0 border-b border-line pb-6 md:col-span-2">
+        <TabelaConectores
+          tenant={tenant}
+          fuso={fuso}
+          timeMacuxi={timeMacuxi}
+          q={q}
+          itens={todos.filter((c) => c.tipo !== 'nuvem')}
+          {...acoes}
+        />
+      </div>
       {/* divisória: filete de 1 px (`line`) no meio, da altura do lado mais alto, 24 px de folga; abaixo de 768 px, horizontal */}
       <section aria-labelledby="integracao-conector" className="flex min-w-0 flex-col gap-4 border-b border-line pb-6 md:border-r md:border-b-0 md:pr-6 md:pb-0">
         <h2 id="integracao-conector" className="m-0 text-[20px] font-bold">
@@ -608,7 +611,6 @@ export function AbaIntegracao({ tenant, fuso }: { tenant: string; fuso?: string 
             <li>Inicie o serviço.</li>
           </ol>
         </Panel>
-        <Panel title="Conectores">{lista(todos.filter((c) => c.tipo !== 'nuvem'), 'Nenhum Conector.', 'integracao.conectores')}</Panel>
       </section>
 
       <section aria-labelledby="integracao-api" className="flex min-w-0 flex-col gap-4 pt-6 md:pt-0 md:pl-6">
@@ -629,10 +631,9 @@ export function AbaIntegracao({ tenant, fuso }: { tenant: string; fuso?: string 
           />
         </Panel>
         <CartaoGuia />
-        <Panel title="Credenciais">{lista(todos.filter((c) => c.tipo === 'nuvem'), 'Nenhuma credencial.', 'integracao.api-credenciais')}</Panel>
+        <TabelaCredenciais q={q} itens={todos.filter((c) => c.tipo === 'nuvem')} {...acoes} />
       </section>
 
-      <SecaoMonitor tenant={tenant} />
       <DialogoConector alvo={alvo?.conector ?? null} acao={alvo?.acao ?? 'chave'} enviando={agindo} aoFechar={() => setAlvo(null)} aoConfirmar={() => void confirmarAcao()} />
       <DialogoBases
         alvo={bases?.conector ?? null}

@@ -16,7 +16,7 @@ const AGORA = '2026-10-30T20:00:00Z';
 const MODULOS = new Set(['core', 'vendedor']);
 
 const orcamento = (n: number, total: number): EventoRecebido =>
-  ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { ...(pedidoCriado({ pedido: u(2000 + n), vendedor: V, total }).payload as Record<string, unknown>), tipo: 'orcamento' });
+  ev('vendedor.pedido.criado@2', '2026-10-30T14:00:00Z', { ...(pedidoCriado({ pedido: u(2000 + n), vendedor: V, total }).payload as Record<string, unknown>), tipo: 'orcamento' });
 const pedido = aplicarEventos(estadoInicial(), [
   pedidoCriado({ pedido: u(1001), vendedor: V, total: 10_000 }),
   statusAlterado({ pedido: u(1001), vendedor: V, para: 'aprovado', em: '2026-10-30T15:00:00Z' }),

@@ -6,7 +6,9 @@
  *   desconhecido) e todo `:nome` dele é um parâmetro do Conector;
  * - os parâmetros além dos 9 originais têm padrão NULL (o EXEC de Conector antigo continua válido) e cada um tem a coluna do
  *   mesmo nome, NULA, em dbo.macuxi_pedido_entrada, e entra no INSERT da procedure;
- * - a idempotência pelo pedido_uuid continua (IF NOT EXISTS no cabeçalho e no item).
+ * - a idempotência pelo pedido_uuid continua (IF NOT EXISTS no cabeçalho e no item);
+ * - ADR 0076 (Conector 1.6.0): o item grava quantidade, fator e quantidade_venda em DECIMAL(13,4) (nunca FLOAT) e unidade;
+ *   os 3 novos têm padrão NULL e coluna NULA, e todo `@param` do EXEC de itens do exemplo existe na procedure do item.
  * Formato: docs/banco/integracao.md ("0056 — ... entrada de pedidos").
  */
 import { readFileSync } from 'node:fs';
@@ -29,30 +31,31 @@ const NOVOS_T0149 = [
   'pagamento_prazo_medio_dias',
 ];
 
-function acharCabecalho(v: unknown): string | null {
+function acharChave(v: unknown, chave: string): string | null {
   if (v === null || typeof v !== 'object') return null;
   for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
-    if (k === 'cabecalho' && typeof x === 'string') return x;
-    const r = acharCabecalho(x);
+    if (k === chave && typeof x === 'string') return x;
+    const r = acharChave(x, chave);
     if (r) return r;
   }
   return null;
 }
+const acharCabecalho = (v: unknown): string | null => acharChave(v, 'cabecalho');
 
 /** Parâmetros declarados da procedure: nome -> trecho da declaração (tipo e padrão). */
-function parametrosDaProcedure(): Map<string, string> {
-  const m = /CREATE PROCEDURE dbo\.sp_macuxi_pedido_inserir([\s\S]*?)\nAS\n/.exec(SQL);
-  if (!m) throw new Error('sp_macuxi_pedido_inserir não encontrada');
+function parametrosDaProcedure(nome = 'sp_macuxi_pedido_inserir'): Map<string, string> {
+  const m = new RegExp(`CREATE PROCEDURE dbo\\.${nome}([\\s\\S]*?)\\nAS\\n`).exec(SQL);
+  if (!m) throw new Error(`${nome} não encontrada`);
   const corpo = m[1]!.replace(/--[^\n]*/g, '');
   const mapa = new Map<string, string>();
   for (const d of corpo.matchAll(/@(\w+)\s+((?:\([^)]*\)|[^,@(])+)/g)) mapa.set(d[1]!, d[2]!.trim());
   return mapa;
 }
 
-/** Colunas da tabela do cabeçalho: nome -> definição. */
-function colunasDoCabecalho(): Map<string, string> {
-  const m = /CREATE TABLE dbo\.macuxi_pedido_entrada \(([\s\S]*?)\n\);/.exec(SQL);
-  if (!m) throw new Error('dbo.macuxi_pedido_entrada não encontrada');
+/** Colunas da tabela do cabeçalho (ou dos itens): nome -> definição. */
+function colunasDoCabecalho(tabela = 'macuxi_pedido_entrada'): Map<string, string> {
+  const m = new RegExp(`CREATE TABLE dbo\\.${tabela} \\(([\\s\\S]*?)\\n\\);`).exec(SQL);
+  if (!m) throw new Error(`dbo.${tabela} não encontrada`);
   const mapa = new Map<string, string>();
   for (const linha of m[1]!.split('\n')) {
     const c = /^\s+([a-z_]+)\s+(.+?)(?:\s*--.*)?$/.exec(linha);
@@ -101,6 +104,30 @@ describe('entrada de pedidos do Conector (db/conector/entrada-pedido-modelo.sql)
       expect(d, `@${n}`).toMatch(/= NULL$/);
       expect(colunas.has(n), `coluna ${n}`).toBe(true);
     }
+  });
+
+  it('ADR 0076: item com quantidade, fator e quantidade_venda DECIMAL(13,4) e unidade, os 3 novos opcionais e no INSERT', () => {
+    const p = parametrosDaProcedure('sp_macuxi_pedido_item_inserir');
+    const c = colunasDoCabecalho('macuxi_pedido_entrada_item');
+    expect(p.get('quantidade')).toBe('DECIMAL(13, 4)');
+    expect(c.get('quantidade')).toBe('DECIMAL(13, 4) NOT NULL');
+    for (const n of ['fator', 'quantidade_venda']) {
+      expect(p.get(n), `@${n}`).toBe('DECIMAL(13, 4) = NULL');
+      expect(c.get(n), `coluna ${n}`).toBe('DECIMAL(13, 4) NULL');
+    }
+    expect(p.get('unidade')).toMatch(/^VARCHAR\(\d+\) = NULL$/);
+    expect(c.get('unidade')).toMatch(/^VARCHAR\(\d+\) NULL$/);
+    const insert = /INSERT INTO dbo\.macuxi_pedido_entrada_item\s*\(([\s\S]*?)\)\s*VALUES\s*\(([\s\S]*?)\);/.exec(SQL);
+    expect(insert).not.toBeNull();
+    const cols = insert![1]!.split(',').map((x) => x.trim());
+    expect(insert![2]!.split(',').map((x) => x.trim())).toEqual(cols.map((x) => `@${x}`));
+    for (const n of ['fator', 'quantidade_venda', 'unidade']) expect(cols, `INSERT sem ${n}`).toContain(n);
+    // nenhum tipo de ponto flutuante na entrada (arredondaria a fração)
+    expect(SQL.replace(/--[^\n]*/g, '')).not.toMatch(/\b(FLOAT|REAL|BINARY_DOUBLE|BINARY_FLOAT)\b/i);
+    // o EXEC de itens do exemplo (antigo ou 1.6.0) só usa parâmetros da procedure do item
+    const exec = acharChave(EXEMPLO, 'itens');
+    expect(exec, 'pedidos.gravacao.itens').toMatch(/^EXEC dbo\.sp_macuxi_pedido_item_inserir /);
+    for (const [, n] of exec!.matchAll(/@(\w+)\s*=/g)) expect(p.has(n!), `@${n} sem declaração na procedure do item`).toBe(true);
   });
 
   it('idempotência pelo pedido_uuid no cabeçalho e no item', () => {

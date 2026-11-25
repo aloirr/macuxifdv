@@ -21,6 +21,7 @@ import {
 // T-0024: o tipo vem do dono do evento (só tipo: o domain não carrega o contracts do Vendedor em tempo de execução)
 import type { PedidoAprovadoEvento as PedidoAprovadoConsumido } from '../../vendedor/contracts';
 import { aplicarTimeoutEnvio, chaveNotaRetorno, podeEntrarNaFila, transicionarRetornoPedidoErp, type NotaChave } from './estados';
+import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 import { hashRegistro } from './idempotencia';
 import { PARAMETROS_PADRAO } from './parametros';
 import { conectorAtendePedido, exigeConector } from './pedido-versao';
@@ -362,7 +363,7 @@ function separarItensFaturados(item: PedidoNaFila, retorno: RetornoErp): { valid
       if (doPedido.produto_external_id.trim() !== f.produto_external_id.trim()) {
         problemas.push({ codigo: 'produto_divergente', campo: `itens_faturados[${i}].produto_external_id`, mensagem: `O produto "${f.produto_external_id.trim()}" da sequência ${f.sequencia} não é o que foi enviado ao ERP ("${doPedido.produto_external_id.trim()}"). Confira o código do produto na consulta de itens da nota.` });
       }
-      const saldo = doPedido.quantidade - (item.itens_faturados_acumulados[f.sequencia]?.quantidade ?? 0);
+      const saldo = subtrairQuantidades(doPedido.quantidade, item.itens_faturados_acumulados[f.sequencia]?.quantidade ?? 0);
       if (f.quantidade > saldo) {
         problemas.push({ codigo: 'quantidade_acima_do_saldo', campo: `itens_faturados[${i}].quantidade`, mensagem: `A sequência ${f.sequencia} tem saldo de ${saldo} para faturar e o retorno informa ${f.quantidade}. Confira a quantidade faturada na nota.` });
       }
@@ -424,7 +425,7 @@ export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: Retorno
       acumulado = { ...acumulado };
       for (const f of validos) {
         const antes = acumulado[f.sequencia];
-        acumulado[f.sequencia] = { quantidade: (antes?.quantidade ?? 0) + f.quantidade, valor_cents: (antes?.valor_cents ?? 0) + f.valor_cents };
+        acumulado[f.sequencia] = { quantidade: somarQuantidades(antes?.quantidade ?? 0, f.quantidade), valor_cents: (antes?.valor_cents ?? 0) + f.valor_cents };
       }
     }
     if (nota && !notas.some((n) => chaveNotaRetorno(n) === chaveNotaRetorno(nota))) {

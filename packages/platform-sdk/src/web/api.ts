@@ -1,4 +1,5 @@
 import { CABECALHO_CSRF, VALOR_CSRF } from '../cookie-sessao';
+import { PROXY_BASE } from '../proxy-base';
 import { clearSession, getToken, registrarRenovador, updateTokens, type ResultadoRenovacao } from './session';
 
 /**
@@ -78,7 +79,7 @@ export const CABECALHOS_SESSAO_WEB: Readonly<Record<string, string>> = Object.fr
  */
 /** vazio: o mock-api libera PUT/DELETE no CORS. O proxy /api-proxy fica disponível caso uma API futura não libere. */
 export const PROXIED_METHODS = new Set<string>([]);
-export const PROXY_BASE = '/api-proxy';
+export { PROXY_BASE };
 
 /** Base de cada chamada: na API real tudo passa pelo proxy same-origin; na demo, só os métodos de PROXIED_METHODS. */
 export function baseDaChamada(metodo: string, modo: ModoApiWeb = MODO_API): string {

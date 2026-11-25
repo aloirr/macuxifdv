@@ -10,8 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { LoginSenhaRequest, TrocarSenhaRequest } from '@macuxi/core/contracts';
-import { CABECALHO_CSRF, CAMINHO_COOKIE_SESSAO, VALOR_CSRF } from '@macuxi/platform-sdk';
-import { PROXY_BASE } from '@macuxi/platform-sdk/web';
+import { CABECALHO_CSRF, CAMINHO_COOKIE_SESSAO, PROXY_BASE, VALOR_CSRF } from '@macuxi/platform-sdk';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import nextConfig from '../next.config';

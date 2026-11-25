@@ -6,7 +6,7 @@ import { formatBRL, formatPct } from '@macuxi/comum';
 
 import { textoPrecoDe, type SituacaoCliente, type SituacaoOrcamento } from '../../domain/orcamento';
 import { ROTULOS_DA_EDICAO } from '../../domain/botoes-resumo';
-import type { NivelDePreco } from '../../domain/preco-pedido';
+import { rotuloMedida, type NivelDePreco } from '../../domain/preco-pedido';
 
 export type AbaNovoPedido = 'venda' | 'itens' | 'entrega' | 'resumo';
 
@@ -111,7 +111,7 @@ export const TITULO_LEVE_MAIS = 'Leve mais';
 
 /** Nome da sugestão: o produto; na troca de embalagem, "Café 500 g em CX c/ 12". */
 export function nomeDaSugestao(nome: string, s: { origem: string; para_unidade?: string; para_fator?: number }): string {
-  if (s.origem === 'embalagem_maior' && s.para_unidade) return `${nome} em ${s.para_fator && s.para_fator > 1 ? `${s.para_unidade} c/ ${s.para_fator}` : s.para_unidade}`;
+  if (s.origem === 'embalagem_maior' && s.para_unidade) return `${nome} em ${rotuloMedida(s.para_unidade, s.para_fator ?? 1)}`;
   return nome;
 }
 
