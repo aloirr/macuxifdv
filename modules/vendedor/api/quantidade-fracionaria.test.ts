@@ -119,7 +119,7 @@ describe('RN-VEN-02 v3 (ADR 0076): quantidade fracionária no push', () => {
     }
   });
 
-  it('mais de 4 casas é quantidade_fracionaria_invalida (o contrato do push já recusa antes; a API revalida)', async () => {
+  it('mais de 4 casas é quantidade_fracionaria_invalida (o contrato do item deixa passar; a API recusa com 422)', async () => {
     const { ctx } = montar('vendedor', VEND, new Set([VEND]), { unidade: 'KG', versao: ABERTA });
     expect((await receberPedidos(ctx, [item(1.23456)]))[0]).toMatchObject({ status: 'rejeitado', codigo: 'quantidade_fracionaria_invalida' });
   });

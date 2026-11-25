@@ -106,7 +106,7 @@ export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5
 /**
  * ADR 0076 D6 (pull filtrado): app sem o cabeçalho de versão ou abaixo da `VERSAO_APP_FRACAO` não recebe pedido com item de quantidade ou fator
  * fracionário (nem os itens e eventos dele): o schema antigo do app derrubaria o pull inteiro. Filtro em SQL, para o cursor seguir.
- * Funciona antes e depois da 0106 (`trunc` aceita inteiro e numeric).
+ * Funciona antes e depois da 0107 (`trunc` aceita inteiro e numeric).
  */
 export const FILTRO_SEM_FRACAO = `and not exists (select 1 from vendedor.pedido_item fi where fi.tenant_id = p.tenant_id and fi.pedido_id = p.id
        and (fi.quantidade <> trunc(fi.quantidade) or fi.fator <> trunc(fi.fator)))`;

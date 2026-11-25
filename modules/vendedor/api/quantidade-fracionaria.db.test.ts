@@ -2,7 +2,7 @@
  * Quantidade fracionária do pedido × Postgres real (ADR 0076, RN-VEN-02 v3): total 1999 × 1,250 = 2499, `criado@2` com decimal e
  * `criado@1` só sem fração, trava fechada = 422 `quantidade_fracionaria_bloqueada`, fração fora de KG/M = `..._invalida`, pull
  * filtrado por versão do app. O cadastro e o preço do Core/Catálogo são simulados (sem SQL em schema de outro módulo).
- * Precisa da migração 0106 (numeric(14,4)). Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
+ * Precisa da migração 0107 (numeric(14,4)). Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
  */
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';

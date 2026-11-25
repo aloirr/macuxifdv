@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { Id, Pct } from '@macuxi/core/contracts';
-import { QuantidadeDecimalSchema } from '@macuxi/platform-sdk';
+import { QuantidadeEnvio } from './quantidade';
 import { UFS_BRASIL } from '@macuxi/comum/endereco';
 
 export const TransportadoraDigitada = z
@@ -35,7 +35,7 @@ export type Frete = z.infer<typeof Frete>;
 export const ItemPush = z.object({
   product_id: Id,
   /** RN-VEN-02 v3 (ADR 0076): até 4 casas; fração só em KG e M (a API recusa com 422 `quantidade_fracionaria_invalida`) */
-  quantity: QuantidadeDecimalSchema,
+  quantity: QuantidadeEnvio,
   unidade: z.string().regex(/^[A-Z0-9]{1,6}$/).optional(),
   desconto_pct: Pct.min(0).max(100).optional(),
   acrescimo_pct: Pct.min(0).max(100).optional(),
