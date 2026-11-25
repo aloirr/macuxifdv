@@ -18,7 +18,6 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSy
 import {
   CODIGO_EMPRESA_REGEX,
   CODIGO_EMPRESA_TAMANHO,
-  ehEmailValido,
   erroDaTrocaVoluntaria,
   faltasNaSenha,
   MENSAGEM_CODIGO_EMPRESA,
@@ -48,10 +47,9 @@ import {
 import { Campo } from '@/components/campo-acesso';
 import { erroNoFormatoDoCore, identificacaoDoBotao, iniciais, linhasDosDados, temDadosAlemDoBotao, TEXTOS_MENU_USUARIO as T, type IdentidadeDoUsuario } from '@/lib/menu-usuario';
 
-/** O que a gaveta manda a quem chama. `codigo_empresa` e `email` só quando a gaveta pediu o campo. */
+/** O que a gaveta manda a quem chama. `codigo_empresa` só quando a gaveta pediu o campo. */
 export interface PedidoDeTroca {
   codigo_empresa?: string;
-  email?: string;
   senha_atual: string;
   senha_nova: string;
 }
@@ -59,8 +57,6 @@ export interface PedidoDeTroca {
 export interface TrocaDeSenhaNoMenu {
   /** `true` = a gaveta pede o código da empresa (sessão do BKO de antes da v1.0.34, sem o código). */
   pedirCodigo?: boolean;
-  /** `true` = a gaveta pede o e-mail (admin do cliente no portal: a sessão do portal não traz o e-mail). */
-  pedirEmail?: boolean;
   /** Faz o pedido; lança o erro da API. `true` = mostra "Senha trocada."; `false` = a sessão saiu (quem chama já levou à entrada). */
   enviar: (p: PedidoDeTroca) => Promise<boolean>;
   /** Erro da API → aviso da gaveta; sem ele, a tabela do Core (`erroDaTrocaVoluntaria`). O portal soma os códigos da rota dele. */
@@ -280,12 +276,11 @@ export function GavetaDadosCadastrais({ aberta, identidade, onFechar }: { aberta
 }
 
 type Aviso = { texto: string; tom: 'danger' | 'warning' } | null;
-type Destaque = { atual?: string; codigo?: string; email?: string };
+type Destaque = { atual?: string; codigo?: string };
 
 /** "Trocar a senha" (spec trocar-senha §3 a §5, na gaveta do BKO e do portal). */
 export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aberta: boolean; troca: TrocaDeSenhaNoMenu; onFechar: () => void; onTrocada: (mostrar: boolean) => void }) {
   const [codigo, setCodigo] = useState('');
-  const [email, setEmail] = useState('');
   const [atual, setAtual] = useState('');
   const [nova, setNova] = useState('');
   const [repetida, setRepetida] = useState('');
@@ -295,13 +290,12 @@ export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aber
   const [aviso, setAviso] = useState<Aviso>(null);
   const [salvando, setSalvando] = useState(false);
   const base = useId();
-  const ids = { codigo: `${base}-codigo`, email: `${base}-email`, atual: `${base}-atual`, nova: `${base}-nova`, repita: `${base}-repita`, regras: `${base}-regras` };
+  const ids = { codigo: `${base}-codigo`, atual: `${base}-atual`, nova: `${base}-nova`, repita: `${base}-repita`, regras: `${base}-regras` };
 
   // ao abrir de novo, tudo vazio (as senhas nunca ficam na memória depois de fechar)
   useEffect(() => {
     if (aberta) return;
     setCodigo('');
-    setEmail('');
     setAtual('');
     setNova('');
     setRepetida('');
@@ -322,12 +316,10 @@ export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aber
     setAviso(null);
     const novosErros: Destaque = {};
     if (troca.pedirCodigo && !CODIGO_EMPRESA_REGEX.test(codigo.trim())) novosErros.codigo = MENSAGEM_CODIGO_EMPRESA;
-    if (troca.pedirEmail && !ehEmailValido(email)) novosErros.email = TEXTOS_ESQUECI.emailInvalido;
     const p = precheckDaTrocaVoluntaria(atual, nova, repetida);
     if (p.atualVazia) novosErros.atual = T.atualVazia;
     setErros(novosErros);
     if (novosErros.codigo) return focar('codigo');
-    if (novosErros.email) return focar('email');
     if (!p.ok) {
       setDestacar(true);
       return focar(p.foco ?? 'nova');
@@ -336,7 +328,6 @@ export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aber
     try {
       const mostrar = await troca.enviar({
         ...(troca.pedirCodigo ? { codigo_empresa: codigo.trim().toUpperCase() } : {}),
-        ...(troca.pedirEmail ? { email: email.trim() } : {}),
         senha_atual: atual,
         senha_nova: nova,
       });
@@ -397,18 +388,6 @@ export function GavetaTrocarSenha({ aberta, troca, onFechar, onTrocada }: { aber
             value={codigo}
             erro={erros.codigo}
             onChange={(e) => digitou(setCodigo)(e.target.value)}
-          />
-        )}
-        {troca.pedirEmail && (
-          <Campo
-            id={ids.email}
-            rotulo={TEXTOS_ESQUECI.email}
-            testId="trocar-senha.email"
-            type="email"
-            autoComplete="username"
-            value={email}
-            erro={erros.email}
-            onChange={(e) => digitou(setEmail)(e.target.value)}
           />
         )}
         <CampoSenha

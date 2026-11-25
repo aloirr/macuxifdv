@@ -2,8 +2,8 @@
  * e2e do menu do usuário no portal (v1.0.34; R-20261124-083005, 083110, 083356 e 191902; ADR 0075), modo falso, nos dois hosts
  * (`config.localhost` na raiz e `fdv.localhost/config`, ADR 0071): o botão no canto superior direito com o NOME de quem entrou e,
  * embaixo, o perfil ("Time Macuxi" ou o perfil e o cargo do admin do cliente), abrir e fechar (clique, Esc, setas), "Dados
- * cadastrais", "Trocar a senha" do time Macuxi (rota do portal, só a sessão) e do admin do cliente (rota pública do Core, com o
- * e-mail digitado): senha atual errada e a troca que encerra a sessão do portal, com "Senha trocada. Entre de novo."; e o "Sair". Prints em 1366 px (escala 2), prefixo `01b-`, em
+ * cadastrais", "Trocar a senha" do time Macuxi e do admin do cliente (v1.0.35: a mesma rota do portal, só a sessão): senha
+ * atual errada e a troca que encerra a sessão do portal, com "Senha trocada. Entre de novo."; e o "Sair". Prints em 1366 px (escala 2), prefixo `01b-`, em
  * `E2E_PRINTS_DIR`, quando definido.
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -33,22 +33,18 @@ const print = async (page: Page, nome: string) => {
   if (process.env.E2E_PRINTS_DIR) await page.screenshot({ animations: 'disabled', path: `${process.env.E2E_PRINTS_DIR}/01b-${nome}-${test.info().project.name}-1366.png` });
 };
 
-/**
- * Troca a senha pela gaveta: a atual errada fica na gaveta (a sessão segue); a certa volta à entrada com o aviso. `email`: o admin
- * do cliente digita o e-mail (rota pública do Core); sem ele, o time Macuxi (a sessão diz quem é, ADR 0075).
- */
-async function trocarSenha(page: Page, prefixo: string, email?: string) {
+/** Troca a senha pela gaveta: a atual errada fica na gaveta (a sessão segue); a certa volta à entrada com o aviso (ADR 0075). */
+async function trocarSenha(page: Page, prefixo: string) {
   await abrirMenu(page);
   await page.getByTestId('menu-usuario.trocar-senha').click();
   const gaveta = page.getByRole('dialog', { name: 'Trocar a senha' });
   await expect(gaveta).toBeVisible();
-  // o código da empresa vem da sessão; o e-mail, só o admin do cliente digita
-  await expect(page.getByTestId('trocar-senha.email')).toHaveCount(email ? 1 : 0);
+  // a sessão diz quem é: nem e-mail nem código da empresa
+  await expect(page.getByTestId('trocar-senha.email')).toHaveCount(0);
   await expect(page.getByTestId('trocar-senha.codigo')).toHaveCount(0);
   // antes de enviar: senha atual vazia e regras em aberto não chamam a API
   await page.getByTestId('trocar-senha.salvar').click();
   await expect(gaveta).toContainText('Digite a senha atual.');
-  if (email) await page.getByTestId('trocar-senha.email').fill(email);
   await page.getByTestId('trocar-senha.atual').fill('errada');
   await page.getByTestId('trocar-senha.nova').fill('Nova-senha-123');
   await page.getByTestId('trocar-senha.repita').fill('Nova-senha-123');
@@ -126,7 +122,7 @@ test('admin do cliente: nome, perfil e cargo; Dados cadastrais; Trocar a senha e
   await expect(page.getByTestId('dados-cadastrais.empresa')).toHaveText('Distribuidora Uma Ltda');
   await page.getByRole('button', { name: 'Fechar painel' }).click();
 
-  await trocarSenha(page, 'admin', 'admin@uma.com.br');
+  await trocarSenha(page, 'admin');
   await ctx.close();
 });
 
