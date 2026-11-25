@@ -4,6 +4,8 @@
  * `@macuxi/ui/mobile/puro`. Nenhum texto de tela mora aqui: rótulos chegam por props.
  */
 
+import { CASAS_QUANTIDADE, truncarCasas } from '@macuxi/comum/quantidade';
+
 import { radius } from './tokens';
 
 /** Alvo de toque mínimo dos componentes (48 dp, Material). */
@@ -15,20 +17,13 @@ export function rotuloComContador(rotulo: string, contador?: number | null): str
   return `${rotulo} (${Math.trunc(contador)})`;
 }
 
-/** Casas que o passo decimal aceita no máximo (quantidade em KG e M, ADR 0076). */
-export const CASAS_MAX_PASSO = 4;
-
-/** Corta (sem arredondar) em `casas` casas; 0 = inteiro. Sem conta solta em float: a escala absorve o erro de representação. */
-function cortarCasas(valor: number, casas: number): number {
-  if (casas <= 0) return Math.trunc(valor);
-  const e = 10 ** casas;
-  return Math.trunc(Number((valor * e).toFixed(6))) / e;
-}
+/** Casas que o passo decimal aceita no máximo (quantidade em KG e M, ADR 0076): as mesmas da quantidade no `@macuxi/comum`. */
+export const CASAS_MAX_PASSO = CASAS_QUANTIDADE;
 
 /** Limita o valor do passo (stepper) entre `min` e `max` (sem `max`, sem teto), cortado em `casas` casas (0 = inteiro). */
 export function limitarPasso(valor: number, min = 0, max?: number, casas = 0): number {
   if (!Number.isFinite(valor)) return min;
-  const n = cortarCasas(valor, casas);
+  const n = truncarCasas(valor, casas);
   const comTeto = max === undefined ? n : Math.min(max, n);
   return Math.max(min, comTeto);
 }
@@ -71,7 +66,7 @@ export function tecladoDoPasso(casas?: number): 'number-pad' | 'decimal-pad' {
 
 /** Texto do passo: com casas, vírgula e sem zeros à direita (1,25 · 3); sem casas, o inteiro. */
 export function textoDoPasso(valor: number, casas = 0): string {
-  return String(cortarCasas(valor, casas)).replace('.', ',');
+  return String(truncarCasas(valor, casas)).replace('.', ',');
 }
 
 /** Lê a quantidade digitada ("12", " 3 ", "1.000"). Texto sem dígito → null (a tela mantém o valor anterior). */
