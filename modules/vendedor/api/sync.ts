@@ -256,10 +256,16 @@ export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: u
   return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite] };
 }
 
+/**
+ * ADR 0076 D6: o pull filtrado por versão entra na variação do escopo (cursor de novidades e `versao_escopo`): o app que sobe para a
+ * 1.0.35 muda de `fracao=0` para `fracao=1` e baixa de novo as linhas fracionárias que ficaram atrás do cursor.
+ */
+export const variacaoFracaoDoPull = (ctx: ContextoBase): string => `fracao=${clienteAceitaFracao(ctx.versaoApp?.doCliente ?? null) ? 1 : 0}`;
+
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
-  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarPedidos(ctx, p), receber: receberPedidos },
-  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, semFracao), ctx, p, true) },
-  { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoEvento(x, e, semFracao), ctx, p) },
+  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], variacaoEscopo: variacaoFracaoDoPull, puxar: (ctx, p) => puxarPedidos(ctx, p), receber: receberPedidos },
+  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], variacaoEscopo: variacaoFracaoDoPull, puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, semFracao), ctx, p, true) },
+  { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], variacaoEscopo: variacaoFracaoDoPull, puxar: (ctx, p) => puxarDe((x, e, _f, semFracao) => sqlPedidoEvento(x, e, semFracao), ctx, p) },
   {
     entidade: entidadeCondicaoPagamento,
     escopo: 'tenant',
