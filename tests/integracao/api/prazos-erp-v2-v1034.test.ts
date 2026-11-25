@@ -7,6 +7,7 @@
  * Valor × regra: o prazo médio que o pedido usa (retrato e teto do cliente) é o RECEBIDO na v2 (40 em 28/56), não o calculado (42).
  * A validação por campo da v2 já tem teste de unidade (modules/integracao/domain/prazo-v2.test.ts); aqui cada código de recusa
  * passa uma vez pelo lote real, para provar que nada chega ao Vendedor.
+ * O teto do cliente só vale para o app v1.0.34 em diante (cabeçalho `x-macuxi-app`): o push dos T leva `campo/1.0.34`.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { comTenant, PAGAMENTO_FIXTURE, PEPPER_HUB_FIXTURE } from '@macuxi/db/teste';
@@ -92,7 +93,7 @@ describe.skipIf(semBanco())('v1.0.34 ADR 0072 — prazo do ERP: contrato v2 no H
     )[0];
   const pushPedido = async (pid: string, prazoId: string): Promise<ResultadoItemPush | undefined> => {
     const payload = { id: pid, created_offline_at: new Date().toISOString(), customer_id: A.clientes.c1, discount_pct: 0, items: [{ product_id: prodA, quantity: 1 }], forma_pagamento_id: PA.formas.boleto, prazo_pagamento_id: prazoId };
-    const r = await api.chamar(vendedor, { method: 'POST', url: '/v1/sync/push', payload: { itens: [{ entidade: 'pedido', id: pid, operacao: 'upsert', payload }] } });
+    const r = await api.chamar(vendedor, { method: 'POST', url: '/v1/sync/push', headers: { 'x-macuxi-app': 'campo/1.0.34' }, payload: { itens: [{ entidade: 'pedido', id: pid, operacao: 'upsert', payload }] } });
     expect(r.statusCode, r.body).toBe(200);
     return (r.json() as { resultados: ResultadoItemPush[] }).resultados[0];
   };

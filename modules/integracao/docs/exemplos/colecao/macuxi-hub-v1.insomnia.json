@@ -1221,7 +1221,7 @@
       },
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_total\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8855\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-06T10:15:00Z\",\n    \"total_cents\": 19000\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 2,\n      \"produto_external_id\": \"P000051\",\n      \"quantidade\": 10,\n      \"valor_cents\": 19000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-06T10:16:00Z\"\n}"
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_total\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8855\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-06T10:15:00Z\",\n    \"total_cents\": 19000,\n    \"chave_acesso\": \"13261104252011000110550010000088551234567890\"\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 2,\n      \"produto_external_id\": \"P000051\",\n      \"quantidade\": 10,\n      \"valor_cents\": 19000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-06T10:16:00Z\"\n}"
       }
     },
     {

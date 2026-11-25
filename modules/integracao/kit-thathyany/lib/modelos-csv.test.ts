@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { ENTIDADES, ORDEM_CARGA_ENTIDADES, schemaRegistro, Texto, VendedorPayload, type Entidade } from '../../contracts';
 import { converterCsvParaLote, lerCsv } from './csv-para-lote';
 import { validarEnvelope } from '../../domain/envelope';
-import { PARAMETROS_PADRAO } from '../../domain/parametros';
 import { dicionarioDaEntidade, ENTIDADES_ORDEM_CARGA, gerarModeloCsv, RESUMO_MODELOS } from './modelos-csv';
 
 const AGORA = '2026-11-06T12:00:00.000Z';
@@ -16,7 +15,7 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
       if (!r.ok) return;
       expect(r.linhasInvalidas).toEqual([]);
       expect(r.registros).toHaveLength(2);
-      const env = validarEnvelope(r.envelope, { limiteRegistros: 5000, versoesSuportadas: PARAMETROS_PADRAO.versoesSuportadas });
+      const env = validarEnvelope(r.envelope, { limiteRegistros: 5000 });
       expect(env.ok).toBe(true);
       for (const reg of r.registros) {
         const v = schemaRegistro(entidade, 'v2').safeParse(reg);

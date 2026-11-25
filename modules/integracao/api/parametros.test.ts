@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PARAMETROS_PADRAO, calcularInativacao, novaSessao, registrarParte } from '../domain';
+import { PARAMETROS_PADRAO, validarEnvelope, calcularInativacao, novaSessao, registrarParte } from '../domain';
 import { lerParametrosHub } from './parametros';
 
 describe('RN-INT-12: parâmetros do tenant sobre os padrões do Hub', () => {
@@ -31,10 +31,12 @@ describe('RN-INT-12: parâmetros do tenant sobre os padrões do Hub', () => {
     expect(lerParametrosHub({ taxaPorConector: { lote: { capacidade: 5, reposicaoPorMin: 5 } } }).taxaPorConector).toEqual(PARAMETROS_PADRAO.taxaPorConector);
   });
 
-  it('RN-INT-09: versões suportadas pedem lista de textos não vazia', () => {
-    expect(lerParametrosHub({ versoesSuportadas: ['v1', 'v2'] }).versoesSuportadas).toEqual(['v1', 'v2']);
-    expect(lerParametrosHub({ versoesSuportadas: [] }).versoesSuportadas).toEqual(PARAMETROS_PADRAO.versoesSuportadas);
-    expect(lerParametrosHub({ versoesSuportadas: [1] }).versoesSuportadas).toEqual(PARAMETROS_PADRAO.versoesSuportadas);
+  it('RN-INT-09: empresa com versoesSuportadas [v1] gravado continua aceitando v2 (a lista é a do contrato, não parâmetro)', () => {
+    const p = lerParametrosHub({ versoesSuportadas: ['v1'] });
+    expect(p).toEqual(PARAMETROS_PADRAO);
+    expect(Object.hasOwn(p, 'versoesSuportadas')).toBe(false);
+    const env = { versao_contrato: 'v2', entidade: 'cliente', modo: 'delta', gerado_em: '2026-11-24T12:00:00Z', registros: [{ external_id: 'C1' }] };
+    expect(validarEnvelope(env, { limiteRegistros: p.limiteRegistrosLote }).ok).toBe(true);
   });
 
   it('RN-INT-06: prazo da sessão do tenant acima de 24 h é o valor efetivo (o mesmo para a rota e o aplicar-lote); sem parâmetro vale o padrão', () => {

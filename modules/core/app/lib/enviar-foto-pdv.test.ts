@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClienteFotoPushSchema } from '../../contracts';
-import { enviarFotoPdv, MSG_SEM_CAMERA_PDV } from './enviar-foto-pdv';
+import { enviarFotoPdv, MSG_FALHA_CAPTURA_PDV, MSG_SEM_CAMERA_PDV, tituloDaFolhaFotoPdv } from './enviar-foto-pdv';
 import { definirCapturaFotoPdv, type CapturaFotoPdv } from './foto-fachada';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -11,8 +11,8 @@ function motorFalso() {
   const enviar = vi.fn(async () => undefined);
   return { motor: { enfileirar, enfileirarArquivo, enviar, ambiente: { novoId: () => U(100) } } as never, enfileirar, enfileirarArquivo, enviar };
 }
-const FACHADA = { id: U(3), nome: 'Fachada', sensivel: false };
-const CNH = { id: U(4), nome: 'CNH do sócio', sensivel: true };
+const FACHADA = { id: U(3), nome: 'Fachada', sensivel: false, fachada: true };
+const CNH = { id: U(4), nome: 'CNH do sócio', sensivel: true, fachada: false };
 
 const captura = (f: { id: string; origem: 'camera' | 'galeria' } | null): CapturaFotoPdv => ({
   escolher: async () => (f ? { ...f, largura_px: 1600, altura_px: 1200 } : null),
@@ -53,6 +53,20 @@ describe('RN-CORE-38: o aparelho envia a foto do PDV offline primeiro', () => {
   it('RN-CORE-38: sem porta do shell a tela recebe a mensagem em português', async () => {
     const m = motorFalso();
     expect(await enviarFotoPdv(m, { clienteId: U(2), nomeCliente: 'x', tipo: FACHADA })).toEqual({ kind: 'erro', mensagem: MSG_SEM_CAMERA_PDV });
+    expect(m.enfileirar).not.toHaveBeenCalled();
+  });
+  it('RN-CORE-38: a folha se chama "Foto da fachada" ou "Foto: <Nome>"', async () => {
+    expect(tituloDaFolhaFotoPdv(FACHADA)).toBe('Foto da fachada');
+    expect(tituloDaFolhaFotoPdv(CNH)).toBe('Foto: CNH do sócio');
+    const escolher = vi.fn(async () => null);
+    definirCapturaFotoPdv({ escolher, camera: async () => null, galeria: async () => null });
+    await enviarFotoPdv(motorFalso(), { clienteId: U(2), nomeCliente: 'x', tipo: CNH });
+    expect(escolher).toHaveBeenCalledWith({ titulo: 'Foto: CNH do sócio' });
+  });
+  it('RN-CORE-38: erro da câmera ou da galeria (a porta lança) vira aviso com a ação, sem gravar nada', async () => {
+    definirCapturaFotoPdv({ escolher: async () => { throw new Error('erro'); }, camera: async () => null, galeria: async () => null });
+    const m = motorFalso();
+    expect(await enviarFotoPdv(m, { clienteId: U(2), nomeCliente: 'x', tipo: FACHADA })).toEqual({ kind: 'erro', mensagem: MSG_FALHA_CAPTURA_PDV });
     expect(m.enfileirar).not.toHaveBeenCalled();
   });
 });

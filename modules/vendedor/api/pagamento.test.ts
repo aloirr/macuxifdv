@@ -1,4 +1,4 @@
-import { ConsultaIndisponivel, type ClienteBanco, type ContextoBase, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, criarPortaVersaoAppMemoria, type ClienteBanco, type ContextoBase, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { resolverPagamento, valorPercentualPrazo, valoresPagamento } from './pagamento';
 
@@ -20,7 +20,7 @@ const db = {
   },
 } as unknown as ClienteBanco;
 
-const ctx = (parametros: Record<string, unknown> = {}) => ({ parametros: () => parametros, agora: () => new Date('2026-11-15T16:00:00.000Z') }) as unknown as ContextoBase;
+const ctx = (parametros: Record<string, unknown> = {}, versao: string | null = '1.0.34') => ({ parametros: () => parametros, versaoApp: criarPortaVersaoAppMemoria({}, versao ? { variante: 'campo', versao } : null), agora: () => new Date('2026-11-15T16:00:00.000Z') }) as unknown as ContextoBase;
 const tx = (financeiro: { maior_atraso_dias: number } | null | 'indisponivel') =>
   ({
     async consultar() {
@@ -50,11 +50,19 @@ describe('API: forma e prazo do pedido (RN-VEN-24/25, RN-VEN-13)', () => {
   it('RN-VEN-25: forma fora da lista do cliente é 422 RN-VEN-25', async () => {
     expect(await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, { ...cli, formas_pagamento: ['PIX'] }, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-25' });
   });
-  it('RN-VEN-25: prazo com prazo médio acima do teto do cliente é 422 RN-VEN-25 (prazo_acima_do_cliente); no teto ou sem teto passa', async () => {
+  it('RN-VEN-25: app v1.0.34 em diante: prazo acima do teto é 422 prazo_acima_do_cliente; no teto ou sem teto passa', async () => {
     const p = { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' };
     expect(await resolverPagamento(ctx(), db, tx(null), p, { ...cli, prazo_medio_max_dias: 27 }, 'orcamento')).toMatchObject({ ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_do_cliente' });
+    expect(await resolverPagamento(ctx(), db, tx(null), p, { ...cli, prazo_medio_max_dias: 27 }, 'pedido')).toMatchObject({ ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_do_cliente' });
     expect(await resolverPagamento(ctx(), db, tx(null), p, { ...cli, prazo_medio_max_dias: 28 }, 'pedido')).toMatchObject({ ok: true });
     expect(await resolverPagamento(ctx(), db, tx(null), p, { ...cli, prazo_medio_max_dias: null }, 'pedido')).toMatchObject({ ok: true });
+  });
+  it('RN-VEN-25: app v1.0.32 ou sem cabeçalho (BKO) não aplica o teto; o resto da validação continua', async () => {
+    const p = { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' };
+    const acima = { ...cli, prazo_medio_max_dias: 27 };
+    expect(await resolverPagamento(ctx({}, '1.0.32'), db, tx(null), p, acima, 'pedido')).toMatchObject({ ok: true });
+    expect(await resolverPagamento(ctx({}, null), db, tx(null), p, acima, 'orcamento')).toMatchObject({ ok: true });
+    expect(await resolverPagamento(ctx({}, '1.0.32'), db, tx(null), p, { ...acima, formas_pagamento: ['PIX'] }, 'pedido')).toMatchObject({ ok: false, motivo: 'forma_nao_aceita' });
   });
   it('RN-VEN-24: pagamento válido devolve o retrato (8 colunas juntas) e o texto "Boleto · 28 dias"', async () => {
     const r = await resolverPagamento(ctx(), db, tx(null), { ...base, forma_pagamento_id: 'f-bol', prazo_pagamento_id: 'p-28' }, cli, 'pedido');
