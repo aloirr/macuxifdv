@@ -18,6 +18,8 @@
  * - Item 15 do Campo v1.0.16 (0091): mais 1 sa_* do portal (sa_gravar_ocultar_marca: ocultar a logomarca do Macuxi), 38 no total.
  * - v1.0.31 "Zerar dados" (0100, ADR 0068, RN-PLA-12): mais 4 sa_* do portal (pedido e leitura da prévia, pedido e leitura do
  *   zerar), 42 no total, e 6 funções do worker (pegar, executar, fechar e expurgar o zerar; pegar e executar a prévia).
+ * - v1.0.34 (0102, ADR 0075; R-20261124-191902): mais 4 sa_* do portal (ler e gravar o cadastro da empresa, quem sou e a
+ *   troca de senha do super-admin), 46 no total.
  * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
  *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
  *   worker ou portal; as 3 tabelas novas do portal entram na varredura "nenhum privilégio efetivo em tabela" do portal.
@@ -94,12 +96,28 @@ const SA_PORTAL_OCULTAR_MARCA: Record<string, string> = {
     'idempotente (igual não muda nem audita); audita antes e depois (sa.empresa.ocultar_marca); devolve o jsonb da marca',
 };
 
+/** v1.0.34, 0102_plataforma_dados_da_empresa (ADR 0075; R-20261124-191902): cadastro da empresa, quem sou e a troca de senha do
+ * super-admin. As 4 sa_* que a migração cria, e só elas. */
+const SA_PORTAL_0102: Record<string, string> = {
+  'plataforma.sa_dados_da_empresa(p_sid uuid, p_tenant uuid)':
+    `${SA}; super-admin em qualquer empresa ativa, admin do cliente só na da sessão (outra 42501, sessão inválida 28000, tenant nulo 22023); ` +
+    'CNPJ e razão social de documento e nome; sem auditoria',
+  'plataforma.sa_gravar_dados_da_empresa(p_sid uuid, p_tenant uuid, p jsonb)':
+    `${SA}; super-admin ou admin da empresa da sessão (outra 42501); 11 chaves exatas (faltando, a mais, cnpj ou nome_fantasia 22023); ` +
+    'btrim e vazio = null; CHECKs 23514; CNPJ e nome fantasia nunca gravados; idempotente; audita só os nomes dos campos',
+  'plataforma.sa_quem_sou(p_sid uuid)':
+    `${SA}; super-admin = nome sem perfil e cargo; admin com empresa = perfil e cargo do vínculo vivo; admin sem empresa = 0 linhas; inválida 28000`,
+  'plataforma.sa_gravar_senha_super_admin(p_sid uuid, p_hash_atual text, p_hash_novo text)':
+    `${SA}; só super-admin (admin do cliente 42501); hash atual errado = false sem mudar nada; novo só argon2id (22023); ` +
+    'zera falhas e bloqueio; revoga todas as sessões do super-admin; audita sem o hash',
+};
+
 /**
- * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 42 plataforma.sa_* — as 12 da 0039
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 46 plataforma.sa_* — as 12 da 0039
  * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados), as 2 da 0042 (T-0094: o super-admin
  * redefine a senha do admin do cliente; R-20261108-001804-banco-dados), as 2 da 0058 (T-0158), a 1 da 0070 (ADR 0047), as 8 da 0072
  * (ADR 0052), as 2 da 0073 (rodapé legal), as 3 da 0081 (T-0181, SA_PORTAL_CARGA) e as 4 da 0083 (T-0182, SA_PORTAL_LOGO), as 3 da 0086
- * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA) e as 4 da 0100 (ADR 0068, Zerar dados) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
+ * (ADR 0047), a 1 da 0091 (item 15 do Campo v1.0.16, SA_PORTAL_OCULTAR_MARCA), as 4 da 0100 (ADR 0068, Zerar dados) e as 4 da 0102 (ADR 0075, SA_PORTAL_0102) — e NADA mais. As 14 do convite, do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
  * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
 const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
@@ -156,6 +174,7 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   ...SA_PORTAL_CARGA,
   ...SA_PORTAL_LOGO,
   ...SA_PORTAL_OCULTAR_MARCA,
+  ...SA_PORTAL_0102,
   // ADR 0047 (0086_plataforma_planos_troca_licencas; planos e licenças, telas 2 a 6 do portal; R-20261115-123000, item 1).
   // A licencas_do_tenant() é SECURITY INVOKER (só o macuxi_app, sob RLS): não entra aqui; se virar DEFINER, o caso do papel
   // da aplicação reprova.

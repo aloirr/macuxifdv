@@ -1504,3 +1504,47 @@ select * from plataforma.limpar_cadastros(:'tenant'::uuid, :'lote', string_to_ar
 select * from plataforma.restaurar_limpeza(:'tenant'::uuid, :'lote');    -- workflow, restaurar
 select plataforma.descartar_limpeza(:'tenant'::uuid, :'lote');           -- workflow, descartar
 ```
+
+## Dados da empresa, quem sou eu e senha do super-admin (0102, v1.0.34) — colunas em `tenant`. Fora do sync
+Migração `0102_plataforma_dados_da_empresa` (aditiva; autorização do dono do produto R-20261124-191902; a 0101 é a do
+faturamento). Volta: `.down.sql`, que apaga as 4 funções e as 10 colunas e PERDE o cadastro das empresas (anote antes com a
+consulta do cabeçalho do up); a razão social (`nome`) e a senha trocada ficam; antes do down, volte a API sem as rotas novas.
+Drizzle: colunas novas do `tenant` em `db/esquema/plataforma.ts`. Teste: `db/testes/dados-empresa.db.test.ts`.
+
+### tenant — colunas do cadastro
+O resto do cadastro já existia: razão social = `nome`; CNPJ = `documento`; nome fantasia = `nome_fantasia` (0083, gravado só
+pela `sa_gravar_nome_fantasia`). Todas text nulas; CHECK `tenant_<coluna>_formato` em cada uma. Nenhum índice novo.
+
+| Coluna | Regra (CHECK) |
+|---|---|
+| logradouro | sem espaço nas pontas, não vazio, até 200 |
+| numero | idem, até 20 |
+| complemento | idem, até 100 |
+| bairro | idem, até 100 |
+| municipio | idem, até 100 |
+| uf | `^[A-Z]{2}$` e uma das 27 UFs |
+| cep | `^[0-9]{8}$` (só dígitos) |
+| telefone | `^[0-9]{10,11}$` (DDD + número, só dígitos) |
+| email | sem espaço nas pontas, até 254, regex da `super_admin_email_formato` (0035) |
+| inscricao_estadual | `^(ISENTO\|[0-9]{2,14})$` |
+
+O `macuxi_app` lê a própria linha (`isolamento_tenant`, 0001) e não grava; o portal não lê a tabela; o `macuxi_leitura` ganha
+SELECT nas 10 (nenhuma sensível pelo nome).
+
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 4 `sa_*`, 46 no total)
+Sessão inválida = 28000. `DadosDaEmpresa` = `{ tenant_id, cnpj, razao_social, nome_fantasia, logradouro, numero, complemento,
+bairro, municipio, uf, cep, telefone, email, inscricao_estadual, atualizado_em }` (`atualizado_em` = `tenant.updated_at` em ISO UTC).
+
+| Função | Quem | Retorno e regra | Erros |
+|---|---|---|---|
+| `sa_dados_da_empresa(p_sid uuid, p_tenant uuid) returns jsonb` | pela `sa_tenant_ativo`: super-admin em qualquer empresa **ativa**; admin do cliente só na empresa da sessão | `DadosDaEmpresa` | 22023 (tenant nulo); 42501 (sem acesso, inexistente ou inativa) |
+| `sa_gravar_dados_da_empresa(p_sid uuid, p_tenant uuid, p jsonb) returns jsonb` | o mesmo acesso | `DadosDaEmpresa`. `p` com **exatamente** `razao_social, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, inscricao_estadual`; cada valor texto ou null, com `btrim` e vazio = null. CNPJ e nome fantasia nunca entram. `for update`; nada mudou = não grava nem audita; senão audita `sa.empresa.cadastro` `{ campos: [chaves alteradas] }`, **sem os valores** | 22023 (chave faltando ou a mais, `p` não objeto, valor não texto, razão social nula ou vazia); 23514 (razão social fora de 2..200; CHECKs `tenant_<coluna>_formato`); 42501 |
+| `sa_quem_sou(p_sid uuid) returns table (nome text, perfil text, cargo text)` | qualquer sessão | super-admin: `super_admin.nome`, perfil e cargo nulos; admin do cliente com empresa: `core.usuario.nome` + `plataforma.perfil.nome` e `.cargo` do vínculo vivo em `usuario_perfil` (sem vínculo = nulos); admin sem empresa escolhida = 0 linhas | — |
+| `sa_gravar_senha_super_admin(p_sid uuid, p_hash_atual text, p_hash_novo text) returns boolean` | **só super-admin** | grava só se `senha_hash = p_hash_atual` (senão false); zera `falhas` e `bloqueado_ate`; revoga **todas** as sessões vivas do super-admin, inclusive a atual; audita `sa.senha.trocada` `{ sessoes_revogadas }`. A senha atual é conferida na API com o argon2 (hash lido pela `sa_reautenticar`, 0072; falha contada em `sa_tentativa_*`) | 42501 (admin do cliente); 22023 (hash atual nulo; hash novo fora do PHC argon2id) |
+
+```sql
+select plataforma.sa_dados_da_empresa($1, $2) as r;                -- GET …/empresas/:tenant_id/cadastro
+select plataforma.sa_gravar_dados_da_empresa($1, $2, $3) as r;     -- PUT …/empresas/:tenant_id/cadastro
+select nome, perfil, cargo from plataforma.sa_quem_sou($1);        -- topo do portal
+select plataforma.sa_gravar_senha_super_admin($1, $2, $3) as r;    -- troca da senha, depois da sa_reautenticar e do argon2
+```
