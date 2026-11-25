@@ -8,9 +8,9 @@
 import { useRouter } from 'next/navigation';
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { ErrorBlock, EstadoVazio, formatDateTime, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, PageHeader, Panel, rotuloComContagem, SeloSituacao, TabelaDados, type BadgeTone } from '@macuxi/ui/web';
-import type { SituacaoPrazo } from '../../contracts';
-import { MOTIVO_ROTULO, rotuloDoPrazo } from '../../app/lib/apresentacao';
+import { ErrorBlock, EstadoVazio, formatDateTime, LoadingBlock, MenuAcoes, PageHeader, Panel, rotuloComContagem, SeloSituacao, TabelaDados, type BadgeTone } from '@macuxi/ui/web';
+import type { ItemFilaAprovacao, SituacaoPrazo } from '../../contracts';
+import { MOTIVO_ROTULO, rotuloDoPrazoCurto } from '../../app/lib/apresentacao';
 import { useFila, useFusoDoTenant, useVisaoEquipe } from '../lib/queries';
 
 const TOM: Record<SituacaoPrazo, BadgeTone> = { no_prazo: 'success', vencendo: 'warning', vencido: 'danger' };
@@ -21,6 +21,7 @@ export function AprovacoesPage() {
   const tz = useFusoDoTenant();
   const nomes = new Map((useVisaoEquipe({ data: null }).data?.membros ?? []).map((m) => [m.membro.id, m.membro.nome]));
   const fila = q.data;
+  const clienteDe = (i: ItemFilaAprovacao) => i.cliente_nome?.trim() || i.cliente_codigo?.trim() || 'Cliente';
   const nomeDe = (id: string) => nomes.get(id) ?? 'Vendedor';
   const motivos = (ms: readonly (keyof typeof MOTIVO_ROTULO)[]) => ms.map((m) => MOTIVO_ROTULO[m]).join(', ');
   return (
@@ -36,11 +37,6 @@ export function AprovacoesPage() {
           <EstadoVazio titulo="Nada aguardando aprovação." testId="gestor.aprovacoes.vazio" />
         ) : (
           <>
-            <KpiGrid>
-              <KpiCard label="Para você decidir" value={fila.resumo.para_mim} />
-              <KpiCard label="Vencidos" value={fila.resumo.vencidos} valueClass={fila.resumo.vencidos > 0 ? 'text-danger' : undefined} />
-              <KpiCard label="Vencendo" value={fila.resumo.vencendo} />
-            </KpiGrid>
             <Panel>
               <TabelaDados
                 rotulo="Fila de aprovações"
@@ -49,12 +45,19 @@ export function AprovacoesPage() {
                 chave={(i) => i.pedido_id}
                 colunas={[
                   { id: 'vendedor', titulo: 'Vendedor', celula: (i) => nomeDe(i.vendedor_id), texto: (i) => nomeDe(i.vendedor_id) },
+                  { id: 'cliente', titulo: 'Cliente', celula: clienteDe, texto: clienteDe },
+                  { id: 'pedido', titulo: 'Nº do pedido', prioridade: 3, largura: '110px', celula: (i) => i.pedido_numero ?? '—', texto: (i) => i.pedido_numero ?? '' },
                   { id: 'solicitado', titulo: 'Solicitado', prioridade: 3, largura: '150px', celula: (i) => formatDateTime(i.solicitada_em, tz), texto: (i) => formatDateTime(i.solicitada_em, tz) },
                   { id: 'motivo', titulo: 'Motivo', prioridade: 2, largura: '20%', celula: (i) => motivos(i.motivos), texto: (i) => motivos(i.motivos) },
                   { id: 'total', titulo: 'Total', numero: true, largura: '110px', celula: (i) => formatBRL(i.total_cents) },
                   { id: 'desconto', titulo: 'Desconto', numero: true, prioridade: 2, largura: '90px', celula: (i) => formatPct(i.desconto_efetivo_pct) },
                   { id: 'credito', titulo: 'Crédito disponível', numero: true, prioridade: 2, largura: '140px', celula: (i) => (i.credito ? formatBRL(i.credito.disponivel_cents) : 'indisponível') },
-                  { id: 'prazo', titulo: 'Prazo', largura: '150px', celula: (i) => <SeloSituacao selos={[{ tom: TOM[i.situacao], texto: rotuloDoPrazo(i).label }]} /> },
+                  {
+                    id: 'prazo',
+                    titulo: 'Prazo',
+                    largura: '130px',
+                    celula: (i) => <SeloSituacao selos={[{ tom: TOM[i.situacao], texto: rotuloDoPrazoCurto(i) }, ...(i.pode_decidir ? [] : [{ tom: 'neutral' as BadgeTone, texto: 'Fora da sua alçada' }])]} />,
+                  },
                 ]}
                 acoes={(i) =>
                   i.pode_decidir ? [{ id: 'decidir', rotulo: 'Decidir', aoEscolher: () => router.push(`/pedidos?status=pending_approval&seller_id=${i.vendedor_id}`) }] : []

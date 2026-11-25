@@ -164,10 +164,10 @@ function doModulo(tipo: TipoAlerta, modulos: ReadonlySet<string>): boolean {
  */
 export function reconciliarParaViewer(
   existentes: readonly Alerta[],
-  e: { estado: EstadoProjecao; membros: readonly MembroEquipe[]; agora: string; modulos: ReadonlySet<string>; ajustes: AjustesRegras; params?: Partial<ParametrosGestor>; produtividade?: ParametrosAlertasProdutividade; ultimo_contato_em?: Readonly<Record<string, string | null>>; almoco?: Readonly<Record<string, HorarioAlmoco>> },
+  e: { estado: EstadoProjecao; membros: readonly MembroEquipe[]; agora: string; modulos: ReadonlySet<string>; ajustes: AjustesRegras; params?: Partial<ParametrosGestor>; produtividade?: ParametrosAlertasProdutividade; ultimo_contato_em?: Readonly<Record<string, string | null>>; almoco?: Readonly<Record<string, HorarioAlmoco>>; nomes_clientes?: Readonly<Record<string, string>> },
 ): OperacoesAlerta {
   const regras = resolverRegras(e.ajustes);
-  const condicoes = avaliarAlertas({ estado: e.estado, membros: e.membros, agora: e.agora, modulos: e.modulos, regras, params: e.params, produtividade: e.produtividade, ultimo_contato_em: e.ultimo_contato_em, almoco: e.almoco });
+  const condicoes = avaliarAlertas({ estado: e.estado, membros: e.membros, agora: e.agora, modulos: e.modulos, regras, params: e.params, produtividade: e.produtividade, ultimo_contato_em: e.ultimo_contato_em, almoco: e.almoco, nomes_clientes: e.nomes_clientes });
   return reconciliarAlertas(
     existentes.filter((a) => doModulo(a.tipo, e.modulos)),
     condicoes,
