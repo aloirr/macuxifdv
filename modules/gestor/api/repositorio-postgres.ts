@@ -104,7 +104,7 @@ export function criarRepositorioPostgres(): RepositorioGestor {
         await a.db.query(
           `insert into gestor.alerta (id, tenant_id, chave, tipo, alvo_tipo, alvo_id, responsavel_id, valor, limiar, severidade, mensagem, status, aberto_em)
            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'aberto', $12)`,
-          [o.novoId(), a.tenant_id, c.chave, c.tipo, c.alvo_tipo, c.alvo_id, c.responsavel_id, c.valor, c.limiar, c.severidade, c.mensagem, o.agora],
+          [o.novoId(), a.tenant_id, c.chave, c.tipo, c.alvo_tipo, c.alvo_id, c.responsavel_id, c.valor, c.limiar, c.severidade, c.mensagem, c.desde ?? o.agora],
         );
       }
     },

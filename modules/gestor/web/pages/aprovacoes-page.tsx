@@ -8,12 +8,10 @@
 import { useRouter } from 'next/navigation';
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { ErrorBlock, EstadoVazio, formatDateTime, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, PageHeader, Panel, rotuloComContagem, SeloSituacao, TabelaDados, type BadgeTone } from '@macuxi/ui/web';
-import type { SituacaoPrazo } from '../../contracts';
-import { MOTIVO_ROTULO, rotuloDoPrazo } from '../../app/lib/apresentacao';
+import { ErrorBlock, EstadoVazio, formatDateTime, LoadingBlock, MenuAcoes, PageHeader, Panel, rotuloComContagem, SeloSituacao, TabelaDados } from '@macuxi/ui/web';
+import type { ItemFilaAprovacao } from '../../contracts';
+import { MOTIVO_ROTULO, selosDoPrazo } from '../../app/lib/apresentacao';
 import { useFila, useFusoDoTenant, useVisaoEquipe } from '../lib/queries';
-
-const TOM: Record<SituacaoPrazo, BadgeTone> = { no_prazo: 'success', vencendo: 'warning', vencido: 'danger' };
 
 export function AprovacoesPage() {
   const q = useFila();
@@ -21,6 +19,7 @@ export function AprovacoesPage() {
   const tz = useFusoDoTenant();
   const nomes = new Map((useVisaoEquipe({ data: null }).data?.membros ?? []).map((m) => [m.membro.id, m.membro.nome]));
   const fila = q.data;
+  const clienteDe = (i: ItemFilaAprovacao) => i.cliente_nome?.trim() || i.cliente_codigo?.trim() || 'Cliente';
   const nomeDe = (id: string) => nomes.get(id) ?? 'Vendedor';
   const motivos = (ms: readonly (keyof typeof MOTIVO_ROTULO)[]) => ms.map((m) => MOTIVO_ROTULO[m]).join(', ');
   return (
@@ -36,11 +35,6 @@ export function AprovacoesPage() {
           <EstadoVazio titulo="Nada aguardando aprovação." testId="gestor.aprovacoes.vazio" />
         ) : (
           <>
-            <KpiGrid>
-              <KpiCard label="Para você decidir" value={fila.resumo.para_mim} />
-              <KpiCard label="Vencidos" value={fila.resumo.vencidos} valueClass={fila.resumo.vencidos > 0 ? 'text-danger' : undefined} />
-              <KpiCard label="Vencendo" value={fila.resumo.vencendo} />
-            </KpiGrid>
             <Panel>
               <TabelaDados
                 rotulo="Fila de aprovações"
@@ -49,12 +43,25 @@ export function AprovacoesPage() {
                 chave={(i) => i.pedido_id}
                 colunas={[
                   { id: 'vendedor', titulo: 'Vendedor', celula: (i) => nomeDe(i.vendedor_id), texto: (i) => nomeDe(i.vendedor_id) },
-                  { id: 'solicitado', titulo: 'Solicitado', prioridade: 3, largura: '150px', celula: (i) => formatDateTime(i.solicitada_em, tz), texto: (i) => formatDateTime(i.solicitada_em, tz) },
-                  { id: 'motivo', titulo: 'Motivo', prioridade: 2, largura: '20%', celula: (i) => motivos(i.motivos), texto: (i) => motivos(i.motivos) },
-                  { id: 'total', titulo: 'Total', numero: true, largura: '110px', celula: (i) => formatBRL(i.total_cents) },
-                  { id: 'desconto', titulo: 'Desconto', numero: true, prioridade: 2, largura: '90px', celula: (i) => formatPct(i.desconto_efetivo_pct) },
-                  { id: 'credito', titulo: 'Crédito disponível', numero: true, prioridade: 2, largura: '140px', celula: (i) => (i.credito ? formatBRL(i.credito.disponivel_cents) : 'indisponível') },
-                  { id: 'prazo', titulo: 'Prazo', largura: '150px', celula: (i) => <SeloSituacao selos={[{ tom: TOM[i.situacao], texto: rotuloDoPrazo(i).label }]} /> },
+                  { id: 'cliente', titulo: 'Cliente', largura: '200px', celula: clienteDe, texto: clienteDe },
+                  { id: 'pedido', titulo: 'Nº do pedido', prioridade: 3, largura: '70px', celula: (i) => i.pedido_numero ?? '—', texto: (i) => i.pedido_numero ?? '' },
+                  { id: 'solicitado', titulo: 'Solicitado', prioridade: 3, largura: '110px', celula: (i) => formatDateTime(i.solicitada_em, tz), texto: (i) => formatDateTime(i.solicitada_em, tz) },
+                  { id: 'motivo', titulo: 'Motivo', prioridade: 2, largura: '110px', celula: (i) => motivos(i.motivos), texto: (i) => motivos(i.motivos) },
+                  { id: 'total', titulo: 'Total', numero: true, largura: '86px', celula: (i) => formatBRL(i.total_cents) },
+                  { id: 'desconto', titulo: 'Desconto', numero: true, prioridade: 2, largura: '70px', celula: (i) => formatPct(i.desconto_efetivo_pct) },
+                  { id: 'credito', titulo: 'Crédito disponível', numero: true, prioridade: 2, largura: '96px', celula: (i) => (i.credito ? formatBRL(i.credito.disponivel_cents) : 'indisponível') },
+                  {
+                    id: 'prazo',
+                    titulo: 'Prazo',
+                    largura: '110px',
+                    celula: (i) => (
+                      <span className="flex flex-col items-start gap-1">
+                        {selosDoPrazo(i).map((s) => (
+                          <SeloSituacao key={s.texto} selos={[s]} />
+                        ))}
+                      </span>
+                    ),
+                  },
                 ]}
                 acoes={(i) =>
                   i.pode_decidir ? [{ id: 'decidir', rotulo: 'Decidir', aoEscolher: () => router.push(`/pedidos?status=pending_approval&seller_id=${i.vendedor_id}`) }] : []

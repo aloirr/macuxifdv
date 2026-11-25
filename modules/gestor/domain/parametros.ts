@@ -27,6 +27,8 @@ export function parametrosDoTenant(brutos: Readonly<Record<string, unknown>>, fu
   const conhecidos = Object.fromEntries(Object.entries(brutos).filter(([k]) => Object.hasOwn(PARAMETROS_PADRAO, k))) as Partial<ParametrosGestor>;
   // T-0073: o limite do "parado" é parâmetro do Início (Core): chave `inicio.parado_min` (aceita também `parado_min`)
   if (conhecidos.parado_min === undefined && brutos['inicio.parado_min'] !== undefined) conhecidos.parado_min = brutos['inicio.parado_min'] as number;
+  // RN-CORE-21: o Core guarda a base em `metas.base_apuracao`; o Gestor segue a mesma chave (sem ela as vendas ignoravam a base do tenant)
+  if (conhecidos.base_apuracao === undefined && brutos['metas.base_apuracao'] !== undefined) conhecidos.base_apuracao = brutos['metas.base_apuracao'] as ParametrosGestor['base_apuracao'];
   try {
     return { params: resolverParametros({ ...conhecidos, fuso }), erro: null };
   } catch (e) {
