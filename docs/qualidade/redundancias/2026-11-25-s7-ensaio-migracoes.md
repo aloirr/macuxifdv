@@ -29,3 +29,13 @@ Observação funcional (não catalogada, vai ao `testes`): a consulta 4 do origi
 - O `if exists … já aplicada` em cada `DO` (`montar.sh:99`), além do filtro do `aplicadas.txt`: protege a janela entre a leitura e o ensaio.
 - A legenda das saídas no resumo (`yml:128`): o operador a usa para decidir.
 - `\echo 'RESULTADO: REPROVADO (…)'` + `raise` (`montar.sh:112-113`): o `\echo` diz o motivo, e o `raise` só serve para sair com 3.
+
+## Reteste — SHA `43764be292c13194726da9ed4583bfef3bccaeea` (25/11/2026, Manaus)
+**Parecer: LIBERADO**, sem achado em aberto.
+- RD-3723 corrigido: o passo "trava contra gravação" saiu; o cabeçalho diz "(o montar.sh falha se aparecer)".
+- RD-3724 corrigido: itens 3 a 5 viraram "3. montar.sh monta o ensaio e o conferir.sql (fluxo e travas no cabeçalho dele)".
+- RD-3725 corrigido: o `echo "aplicadas em produção…"` do workflow saiu; fica só o do `montar.sh`.
+- RD-3726 corrigido: `USUARIO` no `env:` do job, fora dos 3 passos.
+- RD-3727 corrigido: saiu o `\echo 'ensaio: outro migrador…'`; fica só o `raise`.
+- RD-3728 corrigido: `normalizar()` usado por `soma()` e na montagem.
+- Novidades sem achado: `timeout 600` no psql (teto do contêiner; o `timeout-minutes: 15` do passo é do runner, papel diferente) e a saída 124 na legenda; buraco na numeração e symlink agora falham (`erro`); `if:` do job só em main ou tag v*, explicado uma vez no cabeçalho. O `-type f` do `find` dos `.up.sql` ficou junto da checagem de symlink: filtro defensivo, `manter?` aceito.

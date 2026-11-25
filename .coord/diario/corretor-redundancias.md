@@ -157,3 +157,4 @@
 - 2026-11-25 (Manaus) — S7: renumeração 0105–0107 LIBERADO 64a7396 (#771) e 0108 LIBERADO 3bd7f4e, sem achado.
 - 2026-11-25 (Manaus) — S7: reteste E4b 5d21f97c7 (modulo-core) LIBERADO; RD-3716 a RD-3719 corrigidos; RD-3720 baixa (JSDoc órfão, só comentário) aberto para o próximo lote.
 - 2026-11-25 (Manaus) — S7: ensaio das migrações (governança) d02ebd533 NÃO LIBERADO; RD-3723 (média) e RD-3724 a RD-3728 (baixas). Relatório docs/qualidade/redundancias/2026-11-25-s7-ensaio-migracoes.md.
+- 2026-11-25 (Manaus) — S7: reteste do ensaio das migrações 43764be29 LIBERADO; RD-3723 a RD-3728 corrigidos, novidades sem achado.
