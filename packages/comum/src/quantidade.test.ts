@@ -265,6 +265,17 @@ describe('formatarQuantidade (RN-VEN-02 v3)', () => {
   it('mais de 4 casas → RangeError', () => {
     expect(() => formatarQuantidade(0.00005, 'KG')).toThrow(RangeError);
   });
+
+  it.each([
+    [1.25, 'KG', '1,250'],
+    [2, 'M', '2,000'],
+    [3, 'CX', '3'],
+    [1.2345, 'KG', '1,2345'],
+    [1200, 'CX', '1.200'],
+    [1.25, null, '1,25'],
+  ] as const)('semSigla: %s %s → %s (tabela: a sigla vai na coluna ao lado)', (q, unidade, esperado) => {
+    expect(formatarQuantidade(q, unidade, { semSigla: true })).toBe(esperado);
+  });
 });
 
 describe('truncarCasas (ADR 0076 D4)', () => {
@@ -289,7 +300,13 @@ describe('truncarCasas (ADR 0076 D4)', () => {
     expect(truncarCasas(n, casas)).toBe(esperado);
   });
 
-  it.each([[Number.NaN, 4], [Infinity, 4], [1, -1], [1, 1.5], [1, 101]])('recusa %s com %s casas', (n, casas) => {
+  it.each([
+    [Number.NaN, 4],
+    [Infinity, 4],
+    [1, -1],
+    [1, 1.5],
+    [1, 101],
+  ])('recusa %s com %s casas', (n, casas) => {
     expect(() => truncarCasas(n, casas)).toThrow(RangeError);
   });
 });

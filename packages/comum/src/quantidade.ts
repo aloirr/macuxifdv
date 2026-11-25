@@ -172,9 +172,14 @@ const milhares = (inteiro: string): string => inteiro.replace(/\B(?=(\d{3})+(?!\
 /**
  * Quantidade para a tela e o PDF (RN-VEN-02 v3). KG e M: vírgula, de 3 a 4 casas, sigla minúscula (`1,250 kg`,
  * `0,1255 kg`). Demais: inteiro com ponto de milhar e a sigla como veio (`1.200 CX`); se ainda assim houver fração, ela
- * aparece com as casas que tiver. `unidade` nula ou vazia = só o número. `RangeError` com mais de 4 casas.
+ * aparece com as casas que tiver. `unidade` nula ou vazia = só o número. `semSigla`: as mesmas casas da unidade, sem a
+ * sigla (`1,250`), para tabela com a sigla na coluna ao lado. `RangeError` com mais de 4 casas.
  */
-export function formatarQuantidade(q: number, unidade: string | null): string {
+export function formatarQuantidade(
+  q: number,
+  unidade: string | null,
+  opcoes: { semSigla?: boolean } = {},
+): string {
   const u = quantidadeEmEscala(q);
   const absoluto = Math.abs(u);
   const inteiro = milhares(String(Math.trunc(absoluto / ESCALA_QUANTIDADE)));
@@ -183,6 +188,6 @@ export function formatarQuantidade(q: number, unidade: string | null): string {
   const fracao = fracionaria ? casas.replace(/0$/, '') : casas.replace(/0+$/, '');
   const numero = `${u < 0 ? '-' : ''}${inteiro}${fracao ? `,${fracao}` : ''}`;
   const sigla = (unidade ?? '').trim();
-  if (!sigla) return numero;
+  if (!sigla || opcoes.semSigla) return numero;
   return `${numero} ${fracionaria ? sigla.toLowerCase() : sigla}`;
 }
