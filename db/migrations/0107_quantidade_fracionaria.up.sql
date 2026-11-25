@@ -1,4 +1,4 @@
--- 0106_quantidade_fracionaria (up) — quantidade fracionária no pedido (v1.0.36, ADR 0076): o ERP e o vendedor passam a
+-- 0107_quantidade_fracionaria (up) — quantidade fracionária no pedido (v1.0.36, ADR 0076): o ERP e o vendedor passam a
 -- poder usar fração (2,5 KG; "CX c/ 0,5"). Inteiro vira numeric com 4 casas:
 --   core.produto_unidade.fator                       integer -> numeric(9,4)  (check produto_unidade_fator_positivo > 0 recriado)
 --   vendedor.pedido_item.fator                       integer -> numeric(9,4)  (check pedido_item_fator_positivo > 0 recriado)
@@ -9,7 +9,7 @@
 -- round(quantidade * fator, 4) (gatilhos pedido_item_quantidade_base e pedido_item_medida) e os CHECKs de coerência passam a
 -- comparar com o mesmo round (com inteiros, round = o produto: nada muda para as linhas atuais).
 -- pedido_item_faturada_faixa (0 <= quantidade_faturada <= quantidade_base) e os CHECKs de positivo e de embalagem = fator são
--- recriados com o mesmo texto (sem isso o ALTER TYPE os guarda com cast e o down não voltaria ao catálogo da 0105).
+-- recriados com o mesmo texto (sem isso o ALTER TYPE os guarda com cast e o down não voltaria ao catálogo da 0106).
 -- pedido_retorno_erro_numeros_validos: quantidade >= 1 vira quantidade > 0 (0,5 KG descartado é válido).
 -- Dependências conferidas no catálogo (pg_depend/pg_proc): nenhuma view nem função SQL usa essas colunas; o índice
 -- pedido_item_reserva_filial_ix (include quantidade_base, quantidade_faturada) é refeito pelo próprio ALTER TYPE. As views do
@@ -19,7 +19,7 @@
 -- Custo: reescreve core.produto_unidade, vendedor.pedido_item e integracao.pedido_retorno_erro (ACCESS EXCLUSIVE durante a
 -- reescrita; um ALTER TABLE por tabela).
 -- Dicionário: docs/banco/core.md, vendedor.md, integracao.md. Teste: db/testes/quantidade-fracionaria.db.test.ts.
--- Volta: 0106_quantidade_fracionaria.down.sql (só sem fração gravada; com fração falha e diz onde).
+-- Volta: 0107_quantidade_fracionaria.down.sql (só sem fração gravada; com fração falha e diz onde).
 
 -- core.produto_unidade --------------------------------------------------------------------------------------------------
 alter table core.produto_unidade drop constraint if exists produto_unidade_fator_positivo;

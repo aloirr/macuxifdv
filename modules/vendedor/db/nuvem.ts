@@ -214,7 +214,7 @@ export const pedidoAprovacao = vendedor.table('pedido_aprovacao', {
 });
 
 /**
- * Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. 0106 (ADR 0076): quantidades numeric(14,4)
+ * Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. 0107 (ADR 0076): quantidades numeric(14,4)
  * e fator numeric(9,4), fracionários; mode 'number' (o `pg` entrega numeric como string e o Drizzle converte).
  */
 export const pedidoItem = vendedor.table('pedido_item', {

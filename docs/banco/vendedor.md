@@ -449,7 +449,7 @@ backfill (linhas antigas ficam nulas).
 - **Volta** (`.down.sql`): tira o check e a coluna (a chave gravada se perde). Volte antes a API que lê ou grava a coluna.
   Teste: `db/testes/faturamento-chave-acesso.db.test.ts`.
 
-## 0106 — quantidade fracionária no item (`0106_quantidade_fracionaria`; ADR 0076)
+## 0107 — quantidade fracionária no item (`0107_quantidade_fracionaria`; ADR 0076)
 O item passa a aceitar fração (2,5 KG; "CX c/ 0,5"). Troca de tipo, sem coluna nova nem backfill (inteiro vira o mesmo número).
 
 | Tabela.coluna | Antes | Depois | Regra |
