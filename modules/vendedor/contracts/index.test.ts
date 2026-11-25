@@ -46,6 +46,11 @@ describe('contracts do pedido no servidor (T-0029)', () => {
     expect(PedidoPush.safeParse({ ...push, items: muitos }).success).toBe(false);
     expect(PedidoPush.safeParse({ ...push, items: [{ product_id: 'p', quantity: 0 }] }).success).toBe(false);
   });
+  it('RN-VEN-02 v3 (ADR 0076 D4): mais de 4 casas passa pelo contrato do item (quem recusa é a API, com 422 quantidade_fracionaria_invalida)', () => {
+    expect(PedidoPush.safeParse({ ...push, items: [{ product_id: 'p', quantity: 1.23456 }] }).success).toBe(true);
+    expect(PedidoPush.safeParse({ ...push, items: [{ product_id: 'p', quantity: 1.2345 }] }).success).toBe(true);
+    expect(PedidoPush.safeParse({ ...push, items: [{ product_id: 'p', quantity: Number.NaN }] }).success).toBe(false);
+  });
   it('RN-GES-08: aprovar sem comentário é válido; o mínimo de 3 caracteres do motivo é do domínio (422)', () => {
     expect(AprovarPedidoRequest.safeParse({}).success).toBe(true);
     expect(RejeitarPedidoRequest.safeParse({ motivo: 'abc' }).success).toBe(true);

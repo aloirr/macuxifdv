@@ -4,16 +4,18 @@
  * - Identidade do app (ADR 0070 §D2): toda chamada à API leva `x-macuxi-app: <variante>/<X.Y.Z>` (`CABECALHO_APP` do SDK). O
  *   valor é definido uma vez na carga do bundle (`services/identidade-app.ts`) e o `ApiClient` o lê em cada requisição. Versão
  *   ilegível = sem cabeçalho (a API não bloqueia), nunca uma exceção na chamada.
- * - Última versão conhecida (critério 3): a resposta de `GET /v1/app/versao?contrato=2` ou os `detalhes` do 426 ficam guardados
+ * - Última versão conhecida (critério 3): a resposta de `GET /v1/app/versao?contrato=3` ou os `detalhes` do 426 ficam guardados
  *   no aparelho (`CHAVE_VERSAO_PUBLICADA`) e a situação é recalculada com o relógio a cada entrada, inclusive sem sinal, pela
  *   MESMA `situacaoDaVersao` do SDK que a API usa para o 426.
+ * - Quantidade fracionária (ADR 0076 D6, T-0196): o `fracao_liberada` do contrato V3 vai guardado junto da versão e chega aos
+ *   módulos por `ambiente.fracaoLiberada()` (`fracaoLiberadaDa`), inclusive sem sinal; sem resposta V3 guardada, `false`.
  * - 426 `APP_DESATUALIZADO` (`ehAppDesatualizado`): no meio do uso só marca o estado; a troca para a tela de bloqueio acontece
  *   na entrada (abrir, voltar ao primeiro plano, login), sem arrancar formulário aberto (ADR 0070 §D8 a).
  * - Com o app bloqueado (`estaBloqueada`), a sincronização vira só envio: o pull é recusado pela API, e o shell não o tenta de
  *   novo em laço; o push e os arquivos da fila seguem liberados.
  */
 import {
-  AppVersaoPublicadaV2Schema,
+  AppVersaoPublicadaV3Schema,
   CABECALHO_APP,
   CODIGO_APP_DESATUALIZADO,
   ErroAppDesatualizadoSchema,
@@ -81,10 +83,12 @@ export interface VersaoPublicadaGuardada {
    * (relógio atrasado). Só cai quando `GET /v1/app/versao` mostrar publicada ≤ instalada (`guardadaDaResposta`).
    */
   bloqueada_pelo_servidor: boolean;
+  /** ADR 0076 D6: a API já aceita quantidade fracionária (`fracao_liberada` do V3); o 426 e o formato antigo guardam `false`. */
+  fracao_liberada: boolean;
 }
 
 /**
- * Resposta de `GET /v1/app/versao?contrato=2` → o que se guarda. Fora do contrato ou de outra variante = `null`. A marca do 426
+ * Resposta de `GET /v1/app/versao?contrato=3` (`AppVersaoPublicadaV3`) → o que se guarda. Fora do contrato ou de outra variante = `null`. A marca do 426
  * (`anterior.bloqueada_pelo_servidor`) continua enquanto a publicada for maior que a instalada; só cai com publicada ≤ instalada.
  */
 export function guardadaDaResposta(
@@ -93,11 +97,18 @@ export function guardadaDaResposta(
   agora: Date,
   marca: { anterior: VersaoPublicadaGuardada | null; instalada: string | null | undefined } = { anterior: null, instalada: null },
 ): VersaoPublicadaGuardada | null {
-  const r = AppVersaoPublicadaV2Schema.safeParse(corpo);
+  const r = AppVersaoPublicadaV3Schema.safeParse(corpo);
   if (!r.success || r.data.variante !== variante) return null;
   const continua =
     marca.anterior?.bloqueada_pelo_servidor === true && versaoValida(marca.instalada) && haVersaoNova(marca.instalada, r.data.versao);
-  return { variante, versao: r.data.versao, publicada_em: r.data.publicada_em, recebida_em: agora.toISOString(), bloqueada_pelo_servidor: continua };
+  return {
+    variante,
+    versao: r.data.versao,
+    publicada_em: r.data.publicada_em,
+    recebida_em: agora.toISOString(),
+    bloqueada_pelo_servidor: continua,
+    fracao_liberada: r.data.fracao_liberada,
+  };
 }
 
 /** Os `detalhes` do 426 `APP_DESATUALIZADO` → o que se guarda (a API já disse que está bloqueada). */
@@ -114,6 +125,7 @@ export function guardadaDoErro(
     publicada_em: r.data.detalhes.publicada_em,
     recebida_em: agora.toISOString(),
     bloqueada_pelo_servidor: true,
+    fracao_liberada: false,
   };
 }
 
@@ -123,7 +135,19 @@ export function lerGuardada(valor: unknown, variante: VarianteApp): VersaoPublic
   if (!v || typeof v !== 'object' || v.variante !== variante || !versaoValida(v.versao)) return null;
   if (v.publicada_em !== null && typeof v.publicada_em !== 'string') return null;
   if (typeof v.recebida_em !== 'string') return null;
-  return { variante, versao: v.versao, publicada_em: v.publicada_em ?? null, recebida_em: v.recebida_em, bloqueada_pelo_servidor: v.bloqueada_pelo_servidor === true };
+  return {
+    variante,
+    versao: v.versao,
+    publicada_em: v.publicada_em ?? null,
+    recebida_em: v.recebida_em,
+    bloqueada_pelo_servidor: v.bloqueada_pelo_servidor === true,
+    fracao_liberada: v.fracao_liberada === true,
+  };
+}
+
+/** ADR 0076 D6: o `ambiente.fracaoLiberada()` do shell. Sem guardada (nunca respondeu, rede, fora do contrato) = `false`. */
+export function fracaoLiberadaDa(guardada: VersaoPublicadaGuardada | null): boolean {
+  return guardada?.fracao_liberada === true;
 }
 
 /**

@@ -54,7 +54,7 @@ async function orcamentoDoDono(db: ClienteBanco, id: string, eu: string): Promis
 function exigirAberto(situacao: ReturnType<typeof situacaoDoOrcamento>): void {
   if (situacao === 'aberto') return;
   const texto = acoesDoOrcamento(situacao).texto;
-  throw new ErroHttpModulo(422, 'RN-VEN-18', `${texto} (RN-VEN-18)`);
+  throw new ErroHttpModulo(422, 'RN-VEN-18', texto);
 }
 
 export const rotaEditarOrcamento: RotaModulo = {

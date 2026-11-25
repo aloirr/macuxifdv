@@ -206,7 +206,7 @@ describe('diálogo Zerar dados', () => {
   });
 });
 
-describe('diálogo Zerar dados por entidade (aba Integração)', () => {
+describe('diálogo Zerar dados por entidade (aba Dados)', () => {
   it('título com a entidade, "Leva junto:" só com a cascata, sem o "Mantém"; concluído com o lote e um comando por entidade afetada', async () => {
     const e = porCodigo('AM2290');
     const previa = await pronta(e, ['cliente']);

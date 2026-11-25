@@ -223,12 +223,24 @@ export function formDaVersao(v: QuestionarioVersao, fuso: string): FormRascunho 
   };
 }
 
-/** Ids digitados que não são UUID (equipes/clientes): a tela avisa antes de salvar. */
-export function idsInvalidos(texto: string): string[] {
-  return listaDeTexto(texto).filter((x) => !UUID_RE.test(x));
+/** Seleção do público (equipes/clientes) guardada no form como um id por linha (UX-34: a tela mostra chips, o contrato segue com ids). */
+export function adicionarId(texto: string, id: string): string {
+  const atuais = listaDeTexto(texto);
+  return atuais.includes(id) ? texto : [...atuais, id].join('\n');
 }
 
-/** Corpo do `PUT .../rascunho` a partir do formulário (ids inválidos ficam de fora; a tela já avisou). */
+export function removerId(texto: string, id: string): string {
+  return listaDeTexto(texto).filter((x) => x !== id).join('\n');
+}
+
+/** Rótulo do cliente na busca e nos chips: nome fantasia ou razão social, com o código FDV/ERP quando houver. */
+export function rotuloCliente(c: { razao_social: string; nome_fantasia?: string | null; codigo_fdv?: string | null; external_id?: string | null }): string {
+  const nome = c.nome_fantasia?.trim() || c.razao_social;
+  const codigo = c.external_id?.trim() || c.codigo_fdv?.trim();
+  return codigo ? `${nome} (${codigo})` : nome;
+}
+
+/** Corpo do `PUT .../rascunho` a partir do formulário (ids que não são UUID ficam de fora). */
 export function corpoDoForm(f: FormRascunho, fuso: string): SalvarRascunhoRequest {
   const ids = (t: string) => listaDeTexto(t).filter((x) => UUID_RE.test(x));
   const descricao = f.descricao.trim();

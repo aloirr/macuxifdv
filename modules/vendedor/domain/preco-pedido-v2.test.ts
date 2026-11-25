@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { politicaDosParametros } from './aprovacao';
 import {
   ajusteDoPedidoCents,
+  descontoEfetivoAlcadaPct,
   equivalenteDoAjuste,
   itemRespeitaPrecoMinimo,
   limiteDoAjusteDoItem,
@@ -160,5 +161,29 @@ describe('RN-VEN-03 (T-0071): pctExibicao — 1 casa, meia para cima, calculado 
     expect(pctExibicao(1, 2000)).toBe(0.1); // 0,05
     expect(pctExibicao(-500, 10000)).toBe(-5);
     expect(pctExibicao(5, 0)).toBe(0);
+  });
+});
+
+describe('RN-VEN-02 v3: quantidade fracionária (ADR 0076)', () => {
+  const base = { preco_tabela_unidade_cents: 1999, fator: 1, desconto_pct: 0, acrescimo_pct: 0 };
+  it('RN-VEN-02 v3: 1999 × 1,250 = 2499 (meio para cima) e a quantidade base é exata', () => {
+    const r = precoDoItem({ ...base, quantidade: 1.25 });
+    expect(r.total_cents).toBe(2499);
+    expect(r.quantidade_base).toBe(1.25);
+  });
+  it('RN-VEN-02 v3: com quantidade inteira o total é idêntico ao de antes', () => {
+    expect(precoDoItem({ ...base, quantidade: 3 }).total_cents).toBe(5997);
+  });
+  it('RN-VEN-15: fator fracionário (CX com 12,5 kg) multiplica a quantidade base e o preço da embalagem', () => {
+    const r = precoDoItem({ ...base, fator: 12.5, quantidade: 2 });
+    expect(r.quantidade_base).toBe(25);
+    expect(r.preco_tabela_cents).toBe(24988);
+  });
+  it('RN-VEN-02 v3: quantidade e fator fracionários juntos não existem', () => {
+    expect(() => precoDoItem({ ...base, fator: 12.5, quantidade: 1.5 })).toThrow();
+  });
+  it('RN-VEN-10: o desconto efetivo da alçada aceita quantidade decimal sem float', () => {
+    const l = { preco_tabela_cents: 1000, quantidade: 1.5, total_cents: 1350, desconto_pct: 10, acrescimo_pct: 0 };
+    expect(descontoEfetivoAlcadaPct([l], { desconto_pct: 0, acrescimo_pct: 0 })).toBe(10);
   });
 });

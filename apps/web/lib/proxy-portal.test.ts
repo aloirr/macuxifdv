@@ -110,7 +110,7 @@ describe('proxy no fdv. e nos outros hosts (por caminho)', () => {
 });
 
 describe('Hub e retorno depois do login', () => {
-  it('openapi.json e guia.pdf do Hub: o proxy não reescreve (nem roda: matcher exclui api-proxy) e o rewrite do next.config leva à API', async () => {
+  it('openapi.json e guia.pdf do Hub: o proxy não reescreve (o 1º matcher, o das páginas, exclui api-proxy) e o rewrite do next.config leva à API', async () => {
     const matcher = new RegExp(`^${configDoProxy.matcher[0]}$`);
     expect(matcher.test('/entrar')).toBe(true);
     expect(matcher.test('/config/entrar')).toBe(true);

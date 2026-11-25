@@ -13,7 +13,7 @@ let seq = 0;
  */
 const COMPLETAR: Record<string, (p: Record<string, unknown>, ocorrido_em: string) => Record<string, unknown>> = {
   'core.visita.checkin@1': (p) => ({ rota_parada_id: null, data_local: String(p.checkin_em ?? '').slice(0, 10), fora_do_raio: false, distancia_m: null, sem_gps: false, extra: false }),
-  'vendedor.pedido.criado@1': (p) => ({ visita_id: null, tipo: 'pedido', total_tabela_cents: p.total_cents, itens: [], status: 'em_aprovacao' }),
+  'vendedor.pedido.criado@2': (p) => ({ visita_id: null, tipo: 'pedido', total_tabela_cents: p.total_cents, itens: [], status: 'em_aprovacao' }),
   'vendedor.pedido.status_alterado@1': () => ({ de: null, autor_id: null, motivo: null }),
   'vendedor.pedido.aprovacao_solicitada@1': () => ({ credito: null, historico: null }),
   'vendedor.pedido.aprovacao_solicitada@2': () => ({ credito: null, historico: null, inadimplencia: null }),
@@ -46,7 +46,7 @@ export const CLIENTE_C = u(503);
 
 export function pedidoCriado(o: { pedido?: string; vendedor?: string; autor?: string; cliente?: string; total: number; tabela?: number; em?: string; emitido?: string; visita?: string | null }, id?: string) {
   return ev(
-    'vendedor.pedido.criado@1',
+    'vendedor.pedido.criado@2',
     o.em ?? '2026-10-30T14:00:00Z',
     {
       pedido_id: o.pedido ?? u(1000),

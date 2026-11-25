@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { LOGO_PADRAO_DATA_URI } from './logo-padrao';
-import { COR_CABECALHO_TABELA, buildOrderPdfHtml, equivaleAHtml, formatTelefone, itensEmOrdemDoCodigo, linhasDaFilial, orderPdfFileName, pdfDoPedido, quantidadePorEmbalagem, statusText, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
+import { COR_CABECALHO_TABELA, buildOrderPdfHtml, equivaleAHtml, formatTelefone, itensEmOrdemDoCodigo, linhasDaFilial, orderPdfFileName, pdfDoPedido, quantidadeDoPdf, quantidadePorEmbalagem, statusText, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
 
 const ctx: OrderPdfContext = { tenant_name: 'Distribuidora Exemplo Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-01T18:00:00.000Z' };
 
@@ -293,6 +293,12 @@ describe('T-0150 D-T0150-1/2: acréscimo líquido e quantidade por embalagem no 
   it('RN-CORE-19: a soma por embalagem continua disponível (FD, CX e UN), não "15 un."', () => {
     const it = (unit_label: string, quantity: number) => ({ quantity, unit_label });
     expect(quantidadePorEmbalagem([it('FD c/ 6', 2), it('CX c/ 12', 3), it('UN', 10), it('CX c/ 24', 1)])).toBe('2 FD + 4 CX + 10 UN');
+  });
+  it('RN-VEN-02 v3: o PDF mostra a quantidade em KG/M com vírgula e 3 a 4 casas (formatarQuantidade)', () => {
+    expect(quantidadeDoPdf({ quantity: 1.25, unit_label: 'KG' })).toBe('1,250');
+    expect(quantidadeDoPdf({ quantity: 0.1255, unit_label: 'KG' })).toBe('0,1255');
+    expect(quantidadeDoPdf({ quantity: 12, unit_label: 'CX c/ 12' })).toBe('12');
+    expect(quantidadePorEmbalagem([{ quantity: 1.25, unit_label: 'KG' }, { quantity: 0.5, unit_label: 'KG' }, { quantity: 2, unit_label: 'CX c/ 12' }])).toBe('1,750 kg + 2 CX');
   });
 });
 

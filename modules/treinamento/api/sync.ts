@@ -32,7 +32,7 @@ async function receberAtividades(fabrica: FabricaRepositorio | null, ctx: Contex
   const validas: AtividadeEnvio[] = [];
   for (const item of itens) {
     const a = item.payload as AtividadeEnvio;
-    if (item.operacao === 'remover') porId.set(item.id, rejeitado(item.id, 'SOMENTE_INSERCAO', 'Progresso não é apagado nem editado (RN-TRE-04).'));
+    if (item.operacao === 'remover') porId.set(item.id, rejeitado(item.id, 'SOMENTE_INSERCAO', 'Progresso não é apagado nem editado.'));
     else if (a.id !== item.id) porId.set(item.id, rejeitado(item.id, 'ID_DIVERGENTE', 'O id da atividade é diferente do id do item. Atualize o app.'));
     else if (!perfilPode(a.tipo === 'licao' ? 'licao.concluir' : 'quiz.responder', ctx.usuario.perfil)) {
       porId.set(item.id, rejeitado(item.id, 'PERFIL_SEM_ACESSO', 'Seu perfil não faz trilhas de treinamento.'));
