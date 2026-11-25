@@ -109,7 +109,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
     // a outbox repete com espera crescente (5 s, 10 s…); depois de esperaMaxDependenciaMin a dependência não segura mais
     throw new Error(
       espera?.motivo === 'dependencia'
-        ? `Lote aguardando a carga de ${espera.esperaPor.join(', ')} (RN-INT-04); a aplicação será tentada de novo.`
+        ? `Lote aguardando a carga de ${espera.esperaPor.join(', ')}; a aplicação será tentada de novo.`
         : 'Lote aguardando o lote anterior da mesma entidade; a aplicação será tentada de novo.',
     );
   }

@@ -26,6 +26,6 @@ export function avisoPrazoMedioDivergente(r: Pick<PrazoPagamentoPayload, 'extern
   return {
     external_id: r.external_id,
     codigo: 'prazo_medio_divergente',
-    mensagem: `O ERP informou prazo médio de ${r.prazo_medio_dias} dias, mas as parcelas ${r.parcelas_dias.join('/')} dão ${calculado}. O Macuxi usa ${calculado} (RN-VEN-24); confira o cadastro no ERP.`,
+    mensagem: `O ERP informou prazo médio de ${r.prazo_medio_dias} dias, mas as parcelas ${r.parcelas_dias.join('/')} dão ${calculado}. O Macuxi usa ${calculado}; confira o cadastro no ERP.`,
   };
 }

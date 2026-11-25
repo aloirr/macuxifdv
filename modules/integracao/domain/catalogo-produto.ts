@@ -30,7 +30,7 @@ export function limitarCatalogoDoProduto(registro: ProdutoPayload): { registro: 
     const tamanho = Array.from(r.aplicacao).length;
     if (tamanho > L.aplicacao) {
       r.aplicacao = cortarPorCodePoint(r.aplicacao, L.aplicacao);
-      avisos.push({ external_id: id, codigo: 'aplicacao_cortada', mensagem: `Aplicação com ${tamanho} caracteres foi cortada em ${L.aplicacao} (RN-CAT-11).` });
+      avisos.push({ external_id: id, codigo: 'aplicacao_cortada', mensagem: `Aplicação com ${tamanho} caracteres foi cortada em ${L.aplicacao}.` });
     }
   }
   if (r.referencias) {
@@ -38,18 +38,18 @@ export function limitarCatalogoDoProduto(registro: ProdutoPayload): { registro: 
     const fora = r.referencias.length - validas.length;
     if (fora > 0) {
       r.referencias = validas;
-      avisos.push({ external_id: id, codigo: 'referencia_descartada', mensagem: `${fora} referência(s) com código vazio/maior que ${LIMITES_REFERENCIA.codigo} foram descartadas; o produto foi carregado (RN-CAT-09).` });
+      avisos.push({ external_id: id, codigo: 'referencia_descartada', mensagem: `${fora} referência(s) com código vazio/maior que ${LIMITES_REFERENCIA.codigo} foram descartadas; o produto foi carregado.` });
     }
   }
   if (r.referencias && r.referencias.length > L.referencias) {
     const n = r.referencias.length;
     r.referencias = r.referencias.slice(0, L.referencias);
-    avisos.push({ external_id: id, codigo: 'referencias_cortadas', mensagem: `${n} referências recebidas; ficaram as ${L.referencias} primeiras (RN-CAT-09).` });
+    avisos.push({ external_id: id, codigo: 'referencias_cortadas', mensagem: `${n} referências recebidas; ficaram as ${L.referencias} primeiras.` });
   }
   if (r.oferece_junto && r.oferece_junto.length > L.ofereceJunto) {
     const n = r.oferece_junto.length;
     r.oferece_junto = r.oferece_junto.slice(0, L.ofereceJunto);
-    avisos.push({ external_id: id, codigo: 'oferece_junto_cortado', mensagem: `${n} produtos em "oferece junto"; ficaram os ${L.ofereceJunto} primeiros (RN-CAT-09).` });
+    avisos.push({ external_id: id, codigo: 'oferece_junto_cortado', mensagem: `${n} produtos em "oferece junto"; ficaram os ${L.ofereceJunto} primeiros.` });
   }
   if (r.etiquetas) {
     const limpas = r.etiquetas.map((e) => cortarPorCodePoint(e.trim(), LIMITES_REFERENCIA.etiqueta)).filter((e) => e !== '');
