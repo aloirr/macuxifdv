@@ -35,6 +35,7 @@ function ambiente(donoDoPedido = TENANT_A, extra: Record<string, unknown> = {}, 
     conector: { id: 'c1', identificador: 'matriz-01', recebe_pedidos: true },
     corpo: RetornoErp.parse(corpo),
     params: { pedido_uuid: UUID },
+    agora: () => new Date(AGORA),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     comTenant: (fn: (d: typeof db, t: { publicar: typeof publicar }) => Promise<unknown>) => fn(db, { publicar }),
   });
@@ -87,5 +88,44 @@ describe('T-0114: retorno cancelamento_recusado (aditivo na v1; exceção da RN-
     expect(r).toMatchObject({ pedido_uuid: UUID, status: 'cancelado', repetido: false });
     expect(a.sqls.find((s) => /update integracao\.pedido_fila_erp/i.test(s.sql))?.sql).toMatch(/then 'confirmado'/);
     expect(a.publicar).toHaveBeenCalledWith(EVENTO_PEDIDO_RETORNO_ERP, expect.objectContaining({ status: 'cancelado' }), UUID);
+  });
+});
+
+describe('ADR 0076 D6 / RN-VEN-02 v3: trava da quantidade fracionária no retorno', () => {
+  const nota = { numero: '123', serie: '1', emitida_em: AGORA, total_cents: 100 };
+  const faturado = (quantidade: number) => ({
+    versao_contrato: VERSAO_CONTRATO, pedido_uuid: UUID, status: 'faturado_parcial', numero_erp: 'PV-9', ocorrido_em: AGORA, nota,
+    itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade, valor_cents: 100 }],
+  });
+  const comVersao = (a: ReturnType<typeof ambiente>, corpo: unknown, campo: string, gestao: string) => ({
+    ...a.ctx(corpo),
+    agora: () => new Date('2026-11-27T12:00:00.000Z'),
+    versaoApp: { doCliente: null, publicada: async (v: 'campo' | 'gestao') => ({ versao: v === 'campo' ? campo : gestao, publicada_em: '2026-11-26T10:00:00.000Z' }) },
+  });
+
+  it('RN-VEN-02 v3: trava fechada (sem versaoApp) recusa a quantidade faturada fracionária com 422 quantidade_fracionaria_bloqueada', async () => {
+    const a = ambiente();
+    await expect(executar(a.ctx(faturado(1.25)))).rejects.toMatchObject({ status: 422, corpo: { codigo: 'quantidade_fracionaria_bloqueada' } });
+    expect(a.publicar).not.toHaveBeenCalled();
+  });
+
+  it('RN-VEN-02 v3: mais de 4 casas é 422 quantidade_fracionaria_invalida, mesmo sem a trava', async () => {
+    const a = ambiente();
+    await expect(executar(a.ctx(faturado(1.23456)))).rejects.toMatchObject({ status: 422, corpo: { codigo: 'quantidade_fracionaria_invalida' } });
+  });
+
+  it('ADR 0076 D6: trava aberta (Campo e Gestão 1.0.35 há mais de 24 h) aceita a quantidade fracionária', async () => {
+    const a = ambiente();
+    await expect(executar(comVersao(a, faturado(1.25), '1.0.35', '1.0.36'))).resolves.toMatchObject({ pedido_uuid: UUID });
+  });
+
+  it('ADR 0076 D6: só uma variante na 1.0.35 mantém a trava fechada', async () => {
+    const a = ambiente();
+    await expect(executar(comVersao(a, faturado(1.25), '1.0.35', '1.0.34'))).rejects.toMatchObject({ corpo: { codigo: 'quantidade_fracionaria_bloqueada' } });
+  });
+
+  it('quantidade inteira não consulta a trava e segue como hoje', async () => {
+    const a = ambiente();
+    await expect(executar(a.ctx(faturado(2)))).resolves.toMatchObject({ pedido_uuid: UUID });
   });
 });
