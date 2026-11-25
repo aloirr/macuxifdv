@@ -151,3 +151,5 @@
 2026-11-23 — v1.0.31 "Zerar dados" (sessão E; SHAs 7e0b0d769, 79d728c92, 3fdf4f7fc, b88d66ef8, c2ddb882a, 0c39717da, b2a5aa64a, 32279e025): NÃO LIBERADO — RD-2678 a RD-2687 abertos (4 médios, 6 baixos; engenheiro-apps 2, engenheiro-software 5, banco-dados 3); relatório 2026-11-23-v1031-zerar-dados.md. RD-2639…2677 reservados (usados em commits da v1.0.27–v1.0.30).
 - 24/11/2026 (Manaus) — v1.0.31 "Zerar dados", rodada 2 (sessão E): RD-2678 a RD-2687 corrigidos (4ed8223b4, 633dc5762, d357956ac, c324995cb); RD-2688 novo (designer-ux, `docs/design/telas/portal-empresa-zerar.md` diverge da tela). NÃO LIBERADO. 2 consultas ao graphify.
 - 2026-11-24 — revisão geral das telas — BKO, portal, apps, PDF e e-mails: RD-2753 a RD-2789 (4 altos, 17 médios, 16 baixos; 10 donos), 7 ao testes, 2 para a S3 (Parâmetros). Relatório docs/qualidade/redundancias/2026-11-24-revisao-geral.md.
+- 25/11 (Manaus): S11 parecer v1.0.35 8c2f39a (RD-3550..3552) e 144160c (RD-3553..3554); recados não enviados (403), relatado ao gerente.
+- 25/11 (Manaus): S11 reteste b59f3e6: RD-3553 e RD-3554 corrigidos; item B LIBERADO no SHA b59f3e6.
