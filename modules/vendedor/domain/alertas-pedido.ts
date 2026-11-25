@@ -143,3 +143,6 @@ export function textoDoAlertaNoItem(a: AlertaDoPedido): string {
   if (a.tipo === 'maximo') return a.maximo_pct !== undefined ? `Acima do desconto máximo de ${pct(a.maximo_pct)}` : 'Acima do desconto máximo';
   return a.texto;
 }
+
+// TEMPORÁRIO (R-20261124-114951): ver compat-v1034.ts
+export { impedeEnviarPorAlertas } from './compat-v1034';

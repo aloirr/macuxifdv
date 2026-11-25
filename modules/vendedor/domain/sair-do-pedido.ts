@@ -2,6 +2,7 @@
  * RN-VEN-38 (T-0128): sair do Novo pedido. Função pura, sem React: a tela só liga as peças (folha "Sair do pedido?" do
  * `@macuxi/ui`). Nenhum pedido some sem escolha do vendedor (RN-VEN-30/31): o rascunho só é apagado por "Descartar" confirmado.
  */
+import type { EntradaDaSaidaCompat, OpcoesDaSaidaCompat } from './compat-v1034'; // TEMPORÁRIO (R-20261124-114951)
 import type { SituacaoCliente } from './orcamento';
 import { botoesDoSalvarNovo, ROTULOS_DA_EDICAO } from './botoes-resumo';
 
@@ -57,7 +58,7 @@ export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento' }): { salv
   return { salvar, descartar: TEXTOS_DA_SAIDA_EDICAO.descartar, confirmacao: TEXTOS_DA_SAIDA_EDICAO.confirmacao };
 }
 
-export interface OpcoesDaSaida {
+export interface OpcoesDaSaida extends OpcoesDaSaidaCompat {
   /** `false` = cliente da RN-VEN-13 (só orçamento): não há pedido para guardar */
   pedido: boolean;
   /** `false` = tenant sem pré-venda (sem orçamento) */
@@ -65,7 +66,7 @@ export interface OpcoesDaSaida {
 }
 
 /** RN-VEN-38 (R-20261124-114951): a folha oferece o mesmo Salvar do Resumo: Salvar pedido e Salvar orçamento (RN-VEN-13: só o orçamento), mais Descartar. */
-export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean }): OpcoesDaSaida {
+export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean } & EntradaDaSaidaCompat): OpcoesDaSaida {
   const b = botoesDoSalvarNovo(e).escolha;
   return { pedido: b.pedido.visivel, orcamento: b.orcamento.visivel };
 }
