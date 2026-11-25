@@ -228,7 +228,7 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
             celulas: [
               <CelulaTexto key="p" principal={i.produto_nome} segunda={i.produto_codigo} segundaCodigo />,
               <CelulaTexto key="e" principal={i.unidade ? rotuloDaUnidade(i.unidade, i.fator ?? 1) : '—'} dir />,
-              <CelulaTexto key="q" principal={formatarQuantidade(i.quantidade, null)} dir />,
+              <CelulaTexto key="q" principal={formatarQuantidade(i.quantidade, i.unidade ?? null, { semSigla: true })} dir />,
               <CelulaTexto key="t" principal={valorSemMoeda(i.total_cents)} dir />,
             ],
           }))}
