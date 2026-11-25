@@ -4,23 +4,14 @@
  */
 
 import { CODIGO_FRACAO_BLOQUEADA, CODIGO_FRACAO_INVALIDA, MENSAGEM_FRACAO_BLOQUEADA } from '@macuxi/platform-sdk';
-import { ESCALA_QUANTIDADE, quantidadeDaEscala, quantidadeEmEscala, unidadeFracionaria } from '@macuxi/comum/quantidade';
+import { ESCALA_QUANTIDADE, quantidadeValida, temFracao, unidadeFracionaria } from '@macuxi/comum/quantidade';
 
 /**
  * RN-VEN-15 (ADR 0076): o fator (unidades base por embalagem) é > 0 com até 4 casas. Fonte única: o preço do item e o do pedido
  * usam esta função.
  */
 export function exigirFator(fator: number): void {
-  if (!(fator > 0) || !emEscalaValida(fator)) throw new Error('RN-VEN-15: fator da unidade inválido.');
-}
-
-function emEscalaValida(n: number): boolean {
-  try {
-    quantidadeEmEscala(n);
-    return true;
-  } catch {
-    return false;
-  }
+  if (!(fator > 0) || !quantidadeValida(fator)) throw new Error('RN-VEN-15: fator da unidade inválido.');
 }
 
 /**
@@ -31,17 +22,20 @@ export function exigirQuantidade(i: { quantidade: number; unidade: string | null
   const recusa = (): never => {
     throw Object.assign(new Error(`${CODIGO_FRACAO_INVALIDA}: RN-VEN-02: quantidade inválida para a unidade.`), { codigo: CODIGO_FRACAO_INVALIDA });
   };
-  if (!(i.quantidade > 0) || !emEscalaValida(i.quantidade) || !emEscalaValida(i.fator)) return recusa();
-  const qFrac = quantidadeEmEscala(i.quantidade) % ESCALA_QUANTIDADE !== 0;
-  const fFrac = quantidadeEmEscala(i.fator) % ESCALA_QUANTIDADE !== 0;
+  if (!(i.quantidade > 0) || !quantidadeValida(i.quantidade) || !quantidadeValida(i.fator)) return recusa();
+  const qFrac = temFracao(i.quantidade);
+  const fFrac = temFracao(i.fator);
   if (qFrac && (!unidadeFracionaria(i.unidade) || fFrac)) return recusa();
 }
 
 /** Algum item tem quantidade ou fator com casas decimais? Valor fora das 4 casas não conta (a recusa `exigirQuantidade` o pega). */
 export function haFracao(itens: ReadonlyArray<{ quantidade: number; fator: number }>): boolean {
-  const frac = (n: number): boolean => emEscalaValida(n) && quantidadeEmEscala(n) % ESCALA_QUANTIDADE !== 0;
+  const frac = (n: number): boolean => quantidadeValida(n) && temFracao(n);
   return itens.some((i) => frac(i.quantidade) || frac(i.fator));
 }
+
+/** Texto único da recusa `quantidade_fracionaria_invalida` (pedido, orçamento e aprovação). */
+export const MENSAGEM_FRACAO_INVALIDA_PEDIDO = 'Quantidade com casas decimais só em KG e M, com até 4 casas. Ajuste a quantidade.';
 
 /**
  * RN-VEN-02 v3 + ADR 0076 D6: a recusa (422) do pedido ou orçamento com quantidade fracionária. Primeiro a regra (`exigirQuantidade`:
@@ -53,7 +47,7 @@ export function recusaDeFracao(itens: ReadonlyArray<{ quantidade: number; unidad
     try {
       exigirQuantidade(i);
     } catch {
-      return { codigo: CODIGO_FRACAO_INVALIDA, http: 422, mensagem: 'Quantidade com casas decimais só em KG e M, com até 4 casas. Ajuste a quantidade e envie de novo.' };
+      return { codigo: CODIGO_FRACAO_INVALIDA, http: 422, mensagem: MENSAGEM_FRACAO_INVALIDA_PEDIDO };
     }
   }
   if (!liberada && haFracao(itens)) {
@@ -62,14 +56,9 @@ export function recusaDeFracao(itens: ReadonlyArray<{ quantidade: number; unidad
   return null;
 }
 
-/** Soma de quantidades sem float (ADR 0076): faz a conta no inteiro de 1/10.000. */
-export function somarQuantidades(a: number, b: number): number {
-  return quantidadeDaEscala(quantidadeEmEscala(a) + quantidadeEmEscala(b));
-}
-
-/** Diferença `a − b` de quantidades sem float (ADR 0076). */
-export function subtrairQuantidades(a: number, b: number): number {
-  return quantidadeDaEscala(quantidadeEmEscala(a) - quantidadeEmEscala(b));
+/** Trunca em 4 casas (nunca arredonda) sem o erro do float: `0,29 × 10.000` vira 2.900, não 2.899. */
+export function truncarEm4Casas(n: number): number {
+  return Math.trunc(Number((n * ESCALA_QUANTIDADE).toFixed(6))) / ESCALA_QUANTIDADE;
 }
 
 /**
@@ -80,8 +69,7 @@ export function quantidadePermitida(estoque: number, quantidade: number, unidade
     const max = Math.max(0, Math.trunc(estoque));
     return Math.max(0, Math.min(max, Math.trunc(quantidade)));
   }
-  const trunca = (n: number): number => Math.trunc(Number((n * ESCALA_QUANTIDADE).toFixed(6))) / ESCALA_QUANTIDADE;
-  return Math.max(0, Math.min(trunca(Math.max(0, estoque)), trunca(quantidade)));
+  return Math.max(0, Math.min(truncarEm4Casas(Math.max(0, estoque)), truncarEm4Casas(quantidade)));
 }
 
 /** Percentual de desconto limitado a 0..100 com 2 casas. */

@@ -5,7 +5,7 @@
  */
 import type { Product } from '@macuxi/catalogo/contracts';
 
-import { somarQuantidades } from '../../domain/quantidade';
+import { somarQuantidades } from '@macuxi/comum/quantidade';
 import { quantidadeDoItem } from './quantidade-digitada';
 
 export interface PrefillLine {

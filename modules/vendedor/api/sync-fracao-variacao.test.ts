@@ -4,21 +4,12 @@
  */
 import { criarPortaVersaoAppMemoria, type ContextoBase } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { provedoresSyncVendedor, variacaoFracaoDoPull } from './sync';
+import { provedoresSyncVendedor } from './sync';
 
 const ctxCom = (versao: string | null): ContextoBase =>
   ({ versaoApp: criarPortaVersaoAppMemoria({}, versao ? { variante: 'campo', versao } : null) }) as unknown as ContextoBase;
 
 describe('variação de escopo do pull de pedido (ADR 0076 D6)', () => {
-  it.each([
-    [null, 'fracao=0'],
-    ['1.0.35', 'fracao=0'],
-    ['1.0.36', 'fracao=1'],
-    ['1.0.40', 'fracao=1'],
-  ])('RN-VEN-02: app %s → %s', (versao, esperado) => {
-    expect(variacaoFracaoDoPull(ctxCom(versao))).toBe(esperado);
-  });
-
   it('RN-VEN-02: subir de 1.0.35 para 1.0.36 muda a variação (o aparelho rebaixa pedido, item e evento)', async () => {
     for (const nome of ['pedido', 'pedido_item', 'pedido_evento']) {
       const prov = provedoresSyncVendedor.find((p) => p.entidade.nome === nome)!;

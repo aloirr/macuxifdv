@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS, type LimiteDesconto } from '@macuxi/core/contracts';
-import { ErroHttpModulo, fracaoLiberada, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, fracaoLiberadaNaPorta, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
   EVENTO_PEDIDO_APROVADO,
@@ -174,7 +174,7 @@ export async function calcularDocumento(
   const itensFracao = p.items.map((i, idx) => ({ quantidade: i.quantity, unidade: medidas.get(idx)!.unidade, fator: medidas.get(idx)!.fator }));
   const comFracao = haFracao(itensFracao);
   // sem fração a trava não importa; com fração e sem `ctx.versaoApp` ela fica fechada
-  const liberada = !comFracao || (ctx.versaoApp ? fracaoLiberada({ campo: await ctx.versaoApp.publicada('campo'), gestao: await ctx.versaoApp.publicada('gestao'), agora: ctx.agora() }) : false);
+  const liberada = !comFracao || (await fracaoLiberadaNaPorta(ctx.versaoApp, ctx.agora()));
   const fracao = recusaDeFracao(itensFracao, liberada);
   if (fracao) return recusa(itemId, fracao);
   const frete: FretePedido = p.frete ?? { modalidade: modalidadePadraoDosParametros(ctx.parametros()) };

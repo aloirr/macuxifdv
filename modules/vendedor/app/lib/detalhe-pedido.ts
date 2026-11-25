@@ -9,7 +9,8 @@ import { TEXTOS_PRECOS_DE_HOJE } from './precos-de-hoje';
 import { ROTULO_CORRIGIR_PEDIDO } from './salvar-na-fila';
 import { ROTULOS_DA_EDICAO } from '../../domain/botoes-resumo';
 import { alertasDoPedido, type AlertaDoPedido } from '../../domain/alertas-pedido';
-import { formatarQuantidade, totalDaLinhaCents, unidadeFracionaria } from '@macuxi/comum/quantidade';
+import { totalDaLinhaCents } from '@macuxi/comum/quantidade';
+import { quantidadeDoPdf } from '../../domain/pdf-pedido';
 import { ajusteDoItemEmPct, linhasDosTotais, semRs, siglaDaMedida } from '../../domain/apresentacao-totais';
 
 export { linhasDosTotais, semRs, siglaDaMedida };
@@ -150,8 +151,7 @@ export function linhaDeItemEmTabela(l: { description: string; brand?: string | n
     codigo: l.erp_code,
     emb: siglaDaMedida(rotulo),
     fator: rotulo.split(/\s+/).slice(1).join(' '),
-    // RN-VEN-02 v3: KG e M com vírgula (`1,250`); a sigla já está na coluna Emb.
-    qtd: unidadeFracionaria(siglaDaMedida(rotulo)) ? formatarQuantidade(l.quantity, siglaDaMedida(rotulo)).replace(/ \S+$/, '') : String(l.quantity),
+    qtd: quantidadeDoPdf({ quantity: l.quantity, unit_label: rotulo }),
     valorTabela: semRs(totalDaLinhaCents(l.unit_price_cents, l.quantity)),
     ajuste: ajusteDoItemEmPct(l),
     total: semRs(l.total_cents),

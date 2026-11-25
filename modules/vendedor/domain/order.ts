@@ -1,5 +1,5 @@
 import { applyPct, type Cents, formatBRL } from '@macuxi/comum';
-import { quantidadeDaEscala, quantidadeEmEscala, totalDaLinhaCents } from '@macuxi/comum/quantidade';
+import { quantidadeDaEscala, quantidadeEmEscala, quantidadeValida, totalDaLinhaCents } from '@macuxi/comum/quantidade';
 
 export interface OrderLineInput {
   product_id: string;
@@ -37,15 +37,6 @@ export function computeOrderTotals(lines: OrderLineInput[], discountPct: number)
     });
   const units = quantidadeDaEscala(unitsEscala);
   return { units, lines: out, subtotal_cents: subtotal, discount_cents: discount, total_cents: subtotal - discount };
-}
-
-/** RN-VEN-02 v3: quantidade ≥ 0 com até 4 casas (a fração só em KG/M é conferida por `exigirQuantidade`, que sabe a unidade). */
-function quantidadeValida(q: number): boolean {
-  try {
-    return quantidadeEmEscala(q) >= 0;
-  } catch {
-    return false;
-  }
 }
 
 export function clampPct(pct: number): number {
@@ -146,7 +137,8 @@ export function validateOrder(input: ValidateOrderInput): OrderValidation {
   const issues: OrderIssue[] = [];
   const priced: OrderLineInput[] = [];
   for (const l of input.lines) {
-    if (!quantidadeValida(l.quantity)) {
+    // RN-VEN-02 v3: quantidade ≥ 0 com até 4 casas (a fração em KG/M é conferida por `exigirQuantidade`)
+    if (!quantidadeValida(l.quantity) || l.quantity < 0) {
       issues.push({ code: 'invalid_quantity', message: 'Quantidade inválida em um dos itens.', blocking: true, needs_approval: false });
       continue;
     }

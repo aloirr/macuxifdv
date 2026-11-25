@@ -19,7 +19,7 @@ import { formatBRL } from '@macuxi/comum';
 import type { PedidoFaturadoEvento } from '../contracts/eventos';
 import { formatarQuantidade } from '@macuxi/comum/quantidade';
 import type { OrderStatus } from './order';
-import { somarQuantidades, subtrairQuantidades } from './quantidade';
+import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 
 /** Retorno do ERP como o Vendedor precisa (subconjunto de `integracao.pedido.retorno_erp@1`). */
 export interface RetornoErpEntrada {

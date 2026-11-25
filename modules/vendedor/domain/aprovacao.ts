@@ -11,9 +11,9 @@ import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
 import { CODIGO_DESCONTO_PEDIDO_ACIMA_LIMITE, limiteDoUsuario, mensagemPedidoAcimaDoLimite, minimoDoItem, pedidoAcimaDoLimite } from './limite-desconto';
 import type { LimiteDesconto } from '@macuxi/core/contracts';
-import { quantidadeDaEscala, quantidadeEmEscala, totalDaLinhaCents } from '@macuxi/comum/quantidade';
+import { ESCALA_QUANTIDADE, somarQuantidades, totalDaLinhaCents } from '@macuxi/comum/quantidade';
 import { CODIGO_FRACAO_INVALIDA } from '@macuxi/platform-sdk';
-import { exigirQuantidade } from './quantidade';
+import { exigirQuantidade, MENSAGEM_FRACAO_INVALIDA_PEDIDO } from './quantidade';
 import { permilDoDescontoExibido, precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, mensagemAcimaDoMaximo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
 
 // ---------- vocabulário ----------
@@ -417,7 +417,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
     try {
       exigirQuantidade({ quantidade: it.quantity, unidade: it.unidade ?? null, fator: it.fator ?? 1 });
     } catch {
-      return { ok: false, codigo: CODIGO_FRACAO_INVALIDA, http: 422, mensagem: `Item ${it.sku}: quantidade com casas decimais só em KG e M, com até 4 casas.` };
+      return { ok: false, codigo: CODIGO_FRACAO_INVALIDA, http: 422, mensagem: `Item ${it.sku}: ${MENSAGEM_FRACAO_INVALIDA_PEDIDO}` };
     }
     if (validarAcrescimoOuDesconto({ desconto_pct: it.desconto_pct ?? 0, acrescimo_pct: it.acrescimo_pct ?? 0 })) {
       return { ok: false, codigo: 'desconto_e_acrescimo', http: 422, mensagem: `Item ${it.sku}: ${MSG_DESCONTO_E_ACRESCIMO}` };
@@ -428,7 +428,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
     }
     const chave = `${it.product_id}|${it.unidade ?? ''}`;
     const atual = somados.get(chave);
-    if (atual) atual.quantity = quantidadeDaEscala(quantidadeEmEscala(atual.quantity) + quantidadeEmEscala(it.quantity));
+    if (atual) atual.quantity = somarQuantidades(atual.quantity, it.quantity);
     else somados.set(chave, { ...it });
   }
   if (somados.size === 0) return { ok: false, codigo: 'PAYLOAD_INVALIDO', http: 422, mensagem: 'Inclua ao menos um item no pedido.' };
@@ -768,7 +768,7 @@ export function montarPedidoAprovado(e: PedidoAprovadoEntrada): PedidoAprovadoPa
   const novo = e.acrescimo_pct !== undefined || e.itens.some((i) => i.fator !== undefined || i.unidade !== undefined || i.quantidade_venda !== undefined || i.acrescimo_pct !== undefined);
   const itens = e.itens.map((i, idx) => {
     const fator = i.fator ?? 1;
-    const venda = i.quantidade_venda ?? Math.round((i.quantidade / fator) * 10_000) / 10_000;
+    const venda = i.quantidade_venda ?? Math.round((i.quantidade / fator) * ESCALA_QUANTIDADE) / ESCALA_QUANTIDADE;
     const tabelaLinha = totalDaLinhaCents(i.preco_tabela_cents, venda);
     const base = {
       sequencia: idx + 1,

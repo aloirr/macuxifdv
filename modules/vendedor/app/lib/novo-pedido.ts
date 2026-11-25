@@ -14,7 +14,7 @@ import type { LimiteDesconto } from '@macuxi/core/contracts';
 import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
 import type { ErroDeCalculo } from '../../domain/pendencias-preenchimento';
 import { faixasDaConsulta, medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
-import { somarQuantidades } from '../../domain/quantidade';
+import { somarQuantidades } from '@macuxi/comum/quantidade';
 import { precoDoItemNoPrazo } from '../../domain/troca-prazo';
 import {
   ajusteDePct,

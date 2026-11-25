@@ -11,7 +11,7 @@ import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from 
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, FormaPagamentoSync, PedidoEventoSync, PedidoItemSync, PedidoSync, PrazoPagamentoSync } from '../../contracts/sync';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { TransportadoraSync } from '../../contracts/frete';
-import { somarQuantidades } from '../../domain/quantidade';
+import { somarQuantidades } from '@macuxi/comum/quantidade';
 import { limiteDoUsuario } from '../../domain/limite-desconto';
 import { precoMinimoBaseCents, rotuloMedida } from '../../domain/preco-pedido';
 import type { EnderecoDaTela, ProdutoComMinimo, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';

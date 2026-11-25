@@ -18,7 +18,7 @@ import { ajusteDoItemEmPct, linhasDosTotais, ROTULO_VALOR_FINAL, semRs, siglaDaM
 import { LOGO_PADRAO_DATA_URI } from './logo-padrao';
 import { dataDaValidade } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
-import { somarQuantidades } from './quantidade';
+import { somarQuantidades } from '@macuxi/comum/quantidade';
 
 /** Data/hora no fuso (Intl); local ao domínio para não importar a UI (E5 move isto para @macuxi/comum). */
 function zonedParts(at: string, tz: string): { year: number; month: number; day: number; hour: number; minute: number } {

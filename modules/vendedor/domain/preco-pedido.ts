@@ -5,7 +5,7 @@
  * RN-VEN-16 (frete CIF/FOB sem valor) e RN-VEN-17 (endereço de entrega). Percentuais têm 2 casas (`Pct`).
  */
 import { cnpjValido, somenteDigitos } from '@macuxi/comum';
-import { ESCALA_QUANTIDADE, formatarQuantidade, quantidadeBase, quantidadeEmEscala, totalDaLinhaCents } from '@macuxi/comum/quantidade';
+import { ESCALA_QUANTIDADE, quantidadeBase, quantidadeEmEscala, totalDaLinhaCents } from '@macuxi/comum/quantidade';
 
 import { checkDiscount, clampPct, type DiscountPolicy } from './order';
 import { exigirFator } from './quantidade';
@@ -420,11 +420,8 @@ export function resolverEnderecoEntrega(escolhido: string | null | undefined, en
 }
 
 // ---------- medida (RN-CORE-19) ----------
-/** PDF e detalhe: fator 1 → "UN"; embalagem → "CX c/ 12". */
-export function rotuloMedida(unidade: string, fator: number): string {
-  // ADR 0076: fator fracionário com vírgula (CX c/ 12,5)
-  return fator > 1 ? `${unidade} c/ ${Number.isInteger(fator) ? fator : formatarQuantidade(fator, null)}` : unidade;
-}
+/** PDF e detalhe: fator 1 → "UN"; embalagem → "CX c/ 12" (fonte única: `rotuloDaUnidade` do Core, RN-CORE-19). */
+export { rotuloDaUnidade as rotuloMedida } from '@macuxi/core/contracts';
 
 // ---------- unidade vendida (RN-VEN-15) ----------
 export interface UnidadeDeVendaDoProduto {

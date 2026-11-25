@@ -1,5 +1,5 @@
 import type { PedidoFaturadoEvento } from '../contracts/eventos';
-import { somarQuantidades, subtrairQuantidades } from './quantidade';
+import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 
 /** Retorno do ERP (subconjunto de `integracao.pedido.retorno_erp@1`, sem importar a integração). */
 export interface RetornoFaturamento {

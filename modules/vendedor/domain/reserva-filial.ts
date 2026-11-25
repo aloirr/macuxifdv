@@ -2,7 +2,7 @@
  * RN-VEN-20 (T-0149; RN-CORE-39): estoque e reserva pela FILIAL do pedido. Funções puras, usadas pela API (confere ao receber) e
  * pelo app (estoque mostrado e validação offline). Quais depósitos valem para a filial é regra do Catálogo (`@macuxi/catalogo/contracts`).
  */
-import { somarQuantidades, subtrairQuantidades } from './quantidade';
+import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 
 
 /** Pedido que segura estoque: aceito pela API e ainda não faturado por inteiro, cancelado ou rejeitado (migração 0061). */
