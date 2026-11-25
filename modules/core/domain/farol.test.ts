@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { corDaPositivacao, mascararDocumentoDoFarol, corDoCliente, diasSemCompraDoFarol, ordenarClientesDoFarol, parametrosFarolDasLinhas, PARAMETROS_FAROL_PADRAO, resumirFarol, validarParametrosFarol } from './farol';
+import { corDaPositivacao, mascararDocumentoDoFarol, corDoCliente, diasSemCompraDoFarol, ordenarClientesDoFarol, parametrosFarolDasLinhas, PARAMETROS_FAROL_PADRAO, resumirFarol, umaLinhaPorCliente, validarParametrosFarol } from './farol';
 
 const P = PARAMETROS_FAROL_PADRAO;
 const cor = (dias: number | null, positivado_mes = false) => corDoCliente({ dias_sem_compra: dias, positivado_mes }, P);
@@ -30,6 +30,16 @@ describe('RN-CORE-28: farol de clientes', () => {
   });
   it('RN-CORE-28: cor do vendedor/equipe pela positivação (70% verde, 50% amarelo, abaixo vermelho; limites inclusos)', () => {
     expect([corDaPositivacao(7, 10, P), corDaPositivacao(69, 100, P), corDaPositivacao(5, 10, P), corDaPositivacao(49, 100, P), corDaPositivacao(0, 3, P)]).toEqual(['verde', 'amarelo', 'amarelo', 'vermelho', 'vermelho']);
+  });
+  it('RN-CORE-28: uma linha por cliente; vale a de quem positivou, senão a primeira', () => {
+    const l = [
+      { c: 'c1', u: 'v1', p: false },
+      { c: 'c1', u: 'v2', p: true },
+      { c: 'c2', u: 'v1', p: false },
+      { c: 'c2', u: 'v2', p: false },
+    ];
+    const r = umaLinhaPorCliente(l, (i) => i.c, (i) => i.p);
+    expect(r).toEqual([l[1], l[2]]);
   });
   it('RN-CORE-28: carteira vazia não tem cor', () => {
     expect(corDaPositivacao(0, 0, P)).toBeNull();

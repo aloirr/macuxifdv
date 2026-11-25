@@ -75,7 +75,10 @@ describe('RN-CORE-28: GET /v1/core/farol (cálculo)', () => {
     expect(f.resumo).toMatchObject({ carteira: 3, positivados: 1, por_cor: { verde: 1, amarelo: 0, vermelho: 1, sem_compra: 1 } });
     // C1 aparece nas duas linhas (V1 positivou; V2 não): a do V2 é vermelha, mas no total o cliente conta positivado uma vez
     expect(f.vendedores.map((v) => [v.nome, v.carteira, v.positivados])).toEqual([['Ana', 2, 1], ['Beto', 2, 0]]);
-    expect(f.clientes.map((c) => [c.nome, c.cor])).toEqual([['Alfa', 'vermelho'], ['Beta', 'vermelho'], ['Gama', 'sem_compra'], ['Alfa', 'verde']]);
+    expect(f.clientes.map((c) => [c.nome, c.cor])).toEqual([['Beta', 'vermelho'], ['Gama', 'sem_compra'], ['Alfa', 'verde']]);
+    // RN-CORE-28: a lista tem uma linha por cliente, então cada contador do resumo é o tamanho da lista filtrada pela cor
+    expect(f.clientes.length).toBe(f.resumo.carteira);
+    expect(f.clientes.filter((c) => c.cor === 'vermelho').length).toBe(f.resumo.por_cor.vermelho);
     expect(f.clientes.every((c) => c.documento_mascarado === '12.345.678/****-**')).toBe(true);
   });
   it('RN-CORE-28: sem linha de parâmetro vale 30/45; com parâmetro do tenant mudam as faixas', async () => {
