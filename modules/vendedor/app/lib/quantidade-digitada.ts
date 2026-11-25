@@ -21,3 +21,14 @@ export function propsDoPassoDaQuantidade(
   const fracao = unidadeFracionaria(unidade) && liberada;
   return { min: fracao ? 0.0001 : 1, decimal: { casas: fracao ? 4 : 0, avisoSemCasas: MENSAGEM_SO_INTEIRO } };
 }
+
+/** Quantidade ao trocar a embalagem na folha do item: trunca nas casas da nova medida e respeita o mínimo dela (1,25 kg vira 1 em CX; 0,5 kg vira 1). */
+export function quantidadeAoTrocarMedida(qtd: number, unidade: string | null | undefined, liberada: boolean): number {
+  const { min, decimal } = propsDoPassoDaQuantidade(unidade, liberada);
+  return Math.max(truncarCasas(qtd, decimal.casas), min);
+}
+
+/** O botão da folha confirma quando a quantidade chega ao mínimo da medida (0,5 kg vale com a trava aberta). */
+export function quantidadeConfirmavel(qtd: number, unidade: string | null | undefined, liberada: boolean): boolean {
+  return qtd >= propsDoPassoDaQuantidade(unidade, liberada).min;
+}

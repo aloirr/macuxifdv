@@ -6,7 +6,28 @@ import { linhaDeItemEmTabela } from './detalhe-pedido';
 import { aplicarItemNoRascunho } from './item-popup';
 import { prefillLines } from './order-prefill';
 import { nomeDaSugestao } from './textos-pedido';
-import { MENSAGEM_SO_INTEIRO, propsDoPassoDaQuantidade, quantidadeDoItem } from './quantidade-digitada';
+import { MENSAGEM_SO_INTEIRO, propsDoPassoDaQuantidade, quantidadeAoTrocarMedida, quantidadeConfirmavel, quantidadeDoItem } from './quantidade-digitada';
+
+describe('troca de embalagem na folha do item (RN-VEN-02 v3)', () => {
+  it('RN-VEN-02 v3: de KG 1,25 para CX a quantidade vira 1 (sem fração)', () => {
+    expect(quantidadeAoTrocarMedida(1.25, 'CX', true)).toBe(1);
+  });
+  it('RN-VEN-02 v3: de KG 0,5 para CX sobe ao mínimo 1 (nunca 0)', () => {
+    expect(quantidadeAoTrocarMedida(0.5, 'CX', true)).toBe(1);
+  });
+  it('RN-VEN-02 v3: KG com a trava aberta mantém a fração e respeita o mínimo 0,0001', () => {
+    expect(quantidadeAoTrocarMedida(1.25, 'KG', true)).toBe(1.25);
+    expect(quantidadeAoTrocarMedida(0.00001, 'KG', true)).toBe(0.0001);
+  });
+  it('RN-VEN-02 v3: KG com a trava fechada fica inteiro', () => {
+    expect(quantidadeAoTrocarMedida(2.7, 'KG', false)).toBe(2);
+  });
+  it('RN-VEN-02 v3: confirmar vale com 0,5 kg e a trava aberta, e não vale com 0', () => {
+    expect(quantidadeConfirmavel(0.5, 'KG', true)).toBe(true);
+    expect(quantidadeConfirmavel(0, 'KG', true)).toBe(false);
+    expect(quantidadeConfirmavel(0.5, 'KG', false)).toBe(false);
+  });
+});
 
 describe('campo da quantidade em KG e M (RN-VEN-02 v3, ADR 0076 D6)', () => {
   it('RN-VEN-02 v3: KG/M com a trava fechada: mínimo 1, casas 0 e aviso (o "−" não leva 1 kg a 0,0001)', () => {

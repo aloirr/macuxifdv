@@ -17,7 +17,7 @@ import { linhasDosTotais, ROTULO_VALOR_FINAL } from '../../domain/apresentacao-t
 import type { AjusteGeral } from '../../domain/desconto-geral';
 import { descontoMaximoDoItemPct, rotuloMedida } from '../../domain/preco-pedido';
 import { nomeComMarca } from '../lib/detalhe-pedido';
-import { propsDoPassoDaQuantidade } from '../lib/quantidade-digitada';
+import { propsDoPassoDaQuantidade, quantidadeAoTrocarMedida, quantidadeConfirmavel } from '../lib/quantidade-digitada';
 import { alertasDoItem, chavesDoProduto, estadoInicialDoItem, estoqueNaEmbalagem, numeroDoEstoque, riscoDeRuptura, ROTULOS_DO_POPUP, TEXTO_RISCO_DE_RUPTURA, type EstadoDoItem } from '../lib/item-popup';
 import { alternarAplicacao, minimoDoProdutoNoPrazo, type Ajuste, type CalculoPedido, type ProdutoComMinimo, type UnidadeDaTela } from '../lib/novo-pedido';
 import { AreaAlertas } from './area-alertas';
@@ -86,7 +86,10 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
               style={larguraQtd !== undefined && medidas.length > 1 ? { width: larguraQtd } : { alignSelf: 'flex-start' }}
               valor={String(idx)}
               opcoes={medidas.map((x, i) => ({ id: String(i), rotulo: i === 0 ? x.unidade : rotuloMedida(x.unidade, x.fator), rotuloAcessivel: `Embalagem ${rotuloMedida(x.unidade, x.fator)}`, testID: `popup-item-embalagem-${x.unidade}` }))}
-              onChange={(novo) => setIdx(Number(novo))}
+              onChange={(novo) => {
+                setIdx(Number(novo));
+                setQtd(quantidadeAoTrocarMedida(qtd, medidas[Number(novo)]?.unidade, ambiente.fracaoLiberada()));
+              }}
             />
           </View>
           <View style={s.colunaEstoque}>
@@ -143,7 +146,7 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
             </View>
           </View>
         ) : null}
-        <Botao testID="popup-item-confirmar" nivel="principal" rotulo={inicial.reabrindo ? ROTULOS_DO_POPUP.salvar : ROTULOS_DO_POPUP.adicionar} desligado={qtd < 1 || p.price_cents === null} onPress={() => onConfirmar({ idx, qtd, ajuste })} />
+        <Botao testID="popup-item-confirmar" nivel="principal" rotulo={inicial.reabrindo ? ROTULOS_DO_POPUP.salvar : ROTULOS_DO_POPUP.adicionar} desligado={!quantidadeConfirmavel(qtd, medida.unidade, ambiente.fracaoLiberada()) || p.price_cents === null} onPress={() => onConfirmar({ idx, qtd, ajuste })} />
         {inicial.reabrindo ? (
           <Pressable testID="popup-item-remover" accessibilityRole="button" accessibilityLabel={ROTULOS_DO_POPUP.remover} onPress={onRemover} style={s.remover}>
             <Text style={s.removerTexto}>{ROTULOS_DO_POPUP.remover}</Text>
