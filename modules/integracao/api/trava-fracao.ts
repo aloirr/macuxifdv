@@ -3,13 +3,10 @@
  * sempre 422 `quantidade_fracionaria_invalida`; fração válida com a trava fechada é 422 `quantidade_fracionaria_bloqueada`.
  * "Fechada" também vale quando a rota não tem `ctx.versaoApp` (porta ainda não injetada no contexto do Conector).
  */
-import { ErroConector, fracaoLiberada, type PortaVersaoApp } from '@macuxi/platform-sdk';
+import { type ContextoConector, ErroConector, fracaoLiberada } from '@macuxi/platform-sdk';
 import type { ResultadoFracao } from '../domain';
 
-interface ContextoComVersao {
-  agora(): Date;
-  versaoApp?: PortaVersaoApp;
-}
+type ContextoComVersao = Pick<ContextoConector, 'agora' | 'versaoApp'>;
 
 export async function exigirFracaoLiberada(ctx: ContextoComVersao, avaliar: (liberada: boolean) => ResultadoFracao): Promise<void> {
   // só consulta as versões publicadas quando há fração válida de verdade (o caminho comum, sem fração, não paga a consulta)
