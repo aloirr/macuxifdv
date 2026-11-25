@@ -94,6 +94,8 @@ export interface EntradaRankingEquipe {
   agora: string;
 }
 
+const INDICADORES_DE_VENDA: ReadonlySet<string> = new Set(['vendas_cents', 'pedidos', 'positivados', 'ticket_medio_cents', 'atingimento_meta_pct']);
+
 function valorDoIndicador(e: EntradaRankingEquipe, membro: MembroEquipe, inicio: string, fim: string, params: ParametrosGestor): number | null {
   const { estado } = e;
   switch (e.indicador) {
@@ -138,5 +140,5 @@ export function rankingDaEquipe(e: EntradaRankingEquipe): RankingEquipe {
       pedidos: x.perfil === 'vendedor' && e.modulos.has('vendedor') ? v.pedidos : 0,
     };
   });
-  return { indicador: e.indicador, periodo: e.periodo, inicio, fim, sentido: def.sentido, linhas: ordenarRanking(entradas, def.sentido), calculado_em: e.agora };
+  return { indicador: e.indicador, periodo: e.periodo, inicio, fim, sentido: def.sentido, linhas: ordenarRanking(entradas, def.sentido), ...(INDICADORES_DE_VENDA.has(e.indicador) ? { base_apuracao: params.base_apuracao } : {}), calculado_em: e.agora };
 }

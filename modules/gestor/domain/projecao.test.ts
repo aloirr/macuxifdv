@@ -92,6 +92,18 @@ describe('apuração do pedido (RN-CORE-21, RN-VEN-30)', () => {
     expect(apuracaoDoPedido(p, 'aprovado').desde).toBe('2026-10-30T15:00:00Z');
   });
 
+  it.each([
+    ['received com id menor', 'ev-a', 'ev-b'],
+    ['received com id maior', 'ev-z', 'ev-b'],
+  ])('RN-GES-06/RN-CORE-21: recebido e aprovado no MESMO instante (aprovação automática) contam — %s', (_n, idRecebido, idAprovado) => {
+    const em = '2026-10-30T15:00:00Z';
+    const s = montar([pedidoCriado({ total: 10_000, em }), statusAlterado({ para: 'recebido', em }, idRecebido), statusAlterado({ para: 'aprovado', em }, idAprovado)]);
+    const p = s.pedidos[u(1000)]!;
+    expect(statusAtual(p)).toBe('aprovado');
+    expect(apuracaoDoPedido(p, 'aprovado')).toEqual({ conta: true, desde: em });
+    expect(vendasApuradas(s, 'aprovado')).toHaveLength(1);
+  });
+
   it('RN-CORE-21: líquido de cancelamentos — pedido cancelado depois de aprovado deixa de contar', () => {
     const s = montar([pedidoCriado({ total: 10_000 }), statusAlterado({ para: 'aprovado', em: '2026-10-30T15:00:00Z' }), statusAlterado({ para: 'cancelado', em: '2026-10-31T09:00:00Z' })]);
     expect(statusAtual(s.pedidos[u(1000)]!)).toBe('cancelado');

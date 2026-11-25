@@ -1,5 +1,6 @@
 /** Ranking da equipe por indicador e período (RF-GES-03). Desempate total e documentado em docs/modulos/gestor/regras.md. */
 import { z } from 'zod';
+import { BaseApuracao } from './parametros';
 import { InstanteUtc, IsoDate, PerfilContrato, PeriodoRanking, Uuid } from './base';
 
 export const INDICADORES_RANKING = [
@@ -39,6 +40,8 @@ export const RankingEquipe = z
     /** `maior` = quanto maior, melhor; `menor` = quanto menor, melhor (ex.: ruptura). */
     sentido: z.enum(['maior', 'menor']),
     linhas: z.array(LinhaRanking),
+    /** RN-CORE-21: base das vendas; só nos indicadores que derivam de venda. */
+    base_apuracao: BaseApuracao.optional(),
     calculado_em: InstanteUtc,
   })
   .strict();

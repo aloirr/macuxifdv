@@ -102,6 +102,13 @@ describe('RF-GES-03: ranking da equipe com escopo (RN-CORE-04) e módulos', () =
     expect(diario.linhas.every((l) => l.valor === null && l.posicao === null)).toBe(true);
   });
 
+  it('RN-CORE-21: o ranking de venda informa a base de apuração (padrão aprovado; faturado conforme a meta); indicador de visita não', () => {
+    const v = { viewer: { id: SUP, perfil: 'supervisor' as const }, periodo: 'mensal' as const };
+    expect(rankingDaEquipe({ ...base, ...v, indicador: 'vendas_cents' }).base_apuracao).toBe('aprovado');
+    expect(rankingDaEquipe({ ...base, ...v, indicador: 'vendas_cents', params: { base_apuracao: 'faturado' } }).base_apuracao).toBe('faturado');
+    expect(rankingDaEquipe({ ...base, ...v, indicador: 'cobertura_pct' }).base_apuracao).toBeUndefined();
+  });
+
   it('ticket médio e positivados saem do mesmo período', () => {
     const t = rankingDaEquipe({ ...base, viewer: { id: SUP, perfil: 'supervisor' }, indicador: 'ticket_medio_cents', periodo: 'mensal' });
     expect(t.linhas.map((l) => [l.nome, l.valor])).toEqual([['Ana', 60_000], ['Carla', 50_000], ['Bruno', 25_000]]);
