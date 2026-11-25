@@ -7,7 +7,9 @@
 import {
   AppVersaoPublicadaSchema,
   AppVersaoPublicadaV2Schema,
+  AppVersaoPublicadaV3Schema,
   CABECALHO_APP,
+  CONTRATO_APP_VERSAO_V3,
   criarServicoPacotesMemoria,
   definirModuloApi,
   ErroAppDesatualizadoSchema,
@@ -126,7 +128,47 @@ describe('GET /v1/app/versao', () => {
     expect((await montar({}).inject({ method: 'GET', url: '/v1/app/versao?variante=campo' })).json().codigo).toBe('SEM_VERSAO');
   });
 
-  it.each(['/v1/app/versao', '/v1/app/versao?variante=web', '/v1/app/versao?variante=campo&tenant=x', '/v1/app/versao?variante=campo&contrato=3'])('%s = 400 VALIDACAO', async (url) => {
+  describe('contrato=3: fracao_liberada calculado no servidor (ADR 0076 D6, RN-VEN-02 v3)', () => {
+    const PUB = '2026-11-25T12:00:00.000Z';
+    const H = 3_600_000;
+    const em = (ms: number) => () => new Date(Date.parse(PUB) + ms);
+    const montarV3 = (env: NodeJS.ProcessEnv, relogio: () => Date) =>
+      createApp(opcoesDeTeste(undefined, { versoesApp: versoesAppDoAmbiente(env), relogio }));
+    const AMBOS = { APP_CAMPO_VERSAO: '1.0.36', APP_CAMPO_PUBLICADA_EM: PUB, APP_GESTAO_VERSAO: '1.0.36', APP_GESTAO_PUBLICADA_EM: PUB };
+    const trava = async (env: NodeJS.ProcessEnv, relogio: () => Date, variante: 'campo' | 'gestao' = 'campo') => {
+      const r = await montarV3(env, relogio).inject({ method: 'GET', url: rotaAppVersao(variante, CONTRATO_APP_VERSAO_V3) });
+      expect(r.statusCode, r.body).toBe(200);
+      return AppVersaoPublicadaV3Schema.parse(r.json()).fracao_liberada;
+    };
+
+    it('V3 válido: V2 + fracao_liberada, sem dado de tenant nem apk_url', async () => {
+      const r = await montarV3(AMBOS, em(24 * H)).inject({ method: 'GET', url: rotaAppVersao('gestao', CONTRATO_APP_VERSAO_V3) });
+      expect(r.headers['cache-control']).toBe(CACHE_APP_VERSAO);
+      expect(r.json()).toEqual({ variante: 'gestao', versao: '1.0.36', publicada_em: PUB, fracao_liberada: true });
+    });
+
+    it('fechada antes das 24 h das duas 1.0.36; aberta a partir das 24 h, para as duas variantes', async () => {
+      expect(await trava(AMBOS, em(24 * H - 1))).toBe(false);
+      expect(await trava(AMBOS, em(24 * H))).toBe(true);
+      expect(await trava(AMBOS, em(24 * H), 'gestao')).toBe(true);
+    });
+
+    it('o Campo sozinho não abre: o servidor olha também o Gestão publicado (sem versão, menor ou sem hora = fechada)', async () => {
+      const campo = { APP_CAMPO_VERSAO: '1.0.36', APP_CAMPO_PUBLICADA_EM: PUB };
+      expect(await trava(campo, em(48 * H))).toBe(false);
+      expect(await trava({ ...campo, APP_GESTAO_VERSAO: '1.0.35', APP_GESTAO_PUBLICADA_EM: PUB }, em(48 * H))).toBe(false);
+      expect(await trava({ ...campo, APP_GESTAO_VERSAO: '1.0.36' }, em(48 * H))).toBe(false);
+      expect(await trava({ ...campo, APP_GESTAO_VERSAO: '1.0.37' }, em(48 * H))).toBe(true);
+    });
+
+    it('o V2 não muda: sem fracao_liberada, para os apps da v1.0.19 à v1.0.35 (strict)', async () => {
+      const r = await montarV3(AMBOS, em(48 * H)).inject({ method: 'GET', url: rotaAppVersao('campo') });
+      expect(r.json()).toEqual({ variante: 'campo', versao: '1.0.36', publicada_em: PUB });
+      expect(AppVersaoPublicadaV2Schema.safeParse(r.json()).success).toBe(true);
+    });
+  });
+
+  it.each(['/v1/app/versao', '/v1/app/versao?variante=web', '/v1/app/versao?variante=campo&tenant=x', '/v1/app/versao?variante=campo&contrato=4'])('%s = 400 VALIDACAO', async (url) => {
     const r = await montar().inject({ method: 'GET', url });
     expect(r.statusCode).toBe(400);
     expect(r.json().codigo).toBe('VALIDACAO');
