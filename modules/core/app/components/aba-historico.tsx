@@ -16,6 +16,7 @@ import {
   dataBr,
   contarFiltros,
   dataCurta,
+  textoQuantidade,
   devolucaoNaCelula,
   FILTRO_PADRAO,
   filtroDeNotas,
@@ -227,7 +228,7 @@ function FolhaDaNota({ detalhe }: { detalhe: DetalheDaNota }) {
             celulas: [
               <CelulaTexto key="p" principal={i.produto_nome} segunda={i.produto_codigo} segundaCodigo />,
               <CelulaTexto key="e" principal={i.unidade ? rotuloDaUnidade(i.unidade, i.fator ?? 1) : '—'} dir />,
-              <CelulaTexto key="q" principal={String(i.quantidade)} dir />,
+              <CelulaTexto key="q" principal={textoQuantidade(i.quantidade)} dir />,
               <CelulaTexto key="t" principal={valorSemMoeda(i.total_cents)} dir />,
             ],
           }))}

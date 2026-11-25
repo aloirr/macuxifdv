@@ -10,7 +10,7 @@ import { Linking, Pressable, Text, View } from 'react-native';
 import type { CartaoCredito } from '../../contracts';
 import { observacaoComCadastro, type PerformanceCalculada } from '../../domain';
 import type { Cliente360Local } from '../lib/cliente360-local';
-import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, valorSemMoeda } from '../lib/ficha-v2';
+import { dataCurta, linhasCartaoCredito, linhasDadosCadastrais, linhasPerformance, textoQuantidade, valorSemMoeda } from '../lib/ficha-v2';
 import { useCarteiraDoCliente } from '../lib/usar-ficha-online';
 import { mapsUrl } from '../lib/route';
 import { ErroOnline } from './erro-online';
@@ -184,7 +184,7 @@ export function AbaResumo({
               key: i.produto_id,
               celulas: [
                 <CelulaTexto key="p" principal={i.nome} segunda={i.codigo} segundaCodigo />,
-                <CelulaTexto key="q" principal={`${i.quantidade}${i.unidade ? ` ${i.unidade}` : ''}`} dir />,
+                <CelulaTexto key="q" principal={textoQuantidade(i.quantidade, i.unidade)} dir />,
                 <CelulaTexto key="d" principal={dataCurta(i.data_local)} mudo />,
                 <CelulaTexto key="t" principal={valorSemMoeda(i.total_cents)} dir />,
               ],

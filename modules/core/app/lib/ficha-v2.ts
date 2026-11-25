@@ -4,6 +4,7 @@
  * Sem alerta financeiro na ficha (R-20261119-0440): o atraso aparece só na tabela do Histórico.
  */
 import { formatarDocumento, formatBRL } from '@macuxi/comum';
+import { formatarQuantidade } from '@macuxi/comum/quantidade';
 import type { LinhaRotuloValor } from '@macuxi/ui/mobile';
 
 import {
@@ -298,4 +299,10 @@ export function linhasDoDetalheDaNota(n: NotaDetalhe): LinhaRotuloValor[] {
 /** "4 itens · R$ 1.280,00": a soma dos itens, embaixo do título da folha de itens. */
 export function resumoDosItens(itens: ReadonlyArray<{ total_cents: number }>): string {
   return `${itens.length} ${itens.length === 1 ? 'item' : 'itens'} · ${formatBRL(itens.reduce((soma, i) => soma + i.total_cents, 0))}`;
+}
+
+/** Quantidade da tela (RN-VEN-02 v3): vírgula e ponto de milhar, sem ponto decimal cru; a unidade, se houver, vem depois. */
+export function textoQuantidade(quantidade: number, unidade?: string | null): string {
+  const sigla = (unidade ?? '').trim();
+  return `${formatarQuantidade(quantidade, null)}${sigla ? ` ${sigla}` : ''}`;
 }
