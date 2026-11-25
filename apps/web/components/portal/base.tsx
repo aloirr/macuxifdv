@@ -224,18 +224,16 @@ export function itemAtivoDoMenu(caminho: string | null): string | null {
 }
 
 /**
- * "Trocar a senha" do menu do usuário do portal: o time Macuxi pela rota do portal (ADR 0075; a sessão diz quem é, a troca derruba
- * a sessão); o admin do cliente com a empresa escolhida pela rota pública do Core (o código da empresa vai no pedido; o e-mail ele
- * digita). Se a sessão do portal cair, a pessoa vai à entrada com o aviso.
+ * "Trocar a senha" do menu do usuário do portal: o time Macuxi e o admin do cliente com a empresa escolhida pela rota do portal
+ * (ADR 0075; a sessão diz quem é). A troca derruba a sessão e a pessoa vai à entrada com o aviso.
  */
 function trocaDeSenhaDoPortal(sessao: SessaoPortal, irParaEntrada: () => void): TrocaDeSenhaNoMenu | undefined {
   if (!podeTrocarSenhaNoPortal(sessao)) return undefined;
   return {
-    pedirEmail: sessao.tipo === 'admin_cliente',
     enviar: async (p) => {
-      const r = await trocarSenhaNoPortal(lerSessaoPortal() ?? sessao, p);
-      if (r === 'entrar_de_novo') irParaEntrada();
-      return r === 'continua';
+      await trocarSenhaNoPortal(p);
+      irParaEntrada();
+      return false;
     },
     erro: erroDaTrocaNoPortal,
   };

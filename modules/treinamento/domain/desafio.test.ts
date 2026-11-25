@@ -358,10 +358,14 @@ describe('T-0106: fuso único e quantidade inteira no desafio', () => {
     expect(lancarPedidoNoDesafio(desafio, pedido(), 'L2', [r.lancamento], params)).toBeNull();
   });
 
-  it('RF-TRE-06: quantidade fracionária não conta (contrato manda inteiro; sem arredondamento por evento)', () => {
-    const p = pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 0.5 }, { produto_id: 'cafe-500', quantidade: 2 }] });
-    expect(avaliarPedidoNoDesafio(desafio, p)).toEqual({ elegivel: true, unidades: 2, pontos_base: 4 });
+  it('RN-TRE-08: quantidade decimal soma exata (sem float nem truncar) e o XP é o inteiro para baixo', () => {
+    // 0,1 + 0,2 + 2 = 2,3 exato (em float daria 2.3000000000000003); 2,3 × 2 XP = 4,6 → 4
+    const p = pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 0.1 }, { produto_id: 'cafe-250', quantidade: 0.2 }, { produto_id: 'cafe-500', quantidade: 2 }] });
+    expect(avaliarPedidoNoDesafio(desafio, p)).toEqual({ elegivel: true, unidades: 2.3, pontos_base: 4 });
+    // 0,29 × 100 em float é 28.999...; aqui paga 29 (xp_por_unidade 100)
+    const d100 = { ...desafio, xp_por_unidade: 100, xp_max_por_pedido: 1000 };
+    expect(avaliarPedidoNoDesafio(d100, pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 0.29 }] }))).toEqual({ elegivel: true, unidades: 0.29, pontos_base: 29 });
     const so = pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 0.5 }] });
-    expect(avaliarPedidoNoDesafio(desafio, so)).toEqual({ elegivel: false, motivo: 'SEM_ITENS_DA_CAMPANHA' });
+    expect(avaliarPedidoNoDesafio(desafio, so)).toEqual({ elegivel: true, unidades: 0.5, pontos_base: 1 });
   });
 });

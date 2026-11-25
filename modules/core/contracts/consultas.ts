@@ -3,7 +3,7 @@
  * `core.cadastro_resumo@1` (T-0029): o Vendedor valida cliente/produtos/vendedor no push do pedido e guarda o
  * retrato do documento + as chaves do ERP (`external_id`) para o Hub. Id inexistente ou removido fica de fora.
  */
-import { definirConsulta } from '@macuxi/platform-sdk';
+import { definirConsulta, FatorDecimalSchema } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { LimiteDescontoSchema } from './usuarios';
 import { ParametrosAlertasProdutividadeSchema } from './alertas-produtividade';
@@ -65,7 +65,7 @@ export const CadastroResumoSaidaSchema = z.object({
       preco_venda_cents: z.number().int().nonnegative().nullable().optional(),
       /** T-0071 / RN-VEN-11 (aditivo): desconto máximo EFETIVO em % (próprio ?? parâmetro core.desconto_maximo_produto_pct do tenant ?? 15). */
       desconto_maximo_pct: z.number().min(0).max(100).optional(),
-      unidades: z.array(z.object({ unidade: z.string(), fator: z.number().int().positive(), padrao: z.boolean(), ativo: z.boolean(), external_id: Texto })).optional(),
+      unidades: z.array(z.object({ unidade: z.string(), fator: FatorDecimalSchema, padrao: z.boolean(), ativo: z.boolean(), external_id: Texto })).optional(),
     }),
   ),
   /** T-0168 / RN-VEN-11a (aditivo, mesma versão): funções e limite de desconto; ausentes = emissor antigo, o consumidor completa com `LIMITE_DESCONTO_PADRAO`. */

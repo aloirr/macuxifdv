@@ -11,6 +11,7 @@
  * segundo total do mesmo pedido, ainda que com outro `evento_id`, não paga de novo).
  */
 import { localDate } from '@macuxi/comum';
+import { ESCALA_QUANTIDADE, quantidadeEmEscala, somarQuantidades } from '@macuxi/comum/quantidade';
 // Entrada do desafio = `EventoFaturadoNoDesafio` dos contracts (payload de `vendedor.pedido.faturado@1` + `evento_id` e
 // `tenant_id` do envelope, lido por `lerPedidoFaturado`). Tipo único (T-0036): o domínio não declara forma própria,
 // então mudança no contrato quebra o typecheck daqui (regra 3 do CLAUDE.md).
@@ -50,9 +51,9 @@ export function avaliarPedidoNoDesafio(desafio: DesafioVendas, pedido: Omit<Even
   const dia = localDate(new Date(pedido.faturado_em), fuso);
   if (dia < desafio.vigencia_inicio || dia > desafio.vigencia_fim) return { elegivel: false, motivo: 'FORA_DA_VIGENCIA' };
   const campanha = new Set(desafio.produto_ids);
-  const unidades = pedido.itens.filter((i) => campanha.has(i.produto_id) && Number.isInteger(i.quantidade) && i.quantidade > 0).reduce((s, i) => s + i.quantidade, 0);
+  const unidades = pedido.itens.filter((i) => campanha.has(i.produto_id) && i.quantidade > 0).reduce((s, i) => somarQuantidades(s, i.quantidade), 0);
   if (unidades <= 0) return { elegivel: false, motivo: 'SEM_ITENS_DA_CAMPANHA' };
-  return { elegivel: true, unidades, pontos_base: Math.min(Math.floor(unidades * desafio.xp_por_unidade), desafio.xp_max_por_pedido) };
+  return { elegivel: true, unidades, pontos_base: Math.min(Math.floor((quantidadeEmEscala(unidades) * desafio.xp_por_unidade) / ESCALA_QUANTIDADE), desafio.xp_max_por_pedido) };
 }
 
 /**
@@ -85,8 +86,8 @@ export const referenciaDoDesafio = (desafioId: string, pedido: Pick<EventoFatura
  * O candidato leva o teto do desafio (`teto_desafio`): `proporLancamento` paga só o saldo do vendedor no desafio e,
  * esgotado, grava lançamento de 0 ponto. O desafio não passa pelo teto diário. `lancamentoId` é o UUID do lançamento.
  * Fuso: o de `opcoes.fuso` define a vigência; use o mesmo do `processarLote` (veja `OpcoesDesafio`).
- * Quantidade: só conta item com quantidade INTEIRA > 0 (como manda o contrato oficial); fração é ignorada, então
- * não há arredondamento por evento (duas parciais de 0,5 un. não pagam 0 + 0 por acaso: nenhuma conta).
+ * Quantidade (ADR 0076): decimal > 0 com até 4 casas; soma exata em 1/10.000 (`somarQuantidades`, sem float) e o XP é o
+ * inteiro para baixo do total do evento (sem arredondar item a item).
  */
 export function candidatoDoDesafio(desafio: DesafioVendas, pedido: EventoFaturadoNoDesafio, lancamentoId: string, opcoes: OpcoesDesafio = {}): CandidatoXp | null {
   const a = avaliarPedidoNoDesafio(desafio, pedido, opcoes.fuso ?? PARAMETROS_PADRAO.fuso);

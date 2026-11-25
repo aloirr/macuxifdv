@@ -122,9 +122,10 @@ describe('T-0149 RS-1 — RN-VEN-20: limite exato do disponível da filial', () 
 });
 
 describe('T-0149 RS-2 — unidade base e linhas repetidas', () => {
+  // ADR 0076: com a fração, a base é o `quantidadeBase` exato do @macuxi/comum (antes, `quantity * fator`); o regex aceita os dois
   it('RS-2: o recebimento manda quantidade × fator da embalagem (FD c/ 10 → 10 na base)', () => {
     const receber = ler('modules/vendedor/api/receber.ts');
-    expect(receber).toMatch(/faltaDeEstoqueNaFilial\(db, provedorSaldoDaFilial\(tx\), p\.items\.map\(\(i, idx\) => \(\{ produto_id: i\.product_id, quantidade_base: i\.quantity \* medidas\.get\(idx\)!\.fator \}\)\)/);
+    expect(receber).toMatch(/faltaDeEstoqueNaFilial\(db, provedorSaldoDaFilial\(tx\), p\.items\.map\(\(i, idx\) => \(\{ produto_id: i\.product_id, quantidade_base: (?:i\.quantity \* medidas\.get\(idx\)!\.fator|quantidadeBase\(i\.quantity, medidas\.get\(idx\)!\.fator\)) \}\)\)/);
   });
 
   it('RS-2: o mesmo produto em 2 linhas soma (10 + 9 = 19 > 18 recusa; 10 + 8 passa)', async () => {

@@ -5,15 +5,20 @@
  */
 import type { PedidoParaErp } from '../contracts';
 import { compararSemver, lerSemver } from './conector-versao';
+import { itemPedidoTemFracao } from './fracao';
 
 export const VERSAO_CONECTOR_PEDIDO_AMPLIADO = '1.3.0';
 /** T-0149 (RN-CORE-39): pedido de filial que não é a padrão só vai ao Conector que grava a filial no ERP. */
 export const VERSAO_CONECTOR_FILIAL = '1.4.0';
 
+/** ADR 0076 (RN-VEN-02 v3): pedido com quantidade ou fator fracionário só vai ao Conector que lê e grava decimal. */
+export const VERSAO_CONECTOR_FRACAO = '1.6.0';
+
 type PedidoConferivel = Pick<PedidoParaErp, 'itens'> & Partial<Pick<PedidoParaErp, 'acrescimo_pct' | 'acrescimo_total_cents' | 'frete' | 'endereco_entrega' | 'filial'>>;
 
 /** Versão mínima do Conector para levar o pedido, ou `null` quando o 1.2.1 dá conta. */
 export function exigeConector(p: PedidoConferivel): string | null {
+  if ((p.itens ?? []).some((i) => itemPedidoTemFracao(i))) return VERSAO_CONECTOR_FRACAO; // a exigência maior vence (ADR 0076 D6)
   const usaNovo =
     (p.itens ?? []).some((i) => (i.fator ?? 1) > 1 || (i.acrescimo_pct ?? 0) > 0 || (i.acrescimo_cents ?? 0) > 0) ||
     (p.acrescimo_pct ?? 0) > 0 ||

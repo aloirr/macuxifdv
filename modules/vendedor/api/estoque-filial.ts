@@ -4,6 +4,7 @@
  * vem de `catalogo.estoque_filial@1` (`provedorDaTransacao`); consulta indisponível = sem saldo, comportamento anterior.
  */
 import { CONSULTA_ESTOQUE_FILIAL } from '@macuxi/catalogo/contracts';
+import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { ehConsultaIndisponivel, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { produtosSemEstoqueNaFilial, STATUS_QUE_RESERVAM, type FaltaDeEstoque, type ItemParaEstoque } from '../domain';
 
@@ -20,7 +21,7 @@ export async function reservadoNaFilial(db: ClienteBanco, produtoIds: readonly s
       group by i.produto_id`,
     [produtoIds, filialId, ignorarPedidoId, [...STATUS_QUE_RESERVAM]],
   );
-  return new Map(r.rows.map((x) => [x.produto_id, Math.max(0, Number(x.reservado))]));
+  return new Map(r.rows.map((x) => [x.produto_id, Math.max(0, quantidadeDoBanco(x.reservado))]));
 }
 
 /**

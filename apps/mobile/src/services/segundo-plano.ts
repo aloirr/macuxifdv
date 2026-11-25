@@ -34,7 +34,7 @@ import {
 import { buildAindaNaoAberto, criarCorteDaPassada, criarTravaSync, idDoBuild, semDerrubar, semDerrubarAgora, type CorteDaPassada } from '@/lib/trava-sync';
 import { permissoesLiberadas } from '@/lib/permissoes';
 import { varianteAtual } from '@/lib/variante';
-import { guardadaDo426 } from '@/lib/versao-app';
+import { fracaoLiberadaDa, guardadaDo426 } from '@/lib/versao-app';
 
 import { criarAmbienteDoAparelho } from './ambiente';
 import { ApiClient, HttpError, NetworkError } from './api';
@@ -48,7 +48,7 @@ import { consultarModulosEfetivos, criarMotorDoUsuario, trocarRefresh } from './
 import { abrirArmazenamentoDaSessao, usuarioDaSessao, type SessaoGuardada } from './sessao-sem-tela';
 import { keys, readJson, writeJson } from './storage';
 import { atualizarTrajeto, pararTrajeto } from './trajeto';
-import { bloqueadoNoAparelho, gravarVersaoGuardada } from './versao-guardada';
+import { bloqueadoNoAparelho, gravarVersaoGuardada, lerVersaoGuardada } from './versao-guardada';
 
 /** Última execução (Diagnóstico do Perfil: "Última sincronização em segundo plano"). */
 export const CHAVE_ULTIMO_SEGUNDO_PLANO = 'fv:diagnostico:segundo_plano';
@@ -185,9 +185,12 @@ async function abrirMotorSemInterface(
     });
   };
   const online = () => !bloqueado && !sessaoInvalida && !corte.cortada();
+  // ADR 0076 D6 (T-0196): a quantidade fracionária liberada vem da versão publicada guardada pelo app (sem chamada aqui)
+  const fracaoLiberada = fracaoLiberadaDa(await lerVersaoGuardada());
   const ambiente = criarAmbienteDoAparelho({
     api,
     online,
+    fracaoLiberada: () => fracaoLiberada,
     usuario: () => ({
       id: usuarioId,
       nome: s?.user?.name ?? '',

@@ -5,8 +5,10 @@
  * RN-VEN-16 (frete CIF/FOB sem valor) e RN-VEN-17 (endereço de entrega). Percentuais têm 2 casas (`Pct`).
  */
 import { cnpjValido, somenteDigitos } from '@macuxi/comum';
+import { ESCALA_QUANTIDADE, quantidadeBase, quantidadeEmEscala, totalDaLinhaCents } from '@macuxi/comum/quantidade';
 
 import { checkDiscount, clampPct, type DiscountPolicy } from './order';
+import { exigirFator } from './quantidade';
 
 /** Mesmos níveis de `aprovacao.ts` (copiados aqui para o domain de preço não importar a aprovação: sem ciclo). */
 export type NivelDePreco = 'supervisor' | 'gerente' | 'analista';
@@ -198,28 +200,24 @@ export interface PrecoDoItem {
   preco_minimo_cents: number | null;
 }
 
-function exigirFator(fator: number): void {
-  if (!Number.isInteger(fator) || fator < 1) throw new Error('RN-VEN-15: fator da unidade inválido.');
-}
-
 /** Preço de tabela da unidade vendida (RN-VEN-15 nova, T-0089): sempre preço da unidade × quantidade da embalagem, sem preço de caixa. */
 export function precoTabelaDaUnidade(i: Pick<ItemParaPreco, 'preco_tabela_unidade_cents' | 'fator' | 'percentual_ajuste_bp'>): number {
   exigirFator(i.fator);
   // RN-VEN-43: a unidade base é ajustada pelo prazo antes do fator (a caixa é sempre a unidade ajustada × fator)
-  return tabelaAjustadaCents(i.preco_tabela_unidade_cents, i.percentual_ajuste_bp ?? 0) * i.fator;
+  return totalDaLinhaCents(tabelaAjustadaCents(i.preco_tabela_unidade_cents, i.percentual_ajuste_bp ?? 0), i.fator);
 }
 
-/** RN-VEN-02 (v2): o preço UNITÁRIO é arredondado e o total da linha é unitário × quantidade. */
+/** RN-VEN-02 (v3): o preço UNITÁRIO é arredondado e o total da linha é unitário × quantidade, arredondado ao centavo, meio para cima. */
 export function precoDoItem(i: ItemParaPreco): PrecoDoItem {
   const preco_tabela_cents = precoTabelaDaUnidade(i);
   const preco_unitario_cents = precoUnitarioFinal(preco_tabela_cents, ajusteDe(i));
-  const total_cents = preco_unitario_cents * i.quantidade;
+  const total_cents = totalDaLinhaCents(preco_unitario_cents, i.quantidade);
   return {
     preco_tabela_cents,
     preco_unitario_cents,
     total_cents,
-    quantidade_base: i.quantidade * i.fator,
-    preco_minimo_cents: i.preco_minimo_base_cents == null ? null : i.preco_minimo_base_cents * i.fator,
+    quantidade_base: quantidadeBase(i.quantidade, i.fator),
+    preco_minimo_cents: i.preco_minimo_base_cents == null ? null : totalDaLinhaCents(i.preco_minimo_base_cents, i.fator),
   };
 }
 
@@ -246,7 +244,7 @@ export function itemRespeitaPrecoMinimo(i: ItemParaPreco): boolean {
   if (minimo == null) return true;
   const base = precoTabelaDaUnidade(i);
   const final = precoUnitarioFinal(base, ajusteDe(i));
-  return final >= Math.min(minimo * i.fator, base);
+  return final >= Math.min(totalDaLinhaCents(minimo, i.fator), base);
 }
 
 // ---------- pedido ----------
@@ -263,6 +261,8 @@ export interface LinhaParaTotal {
   ajuste?: AjusteItem;
 }
 
+const ESCALA = BigInt(ESCALA_QUANTIDADE);
+
 /**
  * RN-VEN-10: desconto efetivo da ALÇADA pelo valor nominal exato, sem arredondar por linha e sem folga:
  * `1 − Σ(tabela_i × (10000 + δ_i)) × (10000 + Δ) ÷ (Σ tabela_i × 10^8)`, em inteiros (BigInt), 2 casas meia para cima.
@@ -271,11 +271,11 @@ export interface LinhaParaTotal {
 export function descontoEfetivoAlcadaPct(linhas: readonly LinhaParaTotal[], pedido: { desconto_pct: number; acrescimo_pct: number; ajuste?: AjusteItem } | AjustePedido): number {
   const ap = ajusteDoPedidoDe(pedido);
   let tabela = 0n;
-  let itens = 0n; // Σ nominal × 10^4 (centavos × 10^4)
+  let itens = 0n; // Σ nominal × 10^4 (centavos × 10^4) × escala da quantidade
   for (const l of linhas) {
     const al = ajusteDe(l);
     const unit = BigInt(l.preco_tabela_cents);
-    const q = BigInt(l.quantidade);
+    const q = BigInt(quantidadeEmEscala(l.quantidade)); // ADR 0076: quantidade em 1/10.000, sem float
     tabela += unit * q;
     if (al !== null && al.em === 'valor') itens += q * (unit * 10_000n + (al.sentido === 'desconto' ? -1n : 1n) * BigInt(al.cents) * 10_000n);
     else itens += unit * q * BigInt(10_000 + (al === null ? 0 : (al.sentido === 'desconto' ? -1 : 1) * pontosBase((al as { pct: number }).pct)));
@@ -287,7 +287,7 @@ export function descontoEfetivoAlcadaPct(linhas: readonly LinhaParaTotal[], pedi
       ? itens * 10_000n
       : ap.em === 'pct'
         ? itens * BigInt(10_000 + (ap.sentido === 'desconto' ? -1 : 1) * pontosBase(ap.pct))
-        : (itens + (ap.sentido === 'desconto' ? -1n : 1n) * BigInt(ap.cents) * 10_000n) * 10_000n;
+        : (itens + (ap.sentido === 'desconto' ? -1n : 1n) * BigInt(ap.cents) * 10_000n * ESCALA) * 10_000n;
   const den = tabela * 100_000_000n;
   const num = den - final;
   if (num <= 0n) return 0;
@@ -317,7 +317,7 @@ export interface TotaisDoPedido {
 /** RN-VEN-02 (v2): o ajuste do pedido incide sobre o total dos itens e é rateado nas linhas pelo maior resto. */
 export function totaisDoPedido(linhas: readonly LinhaParaTotal[], pedido: { desconto_pct: number; acrescimo_pct: number; ajuste?: AjusteItem } | AjustePedido): TotaisDoPedido {
   const ap = ajusteDoPedidoDe(pedido);
-  const total_tabela_cents = linhas.reduce((s, l) => s + l.preco_tabela_cents * l.quantidade, 0);
+  const total_tabela_cents = linhas.reduce((s, l) => s + totalDaLinhaCents(l.preco_tabela_cents, l.quantidade), 0);
   const total_itens_cents = linhas.reduce((s, l) => s + l.total_cents, 0);
   const A = ajusteDoPedidoCents(total_itens_cents, ap);
   const sinal = ap === null ? 0 : ap.sentido === 'desconto' ? -1 : 1;
@@ -420,10 +420,8 @@ export function resolverEnderecoEntrega(escolhido: string | null | undefined, en
 }
 
 // ---------- medida (RN-CORE-19) ----------
-/** PDF e detalhe: fator 1 → "UN"; embalagem → "CX c/ 12". */
-export function rotuloMedida(unidade: string, fator: number): string {
-  return fator > 1 ? `${unidade} c/ ${fator}` : unidade;
-}
+/** PDF e detalhe: fator 1 → "UN"; embalagem → "CX c/ 12" (fonte única: `rotuloDaUnidade` do Core, RN-CORE-19). */
+export { rotuloDaUnidade as rotuloMedida } from '@macuxi/core/contracts';
 
 // ---------- unidade vendida (RN-VEN-15) ----------
 export interface UnidadeDeVendaDoProduto {

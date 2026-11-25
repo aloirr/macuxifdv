@@ -12,7 +12,7 @@
 import { formatBRL, type Cents } from '@macuxi/comum/money';
 import { dateTimeLabel } from '@macuxi/comum/fuso';
 
-import { ALVO_TOQUE, lerQuantidade, proximoPasso } from './componentes';
+import { ALVO_TOQUE, lerQuantidade, lerQuantidadeComCasas, limitarPasso, proximoPasso } from './componentes';
 import { plural } from './text';
 import { colors } from './tokens';
 
@@ -218,9 +218,16 @@ export function passoComTexto(
   passo = 1,
   min = 0,
   max?: number,
+  /** passo decimal (teclado com vírgula): casas aceitas, 0 = só o inteiro; ausente = passo inteiro */
+  casas?: number,
 ): number {
-  const digitado = estado.focado ? lerQuantidade(estado.texto) : null;
-  return proximoPasso(digitado ?? estado.valor, direcao, passo, min, max);
+  if (casas === undefined) {
+    const digitado = estado.focado ? lerQuantidade(estado.texto) : null;
+    return proximoPasso(digitado ?? estado.valor, direcao, passo, min, max);
+  }
+  const lido = estado.focado ? lerQuantidadeComCasas(estado.texto, casas).valor : null;
+  const base = lido !== null && lido >= min ? limitarPasso(lido, min, max, casas) : estado.valor;
+  return proximoPasso(base, direcao, passo, min, max, casas);
 }
 
 // ---------- textos dos cartões do Detalhes (spec docs/design/novo-pedido-itens.md) ----------

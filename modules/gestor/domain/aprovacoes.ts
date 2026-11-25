@@ -57,7 +57,7 @@ export function situacaoDoPrazo(
   return { prazo_em, horas_restantes, situacao };
 }
 
-/** RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem digitou o pedido, do `vendedor.pedido.criado@1` (`autor_id`). Ausente = desconhecido. */
+/** RN-VEN-10 / RN-GES-04 (T-0187, P4 A): quem digitou o pedido, do `vendedor.pedido.criado@2` (`autor_id`). Ausente = desconhecido. */
 export function autorDoPedido(estado: EstadoProjecao, pedidoId: string): string | null {
   return estado.pedidos[pedidoId]?.criado?.autor_id ?? null;
 }

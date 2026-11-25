@@ -34,6 +34,12 @@ import { TelaEntrar } from './portal/tela-entrar';
 const contar = (html: string, trecho: string) => html.split(trecho).length - 1;
 
 describe('campo de senha com olho (CampoSenha do kit)', () => {
+  it('login do BKO: campos e "Entrar" só depois da hidratação (sem envio nativo que recarrega a tela sem o erro; defeito 7)', () => {
+    const html = renderToStaticMarkup(<LoginScreen />);
+    expect(html).toMatch(/<button[^>]*data-testid="login\.entrar"[^>]*disabled=""|<button[^>]*disabled=""[^>]*data-testid="login\.entrar"/);
+    // o que se digitasse antes de hidratar sumiria: os campos só aceitam texto com o React no ar
+    for (const t of ['login.codigo-empresa', 'login.email', 'login.senha']) expect(html).toMatch(new RegExp(`<input[^>]*(data-testid="${t}"[^>]*readOnly=""|readOnly=""[^>]*data-testid="${t}")`));
+  });
   it('login do BKO: senha oculta, olho "Mostrar senha" e current-password', () => {
     const html = renderToStaticMarkup(<LoginScreen />);
     expect(html).toContain('data-testid="login.senha"');
