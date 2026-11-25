@@ -175,7 +175,7 @@ describe('RF-TRE-06: leitura tolerante do pedido FATURADO (`vendedor.pedido.fatu
     expect(PedidoFaturadoLido.safeParse(semVendedor).success).toBe(false);
     expect(PedidoFaturadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade: 0 }] }).success).toBe(false);
   });
-  it('T-0024: contrato oficial do Vendedor — `parcial` obrigatório, `itens` com ao menos 1 e quantidade inteira > 0', () => {
+  it('T-0024: contrato oficial do Vendedor — `parcial` obrigatório, `itens` com ao menos 1 e quantidade > 0 com até 4 casas (ADR 0076)', () => {
     expect(PedidoFaturadoLido.parse({ ...p, parcial: true }).parcial).toBe(true);
     expect(PedidoFaturadoLido.safeParse({ ...p, parcial: 'sim' }).success).toBe(false);
     const { parcial: _p, ...semParcial } = p;
@@ -183,7 +183,12 @@ describe('RF-TRE-06: leitura tolerante do pedido FATURADO (`vendedor.pedido.fatu
     const { itens: _i, ...semItens } = p;
     expect(PedidoFaturadoLido.safeParse(semItens).success).toBe(false);
     expect(PedidoFaturadoLido.safeParse({ ...p, itens: [] }).success).toBe(false);
-    expect(PedidoFaturadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade: 1.5 }] }).success).toBe(false);
+    const com = (quantidade: number) => PedidoFaturadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade }] }).success;
+    expect(com(1.5)).toBe(true);
+    expect(com(0.0001)).toBe(true);
+    expect(com(0)).toBe(false);
+    expect(com(-1)).toBe(false);
+    expect(com(1.23456)).toBe(false);
   });
   it('T-0024: a leitura tolerante do evento oficial descarta chaves a mais (lerPayloadTolerante)', () => {
     expect(lerPayloadTolerante(EVENTO_PEDIDO_FATURADO, { ...p, novo: 1 })).toEqual(p);

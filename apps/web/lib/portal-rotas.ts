@@ -16,8 +16,6 @@ import {
   ROTA_PORTAL_TROCAR_SENHA,
 } from '@macuxi/platform-sdk';
 
-import { CAMINHO_TROCAR_SENHA } from './ciclo-senha';
-
 /** Caminho do SDK (`/v1/...`) relativo ao `/v1`, como o portal e o `api()` do BKO chamam. */
 export const semV1 = (caminho: string) => caminho.replace(/^\/v1(?=\/)/, '');
 
@@ -32,12 +30,10 @@ export const ROTAS_PORTAL = {
   renovar: '/plataforma/auth/renovar',
   sair: '/plataforma/auth/sair',
   /**
-   * v1.0.34 (menu do usuário, R-20261124-083356): "Trocar a senha" do admin do cliente, pela rota pública do Core (código da
-   * empresa da sessão, e-mail digitado, senha atual e nova), no modo cookie: a resposta não traz o token de renovação.
+   * ADR 0075 (v1.0.35): "Trocar a senha" do time Macuxi e do admin do cliente com a empresa escolhida, com o token do portal
+   * (`TrocarSenhaPortalSchema`); 204 derruba todas as sessões da pessoa, inclusive esta.
    */
-  trocarSenha: CAMINHO_TROCAR_SENHA,
-  /** ADR 0075: "Trocar a senha" do time Macuxi (só o super-admin; o admin do cliente leva 403), com o token do portal; 204 derruba a sessão. */
-  trocarSenhaSuperAdmin: semV1(ROTA_PORTAL_TROCAR_SENHA),
+  trocarSenha: semV1(ROTA_PORTAL_TROCAR_SENHA),
   // API da plataforma
   empresas: '/plataforma/empresas',
   /** T-0094 fatia S: admins da empresa (`ListaAdminsDaEmpresaSchema`); só o time da Macuxi. Tenant no caminho, sem `x-macuxi-tenant`. */
@@ -97,8 +93,5 @@ export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.js
  */
 export const GUIA_PDF_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/guia.pdf', viaProxy: '/api-proxy/_publico/integracao/v1/guia.pdf' });
 
-/**
- * Rotas públicas (sem token): a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo) e a troca de senha
- * do Core do admin do cliente (v1.0.34). Sem token, o 401 dela (senha atual errada) não derruba a sessão do portal.
- */
-export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login, ROTAS_PORTAL.trocarSenha];
+/** Rotas públicas (sem token): a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
+export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];

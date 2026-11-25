@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatBRL } from '@macuxi/comum';
 import { STATUS_DIA, TIPOS_ALERTA, MOTIVOS_APROVACAO, INDICADORES_RANKING } from '../../contracts';
-import { linhaDeMotivos, fracao, INDICADOR_ROTULO, MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, STATUS_DIA_ROTULO, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP, valorDoIndicador } from './apresentacao';
+import { linhaDeMotivos, fracao, INDICADOR_ROTULO, MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, selosDoPrazo, STATUS_DIA_ROTULO, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP, valorDoIndicador } from './apresentacao';
 
 describe('apresentação das telas do Gestor', () => {
   it('todo status, motivo, tipo de alerta e indicador do contrato tem rótulo em português', () => {
@@ -49,5 +49,15 @@ describe('apresentação das telas do Gestor', () => {
     expect(linhaDeMotivos(['credito'], 3, pct)).toBe('Crédito do cliente · desconto 3%');
     expect(linhaDeMotivos(['credito'], 0, pct, 'R$ 1.200')).toBe('Crédito disponível R$ 1.200');
     expect(linhaDeMotivos(['desconto', 'credito'], 8, pct, 'R$ 1.200')).toBe('Desconto 8% · Crédito disponível R$ 1.200');
+  });
+});
+
+describe('RN-GES-07: selos do Prazo na fila de aprovação', () => {
+  it('RN-GES-07: quem decide vê só o selo do prazo; quem não decide vê também "Fora da sua alçada"', () => {
+    expect(selosDoPrazo({ situacao: 'vencido', horas_restantes: -2, pode_decidir: true })).toEqual([{ tom: 'danger', texto: 'Vencido' }]);
+    expect(selosDoPrazo({ situacao: 'no_prazo', horas_restantes: 30, pode_decidir: false })).toEqual([
+      { tom: 'success', texto: 'No prazo' },
+      { tom: 'neutral', texto: 'Fora da sua alçada' },
+    ]);
   });
 });

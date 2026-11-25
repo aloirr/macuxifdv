@@ -103,6 +103,9 @@ export const CODIGOS_RECUSA_RETORNO = [
   'transicao_invalida',
   'numero_erp_divergente',
   'itens_faturados_invalidos',
+  // ADR 0076 (RN-VEN-02 v3): quantidade faturada com casas decimais
+  'quantidade_fracionaria_bloqueada',
+  'quantidade_fracionaria_invalida',
 ] as const;
 export const CodigoRecusaRetorno = z.enum(CODIGOS_RECUSA_RETORNO);
 export type CodigoRecusaRetorno = z.infer<typeof CodigoRecusaRetorno>;

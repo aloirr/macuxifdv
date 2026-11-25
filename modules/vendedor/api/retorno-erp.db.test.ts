@@ -15,7 +15,7 @@ import { PedidoItemSyncSchema, PedidoSyncSchema } from '../contracts';
 import { lerNotasDoPedido } from './pedidos';
 import { paraFaturamento, type LinhaPedido } from './mapeamento';
 import { aplicarNotaDevolucao, aplicarRetornoErp, repositorioRetornoErpPg, type ContextoRetorno } from './retorno-erp';
-import { escopoDoPedido, sqlPedido, sqlPedidoItem } from './sync';
+import { escopoDoPedido, itemComQuantidadeNumerica, sqlPedido, sqlPedidoItem } from './sync';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -99,7 +99,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     expect(p).toEqual({ status: 'invoiced_partial', numero_erp: 'ERP-54', faturado_cents: 6_000 });
     const fat = (await admin.query('select parcial, numero_erp, nota_numero, nota_chave_acesso, itens from vendedor.pedido_faturamento where pedido_id = $1', [PED])).rows;
     expect(fat).toEqual([{ parcial: true, numero_erp: 'ERP-54', nota_numero: '9001', nota_chave_acesso: '35261112345678000195550010000090011000090019', itens: [{ sequencia: 1, produto_id: P1, quantidade: 6, total_cents: 6_000 }] }]);
-    const itens = (await admin.query('select sequencia, quantidade_faturada from vendedor.pedido_item where pedido_id = $1 order by sequencia', [PED])).rows;
+    const itens = (await admin.query('select sequencia, quantidade_faturada::int as quantidade_faturada from vendedor.pedido_item where pedido_id = $1 order by sequencia', [PED])).rows;
     expect(itens).toEqual([{ sequencia: 1, quantidade_faturada: 6 }, { sequencia: 2, quantidade_faturada: 0 }]);
     const ev = (await admin.query("select de, para, autor_nome, autor_id from vendedor.pedido_evento where pedido_id = $1", [PED])).rows;
     expect(ev).toEqual([{ de: 'approved', para: 'invoiced_partial', autor_nome: 'ERP', autor_id: null }]);
@@ -162,7 +162,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     };
     await noTenant(A.tenantId, (db) => aplicarRetornoErp(repositorioRetornoErpPg(db), retorno, ctx('0f540000-0000-4000-8000-0000000000e5', reg)));
     // 30 informadas, saldo 24 (2 CX x 12): limita a 24 e o check da 0013 (0..quantidade_base) é respeitado
-    const it = (await admin.query('select quantidade, quantidade_base, quantidade_faturada from vendedor.pedido_item where pedido_id = $1', [PED3])).rows[0];
+    const it = (await admin.query('select quantidade::int as quantidade, quantidade_base::int as quantidade_base, quantidade_faturada::int as quantidade_faturada from vendedor.pedido_item where pedido_id = $1', [PED3])).rows[0];
     expect(it).toEqual({ quantidade: 2, quantidade_base: 24, quantidade_faturada: 24 });
     expect(reg.publicados.find((x) => x.nome === 'vendedor.pedido.faturado@1')!.payload).toMatchObject({ itens: [{ produto_id: P1, quantidade: 24 }] });
   });
@@ -198,7 +198,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     expect(PedidoSyncSchema.parse(linha)).toMatchObject({ status: 'invoiced', faturado_cents: 12_000, notas_faturamento: 2, ultima_nota_numero: '9002' });
     const itens = await noTenant(A.tenantId, async (db) => {
       const q = sqlPedidoItem({ ate, desde: null, limite: 50 } as never, e, true);
-      return (await db.query(q.sql, q.valores)).rows.filter((x) => x.pedido_id === PED);
+      return (await db.query(q.sql, q.valores)).rows.map((x) => itemComQuantidadeNumerica(x as never) as unknown as Record<string, unknown>).filter((x) => x.pedido_id === PED);
     });
     expect(itens.map((i) => PedidoItemSyncSchema.parse(i)).sort((a, b) => a.sequencia - b.sequencia).map((i) => [i.quantidade_faturada, i.quantidade_base, i.fator])).toEqual([[10, 10, 1], [4, 4, 1]]);
   });

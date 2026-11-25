@@ -101,8 +101,10 @@ describe('validateOrder', () => {
 
   it('pedido vazio e quantidade inválida: rejeitado', () => {
     expect(validateOrder({ seller_id: 's', discount_pct: 0, lines: [], policy, credit }).outcome).toBe('rejected');
-    const v = validateOrder({ seller_id: 's', discount_pct: 0, lines: [{ product_id: 'a', quantity: 1.5, unit_price_cents: 100 }], policy, credit });
+    const v = validateOrder({ seller_id: 's', discount_pct: 0, lines: [{ product_id: 'a', quantity: 1.23456, unit_price_cents: 100 }], policy, credit });
     expect(v.issues.map((i) => i.code)).toContain('invalid_quantity');
+    // RN-VEN-02 v3: até 4 casas passa (a regra por unidade é de exigirQuantidade)
+    expect(validateOrder({ seller_id: 's', discount_pct: 0, lines: [{ product_id: 'a', quantity: 1.25, unit_price_cents: 1999 }], policy, credit }).totals.subtotal_cents).toBe(2499);
   });
 
   it('produto sem preço: rejeitado', () => {

@@ -243,12 +243,12 @@ describe('retorno de pedidos ao ERP (RN-INT-08)', () => {
     expect(parciais.map((r) => r.nota.numero)).toEqual(['701', '702']);
   });
 
-  it('itens faturados fracionários ou inválidos são omitidos (o campo é opcional) em vez de mandar errado', async () => {
+  it('ADR 0076: itens faturados com mais de 4 casas decimais são omitidos (o campo é opcional) em vez de mandar errado', async () => {
     await preparar();
     await cicloPedidos(amb.ctx);
     amb.erp.onConsulta = (sql) => {
       if (sql.includes('/*st*/')) return [{ status: 'F', numero_erp: 'PV-1001', nota_numero: '9', nota_total_cents: 3000 }];
-      if (sql.includes('/*itn*/')) return [{ sequencia: 1, quantidade: 1.5, produto_external_id: 'p1', valor_cents: 100 }];
+      if (sql.includes('/*itn*/')) return [{ sequencia: 1, quantidade: 1.23456, produto_external_id: 'p1', valor_cents: 100 }];
       return undefined;
     };
     await cicloPedidos(amb.ctx);

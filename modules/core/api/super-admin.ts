@@ -215,38 +215,77 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
    * - super-admin: a senha atual é conferida com o hash da própria sessão, no mesmo bloqueio do login (5 erros = 423 por 15 min);
    *   a nova segue a RN-CORE-32 (422) e difere da atual (422 RN-CORE-34); gravada só se o hash não mudou (senão 409); todas as
    *   sessões dele caem (inclusive esta);
-   * - admin do cliente: 403 TROCA_SO_SUPER_ADMIN (ele troca pela rota pública `POST /v1/auth/senha/trocar`).
+   * - admin do cliente (com empresa escolhida): mesma troca pelas funções `sa_*_admin` (0103); a senha atual é conferida com o hash da
+   *   conta e o bloqueio é o da conta (RN-CORE-01: 5 erros = 423 por 15 min; bloqueio vivo recusa antes de gravar); sem empresa
+   *   escolhida = 403 EMPRESA_NAO_PERMITIDA; as sessões do portal e do app dele caem.
    */
   async function trocarSenha(ctx: Ctx<TrocarSenhaPortal>): Promise<void> {
     const segredo = config();
     const { claims, viva } = await sessaoDoCabecalho(ctx, segredo);
     const repo = fabrica(ctx.banco);
-    const rota = '/v1/plataforma/auth/senha';
-    const quem = quemDe(claims, viva);
-    const { senha_atual: atual, senha_nova: nova } = ctx.corpo;
-    const agora = ctx.agora();
-
+    const sid = claims.sid;
     if (viva.tipo === 'admin_cliente') {
-      throw erroHttp(403, CODIGOS_PORTAL.trocaSoSuperAdmin, 'Troque a sua senha no backoffice, com o código da empresa.');
+      // 0103: bloqueio e falhas da própria conta (`core.usuario`); erro SQL vira HTTP.
+      const sqlParaHttp = (e: unknown): never => {
+        const codigo = (e as { code?: string } | null)?.code;
+        if (codigo === '28000') throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+        if (codigo === '42501') throw erroHttp(403, CODIGOS_PORTAL.empresaNaoPermitida, 'Escolha a empresa antes de trocar a senha.');
+        throw e;
+      };
+      const conta = await repo.reautenticarAdmin(sid).catch(sqlParaHttp);
+      return trocarSenhaDaConta(ctx, repo, quemDe(claims, viva), conta && {
+        email: conta.email,
+        senha_hash: conta.senha_hash,
+        bloqueado_ate: conta.bloqueado_ate,
+        falha: () => repo.falhaSenhaAdmin(sid).catch(sqlParaHttp),
+        gravar: (atual, novo) => repo.gravarSenhaAdmin(sid, atual, novo).catch(sqlParaHttp),
+      });
     }
-
-    const conta = await repo.reautenticar(claims.sid);
-    if (!conta) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+    const conta = await repo.reautenticar(sid);
+    if (!conta) return trocarSenhaDaConta(ctx, repo, quemDe(claims, viva), null);
     const chave = chaveDeTentativa(segredo, conta.email.toLowerCase());
     const estado = await repo.tentativaEstado(chave);
-    await barrarSeBloqueado(estado.bloqueado_ate, agora, () => auditar(repo, ctx, 'sa.senha.falha', 423, rota, quem, { motivo: 'bloqueado' }));
-    if (!(await conferir(atual, conta.senha_hash))) {
-      return contarFalhaDeSenha(() => repo.tentativaFalha(chave), agora, 'Senha atual incorreta. Confira e tente de novo.', (status, falhas) =>
+    return trocarSenhaDaConta(ctx, repo, quemDe(claims, viva), {
+      email: conta.email,
+      senha_hash: conta.senha_hash,
+      bloqueado_ate: estado.bloqueado_ate,
+      falha: () => repo.tentativaFalha(chave),
+      sucesso: () => repo.tentativaSucesso(chave),
+      gravar: (atual, novo) => repo.gravarSenhaSuperAdmin(sid, atual, novo),
+    });
+  }
+
+  /** Fluxo único da troca de senha; cada tipo de conta entra com a sua "porta" (conta, falha, sucesso opcional, gravar). */
+  async function trocarSenhaDaConta(
+    ctx: Ctx<TrocarSenhaPortal>,
+    repo: RepositorioSuperAdmin,
+    quem: Quem,
+    porta: {
+      email: string;
+      senha_hash: string;
+      bloqueado_ate: Parameters<typeof barrarSeBloqueado>[0];
+      falha: () => ReturnType<RepositorioSuperAdmin['tentativaFalha']>;
+      sucesso?: () => Promise<void>;
+      gravar: (hashAtual: string, hashNovo: string) => Promise<boolean>;
+    } | null,
+  ): Promise<void> {
+    if (!porta) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+    const rota = '/v1/plataforma/auth/senha';
+    const { senha_atual: atual, senha_nova: nova } = ctx.corpo;
+    const agora = ctx.agora();
+    await barrarSeBloqueado(porta.bloqueado_ate, agora, () => auditar(repo, ctx, 'sa.senha.falha', 423, rota, quem, { motivo: 'bloqueado' }));
+    if (!(await conferir(atual, porta.senha_hash))) {
+      return contarFalhaDeSenha(porta.falha, agora, 'Senha atual incorreta. Confira e tente de novo.', (status, falhas) =>
         auditar(repo, ctx, 'sa.senha.falha', status, rota, quem, { motivo: 'senha_atual', falhas }),
       );
     }
-    await repo.tentativaSucesso(chave);
-    const recusa = validarSenhaNova(nova, conta.email, await conferir(nova, conta.senha_hash));
+    await porta.sucesso?.();
+    const recusa = validarSenhaNova(nova, porta.email, await conferir(nova, porta.senha_hash));
     if (recusa) {
       await auditar(repo, ctx, 'sa.senha.falha', 422, rota, quem, { motivo: recusa.codigo });
       throw erroHttp(422, recusa.codigo, recusa.mensagem, recusa.codigo === 'RN-CORE-32' ? { faltas: recusa.faltas } : undefined);
     }
-    if (!(await repo.gravarSenhaSuperAdmin(claims.sid, conta.senha_hash, await gerarHash(nova)))) {
+    if (!(await porta.gravar(porta.senha_hash, await gerarHash(nova)))) {
       await auditar(repo, ctx, 'sa.senha.falha', 409, rota, quem, { motivo: 'mudou_no_meio' });
       throw erroHttp(409, CODIGOS_PORTAL.senhaMudou, 'A senha mudou enquanto você a trocava. Entre de novo e repita a troca.');
     }

@@ -1107,15 +1107,17 @@
           "obrigatorio": true,
           "tipo": "número",
           "tamanho_max": null,
-          "formato": "inteiro de 1 a 9999",
+          "formato": "número de 0 a 9999",
           "exemplo": "1",
           "observacao": null,
           "coluna": "fator",
-          "tipo_sql": "INT NOT NULL",
+          "tipo_sql": "DECIMAL(13, 4) NOT NULL",
           "regra": {
-            "inteiro": true,
-            "min": 1,
-            "max": 9999
+            "inteiro": false,
+            "min": 0,
+            "max": 9999,
+            "min_exclusivo": true,
+            "casas": 4
           }
         },
         {

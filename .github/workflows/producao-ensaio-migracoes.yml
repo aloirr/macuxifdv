@@ -1,0 +1,157 @@
+name: producao — ensaio das migrações (termina em ROLLBACK)
+
+# Decisão do Alexandre (25/11/2026, 12h50 de Manaus, pelo gerente): ensaiar as migrações dos perfis (0105 a 0108) NA PRÓPRIA
+# PRODUÇÃO, sobre o banco da versão no ar, sem gravar nada. Só manual, só no environment PRODUCAO (aprovação do Alexandre).
+#
+# Como funciona (mesma conexão dos outros workflows de produção: SSH na VM e o pgcliente do compose, como o admin que o
+# deploy usa para migrar; nenhum segredo novo):
+# 1. O SHA informado precisa ser o head de um PR aberto ou estar no main (API do GitHub, GITHUB_TOKEN só leitura).
+# 2. Os scripts saem do ref do disparo (.github/scripts/ensaio-migracoes), por isso o job `ref` FALHA (vermelho, não cinza)
+#    quando o disparo não vem do main nem de uma tag v*, e o ensaio depende dele; do SHA só se LÊ a pasta db/migrations.
+# 3. montar.sh monta o ensaio e o conferir.sql (fluxo e travas no cabeçalho dele). Não existe comando de gravação da
+#    transação em lugar nenhum (o montar.sh falha se aparecer). O psql do ensaio tem teto de 10 min (timeout no contêiner):
+#    se cair, a conexão fecha e o Postgres desfaz a transação.
+# 4. conferir.sql, numa sessão nova e só leitura, sempre que o ensaio rodou: nenhuma migração do ensaio na tabela de controle.
+#
+# O log e o resumo só têm contagens, o código da empresa e o resultado da conferência (sem nome, e-mail, documento ou id).
+# Falha o job: conferência com DIFERENCA em tenant derivado, tenant em 'concessao', checksum divergente, buraco na
+# numeração, migração em symlink ou erro em qualquer passo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: SHA completo (40 caracteres) do head de um PR aberto ou de um commit do main
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ref:
+    name: disparo do main ou de tag v*
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: ref do disparo
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          case "$REF" in
+            refs/heads/main | refs/tags/v*) echo "ref $REF: ok" ;;
+            *) echo "::error::dispare do main ou de uma tag v* (veio de $REF): os scripts do ensaio saem do ref do disparo"; exit 1 ;;
+          esac
+
+  ensaio:
+    name: migrações pendentes numa transação com ROLLBACK
+    needs: ref
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: PRODUCAO
+    env:
+      USUARIO: ${{ secrets.PROD_USER }}
+      PGCLIENTE: docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T -e PGAPPNAME=macuxi-ensaio-migracoes pgcliente psql -X -f -
+    steps:
+      - name: SHA de um PR aberto ou do main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha inválido: 40 caracteres hexadecimais minúsculos"; exit 1; }
+          prs="$(gh api "repos/$REPO/commits/$SHA/pulls" \
+            | jq -r --arg s "$SHA" '[.[] | select(.state == "open" and .head.sha == $s) | "#\(.number)"] | join(" ")')"
+          estado="$(gh api "repos/$REPO/compare/main...$SHA" --jq .status 2>/dev/null || true)"
+          if [ -n "$prs" ]; then origem="head do PR aberto $prs"
+          elif [ "$estado" = identical ] || [ "$estado" = behind ]; then origem="commit do main"
+          else echo "::error::o SHA não é head de PR aberto nem está no main"; exit 1; fi
+          echo "SHA $SHA: $origem"
+          { echo "## Ensaio das migrações (ROLLBACK)"; echo; echo "- SHA \`$SHA\`: $origem"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/actions
+            .github/scripts/ensaio-migracoes
+          persist-credentials: false
+
+      - name: migrações do SHA (só leitura)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          path: alvo
+          sparse-checkout: db/migrations
+          persist-credentials: false
+
+      - name: chave SSH
+        id: chave
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: preparar
+          chave: ${{ secrets.PROD_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          conhecidos: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+
+      - name: migrações aplicadas em produção (só leitura)
+        timeout-minutes: 3
+        run: |
+          ssh -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec $PGCLIENTE" \
+            < .github/scripts/ensaio-migracoes/aplicadas.sql > "$RUNNER_TEMP/aplicadas.txt"
+
+      - name: montar o ensaio
+        run: |
+          bash .github/scripts/ensaio-migracoes/montar.sh alvo/db/migrations "$RUNNER_TEMP/aplicadas.txt" \
+            "$RUNNER_TEMP/ensaio.sql" "$RUNNER_TEMP/conferir.sql" | tee "$RUNNER_TEMP/montar.txt"
+          { echo; echo '```'; cat "$RUNNER_TEMP/montar.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: ensaio na produção (BEGIN → migrações → diagnóstico → ROLLBACK)
+        id: ensaio
+        timeout-minutes: 15
+        run: |
+          case "$PGCLIENTE" in
+            *" pgcliente psql "*) ;;
+            *) echo "::error::PGCLIENTE sem ' pgcliente psql ': o teto de 10 min do ensaio não entraria"; exit 1 ;;
+          esac
+          comando="${PGCLIENTE/ pgcliente psql / pgcliente timeout 600 psql }"
+          set +e
+          ssh -o ServerAliveInterval=30 -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec $comando" \
+            < "$RUNNER_TEMP/ensaio.sql" 2>&1 | tee "$RUNNER_TEMP/ensaio.txt"
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/ensaio.txt"
+            echo '```'
+            echo "saída: $status (0 ok · 124 teto de 10 min · 3 erro no SQL ou ensaio reprovado: a sessão caiu e o Postgres desfez a transação · 255 falha do SSH)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: conferir que nada ficou gravado (sessão nova, só leitura)
+        if: ${{ always() && steps.ensaio.outcome != 'skipped' }}
+        timeout-minutes: 3
+        run: |
+          set +e
+          ssh -l "$USUARIO" prod "set -eu; cd /opt/macuxi; exec $PGCLIENTE" \
+            < "$RUNNER_TEMP/conferir.sql" 2>&1 | tee "$RUNNER_TEMP/conferir.txt"
+          status=${PIPESTATUS[0]}
+          set -e
+          { echo; echo '```'; cat "$RUNNER_TEMP/conferir.txt"; echo '```'; echo "conferência: saída $status"; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: limpar o runner
+        if: ${{ always() && steps.chave.outcome != 'skipped' }}
+        uses: ./.github/actions/ssh-prod
+        with:
+          acao: limpar

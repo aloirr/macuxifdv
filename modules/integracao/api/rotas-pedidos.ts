@@ -18,11 +18,12 @@ import {
   type RetornoAceito,
   type SinalConector,
 } from '../contracts';
-import { aplicarCancelamentoRecusado, aplicarRetornoPedido, conectorAtendePedido, selecionarCancelamentos, selecionarPendentes, versaoInformada, type PedidoNaFila } from '../domain';
+import { aplicarCancelamentoRecusado, aplicarRetornoPedido, avaliarFracaoRetorno, conectorAtendePedido, selecionarCancelamentos, selecionarPendentes, versaoInformada, type PedidoNaFila } from '../domain';
 import { COLUNAS_CANCELAMENTO, paraCancelar } from './consumidores-pedido';
 import type { ConectorHub } from './autenticacao';
 import { EVENTO_PEDIDO_CANCELAMENTO_RECUSADO, EVENTO_PEDIDO_RETORNO_ERP } from './eventos';
 import { lerParametrosHub } from './parametros';
+import { exigirFracaoLiberada } from './trava-fracao';
 
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoConector<ConectorHub, C, Q, P>;
 
@@ -132,6 +133,9 @@ export async function retornoPedido(ctx: Ctx<RetornoErp, unknown, ReturnType<typ
   if (!ctx.conector.recebe_pedidos) throw acessoNegadoSemPedidos();
 
   if (ehCancelamentoRecusado(retorno)) return cancelamentoRecusado(ctx, retorno);
+
+  // ADR 0076 D6: quantidade faturada com casas decimais só com a trava aberta; mais de 4 casas é sempre inválido (422)
+  await exigirFracaoLiberada(ctx, (liberada) => avaliarFracaoRetorno(retorno.itens_faturados, liberada));
 
   return ctx.comTenant(async (db, tx) => {
     const { rows } = await db.query<LinhaFila>(

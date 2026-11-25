@@ -15,6 +15,7 @@
  */
 import type { z } from 'zod';
 import type { AcessoBanco, ClienteBanco, LogRota, TransacaoTenant } from './api';
+import type { PortaVersaoApp } from './app-versao';
 import type { Manifesto } from './manifesto';
 
 /** O que o `autenticar` do módulo recebe: cabeçalhos em minúsculas, IP, relógio, log e SÓ a leitura sem tenant. */
@@ -80,6 +81,12 @@ export interface ContextoConector<K extends ConectorDaChave = ConectorDaChave, C
   fuso(): string;
   /** Parâmetros do tenant para o módulo (`plataforma.parametro`), lidos com a licença. */
   parametros(): Readonly<Record<string, unknown>>;
+  /**
+   * ADR 0076 D6 (trava da quantidade fracionária): a última versão publicada do Campo e do Gestão, a MESMA fonte de
+   * `ctx.versaoApp` das rotas de módulo e do 426 (ADR 0070 §D7). `doCliente` é sempre `null` (o Conector não é o app).
+   * A API sempre preenche; é opcional só para os contextos falsos dos testes dos módulos (`criarPortaVersaoAppMemoria`).
+   */
+  versaoApp?: PortaVersaoApp;
   /** Log com `tenant_id`, `modulo`, `request_id`, `conector` (identificador) e `rota`. Nunca linhas, payload nem a chave. */
   log: LogRota;
   /**
