@@ -17,6 +17,7 @@ import {
   deveAvisarVersao,
   ehAppDesatualizado,
   estaBloqueada,
+  fracaoLiberadaDa,
   guardadaDaResposta,
   guardadaDo426,
   guardadaDoErro,
@@ -27,7 +28,7 @@ import {
 } from './versao-app';
 
 const AGORA = new Date('2026-11-25T15:00:00.000Z');
-const RESPOSTA = { variante: 'campo', versao: '1.0.34', publicada_em: '2026-11-24T14:00:00.000Z' };
+const RESPOSTA = { variante: 'campo', versao: '1.0.34', publicada_em: '2026-11-24T14:00:00.000Z', fracao_liberada: false };
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -66,7 +67,7 @@ describe('x-macuxi-app em toda chamada (ADR 0070 §D2)', () => {
 });
 
 describe('última versão publicada guardada (vale sem sinal)', () => {
-  it('da resposta de /v1/app/versao?contrato=2 e dos detalhes do 426; outra variante ou fora do contrato = nada', () => {
+  it('da resposta de /v1/app/versao?contrato=3 e dos detalhes do 426; outra variante ou fora do contrato = nada', () => {
     expect(guardadaDaResposta(RESPOSTA, 'campo', AGORA)).toEqual({ ...RESPOSTA, recebida_em: AGORA.toISOString(), bloqueada_pelo_servidor: false });
     expect(guardadaDaResposta(RESPOSTA, 'gestao', AGORA)).toBeNull();
     expect(guardadaDaResposta({ versao: 'x' }, 'campo', AGORA)).toBeNull();
@@ -111,6 +112,23 @@ describe('última versão publicada guardada (vale sem sinal)', () => {
     expect(estaBloqueada(marcada, '1.0.34', atrasado)).toBe(false);
     // formato antigo (sem a marca) continua legível
     expect(lerGuardada({ ...RESPOSTA, recebida_em: AGORA.toISOString() }, 'campo')?.bloqueada_pelo_servidor).toBe(false);
+  });
+
+  it('ADR 0076 D6: fracao_liberada do V3 vai guardado com a versão e vale sem sinal; sem V3, 426 ou formato antigo = false', () => {
+    const liberada = guardadaDaResposta({ ...RESPOSTA, fracao_liberada: true }, 'campo', AGORA);
+    expect(liberada?.fracao_liberada).toBe(true);
+    // releitura do disco (app reaberto sem sinal) mantém o valor
+    expect(fracaoLiberadaDa(lerGuardada(JSON.parse(JSON.stringify(liberada)), 'campo'))).toBe(true);
+    expect(fracaoLiberadaDa(guardadaDaResposta(RESPOSTA, 'campo', AGORA))).toBe(false);
+    // resposta V2 (sem o campo) está fora do contrato V3: nada se guarda e vale false
+    const { fracao_liberada: _f, ...v2 } = RESPOSTA;
+    expect(guardadaDaResposta(v2, 'campo', AGORA)).toBeNull();
+    expect(guardadaDaResposta({ ...RESPOSTA, fracao_liberada: 'sim' }, 'campo', AGORA)).toBeNull();
+    expect(fracaoLiberadaDa(null)).toBe(false);
+    // guardada de antes da v1.0.36 (sem o campo) e a do 426
+    expect(lerGuardada({ ...v2, recebida_em: AGORA.toISOString() }, 'campo')?.fracao_liberada).toBe(false);
+    const detalhes = { variante: 'campo', versao_publicada: '1.0.36', publicada_em: '2026-11-24T14:00:00.000Z', prazo_ate: '2026-11-25T14:00:00.000Z' };
+    expect(guardadaDoErro({ codigo: 'APP_DESATUALIZADO', mensagem: 'm', detalhes }, 'campo', AGORA)?.fracao_liberada).toBe(false);
   });
 
   it('B1: cada entrada relê o disco; a marca do 426 gravada pela tarefa sem tela não se perde na volta ao primeiro plano', () => {
