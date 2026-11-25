@@ -1,9 +1,10 @@
 /**
- * Seção "Monitor" da aba Integração da empresa no portal `config.` (desenho docs/desenho/empresa-zerar.md §6.4; só o time da Macuxi):
- * o cliente HTTP que o painel do módulo (`MonitorPainel` de `@macuxi/integracao/web`) usa no portal e o texto das células do detalhe
- * por Conector e por entidade (`MonitorDetalhes`). Funções puras; a regra (reprocessável, saúde, classe do erro) vem pronta da API.
+ * Monitor da empresa no portal `config.` (desenho docs/desenho/empresa-zerar.md §6.4; só o time da Macuxi; R-20261124-090510): o
+ * cliente HTTP das rotas `/v1/integracao/*` no portal, o texto das células do Conector (topo da aba Integração) e da tabela por
+ * entidade da aba Dados (`MonitorDetalhes`), e o "Reprocessar" da entidade. Funções puras; a regra (reprocessável, saúde, classe do
+ * erro) vem pronta da API.
  */
-import type { ClienteIntegracao } from '@macuxi/integracao/web';
+import { reprocessarLote, type ClienteIntegracao } from '@macuxi/integracao/web';
 import type { ConectorDetalhe, EntidadeDetalhe } from '@macuxi/integracao/contracts';
 import { ENTIDADES_ZERAR, type EntidadeZerar } from '@macuxi/platform-sdk';
 import { formatDateTime, formatInt, type BadgeTone } from '@macuxi/ui/web';
@@ -58,16 +59,56 @@ export function textoCorrigirNoErp(erros: EntidadeDetalhe['erros']): string {
   return `${formatInt(linhas)} · ${[...new Set(daClasse.map((e) => e.codigo))].join(', ')}`;
 }
 
-/** Estado vazio da linha de "Dados no Hub" (RD-2678): uma célula só diz que não há dados. */
+/** Estado vazio da linha da aba Dados (RD-2678): o selo neutro da Situação diz que não há dados. */
 export const TEXTO_SEM_DADOS = 'Sem dados';
 
 /**
- * Células de uma linha de "Dados no Hub": Registros, Última alteração e Corrigir no ERP. Sem nada no Hub (`temDadosNoHub`),
- * "Sem dados" em Registros e as outras duas vazias; com dados, o "—" fica para "sem registro", "sem cursor" e "sem erro".
+ * Células de texto de uma linha da aba Dados: Última carga, Registros, Última alteração e Corrigir no ERP. Sem nada no Hub
+ * (`temDadosNoHub`), todas vazias (o "Sem dados" fica no selo da Situação); com dados, o "—" fica para "sem lote", "sem registro",
+ * "sem cursor" e "sem erro".
  */
-export function celulasDaEntidade(d: EntidadeDetalhe, tz: string): { registros: string; cursor: string; corrigir: string } {
-  if (!temDadosNoHub(d)) return { registros: TEXTO_SEM_DADOS, cursor: '', corrigir: '' };
-  return { registros: textoRegistros(d.registros), cursor: textoCursor(d.cursores, tz), corrigir: textoCorrigirNoErp(d.erros) };
+export function celulasDaEntidade(d: EntidadeDetalhe, tz: string): { carga: string; registros: string; cursor: string; corrigir: string } {
+  if (!temDadosNoHub(d)) return { carga: '', registros: '', cursor: '', corrigir: '' };
+  return {
+    carga: d.ultimo_lote ? formatDateTime(d.ultimo_lote.recebido_em, tz) : '—',
+    registros: textoRegistros(d.registros),
+    cursor: textoCursor(d.cursores, tz),
+    corrigir: textoCorrigirNoErp(d.erros),
+  };
+}
+
+/**
+ * Selo da Situação: "Com falha" com lote a reprocessar (a API manda a lista, RN-INT-15) ou com erro a corrigir no ERP; "Sem dados"
+ * (neutro) sem nada no Hub; "Em dia" com lote; com dados e sem lote, sem selo.
+ */
+export function situacaoDaEntidade(d: EntidadeDetalhe): { rotulo: string; tom: BadgeTone } | null {
+  if (d.lotes_reprocessaveis.length > 0 || d.erros.some((e) => e.classe === 'corrigir_no_erp' && e.linhas > 0)) return { rotulo: 'Com falha', tom: 'danger' };
+  if (!temDadosNoHub(d)) return { rotulo: TEXTO_SEM_DADOS, tom: 'neutral' };
+  return d.ultimo_lote ? { rotulo: 'Em dia', tom: 'success' } : null;
+}
+
+/**
+ * "Reprocessar" da entidade (RN-INT-15): os lotes da lista da API, do mais antigo para o mais recente, um de cada vez. O super-admin
+ * age como `admin` (reprocessa direto, sem autorizador); um lote recusado não para os outros. Devolve quantos foram e os erros.
+ */
+export async function reprocessarEntidade(cliente: Pick<ClienteIntegracao, 'chamar'>, ids: readonly string[]): Promise<{ feitos: number; erros: unknown[] }> {
+  const r = { feitos: 0, erros: [] as unknown[] };
+  for (const id of ids) {
+    try {
+      await reprocessarLote(cliente, id);
+      r.feitos += 1;
+    } catch (e) {
+      r.erros.push(e);
+    }
+  }
+  return r;
+}
+
+/** Aviso do "Reprocessar": "Reprocessamento iniciado." ou quantos foram e o primeiro erro. */
+export function textoDoReprocesso(r: { feitos: number; erros: readonly unknown[] }, mensagem: (e: unknown) => string): string {
+  if (r.erros.length === 0) return 'Reprocessamento iniciado.';
+  const inicio = r.feitos === 0 ? 'Nenhum lote reprocessado.' : `${formatInt(r.feitos)} de ${formatInt(r.feitos + r.erros.length)} lotes reprocessados.`;
+  return `${inicio} ${mensagem(r.erros[0])}`;
 }
 
 /** Saúde do Conector (`avaliarSaudeConector` da API): rótulo e tom do selo. */

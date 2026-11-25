@@ -1,5 +1,5 @@
 /**
- * 0103 a 0105 — transição (plano §5; ADR 0073 §2.8). O que o BANCO garante nesta etapa (E2):
+ * 0105 a 0107 — transição (plano §5; ADR 0073 §2.8). O que o BANCO garante nesta etapa (E2):
  * - plataforma.leitura_de_perfis: 'concessao' só com a linha viva de catalogo_aplicado; sem linha ou 'legado' = 'legado';
  * - o modelo de hoje segue intacto: perfil.base, perfil.fabrica, perfil_permissao e core.usuario.perfil não mudam com a
  *   migração (a API de hoje continua certa nos dois estados);
@@ -18,7 +18,7 @@ import { emTransacao } from './util';
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 
-describe.skipIf(semBanco())('0103 a 0105 transição (fixture, ROLLBACK)', () => {
+describe.skipIf(semBanco())('0105 a 0107 transição (fixture, ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });

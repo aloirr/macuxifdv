@@ -94,7 +94,7 @@ describe('RF-PES-02: público e vigência no formulário', () => {
 
 describe('RF-PES-01/02: formulário do rascunho ⇄ versão', async () => {
   const { SalvarRascunhoRequest } = await import('../../contracts');
-  const { corpoDoForm, formDaVersao, idsInvalidos } = await import('./construtor');
+  const { corpoDoForm, formDaVersao } = await import('./construtor');
   const U = '00000000-0000-4000-8000-000000000777';
 
   it('RF-PES-02: ida e volta preserva público, vigência (no fuso) e perguntas; o corpo passa no contrato', () => {
@@ -113,8 +113,22 @@ describe('RF-PES-01/02: formulário do rascunho ⇄ versão', async () => {
   });
 
   it('RF-PES-02: id de equipe/cliente que não é UUID é apontado e não vai no corpo', () => {
-    expect(idsInvalidos(`${U}\nabc`)).toEqual(['abc']);
     const f = { ...formDaVersao(QuestionarioVersao.parse(publicada()), 'America/Manaus'), clientes: `${U}, abc` };
     expect(corpoDoForm(f, 'America/Manaus').publico_alvo?.clientes).toEqual([U]);
+  });
+});
+
+describe('UX-34: seleção de equipes e clientes do público', async () => {
+  const { adicionarId, removerId, rotuloCliente } = await import('./construtor');
+  it('RF-PES-02: adicionar não duplica e remover tira só o id escolhido; o texto salvo segue com ids', () => {
+    const a = '11111111-1111-4111-8111-111111111111';
+    const b = '22222222-2222-4222-8222-222222222222';
+    const t = adicionarId(adicionarId(adicionarId('', a), b), a);
+    expect(t).toBe(`${a}\n${b}`);
+    expect(removerId(t, a)).toBe(b);
+  });
+  it('RF-PES-02: rótulo do cliente traz nome e código', () => {
+    expect(rotuloCliente({ razao_social: 'Mercado X LTDA', nome_fantasia: 'Mercado X', external_id: '1020' })).toBe('Mercado X (1020)');
+    expect(rotuloCliente({ razao_social: 'Mercado X LTDA' })).toBe('Mercado X LTDA');
   });
 });

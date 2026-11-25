@@ -1,7 +1,7 @@
--- 0103_plataforma_perfil_concessao (down) — volta ao catálogo da 0102: apaga as 4 tabelas da 0103 (com as políticas, os índices
--- e os gatilhos delas) e as funções novas. O migrador desce antes a 0105 e a 0104. Nada das tabelas de hoje muda: perfil,
--- perfil_permissao, usuario_perfil e core.usuario.perfil ficaram intocados na 0103.
--- Perda documentada: as concessões e os conflitos somem; o efeito de cada perfil volta pelas sobreposições, que o down da 0104
+-- 0105_plataforma_perfil_concessao (down) — volta ao catálogo da migração anterior: apaga as 4 tabelas da 0105 (com as políticas, os índices
+-- e os gatilhos delas) e as funções novas. O migrador desce antes a 0107 e a 0106. Nada das tabelas de hoje muda: perfil,
+-- perfil_permissao, usuario_perfil e core.usuario.perfil ficaram intocados na 0105.
+-- Perda documentada: as concessões e os conflitos somem; o efeito de cada perfil volta pelas sobreposições, que o down da 0106
 -- recalcula para os perfis mudados depois da migração.
 drop table if exists plataforma.perfil_migracao_conflito;
 drop function if exists plataforma.leitura_de_perfis(uuid);

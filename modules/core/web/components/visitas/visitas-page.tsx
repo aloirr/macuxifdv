@@ -8,11 +8,10 @@ import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, Load
 import type { VisitaBko } from '../../../contracts';
 import { filtrarPorEtapas, filtroEtapasDaUrl, rotuloAcessivelSelo, rotuloSeloEtapas, VisitasComEtapasListaSchema, type VisitaComEtapas } from '../../lib/etapas-visita';
 import { EtapasDialog } from './etapas-dialog';
-import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
+import { useHojeDoTenant, useMe, useSellersDeCampo } from '../../lib/queries';
 import { csvDeVisitas, permanenciaMin, quando, rotuloResultado, sinais } from '../../lib/visitas';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 
-const FUSO_PADRAO = 'America/Manaus';
 const somar = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Foto da fachada: baixa com a sessão (o arquivo só abre para quem tem a carteira do cliente, RN-CORE-04) e mostra no diálogo. */
@@ -43,6 +42,7 @@ function FotoFachada({ id, cliente, onClose }: { id: string; cliente: string; on
 }
 
 function VisitasConteudo() {
+  const fuso = useMe().data.tenant.timezone;
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -89,7 +89,7 @@ function VisitasConteudo() {
           <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar as visitas" data-testid="visitas.atualizar">
             Atualizar
           </Button>
-          <Button onClick={() => downloadBlob(new Blob([csvDeVisitas(itens, FUSO_PADRAO)], { type: 'text/csv;charset=utf-8' }), `visitas_${de}_${ate}.csv`)} disabled={itens.length === 0} data-testid="visitas.exportar-csv">
+          <Button onClick={() => downloadBlob(new Blob([csvDeVisitas(itens, fuso)], { type: 'text/csv;charset=utf-8' }), `visitas_${de}_${ate}.csv`)} disabled={itens.length === 0} data-testid="visitas.exportar-csv">
             Exportar CSV
           </Button>
           </>
@@ -154,7 +154,7 @@ function VisitasConteudo() {
                   const min = permanenciaMin(v);
                   return (
                     <tr key={v.id} data-testid={`visitas.linha.${v.id}`}>
-                      <td className={td}>{quando(v.checkin_em, FUSO_PADRAO)}</td>
+                      <td className={td}>{quando(v.checkin_em, fuso)}</td>
                       <td className={td}>{v.usuario_nome}</td>
                       <td className={td}>{v.cliente_nome}</td>
                       <td className={td}>{min === null ? 'Em atendimento' : `${min} min`}</td>
@@ -202,7 +202,7 @@ function VisitasConteudo() {
           </TableScroll>
         </Panel>
       )}
-      {visitaEtapas && <EtapasDialog visita={visitaEtapas} fuso={FUSO_PADRAO} onClose={() => setEtapasId(null)} />}
+      {visitaEtapas && <EtapasDialog visita={visitaEtapas} fuso={fuso} onClose={() => setEtapasId(null)} />}
       {foto?.foto_fachada_id && <FotoFachada id={foto.foto_fachada_id} cliente={foto.cliente_nome} onClose={() => setFoto(null)} />}
     </div>
   );

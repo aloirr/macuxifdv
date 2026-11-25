@@ -1,6 +1,6 @@
--- 0103_plataforma_perfil_concessao (up) — v1.0.35, etapa E2 do plano docs/banco/plano-migracao-perfis-sem-base.md (§2), ADR 0073
+-- 0105_plataforma_perfil_concessao (up) — v1.0.35, etapa E2 do plano docs/banco/plano-migracao-perfis-sem-base.md (§2), ADR 0073
 -- (aceita em 24/11/2026, R-20261124-191902-alexandre; ordem R-20261125-033510-alexandre). RN-CORE-04, RN-CORE-33, RN-CORE-35,
--- RN-PRO-01. Dicionário: docs/banco/plataforma.md ("0103 a 0105 — perfis sem perfil base") e docs/banco/rls.md.
+-- RN-PRO-01. Dicionário: docs/banco/plataforma.md ("0105 a 0107 — perfis sem perfil base") e docs/banco/rls.md.
 -- Migração ADITIVA: 4 tabelas novas, a cópia v1 dos 7 modelos e as travas por cargo. Nada que existe muda de comportamento
 -- (perfil, perfil_permissao, usuario_perfil e core.usuario.perfil seguem como estão; a API de hoje não lê as tabelas novas).
 --
@@ -18,7 +18,7 @@
 --    administrativo), apps (acesso.campo fora de vendedor e promotor; acesso.gestao fora de supervisor e gerente; RN-CORE-33 revista) e
 --    RN-CORE-04 (dados.escopo acima do teto do cargo, plataforma.teto_escopo_do_cargo). O que depende do conjunto (portal só com a
 --    gestão completa, perfil ativo com algum acesso.*, último admin) fica no domain e na API do Core nesta versão; no banco, a
---    migração confere (0104).
+--    migração confere (0106).
 -- 3. plataforma.catalogo_aplicado — versão do catálogo aplicada ao tenant e a CHAVE DA TRANSIÇÃO: leitura 'legado' (ou sem
 --    linha) = o tenant segue no modelo de hoje (fábrica + sobreposições); 'concessao' = migrado (perfil_concessao vale).
 --    Única viva por (tenant, versao). plataforma.leitura_de_perfis(tenant) devolve 'legado' ou 'concessao'.
@@ -34,8 +34,8 @@
 -- índice (tenant_id, updated_at, id).
 -- Volume: ~400 a 1.500 concessões por tenant (7 a 20 perfis); teto de projeto ~1,5 milhão de linhas.
 --
--- Caminho de volta: 0103_plataforma_perfil_concessao.down.sql (apaga as 4 tabelas e as funções desta migração). O migrador desce
--- antes a 0105 e a 0104.
+-- Caminho de volta: 0105_plataforma_perfil_concessao.down.sql (apaga as 4 tabelas e as funções desta migração). O migrador desce
+-- antes a 0107 e a 0106.
 
 -- 0. Teto do escopo de dados e trava de uma chave, pelo cargo (ADR 0073 §2.4 e §2.5) ------------------------------------------
 create function plataforma.teto_escopo_do_cargo(p_cargo text) returns text
@@ -621,7 +621,7 @@ grant select on plataforma.catalogo_aplicado to macuxi_leitura;
 create policy leitura on plataforma.catalogo_aplicado for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());
 
 -- Leitura do tenant na transição: 'concessao' só com a linha viva; sem linha = 'legado'. Usada pelos gatilhos de espelho
--- (0105) e, na fase de código, pelas funções de caminho duplo.
+-- (0107) e, na fase de código, pelas funções de caminho duplo.
 create function plataforma.leitura_de_perfis(p_tenant uuid) returns text
   language sql stable
   set search_path = pg_catalog, plataforma, pg_temp

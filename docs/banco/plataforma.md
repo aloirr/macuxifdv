@@ -1531,7 +1531,7 @@ pela `sa_gravar_nome_fantasia`). Todas text nulas; CHECK `tenant_<coluna>_format
 O `macuxi_app` lê a própria linha (`isolamento_tenant`, 0001) e não grava; o portal não lê a tabela; o `macuxi_leitura` ganha
 SELECT nas 10 (nenhuma sensível pelo nome).
 
-### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 4 `sa_*`, 46 no total)
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 4 `sa_*`, 46 no total até a 0106)
 Sessão inválida = 28000. `DadosDaEmpresa` = `{ tenant_id, cnpj, razao_social, nome_fantasia, logradouro, numero, complemento,
 bairro, municipio, uf, cep, telefone, email, inscricao_estadual, atualizado_em }` (`atualizado_em` = `tenant.updated_at` em ISO UTC).
 
@@ -1549,12 +1549,40 @@ select nome, perfil, cargo from plataforma.sa_quem_sou($1);        -- topo do po
 select plataforma.sa_gravar_senha_super_admin($1, $2, $3) as r;    -- troca da senha, depois da sa_reautenticar e do argon2
 ```
 
-## 0103 a 0105 — perfis sem perfil base (v1.0.35, ADR 0073; plano [plano-migracao-perfis-sem-base.md](plano-migracao-perfis-sem-base.md)). Fora do sync
-Etapa E2 do plano. Três migrações, aplicadas juntas no mesmo deploy (o backfill da 0104 e o espelho da 0105 andam juntos):
-- `0103_plataforma_perfil_concessao` (aditiva): as 4 tabelas, a cópia v1 dos 7 modelos e as travas por cargo.
-- `0104_plataforma_perfis_sem_base_derivacao`: diagnóstico e derivação base + sobreposições → concessões, e a rodada em todos
+## Senha do admin do cliente no portal (0103, v1.0.35 item 3) — só funções. Fora do sync
+Migração `0103_plataforma_senha_admin_portal` (aditiva: 3 funções, nenhuma tabela, coluna, política ou grant existente muda).
+Volta: `.down.sql`, que apaga as 3 funções; nada de dado se perde (a senha trocada fica em `core.usuario.senha_hash`, a
+auditoria é append-only); antes do down, volte a API ao 403 `TROCA_SO_SUPER_ADMIN` para o admin do cliente. Teste:
+`db/testes/senha-admin-portal.db.test.ts`.
+
+A rota `POST /v1/plataforma/auth/senha` passa a atender o admin do cliente na conta da **empresa atual da sessão**
+(`portal_sessao.tenant_atual_id`/`usuario_atual_id`). O bloqueio é o da conta, o mesmo do login do BKO/app e da rota pública
+`POST /v1/auth/senha/trocar`: `core.usuario.tentativas_falhas` e `bloqueio_ate` (0004; RN-CORE-01: 5 falhas seguidas = 15 min;
+vencido recomeça; vivo não conta nem estende). O super-admin segue na `sa_reautenticar` + `sa_tentativa_*` +
+`sa_gravar_senha_super_admin` (0072/0039/0102).
+
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; mais 3 `sa_*`, 49 no total)
+Todas: sessão inválida = 28000; super-admin ou admin do cliente sem empresa escolhida = 42501. Nunca hash nem e-mail em erro ou
+auditoria.
+
+| Função | Retorno e regra | Erros |
+|---|---|---|
+| `sa_reautenticar_admin(p_sid uuid) returns table (tenant_id uuid, usuario_id uuid, email text, senha_hash text, falhas integer, bloqueado_ate timestamptz)` | a conta para a API conferir a senha atual com o argon2; `bloqueado_ate` só quando vivo; `falhas` = 0 se o bloqueio venceu. Audita `sa.reautenticar` quando acha a conta | 28000, 42501 |
+| `sa_falha_senha_admin(p_sid uuid) returns table (falhas integer, bloqueado_ate timestamptz)` | senha atual errada: bloqueio vivo = nada muda (devolve o estado); senão `falhas` = (vencido ? 0 : falhas) + 1 e, na 5ª, `bloqueio_ate = now() + 15 min` (falhas fica 5). `for update` na linha. Audita `sa.bloqueio` `{ minutos: 15 }` ao bloquear | 28000, 42501 |
+| `sa_gravar_senha_admin(p_sid uuid, p_hash_atual text, p_hash_novo text) returns boolean` | grava só se `senha_hash = p_hash_atual` e sem bloqueio vivo (`bloqueio_ate` nulo ou vencido; senão false, nada muda: pedidos paralelos que passaram juntos pelo 423 da rota não gravam com a conta já bloqueada). Como a `trocarSenha` da rota pública: sem senha a trocar nem temporária, falhas e bloqueio zerados, `sessao_versao + 1`, `core.sessao` revogadas; revoga também as `portal_sessao` de admin do cliente com a conta em `portal_sessao_empresa` (inclusive a atual). Audita no tenant `usuario.senha_trocar` `{ motivo: 'voluntaria', sessoes_revogadas: true, origem: 'portal' }` e na plataforma `sa.senha.trocada` `{ sessoes_revogadas, sessoes_app_revogadas }` | 28000, 42501, 22023 (hash atual nulo; hash novo fora do PHC argon2id) |
+
+```sql
+select * from plataforma.sa_reautenticar_admin($1);              -- hash e bloqueio (423 se bloqueado_ate não nulo)
+select * from plataforma.sa_falha_senha_admin($1);               -- senha atual errada (401/423 pelo estado devolvido)
+select plataforma.sa_gravar_senha_admin($1, $2, $3) as r;        -- false = 409 (a senha mudou no meio ou a conta bloqueou)
+```
+
+## 0105 a 0107 — perfis sem perfil base (v1.0.35, ADR 0073; plano [plano-migracao-perfis-sem-base.md](plano-migracao-perfis-sem-base.md)). Fora do sync
+Etapa E2 do plano. Três migrações, aplicadas juntas no mesmo deploy (o backfill da 0106 e o espelho da 0107 andam juntos):
+- `0105_plataforma_perfil_concessao` (aditiva): as 4 tabelas, a cópia v1 dos 7 modelos e as travas por cargo.
+- `0106_plataforma_perfis_sem_base_derivacao`: diagnóstico e derivação base + sobreposições → concessões, e a rodada em todos
   os tenants.
-- `0105_plataforma_perfis_sem_base_conferencia_espelho`: conferência por usuário, espelho da janela de transição e semeadura
+- `0107_plataforma_perfis_sem_base_conferencia_espelho`: conferência por usuário, espelho da janela de transição e semeadura
   do tenant novo já migrado.
 
 O modelo de hoje **fica** (fase 1): `perfil.base`, `perfil.fabrica`, `perfil_permissao`, os 2 parâmetros e `core.usuario.perfil`
@@ -1578,7 +1606,7 @@ fora do administrativo; `acesso.campo` fora de vendedor e promotor; `acesso.gest
 (`dados.escopo` acima de `teto_escopo_do_cargo`). O que depende do conjunto (portal só com a gestão completa, perfil ativo com
 algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a migração confere.
 
-### Derivação (0104)
+### Derivação (0106)
 - `permissoes_legado_do_perfil(perfil, parametros)`: gêmea SQL de `resolverPerfil` (modelo v1 da base − revogações ∪
   concessões das sobreposições − travas da base; escopo fora da família → `carteira`, acima do da base → o da base). Com
   `parametros = true`, o efeito de hoje dos 2 parâmetros: base promotor sem `pedido.ver` com `core.promotor_ve_pedidos = false` e
@@ -1604,14 +1632,14 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
 - **Idempotente**: ids determinísticos (`<tenant>:plataforma.perfil_concessao:<perfil>:<chave>`); `sincronizar_concessoes` só
   grava o que muda (nem o `updated_at` anda); tenant em `concessao` é pulado; achado repetido não muda, o que sumiu ganha
   `resolvido_em`.
-- **Volta** (`.down.sql` da 0104): o perfil cujas concessões mudaram fora da derivação recebe as sobreposições = diferença para o
+- **Volta** (`.down.sql` da 0106): o perfil cujas concessões mudaram fora da derivação recebe as sobreposições = diferença para o
   modelo da base (cortadas pelas travas da base: perda documentada); o cargo dos ajustados volta; concessões, achados e
-  `catalogo_aplicado` são apagados. Diagnóstico à mão: `db/scripts/diagnostico-0104.sql`.
+  `catalogo_aplicado` são apagados. Diagnóstico à mão: `db/scripts/diagnostico-0106.sql`.
 
-### Conferência e espelho (0105)
+### Conferência e espelho (0107)
 - `conferir_perfis_sem_base(tenant)` → `(usuario_id, perfil_codigo, chave, antes, depois, tipo)`: `DIFERENCA` por chave (acesso
   de hoje com os parâmetros × concessões, alvos em ordem) e `NOME_DIVERGENTE`. Esperado: zero `DIFERENCA` em todo tenant
-  `concessao`; no deploy, a equivalência é a de `migrar_perfis_sem_base` (0104), que aborta com 23514.
+  `concessao`; no deploy, a equivalência é a de `migrar_perfis_sem_base` (0106), que aborta com 23514.
 - Espelho (gatilhos AFTER por linha, funções `SECURITY DEFINER`, sem EXECUTE para ninguém), só no tenant `concessao`:
   `perfil_permissao_espelho` (sobreposição gravada ou apagada), `perfil_espelho` (perfil novo, troca de cargo),
   `parametro_espelho` (os 2 parâmetros; refaz os perfis de base promotor) e `tenant_semear_perfis_concessao` (tenant novo nasce

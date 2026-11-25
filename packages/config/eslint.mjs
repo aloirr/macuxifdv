@@ -6,7 +6,11 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
-import { ARQUIVOS_DE_TESTE, pluginMacuxi } from './regras/hora-fixa.mjs';
+import { ARQUIVOS_DE_TESTE, pluginMacuxi as pluginHoraFixa } from './regras/hora-fixa.mjs';
+import { perfilFixo } from './regras/perfil-fixo.mjs';
+
+/** Um só plugin `macuxi` (o flat config não aceita dois objetos com o mesmo nome de plugin). */
+const pluginMacuxi = { meta: { name: 'macuxi' }, rules: { ...pluginHoraFixa.rules, 'perfil-fixo': perfilFixo } };
 
 export const macuxiEslint = tseslint.config(
   {
@@ -65,6 +69,14 @@ export const macuxiEslint = tseslint.config(
     files: ARQUIVOS_DE_TESTE,
     plugins: { macuxi: pluginMacuxi },
     rules: { 'macuxi/hora-fixa-em-teste': 'warn' },
+  },
+  {
+    // ADR 0073 §2.8 (E3): sem nome fixo de perfil no código de produção; permissão é chave, hierarquia é `usuario.cargo`.
+    // AVISO até a troca de leitura (E6); depois, erro. Testes ficam de fora (conferem os 7 perfis padrão de propósito).
+    files: ['**/*.ts', '**/*.tsx', '**/*.mts'],
+    ignores: ARQUIVOS_DE_TESTE,
+    plugins: { macuxi: pluginMacuxi },
+    rules: { 'macuxi/perfil-fixo': 'warn' },
   },
 );
 

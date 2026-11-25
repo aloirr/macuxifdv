@@ -1,14 +1,14 @@
--- 0104_plataforma_perfis_sem_base_derivacao (down) — volta ao modelo de hoje (fábrica da base + sobreposições), plano §4.3.
--- O migrador desce antes a 0105 (sem os gatilhos de espelho, nada mais grava concessões).
+-- 0106_plataforma_perfis_sem_base_derivacao (down) — volta ao modelo de hoje (fábrica da base + sobreposições), plano §4.3.
+-- O migrador desce antes a 0107 (sem os gatilhos de espelho, nada mais grava concessões).
 -- 1. Perfil cujas concessões mudaram fora da derivação (gravadas pela API nova; diferem de concessoes_derivadas): as
 --    sobreposições passam a ser a diferença entre as concessões e o modelo v1 da base (o cálculo de sobreposicoesDoDesejado do
 --    Core): concedida=false no que o modelo dá e o perfil não tem; concedida=true (com nível e alvos) no que sobra ou difere.
 --    Perda documentada: o que só o modelo novo aceita volta cortado pelas travas da BASE (ex.: acesso.portal num perfil de base
 --    analista; acesso.bko num de base vendedor; escopo acima do da base vira o da base). Os perfis intocados mantêm as
---    sobreposições originais, que a 0104 nunca apagou.
--- 2. O cargo dos perfis acertados pela 0104 (sem usuários; auditoria 'perfil.migracao_cargo') volta ao de antes, se o perfil
---    segue sem usuários e com o cargo que a 0104 gravou. A linha de auditoria fica (histórico).
--- 3. Apaga as concessões, os achados e catalogo_aplicado (as tabelas são da 0103) e as funções desta migração.
+--    sobreposições originais, que a 0106 nunca apagou.
+-- 2. O cargo dos perfis acertados pela 0106 (sem usuários; auditoria 'perfil.migracao_cargo') volta ao de antes, se o perfil
+--    segue sem usuários e com o cargo que a 0106 gravou. A linha de auditoria fica (histórico).
+-- 3. Apaga as concessões, os achados e catalogo_aplicado (as tabelas são da 0105) e as funções desta migração.
 do $$
 declare
   r record;

@@ -46,6 +46,8 @@ export const CondicaoAlerta = z
     limiar: z.number().nullable(),
     severidade: Severidade,
     mensagem: z.string().min(1),
+    /** Quando o fato começou (último check-in, entrada na carteira, estouro do prazo); ausente = a hora em que o alerta abriu. */
+    desde: InstanteUtc.optional(),
   })
   .strict();
 export type CondicaoAlerta = z.infer<typeof CondicaoAlerta>;

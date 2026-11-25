@@ -1,10 +1,10 @@
 /**
- * 0103 a 0105 — derivação base + sobreposições -> concessões (plano docs/banco/plano-migracao-perfis-sem-base.md §3, §4.1 a
+ * 0105 a 0107 — derivação base + sobreposições -> concessões (plano docs/banco/plano-migracao-perfis-sem-base.md §3, §4.1 a
  * §4.3; ADR 0073 §2.0 e §5). O que o BANCO garante:
  * - nenhum usuário perde nem ganha acesso: conferir_perfis_sem_base = zero DIFERENCA (e zero NOME_DIVERGENTE) em A e B;
  * - perfil_compat(cargo, concessões) = a base nos 7 padrão (core.usuario.perfil de hoje);
  * - idempotência: rodar de novo (migrar e espelho) não muda nenhuma linha, nem o updated_at;
- * - up/down/up com um tenant que já existia (dados antes da 0103): o down devolve o efeito por usuário (sobreposições intocadas e
+ * - up/down/up com um tenant que já existia (dados antes da 0105): o down devolve o efeito por usuário (sobreposições intocadas e
  *   recalculadas para o perfil mudado depois), e o up de novo grava as mesmas concessões (ids determinísticos).
  * Fixture dois-tenants (sempre com ROLLBACK) e banco efêmero para o up/down.
  */
@@ -24,19 +24,20 @@ const B = DOIS_TENANTS.B;
 const migracoes = lerMigracoes();
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
 
-describe('0103 a 0105 perfis sem perfil base (estático)', () => {
-  it('nome e posição: 0103, 0104 e 0105 logo depois da 0102_plataforma_dados_da_empresa', () => {
+describe('0105 a 0107 perfis sem perfil base (estático)', () => {
+  it('nome e posição: 0105, 0106 e 0107 em sequência, depois de todas as anteriores (as seguintes podem existir)', () => {
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
-    const i = nomes.indexOf('0102_plataforma_dados_da_empresa');
-    expect(nomes.slice(i + 1, i + 4)).toEqual([
-      '0103_plataforma_perfil_concessao',
-      '0104_plataforma_perfis_sem_base_derivacao',
-      '0105_plataforma_perfis_sem_base_conferencia_espelho',
+    const i = nomes.indexOf('0105_plataforma_perfil_concessao');
+    expect(migracoes.slice(0, i).every((m) => m.versao < '0105')).toBe(true);
+    expect(nomes.slice(i, i + 3)).toEqual([
+      '0105_plataforma_perfil_concessao',
+      '0106_plataforma_perfis_sem_base_derivacao',
+      '0107_plataforma_perfis_sem_base_conferencia_espelho',
     ]);
   });
 
-  it('0103: 4 tabelas com RLS forçado e manutencao; 406 linhas do modelo v1; nenhuma tabela de hoje alterada', () => {
-    const up = semComentarios(migracoes.find((m) => m.versao === '0103')!.up);
+  it('0105: 4 tabelas com RLS forçado e manutencao; 406 linhas do modelo v1; nenhuma tabela de hoje alterada', () => {
+    const up = semComentarios(migracoes.find((m) => m.versao === '0105')!.up);
     for (const t of ['modelo_permissao', 'perfil_concessao', 'catalogo_aplicado', 'perfil_migracao_conflito']) {
       expect(up).toContain(`create table plataforma.${t} (`);
       expect(up).toContain(`alter table plataforma.${t} force row level security;`);
@@ -47,9 +48,9 @@ describe('0103 a 0105 perfis sem perfil base (estático)', () => {
     expect(up).not.toMatch(/macuxi_(worker|portal)/);
   });
 
-  it('0104 e 0105: funções sem EXECUTE para PUBLIC; a migração e o espelho sem EXECUTE para ninguém; gatilhos DEFINER', () => {
-    const up4 = semComentarios(migracoes.find((m) => m.versao === '0104')!.up);
-    const up5 = semComentarios(migracoes.find((m) => m.versao === '0105')!.up);
+  it('0106 e 0107: funções sem EXECUTE para PUBLIC; a migração e o espelho sem EXECUTE para ninguém; gatilhos DEFINER', () => {
+    const up4 = semComentarios(migracoes.find((m) => m.versao === '0106')!.up);
+    const up5 = semComentarios(migracoes.find((m) => m.versao === '0107')!.up);
     for (const sql of [up4, up5]) {
       const criadas = [...sql.matchAll(/create function (plataforma\.[a-z_]+)\(/g)].map((x) => x[1]!);
       for (const f of criadas) expect(sql, f).toMatch(new RegExp(`revoke all on function ${f.replace('.', '\\.')}\\([^)]*\\) from public;`));
@@ -63,7 +64,7 @@ describe('0103 a 0105 perfis sem perfil base (estático)', () => {
   });
 });
 
-describe.skipIf(semBanco())('0103 a 0105 na fixture dois-tenants (ROLLBACK)', () => {
+describe.skipIf(semBanco())('0105 a 0107 na fixture dois-tenants (ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -138,17 +139,17 @@ describe.skipIf(semBanco())('0103 a 0105 na fixture dois-tenants (ROLLBACK)', ()
   });
 });
 
-describe.skipIf(semBanco())('0103 a 0105 up/down/up com dados de antes (banco efêmero)', () => {
+describe.skipIf(semBanco())('0105 a 0107 up/down/up com dados de antes (banco efêmero)', () => {
   let b: BancoDeTeste;
-  const T = 'cccccccc-0103-4000-8000-000000000001';
+  const T = 'cccccccc-0105-4000-8000-000000000001';
   const U = {
-    admin: 'cccccccc-0103-4000-8000-000000000101',
-    vend: 'cccccccc-0103-4000-8000-000000000102', // vendedor com o perfil personalizado (escopo proprio, sem produto.consultar)
-    prom: 'cccccccc-0103-4000-8000-000000000103',
-    sup: 'cccccccc-0103-4000-8000-000000000104', // supervisor padrão com uma sobreposição de revogação
-    anal: 'cccccccc-0103-4000-8000-000000000105', // analista com senha.redefinir alvos [vendedor, promotor]
+    admin: 'cccccccc-0105-4000-8000-000000000101',
+    vend: 'cccccccc-0105-4000-8000-000000000102', // vendedor com o perfil personalizado (escopo proprio, sem produto.consultar)
+    prom: 'cccccccc-0105-4000-8000-000000000103',
+    sup: 'cccccccc-0105-4000-8000-000000000104', // supervisor padrão com uma sobreposição de revogação
+    anal: 'cccccccc-0105-4000-8000-000000000105', // analista com senha.redefinir alvos [vendedor, promotor]
   };
-  const P = { vendX: 'cccccccc-0103-4000-8000-000000000201', analX: 'cccccccc-0103-4000-8000-000000000202' };
+  const P = { vendX: 'cccccccc-0105-4000-8000-000000000201', analX: 'cccccccc-0105-4000-8000-000000000202' };
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
   });
@@ -159,8 +160,8 @@ describe.skipIf(semBanco())('0103 a 0105 up/down/up com dados de antes (banco ef
   it('up com tenant que já existia: zero diferenças; down devolve o efeito por usuário; up de novo = as mesmas concessões', async () => {
     await comAdmin(b.nome, async (c) => {
       const q = async <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await c.query<T>(sql, params)).rows;
-      await migrarUp(c, { ate: '0102' });
-      const catalogo0102 = await retratoDoCatalogo(c);
+      await migrarUp(c, { ate: '0104' }); // tudo antes da 0105; as migrações seguintes à 0107 não entram
+      const catalogoAntes = await retratoDoCatalogo(c);
       await c.query('begin');
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 't103', 'Antigo 103')", [T]);
       const usuario = (id: string, perfil: string) =>
@@ -182,10 +183,10 @@ describe.skipIf(semBanco())('0103 a 0105 up/down/up com dados de antes (banco ef
       await trocar(U.anal, P.analX);
       await c.query('commit');
       const sobreposicoes = async () => q('select perfil_id, chave, concedida, nivel, alvos from plataforma.perfil_permissao where tenant_id = $1 and deleted_at is null order by perfil_id, chave', [T]);
-      const sob0102 = await sobreposicoes();
+      const sobAntes = await sobreposicoes();
 
-      expect((await migrarUp(c, { ate: '0105' })).aplicadas).toEqual([
-        '0103_plataforma_perfil_concessao', '0104_plataforma_perfis_sem_base_derivacao', '0105_plataforma_perfis_sem_base_conferencia_espelho',
+      expect((await migrarUp(c, { ate: '0107' })).aplicadas).toEqual([
+        '0105_plataforma_perfil_concessao', '0106_plataforma_perfis_sem_base_derivacao', '0107_plataforma_perfis_sem_base_conferencia_espelho',
       ]);
       expect(await leitura(c, T)).toBe('concessao');
       expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [T])).toEqual([]);
@@ -198,17 +199,17 @@ describe.skipIf(semBanco())('0103 a 0105 up/down/up com dados de antes (banco ef
       await c.query("update plataforma.perfil_concessao set deleted_at = now() where perfil_id = $1 and chave = 'cliente.pre_cadastrar'", [P.vendX]);
 
       expect((await migrarDown(c, { passos: 3 })).aplicadas).toEqual([
-        '0105_plataforma_perfis_sem_base_conferencia_espelho', '0104_plataforma_perfis_sem_base_derivacao', '0103_plataforma_perfil_concessao',
+        '0107_plataforma_perfis_sem_base_conferencia_espelho', '0106_plataforma_perfis_sem_base_derivacao', '0105_plataforma_perfil_concessao',
       ]);
-      expect(await retratoDoCatalogo(c)).toEqual(catalogo0102);
+      expect(await retratoDoCatalogo(c)).toEqual(catalogoAntes);
       // perfis intocados: as mesmas sobreposições; o vendedor_x (mudado depois) = a diferença para o modelo vendedor
       const depois = await sobreposicoes();
-      expect(depois.filter((s) => s.perfil_id !== P.vendX)).toEqual(sob0102.filter((s) => s.perfil_id !== P.vendX));
+      expect(depois.filter((s) => s.perfil_id !== P.vendX)).toEqual(sobAntes.filter((s) => s.perfil_id !== P.vendX));
       expect(depois.filter((s) => s.perfil_id === P.vendX).map((s) => `${s.chave}:${s.concedida}:${s.nivel ?? ''}`)).toEqual([
         'cliente.pre_cadastrar:false:', 'dados.escopo:true:proprio', 'produto.consultar:false:',
       ]);
 
-      expect((await migrarUp(c, { ate: '0105' })).aplicadas).toHaveLength(3);
+      expect((await migrarUp(c, { ate: '0107' })).aplicadas).toHaveLength(3);
       expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [T])).toEqual([]);
       const segunda = await q('select id, chave, nivel, alvos from plataforma.perfil_concessao where tenant_id = $1 and deleted_at is null order by id', [T]);
       expect(segunda).toEqual(primeira.filter((l) => l.id !== idPerfilConcessao(T, P.vendX, 'cliente.pre_cadastrar')));

@@ -1,5 +1,5 @@
 /**
- * 0105 — espelho da janela de transição (plano §5; ADR 0073 §2.0 decisão 6). Com o tenant em 'concessao', o que o caminho de
+ * 0107 — espelho da janela de transição (plano §5; ADR 0073 §2.0 decisão 6). Com o tenant em 'concessao', o que o caminho de
  * hoje grava (sobreposição, "restaurar padrão", perfil novo, troca de cargo) refaz as concessões do perfil; o que a trava do cargo
  * corta vira aviso TRAVA_NOVA_CORTA (resolvido quando deixa de valer); tenant 'legado' não é tocado; nada muda (nem o updated_at)
  * quando o conjunto já é o mesmo. Fixture dois-tenants (ROLLBACK).
@@ -15,9 +15,9 @@ import { emTransacao } from './util';
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const VENDEDOR = idPerfilFabrica(A.tenantId, 'vendedor');
-const NOVO = 'cccccccc-0105-4000-8000-00000000e001';
+const NOVO = 'cccccccc-0107-4000-8000-00000000e001';
 
-describe.skipIf(semBanco())('0105 espelho do caminho de hoje (fixture, ROLLBACK)', () => {
+describe.skipIf(semBanco())('0107 espelho do caminho de hoje (fixture, ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });

@@ -1,10 +1,10 @@
 /**
- * 0104/0105 — os 2 parâmetros do tenant que viram caixa (plano §3.3; ADR 0073 §2.4 e §2.0 decisão 5). O que o BANCO garante:
+ * 0106/0107 — os 2 parâmetros do tenant que viram caixa (plano §3.3; ADR 0073 §2.4 e §2.0 decisão 5). O que o BANCO garante:
  * - core.promotor_ve_pedidos = false: os perfis de base promotor ficam sem pedido.ver (sem linha ou true = com);
  * - catalogo.promotor_ve_preco_estoque = true: os perfis de base promotor têm produto.ver_preco_estoque (sem linha = sem);
  * - nas outras bases produto.ver_preco_estoque fica sempre (o preço aparece pelo nome do perfil, PERFIS_PRECO_ESTOQUE), mesmo com
  *   a chave revogada por sobreposição: a migração concede e grava o aviso REVOGACAO_SEM_EFEITO;
- * - o espelho (0105) refaz os perfis de base promotor quando o parâmetro muda pelo caminho de hoje, e a conferência segue zerada.
+ * - o espelho (0107) refaz os perfis de base promotor quando o parâmetro muda pelo caminho de hoje, e a conferência segue zerada.
  * Fixture dois-tenants (ROLLBACK).
  */
 import pg from 'pg';
@@ -19,7 +19,7 @@ const A = DOIS_TENANTS.A;
 const PROMOTOR = idPerfilFabrica(A.tenantId, 'promotor');
 const VENDEDOR = idPerfilFabrica(A.tenantId, 'vendedor');
 
-describe.skipIf(semBanco())('0104/0105 parâmetros que viram caixa (fixture, ROLLBACK)', () => {
+describe.skipIf(semBanco())('0106/0107 parâmetros que viram caixa (fixture, ROLLBACK)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });

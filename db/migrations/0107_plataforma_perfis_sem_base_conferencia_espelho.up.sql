@@ -1,6 +1,6 @@
--- 0105_plataforma_perfis_sem_base_conferencia_espelho (up) — v1.0.35, etapa E2 do plano docs/banco/plano-migracao-perfis-sem-base.md
+-- 0107_plataforma_perfis_sem_base_conferencia_espelho (up) — v1.0.35, etapa E2 do plano docs/banco/plano-migracao-perfis-sem-base.md
 -- (§4.1 e §5, janela de transição). ADR 0073 §2.0 (decisão 6: o modelo antigo fica por uma versão inteira do app ou 30 dias),
--- §2.8. RN-CORE-35. Dicionário: docs/banco/plataforma.md ("0103 a 0105 — perfis sem perfil base").
+-- §2.8. RN-CORE-35. Dicionário: docs/banco/plataforma.md ("0105 a 0107 — perfis sem perfil base").
 --
 -- 1. plataforma.conferir_perfis_sem_base(tenant) -> (usuario_id, perfil_codigo, chave, antes, depois, tipo): para cada usuário
 --    não apagado do tenant, compara o acesso de hoje do seu perfil vivo (permissoes_legado_do_perfil com os 2 parâmetros) com as
@@ -8,7 +8,7 @@
 --    chave que difere) e NOME_DIVERGENTE (perfil_compat(cargo, concessões) <> core.usuario.perfil; só aviso: a base fica
 --    congelada). ESPERADO: zero linhas DIFERENCA em todo tenant 'concessao'. Só leitura, INVOKER (macuxi_app vê só o próprio
 --    tenant). Sem dado pessoal: ids e códigos.
---    A equivalência no deploy é a de migrar_perfis_sem_base (0104, rodada em todo tenant): esta função é a do testes e do suporte.
+--    A equivalência no deploy é a de migrar_perfis_sem_base (0106, rodada em todo tenant): esta função é a do testes e do suporte.
 -- 2. Espelho da janela de transição (entre o deploy do banco e o da API nova, e enquanto a API antiga ou o app antigo gravarem
 --    pelo caminho de hoje): no tenant 'concessao', toda gravação do modelo antigo refaz as concessões do perfil a partir dele
 --    (plataforma.espelhar_perfil -> concessoes_derivadas -> sincronizar_concessoes), sem mudar nada quando o conjunto já é o
@@ -29,8 +29,8 @@
 --    os achados) e rodam também dentro das sa_* do portal; search_path fixo, sem EXECUTE para ninguém. Saem na fase 2 (ADR
 --    seguinte), junto de perfil.base, perfil_permissao e dos 2 parâmetros.
 --
--- Caminho de volta: 0105_plataforma_perfis_sem_base_conferencia_espelho.down.sql (apaga os 4 gatilhos e as funções desta
--- migração; as concessões ficam, como a 0104 as deixou).
+-- Caminho de volta: 0107_plataforma_perfis_sem_base_conferencia_espelho.down.sql (apaga os 4 gatilhos e as funções desta
+-- migração; as concessões ficam, como a 0106 as deixou).
 
 -- 1. Conferência por usuário --------------------------------------------------------------------------------------------------
 create function plataforma.conferir_perfis_sem_base(p_tenant uuid)
