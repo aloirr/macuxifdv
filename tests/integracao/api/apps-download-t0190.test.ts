@@ -379,7 +379,8 @@ describe.skipIf(semBanco())('T-0190 — APKs por link temporário (createApp rea
       expect(r.body).not.toContain('apk');
       // o app novo ainda lê o corpo antigo (com apk_url) sem quebrar? a resposta V2 não passa no contrato antigo, e isso é o esperado
       expect(ContratoAppV1018.safeParse(r.json()).success).toBe(false);
-      for (const q of ['contrato=3', 'contrato=1', 'contrato=2&apk=1']) {
+      // contrato=3 passou a existir na v1.0.36 (ADR 0076 D6, `fracao_liberada`): o desconhecido aqui é o 9
+      for (const q of ['contrato=9', 'contrato=1', 'contrato=2&apk=1']) {
         const x = await api.app.inject({ method: 'GET', url: `/v1/app/versao?variante=campo&${q}` });
         expect(x.statusCode, `${q}: ${x.body}`).toBe(400);
       }
