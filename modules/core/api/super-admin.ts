@@ -215,7 +215,9 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
    * - super-admin: a senha atual é conferida com o hash da própria sessão, no mesmo bloqueio do login (5 erros = 423 por 15 min);
    *   a nova segue a RN-CORE-32 (422) e difere da atual (422 RN-CORE-34); gravada só se o hash não mudou (senão 409); todas as
    *   sessões dele caem (inclusive esta);
-   * - admin do cliente: 403 TROCA_SO_SUPER_ADMIN (ele troca pela rota pública `POST /v1/auth/senha/trocar`).
+   * - admin do cliente (com empresa escolhida): mesma troca pelas funções `sa_*_admin` (0107); a senha atual é conferida com o hash da
+   *   conta e o bloqueio é o da conta (RN-CORE-01: 5 erros = 423 por 15 min; bloqueio vivo recusa antes de gravar); sem empresa
+   *   escolhida = 403 EMPRESA_NAO_PERMITIDA; as sessões do portal e do app dele caem.
    */
   async function trocarSenha(ctx: Ctx<TrocarSenhaPortal>): Promise<void> {
     const segredo = config();
@@ -226,9 +228,7 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     const { senha_atual: atual, senha_nova: nova } = ctx.corpo;
     const agora = ctx.agora();
 
-    if (viva.tipo === 'admin_cliente') {
-      throw erroHttp(403, CODIGOS_PORTAL.trocaSoSuperAdmin, 'Troque a sua senha no backoffice, com o código da empresa.');
-    }
+    if (viva.tipo === 'admin_cliente') return trocarSenhaAdmin(ctx, repo, claims.sid, quem, rota);
 
     const conta = await repo.reautenticar(claims.sid);
     if (!conta) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
@@ -247,6 +247,35 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
       throw erroHttp(422, recusa.codigo, recusa.mensagem, recusa.codigo === 'RN-CORE-32' ? { faltas: recusa.faltas } : undefined);
     }
     if (!(await repo.gravarSenhaSuperAdmin(claims.sid, conta.senha_hash, await gerarHash(nova)))) {
+      await auditar(repo, ctx, 'sa.senha.falha', 409, rota, quem, { motivo: 'mudou_no_meio' });
+      throw erroHttp(409, CODIGOS_PORTAL.senhaMudou, 'A senha mudou enquanto você a trocava. Entre de novo e repita a troca.');
+    }
+  }
+
+  /** Ramo do admin do cliente de `trocarSenha` (0107): bloqueio e falhas da própria conta, `core.usuario`. */
+  async function trocarSenhaAdmin(ctx: Ctx<TrocarSenhaPortal>, repo: RepositorioSuperAdmin, sid: string, quem: Quem, rota: string): Promise<void> {
+    const { senha_atual: atual, senha_nova: nova } = ctx.corpo;
+    const agora = ctx.agora();
+    const sqlParaHttp = (e: unknown): never => {
+      const codigo = (e as { code?: string } | null)?.code;
+      if (codigo === '28000') throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+      if (codigo === '42501') throw erroHttp(403, CODIGOS_PORTAL.empresaNaoPermitida, 'Escolha a empresa antes de trocar a senha.');
+      throw e;
+    };
+    const conta = await repo.reautenticarAdmin(sid).catch(sqlParaHttp);
+    if (!conta) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+    await barrarSeBloqueado(conta.bloqueado_ate, agora, () => auditar(repo, ctx, 'sa.senha.falha', 423, rota, quem, { motivo: 'bloqueado' }));
+    if (!(await conferir(atual, conta.senha_hash))) {
+      return contarFalhaDeSenha(() => repo.falhaSenhaAdmin(sid).catch(sqlParaHttp), agora, 'Senha atual incorreta. Confira e tente de novo.', (status, falhas) =>
+        auditar(repo, ctx, 'sa.senha.falha', status, rota, quem, { motivo: 'senha_atual', falhas }),
+      );
+    }
+    const recusa = validarSenhaNova(nova, conta.email, await conferir(nova, conta.senha_hash));
+    if (recusa) {
+      await auditar(repo, ctx, 'sa.senha.falha', 422, rota, quem, { motivo: recusa.codigo });
+      throw erroHttp(422, recusa.codigo, recusa.mensagem, recusa.codigo === 'RN-CORE-32' ? { faltas: recusa.faltas } : undefined);
+    }
+    if (!(await repo.gravarSenhaAdmin(sid, conta.senha_hash, await gerarHash(nova)).catch(sqlParaHttp))) {
       await auditar(repo, ctx, 'sa.senha.falha', 409, rota, quem, { motivo: 'mudou_no_meio' });
       throw erroHttp(409, CODIGOS_PORTAL.senhaMudou, 'A senha mudou enquanto você a trocava. Entre de novo e repita a troca.');
     }

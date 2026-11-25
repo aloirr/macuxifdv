@@ -87,7 +87,22 @@ export interface RepositorioSuperAdmin {
   reautenticar(sid: string): Promise<{ super_admin_id: string; email: string; senha_hash: string } | null>;
   /** `sa_gravar_senha_super_admin` (0102): grava só se o hash ainda é o atual; `false` = mudou no meio (409). Revoga todas as sessões dele. */
   gravarSenhaSuperAdmin(sid: string, hashAtual: string, hashNovo: string): Promise<boolean>;
+  /** `sa_reautenticar_admin(sid)` (0107): conta, hash e bloqueio (RN-CORE-01) do admin do cliente com empresa escolhida; `null` = conta inativa. Erro SQL 28000 = sessão inválida, 42501 = não é admin com empresa. */
+  reautenticarAdmin(sid: string): Promise<ContaAdminReautenticada | null>;
+  /** `sa_falha_senha_admin(sid)` (0107): conta a falha na conta (mesmo contador do login); bloqueio vivo não conta nem estende. */
+  falhaSenhaAdmin(sid: string): Promise<EstadoTentativa>;
+  /** `sa_gravar_senha_admin` (0107): grava só se o hash ainda é o atual; `false` = mudou no meio (409). Revoga as sessões dele. */
+  gravarSenhaAdmin(sid: string, hashAtual: string, hashNovo: string): Promise<boolean>;
   auditar(linha: LinhaAuditoriaAuth): Promise<void>;
+}
+
+export interface ContaAdminReautenticada {
+  tenant_id: string;
+  usuario_id: string;
+  email: string;
+  senha_hash: string;
+  falhas: number;
+  bloqueado_ate: Date | null;
 }
 
 export type FabricaSuperAdmin = (banco: AcessoBanco) => RepositorioSuperAdmin;
@@ -164,6 +179,18 @@ export const fabricaSuperAdminSql: FabricaSuperAdmin = (banco) => {
     },
     async gravarSenhaSuperAdmin(sid, hashAtual, hashNovo) {
       return (await um<boolean>('plataforma.sa_gravar_senha_super_admin($1, $2, $3)', [sid, hashAtual, hashNovo])) === true;
+    },
+    async reautenticarAdmin(sid) {
+      const r = (await linhasDe<Record<string, unknown>>('plataforma.sa_reautenticar_admin($1)', [sid]))[0];
+      return r
+        ? { tenant_id: String(r.tenant_id), usuario_id: String(r.usuario_id), email: String(r.email), senha_hash: String(r.senha_hash), falhas: Number(r.falhas ?? 0), bloqueado_ate: dt(r.bloqueado_ate) }
+        : null;
+    },
+    async falhaSenhaAdmin(sid) {
+      return estado((await linhasDe<{ falhas: number; bloqueado_ate: string | null }>('plataforma.sa_falha_senha_admin($1)', [sid]))[0]);
+    },
+    async gravarSenhaAdmin(sid, hashAtual, hashNovo) {
+      return (await um<boolean>('plataforma.sa_gravar_senha_admin($1, $2, $3)', [sid, hashAtual, hashNovo])) === true;
     },
     async auditar(l) {
       await um('plataforma.sa_auditar($1::jsonb)', [JSON.stringify({ ...l, tenant_id: null })]);
