@@ -196,7 +196,7 @@ export const PerfilDetalheV2Schema = z
     alvos_possiveis: z.array(PerfilOpcaoV2Schema),
     modulos: z.array(z.string()),
     /** Trava otimista: volta no PUT como `atualizado_em`. */
-    atualizado_em: z.string().datetime(),
+    atualizado_em: z.string().datetime({ offset: true }),
   })
   .strict();
 export type PerfilDetalheV2 = z.infer<typeof PerfilDetalheV2Schema>;
@@ -231,7 +231,8 @@ export const EditarPerfilRequestV2Schema = z
     ativo: z.boolean().optional(),
     cargo: CargoSchema.optional(),
     permissoes: z.array(PermissaoConcedidaV2Schema).max(400),
-    atualizado_em: z.string().datetime(),
+    /** Instante do detalhe lido (qualquer offset ISO 8601); a comparação é por instante, não por texto. */
+    atualizado_em: z.string().datetime({ offset: true }),
   })
   .strict();
 export type EditarPerfilRequestV2 = z.infer<typeof EditarPerfilRequestV2Schema>;
@@ -244,5 +245,7 @@ export const CODIGOS_ERRO_PERFIL_V2 = {
   semAcessoAlgum: 'PERFIL_SEM_ACESSO_ALGUM',
   escopoAcimaDoCargo: 'ESCOPO_ACIMA_DO_CARGO',
   alterado: 'PERFIL_ALTERADO',
+  /** Transição (até a fase 2): os 7 perfis padrão não se apagam nem se desativam (RN-CORE-35; o banco também recusa). */
+  padraoFixo: 'PERFIL_PADRAO_FIXO',
 } as const;
 export const STATUS_PERFIL_ALTERADO = 409;
