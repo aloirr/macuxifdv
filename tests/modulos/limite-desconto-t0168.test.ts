@@ -25,7 +25,7 @@ import { CODIGOS_RECUSA_PEDIDO } from '../../modules/vendedor/contracts';
 import { alertasDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
 import { linhasDosTotais } from '../../modules/vendedor/domain/apresentacao-totais';
 import { politicaDosParametros, revalidarPedido, type RevalidarEntrada, type RevalidarResultado } from '../../modules/vendedor/domain/aprovacao';
-import { botoesDoResumo } from '../../modules/vendedor/domain/botoes-resumo';
+import { botoesDaEdicao, botoesDoSalvarNovo, motivoDeNaoEnviarOSalvo } from '../../modules/vendedor/domain/botoes-resumo';
 import {
   CODIGO_DESCONTO_PEDIDO_ACIMA_LIMITE,
   decisaoDoDesconto,
@@ -244,8 +244,6 @@ function api(p: Pedido, extra: Partial<RevalidarEntrada> & { limite?: Partial<Li
 const PRODUTO = (id: string, preco: number) =>
   ({ id, erp_code: id.toUpperCase(), description: `Produto ${id}`, unit: 'UN', price_cents: preco, stock_total: 1_000_000, stock: [], brand: '', line: '', ean: null, active: true, external_id: null, applications: '', is_campaign: false }) as EntradaCalculo['catalogo'][number];
 const UNIDADES: UnidadeDaTela[] = [];
-// RD-0235 (PR #169): `pendencias` sai do EntradaDosBotoes; a tela já passava 0. A constante só existe para compilar no main de antes do #169 e sai quando ele entrar.
-const SEM_PENDENCIA_LEGADO = { pendencias: 0 };
 function app(p: Pedido, limite: Partial<LimiteDesconto> | null) {
   const c = calcularPedido({
     lines: Object.fromEntries(p.itens.map((i) => [i.id, i.qtd])),
@@ -256,9 +254,13 @@ function app(p: Pedido, limite: Partial<LimiteDesconto> | null) {
   const LIBERADO = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] as string[] };
   const acimaDaAlcada = c.nivel !== null && !c.bloqueado;
   const alertas = alertasDoPedido({ cliente: LIBERADO, acima_do_limite: c.acima_do_limite, acima_da_alcada: acimaDaAlcada });
-  const botoes = botoesDoResumo({ ...SEM_PENDENCIA_LEGADO, cliente: LIBERADO, pre_venda_ligada: true, editando: null, acima_do_limite: c.acima_do_limite !== null, preco_data: '2026-11-13' });
-  const transformar = botoesDoResumo({ ...SEM_PENDENCIA_LEGADO, cliente: LIBERADO, pre_venda_ligada: true, editando: 'orcamento', acima_do_limite: c.acima_do_limite !== null, preco_data: '2026-11-13' });
-  return { c, alertas, botoes, transformar, tela_permil: permilDaTela(c.total_tabela_cents, c.total_cents) };
+  const acima_do_limite = c.acima_do_limite !== null;
+  // R-20261124-114951: o Novo pedido sempre salva (Orçamento ou Pedido); a trava do limite é do Enviar da aba Pedidos (RN-VEN-48) e da edição
+  const salvarNovo = botoesDoSalvarNovo({ cliente: LIBERADO, pre_venda_ligada: true });
+  const enviar = motivoDeNaoEnviarOSalvo({ cliente: LIBERADO, pre_venda_ligada: true, acima_do_limite });
+  const edicao = botoesDaEdicao({ cliente: LIBERADO, editando: 'pedido', acima_do_limite });
+  const transformar = botoesDaEdicao({ cliente: LIBERADO, editando: 'orcamento', acima_do_limite });
+  return { c, alertas, salvarNovo, enviar, edicao, transformar, tela_permil: permilDaTela(c.total_tabela_cents, c.total_cents) };
 }
 const LIM80 = L(true, true, 80);
 
@@ -271,11 +273,12 @@ describe('T-0168 v2 — os 6 casos do R-20261113-014959 (app offline × API, val
     expect(a.c.acima_do_limite).toBeNull();
     expect(a.c.nivel).toBe('supervisor');
     expect(a.alertas.map((x) => x.texto)).toEqual(['Desconto acima da sua alçada']);
-    expect(a.botoes.enviar).toMatchObject({ visivel: true, habilitado: true });
+    expect(a.enviar).toBeNull();
+    expect(a.edicao.salvarAlteracoes).toMatchObject({ visivel: true, habilitado: true });
     expect(api(p, { limite: LIM80 })).toMatchObject({ ok: true, status: 'pending_approval', total_cents: 9_196 });
   });
 
-  it('2. total R$ 91,95 (Totais "8,1%"): trava, só "Salvar como orçamento", uma linha nos Alertas e nenhuma de alçada', () => {
+  it('2. total R$ 91,95 (Totais "8,1%"): salva (Pedido ou Orçamento), mas o Enviar e a edição do pedido travam; uma linha nos Alertas e nenhuma de alçada', () => {
     const p = umItem(10_000, emReais(805));
     const a = app(p, LIM80);
     expect(a.c.total_cents).toBe(9_195);
@@ -284,9 +287,10 @@ describe('T-0168 v2 — os 6 casos do R-20261113-014959 (app offline × API, val
     expect(a.c.nivel).toBeNull();
     expect(a.alertas.map((x) => x.texto)).toEqual([frase(80)]);
     expect(a.alertas[0]).toMatchObject({ tipo: 'limite_pedido', so_orcamento: true });
-    expect(a.botoes.enviar.habilitado).toBe(false);
-    expect(a.botoes.principal).toBe('orcamento');
-    expect(a.botoes.orcamento).toMatchObject({ visivel: true, habilitado: true });
+    expect(a.salvarNovo.escolha.pedido).toMatchObject({ visivel: true });
+    expect(a.salvarNovo.escolha.orcamento).toMatchObject({ visivel: true });
+    expect(a.enviar).toBe('Pedido acima do desconto máximo. Edite o item ou salve como orçamento.');
+    expect(a.edicao.salvarAlteracoes.habilitado).toBe(false);
     expect(api(p, { limite: LIM80 })).toMatchObject({ ok: false, codigo: 'desconto_pedido_acima_limite', http: 422, mensagem: frase(80) });
   });
 
@@ -314,7 +318,7 @@ describe('T-0168 v2 — os 6 casos do R-20261113-014959 (app offline × API, val
     expect(a.tela_permil).toBe(0);
     expect(a.c.acima_do_limite).toBeNull();
     expect(a.c.nivel).toBeNull();
-    expect(a.botoes.enviar.habilitado).toBe(true);
+    expect(a.enviar).toBeNull();
     expect(api(p, { limite: L(true, true, 0) })).toMatchObject({ ok: true, status: 'approved' });
     const q = umItem(10_000, emReais(5));
     expect(app(q, L(true, true, 0)).c.acima_do_limite).toBe(0);
