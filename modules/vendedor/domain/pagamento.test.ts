@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aplicaTetoDoCliente,
   descricaoDoPrazo,
   descricaoPrazo,
   formasDaLista,
@@ -128,5 +129,17 @@ describe('T-0129 / RN-VEN-25: formas do cliente', () => {
   });
   it('RN-VEN-25: sem lista no cadastro, todas as formas ativas ficam habilitadas', () => {
     expect(formasDaLista(formas, null).every((x) => x.habilitada)).toBe(true);
+  });
+});
+
+describe('RN-VEN-25 (opção A): o teto só vale para o app v1.0.34 em diante', () => {
+  it('RN-VEN-25: versão >= 1.0.34 aplica o teto', () => {
+    for (const v of ['1.0.34', '1.0.35', '1.1.0', '2.0.0', '1.0.100']) expect(aplicaTetoDoCliente(v)).toBe(true);
+  });
+  it('RN-VEN-25: versão menor (APK v1.0.32) não aplica o teto', () => {
+    for (const v of ['1.0.32', '1.0.33', '0.9.99', '1.0.9']) expect(aplicaTetoDoCliente(v)).toBe(false);
+  });
+  it('RN-VEN-25: ausente ou inválida não aplica o teto', () => {
+    for (const v of [null, undefined, '', 'abc', '1.0', '1.0.34-beta']) expect(aplicaTetoDoCliente(v)).toBe(false);
   });
 });

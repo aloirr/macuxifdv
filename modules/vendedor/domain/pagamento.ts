@@ -2,6 +2,7 @@
  * Forma de pagamento e prazo do pedido (T-0089; RN-VEN-24 e RN-VEN-25), título vencido (RN-VEN-13) e crédito do cliente
  * (RN-VEN-12). Funções puras: o app e a API usam as mesmas, e a API sempre revalida.
  */
+import { haVersaoNova, versaoAppValida } from '@macuxi/platform-sdk';
 
 export interface FormaDePagamento {
   id: string;
@@ -65,6 +66,14 @@ export function formasDoCliente(formas: readonly FormaDePagamento[], codigosDoCl
 /** RN-VEN-25 (ADR 0072): o prazo cabe no teto de prazo médio do cliente (nulo ou ausente = sem teto; igual ao teto vale). */
 export function prazoDentroDoTeto(prazo: Pick<PrazoDePagamento, 'prazo_medio_dias'>, tetoDias: number | null | undefined): boolean {
   return tetoDias === null || tetoDias === undefined || prazo.prazo_medio_dias <= tetoDias;
+}
+
+/** Primeira versão do app que filtra os prazos pelo teto do cliente (RN-VEN-25). */
+export const VERSAO_MINIMA_TETO_PRAZO = '1.0.34';
+
+/** RN-VEN-25 (opção A do dono do produto): teto só a partir de VERSAO_MINIMA_TETO_PRAZO; sem cabeçalho, versão menor ou inválida, não aplica. */
+export function aplicaTetoDoCliente(v: string | null | undefined): boolean {
+  return !!v && versaoAppValida(v) && !haVersaoNova(v, VERSAO_MINIMA_TETO_PRAZO);
 }
 
 /** RN-VEN-24/25: os prazos ativos da forma, por ordem, só os que cabem no prazo médio máximo do cliente (`tetoDias`; nulo = sem teto). */
