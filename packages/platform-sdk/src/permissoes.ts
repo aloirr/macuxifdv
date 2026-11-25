@@ -23,7 +23,7 @@ import { verificarAcesso, verificarLicenca, type RegraRota, type ResultadoAcesso
 import type { Manifesto } from './manifesto';
 import { ehAcaoDeEscritaDePedido, PERFIS, type ModuloId, type Perfil } from './nomes';
 import { CATALOGO_PERMISSOES_VERSAO, podePeloCargo, type PerfilDaRequisicaoV2 } from './perfis-por-cargo';
-import { acoesDoModulo, CHAVES_PLATAFORMA, matrizDeFabrica, pode as podePelosPerfis, type PerfilDaRequisicao } from './permissoes-perfil';
+import { CHAVES_PLATAFORMA, matrizDeFabrica, pode as podePelosPerfis, type PerfilDaRequisicao } from './permissoes-perfil';
 
 export interface ContextoPermissao {
   perfil: Perfil | null | undefined;
@@ -73,7 +73,7 @@ export function criarPermissoes(manifestos: readonly Manifesto[]) {
   );
   const definicao = (acao: string): DefAcao | undefined => porAcao.get(acao) ?? daPlataforma.get(acao);
   for (const m of manifestos) {
-    for (const [acao, def] of Object.entries(acoesDoModulo(m))) {
+    for (const [acao, def] of Object.entries(m.acoes)) {
       const atual = porAcao.get(acao);
       if (Object.hasOwn(CHAVES_PLATAFORMA, acao)) throw new Error(`Ação ${acao} do módulo ${m.id} é chave da plataforma (ADR 0033)`);
       if (atual && atual.modulo !== m.id) throw new Error(`Ação ${acao} declarada por ${atual.modulo} e por ${m.id}`);
