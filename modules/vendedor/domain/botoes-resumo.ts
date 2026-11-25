@@ -174,6 +174,3 @@ export function botoesDoSalvarNovo(e: { cliente: SituacaoCliente; pre_venda_liga
     direto,
   };
 }
-
-// TEMPORÁRIO (R-20261124-114951): ver compat-v1034.ts
-export { botoesDoResumo, ROTULOS_DO_SALVAR, type BotoesDoResumo, type EntradaDosBotoes } from './compat-v1034';

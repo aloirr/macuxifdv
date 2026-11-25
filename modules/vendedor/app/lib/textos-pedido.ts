@@ -18,6 +18,7 @@ export const ABA_INICIAL_DO_PEDIDO: AbaNovoPedido = 'venda';
  * T-0141 (RN-VEN-39): o rascunho retomado pela lista Rascunhos abre na aba em que o vendedor parou (`aba`); o novo abre em Venda.
  */
 export function abaInicialDoRascunho(r: { salvo_em?: string | null; aba?: AbaNovoPedido }): AbaNovoPedido {
+  if (r.aba === 'itens') return 'itens'; // volta do Catálogo (RN-VEN-49): a aba gravada vale também no pedido salvo
   return r.salvo_em ? 'resumo' : (r.aba ?? ABA_INICIAL_DO_PEDIDO);
 }
 
