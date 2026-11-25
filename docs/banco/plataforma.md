@@ -1567,12 +1567,12 @@ auditoria.
 
 | Função | Retorno e regra | Erros |
 |---|---|---|
-| `sa_reautenticar_admin(p_sid uuid) returns table (tenant_id uuid, usuario_id uuid, email text, senha_hash text, falhas integer, bloqueado_ate timestamptz)` | a conta para a API conferir a senha atual com o argon2; `bloqueado_ate` só quando vivo; `falhas` = 0 se o bloqueio venceu. Audita `sa.reautenticar` | 28000, 42501 |
+| `sa_reautenticar_admin(p_sid uuid) returns table (tenant_id uuid, usuario_id uuid, email text, senha_hash text, falhas integer, bloqueado_ate timestamptz)` | a conta para a API conferir a senha atual com o argon2; `bloqueado_ate` só quando vivo; `falhas` = 0 se o bloqueio venceu. Audita `sa.reautenticar` quando acha a conta | 28000, 42501 |
 | `sa_falha_senha_admin(p_sid uuid) returns table (falhas integer, bloqueado_ate timestamptz)` | senha atual errada: bloqueio vivo = nada muda (devolve o estado); senão `falhas` = (vencido ? 0 : falhas) + 1 e, na 5ª, `bloqueio_ate = now() + 15 min` (falhas fica 5). `for update` na linha. Audita `sa.bloqueio` `{ minutos: 15 }` ao bloquear | 28000, 42501 |
-| `sa_gravar_senha_admin(p_sid uuid, p_hash_atual text, p_hash_novo text) returns boolean` | grava só se `senha_hash = p_hash_atual` (senão false, nada muda). Como a `trocarSenha` da rota pública: sem senha a trocar nem temporária, falhas e bloqueio zerados, `sessao_versao + 1`, `core.sessao` revogadas; revoga também as `portal_sessao` de admin do cliente com a conta em `portal_sessao_empresa` (inclusive a atual). Audita no tenant `usuario.senha_trocar` `{ motivo: 'voluntaria', sessoes_revogadas: true, origem: 'portal' }` e na plataforma `sa.senha.trocada` `{ sessoes_revogadas, sessoes_app_revogadas }` | 28000, 42501, 22023 (hash atual nulo; hash novo fora do PHC argon2id) |
+| `sa_gravar_senha_admin(p_sid uuid, p_hash_atual text, p_hash_novo text) returns boolean` | grava só se `senha_hash = p_hash_atual` e sem bloqueio vivo (`bloqueio_ate` nulo ou vencido; senão false, nada muda: pedidos paralelos que passaram juntos pelo 423 da rota não gravam com a conta já bloqueada). Como a `trocarSenha` da rota pública: sem senha a trocar nem temporária, falhas e bloqueio zerados, `sessao_versao + 1`, `core.sessao` revogadas; revoga também as `portal_sessao` de admin do cliente com a conta em `portal_sessao_empresa` (inclusive a atual). Audita no tenant `usuario.senha_trocar` `{ motivo: 'voluntaria', sessoes_revogadas: true, origem: 'portal' }` e na plataforma `sa.senha.trocada` `{ sessoes_revogadas, sessoes_app_revogadas }` | 28000, 42501, 22023 (hash atual nulo; hash novo fora do PHC argon2id) |
 
 ```sql
 select * from plataforma.sa_reautenticar_admin($1);              -- hash e bloqueio (423 se bloqueado_ate não nulo)
 select * from plataforma.sa_falha_senha_admin($1);               -- senha atual errada (401/423 pelo estado devolvido)
-select plataforma.sa_gravar_senha_admin($1, $2, $3) as r;        -- false = 409 (a senha mudou no meio)
+select plataforma.sa_gravar_senha_admin($1, $2, $3) as r;        -- false = 409 (a senha mudou no meio ou a conta bloqueou)
 ```
