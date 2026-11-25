@@ -15,7 +15,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { DiagnosticoDetalheSchema, DiagnosticoListaSchema, ORIGENS_DIAGNOSTICO, type DiagnosticoDetalhe } from '@macuxi/platform-sdk';
-import { Badge, Button, CLASSE_CAMPO_BASE, cx, ErrorBlock, LoadingBlock, PageHeader, Panel, rotuloDoPerfil, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
+import { Badge, Button, CLASSE_CAMPO_BASE, cx, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, rotuloDoPerfil, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
 
 import { blobDoPortal, chamarPortal, mensagemDoErro } from '@/lib/portal-api';
 import {
@@ -49,6 +49,7 @@ import {
   textoDaFila,
   textoDasSaidas,
   textoDoErro,
+  erroDaListaDeDiagnosticos,
   TEXTOS_PORTAL_DIAGNOSTICOS as T,
   type FiltrosDaTela,
 } from '@/lib/portal-diagnosticos';
@@ -85,6 +86,8 @@ function ListaDiagnosticos() {
     queryFn: ({ pageParam }) =>
       chamarPortal(ROTAS_PORTAL.diagnosticos, { query: queryDoFiltro(filtroDaApi(filtros, agora, pageParam)), schema: DiagnosticoListaSchema }),
     getNextPageParam: (ultima) => ultima.cursor,
+    // 404 de rota (diagnósticos desligados) não muda ao repetir
+    retry: (n, e) => !erroDaListaDeDiagnosticos(e).desligado && n < 2,
   });
   const itens = useMemo(() => q.data?.pages.flatMap((p) => p.itens) ?? [], [q.data]);
 
@@ -99,11 +102,12 @@ function ListaDiagnosticos() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Filtros filtros={filtros} versoes={versoes} agora={agora} ir={ir} />
+      {/* servidor com os diagnósticos desligados: só o aviso, sem filtros */}
+      {!(q.isError && erroDaListaDeDiagnosticos(q.error).desligado) && <Filtros filtros={filtros} versoes={versoes} agora={agora} ir={ir} />}
       {q.isPending ? (
         <LoadingBlock label={T.carregando} />
       ) : q.isError ? (
-        <ErrorBlock message={mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />
+        <ErroDaLista erro={q.error} aoTentar={() => void q.refetch()} />
       ) : (
         <>
           {/* a contagem só com 1 ou mais; no vazio fica só a frase (spec portal-config-enxuto §9, RD-0294) */}
@@ -185,6 +189,19 @@ function ListaDiagnosticos() {
       )}
     </div>
   );
+}
+
+/** Erro da lista: diagnósticos desligados no servidor (404 de rota) = aviso sem "Tentar de novo"; o resto, o erro padrão. */
+function ErroDaLista({ erro, aoTentar }: { erro: unknown; aoTentar: () => void }) {
+  const e = erroDaListaDeDiagnosticos(erro);
+  if (e.desligado) {
+    return (
+      <div data-testid="diagnosticos.desligado">
+        <Notice tone="info">{e.mensagem}</Notice>
+      </div>
+    );
+  }
+  return <ErrorBlock message={e.mensagem} onRetry={aoTentar} />;
 }
 
 function Filtros({ filtros, versoes, agora, ir }: { filtros: FiltrosDaTela; versoes: string[]; agora: Date; ir: (f: FiltrosDaTela) => void }) {

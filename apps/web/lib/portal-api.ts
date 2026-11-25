@@ -10,8 +10,9 @@
  * - Modo falso (`NEXT_PUBLIC_PORTAL_FALSO=1`, só fora de produção): as mesmas chamadas respondidas no navegador por
  *   `lib/portal-falso.ts`, contra os mesmos schemas, para navegar o fluxo antes de as rotas reais chegarem.
  */
-import { CABECALHO_TENANT_PLATAFORMA, SessaoPortalSchema } from '@macuxi/platform-sdk';
+import { CABECALHO_TENANT_PLATAFORMA, PROXY_BASE, SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { downloadBlob, filenameFromDisposition } from '@macuxi/platform-sdk/web';
+
 
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
 import {
@@ -90,7 +91,7 @@ async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabe
     const { responderFalso } = await import('./portal-falso');
     return responderFalso(metodo, caminho, corpo, cabecalhos);
   }
-  return fetch(`/api-proxy${caminho}`, {
+  return fetch(`${PROXY_BASE}${caminho}`, {
     method: metodo,
     headers: cabecalhos,
     // bytes crus (a logo, T-0182) vão como estão; o resto, em JSON
@@ -171,16 +172,14 @@ export interface OpcoesChamada<T> {
   corpo?: unknown;
   /** Tenant em que o super-admin age (rotas de módulo com `superAdmin`). */
   tenant?: string;
-  /** Cabeçalhos a mais (v1.0.34: o modo cookie da troca de senha do admin do cliente, `CABECALHOS_SESSAO_WEB`). */
-  cabecalhos?: Readonly<Record<string, string>>;
   query?: Record<string, string | number | boolean | undefined | null>;
   /** Schema da resposta (Zod do contrato): formato diferente = `ErroPortal` com mensagem amigável. */
   schema?: { safeParse(x: unknown): { success: true; data: T } | { success: false } };
 }
 
-async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; tenant?: string; query?: OpcoesChamada<unknown>['query']; cabecalhos?: Readonly<Record<string, string>> }): Promise<Response> {
+async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; tenant?: string; query?: OpcoesChamada<unknown>['query'] }): Promise<Response> {
   const publica = ROTAS_PUBLICAS_PORTAL.includes(caminho);
-  const cabecalhos: Record<string, string> = { ...o.cabecalhos };
+  const cabecalhos: Record<string, string> = {};
   if (o.corpo !== undefined) cabecalhos['Content-Type'] = o.corpo instanceof Blob ? o.corpo.type || 'application/octet-stream' : 'application/json';
   if (!publica) cabecalhos.Authorization = `Bearer ${await tokenDaSessao()}`;
   if (o.tenant) cabecalhos[CABECALHO_TENANT_PLATAFORMA] = o.tenant;
@@ -199,9 +198,9 @@ async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; ten
       // corpo não é JSON
     }
     const erro = lerErroDaApi(res.status, corpo);
-    // a própria escolha (POST auth/empresa) trata o 403 na tela: só o 401 muda a sessão; na troca de senha do super-admin (ADR
+    // a própria escolha (POST auth/empresa) trata o 403 na tela: só o 401 muda a sessão; na troca de senha (ADR
     // 0075), o 401 de senha atual errada é da gaveta e a sessão segue
-    const senhaAtualErrada = caminho === ROTAS_PORTAL.trocarSenhaSuperAdmin && erro.codigo === CODIGO_SENHA_ATUAL_ERRADA;
+    const senhaAtualErrada = caminho === ROTAS_PORTAL.trocarSenha && erro.codigo === CODIGO_SENHA_ATUAL_ERRADA;
     if (!publica && !senhaAtualErrada) desviarPeloErro(erro, caminho === ROTAS_PORTAL.escolherEmpresa, o.tenant);
     throw erro;
   }
@@ -239,7 +238,7 @@ function desviarPeloErro(e: ErroPortal, soSessao: boolean, tenant: string | unde
 
 /** Chamada JSON do portal. 204 = `undefined`. Corpo `Blob` (a logo, T-0182) vai em bytes crus, com o tipo do arquivo. */
 export async function chamarPortal<T = unknown>(caminho: string, o: OpcoesChamada<T> = {}): Promise<T> {
-  const res = await enviar(caminho, { metodo: o.metodo ?? 'GET', corpo: o.corpo, tenant: o.tenant, query: o.query, cabecalhos: o.cabecalhos });
+  const res = await enviar(caminho, { metodo: o.metodo ?? 'GET', corpo: o.corpo, tenant: o.tenant, query: o.query });
   if (res.status === 204) return undefined as T;
   return lerResposta(res, o.schema);
 }
