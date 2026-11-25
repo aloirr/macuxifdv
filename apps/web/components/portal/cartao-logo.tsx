@@ -1,21 +1,23 @@
 'use client';
 
 /**
- * Cartão "Logo" e cartão "Nome fantasia" da aba Empresa do portal `config.` (T-0182; spec docs/design/telas/logo-cliente.md §2;
- * desenho docs/desenho/T-0182-logo-cliente.md §2). O "Logo" é o primeiro cartão da aba.
+ * Cartão "Logo" da aba Empresa do portal `config.` (T-0182; spec docs/design/telas/logo-cliente.md §2; desenho
+ * docs/desenho/T-0182-logo-cliente.md §2), só com a logo: o nome fantasia fica no cartão "Dados da empresa" (uma informação, um
+ * lugar; R-20261124-090942 item 04).
  * - Os 6 estados da spec: sem logo, arquivo escolhido (pré-visualização antes de salvar), salvando, logo salva (Trocar e
  *   Remover), arquivo recusado (volta ao anterior, com o erro no lugar dos limites) e o diálogo "Remover a logo?".
  * - "Enviar logo" e "Trocar" abrem o seletor de arquivo do sistema (PNG e JPG), sem o "Choose File" do navegador na tela.
- * - Só o time da Macuxi grava (RN-CORE-33). O admin do cliente vê a logo e o nome fantasia, sem botões.
+ * - Só o time da Macuxi grava (RN-CORE-33). O admin do cliente vê a logo, sem botões; sem logo salva, o cartão não aparece para
+ *   ele (não há o que ver nem o que fazer ali).
  * - A logo salva vem do `GET .../logo` com o token do portal e vira `blob:` para o `<img>`.
  * - Item 15 (v1.0.17): no cartão "Logo", o liga/desliga "Ocultar o logo da Macuxi" (só o time da Macuxi vê e grava;
  *   `PUT .../marca/ocultar-macuxi`). Ligado e com a logo salva, o app e o BKO mostram só a logo do cliente.
- * Regras e textos em `lib/portal-logo.ts`. testIDs: empresa-logo.*, empresa-nome-fantasia.*.
+ * Regras e textos em `lib/portal-logo.ts`. testIDs: empresa-logo.*.
  */
 import { useRef, useState, type ChangeEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MarcaEmpresaSchema, MAX_NOME_FANTASIA, type MarcaEmpresa } from '@macuxi/platform-sdk';
-import { Button, CLASSE_CAMPO, cx, Dialog, ErrorBlock, IconAlert, Interruptor, LoadingBlock, Panel } from '@macuxi/ui/web';
+import { MarcaEmpresaSchema, type MarcaEmpresa } from '@macuxi/platform-sdk';
+import { Button, cx, Dialog, ErrorBlock, IconAlert, Interruptor, LoadingBlock, Panel } from '@macuxi/ui/web';
 
 import { blobDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
 import {
@@ -25,7 +27,6 @@ import {
   erroDaGravacao,
   estadoDoCartao,
   linhaDeBaixo,
-  nomeMudou,
   recusaDoArquivo,
   TEXTOS_LOGO,
   type BotaoLogo,
@@ -35,9 +36,11 @@ import { useUrlDoBlob } from '@/lib/url-do-blob';
 
 export const chaveMarca = (tenant: string) => ['portal', tenant, 'marca'] as const;
 
-/** Os dois cartões (Logo e Nome fantasia), com a marca da empresa lida uma vez só. */
-export function CartoesMarca({ tenant, podeGravar }: { tenant: string; podeGravar: boolean }) {
+/** O cartão "Logo", com a marca da empresa (a logo e o "Ocultar o logo da Macuxi"). */
+export function CartaoMarca({ tenant, podeGravar }: { tenant: string; podeGravar: boolean }) {
   const q = useQuery({ queryKey: chaveMarca(tenant), queryFn: () => chamarPortal(ROTAS_PORTAL.marcaDaEmpresa(tenant), { schema: MarcaEmpresaSchema }) });
+  // admin do cliente: o cartão só aparece com a logo salva (ele não grava; sem logo, não teria o que ver)
+  if (!podeGravar && !q.data?.logo) return null;
   if (q.isPending)
     return (
       <Panel title={TEXTOS_LOGO.titulo}>
@@ -56,12 +59,7 @@ export function CartoesMarca({ tenant, podeGravar }: { tenant: string; podeGrava
         )}
       </Panel>
     );
-  return (
-    <>
-      <CartaoLogo tenant={tenant} marca={q.data} podeGravar={podeGravar} />
-      <CartaoNomeFantasia tenant={tenant} marca={q.data} podeGravar={podeGravar} />
-    </>
-  );
+  return <CartaoLogo tenant={tenant} marca={q.data} podeGravar={podeGravar} />;
 }
 
 function CartaoLogo({ tenant, marca, podeGravar }: { tenant: string; marca: MarcaEmpresa; podeGravar: boolean }) {
@@ -292,82 +290,5 @@ export function VistaCartaoLogo({
         )}
       </div>
     </div>
-  );
-}
-
-/** Nome fantasia ("Licenciado para <nome>" no Mais do app; vazio = a razão social). Só o time da Macuxi edita. */
-function CartaoNomeFantasia({ tenant, marca, podeGravar }: { tenant: string; marca: MarcaEmpresa; podeGravar: boolean }) {
-  const qc = useQueryClient();
-  const [nome, setNome] = useState(marca.nome_fantasia ?? '');
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  // Admin do cliente: só o nome fantasia (nunca a razão social sob este rótulo). Vazio = o campo vazio que o time da Macuxi vê,
-  // sem texto (achado do testes, T-0182).
-  if (!podeGravar) {
-    const valor = marca.nome_fantasia?.trim() ?? '';
-    return (
-      <Panel title={TEXTOS_LOGO.nomeFantasia} label={TEXTOS_LOGO.nomeFantasia}>
-        {valor ? (
-          <span data-testid="empresa-nome-fantasia.valor" className="text-[14px]">
-            {valor}
-          </span>
-        ) : (
-          <div data-testid="empresa-nome-fantasia.vazio" aria-label={TEXTOS_LOGO.nomeFantasia} className={cx(CLASSE_CAMPO, 'max-w-[360px]')} />
-        )}
-      </Panel>
-    );
-  }
-
-  const salvar = async () => {
-    if (salvando) return;
-    setSalvando(true);
-    setErro(null);
-    try {
-      const m = await chamarPortal(ROTAS_PORTAL.marcaDaEmpresa(tenant), { metodo: 'PUT', corpo: { nome_fantasia: nome }, schema: MarcaEmpresaSchema });
-      qc.setQueryData(chaveMarca(tenant), m);
-      setNome(m.nome_fantasia ?? '');
-    } catch (x) {
-      setErro(erroDaGravacao(x).mensagem);
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  return (
-    <Panel title={TEXTOS_LOGO.nomeFantasia} label={TEXTOS_LOGO.nomeFantasia}>
-      <form
-        className="flex flex-wrap items-center gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void salvar();
-        }}
-      >
-        <input
-          data-testid="empresa-nome-fantasia.campo"
-          aria-label={TEXTOS_LOGO.nomeFantasia}
-          aria-invalid={erro ? true : undefined}
-          className={cx(CLASSE_CAMPO, 'max-w-[360px]')}
-          value={nome}
-          maxLength={MAX_NOME_FANTASIA}
-          placeholder={marca.razao_social}
-          onChange={(e) => {
-            setNome(e.target.value);
-            setErro(null);
-          }}
-        />
-        <Button type="submit" variant="primary" data-testid="empresa-nome-fantasia.salvar" disabled={salvando || !nomeMudou(nome, marca.nome_fantasia)}>
-          {salvando ? TEXTOS_LOGO.salvando : TEXTOS_LOGO.salvar}
-        </Button>
-      </form>
-      <div aria-live="polite">
-        {erro && (
-          <span data-testid="empresa-nome-fantasia.erro" className="flex items-center gap-1.5 text-[13px] font-semibold text-danger">
-            <IconAlert size={14} className="shrink-0" />
-            {erro}
-          </span>
-        )}
-      </div>
-    </Panel>
   );
 }

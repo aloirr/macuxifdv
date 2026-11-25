@@ -1,31 +1,29 @@
 'use client';
 
 /**
- * Página de uma empresa no portal (T-0087; spec portal-config-enxuto §5, §8, §10.1 e §11.4): cabeçalho "Código AM4821 · CNPJ … ·
+ * Página de uma empresa no portal (T-0087; spec portal-config-enxuto §5, §8, §10.1 e §11.4): cabeçalho "Código AM4821 ·
  * Manaus (UTC−4)", abas "Integração" (abre por padrão; Conector ou API, `AbaIntegracao`) e "Empresa" (`AbaEmpresa`: Plano ·
- * Administradores, e na coluna da direita os cartões Logo, Nome fantasia e Apps). Sem CSV no portal: a aba Bases saiu
+ * Apps à esquerda; Dados da empresa, Administradores e Logo à direita). Sem CSV no portal: a aba Bases saiu
  * (R-20261114-132000). A aba fica no `#` do endereço (o F5 volta nela; o `#bases` antigo cai na Integração). testIDs: empresa-pagina.*.
  * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
  * na aba Empresa, só vê: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
  * Empresa sem plano (ficha 404): o time da Macuxi acrescenta módulos pelo passo antigo (`semPlano`), dentro do cartão "Módulos
  * licenciados" (RD-2613).
- * Logo e Nome fantasia (T-0182, `CartoesMarca`): só o time da Macuxi grava. Apps (T-0190): link temporário dos APKs (`BaixarPacote`).
+ * Logo (T-0182, `CartaoMarca`) e nome fantasia (no cartão Dados da empresa): só o time da Macuxi grava. Apps (T-0190): link temporário dos APKs (`CartaoApps`).
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Badge, cx, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel } from '@macuxi/ui/web';
+import { Badge, cx, ErrorBlock, LoadingBlock, Notice, PageHeader } from '@macuxi/ui/web';
 
 import { mensagemDoErro } from '@/lib/portal-api';
 import { rotuloDoStatus, tomDoStatus } from '@/lib/portal-empresa-acoes';
-import { DOWNLOAD_APPS } from '@/lib/conector-download';
-import { codigoDaLicenca, mascararCnpj, rotuloCurtoDoFuso } from '@/lib/portal-formato';
+import { codigoDaLicenca, rotuloCurtoDoFuso } from '@/lib/portal-formato';
 import { CAMINHO_EMPRESAS, desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { AbaEmpresa, AvisoEmpresaCriada } from './aba-empresa';
 import { AbaIntegracao } from './aba-integracao';
-import { BaixarPacote } from './baixar-conector';
 import { MolduraPortal, useSessaoPortal } from './base';
-import { CartoesMarca } from './cartao-logo';
+import { CartaoMarca } from './cartao-logo';
 import { PassoEmpresa } from './passo-empresa-legado';
 import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
 
@@ -91,7 +89,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
             title={empresa.razao_social}
             subtitle={
               <span>
-                Código <span className="font-mono">{codigoDaLicenca(empresa.codigo)}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · {rotuloCurtoDoFuso(empresa.fuso)}
+                Código <span className="font-mono">{codigoDaLicenca(empresa.codigo)}</span> · {rotuloCurtoDoFuso(empresa.fuso)}
               </span>
             }
             badge={<Badge tone={tomDoStatus(empresa.status)}>{rotuloDoStatus(empresa.status)}</Badge>}
@@ -138,18 +136,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
                 fuso={empresa.fuso}
                 timeMacuxi={timeMacuxi}
                 modulos={empresa.modulos}
-                colunaDireita={
-                  <>
-                    <CartoesMarca tenant={empresa.id} podeGravar={timeMacuxi} />
-                    <Panel title="Apps">
-                      <div data-testid="empresa-pagina.apps" className="flex flex-col gap-2 text-[15px]">
-                        {DOWNLOAD_APPS.map((p) => (
-                          <BaixarPacote key={p.testId} produto={p} tenant={empresa.id} fuso={empresa.fuso} />
-                        ))}
-                      </div>
-                    </Panel>
-                  </>
-                }
+                marca={<CartaoMarca tenant={empresa.id} podeGravar={timeMacuxi} />}
                 semPlano={(comEscolher) =>
                   timeMacuxi && (
                     <PassoEmpresa

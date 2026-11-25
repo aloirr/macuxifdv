@@ -14,7 +14,7 @@ import { cx, formatTime, LoadingBlock, Panel } from '@macuxi/ui/web';
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { MenuUsuario, type TrocaDeSenhaNoMenu } from '@/components/menu-usuario';
 import { identidadeDoPortal } from '@/lib/menu-usuario';
-import { podeTrocarSenhaNoPortal, trocarSenhaNoPortal } from '@/lib/portal-senha';
+import { erroDaTrocaNoPortal, podeTrocarSenhaNoPortal, trocarSenhaNoPortal } from '@/lib/portal-senha';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
 import { CAMINHO_DIAGNOSTICOS } from '@/lib/portal-diagnosticos';
 import { CAMINHO_FRASES_CARGA } from '@/lib/portal-frases-carga';
@@ -224,18 +224,20 @@ export function itemAtivoDoMenu(caminho: string | null): string | null {
 }
 
 /**
- * "Trocar a senha" do menu do usuário do portal: só o admin do cliente com a empresa escolhida (o código dela vai no pedido; o
- * e-mail ele digita). O time Macuxi não tem a opção nesta versão (sem rota de troca para o super-admin).
+ * "Trocar a senha" do menu do usuário do portal: o time Macuxi pela rota do portal (ADR 0075; a sessão diz quem é, a troca derruba
+ * a sessão); o admin do cliente com a empresa escolhida pela rota pública do Core (o código da empresa vai no pedido; o e-mail ele
+ * digita). Se a sessão do portal cair, a pessoa vai à entrada com o aviso.
  */
 function trocaDeSenhaDoPortal(sessao: SessaoPortal, irParaEntrada: () => void): TrocaDeSenhaNoMenu | undefined {
   if (!podeTrocarSenhaNoPortal(sessao)) return undefined;
   return {
-    email: null,
+    pedirEmail: sessao.tipo === 'admin_cliente',
     enviar: async (p) => {
       const r = await trocarSenhaNoPortal(lerSessaoPortal() ?? sessao, p);
       if (r === 'entrar_de_novo') irParaEntrada();
       return r === 'continua';
     },
+    erro: erroDaTrocaNoPortal,
   };
 }
 

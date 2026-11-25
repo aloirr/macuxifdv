@@ -37,6 +37,8 @@ export const TEXTOS_PLANO = Object.freeze({
   quantidadeDe: (adicional: string) => `Quantidade de ${adicional}`,
   semLimite: 'sem limite',
   noLimite: 'no limite',
+  /** Em uso maior que o contratado (ex.: "4 de 1"): não é "no limite". */
+  acimaDoContratado: 'acima do contratado',
   mesesGratis: (n: number) => `${n} ${n === 1 ? 'mês grátis' : 'meses grátis'}`,
   comTeste: (dias: number) => `Começar com ${dias} dias de teste`,
   testeAte: (data: string) => `Teste até ${data}`,
@@ -204,8 +206,11 @@ export interface BlocoDaFicha {
   emUso: number;
   /** "de 20" ou "· sem limite" (`contratadas` = `null`). */
   complemento: string;
-  /** Em uso = contratadas: só o selo "no limite" (RD-a: borda e número iguais aos demais blocos). */
-  noLimite: boolean;
+  /**
+   * Selo do bloco (RD-a: borda e número iguais aos demais blocos): em uso = contratadas, "no limite" (aviso); em uso acima do
+   * contratado, "acima do contratado" (perigo); abaixo ou sem limite, nenhum.
+   */
+  limite: 'no' | 'acima' | null;
 }
 
 const ITENS_SEMPRE: readonly ItemContado[] = ['vendedor', 'gestor', 'bko'];
@@ -223,7 +228,7 @@ export function blocosDaFicha(f: Pick<FichaAssinatura, 'licencas'>): BlocoDaFich
       adicional: !ITENS_SEMPRE.includes(l.item),
       emUso: l.em_uso,
       complemento: l.contratadas === null ? `· ${TEXTOS_PLANO.semLimite}` : `de ${l.contratadas}`,
-      noLimite: l.contratadas !== null && l.em_uso >= l.contratadas,
+      limite: l.contratadas === null || l.em_uso < l.contratadas ? null : l.em_uso === l.contratadas ? 'no' : 'acima',
     }));
 }
 

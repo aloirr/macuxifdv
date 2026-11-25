@@ -42,9 +42,12 @@ export function textoDoPacote(l: LinkDownloadConector): string | null {
   return l.tamanho_bytes ? tamanhoLegivel(l.tamanho_bytes) : null;
 }
 
-/** "O link vale até 01:30. Depois disso, gere outro." `hora` formata no fuso da empresa (o contrato sempre manda `expira_em`). */
-export function textoDaValidade(l: LinkDownloadConector, hora: (iso: string) => string): string {
-  return `O link vale até ${hora(l.expira_em)}. Depois disso, gere outro.`;
+/**
+ * "O link vale até 25/11 às 10:15." `quando` formata o `expira_em` no fuso da empresa: data e hora nos
+ * apps (o link vale 24 h, ADR 0074: `formatDateTime`), só a hora no Conector (`formatTime`).
+ */
+export function textoDaValidade(l: LinkDownloadConector, quando: (iso: string) => string): string {
+  return `O link vale até ${quando(l.expira_em)}.`;
 }
 
 /** Textos de um produto baixável. `nome` abre a linha do "em breve" e a do "sem licença" (`nome: texto`). */
@@ -85,6 +88,19 @@ const textosDoApp = (nome: string): Readonly<TextosDownload> =>
     semAcesso: 'Só quem administra a empresa no portal baixa os apps.',
     semLicenca: 'sem licença. Peça ao suporte para ativar o módulo.',
   });
+
+/** Textos do cartão "Apps" da aba Empresa (o nome do app já está na linha: o botão diz só a ação). */
+export const TEXTOS_CARTAO_APPS = Object.freeze({
+  titulo: 'Apps',
+  gerar: 'Gerar link',
+  gerarOutro: 'Gerar novo link',
+  copiar: 'Copiar link',
+  copiado: 'Link copiado.',
+  naoCopiou: 'Não deu para copiar: abra o link e copie o endereço do navegador.',
+  sha: 'SHA-256',
+  copiarSha: 'Copiar SHA-256',
+  shaCopiado: 'SHA-256 copiado.',
+});
 
 /** Um produto baixável pelo portal: rota, corpo, validação da resposta, código do "sem pacote", textos e prefixo dos testIDs. */
 export interface ProdutoDownload {
