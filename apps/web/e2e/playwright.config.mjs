@@ -8,6 +8,7 @@
  * - `config`: o host antigo `config.localhost` (portal na raiz, o `proxy.ts` reescreve para `/config`);
  * - `fdv`: o `fdv.localhost` (portal por caminho, em `/config`).
  * O `enderecos.spec.ts` (raiz → `/bko`, `/login`, `/config/entrar` e o 404 no `bko.`) usa endereços completos e roda uma vez.
+ * Os `bko-*.spec.ts` (projeto `bko`, v1.0.34) rodam no `fdv.localhost`, com a API do BKO respondida pelo `page.route`.
  * Os `*.localhost` vão para o 127.0.0.1 (o Chromium já resolve; a regra abaixo garante). Prints em `docs/prints` só com
  * `E2E_PRINTS=1` (`enderecos.ts`).
  */
@@ -33,5 +34,6 @@ export default {
     { name: 'config', testMatch: PORTAL, metadata: { prefixoDoPortal: '' }, use: { baseURL: `http://config.localhost:${PORTA}` } },
     { name: 'fdv', testMatch: PORTAL, metadata: { prefixoDoPortal: '/config' }, use: { baseURL: `http://fdv.localhost:${PORTA}` } },
     { name: 'enderecos', testMatch: ['enderecos.spec.ts'], metadata: { porta: PORTA } },
+    { name: 'bko', testMatch: ['bko-*.spec.ts'], use: { baseURL: `http://fdv.localhost:${PORTA}` } },
   ],
 };

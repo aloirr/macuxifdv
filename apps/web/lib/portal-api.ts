@@ -168,14 +168,16 @@ export interface OpcoesChamada<T> {
   corpo?: unknown;
   /** Tenant em que o super-admin age (rotas de módulo com `superAdmin`). */
   tenant?: string;
+  /** Cabeçalhos a mais (v1.0.34: o modo cookie da troca de senha, `CABECALHOS_SESSAO_WEB`). */
+  cabecalhos?: Readonly<Record<string, string>>;
   query?: Record<string, string | number | boolean | undefined | null>;
   /** Schema da resposta (Zod do contrato): formato diferente = `ErroPortal` com mensagem amigável. */
   schema?: { safeParse(x: unknown): { success: true; data: T } | { success: false } };
 }
 
-async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; tenant?: string; query?: OpcoesChamada<unknown>['query'] }): Promise<Response> {
+async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; tenant?: string; query?: OpcoesChamada<unknown>['query']; cabecalhos?: Readonly<Record<string, string>> }): Promise<Response> {
   const publica = ROTAS_PUBLICAS_PORTAL.includes(caminho);
-  const cabecalhos: Record<string, string> = {};
+  const cabecalhos: Record<string, string> = { ...o.cabecalhos };
   if (o.corpo !== undefined) cabecalhos['Content-Type'] = o.corpo instanceof Blob ? o.corpo.type || 'application/octet-stream' : 'application/json';
   if (!publica) cabecalhos.Authorization = `Bearer ${await tokenDaSessao()}`;
   if (o.tenant) cabecalhos[CABECALHO_TENANT_PLATAFORMA] = o.tenant;
@@ -232,7 +234,7 @@ function desviarPeloErro(e: ErroPortal, soSessao: boolean, tenant: string | unde
 
 /** Chamada JSON do portal. 204 = `undefined`. Corpo `Blob` (a logo, T-0182) vai em bytes crus, com o tipo do arquivo. */
 export async function chamarPortal<T = unknown>(caminho: string, o: OpcoesChamada<T> = {}): Promise<T> {
-  const res = await enviar(caminho, { metodo: o.metodo ?? 'GET', corpo: o.corpo, tenant: o.tenant, query: o.query });
+  const res = await enviar(caminho, { metodo: o.metodo ?? 'GET', corpo: o.corpo, tenant: o.tenant, query: o.query, cabecalhos: o.cabecalhos });
   if (res.status === 204) return undefined as T;
   return lerResposta(res, o.schema);
 }

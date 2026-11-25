@@ -31,6 +31,8 @@ export interface UsuarioSessao extends Partial<Omit<FakeUser, 'id' | 'name' | 'e
   /** Nome e fuso do tenant (login real; na demo vêm de `GET /me`). */
   empresa?: string;
   fuso?: string;
+  /** Código da empresa do login (v1.0.34: o "Trocar a senha" do menu do usuário manda; sessões antigas não têm e a gaveta pede). */
+  codigoEmpresa?: string;
 }
 
 export function usuarioDaFaseM(u: FakeUser): UsuarioSessao & FakeUser {
@@ -51,14 +53,17 @@ export async function pedirLogin(corpo: LoginSenhaRequest): Promise<SessaoWebRes
   return SessaoWebRespostaSchema.parse(await api<unknown>('/auth/login', { method: 'POST', body: corpo, sessaoWeb: true }));
 }
 
-/** `POST /auth/senha/trocar` no modo cookie: a troca revoga as sessões antigas e a API grava o cookie da sessão nova. */
-export async function pedirTrocaDeSenha(corpo: TrocarSenhaRequest): Promise<SessaoWebResposta> {
-  return SessaoWebRespostaSchema.parse(await api<unknown>(CAMINHO_TROCAR_SENHA, { method: 'POST', body: corpo, sessaoWeb: true }));
+/**
+ * `POST /auth/senha/trocar` no modo cookie: a troca revoga as sessões antigas e a API grava o cookie da sessão nova.
+ * `semToken` (troca voluntária do menu do usuário): sem o token de acesso, para o 401 da senha atual errada não encerrar a sessão.
+ */
+export async function pedirTrocaDeSenha(corpo: TrocarSenhaRequest, opcoes: { semToken?: boolean } = {}): Promise<SessaoWebResposta> {
+  return SessaoWebRespostaSchema.parse(await api<unknown>(CAMINHO_TROCAR_SENHA, { method: 'POST', body: corpo, sessaoWeb: true, ...(opcoes.semToken ? { semToken: true } : {}) }));
 }
 
 /** Login real do Core: o acesso (na aba) e o usuário com a empresa. O token de renovação já está no cookie httpOnly. */
 export function salvarSessaoReal(s: SessaoWebResposta) {
-  const usuario: UsuarioSessao = { id: s.usuario.id, name: s.usuario.nome, email: s.usuario.email, perfil: s.usuario.perfil, empresa: s.tenant.nome, fuso: s.tenant.fuso };
+  const usuario: UsuarioSessao = { id: s.usuario.id, name: s.usuario.nome, email: s.usuario.email, perfil: s.usuario.perfil, empresa: s.tenant.nome, fuso: s.tenant.fuso, codigoEmpresa: s.tenant.codigo };
   saveSession(s.access_token, usuario);
 }
 
