@@ -5,7 +5,7 @@
  * - O app compara `versao_licencas` no sync para saber quando desmontar/remontar módulos (RN-CORE-02).
  * - Erros usam o corpo comum da API v1 (`ErroApiSchema` do platform-sdk): `{ codigo, mensagem, detalhes? }`.
  */
-import { MODULOS, PerfilDaRequisicaoSchema } from '@macuxi/platform-sdk';
+import { MODULOS, PerfilDaRequisicaoSchema, PerfilDaRequisicaoV2Schema } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 
 export const ModuloIdSchema = z.enum(MODULOS);
@@ -31,6 +31,8 @@ export const MeusModulosRespostaSchema = z
     calculado_em: z.string(),
     /** T-0111 (aditivo): perfis de acesso do usuário já resolvidos (fábrica + o que a empresa mudou), para o shell decidir telas e ações. Ausente = fábrica. */
     perfis: z.array(PerfilDaRequisicaoSchema).optional(),
+    /** ADR 0073 (aditivo, E4): o acesso do usuário pelo cargo, já resolvido (`PerfilDaRequisicaoV2Schema` do SDK). Ausente = não informado. */
+    perfil_acesso: PerfilDaRequisicaoV2Schema.optional(),
     /**
      * ADR 0058 (aditivo): módulos que o tenant contratou (`tenant_modulo` ativo, com o core), sem perfil nem exceção de usuário.
      * Fora da `versao_licencas`. O BKO usa para mostrar a seção de Parâmetros de módulo de vitrine como cadeado. Ausente = não informado.
