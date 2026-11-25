@@ -19,6 +19,8 @@ export * from './auditoria';
 export * from './acesso';
 export * from './permissoes';
 export * from './permissoes-perfil';
+export * from './perfis-por-cargo';
+export * from './acesso-por-cargo';
 export * from './perfis';
 export * from './cargos';
 export * from './acesso-sessao';
