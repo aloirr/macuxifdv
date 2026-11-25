@@ -33,6 +33,7 @@ export const manifest = defineModule({
   acoes: {
     // --- responder (apps Campo e Gestão; funciona offline, a API revalida: RN-PES-01/03/04) ---
     'pesquisa.responder': { perfis: [...PERFIS_CAMPO], descricao: 'Responder pesquisa avulsa ou do checkout, inclusive offline (RF-PES-03, RF-PES-04)' },
+    'questionario.ver': { perfis: [...PERFIS_RESULTADO], descricao: 'Ver os questionários e o detalhe de cada um no BKO (RF-PES-01)' },
     // --- cadastro (BKO; doc 03 §2 "Criar pesquisa": analista e admin; RN-AUD-01 audita a publicação) ---
     'questionario.criar': { perfis: [...PERFIS_CADASTRO], descricao: 'Criar questionário no construtor: perguntas, regras, público e vigência (RF-PES-01, RF-PES-02)' },
     'questionario.editar': { perfis: [...PERFIS_CADASTRO], descricao: 'Editar o rascunho; editar versão publicada cria nova versão (RF-PES-05, RN-PES-01)' },

@@ -18,8 +18,6 @@ import { criarPrimeiraVersao, editarRascunho, filtrarResumos, iniciarEdicao, pub
 import { comRepositorio, conflito, naoEncontrado, novoUuid, parametrosDaRota, recusar } from './comum';
 import type { FabricaRepositorio, QuestionarioCarregado, RepositorioPesquisa } from './repositorio';
 
-/** Doc 03 §2 + RF-PES-06: quem vê a lista/detalhe dos questionários (cadastro e gestão dos resultados). */
-export const PERFIS_LEITURA_BKO = ['supervisor', 'gerente', 'analista', 'admin'] as const;
 
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoRota<C, Q, P>;
 
@@ -37,7 +35,7 @@ export function rotasDoConstrutor(fabrica: FabricaRepositorio): RotaModulo[] {
   const listar: RotaModulo = {
     metodo: 'GET',
     caminho: 'questionarios',
-    perfis: [...PERFIS_LEITURA_BKO],
+    acao: 'questionario.ver',
     carteira: 'nao_se_aplica',
     query: ListaQuestionariosQuery,
     async executar(ctx: Ctx): Promise<ListaQuestionarios> {
@@ -51,7 +49,7 @@ export function rotasDoConstrutor(fabrica: FabricaRepositorio): RotaModulo[] {
   const ver: RotaModulo = {
     metodo: 'GET',
     caminho: 'questionarios/:id',
-    perfis: [...PERFIS_LEITURA_BKO],
+    acao: 'questionario.ver',
     carteira: 'nao_se_aplica',
     params: ParamsQuestionario,
     async executar(ctx: Ctx): Promise<QuestionarioDetalhe> {
