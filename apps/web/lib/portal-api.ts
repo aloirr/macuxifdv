@@ -13,7 +13,7 @@
 import { CABECALHO_TENANT_PLATAFORMA, SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { downloadBlob, filenameFromDisposition } from '@macuxi/platform-sdk/web';
 
-import { comCabecalhoApp } from './cabecalho-app';
+import { PREFIXO_PROXY_API } from './cabecalho-app';
 
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
 import {
@@ -92,9 +92,9 @@ async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabe
     const { responderFalso } = await import('./portal-falso');
     return responderFalso(metodo, caminho, corpo, cabecalhos);
   }
-  return fetch(`/api-proxy${caminho}`, {
+  return fetch(`${PREFIXO_PROXY_API}${caminho}`, {
     method: metodo,
-    headers: comCabecalhoApp(cabecalhos),
+    headers: cabecalhos,
     // bytes crus (a logo, T-0182) vão como estão; o resto, em JSON
     body: corpo === undefined ? undefined : corpo instanceof Blob ? corpo : JSON.stringify(corpo),
     cache: 'no-store',

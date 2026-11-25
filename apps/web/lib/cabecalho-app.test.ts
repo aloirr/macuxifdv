@@ -1,15 +1,15 @@
 /**
  * v1.0.35 (RN-VEN-25): o shell web manda `x-macuxi-app: web/<VERSAO_WEB>` em toda chamada à API. O `proxy.ts` põe o cabeçalho em
- * todo `/api-proxy` (cliente do SDK, portal e `fetch` próprios dos módulos) e o cliente do portal também o manda; o valor que o
- * chamador ou o navegador mandar é trocado.
+ * todo `/api-proxy` (cliente do SDK, portal e `fetch` próprios dos módulos); o valor que o chamador ou o
+ * navegador mandar é trocado.
  */
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CABECALHO_APP, valorCabecalhoWeb, VERSAO_WEB } from '@macuxi/platform-sdk';
+import { CABECALHO_APP, VERSAO_WEB } from '@macuxi/platform-sdk';
 
 import { config as configDoProxy, proxy } from '../proxy';
-import { cabecalhosParaApi, comCabecalhoApp, ehChamadaDaApi } from './cabecalho-app';
+import { cabecalhosParaApi, ehChamadaDaApi, PREFIXO_PROXY_API } from './cabecalho-app';
 import { chamarPortal } from './portal-api';
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -29,16 +29,6 @@ afterEach(() => {
 });
 
 describe('valor e regras puras', () => {
-  it('o valor é web/<VERSAO_WEB> no cabeçalho x-macuxi-app', () => {
-    expect(CABECALHO_APP).toBe('x-macuxi-app');
-    expect(valorCabecalhoWeb()).toBe(WEB);
-  });
-
-  it('comCabecalhoApp: o do chamador (qualquer caixa) sai e fica o do web; o resto segue', () => {
-    expect(comCabecalhoApp({ Authorization: 'Bearer t', 'X-Macuxi-App': 'campo/9.9.9' })).toEqual({ Authorization: 'Bearer t', [CABECALHO_APP]: WEB });
-    expect(comCabecalhoApp({})).toEqual({ [CABECALHO_APP]: WEB });
-  });
-
   it('cabecalhosParaApi troca o valor vindo do navegador e mantém os outros', () => {
     const h = cabecalhosParaApi(new Headers({ authorization: 'Bearer t', [CABECALHO_APP]: 'gestao/0.0.1' }));
     expect(h.get(CABECALHO_APP)).toBe(WEB);
@@ -96,12 +86,13 @@ describe('clientes (o que sai do navegador)', () => {
     expect(doProxy(r, CABECALHO_APP)).toBe(WEB);
   });
 
-  it('portal (chamarPortal): manda o x-macuxi-app do web e não deixa o chamador trocar', async () => {
+  it('portal (chamarPortal): vai ao /api-proxy e o proxy põe o x-macuxi-app (o do chamador é trocado)', async () => {
     const fetchFalso = vi.fn(async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchFalso);
     await chamarPortal(ROTAS_PORTAL.login, { metodo: 'POST', corpo: {}, cabecalhos: { [CABECALHO_APP]: 'campo/9.9.9' } });
     const [url, init] = fetchFalso.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe(`/api-proxy${ROTAS_PORTAL.login}`);
-    expect((init.headers as Record<string, string>)[CABECALHO_APP]).toBe(WEB);
+    expect(url).toBe(`${PREFIXO_PROXY_API}${ROTAS_PORTAL.login}`);
+    const r = proxy(pedido(url, init.headers as Record<string, string>));
+    expect(doProxy(r, CABECALHO_APP)).toBe(WEB);
   });
 });
