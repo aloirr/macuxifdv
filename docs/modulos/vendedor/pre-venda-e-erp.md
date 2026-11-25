@@ -61,4 +61,4 @@ Substitui, onde houver conflito, o que está acima sobre "Vencido", "até dd/mm"
 - **Motivo da recusa** (RN-VEN-40): `motivoDaRecusa` mostra a frase em português que o servidor devolveu (sem "(RN-...)" e sem ponto final); o genérico só sem motivo ou com erro técnico.
 - **Nome do PDF** (RN-VEN-41): `orderPdfFileName(numero, emissao, fuso, tipo)` → `ORC-0001-09112026.pdf` / `PED-PROV-09112026.pdf`; o arquivo gerado no aparelho é renomeado com `expo-file-system` antes do compartilhar.
 - **Rascunhos** (RN-VEN-38/39, `domain/rascunhos.ts`): `rascunhosParaLista`, `rascunhoExpirou` e `limparRascunhosExpirados` (24 h depois da última alteração, relógio injetado); a limpeza roda a cada leitura do repositório. A tela da lista espera a spec do designer-ux.
-- **Sem botão "Catálogo" na aba Itens** (RF-VEN-11): `app/screens/sem-catalogo-no-pedido.test.ts` trava a volta do botão.
+- **Botão "Catálogo" na aba Itens** (RN-VEN-49; revoga o T-0141): `app/screens/catalogo-no-pedido.test.ts` trava o botão, o gatilho e o "+" do slot.
