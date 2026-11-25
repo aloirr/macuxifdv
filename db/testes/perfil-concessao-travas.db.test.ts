@@ -104,7 +104,7 @@ describe.skipIf(semBanco())('0103 travas por cargo e RLS (fixture, ROLLBACK)', (
       expect(await conta(`select count(*) as n from plataforma.perfil_concessao where tenant_id = '${A.tenantId}'`, B.tenantId)).toBe(0);
       expect(await conta('select count(*) as n from plataforma.perfil_concessao', null)).toBe(0);
       expect(await conta(`select count(*) as n from plataforma.perfil_concessao where tenant_id <> '${A.tenantId}'`, A.tenantId)).toBe(0);
-      expect(await conta('select count(*) as n from plataforma.modelo_permissao', A.tenantId)).toBe(406);
+      expect(await conta('select count(*) as n from plataforma.modelo_permissao', A.tenantId)).toBe(844); // v1 406 + v2 438 (0108)
       expect(await conta('select count(*) as n from plataforma.modelo_permissao', null)).toBe(0);
       expect(await conta('select count(*) as n from plataforma.catalogo_aplicado', A.tenantId)).toBe(1);
       expect(await tentar('delete from plataforma.perfil_concessao where perfil_id = $1', [perfilA('vendedor')])).toMatchObject({ code: '42501' });

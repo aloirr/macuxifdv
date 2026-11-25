@@ -1142,7 +1142,8 @@ describe('fixture dois-tenants (estático)', () => {
         }
         // 0103 a 0105 (ADR 0073): ids determinísticos dos gatilhos de semeadura e de espelho (a carga e o gatilho gravam a MESMA linha)
         if (t === 'plataforma.catalogo_aplicado') {
-          expect(l.id).toBe(idCatalogoAplicado(String(l.tenant_id), Number(l.versao)));
+          // 0108: a v2 fica na mesma linha da v1 (o id é o da primeira aplicação)
+          expect(l.id).toBe(idCatalogoAplicado(String(l.tenant_id), 1));
           continue;
         }
         if (t === 'plataforma.perfil_concessao') {

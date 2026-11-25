@@ -80,7 +80,7 @@ describe.skipIf(semBanco())('0103 a 0105 na fixture dois-tenants (ROLLBACK)', ()
         expect(await leitura(admin, t)).toBe('concessao');
         expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [t])).toEqual([]);
         expect(await q('select id, versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1 and deleted_at is null', [t]))
-          .toEqual([{ id: idCatalogoAplicado(t, 1), versao: 1, leitura: 'concessao' }]);
+          .toEqual([{ id: idCatalogoAplicado(t, 1), versao: 2, leitura: 'concessao' }]); // 0108: a mesma linha, na v2
       }
     });
   });
@@ -184,7 +184,7 @@ describe.skipIf(semBanco())('0103 a 0105 up/down/up com dados de antes (banco ef
       const sobreposicoes = async () => q('select perfil_id, chave, concedida, nivel, alvos from plataforma.perfil_permissao where tenant_id = $1 and deleted_at is null order by perfil_id, chave', [T]);
       const sob0102 = await sobreposicoes();
 
-      expect((await migrarUp(c)).aplicadas).toEqual([
+      expect((await migrarUp(c, { ate: '0105' })).aplicadas).toEqual([
         '0103_plataforma_perfil_concessao', '0104_plataforma_perfis_sem_base_derivacao', '0105_plataforma_perfis_sem_base_conferencia_espelho',
       ]);
       expect(await leitura(c, T)).toBe('concessao');
@@ -208,7 +208,7 @@ describe.skipIf(semBanco())('0103 a 0105 up/down/up com dados de antes (banco ef
         'cliente.pre_cadastrar:false:', 'dados.escopo:true:proprio', 'produto.consultar:false:',
       ]);
 
-      expect((await migrarUp(c)).aplicadas).toHaveLength(3);
+      expect((await migrarUp(c, { ate: '0105' })).aplicadas).toHaveLength(3);
       expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [T])).toEqual([]);
       const segunda = await q('select id, chave, nivel, alvos from plataforma.perfil_concessao where tenant_id = $1 and deleted_at is null order by id', [T]);
       expect(segunda).toEqual(primeira.filter((l) => l.id !== idPerfilConcessao(T, P.vendX, 'cliente.pre_cadastrar')));

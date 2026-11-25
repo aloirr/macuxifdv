@@ -1566,7 +1566,7 @@ chave, só a chave e o valor). Drizzle: `perfilConcessao`, `modeloPermissao`, `c
 ### Tabelas
 | Tabela | Colunas (além das comuns) | Regras |
 |---|---|---|
-| `modelo_permissao` (sem `tenant_id`) | `versao`, `modelo` (os 7 de `PERFIS`), `cargo`, `chave`, `nivel`, `alvos` | Único `(versao, modelo, chave)`. Versão 1 = 406 linhas, congeladas do SDK (`matrizDeFabrica` dos 8 manifestos = `modelosDePerfil` da E1). App só lê as vivas, com contexto de tenant |
+| `modelo_permissao` (sem `tenant_id`) | `versao`, `modelo` (os 7 de `PERFIS`), `cargo`, `chave`, `nivel`, `alvos` | Único `(versao, modelo, chave)`. Versão 1 = 406 linhas, congeladas do SDK (`matrizDeFabrica` dos 8 manifestos = `modelosDePerfil` da E1); versão 2 = 438 (0108). App só lê as vivas, com contexto de tenant |
 | `perfil_concessao` | `perfil_id` (FK composta, `on delete cascade`), `chave`, `nivel`, `alvos` | Só o que está marcado; desmarcar = soft delete. Único vivo `(tenant_id, perfil_id, chave)`; índice `perfil_concessao_leitura_ix (tenant_id, perfil_id) include (chave, nivel, alvos)`. `dados.escopo` exige nível de escopo |
 | `catalogo_aplicado` | `versao`, `aplicado_em`, `leitura` (`legado` \| `concessao`) | Único vivo `(tenant_id, versao)`. É a chave da transição: `plataforma.leitura_de_perfis(tenant)` |
 | `perfil_migracao_conflito` | `perfil_id` (FK, `on delete set null (perfil_id)`), `perfil_codigo`, `usuario_id`, `tipo`, `efeito` (`para_tenant` \| `ajustado` \| `aviso`), `chave`, `antes`, `depois`, `resolvido_em` | Sem dado pessoal. Id determinístico `uuid_de_chave('<tenant>:plataforma.perfil_migracao_conflito:<tipo>:<perfil>:<chave ou ->')`. App só lê |
@@ -1619,6 +1619,22 @@ algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a mi
   `PERFIL_SEM_ACESSO` `aviso`. Saem na fase 2, com `perfil.base`, `perfil_permissao` e os parâmetros.
 - Na `excluir_tenant`, `catalogo_aplicado` sai antes de `perfil_permissao` e `parametro` (ordem alfabética das folhas): o espelho
   não regrava nada no meio.
+
+### Catálogo de permissões v2 (0108)
+- `modelo_permissao` versão 2 = `linhasDosModelos(modelosDePerfil(manifestos), 2)` do SDK: as 406 da v1 + 32 linhas de 7 chaves
+  de leitura sem nível e sem alvos (438). `carteira.ver`, `equipe.ver`, `rota.ver` e `visita.ver` (core) nos modelos supervisor,
+  gerente, analista, assistente e admin; `questionario.ver` (pesquisa), `cadastro_trade.ver` e `relatorio_trade.ver` (promotor)
+  nos mesmos, menos o assistente. São os perfis das rotas de hoje (`ACOES_DA_TRANSICAO` do SDK): ninguém ganha nem perde acesso.
+- `permissoes_legado_do_perfil` passa a ler a v2 (a chave nova vale pela base, como a rota de hoje); derivação, espelho,
+  conferência e a migração de tenant em `legado` seguem coerentes sem mudar de corpo.
+- `aplicar_catalogo_v2(tenant)` → `aplicado` | `ja_aplicado` | `sem_catalogo` (sem EXECUTE para ninguém; mesma trava de
+  `migrar_perfis_sem_base`): no tenant `concessao`, cada perfil vivo ganha as chaves novas de `concessoes_derivadas` (o
+  personalizado administrativo de base assistente fica sem as 3 de pesquisa e promotor), sem mexer nas outras concessões; depois,
+  `catalogo_aplicado.versao` passa de 1 a 2 **na mesma linha** (o id segue `<tenant>:plataforma.catalogo_aplicado:1`, o do upsert
+  de `migrar_perfis_sem_base`). Tenant `legado`: só a versão (a migração dele já deriva da v2). Rodada em todos os tenants; tenant
+  novo: `tenant_semear_concessoes` aplica a v2 depois da migração. Idempotente.
+- **Volta** (`.down.sql` da 0108): versão 2 → 1, as concessões das 7 chaves com soft delete (a chave desmarcada pela API nova volta
+  a valer pela base: perda documentada), a gêmea na v1, o gatilho do tenant novo da 0105 e a v2 do modelo apagada.
 
 ### Desempenho
 - Rodada no fixture (2 tenants, 16 perfis, ~870 concessões): menos de 1 s. Por perfil: uma derivação (~100 chaves) por gravação

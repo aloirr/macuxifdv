@@ -1,6 +1,6 @@
 /**
  * 0103/0104 × SDK (ADR 0073 §2.3 e §5; plano §7.2). O que o BANCO garante:
- * - plataforma.modelo_permissao versão 1 = os modelos do SDK (`modelosDePerfil` + `linhasDosModelos` da E1; antes dela,
+ * - plataforma.modelo_permissao na versão do SDK (1 ou 2, 0108) = os modelos do SDK (`modelosDePerfil` + `linhasDosModelos` da E1; antes dela,
  *   `matrizDeFabrica` com os 8 manifestos), linha a linha, com o cargo de cada modelo (CARGO_DA_BASE);
  * - a gêmea SQL plataforma.permissoes_legado_do_perfil = `resolverPerfil` do SDK (motor de hoje) em perfis com sobreposições
  *   sorteadas (semente fixa), em todas as bases;
@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CARGOS, PERFIS, catalogoDePermissoes } from '@macuxi/platform-sdk';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { banco, semBanco } from './estado';
-import { compatNoSdk, legadoDoPerfil, linhasDoSdk, MANIFESTOS, normalizar, resolverLegadoNoSdk, travaNoSdk, VERSAO_DO_SDK, type Sobreposicao } from './perfis-sem-base-apoio';
+import { compatNoSdk, legadoDoPerfil, linhasDoSdk, MANIFESTOS, normalizar, resolverLegadoNoSdk, semChavesV2, travaNoSdk, VERSAO_DO_BANCO, VERSAO_DO_SDK, type Sobreposicao } from './perfis-sem-base-apoio';
 import { emTransacao } from './util';
 
 const A = DOIS_TENANTS.A;
@@ -40,13 +40,14 @@ describe.skipIf(semBanco())('0103/0104 × SDK (fixture dois-tenants, ROLLBACK)',
     await admin?.end();
   });
 
-  it('modelo_permissao v1 = os modelos do SDK (406 linhas, mesma ordem, cargo, nível e alvos)', async () => {
-    expect(VERSAO_DO_SDK).toBe(1);
-    const r = await admin.query('select versao, modelo, cargo, chave, nivel, alvos from plataforma.modelo_permissao where deleted_at is null');
+  it('modelo_permissao na versão do SDK = os modelos do SDK (mesma ordem, cargo, nível e alvos); v1 com 406 linhas, v2 com 438', async () => {
+    expect(VERSAO_DO_SDK).toBeLessThanOrEqual(VERSAO_DO_BANCO);
+    const r = await admin.query('select versao, modelo, cargo, chave, nivel, alvos from plataforma.modelo_permissao where versao = $1 and deleted_at is null', [VERSAO_DO_SDK]);
     const ordem = (x: { modelo: string; chave: string }) => `${PERFIS.indexOf(x.modelo as (typeof PERFIS)[number])}`.padStart(2, '0') + x.chave;
     const doBanco = [...r.rows].sort((x, y) => (ordem(x) < ordem(y) ? -1 : 1));
     expect(doBanco).toEqual(linhasDoSdk());
-    expect(doBanco).toHaveLength(406);
+    const n = await admin.query<{ versao: number; n: number }>('select versao, count(*)::int as n from plataforma.modelo_permissao where deleted_at is null group by versao order by versao');
+    expect(n.rows).toEqual([{ versao: 1, n: 406 }, { versao: 2, n: 438 }]);
   });
 
   it('gêmea SQL = resolverPerfil do SDK com sobreposições sorteadas (7 bases × 12 perfis, semente fixa)', async () => {
@@ -82,7 +83,9 @@ describe.skipIf(semBanco())('0103/0104 × SDK (fixture dois-tenants, ROLLBACK)',
             }
           }
           const sdk = resolverLegadoNoSdk(base, sob);
-          if (sdk) expect(await legadoDoPerfil(admin, id), `${base} #${i}`).toEqual(sdk);
+          // SDK ainda na v1 (antes do catálogo v2): compara sem as chaves que só a v2 tem
+          const sql = await legadoDoPerfil(admin, id);
+          if (sdk) expect(VERSAO_DO_SDK < 2 ? semChavesV2(sql) : sql, `${base} #${i}`).toEqual(sdk);
           // o espelho (0105) mantém as concessões = acesso de hoje cortado pelo cargo (aqui o cargo é o da base: nada a cortar)
           const conc = await admin.query<{ p: Record<string, { nivel?: string; alvos?: string[] }> }>('select plataforma.concessoes_do_perfil($1) as p', [id]);
           const derivada = await admin.query<{ p: Record<string, { nivel?: string; alvos?: string[] }> }>(
@@ -98,7 +101,8 @@ describe.skipIf(semBanco())('0103/0104 × SDK (fixture dois-tenants, ROLLBACK)',
     const catalogo = catalogoDePermissoes(MANIFESTOS).map((d) => d.chave);
     const r = await admin.query<{ modelo: string; cargo: string; p: Record<string, { nivel?: string; alvos?: string[] }> }>(
       `select modelo, min(cargo) as cargo, jsonb_object_agg(chave, jsonb_strip_nulls(jsonb_build_object('nivel', nivel, 'alvos', to_jsonb(alvos)))) as p
-         from plataforma.modelo_permissao where versao = 1 and deleted_at is null group by modelo`,
+         from plataforma.modelo_permissao where versao = $1 and deleted_at is null group by modelo`,
+      [VERSAO_DO_BANCO],
     );
     for (const m of r.rows) {
       const sql = (await admin.query<{ c: string }>('select plataforma.perfil_compat($1, $2) as c', [m.cargo, m.p])).rows[0]!.c;
