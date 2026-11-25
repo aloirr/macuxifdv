@@ -13,7 +13,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { FREQUENCIAS, PERFIS_QUE_RESPONDEM, TIPOS_PERGUNTA, type QuestionarioVersao, type TipoPergunta } from '../../contracts';
 import { versaoVigente } from '../../domain';
 import { EditorPergunta } from '../components/editor-pergunta';
-import { corpoDoForm, formDaVersao, idsInvalidos, moverPergunta, novaPergunta, removerPergunta, ROTULO_TIPO, type FormRascunho } from '../lib/construtor';
+import { SeletorPublico } from '../components/seletor-publico';
+import { corpoDoForm, formDaVersao, moverPergunta, novaPergunta, removerPergunta, ROTULO_TIPO, type FormRascunho } from '../lib/construtor';
 import { useAcoesDoQuestionario, useFusoDoTenant, useQuestionario } from '../lib/queries';
 
 const ROTULO_FREQUENCIA: Record<(typeof FREQUENCIAS)[number], string> = {
@@ -74,7 +75,6 @@ export function ConstrutorPage() {
   if (d.isError) return <ErrorBlock message={errorMessage(d.error)} onRetry={() => void d.refetch()} />;
   if (d.isPending || !form || !exibida) return <LoadingBlock label="Carregando o questionário…" />;
 
-  const invalidos = [...idsInvalidos(form.equipes), ...idsInvalidos(form.clientes)];
 
   const salvar = async (): Promise<boolean> => {
     try {
@@ -241,13 +241,12 @@ export function ConstrutorPage() {
               <input className={campo} disabled={ro} value={form.canais} onChange={(e) => mudar({ canais: e.target.value })} placeholder="Ex.: Tradicional, Auto Serviço" data-testid="construtor.canais" />
             </CampoFormulario>
             <CampoFormulario rotulo="Equipes" opcional>
-              <textarea className={cx(campo, 'h-[76px] py-2')} disabled={ro} value={form.equipes} placeholder="Um id por linha" onChange={(e) => mudar({ equipes: e.target.value })} />
+              <SeletorPublico tipo="equipes" desabilitado={ro} valor={form.equipes} onChange={(t) => mudar({ equipes: t })} />
             </CampoFormulario>
             <CampoFormulario rotulo="Clientes específicos" opcional>
-              <textarea className={cx(campo, 'h-[76px] py-2')} disabled={ro} value={form.clientes} placeholder="Um id por linha" onChange={(e) => mudar({ clientes: e.target.value })} />
+              <SeletorPublico tipo="clientes" desabilitado={ro} valor={form.clientes} onChange={(t) => mudar({ clientes: t })} />
             </CampoFormulario>
           </div>
-          {invalidos.length ? <Notice tone="warning">Estes ids não são válidos e ficam de fora: {invalidos.join(', ')}.</Notice> : null}
         </div>
       </Panel>
 
