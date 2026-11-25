@@ -28,6 +28,7 @@ import {
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeAny } from 'zod';
+import { portaVersaoApp, type FonteVersoesApp } from './app-versao';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { ErroHttp } from './erros';
 import type { FonteLicencasTenant } from './licencas';
@@ -54,6 +55,8 @@ export interface DependenciasConector {
   acesso: AcessoBanco;
   relogio: () => Date;
   licencasTenant: FonteLicencasTenant;
+  /** Versões publicadas do Campo e do Gestão (`ctx.versaoApp`, ADR 0076 D6); a mesma fonte das rotas de módulo e do 426. */
+  versoesApp: FonteVersoesApp;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -209,6 +212,8 @@ export function registrarConector(app: FastifyInstance, modulo: ModuloApi, dep: 
           agora: dep.relogio,
           fuso: () => fuso,
           parametros: () => parametros,
+          // sem cabeçalhos: o Conector não é o app, `doCliente` fica `null`
+          versaoApp: portaVersaoApp(dep.versoesApp, {}),
           log,
           comTenant: (fn) =>
             dep.acesso.comTenant(tenantId, (db) =>
