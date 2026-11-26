@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { botoesDaEdicao, botoesDoSalvarNovo, motivoDeNaoEnviarOSalvo, motivoDoItemSoOrcamento, motivoDoMaximo, perguntaDaAlcada, precisaPerguntarAlcadaNoEnvioSalvo, PERGUNTA_DA_ALCADA, ROTULOS_DA_EDICAO, ROTULOS_DO_SALVAR_NOVO } from './botoes-resumo';
 
 const liberado = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
-const base = { cliente: liberado, pre_venda_ligada: true };
+const base = { cliente: liberado, pre_venda_ligada: true, itens: 1 };
 
 describe('RF-VEN-11 / RN-VEN-38: alçada e motivo do máximo', () => {
   it('RN-VEN-10 (T-0151): a alçada só vira a pergunta ao salvar, e só para pedido (orçamento não tem alçada)', () => {
@@ -65,9 +65,17 @@ describe('RN-VEN-38: editar pedido já salvo', () => {
 });
 
 describe('RN-VEN-38: Resumo com só Salvar e Cancelar; o Salvar escolhe Orçamento ou Pedido', () => {
+  it('RN-VEN-38 (T-0198, R-20261125-215618): sem item, o Salvar fica desligado com o motivo; o primeiro item o liga', () => {
+    const vazio = botoesDoSalvarNovo({ ...base, itens: 0 });
+    expect(vazio.salvar).toEqual({ rotulo: 'Salvar', habilitado: false, motivo: 'Adicione um item para salvar.' });
+    expect(botoesDoSalvarNovo({ ...base, itens: 1 }).salvar).toEqual({ rotulo: 'Salvar', habilitado: true, motivo: null });
+    // a regra é a mesma para o cliente só-orçamento e para o tenant sem pré-venda: sem item não há o que salvar
+    expect(botoesDoSalvarNovo({ ...base, itens: 0, pre_venda_ligada: false }).salvar.habilitado).toBe(false);
+    expect(botoesDoSalvarNovo({ ...base, itens: 0, cliente: { ...liberado, bloqueado: true } }).salvar.habilitado).toBe(false);
+  });
   it('RN-VEN-38: pré-venda ligada e nada impede: Salvar abre a folha com Orçamento e Pedido, ambos tocáveis', () => {
     const b = botoesDoSalvarNovo(base);
-    expect(b.salvar).toEqual({ rotulo: 'Salvar' });
+    expect(b.salvar).toEqual({ rotulo: 'Salvar', habilitado: true, motivo: null });
     expect(ROTULOS_DO_SALVAR_NOVO.cancelar).toBe('Cancelar');
     expect(b.escolha.orcamento).toEqual({ visivel: true, rotulo: 'Orçamento' });
     expect(b.escolha.pedido).toEqual({ visivel: true, rotulo: 'Pedido' });
