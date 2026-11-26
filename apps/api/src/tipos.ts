@@ -1,5 +1,5 @@
 /** Tipos internos compartilhados entre `createApp` e as rotas da plataforma. */
-import type { ContextoBase, Manifesto, ModoSuperAdmin, ModuloApi, ModuloId, Permissoes } from '@macuxi/platform-sdk';
+import type { ContextoBase, Manifesto, ModoSuperAdmin, ModuloApi, ModuloId, MotorPermissao, Permissoes } from '@macuxi/platform-sdk';
 import type { FastifyRequest } from 'fastify';
 import type { BancoApp } from './banco';
 import type { LicencasUsuario } from './licencas';
@@ -15,6 +15,8 @@ export interface RequisicaoPreparada {
    * vem vazia e a equipe é só ele; quem chamou serve só o estado de bloqueio.
    */
   restritoSemFilial: boolean;
+  /** ADR 0073 (E4): motor da permissão do tenant (`plataforma.catalogo_aplicado`); 'cargo' = a rota decide pelo perfil sem base. */
+  motor: MotorPermissao;
 }
 
 /** Opções do `preparar`. */
