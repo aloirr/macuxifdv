@@ -631,11 +631,18 @@ export async function arvoreLocal(leitor: LeitorLocal): Promise<{ arvore: Arvore
  * produtos vivos o aparelho tem e se o cliente tem tabela ativa (o mesmo critério de `contextoLocal`, RN-CAT-06).
  */
 export async function situacaoDoCatalogoNoPedido(leitor: LeitorLocal, clienteId: string | null): Promise<{ produtosNoAparelho: number; clienteTemTabela: boolean }> {
-  const produtosNoAparelho = vivas(await leitor.linhas<LinhaSync>('produto')).length;
+  // a mesma lista memorizada da vitrine (sem reler `produto` a cada abertura) e o vínculo por campo quando o leitor tem
+  const produtosNoAparelho = (await produtosLocais(leitor)).length;
   if (!clienteId) return { produtosNoAparelho, clienteTemTabela: false };
-  const vinculo = vivas(await leitor.linhas<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco')).find((v) => v.cliente_id === clienteId);
-  const tabelas = vinculo ? vivas(await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco')) : [];
-  return { produtosNoAparelho, clienteTemTabela: tabelas.some((t) => t.id === vinculo?.tabela_preco_id && t.ativo) };
+  const vinculos = leitor.linhasPorCampo
+    ? await leitor.linhasPorCampo<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco', 'cliente_id', [clienteId])
+    : await leitor.linhas<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco');
+  const vinculo = vivas(vinculos).find((v) => v.cliente_id === clienteId);
+  if (!vinculo) return { produtosNoAparelho, clienteTemTabela: false };
+  const tabelas = leitor.linhasPorIds
+    ? await leitor.linhasPorIds<TabelaPrecoSync & LinhaSync>('tabela_preco', [vinculo.tabela_preco_id])
+    : await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco');
+  return { produtosNoAparelho, clienteTemTabela: vivas(tabelas).some((t) => t.id === vinculo.tabela_preco_id && t.ativo) };
 }
 
 export async function produtosDaNavegacao(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; soDaTabelaDoCliente: boolean }): Promise<ReadonlySet<string> | undefined> {
