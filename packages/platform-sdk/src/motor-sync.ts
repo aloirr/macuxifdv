@@ -77,6 +77,7 @@ import type { ItemPush, LinhaSync, ModoSincronizacao, PaginaSync, RegistroSync, 
 import {
   codificarCursor,
   CODIGOS_RETENTAVEIS,
+  compararInstante,
   decodificarCursor,
   ehSyncNaoImplementado,
   hojeParaPoda,
@@ -1513,11 +1514,11 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     codigo: AVISO_PACOTE_FALHOU,
     mensagem: `Pacote da primeira carga não usado (${codigo}); os dados vêm pelo pull paginado.`,
   });
-  /** O menor dos dois cursores pela data (os do pacote usam o UUID nulo): a entidade continua do menor horizonte. */
+  /** O menor dos dois cursores pela data, em µs (os do pacote usam o UUID nulo): a entidade continua do menor horizonte. */
   const menorCursor = (a: string, b: string): string => {
     const x = decodificarCursor(a);
     const y = decodificarCursor(b);
-    return x && y && Date.parse(y.updated_at) < Date.parse(x.updated_at) ? b : a;
+    return x && y && compararInstante(y.updated_at, x.updated_at) < 0 ? b : a;
   };
   /** Partições já importadas que cobrem a entidade. */
   const particoesImportadas = (rp: RegistroPacotes, e: string) =>

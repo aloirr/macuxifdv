@@ -217,12 +217,42 @@ export function decodificarCursor(s: string | null | undefined): CursorSync | nu
   return { updated_at, id: s.slice(i + 1) };
 }
 
-/** Ordem total do pull: por updated_at e, no empate, por id. */
+/** ISO 8601 com segundos opcionais, fração de qualquer tamanho e `Z` ou offset (`±hh`, `±hhmm`, `±hh:mm`). */
+const ISO_INSTANTE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?(Z|[+-]\d{2}(?::?\d{2})?)$/i;
+
+/**
+ * Instante ISO em microssegundos UTC desde a época, a mesma resolução do `timestamptz` (T-0199). A fração com menos de 6
+ * dígitos é completada com zeros (`.123` = `.123000`); além de 6, é truncada. O offset é levado para UTC. Fora desse
+ * formato, cai no `Date.parse` (milissegundos × 1000). Cabe em `number`: 1e15 µs ainda está abaixo de 2^53.
+ */
+function microssegundosUtc(iso: string): number {
+  const m = ISO_INSTANTE.exec(iso);
+  if (!m) return Date.parse(iso) * 1000;
+  const [, ano, mes, dia, hora, minuto, segundo, fracao, zona] = m;
+  let offsetMin = 0;
+  if (zona!.toUpperCase() !== 'Z') {
+    const sinal = zona!.startsWith('-') ? -1 : 1;
+    const digitos = zona!.slice(1).replace(':', '');
+    offsetMin = sinal * (Number(digitos.slice(0, 2)) * 60 + Number(digitos.slice(2) || '0'));
+  }
+  const ms = Date.UTC(Number(ano), Number(mes) - 1, Number(dia), Number(hora), Number(minuto), Number(segundo ?? '0')) - offsetMin * 60_000;
+  return ms * 1000 + Number((fracao ?? '').slice(0, 6).padEnd(6, '0'));
+}
+
+/** Ordem de dois instantes ISO em microssegundos, como o Postgres compara `timestamptz` (T-0199). */
+export function compararInstante(a: string, b: string): number {
+  const ta = microssegundosUtc(a);
+  const tb = microssegundosUtc(b);
+  return ta < tb ? -1 : ta > tb ? 1 : 0;
+}
+
+/**
+ * Ordem total do pull: por updated_at em microssegundos e, no empate, por id — a mesma do `order by updated_at, id` e do
+ * `(updated_at, id) > (...)` da SQL dos provedores. Em milissegundos, o cursor da página saía de outra linha e o pull e o
+ * pacote pulavam linhas da mesma milissegundo (T-0199).
+ */
 export function compararCursor(a: CursorSync, b: CursorSync): number {
-  const ta = Date.parse(a.updated_at);
-  const tb = Date.parse(b.updated_at);
-  if (ta !== tb) return ta < tb ? -1 : 1;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  return compararInstante(a.updated_at, b.updated_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
 export interface LinhaSync extends CursorSync {

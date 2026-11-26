@@ -152,6 +152,19 @@ async function versaoDosEscopos(escopos: ReadonlySet<string>, ctx: ContextoBase,
 export const dentroDaJanela = (l: LinhaSync, desde: CursorSync | null, limite: number): boolean =>
   Date.parse(l.updated_at) < limite && (!desde || compararCursor(l, desde) > 0);
 
+/**
+ * Página do pull a partir das linhas do provedor (pedidas com `TAMANHO_PAGINA_SYNC + 1`): defesa da janela, ordem do cursor
+ * (µs e id, a mesma da SQL; T-0199), corte na página e o próximo cursor só quando há mais.
+ */
+export function paginaDoPull<L extends LinhaSync>(linhas: readonly L[], desde: CursorSync | null, ate: string): { itens: L[]; proximo: string | null } {
+  // defesa: mesmo que o módulo erre o SQL, nada acima do horizonte nem atrás do cursor sai daqui
+  const teto = Date.parse(ate);
+  const validas = linhas.filter((l) => dentroDaJanela(l, desde, teto)).sort(compararCursor);
+  const itens = validas.slice(0, TAMANHO_PAGINA_SYNC);
+  const ultimo = itens[itens.length - 1];
+  return { itens, proximo: validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null };
+}
+
 export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   const provedores = new Map<string, ProvedorSync>();
   const registro = criarRegistroSync(p.manifestos);
@@ -223,13 +236,8 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     // o conjunto é lido antes das linhas (e o provedor reaproveita o mesmo, memorizado na requisição)
     const versao = await versaoEscopo(prov, ctx);
     const linhas = await prov.puxar(ctx, { desde, ate, limite: TAMANHO_PAGINA_SYNC + 1 });
-    // defesa: mesmo que o módulo erre o SQL, nada acima do horizonte nem atrás do cursor sai daqui
-    const teto = Date.parse(ate);
-    const validas = linhas.filter((l) => dentroDaJanela(l, desde, teto)).sort(compararCursor);
-    const itens = validas.slice(0, TAMANHO_PAGINA_SYNC);
-    const ultimo = itens[itens.length - 1];
+    const { itens, proximo } = paginaDoPull(linhas, desde, ate);
     const geracao = await p.banco.geracaoBase?.(ctx.usuario.tenant_id);
-    const proximo = validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null;
     if (modo) limite.emitiu(chaveLimite, modo, proximo);
     return {
       itens,
