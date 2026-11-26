@@ -66,7 +66,8 @@ export interface OpcoesDaSaida {
 
 /** RN-VEN-38 (R-20261124-114951): a folha oferece o mesmo Salvar do Resumo: Salvar pedido e Salvar orçamento (RN-VEN-13: só o orçamento), mais Descartar. */
 export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean }): OpcoesDaSaida {
-  const b = botoesDoSalvarNovo(e).escolha;
+  // só a escolha (Pedido/Orçamento) importa aqui; a folha só abre com o pedido alterado (`pedidoAlterado`)
+  const b = botoesDoSalvarNovo({ ...e, itens: 0 }).escolha;
   return { pedido: b.pedido.visivel, orcamento: b.orcamento.visivel };
 }
 

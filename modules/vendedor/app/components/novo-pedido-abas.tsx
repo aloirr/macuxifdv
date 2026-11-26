@@ -518,7 +518,7 @@ function BotoesDoResumoView({
   onCancelar: () => void;
 }) {
   const principal = botoesNovo
-    ? { rotulo: botoesNovo.salvar.rotulo, desligado: false, onPress: onSalvar, testID: 'salvar-pedido' }
+    ? { rotulo: botoesNovo.salvar.rotulo, desligado: !botoesNovo.salvar.habilitado, onPress: onSalvar, testID: 'salvar-pedido' }
     : botoesEdicao?.principal === 'salvar_orcamento'
       ? { rotulo: botoesEdicao.salvarOrcamento.rotulo, desligado: !botoesEdicao.salvarOrcamento.habilitado, onPress: onSalvarOrcamento, testID: 'send-order' }
       : botoesEdicao
@@ -529,6 +529,11 @@ function BotoesDoResumoView({
     <View style={s.botoesResumo} testID="botoes-resumo">
       {principal ? (
         <Botao testID={principal.testID} nivel="principal" rotulo={principal.rotulo} rotuloAcessivel={principal.rotulo} desligado={principal.desligado} ocupado={salvando} onPress={principal.onPress} />
+      ) : null}
+      {botoesNovo?.salvar.motivo ? (
+        <Text testID="salvar-pedido-motivo" style={s.motivoSalvar}>
+          {botoesNovo.salvar.motivo}
+        </Text>
       ) : null}
       {transformar ? (
         <Botao testID="transformar-em-pedido" nivel="secundario" alto quebrarLinha rotulo={transformar.rotulo} rotuloAcessivel={transformar.rotulo} desligado={!transformar.habilitado} onPress={onTransformar} />
@@ -545,6 +550,7 @@ const s = StyleSheet.create({
   botoesResumo: { gap: 10 },
   cancelar: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   cancelarTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
+  motivoSalvar: { ...fonte.body, fontSize: 13, color: colors.ink2, textAlign: 'center' },
   sugestao: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6 },
   sugestaoPressionada: { backgroundColor: colors.ground },
   sugestaoBotao: { width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },

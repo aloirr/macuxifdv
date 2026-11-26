@@ -139,8 +139,9 @@ export function botoesDaEdicao(e: EntradaDaEdicao): BotoesDaEdicao {
  *    Item só-orçamento (RN-VEN-11/11a/20) não impede salvar; impede ENVIAR (`motivoDeNaoEnviarOSalvo`, na aba Pedidos);
  *  - Orçamento aparece com a pré-venda ligada ou cliente só-orçamento (RN-VEN-13).
  * Com uma opção só tocável, o Salvar grava direto (`direto`), sem a folha.
+ * T-0198 (R-20261125-215618): sem nenhum item o Salvar fica desligado, com o motivo; o primeiro item o liga.
  */
-export const ROTULOS_DO_SALVAR_NOVO = { salvar: 'Salvar', cancelar: 'Cancelar', titulo: 'Salvar como', orcamento: 'Orçamento', pedido: 'Pedido' } as const;
+export const ROTULOS_DO_SALVAR_NOVO = { salvar: 'Salvar', cancelar: 'Cancelar', titulo: 'Salvar como', orcamento: 'Orçamento', pedido: 'Pedido', semItens: 'Adicione um item para salvar.' } as const;
 
 export type QualSalvar = 'orcamento' | 'pedido';
 
@@ -151,21 +152,23 @@ export interface OpcaoDoSalvar {
 }
 
 export interface BotoesDoSalvarNovo {
-  salvar: { rotulo: string };
+  /** `motivo` = por que está desligado (`null` quando liga) */
+  salvar: { rotulo: string; habilitado: boolean; motivo: string | null };
   escolha: { titulo: string; orcamento: OpcaoDoSalvar; pedido: OpcaoDoSalvar };
   /** `null` = o Salvar abre a folha; senão grava direto neste tipo */
   direto: QualSalvar | null;
 }
 
-/** `pre_venda_ligada`: tenant com orçamento (pré-venda); o cliente da RN-VEN-13 sempre vê o orçamento. */
-export function botoesDoSalvarNovo(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean}): BotoesDoSalvarNovo {
+/** `pre_venda_ligada`: tenant com orçamento (pré-venda); o cliente da RN-VEN-13 sempre vê o orçamento. `itens`: linhas com quantidade. */
+export function botoesDoSalvarNovo(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; itens: number }): BotoesDoSalvarNovo {
   const soOrcamento = motivoSoOrcamento(e.cliente) !== null;
+  const comItem = e.itens > 0;
   // o Pedido grava o pedido SALVO, sem enviar: o item só-orçamento não impede salvar (impede enviar, na aba Pedidos)
   const pedidoVisivel = !soOrcamento;
   const orcamentoVisivel = e.pre_venda_ligada || soOrcamento;
   const direto: QualSalvar | null = pedidoVisivel && orcamentoVisivel ? null : pedidoVisivel ? 'pedido' : 'orcamento';
   return {
-    salvar: { rotulo: ROTULOS_DO_SALVAR_NOVO.salvar },
+    salvar: { rotulo: ROTULOS_DO_SALVAR_NOVO.salvar, habilitado: comItem, motivo: comItem ? null : ROTULOS_DO_SALVAR_NOVO.semItens },
     escolha: {
       titulo: ROTULOS_DO_SALVAR_NOVO.titulo,
       orcamento: { visivel: orcamentoVisivel, rotulo: ROTULOS_DO_SALVAR_NOVO.orcamento },
