@@ -626,6 +626,18 @@ export async function arvoreLocal(leitor: LeitorLocal): Promise<{ arvore: Arvore
  * sem filtro de nó se o tenant não tem árvore). Dentro do pedido (`soDaTabelaDoCliente`), só os com preço vigente na tabela
  * do cliente (RN-CAT-06). `undefined` = sem restrição por esta via.
  */
+/**
+ * T-0197: o que a tela precisa para dizer por que a lista de dentro do pedido ficou vazia (`causaDoVazioNoPedido`): quantos
+ * produtos vivos o aparelho tem e se o cliente tem tabela ativa (o mesmo critério de `contextoLocal`, RN-CAT-06).
+ */
+export async function situacaoDoCatalogoNoPedido(leitor: LeitorLocal, clienteId: string | null): Promise<{ produtosNoAparelho: number; clienteTemTabela: boolean }> {
+  const produtosNoAparelho = vivas(await leitor.linhas<LinhaSync>('produto')).length;
+  if (!clienteId) return { produtosNoAparelho, clienteTemTabela: false };
+  const vinculo = vivas(await leitor.linhas<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco')).find((v) => v.cliente_id === clienteId);
+  const tabelas = vinculo ? vivas(await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco')) : [];
+  return { produtosNoAparelho, clienteTemTabela: tabelas.some((t) => t.id === vinculo?.tabela_preco_id && t.ativo) };
+}
+
 export async function produtosDaNavegacao(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; soDaTabelaDoCliente: boolean }): Promise<ReadonlySet<string> | undefined> {
   const { arvore, vinculos } = await arvoreLocal(leitor);
   let ids: Set<string> | undefined = e.noId === null ? undefined : produtosDoNo(arvore, vinculos, e.noId);
