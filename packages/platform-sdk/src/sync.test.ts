@@ -5,6 +5,7 @@ import {
   codificarCursor,
   CODIGOS_RETENTAVEIS,
   compararCursor,
+  compararInstante,
   criarRegistroSync,
   decodificarCursor,
   definirEntidadeSync,
@@ -70,6 +71,33 @@ describe('cursor (updated_at, id) e paginação do pull', () => {
 
   it('empate de updated_at desempata por id', () => {
     expect(compararCursor(linhas[1]!, linhas[0]!)).toBeLessThan(0);
+  });
+
+  // T-0199: a SQL dos provedores ordena (updated_at, id) em microssegundos; o comparador tem de ordenar igual
+  it('compara em microssegundos: na mesma milissegundo, o instante decide antes do id', () => {
+    const b = { updated_at: '2026-11-26T10:00:00.123456Z', id: 'ffffffff-ffff-4fff-bfff-ffffffffffff' };
+    const a = { updated_at: '2026-11-26T10:00:00.123789Z', id: '00000000-0000-4000-8000-000000000000' };
+    expect(compararCursor(b, a)).toBeLessThan(0);
+    expect(compararCursor(a, b)).toBeGreaterThan(0);
+    expect([a, b].sort(compararCursor)).toEqual([b, a]);
+  });
+
+  it('milissegundos × microssegundos: completa com zeros a fração de quem manda só milissegundos', () => {
+    const ms = { updated_at: '2026-11-26T10:00:00.123Z', id: 'b' };
+    expect(compararCursor(ms, { updated_at: '2026-11-26T10:00:00.123000Z', id: 'b' })).toBe(0);
+    expect(compararCursor(ms, { updated_at: '2026-11-26T10:00:00.123000Z', id: 'a' })).toBeGreaterThan(0);
+    expect(compararCursor(ms, { updated_at: '2026-11-26T10:00:00.123001Z', id: 'a' })).toBeLessThan(0);
+    expect(compararCursor(ms, { updated_at: '2026-11-26T10:00:00.122999Z', id: 'z' })).toBeGreaterThan(0);
+    expect(compararInstante('2026-11-26T10:00:00Z', '2026-11-26T10:00:00.000000Z')).toBe(0);
+    expect(compararInstante('2026-11-26T10:00:00.1Z', '2026-11-26T10:00:00.100000Z')).toBe(0);
+  });
+
+  it('offset é normalizado para UTC (com ou sem fração, com ou sem dois-pontos)', () => {
+    expect(compararInstante('2026-11-26T06:00:00.123456-04:00', '2026-11-26T10:00:00.123456Z')).toBe(0);
+    expect(compararInstante('2026-11-26T13:00:00+0300', '2026-11-26T10:00:00Z')).toBe(0);
+    expect(compararInstante('2026-11-26T10:00:00.123457+00', '2026-11-26T10:00:00.123456Z')).toBeGreaterThan(0);
+    expect(compararInstante('2026-11-26T05:59:59.999999-04:00', '2026-11-26T10:00:00Z')).toBeLessThan(0);
+    expect(compararInstante('2026-11-26T00:30:00.000001+01:00', '2026-11-25T23:30:00Z')).toBeGreaterThan(0);
   });
 
   it('pagina em ordem, inclui removidos e devolve o próximo cursor só quando há mais', () => {
