@@ -150,11 +150,47 @@ const FABRICA_PLATAFORMA: Readonly<Record<Perfil, PermissoesDoPerfil>> = {
 /** Padrão de fábrica de todos os perfis base: chave → valor. */
 export type MatrizFabrica = Readonly<Record<Perfil, PermissoesDoPerfil>>;
 
+/** Ação de leitura do catálogo v2 que o manifesto do módulo ainda não declara (ver `ACOES_DA_TRANSICAO`). */
+export interface AcaoDaTransicao {
+  perfis: readonly Perfil[];
+  descricao: string;
+}
+
+const LEITURA_GESTAO: readonly Perfil[] = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'];
+const LEITURA_TRADE: readonly Perfil[] = ['supervisor', 'gerente', 'analista', 'admin'];
+
+/**
+ * Catálogo v2 (ADR 0073, antes da E6): chaves de leitura das rotas que hoje restringem só por `RotaModulo.perfis`, com os MESMOS
+ * perfis da rota (nenhum perfil padrão perde nem ganha acesso). Entram no catálogo, nos modelos e no motor antigo como se o
+ * manifesto as declarasse. Transição: o dono do módulo passa a chave para `manifest.acoes` (mesmos perfis) e troca `perfis` por
+ * `acao` nas rotas; a declaração do manifesto prevalece sobre esta e a entrada sai daqui quando os três módulos tiverem migrado.
+ */
+export const ACOES_DA_TRANSICAO: Readonly<Partial<Record<ModuloId, Readonly<Record<string, AcaoDaTransicao>>>>> = {
+  core: {
+    'carteira.ver': { perfis: LEITURA_GESTAO, descricao: 'Ver a carteira de clientes do escopo: a lista, a de um cliente e a de um usuário (RN-CORE-04)' },
+    'equipe.ver': { perfis: LEITURA_GESTAO, descricao: 'Ver a hierarquia das equipes do escopo (RN-CORE-04)' },
+    'rota.ver': { perfis: LEITURA_GESTAO, descricao: 'Ver as rotas do escopo e a rota de um usuário num dia (RN-CORE-04)' },
+    'visita.ver': { perfis: LEITURA_GESTAO, descricao: 'Ver as visitas do escopo (RN-CORE-04)' },
+  },
+  pesquisa: {
+    'questionario.ver': { perfis: LEITURA_TRADE, descricao: 'Ver os questionários e o detalhe de cada um no BKO (RF-PES-01)' },
+  },
+  promotor: {
+    'cadastro_trade.ver': { perfis: LEITURA_TRADE, descricao: 'Ver os cadastros de trade: categorias, checklists, concorrentes, metas de share, mix e parâmetros (RN-PRO-10)' },
+    'relatorio_trade.ver': { perfis: LEITURA_TRADE, descricao: 'Ver os relatórios de share e de ruptura no escopo do perfil' },
+  },
+};
+
+/** Ações do módulo para o catálogo e a fábrica: as do manifesto mais as da transição que ele ainda não declara. */
+export function acoesDoModulo(man: Pick<Manifesto, 'id' | 'acoes'>): Readonly<Record<string, { perfis: readonly Perfil[]; descricao?: string }>> {
+  return { ...ACOES_DA_TRANSICAO[man.id], ...man.acoes };
+}
+
 /** Plataforma + `perfis` de cada ação dos manifestos instalados (ADR 0004). Erro se um manifesto declarar chave da plataforma. */
 export function matrizDeFabrica(manifestos: readonly Manifesto[]): MatrizFabrica {
   const m = Object.fromEntries(PERFIS.map((p) => [p, { ...FABRICA_PLATAFORMA[p] }])) as Record<Perfil, Record<string, ValorPermissao>>;
   for (const man of manifestos) {
-    for (const [acao, def] of Object.entries(man.acoes)) {
+    for (const [acao, def] of Object.entries(acoesDoModulo(man))) {
       if (ehChavePlataforma(acao)) throw new Error(`Ação ${acao} do módulo ${man.id} é chave da plataforma (ADR 0033)`);
       for (const p of def.perfis) m[p][acao] = {};
     }
@@ -196,7 +232,7 @@ export function areaDaAcao(modulo: ModuloId, acao: string): AreaPermissao {
 export function catalogoDePermissoes(manifestos: readonly Manifesto[]): DefinicaoChave[] {
   const lista: DefinicaoChave[] = Object.entries(CHAVES_PLATAFORMA).map(([chave, d]) => ({ chave, modulo: 'core' as const, ...d }));
   for (const m of manifestos) {
-    for (const [acao, def] of Object.entries(m.acoes)) lista.push({ chave: acao, area: areaDaAcao(m.id, acao), modulo: m.id, descricao: def.descricao ?? acao });
+    for (const [acao, def] of Object.entries(acoesDoModulo(m))) lista.push({ chave: acao, area: areaDaAcao(m.id, acao), modulo: m.id, descricao: def.descricao ?? acao });
   }
   const ordem = (a: AreaPermissao) => AREAS_PERMISSAO.indexOf(a);
   return lista.sort((a, b) => ordem(a.area) - ordem(b.area) || a.chave.localeCompare(b.chave));

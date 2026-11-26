@@ -84,11 +84,11 @@ describe('registro de telas dos módulos no shell', () => {
     const ruim = definirModuloShell({
       manifesto: defineModule({ id: 'gestor', versao: '1.0.0', depende: ['core'], perfis: ['gerente'], apps: { web: { menus: ['Equipe'] } } }),
       paginas: [
-        { id: 'painel', caminho: 'clientes', titulo: 'Painel', navegacao: 'Painel', acao: 'equipe.ver', componente: 'X' },
+        { id: 'painel', caminho: 'clientes', titulo: 'Painel', navegacao: 'Painel', acao: 'equipe.inexistente', componente: 'X' },
       ],
     });
     expect(() => criarShell('web', [core, vendedor, ruim])).toThrow(
-      /caminho clientes usado por core e por gestor.*"Painel" não está em apps\.web\.menus.*ação equipe\.ver não declarada/,
+      /caminho clientes usado por core e por gestor.*"Painel" não está em apps\.web\.menus.*ação equipe\.inexistente não declarada/,
     );
     expect(() => definirModuloShell({ manifesto: core.manifesto, paginas: [{ id: 'a', caminho: '/a', titulo: 'A', componente: 1 }] })).toThrow(/sem barra/);
   });
