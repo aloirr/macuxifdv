@@ -94,7 +94,7 @@ describe.skipIf(semBanco())('Promotor: pull dos cadastros de trade × Postgres (
     expect(new Set(idsAntes).size).toBe(idsAntes.length); // nenhuma repetida
     expect(antes.paginas).toBeGreaterThan(2); // de fato paginou
     for (const id of existentes) expect(idsAntes, `linha ${id} pulada pela paginação`).toContain(id); // nenhuma pulada (inclui removidas)
-    const ordenada = [...antes.linhas].sort((x, y) => Date.parse(x.updated_at) - Date.parse(y.updated_at) || (x.id < y.id ? -1 : 1));
+    const ordenada = [...antes.linhas].sort((x, y) => (x.updated_at < y.updated_at ? -1 : x.updated_at > y.updated_at ? 1 : x.id < y.id ? -1 : x.id > y.id ? 1 : 0)) // mesma chave do servidor: texto com microssegundos (largura fixa, UTC), não Date.parse;
     expect(idsAntes).toEqual(ordenada.map((l) => l.id));
     const ids = new Set<string>(novos.map((n) => n.id));
     expect(idsAntes.filter((id) => ids.has(id))).toEqual(novos.map((n) => n.id)); // a ordem de gravação
