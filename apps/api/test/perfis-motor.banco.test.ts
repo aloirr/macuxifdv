@@ -1,9 +1,10 @@
 /**
  * ADR 0073, etapa E4 × Postgres real (fixture dois-tenants, papel macuxi_app, RLS): a fonte das licenças lê a marca do tenant
  * (`plataforma.catalogo_aplicado`) e, só no motor 'cargo', o perfil sem base do usuário (cargo + `plataforma.perfil_concessao`).
+ * Depois da 0108 todo tenant fica em 'legado' (motor novo desligado na v1.0.37): os casos de tenant migrado forçam 'concessao'.
  * - RN-CORE-35: num tenant migrado, cada usuário tem o MESMO acesso nos dois motores (`diferencasEntreMotores` vazio) e o cargo
  *   do perfil é o da base;
- * - tenant em 'legado' segue o motor antigo (o perfil sem base nem é lido);
+ * - tenant em 'legado' (o padrão) segue o motor antigo (o perfil sem base nem é lido);
  * - ponta a ponta: a concessão desmarcada no banco recusa a rota no 'cargo' (403) e não muda nada no 'legado' (201).
  * Cada caso roda numa transação desfeita no fim (ROLLBACK), com o papel macuxi_app e o tenant da requisição.
  * Pula sem Postgres (aviso no fim); com MACUXI_PG_EXIGIR=1 (CI) falha.
@@ -85,7 +86,7 @@ describe.skipIf(semBanco())('motor da permissão × Postgres (ADR 0073 E4)', () 
       ...Object.values(B.usuarios).map((id) => tokenDe(id, B.tenantId)),
     ];
     for (const token of casos) {
-      const lic = await licencasDoBanco(token, acessoEmRollback(admin));
+      const lic = await licencasDoBanco(token, acessoEmRollback(admin, naLeitura(token.tenant_id, 'concessao')));
       expect(motorDoTenant(lic.catalogo), token.id).toBe('cargo');
       expect(lic.perfilPorCargo, token.id).toBeTruthy();
       const antigos = (lic.perfis ?? []).map((p) => resolverPerfil(p, MATRIZ));
@@ -97,8 +98,8 @@ describe.skipIf(semBanco())('motor da permissão × Postgres (ADR 0073 E4)', () 
     }
   });
 
-  it("tenant em 'legado' segue o motor antigo: o perfil sem base nem é lido", async () => {
-    const lic = await licencasDoBanco(tokenDe(B.usuarios.vendedor, B.tenantId), acessoEmRollback(admin, naLeitura(B.tenantId, 'legado')));
+  it("tenant em 'legado' (o padrão depois da 0108) segue o motor antigo: o perfil sem base nem é lido", async () => {
+    const lic = await licencasDoBanco(tokenDe(B.usuarios.vendedor, B.tenantId), acessoEmRollback(admin));
     expect(lic.catalogo).toEqual({ versao: 2, leitura: 'legado' });
     expect(motorDoTenant(lic.catalogo)).toBe('base');
     expect(lic).not.toHaveProperty('perfilPorCargo');
@@ -128,15 +129,15 @@ describe.skipIf(semBanco())('motor da permissão × Postgres (ADR 0073 E4)', () 
     expect((await criar(intacto.app)).statusCode).toBe(201);
 
     const semCriar = desmarcar(vendedor1.id, 'pedido.criar');
-    const migrado = montar(semCriar);
+    const migrado = montar(async (c) => {
+      await semCriar(c);
+      await naLeitura(A.tenantId, 'concessao')(c);
+    });
     const r = await criar(migrado.app);
     expect(r.statusCode).toBe(403);
     expect(r.json().codigo).toBe('PERFIL_SEM_ACESSO');
 
-    const legado = montar(async (c) => {
-      await semCriar(c);
-      await naLeitura(A.tenantId, 'legado')(c);
-    });
+    const legado = montar(semCriar);
     expect((await criar(legado.app)).statusCode).toBe(201);
     await Promise.all([intacto.app.close(), migrado.app.close(), legado.app.close()]);
   });
