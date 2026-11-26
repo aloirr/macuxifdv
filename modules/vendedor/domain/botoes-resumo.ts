@@ -4,8 +4,8 @@
  *   novo pedido      Salvar (abre Orçamento ou Pedido) · Cancelar  (`botoesDoSalvarNovo`, R-20261124-114951)
  *   editar orçamento Salvar orçamento (principal) · Converter em pedido · Cancelar  (`botoesDaEdicao`)
  *   editar pedido    um botão só ("Salvar alterações") · Cancelar  (`botoesDaEdicao`)
- * O salvar é sempre tocável: a falta de preenchimento (RN-CORE-36) aparece no campo, na tentativa (a tela valida). Desligam só os
- * motivos de "só orçamento" por item (RN-VEN-11, RN-VEN-11a, RN-VEN-20), e só para enviar ou transformar.
+ * A falta de preenchimento (RN-CORE-36) não desliga o salvar: aparece no campo, na tentativa (a tela valida). O Salvar do Novo pedido
+ * desliga só sem item (T-0198); os motivos de "só orçamento" por item (RN-VEN-11, RN-VEN-11a, RN-VEN-20) desligam enviar ou transformar.
  */
 import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
 import { mensagemAcimaDoMaximo, type NivelDePreco } from './preco-pedido';
