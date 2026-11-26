@@ -28,6 +28,7 @@ import { EnderecoEditadoPedido, EnderecoEntregaPedido, Frete, FreteDoPedido, Ite
 export * from './formas-pagamento';
 export * from './credito-disponivel';
 export * from './prazo-ajuste';
+export * from './parametros-pedidos';
 export * from './preco-prazo-padrao';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */

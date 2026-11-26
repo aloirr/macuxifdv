@@ -16,6 +16,7 @@ import { consultaPrecoPrazoPadrao } from './consulta-preco-prazo-padrao';
 import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
 import { preVendaSql, usarPreVenda } from './pre-venda';
 import { consumidoresVendedor } from './retorno-erp';
+import { rotasParametrosPedidos } from './parametros-pedidos';
 import { rotasTransportadoras } from './transportadoras';
 import { consultaFormasPagamento, rotasFormasPagamento } from './formas-pagamento';
 import { provedoresSyncVendedor } from './sync';
@@ -25,6 +26,7 @@ export { criarPreVendaEmMemoria, preVenda, preVendaIndisponivel, preVendaSql, us
 export { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
 export { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
 export { rotasTransportadoras } from './transportadoras';
+export { rotaGravarParametrosPedidos, rotaLerParametrosPedidos, rotasParametrosPedidos } from './parametros-pedidos';
 export { consultaFormasPagamento, rotasFormasPagamento } from './formas-pagamento';
 export { rotaGravarAprovadores };
 export { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRecusarPedido, rotaRejeitarPedido, rotaVerPedido };
@@ -34,7 +36,7 @@ usarPreVenda(preVendaSql);
 
 export const apiVendedor: ModuloApi = definirModuloApi({
   manifesto: manifest,
-  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaGravarAprovadores, rotaAprovarPedido, rotaRejeitarPedido, rotaRecusarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras, ...rotasFormasPagamento],
+  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaGravarAprovadores, rotaAprovarPedido, rotaRejeitarPedido, rotaRecusarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras, ...rotasFormasPagamento, ...rotasParametrosPedidos],
   sync: provedoresSyncVendedor,
   consumidores: consumidoresVendedor,
   consultas: [consultaPedidosDaMeta, consultaFormasPagamento, consultaPrecoPrazoPadrao],

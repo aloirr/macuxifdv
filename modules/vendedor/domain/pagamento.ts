@@ -151,14 +151,17 @@ export function formasDaLista(formas: readonly FormaDePagamento[], codigosDoClie
     .map((forma) => (permitidos && !permitidos.has(forma.codigo) ? { forma, habilitada: false, motivo: MOTIVO_FORMA_NAO_ACEITA } : { forma, habilitada: true }));
 }
 
+import { lerInteiroNaFaixa } from './inteiro-na-faixa';
+
 /** Parâmetro `titulo_vencido_dias` do Vendedor (padrão 5; nenhum parâmetro do Vendedor é semeado por migração). */
 export const TITULO_VENCIDO_DIAS_PADRAO = 5;
+export const TITULO_VENCIDO_DIAS_MIN = 0;
+export const TITULO_VENCIDO_DIAS_MAX = 365;
 
 /** `titulo_vencido_dias` do tenant (inteiro 0..365; ausente ou inválido = 5). */
 export function tituloVencidoDias(parametros: Readonly<Record<string, unknown>>): number {
   const bruto = parametros['titulo_vencido_dias'];
-  const n = typeof bruto === 'number' ? bruto : typeof bruto === 'string' && bruto.trim() !== '' ? Number(bruto) : NaN;
-  return Number.isInteger(n) && n >= 0 && n <= 365 ? n : TITULO_VENCIDO_DIAS_PADRAO;
+  return lerInteiroNaFaixa(bruto, TITULO_VENCIDO_DIAS_MIN, TITULO_VENCIDO_DIAS_MAX, TITULO_VENCIDO_DIAS_PADRAO);
 }
 
 /** Retrato do pagamento no evento `vendedor.pedido.aprovado@1` (T-0089). */
