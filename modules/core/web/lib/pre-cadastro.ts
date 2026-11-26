@@ -65,6 +65,13 @@ export function alternarLinhaObrigatoria(lista: readonly CampoCadastroCliente[],
   return CAMPOS_CADASTRO_CLIENTE.filter((c) => conjunto.has(c));
 }
 
+/** RN-CORE-16: a lista mudou em relação à salva (ordem canônica; só então o Salvar liga). */
+export function listaAlterada(atual: readonly CampoCadastroCliente[], salva: readonly CampoCadastroCliente[]): boolean {
+  const a = new Set(atual);
+  const b = new Set(salva);
+  return a.size !== b.size || [...a].some((c) => !b.has(c));
+}
+
 // ------------------------------------------------------------ Clientes › Pré-cadastros recusados
 
 /** Valor do parâmetro `aba` da página Clientes para esta aba (`/clientes?aba=pre-cadastros`). */

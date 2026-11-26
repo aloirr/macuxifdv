@@ -6,7 +6,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, LoadingBlock, Notice, cx } from '@macuxi/ui/web';
 import type { CampoCadastroCliente } from '../../../contracts';
-import { alternarLinhaObrigatoria, linhaMarcada, LINHAS_CAMPOS_OBRIGATORIOS } from '../../lib/pre-cadastro';
+import { alternarLinhaObrigatoria, linhaMarcada, listaAlterada, LINHAS_CAMPOS_OBRIGATORIOS } from '../../lib/pre-cadastro';
 import { CHAVE_CAMPOS_OBRIGATORIOS, criarApiCamposObrigatorios, type ApiCamposObrigatorios } from './api';
 
 const P = 'core.pre_cadastro.parametros';
@@ -37,17 +37,20 @@ export function CamposObrigatoriosPanel({ cliente }: { cliente?: ApiCamposObriga
     onError: (e) => setAviso({ tom: 'danger', texto: errorMessage(e) }),
   });
 
+  const alterado = !!q.data && listaAlterada(lista, q.data.obrigatorios);
+
   return (
     <div className="flex flex-col gap-4" data-testid={`${P}.painel`}>
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock label="Carregando os campos…" />}
-      {aviso && (
-        <Notice tone={aviso.tom} onClose={() => setAviso(null)}>
+      {aviso?.tom === 'danger' && (
+        <Notice tone="danger" onClose={() => setAviso(null)}>
           <span data-testid={`${P}.aviso`}>{aviso.texto}</span>
         </Notice>
       )}
       {q.data && (
         <>
+          <p className="text-[13px] text-ink-2">Vale para o cadastro e o pré-cadastro do cliente.</p>
           <div className="flex flex-col">
             {LINHAS_CAMPOS_OBRIGATORIOS.map((linha) => (
               <label key={linha.id} className={cx('flex min-h-[44px] items-center gap-3 text-[15px] font-semibold', linha.sempre ? 'text-ink-2' : 'text-ink')}>
@@ -68,18 +71,23 @@ export function CamposObrigatoriosPanel({ cliente }: { cliente?: ApiCamposObriga
             ))}
           </div>
           {pode && (
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 variant="primary"
                 onClick={() => {
                   setAviso(null);
                   gravar.mutate({ obrigatorios: [...lista] });
                 }}
-                disabled={gravar.isPending}
+                disabled={gravar.isPending || !alterado}
                 data-testid={`${P}.salvar`}
               >
                 {gravar.isPending ? 'Salvando…' : 'Salvar'}
               </Button>
+              {aviso?.tom === 'success' && (
+                <Notice tone="success">
+                  <span data-testid={`${P}.aviso`}>{aviso.texto}</span>
+                </Notice>
+              )}
             </div>
           )}
         </>
