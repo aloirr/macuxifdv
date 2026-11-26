@@ -100,7 +100,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { arrayDeInteiros, arrayDeTexto, arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
-import { idAprovacaoDoBackfill, idDeChave, idFilialPadrao, idFixo, idFotoTipoFachada, idMedida, idMotivoPadrao, idPerfilFabrica, idUsuarioPerfil } from '../../src/ids';
+import { idAprovacaoDoBackfill, idCatalogoAplicado, idDeChave, idFilialPadrao, idFixo, idFotoTipoFachada, idMedida, idMotivoPadrao, idPerfilConcessao, idPerfilFabrica, idUsuarioPerfil } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
 import { PERFIS_DOC_SENSIVEL } from '../../../modules/core/domain/fotos-pdv';
@@ -759,6 +759,12 @@ export const ORDEM_TABELAS = [
   // 0041 (T-0111): perfis personalizados e sobreposições (os 7 de fábrica vêm do gatilho do tenant), antes da FK de perfil_modulo
   'plataforma.perfil',
   'plataforma.perfil_permissao',
+  // 0105 a 0107 (ADR 0073): o tenant nasce migrado (gatilho tenant_semear_perfis_concessao) e o espelho refaz as concessões a
+  // cada sobreposição; aqui, as MESMAS linhas que os gatilhos gravam (ids determinísticos; a carga é upsert por id), para as
+  // tabelas terem linha em A e em B
+  'plataforma.catalogo_aplicado',
+  'plataforma.perfil_concessao',
+  'plataforma.perfil_migracao_conflito',
   'plataforma.perfil_modulo',
   'core.equipe',
   'core.usuario',
@@ -1211,6 +1217,26 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'plataforma.perfil_permissao': [
       { id: A.sobreposicoes.vendedorExternoEscopo, tenant_id: tA, perfil_id: A.perfis.vendedorExterno, chave: 'dados.escopo', concedida: true, nivel: 'proprio', alvos: null, external_id: null },
       { id: B.sobreposicoes.vendedorBalcaoCampo, tenant_id: tB, perfil_id: B.perfis.vendedorBalcao, chave: 'acesso.campo', concedida: false, nivel: null, alvos: null, external_id: null },
+    ],
+    // 0105 a 0107 (ADR 0073): os dois tenants em 'concessao'; o escopo de cada personalizado; o achado do espelho em B
+    // (vendedor_balcao ativo sem nenhum acesso.*, sem usuário = aviso) e, em A, um achado já resolvido (acesso.gestao marcado e
+    // desmarcado no vendedor_externo pela API antiga, cortado pelo cargo vendedor)
+    'plataforma.catalogo_aplicado': [tA, tB].map((t) => ({ id: idCatalogoAplicado(t, 1), tenant_id: t, versao: 1, leitura: 'legado', external_id: null })),
+    'plataforma.perfil_concessao': [
+      { id: idPerfilConcessao(tA, A.perfis.vendedorExterno, 'dados.escopo'), tenant_id: tA, perfil_id: A.perfis.vendedorExterno, chave: 'dados.escopo', nivel: 'proprio', alvos: null, external_id: null },
+      { id: idPerfilConcessao(tB, B.perfis.vendedorBalcao, 'dados.escopo'), tenant_id: tB, perfil_id: B.perfis.vendedorBalcao, chave: 'dados.escopo', nivel: 'carteira', alvos: null, external_id: null },
+    ],
+    'plataforma.perfil_migracao_conflito': [
+      {
+        id: idDeChave(`${tA}:plataforma.perfil_migracao_conflito:TRAVA_NOVA_CORTA:${A.perfis.vendedorExterno}:acesso.gestao`), tenant_id: tA,
+        perfil_id: A.perfis.vendedorExterno, perfil_codigo: 'vendedor_externo', usuario_id: null, tipo: 'TRAVA_NOVA_CORTA', efeito: 'aviso',
+        chave: 'acesso.gestao', antes: { 'acesso.gestao': {} }, depois: null, resolvido_em: agora.toISOString(), external_id: null,
+      },
+      {
+        id: idDeChave(`${tB}:plataforma.perfil_migracao_conflito:PERFIL_SEM_ACESSO:${B.perfis.vendedorBalcao}:-`), tenant_id: tB,
+        perfil_id: B.perfis.vendedorBalcao, perfil_codigo: 'vendedor_balcao', usuario_id: null, tipo: 'PERFIL_SEM_ACESSO', efeito: 'aviso',
+        chave: null, antes: null, depois: null, resolvido_em: null, external_id: null,
+      },
     ],
     // 0069: um perfil por usuário — só o vínculo principal, o MESMO que o gatilho usuario_perfil_principal cria (id
     // idUsuarioPerfil; a carga é upsert por id, nada duplica). Fica explícito dos admins para a tabela ter linha em A e em B.

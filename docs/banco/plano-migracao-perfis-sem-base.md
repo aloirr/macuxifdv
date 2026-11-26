@@ -1,10 +1,16 @@
 # Plano de migração — perfis de acesso sem "perfil base" (R-20261124-094327, ADR 0073)
 
-- **Dono**: banco-dados. **Data**: 24/11/2026 (Manaus). **Situação**: só desenho; nenhuma migração entra antes da aprovação do
-  Alexandre e da ADR 0073 (proposta, engenheiro-software, commit `2c7f504`).
+- **Dono**: banco-dados. **Data**: 24/11/2026 (Manaus). **Situação** (25/11/2026): etapa E2 feita nas migrações **0105**
+  (`plataforma_perfil_concessao`: tabelas, modelo v1 e travas por cargo), **0106** (`plataforma_perfis_sem_base_derivacao`:
+  diagnóstico, derivação e rodada em todos os tenants) e **0107** (`plataforma_perfis_sem_base_conferencia_espelho`:
+  conferência por usuário, espelho e tenant novo já derivado). ADR 0073 aceita, com as 6 decisões do §2.0 (todas A). O que foi
+  feito e as diferenças em relação a este desenho estão no dicionário: [plataforma.md](plataforma.md), "0105 a 0107". O passo 2
+  do §5 ficou dividido: o backfill e o espelho entraram na E2; as funções de caminho duplo entram com a troca de leitura (E6).
+  **Motor desligado na v1.0.37** (decisão do dono do produto, 25/11): 0105–0108 derivam e mantêm `perfil_concessao`, mas todo
+  tenant (e o novo) fica em `leitura = 'legado'`; a troca para `concessao` é da 0109 (v1.0.38), por tenant, pela conferência.
 - **Pedido**: item 12 de 24/11 — perfil sem base, permissões numa tabela com caixas (R-20261124-094327).
-- **Números de migração**: provisórios (`NNNN-a`, `NNNN-b`). Seguem a ordem de merge (R-20261115-140000). Antes do push, o
-  número não pode existir em `origin/main` nem em PR aberto. O `main` de hoje vai até a 0100.
+- **Números de migração**: 0105 a 0107, renumerados pelo gerente em 25/11 (a 0103 é a senha do admin, da v1.0.35, e a 0104 é o pedido fracionário, da v1.0.36). Seguem a
+  ordem de merge (R-20261115-140000).
 - **Schema**: as tabelas de perfil estão no schema **`plataforma`**, não no `core` (0041). O Core é dono das telas e da API, mas
   não das tabelas. O plano mantém tudo no `plataforma`, com o mesmo critério da 0041 (o SDK é dono da regra).
 
@@ -191,7 +197,7 @@ de hoje.
 
 Rodada:
 - **antes**: no diagnóstico, só leitura (§4.4). Cria `foto_antes` numa tabela temporária, com o hash de cada usuário;
-- **depois**: no fim da `NNNN-b`;
+- **depois**: no fim da `NNNN-b`, pela equivalência de `migrar_perfis_sem_base` (0106, por perfil com usuário; 23514 aborta);
 - **depois do deploy da API**: de novo, pelo `testes`.
 
 A prova cruzada com o SDK (gêmea SQL = `resolverPerfil` em TypeScript) fica no teste do §7.
