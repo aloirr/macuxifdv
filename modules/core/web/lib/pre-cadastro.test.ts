@@ -4,6 +4,7 @@ import { CorrecaoPreCadastroSchema, type HistoricoPreCadastro, type PreCadastroA
 import { COLUNAS_FORMULARIO, errosDaRecusaPorColuna, primeiraColunaMarcada } from '../../app/lib/pre-cadastro-formulario';
 import {
   alternarLinhaObrigatoria,
+  listaAlterada,
   buscaDoQDaUrl,
   buscaParaApi,
   codigoErpDoAceite,
@@ -134,5 +135,13 @@ describe('Clientes › Pré-cadastros recusados (RN-CORE-78)', () => {
     const atual = { id: ID, revisao: 2, status_cadastro: 'recusado', motivo: null, erros: [], razao_social: 'Mercado', documento: '11222333000181', latitude: -3.1, longitude: -60, filial_id: null } as PreCadastroAtual;
     const corpo = CorrecaoPreCadastroSchema.parse(corpoDaCorrecao(atual, { razao_social: 'Mercado Ltda', documento: '11.222.333/0001-81', cep: '69000-000', telefone: '(92) 98888-7777', email: ' ' }));
     expect(corpo).toMatchObject({ razao_social: 'Mercado Ltda', documento: '11222333000181', cep: '69000000', telefone: '92988887777', email: null, latitude: -3.1, longitude: -60, filial_id: null, revisao_base: 2 });
+  });
+});
+
+describe('RN-CORE-16: Salvar do painel de campos obrigatórios só liga com alteração', () => {
+  it('RN-CORE-16: lista igual à salva, em qualquer ordem, não é alteração; marcar ou desmarcar é', () => {
+    expect(listaAlterada(['razao_social', 'documento', 'cep'], ['cep', 'documento', 'razao_social'])).toBe(false);
+    expect(listaAlterada(['razao_social', 'documento', 'cep', 'email'], ['razao_social', 'documento', 'cep'])).toBe(true);
+    expect(listaAlterada(['razao_social', 'documento'], ['razao_social', 'documento', 'cep'])).toBe(true);
   });
 });
