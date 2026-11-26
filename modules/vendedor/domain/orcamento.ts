@@ -25,18 +25,23 @@ import {
   type TotaisDoPedido,
 } from './preco-pedido';
 
+import { lerInteiroNaFaixa } from './inteiro-na-faixa';
+
 export const TIPOS_DOCUMENTO = ['pedido', 'orcamento'] as const;
 export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[number];
 
-/** RN-VEN-18: validade padrão; parâmetro do tenant `orcamento.validade_dias` (1 a 90). */
+/** RN-VEN-18: validade padrão (1 a 90). */
 export const VALIDADE_ORCAMENTO_DIAS_PADRAO = 7;
 export const PARAMETRO_VALIDADE_ORCAMENTO = 'orcamento.validade_dias';
-const VALIDADE_MAX_DIAS = 90;
+/** Chave gravada pelo painel Parâmetros › Pedidos e pelo passo Empresa; a chave antiga (`PARAMETRO_VALIDADE_ORCAMENTO`) segue valendo na leitura. */
+export const PARAMETRO_VALIDADE_ORCAMENTO_DIAS = 'validade_orcamento_dias';
+export const VALIDADE_MIN_DIAS = 1;
+export const VALIDADE_MAX_DIAS = 90;
 
 export function validadeOrcamentoDias(parametros: Record<string, unknown>): number {
-  const bruto = parametros[PARAMETRO_VALIDADE_ORCAMENTO];
-  const n = typeof bruto === 'number' ? bruto : typeof bruto === 'string' && bruto.trim() !== '' ? Number(bruto) : NaN;
-  return Number.isInteger(n) && n >= 1 && n <= VALIDADE_MAX_DIAS ? n : VALIDADE_ORCAMENTO_DIAS_PADRAO;
+  // chave nova presente mas inválida cai no padrão (não olha a antiga)
+  const bruto = parametros[PARAMETRO_VALIDADE_ORCAMENTO_DIAS] ?? parametros[PARAMETRO_VALIDADE_ORCAMENTO];
+  return lerInteiroNaFaixa(bruto, VALIDADE_MIN_DIAS, VALIDADE_MAX_DIAS, VALIDADE_ORCAMENTO_DIAS_PADRAO);
 }
 
 /** Início (00:00) do dia civil AAAA-MM-DD no fuso, como instante UTC. */

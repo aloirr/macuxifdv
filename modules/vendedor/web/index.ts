@@ -4,6 +4,7 @@ import { manifest } from '../manifest';
 import { OrdersPage } from './components/orders/orders-page';
 import { AlcadasPage } from './pages/alcadas-page';
 import { FormasPagamentoPage } from './pages/formas-pagamento-page';
+import { PrecoOrcamentoPanel, TituloVencidoPanel } from './pages/parametros-pedidos-panel';
 import { TransportadorasPage } from './pages/transportadoras-page';
 
 /** Páginas do Vendedor no BKO (ADR 0003). O shell só monta se o módulo estiver efetivo e o perfil puder. */
@@ -17,5 +18,9 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'formas-pagamento', caminho: 'formas-pagamento', titulo: 'Formas de pagamento e prazos', navegacao: 'Formas de pagamento e prazos', grupo: 'cadastros', acao: 'forma_pagamento.ver', perfis: ['admin', 'analista', 'gerente'], componente: FormasPagamentoPage },
   ],
   // ADR do menu Parâmetros (D5): Alçadas deixam o menu e viram painel de Parâmetros (só leitura); as decisões recentes ficam em Pedidos
-  paineisParametros: [{ id: 'alcadas', secao: 'pedidos', titulo: 'Alçadas', perfis: manifest.perfis, caminhosAntigos: ['alcadas'], componente: AlcadasPage }],
+  paineisParametros: [{ id: 'alcadas', secao: 'pedidos', titulo: 'Alçadas', ordem: 10, perfis: manifest.perfis, caminhosAntigos: ['alcadas'], componente: AlcadasPage },
+    // RN-VEN-13 e RN-VEN-18 (spec 7.3 e 7.4): `alcada.gerenciar` esconde para quem não ajusta; a API revalida
+    { id: 'titulo-vencido', secao: 'pedidos', titulo: 'Título vencido', ordem: 20, acao: 'alcada.gerenciar', componente: TituloVencidoPanel },
+    { id: 'preco-orcamento', secao: 'pedidos', titulo: 'Preço do orçamento', ordem: 30, acao: 'alcada.gerenciar', componente: PrecoOrcamentoPanel },
+  ],
 });
