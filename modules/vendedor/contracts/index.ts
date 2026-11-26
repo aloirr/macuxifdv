@@ -527,3 +527,17 @@ export const PedidosPage = z.object({ itens: z.array(Order), proximo_cursor: z.s
 export type PedidosPage = z.infer<typeof PedidosPage>;
 export * from './pedidos-da-meta';
 export * from './extensoes';
+
+// ---------- Parâmetros › Pedidos (v1.0.37) ----------
+/** Faixas aceitas (iguais às do domain: `validadeOrcamentoDias` e `tituloVencidoDias`). Fora delas a rota responde 422. */
+export const FAIXA_VALIDADE_ORCAMENTO_DIAS = { min: 1, max: 90 } as const;
+export const FAIXA_TITULO_VENCIDO_DIAS = { min: 0, max: 365 } as const;
+/** Validade do orçamento e dias de atraso do título (BKO › Parâmetros › Pedidos). */
+export const ParametrosPedidos = z.object({
+  validade_orcamento_dias: z.number().int().min(FAIXA_VALIDADE_ORCAMENTO_DIAS.min).max(FAIXA_VALIDADE_ORCAMENTO_DIAS.max),
+  titulo_vencido_dias: z.number().int().min(FAIXA_TITULO_VENCIDO_DIAS.min).max(FAIXA_TITULO_VENCIDO_DIAS.max),
+});
+export type ParametrosPedidos = z.infer<typeof ParametrosPedidos>;
+/** Gravação parcial: só as chaves enviadas mudam. A faixa é conferida na rota (422, com a RN), não no formato. */
+export const PutParametrosPedidosRequest = z.object({ validade_orcamento_dias: z.number().optional(), titulo_vencido_dias: z.number().optional() }).strict();
+export type PutParametrosPedidosRequest = z.infer<typeof PutParametrosPedidosRequest>;

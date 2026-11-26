@@ -3,6 +3,7 @@ import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { OrdersPage } from './components/orders/orders-page';
 import { AlcadasPage } from './pages/alcadas-page';
+import { ParametrosPedidosPanel } from './pages/parametros-pedidos-panel';
 import { FormasPagamentoPage } from './pages/formas-pagamento-page';
 import { TransportadorasPage } from './pages/transportadoras-page';
 
@@ -17,5 +18,9 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'formas-pagamento', caminho: 'formas-pagamento', titulo: 'Formas de pagamento e prazos', navegacao: 'Formas de pagamento e prazos', grupo: 'cadastros', acao: 'forma_pagamento.ver', perfis: ['admin', 'analista', 'gerente'], componente: FormasPagamentoPage },
   ],
   // ADR do menu Parâmetros (D5): Alçadas deixam o menu e viram painel de Parâmetros (só leitura); as decisões recentes ficam em Pedidos
-  paineisParametros: [{ id: 'alcadas', secao: 'pedidos', titulo: 'Alçadas', perfis: manifest.perfis, caminhosAntigos: ['alcadas'], componente: AlcadasPage }],
+  paineisParametros: [
+    { id: 'alcadas', secao: 'pedidos', titulo: 'Alçadas', perfis: manifest.perfis, caminhosAntigos: ['alcadas'], componente: AlcadasPage },
+    // v1.0.37: validade do orçamento e dias de atraso do título
+    { id: 'pedidos-parametros', secao: 'pedidos', titulo: 'Validade e atraso', ordem: 30, acao: 'parametro.pedidos', componente: ParametrosPedidosPanel },
+  ],
 });

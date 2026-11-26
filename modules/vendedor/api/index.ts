@@ -11,6 +11,7 @@ import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRecusarPedido, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
 import { rotaGravarAprovadores } from './aprovadores';
+import { rotasParametrosPedidos } from './parametros-pedidos';
 import { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
 import { consultaPrecoPrazoPadrao } from './consulta-preco-prazo-padrao';
 import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
@@ -34,7 +35,7 @@ usarPreVenda(preVendaSql);
 
 export const apiVendedor: ModuloApi = definirModuloApi({
   manifesto: manifest,
-  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaGravarAprovadores, rotaAprovarPedido, rotaRejeitarPedido, rotaRecusarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras, ...rotasFormasPagamento],
+  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaGravarAprovadores, ...rotasParametrosPedidos, rotaAprovarPedido, rotaRejeitarPedido, rotaRecusarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras, ...rotasFormasPagamento],
   sync: provedoresSyncVendedor,
   consumidores: consumidoresVendedor,
   consultas: [consultaPedidosDaMeta, consultaFormasPagamento, consultaPrecoPrazoPadrao],

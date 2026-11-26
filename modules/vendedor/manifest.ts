@@ -51,6 +51,8 @@ export const manifest = defineModule({
     'pedido.criar_em_nome': { perfis: ['supervisor', 'gerente'] },
     // T-0184 (P2 B): Parâmetros › Pedidos, quem aprova crédito e inadimplência; promotor nunca (regra 7)
     'alcada.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
+    // v1.0.37: validade do orçamento e dias de atraso do título (Parâmetros › Pedidos); promotor nunca (regra 7)
+    'parametro.pedidos': { perfis: ['admin', 'analista', 'gerente'] },
     // T-0061 (RN-VEN-16): transportadoras e padrão do frete no BKO
     'transportadora.ver': { perfis: ['admin', 'analista', 'gerente', 'supervisor', 'assistente'] },
     'transportadora.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
