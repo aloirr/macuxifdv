@@ -626,6 +626,25 @@ export async function arvoreLocal(leitor: LeitorLocal): Promise<{ arvore: Arvore
  * sem filtro de nó se o tenant não tem árvore). Dentro do pedido (`soDaTabelaDoCliente`), só os com preço vigente na tabela
  * do cliente (RN-CAT-06). `undefined` = sem restrição por esta via.
  */
+/**
+ * T-0197: o que a tela precisa para dizer por que a lista de dentro do pedido ficou vazia (`causaDoVazioNoPedido`): quantos
+ * produtos vivos o aparelho tem e se o cliente tem tabela ativa (o mesmo critério de `contextoLocal`, RN-CAT-06).
+ */
+export async function situacaoDoCatalogoNoPedido(leitor: LeitorLocal, clienteId: string | null): Promise<{ produtosNoAparelho: number; clienteTemTabela: boolean }> {
+  // a mesma lista memorizada da vitrine (sem reler `produto` a cada abertura) e o vínculo por campo quando o leitor tem
+  const produtosNoAparelho = (await produtosLocais(leitor)).length;
+  if (!clienteId) return { produtosNoAparelho, clienteTemTabela: false };
+  const vinculos = leitor.linhasPorCampo
+    ? await leitor.linhasPorCampo<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco', 'cliente_id', [clienteId])
+    : await leitor.linhas<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco');
+  const vinculo = vivas(vinculos).find((v) => v.cliente_id === clienteId);
+  if (!vinculo) return { produtosNoAparelho, clienteTemTabela: false };
+  const tabelas = leitor.linhasPorIds
+    ? await leitor.linhasPorIds<TabelaPrecoSync & LinhaSync>('tabela_preco', [vinculo.tabela_preco_id])
+    : await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco');
+  return { produtosNoAparelho, clienteTemTabela: vivas(tabelas).some((t) => t.id === vinculo.tabela_preco_id && t.ativo) };
+}
+
 export async function produtosDaNavegacao(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; soDaTabelaDoCliente: boolean }): Promise<ReadonlySet<string> | undefined> {
   const { arvore, vinculos } = await arvoreLocal(leitor);
   let ids: Set<string> | undefined = e.noId === null ? undefined : produtosDoNo(arvore, vinculos, e.noId);

@@ -108,3 +108,21 @@ export function produtosVendaveisNaTabela(itens: readonly ItemTabelaPreco[], tab
   for (const id of new Set(daTabela.map((i) => i.product_id))) if (precoVisivel(id, daTabela, [], { agora, tabela_cliente_id: tabelaId }).sellable) r.add(id);
   return r;
 }
+
+/** T-0197 (R-20261125-215535): por que a lista do Catálogo aberto de dentro do pedido ficou vazia. */
+export type CausaDoVazioNoPedido = 'sem_tabela' | 'tabela_sem_produto' | 'sem_catalogo';
+
+export const TEXTOS_DO_VAZIO_NO_PEDIDO: Readonly<Record<CausaDoVazioNoPedido, string>> = {
+  sem_tabela: 'Este cliente não tem tabela de preço',
+  tabela_sem_produto: 'A tabela deste cliente não tem produto com preço',
+  sem_catalogo: 'O catálogo ainda não está no aparelho',
+};
+
+/**
+ * T-0197 / RN-CAT-06: dentro do pedido a lista só tem os produtos com preço vigente na tabela do cliente. Lista vazia culpa o
+ * aparelho só quando o aparelho não tem produto nenhum; senão diz a causa do cliente (sem tabela, ou tabela sem produto com preço).
+ */
+export function causaDoVazioNoPedido(e: { produtosNoAparelho: number; clienteTemTabela: boolean }): CausaDoVazioNoPedido {
+  if (e.produtosNoAparelho === 0) return 'sem_catalogo';
+  return e.clienteTemTabela ? 'tabela_sem_produto' : 'sem_tabela';
+}

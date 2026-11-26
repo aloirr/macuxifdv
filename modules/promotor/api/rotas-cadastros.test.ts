@@ -90,8 +90,9 @@ describe('permissões e licença dos cadastros (regra 6, RN-PRO-01)', () => {
   });
 
   it('leitura (listas e parâmetros): supervisor, gerente, analista e admin; nunca o promotor', () => {
-    for (const c of CADASTROS_BKO) expect(rota('GET', base[c]).perfis).toEqual([...PERFIS_RELATORIO]);
-    expect(rota('GET', CAMINHO_PARAMETROS_TRADE).perfis).toEqual([...PERFIS_RELATORIO]);
+    for (const c of CADASTROS_BKO) expect(rota('GET', base[c]).acao).toBe('cadastro_trade.ver');
+    expect(rota('GET', CAMINHO_PARAMETROS_TRADE).acao).toBe('cadastro_trade.ver');
+    expect(quem('cadastro_trade.ver')).toEqual([...PERFIS_RELATORIO]);
     expect(PERFIS_RELATORIO).toContain('supervisor');
     expect(PERFIS_RELATORIO).not.toContain('promotor');
   });

@@ -1,6 +1,6 @@
 /**
  * Rotas REST dos cadastros de trade do BKO (`/v1/promotor/cadastros/*`; T-0069, RF-PRO-11). O `createApp` aplica login,
- * LICENÇA do módulo, perfil (leitura: `PERFIS_RELATORIO`; escrita: ação `*.gerenciar` do manifesto = analista e admin,
+ * LICENÇA do módulo, perfil (leitura: ação `cadastro_trade.ver` do manifesto = supervisor, gerente, analista e admin; escrita: ação `*.gerenciar` do manifesto = analista e admin,
  * então o supervisor recebe 403), Zod do corpo (que chama o domain: RN-PRO-03/06/10) e tenant do token (RLS).
  * Por cadastro: listar, criar (idempotente pelo `id` do cliente), editar (PUT por id) e desativar (DELETE por id =
  * desativação lógica, nunca apaga). Toda escrita grava auditoria (RN-AUD-01, só ids, códigos e valores, sem nomes) na mesma
@@ -18,7 +18,6 @@ import {
   EDICAO_CADASTRO,
   FiltroCadastro,
   IdCadastroParams,
-  PERFIS_RELATORIO,
   type CadastroGravavel,
   type ParametrosTradeApi,
 } from '../contracts';
@@ -103,7 +102,7 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
     rotas.push({
       metodo: 'GET',
       caminho: base,
-      perfis: [...PERFIS_RELATORIO],
+      acao: 'cadastro_trade.ver',
       carteira: 'nao_se_aplica',
       query: FiltroCadastro,
       async executar(ctx) {
@@ -191,7 +190,7 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
   rotas.push({
     metodo: 'GET',
     caminho: CAMINHO_CADASTRO.concorrente,
-    perfis: [...PERFIS_RELATORIO],
+    acao: 'cadastro_trade.ver',
     carteira: 'nao_se_aplica',
     query: FiltroCadastro,
     async executar(ctx) {
@@ -211,7 +210,7 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
   rotas.push({
     metodo: 'GET',
     caminho: CAMINHO_PARAMETROS_TRADE,
-    perfis: [...PERFIS_RELATORIO],
+    acao: 'cadastro_trade.ver',
     carteira: 'nao_se_aplica',
     // somente leitura nesta versão: os valores são do tenant (`ctx.parametros()`), com o padrão do domain quando ausentes
     async executar(ctx): Promise<ParametrosTradeApi> {

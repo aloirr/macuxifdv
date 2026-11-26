@@ -17,7 +17,7 @@ import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } 
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { caminhoCatalogo, leituraDaEtiquetaVeiculo, leituraDoBotaoVeiculo, NAVEGACAO_VEICULO, TEXTOS_VEICULO, type ChipFiltro, type GrupoFiltro, type ItemVitrine, type VeiculoEscolhido, type VeiculoParcial, type VeiculosSaida } from '../../contracts';
 import { anoCivilNoFuso } from '../../domain/ano-civil';
-import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
+import { causaDoVazioNoPedido, montarArvore, TEXTOS_DO_VAZIO_NO_PEDIDO, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
 import { TETO_RANKING_BUSCA } from '../../domain/busca-consulta';
 import { contarChipsFiltrar, rotulosDoVeiculo } from '../../domain/veiculo-filtro';
 import { idsAtivos } from '../../domain/hierarquia';
@@ -29,7 +29,7 @@ import { cargaDoEstoque } from '../lib/carga-do-cartao';
 import { buscaComSinal, modoDaCarga, paginasDaApi, soVendaveisNaCarga } from '../lib/carga-online';
 import { ajustarPeloPrazoPadrao } from '../lib/prazo-padrao';
 import { vazioDaBusca } from '../lib/vazio-busca';
-import { arvoreLocal, buscarLocal, estoqueLocalDosProdutos, filialDeCadastroLocal, filiaisDoUsuarioLocal, filiaisLocais, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
+import { arvoreLocal, buscarLocal, estoqueLocalDosProdutos, filialDeCadastroLocal, filiaisDoUsuarioLocal, filiaisLocais, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, situacaoDoCatalogoNoPedido, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
 import { cascataLocal, lembrarVeiculo, listaComVeiculo } from '../veiculos-consulta';
 import { definirVeiculoDaTela, TEXTOS_VEICULO_CATALOGO, vazioComVeiculo } from '../lib/veiculo-tela';
@@ -89,6 +89,8 @@ export default function TelaCatalogo() {
   const [temVeiculos, setTemVeiculos] = useState(false);
   // RN-CAT-22: dentro do pedido a cascata só conta o que se pode vender ao cliente (a mesma lista da tabela dele)
   const [escopoPedido, setEscopoPedido] = useState<ReadonlySet<string> | null>(null);
+  // T-0197: lista vazia dentro do pedido diz a causa real (cliente sem tabela, tabela sem produto ou aparelho sem catálogo)
+  const [situacaoPedido, setSituacaoPedido] = useState<{ produtosNoAparelho: number; clienteTemTabela: boolean } | null>(null);
   const [contados, setContados] = useState<Record<GrupoFiltro, ChipFiltro[]> | null>(null);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
@@ -123,12 +125,18 @@ export default function TelaCatalogo() {
   // spec §3 e §4: filiais de venda (filtro e folha), todas as do tenant (nomes) e a de cadastro (faixa), das linhas locais
   const usuarioId = usuario?.id ?? null;
   useEffect(() => {
-    if (!motor || naCarga || !dentroDoPedido) return setEscopoPedido(null);
+    if (!motor || naCarga || !dentroDoPedido) {
+      setSituacaoPedido(null);
+      return setEscopoPedido(null);
+    }
     let vivo = true;
     const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId, usuarioId, filtroFilial: escolha.filial, noId: null, soDaTabelaDoCliente: true };
     void produtosDaNavegacao(motor, entrada)
       .then((ids) => vivo && setEscopoPedido(ids ?? null))
       .catch(() => vivo && setEscopoPedido(null));
+    void situacaoDoCatalogoNoPedido(motor, clienteId)
+      .then((s) => vivo && setSituacaoPedido(s))
+      .catch(() => vivo && setSituacaoPedido(null));
     return () => {
       vivo = false;
     };
@@ -339,6 +347,8 @@ export default function TelaCatalogo() {
 
   const erroAoAbrir = !lista.carregando && lista.erro === true;
   const aparelhoVazio = !lista.carregando && lista.itens.length === 0 && !consulta && !comFiltro;
+  // T-0197: dentro do pedido a lista vazia culpa o aparelho só quando ele não tem produto nenhum
+  const causaPedido = dentroDoPedido && situacaoPedido ? causaDoVazioNoPedido(situacaoPedido) : 'sem_catalogo';
 
   return (
     <Screen testID="pagina-catalogo-catalogo" cabecalho={cabecalho}>
@@ -415,8 +425,10 @@ export default function TelaCatalogo() {
               setConsulta(termo);
             }}
           />
+        ) : aparelhoVazio && causaPedido !== 'sem_catalogo' ? (
+          <EstadoVazio testID="catalogo-vazio-pedido" icone="search" titulo={TEXTOS_DO_VAZIO_NO_PEDIDO[causaPedido]} />
         ) : aparelhoVazio ? (
-          <EstadoVazio testID="catalogo-vazio" icone="search" titulo="O catálogo ainda não está no aparelho" acao={{ rotulo: 'Sincronizar', onPress: auto.puxar, testID: 'catalogo-vazio-acao' }} />
+          <EstadoVazio testID="catalogo-vazio" icone="search" titulo={TEXTOS_DO_VAZIO_NO_PEDIDO.sem_catalogo} acao={{ rotulo: 'Sincronizar', onPress: auto.puxar, testID: 'catalogo-vazio-acao' }} />
         ) : (
           <EstadoVazio testID="catalogo-vazio" icone="search" titulo={`Nenhum produto em ${nomeDoFiltro}`} />
         )
