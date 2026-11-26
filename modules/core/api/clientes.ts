@@ -17,7 +17,7 @@ import {
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { dataLocal, perfilVeRecusa, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, palavrasDaBusca, papelCompativel, PERFIS_GESTAO, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, sqlBuscaNormalizada } from '../domain';
+import { dataLocal, perfilVeRecusa, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, palavrasDaBusca, papelCompativel, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, sqlBuscaNormalizada } from '../domain';
 import { auditar } from './auditoria';
 import { lerHierarquiaDoTenant } from './hierarquia-leitura';
 import { lerPromotorVePedidos } from './promotor-pedidos';
@@ -187,7 +187,7 @@ export const rotasDeClientes: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'carteira',
-    perfis: PERFIS_GESTAO,
+    acao: 'carteira.ver',
     carteira: 'filtrar_no_dominio',
     query: CarteiraQuerySchema,
     executar: async (ctx) => {
@@ -260,7 +260,7 @@ export const rotasDeClientes: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'equipe/hierarquia',
-    perfis: PERFIS_GESTAO,
+    acao: 'equipe.ver',
     carteira: 'nao_se_aplica',
     executar: async (ctx): Promise<HierarquiaEquipe> => {
       const visiveis = await ctx.usuariosVisiveis();
