@@ -84,7 +84,7 @@ describe.skipIf(semBanco())('0105 a 0107 na fixture dois-tenants (ROLLBACK)', ()
         expect(await q('select plataforma.perfis_derivados($1) as d', [t])).toEqual([{ d: true }]);
         expect(await q('select * from plataforma.conferir_perfis_sem_base($1)', [t])).toEqual([]);
         expect(await q('select id, versao, leitura from plataforma.catalogo_aplicado where tenant_id = $1 and deleted_at is null', [t]))
-          .toEqual([{ id: idCatalogoAplicado(t, 1), versao: 1, leitura: 'legado' }]);
+          .toEqual([{ id: idCatalogoAplicado(t, 1), versao: 2, leitura: 'legado' }]); // 0108: a mesma linha, na v2
       }
     });
   });

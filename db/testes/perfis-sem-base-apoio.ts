@@ -37,12 +37,36 @@ const fn = (nome: string): Fn | null => (typeof API[nome] === 'function' ? (API[
 /** Versão do catálogo do SDK (E1); 1 enquanto a constante não existe. */
 export const VERSAO_DO_SDK: number = typeof API.CATALOGO_PERMISSOES_VERSAO === 'number' ? (API.CATALOGO_PERMISSOES_VERSAO as number) : 1;
 
+/** Versão mais nova de plataforma.modelo_permissao (0108: catálogo v2). */
+export const VERSAO_DO_BANCO = 2;
+
+/**
+ * Chaves que a v2 (0108) trouxe, com os modelos que as têm: os perfis de `RotaModulo.perfis` das rotas de hoje
+ * (`ACOES_DA_TRANSICAO` do SDK v2). O assistente não tem as 3 de pesquisa e promotor.
+ */
+const GESTAO: readonly Perfil[] = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'];
+const TRADE: readonly Perfil[] = ['supervisor', 'gerente', 'analista', 'admin'];
+export const CHAVES_V2: Readonly<Record<string, readonly Perfil[]>> = {
+  'carteira.ver': GESTAO, 'equipe.ver': GESTAO, 'rota.ver': GESTAO, 'visita.ver': GESTAO,
+  'questionario.ver': TRADE, 'cadastro_trade.ver': TRADE, 'relatorio_trade.ver': TRADE,
+};
+
+/** As chaves da v2 que a base dá hoje pela rota (vazio = nenhuma). */
+export function chavesV2DaBase(base: string): Permissoes {
+  return Object.fromEntries(Object.entries(CHAVES_V2).filter(([, b]) => b.includes(base as Perfil)).map(([k]) => [k, {}]));
+}
+
+/** Tira as chaves da v2 (comparação com um SDK ainda na v1). */
+export function semChavesV2(p: Permissoes): Permissoes {
+  return Object.fromEntries(Object.entries(p).filter(([k]) => !(k in CHAVES_V2)));
+}
+
 /** Linhas dos 7 modelos pelo SDK, na ordem de PERFIS e da chave (o formato de plataforma.modelo_permissao). */
 export function linhasDoSdk(): LinhaModelo[] {
   const modelos = fn('modelosDePerfil');
   const linhas = fn('linhasDosModelos');
   if (modelos && linhas) {
-    return (linhas(modelos(MANIFESTOS), 1) as LinhaModelo[]).map((l) => ({ ...l, alvos: l.alvos ? [...l.alvos] : null }));
+    return (linhas(modelos(MANIFESTOS), VERSAO_DO_SDK) as LinhaModelo[]).map((l) => ({ ...l, alvos: l.alvos ? [...l.alvos] : null }));
   }
   const matriz = sdk.matrizDeFabrica(MANIFESTOS);
   return PERFIS.flatMap((modelo) =>
