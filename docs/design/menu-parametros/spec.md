@@ -100,3 +100,69 @@ O `03-parametros-pedidos.html` (versão de 15/11) fica só como base do `docs/de
 - OK da árvore (§2) e do menu (§3) para o 2b.
 - Frete padrão em Parâmetros › Pedidos (proposta) e quais parâmetros do doc 03 sem tela entram (§4).
 - Ausências fica em Calendário (como no código, T-0156) ou vai para Acesso › Usuários (é cadastro por pessoa).
+
+## 7. Painéis da v1.0.37
+
+Decisão R-20261126-155851-alexandre: três parâmetros do doc 03 ("Parâmetros do tenant") que já têm regra e leitura no código ganham painel. Ficam para a v1.0.38 (não desenhar): pedido mínimo, crédito excedido e estoque insuficiente.
+
+### 7.1 Padrão comum (o mesmo de Etapa pendente e Campos obrigatórios)
+
+- **Lugar**: painel declarado em `paineisParametros` do módulo (`id`, `secao`, `titulo`, `ordem`, `acao`); a página `/parametros/<secao>` põe o título no `Panel`, sem `PageHeader` no painel.
+- **Perfis**: quem tem a ação de ver vê o painel; sem ela o painel não aparece. Quem vê e não edita vê o valor no campo desabilitado e sem Salvar. A API revalida e audita.
+- **Componentes** (`@macuxi/ui/web`): `CampoFormulario` (rótulo 15/600, ajuda 13 em `text-ink-2`, erro com `aria-invalid`), campo `CLASSE_CAMPO` com a unidade à direita, `max-w-[260px]`, `inputMode="numeric"`, aceita só dígitos; `Button variant="primary"` (o único principal do painel); `Notice`, `LoadingBlock`, `ErrorBlock`.
+- **Estados**: carregando ("Carregando…"); erro de leitura (`ErrorBlock` com Tentar de novo); **alterado** = valor diferente do salvo, e só assim Salvar fica ativo; salvando ("Salvando…", botão desabilitado); salvo (`Notice` de sucesso ao lado do botão; some ao editar de novo); erro da API (`Notice` de perigo no topo do painel, com a mensagem da API); erro de campo (embaixo do rótulo, validado ao tocar em Salvar, sem gravar).
+- **Sem licença**: a seção do módulo sem licença aparece com o cadeado no menu e o conteúdo mostra só "Contrate o módulo para usar" (ADR 0060, §5 desta spec). Pedidos depende da licença do Vendedor; Clientes é do Core (sempre contratado).
+- **Valor padrão**: sem linha gravada, o GET devolve o padrão e o campo abre com ele.
+
+### 7.2 Parâmetros › Clientes › Campos obrigatórios (modulo-core)
+
+Já declarado no main (`modules/core/web/index.ts`, id `campos-obrigatorios`, ordem 25, entre Curvas ABC e Quem vê cada tipo de documento) com `GET|PUT /v1/core/parametros/campos-obrigatorios`. Falta só alinhar ao padrão de 7.1.
+
+| Item | Especificação |
+|---|---|
+| Título | Campos obrigatórios |
+| Ajuda (uma linha, acima da lista) | Vale para o cadastro e o pré-cadastro do cliente. |
+| Campo | Lista de caixas de marcar, uma por linha (alvo ≥ 44 px), nesta ordem: Razão social · CPF/CNPJ · Nome fantasia · Inscrição estadual · Telefone · E-mail · Endereço |
+| Fixos | Razão social e CPF/CNPJ marcados e travados, com o selo neutro "Sempre" |
+| Endereço | Uma linha só para logradouro, número, bairro, cidade, UF e CEP; marcada se qualquer um deles for exigido |
+| Faixa / erro | Sem erro de campo: os fixos garantem a lista mínima. Erro da API no `Notice` de perigo |
+| Padrão | Razão social, CPF/CNPJ, Inscrição estadual e Endereço marcados; Nome fantasia, Telefone e E-mail desmarcados |
+| Perfis | Ver: `parametro.campos_obrigatorios` (analista, admin). Editar: `parametro.campos_obrigatorios_editar` (admin) |
+| Botão e aviso | "Salvar", ativo só com a lista alterada; sucesso "Campos obrigatórios salvos." ao lado do botão |
+
+Ajustes ao padrão (hoje no `campos-obrigatorios-panel.tsx`): Salvar fica ativo mesmo sem alteração, o aviso de sucesso aparece no topo e falta a linha de ajuda.
+
+### 7.3 Parâmetros › Pedidos › Título vencido (modulo-vendedor)
+
+Painel novo: id `titulo-vencido`, seção `pedidos`, ordem 20 (Alçadas fica em 10; o Frete padrão, quando vier, em 40). Chave `titulo_vencido_dias` (módulo `vendedor`), lida por `tituloVencidoDias` no domain.
+
+| Item | Especificação |
+|---|---|
+| Título | Título vencido |
+| Rótulo | Atraso tolerado |
+| Ajuda | De 0 a 365 dias. Acima desse atraso, o pedido do cliente vai para aprovação. |
+| Campo | Número inteiro, unidade "dias" à direita |
+| Faixa / erro | 0 a 365, inteiro; vazio ou fora da faixa: "Use um número de 0 a 365" |
+| Padrão | 5 dias |
+| Perfis (proposta) | Ver: `parametro.pedidos` (analista, admin). Editar: `parametro.pedidos_editar` (admin) |
+| Botão e aviso | "Salvar"; sucesso "Atraso tolerado salvo." |
+| Rota (dono) | `GET|PUT /v1/vendedor/parametros/pedidos` com `{ titulo_vencido_dias, validade_orcamento_dias }`; o PUT aceita um ou os dois e audita só o que mudou |
+
+### 7.4 Parâmetros › Pedidos › Preço do orçamento (modulo-vendedor)
+
+Painel novo: id `preco-orcamento`, seção `pedidos`, ordem 30. O doc 03 chama de "Preço do orçamento (antes Validade)": o orçamento não vence; o parâmetro limita só o preço congelado.
+
+| Item | Especificação |
+|---|---|
+| Título | Preço do orçamento |
+| Rótulo | Preço vale por |
+| Ajuda | De 1 a 90 dias corridos, contando o dia em que o orçamento é salvo. Depois, o orçamento vira pedido pelo preço do dia. |
+| Campo | Número inteiro, unidade "dias" à direita |
+| Faixa / erro | 1 a 90, inteiro; vazio ou fora da faixa: "Use um número de 1 a 90" |
+| Padrão | 7 dias |
+| Perfis (proposta) | Os mesmos de 7.3 |
+| Botão e aviso | "Salvar"; sucesso "Preço do orçamento salvo." |
+
+**Chave a alinhar antes da rota**: o domain lê `orcamento.validade_dias` (`modules/vendedor/domain/orcamento.ts`, `PARAMETRO_VALIDADE_ORCAMENTO`), e o passo Empresa grava `validade_orcamento_dias` (`packages/platform-sdk/src/plataforma.ts`, `linhasDosParametrosIniciais`). A rota grava a chave que o domain lê; o modulo-vendedor e o engenheiro-software decidem qual fica e acertam a outra ponta.
+
+Sem simulação PNG nesta seção: o `gerar.mjs` não tem o cenário de Pedidos com campos editáveis.
