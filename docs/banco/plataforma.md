@@ -1576,3 +1576,93 @@ select * from plataforma.sa_reautenticar_admin($1);              -- hash e bloqu
 select * from plataforma.sa_falha_senha_admin($1);               -- senha atual errada (401/423 pelo estado devolvido)
 select plataforma.sa_gravar_senha_admin($1, $2, $3) as r;        -- false = 409 (a senha mudou no meio ou a conta bloqueou)
 ```
+
+## 0105 a 0107 — perfis sem perfil base (v1.0.35, ADR 0073; plano [plano-migracao-perfis-sem-base.md](plano-migracao-perfis-sem-base.md)). Fora do sync
+Etapa E2 do plano. Três migrações, aplicadas juntas no mesmo deploy (o backfill da 0106 e o espelho da 0107 andam juntos):
+- `0105_plataforma_perfil_concessao` (aditiva): as 4 tabelas, a cópia v1 dos 7 modelos e as travas por cargo.
+- `0106_plataforma_perfis_sem_base_derivacao`: diagnóstico e derivação base + sobreposições → concessões, e a rodada em todos
+  os tenants.
+- `0107_plataforma_perfis_sem_base_conferencia_espelho`: conferência por usuário, espelho da janela de transição e semeadura
+  do tenant novo já derivado.
+
+**Motor novo desligado na v1.0.37** (decisão do dono do produto): a 0106 deriva e a 0107 mantém `perfil_concessao` em dia, mas
+**nenhum** tenant passa a `leitura = 'concessao'` (todos e o tenant novo ficam em `legado`). Quem liga é a 0109 (v1.0.38), pela
+conferência. `perfis_derivados(tenant)` diz se o tenant tem as concessões derivadas e mantidas (é o que liga o espelho).
+
+O modelo de hoje **fica** (fase 1): `perfil.base`, `perfil.fabrica`, `perfil_permissao`, os 2 parâmetros e `core.usuario.perfil`
+não mudam; a API de hoje continua certa. Só muda `perfil.cargo` de perfil **sem usuários** cujo cargo não é o da base (auditoria
+`perfil.migracao_cargo`); a chave cortada pela trava num perfil sem usuários vai à auditoria `perfil.migracao_corte` (por perfil e
+chave, só a chave e o valor). Drizzle: `perfilConcessao`, `modeloPermissao`, `catalogoAplicado` e `perfilMigracaoConflito` em
+`db/esquema/plataforma.ts`. Ids: `idPerfilConcessao` e `idCatalogoAplicado` em `db/src/ids.ts`.
+
+### Tabelas
+| Tabela | Colunas (além das comuns) | Regras |
+|---|---|---|
+| `modelo_permissao` (sem `tenant_id`) | `versao`, `modelo` (os 7 de `PERFIS`), `cargo`, `chave`, `nivel`, `alvos` | Único `(versao, modelo, chave)`. Versão 1 = 406 linhas, congeladas do SDK (`matrizDeFabrica` dos 8 manifestos = `modelosDePerfil` da E1). App só lê as vivas, com contexto de tenant |
+| `perfil_concessao` | `perfil_id` (FK composta, `on delete cascade`), `chave`, `nivel`, `alvos` | Só o que está marcado; desmarcar = soft delete. Único vivo `(tenant_id, perfil_id, chave)`; índice `perfil_concessao_leitura_ix (tenant_id, perfil_id) include (chave, nivel, alvos)`. `dados.escopo` exige nível de escopo |
+| `catalogo_aplicado` | `versao`, `aplicado_em`, `leitura` (`legado` \| `concessao`) | Único vivo `(tenant_id, versao)`. É a chave da transição: `plataforma.leitura_de_perfis(tenant)` |
+| `perfil_migracao_conflito` | `perfil_id` (FK, `on delete set null (perfil_id)`), `perfil_codigo`, `usuario_id`, `tipo`, `efeito` (`para_tenant` \| `ajustado` \| `aviso`), `chave`, `antes`, `depois`, `resolvido_em` | Sem dado pessoal. Id determinístico `uuid_de_chave('<tenant>:plataforma.perfil_migracao_conflito:<tipo>:<perfil>:<chave ou ->')`. App só lê |
+
+**Travas por cargo** (gatilho `perfil_concessao_travas`, imediato, 23514, `constraint = perfil_concessao_trava_do_cargo`, `hint` = a
+RN; função `trava_da_chave_do_cargo(cargo, chave, nivel)` = `travaDaChavePeloCargo` do SDK mais o teto do escopo):
+RN-PRO-01 (escrita de pedido no cargo promotor), RN-CORE-33 (`acesso.bko` em vendedor, promotor e supervisor; `acesso.portal`
+fora do administrativo; `acesso.campo` fora de vendedor e promotor; `acesso.gestao` fora de supervisor e gerente) e RN-CORE-04
+(`dados.escopo` acima de `teto_escopo_do_cargo`). O que depende do conjunto (portal só com a gestão completa, perfil ativo com
+algum `acesso.*`, último admin) fica no domain e na API do Core; no banco, a migração confere.
+
+### Derivação (0106)
+- `permissoes_legado_do_perfil(perfil, parametros)`: gêmea SQL de `resolverPerfil` (modelo v1 da base − revogações ∪
+  concessões das sobreposições − travas da base; escopo fora da família → `carteira`, acima do da base → o da base). Com
+  `parametros = true`, o efeito de hoje dos 2 parâmetros: base promotor sem `pedido.ver` com `core.promotor_ve_pedidos = false` e
+  com `produto.ver_preco_estoque` só com `catalogo.promotor_ve_preco_estoque = true`; as outras bases sempre com
+  `produto.ver_preco_estoque`.
+- `concessoes_derivadas(perfil, cargo)` = `aplicar_travas_do_cargo(permissoes_legado_do_perfil(perfil, true), cargo)`.
+- `diagnosticar_perfis_sem_base(tenant)` (só leitura) e `migrar_perfis_sem_base(tenant)` → `derivado` | `ja_migrado` | `parado`
+  (sem EXECUTE para ninguém: só o dono). Achados:
+
+| Tipo | Com usuários | Sem usuários |
+|---|---|---|
+| `CARGO_DIFERENTE_DA_BASE` | `para_tenant` (o resto do perfil não é apurado) | `ajustado`: cargo = `cargo_da_base(base)`, com auditoria |
+| `TRAVA_NOVA_CORTA` (a trava do cargo corta ou muda a chave) | `para_tenant` | `ajustado`: a chave sai (o escopo desce ao teto) |
+| `PERFIL_SEM_ACESSO` (ativo sem `acesso.*`) | `para_tenant` | `aviso` |
+| `TENANT_SEM_ADMIN` (tinha admin com gestão e ficaria sem) | `para_tenant` | — |
+| `REVOGACAO_SEM_EFEITO` / `CONCESSAO_SEM_EFEITO` (sobreposição de `pedido.ver` ou `produto.ver_preco_estoque` que hoje não vale) | `aviso` (a caixa fica como o usuário vê: decisão 5) | `aviso` |
+| `ADMIN_MUDA` (vira ou deixa de ser admin pela gestão do acesso; alcance do `senha.redefinir '*'` muda) | `aviso` | — |
+| `NOME_DIVERGENTE` (`perfil_compat` ≠ base) | `aviso` | — |
+
+  Com algum `para_tenant`: nenhuma concessão, `catalogo_aplicado` em `legado`, o tenant segue no modelo de hoje até o tenant
+  decidir e o dono rodar `select plataforma.migrar_perfis_sem_base('<tenant>')` de novo. Sem: ajustes, concessões de todo perfil
+  vivo (ativos e inativos), equivalência dos perfis com usuário (diferença = 23514, a migração inteira volta) e
+  `catalogo_aplicado` em `legado` (derivado; `ja_migrado` só para o tenant já em `concessao`).
+- `perfis_derivados(tenant)` (só leitura, também do `macuxi_app`): `catalogo_aplicado` vivo e, em `legado`, nenhum
+  `para_tenant` em aberto.
+- **Idempotente**: ids determinísticos (`<tenant>:plataforma.perfil_concessao:<perfil>:<chave>`); `sincronizar_concessoes` só
+  grava o que muda (nem o `updated_at` anda); tenant em `concessao` é pulado; achado repetido não muda, o que sumiu ganha
+  `resolvido_em`.
+- **Volta** (`.down.sql` da 0106): o perfil cujas concessões mudaram fora da derivação recebe as sobreposições = diferença para o
+  modelo da base (cortadas pelas travas da base: perda documentada); o cargo dos ajustados volta; concessões, achados e
+  `catalogo_aplicado` são apagados. Diagnóstico à mão: `db/scripts/diagnostico-0106.sql`.
+
+### Conferência e espelho (0107)
+- `conferir_perfis_sem_base(tenant)` → `(usuario_id, perfil_codigo, chave, antes, depois, tipo)`: `DIFERENCA` por chave (acesso
+  de hoje com os parâmetros × concessões, alvos em ordem) e `NOME_DIVERGENTE`. Esperado: zero `DIFERENCA` em todo tenant
+  derivado; no deploy, a equivalência é a de `migrar_perfis_sem_base` (0106), que aborta com 23514.
+- Espelho (gatilhos AFTER por linha, funções `SECURITY DEFINER`, sem EXECUTE para ninguém), só no tenant derivado
+  (`perfis_derivados`; em `legado` também), sem apagar nem alterar nada do modelo antigo:
+  `perfil_permissao_espelho` (sobreposição gravada ou apagada), `perfil_espelho` (perfil novo, troca de cargo),
+  `parametro_espelho` (os 2 parâmetros; refaz os perfis de base promotor) e `tenant_semear_perfis_concessao` (tenant novo nasce
+  derivado, em `legado`, depois de `tenant_semear_perfis`). O corte pelo cargo vira `TRAVA_NOVA_CORTA` `aviso`; perfil ativo sem acesso,
+  `PERFIL_SEM_ACESSO` `aviso`. Saem na fase 2, com `perfil.base`, `perfil_permissao` e os parâmetros.
+- Na `excluir_tenant`, `catalogo_aplicado` sai antes de `perfil_permissao` e `parametro` (ordem alfabética das folhas): o espelho
+  não regrava nada no meio.
+
+### Desempenho
+- Rodada no fixture (2 tenants, 16 perfis, ~870 concessões): menos de 1 s. Por perfil: uma derivação (~100 chaves) por gravação
+  do caminho antigo.
+- A leitura por requisição (`perfil_concessao_leitura_ix`) entra com a troca de leitura (E6); o EXPLAIN fica para ela.
+
+### Pendências das próximas etapas
+- Funções de caminho duplo (`perfil_do_usuario`, último admin, `usuario_tem_perfil_admin` do portal, licença da 0086 pelo
+  cargo) e a regra de `perfil_imutavel`/`perfil_fabrica_ativo` no tenant migrado: na troca de leitura.
+- Conferências do conjunto no COMMIT (portal com gestão, perfil sem acesso, último admin) para a escrita direta em
+  `perfil_concessao` pela API nova.

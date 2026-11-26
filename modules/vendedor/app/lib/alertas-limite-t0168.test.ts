@@ -15,7 +15,7 @@ describe('RN-VEN-11a: Alertas e botões do pedido acima do limite', () => {
     expect(alertasDoPedido({ cliente: CLIENTE, acima_do_limite: null })).toEqual([]);
   });
   it('RN-VEN-11a: acima do limite o pedido salva (Salvar > Pedido), mas a edição não envia nem transforma em pedido', () => {
-    const novo = botoesDoSalvarNovo({ cliente: CLIENTE, pre_venda_ligada: true });
+    const novo = botoesDoSalvarNovo({ cliente: CLIENTE, pre_venda_ligada: true, itens: 1 });
     expect(novo.escolha.pedido.visivel).toBe(true);
     expect(botoesDaEdicao({ cliente: CLIENTE, editando: 'pedido', acima_do_limite: true }).salvarAlteracoes.habilitado).toBe(false);
     expect(botoesDaEdicao({ cliente: CLIENTE, editando: 'orcamento', acima_do_limite: true }).transformar.habilitado).toBe(false);

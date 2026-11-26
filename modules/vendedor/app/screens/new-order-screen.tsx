@@ -684,7 +684,7 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
   const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const editandoTipo = editId ? (editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orcamento' : 'pedido') : null;
-  const botoesNovo = editId ? null : botoesDoSalvarNovo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada });
+  const botoesNovo = editId ? null : botoesDoSalvarNovo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, itens: calculo.linhas.length });
   const botoesEdicaoBase = editandoTipo ? botoesDaEdicao({ cliente: situacaoCliente, editando: editandoTipo, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: semEstoque.map((x) => x.codigo), editando_no_servidor: editingServer }) : null;
   // permissão e sinal (edição de pedido já no servidor) valem além das pendências
   const podeAgir = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: false, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });

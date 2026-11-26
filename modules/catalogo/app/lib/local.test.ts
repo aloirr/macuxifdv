@@ -8,7 +8,7 @@ import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../../domain/preco';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_SEED_DEMO, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../../fixtures/base-demo';
-import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, estoqueLocalDosProdutos, fichaLocal, filialDeCadastroLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, LIMIAR_SEM_VARREDURA, preselecionar, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
+import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, estoqueLocalDosProdutos, fichaLocal, filialDeCadastroLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, LIMIAR_SEM_VARREDURA, preselecionar, produtosDaNavegacao, situacaoDoCatalogoNoPedido, vitrineLocal, type LeitorLocal } from './local';
 
 const relogio = criarRelogio();
 const QUANDO = relogio.relativo({ horas: -3 }).toISOString();
@@ -369,6 +369,15 @@ describe('árvore do catálogo offline (RF-CAT-04)', () => {
     expect(tabela.items.every((i) => i.price?.sellable)).toBe(true);
     const semTabela = await produtosDaNavegacao(leitor(comArvore()), { ...entrada, clienteId: null, noId: null, soDaTabelaDoCliente: true });
     expect(semTabela!.size).toBe(0);
+  });
+
+  it('T-0197: situação do catálogo no pedido: produtos no aparelho e se o cliente tem tabela ativa', async () => {
+    const demo = linhasDemo();
+    const comTabela = await situacaoDoCatalogoNoPedido(leitor(demo), CLIENTE_VAREJO);
+    expect(comTabela.produtosNoAparelho).toBe(demo.produto!.filter((p) => !p.deleted_at).length);
+    expect(comTabela.clienteTemTabela).toBe(true);
+    expect((await situacaoDoCatalogoNoPedido(leitor({ ...demo, cliente_tabela_preco: [] }), CLIENTE_VAREJO)).clienteTemTabela).toBe(false);
+    expect(await situacaoDoCatalogoNoPedido(leitor({ ...demo, produto: [] }), null)).toEqual({ produtosNoAparelho: 0, clienteTemTabela: false });
   });
 
   it('RN-CAT-05 / regra 7: o promotor navega a árvore só para leitura, sem preço nos cartões (o estoque aparece)', async () => {

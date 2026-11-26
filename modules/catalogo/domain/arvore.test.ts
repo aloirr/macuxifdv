@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contarPorNo, descendentesDe, filhosDe, montarArvore, produtosDoNo, produtosVendaveisNaTabela, trilhaDe, type NoCatalogo } from './arvore';
+import { causaDoVazioNoPedido, contarPorNo, descendentesDe, filhosDe, montarArvore, produtosDoNo, produtosVendaveisNaTabela, TEXTOS_DO_VAZIO_NO_PEDIDO, trilhaDe, type NoCatalogo } from './arvore';
 
 const no = (id: string, pai: string | null, nivel: number, nome: string, ordem = 0, extra: Partial<NoCatalogo> = {}): NoCatalogo => ({ id, pai_id: pai, nivel, codigo: id.toUpperCase(), nome, ordem, ativo: true, ...extra });
 
@@ -87,5 +87,20 @@ describe('RF-CAT-04 / RN-CAT-06: dentro do pedido só os produtos da tabela de p
 
   it('RN-CAT-06: cliente sem tabela não tem nenhum produto vendável', () => {
     expect(produtosVendaveisNaTabela([item('p1', 'T1')], null, agora).size).toBe(0);
+  });
+});
+
+describe('T-0197 (R-20261125-215535): lista vazia dentro do pedido diz a causa real', () => {
+  it('aparelho sem produto: o catálogo ainda não está no aparelho', () => {
+    expect(causaDoVazioNoPedido({ produtosNoAparelho: 0, clienteTemTabela: true })).toBe('sem_catalogo');
+    expect(TEXTOS_DO_VAZIO_NO_PEDIDO.sem_catalogo).toBe('O catálogo ainda não está no aparelho');
+  });
+  it('aparelho com produtos e cliente sem tabela: a causa é o cliente, não o aparelho', () => {
+    expect(causaDoVazioNoPedido({ produtosNoAparelho: 46, clienteTemTabela: false })).toBe('sem_tabela');
+    expect(TEXTOS_DO_VAZIO_NO_PEDIDO.sem_tabela).toBe('Este cliente não tem tabela de preço');
+  });
+  it('cliente com tabela sem nenhum produto com preço vigente', () => {
+    expect(causaDoVazioNoPedido({ produtosNoAparelho: 46, clienteTemTabela: true })).toBe('tabela_sem_produto');
+    expect(TEXTOS_DO_VAZIO_NO_PEDIDO.tabela_sem_produto).toBe('A tabela deste cliente não tem produto com preço');
   });
 });

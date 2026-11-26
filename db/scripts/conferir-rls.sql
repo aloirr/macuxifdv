@@ -62,7 +62,8 @@ sem_tenant_id (nome) as (
          ('plataforma.frase_carga'),
          ('plataforma.zerar_empresa'),
          ('plataforma.limpeza_copia'),
-         ('plataforma.zerar_previa')
+         ('plataforma.zerar_previa'),
+         ('plataforma.modelo_permissao')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
