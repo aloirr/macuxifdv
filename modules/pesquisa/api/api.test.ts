@@ -1,5 +1,5 @@
 import { criarRelogio } from '@macuxi/comum/relogio';
-import { criarPermissoes, verificarAcao, verificarAcesso, type ItemPush, type Perfil } from '@macuxi/platform-sdk';
+import { criarPermissoes, verificarAcao, type ItemPush, type Perfil } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   ExportacaoResponse,
@@ -100,14 +100,14 @@ describe('regra 6: permissões das rotas da Pesquisa (ADR 0004, doc 03 §2)', ()
   it('lista e detalhe dos questionários: gestão e BKO; vendedor e promotor recebem 403 (lêem pelo sync)', () => {
     for (const caminho of ['questionarios', 'questionarios/:id']) {
       const r = amb.rota('GET', caminho);
-      for (const p of ['supervisor', 'gerente', 'analista', 'admin'] as const) expect(verificarAcesso(usuario(p), { modulo: 'pesquisa', perfis: r.perfis! })).toEqual({ ok: true });
-      for (const p of ['vendedor', 'promotor', 'assistente'] as const) expect(verificarAcesso(usuario(p), { modulo: 'pesquisa', perfis: r.perfis! })).toMatchObject({ ok: false, status: 403 });
+      for (const p of ['supervisor', 'gerente', 'analista', 'admin'] as const) expect(verificarAcao(usuario(p), perm, r.acao!)).toMatchObject({ ok: true });
+      for (const p of ['vendedor', 'promotor', 'assistente'] as const) expect(verificarAcao(usuario(p), perm, r.acao!)).toMatchObject({ ok: false, status: 403 });
     }
   });
 
   it('RN-CORE-02: com o módulo desativado toda rota responde 403 MODULO_INATIVO', () => {
     for (const r of moduloApi.rotas ?? []) {
-      expect(verificarAcesso(usuario('admin', ['core']), { modulo: 'pesquisa', ...(r.acao ? { acao: r.acao, permissoes: perm } : { perfis: r.perfis! }) } as never)).toMatchObject({ ok: false, status: 403, codigo: 'MODULO_INATIVO' });
+      expect(verificarAcao(usuario('admin', ['core']), perm, r.acao!)).toMatchObject({ ok: false, status: 403, codigo: 'MODULO_INATIVO' });
     }
   });
 });
