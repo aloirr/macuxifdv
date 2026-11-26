@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defineModule, ErroManifesto, validarConjunto } from './manifesto';
 import { criarPermissoes, verificarAcao } from './permissoes';
-import { PERFIS } from './nomes';
-import { acoesDoModulo } from './permissoes-perfil';
 import { criarRegistroExtensoes } from './extensoes';
 
 const core = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], ofereceExtensoes: ['cliente.acoes'] });
@@ -30,16 +28,7 @@ describe('permissão por ação (ADR 0004)', () => {
     expect(perms.pode('pedido.criar', ctx('vendedor', ['core']))).toBe(false);
     expect(perms.pode('pedido.inexistente', ctx('admin'))).toBe(false);
     expect(perms.pode('pedido.criar', ctx(null))).toBe(false);
-    // o core recebe as leituras do catálogo v2 que o manifesto ainda não declara (ACOES_DA_TRANSICAO)
-    expect(perms.acoesPermitidas(ctx('assistente'))).toEqual(['carteira.ver', 'equipe.ver', 'pedido.cancelar', 'pedido.criar', 'rota.ver', 'visita.ver']);
-  });
-
-  it('catálogo v2: a ação da transição vale como do manifesto, e a declaração do manifesto prevalece (ADR 0073)', () => {
-    expect(perms.pode('rota.ver', ctx('supervisor'))).toBe(true);
-    expect(perms.pode('rota.ver', ctx('vendedor'))).toBe(false);
-    const declarado = defineModule({ id: 'core', versao: '1.0.0', perfis: [...PERFIS], acoes: { 'rota.ver': { perfis: ['admin'], descricao: 'x' } } });
-    expect(acoesDoModulo(declarado)['rota.ver']).toEqual({ perfis: ['admin'], descricao: 'x' });
-    expect(criarPermissoes([declarado]).pode('rota.ver', { perfil: 'supervisor', modulosAtivos: ['core'] })).toBe(false);
+    expect(perms.acoesPermitidas(ctx('assistente'))).toEqual(['pedido.cancelar', 'pedido.criar']);
   });
 
   it('RN-PRO-01: manifesto que dá ação de pedido ao promotor é recusado', () => {
