@@ -52,3 +52,10 @@ describe('contrato do erro MODULO_INATIVO', () => {
     expect(ErroModuloInativoSchema.safeParse({ codigo: 'PERFIL_SEM_ACESSO', mensagem: 'x' }).success).toBe(false);
   });
 });
+
+describe('RF-CORE-02: perfil_acesso (ADR 0073)', () => {
+  it('RF-CORE-02: perfil_acesso é opcional e rejeita formato inválido', () => {
+    expect(MeusModulosRespostaSchema.parse(ok).perfil_acesso).toBeUndefined();
+    expect(MeusModulosRespostaSchema.safeParse({ ...ok, perfil_acesso: { codigo: 1 } }).success).toBe(false);
+  });
+});
