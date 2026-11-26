@@ -81,7 +81,7 @@ describe('C2 RN-VEN-38: Salvar do Novo pedido (Orçamento ou Pedido), matriz int
           const b = botoesDoSalvarNovo({ cliente, pre_venda_ligada: preVenda, ...extra });
           // só Salvar e Cancelar na tela (o rótulo do Cancelar é fixo, ROTULOS_DO_SALVAR_NOVO); Salvar > Pedido só grava, no Campo e no Gestão (RN-VEN-48)
           expect(Object.keys(b).sort()).toEqual(['direto', 'escolha', 'salvar']);
-          expect(b.salvar).toEqual({ rotulo: 'Salvar' });
+          expect(b.salvar).toMatchObject({ rotulo: 'Salvar' }); // T-0198: habilitado e motivo dependem dos itens
           expect(ROTULOS_DO_SALVAR_NOVO.cancelar).toBe('Cancelar');
           // Pedido: aparece (tocável) sempre; some só com cliente só-orçamento (RN-VEN-13). Item só-orçamento não o esconde.
           expect(b.escolha.pedido.visivel).toBe(!soOrcCliente);
@@ -185,7 +185,7 @@ describe('RN-VEN-35 × RN-VEN-48: Gestão só grava, igual ao Campo', () => {
 
   it('RN-VEN-35: a tela não lê o app do shell; Salvar > Pedido e o Salvar da folha de saída só gravam (salvarPedido), nos dois apps', () => {
     expect(tela).not.toMatch(/appDoSalvar|salvarComoPedido|salvarEEnviarPedido|useVisaoShell\(\)\.app/);
-    expect(tela).toContain('botoesDoSalvarNovo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada })');
+    expect(tela).toContain('botoesDoSalvarNovo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada'); // T-0198: mais a contagem de itens
     const exec = corpo(tela, 'executarSalvar');
     expect(exec).toContain('comTentativa(salvarComoOrcamento)()');
     expect(exec).toContain('else gravarPedidoSalvo();');
