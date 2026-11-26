@@ -6,7 +6,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, LoadingBlock, Notice, cx } from '@macuxi/ui/web';
 import type { CampoCadastroCliente } from '../../../contracts';
-import { alternarLinhaObrigatoria, linhaMarcada, LINHAS_CAMPOS_OBRIGATORIOS } from '../../lib/pre-cadastro';
+import { alternarLinhaObrigatoria, linhaMarcada, listaAlterada, LINHAS_CAMPOS_OBRIGATORIOS } from '../../lib/pre-cadastro';
 import { CHAVE_CAMPOS_OBRIGATORIOS, criarApiCamposObrigatorios, type ApiCamposObrigatorios } from './api';
 
 const P = 'core.pre_cadastro.parametros';
@@ -36,6 +36,8 @@ export function CamposObrigatoriosPanel({ cliente }: { cliente?: ApiCamposObriga
     },
     onError: (e) => setAviso({ tom: 'danger', texto: errorMessage(e) }),
   });
+
+  const alterado = !!q.data && listaAlterada(lista, q.data.obrigatorios);
 
   return (
     <div className="flex flex-col gap-4" data-testid={`${P}.painel`}>
@@ -75,7 +77,7 @@ export function CamposObrigatoriosPanel({ cliente }: { cliente?: ApiCamposObriga
                   setAviso(null);
                   gravar.mutate({ obrigatorios: [...lista] });
                 }}
-                disabled={gravar.isPending}
+                disabled={gravar.isPending || !alterado}
                 data-testid={`${P}.salvar`}
               >
                 {gravar.isPending ? 'Salvando…' : 'Salvar'}

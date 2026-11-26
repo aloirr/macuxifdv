@@ -116,6 +116,15 @@ describe.skipIf(semBanco())('Core × Postgres: cliente novo para o ERP (RN-CORE-
     });
   });
 
+  it('RN-CORE-16: a lista de campos obrigatórios de um tenant não aparece no outro (RLS)', async () => {
+    await emTransacao(pool, async (t) => {
+      await param(t, 'PUT', { obrigatorios: ['email', 'telefone'] });
+      await t.trocarTenant(B.tenantId);
+      expect((await param(t, 'GET') as { obrigatorios: string[] }).obrigatorios).not.toContain('email');
+      expect(await t.q("select 1 from plataforma.parametro where modulo = 'core' and chave = 'cliente.campos_obrigatorios' and deleted_at is null")).toHaveLength(0);
+    });
+  });
+
   it('RN-CORE-78: o recusado é corrigido no mesmo id como revisão nova; a repetição é idempotente e os eventos saem uma vez', async () => {
     await emTransacao(pool, async (t) => {
       await post(t, VENDEDOR, pre(ID1));
