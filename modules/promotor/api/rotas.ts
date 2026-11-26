@@ -15,7 +15,6 @@ import {
   ChecklistResposta,
   ColetaPreco,
   FiltroRelatorio,
-  PERFIS_RELATORIO,
   FotoColeta,
   GondolaRegistro,
   MedicaoShare,
@@ -117,7 +116,7 @@ export function criarRotasPromotor(repo: RepositorioPromotor, recebimento: Receb
   const relatorioShare: RotaModulo = {
     metodo: 'GET',
     caminho: 'relatorios/share',
-    perfis: [...PERFIS_RELATORIO],
+    acao: 'relatorio_trade.ver',
     carteira: 'filtrar_no_dominio',
     query: FiltroRelatorio,
     async executar(ctx): Promise<RelatorioShareApi> {
@@ -142,7 +141,7 @@ export function criarRotasPromotor(repo: RepositorioPromotor, recebimento: Receb
   const relatorioRuptura: RotaModulo = {
     metodo: 'GET',
     caminho: 'relatorios/ruptura',
-    perfis: [...PERFIS_RELATORIO],
+    acao: 'relatorio_trade.ver',
     carteira: 'filtrar_no_dominio',
     query: FiltroRelatorio,
     async executar(ctx): Promise<RelatorioRupturaApi> {

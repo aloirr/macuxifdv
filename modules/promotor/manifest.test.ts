@@ -50,7 +50,7 @@ describe('manifesto do promotor', () => {
   });
 
   it('declara exatamente as ações previstas (nada de escrita para quem só lê)', () => {
-    expect(Object.keys(manifest.acoes).sort()).toEqual([...COLETAS, ...CADASTROS].sort());
+    expect(Object.keys(manifest.acoes).sort()).toEqual([...COLETAS, ...CADASTROS, 'cadastro_trade.ver', 'relatorio_trade.ver'].sort());
   });
 
   it('ação com o módulo inativo é negada', () => {
