@@ -159,10 +159,13 @@ export interface BotoesDoSalvarNovo {
   direto: QualSalvar | null;
 }
 
-/** `pre_venda_ligada`: tenant com orçamento (pré-venda); o cliente da RN-VEN-13 sempre vê o orçamento. `itens`: linhas com quantidade. */
-export function botoesDoSalvarNovo(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; itens: number }): BotoesDoSalvarNovo {
+/**
+ * `pre_venda_ligada`: tenant com orçamento (pré-venda); o cliente da RN-VEN-13 sempre vê o orçamento. `itens`: linhas com
+ * quantidade (a tela sempre passa; ausente = quem só lê a escolha, como a folha de saída).
+ */
+export function botoesDoSalvarNovo(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; itens?: number }): BotoesDoSalvarNovo {
   const soOrcamento = motivoSoOrcamento(e.cliente) !== null;
-  const comItem = e.itens > 0;
+  const comItem = (e.itens ?? 1) > 0;
   // o Pedido grava o pedido SALVO, sem enviar: o item só-orçamento não impede salvar (impede enviar, na aba Pedidos)
   const pedidoVisivel = !soOrcamento;
   const orcamentoVisivel = e.pre_venda_ligada || soOrcamento;
