@@ -16,7 +16,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { idCatalogoAplicado, idPerfilFabrica } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { CHAVES_V2, chavesV2DaBase, concessoesDoPerfil, legadoDoPerfil, normalizar, retratoConcessoes, type Permissoes } from './perfis-sem-base-apoio';
+import { CHAVES_V2, chavesV2DaBase, concessoesDoPerfil, legadoDoPerfil, MANIFESTOS, normalizar, retratoConcessoes, type Permissoes } from './perfis-sem-base-apoio';
 import { emTransacao, HASH_TESTE } from './util';
 
 const A = DOIS_TENANTS.A;
@@ -58,11 +58,23 @@ describe('0108 catálogo v2 (estático)', () => {
     expect(semComentarios(m.down)).toContain('m.versao = 1 and m.modelo = p.base');
   });
 
-  it('CHAVES_V2 = ACOES_DA_TRANSICAO do SDK v2 (quando o SDK já a exporta)', () => {
-    const transicao = (sdk as unknown as Record<string, unknown>).ACOES_DA_TRANSICAO as Record<string, Record<string, { perfis: readonly string[] }>> | undefined;
-    if (!transicao) return;
-    const doSdk = Object.fromEntries(Object.values(transicao).flatMap((acoes) => Object.entries(acoes).map(([k, d]) => [k, [...d.perfis].sort()])));
-    expect(doSdk).toEqual(Object.fromEntries(Object.entries(CHAVES_V2).map(([k, b]) => [k, [...b].sort()])));
+  it('as 7 chaves da 0108 estão nos manifestos (4 no core, 1 na pesquisa, 2 no promotor) e os modelos do SDK v2 as dão às bases de CHAVES_V2', () => {
+    const porModulo: Record<string, readonly string[]> = {
+      core: ['carteira.ver', 'equipe.ver', 'rota.ver', 'visita.ver'],
+      pesquisa: ['questionario.ver'],
+      promotor: ['cadastro_trade.ver', 'relatorio_trade.ver'],
+    };
+    const chaves = Object.values(porModulo).flat().sort();
+    expect(Object.keys(CHAVES_V2).sort()).toEqual(chaves);
+    for (const [modulo, esperadas] of Object.entries(porModulo)) {
+      const m = MANIFESTOS.find((x) => x.id === modulo)!;
+      expect(esperadas.filter((k) => !(k in m.acoes)), modulo).toEqual([]);
+    }
+    expect(sdk.CATALOGO_PERMISSOES_VERSAO).toBe(2);
+    const linhas = sdk.linhasDosModelos(sdk.modelosDePerfil(MANIFESTOS), 2).filter((l) => chaves.includes(l.chave));
+    expect(linhas.filter((l) => l.nivel !== null || l.alvos !== null)).toEqual([]);
+    const doSdk = Object.fromEntries(chaves.map((k) => [k, linhas.filter((l) => l.chave === k).map((l) => l.modelo).sort()]));
+    expect(doSdk).toEqual(Object.fromEntries(chaves.map((k) => [k, [...(CHAVES_V2[k] ?? [])].sort()])));
   });
 });
 

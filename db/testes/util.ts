@@ -40,6 +40,16 @@ export async function emTransacao<T>(c: pg.ClientBase, contexto: string | null, 
   }
 }
 
+/**
+ * Ordem de trava estável entre os arquivos em paralelo: a trava consultiva global de plataforma.criar_super_admin (até o fim
+ * da transação) ANTES da linha de core.usuario_codigo_fdv_contador do tenant, que todo insert em core.usuario trava. Quem cria
+ * usuário na fixture e chama criar_super_admin na mesma transação chama isto antes do insert; na ordem inversa dá deadlock com
+ * o arquivo que chama criar_super_admin e depois cria usuário no mesmo tenant.
+ */
+export async function travarCriarSuperAdmin(c: pg.ClientBase): Promise<void> {
+  await c.query("select pg_advisory_xact_lock(hashtext('plataforma.criar_super_admin'))");
+}
+
 /** Erro do Postgres (código SQLSTATE) ou null se a operação passou. */
 export async function erroDe(p: Promise<unknown>): Promise<{ code: string; message: string } | null> {
   try {

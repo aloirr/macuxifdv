@@ -181,6 +181,14 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants, depo
     });
   });
 
+  async function recusaAppendOnly(sql: string) {
+    await admin.query('savepoint ap');
+    const erro = await erroDe(admin.query(sql));
+    await admin.query('rollback to savepoint ap');
+    expect(erro?.code, sql).toBe('42501');
+    expect(erro?.message).toContain('append-only');
+  }
+
   it('auditoria: sa_auditar grava a linha (rota sem query, IP só prefixo); append-only para todos; sem dado pessoal', async () => {
     await emTransacao(admin, null, async () => {
       const { id, sid } = await prontoComSessao();
@@ -200,19 +208,16 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants, depo
       }
       // append-only: o portal não tem grant; o dono esbarra no gatilho
       expect((await erroDe(portal('update plataforma.auditoria_plataforma set acao = acao')))?.code).toBe('42501');
-      for (const sql of ['update plataforma.auditoria_plataforma set acao = acao', 'delete from plataforma.auditoria_plataforma', 'truncate plataforma.auditoria_plataforma']) {
-        await admin.query('savepoint ap');
-        const erro = await erroDe(admin.query(sql));
-        await admin.query('rollback to savepoint ap');
-        expect(erro?.code, sql).toBe('42501');
-        expect(erro?.message).toContain('append-only');
-      }
+      for (const sql of ['update plataforma.auditoria_plataforma set acao = acao', 'delete from plataforma.auditoria_plataforma']) await recusaAppendOnly(sql);
       // fatos gravados pelo próprio banco, sem e-mail, nome, hash ou segredo
       const acoes = (await auditoria()).map((a) => a.acao);
       expect(acoes).toEqual(expect.arrayContaining(['sa.super_admin.criar', 'sa.sessao.aberta', 'sa.requisicao', 'sa.login.falha']));
       const texto = JSON.stringify(await auditoria());
       for (const segredo of [EMAIL, NOME, H1, 'Fulano']) expect(texto).not.toContain(segredo);
     });
+    // TRUNCATE noutra transação, sem a trava do criar_super_admin: ele espera a tabela de todos e, com a trava, dava deadlock
+    // com o arquivo que grava auditoria e depois chama criar_super_admin
+    await emTransacao(admin, null, () => recusaAppendOnly('truncate plataforma.auditoria_plataforma'));
   });
 
   it('provisionar_tenant (conexão de administração): sem_admin + parâmetros idempotente; módulo fora do tenant, repetição ou sem_admin com admin = 22023', async () => {
