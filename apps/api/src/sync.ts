@@ -39,7 +39,6 @@ import { createHash } from 'node:crypto';
 import {
   ACAO_VER_PEDIDO,
   CABECALHO_MODO_SYNC,
-  codificarCursor,
   CODIGO_USUARIO_SEM_FILIAL,
   MENSAGEM_USUARIO_SEM_FILIAL,
   codificarCursorNovidades,
@@ -54,6 +53,7 @@ import {
   MODULO_INATIVO,
   modoSyncDoCabecalho,
   NovidadesQuerySchema,
+  paginar,
   PushRequestSchema,
   rejeitarItensInvalidos,
   SEM_RESULTADO,
@@ -157,12 +157,10 @@ export const dentroDaJanela = (l: LinhaSync, desde: CursorSync | null, limite: n
  * (µs e id, a mesma da SQL; T-0199), corte na página e o próximo cursor só quando há mais.
  */
 export function paginaDoPull<L extends LinhaSync>(linhas: readonly L[], desde: CursorSync | null, ate: string): { itens: L[]; proximo: string | null } {
-  // defesa: mesmo que o módulo erre o SQL, nada acima do horizonte nem atrás do cursor sai daqui
+  // defesa: mesmo que o módulo erre o SQL, nada acima do horizonte nem atrás do cursor sai daqui; o cursor já foi aplicado
   const teto = Date.parse(ate);
-  const validas = linhas.filter((l) => dentroDaJanela(l, desde, teto)).sort(compararCursor);
-  const itens = validas.slice(0, TAMANHO_PAGINA_SYNC);
-  const ultimo = itens[itens.length - 1];
-  return { itens, proximo: validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null };
+  const p = paginar(linhas.filter((l) => dentroDaJanela(l, desde, teto)), null, TAMANHO_PAGINA_SYNC);
+  return { itens: p.itens, proximo: p.proximo_cursor };
 }
 
 export function registrarSync(app: FastifyInstance, p: Plataforma): void {

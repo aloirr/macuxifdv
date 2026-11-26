@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { apiVendedor } from '@macuxi/vendedor/api';
-import { codificarCursor, decodificarCursor, type CursorSync, TAMANHO_PAGINA_SYNC, type ContextoBase, type LinhaSync, type ProvedorSync } from '@macuxi/platform-sdk';
+import { codificarCursor, decodificarCursor, type CursorSync, TAMANHO_PAGINA_SYNC, type ContextoBase, type ProvedorSync } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { criarBancoApp, type BancoApp } from '../src/banco';
@@ -37,15 +37,14 @@ describe.skipIf(semBanco())('cursor do pull em microssegundos × Postgres (T-019
 
   /** Rota /v1/sync/pull (paginaDoPull) + laço do motor, até o próximo cursor nulo. */
   const puxarTudo = async (ate: string) => {
+    const puxarPagina = async (desde: CursorSync | null) =>
+      paginaDoPull(await prov.puxar!(ctx, { desde, ate, limite: TAMANHO_PAGINA_SYNC + 1 }), desde, ate);
     const recebidos: string[] = [];
     let cursor: string | null = null;
     for (let i = 0; i < 50; i += 1) {
-      const desde: CursorSync | null = cursor ? decodificarCursor(cursor) : null;
-      const linhas: LinhaSync[] = await prov.puxar!(ctx, { desde, ate, limite: TAMANHO_PAGINA_SYNC + 1 });
-      const pagina: { itens: LinhaSync[]; proximo: string | null } = paginaDoPull(linhas, desde, ate);
-      const { itens, proximo } = pagina;
+      const { itens, proximo } = await puxarPagina(cursor ? decodificarCursor(cursor) : null);
       recebidos.push(...itens.map((l) => l.id));
-      const ultimo: LinhaSync | undefined = itens[itens.length - 1];
+      const ultimo = itens[itens.length - 1];
       cursor = proximo ?? (ultimo ? codificarCursor(ultimo) : cursor);
       if (!proximo) break;
     }
@@ -87,9 +86,8 @@ describe.skipIf(semBanco())('cursor do pull em microssegundos × Postgres (T-019
   it('C2 curto: 1500 linhas em 1,5 ms, uma por µs, com o id na ordem inversa do instante: todas vêm, sem repetição', async () => {
     const base = Date.UTC(2000, 0, 3, 10, 0, 0);
     const linhas = Array.from({ length: 1500 }, (_, i) => {
-      const us = i;
-      const ms = new Date(base + Math.floor(us / 1000)).toISOString().replace('Z', '');
-      return { id: `c2c2c2c2-0000-4000-8000-${(1499 - i).toString(16).padStart(12, '0')}`, ts: `${ms}${String(us % 1000).padStart(3, '0')}Z` };
+      const ms = new Date(base + Math.floor(i / 1000)).toISOString().replace('Z', '');
+      return { id: `c2c2c2c2-0000-4000-8000-${(1499 - i).toString(16).padStart(12, '0')}`, ts: `${ms}${String(i % 1000).padStart(3, '0')}Z` };
     });
     await gravar(linhas);
 

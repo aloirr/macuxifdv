@@ -223,7 +223,7 @@ const ISO_INSTANTE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:[
 /**
  * Instante ISO em microssegundos UTC desde a época, a mesma resolução do `timestamptz` (T-0199). A fração com menos de 6
  * dígitos é completada com zeros (`.123` = `.123000`); além de 6, é truncada. O offset é levado para UTC. Fora desse
- * formato, cai no `Date.parse` (milissegundos × 1000). Cabe em `number`: 1e15 µs ainda está abaixo de 2^53.
+ * formato, cai no `Date.parse` (milissegundos × 1000). Cabe em `number`: ~1,8e15 µs em 2026, abaixo de 2^53 (~9e15).
  */
 function microssegundosUtc(iso: string): number {
   const m = ISO_INSTANTE.exec(iso);
