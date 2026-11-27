@@ -20,6 +20,9 @@ name: producao — diagnóstico da outbox (só leitura)
 # Um cliente (opcional, cliente_external_id; v1.0.39, Teste 003, R-20261126-184213): o cliente no FDV (só id, external_id e
 # situação; nunca nome nem documento), a filial e a tabela de preço dele, o registro no Hub e as recusas do Hub com o campo e o
 # código (sem a mensagem nem o payload, que trazem texto do ERP).
+# Recusas linha a linha (opcional, recusas_linha_a_linha; v1.0.42, decisão 35 A, R-20261127-174854): as recusas do Hub EM ABERTO
+# (resolvido_em nulo) dos últimos 7 dias, com o total por entidade e classe no topo e, até 2000, cada linha com entidade, campo,
+# código, origem, external_id e quando (Manaus); só ids técnicos e classes, nunca a mensagem nem o payload.
 # Empresa padrão do formulário: AM2808 (R-20261120-203901).
 
 on:
@@ -41,6 +44,10 @@ on:
         description: consultar um cliente pelo external_id do ERP (vazio = não consulta)
         required: false
         default: ''
+      recusas_linha_a_linha:
+        description: listar as recusas do Hub em aberto dos últimos 7 dias, linha a linha (até 2000 por empresa)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -68,6 +75,7 @@ jobs:
           CONTAGEM_CATALOGO: ${{ inputs.contagem_catalogo }}
           CONTAGEM_INTEGRACAO: ${{ inputs.contagem_integracao }}
           CLIENTE_EXTERNAL_ID: ${{ inputs.cliente_external_id }}
+          RECUSAS_LINHA: ${{ inputs.recusas_linha_a_linha }}
         run: |
           IFS=',' read -ra lista <<< "${EMPRESAS// /}"
           [ "${#lista[@]}" -ge 1 ] && [ "${#lista[@]}" -le 10 ] || { echo "::error::informe de 1 a 10 códigos de empresa"; exit 1; }
@@ -90,6 +98,7 @@ jobs:
           SQL
           if [ "$CONTAGEM_CATALOGO" = true ]; then echo '\set contagem_catalogo true'; else echo '\set contagem_catalogo false'; fi >> "$sql"
           if [ "$CONTAGEM_INTEGRACAO" = true ]; then echo '\set contagem_integracao true'; else echo '\set contagem_integracao false'; fi >> "$sql"
+          if [ "$RECUSAS_LINHA" = true ]; then echo '\set recusas_linha true'; else echo '\set recusas_linha false'; fi >> "$sql"
           # sem aspas, barra invertida nem espaço; no \set vai entre aspas simples (sem elas, o psql trocaria ":max" do valor pela
           # variável) e no SQL só por :'cliente_eid'
           cliente="$(printf '%s' "$CLIENTE_EXTERNAL_ID" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
@@ -375,6 +384,27 @@ jobs:
            group by 1, 2, 3, 4, 5
            order by max(l.recebido_em) desc
            limit 50;
+          \endif
+          \if :recusas_linha
+          \echo '--- recusas do Hub em aberto, 7 dias (só ids técnicos e classes)'
+          \echo 'R1 total por entidade e classe'
+          select l.entidade, e.codigo as classe, count(*) as linhas,
+                 string_agg(distinct coalesce(e.campo, '-'), ' ' order by coalesce(e.campo, '-')) as campos
+            from integracao.lote_linha_erro e
+            join integracao.lote l on l.tenant_id = e.tenant_id and l.id = e.lote_id and l.deleted_at is null
+           where e.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and e.deleted_at is null
+             and e.resolvido_em is null and e.created_at >= now() - interval '7 days'
+           group by 1, 2
+           order by 1, 2;
+          \echo 'R2 linha a linha (até 2000; quando = registro da recusa)'
+          select l.entidade, e.campo, e.codigo, e.origem, e.external_id,
+                 to_char(e.created_at at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as quando_manaus
+            from integracao.lote_linha_erro e
+            join integracao.lote l on l.tenant_id = e.tenant_id and l.id = e.lote_id and l.deleted_at is null
+           where e.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and e.deleted_at is null
+             and e.resolvido_em is null and e.created_at >= now() - interval '7 days'
+           order by l.entidade, e.campo nulls first, e.codigo, e.external_id, e.created_at
+           limit 2000;
           \endif
           \else
           \echo 'empresa não encontrada (código errado ou empresa excluída)'

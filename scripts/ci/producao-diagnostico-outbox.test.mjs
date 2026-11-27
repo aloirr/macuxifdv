@@ -1,5 +1,6 @@
 // node --test scripts/ci/*.test.mjs. Confere, sem banco e sem segredo, a consulta de um cliente do producao-diagnostico-outbox.yml
-// (v1.0.39, Teste 003, R-20261126-184213): a entrada validada, o valor entre aspas no \set e o bloco sem a mensagem nem o payload.
+// (v1.0.39, Teste 003, R-20261126-184213) e as recusas linha a linha (v1.0.42, R-20261127-174854): as entradas validadas, o valor
+// entre aspas no \set e os blocos sem a mensagem nem o payload.
 // O teste no banco (macuxi_leitura, só leitura, dois tenants) roda na sessão, no Postgres local.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ const wf = readFileSync(
 const passo = wf.split('- name: entradas e consulta')[1].split('\n      - name:')[0];
 const run = passo.split('        run: |\n')[1].replace(/^ {10}/gm, '');
 
-const montar = (cliente) => {
+const montar = (cliente, recusas = 'false') => {
   const dir = mkdtempSync(join(tmpdir(), 'diag-'));
   try {
     const r = spawnSync('bash', ['-c', run], {
@@ -27,6 +28,7 @@ const montar = (cliente) => {
         CONTAGEM_CATALOGO: 'false',
         CONTAGEM_INTEGRACAO: 'false',
         CLIENTE_EXTERNAL_ID: cliente,
+        RECUSAS_LINHA: recusas,
       },
     });
     return {
@@ -59,6 +61,26 @@ test('cliente: K1 a K4 filtram o tenant e nunca leem nome, documento, mensagem n
   assert.equal(selects.length, 4);
   for (const s of selects)
     assert.match(s, /\.tenant_id = \(select id from plataforma\.tenant_por_codigo\('__CODIGO__'\)\)/);
+  const sql = bloco.replace(/^\\echo .*$/gm, '');
+  assert.doesNotMatch(sql, /\b(nome|razao_social|documento|cnpj|cpf|mensagem|payload)\b/);
+});
+
+test('recusas linha a linha: entrada boolean, padrão false; só true liga o bloco', () => {
+  assert.match(wf, /\n {6}recusas_linha_a_linha:\n {8}description: .+\n {8}type: boolean\n {8}default: false\n/);
+  assert.match(montar('').sql, /^\\set recusas_linha false$/m);
+  assert.match(montar('', 'true').sql, /^\\set recusas_linha true$/m);
+  assert.match(montar('', 'sim').sql, /^\\set recusas_linha false$/m);
+});
+
+test('recusas linha a linha: R1 e R2 filtram o tenant, só em aberto e 7 dias, até 2000, sem mensagem nem payload', () => {
+  const bloco = run.split('\\if :recusas_linha')[1].split('\\endif')[0];
+  const selects = bloco.split(/\\echo 'R\d/).slice(1);
+  assert.equal(selects.length, 2);
+  for (const s of selects) {
+    assert.match(s, /\.tenant_id = \(select id from plataforma\.tenant_por_codigo\('__CODIGO__'\)\)/);
+    assert.match(s, /e\.resolvido_em is null and e\.created_at >= now\(\) - interval '7 days'/);
+  }
+  assert.match(selects[1], /limit 2000;/);
   const sql = bloco.replace(/^\\echo .*$/gm, '');
   assert.doesNotMatch(sql, /\b(nome|razao_social|documento|cnpj|cpf|mensagem|payload)\b/);
 });
