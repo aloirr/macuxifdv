@@ -15,8 +15,17 @@ import {
   escolherNivel,
   frasesDoHistorico,
   montarGrupos,
+  origemDoValor,
   SEM_EFEITO_NO_BKO,
 } from './perfis-tabela';
+
+describe('ADR 0073 §4.2: origem da cópia no seletor das duas telas', () => {
+  it('perfil:<codigo> e modelo:<modelo> viram o copiar_de da API; vazio, nada', () => {
+    expect(origemDoValor('perfil:vendedor_externo')).toEqual({ perfil: 'vendedor_externo' });
+    expect(origemDoValor('modelo:promotor')).toEqual({ modelo: 'promotor' });
+    expect(origemDoValor('')).toBeUndefined();
+  });
+});
 
 type P = PerfilDetalheV2['permissoes'][number];
 const perm = (chave: string, extra: Partial<P> = {}): P => ({ chave, concedida: false, nivel: null, alvos: null, trava: null, disponivel: true, ...extra });

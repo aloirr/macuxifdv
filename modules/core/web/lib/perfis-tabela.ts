@@ -3,22 +3,24 @@
  * devolve (`CatalogoResposta` + `PerfilDetalheV2`) no modelo da tabela com caixas. Sem regra nova: as travas, o teto e a licença
  * vêm da API (que revalida); aqui só se monta, se edita o rascunho e se monta o corpo do PUT.
  */
-import { CHAVES_GESTAO_DO_ACESSO } from '@macuxi/platform-sdk';
+import { CHAVE_ACESSO, CHAVES_GESTAO_DO_ACESSO, NIVEIS_ALCADA, NIVEIS_ESCOPO } from '@macuxi/platform-sdk';
+import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { niveisAcimaDoTeto, textoDoTeto, textoSemLicenca } from '@macuxi/ui/web';
-import { CODIGOS_ERRO_PERFIL_V2, type CatalogoResposta, EditarPerfilRequestV2, PerfilDetalheV2, PerfilHistoricoItemV2 } from '../../contracts';
+import { type CatalogoResposta, type CopiarDe, EditarPerfilRequestV2, type ModeloDePerfilItem, PerfilDetalheV2, PerfilHistoricoItemV2 } from '../../contracts';
 import { rotuloDaPermissao } from './acesso';
 import { rotuloDoModulo, rotuloDoNivel } from './perfis';
 
-export const ALVO_TODOS = '*';
-const CHAVE_BKO = 'acesso.bko';
 /** As 5 chaves que juntas são a "gestão do acesso": quem usa o perfil não as tira dele (autogestão, RN-CORE-35). */
-export const CHAVES_DA_AUTOGESTAO: readonly string[] = [CHAVE_BKO, ...CHAVES_GESTAO_DO_ACESSO];
+export const CHAVES_DA_AUTOGESTAO: readonly string[] = [CHAVE_ACESSO.bko, ...CHAVES_GESTAO_DO_ACESSO];
 export const AVISO_AUTOGESTAO = 'Você usa este perfil. Por isso ele não pode perder a gestão de usuários e perfis.';
 /** Ação do BKO marcada num perfil que não entra no BKO (ADR 0073 §2.5, item 10). */
 export const SEM_EFEITO_NO_BKO = 'Sem efeito: o perfil não entra no BKO';
-/** Tenant ainda em migração (422 `PERFIS_NAO_MIGRADOS`): ler funciona, salvar espera. */
-export const MENSAGEM_NAO_MIGRADO = 'Os perfis desta empresa ainda estão em ajuste e não podem ser alterados agora. Fale com o suporte.';
-export const ehNaoMigrado = (e: unknown): boolean => (e as { code?: unknown } | null)?.code === CODIGOS_ERRO_PERFIL_V2.naoMigrado;
+/** Falha de rede (sem resposta do servidor): um texto só nas telas dos perfis. */
+export const SEM_CONEXAO = 'Sem conexão. Confira a internet e tente de novo.';
+export const ehSemConexao = (e: unknown): boolean => e instanceof TypeError || (e instanceof ApiRequestError && e.status === 0);
+/** O valor do seletor de origem (`perfil:<codigo>` ou `modelo:<modelo>`) no `copiar_de` da API. */
+export const origemDoValor = (v: string): CopiarDe | undefined =>
+  v.startsWith('perfil:') ? { perfil: v.slice(7) } : v.startsWith('modelo:') ? { modelo: v.slice(7) as ModeloDePerfilItem['modelo'] } : undefined;
 export const ERRO_SEM_ALVO = 'Marque pelo menos um perfil ou desligue esta permissão.';
 export const MOTIVO_SEM_LICENCA_NA_LINHA = (modulo: string) => `O módulo ${rotuloDoModulo(modulo)} está sem licença.`;
 
@@ -57,16 +59,13 @@ export interface GrupoModelo {
   semCaixa: boolean;
 }
 
-const NIVEIS_ESCOPO = ['proprio', 'carteira', 'equipe', 'equipes_abaixo', 'tenant'];
-const NIVEIS_ALCADA = ['ate_alcada', 'acima_alcada'];
-
 export const edicaoDoDetalhe = (d: PerfilDetalheV2): EdicaoTabela =>
   Object.fromEntries(d.permissoes.map((p) => [p.chave, { concedida: p.concedida, nivel: p.nivel, alvos: p.alvos }]));
 
 export function montarGrupos(entrada: { catalogo: CatalogoResposta; detalhe: PerfilDetalheV2; edicao: EdicaoTabela; rotuloDoCargo: string }): GrupoModelo[] {
   const { catalogo, detalhe, edicao } = entrada;
   const autogestao = detalhe.perfil.autogestao;
-  const entraNoBko = edicao[CHAVE_BKO]?.concedida === true;
+  const entraNoBko = edicao[CHAVE_ACESSO.bko]?.concedida === true;
   const doDetalhe = new Map(detalhe.permissoes.map((p) => [p.chave, p]));
   const grupos: GrupoModelo[] = [];
   for (const area of catalogo.areas) {
