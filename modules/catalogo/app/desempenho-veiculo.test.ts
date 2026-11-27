@@ -2,8 +2,8 @@
  * RN-CAT-22 (desenho `docs/desenho/filtro-veiculo.md` §7, critério 9): 20 mil produtos com aplicação em texto, SQLite real. A lista filtrada por
  * veículo (`listaComVeiculo`, a do Catálogo) sai em até 300 ms (p95 sobre vários veículos, com o índice de veículos já montado) e a troca de nível
  * da cascata em até 100 ms. Meta estrita (`MACUXI_DESEMPENHO=1`): os tetos do desenho (`MACUXI_FATOR_DESEMPENHO` folga em CI compartilhado); na suíte
- * (turbo em paralelo, runner lento) os tetos têm folga de 3x, como a de `desempenho-vitrine.test.ts`. A montagem do índice é medida pela RAZÃO à montagem da lista de
- * produtos do aparelho e a lista, à mesma lista de produtos; a montagem cede o laço (não trava a tela) e `catalogo.veiculos@1` espera por ela.
+ * (turbo em paralelo, relógio de parede até 20x mais lento) os tetos viram razão a uma referência medida antes e depois de cada amostra, como o teto relativo de
+ * `desempenho-vitrine.test.ts`. A montagem do índice é medida pela RAZÃO à montagem da lista de produtos do aparelho; a montagem cede o laço (não trava a tela) e `catalogo.veiculos@1` espera por ela.
  */
 import { criarArmazenamentoSqlite, type LinhaSync } from '@macuxi/platform-sdk';
 import { criarDriverNode } from '@macuxi/platform-sdk/sqlite-node';
@@ -20,9 +20,12 @@ const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0
 const N_PRODUTOS = 20_000;
 const FATOR = Math.max(1, Number(process.env.MACUXI_FATOR_DESEMPENHO ?? 1));
 const ESTRITO = process.env.MACUXI_DESEMPENHO === '1';
-// razões medidas (log desta suíte: índice 2,0x a lista de produtos, lista 0,25 a 0,43x a lista de produtos, maior pausa ~0,15x a montagem), com folga de ~3x para o runner lento
+// razões medidas (log desta suíte: índice 2,0x a lista de produtos, maior pausa ~0,15x a montagem), com folga de ~3x para o runner lento
 const RAZAO_INDICE = 6;
-const RAZAO_LISTA = 1.0;
+// tetos do desenho em referências intercaladas (a leitura crua de 20 mil produtos gasta ~25 ms sozinha nesta máquina): 300 ms = 12 e 100 ms = 4. Medido:
+// lista 4 a 5,3 referências e troca de nível 0,2 a 0,26, sozinho e com 6 processos de carga em 4 núcleos (o relógio de parede dobrou e a razão ficou igual)
+const RAZAO_LISTA_REF = 12;
+const RAZAO_NIVEL_REF = 4;
 const RAZAO_PAUSA = 0.5;
 
 const MODELOS: readonly (readonly [string, string])[] = [
@@ -95,42 +98,68 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     expect(raiz.disponivel).toBe(true);
     expect(raiz.nivel).toBe('montadora');
 
+    // referência intercalada: a leitura crua das 20 mil linhas de produto do SQLite (sem cache; o mesmo tipo de trabalho, SQLite + objetos JS, no mesmo
+    // processo), medida antes e depois de cada amostra; a carga da máquina no instante da amostra estica a amostra e a referência juntas
+    const referencia = async () => {
+      const r = performance.now();
+      await L.listar('produto');
+      return performance.now() - r;
+    };
+    let refAntes = await referencia();
+    const medir = async (fazer: () => Promise<unknown>) => {
+      const r = performance.now();
+      await fazer();
+      const ms = performance.now() - r;
+      const refDepois = await referencia();
+      const razao = ms / ((refAntes + refDepois) / 2);
+      refAntes = refDepois;
+      return { ms, razao };
+    };
+
     // lista com veículo (o índice já está montado)
     const veiculos: VeiculoEscolhido[] = MODELOS.slice(0, 10).map(([montadora, modelo], i) => ({ montadora, modelo, ano: 2005 + i, motor: null, versao: null }));
     const lista: number[] = [];
+    const razoesLista: number[] = [];
     let total = 0;
     // medição só da função do produto (`listaComVeiculo`; a carga e os dados ficam fora do cronômetro): a volta 0 aquece (JIT, caches do SQLite, memória) e é
     // descartada; as 4 seguintes dão 40 amostras, então o p95 é a 3ª maior e uma pausa isolada de coleta de lixo no runner compartilhado não decide o teste
     for (const volta of [0, 1, 2, 3, 4])
       for (const v of veiculos) {
-        t = performance.now();
-        const r = await listaComVeiculo(leitor, { ...entrada, q: '', veiculo: v, offline: true });
-        if (volta > 0) lista.push(performance.now() - t);
-        total += r.total;
-        expect(r.items.length).toBeGreaterThan(0);
-        expect(r.items.every((i) => !('veiculo' in i))).toBe(true);
+        let r: Awaited<ReturnType<typeof listaComVeiculo>> | undefined;
+        const m = await medir(async () => { r = await listaComVeiculo(leitor, { ...entrada, q: '', veiculo: v, offline: true }); });
+        if (volta > 0) { lista.push(m.ms); razoesLista.push(m.razao); }
+        total += r!.total;
+        expect(r!.items.length).toBeGreaterThan(0);
+        expect(r!.items.every((i) => !('veiculo' in i))).toBe(true);
       }
     expect(total).toBeGreaterThan(0);
 
     // troca de nível da cascata (índice montado): montadora → modelo → ano → motor
     const niveis: number[] = [];
+    const razoesNivel: number[] = [];
     for (const [montadora, modelo] of MODELOS.slice(0, 10)) {
       for (const escolha of [{ montadora }, { montadora, modelo }, { montadora, modelo, ano: 2012 }, { montadora, modelo, ano: 2012, motor: '1.0' }]) {
-        t = performance.now();
-        await cascataLocal(leitor, { escolha }, anoAtual);
-        niveis.push(performance.now() - t);
+        const m = await medir(() => cascataLocal(leitor, { escolha }, anoAtual));
+        niveis.push(m.ms);
+        razoesNivel.push(m.razao);
       }
     }
-    // tetos do aparelho (desenho §7): 300 ms a lista e 100 ms a troca de nível, valendo em ESTRITO; na suíte local, folga de 3x; no CI (`process.env.CI`, runner compartilhado do GitHub, mediu 1006 ms) folga de 6x. As razões à lista de produtos abaixo seguem iguais em todos.
-    const folga = ESTRITO ? 1 : process.env.CI ? 6 : 3;
     const pLista = p95(lista);
     const pNivel = p95(niveis);
-    console.log(`[desempenho RN-CAT-22] carga ${(msCarga / 1000).toFixed(1)} s; lista de produtos ${msProdutos.toFixed(0)} ms; índice de veículos ${msIndice.toFixed(0)} ms (razão à lista de produtos ${(msIndice / msProdutos).toFixed(2)}), maior pausa do laço ${maiorPausa.toFixed(0)} ms; lista com veículo p95 ${pLista.toFixed(0)} ms (razão à lista de produtos ${(pLista / msProdutos).toFixed(3)}); troca de nível p95 ${pNivel.toFixed(0)} ms`);
-    expect(pLista).toBeLessThan(300 * FATOR * folga);
-    expect(pNivel).toBeLessThan(100 * FATOR * folga);
+    const rLista = p95(razoesLista);
+    const rNivel = p95(razoesNivel);
+    console.log(`[desempenho RN-CAT-22] carga ${(msCarga / 1000).toFixed(1)} s; lista de produtos ${msProdutos.toFixed(0)} ms; índice de veículos ${msIndice.toFixed(0)} ms (razão à lista de produtos ${(msIndice / msProdutos).toFixed(2)}), maior pausa do laço ${maiorPausa.toFixed(0)} ms; lista com veículo p95 ${pLista.toFixed(0)} ms (razão à referência p95 ${rLista.toFixed(2)}); troca de nível p95 ${pNivel.toFixed(0)} ms (razão à referência p95 ${rNivel.toFixed(3)}); referência ${refAntes.toFixed(0)} ms`);
+    // tetos do aparelho (desenho §7): 300 ms a lista e 100 ms a troca de nível, em relógio de parede, só em ESTRITO (máquina dedicada). Na suíte (turbo em
+    // paralelo) o relógio de parede oscila até 20x (SHA 0af3a23: 1784 ms; sozinho, 88 ms); o teto vira a razão à referência intercalada, como em
+    // `desempenho-vitrine.test.ts`
+    if (ESTRITO) {
+      expect(pLista).toBeLessThan(300 * FATOR);
+      expect(pNivel).toBeLessThan(100 * FATOR);
+    }
+    expect(rLista).toBeLessThan(RAZAO_LISTA_REF);
+    expect(rNivel).toBeLessThan(RAZAO_NIVEL_REF);
     // pela razão à referência (a lista de produtos montada, para o índice e para a lista): o runner lento estica os dois lados juntos
     expect(msIndice).toBeLessThan(RAZAO_INDICE * msProdutos);
-    expect(pLista).toBeLessThan(RAZAO_LISTA * msProdutos);
     // a montagem cede o laço: nenhuma pausa passa de uma fração da montagem inteira
     expect(maiorPausa).toBeLessThan(RAZAO_PAUSA * msIndice);
   });
