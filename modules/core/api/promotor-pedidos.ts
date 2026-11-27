@@ -6,7 +6,7 @@
  */
 import type { ClienteBanco, ContextoBase, RotaModulo } from '@macuxi/platform-sdk';
 import { PARAMETRO_PROMOTOR_VE_PEDIDOS, PromotorVePedidosPutSchema, PromotorVePedidosSchema, type PromotorVePedidos } from '../contracts';
-import { promotorVePedidos } from '../domain';
+import { promotorVePedidos, requisicaoDePromotor, usuarioDaRequisicaoVePedidos } from '../domain';
 import { auditar } from './auditoria';
 
 /** Lê o valor efetivo do tenant da transação (RLS). Sem cache: cada chamada vai ao banco. */
@@ -18,14 +18,13 @@ export async function lerPromotorVePedidos(db: ClienteBanco): Promise<boolean> {
 }
 
 /**
- * ADR 0073 §2.4 (E6): quem lê pedidos é a chave `pedido.ver` do perfil, não mais o parâmetro do tenant. `perfil_do_usuario` (0109) já
- * dá o caminho certo por tenant: em `concessao` a concessão; em `legado` o acesso de hoje (o parâmetro desligado tira `pedido.ver`
- * do promotor). Só o cargo promotor depende dela aqui (RN-PRO-01); os demais seguem o escopo de carteira. Sem perfil lido: ligado.
+ * ADR 0073 §2.4 (E6): quem lê pedidos é a chave `pedido.ver` do perfil que a requisição já traz (`ctx.usuario.perfil_acesso`, tenant em
+ * `concessao`); em `legado` vale o parâmetro do tenant. A regra é do domain; aqui só se lê o parâmetro, e só quando preciso.
  */
 export async function usuarioVePedidos(ctx: ContextoBase, db: ClienteBanco): Promise<boolean> {
-  if (ctx.usuario.perfil !== 'promotor' && ctx.usuario.cargo !== 'promotor') return true;
-  const r = await db.query<{ ve: boolean }>("select coalesce(permissoes ? 'pedido.ver', true) as ve from plataforma.perfil_do_usuario($1)", [ctx.usuario.id]);
-  return r.rows[0]?.ve ?? true;
+  const u = ctx.usuario;
+  const precisaDoParametro = !u.perfil_acesso && requisicaoDePromotor(u);
+  return usuarioDaRequisicaoVePedidos(u, precisaDoParametro ? await lerPromotorVePedidos(db) : true);
 }
 
 export const rotasDePromotorPedidos: RotaModulo[] = [

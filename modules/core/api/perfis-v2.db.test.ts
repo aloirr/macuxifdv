@@ -4,7 +4,7 @@
  * otimista, DELETE, cargo em uso, último admin, promotor sem pedido, senha e isolamento entre tenants. Pula sem Postgres.
  */
 import { semBanco } from '@macuxi/db/teste/estado';
-import { catalogoDePermissoes, matrizDeFabrica, podePeloCargo, resolverPerfilPeloCargo, type ContextoBase, type DefinicaoChave } from '@macuxi/platform-sdk';
+import { catalogoDePermissoes, matrizDeFabrica, podePeloCargo, resolverPerfilPeloCargo, type Cargo, type ContextoBase, type DefinicaoChave, type ValorPermissao } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CatalogoRespostaSchema, ModelosDePerfilRespostaSchema, PerfilDetalheV2Schema, PerfilHistoricoRespostaV2Schema, PerfilListaRespostaV2Schema, type PerfilDetalheV2 } from '../contracts';
 import { manifest } from '../manifest';
@@ -478,7 +478,15 @@ describe.skipIf(semBanco())('Core E6 × Postgres: rotas V2 de perfis com a 0109'
 
   it('ADR 0073 §2.4: promotor_ve_pedidos virou a chave pedido.ver — o histórico de compra segue a concessão no tenant em concessao e o parâmetro em legado', async () => {
     const promotor = amb.usuario(U.promotor ?? U.vendedor2, 'promotor');
-    const ve = (modo: 'legado' | 'concessao') => leitura(A.tenantId, modo).then(() => amb.noTenant(A.tenantId, (db) => usuarioVePedidos({ ...amb.ctx(promotor) } as ContextoBase, db)));
+    // a API nova monta `perfil_acesso` na requisição só em concessao (perfil_do_usuario, 0109); em legado o ctx não o traz
+    const ve = (modo: 'legado' | 'concessao') =>
+      leitura(A.tenantId, modo).then(() =>
+        amb.noTenant(A.tenantId, async (db) => {
+          const p = modo === 'concessao' ? (await db.query<{ codigo: string; cargo: Cargo; permissoes: Record<string, ValorPermissao> }>('select codigo, cargo, permissoes from plataforma.perfil_do_usuario($1)', [promotor.id])).rows[0] : undefined;
+          const usuario = { ...amb.ctx(promotor).usuario, ...(p ? { cargo: p.cargo, perfil_acesso: resolverPerfilPeloCargo(p) } : {}) };
+          return usuarioVePedidos({ ...amb.ctx(promotor), usuario } as ContextoBase, db);
+        }),
+      );
     expect(await ve('legado')).toBe(true);
     // concessao: tirar `pedido.ver` do perfil do usuário muda a resposta, sem tocar no parâmetro do tenant
     await leitura(A.tenantId, 'concessao');
