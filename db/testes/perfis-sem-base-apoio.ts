@@ -42,7 +42,8 @@ export const VERSAO_DO_BANCO = 2;
 
 /**
  * Chaves que a v2 (0108) trouxe, com os modelos que as têm: os perfis de `RotaModulo.perfis` das rotas de hoje
- * (`ACOES_DA_TRANSICAO` do SDK v2). O assistente não tem as 3 de pesquisa e promotor.
+ * (`linhasDosModelos(modelosDePerfil(MANIFESTOS), 2)` do SDK, conferido em catalogo-v2.db.test.ts). O assistente não tem as 3
+ * de pesquisa e promotor.
  */
 const GESTAO: readonly Perfil[] = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'];
 const TRADE: readonly Perfil[] = ['supervisor', 'gerente', 'analista', 'admin'];

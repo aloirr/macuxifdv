@@ -27,7 +27,7 @@ import { TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { CRIAR_SUPER_ADMIN, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_ATUAIS, FUNCOES_SA_REMOVIDAS_0039, SA_INTERNA, SA_INTERNA_0035 } from './funcoes-sa';
-import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo, travarCriarSuperAdmin } from './util';
 
 const migracoes = lerMigracoes();
 const m39 = migracoes.find((m) => m.versao === '0039')!;
@@ -179,10 +179,12 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
     ]))[0]!.r;
   const superAdmin = async (p: Record<string, unknown>) =>
     (await q<{ r: { resultado: string; super_admin_id: string | null; sessoes_revogadas: number } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify(p)]))[0]!.r;
-  const usuario = async (tenant: string, email: string, perfil: string, hash: string | null = HASH_TESTE): Promise<string> =>
-    (await q<{ id: string }>('insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, $2, $3, $4, true, $5) returning id', [
+  const usuario = async (tenant: string, email: string, perfil: string, hash: string | null = HASH_TESTE): Promise<string> => {
+    await travarCriarSuperAdmin(admin);
+    return (await q<{ id: string }>('insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, $2, $3, $4, true, $5) returning id', [
       tenant, `Usuário T93 ${perfil}`, email, perfil, hash,
     ]))[0]!.id;
+  };
   const contas = async (email: string) =>
     portal<{ tipo: string; conta_id: string; tenant_id: string | null; tenant_codigo: string | null; tenant_nome: string | null; senha_hash: string }>(
       'select * from plataforma.sa_contas_para_login($1)', [email]);

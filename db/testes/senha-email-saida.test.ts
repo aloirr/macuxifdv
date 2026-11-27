@@ -24,7 +24,7 @@ import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } fr
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA } from './funcoes-sa';
-import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo, travarCriarSuperAdmin } from './util';
 
 const migracoes = lerMigracoes();
 const m40 = migracoes.find((m) => m.versao === '0040')!;
@@ -336,8 +336,10 @@ describe.skipIf(semBanco())('0040 estado da senha e outbox de e-mail (banco, fix
 
   describe('portal', () => {
     const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params).then((r) => r.rows);
-    const usuario = async (tenant: string, email: string) =>
-      (await q<{ id: string }>("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, 'Admin T94', $2, 'admin', true, $3) returning id", [tenant, email, HASH_TESTE]))[0]!.id;
+    const usuario = async (tenant: string, email: string) => {
+      await travarCriarSuperAdmin(admin);
+      return (await q<{ id: string }>("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, 'Admin T94', $2, 'admin', true, $3) returning id", [tenant, email, HASH_TESTE]))[0]!.id;
+    };
     const contas = (email: string) => portal<Record<string, unknown>>('select * from plataforma.sa_contas_para_login($1)', [email]);
     const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0];
     const valida = (sid: string) => portal('select * from plataforma.sa_sessao_valida($1)', [sid]);
