@@ -46,10 +46,10 @@ function useParametroPedidos<C extends ChaveDoPainelPedidos>(chave: C) {
     },
     onError: (e) => setErroApi(errorMessage(e)),
   });
-  const enviar = (valor: ParametrosPedidos[C]) => {
+  const enviar = (valor: ParametrosPedidos[C], aoGravar?: () => void) => {
     setErroApi(null);
     setSucesso(false);
-    gravar.mutate(valor);
+    gravar.mutate(valor, { ...(aoGravar ? { onSuccess: aoGravar } : {}) });
   };
   return { q, salvo: q.data?.[chave], gravando: gravar.isPending, sucesso, erroApi, enviar, limparSucesso: () => setSucesso(false), texto: SUCESSO_PARAMETRO[chave] };
 }
@@ -217,8 +217,8 @@ function PainelDeAcao<C extends 'credito_excedido_acao' | 'estoque_insuficiente_
         sucesso={p.sucesso}
         texto={p.texto}
         onSalvar={() => {
-          p.enviar(atual);
-          setEscolhida(null);
+          // a escolha só se limpa depois do PUT e do refetch; no erro ela fica
+          p.enviar(atual, () => setEscolhida(null));
         }}
       />
     </div>

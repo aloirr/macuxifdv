@@ -193,7 +193,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: pedido mínimo, crédito exce
     });
     it('RN-VEN-22: um centavo abaixo do mínimo é recusado (rejeitado, nada gravado); no mínimo passa', async () => {
       const { r } = await enviar(2, { pedido_minimo_cents: 250_001 });
-      expect(r).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-22', mensagem: expect.stringMatching(/^Pedido abaixo do mínimo de R\$\s2\.500,01\. Envie como orçamento/) });
+      expect(r).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-22', mensagem: expect.stringMatching(/^Pedido abaixo do mínimo de R\$\s2\.500,01\. Aumente o pedido ou salve como orçamento/) });
       expect((await lerPedido(id(2))).p).toBeUndefined();
       expect((await enviar(3, { pedido_minimo_cents: 250_000 })).r).toMatchObject({ status: 'aceito' });
     });

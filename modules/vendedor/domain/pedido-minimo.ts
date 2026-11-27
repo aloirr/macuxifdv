@@ -7,7 +7,7 @@ export function abaixoDoPedidoMinimo(i: { total_cents: number; minimo_cents: num
 }
 
 /** RN-VEN-22: a recusa do servidor e o motivo do app, a mesma frase. */
-export const mensagemPedidoMinimo = (minimo_cents: number): string => `Pedido abaixo do mínimo de ${formatBRL(minimo_cents)}. Envie como orçamento ou aumente o pedido.`;
+export const mensagemPedidoMinimo = (minimo_cents: number): string => `Pedido abaixo do mínimo de ${formatBRL(minimo_cents)}. Aumente o pedido ou salve como orçamento.`;
 
 /** RN-VEN-22: a linha da área Alertas (sem a ação, que o botão já diz). */
 export const mensagemPedidoMinimoCurta = (minimo_cents: number): string => `Pedido abaixo do mínimo de ${formatBRL(minimo_cents)}`;

@@ -58,7 +58,7 @@ describe('RN-VEN-22: pedido_minimo_cents', () => {
     expect(abaixoDoPedidoMinimo({ total_cents: 1, minimo_cents: 0 })).toBe(false);
   });
   it('RN-VEN-22: a mensagem cita o valor em reais', () => {
-    expect(mensagemPedidoMinimo(150000).replace(/\s/g, ' ')).toBe('Pedido abaixo do mínimo de R$ 1.500,00. Envie como orçamento ou aumente o pedido.');
+    expect(mensagemPedidoMinimo(150000).replace(/\s/g, ' ')).toBe('Pedido abaixo do mínimo de R$ 1.500,00. Aumente o pedido ou salve como orçamento.');
   });
 });
 
