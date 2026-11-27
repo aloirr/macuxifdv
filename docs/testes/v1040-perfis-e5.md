@@ -40,7 +40,7 @@ Dois testes de `tests/` acompanhavam a forma antiga e foram corrigidos neste lot
 |---|---|---|
 | 1. Trava pelo cargo com o motivo, sem código de RN | `perfis-tabela.test.ts` (RN-CORE-33). No navegador com a API real, as travas mostram o motivo (por exemplo "Este cargo nunca entra no BKO nem no portal.") e não há "RN-" na página | ✅ |
 | 2. Cargo travado quando o perfil tem usuários | prints: o cadeado aparece com "Não muda enquanto houver usuários neste perfil.". db.test: 422 `CARGO_EM_USO` | ✅ |
-| 3. Módulo sem licença desabilitado, guardando o valor | db.test: 422 `PERMISSAO_SEM_LICENCA` em `legado` e em `concessao`, e o valor guardado continua guardado (RN-CORE-02). A base de demo tem tudo contratado, por isso o grupo sem licença ficou no print simulado do parecer anterior. A tela não mudou desde então | ✅ |
+| 3. Módulo sem licença desabilitado, guardando o valor | db.test: 422 `PERMISSAO_SEM_LICENCA` em `legado` e em `concessao`, e o valor guardado continua guardado (RN-CORE-02). A base de demo tem tudo contratado, por isso o grupo sem licença não aparece nos prints. Ele foi conferido no navegador no parecer anterior, e a tela não mudou desde então | ✅ |
 | 4. Aviso de autogestão uma vez só, no topo | print Admin (API real): um aviso só, "Você usa este perfil…". O script conta 1 no Admin e 0 no Vendedor. db.test: `autogestao` só no perfil de quem está logado | ✅ |
 | 5. Caixa do grupo com 3 estados, só nas linhas livres | prints: grupos em `mixed`, `true` e vazio. `perfis-tabela.test.ts`. A tela não mudou desde o 183638eb, conferido no navegador | ✅ |
 | 6. Escopo acima do teto do cargo com cadeado e motivo | print Vendedor: cadeado em Equipe, Equipes abaixo e Toda a empresa, com "O cargo Vendedor vai até "Carteira própria".". db.test: 422 `ESCOPO_ACIMA_DO_CARGO` | ✅ |
@@ -91,10 +91,9 @@ Continuam resolvidos no c8bf2083. Não há achado novo.
 
 | Arquivo | Ajuste |
 |---|---|
-| `tests/modulos/pedidos-busca-t0077.test.ts` | as 2 rotas do Histórico no `cliente360-v2.ts` usam `const podeVerHistorico = await usuarioVePedidos(ctx, db);`, sem `lerPromotorVePedidos`; o `promotor-pedidos.ts` só lê o parâmetro quando `!u.perfil_acesso && promotorNaRequisicao(u)` |
+| `tests/modulos/pedidos-busca-t0077.test.ts` | o `promotor-pedidos.ts` só lê o parâmetro quando `!u.perfil_acesso && promotorNaRequisicao(u)` |
 | `tests/modulos/checkin-fora-de-rota-rncore52.test.ts` | o rótulo `visita.checkin_fora_de_rota` vem de `modules/core/web/lib/acesso.ts` |
 | `tests/e2e/bko/menu-parametros.spec.ts` | o mock de `/core/perfis` passa ao `PerfilResumoV2` strict (sem `base` e `fabrica`, com `autogestao`); sai o mock de `parametros/promotor-ve-pedidos`, porque o painel saiu |
-| `tests/e2e/bko/prints-perfis-v1040.ts` | sai o mesmo mock de `parametros/promotor-ve-pedidos` |
 
 | tests/ com o #861 (Node 24.22, Postgres 16 local) | Resultado |
 |---|---|

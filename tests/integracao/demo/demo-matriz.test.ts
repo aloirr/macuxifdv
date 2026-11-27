@@ -513,7 +513,7 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       expect(rp.status, JSON.stringify(rp.corpo)).toBe(200);
       const ru = await api.get(token.admin, '/v1/core/usuarios');
       expect(ru.status, JSON.stringify(ru.corpo)).toBe(200);
-      const perfis = PerfilListaRespostaV2Schema.parse(rp.corpo).itens; // ADR 0073 (E6): GET /v1/core/perfis responde no formato V2
+      const perfis = PerfilListaRespostaV2Schema.parse(rp.corpo).itens; // ADR 0073
       // a lista sem filtro traz ativos e inativos; a API de perfis conta por usuario_perfil, inclusive inativos
       const usuarios = UsuarioListaRespostaSchema.parse(ru.corpo).itens;
       expect(perfis.length).toBeGreaterThan(0);
