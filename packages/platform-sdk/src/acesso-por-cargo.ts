@@ -8,10 +8,11 @@
 import { verificarLicenca, type ResultadoAcesso, type UsuarioAcesso } from './acesso';
 import { ErroHttpModulo, promotorBarradoNaRota, type RotaModulo } from './api';
 import type { Cargo } from './cargos';
-import type { ModuloId, Perfil } from './nomes';
+import { ACAO_VER_PEDIDO, ehEntidadeDePedido, type ModuloId, type Perfil } from './nomes';
 import { CODIGO_PERFIL_SEM_BKO } from './perfis';
 import {
   podePeloCargo,
+  promotorNaRequisicao,
   resolverPerfilPeloCargo,
   type AlvoPorCargo,
   type PerfilDaRequisicaoV2,
@@ -90,13 +91,6 @@ export function exigirPermissaoPeloCargo(
     throw new ErroHttpModulo(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
 }
 
-/**
- * RN-PRO-01 fora da rota de módulo (sync: pull, novidades, pacotes e push): no caminho novo vale o CARGO promotor do perfil; sem
- * `perfil_acesso` (motor antigo), o perfil do token.
- */
-export function promotorNaRequisicao(usuario: { perfil?: Perfil; perfil_acesso?: PerfilDaRequisicaoV2 }): boolean {
-  return usuario.perfil_acesso ? usuario.perfil_acesso.cargo === 'promotor' : usuario.perfil === 'promotor'; // perfil-fixo-ok: motor antigo (tenant em 'legado'; sai na fase 2)
-}
 
 /**
  * `ContextoPermissao` de `Permissoes.pode` fora da rota de módulo (sync), sem os `perfis` (o sync decide pela ação do manifesto):
@@ -112,6 +106,18 @@ export function contextoDePermissao(usuario: {
     modulosAtivos: usuario.modulos,
     ...(usuario.perfil_acesso ? { perfilAcesso: usuario.perfil_acesso } : {}),
   };
+}
+
+/**
+ * RN-PRO-01 no pull, nas novidades e nos pacotes do sync: `(entidade) => true` quando a entidade é de pedido, o usuário é promotor
+ * (`promotorNaRequisicao`) e a concessão não lhe dá `pedido.ver` (O-3). Calcula a permissão uma vez por requisição.
+ */
+export function bloqueiaPedidoDoPromotor(
+  permissoes: Pick<Permissoes, 'pode'>,
+  usuario: { perfil?: Perfil; modulos: Iterable<ModuloId>; perfil_acesso?: PerfilDaRequisicaoV2 },
+): (entidade: string) => boolean {
+  if (!promotorNaRequisicao(usuario) || permissoes.pode(ACAO_VER_PEDIDO, contextoDePermissao(usuario))) return () => false;
+  return ehEntidadeDePedido;
 }
 
 /** Uma chave em que os dois motores discordam (`null` = negada naquele motor). */

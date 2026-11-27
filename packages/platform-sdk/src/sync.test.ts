@@ -196,8 +196,8 @@ describe('push idempotente por UUID do aparelho', () => {
     const req = PushRequestSchema.parse({ itens: [{ entidade: 'pedido', id: U1, payload: { total_cents: 10 } }] });
     const codigo = (opcoes: Parameters<typeof rejeitarItensInvalidos>[3]) =>
       rejeitarItensInvalidos(req, registro(), ['core', 'vendedor'], opcoes).rejeitados.map((x) => (x.status === 'rejeitado' ? x.codigo : x.status));
-    expect(codigo({ perfil: 'vendedor', cargo: 'promotor' })).toEqual(['RN-PRO-01']);
-    expect(codigo({ perfil: 'promotor', cargo: 'vendedor' })).toEqual([]);
+    expect(codigo({ perfil: 'vendedor', perfil_acesso: { cargo: 'promotor' } })).toEqual(['RN-PRO-01']);
+    expect(codigo({ perfil: 'promotor', perfil_acesso: { cargo: 'vendedor' } })).toEqual([]);
     expect(codigo({ perfil: 'promotor' })).toEqual(['RN-PRO-01']);
   });
 });

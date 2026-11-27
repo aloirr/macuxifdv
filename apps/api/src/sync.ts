@@ -37,9 +37,7 @@
  */
 import { createHash } from 'node:crypto';
 import {
-  ACAO_VER_PEDIDO,
-  contextoDePermissao,
-  promotorNaRequisicao,
+  bloqueiaPedidoDoPromotor,
   CABECALHO_MODO_SYNC,
   CODIGO_USUARIO_SEM_FILIAL,
   MENSAGEM_USUARIO_SEM_FILIAL,
@@ -48,7 +46,6 @@ import {
   criarRegistroSync,
   decodificarCursor,
   decodificarCursorNovidades,
-  ehEntidadeDePedido,
   ErroHttpModulo,
   LIMITES_SYNC,
   MENSAGEM_ENVIO_INDISPONIVEL,
@@ -207,11 +204,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     }
     // RN-PRO-01 + O-3: o promotor só puxa pedido* se o manifesto lhe der a leitura (pedido.ver); o provedor filtra a carteira
     const u = ctx.usuario;
-    if (
-      promotorNaRequisicao(u) &&
-      ehEntidadeDePedido(q.data.entidade) &&
-      !p.permissoes.pode(ACAO_VER_PEDIDO, contextoDePermissao(u))
-    ) {
+    if (bloqueiaPedidoDoPromotor(p.permissoes, u)(q.data.entidade)) {
       throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
     }
     if (!prov?.puxar)
@@ -255,11 +248,11 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const { ctx, licencas, doModulo, restritoSemFilial } = await p.preparar(req, null, { semFilial: 'aceita' });
     if (!p.banco) semBanco();
     const u = ctx.usuario;
-    const verPedido = p.permissoes.pode(ACAO_VER_PEDIDO, contextoDePermissao(u));
+    const barraPedido = bloqueiaPedidoDoPromotor(p.permissoes, u);
     // as mesmas que o pull serviria: módulo efetivo, provedor com puxar e RN-PRO-01/O-3 para o promotor
     const elegiveis = [...provedores.values()]
       .filter((prov) => prov.puxar && u.modulos.includes(prov.entidade.modulo))
-      .filter((prov) => !(promotorNaRequisicao(u) && ehEntidadeDePedido(prov.entidade.nome) && !verPedido))
+      .filter((prov) => !barraPedido(prov.entidade.nome))
       .filter((prov) => !restritoSemFilial || prov.liberadoSemFilial === true)
       .sort((a, b) => a.entidade.nome.localeCompare(b.entidade.nome));
     const ate = (await p.banco.horizonteSync()).toISOString();
@@ -312,10 +305,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     if (!corpo.success)
       throw new ErroHttp(400, 'VALIDACAO', `Lote inválido (máx. 500 itens, id UUID do aparelho).`);
     // RN-PRO-01: no tenant em 'concessao', pelo cargo do perfil (ADR 0073 E6)
-    const { validos, rejeitados } = rejeitarItensInvalidos(corpo.data, registro, ctx.usuario.modulos, {
-      perfil: ctx.usuario.perfil,
-      ...(ctx.usuario.perfil_acesso ? { cargo: ctx.usuario.perfil_acesso.cargo } : {}),
-    });
+    const { validos, rejeitados } = rejeitarItensInvalidos(corpo.data, registro, ctx.usuario.modulos, ctx.usuario);
     const porId = new Map<string, ResultadoItemPush>(rejeitados.map((r) => [r.id, r]));
     // D-T0039a: processa na ORDEM DA FILA do aparelho; só itens CONSECUTIVOS do mesmo provedor viram um lote (run).
     // Ex.: [visita A, checkout A, visita B, resposta B, checkout B] = 5 runs, e a resposta de B chega antes do checkout de B.

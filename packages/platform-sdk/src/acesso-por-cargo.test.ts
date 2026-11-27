@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest';
 import type { UsuarioAcesso } from './acesso';
 import {
   autorizarRotaPeloCargo,
+  bloqueiaPedidoDoPromotor,
   camposPeloCargo,
   contextoDePermissao,
   diferencasEntreMotores,
   exigirPermissaoPeloCargo,
-  promotorNaRequisicao,
 } from './acesso-por-cargo';
 import { ErroHttpModulo } from './api';
 import { defineModule } from './manifesto';
@@ -21,6 +21,7 @@ import {
   modelosDePerfil,
   MODELOS_PERFIL,
   type PerfilDaRequisicaoV2,
+  promotorNaRequisicao,
   vetadaPeloCargo,
 } from './perfis-por-cargo';
 import {
@@ -217,6 +218,18 @@ describe('sync fora da rota de módulo (ADR 0073 E6)', () => {
     expect(promotorNaRequisicao({ ...usuario('vendedor'), perfil: 'promotor' })).toBe(false);
     expect(promotorNaRequisicao({ perfil: 'promotor' })).toBe(true);
     expect(promotorNaRequisicao({ perfil: 'vendedor' })).toBe(false);
+  });
+
+  it('bloqueiaPedidoDoPromotor: RN-PRO-01 + O-3 barra pedido* só do promotor sem pedido.ver; outras entidades passam', () => {
+    const promotor = usuario('promotor');
+    const { 'pedido.ver': _fora, ...semVer } = promotor.perfil_acesso!.permissoes;
+    const semPedido = { ...promotor, perfil_acesso: { ...promotor.perfil_acesso!, permissoes: semVer } };
+    const barra = bloqueiaPedidoDoPromotor(PERMISSOES, semPedido);
+    expect([barra('pedido'), barra('pedido_item'), barra('visita')]).toEqual([true, true, false]);
+    expect(bloqueiaPedidoDoPromotor(PERMISSOES, promotor)('pedido')).toBe(false); // com pedido.ver, puxa
+    expect(bloqueiaPedidoDoPromotor(PERMISSOES, { ...usuario('vendedor'), perfil: 'promotor' })('pedido')).toBe(false); // cargo decide
+    const { perfil_acesso: _p, ...doToken } = semPedido;
+    expect(bloqueiaPedidoDoPromotor(PERMISSOES, doToken)('pedido')).toBe(false); // motor antigo: o manifesto dá pedido.ver
   });
 
   it('contextoDePermissao: com perfil_acesso decide a concessão (pedido.ver desmarcado); sem ele, o perfil do token', () => {
