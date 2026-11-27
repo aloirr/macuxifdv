@@ -48,3 +48,15 @@ Só o dono do produto aprova a marca; este parecer diz se a implementação segu
 | MC-E5-02 | `packages/ui/src/web/tabela-permissoes.tsx:46` | cor | §3 (só token, nunca hex solto) | baixa — **lote seguinte**, não segura | `CORES_CAIXA` repete `#1E3350`, `#7A8593` e `#FFFFFF` em código de produção exportado só para o teste de contraste. Depois: ler os valores dos tokens `accent`, `field` e `on-accent` de uma fonte única (a mesma do `globals.css`) ou mover a constante para o próprio teste | `designer-ux` |
 
 Fora desta entrega: MA-01 e MA-02 da revisão geral (menu lateral), com o engenheiro-apps.
+
+## Head novo — `nuvem/v1040-modulo-core-perfis-2` @ `c8bf2083` (sobre o #853, `75a3813b`)
+
+Parecer: **VALIDADO** em `c8bf20834a25ccd6548662a964192a34cd6272e5`, pelo código.
+
+| Conferência | Resultado |
+|---|---|
+| `git diff 183638eb c8bf2083 -- modules/core/web packages/` | vazio: tela e kit idênticos ao `183638eb`, já validado (seções A e B) |
+| Commits novos | `46053bb1` (regra do promotor em `modules/core/api` e `domain`, banco e docs do banco) e `c8bf2083` (remoção do symlink de `node_modules`); nenhum SVG, PNG, CSS, token, PDF ou e-mail |
+| Prints do testes | `nuvem/v1040-testes-perfis` segue em `bba22456`, sem print que cite `c8bf2083`; reteste do cadeado e das cores no pixel fica para quando os prints saírem |
+
+Achados: MC-E5-01 segue fechado; MC-E5-02 segue no lote seguinte, com o `designer-ux`, e não segura.
