@@ -74,7 +74,7 @@ Rótulo × valor: "ligadas" conta as concessões gravadas. A tela não tem data,
 - `docs/testes/prints/v1040-perfis/perfis-vendedor-1366.png`
 - `docs/testes/prints/v1040-perfis/perfis-admin-1366.png`
 
-Como foram feitos: a API (`apps/api`, porta 8100) rodou sobre a base `macuxi_prints_v1040`, com as migrações do `main`, a 0109 da S19 e `seed demo`, e o tenant `demo` em `concessao`. O BKO rodou em `next dev`, pelo `/api-proxy`. O formulário de login recusa o código "demo" da base, que não tem UF nem 4 números. Por isso o script entra pelo `POST /auth/login` real e passa o token à sessão do navegador. Todas as leituras da tela vieram da API real.
+Como foram feitos: a API (`apps/api`, porta 8100) rodou sobre a base `macuxi_prints_v1040`, com as migrações do `main`, a 0109 da S19 e `seed demo`, e o tenant `demo` em `concessao`. O BKO rodou em `next dev`, pelo `/api-proxy`. O formulário de login recusa o código "demo" da base, que não tem UF nem 4 números. Por isso o script entra pelo `POST /auth/login` real e passa o token à sessão do navegador.
 
 ## Achados anteriores (A1 a A5)
 Continuam resolvidos no c8bf2083. Não há achado novo.
