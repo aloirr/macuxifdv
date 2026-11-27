@@ -334,18 +334,18 @@ jobs:
           \pset expanded off
           \endif
           \if :tem_cliente
-          \echo '--- cliente' :'cliente_eid' '(só ids, códigos e situação; sem nome nem documento)'
+          \echo '--- cliente' :'cliente_eid'
           \echo 'K1 cliente no FDV (sem linha = não existe nesta empresa)'
           select c.id, c.external_id,
-                 case when c.deleted_at is not null then 'excluído' when not c.ativo then 'inativo' else 'ativo' end as situacao,
-                 c.status_cadastro,
-                 to_char(c.updated_at at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as atualizado_manaus
+                 case when c.deleted_at is not null then 'excluído' when not c.ativo then 'inativo'
+                      when c.status_cadastro is distinct from 'aprovado' and c.status_cadastro is not null then c.status_cadastro
+                      else 'ativo' end as situacao
             from core.cliente c
            where c.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and c.external_id = :'cliente_eid'
            order by c.deleted_at nulls first, c.created_at
            limit 20;
           \echo 'K2 filial e tabela de preço do cliente vivo (tabela vazia = sem tabela: todo produto sem preço, RN-CAT-06;'
-          \echo '   itens_na_filial 0 = o preço sai da filial padrão, RN-CORE-39)'
+          \echo '   com tabela, itens_na_filial 0 = o preço sai da filial padrão, RN-CORE-39)'
           select f.codigo as filial, f.external_id as filial_external_id, f.padrao, f.ativo and f.deleted_at is null as filial_ativa,
                  t.codigo as tabela, t.external_id as tabela_external_id, t.ativo and t.deleted_at is null as tabela_ativa,
                  (select count(*) from catalogo.tabela_preco_item i
@@ -364,16 +364,15 @@ jobs:
             from integracao.registro_atual r
            where r.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and r.entidade = 'cliente'
              and r.external_id = :'cliente_eid';
-          \echo 'K4 recusas do Hub com este external_id (campo e código; sem a mensagem; em_aberto = ainda não resolvida)'
-          select l.entidade, e.origem, e.campo, e.codigo, e.reprocessavel, (e.resolvido_em is null) as em_aberto,
+          \echo 'K4 recusas do Hub com este external_id (em_aberto = ainda não resolvida)'
+          select l.entidade, e.campo, e.codigo, e.reprocessavel, (e.resolvido_em is null) as em_aberto,
                  count(*) as linhas,
-                 to_char(min(l.recebido_em) at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as primeiro_manaus,
                  to_char(max(l.recebido_em) at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as ultimo_manaus
             from integracao.lote_linha_erro e
             join integracao.lote l on l.tenant_id = e.tenant_id and l.id = e.lote_id and l.deleted_at is null
            where e.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and e.external_id = :'cliente_eid'
              and e.deleted_at is null
-           group by 1, 2, 3, 4, 5, 6
+           group by 1, 2, 3, 4, 5
            order by max(l.recebido_em) desc
            limit 50;
           \endif
