@@ -440,3 +440,4 @@
 - 2026-11-21 (Manaus) — v1.0.21: RN-CAT-22 no doc 03, T-0193 (filtro de veículo) e quadro com a v1.0.21 em andamento e o "Em aberto" atualizado.
 2026-11-26 — retomada pela sessão do Cline: estado da v1.0.37 no quadro (9 PRs dos perfis, 5 vermelhos por agente ambíguo, ordem de merge e ensaio 0105–0108 não disparado), T-0197 (catálogo vazio dentro do pedido) e T-0198 (Salvar sem itens) abertas a partir do R-20261125-215535 e do R-20261125-215618.
 2026-11-27 — fechamento de 26/11: v1.0.37 (19h48, APKs 20h08) e v1.0.38 (20h13) no ar; T-0197, T-0198 e T-0199 concluídas; pendências da v1.0.39 no quadro (R-20261127-001359-gerente-projetos).
+2026-11-27 — v1.0.39 no ar (02h15, APKs 02h38): parâmetros do pedido, core do pré-cadastro, diagnóstico por cliente e doc 03; pausa das 22h05 e retomada às 00h56 registradas nos recados.

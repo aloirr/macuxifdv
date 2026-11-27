@@ -2,6 +2,13 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **v1.0.39 no ar (27/11, gerente-projetos).** Horários de Manaus.
+> - Servidor às 02h15 (tag v1.0.39, bb9400ce; liberar 45948942882, publicar 45950110849); APKs Campo e Gestão 1.0.39 às 02h38 (android 45950683304, apk-publicar 45953054642).
+> - Entraram: #840 (db/testes), #843 (diagnóstico por um cliente, governança), #846 (core: rótulo e recusa do vendedor, corrida do mesmo id, "Carregando…"), #844 e #850 (doc 03), #845 (spec §7.5), #847 (vendedor: pedido mínimo, crédito excedido, estoque insuficiente), #848 (testes) e #849 (menu-bko.test).
+> - Decisões: R-20261126-212022-alexandre (PA-1 a PA-10 A), R-20261127-005556-alexandre (cliente sem limite do ERP sem restrição de crédito) e pedidos já em aprovação por crédito ficam como estão (escolha do PO pela recomendação, R-20261127-014631).
+> - Teste 003 (run 45951447175): o cliente não tem tabela de preço ligada; a ligação vem do ERP, sem defeito no FDV.
+> - Próximos: fotos do cliente (simulação em nuvem/v1039-designer-ux-fotos d5fa1e56; ~36 h com migração 0110); E5 e E6 dos perfis (0109); catálogo do corretor com RD-3721 e RD-3722 corrigidos; a11y do CampoFormulario (aria-describedby, rotuloOculto); oscilações desempenho-veiculo, vinculo-erp.db:197 e o par de deadlock portal-email-senha:277 × excluir_tenant. Limite de 7 dias da conta em alerta: menos paralelismo.
+
 > **Fechamento de 26/11 (gerente-projetos).** Horários de Manaus.
 > - **No ar: v1.0.38** (tag v1.0.38, 509a3530, 26/11 20h13, sem APK): #833 (core, campos obrigatórios), #835 (vendedor, dias de atraso e validade do orçamento), #836 (testes), #838 (web, teste do menu), #834 (promotor, teste) e #837 ([T-0199](tarefas/T-0199.md), cursor do sync em microssegundos).
 > - **v1.0.37** (tag v1.0.37, e6c4d75e, 26/11 19h48; APKs Campo e Gestão 1.0.37 às 20h08): #801 (0108, catálogo v2), #830 (E4) e #831 (E4b), com o motor novo desligado; ensaio 0105–0108 em produção verde (run 45908291907, ROLLBACK); [T-0197](tarefas/T-0197.md) e [T-0198](tarefas/T-0198.md). O liberar caiu uma vez numa corrida antiga do pré-cadastro e passou no rerun único autorizado (R-20261126-193016-alexandre). #807 e #808 fechados (refeitos no #830 e no #831).
