@@ -2,17 +2,17 @@
 
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MODELOS_PERFIL, type Cargo } from '@macuxi/platform-sdk';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Cargo } from '@macuxi/platform-sdk';
 import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
-import { CODIGO_REPETIDO, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, PerfilDetalheV2Schema, PerfilListaRespostaV2Schema, type CopiarDe } from '../../../contracts';
+import { CODIGO_REPETIDO, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, PerfilDetalheV2Schema, type CopiarDe, type ModeloDePerfilItem } from '../../../contracts';
 import { MENSAGEM_CARGO_OBRIGATORIO } from '../../../contracts/cargos';
 import { frasesDaRecusa } from '../../lib/perfis';
 import { PARAM_EDITAR_PERFIL } from '../../lib/parametros-url';
-import { CabecalhoDoPerfil, IdentificacaoDoPerfil } from './cabecalho-perfil';
-
-const CAMPO = 'h-[44px] w-full max-w-[420px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink';
+import { ehNaoMigrado, MENSAGEM_NAO_MIGRADO } from '../../lib/perfis-tabela';
+import { useModelosDePerfil, usePerfisV2 } from '../../lib/queries';
+import { CabecalhoDoPerfil, CAMPO, IdentificacaoDoPerfil } from './cabecalho-perfil';
 
 /**
  * "Novo perfil" (ADR 0073 §4.2): Nome e Cargo, e, se quiser, partir das permissões de outro perfil ou de um modelo (cópia feita uma vez, sem
@@ -31,12 +31,13 @@ export function NovoPerfil() {
   // o id nasce no aparelho: repetir o envio devolve o mesmo perfil (idempotente)
   const [id] = useState(() => crypto.randomUUID());
 
-  const lista = useQuery({ queryKey: ['core', 'perfis'], queryFn: async () => PerfilListaRespostaV2Schema.parse(await api('/core/perfis')).itens });
+  const lista = usePerfisV2();
+  const modelos = useModelosDePerfil();
   const voltar = () => router.push(pathname);
 
   const criar = useMutation({
     mutationFn: async () => {
-      const copiar_de: CopiarDe | undefined = origem.startsWith('perfil:') ? { perfil: origem.slice(7) } : origem.startsWith('modelo:') ? { modelo: origem.slice(7) as (typeof MODELOS_PERFIL)[number] } : undefined;
+      const copiar_de: CopiarDe | undefined = origem.startsWith('perfil:') ? { perfil: origem.slice(7) } : origem.startsWith('modelo:') ? { modelo: origem.slice(7) as ModeloDePerfilItem['modelo'] } : undefined;
       return PerfilDetalheV2Schema.parse(await api('/core/perfis', { method: 'POST', body: { id, nome: nome.trim(), cargo, ...(copiar_de ? { copiar_de } : {}) } }));
     },
     onSuccess: async (d) => {
@@ -45,7 +46,8 @@ export function NovoPerfil() {
       router.push(`${pathname}?${PARAM_EDITAR_PERFIL}=${encodeURIComponent(d.perfil.codigo)}`);
     },
     onError: (e) => {
-      if (e instanceof ApiRequestError && e.code === CODIGO_REPETIDO) setErro([MENSAGEM_PERFIL_REPETIDO]);
+      if (ehNaoMigrado(e)) setErro([MENSAGEM_NAO_MIGRADO]);
+      else if (e instanceof ApiRequestError && e.code === CODIGO_REPETIDO) setErro([MENSAGEM_PERFIL_REPETIDO]);
       else if (e instanceof ApiRequestError && e.status === 422) setErro(frasesDaRecusa(e.details, e.message));
       else setErro(['Não foi possível criar agora. Tente de novo.']);
     },
@@ -89,9 +91,9 @@ export function NovoPerfil() {
             ))}
           </optgroup>
           <optgroup label="Modelos">
-            {MODELOS_PERFIL.map((m) => (
-              <option key={m} value={`modelo:${m}`}>
-                {rotuloDoPerfil(m, { nome: m })}
+            {(modelos.data ?? []).map((m) => (
+              <option key={m.modelo} value={`modelo:${m.modelo}`}>
+                {rotuloDoPerfil(m.modelo, { nome: m.nome })}
               </option>
             ))}
           </optgroup>

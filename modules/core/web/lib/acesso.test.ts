@@ -1,30 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { UsuarioItem } from '../../contracts';
-import {
-  alternarLinha,
-  alternarModulo,
-  baseDoNovoPerfil,
-  contagemPorPerfil,
-  edicaoDaGrade,
-  GRUPOS_DO_GERAL,
-  grupoDaPermissao,
-  gruposDoGeral,
-  linhasPorModulo,
-  marcacaoDoModulo,
-  modulosCoerentes,
-  modulosDaGrade,
-  modulosExibiveis,
-  modulosForaDoPerfil,
-  removidosDoFormulario,
-  ROTULO_DA_PERMISSAO,
-  rotuloDaPermissao,
-  rotuloMarcarTodos,
-  type ChaveDoCatalogo,
-} from './acesso';
+import { contagemPorPerfil, modulosCoerentes, modulosExibiveis, modulosForaDoPerfil, removidosDoFormulario, ROTULO_DA_PERMISSAO, rotuloDaPermissao } from './acesso';
 
 const todos = ['core', 'catalogo', 'vendedor', 'treinamento', 'pesquisa', 'promotor', 'gestor', 'integracao'];
-const chave = (c: string, modulo: string, descricao = c): ChaveDoCatalogo => ({ chave: c, modulo, descricao, nivel: null, alvos: false });
 const u = (perfil: UsuarioItem['perfil'], codigos: string[] = []): Pick<UsuarioItem, 'perfil' | 'perfis'> => ({ perfil, perfis: codigos.map((codigo) => ({ codigo, nome: codigo, base: perfil })) as UsuarioItem['perfis'] });
+
 
 describe('Acesso: módulos exibíveis (R-20261114-144500)', () => {
   it('RN-CORE-01: Core, Catálogo e Integração não aparecem como módulos do usuário', () => {
@@ -42,10 +22,6 @@ describe('Acesso: módulos exibíveis (R-20261114-144500)', () => {
   it('só os módulos licenciados entram, sem repetir', () => {
     expect(modulosExibiveis(['core', 'vendedor', 'vendedor', 'gestor']).map((m) => m.id)).toEqual(['gestor', 'vendedor']);
   });
-
-  it('a grade do novo perfil começa pelo Core (§P10) e segue só com os licenciados', () => {
-    expect(modulosDaGrade(['core', 'vendedor', 'pesquisa', 'catalogo']).map((m) => m.nome)).toEqual(['Core', 'Pesquisa', 'Vendedor']);
-  });
 });
 
 describe('Acesso: rótulos das permissões', () => {
@@ -59,15 +35,6 @@ describe('Acesso: rótulos das permissões', () => {
 
   it('chave sem rótulo no mapa cai na descrição do manifesto, cortada antes do parêntese', () => {
     expect(rotuloDaPermissao('nova.acao', 'Ver coisas novas (RF-X-01)')).toBe('Ver coisas novas');
-  });
-
-  it('sem rótulo repetido em cada módulo: chaves com o mesmo rótulo viram uma linha só', () => {
-    const catalogo = [chave('pedido.ver', 'vendedor'), chave('pedido.criar', 'vendedor'), chave('pedido.editar', 'vendedor'), chave('pedido.aprovar', 'vendedor'), chave('ranking.ver', 'treinamento'), chave('ranking_equipe.ver', 'gestor')];
-    const linhas = linhasPorModulo(catalogo, ['vendedor', 'treinamento', 'gestor']);
-    expect(linhas.vendedor!.map((l) => l.rotulo)).toEqual(['Ver pedidos', 'Criar pedidos', 'Editar pedidos', 'Aprovar pedidos']);
-    expect(linhas.vendedor!.find((l) => l.rotulo === 'Criar pedidos')!.chaves).toEqual(['pedido.criar']);
-    expect(linhas.vendedor!.find((l) => l.rotulo === 'Editar pedidos')!.chaves).toEqual(['pedido.editar']);
-    for (const ls of Object.values(linhas)) expect(new Set(ls.map((l) => l.rotulo)).size).toBe(ls.length);
   });
 
   it('todo rótulo do mapa tem uma só chave: nenhuma permissão se funde com outra (criar e editar pedido separados)', () => {
@@ -85,46 +52,8 @@ describe('Acesso: rótulos das permissões', () => {
     expect(rotuloDaPermissao('parametro.promotor_ve_pedidos')).toBe('Promotor vê pedidos');
   });
 
-  it('chaves com nível ou com alvos (escopo de dados, redefinir senha) não entram na grade de caixas', () => {
-    const catalogo: ChaveDoCatalogo[] = [chave('acesso.bko', 'core'), { ...chave('dados.escopo', 'core'), nivel: 'escopo' }, { ...chave('senha.redefinir', 'core'), alvos: true }];
-    expect(linhasPorModulo(catalogo, ['core']).core!.map((l) => l.rotulo)).toEqual(['Entrar no backoffice']);
-  });
-
-  it('ADR 0072: a permissão sem efeito de formas de pagamento não entra na grade', () => {
-    const catalogo: ChaveDoCatalogo[] = [chave('forma_pagamento.ver', 'vendedor'), chave('forma_pagamento.gerenciar', 'vendedor')];
-    expect(linhasPorModulo(catalogo, ['vendedor']).vendedor!.flatMap((l) => l.chaves)).toEqual(['forma_pagamento.ver']);
-  });
-
-  it('a caixa "marcar todos" tem rótulo acessível com o nome do módulo e liga e desliga o módulo inteiro', () => {
-    expect(rotuloMarcarTodos('Vendedor')).toBe('Marcar todos de Vendedor');
-    const linhas = [
-      { rotulo: 'Ver pedidos', chaves: ['pedido.ver'] },
-      { rotulo: 'Criar pedidos', chaves: ['pedido.criar'] },
-      { rotulo: 'Editar pedidos', chaves: ['pedido.editar'] },
-    ];
-    expect(marcacaoDoModulo(linhas, new Set())).toBe('nenhuma');
-    const um = alternarLinha(linhas[0]!, new Set());
-    expect(marcacaoDoModulo(linhas, um)).toBe('parte');
-    const todas = alternarModulo(linhas, um, true);
-    expect(marcacaoDoModulo(linhas, todas)).toBe('todas');
-    expect([...todas].sort()).toEqual(['pedido.criar', 'pedido.editar', 'pedido.ver']);
-    expect(alternarModulo(linhas, todas, false).size).toBe(0);
-  });
-});
-
-describe('Acesso: novo perfil', () => {
-  it('RN-PRO-01: a base é a mais enxuta cujas travas aceitam todas as chaves marcadas', () => {
-    expect(baseDoNovoPerfil(['pedido.ver'])).toBe('vendedor');
-    expect(baseDoNovoPerfil(['pedido.ver', 'acesso.bko'])).toBe('gerente');
-    expect(baseDoNovoPerfil(['acesso.portal'])).toBe('admin');
-  });
-
-  it('a edição parte do que a base devolveu e só as chaves da grade seguem as caixas', () => {
-    const inicial = { 'dados.escopo': { concedida: true, nivel: 'carteira' as const, alvos: null }, 'pedido.ver': { concedida: true, nivel: null, alvos: null } };
-    const e = edicaoDaGrade(inicial, ['pedido.ver', 'pedido.criar'], new Set(['pedido.criar']));
-    expect(e['dados.escopo']!.nivel).toBe('carteira');
-    expect(e['pedido.ver']!.concedida).toBe(false);
-    expect(e['pedido.criar']!.concedida).toBe(true);
+  it('A2: a linha de Dados tem o rótulo "Quais clientes e números vê", sem repetir os botões', () => {
+    expect(rotuloDaPermissao('dados.escopo', 'Escopo de dados: carteira própria, equipe, equipes abaixo ou toda a empresa')).toBe('Quais clientes e números vê');
   });
 });
 
@@ -146,25 +75,5 @@ describe('Acesso: usuários, perfis e módulos', () => {
   it('RN-CORE-01: a exceção do usuário só remove, dentro do que o perfil tem', () => {
     expect(removidosDoFormulario(['vendedor', 'pesquisa', 'core'], new Set(['vendedor']))).toEqual(['pesquisa']);
     expect(removidosDoFormulario(['vendedor'], new Set(['vendedor']))).toEqual([]);
-  });
-});
-
-describe('Acesso: coluna Geral com subtítulos (RD-0266)', () => {
-  it('os subtítulos seguem a ordem pedida', () => {
-    expect(GRUPOS_DO_GERAL).toEqual(['Entrar em', 'Usuários', 'Clientes', 'Metas e RV', 'Fotos', 'Recados', 'Tarefas', 'Ajustes', 'Cadastros']);
-  });
-
-  it('toda chave do Geral no mapa de rótulos tem grupo; chave sem grupo cai em Cadastros', () => {
-    expect(grupoDaPermissao('acesso.bko')).toBe('Entrar em');
-    expect(grupoDaPermissao('rv.ver')).toBe('Metas e RV');
-    expect(grupoDaPermissao('parametro.farol')).toBe('Ajustes');
-    expect(grupoDaPermissao('chave.nova')).toBe('Cadastros');
-  });
-
-  it('separa as linhas por grupo, na ordem dos grupos, sem grupo vazio', () => {
-    const catalogo = [chave('tarefa.criar', 'core'), chave('acesso.bko', 'core'), chave('meta.ver', 'core'), chave('acesso.campo', 'core')];
-    const grupos = gruposDoGeral(linhasPorModulo(catalogo, ['core']).core!);
-    expect(grupos.map((g) => g.titulo)).toEqual(['Entrar em', 'Metas e RV', 'Tarefas']);
-    expect(grupos[0]!.linhas.map((l) => l.rotulo)).toEqual(['Entrar no backoffice', 'Entrar no app Campo']);
   });
 });

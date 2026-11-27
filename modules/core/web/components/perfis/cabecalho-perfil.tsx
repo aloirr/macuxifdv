@@ -4,7 +4,15 @@ import { IconLock } from '@macuxi/ui/web';
 import { ROTULO_CARGO } from '../../../contracts/cargos';
 import { ErroCampo } from '../campo';
 
-const CAMPO = 'h-[44px] w-full max-w-[420px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
+export const CAMPO = 'h-[44px] w-full max-w-[420px] rounded-xl border border-field bg-surface px-3 text-[15px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
+
+export function BotaoVoltar({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={onClick}>
+      ‹ Voltar
+    </button>
+  );
+}
 
 export const MOTIVO_CARGO_TRAVADO = 'Não muda enquanto houver usuários neste perfil.';
 

@@ -41,17 +41,17 @@ import { mesmosAlvos } from './perfis';
 
 /** Rótulo de cada área na tabela de permissões. */
 export const ROTULO_AREA: Readonly<Record<(typeof AREAS_PERMISSAO)[number], string>> = {
-  acesso: 'Acesso',
+  acesso: 'Onde entra',
   dados: 'Dados',
-  usuarios: 'Usuários',
+  usuarios: 'Usuários e perfis',
   clientes: 'Clientes',
   pedidos: 'Pedidos',
   catalogo: 'Catálogo',
-  trade: 'Trade marketing',
-  pesquisa: 'Pesquisas',
+  trade: 'Trade',
+  pesquisa: 'Pesquisa',
   treinamento: 'Treinamento',
-  metas: 'Metas',
-  gestao: 'Gestão',
+  metas: 'Metas e RV',
+  gestao: 'Gestão da equipe',
   integracao: 'Integração',
   administracao: 'Administração',
 };
