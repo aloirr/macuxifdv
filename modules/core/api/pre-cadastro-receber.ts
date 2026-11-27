@@ -178,6 +178,12 @@ async function criarPreCadastro(db: ClienteBanco, tx: TransacaoTenant, ctx: Cont
   }
   await exigirObrigatorios(db, c);
   const iguais = (await db.query<LinhaCliente & { id: string }>(`select id, ${SELECT_SITUACAO} from core.cliente where documento = $1 and deleted_at is null`, [c.documento])).rows;
+  // Escrita idempotente: o mesmo id gravado por um pedido simultâneo entre a leitura acima e esta é "já existia", nunca DOCUMENTO_JA_CADASTRADO.
+  const mesmoId = iguais.find((l) => l.id === c.id);
+  if (mesmoId) {
+    await exigirCarteiraOuAutoria(db, ctx, c.id);
+    return saida(c.id, mesmoId.status_cadastro, mesmoId.revisao_cadastro, true, mesmoId.codigo_fdv);
+  }
   const duplicado = decidirDocumentoDuplicado(iguais);
   if (duplicado.bloqueia) throw erroPreCadastro('DOCUMENTO_JA_CADASTRADO');
   const substituido = duplicado.substituir;

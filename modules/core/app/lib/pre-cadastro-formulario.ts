@@ -17,8 +17,12 @@ export type ValoresPreCadastro = Partial<Record<ColunaFormulario, string>>;
 /** Rótulos das colunas do endereço (o contrato só rotula o grupo "Endereço"); os mesmos no Campo, no BKO e no endereço do usuário. */
 export const ROTULOS_ENDERECO = { cep: 'CEP', logradouro: 'Logradouro', numero: 'Número', bairro: 'Bairro', cidade: 'Cidade', uf: 'UF' } as const;
 
+/** Campo do Código ERP de quem fez a primeira tentativa (cliente-cadastro.ts): não é coluna do formulário; a recusa dele aparece no campo "Vendedor". */
+export const CAMPO_VENDEDOR = 'vendedor_external_id';
+
 /** Rótulo de uma coluna ou do campo citado no erro (os do contrato e os do endereço); campo que o formulário não tem aparece com o nome que veio. */
 export function rotuloDoCampo(campo: string): string {
+  if (campo === CAMPO_VENDEDOR) return 'Vendedor';
   return ROTULOS_CAMPOS_PRE_CADASTRO[campo as CampoPreCadastro] ?? ROTULOS_ENDERECO[campo as keyof typeof ROTULOS_ENDERECO] ?? campo;
 }
 
@@ -61,6 +65,14 @@ export function errosDaRecusaPorColuna(erros: readonly Pick<ErroCampoCadastro, '
     if (EH_COLUNA.has(c)) r[c as ColunaFormulario] ??= e.mensagem;
   }
   return r;
+}
+
+/**
+ * RN-CORE-78: a recusa do ERP por `vendedor_external_id` (Código ERP de quem fez a primeira tentativa) não é coluna do formulário: nunca
+ * marca outra coluna; a mensagem sai por aqui, no campo "Vendedor" (`rotuloDoCampo`), junto do motivo e do histórico.
+ */
+export function erroDoVendedor(erros: readonly Pick<ErroCampoCadastro, 'campo' | 'mensagem'>[] | null | undefined): string | null {
+  return (erros ?? []).find((e) => e.campo.trim() === CAMPO_VENDEDOR)?.mensagem ?? null;
 }
 
 /** Primeira coluna com marca, na `ordem` da tela (padrão: a do Campo; o BKO passa a da grade); nula se nenhuma. */

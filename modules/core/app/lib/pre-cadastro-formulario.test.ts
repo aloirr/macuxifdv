@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CorrecaoPreCadastroSchema } from '../../contracts';
-import { colunaExigida, dadosDoFormulario, errosDaRecusaPorColuna, primeiraColunaMarcada, rotuloDoCampo, valoresDosDados } from './pre-cadastro-formulario';
+import { colunaExigida, dadosDoFormulario, erroDoVendedor, errosDaRecusaPorColuna, primeiraColunaMarcada, rotuloDoCampo, valoresDosDados } from './pre-cadastro-formulario';
 
 describe('formulário do pré-cadastro (RN-CORE-78, RN-CORE-79)', () => {
   it('RN-CORE-78: o erro por campo da recusa marca a coluna exata; o primeiro de cada coluna vale e campo fora do formulário fica de fora', () => {
@@ -12,6 +12,15 @@ describe('formulário do pré-cadastro (RN-CORE-78, RN-CORE-79)', () => {
     ];
     expect(errosDaRecusaPorColuna(erros)).toEqual({ numero: 'Número inválido', cep: 'CEP não existe' });
     expect(errosDaRecusaPorColuna(null)).toEqual({});
+  });
+
+  it('RN-CORE-78: a recusa por vendedor_external_id tem o rótulo "Vendedor", não marca coluna do formulário e sai por erroDoVendedor', () => {
+    const erros = [{ campo: ' vendedor_external_id ', mensagem: 'Vendedor não existe no ERP' }, { campo: 'cep', mensagem: 'CEP não existe' }];
+    expect(rotuloDoCampo('vendedor_external_id')).toBe('Vendedor');
+    expect(errosDaRecusaPorColuna(erros)).toEqual({ cep: 'CEP não existe' });
+    expect(erroDoVendedor(erros)).toBe('Vendedor não existe no ERP');
+    expect(erroDoVendedor([{ campo: 'cep', mensagem: 'x' }])).toBeNull();
+    expect(erroDoVendedor(null)).toBeNull();
   });
 
   it('RN-CORE-78: a primeira coluna marcada segue a ordem do formulário (CEP antes do Número)', () => {
