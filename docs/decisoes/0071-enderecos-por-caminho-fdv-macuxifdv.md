@@ -111,10 +111,10 @@ Fora do domínio, também não mudam:
    - **Bucket:** se o PUT assinado do ZIP estiver ligado (`MACUXI_ENVIO_URL_ASSINADA=1`, ADR 0058), o CORS do bucket precisa aceitar `https://fdv.macuxifdv.com.br` (ao lado de `bko.` até o corte). Desligado, como é o padrão, nada muda.
 8. **Links que o sistema gera: `MACUXI_HOSTS_ANTIGOS` (api e worker), padrão DESLIGADA desde a v1.0.42 (R-20261127-174854, decisão 39 A); ligada da v1.0.33 à v1.0.41.**
    - **Leitura** (`hostsAntigosLigados` em `apps/api/src/config.ts`, um lugar só): só `1`, `true` ou `sim` ligam os hosts antigos; ausente, vazia ou qualquer outro valor deixam os links no `fdv.`. Da v1.0.33 à v1.0.41 era o contrário: só `0`, `false`, `nao` ou `não` desligavam.
-   - **Ligada** (só com `1`/`true`/`sim`):
+   - **Ligada:**
      - botão do e-mail → `https://bko.macuxifdv.com.br`;
      - link do recado de diagnóstico → `https://config.macuxifdv.com.br/config/diagnosticos/<id>` (o `config.` reescreve para a rota do portal; já funciona hoje).
-   - **Desligada** (padrão desde a v1.0.42):
+   - **Desligada:**
      - botão do e-mail → `https://fdv.macuxifdv.com.br/bko`;
      - diagnóstico → base `https://fdv.macuxifdv.com.br`, link `<base>/config/diagnosticos/<id>`, agora o caminho de verdade.
    - **Variáveis explícitas por cima:** `MACUXI_EMAIL_URL_BKO` e `MACUXI_DIAGNOSTICOS_PORTAL_URL`, se definidas, valem sobre a `MACUXI_HOSTS_ANTIGOS`, ligada ou desligada.
