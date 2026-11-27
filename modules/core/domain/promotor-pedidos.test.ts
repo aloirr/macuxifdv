@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETRO_PROMOTOR_VE_PEDIDOS } from '../contracts';
 import { perfilPodeEscreverPedido, perfilRecebeHistoricoDeCompra, perfilPodeVerPedidos, promotorVePedidos, promotorVePedidosDasLinhas, requisicaoDePromotor, usuarioDaRequisicaoVePedidos } from './promotor-pedidos';
+import type { PerfilDaRequisicaoV2 } from '@macuxi/platform-sdk';
 
 const linha = (valor: unknown, extra: Record<string, unknown> = {}) => ({ modulo: 'core', chave: 'promotor_ve_pedidos', valor, ...extra });
 
@@ -60,7 +61,7 @@ describe('RN-PRO-01 / T-0077 D2: histórico de compras segue promotor_ve_pedidos
 });
 
 describe('RN-PRO-01 / ADR 0073 §2.4: quem lê pedidos na requisição (igual ao SDK promotorNaRequisicao)', () => {
-  const acesso = (cargo: string, chaves: string[]) => ({ cargo, permissoes: Object.fromEntries(chaves.map((c) => [c, {}])) });
+  const acesso = (cargo: string, chaves: string[]) => ({ cargo, permissoes: Object.fromEntries(chaves.map((c) => [c, {}])) }) as unknown as PerfilDaRequisicaoV2;
   it('RN-PRO-01: com perfil_acesso vale o cargo; sem ele, o perfil do token', () => {
     expect(requisicaoDePromotor({ perfil: 'vendedor', perfil_acesso: acesso('promotor', []) })).toBe(true);
     expect(requisicaoDePromotor({ perfil: 'promotor', perfil_acesso: acesso('vendedor', []) })).toBe(false);

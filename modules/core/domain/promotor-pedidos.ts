@@ -3,6 +3,7 @@
  * (Cliente 360 offline). Padrão LIGADO: sem registro, ou com valor inválido, o promotor continua vendo os pedidos da carteira.
  * A opção só controla a LEITURA; a escrita de pedido pelo promotor é sempre negada (RN-PRO-01).
  */
+import { podePeloCargo, type PerfilDaRequisicaoV2 } from '@macuxi/platform-sdk';
 import { promotorVePedidos, promotorVePedidosDasLinhas } from '../contracts/promotor-pedidos';
 
 // A resolução do valor mora em contracts (o Vendedor a importa de lá); o domain reexporta.
@@ -21,24 +22,28 @@ export function perfilRecebeHistoricoDeCompra(perfil: string, promotorVe: boolea
   return perfilPodeVerPedidos(perfil, promotorVe);
 }
 
-/** Parte de `ctx.usuario` que decide (mesma regra do SDK `promotorNaRequisicao`: com `perfil_acesso` vale o cargo do perfil; sem ele, o perfil do token). */
+/** Parte de `ctx.usuario` que decide. */
 export interface UsuarioDaRequisicaoPedidos {
   perfil?: string;
-  perfil_acesso?: { cargo: string; permissoes: Readonly<Record<string, unknown>> };
+  perfil_acesso?: PerfilDaRequisicaoV2;
 }
 
-/** RN-PRO-01: a requisição é de promotor? */
+/**
+ * RN-PRO-01: a requisição é de promotor? Com `perfil_acesso` vale o cargo do perfil; sem ele, o perfil do token.
+ * TODO(RD-3741): trocar pelo `promotorNaRequisicao` do `@macuxi/platform-sdk` quando o PR da API (nuvem/v1040-engenheiro-software-perfis) entrar no main.
+ */
 export function requisicaoDePromotor(u: UsuarioDaRequisicaoPedidos): boolean {
   return u.perfil_acesso ? u.perfil_acesso.cargo === 'promotor' : u.perfil === 'promotor'; // perfil-fixo-ok: motor antigo (tenant em 'legado'; sai na fase 2)
 }
 
 /**
- * ADR 0073 §2.4: o usuário lê pedidos? Só o promotor depende: com `perfil_acesso` (tenant em `concessao`) vale a chave `pedido.ver`;
- * sem ele (tenant em `legado`) vale o parâmetro `promotor_ve_pedidos`. Os demais seguem o escopo de carteira.
+ * ADR 0073 §2.4: o usuário lê pedidos? Só o promotor depende: com `perfil_acesso` (tenant em `concessao`) vale a chave `pedido.ver`
+ * pela regra do SDK (`podePeloCargo`, com a trava do cargo); sem ele (tenant em `legado`) vale o parâmetro `promotor_ve_pedidos`.
+ * Os demais seguem o escopo de carteira.
  */
 export function usuarioDaRequisicaoVePedidos(u: UsuarioDaRequisicaoPedidos, parametroLigado: boolean): boolean {
   if (!requisicaoDePromotor(u)) return true;
-  return u.perfil_acesso ? 'pedido.ver' in u.perfil_acesso.permissoes : parametroLigado;
+  return u.perfil_acesso ? podePeloCargo(u.perfil_acesso, 'pedido.ver') : parametroLigado;
 }
 
 /** RN-PRO-01: promotor nunca cria, edita, cancela, duplica nem exclui pedido, independente da opção. */
