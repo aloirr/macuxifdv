@@ -112,8 +112,4 @@ describe('RN-VEN-12 (P-6, v1.0.39): a ação do tenant muda o que o app faz com 
     expect(prepararPedido({ ...base, financeiro: fin({ disponivel_cents: 0, acao: 'aprovacao' }) }).v.outcome).toBe('pending_approval');
     expect(prepararPedido({ ...base, financeiro: fin({ disponivel_cents: 0, maior_atraso_dias: 12, acao: 'avisar' }) }).v.issues.map((i) => i.code)).toEqual(['overdue_receivables']);
   });
-  it('RN-VEN-12: financeiroParaAprovacao leva a ação do tenant (padrão aprovacao)', () => {
-    expect(financeiroParaAprovacao({ tipo: 'vazio' }, 28, 5)).toMatchObject({ acao: 'aprovacao' });
-    expect(financeiroParaAprovacao({ tipo: 'vazio' }, 28, 5, 'orcamento')).toMatchObject({ acao: 'orcamento' });
-  });
 });

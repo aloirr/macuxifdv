@@ -117,7 +117,7 @@ describe('revalidarPedido: crédito e inadimplência (RN-VEN-12, RN-VEN-13, T-01
   });
   it('RN-VEN-10, RN-VEN-12 e RN-VEN-13 (P3 B): desconto, crédito e inadimplência juntos abrem três aprovações e o nível do pedido é o maior', () => {
     const r = revalidarPedido(
-      entrada({ desconto_pct: 8, prazo_medio_dias: 28, financeiro: { ...vencido, disponivel_cents: 0 }, niveis_financeiros: { credito: 'gerente', inadimplencia: 'analista' } }),
+      entrada({ desconto_pct: 8, prazo_medio_dias: 28, financeiro: { ...vencido, disponivel_cents: 0 }, parametros: { 'aprovacao.inadimplencia_nivel': 'analista' } }),
     );
     expect(r).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'analista', motivos: ['desconto', 'credito', 'inadimplencia'] });
     expect(r.ok && r.aprovacoes.map((a) => [a.motivo, a.nivel])).toEqual([['desconto', 'supervisor'], ['credito', 'gerente'], ['inadimplencia', 'analista']]);

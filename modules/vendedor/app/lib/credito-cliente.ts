@@ -5,7 +5,6 @@
  */
 import { creditoDisponivel } from '../../contracts/credito-disponivel';
 import { limiteInformadoPeloErp } from '../../domain/credito-pedido';
-import type { AcaoCreditoExcedido } from '../../domain/parametros-pedidos';
 
 /** Subconjunto estrutural de `FinanceiroClienteSaida['financeiro']` (o Vendedor não importa o domain do Core). */
 export interface FinanceiroDaConsulta {
@@ -57,8 +56,8 @@ export function modeloDoCredito(f: FinanceiroDaConsulta | null, pedidos: readonl
  * respondeu (`modelo` nulo ou ainda carregando): o app não decide. Sem linha financeira (`vazio`), o limite não foi informado (P4 A).
  * `acao` é o `credito_excedido_acao` do tenant (P-6): só `aprovacao` manda o crédito excedido para aprovação.
  */
-export function financeiroParaAprovacao(modelo: ModeloDoCredito | null | undefined, prazo_medio_dias: number | undefined, limite_dias: number, acao: AcaoCreditoExcedido = 'aprovacao') {
+export function financeiroParaAprovacao(modelo: ModeloDoCredito | null | undefined, prazo_medio_dias: number | undefined, limite_dias: number) {
   if (!modelo) return null;
-  if (modelo.tipo === 'vazio') return { prazo_medio_dias, limite_informado: false, disponivel_cents: 0, maior_atraso_dias: 0, limite_dias, acao };
-  return { prazo_medio_dias, limite_informado: modelo.limite_informado, disponivel_cents: modelo.disponivel_cents, maior_atraso_dias: modelo.alerta?.dias ?? 0, limite_dias, acao };
+  if (modelo.tipo === 'vazio') return { prazo_medio_dias, limite_informado: false, disponivel_cents: 0, maior_atraso_dias: 0, limite_dias };
+  return { prazo_medio_dias, limite_informado: modelo.limite_informado, disponivel_cents: modelo.disponivel_cents, maior_atraso_dias: modelo.alerta?.dias ?? 0, limite_dias };
 }

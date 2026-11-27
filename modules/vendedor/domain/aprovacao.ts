@@ -6,8 +6,9 @@ import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus
 import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
 import { decisorEhAutor, MSG_APROVACAO_DO_PROPRIO_PEDIDO } from './pedido-em-nome';
-import { aprovacoesFinanceiras, type FinanceiroParaAprovacao } from './credito-pedido';
-import type { AcaoCreditoExcedido, AcaoEstoqueInsuficiente } from './parametros-pedidos';
+import { aprovacoesFinanceiras, soOrcamentoPorCredito, type FinanceiroParaAprovacao } from './credito-pedido';
+import { acaoCreditoExcedido, acaoEstoqueInsuficiente, pedidoMinimoCents, type AcaoEstoqueInsuficiente } from './parametros-pedidos';
+import { abaixoDoPedidoMinimo } from './pedido-minimo';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
 import { CODIGO_DESCONTO_PEDIDO_ACIMA_LIMITE, limiteDoUsuario, mensagemPedidoAcimaDoLimite, minimoDoItem, pedidoAcimaDoLimite } from './limite-desconto';
@@ -68,22 +69,58 @@ export function situacaoDoEnvio(i: { existente: { dono_id: string; status: strin
   return e.status === 'rejected' ? 'reenvio' : 'conflito';
 }
 
-/** RN-VEN-12 e RN-VEN-13 (P2 B, P5 B): quem aprova crédito e inadimplência; padrão `gerente`, também com o parâmetro ausente ou inválido. */
-export function niveisDosParametros(p: Readonly<Record<string, unknown>>): { credito: NivelAprovacao; inadimplencia: NivelAprovacao } {
+/** RN-VEN-12, RN-VEN-13 e RN-VEN-20 (P2 B, P5 B, PA-10): quem aprova crédito, inadimplência e estoque; padrão `gerente`, também com o parâmetro ausente ou inválido. */
+export function niveisDosParametros(p: Readonly<Record<string, unknown>>): { credito: NivelAprovacao; inadimplencia: NivelAprovacao; estoque: NivelAprovacao } {
   const nivel = (v: unknown): NivelAprovacao => ((NIVEIS_APROVACAO as readonly unknown[]).includes(v) ? (v as NivelAprovacao) : 'gerente');
-  return { credito: nivel(p['aprovacao.credito_nivel']), inadimplencia: nivel(p['aprovacao.inadimplencia_nivel']) };
-}
-
-/** RN-VEN-20 (PA-10): quem aprova o estoque insuficiente (`aprovacao.estoque_nivel`, Alçadas); padrão `gerente`, também com o parâmetro ausente ou inválido. */
-export function nivelDoEstoque(p: Readonly<Record<string, unknown>>): NivelAprovacao {
-  const v = p['aprovacao.estoque_nivel'];
-  return (NIVEIS_APROVACAO as readonly unknown[]).includes(v) ? (v as NivelAprovacao) : 'gerente';
+  return { credito: nivel(p['aprovacao.credito_nivel']), inadimplencia: nivel(p['aprovacao.inadimplencia_nivel']), estoque: nivel(p['aprovacao.estoque_nivel']) };
 }
 
 /** RN-VEN-20 (PA-10): com a ação `aprovacao` e item acima do estoque da filial, uma aprovação do motivo `estoque` (P3 B: uma por motivo). */
 export function aprovacoesDeEstoque(i: { falta: boolean; acao: AcaoEstoqueInsuficiente; nivel: NivelAprovacao }): AprovacaoNova[] {
   if (!i.falta || i.acao !== 'aprovacao') return [];
   return [{ motivo: 'estoque', nivel: i.nivel, texto: `Item acima do estoque da filial: aguardando ${i.nivel}` }];
+}
+
+export interface EfeitosDosParametrosDoPedido {
+  /** aprovações financeiras (crédito, inadimplência) e de estoque, uma por motivo, no nível de Alçadas */
+  aprovacoes: AprovacaoNova[];
+  /** RN-VEN-20: item sem estoque com a ação `orcamento`: o pedido só sai como orçamento */
+  itens_sem_estoque_bloqueiam: boolean;
+  /** RN-VEN-22: o pedido mínimo quando o total está abaixo dele; 0 = não está (ou orçamento) */
+  abaixo_do_minimo_cents: number;
+  /** RN-VEN-12: crédito excedido com a ação `orcamento` */
+  credito_so_orcamento: boolean;
+}
+
+/**
+ * RN-VEN-12, RN-VEN-20 e RN-VEN-22 (v1.0.39): o que os parâmetros de Parâmetros › Pedidos mandam fazer com este pedido. Uma regra só,
+ * para o aparelho, o envio da fila e a API (que sempre revalida). `financeiro` ausente = consulta indisponível (não bloqueia).
+ * `tipo` orçamento: sem aprovação de estoque e sem pedido mínimo (orçamento nunca é barrado); os bloqueios de crédito e estoque
+ * seguem valendo para o "Converter em pedido".
+ */
+export function efeitosDosParametrosDoPedido(i: {
+  parametros: Readonly<Record<string, unknown>>;
+  tipo: 'pedido' | 'orcamento';
+  total_cents: number;
+  prazo_medio_dias: number | undefined;
+  falta_estoque: boolean;
+  financeiro: FinanceiroParaAprovacao | null | undefined;
+}): EfeitosDosParametrosDoPedido {
+  const niveis = niveisDosParametros(i.parametros);
+  const acaoCredito = acaoCreditoExcedido(i.parametros);
+  const acaoEstoque = acaoEstoqueInsuficiente(i.parametros);
+  const f = i.financeiro ?? undefined;
+  const credito = { prazo_medio_dias: i.prazo_medio_dias, total_cents: i.total_cents, limite_informado: f?.limite_informado ?? false, disponivel_cents: f?.disponivel_cents ?? 0, acao: acaoCredito };
+  const minimo = pedidoMinimoCents(i.parametros);
+  return {
+    aprovacoes: [
+      ...aprovacoesFinanceiras({ prazo_medio_dias: i.prazo_medio_dias, total_cents: i.total_cents, financeiro: f, niveis, acao_credito: acaoCredito }),
+      ...(i.tipo === 'pedido' ? aprovacoesDeEstoque({ falta: i.falta_estoque, acao: acaoEstoque, nivel: niveis.estoque }) : []),
+    ],
+    itens_sem_estoque_bloqueiam: i.falta_estoque && acaoEstoque === 'orcamento',
+    abaixo_do_minimo_cents: i.tipo === 'pedido' && abaixoDoPedidoMinimo({ total_cents: i.total_cents, minimo_cents: minimo }) ? minimo : 0,
+    credito_so_orcamento: f !== undefined && soOrcamentoPorCredito(credito),
+  };
 }
 
 /** Vocabulário do doc 03 (RN-VEN-30) usado nos eventos e pelo Gestor/Integração. */
@@ -343,12 +380,10 @@ export interface RevalidarEntrada {
    */
   financeiro?: FinanceiroParaAprovacao;
   prazo_medio_dias?: number;
-  /** P2 B / P5 B: nível de cada aprovação financeira (`niveisDosParametros`); ausente = gerente */
-  niveis_financeiros?: { credito: NivelAprovacao; inadimplencia: NivelAprovacao };
-  /** RN-VEN-12 (P-6): `credito_excedido_acao` do tenant; ausente = `aprovacao` */
-  acao_credito?: AcaoCreditoExcedido;
-  /** RN-VEN-20 (PA-10): presente só quando há item acima do estoque da filial e a ação do tenant é `aprovacao`; o nível vem de `nivelDoEstoque` */
-  estoque_insuficiente?: { nivel: NivelAprovacao };
+  /** RN-VEN-12, RN-VEN-20 e RN-VEN-22: os parâmetros do tenant (ação do crédito e do estoque, níveis de Alçadas, pedido mínimo); ausente = padrões */
+  parametros?: Readonly<Record<string, unknown>>;
+  /** RN-VEN-20: algum item acima do estoque da filial; o domain decide pela ação do tenant */
+  falta_estoque?: boolean;
   /** RN-VEN-45: o percentual do push difere do vigente (cadastro mudou depois da data declarada pelo aparelho): aviso na linha do tempo, fora da alçada. */
   percentual_mudou?: boolean;
   /** T-0187 (P4 A, RN-GES-04): perfil do autor no pedido em nome; o motivo que cairia no nível dele sobe um nível. Ausente = pedido do próprio vendedor. */
@@ -384,6 +419,8 @@ export interface ItemRevalidado {
 export type RevalidarResultado =
   | ({
       ok: true;
+      /** RN-VEN-12/20/22: o que os parâmetros do tenant mandam fazer com o pedido (a API recusa por eles) */
+      efeitos: EfeitosDosParametrosDoPedido;
       itens: ItemRevalidado[];
       total_tabela_cents: number;
       total_cents: number;
@@ -518,14 +555,13 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (!r0.aceito) return { ok: false, codigo: r0.codigo, http: r0.http, mensagem: r0.mensagem };
   const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
-  const comFinanceiro = comAprovacoesFinanceiras(resto0, [
-    ...aprovacoesFinanceiras({ prazo_medio_dias: e.prazo_medio_dias, total_cents: totais.total_cents, financeiro: e.financeiro, niveis: e.niveis_financeiros ?? { credito: 'gerente', inadimplencia: 'gerente' }, ...(e.acao_credito ? { acao_credito: e.acao_credito } : {}) }),
-    ...aprovacoesDeEstoque({ falta: e.estoque_insuficiente !== undefined, acao: 'aprovacao', nivel: e.estoque_insuficiente?.nivel ?? 'gerente' }),
-  ]);
+  const efeitos = efeitosDosParametrosDoPedido({ parametros: e.parametros ?? {}, tipo: e.tipo === 'orcamento' ? 'orcamento' : 'pedido', total_cents: totais.total_cents, prazo_medio_dias: e.prazo_medio_dias, falta_estoque: e.falta_estoque ?? false, financeiro: e.financeiro });
+  const comFinanceiro = comAprovacoesFinanceiras(resto0, efeitos.aprovacoes);
   const elevado = e.autor_perfil ? comNivelDoAutor(comFinanceiro, e.autor_perfil) : comFinanceiro;
   const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(elevado) : elevado;
   return {
     ok: true,
+    efeitos,
     ...resto,
     desconto_pct: emValorPedido ? pctDe(totais.desconto_cents, totais.total_itens_cents) : pct2(e.desconto_pct),
     acrescimo_pct: emValorPedido ? pctDe(totais.acrescimo_cents, totais.total_itens_cents) : pct2(acrescimoPedido),

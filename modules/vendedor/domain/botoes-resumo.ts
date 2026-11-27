@@ -8,7 +8,8 @@
  * desliga só sem item (T-0198); os motivos de "só orçamento" por item (RN-VEN-11, RN-VEN-11a, RN-VEN-20) desligam enviar ou transformar.
  */
 import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
-import { mensagemPedidoMinimo } from './pedido-minimo';
+import { mensagemCreditoSoOrcamento } from './credito-pedido';
+import { mensagemPedidoMinimo, mensagemPedidoMinimoCurta } from './pedido-minimo';
 import { mensagemAcimaDoMaximo, type NivelDePreco } from './preco-pedido';
 
 /** RN-VEN-38 (RD-0036): os rótulos da edição de pedido e de orçamento, num mapa só (botões do Resumo, folha de saída e detalhe). */
@@ -64,8 +65,8 @@ export function motivoDoItemSoOrcamento(e: ItensSoOrcamento, pre_venda_ligada = 
   if (e.acima_do_limite === true) return `Pedido acima do desconto máximo. ${fim('Ajuste o item para enviar.')}`;
   const semEstoque = e.itens_sem_estoque ?? [];
   if (semEstoque.length > 0) return `${semEstoque.join(', ')} sem estoque. ${fim('Retire o item para enviar.')}`;
-  if ((e.abaixo_do_minimo_cents ?? 0) > 0) return mensagemPedidoMinimo(e.abaixo_do_minimo_cents!);
-  if (e.credito_so_orcamento === true) return pre_venda_ligada ? 'Limite de crédito excedido. Salve como orçamento.' : 'Limite de crédito excedido. Reduza o pedido ou mude o prazo para enviar.';
+  if ((e.abaixo_do_minimo_cents ?? 0) > 0) return pre_venda_ligada ? mensagemPedidoMinimo(e.abaixo_do_minimo_cents!) : `${mensagemPedidoMinimoCurta(e.abaixo_do_minimo_cents!)}. Aumente o pedido para enviar.`;
+  if (e.credito_so_orcamento === true) return mensagemCreditoSoOrcamento(pre_venda_ligada);
   return null;
 }
 

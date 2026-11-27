@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MSG_PEDIDO_MINIMO_CENTS,
+  MSG_PEDIDO_MINIMO_CENTS_API,
   acaoCreditoExcedido,
   acaoEstoqueInsuficiente,
   pedidoMinimoCents,
@@ -44,7 +44,7 @@ describe('RN-VEN-22: pedido_minimo_cents', () => {
   it('RN-VEN-22: aceita 0 (sem mínimo) e inteiro até R$ 100.000,00; recusa o resto citando a regra', () => {
     for (const v of [0, 1, 150000, 10_000_000]) expect(validarPedidoMinimoCents(v)).toEqual({ ok: true, valor: v });
     for (const v of [-1, 10_000_001, 1.5, '1500', null, undefined, Number.NaN]) expect(validarPedidoMinimoCents(v)).toMatchObject({ ok: false, codigo: 'RN-VEN-22' });
-    expect(validarPedidoMinimoCents(-1)).toMatchObject({ mensagem: MSG_PEDIDO_MINIMO_CENTS });
+    expect(validarPedidoMinimoCents(-1)).toMatchObject({ mensagem: MSG_PEDIDO_MINIMO_CENTS_API });
   });
   it('RN-VEN-22: sem linha vale o padrão 0; valor inválido também cai em 0', () => {
     expect(pedidoMinimoCents({})).toBe(0);

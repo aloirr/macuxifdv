@@ -7,6 +7,7 @@
  *    informado pelo ERP, a prazo, vai (P4 A).
  *  - RN-VEN-13: título vencido há mais que o limite vai para aprovação com o motivo `inadimplencia`, também à vista (P1 A).
  */
+import { formatBRL } from '@macuxi/comum';
 import type { AprovacaoNova, NivelAprovacao } from './aprovacao';
 import type { AcaoCreditoExcedido } from './parametros-pedidos';
 
@@ -39,6 +40,11 @@ export function exigeAprovacaoPorCredito(i: EntradaCreditoPedido): boolean {
   return (i.acao ?? 'aprovacao') === 'aprovacao' && creditoExcedido(i);
 }
 
+/** RN-VEN-12: o motivo do crédito só orçamento (a recusa do servidor e o motivo do app); sem pré-venda não há orçamento, a saída é reduzir o pedido ou mudar o prazo. */
+export function mensagemCreditoSoOrcamento(pre_venda_ligada: boolean): string {
+  return pre_venda_ligada ? 'Limite de crédito excedido. Salve como orçamento.' : 'Limite de crédito excedido. Reduza o pedido ou mude o prazo para enviar.';
+}
+
 /** RN-VEN-12: com a ação `orcamento`, o pedido a prazo com crédito excedido só sai como orçamento (o servidor recusa o envio). */
 export function soOrcamentoPorCredito(i: EntradaCreditoPedido): boolean {
   return i.acao === 'orcamento' && creditoExcedido(i);
@@ -58,8 +64,6 @@ export function disponivelParaAlerta(i: Pick<EntradaCreditoPedido, 'prazo_medio_
   if (aVista(i.prazo_medio_dias)) return null;
   return i.limite_informado ? i.disponivel_cents : 0;
 }
-
-const reais = (c: number): string => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /** O que o servidor sabe do financeiro do cliente ao receber o pedido. `undefined` = consulta indisponível (não bloqueia, RN-VEN-13). */
 export interface FinanceiroParaAprovacao {
@@ -86,7 +90,7 @@ export function aprovacoesFinanceiras(i: {
   const saida: AprovacaoNova[] = [];
   if (exigeAprovacaoPorCredito({ prazo_medio_dias: i.prazo_medio_dias, total_cents: i.total_cents, limite_informado: f.limite_informado, disponivel_cents: f.disponivel_cents, ...(i.acao_credito ? { acao: i.acao_credito } : {}) })) {
     const texto = f.limite_informado
-      ? `Total de ${reais(i.total_cents)} acima do crédito disponível de ${reais(Math.max(0, f.disponivel_cents))}: aguardando ${i.niveis.credito}`
+      ? `Total de ${formatBRL(i.total_cents)} acima do crédito disponível de ${formatBRL(Math.max(0, f.disponivel_cents))}: aguardando ${i.niveis.credito}`
       : `Cliente sem limite de crédito informado pelo ERP: aguardando ${i.niveis.credito}`;
     saida.push({ motivo: 'credito', nivel: i.niveis.credito, texto });
   }
