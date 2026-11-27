@@ -176,10 +176,8 @@ export function LinhaPermissao({ id, rotulo, marcada, onAlternar, descricao, tra
 
 /* ---------- grupo ---------- */
 
-export interface LinhaDaTabela extends Omit<PropsLinhaPermissao, 'onAlternar' | 'semLicenca'> {
-  /** Para a contagem e a caixa do grupo. */
-  travada?: boolean;
-}
+/** Linha de um grupo: a trava vai só em `trava` (cadeado e, para a contagem e a caixa do grupo, a linha travada). */
+export type LinhaDaTabela = Omit<PropsLinhaPermissao, 'onAlternar' | 'semLicenca'>;
 
 export interface GrupoDaTabela {
   id: string;
@@ -328,7 +326,7 @@ export function TabelaPermissoes({
       ) : (
         <div className="overflow-hidden rounded-[12px] border border-line bg-surface">
           {grupos.map((g) => {
-            const linhas = g.linhas.map((l) => ({ id: l.id, marcada: l.marcada, travada: l.travada ?? !!l.trava, semLicenca: !!g.semLicenca }));
+            const linhas = g.linhas.map((l) => ({ id: l.id, marcada: l.marcada, travada: !!l.trava, semLicenca: !!g.semLicenca }));
             return (
               <GrupoPermissoes
                 key={g.id}
