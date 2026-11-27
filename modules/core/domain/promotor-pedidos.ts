@@ -21,6 +21,26 @@ export function perfilRecebeHistoricoDeCompra(perfil: string, promotorVe: boolea
   return perfilPodeVerPedidos(perfil, promotorVe);
 }
 
+/** Parte de `ctx.usuario` que decide (mesma regra do SDK `promotorNaRequisicao`: com `perfil_acesso` vale o cargo do perfil; sem ele, o perfil do token). */
+export interface UsuarioDaRequisicaoPedidos {
+  perfil?: string;
+  perfil_acesso?: { cargo: string; permissoes: Readonly<Record<string, unknown>> };
+}
+
+/** RN-PRO-01: a requisição é de promotor? */
+export function requisicaoDePromotor(u: UsuarioDaRequisicaoPedidos): boolean {
+  return u.perfil_acesso ? u.perfil_acesso.cargo === 'promotor' : u.perfil === 'promotor'; // perfil-fixo-ok: motor antigo (tenant em 'legado'; sai na fase 2)
+}
+
+/**
+ * ADR 0073 §2.4: o usuário lê pedidos? Só o promotor depende: com `perfil_acesso` (tenant em `concessao`) vale a chave `pedido.ver`;
+ * sem ele (tenant em `legado`) vale o parâmetro `promotor_ve_pedidos`. Os demais seguem o escopo de carteira.
+ */
+export function usuarioDaRequisicaoVePedidos(u: UsuarioDaRequisicaoPedidos, parametroLigado: boolean): boolean {
+  if (!requisicaoDePromotor(u)) return true;
+  return u.perfil_acesso ? 'pedido.ver' in u.perfil_acesso.permissoes : parametroLigado;
+}
+
 /** RN-PRO-01: promotor nunca cria, edita, cancela, duplica nem exclui pedido, independente da opção. */
 export function perfilPodeEscreverPedido(perfil: string): boolean {
   return perfil !== 'promotor';

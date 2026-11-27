@@ -41,6 +41,7 @@ import {
   CriarPerfilRequestV2Schema,
   EditarPerfilRequestV2Schema,
   MENSAGEM_PERFIL_REPETIDO,
+  MENSAGEM_PERFIS_NAO_MIGRADOS,
   ModelosDePerfilRespostaSchema,
   PerfilDetalheV2Schema,
   PerfilHistoricoQuerySchema,
@@ -101,13 +102,13 @@ const semTela = (catalogo: readonly DefinicaoChave[]) => catalogo.filter((d) => 
 const catalogoDoMotor = (ctx: ContextoBase): readonly DefinicaoChave[] => ctx.permissoes?.catalogo ?? [];
 
 /** Módulos licenciados no tenant (RN-CORE-02); o Core é sempre licenciado. */
-async function licencasDoTenant(db: ClienteBanco): Promise<Set<ModuloId>> {
+export async function licencasDoTenant(db: ClienteBanco): Promise<Set<ModuloId>> {
   const r = await db.query<{ modulo: ModuloId }>('select modulo from plataforma.tenant_modulo where ativo and deleted_at is null');
   return new Set<ModuloId>(['core', ...r.rows.map((x) => x.modulo)]);
 }
 
 /** Perfis vivos com as concessões e os usuários com o seu perfil. `travar` = `for update` nos perfis (escrita). */
-async function carregar(db: ClienteBanco, travar: boolean): Promise<Estado> {
+export async function carregarEstadoV2(db: ClienteBanco, travar: boolean): Promise<Estado> {
   const lock = travar ? ' for update' : '';
   // RN-CORE-35: escritas de perfil se serializam por tenant ANTES de ler; assim a checagem de nome/código vê o que a outra transação gravou
   if (travar) await db.query("select pg_advisory_xact_lock(hashtextextended('perfis:' || plataforma.tenant_atual()::text, 0))");
@@ -154,14 +155,16 @@ async function carregarModelos(db: ClienteBanco): Promise<ModelosDePerfil> {
   return m as unknown as ModelosDePerfil;
 }
 
-/**
- * A escrita grava `perfil_concessao`, que só vale quando o tenant a lê (`concessao`, 0109). Em `legado` (migração parada por conflito
- * ou tenant ainda não ligado) a leitura segue o acesso de hoje e a gravação não teria efeito: recusa.
- */
-async function exigirTenantMigrado(db: ClienteBanco): Promise<void> {
+/** O tenant lê os perfis pelas concessões (0109)? Em `legado` (migração parada por conflito ou tenant ainda não ligado) lê o acesso de hoje. */
+export async function tenantEmConcessao(db: ClienteBanco): Promise<boolean> {
   const r = await db.query<{ ok: boolean }>("select plataforma.leitura_de_perfis(plataforma.tenant_atual()) = 'concessao' as ok");
-  if (!r.rows[0]?.ok)
-    throw new ErroRegraNegocio(CODIGOS_ERRO_PERFIL_V2.naoMigrado, 'Os perfis desta empresa ainda estão em migração e não podem ser alterados agora. Fale com o suporte e tente de novo.', { regra: 'RN-CORE-35' });
+  return r.rows[0]?.ok === true;
+}
+
+/** A escrita grava `perfil_concessao`, que só vale em `concessao`: em `legado` não teria efeito, então recusa. */
+async function exigirTenantMigrado(db: ClienteBanco): Promise<void> {
+  if (!(await tenantEmConcessao(db)))
+    throw new ErroRegraNegocio(CODIGOS_ERRO_PERFIL_V2.naoMigrado, MENSAGEM_PERFIS_NAO_MIGRADOS, { regra: 'RN-CORE-35' });
 }
 
 /** O perfil (código) de quem está logado; `null` fora do tenant (super-admin). */
@@ -183,7 +186,7 @@ function recusar(violacoes: readonly ViolacaoLimite[], perfil: string | null): n
 }
 
 /** `validarAcessoPeloCargo` sobre o estado depois da escrita; só segura o que a escrita traz de novo (ver `violacoesNovas`). */
-function conferir(ctx: ContextoBase, antes: Estado, depois: Pick<Estado, 'perfis' | 'usuarios'>, licencas: ReadonlySet<ModuloId>, perfilEscrito: string | null): void {
+export function conferir(ctx: ContextoBase, antes: Estado, depois: Pick<Estado, 'perfis' | 'usuarios'>, licencas: ReadonlySet<ModuloId>, perfilEscrito: string | null): void {
   const catalogo = catalogoDoMotor(ctx);
   const comum = { catalogo: catalogo.length > 0 ? catalogo : undefined, licencas };
   const estadoAntes = { perfis: antes.perfis, usuarios: antes.usuarios };
@@ -200,7 +203,7 @@ const modulosDoPerfil = async (db: ClienteBanco, codigo: string): Promise<string
   (await db.query<{ modulo: string }>('select modulo from plataforma.perfil_modulo where perfil = $1 and deleted_at is null order by modulo', [codigo])).rows.map((r) => r.modulo);
 
 async function detalheDe(ctx: ContextoBase, db: ClienteBanco, codigo: string): Promise<PerfilDetalheV2> {
-  const e = await carregar(db, false);
+  const e = await carregarEstadoV2(db, false);
   const linha = e.linhas.find((l) => l.codigo === codigo);
   const perfil = e.perfis.find((p) => p.codigo === codigo);
   if (!linha || !perfil) throw naoEncontrado();
@@ -284,7 +287,7 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
     carteira: 'nao_se_aplica',
     executar: async (ctx) =>
       ctx.comTenant(async (db) => {
-        const e = await carregar(db, false);
+        const e = await carregarEstadoV2(db, false);
         return PerfilListaRespostaV2Schema.parse({ itens: e.linhas.map((_, i) => resumoDe(e, i, perfilDoLogado(e, ctx))).sort(ordemDaLista) });
       }),
   },
@@ -297,7 +300,7 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
     carteira: 'nao_se_aplica',
     executar: async (ctx) =>
       ctx.comTenant(async (db) => {
-        const e = await carregar(db, false);
+        const e = await carregarEstadoV2(db, false);
         const itens = e.linhas
           .map((_, i) => resumoDe(e, i, null))
           .filter((r) => r.ativo)
@@ -364,7 +367,7 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
       if (erros[0]) throw dadosInvalidos(erros[0].mensagem, erros[0].campo);
       return ctx.comTenant(async (db) => {
         await exigirTenantMigrado(db);
-        const e = await carregar(db, true);
+        const e = await carregarEstadoV2(db, true);
         // idempotente pelo id do aparelho: repetir devolve o mesmo perfil, sem gravar nada
         const jaCriado = e.linhas.find((l) => l.id === id);
         if (jaCriado) return detalheDe(ctx, db, jaCriado.codigo);
@@ -438,7 +441,7 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
       const c0 = ctx.corpo;
       return ctx.comTenant(async (db) => {
         await exigirTenantMigrado(db);
-        const e = await carregar(db, true);
+        const e = await carregarEstadoV2(db, true);
         const i = e.linhas.findIndex((l) => l.codigo === ctx.params.codigo);
         const linha = e.linhas[i];
         const atual = e.perfis[i];
@@ -495,7 +498,7 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
     executar: async (ctx) =>
       ctx.comTenant(async (db) => {
         await exigirTenantMigrado(db);
-        const e = await carregar(db, true);
+        const e = await carregarEstadoV2(db, true);
         const i = e.linhas.findIndex((l) => l.codigo === ctx.params.codigo);
         const linha = e.linhas[i];
         const atual = e.perfis[i];
