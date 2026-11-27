@@ -255,6 +255,8 @@ export const CODIGOS_ERRO_PERFIL_V2 = {
   naoMigrado: 'PERFIS_NAO_MIGRADOS',
 } as const;
 export const STATUS_PERFIL_ALTERADO = 409;
+/** Texto único do 422 `PERFIS_NAO_MIGRADOS` (a API responde com ele e a tela o mostra). */
+export const MENSAGEM_PERFIS_NAO_MIGRADOS = 'Os perfis desta empresa não podem ser alterados agora. Fale com o suporte.';
 
 /** `GET /v1/core/perfis/modelos`: os 7 perfis padrão como modelo, para "Copiar permissões de…" (a cópia vale `copiar_de: { modelo }`). */
 export const ModeloDePerfilItemSchema = z

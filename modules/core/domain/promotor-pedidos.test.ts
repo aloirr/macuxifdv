@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETRO_PROMOTOR_VE_PEDIDOS } from '../contracts';
-import { perfilPodeEscreverPedido, perfilRecebeHistoricoDeCompra, perfilPodeVerPedidos, promotorVePedidos, promotorVePedidosDasLinhas } from './promotor-pedidos';
+import { perfilPodeEscreverPedido, perfilRecebeHistoricoDeCompra, perfilPodeVerPedidos, promotorVePedidos, promotorVePedidosDasLinhas, requisicaoDePromotor, usuarioDaRequisicaoVePedidos } from './promotor-pedidos';
 
 const linha = (valor: unknown, extra: Record<string, unknown> = {}) => ({ modulo: 'core', chave: 'promotor_ve_pedidos', valor, ...extra });
 
@@ -56,5 +56,22 @@ describe('RN-PRO-01 / T-0077 D2: histórico de compras segue promotor_ve_pedidos
       expect(perfilRecebeHistoricoDeCompra(p, false)).toBe(true);
       expect(perfilRecebeHistoricoDeCompra(p, true)).toBe(true);
     }
+  });
+});
+
+describe('RN-PRO-01 / ADR 0073 §2.4: quem lê pedidos na requisição (igual ao SDK promotorNaRequisicao)', () => {
+  const acesso = (cargo: string, chaves: string[]) => ({ cargo, permissoes: Object.fromEntries(chaves.map((c) => [c, {}])) });
+  it('RN-PRO-01: com perfil_acesso vale o cargo; sem ele, o perfil do token', () => {
+    expect(requisicaoDePromotor({ perfil: 'vendedor', perfil_acesso: acesso('promotor', []) })).toBe(true);
+    expect(requisicaoDePromotor({ perfil: 'promotor', perfil_acesso: acesso('vendedor', []) })).toBe(false);
+    expect(requisicaoDePromotor({ perfil: 'promotor' })).toBe(true);
+    expect(requisicaoDePromotor({ perfil: 'vendedor' })).toBe(false);
+  });
+  it('ADR 0073 §2.4: promotor em concessao lê pelo pedido.ver; em legado, pelo parâmetro; os demais sempre', () => {
+    expect(usuarioDaRequisicaoVePedidos({ perfil_acesso: acesso('promotor', []) }, true)).toBe(false);
+    expect(usuarioDaRequisicaoVePedidos({ perfil_acesso: acesso('promotor', ['pedido.ver']) }, false)).toBe(true);
+    expect(usuarioDaRequisicaoVePedidos({ perfil: 'promotor' }, false)).toBe(false);
+    expect(usuarioDaRequisicaoVePedidos({ perfil: 'promotor' }, true)).toBe(true);
+    expect(usuarioDaRequisicaoVePedidos({ perfil_acesso: acesso('vendedor', []) }, false)).toBe(true);
   });
 });
