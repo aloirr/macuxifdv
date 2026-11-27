@@ -106,9 +106,15 @@ describe.skipIf(semBanco())('0108 na fixture dois-tenants (ROLLBACK)', () => {
     });
   });
 
-  /** Tenant novo na transição (nasce derivado, na v2 e em legado), para não disputar as linhas de A e B com os outros arquivos. */
+  /**
+   * Tenant novo na transição (nasce derivado, na v2; desde a 0109 em 'concessao', aqui posto em 'legado' como na 0108), para não
+   * disputar as linhas de A e B com os outros arquivos.
+   */
   const NOVO = 'cccccccc-0108-4000-8000-0000000000a1';
-  const novoTenant = async () => q("insert into plataforma.tenant (id, codigo, nome) values ($1, 't108-novo', 'Novo 108')", [NOVO]);
+  const novoTenant = async () => {
+    await q("insert into plataforma.tenant (id, codigo, nome) values ($1, 't108-novo', 'Novo 108')", [NOVO]);
+    await q("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = $1", [NOVO]);
+  };
 
   it('backfill: assistente derivado (administrativo) sem as 3 de pesquisa/promotor; analista derivado com as 7; idempotente', async () => {
     const assX = 'cccccccc-0108-4000-8000-000000000001';
