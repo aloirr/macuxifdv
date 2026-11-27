@@ -1,11 +1,22 @@
 -- Ensaio das migrações em produção: DEPOIS das migrações (dentro da mesma transação, que termina em ROLLBACK). Consultas 2 a 4
 -- de db/scripts/diagnostico-0106.sql (#771, 3acce47), só com contagens: o código da empresa e números, sem ids, nomes,
--- e-mails, documentos ou códigos de perfil. Define :ensaio_falhou (DIFERENCA em tenant derivado ou tenant em 'concessao').
+-- e-mails, documentos ou códigos de perfil. Define :ensaio_falhou = DIFERENCA em tenant derivado ou leitura fora do esperado:
+-- com a 0109 (ADR 0073 E6) em public.macuxi_migracao nesta transação (pendente no ensaio ou já aplicada em produção), todo
+-- tenant vivo em 'concessao'; sem ela, nenhum tenant em 'concessao'.
 \echo
 \echo '== depois das migrações (na transação do ensaio)'
-\echo 'tenants por leitura de perfis (esperado: nenhum em concessao)'
+select exists (select 1 from public.macuxi_migracao where versao = '0109') as liga_concessao \gset
+\if :liga_concessao
+\set esperado_leitura 'todo tenant vivo em concessao (0109)'
+\else
+\set esperado_leitura 'nenhum tenant em concessao (sem a 0109)'
+\endif
+\echo 'tenants por leitura de perfis; esperado:' :esperado_leitura
 select plataforma.leitura_de_perfis(t.id) as leitura, count(*) as tenants from plataforma.tenant t group by 1 order by 1;
 select count(*) as em_concessao from plataforma.tenant t where plataforma.leitura_de_perfis(t.id) = 'concessao' \gset
+select count(*) as vivos_fora_de_concessao
+  from plataforma.tenant t
+ where t.deleted_at is null and plataforma.leitura_de_perfis(t.id) is distinct from 'concessao' \gset
 
 \echo 'catalogo_aplicado vivo por versão e leitura'
 select c.versao, c.leitura, count(*) as tenants
@@ -48,5 +59,6 @@ select count(*) filter (where x.derivado and x.diferenca > 0) as tenants_com_dif
   from (select plataforma.perfis_derivados(t.id) as derivado,
                (select count(*) from plataforma.conferir_perfis_sem_base(t.id) c where c.tipo = 'DIFERENCA') as diferenca
           from plataforma.tenant t where t.deleted_at is null) x \gset
-select (:tenants_com_diferenca > 0 or :em_concessao > 0) as ensaio_falhou \gset
-\echo 'resumo: tenants conferidos' :tenants_conferidos '| com DIFERENCA (derivados)' :tenants_com_diferenca '| não derivados' :tenants_nao_derivados '| em concessao' :em_concessao
+select (:tenants_com_diferenca > 0
+        or case when :'liga_concessao'::boolean then :vivos_fora_de_concessao > 0 else :em_concessao > 0 end) as ensaio_falhou \gset
+\echo 'resumo: tenants conferidos' :tenants_conferidos '| com DIFERENCA (derivados)' :tenants_com_diferenca '| não derivados' :tenants_nao_derivados '| em concessao' :em_concessao '| vivos fora de concessao' :vivos_fora_de_concessao '| esperado:' :esperado_leitura
