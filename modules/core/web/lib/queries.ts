@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import { CarteiraDoUsuarioRespostaSchema, HierarquiaEquipeSchema, RotasListaSchema, type BaseNoMapa, type CalendarioRotas, type MembroHierarquia, type RouteDay } from '../../contracts';
+import { CarteiraDoUsuarioRespostaSchema, HierarquiaEquipeSchema, ModelosDePerfilRespostaSchema, PerfilListaRespostaV2Schema, PerfilOpcoesRespostaV2Schema, RotasListaSchema, type BaseNoMapa, type CalendarioRotas, type MembroHierarquia, type RouteDay } from '../../contracts';
 import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { hojeNoFuso } from './hoje';
 import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, paraRouteDay, pontoDaBase } from './rotas-api';
@@ -19,6 +19,16 @@ export const qk = {
   sellerCustomers: (sellerId: string) => ['customers', 'seller', sellerId] as const,
   hierarquia: ['core', 'hierarquia'] as const,
 };
+
+/** Lê `GET /v1/core/perfis` (perfis-v2); `chamar` é injetável para teste e para as telas que montam as próprias chamadas. */
+export const lerPerfisV2 = async (chamar: typeof api = api) => PerfilListaRespostaV2Schema.parse(await chamar<unknown>('/core/perfis')).itens;
+/** Lê `GET /v1/core/perfis/opcoes` (perfis ativos do cadastro de usuário, sem `base`); mesmo leitor para a tela e para o teste. */
+export const lerPerfilOpcoesV2 = async (chamar: typeof api = api) => PerfilOpcoesRespostaV2Schema.parse(await chamar<unknown>('/core/perfis/opcoes')).itens;
+export const usePerfisV2 = () => useQuery({ queryKey: ['core', 'perfis'], queryFn: () => lerPerfisV2() });
+
+/** Os 7 perfis padrão como modelo, para "Copiar permissões de…" (`GET /core/perfis/modelos`). */
+export const useModelosDePerfil = () =>
+  useQuery({ queryKey: ['core', 'modelos-de-perfil'], queryFn: async () => ModelosDePerfilRespostaSchema.parse(await api('/core/perfis/modelos')).itens, staleTime: 5 * 60_000 });
 
 function useAuthed() {
   return useSession().status === 'authenticated';

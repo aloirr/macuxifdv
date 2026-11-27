@@ -4,9 +4,9 @@
  * (ação `parametro.promotor_ve_pedidos`). A escrita é idempotente (upsert do mesmo valor) e audita antes/depois só quando o valor muda.
  * A opção só controla a LEITURA de pedido pelo promotor; a escrita de pedido segue sempre negada (RN-PRO-01).
  */
-import type { ClienteBanco, RotaModulo } from '@macuxi/platform-sdk';
+import { promotorNaRequisicao, type ClienteBanco, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
 import { PARAMETRO_PROMOTOR_VE_PEDIDOS, PromotorVePedidosPutSchema, PromotorVePedidosSchema, type PromotorVePedidos } from '../contracts';
-import { promotorVePedidos } from '../domain';
+import { promotorVePedidos, usuarioDaRequisicaoVePedidos } from '../domain';
 import { auditar } from './auditoria';
 
 /** Lê o valor efetivo do tenant da transação (RLS). Sem cache: cada chamada vai ao banco. */
@@ -15,6 +15,16 @@ export async function lerPromotorVePedidos(db: ClienteBanco): Promise<boolean> {
     PARAMETRO_PROMOTOR_VE_PEDIDOS,
   ]);
   return promotorVePedidos(r.rows[0]?.valor);
+}
+
+/**
+ * ADR 0073 §2.4 (E6): quem lê pedidos é a chave `pedido.ver` do perfil que a requisição já traz (`ctx.usuario.perfil_acesso`, tenant em
+ * `concessao`); em `legado` vale o parâmetro do tenant. A regra é do domain; aqui só se lê o parâmetro, e só quando preciso.
+ */
+export async function usuarioVePedidos(ctx: ContextoBase, db: ClienteBanco): Promise<boolean> {
+  const u = ctx.usuario;
+  const precisaDoParametro = !u.perfil_acesso && promotorNaRequisicao(u);
+  return usuarioDaRequisicaoVePedidos(u, precisaDoParametro ? await lerPromotorVePedidos(db) : true);
 }
 
 export const rotasDePromotorPedidos: RotaModulo[] = [

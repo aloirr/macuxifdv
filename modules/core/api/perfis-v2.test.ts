@@ -13,7 +13,7 @@ describe('E4b: rotas de perfis pelo cargo (RN-CORE-35)', () => {
   });
   it('RN-CORE-35: as rotas do contrato existem, com os status do ADR 0073 §4.2', () => {
     const lista = rotasDePerfisV2.map((r) => `${r.metodo} ${r.caminho} ${r.status ?? 200}`).sort();
-    expect(lista).toEqual(['DELETE perfis/:codigo 204', 'GET perfis 200', 'GET perfis/:codigo 200', 'GET perfis/opcoes 200', 'GET permissoes/catalogo 200', 'POST perfis 201', 'PUT perfis/:codigo 200']);
+    expect(lista).toEqual(['DELETE perfis/:codigo 204', 'GET perfis 200', 'GET perfis/:codigo 200', 'GET perfis/:codigo/historico 200', 'GET perfis/modelos 200', 'GET perfis/opcoes 200', 'GET permissoes/catalogo 200', 'POST perfis 201', 'PUT perfis/:codigo 200']);
   });
   it('RN-CORE-35: a ação das rotas existe no motor de permissões do manifesto', () => {
     const p = criarPermissoes([manifest]);
@@ -27,5 +27,12 @@ describe('E4b: rotas de perfis pelo cargo (RN-CORE-35)', () => {
     expect(EditarPerfilRequestV2Schema.safeParse({ ...base, atualizado_em: 'ontem' }).success).toBe(false);
     expect(CriarPerfilRequestV2Schema.safeParse({ nome: 'X', cargo: 'vendedor' }).success).toBe(false);
     expect(CODIGOS_ERRO_PERFIL_V2.alterado).toBe('PERFIL_ALTERADO');
+  });
+
+  it('RN-CORE-35: só quem tem perfil.gerir cria e edita perfis (as rotas pedem a ação)', () => {
+    const escrita = rotasDePerfisV2.filter((r) => r.metodo !== 'GET');
+    expect(escrita.length).toBeGreaterThanOrEqual(3);
+    for (const r of escrita) expect(r.acao).toBe('perfil.gerir');
+    for (const r of rotasDePerfisV2.filter((x) => x.caminho !== 'perfis/opcoes')) expect(r.acao).toBe('perfil.gerir');
   });
 });

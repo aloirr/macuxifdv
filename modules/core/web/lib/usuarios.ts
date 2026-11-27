@@ -3,7 +3,7 @@
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
 import { formatDateTime, formatTime } from '@macuxi/ui/web';
-import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
+import { temPerfilDeBase } from '@macuxi/platform-sdk';
 import { ALMOCO_PADRAO_EMPRESA, DESCONTO_PEDIDO_PERMIL_MAX, textoDoMinuto, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type HorarioAlmoco, type UsuarioItem, type VincularErpRequest } from '../../contracts';
 import { filiaisDoUsuario, corpoDaFilial } from './filial-usuario';
 import { ehUsuarioProvisorio } from '../../domain/vinculo-erp';
@@ -17,7 +17,6 @@ export interface FormularioUsuario {
   email: string;
   /** RN-CORE-58: o e-mail da API é o técnico do provisório; o campo fica vazio e, vazio, não vai no corpo (o servidor mantém o atual). */
   email_tecnico?: boolean;
-  perfil: Perfil;
   /** Código do perfil do usuário (RN-CORE-54: um só; a API recebe a lista de um item). */
   perfis: string[];
   equipe_id: string;
@@ -40,7 +39,7 @@ export interface FormularioUsuario {
   almoco_fim: string;
 }
 
-export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '', filial_cadastro_id: '', filial_venda_ids: [], almoco_padrao: true, almoco_inicio: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.inicio_min), almoco_fim: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.fim_min) };
+export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '', filial_cadastro_id: '', filial_venda_ids: [], almoco_padrao: true, almoco_inicio: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.inicio_min), almoco_fim: textoDoMinuto(ALMOCO_PADRAO_EMPRESA.fim_min) };
 
 /** Indicação no campo E-mail vazio do provisório do ERP (RN-CORE-58). */
 export const PLACEHOLDER_SEM_EMAIL = 'Informe o e-mail';
@@ -71,10 +70,10 @@ function jornadaDoForm(u: UsuarioItem | null, padrao: HorarioAlmoco): Pick<Formu
 export const almocoPadraoDoTenant = (p: { almoco_padrao: HorarioAlmoco } | undefined): HorarioAlmoco => p?.almoco_padrao ?? ALMOCO_PADRAO_EMPRESA;
 
 /** Formulário de um usuário novo: jornada no padrão da empresa. */
-export const formularioNovo = (padrao: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): FormularioUsuario => ({ ...FORMULARIO_VAZIO, perfil: 'vendedor', perfis: [], ...jornadaDoForm(null, padrao) });
+export const formularioNovo = (padrao: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): FormularioUsuario => ({ ...FORMULARIO_VAZIO, ...jornadaDoForm(null, padrao) });
 
 export function formularioDoUsuario(u: UsuarioItem, padrao: HorarioAlmoco = ALMOCO_PADRAO_EMPRESA): FormularioUsuario {
-  return { ...jornadaDoForm(u, padrao), nome: u.nome, nome_curto: u.nome_curto ?? '', ...(ehUsuarioProvisorio(u.email) ? { email: '', email_tecnico: true } : { email: u.email }), perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '', ...filiaisDoUsuario(u) };
+  return { ...jornadaDoForm(u, padrao), nome: u.nome, nome_curto: u.nome_curto ?? '', ...(ehUsuarioProvisorio(u.email) ? { email: '', email_tecnico: true } : { email: u.email }), perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '', ...filiaisDoUsuario(u) };
 }
 
 const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim());
@@ -133,7 +132,7 @@ const hierarquiaDoForm = (f: FormularioUsuario, cargo: Cargo | null) => hierarqu
  * escolhido e as pessoas da lista), confere também supervisor, gerente, nome da equipe (RN-CORE-55/56) e código no ERP (RN-CORE-57), como a API.
  */
 export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar', hierarquia?: { cargo: Cargo | null; pessoas: readonly PessoaDaHierarquia[] }): ErroDeCampo[] {
-  const erros = validarDadosDeUsuario({ nome: f.nome, email: f.email, perfil: f.perfil, external_id: f.external_id.trim() === '' ? null : f.external_id });
+  const erros = validarDadosDeUsuario({ nome: f.nome, email: f.email, perfil: f.perfis[0] ?? '', external_id: f.external_id.trim() === '' ? null : f.external_id }).filter((e) => e.campo !== 'perfil'); // o código do perfil (também os personalizados) vem da lista; a ausência vira ERRO_SEM_PERFIL abaixo
   // RN-CORE-58: e-mail técnico oculto e vazio na edição não é erro; a API mantém o e-mail atual
   if (modo === 'editar' && f.email_tecnico === true && f.email.trim() === '') {
     const i = erros.findIndex((e) => e.campo === 'email');

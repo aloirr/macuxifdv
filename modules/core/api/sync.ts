@@ -49,11 +49,11 @@ import {
   TituloSyncSchema,
   VisitaSyncSchema,
 } from '../contracts';
-import { dataLocal, perfilVeRecusa, perfilRecebeHistoricoDeCompra } from '../domain';
+import { dataLocal, perfilVeRecusa } from '../domain';
 import { JANELAS_CORE, janelaMesAnteriorOu40 } from './janelas-sync';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
 import { padraoDeDesconto } from './produtos';
-import { lerPromotorVePedidos } from './promotor-pedidos';
+import { usuarioVePedidos } from './promotor-pedidos';
 import { receberFotosPdv } from './foto-pdv-push';
 import { receberCheckins, receberCheckouts } from './visita-push';
 import { receberPreCadastros } from './pre-cadastro-receber';
@@ -284,8 +284,8 @@ function puxarDe(t: Tabela) {
           return { ...l, motivo_recusa: veRecusa ? (r.motivo_recusa ?? null) : null, erros_recusa: veRecusa ? (r.erros_recusa ?? null) : null } as unknown as LinhaSync;
         });
       }
-      if (t.tabela !== 'core.historico_compra' || ctx.usuario.perfil !== 'promotor') return linhas;
-      return perfilRecebeHistoricoDeCompra('promotor', await lerPromotorVePedidos(db)) ? linhas : ocultarHistorico(linhas);
+      if (t.tabela !== 'core.historico_compra') return linhas;
+      return (await usuarioVePedidos(ctx, db)) ? linhas : ocultarHistorico(linhas);
     });
   };
 }

@@ -188,13 +188,16 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
 
   it('RN-CORE-58: a carga seguinte não desfaz o vínculo: não recria o provisório, não troca o e-mail real e não move a carteira de volta', async () => {
     await emTransacao(async (t) => {
+      // o banco do teste é compartilhado: outro arquivo (usuarios.db.test.ts) deixa provisório gravado no tenant A; conta só os que esta carga criar
+      const outrosProvisorios = () => t.q('select 1 from core.usuario where lower(email) like $1 and deleted_at is null and id <> all($2::uuid[])', ['erp-%@sem-email.invalid', [t.real, t.prov]]);
+      const provisoriosAntes = (await outrosProvisorios()).length;
       await t.chamar('usuarios/:id/vincular-erp', A.usuarios.admin, 'admin', { usuario_id: t.real }, { id: t.prov });
       await t.carga(null); // o ERP segue sem e-mail
       await t.carga('outro@erp.exemplo.com.br'); // e depois com um e-mail diferente do real
       const vivos = await t.q<{ id: string; email: string }>('select id, email from core.usuario where external_id = $1 and deleted_at is null', [CODIGO]);
       expect(vivos).toEqual([{ id: t.real, email: EMAIL_REAL }]);
       // o próprio provisório fica (inativo, sem código; RN-CORE-60 não exclui usuário): nenhum provisório NOVO nasce
-      expect((await t.q('select 1 from core.usuario where lower(email) like $1 and deleted_at is null and id <> all($2::uuid[])', ['erp-%@sem-email.invalid', [t.real, t.prov]])).length).toBe(0);
+      expect((await outrosProvisorios()).length).toBe(provisoriosAntes);
       expect((await t.q('select 1 from core.carteira where usuario_id = $1 and deleted_at is null', [t.real])).length).toBe(2);
       expect((await t.q('select 1 from core.carteira where usuario_id = $1 and deleted_at is null', [t.prov])).length).toBe(0);
     });
