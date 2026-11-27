@@ -3,6 +3,7 @@
  * (Cliente 360 offline). Padrão LIGADO: sem registro, ou com valor inválido, o promotor continua vendo os pedidos da carteira.
  * A opção só controla a LEITURA; a escrita de pedido pelo promotor é sempre negada (RN-PRO-01).
  */
+import { podePeloCargo, promotorNaRequisicao, type Perfil, type PerfilDaRequisicaoV2 } from '@macuxi/platform-sdk';
 import { promotorVePedidos, promotorVePedidosDasLinhas } from '../contracts/promotor-pedidos';
 
 // A resolução do valor mora em contracts (o Vendedor a importa de lá); o domain reexporta.
@@ -21,9 +22,20 @@ export function perfilRecebeHistoricoDeCompra(perfil: string, promotorVe: boolea
   return perfilPodeVerPedidos(perfil, promotorVe);
 }
 
-/** RN-PRO-01: promotor nunca cria, edita, cancela, duplica nem exclui pedido, independente da opção. */
-export function perfilPodeEscreverPedido(perfil: string): boolean {
-  return perfil !== 'promotor';
+/** Parte de `ctx.usuario` que decide. */
+export interface UsuarioDaRequisicaoPedidos {
+  perfil?: Perfil;
+  perfil_acesso?: PerfilDaRequisicaoV2;
+}
+
+/**
+ * ADR 0073 §2.4: o usuário lê pedidos? Só o promotor depende: com `perfil_acesso` (tenant em `concessao`) vale a chave `pedido.ver`
+ * pela regra do SDK (`podePeloCargo`, com a trava do cargo); sem ele (tenant em `legado`) vale o parâmetro `promotor_ve_pedidos`.
+ * Os demais seguem o escopo de carteira.
+ */
+export function usuarioDaRequisicaoVePedidos(u: UsuarioDaRequisicaoPedidos, parametroLigado: boolean): boolean {
+  if (!promotorNaRequisicao(u)) return true;
+  return u.perfil_acesso ? podePeloCargo(u.perfil_acesso, 'pedido.ver') : parametroLigado;
 }
 
 /** Linhas da entidade `parametro` do pull (só o que a regra lê). */

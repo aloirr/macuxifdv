@@ -34,6 +34,11 @@ describe('RF-CORE-02: tela Usuários do BKO', () => {
     expect(errosDoFormulario({ ...ok, senha: '123' }, 'criar').map((e) => e.campo)).toEqual(['senha']);
     expect(errosDoFormulario({ ...ok, senha: '' }, 'editar')).toEqual([]);
     expect(errosDoFormulario({ ...ok, perfis: [] }, 'editar').map((e) => e.campo)).toEqual(['perfil']);
+    // RN-CORE-54: perfil personalizado (código fora dos 7 de fábrica) é válido; o corpo leva só `perfis`
+    const proprio = { ...ok, perfis: ['vendedor_externo'] };
+    expect(errosDoFormulario(proprio, 'criar')).toEqual([]);
+    expect(corpoDeCriacao(proprio)).not.toHaveProperty('perfil');
+    expect(corpoDeCriacao(proprio).perfis).toEqual(['vendedor_externo']);
   });
   it('RF-CORE-02: nome vazio e e-mail inválido aparecem por campo', () => {
     expect(errosDoFormulario({ ...ok, nome: ' ', email: 'x' }, 'editar').map((e) => e.campo).sort()).toEqual(['email', 'nome']);

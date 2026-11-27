@@ -3,6 +3,10 @@ import { modelosDePerfil, type DefinicaoChave } from '@macuxi/platform-sdk';
 import {
   aplicarCopiarDe,
   conferirTravaOtimista,
+  ehAutogestao,
+  montarModelos,
+  mudancasDoHistorico,
+  soValeNoBko,
   diffConcessoes,
   montarCatalogoPorArea,
   montarDetalheV2,
@@ -180,5 +184,51 @@ describe('RN-CORE-35: nome repetido e valores da concessão', () => {
     expect(moduloLicenciado('core', new Set())).toBe(true);
     expect(moduloLicenciado('vendedor', new Set())).toBe(false);
     expect(moduloLicenciado('vendedor', new Set(['vendedor'] as never))).toBe(true);
+  });
+});
+
+describe('ADR 0073 E6: modelos, só BKO, autogestão e histórico', () => {
+  it('RN-CORE-35: os 7 modelos vêm na ordem, com cargo, onde entra e sem as chaves fixas do aparelho', () => {
+    const r = montarModelos(modelosDePerfil([]), new Set(['notificacao.ler']));
+    expect(r.itens.map((m) => m.modelo)).toEqual(['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin']);
+    expect(r.itens.find((m) => m.modelo === 'admin')!.onde_entra).toContain('bko');
+    expect(r.itens.find((m) => m.modelo === 'vendedor')!.onde_entra).not.toContain('bko');
+    expect(r.itens.flatMap((m) => m.permissoes.map((p) => p.chave))).not.toContain('notificacao.ler');
+  });
+  it('RN-PRO-01: o modelo promotor não traz escrita de pedido', () => {
+    const p = montarModelos(modelosDePerfil([]), new Set()).itens.find((m) => m.modelo === 'promotor')!.permissoes.map((x) => x.chave);
+    expect(p).not.toContain('pedido.criar');
+    expect(p).not.toContain('pedido.editar');
+  });
+  it('ADR 0073 §2.5.10: a chave de tela do BKO é marcada; a do app, não', () => {
+    expect(soValeNoBko('perfil.gerir')).toBe(true);
+    expect(soValeNoBko('parametro.inicio')).toBe(true);
+    expect(soValeNoBko('pedido.criar')).toBe(false);
+    expect(soValeNoBko('acesso.bko')).toBe(false);
+    const r = montarCatalogoPorArea([...cat, { chave: 'perfil.gerir', area: 'usuarios', modulo: 'core', descricao: 'Perfis' } as DefinicaoChave], new Set(['core']), 3);
+    expect(r.areas.flatMap((a) => a.chaves).find((c) => c.chave === 'perfil.gerir')!.so_bko).toBe(true);
+    expect(r.areas.flatMap((a) => a.chaves).find((c) => c.chave === 'dados.escopo')!.so_bko).toBe(false);
+  });
+  it('RN-CORE-35: autogestão = o perfil de quem está logado e que tem a gestão do acesso', () => {
+    const gestao = { 'acesso.bko': {}, 'perfil.gerir': {}, 'usuario.criar': {}, 'usuario.editar': {}, 'usuario.desativar': {} };
+    expect(ehAutogestao('admin', gestao, 'admin')).toBe(true);
+    expect(ehAutogestao('gestor_x', gestao, 'admin')).toBe(false);
+    expect(ehAutogestao('admin', gestao, null)).toBe(false);
+    expect(ehAutogestao('admin', { 'acesso.bko': {} }, 'admin')).toBe(false);
+  });
+  it('RN-AUD-01: a diferença do histórico sai de antes.permissoes e depois.permissoes (entrou, saiu, mudou)', () => {
+    const m = mudancasDoHistorico(
+      { permissoes: { 'pedido.criar': {}, 'dados.escopo': { nivel: 'carteira' } } },
+      { permissoes: { 'pedido.ver': {}, 'dados.escopo': { nivel: 'equipe' } } },
+    );
+    expect(m).toEqual([
+      { chave: 'dados.escopo', de: { nivel: 'carteira', alvos: null }, para: { nivel: 'equipe', alvos: null } },
+      { chave: 'pedido.criar', de: { nivel: null, alvos: null }, para: null },
+      { chave: 'pedido.ver', de: null, para: { nivel: null, alvos: null } },
+    ]);
+  });
+  it('RN-AUD-01: o histórico de criação (lista de chaves) e o sem permissões não quebram', () => {
+    expect(mudancasDoHistorico(null, { permissoes: ['a.b', 'c.d'] }).map((x) => x.chave)).toEqual(['a.b', 'c.d']);
+    expect(mudancasDoHistorico({ nome: 'x' }, { nome: 'y' })).toEqual([]);
   });
 });

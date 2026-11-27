@@ -5,7 +5,7 @@
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
-import { ErroNaoEncontrado, type AcessoBanco, type ClienteBanco, type ContextoBase, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { ErroNaoEncontrado, resolverPerfilPeloCargo, type AcessoBanco, type ClienteBanco, type ContextoBase, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { manifest } from '../manifest';
@@ -127,6 +127,15 @@ describe.skipIf(semBanco())('Core T-0186 × Postgres: Cliente 360 v2 (notas, doc
       const d = await chamar('GET', 'clientes/:id/notas/:nota_id', vendedor1, { params: { id: C.c1, nota_id: NF_FAT } });
       expect(d).toMatchObject({ numero_nf: '9001' });
       expect(JSON.stringify(d)).toContain('2500');
+    });
+    it('RN-PRO-01: perfil de cargo promotor com base vendedor (concessão congelada), sem pedido.ver: o Histórico de NF é negado; com pedido.ver, abre', async () => {
+      const comPerfil = (permissoes: Record<string, { nivel?: string }>): UsuarioAutenticado =>
+        ({ ...vendedor1, perfil: 'vendedor', cargo: 'promotor', perfil_acesso: resolverPerfilPeloCargo({ codigo: 'promotor_base_vendedor', cargo: 'promotor', permissoes } as never) }) as unknown as UsuarioAutenticado;
+      const sem = comPerfil({ 'acesso.campo': {} });
+      await expect(chamar('GET', 'clientes/:id/notas', sem, { params: { id: C.c1 } })).rejects.toMatchObject({ status: 403 });
+      await expect(chamar('GET', 'clientes/:id/notas/:nota_id', sem, { params: { id: C.c1, nota_id: NF_FAT } })).rejects.toMatchObject({ status: 403 });
+      const com = comPerfil({ 'acesso.campo': {}, 'pedido.ver': {} });
+      expect((await chamar('GET', 'clientes/:id/notas', com, { params: { id: C.c1 } })).itens.map((i: { numero_nf: string }) => i.numero_nf)).toContain('9001');
     });
     it('RN-CORE-04: cliente fora da carteira (c2 do vendedor-1) não lista nem abre a NF', async () => {
       await expect(chamar('GET', 'clientes/:id/notas', vendedor1, { params: { id: C.c2 } })).rejects.toBeInstanceOf(ErroNaoEncontrado);

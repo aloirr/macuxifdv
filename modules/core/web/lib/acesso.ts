@@ -3,12 +3,10 @@
  * lista de módulos, dos rótulos de permissão, da contagem de usuários por perfil e da conferência perfil × módulos.
  * Sem React e sem rede; a regra da licença (RN-CORE-01/03) continua no domain e a API revalida.
  */
-import type { ModuloId, Perfil } from '@macuxi/platform-sdk';
-import { travaDaChave } from '@macuxi/platform-sdk';
-import { modulosContrataveis, nomeDoModulo, type IdDoModulo } from '@macuxi/ui/web';
+import type { ModuloId } from '@macuxi/platform-sdk';
+import { modulosContrataveis, type IdDoModulo } from '@macuxi/ui/web';
 import type { UsuarioItem } from '../../contracts';
-import type { Edicao } from './perfis';
-import { CHAVES_SEM_EFEITO, rotuloDaChave } from './perfis';
+import { rotuloDaChave } from './perfis';
 
 export interface ModuloExibivel {
   id: IdDoModulo;
@@ -23,16 +21,12 @@ export function modulosExibiveis(ids: Iterable<string>): ModuloExibivel[] {
   return modulosContrataveis([...new Set(ids)]).map(({ id, nome }) => ({ id, nome }));
 }
 
-/** Os módulos da tabela de um novo perfil: o Core primeiro, depois os licenciados em ordem alfabética (o Catálogo e a Integração não entram). */
-export function modulosDaGrade(licenciados: Iterable<string>): ModuloExibivel[] {
-  return [{ id: 'core', nome: nomeDoModulo('core') }, ...modulosExibiveis(licenciados)];
-}
-
 // ---------------------------------------------------------------- rótulos das permissões
 
 /** Rótulo simples de cada ação (chave do manifesto). Cada chave tem rótulo próprio: uma linha, uma permissão. */
 export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   // Geral (Core e plataforma)
+  'dados.escopo': 'Quais clientes e números vê',
   'acesso.campo': 'Entrar no app Campo',
   'acesso.gestao': 'Entrar no app Gestão',
   'acesso.bko': 'Entrar no backoffice',
@@ -157,175 +151,19 @@ export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   'quiz.gerenciar': 'Cadastrar quizzes',
   'desafio.gerenciar': 'Cadastrar desafios',
   'medalha.gerenciar': 'Cadastrar medalhas',
+  // Integração, preços e visita
+  'conector.gerenciar': 'Cadastrar o Conector e a chave de acesso',
+  'inativacao.decidir': 'Confirmar inativação em massa',
+  'lote.reprocessar': 'Reprocessar lote',
+  'mapeamento.editar': 'Editar o de-para de códigos',
+  'tabela_preco.gerenciar': 'Cadastrar tabelas de preço',
+  'visita.checkin_fora_de_rota': 'Check-in fora de rota',
+  'visita.registrar_gestao': 'Registrar visita no app Gestão',
 };
 
 /** Rótulo de uma chave: o do mapa; senão a descrição do manifesto cortada no primeiro " (" ou ";" (a mesma regra da tela antiga). */
 export function rotuloDaPermissao(chave: string, descricao = ''): string {
   return ROTULO_DA_PERMISSAO[chave] ?? rotuloDaChave(chave, descricao || chave);
-}
-
-/** Uma linha da tabela do módulo: um rótulo e as chaves que ele liga juntas. */
-export interface LinhaDeAcesso {
-  rotulo: string;
-  chaves: string[];
-}
-
-export interface ChaveDoCatalogo {
-  chave: string;
-  modulo: string;
-  descricao: string;
-  nivel: unknown;
-  alvos: boolean;
-}
-
-/** Chaves com nível ou com alvos têm controle próprio (escopo de dados, redefinir senha) e não entram na grade de caixas. */
-export const entraNaGrade = (c: Pick<ChaveDoCatalogo, 'nivel' | 'alvos'>): boolean => !c.nivel && !c.alvos;
-
-/**
- * Linhas de cada módulo da grade, na ordem do catálogo, SEM rótulo repetido: chaves com o mesmo rótulo viram uma linha só e
- * um rótulo que cairia em duas chaves de módulos diferentes fica no primeiro módulo em que aparece.
- */
-export function linhasPorModulo(catalogo: readonly ChaveDoCatalogo[], modulos: readonly string[]): Record<string, LinhaDeAcesso[]> {
-  const saida: Record<string, LinhaDeAcesso[]> = Object.fromEntries(modulos.map((m) => [m, []]));
-  for (const c of catalogo) {
-    if (!entraNaGrade(c) || CHAVES_SEM_EFEITO.has(c.chave)) continue;
-    const linhas = saida[c.modulo];
-    if (!linhas) continue;
-    const rotulo = rotuloDaPermissao(c.chave, c.descricao);
-    const existente = linhas.find((l) => l.rotulo === rotulo);
-    if (existente) existente.chaves.push(c.chave);
-    else linhas.push({ rotulo, chaves: [c.chave] });
-  }
-  return saida;
-}
-
-// ---------------------------------------------------------------- grupos da coluna Geral
-
-/** Subtítulos da coluna Geral, nesta ordem (RD-0266). */
-export const GRUPOS_DO_GERAL = ['Entrar em', 'Usuários', 'Clientes', 'Metas e RV', 'Fotos', 'Recados', 'Tarefas', 'Ajustes', 'Cadastros'] as const;
-export type GrupoDoGeral = (typeof GRUPOS_DO_GERAL)[number];
-
-const GRUPO_DA_CHAVE: Readonly<Record<string, GrupoDoGeral>> = {
-  'acesso.campo': 'Entrar em',
-  'acesso.gestao': 'Entrar em',
-  'acesso.bko': 'Entrar em',
-  'acesso.portal': 'Entrar em',
-  'usuario.ver': 'Usuários',
-  'usuario.criar': 'Usuários',
-  'usuario.editar': 'Usuários',
-  'usuario.desativar': 'Usuários',
-  'usuario.desbloquear': 'Usuários',
-  'usuario.filial_editar': 'Usuários',
-  'perfil.gerir': 'Usuários',
-  'modulo.gerir_licencas': 'Usuários',
-  'usuario_avatar.trocar': 'Usuários',
-  'trajeto.ver_equipe': 'Usuários',
-  'ausencia.cadastrar': 'Usuários',
-  'rastreamento.configurar': 'Ajustes',
-  'usuario_avatar.trocar_outro': 'Usuários',
-  'dispositivo.bloquear': 'Usuários',
-  'dispositivo.registrar_push': 'Usuários',
-  'inicio.ver': 'Clientes',
-  'inicio_bko.ver': 'Clientes',
-  'farol.ver': 'Clientes',
-  'documento.ver': 'Clientes',
-  'documento.permissoes': 'Ajustes',
-  'rota.editar': 'Clientes',
-  'carteira.editar': 'Clientes',
-  'cliente.pagamento_editar': 'Clientes',
-  'cliente.aprovar_coordenada': 'Clientes',
-  'cliente.filial_editar': 'Clientes',
-  'visita.registrar_gestao': 'Clientes',
-  'visita.dispensar_etapa': 'Clientes',
-  'meta.ver': 'Metas e RV',
-  'meta.editar': 'Metas e RV',
-  'meta.fechar_periodo': 'Metas e RV',
-  'meta_produtividade.editar': 'Metas e RV',
-  'rv.ver': 'Metas e RV',
-  'plano_rv.ver': 'Metas e RV',
-  'plano_rv.editar': 'Metas e RV',
-  'cliente_foto.ver': 'Fotos',
-  'cliente_foto.enviar': 'Fotos',
-  'foto_tipo.editar': 'Fotos',
-  'notificacao.ler': 'Recados',
-  'notificacao.enviar': 'Recados',
-  'notificacao.recado_do_dia': 'Recados',
-  'frase_dia.editar': 'Recados',
-  'tarefa.criar': 'Tarefas',
-  'tarefa.editar': 'Tarefas',
-  'tarefa.cancelar': 'Tarefas',
-  'tarefa.acompanhar': 'Tarefas',
-  'tarefa.concluir': 'Tarefas',
-  'parametro.promotor_ve_pedidos': 'Ajustes',
-  'parametro.farol': 'Ajustes',
-  'parametro.inicio': 'Ajustes',
-  'parametro.curva_abc': 'Ajustes',
-  'parametro.checkout_pendencia': 'Ajustes',
-  'parametro.campos_obrigatorios': 'Ajustes',
-  'parametro.campos_obrigatorios_editar': 'Ajustes',
-  'cliente.pre_cadastro_recusados': 'Clientes',
-  'cliente.pre_cadastro_corrigir': 'Clientes',
-  'produto.parametros': 'Ajustes',
-  'motivo.editar': 'Cadastros',
-  'produto.editar_preco': 'Cadastros',
-  'filial.ver': 'Cadastros',
-  'filial.editar': 'Cadastros',
-  'medida.gerenciar': 'Cadastros',
-};
-
-/** Grupo de uma chave da coluna Geral; chave nova sem grupo cai em "Cadastros", o último. */
-export const grupoDaPermissao = (chave: string): GrupoDoGeral => GRUPO_DA_CHAVE[chave] ?? 'Cadastros';
-
-/** As linhas da coluna Geral separadas por subtítulo, na ordem de `GRUPOS_DO_GERAL`, sem grupo vazio. */
-export function gruposDoGeral(linhas: readonly LinhaDeAcesso[]): { titulo: GrupoDoGeral; linhas: LinhaDeAcesso[] }[] {
-  return GRUPOS_DO_GERAL.map((titulo) => ({ titulo, linhas: linhas.filter((l) => grupoDaPermissao(l.chaves[0]!) === titulo) })).filter((g) => g.linhas.length > 0);
-}
-
-export type Marcacao = 'todas' | 'nenhuma' | 'parte';
-
-/** Estado da caixa "Marcar todos de {módulo}". */
-export function marcacaoDoModulo(linhas: readonly LinhaDeAcesso[], marcadas: ReadonlySet<string>): Marcacao {
-  const n = linhas.filter((l) => l.chaves.every((c) => marcadas.has(c))).length;
-  if (n === 0) return 'nenhuma';
-  return n === linhas.length ? 'todas' : 'parte';
-}
-
-/** Marca ou desmarca todas as chaves das linhas. */
-export function alternarModulo(linhas: readonly LinhaDeAcesso[], marcadas: ReadonlySet<string>, marcar: boolean): Set<string> {
-  const novo = new Set(marcadas);
-  for (const l of linhas) for (const c of l.chaves) {
-      if (marcar) novo.add(c);
-      else novo.delete(c);
-    }
-  return novo;
-}
-
-export function alternarLinha(linha: LinhaDeAcesso, marcadas: ReadonlySet<string>): Set<string> {
-  const ligada = linha.chaves.every((c) => marcadas.has(c));
-  return alternarModulo([linha], marcadas, !ligada);
-}
-
-/** `aria-label` da caixa que marca todos. */
-export const rotuloMarcarTodos = (nomeDoModulo: string): string => `Marcar todos de ${nomeDoModulo}`;
-
-// ---------------------------------------------------------------- novo perfil
-
-const BASES_CANDIDATAS: readonly Perfil[] = ['vendedor', 'supervisor', 'gerente', 'analista', 'admin'];
-
-/** Perfil base do perfil novo: o primeiro, do mais enxuto ao mais amplo, cujas travas (RN-CORE-33, RN-PRO-01) aceitam todas as chaves marcadas. */
-export function baseDoNovoPerfil(marcadas: Iterable<string>, trava: (base: Perfil, chave: string) => unknown = travaDaChave): Perfil {
-  const chaves = [...marcadas];
-  return BASES_CANDIDATAS.find((b) => chaves.every((c) => !trava(b, c))) ?? 'admin';
-}
-
-/**
- * Edição do perfil novo: parte do que a base devolveu (escopo de dados e alvos ficam como estão) e põe cada chave da grade
- * concedida ou não conforme as caixas.
- */
-export function edicaoDaGrade(inicial: Edicao, grade: readonly string[], marcadas: ReadonlySet<string>): Edicao {
-  const novo: Edicao = { ...inicial };
-  for (const c of grade) novo[c] = { concedida: marcadas.has(c), nivel: null, alvos: null };
-  return novo;
 }
 
 // ---------------------------------------------------------------- usuários × perfis × módulos
@@ -357,4 +195,14 @@ export function removidosDoFormulario(modulosDoPerfil: Iterable<string>, marcado
   return modulosExibiveis(modulosDoPerfil)
     .map((m) => m.id)
     .filter((m) => !marcados.has(m));
+}
+
+/** PUTs por módulo a mandar ao salvar o usuário: só a diferença entre as exceções de antes e as do formulário (RN-CORE-01). `ativo: false` = remover. */
+export function mudancasDeExcecoes(antes: readonly string[], depois: readonly string[]): Array<{ modulo: string; ativo: boolean }> {
+  const mudancas: Array<{ modulo: string; ativo: boolean }> = [];
+  for (const modulo of new Set<string>([...antes, ...depois])) {
+    const removerAgora = depois.includes(modulo);
+    if (removerAgora !== antes.includes(modulo)) mudancas.push({ modulo, ativo: !removerAgora });
+  }
+  return mudancas;
 }

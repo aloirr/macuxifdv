@@ -4,12 +4,14 @@
  * otimista, DELETE, cargo em uso, último admin, promotor sem pedido, senha e isolamento entre tenants. Pula sem Postgres.
  */
 import { semBanco } from '@macuxi/db/teste/estado';
-import { catalogoDePermissoes, matrizDeFabrica, podePeloCargo, resolverPerfilPeloCargo, type ContextoBase, type DefinicaoChave } from '@macuxi/platform-sdk';
+import { catalogoDePermissoes, matrizDeFabrica, podePeloCargo, resolverPerfilPeloCargo, type Cargo, type ContextoBase, type DefinicaoChave, type ValorPermissao } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CatalogoRespostaSchema, PerfilDetalheV2Schema, type PerfilDetalheV2 } from '../contracts';
+import { CatalogoRespostaSchema, ModelosDePerfilRespostaSchema, PerfilDetalheV2Schema, PerfilHistoricoRespostaV2Schema, PerfilListaRespostaV2Schema, type PerfilDetalheV2 } from '../contracts';
 import { manifest } from '../manifest';
 import { A, AmbienteBanco, B, idDe, U } from './apoio-teste-t0170';
+import { lerEstadoDeLicencas } from './licencas';
 import { rotasDePerfisV2 } from './perfis-v2';
+import { usuarioVePedidos } from './promotor-pedidos';
 
 const id = idDe('0e900000');
 const PREFIXO = 'E4b ';
@@ -52,10 +54,13 @@ describe.skipIf(semBanco())('Core E4b × Postgres: perfis pelo cargo', () => {
     const conhecidas = new Set(doCore.map((d) => d.chave));
     const moduloDe = (c: string) => (c.startsWith('pesquisa.') || c === 'questionario.ver' ? 'pesquisa' : /^(licao|quiz|trilha)\./.test(c) ? 'treinamento' : 'vendedor');
     catalogo = [...doCore, ...r.filter((x) => !conhecidas.has(x.chave as string)).map((x) => ({ chave: x.chave as string, area: 'pedidos', modulo: moduloDe(x.chave as string), descricao: x.chave as string }))] as DefinicaoChave[];
+    // E6: a escrita só vale no tenant em `concessao` (a fixture grava `legado`)
+    await amb.limpar("update plataforma.catalogo_aplicado set leitura = 'concessao' where tenant_id = any($1::uuid[]) and deleted_at is null", [[A.tenantId, B.tenantId]]);
     await limpar();
   });
   afterAll(async () => {
     await limpar();
+    await amb.limpar("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = any($1::uuid[]) and deleted_at is null", [[A.tenantId, B.tenantId]]);
     await amb.fechar();
   });
 
@@ -106,6 +111,16 @@ describe.skipIf(semBanco())('Core E4b × Postgres: perfis pelo cargo', () => {
     expect(chaves).not.toContain('pesquisa.responder');
     expect(um.perfil).toMatchObject({ cargo: 'vendedor', ativo: true, usuarios: 0 });
     expect(um.perfil.onde_entra).toEqual(['campo']);
+  });
+
+  it('RN-CORE-01: o perfil personalizado criado a partir de "vendedor" aparece em licencas.perfis com os módulos dele', async () => {
+    const criado = await chamar(admin, 'POST', 'perfis', { corpo: { id: id(30), nome: `${PREFIXO}Licenca propria`, cargo: 'vendedor', copiar_de: { modelo: 'vendedor' } } });
+    const codigo = criado.perfil.codigo as string;
+    const doBanco = (await sql('select modulo from plataforma.perfil_modulo where perfil = $1 and tenant_id = $2 and deleted_at is null order by modulo', [codigo, A.tenantId])).map((r) => r.modulo as string);
+    expect(doBanco.length).toBeGreaterThan(0);
+    const estado = await amb.ctx(admin).comTenant((db) => lerEstadoDeLicencas(db, {}));
+    // `teste` não é módulo da plataforma: fica de fora; o resto do perfil copiado tem de chegar
+    expect([...(estado.perfis[codigo] ?? [])].sort()).toEqual(doBanco.filter((m) => m !== 'teste'));
   });
 
   it('RN-PRO-01: o cargo promotor não recebe escrita de pedido, nem pelo corpo (422 TRAVA_DO_PERFIL) nem pela cópia de outro cargo', async () => {
@@ -285,3 +300,237 @@ describe.skipIf(semBanco())('Core E4b × Postgres: perfis pelo cargo', () => {
     expect((await sql('select count(*)::int as n from plataforma.perfil where id in ($1,$2) and ativo and deleted_at is null', [id(25), id(26)]))[0]!.n).toBe(1);
   });
 });
+
+/**
+ * E6 (v1.0.40) × Postgres real, 0109 aplicada: as rotas V2 no ar com a leitura por concessão (ADR 0073 §2.5.10, §4.2). Tenant em `concessao` e em
+ * `legado`, `perfil.gerir`, licença, isolamento, último admin, promotor sem pedido, modelos, autogestão, histórico. A fixture grava `legado`; cada teste
+ * liga `concessao` e devolve. No mesmo arquivo do bloco de cima de propósito: os dois ligam e desligam a leitura do tenant A (arquivos em paralelo se atropelariam).
+ */
+{
+describe.skipIf(semBanco())('Core E6 × Postgres: rotas V2 de perfis com a 0109', () => {
+  const amb = new AmbienteBanco();
+  const admin = amb.usuario(U.admin, 'admin');
+  const adminB = amb.usuario(B.usuarios.admin, 'admin', B.tenantId);
+  let catalogo: DefinicaoChave[] = [];
+  const sql = async (q: string, v: unknown[] = []) => (await amb.admin.query(q, v)).rows as Array<Record<string, any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const leitura = (tenant: string, modo: 'legado' | 'concessao') => amb.limpar("update plataforma.catalogo_aplicado set leitura = $2 where tenant_id = $1 and deleted_at is null", [tenant, modo]);
+
+  const motor = (): ContextoBase['permissoes'] => ({ catalogo, matriz: matrizDeFabrica([manifest]) });
+  const chamar = async (u: ReturnType<typeof amb.usuario>, metodo: string, caminho: string, extra: { corpo?: unknown; params?: unknown; query?: unknown } = {}) => {
+    const r = amb.rota(rotasDePerfisV2, metodo, caminho);
+    const ctx = { ...amb.ctx(u), permissoes: motor() };
+    return r.executar({ ...ctx, corpo: r.corpo ? r.corpo.parse(extra.corpo ?? {}) : {}, query: r.query ? r.query.parse(extra.query ?? {}) : {}, params: r.params ? r.params.parse(extra.params ?? {}) : {} } as never) as Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  };
+  const falha = async (p: Promise<unknown>) => p.then(() => null, (e: { status: number; codigo: string; detalhes?: { regra?: string } }) => e);
+  const detalhe = async (codigo: string, u = admin): Promise<PerfilDetalheV2> => PerfilDetalheV2Schema.parse(await chamar(u, 'GET', 'perfis/:codigo', { params: { codigo } }));
+  const corpoDe = (d: PerfilDetalheV2, ajuste: { tirar?: string[]; por?: Array<{ chave: string; nivel?: string | null; alvos?: string[] | null }> } = {}) => ({
+    permissoes: [
+      ...d.permissoes.filter((p) => p.concedida && !(ajuste.tirar ?? []).includes(p.chave) && !(ajuste.por ?? []).some((x) => x.chave === p.chave)).map((p) => ({ chave: p.chave, nivel: p.nivel, alvos: p.alvos })),
+      ...(ajuste.por ?? []),
+    ],
+    atualizado_em: d.atualizado_em,
+  });
+  const concedidas = async (codigo: string) => (await sql('select c.chave from plataforma.perfil_concessao c join plataforma.perfil p on p.id = c.perfil_id where p.codigo = $1 and c.deleted_at is null order by c.chave', [codigo])).map((r) => r.chave as string);
+  const limpar = async () => {
+    await amb.limpar(`delete from plataforma.perfil_modulo where perfil in (select codigo from plataforma.perfil where nome like '${PREFIXO}%')`);
+    await amb.limpar(`delete from plataforma.perfil where nome like '${PREFIXO}%'`);
+    await leitura(A.tenantId, 'legado');
+    await leitura(B.tenantId, 'legado');
+  };
+
+  beforeAll(async () => {
+    await amb.abrir();
+    const r = await sql('select distinct chave from plataforma.modelo_permissao where deleted_at is null');
+    const doCore = catalogoDePermissoes([manifest]);
+    const conhecidas = new Set(doCore.map((d) => d.chave));
+    const moduloDe = (c: string) => (c.startsWith('pesquisa.') || c === 'questionario.ver' ? 'pesquisa' : /^(licao|quiz|trilha)\./.test(c) ? 'treinamento' : 'vendedor');
+    catalogo = [...doCore, ...r.filter((x) => !conhecidas.has(x.chave as string)).map((x) => ({ chave: x.chave as string, area: 'pedidos', modulo: moduloDe(x.chave as string), descricao: x.chave as string }))] as DefinicaoChave[];
+    await limpar();
+  });
+  afterAll(async () => {
+    await limpar();
+    await amb.fechar();
+  });
+
+  it('0109: a fixture grava legado; a leitura de perfis liga e desliga por tenant', async () => {
+    expect((await sql('select plataforma.leitura_de_perfis($1) as l', [A.tenantId]))[0]!.l).toBe('legado');
+    await leitura(A.tenantId, 'concessao');
+    expect((await sql('select plataforma.leitura_de_perfis($1) as l', [A.tenantId]))[0]!.l).toBe('concessao');
+    expect((await sql('select plataforma.leitura_de_perfis($1) as l', [B.tenantId]))[0]!.l).toBe('legado');
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('RN-CORE-35: o detalhe é o mesmo no tenant em legado e em concessao (a leitura é pelo caminho duplo)', async () => {
+    const emLegado = await detalhe('vendedor');
+    await leitura(A.tenantId, 'concessao');
+    const emConcessao = await detalhe('vendedor');
+    expect(emConcessao.permissoes).toEqual(emLegado.permissoes);
+    expect(emConcessao.permissoes.filter((p) => p.concedida).length).toBeGreaterThan(10);
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('RN-CORE-35: tenant em concessao: cria, edita e apaga o perfil; a lista traz autogestão só no perfil de quem está logado', async () => {
+    await leitura(A.tenantId, 'concessao');
+    const criado = await chamar(admin, 'POST', 'perfis', { corpo: { id: id(2), nome: `${PREFIXO}Vendedor concessao`, cargo: 'vendedor', copiar_de: { modelo: 'vendedor' } } });
+    expect(criado.perfil).toMatchObject({ cargo: 'vendedor', autogestao: false });
+    const d = await detalhe(criado.perfil.codigo);
+    const novo = PerfilDetalheV2Schema.parse(await chamar(admin, 'PUT', 'perfis/:codigo', { params: { codigo: d.perfil.codigo }, corpo: corpoDe(d, { tirar: ['cliente.pre_cadastrar'] }) }));
+    expect(novo.permissoes.find((p) => p.chave === 'cliente.pre_cadastrar')!.concedida).toBe(false);
+    expect(await concedidas(d.perfil.codigo)).not.toContain('cliente.pre_cadastrar');
+    const lista = PerfilListaRespostaV2Schema.parse(await chamar(admin, 'GET', 'perfis'));
+    expect(lista.itens.filter((p) => p.autogestao).map((p) => p.codigo)).toEqual(['admin']);
+    expect(await chamar(admin, 'DELETE', 'perfis/:codigo', { params: { codigo: d.perfil.codigo } })).toBeNull();
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('RN-CORE-35: tenant em legado lê pelo acesso de hoje (lista, detalhe, modelos, catálogo) e recusa a escrita (422 PERFIS_NAO_MIGRADOS)', async () => {
+    expect((await sql('select plataforma.leitura_de_perfis($1) as l', [A.tenantId]))[0]!.l).toBe('legado');
+    const d = await detalhe('vendedor');
+    expect(d.permissoes.filter((p) => p.concedida).length).toBeGreaterThan(10);
+    expect((await chamar(admin, 'GET', 'perfis')).itens.length).toBeGreaterThanOrEqual(7);
+    expect(await falha(chamar(admin, 'PUT', 'perfis/:codigo', { params: { codigo: 'vendedor' }, corpo: corpoDe(d, { tirar: ['meta.ver'] }) }))).toMatchObject({ status: 422, codigo: 'PERFIS_NAO_MIGRADOS' });
+    expect(await falha(chamar(admin, 'POST', 'perfis', { corpo: { id: id(31), nome: `${PREFIXO}Nao migrado`, cargo: 'vendedor', copiar_de: { modelo: 'vendedor' } } }))).toMatchObject({ codigo: 'PERFIS_NAO_MIGRADOS' });
+    expect(await falha(chamar(admin, 'DELETE', 'perfis/:codigo', { params: { codigo: 'vendedor_externo' } }))).toMatchObject({ codigo: 'PERFIS_NAO_MIGRADOS' });
+  });
+
+  it('RN-CORE-35: GET /perfis/modelos traz os 7 padrão com cargo, onde entra e as permissões; só quem gerencia perfis chama', async () => {
+    const r = ModelosDePerfilRespostaSchema.parse(await chamar(admin, 'GET', 'perfis/modelos'));
+    expect(r.itens.map((m) => m.modelo)).toEqual(['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin']);
+    expect(r.itens.find((m) => m.modelo === 'promotor')).toMatchObject({ cargo: 'promotor', onde_entra: ['campo'] });
+    expect(r.itens.find((m) => m.modelo === 'admin')!.permissoes.map((p) => p.chave)).toContain('perfil.gerir');
+    expect(r.itens.flatMap((m) => m.permissoes.map((p) => p.chave))).not.toContain('notificacao.ler');
+    expect(amb.rota(rotasDePerfisV2, 'GET', 'perfis/modelos').acao).toBe('perfil.gerir');
+    // RN-PRO-01: o modelo promotor não traz escrita de pedido
+    expect(r.itens.find((m) => m.modelo === 'promotor')!.permissoes.map((p) => p.chave).filter((c) => /^pedido\./.test(c) && c !== 'pedido.ver')).toEqual([]);
+  });
+
+  it('RN-CORE-35: o catálogo marca as chaves que só valem no BKO (so_bko) e, em B, o que o tenant não contratou', async () => {
+    const r = CatalogoRespostaSchema.parse(await chamar(admin, 'GET', 'permissoes/catalogo'));
+    const chaves = r.areas.flatMap((a) => a.chaves);
+    expect(chaves.find((c) => c.chave === 'perfil.gerir')!.so_bko).toBe(true);
+    expect(chaves.find((c) => c.chave === 'pedido.criar')!.so_bko).toBe(false);
+    expect(chaves.find((c) => c.chave === 'acesso.bko')!.so_bko).toBe(false);
+    // RN-CORE-02: A não contratou pesquisa
+    expect(chaves.find((c) => c.chave === 'pesquisa.responder')).toMatchObject({ disponivel: false, motivo: 'MODULO_SEM_LICENCA' });
+  });
+
+  it('RN-CORE-02: ligar chave de módulo sem licença no tenant em concessao é 422 PERMISSAO_SEM_LICENCA', async () => {
+    await leitura(A.tenantId, 'concessao');
+    const r = await falha(chamar(admin, 'POST', 'perfis', { corpo: { id: id(40), nome: `${PREFIXO}Sem licenca`, cargo: 'vendedor', permissoes: [{ chave: 'acesso.campo' }, { chave: 'pesquisa.responder' }] } }));
+    expect(r).toMatchObject({ status: 422, codigo: 'PERMISSAO_SEM_LICENCA', detalhes: { regra: 'RN-CORE-02' } });
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('RN-CORE-35: toda rota de gestão de perfis exige perfil.gerir (o cadastro de usuário só lê as opções com usuario.ver) e o vendedor não a tem', () => {
+    for (const r of rotasDePerfisV2) expect(r.acao, `${r.metodo} ${r.caminho}`).toBe(r.caminho === 'perfis/opcoes' ? 'usuario.ver' : r.caminho === 'permissoes/catalogo' ? 'perfil.gerir' : 'perfil.gerir');
+    expect(rotasDePerfisV2.every((r) => r.superficie === 'bko')).toBe(true);
+    const vendedor = resolverPerfilPeloCargo({ codigo: 'vendedor', cargo: 'vendedor', permissoes: { 'acesso.campo': {} } });
+    expect(podePeloCargo(vendedor, 'perfil.gerir')).toBe(false);
+  });
+
+  it('RN-AUD-01: o PUT audita perfil.alterar com antes.permissoes e depois.permissoes, e o histórico devolve a diferença pronta', async () => {
+    await leitura(A.tenantId, 'concessao');
+    const criado = await chamar(admin, 'POST', 'perfis', { corpo: { id: id(50), nome: `${PREFIXO}Historico`, cargo: 'vendedor', copiar_de: { modelo: 'vendedor' } } });
+    const codigo = criado.perfil.codigo as string;
+    const d = await detalhe(codigo);
+    await chamar(admin, 'PUT', 'perfis/:codigo', { params: { codigo }, corpo: corpoDe(d, { tirar: ['meta.ver'], por: [{ chave: 'dados.escopo', nivel: 'carteira' }] }) });
+    const aud = (await sql("select antes, depois from plataforma.auditoria where acao = 'perfil.alterar' and entidade_id = $1", [id(50)]))[0]!;
+    expect(Object.keys(aud.antes.permissoes)).toContain('meta.ver');
+    expect(Object.keys(aud.depois.permissoes)).not.toContain('meta.ver');
+    const h = PerfilHistoricoRespostaV2Schema.parse(await chamar(admin, 'GET', 'perfis/:codigo/historico', { params: { codigo } }));
+    expect(h.itens.map((i) => i.acao)).toEqual(['perfil.alterar', 'perfil.criar']);
+    const mudanca = h.itens[0]!.mudancas.find((m) => m.chave === 'meta.ver');
+    expect(mudanca).toMatchObject({ de: { nivel: null, alvos: null }, para: null });
+    expect(h.itens[0]!.usuario_nome).toBeTruthy();
+    expect(h.itens[1]!.mudancas).toEqual([]); // `mudancas` só em perfil.alterar (a criação não é diferença)
+    // RN-CORE-05: o histórico de A não existe para B
+    expect(await falha(chamar(adminB, 'GET', 'perfis/:codigo/historico', { params: { codigo } }))).toMatchObject({ status: 404 });
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('RN-CORE-35: autogestão — o detalhe do perfil de quem está logado vem marcado; o de outro usuário do mesmo perfil não, em outro perfil', async () => {
+    const meu = await detalhe('admin');
+    expect(meu.perfil.autogestao).toBe(true);
+    expect((await detalhe('gerente')).perfil.autogestao).toBe(false);
+    const lista = await chamar(admin, 'GET', 'perfis');
+    expect(lista.itens.find((p: { codigo: string }) => p.codigo === 'admin').autogestao).toBe(true);
+    // quem não tem perfil neste tenant (outro tenant) não é autogestão de ninguém
+    expect((await chamar(adminB, 'GET', 'perfis')).itens.filter((p: { autogestao: boolean }) => p.autogestao).map((p: { codigo: string }) => p.codigo)).toEqual(['admin']);
+  });
+
+  it('RN-CORE-35: último admin — a API recusa tirar a gestão do acesso (422 ULTIMO_ADMIN) e, em concessao, o banco recusa a escrita direta no COMMIT', async () => {
+    await leitura(A.tenantId, 'concessao');
+    const d = await detalhe('admin');
+    expect(await falha(chamar(admin, 'PUT', 'perfis/:codigo', { params: { codigo: 'admin' }, corpo: corpoDe(d, { tirar: ['perfil.gerir', 'acesso.portal'] }) }))).toMatchObject({ status: 422, codigo: 'ULTIMO_ADMIN' });
+    const c = await amb.admin.connect();
+    try {
+      await c.query('begin');
+      await c.query("update plataforma.perfil_concessao set deleted_at = now() where chave = 'perfil.gerir' and deleted_at is null and perfil_id = (select id from plataforma.perfil where codigo = 'admin' and tenant_id = $1)", [A.tenantId]);
+      await expect(c.query('commit')).rejects.toMatchObject({ code: '23514' });
+    } finally {
+      await c.query('rollback').catch(() => undefined);
+      c.release();
+    }
+    expect(await concedidas('admin')).toContain('perfil.gerir');
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('RN-PRO-01: perfil de cargo promotor sem escrita de pedido, em concessao: a API recusa (422) e o banco recusa o insert direto (23514)', async () => {
+    await leitura(A.tenantId, 'concessao');
+    const ruim = await falha(chamar(admin, 'POST', 'perfis', { corpo: { id: id(60), nome: `${PREFIXO}Promotor ruim`, cargo: 'promotor', permissoes: [{ chave: 'acesso.campo' }, { chave: 'pedido.criar' }] } }));
+    expect(ruim).toMatchObject({ status: 422, codigo: 'TRAVA_DO_PERFIL', detalhes: { regra: 'RN-PRO-01' } });
+    const ok = await chamar(admin, 'POST', 'perfis', { corpo: { id: id(61), nome: `${PREFIXO}Promotor ok`, cargo: 'promotor', copiar_de: { modelo: 'promotor' } } });
+    expect((await concedidas(ok.perfil.codigo)).filter((c) => /^pedido\./.test(c) && c !== 'pedido.ver')).toEqual([]);
+    await expect(
+      amb.admin.query("insert into plataforma.perfil_concessao (tenant_id, perfil_id, chave) values ($1, $2, 'pedido.criar')", [A.tenantId, id(61)]),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'perfil_concessao_trava_do_cargo' });
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('ADR 0073 §2.4: promotor_ve_pedidos virou a chave pedido.ver — o histórico de compra segue a concessão no tenant em concessao e o parâmetro em legado', async () => {
+    const promotor = amb.usuario(U.promotor ?? U.vendedor2, 'promotor');
+    // a API nova monta `perfil_acesso` na requisição só em concessao (perfil_do_usuario, 0109); em legado o ctx não o traz
+    const ve = (modo: 'legado' | 'concessao') =>
+      leitura(A.tenantId, modo).then(() =>
+        amb.noTenant(A.tenantId, async (db) => {
+          const p = modo === 'concessao' ? (await db.query<{ codigo: string; cargo: Cargo; permissoes: Record<string, ValorPermissao> }>('select codigo, cargo, permissoes from plataforma.perfil_do_usuario($1)', [promotor.id])).rows[0] : undefined;
+          const usuario = { ...amb.ctx(promotor).usuario, ...(p ? { cargo: p.cargo, perfil_acesso: resolverPerfilPeloCargo(p) } : {}) };
+          return usuarioVePedidos({ ...amb.ctx(promotor), usuario } as ContextoBase, db);
+        }),
+      );
+    expect(await ve('legado')).toBe(true);
+    // concessao: tirar `pedido.ver` do perfil do usuário muda a resposta, sem tocar no parâmetro do tenant
+    await leitura(A.tenantId, 'concessao');
+    const perfilDele = (await sql('select p.id, p.codigo from plataforma.usuario_perfil up join plataforma.perfil p on p.id = up.perfil_id where up.usuario_id = $1 and up.deleted_at is null', [promotor.id]))[0]!;
+    await amb.limpar("update plataforma.perfil_concessao set deleted_at = now() where perfil_id = $1 and chave = 'pedido.ver' and deleted_at is null", [perfilDele.id]);
+    expect(await ve('concessao')).toBe(false);
+    await amb.limpar("update plataforma.perfil_concessao set deleted_at = null where perfil_id = $1 and chave = 'pedido.ver'", [perfilDele.id]);
+    expect(await ve('concessao')).toBe(true);
+    await leitura(A.tenantId, 'legado');
+  });
+
+  it('RN-CORE-05: em concessao, outro tenant não vê, não edita nem apaga o perfil de A e o histórico de B não traz o de A', async () => {
+    await leitura(A.tenantId, 'concessao');
+    await leitura(B.tenantId, 'concessao');
+    const criado = await chamar(admin, 'POST', 'perfis', { corpo: { id: id(70), nome: `${PREFIXO}Isolado`, cargo: 'vendedor', copiar_de: { modelo: 'vendedor' } } });
+    const codigo = criado.perfil.codigo as string;
+    const d = await detalhe(codigo);
+    expect(await falha(chamar(adminB, 'GET', 'perfis/:codigo', { params: { codigo } }))).toMatchObject({ status: 404 });
+    expect(await falha(chamar(adminB, 'PUT', 'perfis/:codigo', { params: { codigo }, corpo: corpoDe(d) }))).toMatchObject({ status: 404 });
+    expect(await falha(chamar(adminB, 'DELETE', 'perfis/:codigo', { params: { codigo } }))).toMatchObject({ status: 404 });
+    expect((await chamar(adminB, 'GET', 'perfis')).itens.some((p: { nome: string }) => p.nome.startsWith(PREFIXO))).toBe(false);
+    expect(ModelosDePerfilRespostaSchema.parse(await chamar(adminB, 'GET', 'perfis/modelos')).itens).toHaveLength(7);
+    await leitura(A.tenantId, 'legado');
+    await leitura(B.tenantId, 'legado');
+  });
+
+  it('RN-CORE-35: o nome "Modelos" não vira o código da rota fixa perfis/modelos', async () => {
+    await leitura(A.tenantId, 'concessao');
+    const r = await chamar(admin, 'POST', 'perfis', { corpo: { id: id(80), nome: `modelos`, cargo: 'vendedor', copiar_de: { modelo: 'vendedor' } } });
+    expect(r.perfil.codigo).toBe('modelos_2');
+    await amb.limpar('delete from plataforma.perfil_modulo where perfil = $1', ['modelos_2']);
+    await amb.limpar('delete from plataforma.perfil where id = $1', [id(80)]);
+    await leitura(A.tenantId, 'legado');
+  });
+});
+}
