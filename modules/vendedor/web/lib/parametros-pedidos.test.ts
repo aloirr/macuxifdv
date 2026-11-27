@@ -41,23 +41,23 @@ describe('RN-VEN-22: painel Pedido mínimo (dinheiro com vírgula, guardado em c
     expect(conferirPedidoMinimo('100.000,00')).toEqual({ ok: true, valor: 10_000_000 });
     for (const t of ['', '0', '0,00', '100.000,01', 'x']) expect(conferirPedidoMinimo(t)).toEqual({ ok: false, erro: 'Use um valor de R$ 0,01 a R$ 100.000,00' });
   });
-  it('RN-VEN-22: o texto de sucesso e a ajuda da spec', () => {
+  it('RN-VEN-22: o texto de sucesso do painel', () => {
     expect(SUCESSO_PARAMETRO.pedido_minimo_cents).toBe('Pedido mínimo salvo.');
   });
 });
 
 describe('RN-VEN-12 e RN-VEN-20: painéis de opções em cartão', () => {
-  it('RN-VEN-12: Crédito excedido tem as três opções da spec, com o apoio de cada uma', () => {
+  it('RN-VEN-12: Crédito excedido tem as três opções da spec; só "Enviar para aprovação" traz apoio', () => {
     expect(OPCOES_CREDITO_EXCEDIDO).toEqual([
       { valor: 'aprovacao', rotulo: 'Enviar para aprovação', apoio: 'Quem aprova está em Alçadas.' },
-      { valor: 'orcamento', rotulo: 'Só como orçamento', apoio: 'O vendedor não consegue enviar o pedido.' },
-      { valor: 'avisar', rotulo: 'Avisar e enviar', apoio: 'O pedido segue sem aprovação.' },
+      { valor: 'orcamento', rotulo: 'Só como orçamento' },
+      { valor: 'avisar', rotulo: 'Avisar e enviar' },
     ]);
     expect(SUCESSO_PARAMETRO.credito_excedido_acao).toBe('Crédito excedido salvo.');
   });
   it('RN-VEN-20: Estoque insuficiente tem as três opções da spec, sem "Cortar"', () => {
     expect(OPCOES_ESTOQUE_INSUFICIENTE.map((o) => o.valor)).toEqual(['orcamento', 'aprovacao', 'avisar']);
-    expect(OPCOES_ESTOQUE_INSUFICIENTE[2]).toMatchObject({ rotulo: 'Avisar e enviar', apoio: 'O pedido segue com o item sem estoque.' });
+    expect(OPCOES_ESTOQUE_INSUFICIENTE.map((o) => o.apoio)).toEqual([undefined, 'Quem aprova está em Alçadas.', undefined]);
     expect(SUCESSO_PARAMETRO.estoque_insuficiente_acao).toBe('Estoque insuficiente salvo.');
   });
 });

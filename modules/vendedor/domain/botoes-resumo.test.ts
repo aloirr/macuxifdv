@@ -138,7 +138,7 @@ describe('RN-VEN-22 e RN-VEN-12: pedido mínimo e crédito só orçamento impede
   it('RN-VEN-22: pedido abaixo do mínimo só sai como orçamento, com a frase da regra', () => {
     const e = { abaixo_do_minimo_cents: 150000 };
     expect(motivoDoItemSoOrcamento(e)).toBe(mensagemPedidoMinimo(150000));
-    expect(motivoDoItemSoOrcamento(e, false)).toBe(mensagemPedidoMinimo(150000));
+    expect(motivoDoItemSoOrcamento(e, false)).toBe('Pedido abaixo do mínimo de R$ 1.500,00. Aumente o pedido para enviar.');
     expect(soOrcamentoPorItem(e)).toBe(true);
     expect(soOrcamentoPorItem({ abaixo_do_minimo_cents: 0 })).toBe(false);
   });

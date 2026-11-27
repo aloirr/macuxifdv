@@ -4,8 +4,6 @@ import { ACOES_CREDITO_EXCEDIDO, ACOES_ESTOQUE_INSUFICIENTE } from '../domain/pa
 
 export const ROTA_PARAMETROS_PEDIDOS = 'parametros/pedidos';
 
-export { ACOES_CREDITO_EXCEDIDO, ACOES_ESTOQUE_INSUFICIENTE };
-
 /** Resposta do GET e do PUT: as chaves com o padrão aplicado (a faixa é do domain, `lerInteiroNaFaixa`). `pedido_minimo_cents` 0 = sem mínimo. */
 export const ParametrosPedidosSchema = z
   .object({

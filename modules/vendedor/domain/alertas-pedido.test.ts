@@ -131,7 +131,7 @@ describe('RN-VEN-22, RN-VEN-12 e RN-VEN-20 (v1.0.39): alertas conforme a ação 
   it('RN-VEN-22: pedido abaixo do mínimo vira a linha com o valor e só permite orçamento', () => {
     const a = alertasDoPedido({ cliente, abaixo_do_minimo_cents: 150000 });
     expect(a).toHaveLength(1);
-    expect(a[0]).toMatchObject({ tipo: 'minimo', texto: 'Pedido abaixo do mínimo de R$\u00a01.500,00', so_orcamento: true });
+    expect(a[0]).toMatchObject({ tipo: 'minimo', texto: 'Pedido abaixo do mínimo de R$ 1.500,00', so_orcamento: true });
     expect(alertasDoPedido({ cliente, abaixo_do_minimo_cents: 0 })).toEqual([]);
   });
   it('RN-VEN-12: o crédito excedido só trava o envio com a ação orcamento', () => {

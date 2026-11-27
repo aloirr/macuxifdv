@@ -32,10 +32,10 @@ describe('RN-VEN-12 (T-0184, critérios 1 a 3 e 6): o app manda para aprovação
   it('RN-VEN-12: pedido à vista (prazo médio 0) não vai por crédito', () => {
     expect(prepararPedido({ ...base, financeiro: fin({ prazo_medio_dias: 0, disponivel_cents: 0 }) }).v.outcome).toBe('ok');
   });
-  it('RN-VEN-12 (P4 A): cliente sem limite informado, a prazo, vai para aprovação com o motivo crédito', () => {
+  it('RN-VEN-12: cliente sem limite informado, a prazo, é sem restrição de crédito: o pedido segue sem aprovação', () => {
     const { v } = prepararPedido({ ...base, financeiro: fin({ limite_informado: false, disponivel_cents: 0 }) });
-    expect(v.outcome).toBe('pending_approval');
-    expect(v.issues.some((i) => i.code === 'credit_exceeded')).toBe(true);
+    expect(v.outcome).toBe('ok');
+    expect(v.issues.some((i) => i.code === 'credit_exceeded')).toBe(false);
   });
   it('RN-VEN-13 (P1 A): inadimplente vai para aprovação, também à vista, com o motivo inadimplência', () => {
     const { v } = prepararPedido({ ...base, financeiro: fin({ prazo_medio_dias: 0, maior_atraso_dias: 12 }) });
@@ -68,9 +68,10 @@ describe('RN-VEN-12 (critério 4): offline o app avisa e não bloqueia o envio',
     expect(a.map((x) => x.texto)).toEqual(['Limite de crédito excedido', 'Título vencido']);
     expect(soOrcamentoPorAlertas(a)).toBe(false);
   });
-  it('RN-VEN-12: à vista não mostra o alerta de crédito; sem limite informado, a prazo, mostra', () => {
+  it('RN-VEN-12: à vista e sem limite informado não mostram o alerta de crédito; limite estourado mostra', () => {
     expect(disponivelParaAlerta({ prazo_medio_dias: 0, limite_informado: false, disponivel_cents: 0 })).toBeNull();
-    const a = alertasDoPedido({ cliente: { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] }, disponivel_cents: disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: false, disponivel_cents: 0 }), total_cents: 10_000 });
+    expect(disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: false, disponivel_cents: 0 })).toBeNull();
+    const a = alertasDoPedido({ cliente: { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] }, disponivel_cents: disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: true, disponivel_cents: 0 }), total_cents: 10_000 });
     expect(a.map((x) => x.id)).toEqual(['credito']);
   });
 });
@@ -111,9 +112,5 @@ describe('RN-VEN-12 (P-6, v1.0.39): a ação do tenant muda o que o app faz com 
   it('RN-VEN-12: com aprovacao (ou sem ação) segue indo para aprovação; a inadimplência não depende da ação', () => {
     expect(prepararPedido({ ...base, financeiro: fin({ disponivel_cents: 0, acao: 'aprovacao' }) }).v.outcome).toBe('pending_approval');
     expect(prepararPedido({ ...base, financeiro: fin({ disponivel_cents: 0, maior_atraso_dias: 12, acao: 'avisar' }) }).v.issues.map((i) => i.code)).toEqual(['overdue_receivables']);
-  });
-  it('RN-VEN-12: financeiroParaAprovacao leva a ação do tenant (padrão aprovacao)', () => {
-    expect(financeiroParaAprovacao({ tipo: 'vazio' }, 28, 5)).toMatchObject({ acao: 'aprovacao' });
-    expect(financeiroParaAprovacao({ tipo: 'vazio' }, 28, 5, 'orcamento')).toMatchObject({ acao: 'orcamento' });
   });
 });

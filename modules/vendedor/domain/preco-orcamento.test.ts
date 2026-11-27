@@ -11,7 +11,7 @@ import {
   type OrcamentoParaReconferir,
 } from './orcamento';
 import { politicaDosParametros } from './aprovacao';
-import { mensagemPedidoMinimo } from './pedido-minimo';
+import { mensagemPedidoMinimoCurta } from './pedido-minimo';
 
 const FUSO = 'America/Manaus'; // UTC-4
 
@@ -91,7 +91,7 @@ describe('RN-VEN-18: Transformar depois do preço vencido reprecifica pela tabel
   it('RN-VEN-22: Transformar com o total abaixo do pedido mínimo bloqueia, com a frase da regra; no mínimo ou sem mínimo passa', () => {
     const abaixo = reconferirOrcamento(orc, { ...hoje(1100, 2200), pedido_minimo_cents: 5000 }, { preco_vale: true });
     expect(abaixo.pode_enviar).toBe(false);
-    expect(abaixo.bloqueio).toBe(mensagemPedidoMinimo(5000));
+    expect(abaixo.bloqueio).toBe(`${mensagemPedidoMinimoCurta(5000)}. Aumente o pedido para transformar.`);
     const igual = reconferirOrcamento(orc, { ...hoje(1100, 2200), pedido_minimo_cents: 3800 }, { preco_vale: true });
     expect(igual.pode_enviar).toBe(true);
     expect(reconferirOrcamento(orc, { ...hoje(1100, 2200), pedido_minimo_cents: 0 }, { preco_vale: true }).bloqueio).toBeNull();

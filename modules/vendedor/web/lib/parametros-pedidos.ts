@@ -84,19 +84,20 @@ export function conferirPedidoMinimo(texto: string): { ok: true; valor: number }
 export interface OpcaoDeAcao<T extends string> {
   valor: T;
   rotulo: string;
-  apoio: string;
+  /** só "Enviar para aprovação" tem apoio (spec 7.5): o resto é o rótulo */
+  apoio?: string;
 }
 
 /** RN-VEN-12 (spec 7.5.2): pedido a prazo acima do crédito disponível. */
 export const OPCOES_CREDITO_EXCEDIDO: readonly OpcaoDeAcao<AcaoCreditoExcedido>[] = [
   { valor: 'aprovacao', rotulo: 'Enviar para aprovação', apoio: 'Quem aprova está em Alçadas.' },
-  { valor: 'orcamento', rotulo: 'Só como orçamento', apoio: 'O vendedor não consegue enviar o pedido.' },
-  { valor: 'avisar', rotulo: 'Avisar e enviar', apoio: 'O pedido segue sem aprovação.' },
+  { valor: 'orcamento', rotulo: 'Só como orçamento' },
+  { valor: 'avisar', rotulo: 'Avisar e enviar' },
 ];
 
 /** RN-VEN-20 (spec 7.5.3): item com quantidade acima do estoque da filial. */
 export const OPCOES_ESTOQUE_INSUFICIENTE: readonly OpcaoDeAcao<AcaoEstoqueInsuficiente>[] = [
-  { valor: 'orcamento', rotulo: 'Só como orçamento', apoio: 'O vendedor não consegue enviar o pedido.' },
+  { valor: 'orcamento', rotulo: 'Só como orçamento' },
   { valor: 'aprovacao', rotulo: 'Enviar para aprovação', apoio: 'Quem aprova está em Alçadas.' },
-  { valor: 'avisar', rotulo: 'Avisar e enviar', apoio: 'O pedido segue com o item sem estoque.' },
+  { valor: 'avisar', rotulo: 'Avisar e enviar' },
 ];
