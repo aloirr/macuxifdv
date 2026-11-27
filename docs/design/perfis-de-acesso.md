@@ -1,8 +1,9 @@
 # Perfis de acesso — página do BKO e campo "Perfis" do usuário (T-0111)
 
 > **Substituído na edição do perfil (ADR 0073, E5, v1.0.40):** a página usa a tabela de `docs/design/telas/perfis-tabela-kit.md`.
-> `LinhaDePermissao`, `SeletorDeNivel`, `ResumoDasMudancas` e os textos do modelo com "perfil base" e "Padrão: X" saíram do kit;
-> ficam `Cadeado`, `Interruptor` e `SeletorDePerfis`.
+> A linha, o seletor de nível, o resumo "o que mudou" e os textos do modelo com "perfil base" e "Padrão: X" saíram do kit (RD-3723);
+> ficam `Cadeado`, `Interruptor` e `SeletorDePerfis`. Os nomes do kit antigo citados abaixo viraram o texto que eles tinham ou a peça
+> nova da tabela (`LinhaPermissao`, `SeletorEscopo`, `idsDaLinhaTabela`, em `packages/ui/src/web/tabela-permissoes.tsx`).
 >
 > 2026-11-07 · designer-ux · desenho aprovado pelo dono do produto (R-20261107-195349) em `.coord/tarefas/T-0111.md` ·
 > modelo: ADR 0033 e `.coord/contratos/permissoes.md` · regras: RN-CORE-01, RN-CORE-04, RN-CORE-32, RN-CORE-33, RN-CORE-35,
@@ -56,13 +57,13 @@ exportada por `@macuxi/ui/web`, `@macuxi/ui/mobile` e `@macuxi/ui/mobile/puro`.
 - ação: botão **principal** **"Novo perfil"** (o único principal da página).
 
 **Tabela** (`Panel` + `TableScroll minWidth={760}`), uma linha por perfil. Ordem: os 7 padrão na ordem Vendedor, Promotor,
-Supervisor, Gerente, Analista, Assistente, Admin (`ORDEM_PERFIL_BASE`); depois os personalizados por nome (A→Z); os inativos no fim.
+Supervisor, Gerente, Analista, Assistente, Admin (`ORDEM_PERFIL_PADRAO`); depois os personalizados por nome (A→Z); os inativos no fim.
 
 | Coluna | O que mostra |
 |---|---|
-| **Nome** | nome do perfil (14/600, link para a edição) e, nos de fábrica, o selo **"Padrão"** (`Badge tone="neutral"`, `SELO_PADRAO`). Embaixo, em 12 `ink-2`, a descrição, se houver (1 linha, corta com "…") |
-| **Perfil base** | o rótulo da base (`ROTULO_PERFIL_BASE`). Nos padrão, igual ao nome |
-| **Onde entra** | um `Badge tone="neutral"` por lugar concedido, na ordem Campo, Gestão, BKO, Portal (`ROTULO_LUGAR`). Nenhum: "Nenhum" em `ink-2` |
+| **Nome** | nome do perfil (14/600, link para a edição) e, nos de fábrica, o selo **"Padrão"** (`Badge tone="neutral"`). Embaixo, em 12 `ink-2`, a descrição, se houver (1 linha, corta com "…") |
+| **Perfil base** | o rótulo da base (`rotuloDoPerfil`). Nos padrão, igual ao nome |
+| **Onde entra** | um `Badge tone="neutral"` por lugar concedido, na ordem Campo, Gestão, BKO, Portal. Nenhum: "Nenhum" em `ink-2` |
 | **Usuários** | quantidade (número, alinhado à direita); link para "Usuários" filtrada pelo perfil. Zero: "0" em `ink-2`, sem link |
 | **Situação** | `Badge tone="success"` **"Ativo"** ou `Badge tone="neutral"` **"Inativo"** |
 | **Ações** | botões link: **"Editar"** · **"Novo a partir deste"** · **"Desativar"** (só personalizado ativo) ou **"Reativar"** (só personalizado inativo) |
@@ -91,7 +92,7 @@ Supervisor, Gerente, Analista, Assistente, Admin (`ORDEM_PERFIL_BASE`); depois o
 1. **Nome** (obrigatório, até 40 caracteres, foco inicial). No "a partir de", já vem **"<Nome> (cópia)"** com o texto selecionado.
 2. **Perfil base** (`SelectField`, obrigatório, sem opção pré-escolhida: "Escolha…"), com os 7 na ordem padrão. No "a partir de",
    não é campo: linha de texto **"Perfil base: Vendedor"** (a base não muda).
-   Ajuda embaixo (12, `ink-2`), muda com a base escolhida, a partir de `textoOndeEntra` da fábrica da base:
+   Ajuda embaixo (12, `ink-2`), muda com a base escolhida, a partir dos lugares de fábrica da base:
    **"Começa com as permissões do <Base>. Entra em: Campo."** E, nas bases vendedor, promotor e supervisor, a segunda frase:
    **"Este perfil nunca entra no BKO nem no portal."** (regra RN-CORE-33)
 3. **Descrição** (opcional, até 200 caracteres, 2 linhas): ajuda **"Para quem é este perfil. Aparece na lista."**
@@ -108,14 +109,14 @@ Erros (embaixo do campo, 12, `text-danger`): nome vazio **"Dê um nome ao perfil
 **Cabeçalho** (`PageHeader`):
 - `eyebrow`: link **"‹ Perfis de acesso"** (volta à lista; com mudanças, pergunta antes, §7.4);
 - título: o nome; `badge`: selo "Padrão" nos de fábrica e `Badge tone="neutral"` "Inativo" se inativo;
-- subtítulo: **"Perfil base: Vendedor · 12 usuários"** (`textoDosAfetados` não entra aqui; é só o número);
+- subtítulo: **"Perfil base: Vendedor · 12 usuários"** (só o número);
 - ações (secundárias): **"Histórico"** (§8) e, se o perfil tem algo diferente do padrão, **"Restaurar o padrão"** (§7.5).
 
 **Corpo**: em telas ≥ 1024 px, duas colunas.
-- **Índice** à esquerda (200 px, fixo ao rolar): os títulos das seções (`SECOES_DO_PERFIL`) como links de âncora; ao lado de cada
+- **Índice** à esquerda (200 px, fixo ao rolar): os títulos das seções como links de âncora; ao lado de cada
   um, quantas mudanças não salvas ela tem (`Badge tone="pending"` com o número; nada se zero). A seção visível fica em negrito.
   Abaixo de 1024 px o índice some.
-- **Seções** à direita, cada uma num `Panel` com `title` = título da seção e `label` igual. Linhas com `LinhaDePermissao`.
+- **Seções** à direita, cada uma num `Panel` com `title` = título da seção e `label` igual. Linhas com `LinhaPermissao`.
   Seção de módulo **não contratado** pela empresa: não aparece (nem no índice). As 12 seções vêm na ordem aprovada; depois delas,
   o bloco **"Outras permissões"** (§5.13), fechado.
 
@@ -124,18 +125,18 @@ Erros (embaixo do campo, 12, `text-danger`): nome vazio **"Dê um nome ao perfil
 - à direita: **"Descartar"** (secundário, desabilitado sem mudança) e **"Salvar"** (principal, desabilitado sem mudança). "Salvar"
   abre o resumo (§7.1); nada é gravado antes dele.
 
-**Linha "Padrão: X"**: em toda linha cujo valor difere do padrão de fábrica da base, a `LinhaDePermissao` mostra
-`textoDoPadrao(<valor de fábrica>)` embaixo do rótulo ("Padrão: Equipe"). Serve para os perfis padrão e para os personalizados (o
+**Linha "Padrão: X"**: em toda linha cujo valor difere do padrão de fábrica da base, a `LinhaPermissao` mostra
+"Padrão: <valor de fábrica>" embaixo do rótulo ("Padrão: Equipe"), na `descricao`. Serve para os perfis padrão e para os personalizados (o
 padrão de um personalizado é o da base).
 
 **Valores na tela** (são os mesmos textos do resumo e do histórico): liga/desliga **"Sim"/"Não"**; níveis pelos rótulos de cada
 linha (§5); perfis-alvo por `resumoDosAlvos`.
 
 ## 5. As seções, linha por linha
-Controles: **Interruptor** (liga/desliga, com "Sim"/"Não" escrito), **Nível** (`SeletorDeNivel`, botões lado a lado; "Não" é
+Controles: **Interruptor** (liga/desliga, com "Sim"/"Não" escrito), **Nível** (`SeletorEscopo`, botões lado a lado; "Não" é
 sempre a primeira opção quando existe) e **Perfis** (`SeletorDePerfis`). Toda a página usa o interruptor para liga/desliga (onde o
 desenho dizia "caixas" também), para um só gesto e o "Sim/Não" sempre escrito; caixa de seleção fica para as listas de perfis.
-Níveis de escopo nunca passam o do perfil base: a opção acima aparece com cadeado e desabilitada (`CADEADO.escopoAcimaDaBase`,
+Níveis de escopo nunca passam o do perfil base: a opção acima aparece com cadeado e desabilitada ("Acima do perfil base <Base>.",
 RN-CORE-04). A opção **"Equipes abaixo"** só aparece nos perfis de base gerente (o único que tem esse alcance).
 "Linha agrupada" = um controle que grava o mesmo valor em várias chaves; se elas estiverem diferentes, o interruptor mostra
 **"Em parte"** e o toque liga todas.
@@ -144,9 +145,9 @@ RN-CORE-04). A opção **"Equipes abaixo"** só aparece nos perfis de base geren
 | Linha | Controle | Notas |
 |---|---|---|
 | **Nome** | campo de texto, até 40 | nos perfis padrão, só leitura (texto, sem campo): o nome "Vendedor" aparece nas mensagens dos apps |
-| **Perfil base** | texto só leitura + cadeado `CADEADO.baseImutavel` | |
+| **Perfil base** | texto só leitura + cadeado "O perfil base não muda depois de criado." | |
 | **Descrição** | área de texto, até 200, opcional | |
-| **Ativo** | Interruptor | perfis padrão: ligado, travado, cadeado `CADEADO.padraoNaoDesativa`. Personalizado com usuários: desabilitado, ajuda **"Tem 3 usuários. Troque o perfil deles em Usuários antes de desativar."** |
+| **Ativo** | Interruptor | perfis padrão: ligado, travado, cadeado "Os perfis padrão não são apagados nem desativados.". Personalizado com usuários: desabilitado, ajuda **"Tem 3 usuários. Troque o perfil deles em Usuários antes de desativar."** |
 
 ### 5.2 Onde entra
 Ajuda da seção (13, `ink-2`, embaixo do título): **"Em quais apps e sites quem tem este perfil consegue entrar."**
@@ -156,20 +157,20 @@ Ajuda da seção (13, `ink-2`, embaixo do título): **"Em quais apps e sites que
 | **App Gestão** | `acesso.gestao` | Interruptor | — |
 | **BKO** | `acesso.bko` | Interruptor | bases vendedor, promotor, supervisor: "Não" travado, texto do `travaDaChave` (regra RN-CORE-33) |
 | **Portal de implantação** | `acesso.portal` | Interruptor | base não admin: "Não" travado, "O portal é só do admin." (regra RN-CORE-33) |
-Em perfil de base admin que o próprio usuário tem: **BKO** travado em "Sim" com `CADEADO.autogestao` (§6).
+Em perfil de base admin que o próprio usuário tem: **BKO** travado em "Sim" com o cadeado da autogestão (§6).
 
 ### 5.3 Escopo de dados
 | Linha | Chave | Controle |
 |---|---|---|
 | **Quais clientes e números vê** | `dados.escopo` | Nível: **Carteira própria · Equipe · [Equipes abaixo] · Toda a empresa** |
 Ajuda da linha: **"O perfil começa com o escopo do perfil base e pode ter menos, nunca mais."** As opções acima da base vêm
-desabilitadas com cadeado (`CADEADO.escopoAcimaDaBase`).
+desabilitadas com cadeado ("Acima do perfil base <Base>.").
 
 ### 5.4 Módulos
 Ajuda da seção: **"Os módulos que quem tem este perfil usa. Só aparecem os contratados pela empresa. Para tirar um módulo de uma
 pessoa só, use Usuários e módulos."**
 - Uma linha por módulo contratado, na ordem do menu, com Interruptor (padrão de módulos do perfil, `perfil_modulo`, RF-CORE-03).
-- **Core**: "Sim" travado, `CADEADO.coreSempreLigado`.
+- **Core**: "Sim" travado, "O Core é a base do sistema e fica sempre ligado."
 - Módulo desligado aqui: as seções dele continuam editáveis, com um `Notice tone="info"` no topo da seção: **"O módulo <Nome>
   está desligado neste perfil. Estas permissões só valem para quem recebe o módulo por outro perfil."**
 
@@ -182,19 +183,19 @@ pessoa só, use Usuários e módulos."**
 | **Desativar usuário** | `usuario.desativar` | Interruptor | ajuda **"Nunca o próprio."** |
 | **Redefinir senha** | `senha.redefinir` | Interruptor; ligado, abre embaixo (`abaixo`) o `SeletorDePerfis` | ver abaixo |
 | **Gerenciar perfis de acesso** | `perfil.gerir` | Interruptor | |
-| **Regra da senha** | — | texto só leitura **"8 caracteres ou mais, com letra, número e caractere especial."** + cadeado `CADEADO.senhaSempreComRegra` | RN-CORE-32: nenhum perfil desliga |
+| **Regra da senha** | — | texto só leitura **"8 caracteres ou mais, com letra, número e caractere especial."** + cadeado "Toda senha segue a regra de segurança." | RN-CORE-32: nenhum perfil desliga |
 
 **Redefinir senha → "De quais perfis"** (`SeletorDePerfis`, `legenda="De quais perfis"`):
 - no topo, a opção **`ROTULO_ALVO_TODOS`** ("Todos os perfis, menos admin (inclusive os criados depois)"), valor `*`;
 - depois, os perfis ativos da empresa (padrão primeiro, com o selo; personalizados com `detalhe="Base: <Base>"`);
-- perfis de base admin: na lista, desabilitados, com `motivo={CADEADO.senhaDeAdmin}`;
+- perfis de base admin: na lista, desabilitados, com `motivo="A senha de um admin não é redefinida por aqui."`;
 - ajuda: **"Ninguém redefine a própria senha por aqui: use "Esqueci a senha" no login."**;
 - ligado sem nenhum perfil marcado: ao salvar, erro na linha **"Marque pelo menos um perfil ou desligue a redefinição de senha."**
   (a tela não deixa salvar);
 - o valor no resumo: `resumoDosAlvos` ("Todos, menos admin", "Vendedor, Supervisor").
 
 **Autogestão** (RN-CORE-35): em perfil de base admin **que o próprio usuário tem**, as linhas Criar, Editar, Desativar usuário e
-Gerenciar perfis ficam em "Sim", travadas, com `CADEADO.autogestao`. Nos outros casos, a API confere ao salvar (§7.2).
+Gerenciar perfis ficam em "Sim", travadas, com o cadeado da autogestão (§6). Nos outros casos, a API confere ao salvar (§7.2).
 
 ### 5.6 Clientes
 | Linha | Chave | Controle |
@@ -264,7 +265,7 @@ Mais permissões: `lote.reprocessar`, `mapeamento.editar`, `conector.gerenciar`,
 ### 5.13 "Mais permissões" e "Outras permissões"
 Nenhuma chave do catálogo (`catalogoDePermissoes`) fica sem lugar na tela:
 - No fim de cada seção, as chaves da área dela que não estão numa linha acima ficam num grupo fechado: botão link **"Mais
-  permissões (3)"** / **"Menos permissões"** (`aria-expanded`), e dentro, uma `LinhaDePermissao` com Interruptor por chave.
+  permissões (3)"** / **"Menos permissões"** (`aria-expanded`), e dentro, uma `LinhaPermissao` por chave.
 - Depois da seção 12, o bloco **"Outras permissões"**, fechado, com dois grupos: **"Gestão da equipe"** (área `gestao`) e
   **"Administração do BKO"** (área `administracao`).
 - Rótulo de cada uma: o da tabela abaixo (curto, sem código de RN nem nome técnico). Chave nova sem rótulo aqui: a tela usa a
@@ -307,22 +308,22 @@ Nenhuma chave do catálogo (`catalogoDePermissoes`) fica sem lugar na tela:
 | `parametro.checkout_pendencia` | Ajustar o prazo do alerta de checkout | Administração do BKO |
 
 ## 6. Cadeados
-O cadeado (`Cadeado`, dentro da `LinhaDePermissao` com `trava`) fica logo depois do rótulo. **Mostra o texto da regra ao passar o
+O cadeado (`Cadeado`, dentro da `LinhaPermissao` com `trava`) fica logo depois do rótulo. **Mostra o texto da regra ao passar o
 mouse, ao focar com o teclado ou ao tocar**; o controle da linha vem desabilitado no valor que a regra obriga. Texto: o do
-`travaDaChave` do SDK quando a trava é de chave; senão, o `CADEADO` do kit.
+`travaDaChave` do SDK quando a trava é de chave; senão, o texto da tabela abaixo, que a tela escreve.
 
 | Situação | Onde | Texto |
 |---|---|---|
 | Base vendedor, promotor ou supervisor (e derivados) e o BKO | 5.2 BKO | `travaDaChave`: "Vendedor nunca entra no BKO." (com o nome da base; regra RN-CORE-33) |
 | Portal fora da base admin | 5.2 Portal | `travaDaChave`: "O portal é só do admin." (regra RN-CORE-33) |
 | Base promotor e escrita de pedido | 5.7 | `travaDaChave`: "Promotor nunca cria, edita, cancela ou exclui pedido." (regra RN-PRO-01) |
-| Escopo acima da base | 5.3 e níveis de escopo | `CADEADO.escopoAcimaDaBase(base)`: "Acima do perfil base Supervisor." (na opção; regra RN-CORE-04) |
-| Autogestão do admin | 5.2 BKO, 5.5 gestão | `CADEADO.autogestao`: "Você não pode tirar isto de si mesmo. Peça a outro admin." (regra RN-CORE-35) |
-| Senha de admin na lista de alvos | 5.5 lista | `CADEADO.senhaDeAdmin` (na opção) |
-| Regra da senha | 5.5 | `CADEADO.senhaSempreComRegra`: "Toda senha segue a regra de segurança." (regra RN-CORE-32) |
-| Perfil base | 5.1 | `CADEADO.baseImutavel`: "O perfil base não muda depois de criado." |
-| Ativo dos perfis padrão | 5.1 | `CADEADO.padraoNaoDesativa` |
-| Core | 5.4 | `CADEADO.coreSempreLigado` |
+| Escopo acima da base | 5.3 e níveis de escopo | "Acima do perfil base Supervisor." (na opção; regra RN-CORE-04) |
+| Autogestão do admin | 5.2 BKO, 5.5 gestão | "Você não pode tirar isto de si mesmo. Peça a outro admin." (regra RN-CORE-35) |
+| Senha de admin na lista de alvos | 5.5 lista | "A senha de um admin não é redefinida por aqui." (na opção) |
+| Regra da senha | 5.5 | "Toda senha segue a regra de segurança." (regra RN-CORE-32) |
+| Perfil base | 5.1 | "O perfil base não muda depois de criado." |
+| Ativo dos perfis padrão | 5.1 | "Os perfis padrão não são apagados nem desativados." |
+| Core | 5.4 | "O Core é a base do sistema e fica sempre ligado." |
 
 **Sem código interno no texto visível** (R-20261124-094002): RN-, RF-, RD-, T-nnnn e ADR ficam só entre parênteses na tabela e nos comentários; o texto que o cliente lê termina na frase.
 
@@ -331,9 +332,9 @@ O **último admin** não tem cadeado (depende de todos os usuários): a API recu
 ## 7. Salvar
 ### 7.1 Resumo "o que mudou" (antes de gravar)
 "Salvar" abre o `Dialog` **"Confira antes de salvar"**:
-1. `ResumoDasMudancas` com `afetados` = usuários do perfil: "3 mudanças · Afeta 12 usuários." e, por seção, "Cancelar pedido:
+1. Resumo das mudanças, com os usuários do perfil: "3 mudanças · Afeta 12 usuários." e, por seção, "Cancelar pedido:
    Equipe → Próprio".
-2. Nota (12, `ink-2`): `NOTA_DO_RESUMO` — **"Vale na próxima ação de quem usa este perfil, sem precisar sair e entrar de novo.
+2. Nota (12, `ink-2`): **"Vale na próxima ação de quem usa este perfil, sem precisar sair e entrar de novo.
    Fica registrado no histórico."**
 3. Rodapé: **"Voltar e ajustar"** (secundário) e **"Salvar"** (principal; enviando **"Salvando…"**, desabilitado).
 Mudanças de identificação (nome, descrição, ativo) entram no resumo na seção "Identificação". Se a pessoa desfaz tudo à mão, o
@@ -378,7 +379,7 @@ contador e no resumo) e a pessoa salva pelo caminho normal. Nome, descrição e 
 ## 8. Histórico (auditoria, RN-AUD-01)
 "Histórico" abre um `Drawer` **"Histórico de <Nome>"**, do mais novo para o mais antigo:
 - cada registro: **"07/11/2026 às 21:40 · Ana Souza"** (data e hora no fuso da empresa; nome de quem mudou), e embaixo o
-  `ResumoDasMudancas` sem `afetados`, com os valores antes e depois;
+  resumo das mudanças, sem os usuários afetados, com os valores antes e depois;
 - criação: **"Perfil criado a partir de <Base>."**; desativação e reativação: **"Perfil desativado."** / **"Perfil reativado."**;
 - vazio: **"Nada mudou neste perfil desde que foi criado."**; carregando e erro: `LoadingBlock` e `ErrorBlock`;
 - 20 por vez, com o botão secundário **"Mostrar mais"** no fim.
@@ -386,8 +387,8 @@ contador e no resumo) e a pessoa salva pelo caminho normal. Nome, descrição e 
 ## 9. Teclado e leitor de tela
 - Uma `h1` (título da página), uma `h2` por seção (`Panel title`), `h3` dentro do resumo. O índice é um `nav` com
   `aria-label="Seções do perfil"`; a seção atual tem `aria-current="true"`.
-- Cada controle se liga ao rótulo da linha (`rotuloId` = `idsDaLinha(id).rotulo`) e à ajuda e ao cadeado pelo
-  `descricaoDaLinha(id, { ajuda, travada })`. Exemplo do que se ouve: "BKO, interruptor, desligado, indisponível. Vendedor nunca
+- Cada controle se liga ao rótulo da linha (`rotuloId` = `idsDaLinhaTabela(id).rotulo`) e à descrição e ao cadeado
+  pelo `aria-describedby` que a `LinhaPermissao` monta. Exemplo do que se ouve: "BKO, interruptor, desligado, indisponível. Vendedor nunca
   entra no BKO."
 - Interruptor: `role="switch"`, Espaço/Enter. Nível: rádios nativos num `radiogroup` (Tab entra no marcado, setas trocam); opção
   travada fala "Toda a empresa, travado: Acima do perfil base Supervisor". Perfis: caixas num `fieldset` com `legend`.
@@ -402,22 +403,22 @@ contador e no resumo) e a pessoa salva pelo caminho normal. Nome, descrição e 
 
 ## 10. Usuários: campo "Perfis" e a prévia (`modules/core/web/components/usuarios/usuarios-page.tsx`)
 **No formulário (Novo e Editar usuário)**, o seletor "Perfil" vira o campo **"Perfis"**, no mesmo lugar:
-- `SeletorDePerfis` com `legenda={ROTULO_CAMPO_PERFIS}` ("Perfis"), `ajuda={AJUDA_CAMPO_PERFIS}` (**"Marque um ou mais. Quem
+- `SeletorDePerfis` com `legenda="Perfis"`, `ajuda` (**"Marque um ou mais. Quem
   acumula funções, como vendedor e promotor, fica com os dois."**), sem a opção "todos";
 - opções: os perfis **ativos** da empresa, padrão primeiro (com o selo "Padrão"), depois os personalizados (A→Z, `detalhe="Base:
   <Base>"`); com mais de 10, a lista rola dentro de uma caixa de 280 px de altura;
-- nenhum marcado ao salvar: `erro={ERRO_SEM_PERFIL}` (**"Escolha pelo menos um perfil."**) e não envia (RN-CORE-01);
+- nenhum marcado ao salvar: `erro` (**"Escolha pelo menos um perfil."**) e não envia (RN-CORE-01);
 - 422 `PERFIL_INDISPONIVEL`: **"Um dos perfis escolhidos foi desativado. Feche e abra o formulário de novo."**
 - editando a si mesmo, sem nenhum perfil de base admin marcado (tirando a própria gestão): a API recusa com `AUTOGESTAO` e a tela
   mostra o texto do §7.2 no `Notice` do formulário.
 
 **Prévia**, logo abaixo do campo, num quadro `bg-ground` com borda `line`, raio 10, 12 px de respiro; atualiza ao marcar:
-1. **`TITULO_PREVIA_MODULOS`** ("Módulos que esta pessoa vai usar", 12/600 `ink-2`) e os módulos como `Badge tone="neutral"`, na
+1. **"Módulos que esta pessoa vai usar"** (12/600 `ink-2`) e os módulos como `Badge tone="neutral"`, na
    ordem do menu. Calculado pelo Core (RN-CORE-01: união dos módulos dos perfis ∩ contratados − exceções desta pessoa).
-2. `AJUDA_PREVIA_MODULOS` (12, `ink-2`): **"Soma dos módulos dos perfis marcados, só os contratados pela empresa, menos as
+2. Ajuda (12, `ink-2`): **"Soma dos módulos dos perfis marcados, só os contratados pela empresa, menos as
    exceções desta pessoa."**
 3. Editando, com exceções: **"Tirados desta pessoa: Treinamento."**
-4. Onde entra: `textoOndeEntra(lugares)` ("Entra em: Campo.") pelo `podeEntrar` dos perfis combinados. Se a regra mais restritiva
+4. Onde entra: **"Entra em: Campo."** pelo `podeEntrar` dos perfis combinados. Se a regra mais restritiva
    fechar o BKO ou o portal que outro perfil daria (RN-CORE-35), uma linha com o cadeado: **"Não entra no BKO: um dos perfis é de
    base Vendedor."** (regra RN-CORE-33)
 5. Nenhum perfil marcado: só **"Marque um perfil para ver os módulos."**
@@ -434,18 +435,17 @@ com o nome completo no `title`). O filtro "Perfil" lista todos os perfis ativos 
   Identificação para usar de novo."** (as permissões continuam editáveis).
 - Sem internet ao abrir: `ErrorBlock` com o texto de sem conexão. Sem internet ao salvar: §7.2.
 
-## 12. Kit (`@macuxi/ui/web`, feito nesta tarefa, com teste)
+## 12. Kit (`@macuxi/ui/web`, com teste)
 Arquivos: `packages/ui/src/web/permissoes.tsx` (componentes), `packages/ui/src/web/perfis.ts` (textos e arrumação), testes em
-`permissoes.test.ts` e `perfis.test.ts`. Sem hooks e sem regra: a tela decide valor, trava e desabilitado.
+`permissoes.test.ts` e `perfis.test.ts`; a tabela da edição em `tabela-permissoes.tsx` (`docs/design/telas/perfis-tabela-kit.md`).
+Sem hooks e sem regra: a tela decide valor, trava e desabilitado.
 | Peça | Uso |
 |---|---|
-| `LinhaDePermissao({ id, rotulo, ajuda?, padrao?, trava?, erro?, abaixo?, children })` | linha de toda seção; `idsDaLinha(id)` e `descricaoDaLinha(id, {ajuda, travada})` ligam o controle |
+| `LinhaPermissao`, `SeletorEscopo`, `idsDaLinhaTabela` (`tabela-permissoes.tsx`) | linha de toda seção e níveis de escopo |
 | `Interruptor({ ligado, onChange, misto?, rotuloId \| rotulo, descricaoId?, desabilitado? })` | liga/desliga com "Sim/Não/Em parte" |
-| `SeletorDeNivel({ nome, opcoes: {valor, rotulo, desabilitada?, motivo?}[], valor, onChange, rotuloId \| rotulo, descricaoId?, desabilitado? })` | níveis (escopo, alçada, metas, catálogo) |
 | `SeletorDePerfis({ nome, legenda, ajuda?, opcoes: {valor, rotulo, detalhe?, selo?, desabilitada?, motivo?}[], marcados, onChange(valor, marcar), todos?, erro? })` | alvos da senha e campo "Perfis"; a tela monta a lista com `alternarMarcado` |
-| `Cadeado({ id, mensagem })` | já vem dentro da `LinhaDePermissao`; solto, para o "Perfil base" e a prévia |
-| `ResumoDasMudancas({ mudancas, afetados? })` + `resumoEmTexto` | resumo antes de salvar e histórico |
-| Textos | `TITULO_PERFIS`, `SELO_PADRAO`, `ROTULO_PERFIL_BASE`, `ORDEM_PERFIL_BASE`, `ROTULO_LUGAR`, `SECOES_DO_PERFIL`, `CADEADO`, `ROTULO_ALVO_TODOS`, `ALVO_TODOS_PERFIS` (`*`), `NOTA_DO_RESUMO`, `textoDoPadrao`, `contagemNaoSalva`, `textoDosAfetados`, `resumoDosAlvos`, `textoOndeEntra`, `ROTULO_CAMPO_PERFIS`, `AJUDA_CAMPO_PERFIS`, `ERRO_SEM_PERFIL`, `TITULO_PREVIA_MODULOS`, `AJUDA_PREVIA_MODULOS` |
+| `Cadeado({ id, mensagem })` | já vem dentro da `LinhaPermissao`; solto, para o "Perfil base" e a prévia |
+| Textos | `ROTULO_CADEADO`, `TEXTO_INTERRUPTOR`, `ROTULO_ALVO_TODOS`, `ALVO_TODOS_PERFIS` (`*`), `contagemNaoSalva`, `resumoDosAlvos`, `alternarMarcado`; nomes dos perfis em `comum/perfis.ts` (§0.1) |
 
 ## 13. Chaves que a página pede e ainda não existem (para o modulo-core repassar)
 O ADR 0033 §1 prevê que, aprovado o desenho, os módulos acrescentam as chaves e os níveis. Até cada uma chegar, a linha
