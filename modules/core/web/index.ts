@@ -26,7 +26,6 @@ import { CalendarioPage } from './components/calendario/calendario-page';
 import { CurvasAbcParametrosPanel } from './components/farol/curvas-abc-parametros-panel';
 import { FarolParametrosPanel } from './components/farol/farol-parametros-panel';
 import { FrasesDoDiaPanel } from './components/frases-do-dia/frases-do-dia-panel';
-import { PromotorPedidosPanel } from './components/licencas/promotor-pedidos-panel';
 import { CheckoutPendenciaPanel } from './components/metas/checkout-pendencia-panel';
 import { InicioBkoPage } from './components/inicio/inicio-bko-page';
 import { HorarioCargaPanel } from './components/inicio/horario-carga-panel';
@@ -79,7 +78,6 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'ausencias', secao: 'calendario', titulo: 'Ausências', ordem: 50, acao: 'ausencia.cadastrar', componente: AusenciasPanel },
     { id: 'desconto', secao: 'produtos', titulo: 'Desconto máximo padrão', ordem: 10, acao: 'produto.parametros', componente: DescontoPadraoPanel },
     { id: 'medidas', secao: 'produtos', titulo: 'Medidas', ordem: 20, acao: 'produto.editar_preco', componente: MedidasParametrosPanel },
-    { id: 'promotor-pedidos', secao: 'acesso', titulo: 'Promotor vê pedidos', ordem: 50, acao: 'parametro.promotor_ve_pedidos', componente: PromotorPedidosPanel },
   ],
   // Perfis, Módulos, Motivos e Fotos do PDV vivem só nos painéis (ADR 0058); edição de perfil: ?editar_perfil=<codigo>, novo: ?novo=1; Módulos filtra por ?modulos_perfil=
   paginas: [
