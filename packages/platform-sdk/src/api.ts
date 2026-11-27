@@ -77,7 +77,8 @@ export interface UsuarioDaRequisicao extends UsuarioAutenticado {
    * ADR 0033 (T-0111/T-0112): perfis de acesso do usuário, resolvidos A CADA REQUISIÇÃO (fábrica da base + o que o tenant mudou
    * + limites travados), como a licença. A API sempre preenche (super-admin = o Admin de fábrica). Consulte com
    * `pode(ctx.usuario.perfis, 'usuario.criar')`, `nivelPermitido`, `escopoDosPerfis` ou `exigirPermissao`; nunca compare o
-   * perfil com um nome fixo. Ausente (contexto falso de teste) = nada permitido.
+   * perfil com um nome fixo. Ausente (contexto falso de teste) = nada permitido. ADR 0073 (E6): no tenant em 'concessao', um
+   * perfil só, com as concessões de `perfil_acesso` e a base congelada (vazio sem perfil vivo e ativo).
    */
   perfis?: readonly PerfilDaRequisicao[];
   /**
@@ -88,8 +89,8 @@ export interface UsuarioDaRequisicao extends UsuarioAutenticado {
   cargo?: Cargo;
   /**
    * ADR 0073 §2.7 (E3): perfil de acesso sem base, resolvido A CADA REQUISIÇÃO (`resolverPerfilPeloCargo`, falha fechada).
-   * Consulte com `podePeloCargo` / `exigirPermissaoPeloCargo`. Só decide a rota a partir da troca de leitura (E6); até lá,
-   * `perfis` (motor antigo) continua valendo. Ausente = nada permitido no caminho novo.
+   * Consulte com `podePeloCargo` / `exigirPermissaoPeloCargo`. Decide a rota no tenant em 'concessao' (troca de leitura, E6);
+   * no 'legado' fica ausente e `perfis` (motor antigo) decide. Ausente no 'concessao' = nada permitido no caminho novo.
    */
   perfil_acesso?: PerfilDaRequisicaoV2;
 }

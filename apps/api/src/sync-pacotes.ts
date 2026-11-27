@@ -24,6 +24,8 @@ import { copyFile, mkdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import {
   ACAO_VER_PEDIDO,
+  contextoDePermissao,
+  promotorNaRequisicao,
   codificarCursor,
   ehEntidadeDePedido,
   FORMATO_PACOTE_SYNC,
@@ -247,7 +249,7 @@ export async function planoDoUsuario(
   prep: RequisicaoPreparada,
 ): Promise<PlanoModuloPacote[]> {
   const u = prep.ctx.usuario;
-  const verPedido = p.permissoes.pode(ACAO_VER_PEDIDO, { perfil: u.perfil, modulosAtivos: u.modulos });
+  const verPedido = p.permissoes.pode(ACAO_VER_PEDIDO, contextoDePermissao(u));
   const planos: PlanoModuloPacote[] = [];
   for (const [m, provs] of porModulo) {
     const modulo = m.manifesto.id;
@@ -256,7 +258,7 @@ export async function planoDoUsuario(
     const tenant = new Map<string, ProvedorSync>();
     const filial = new Map<string, ProvedorSync>();
     for (const prov of provs) {
-      if (u.perfil === 'promotor' && ehEntidadeDePedido(prov.entidade.nome) && !verPedido) continue;
+      if (promotorNaRequisicao(u) && ehEntidadeDePedido(prov.entidade.nome) && !verPedido) continue;
       if (prov.pacote!.permitido && !(await prov.pacote!.permitido(ctx))) continue;
       (prov.pacote!.particao === 'tenant' ? tenant : filial).set(prov.entidade.nome, prov);
     }
