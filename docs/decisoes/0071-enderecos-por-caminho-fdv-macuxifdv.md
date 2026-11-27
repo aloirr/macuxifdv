@@ -109,12 +109,12 @@ Fora do domínio, também não mudam:
    - O app e o Conector não são navegador.
    - O ERP integra de servidor para servidor.
    - **Bucket:** se o PUT assinado do ZIP estiver ligado (`MACUXI_ENVIO_URL_ASSINADA=1`, ADR 0058), o CORS do bucket precisa aceitar `https://fdv.macuxifdv.com.br` (ao lado de `bko.` até o corte). Desligado, como é o padrão, nada muda.
-8. **Links que o sistema gera: `MACUXI_HOSTS_ANTIGOS` (api e worker), padrão LIGADA.**
-   - **Leitura** (`hostsAntigosLigados` em `apps/api/src/config.ts`, um lugar só): `0`, `false`, `nao` ou `não` desligam; ausente, vazia, `1`/`true`/`sim` ou qualquer outro valor deixam ligada. É o mesmo padrão do `MACUXI_SESSAO_COOKIE_SEGURO`: valor que não se entende fica no padrão, que é o que funciona antes do corte.
-   - **Ligada** (até o corte):
+8. **Links que o sistema gera: `MACUXI_HOSTS_ANTIGOS` (api e worker), padrão DESLIGADA desde a v1.0.42 (R-20261127-174854, decisão 39 A); ligada da v1.0.33 à v1.0.41.**
+   - **Leitura** (`hostsAntigosLigados` em `apps/api/src/config.ts`, um lugar só): só `1`, `true` ou `sim` ligam os hosts antigos; ausente, vazia ou qualquer outro valor deixam os links no `fdv.`. Da v1.0.33 à v1.0.41 era o contrário: só `0`, `false`, `nao` ou `não` desligavam.
+   - **Ligada:**
      - botão do e-mail → `https://bko.macuxifdv.com.br`;
      - link do recado de diagnóstico → `https://config.macuxifdv.com.br/config/diagnosticos/<id>` (o `config.` reescreve para a rota do portal; já funciona hoje).
-   - **Desligada** (no corte):
+   - **Desligada:**
      - botão do e-mail → `https://fdv.macuxifdv.com.br/bko`;
      - diagnóstico → base `https://fdv.macuxifdv.com.br`, link `<base>/config/diagnosticos/<id>`, agora o caminho de verdade.
    - **Variáveis explícitas por cima:** `MACUXI_EMAIL_URL_BKO` e `MACUXI_DIAGNOSTICOS_PORTAL_URL`, se definidas, valem sobre a `MACUXI_HOSTS_ANTIGOS`, ligada ou desligada.
@@ -146,12 +146,12 @@ Nenhum passo pede segredo novo nem mostra segredo. Os passos (a) a (c) podem ser
    - `https://fdv.macuxifdv.com.br/config/entrar` pede o Access (passo b) e depois abre a entrada do portal.
    - Se algo falhar: os hosts antigos seguem no ar; desfaça (a) e avise o gerente-projetos.
 4. **(d) Variáveis na VM.** Em `/opt/macuxi/.env` (modo 600; os nomes estão no `scripts/deploy/producao/env.modelo`):
-   - acrescente `MACUXI_HOSTS_ANTIGOS=0`;
+   - a partir da v1.0.42 não há o que acrescentar (padrão desligada); se existir `MACUXI_HOSTS_ANTIGOS=1`, tire a linha;
    - se existirem `MACUXI_EMAIL_URL_BKO` ou `MACUXI_DIAGNOSTICOS_PORTAL_URL` com `bko.` ou `config.`, remova as duas (vale o padrão da `MACUXI_HOSTS_ANTIGOS`) ou troque por `https://fdv.macuxifdv.com.br/bko` e `https://fdv.macuxifdv.com.br`;
    - se existir `MACUXI_EMAIL_URL_ATIVOS` com `bko.` ou `config.`, troque por uma base que não morre no corte (`fdv.` ou o bucket público), com os dois PNG do logo publicados lá;
    - recrie a api e o worker, em `/opt/macuxi`: `docker compose --env-file .env --env-file imagens.env up -d --force-recreate --no-deps api worker` (o `restart` não relê o `.env`). Confira com `docker compose --env-file .env --env-file imagens.env ps` (api `healthy`).
    - A partir daqui, os e-mails novos (e os pendentes na outbox) saem com o botão para `fdv.../bko`, e os recados de diagnóstico com `fdv.../config/diagnosticos/<id>`.
-   - Voltar atrás: tirar a linha `MACUXI_HOSTS_ANTIGOS=0` (ou pôr `1`), restaurar as variáveis como estavam e recriar a api e o worker com o mesmo comando.
+   - Voltar atrás: pôr `MACUXI_HOSTS_ANTIGOS=1`, restaurar as variáveis como estavam e recriar a api e o worker com o mesmo comando.
 5. **(e) Aviso aos administradores das empresas:** o endereço novo (`https://fdv.macuxifdv.com.br/bko`) e a data em que `bko.` deixa de abrir, pelo canal que o dono do produto escolher.
    - Voltar atrás: novo aviso, se a data mudar.
 6. **(f) Remover `bko.` e `config.` do túnel**, na data avisada. No painel do túnel `macuxi-prod`, apague os hostnames públicos `bko.macuxifdv.com.br` e `config.macuxifdv.com.br`; a Cloudflare apaga os CNAMEs. A partir daqui, o host antigo não abre. A aplicação do Access do `config.` (se houver) pode ser apagada junto.
@@ -181,7 +181,7 @@ O dono do produto pode pôr, no lugar dos hosts antigos, uma página estática "
 
 ## Testes
 - **Unidade (`apps/api`):**
-  - `MACUXI_HOSTS_ANTIGOS` ligada (ausente, `1`, `sim`), desligada (`0`, `false`, `nao`) e inválida (fica ligada) em `hostsAntigosLigados`, `enderecosWebPadrao` e `urlPortalDiagnosticos` (`test/config.test.ts`);
+  - `MACUXI_HOSTS_ANTIGOS` ligada só com `1`/`true`/`sim`; ausente, vazia, `0`/`false`/`nao` e inválida ficam desligadas, em `hostsAntigosLigados`, `enderecosWebPadrao` e `urlPortalDiagnosticos` (`test/config.test.ts`);
   - padrão do botão do e-mail em produção pela variável, `MACUXI_EMAIL_URL_BKO` por cima e sem botão fora de produção (`src/email/config.test.ts`);
   - link do recado de diagnóstico em `fdv.../config/diagnosticos/<id>` com a variável desligada (`test/diagnosticos-worker.test.ts`);
   - recusa do cookie de sessão repetido em `renovar` e `encerrar`, no modo seguro e no do PC, sem afetar o app (`test/sessao-web-cookie.test.ts`).

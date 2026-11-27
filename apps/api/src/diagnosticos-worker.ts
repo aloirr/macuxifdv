@@ -39,8 +39,8 @@ export const MAX_TENTATIVAS_ALERTA = 8;
 export const LOTE_EXPURGO = 500;
 /** Hora UTC a partir da qual o expurgo do dia roda (03:00 em Manaus). */
 export const HORA_EXPURGO_UTC = 7;
-/** Padrão sem configuração (testes): o host antigo, que funciona até o corte. O worker passa `urlPortalDiagnosticos` (ADR 0071). */
-export const URL_PORTAL_PADRAO = ENDERECOS_WEB.antigos.portal;
+/** Padrão sem configuração (testes): o `fdv.` (v1.0.42). O worker passa `urlPortalDiagnosticos` (ADR 0071). */
+export const URL_PORTAL_PADRAO = ENDERECOS_WEB.fdv.portal;
 const HORA_MS = 60 * 60_000;
 
 /** 1, 2, 4… minutos, dobrando até 60 min. */
