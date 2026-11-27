@@ -171,3 +171,106 @@ Sem achado de código. O encaixe com o item 3 está certo:
   - P1 no item 2, com branch novo depois da 0109;
   - 3.A2, o campo `superficie` no SDK, na v1.0.41.
 - **gerente-projetos**: ordem e janela de deploy acima. O item 6 só depois do #854.
+
+---
+
+# Revisão final da E5 — #853 e #854 (2ª rodada)
+
+Revisor: `engenheiro-software`, 27/11/2026, por volta de 09h25 (Manaus). Sessão S18. Base: `origin/main` @ `cc78a5fd`.
+
+| PR | Dono | Head | Parecer |
+|---|---|---|---|
+| #853 `nuvem/v1040-designer-ux-perfis` | designer-ux | `75a3813b` | 🟢 confirmado (mesmo SHA da 1ª rodada, só commits da designer-ux, base `cc78a5fd`) |
+| #854 `nuvem/v1040-modulo-core-perfis` | modulo-core | `183638eb` | código sem 🔴 · 🔴 P1 de processo (resolvido pelo cherry-pick abaixo) · 🟡 1 baixo (lote seguinte) · 🟢 2 |
+
+Escopo: `5785a719` (rotas V2, sobre `3c4ac6a4`), o merge `8cb4d518` e `183638eb` (tela, sobre `429e0062`).
+O merge `8cb4d518` traz só o `5785a719`, sem ajuste próprio: são os mesmos 7 arquivos, com +84 e −26.
+
+O que rodei no `183638eb`:
+- `tsc --noEmit` do `modules/core`: limpo;
+- `vitest` de `domain`, `web/lib`, `api/perfis-v2.test` e `api/promotor*`: 1828 verdes;
+- `api/usuarios.test.ts`: 17 vermelhos, todos com "Este Node não tem crypto.argon2". É o Node 22 desta sessão, não o código;
+- os `*.db.test.ts` **não rodaram aqui**: o worktree não lê o `.env` com a URL do Postgres local. Ficam com o dono, no branch do cherry-pick, antes do push (pendência E5-P2).
+
+## Itens pedidos
+
+- **RD-3734** (`domain/promotor-pedidos.ts:31`): está certo.
+  - `requisicaoDePromotor` é, linha a linha, o `promotorNaRequisicao` do SDK (`packages/platform-sdk/src/acesso-por-cargo.ts:97` no `37d2417b`, item 2): com `perfil_acesso` vale o cargo do perfil; sem ele, o perfil do token.
+  - `usuarioDaRequisicaoVePedidos`: em `concessao` vale `'pedido.ver' in perfil_acesso.permissoes`; em `legado`, o parâmetro. Bate com o `resolverPerfilPeloCargo`: as permissões trazem só as chaves concedidas, e a trava do cargo promotor tira só a escrita de pedido, não `pedido.ver`.
+  - A API (`api/promotor-pedidos.ts:24`) só lê o parâmetro quando precisa. O teste do domain cita RN-PRO-01 e ADR 0073 §2.4, e o `perfis-v2.db.test.ts:481` monta o `perfil_acesso` como o motor faz.
+  - Depende do item 2: sem o motor, a requisição não traz `perfil_acesso` e a regra cai no parâmetro, que é o comportamento de hoje. A ordem de merge abaixo garante o item 2 antes.
+- **RD-3735**: está certo.
+  - `MENSAGEM_PERFIS_NAO_MIGRADOS` está em `contracts/perfis.ts:259` e a API usa esse texto no 422 (`api/perfis-v2.ts:167`).
+  - A tela não tem mais texto próprio: mostra `e.message`, por `frasesDaRecusa` (sem `violacoes`) e por `errorMessage`. `ehNaoMigrado` e `MENSAGEM_NAO_MIGRADO` saíram do código.
+- **3.A1** (`api/usuario-perfis.ts:50`): fechado.
+  - Em `concessao`, `conferirPerfisDoUsuario` monta o estado pelas concessões (`carregarEstadoV2(db, true)`, com a mesma trava por tenant da V2) e confere com o mesmo `conferir` da V2. Em `legado` segue o modelo antigo.
+  - `perfil: codigos[0]` vale porque o contrato aceita um perfil só por usuário (RN-CORE-01, 0069).
+  - Não há ciclo de import: `perfis-v2.ts` não importa `usuario-perfis.ts`.
+  - O banco também segura o último admin pela gestão do acesso (0109 corrigida, `833d47af`).
+- **Constantes do SDK no web** (`web/lib/perfis-tabela.ts:6-7`): está certo.
+  - `CHAVE_ACESSO`, `NIVEIS_ESCOPO` e `NIVEIS_ALCADA` vêm de `@macuxi/platform-sdk`, e `ApiRequestError` vem de `@macuxi/platform-sdk/web`. São `packages/*`, dentro das fronteiras, e não há import de `modules/<outro>`.
+  - Os valores são os mesmos das listas locais que saíram (`permissoes-perfil.ts:29,33,115`).
+  - A raiz do SDK já era importada pelo web (`CHAVES_GESTAO_DO_ACESSO`, `CARGOS`), então não entra dependência nova no bundle.
+- **Tela** (RD-3736/3737): o `SeletorDeOrigem` e o `origemDoValor` (com teste) tiram o `<select>` que estava repetido nas duas telas. `SEM_CONEXAO` ficou num lugar só.
+
+## Achados
+
+🔴 **E5-P1 (processo, o mesmo P1 da 1ª rodada)**
+- `verificar modulo-core --base origin/main` no `183638eb` dá VIOLAÇÃO, com 17 de 46 arquivos da designer-ux e da banco-dados.
+- Não é defeito de código. Sai com o cherry-pick abaixo; o #854 **não** entra como está.
+
+🟡 **E5-A1 (baixo, lote seguinte)**
+- A correção da 3.A1 não tem teste próprio.
+- Falta um `usuarios.db.test.ts` no tenant em `concessao` com dois casos:
+  - desativar o antigo admin de base quando a gestão já está em outro perfil passa;
+  - desativar o único usuário com a gestão dá 422 (RN-CORE-35).
+- Não segura o lote, porque o gatilho da 0109 corrigida segura no banco.
+- Dono: modulo-core.
+
+🟢 **E5-S1** — `requisicaoDePromotor` repete o `promotorNaRequisicao` do SDK. Hoje o branch não tem o item 2. Depois do item 2 no `main`, o domain pode usar a função do SDK, e as duas regras ficam numa só. Lote seguinte.
+
+🟢 **E5-S2** — `perfis-page.tsx:492`: monta `/core/perfis/` vazio quando não há origem. Hoje isso não acontece, porque o botão fica desligado sem origem (`:504`). Ficaria mais claro só chamar a API com `de`. Lote seguinte.
+
+## Ordem de merge da E5, com o pré-requisito
+
+Cada passo só depois do CI verde do anterior e com o `main` verde:
+
+1. **0109 corrigida** (banco-dados, sessão S19): `nuvem/v1040-banco-dados-perfis-correcao` @ `833d47af`. Os 2 commits (`41112e46` e `833d47af`) são da banco-dados e saem num squash só.
+2. **Motor** (engenheiro-software): `37d2417b` levado por cherry-pick para um branch novo, sem o `41112e46`.
+3. **Rotas V2** (modulo-core): `3c4ac6a4` e `5785a719` por cherry-pick, num commit só.
+   - No mesmo lote, a asserção do `testes` em `tests/modulos/pedidos-busca-t0077.test.ts:989` (3.R1), antes do `producao-liberar`.
+4. **#853** (designer-ux) @ `75a3813b`.
+   - Só tem commits da designer-ux sobre o `cc78a5fd`, então não precisa de cherry-pick; basta atualizar com o `main`, por merge, se o CI pedir.
+   - Pode entrar em qualquer ponto antes do 5.
+5. **#854** (modulo-core): `908fc0c1`, `6d833efb` e `183638eb` por cherry-pick, num commit só, num PR novo. O #854 antigo é fechado.
+6. **Limpeza** (designer-ux) @ `adbdbfdc`: um merge do `main` depois do 5.
+
+- **Imagem**: os passos 3 e 5 saem na mesma imagem da v1.0.40. Não se libera um SHA do `main` que esteja entre os dois.
+- **Deploy**: a ordem e a volta estão na seção "Ordem de deploy" da 1ª rodada.
+
+## Cherry-pick depois do squash (passos 2, 3 e 5)
+
+Depois do squash do antecessor, o dono roda na própria sessão:
+
+1. `git fetch origin main && git switch -c nuvem/v1040-<dono>-<item>-2 origin/main`.
+2. `git cherry-pick -n <seus commits, em ordem>`. Os merges e os commits de outro dono ficam de fora: já estão no `main` pelo squash.
+   - Se houver conflito num arquivo que não é seu, fica a versão do `main`: `git checkout origin/main -- <arquivo>`.
+3. **Equivalência**: `git diff origin/<branch antigo> HEAD -- <seus caminhos>` tem que sair vazio. A exceção é o que o `main` mudou depois, e isso precisa ser explicado no PR.
+4. Na sessão, rode lint, typecheck e testes dos pacotes tocados, inclusive os `*.db.test.ts` (E5-P2) e o `typecheck:tests` se `tests/` mudou.
+5. Antes do commit:
+   - `node scripts/coord.mjs verificar <dono> --base origin/main` sai 0;
+   - `node scripts/ci/grafo-turbo.mjs` sai 0.
+6. Faça um commit só, com `Agente: <dono>` como trailer (sem linha em branco antes dele), e confira que `git log origin/main..HEAD` mostra só esse commit.
+7. Um push só e um PR novo `[PRONTO PARA MERGE] ...` que cite o PR antigo e o SHA de origem. Feche o PR antigo, sem force push e sem apagar branch.
+
+## Encaminhamento
+
+- **modulo-core**:
+  - E5-P1: cherry-pick dos passos 3 e 5;
+  - E5-P2: os `*.db.test.ts` no branch novo;
+  - E5-A1, E5-S1 e E5-S2 no lote seguinte.
+- **engenheiro-software**: o passo 2.
+- **banco-dados (S19)**: o passo 1.
+- **testes**: a 3.R1.
+- **gerente-projetos**: a ordem acima.
+- **Caixa**: não consegui ler a minha caixa nesta sessão (`coord.mjs caixa` recebeu HTTP 403 no repositório de recados). Os recados desta revisão vão pelo gerente.
