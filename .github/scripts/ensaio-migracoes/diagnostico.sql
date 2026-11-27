@@ -13,10 +13,9 @@ select exists (select 1 from public.macuxi_migracao where versao = '0109') as li
 \endif
 \echo 'tenants por leitura de perfis; esperado:' :esperado_leitura
 select plataforma.leitura_de_perfis(t.id) as leitura, count(*) as tenants from plataforma.tenant t group by 1 order by 1;
-select count(*) as em_concessao from plataforma.tenant t where plataforma.leitura_de_perfis(t.id) = 'concessao' \gset
-select count(*) as vivos_fora_de_concessao
-  from plataforma.tenant t
- where t.deleted_at is null and plataforma.leitura_de_perfis(t.id) is distinct from 'concessao' \gset
+select count(*) filter (where plataforma.leitura_de_perfis(t.id) = 'concessao') as em_concessao,
+       count(*) filter (where t.deleted_at is null and plataforma.leitura_de_perfis(t.id) is distinct from 'concessao') as vivos_fora_de_concessao
+  from plataforma.tenant t \gset
 
 \echo 'catalogo_aplicado vivo por versão e leitura'
 select c.versao, c.leitura, count(*) as tenants
@@ -61,4 +60,4 @@ select count(*) filter (where x.derivado and x.diferenca > 0) as tenants_com_dif
           from plataforma.tenant t where t.deleted_at is null) x \gset
 select (:tenants_com_diferenca > 0
         or case when :'liga_concessao'::boolean then :vivos_fora_de_concessao > 0 else :em_concessao > 0 end) as ensaio_falhou \gset
-\echo 'resumo: tenants conferidos' :tenants_conferidos '| com DIFERENCA (derivados)' :tenants_com_diferenca '| não derivados' :tenants_nao_derivados '| em concessao' :em_concessao '| vivos fora de concessao' :vivos_fora_de_concessao '| esperado:' :esperado_leitura
+\echo 'resumo: tenants conferidos' :tenants_conferidos '| com DIFERENCA (derivados)' :tenants_com_diferenca '| não derivados' :tenants_nao_derivados '| em concessao' :em_concessao '| vivos fora de concessao' :vivos_fora_de_concessao
