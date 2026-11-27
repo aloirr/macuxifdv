@@ -6,6 +6,7 @@
  */
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
+import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { type ClienteBanco, type ContextoBase, type DefinicaoEvento, type ItemPush, type ResultadoItemPush, type UsuarioAutenticado } from '@macuxi/platform-sdk';
@@ -109,6 +110,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: novo pedido de distribuidora 
               }
               if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
               if (def.nome === 'core.financeiro_cliente@1') return { financeiro: { limite_cents: 100_000_000, saldo_aberto_cents: 0, credito_disponivel_erp_cents: null, bloqueado: false, motivo_bloqueio: null, vencidos_qtd: 0, vencidos_cents: 0, maior_atraso_dias: 0, atualizado_erp_em: null } }; // RN-VEN-12: crédito folgado (T-0184)
+              if (def.nome === CONSULTA_CANCELAMENTO_ERP.nome) return { aceita: false }; // sem conector que aceite cancelar; o pull de pedidos enviados (sobra de outros testes no mesmo tenant) consulta o aceite (T-0138)
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {
