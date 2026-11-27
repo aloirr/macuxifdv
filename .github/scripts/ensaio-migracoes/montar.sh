@@ -112,7 +112,7 @@ emitir <<'SQL'
 rollback;
 \echo 'ensaio: ROLLBACK feito, nada gravado'
 \if :ensaio_falhou
-\echo 'RESULTADO: REPROVADO (DIFERENCA em tenant derivado ou tenant em concessao)'
+\echo 'RESULTADO: REPROVADO (DIFERENCA em tenant derivado ou leitura fora do esperado); esperado:' :esperado_leitura
 do $r$ begin raise exception 'ensaio reprovado'; end $r$;
 \else
 \echo 'RESULTADO: OK'

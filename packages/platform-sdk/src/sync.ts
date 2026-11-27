@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import type { Manifesto } from './manifesto';
 import { ehEntidadeDePedido, type ModuloId, type Perfil } from './nomes';
+import { promotorNaRequisicao, type PerfilDaRequisicaoV2 } from './perfis-por-cargo';
 import { ENTIDADE_SYNC_RE } from './nomes';
 
 export const TAMANHO_PAGINA_SYNC = 1000;
@@ -390,7 +391,7 @@ export function mensagemPayloadInvalido(issues: readonly z.ZodIssue[]): string {
  * Item rejeitado com código, nunca descartado em silêncio. Ordem (desenho T-0004 §5; D-1 da T-0003):
  *  1. dono da entidade (pelo `sync` do manifesto) inativo → `MODULO_INATIVO` (RN-CORE-02; o app guarda o item e o
  *     reenvia quando o módulo volta), mesmo que a entidade ainda não tenha definição/provedor;
- *  2. promotor enviando entidade de pedido → `RN-PRO-01`;
+ *  2. promotor enviando entidade de pedido → `RN-PRO-01` (`promotorNaRequisicao`: cargo do `perfil_acesso` quando há, ADR 0073 E6; senão o `perfil`);
  *  3. só de pull, ou fora de todos os manifestos → `ENTIDADE_DESCONHECIDA`;
  *  4. do manifesto de módulo ativo mas sem definição/provedor → `SYNC_NAO_IMPLEMENTADO` (retentável, ADR 0009 §7);
  *  5. payload fora do schema → `PAYLOAD_INVALIDO`.
@@ -399,8 +400,9 @@ export function rejeitarItensInvalidos(
   req: PushRequest,
   registro: RegistroSync,
   modulosAtivos: Iterable<ModuloId>,
-  opcoes: { perfil?: Perfil } = {},
+  usuario: { perfil?: Perfil; perfil_acesso?: Pick<PerfilDaRequisicaoV2, 'cargo'> } = {},
 ): { validos: ItemPush[]; rejeitados: ResultadoItemPush[] } {
+  const promotor = promotorNaRequisicao(usuario);
   const ativos = new Set(modulosAtivos);
   const validos: ItemPush[] = [];
   const rejeitados: ResultadoItemPush[] = [];
@@ -410,7 +412,7 @@ export function rejeitarItensInvalidos(
     const dono = registro.dono(item.entidade);
     const def = registro.entidade(item.entidade);
     if (dono && !ativos.has(dono)) rejeitar(item, MODULO_INATIVO, `Módulo ${dono} inativo`);
-    else if (opcoes.perfil === 'promotor' && ehEntidadeDePedido(item.entidade))
+    else if (promotor && ehEntidadeDePedido(item.entidade))
       rejeitar(item, 'RN-PRO-01', 'Promotor não cria nem altera pedido.');
     else if (!def && dono) rejeitar(item, SYNC_NAO_IMPLEMENTADO, MENSAGEM_ENVIO_INDISPONIVEL);
     else if (!def || def.direcao === 'pull')

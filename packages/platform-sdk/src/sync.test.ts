@@ -191,6 +191,15 @@ describe('push idempotente por UUID do aparelho', () => {
     expect(codigos(['core'], 'promotor')).toEqual(['MODULO_INATIVO', 'MODULO_INATIVO']);
     expect(codigos(['core', 'vendedor'], 'vendedor')).toEqual(['SYNC_NAO_IMPLEMENTADO']); // pedido_item sem definição (ADR 0009 §7)
   });
+
+  it('RN-PRO-01 pelo cargo (ADR 0073 E6): com perfil_acesso, o cargo decide no lugar do perfil do token', () => {
+    const req = PushRequestSchema.parse({ itens: [{ entidade: 'pedido', id: U1, payload: { total_cents: 10 } }] });
+    const codigo = (usuario: Parameters<typeof rejeitarItensInvalidos>[3]) =>
+      rejeitarItensInvalidos(req, registro(), ['core', 'vendedor'], usuario).rejeitados.map((x) => (x.status === 'rejeitado' ? x.codigo : x.status));
+    expect(codigo({ perfil: 'vendedor', perfil_acesso: { cargo: 'promotor' } })).toEqual(['RN-PRO-01']);
+    expect(codigo({ perfil: 'promotor', perfil_acesso: { cargo: 'vendedor' } })).toEqual([]);
+    expect(codigo({ perfil: 'promotor' })).toEqual(['RN-PRO-01']);
+  });
 });
 
 describe('CODIGOS_RETENTAVEIS: rejeições que não são culpa do item', () => {

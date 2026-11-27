@@ -1,5 +1,9 @@
 # Perfis de acesso — página do BKO e campo "Perfis" do usuário (T-0111)
 
+> **Substituído na edição do perfil (ADR 0073, E5, v1.0.40):** a página usa a tabela de `docs/design/telas/perfis-tabela-kit.md`.
+> `LinhaDePermissao`, `SeletorDeNivel`, `ResumoDasMudancas` e os textos do modelo com "perfil base" e "Padrão: X" saíram do kit;
+> ficam `Cadeado`, `Interruptor` e `SeletorDePerfis`.
+>
 > 2026-11-07 · designer-ux · desenho aprovado pelo dono do produto (R-20261107-195349) em `.coord/tarefas/T-0111.md` ·
 > modelo: ADR 0033 e `.coord/contratos/permissoes.md` · regras: RN-CORE-01, RN-CORE-04, RN-CORE-32, RN-CORE-33, RN-CORE-35,
 > RN-PRO-01, RN-AUD-01. Para: **modulo-core** (página e formulário em `modules/core/web`). Kit novo: `packages/ui/src/web/permissoes.tsx`

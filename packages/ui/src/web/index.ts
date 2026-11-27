@@ -37,3 +37,5 @@ export * from './opcao-cartao';
 export * from './mascara';
 // v1.0.30: códigos do cliente (ERP · FDV), parte pura em src/comum, a mesma do kit mobile (partesDosCodigos, textoDosCodigos, leituraDosCodigos, SEPARADOR_CODIGOS)
 export * from '../comum/codigos-cliente';
+// ADR 0073 (E5): kit da tabela de permissões de um perfil (TabelaPermissoes, GrupoPermissoes, LinhaPermissao, SeletorEscopo, CaixaMarcar)
+export * from './tabela-permissoes';

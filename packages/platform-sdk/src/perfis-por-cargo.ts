@@ -130,6 +130,14 @@ export interface PerfilDaRequisicaoV2 {
   permissoes: PermissoesDoPerfil;
 }
 
+/**
+ * RN-PRO-01 fora da rota de módulo (sync: pull, novidades, pacotes e push): no caminho novo vale o CARGO promotor do perfil; sem
+ * `perfil_acesso` (motor antigo), o perfil do token. Fonte única da decisão "é promotor?" (RD-3736).
+ */
+export function promotorNaRequisicao(usuario: { perfil?: Perfil; perfil_acesso?: Pick<PerfilDaRequisicaoV2, 'cargo'> }): boolean {
+  return usuario.perfil_acesso ? usuario.perfil_acesso.cargo === 'promotor' : usuario.perfil === 'promotor'; // perfil-fixo-ok: motor antigo (tenant em 'legado'; sai na fase 2)
+}
+
 /** Zod de `PerfilDaRequisicaoV2` (campo aditivo `perfil_acesso` de `GET /v1/me/modulos`, ADR 0073 §4.2). */
 export const PerfilDaRequisicaoV2Schema = z
   .object({

@@ -1,16 +1,18 @@
 /**
- * ADR 0073, etapa E4 (troca de leitura dos perfis na API), sem banco: o motor da permissão sai da marca do tenant
- * (`plataforma.catalogo_aplicado`, `motorDoTenant`) e, no motor 'cargo', `montarRota` decide por `autorizarRotaPeloCargo`
- * com `ctx.usuario.cargo` e `ctx.usuario.perfil_acesso` (`camposPeloCargo`). Confere:
+ * ADR 0073, etapas E4 e E6 (troca de leitura dos perfis na API), sem banco: o motor da permissão sai da marca do tenant
+ * (`plataforma.catalogo_aplicado`, `motorDoTenant`) e, no motor 'cargo' (tenant em 'concessao'), `montarRota` decide só por
+ * `autorizarRotaPeloCargo` com `ctx.usuario.cargo` e `ctx.usuario.perfil_acesso` (`camposPeloCargo`). Confere:
  *  - RN-CORE-35: tenant em 'legado', sem marca ou atrás da versão do código segue o motor antigo; no 'cargo', vale a concessão
- *    do perfil sem base, e a divergência entre os dois motores vai ao log sem dado pessoal;
- *  - RN-PRO-01 pelo CARGO promotor (mesmo com o token de vendedor) e RN-CORE-33 (rota do BKO sem `acesso.bko`);
- *  - leitura dupla segura: rota sem `acao` com lista `perfis` própria não abre pelo cargo antes da E6;
- *  - usuário sem perfil vivo no motor 'cargo' = nada permitido (falha fechada).
+ *    do perfil (também para o módulo que consulta `ctx.usuario.perfis`), `ctx.usuario.perfil` é a base congelada e o cargo
+ *    que diverge da base vai ao log uma vez, sem dado pessoal;
+ *  - RN-PRO-01 pelo CARGO promotor (rota, push e pull do sync), mesmo com o token de vendedor; RN-CORE-33 (rota do BKO);
+ *  - a rota sem `acao` com lista `perfis` própria vale pela licença no 'cargo' (E6) e pela lista no 'legado';
+ *  - RN-CORE-04: o escopo de carteira sai da base congelada do perfil, não do token;
+ *  - usuário sem perfil vivo no motor 'cargo' = nada permitido (falha fechada), e a licença do módulo vem antes.
  */
 import { Writable } from 'node:stream';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
-import { definirModuloApi, modelosDePerfil } from '@macuxi/platform-sdk';
+import { definirModuloApi, modelosDePerfil, pode } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { opcoesLogger } from '../src/config';
@@ -30,7 +32,7 @@ const sem = (p: PerfilDoUsuarioPorCargo, chave: string): PerfilDoUsuarioPorCargo
   return { ...p, permissoes: resto };
 };
 
-/** Rotas extras do Vendedor: uma do BKO (sem `acao`) e uma de leitura sem `acao` com lista `perfis` própria (pendente da E6). */
+/** Rotas extras do Vendedor: uma do BKO (sem `acao`), uma de leitura sem `acao` com lista `perfis` própria e a do "quem sou". */
 const vendedorComExtras = definirModuloApi({
   manifesto: vendedor,
   rotas: [
@@ -42,7 +44,13 @@ const vendedorComExtras = definirModuloApi({
       caminho: 'quem',
       acao: 'pedido.ver',
       carteira: 'nao_se_aplica',
-      executar: async (ctx) => ({ cargo: ctx.usuario.cargo ?? null, perfil_acesso: ctx.usuario.perfil_acesso?.codigo ?? null }),
+      executar: async (ctx) => ({
+        cargo: ctx.usuario.cargo ?? null,
+        perfil_acesso: ctx.usuario.perfil_acesso?.codigo ?? null,
+        perfil: ctx.usuario.perfil,
+        // o módulo que ainda consulta o motor antigo (`pode(ctx.usuario.perfis, ...)`)
+        pode_aprovar: pode(ctx.usuario.perfis, 'pedido.aprovar'),
+      }),
     },
   ],
 });
@@ -79,7 +87,15 @@ const criarPedido = (app: ReturnType<typeof createApp>, quem: keyof typeof usuar
     payload: { id: '0e000000-0000-4000-8000-000000000001', cliente_id: CLIENTE_DA_CARTEIRA, total_centavos: 100 },
   });
 
-describe('motor da permissão pela marca do tenant (ADR 0073 E4)', () => {
+const pushPedido = (app: ReturnType<typeof createApp>, quem: keyof typeof usuarios) =>
+  app.inject({
+    method: 'POST',
+    url: '/v1/sync/push',
+    headers: cab(quem),
+    payload: { itens: [{ entidade: 'pedido', id: '0e000000-0000-4000-8000-000000000002', operacao: 'upsert', payload: {} }] },
+  });
+
+describe('motor da permissão pela marca do tenant (ADR 0073 E4 e E6)', () => {
   it("RN-CORE-35: 'cargo' só com leitura 'concessao' e o catálogo na versão do código", () => {
     expect(motorDoTenant(null)).toBe('base');
     expect(motorDoTenant(undefined)).toBe('base');
@@ -97,20 +113,32 @@ describe('motor da permissão pela marca do tenant (ADR 0073 E4)', () => {
     expect(r.json().codigo).toBe('PERFIL_SEM_ACESSO');
   });
 
-  it("no 'cargo', ctx.usuario recebe cargo e perfil_acesso; no 'base', nenhum dos dois", async () => {
-    const perfis = { vendedor: modelo('vendedor', 'vendedor_externo') };
+  it("no 'cargo', ctx.usuario recebe cargo, perfil_acesso, a base congelada e os perfis pelas concessões; no 'base', nada muda", async () => {
+    const perfis = { vendedor: { ...modelo('vendedor', 'vendedor_externo'), base: 'vendedor' as const } };
     const novo = await montar(V2, perfis).app.inject({ method: 'GET', url: '/v1/vendedor/quem', headers: cab('vendedor') });
-    expect(novo.json()).toEqual({ cargo: 'vendedor', perfil_acesso: 'vendedor_externo' });
+    expect(novo.json()).toEqual({ cargo: 'vendedor', perfil_acesso: 'vendedor_externo', perfil: 'vendedor', pode_aprovar: false });
     const antigo = await montar(LEGADO, perfis).app.inject({ method: 'GET', url: '/v1/vendedor/quem', headers: cab('vendedor') });
-    expect(antigo.json()).toEqual({ cargo: null, perfil_acesso: null });
+    expect(antigo.json()).toEqual({ cargo: null, perfil_acesso: null, perfil: 'vendedor', pode_aprovar: false });
+    // o token diz analista, o perfil é o de vendedor: no 'cargo' vale o perfil (base congelada e concessões), no 'legado' o token
+    const doAnalista = { analista: { ...modelo('vendedor', 'vendedor_bko'), base: 'vendedor' as const } };
+    const r = await montar(V2, doAnalista).app.inject({ method: 'GET', url: '/v1/vendedor/quem', headers: cab('analista') });
+    expect(r.json()).toEqual({ cargo: 'vendedor', perfil_acesso: 'vendedor_bko', perfil: 'vendedor', pode_aprovar: false });
+    const l = await montar(LEGADO, doAnalista).app.inject({ method: 'GET', url: '/v1/vendedor/quem', headers: cab('analista') });
+    expect(l.json()).toMatchObject({ perfil: 'analista', pode_aprovar: true });
   });
 
-  it('a divergência entre os motores vai ao log com as chaves e o código do perfil, sem o id do usuário', async () => {
-    const { app, linhas } = montar(V2, { vendedor: sem(modelo('vendedor', 'vendedor_externo'), 'pedido.criar') });
-    await app.inject({ method: 'GET', url: '/v1/vendedor/pedidos', headers: cab('vendedor') });
-    const linha = linhas.map((l) => JSON.parse(l) as Record<string, unknown>).find((l) => l.evento === 'perfis.motores_divergem');
-    expect(linha).toMatchObject({ tenant_id: usuarios.vendedor!.tenant_id, modulo: 'vendedor', perfil: 'vendedor_externo', chaves: ['pedido.criar'] });
+  it('o cargo que diverge da base congelada vai ao log uma vez, com o código do perfil e sem o id do usuário', async () => {
+    const { app, linhas } = montar(V2, { vendedor: { ...modelo('promotor', 'promotor_ex_vendedor'), base: 'vendedor' } });
+    await app.inject({ method: 'GET', url: '/v1/vendedor/quem', headers: cab('vendedor') });
+    await app.inject({ method: 'GET', url: '/v1/vendedor/quem', headers: cab('vendedor') });
+    const avisos = linhas.map((l) => JSON.parse(l) as Record<string, unknown>).filter((l) => l.evento === 'perfis.motores_divergem');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatchObject({ tenant_id: usuarios.vendedor!.tenant_id, modulo: 'vendedor', perfil: 'promotor_ex_vendedor', cargo: 'promotor', base: 'vendedor' });
     expect(linhas.join('')).not.toContain(usuarios.vendedor!.id);
+    // concessão desmarcada sem mudar o cargo não é divergência (o motor antigo não decide mais no 'cargo')
+    const semCriar = montar(V2, { vendedor: { ...sem(modelo('vendedor'), 'pedido.criar'), base: 'vendedor' } });
+    await semCriar.app.inject({ method: 'GET', url: '/v1/vendedor/pedidos', headers: cab('vendedor') });
+    expect(semCriar.linhas.join('')).not.toContain('perfis.motores_divergem');
   });
 
   it('RN-PRO-01: o CARGO promotor não escreve pedido, mesmo com o token de vendedor e a concessão no perfil', async () => {
@@ -133,10 +161,49 @@ describe('motor da permissão pela marca do tenant (ADR 0073 E4)', () => {
     expect((await app.inject({ method: 'GET', url: '/v1/vendedor/bko/painel', headers: cab('supervisor') })).statusCode).toBe(200);
   });
 
-  it('leitura dupla segura: rota sem `acao` com `perfis` própria não abre pelo cargo antes da E6', async () => {
-    const app = montar(V2, { vendedor: modelo('admin'), analista: modelo('analista') }).app;
-    expect((await app.inject({ method: 'GET', url: '/v1/vendedor/so-analista', headers: cab('vendedor') })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'GET', url: '/v1/vendedor/so-analista', headers: cab('analista') })).statusCode).toBe(200);
+  it("E6: rota sem `acao` com `perfis` própria vale pela licença no 'cargo' e pela lista no 'legado'", async () => {
+    const perfis = { vendedor: modelo('admin'), analista: modelo('analista') };
+    const novo = montar(V2, perfis).app;
+    expect((await novo.inject({ method: 'GET', url: '/v1/vendedor/so-analista', headers: cab('vendedor') })).statusCode).toBe(200);
+    expect((await novo.inject({ method: 'GET', url: '/v1/vendedor/so-analista', headers: cab('analista') })).statusCode).toBe(200);
+    const antigo = montar(LEGADO, perfis).app;
+    expect((await antigo.inject({ method: 'GET', url: '/v1/vendedor/so-analista', headers: cab('vendedor') })).statusCode).toBe(403);
+    expect((await antigo.inject({ method: 'GET', url: '/v1/vendedor/so-analista', headers: cab('analista') })).statusCode).toBe(200);
+  });
+
+  it('RN-PRO-01 no sync: o CARGO promotor não envia pedido no push; o token de promotor com cargo vendedor envia', async () => {
+    const comoPromotor = { vendedor: { ...modelo('promotor', 'promotor_x'), base: 'promotor' as const } };
+    const r = await pushPedido(montar(V2, comoPromotor).app, 'vendedor');
+    expect(r.statusCode).toBe(200);
+    expect(r.json().resultados[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-PRO-01' });
+    expect((await pushPedido(montar(LEGADO, comoPromotor).app, 'vendedor')).json().resultados[0].codigo).not.toBe('RN-PRO-01');
+    const comoVendedor = { promotor: { ...modelo('vendedor', 'vendedor_x'), base: 'vendedor' as const } };
+    expect((await pushPedido(montar(V2, comoVendedor).app, 'promotor')).json().resultados[0].codigo).not.toBe('RN-PRO-01');
+    expect((await pushPedido(montar(LEGADO, comoVendedor).app, 'promotor')).json().resultados[0].codigo).toBe('RN-PRO-01');
+  });
+
+  it('RN-PRO-01 no pull: o cargo promotor puxa pedido só com a concessão pedido.ver', async () => {
+    const pull = (app: ReturnType<typeof createApp>) => app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=pedido', headers: cab('vendedor') });
+    const semVer = { vendedor: { ...sem(modelo('promotor', 'promotor_x'), 'pedido.ver'), base: 'promotor' as const } };
+    const r = await pull(montar(V2, semVer).app);
+    expect(r.statusCode).toBe(403);
+    expect(r.json().codigo).toBe('PERFIL_SEM_ACESSO');
+    // no 'legado', o token de vendedor não é barrado
+    expect((await pull(montar(LEGADO, semVer).app)).json().codigo).not.toBe('PERFIL_SEM_ACESSO');
+  });
+
+  it('RN-CORE-04: no cargo, o escopo de carteira sai da base congelada do perfil, não do token', async () => {
+    const FORA = '0c000000-0000-4000-8000-0000000000ff';
+    const criar = (app: ReturnType<typeof createApp>, cliente: string) =>
+      app.inject({ method: 'POST', url: '/v1/vendedor/pedidos', headers: cab('analista'), payload: { id: '0e000000-0000-4000-8000-000000000003', cliente_id: cliente, total_centavos: 100 } });
+    // token de analista (carteira 'tenant' no fake), perfil de vendedor com base congelada vendedor (só a carteira)
+    const app = montar(V2, { analista: { ...modelo('vendedor', 'vendedor_bko'), base: 'vendedor' } }).app;
+    expect((await criar(app, CLIENTE_DA_CARTEIRA)).statusCode).toBe(201);
+    const r = await criar(app, FORA);
+    expect(r.statusCode).toBe(403);
+    expect(r.json().codigo).toBe('FORA_DA_CARTEIRA');
+    // no 'legado', o token de analista (carteira 'tenant') cria para qualquer cliente
+    expect((await criar(montar(LEGADO, {}).app, FORA)).statusCode).toBe(201);
   });
 
   it("falha fechada: no 'cargo', usuário sem perfil vivo e ativo não passa; a licença do módulo vem antes (RN-CORE-02)", async () => {
