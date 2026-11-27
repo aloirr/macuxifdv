@@ -338,7 +338,7 @@ jobs:
           \echo 'K1 cliente no FDV (sem linha = não existe nesta empresa)'
           select c.id, c.external_id,
                  case when c.deleted_at is not null then 'excluído' when not c.ativo then 'inativo'
-                      when c.status_cadastro is distinct from 'aprovado' and c.status_cadastro is not null then c.status_cadastro
+                      when c.status_cadastro <> 'aprovado' then c.status_cadastro
                       else 'ativo' end as situacao
             from core.cliente c
            where c.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and c.external_id = :'cliente_eid'
