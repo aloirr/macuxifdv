@@ -165,3 +165,4 @@
 - 2026-11-25 (Manaus) — S7: renumeração 0105–0107 LIBERADO 64a7396 (#771) e 0108 LIBERADO 3bd7f4e, sem achado.
 - 2026-11-25 (Manaus) — S7: reteste E4b 5d21f97c7 (modulo-core) LIBERADO; RD-3716 a RD-3719 corrigidos; RD-3720 baixa (JSDoc órfão, só comentário) aberto para o próximo lote.
 - 2026-11-25 (Manaus, 13h55) — T-0196, S12: parecer curto da fração no Treinamento (modulo-treinamento). Novo RD-3633 (baixo, só título de teste, não segura). LIBERADO: modulo-treinamento 0c65d51aa.
+- 2026-11-27 (S18, horário de Manaus): parecer da E5 dos perfis. #853 9da50153 NÃO LIBERADO (RD-3723, RD-3729) e #854 908fc0c1 NÃO LIBERADO (RD-3724 a RD-3728, RD-3730; RD-3731 só teste). Recados não gravados (HTTP 403 no repositório de recados); o gerente repassa. Relatório docs/qualidade/redundancias/2026-11-27-s18-perfis-e5.md.
