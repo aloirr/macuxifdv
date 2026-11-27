@@ -21,6 +21,8 @@ import { A, B, erroDe, licenca, subirApi, type ApiDeTeste } from '../apoio/api';
 
 const URL = '/v1/vendedor/parametros/pedidos';
 const CHAVES = ['titulo_vencido_dias', 'validade_orcamento_dias', 'orcamento.validade_dias'] as const;
+/** v1.0.39: a resposta ganhou as três chaves novas; sem linha gravada valem os padrões (parametros-pedidos-v1039.test.ts). */
+const V1039 = { pedido_minimo_cents: 0, credito_excedido_acao: 'aprovacao', estoque_insuficiente_acao: 'orcamento' } as const;
 /** Fuso do tenant A na fixture (db/seeds/fixtures/dois-tenants.ts). */
 const FUSO_A = 'America/Manaus';
 const id = (n: number) => `0f103800-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -120,22 +122,22 @@ describe.skipIf(semBanco())('v1.0.38 Parâmetros › Pedidos pela API (RN-VEN-13
 
   describe('Leitura, gravação, faixa e auditoria', () => {
     it('sem linha gravada o GET devolve os padrões 5 e 7 (RN-VEN-13, RN-VEN-18)', async () => {
-      for (const t of [tk.admin, tk.analista, tk.gerente]) expect((await chamar(t, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 7 });
+      for (const t of [tk.admin, tk.analista, tk.gerente]) expect((await chamar(t, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 7, ...V1039 });
     });
 
     it('admin, analista e gerente gravam; o banco guarda o número na chave que o domain lê', async () => {
       const r1 = await chamar(tk.admin, 'PUT', { titulo_vencido_dias: 12, validade_orcamento_dias: 30 });
-      expect([r1.status, r1.corpo], JSON.stringify(r1.corpo)).toEqual([200, { titulo_vencido_dias: 12, validade_orcamento_dias: 30 }]);
+      expect([r1.status, r1.corpo], JSON.stringify(r1.corpo)).toEqual([200, { titulo_vencido_dias: 12, validade_orcamento_dias: 30, ...V1039 }]);
       expect((await chamar(tk.analista, 'PUT', { titulo_vencido_dias: 13 })).status).toBe(200);
       expect((await chamar(tk.gerente, 'PUT', { validade_orcamento_dias: 31 })).status).toBe(200);
       expect(await noBanco(A.tenantId)).toEqual({ titulo_vencido_dias: 13, validade_orcamento_dias: 31 });
-      expect((await chamar(tk.gerente, 'GET')).corpo).toEqual({ titulo_vencido_dias: 13, validade_orcamento_dias: 31 });
+      expect((await chamar(tk.gerente, 'GET')).corpo).toEqual({ titulo_vencido_dias: 13, validade_orcamento_dias: 31, ...V1039 });
     });
 
     it('PUT parcial mantém a outra chave; reenviar o mesmo valor responde 200 e não audita de novo; mudar audita uma vez com antes e depois', async () => {
       const antes = await auditorias(A.tenantId);
       const r = await chamar(tk.admin, 'PUT', { titulo_vencido_dias: 13 });
-      expect([r.status, r.corpo]).toEqual([200, { titulo_vencido_dias: 13, validade_orcamento_dias: 31 }]);
+      expect([r.status, r.corpo]).toEqual([200, { titulo_vencido_dias: 13, validade_orcamento_dias: 31, ...V1039 }]);
       expect((await chamar(tk.admin, 'PUT', { titulo_vencido_dias: 13, validade_orcamento_dias: 31 })).status).toBe(200);
       expect(await auditorias(A.tenantId), 'mesmo valor não audita').toBe(antes);
       expect((await chamar(tk.admin, 'PUT', { titulo_vencido_dias: 14, validade_orcamento_dias: 31 })).status).toBe(200);
@@ -194,12 +196,12 @@ describe.skipIf(semBanco())('v1.0.38 Parâmetros › Pedidos pela API (RN-VEN-13
 
   describe('Multi-tenant (RN-CORE-05)', () => {
     it('tenant B lê os próprios padrões, não vê o de A; o PUT de B grava só em B', async () => {
-      expect((await chamar(tk.adminB, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 7 });
+      expect((await chamar(tk.adminB, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 7, ...V1039 });
       const deA = await noBanco(A.tenantId);
       expect((await chamar(tk.adminB, 'PUT', { titulo_vencido_dias: 1, validade_orcamento_dias: 2 })).status).toBe(200);
       expect(await noBanco(B.tenantId)).toEqual({ titulo_vencido_dias: 1, validade_orcamento_dias: 2 });
       expect(await noBanco(A.tenantId)).toEqual(deA);
-      expect((await chamar(tk.admin, 'GET')).corpo).toEqual(deA);
+      expect((await chamar(tk.admin, 'GET')).corpo).toEqual({ ...deA, ...V1039 });
     });
   });
 
@@ -231,7 +233,7 @@ describe.skipIf(semBanco())('v1.0.38 Parâmetros › Pedidos pela API (RN-VEN-13
       await limparParametros();
       const linha = linhasDosParametrosIniciais(ParametrosIniciaisSchema.parse({ validade_orcamento_dias: 12 })).find((l) => l.chave === 'validade_orcamento_dias')!;
       await q('insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, $2, $3, $4::jsonb)', [A.tenantId, linha.modulo, linha.chave, JSON.stringify(linha.valor)]);
-      expect((await chamar(tk.admin, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 12 });
+      expect((await chamar(tk.admin, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 12, ...V1039 });
       const criado = new Date().toISOString();
       aceito((await push([orcamento(DOC.orcEmpresa, criado)]))[0], DOC.orcEmpresa);
       expect((await doc(DOC.orcEmpresa))!.orcamento_validade).toBe(diaCivilMais(criado, FUSO_A, 12));
@@ -240,14 +242,14 @@ describe.skipIf(semBanco())('v1.0.38 Parâmetros › Pedidos pela API (RN-VEN-13
     it('RN-VEN-18: só a chave antiga `orcamento.validade_dias` = 15 ainda vale (GET e orçamento); a nova gravada pela rota tem precedência', async () => {
       await limparParametros();
       await q("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'vendedor', 'orcamento.validade_dias', '15'::jsonb)", [A.tenantId]);
-      expect((await chamar(tk.admin, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 15 });
+      expect((await chamar(tk.admin, 'GET')).corpo).toEqual({ titulo_vencido_dias: 5, validade_orcamento_dias: 15, ...V1039 });
       const criado = new Date().toISOString();
       aceito((await push([orcamento(DOC.orcAntiga, criado)]))[0], DOC.orcAntiga);
       expect((await doc(DOC.orcAntiga))!.orcamento_validade).toBe(diaCivilMais(criado, FUSO_A, 15));
       // PUT só do título mantém a validade lida da chave antiga
-      expect((await chamar(tk.admin, 'PUT', { titulo_vencido_dias: 30 })).corpo).toEqual({ titulo_vencido_dias: 30, validade_orcamento_dias: 15 });
-      expect((await chamar(tk.admin, 'PUT', { validade_orcamento_dias: 3 })).corpo).toEqual({ titulo_vencido_dias: 30, validade_orcamento_dias: 3 });
-      expect((await chamar(tk.admin, 'GET')).corpo).toEqual({ titulo_vencido_dias: 30, validade_orcamento_dias: 3 });
+      expect((await chamar(tk.admin, 'PUT', { titulo_vencido_dias: 30 })).corpo).toEqual({ titulo_vencido_dias: 30, validade_orcamento_dias: 15, ...V1039 });
+      expect((await chamar(tk.admin, 'PUT', { validade_orcamento_dias: 3 })).corpo).toEqual({ titulo_vencido_dias: 30, validade_orcamento_dias: 3, ...V1039 });
+      expect((await chamar(tk.admin, 'GET')).corpo).toEqual({ titulo_vencido_dias: 30, validade_orcamento_dias: 3, ...V1039 });
     });
 
     it('RN-VEN-18: sem nenhuma chave, o orçamento usa o padrão 7', async () => {
