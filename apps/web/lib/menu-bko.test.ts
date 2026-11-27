@@ -225,7 +225,7 @@ describe('menu do BKO: registro real dos 8 módulos com menuParametros (ADRs 005
     const paineis = (secao: string) => secoes.find((s) => s.secao === secao)?.paineis.map((p) => `${p.ancora}:${p.origem}`);
     expect(paineis('integracao')).toEqual(['integracao-de-para:pagina']);
     expect(paineis('alertas')).toEqual(['gestor-regras-alerta:painel', 'gestor-produtividade:painel']);
-    expect(paineis('acesso')).toEqual(['core-perfis:painel', 'core-usuarios-e-modulos:painel', 'core-promotor-pedidos:painel']);
+    expect(paineis('acesso')).toEqual(['core-perfis:painel', 'core-usuarios-e-modulos:painel']);
     expect(paineis('pedidos')).toEqual(['vendedor-alcadas:painel', 'vendedor-titulo-vencido:painel', 'vendedor-preco-orcamento:painel', 'vendedor-pedido-minimo:painel', 'vendedor-credito-excedido:painel', 'vendedor-estoque-insuficiente:painel']);
   });
 
