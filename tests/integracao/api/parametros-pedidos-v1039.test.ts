@@ -9,6 +9,8 @@
  *     Total final do PEDIDO (preço × quantidade, com o desconto, sem frete) MENOR que o mínimo = recusado (só como orçamento);
  *     igual passa; o orçamento nunca é barrado. Fixture: ALFA-001 a R$ 1.000,00 na tabela Padrão do A.c1 (sem faixa até 9 un).
  *   RN-VEN-12 (P-6, PA-7): `credito_excedido_acao` = aprovacao (padrão) | orcamento | avisar. Só a prazo; à vista nunca conta.
+ *     Cliente SEM limite informado pelo ERP (limite 0 e sem disponível) = sem restrição de crédito: nenhuma ação vale
+ *     (R-20261127-005556, RN-VEN-12 ajustada no #844).
  *   RN-VEN-20 (PA-6, PA-10): `estoque_insuficiente_acao` = orcamento (padrão) | aprovacao | avisar; com aprovacao, quem aprova é
  *     `aprovacao.estoque_nivel` de Alçadas (padrão gerente).
  *   PA-1: o passo Empresa NÃO grava as três chaves; sem linha vale o padrão.
@@ -28,11 +30,12 @@ const NOVAS = ['pedido_minimo_cents', 'credito_excedido_acao', 'estoque_insufici
 const CHAVES = [...NOVAS, 'titulo_vencido_dias', 'validade_orcamento_dias', 'aprovacao.estoque_nivel'] as const;
 /** Padrões do spec §7.5 (PA-1, PA-6): sem linha gravada. */
 const PADRAO = { pedido_minimo_cents: 0, credito_excedido_acao: 'aprovacao', estoque_insuficiente_acao: 'orcamento' } as const;
-const MSG_MINIMO = 'Use um valor de R$ 0,01 a R$ 100.000,00';
+/** A API aceita 0 (sem mínimo); o BKO, de R$ 0,01 a R$ 100.000,00. */
+const MSG_MINIMO = 'Use 0 (sem mínimo) ou um valor até R$ 100.000,00';
 const MSG_CREDITO = 'Escolha Enviar para aprovação, Só como orçamento ou Avisar e enviar';
 const MSG_ESTOQUE = 'Escolha Só como orçamento, Enviar para aprovação ou Avisar e enviar';
-const MSG_RECUSA_CREDITO = 'Limite de crédito excedido. Envie como orçamento ou reduza o pedido.';
-const MSG_RECUSA_ESTOQUE = 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.';
+const MSG_RECUSA_CREDITO = 'Limite de crédito excedido. Salve como orçamento.';
+const MSG_RECUSA_ESTOQUE = 'Sem estoque na filial para um dos itens. Reduza a quantidade ou salve como orçamento.';
 /** ALFA-001 na tabela Padrão do A.c1 (db/seeds/fixtures/dois-tenants.ts): R$ 1.000,00; a faixa escalonada só a partir de 10 un. */
 const PRECO_ALFA = 100_000;
 /** Saldo de ALFA-001 (e BETA-001 em B) posto pelo beforeAll: folga para os casos de crédito e mínimo; FALTA pede mais que isso. */
@@ -54,7 +57,7 @@ function reais(c: number): string {
     .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `R$ ${inteiro},${String(c % 100).padStart(2, '0')}`;
 }
-const recusaMinimo = (c: number) => new RegExp(`^Pedido abaixo do mínimo de ${reais(c).replace('R$ ', 'R\\$\\s').replace(/\./g, '\\.')}\\. Envie como orçamento ou aumente o pedido\\.$`);
+const recusaMinimo = (c: number) => new RegExp(`^Pedido abaixo do mínimo de ${reais(c).replace('R$ ', 'R\\$\\s').replace(/\./g, '\\.')}\\. Aumente o pedido ou salve como orçamento\\.$`);
 
 type Linha = Record<string, unknown>;
 
@@ -111,6 +114,12 @@ describe.skipIf(semBanco())('v1.0.39 Parâmetros › Pedidos: pedido mínimo, cr
   };
   /** A.c1 a prazo: o ERP manda o crédito disponível (como a Integração gravaria), o resto da linha fica. */
   const disponivelErpA = (cents: number | null) => q('update core.cliente_financeiro set credito_disponivel_cents = $2 where tenant_id = $3 and cliente_id = $1', [A.clientes.c1, cents, A.tenantId]);
+  /** A.c1: o limite do ERP (0 = não informado); devolve o anterior. */
+  const limiteErpA = async (cents: number) => {
+    const [antes] = await q<{ limite_cents: string }>('select limite_cents::text from core.cliente_financeiro where tenant_id = $2 and cliente_id = $1', [A.clientes.c1, A.tenantId]);
+    await q('update core.cliente_financeiro set limite_cents = $2 where tenant_id = $3 and cliente_id = $1', [A.clientes.c1, cents, A.tenantId]);
+    return Number(antes!.limite_cents);
+  };
 
   beforeAll(async () => {
     api = await subirApi({ plataforma: { segredo: () => SEGREDO_PLATAFORMA } });
@@ -376,6 +385,28 @@ describe.skipIf(semBanco())('v1.0.39 Parâmetros › Pedidos: pedido mínimo, cr
         aceito((await push(tk.vendedor, [pedidoA(pid, { prazo: true })]))[0], pid);
         expect(await doc(pid)).toMatchObject({ status: 'approved' });
       } finally {
+        await disponivelErpA(1);
+      }
+    });
+
+    it('C7 RN-VEN-12 (R-20261127-005556): cliente SEM limite informado pelo ERP (limite 0, sem disponível), a prazo, nas três ações = aprovado, sem motivo crédito e sem recusa', async () => {
+      await disponivelErpA(null);
+      const limite = await limiteErpA(0);
+      try {
+        for (const acao of ['aprovacao', 'orcamento', 'avisar'] as const) {
+          await gravar(tk.gerente, { credito_excedido_acao: acao });
+          const pid = novo();
+          aceito((await push(tk.vendedor, [pedidoA(pid, { prazo: true, qtd: 5 })]))[0], pid);
+          expect(await doc(pid), acao).toMatchObject({ status: 'approved', motivos_aprovacao: [] });
+          expect(await aprovacoes(pid), acao).toEqual([]);
+        }
+        // contraprova: o mesmo cliente com limite informado e estourado (disponível R$ 0,01) volta a acionar a ação
+        await disponivelErpA(1);
+        await gravar(tk.gerente, { credito_excedido_acao: 'orcamento' });
+        const rec = novo();
+        await recusado((await push(tk.vendedor, [pedidoA(rec, { prazo: true })]))[0], rec, 'RN-VEN-12', MSG_RECUSA_CREDITO);
+      } finally {
+        await limiteErpA(limite);
         await disponivelErpA(1);
       }
     });

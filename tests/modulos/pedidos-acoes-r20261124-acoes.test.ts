@@ -272,8 +272,9 @@ describe('RN-VEN-10 × RN-VEN-48: alçada no Enviar do pedido salvo (aba Pedidos
     expect(nivelDoEnvio(null, FIN_OK, 100_001)).toBe('gerente');
     expect(precisaPerguntarAlcadaNoEnvioSalvo({ nivel: nivelDoEnvio(null, FIN_OK, 100_001) })).toBe(true);
     expect(nivelDoEnvio(null, FIN_OK, 100_001, { 'aprovacao.credito_nivel': 'supervisor' })).toBe('supervisor');
-    // sem limite informado pelo ERP, também pergunta
-    expect(precisaPerguntarAlcadaNoEnvioSalvo({ nivel: nivelDoEnvio(null, { ...FIN_OK, limite_informado: false }, 100) })).toBe(true);
+    // sem limite informado pelo ERP = sem restrição de crédito: não pergunta (R-20261127-005556)
+    expect(nivelDoEnvio(null, { ...FIN_OK, limite_informado: false }, 999_999)).toBeNull();
+    expect(precisaPerguntarAlcadaNoEnvioSalvo({ nivel: nivelDoEnvio(null, { ...FIN_OK, limite_informado: false }, 999_999) })).toBe(false);
     // financeiro indisponível não bloqueia (RN-VEN-13): nível só do desconto
     expect(nivelDoEnvio(null, undefined, 999_999)).toBeNull();
   });

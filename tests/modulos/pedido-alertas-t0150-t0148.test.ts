@@ -161,7 +161,7 @@ describe('T-0150 × R-20261124-114951 — alerta de bloqueio: o Novo pedido salv
     expect(chamada).toContain('itens_acima_do_maximo: calculo.acima_do_maximo');
     expect(chamada).toContain('acima_do_limite: calculo.acima_do_limite !== null');
     // v1.0.39 (RN-VEN-20): os sem estoque só travam com a ação `orcamento` do tenant; mínimo (RN-VEN-22) e crédito (RN-VEN-12) também vão
-    expect(chamada).toMatch(/itens_sem_estoque: (acaoEstoque === 'orcamento' \? )?semEstoque\.map\(\(x\) => x\.codigo\)/);
+    expect(chamada).toMatch(/itens_sem_estoque: efeitos\.itens_sem_estoque_bloqueiam \? semEstoque\.map\(\(x\) => x\.codigo\) : \[\]/);
     expect(chamada).toContain('abaixo_do_minimo_cents: abaixoDoMinimo');
     expect(chamada).toContain('credito_so_orcamento: creditoSoOrcamento');
   });
