@@ -147,7 +147,7 @@ com `CARGO_DA_BASE` em `db/testes/cargo-hierarquia.db.test.ts`.
 | Onde entra (`PERFIS_DO_APP`) | caixas `acesso.campo`, `acesso.gestao`, `acesso.bko`, `acesso.portal`, com as travas do cargo (§2.5) |
 | Escopo de dados ≤ o da base | `dados.escopo` com teto pelo **cargo**: vendedor e promotor `carteira`; supervisor `equipe`; gerente `equipes_abaixo`; administrativo `tenant` |
 | Promotor sem pedido (RN-PRO-01) | trava pelo **cargo** promotor (§2.5) |
-| `promotor_ve_pedidos` (parâmetro do tenant) | caixa `pedido.ver` no perfil (o mesmo efeito, uma informação num lugar). A leitura do tenant (`plataforma.catalogo_aplicado`, §5.3) é `legado` (ainda no motor antigo: base + sobreposições) ou `concessao` (lê as concessões da tabela nova); no tenant em `legado` fica o parâmetro, só pela API `GET|PUT /v1/core/parametros/promotor-ve-pedidos` (R-20261127-165252); em `concessao` vale `pedido.ver` |
+| `promotor_ve_pedidos` (parâmetro do tenant) | caixa `pedido.ver` no perfil (o mesmo efeito, uma informação num lugar). A leitura do tenant (`plataforma.catalogo_aplicado`, §5.3) é `legado` (ainda no motor antigo: base + sobreposições) ou `concessao` (lê as concessões da tabela nova); no tenant em `legado` fica o parâmetro, só pela API `GET|PUT /v1/core/parametros/promotor-ve-pedidos` (R-20261127-165252). |
 | `promotor_ve_preco_estoque` (parâmetro) | caixa `produto.ver_preco_estoque` no perfil; o parâmetro sai |
 | Último admin = base admin com gestão | usuário ativo cujo perfil ativo tem `acesso.bko` e as 4 chaves de `CHAVES_GESTAO_DO_ACESSO` |
 | Senha nunca de base admin | senha nunca de quem tem a gestão do acesso (`perfil.gerir`) nem a própria |
@@ -231,7 +231,7 @@ JWT; a mudança vale na próxima requisição.
   e gerente.
 - **RN-PRO-01** (revista). Perfil de cargo promotor nunca cria, edita, cancela, duplica, exclui ou aprova pedido — regra aplicada
   na UI **e** na API (403), qualquer que seja a tabela de permissões. Ver os pedidos da carteira é a permissão "Ver pedidos" do
-  perfil (substitui o parâmetro `promotor_ve_pedidos`). Quem vende e faz trade usa um perfil de cargo vendedor com as permissões
+  perfil (substitui o parâmetro `promotor_ve_pedidos`; no tenant em `legado`, ver §2.4). Quem vende e faz trade usa um perfil de cargo vendedor com as permissões
   de trade.
 - **RN-CORE-04** (revista). Escopo de dados é a permissão "Quais clientes e números vê" do perfil, com teto pelo cargo: vendedor e
   promotor, a própria carteira; supervisor, a equipe; gerente, as equipes abaixo; administrativo, a empresa.
