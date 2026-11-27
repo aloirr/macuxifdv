@@ -3,55 +3,9 @@
  * usuário. Puro (roda em Node nos testes). Spec: docs/design/perfis-de-acesso.md.
  *
  * A REGRA (o que pode, o que está travado, o que a empresa deixaria de ter) é do SDK e do domain do Core: `travaDaChave`,
- * `validarPerfil`, `validarAcessoDoTenant`. Aqui só há texto e arrumação do que a tela já decidiu. A mensagem do cadeado das
- * travas do SDK (RN-CORE-33, RN-PRO-01) é a `mensagem` do próprio `travaDaChave`; as daqui cobrem as travas que a tela mostra e
- * que não são de uma chave (Core sempre ligado, escopo acima da base, autogestão, alvo admin, base imutável, perfil padrão).
+ * `validarPerfil`, `validarAcessoDoTenant`. Aqui só há texto e arrumação do que a tela já decidiu.
  */
-import { ORDEM_PERFIL_PADRAO, ROTULO_PERFIL_CURTO, type PerfilPadrao } from '../comum/perfis';
-
 export * from '../comum/perfis';
-
-/**
- * Rótulo de cada perfil base (o código de fábrica é o próprio perfil base). RD-0014: é o nome CURTO fixado em
- * `../comum/perfis` (o mesmo do login, do portal e do app); aqui só o apelido que a página Perfis e a tela Usuários já usam.
- */
-export const ROTULO_PERFIL_BASE = ROTULO_PERFIL_CURTO;
-
-/** Ordem dos perfis base no seletor "Perfil base" e na lista (os padrão primeiro, nesta ordem). */
-export const ORDEM_PERFIL_BASE: readonly PerfilPadrao[] = ORDEM_PERFIL_PADRAO;
-
-/** As 12 seções da edição, na ordem aprovada (R-20261107-195349), e o bloco final "Outras permissões". */
-export const SECOES_DO_PERFIL = [
-  { id: 'identificacao', titulo: 'Identificação' },
-  { id: 'onde-entra', titulo: 'Onde entra' },
-  { id: 'escopo', titulo: 'Escopo de dados' },
-  { id: 'modulos', titulo: 'Módulos' },
-  { id: 'usuarios', titulo: 'Usuários e senhas' },
-  { id: 'clientes', titulo: 'Clientes' },
-  { id: 'pedidos', titulo: 'Pedidos' },
-  { id: 'catalogo', titulo: 'Catálogo' },
-  { id: 'trade', titulo: 'Trade (Promotor)' },
-  { id: 'pesquisa-treinamento', titulo: 'Pesquisa e Treinamento' },
-  { id: 'metas', titulo: 'Metas e remuneração' },
-  { id: 'integracao', titulo: 'Integração (BKO)' },
-  { id: 'outras', titulo: 'Outras permissões' },
-] as const;
-export type SecaoDoPerfil = (typeof SECOES_DO_PERFIL)[number]['id'];
-
-/**
- * Textos dos cadeados que não vêm do `travaDaChave` do SDK. Sem código interno (RN-, RF-, T-, ADR, RD-) no texto visível
- * (R-20261124-094002): a regra fica só neste comentário. escopoAcimaDaBase: RN-CORE-04; autogestao, senhaDeAdmin,
- * baseImutavel e padraoNaoDesativa: RN-CORE-35; senhaSempreComRegra: RN-CORE-32.
- */
-export const CADEADO = {
-  coreSempreLigado: 'O Core é a base do sistema e fica sempre ligado.',
-  escopoAcimaDaBase: (base: PerfilPadrao) => `Acima do perfil base ${ROTULO_PERFIL_BASE[base]}.`,
-  autogestao: 'Você não pode tirar isto de si mesmo. Peça a outro admin.',
-  senhaDeAdmin: 'A senha de um admin não é redefinida por aqui.',
-  baseImutavel: 'O perfil base não muda depois de criado.',
-  padraoNaoDesativa: 'Os perfis padrão não são apagados nem desativados.',
-  senhaSempreComRegra: 'Toda senha segue a regra de segurança.',
-} as const;
 
 /** Rótulo falado do botão do cadeado (o texto da regra vai na descrição). */
 export const ROTULO_CADEADO = 'Travado';
@@ -81,17 +35,6 @@ export function alternarMarcado(marcados: readonly string[], valor: string, orde
   if (valor === ALVO_TODOS_PERFIS && set.has(ALVO_TODOS_PERFIS)) return [ALVO_TODOS_PERFIS];
   const pos = (v: string) => (ordem.indexOf(v) < 0 ? Number.MAX_SAFE_INTEGER : ordem.indexOf(v));
   return [...set].sort((a, b) => pos(a) - pos(b));
-}
-
-// ---------------------------------------------------------------- resumo "o que mudou"
-
-/** Uma linha do resumo antes de salvar e do histórico: a tela monta `antes` e `depois` já em texto ("Equipe", "Não"). */
-export interface MudancaDePermissao {
-  secao: SecaoDoPerfil;
-  /** Rótulo da linha como aparece na seção ("Cancelar pedido"). */
-  rotulo: string;
-  antes: string;
-  depois: string;
 }
 
 /** Contagem do rodapé fixo da edição: "Nenhuma mudança" ou "3 mudanças não salvas". */
