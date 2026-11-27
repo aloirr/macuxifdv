@@ -323,7 +323,8 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - informação faltante (o antigo "Falta para salvar", RN-CORE-36);
     - recusa do servidor;
     - **sem estoque** (RN-VEN-20);
-    - crédito e título vencido (RN-VEN-12 e RN-VEN-13).
+    - crédito e título vencido (RN-VEN-12 e RN-VEN-13);
+    - pedido abaixo do mínimo (RN-VEN-22).
   - **Forma:** cada alerta numa linha curta, só o problema e o item (ex.: "AGU-1500 acima do desconto máximo"). Sem alerta, a área não aparece.
   - **Nada fora dela:** nenhum aviso solto no topo nem embaixo da tela.
   - **Menos alertas (v1.0.5, T-0166, R-20261112-031457):**
