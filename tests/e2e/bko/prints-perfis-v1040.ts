@@ -77,7 +77,6 @@ async function entrar(page: Page) {
     const m = /^\/core\/perfis\/([a-z_]+)$/.exec(caminho);
     if (m && (MODELOS_PERFIL as readonly string[]).includes(m[1]!)) return json(200, resposta.detalhe(m[1] as (typeof MODELOS_PERFIL)[number]));
     if (caminho === '/core/usuarios') return json(200, { itens: [] });
-    if (caminho === '/core/parametros/promotor-ve-pedidos') return json(200, { ligado: true });
     if (caminho === '/core/licencas')
       return json(200, {
         modulos: [...CONTRATADOS, 'treinamento'],

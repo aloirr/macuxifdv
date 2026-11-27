@@ -29,7 +29,7 @@ describe('RN-CORE-52 — check-in fora da rota do dia depende da ação do perfi
   it('o manifesto declara a ação, ligada por padrão em todos os perfis (preserva o comportamento anterior)', () => {
     const acoes = core.acoes as Record<string, { perfis: readonly string[] }>;
     expect([...acoes[ACAO]!.perfis].sort()).toEqual(['admin', 'analista', 'assistente', 'gerente', 'promotor', 'supervisor', 'vendedor']);
-    expect(ler('modules/core/web/lib/perfis.ts')).toContain(`'${ACAO}': 'Check-in fora de rota'`);
+    expect(ler('modules/core/web/lib/acesso.ts')).toContain(`'${ACAO}': 'Check-in fora de rota'`);
   });
 
   it('a API revalida (a ação do perfil e a rota do dia no fuso do tenant) depois da carteira e antes do raio, e recusa com CHECKIN_FORA_DE_ROTA', () => {

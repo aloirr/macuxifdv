@@ -20,7 +20,7 @@ Banco: as migrações do `main` (até a 0108) mais a 0109 corrigida da S19 (`nuv
 - **modulo-core-perfis-2 @ c8bf2083: LIBERADO.** Não há achado no código de produção.
 
 Dois testes de `tests/` acompanhavam a forma antiga e foram corrigidos neste lote, no caminho do testes:
-- `tests/modulos/pedidos-busca-t0077.test.ts:989`: a asserção de fonte esperava `ctx.usuario.perfil !== 'promotor' || (await lerPromotorVePedidos(db))` no `cliente360-v2.ts`. Agora ela espera `abasDaFicha(ctx.usuario.perfil, await usuarioVePedidos(ctx, db)).includes('historico')`, que é a regra da ADR 0073 §2.4: `pedido.ver` em `concessao` e `promotor_ve_pedidos` em `legado`. Só a asserção mudou.
+- `tests/modulos/pedidos-busca-t0077.test.ts:989`: a asserção de fonte esperava `ctx.usuario.perfil !== 'promotor' || (await lerPromotorVePedidos(db))` no `cliente360-v2.ts`. Agora ela espera `const podeVerHistorico = await usuarioVePedidos(ctx, db);` nas duas rotas do Histórico (forma do #861), que é a regra da ADR 0073 §2.4: `pedido.ver` em `concessao` e `promotor_ve_pedidos` em `legado`. Só a asserção mudou.
 - `tests/integracao/demo/demo-matriz.test.ts:516`: a contagem de usuários por perfil lia `GET /v1/core/perfis` com o `PerfilListaRespostaSchema` antigo, que tem `base` e `fabrica`. Agora a rota responde V2, então o teste lê com o `PerfilListaRespostaV2Schema`. A conferência da contagem não mudou.
 
 ## O que rodou (no head c8bf2083, Node 24.22 de `/opt/node24`, Postgres 16 local de `db/scripts/pg-local.sh`)
@@ -85,3 +85,20 @@ Continuam resolvidos no c8bf2083. Não há achado novo.
 3. Entrar com um perfil sem `perfil.gerir` e conferir o aviso no lugar da tela.
 4. Com o tenant em `legado`, salvar e conferir que a tela mostra o texto único do 422.
 5. No app Campo, como promotor de um tenant em `concessao`: tirar `pedido.ver` do perfil Promotor no BKO, sincronizar e conferir que o histórico some do Cliente 360. Depois, devolver a chave e conferir que o histórico volta.
+
+## Ajuste ao #861 (substitui o #858)
+27/11/2026, 13h55 (Manaus). Conferido com `nuvem/v1041-modulo-core-perfis` @ `3c29241ccf1306658ecd6963ea2d215d7ad949e5`, juntado por merge local (sem push) ao branch deste PR, que já traz o `main` @ `9c0857a3`.
+
+| Arquivo | Ajuste |
+|---|---|
+| `tests/modulos/pedidos-busca-t0077.test.ts` | as 2 rotas do Histórico no `cliente360-v2.ts` usam `const podeVerHistorico = await usuarioVePedidos(ctx, db);`, sem `lerPromotorVePedidos`; o `promotor-pedidos.ts` só lê o parâmetro quando `!u.perfil_acesso && promotorNaRequisicao(u)` |
+| `tests/modulos/checkin-fora-de-rota-rncore52.test.ts` | o rótulo `visita.checkin_fora_de_rota` vem de `modules/core/web/lib/acesso.ts` |
+| `tests/e2e/bko/menu-parametros.spec.ts` | o mock de `/core/perfis` passa ao `PerfilResumoV2` strict (sem `base` e `fabrica`, com `autogestao`); sai o mock de `parametros/promotor-ve-pedidos`, porque o painel saiu |
+| `tests/e2e/bko/prints-perfis-v1040.ts` | sai o mesmo mock de `parametros/promotor-ve-pedidos` |
+
+| tests/ com o #861 (Node 24.22, Postgres 16 local) | Resultado |
+|---|---|
+| `tsc -p tests/tsconfig.json` e `eslint tests` | limpos |
+| `vitest run --config tests/vitest.config.ts` | 186 arquivos (185 verdes, 1 pulado: `fundacao/fonte-sistema-varredura`), 2802 testes: 2772 verdes, 0 falhas, 22 pulados e 8 todo |
+| Playwright `tests/e2e/bko/menu-parametros.spec.ts` (BKO em `next dev`, API simulada) | 15 de 15 verdes |
+
