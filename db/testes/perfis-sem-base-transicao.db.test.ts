@@ -5,7 +5,7 @@
  *   migração (a API de hoje continua certa nos dois estados);
  * - a exclusão do tenant (plataforma.excluir_tenant) apaga um tenant migrado sem que o espelho regrave nada no meio;
  * - perfil apagado fisicamente (só o dono) leva as concessões junto e deixa o achado sem o perfil_id.
- * As funções de caminho duplo (perfil_do_usuario, último admin, portal e licença pelo cargo) entram na etapa da troca de leitura.
+ * As funções de caminho duplo (perfil_do_usuario, último admin, portal e licença pelo cargo) são da 0109 (perfis-leitura-concessao.db.test.ts).
  * Fixture dois-tenants (ROLLBACK).
  */
 import pg from 'pg';
@@ -31,7 +31,7 @@ describe.skipIf(semBanco())('0105 a 0107 transição (fixture, ROLLBACK)', () =>
 
   it('leitura_de_perfis: concessao, legado e sem linha', async () => {
     await emTransacao(admin, null, async () => {
-      expect(await leitura(admin, A.tenantId)).toBe('legado'); // motor novo desligado na v1.0.37
+      expect(await leitura(admin, A.tenantId)).toBe('legado'); // a fixture grava 'legado' (a 0109 liga os tenants de produção)
       await q("update plataforma.catalogo_aplicado set leitura = 'concessao' where tenant_id = $1", [A.tenantId]);
       expect(await leitura(admin, A.tenantId)).toBe('concessao');
       await q('update plataforma.catalogo_aplicado set leitura = $2, deleted_at = now() where tenant_id = $1', [A.tenantId, 'concessao']);
