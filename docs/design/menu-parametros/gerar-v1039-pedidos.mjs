@@ -19,15 +19,15 @@ const CSS = `<style>
 .num{width:260px;max-width:260px}
 .un{font-size:13px;color:#4A5562;font-weight:400}
 .grupo{display:flex;flex-direction:column;gap:8px}
-.grupo > b{font-size:15px;font-weight:600}
-.op{display:flex;align-items:center;gap:12px;min-height:52px;border:1px solid #C9CED5;border-radius:12px;background:#fff;padding:8px 16px}
+.grupo > .legenda{margin:0 0 4px;font-size:12px;font-weight:600;color:#4A5562}
+.op{display:flex;align-items:center;gap:12px;min-height:52px;border:1px solid #7A8593;border-radius:12px;background:#fff;padding:8px 16px}
 .op.on{border-color:#16202A;box-shadow:inset 0 0 0 1px #16202A}
 .bola{width:20px;height:20px;border-radius:999px;border:2px solid #4A5562;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .op.on .bola{border-color:#16202A}.op.on .bola:after{content:'';width:10px;height:10px;border-radius:999px;background:#16202A}
 .op span{display:flex;flex-direction:column}.op span b{font-size:15px;font-weight:600}.op span small{font-size:13px;color:#4A5562}
 .sub{margin:2px 0 0 32px;display:flex;flex-direction:column;gap:4px}
-.input.erro{border:2px solid #B42318}
-.msgerro{font-size:13px;font-weight:600;color:#B42318}
+.input.erro{border:2px solid #A8261B}
+.msgerro{font-size:13px;font-weight:600;color:#A8261B}
 .acoes{display:flex;align-items:center;gap:12px}
 .sucesso{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;background:#E2F1EA;color:#1D6B4F;font-size:13px;font-weight:600}
 </style>`;
@@ -45,15 +45,15 @@ const comuns = [
 
 function minimo({ exigir = false, valor = '', erro = null, ativo = false } = {}) {
   const sub = exigir
-    ? `<div class="sub"><label class="campo">Valor mínimo<span class="ajuda">Abaixo desse valor, o pedido só sai como orçamento.</span>${erro ? `<span class="msgerro">${erro}</span>` : ''}<span class="input num${erro ? ' erro' : ' editado'}" aria-invalid="${Boolean(erro)}"><span><i>R$ </i>${valor}</span><i></i></span></label></div>`
+    ? `<div class="sub"><label class="campo" aria-label="Valor mínimo"><span class="ajuda">Abaixo desse valor, o pedido só sai como orçamento.</span>${erro ? `<span class="msgerro">${erro}</span>` : ''}<span class="input num${erro ? ' erro' : ' editado'}" aria-invalid="${Boolean(erro)}"><span><i>R$ </i>${valor}</span><i></i></span></label></div>`
     : '';
   return quadro('Pedido mínimo', `<div class="grupo">${op(!exigir, 'Sem pedido mínimo')}${op(exigir, 'Exigir a partir de')}${sub}</div>` + salvar(ativo));
 }
 function credito(sel = 'aprovacao', { ativo = false, sucesso = null } = {}) {
-  return quadro('Crédito excedido', `<div class="grupo" role="radiogroup"><b>Pedido a prazo acima do crédito disponível</b>${op(sel === 'aprovacao', 'Enviar para aprovação', 'Quem aprova está em Alçadas.')}${op(sel === 'orcamento', 'Só como orçamento', 'O vendedor não consegue enviar o pedido.')}${op(sel === 'avisar', 'Avisar e enviar', 'O pedido segue sem aprovação.')}</div>` + salvar(ativo, sucesso));
+  return quadro('Crédito excedido', `<div class="grupo" role="radiogroup"><span class="legenda">Pedido a prazo acima do crédito disponível</span>${op(sel === 'aprovacao', 'Enviar para aprovação', 'Quem aprova está em Alçadas.')}${op(sel === 'orcamento', 'Só como orçamento')}${op(sel === 'avisar', 'Avisar e enviar')}</div>` + salvar(ativo, sucesso));
 }
 function estoque(sel = 'orcamento', { ativo = false, sucesso = null } = {}) {
-  return quadro('Estoque insuficiente', `<div class="grupo" role="radiogroup"><b>Item com quantidade acima do estoque da filial</b>${op(sel === 'orcamento', 'Só como orçamento', 'O vendedor não consegue enviar o pedido.')}${op(sel === 'aprovacao', 'Enviar para aprovação', 'Quem aprova está em Alçadas.')}${op(sel === 'avisar', 'Avisar e enviar', 'O pedido segue com o item sem estoque.')}</div>` + salvar(ativo, sucesso));
+  return quadro('Estoque insuficiente', `<div class="grupo" role="radiogroup"><span class="legenda">Item com quantidade acima do estoque da filial</span>${op(sel === 'orcamento', 'Só como orçamento')}${op(sel === 'aprovacao', 'Enviar para aprovação', 'Quem aprova está em Alçadas.')}${op(sel === 'avisar', 'Avisar e enviar')}</div>` + salvar(ativo, sucesso));
 }
 
 const pagina = (conteudo) => {
