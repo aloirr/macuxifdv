@@ -103,7 +103,7 @@ O `03-parametros-pedidos.html` (versão de 15/11) fica só como base do `docs/de
 
 ## 7. Painéis da v1.0.37
 
-Decisão R-20261126-155851-alexandre: três parâmetros do doc 03 ("Parâmetros do tenant") que já têm regra e leitura no código ganham painel. Ficam para a v1.0.38 (não desenhar): pedido mínimo, crédito excedido e estoque insuficiente.
+Decisão R-20261126-155851-alexandre: três parâmetros do doc 03 ("Parâmetros do tenant") que já têm regra e leitura no código ganham painel. Pedido mínimo, crédito excedido e estoque insuficiente entram na v1.0.39 (R-20261126-183412 e R-20261126-205433; §7.5).
 
 ### 7.1 Padrão comum (o mesmo de Etapa pendente e Campos obrigatórios)
 
@@ -164,3 +164,95 @@ Painel novo: id `preco-orcamento`, seção `pedidos`, ordem 30. O doc 03 chama d
 **Chave a alinhar antes da rota**: o domain lê `orcamento.validade_dias` (`modules/vendedor/domain/orcamento.ts`, `PARAMETRO_VALIDADE_ORCAMENTO`), e o passo Empresa grava `validade_orcamento_dias` (`packages/platform-sdk/src/plataforma.ts`, `linhasDosParametrosIniciais`). A rota grava a chave que o domain lê; o modulo-vendedor e o engenheiro-software decidem qual fica e acertam a outra ponta.
 
 Sem simulação PNG nesta seção: o `gerar.mjs` não tem o cenário de Pedidos com campos editáveis.
+
+> Atualização v1.0.39: a divergência acima já foi resolvida no main. O domain lê `validade_orcamento_dias` e aceita a chave antiga na leitura (`modules/vendedor/domain/orcamento.ts:35-43`). A rota usa a ação `alcada.gerenciar` (`modules/vendedor/api/parametros-pedidos.ts`), não `parametro.pedidos`.
+
+### 7.5 Parâmetros › Pedidos › Pedido mínimo, Crédito excedido e Estoque insuficiente (modulo-vendedor, v1.0.39)
+
+Pedido do dono do produto: R-20261126-183412 (escopo) e R-20261126-205433 (lançar a 1.0.39). Doc 03, "Parâmetros do tenant": Crédito excedido = enviar para aprovação; Estoque insuficiente = permitir com aviso; Pedido mínimo = desativado. Regras: RN-VEN-12 (crédito, P-6/T-0184), RN-VEN-20 (estoque), RN-VEN-22 (pedido mínimo).
+
+**Ordem na seção Pedidos**: Alçadas 10 · Título vencido 20 · Preço do orçamento 30 · Frete padrão 40 (reservado) · **Pedido mínimo 50 · Crédito excedido 60 · Estoque insuficiente 70**. Cada um é um `Panel` próprio, com o seu Salvar (um principal por painel, como 7.3 e 7.4).
+
+**Nenhuma das três chaves existe hoje** (nem no domain, nem no passo Empresa, `linhasDosParametrosIniciais` em `packages/platform-sdk/src/plataforma.ts:224-232`, que grava só alçadas, `validade_orcamento_dias` e `aplicacao_no_orcamento_padrao`). O comportamento está fixo no código:
+
+| Parâmetro | Hoje no código | Doc 03 (padrão) |
+|---|---|---|
+| Crédito excedido | Sempre vai para aprovação (`exigeAprovacaoPorCredito`, `modules/vendedor/domain/credito-pedido.ts:28`; o servidor usa a mesma regra por `aprovacoesFinanceiras`, `credito-pedido.ts:62-71`, chamada em `domain/aprovacao.ts:504`) | enviar para aprovação (igual) |
+| Estoque insuficiente | Pedido só sai como orçamento: o app desliga Enviar (`domain/botoes-resumo.ts:47-60`) e a API recusa com RN-VEN-20 (`api/receber.ts:295-298`). O `estoque_bloqueia` do Transformar (`domain/orcamento.ts:380-381, 470`) vem fixo `false` do app (`app/state/use-vendedor.ts:931`) | permitir com aviso (**diverge**) |
+| Pedido mínimo | Não existe regra (RN-VEN-22 sem efeito) | desativado (igual) |
+
+Chaves do módulo `vendedor`, sem prefixo (PA-2). O passo Empresa **não grava** as três chaves (PA-1): sem linha gravada, vale o padrão do domain, que o GET devolve (7.1); o `platform-sdk` não muda.
+
+**Perfis (os três)**: os mesmos de 7.3 e 7.4 como estão no main: ver e editar com `alcada.gerenciar` (admin, analista, gerente). Quem vê e não edita vê o valor desabilitado e sem Salvar.
+
+**Componentes**: `CampoFormulario` e `CLASSE_CAMPO` (7.1) para o valor; `GrupoOpcoesCartao` (com `mostrarRotulo`) + `OpcaoCartao` (`packages/ui/src/web/opcao-cartao.tsx`, cartão de 52 px, radio nativo) para as escolhas; `Button variant="primary"` "Salvar"; `Notice`.
+
+#### 7.5.1 Pedido mínimo (id `pedido-minimo`, ordem 50)
+
+Chave: `pedido_minimo_cents` (inteiro, centavos; `0` = sem pedido mínimo). Domain a criar: `pedidoMinimoCents(p)` e `validarPedidoMinimoCents(v)`, citando RN-VEN-22. Abaixo do mínimo, o pedido só sai como orçamento (PA-3); a base é o valor final do pedido, com desconto e acréscimo, sem frete (PA-4).
+
+| Item | Especificação |
+|---|---|
+| Título | Pedido mínimo |
+| Campo | Duas opções em cartão (`OpcaoCartao`, nome `pedido-minimo`): **Sem pedido mínimo** · **Exigir a partir de**. Com "Exigir a partir de" marcada, abaixo dela aparece o campo de valor |
+| Rótulo do valor | Sem rótulo visível (a opção "Exigir a partir de" já diz o que é); `aria-label="Valor mínimo"` para o leitor de tela |
+| Ajuda do valor | Abaixo desse valor, o pedido só sai como orçamento. |
+| Valor | Dinheiro: "R$" à esquerda dentro do campo, digitado com vírgula (1.500,00), `inputMode="decimal"`, `max-w-[260px]`; guardado em centavos (150000) |
+| Faixa / erro | Com "Exigir" marcada: R$ 0,01 a R$ 100.000,00 (PA-9); vazio, zero ou fora: "Use um valor de R$ 0,01 a R$ 100.000,00" |
+| Padrão | Sem pedido mínimo (`0`) |
+| Botão e aviso | "Salvar", ativo só com a escolha ou o valor alterados; sucesso "Pedido mínimo salvo." |
+| Estados | 7.1. Voltar para "Sem pedido mínimo" grava `0` e esconde o campo (o valor digitado não fica guardado) |
+
+#### 7.5.2 Crédito excedido (id `credito-excedido`, ordem 60; P-6)
+
+Chave: `credito_excedido_acao` = `aprovacao` | `orcamento` | `avisar`. Domain a criar: `acaoCreditoExcedido(p)` (padrão `aprovacao`, também com valor ausente ou inválido), lida por `exigeAprovacaoPorCredito` e `aprovacoesFinanceiras` (`domain/credito-pedido.ts:28, 62`). Vale também para o cliente sem limite informado pelo ERP, a prazo (P4 A da T-0184). À vista nunca conta (RN-VEN-12).
+
+| Item | Especificação |
+|---|---|
+| Título | Crédito excedido |
+| Rótulo do grupo | Pedido a prazo acima do crédito disponível |
+| Opções (`OpcaoCartao`, nome `credito-excedido`; as três, PA-7) | **Enviar para aprovação** — apoio: "Quem aprova está em Alçadas." · **Só como orçamento** (só o rótulo) · **Avisar e enviar** (só o rótulo) |
+| Faixa / erro | Sem erro de campo: sempre há uma opção marcada |
+| Padrão | Enviar para aprovação |
+| Botão e aviso | "Salvar", ativo só com a opção alterada; sucesso "Crédito excedido salvo." |
+| Estados | 7.1 |
+| Uma informação, um lugar | "Quem aprova crédito" continua só em Alçadas (`aprovacao.credito_nivel`, `domain/aprovacao.ts:73`); aqui não se repete o nível (PA-5) |
+
+#### 7.5.3 Estoque insuficiente (id `estoque-insuficiente`, ordem 70)
+
+Chave: `estoque_insuficiente_acao` = `orcamento` | `aprovacao` | `avisar`. Domain a criar: `acaoEstoqueInsuficiente(p)`, que passa a alimentar `estoque_bloqueia` (`domain/orcamento.ts:381`), os botões do resumo (`domain/botoes-resumo.ts`) e a recusa da API (`api/receber.ts:298`). O motivo `estoque` já existe em `MOTIVOS_APROVACAO` (`domain/aprovacao.ts:25`) sem regra de entrada; em "Enviar para aprovação", quem aprova é a lista do motivo `estoque` em Alçadas, nível novo criado pelo modulo-vendedor como o de crédito (PA-10). "Cortar" (doc 03) fica de fora (PA-8).
+
+| Item | Especificação |
+|---|---|
+| Título | Estoque insuficiente |
+| Rótulo do grupo | Item com quantidade acima do estoque da filial |
+| Opções (`OpcaoCartao`, nome `estoque-insuficiente`) | **Só como orçamento** (só o rótulo) · **Enviar para aprovação** — apoio: "Quem aprova está em Alçadas." · **Avisar e enviar** (só o rótulo) |
+| Faixa / erro | Sem erro de campo |
+| Padrão | Só como orçamento (o comportamento de hoje; PA-6, o doc 03 é corrigido) |
+| Botão e aviso | "Salvar", ativo só com a opção alterada; sucesso "Estoque insuficiente salvo." |
+| Estados | 7.1 |
+| Uma informação, um lugar | "Quem aprova está em Alçadas." fica nos dois painéis (Crédito e Estoque) de propósito: cada painel tem o seu Salvar e é ali que se escolhe mandar para aprovação; o nível em si fica só em Alçadas (PA-10) |
+
+**Rota (dono modulo-vendedor)**: a mesma `GET|PUT /v1/vendedor/parametros/pedidos`, ganhando `pedido_minimo_cents`, `credito_excedido_acao` e `estoque_insuficiente_acao`; o PUT aceita qualquer subconjunto, revalida no domain (422 com a RN) e audita só o que mudou.
+
+**Simulação** (`node docs/design/menu-parametros/gerar-v1039-pedidos.mjs`, 1366 de largura, escala 2):
+
+| Prancha | O que mostra |
+|---|---|
+| `v1039-pedidos-padrao.png` | Os três painéis com o padrão, abaixo de Título vencido e Preço do orçamento; Salvar desligado |
+| `v1039-pedidos-alterado-erro.png` | Pedido mínimo com "Exigir a partir de" e o valor vazio, erro de campo após Salvar; Crédito excedido alterado para "Só como orçamento" (Salvar ativo); Estoque insuficiente salvo, com o aviso de sucesso |
+
+Na prancha, cores, bordas e a legenda do grupo imitam o componente; na tela vale o `packages/ui` (`GrupoOpcoesCartao` com `mostrarRotulo`: legenda 12 px, peso 600, `text-ink-2`).
+
+**Decisões (R-20261126-212022-alexandre)**:
+
+- **PA-1** O passo Empresa não grava as três chaves; sem linha, vale o padrão do domain (como `titulo_vencido_dias`).
+- **PA-2** Chaves sem prefixo: `pedido_minimo_cents`, `credito_excedido_acao`, `estoque_insuficiente_acao`.
+- **PA-3** Pedido abaixo do mínimo só sai como orçamento.
+- **PA-4** Base do pedido mínimo: valor final do pedido, depois de desconto e acréscimo, sem frete.
+- **PA-5** Quem aprova crédito continua em Alçadas.
+- **PA-6** Padrão do estoque: "Só como orçamento" (o doc 03 é corrigido).
+- **PA-7** Crédito com as três opções: aprovação, só orçamento, avisar.
+- **PA-8** "Cortar" fica fora.
+- **PA-9** Teto do pedido mínimo: R$ 100.000,00.
+- **PA-10** Quem aprova o pedido por estoque, em "Enviar para aprovação", é a lista de aprovadores do motivo `estoque` em Alçadas (o modulo-vendedor cria o nível de estoque em Alçadas, como o de crédito).
