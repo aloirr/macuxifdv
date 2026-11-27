@@ -15,10 +15,11 @@
  * o nome muda o `versao_licencas`.
  * Rotas de Conector (ADR 0013): `licencasDoTenantNoBanco`, só a parte do tenant (não há usuário nem perfil).
  *
- * ADR 0073 (E4, troca de leitura dos perfis): a marca do tenant (`plataforma.catalogo_aplicado`, 0105) vem na mesma linha do
- * tenant (subconsulta, sem ida a mais ao banco) e decide o motor (`motorDoTenant`). Só no motor 'cargo' a fonte lê também o
- * perfil sem base do usuário (cargo + `plataforma.perfil_concessao`, `lerPerfilPorCargo`); no 'base' (tenant em 'legado', sem
- * marca ou atrás da versão do código) nada muda. Leitura dupla até a E6: os perfis antigos continuam lidos nos dois motores.
+ * ADR 0073 (E4/E6, troca de leitura dos perfis): a marca do tenant (`plataforma.catalogo_aplicado`, 0105) vem na mesma linha do
+ * tenant (subconsulta, sem ida a mais ao banco) e decide o motor (`motorDoTenant`). Só no motor 'cargo' (tenant em 'concessao',
+ * ligado pela 0109) a fonte lê também o perfil do usuário por `plataforma.perfil_do_usuario` (0109: código, cargo, base congelada
+ * e concessões); no 'base' (tenant em 'legado', sem marca ou atrás da versão do código) nada muda. `perfis_do_usuario` segue lida
+ * nos dois motores: dá os módulos do perfil (licença) e, no 'legado', os perfis do motor antigo.
  */
 import {
   CargoSchema,
@@ -58,8 +59,8 @@ export interface LicencasUsuario {
   /** ADR 0073 (E4): marca da transição do tenant (`plataforma.catalogo_aplicado`). Ausente = sem marca (motor antigo). */
   catalogo?: CatalogoAplicado | null;
   /**
-   * ADR 0073 (E4): perfil sem base do usuário (vivo e ativo: código, cargo e concessões), lido só no motor 'cargo'. Ausente =
-   * não lido (motor 'base'); `null` = usuário sem perfil vivo e ativo (nada permitido no caminho novo, falha fechada).
+   * ADR 0073 (E4/E6): perfil do usuário (vivo e ativo: código, cargo, base congelada e concessões), lido só no motor 'cargo'.
+   * Ausente = não lido (motor 'base'); `null` = usuário sem perfil vivo e ativo (nada permitido no caminho novo, falha fechada).
    */
   perfilPorCargo?: PerfilDoUsuarioPorCargo | null;
 }
@@ -70,8 +71,11 @@ export interface CatalogoAplicado {
   leitura: 'legado' | 'concessao';
 }
 
-/** O que `camposPeloCargo` precisa do perfil do usuário. */
-export type PerfilDoUsuarioPorCargo = Pick<PerfilPorCargo, 'codigo' | 'cargo' | 'permissoes'>;
+/**
+ * O que `camposPeloCargo` precisa do perfil do usuário e a base congelada (`plataforma.perfil.base`, o valor de
+ * `core.usuario.perfil` na fase 1; ausente ou fora de `PERFIS` = sem base).
+ */
+export type PerfilDoUsuarioPorCargo = Pick<PerfilPorCargo, 'codigo' | 'cargo' | 'permissoes'> & { base?: Perfil | null };
 
 /**
  * Motor da permissão do tenant (ADR 0073 §6, RN-CORE-35): 'cargo' só com a leitura 'concessao' E o catálogo na versão do código
@@ -202,29 +206,19 @@ function concessoesDe(bruto: unknown): PerfilPorCargo['permissoes'] {
 }
 
 /**
- * ADR 0073 §2.7 (E4): o perfil vivo e ativo do usuário (um só, RN-CORE-54: `usuario_perfil_um_vivo`, 0069) com o cargo e as
- * concessões vivas (`perfil_concessao_leitura_ix`). Sem perfil ou cargo desconhecido = `null` (falha fechada). Faz o papel de
- * `plataforma.perfil_do_usuario` (plano de migração, passo 3) até o banco publicar a função.
+ * ADR 0073 §2.7 (E6): o perfil vivo e ativo do usuário no tenant do contexto (um só, RN-CORE-54) por
+ * `plataforma.perfil_do_usuario` (0109, SECURITY INVOKER: a RLS vale; 0 ou 1 linha). No tenant em 'concessao', `permissoes` são
+ * as concessões vivas. Sem perfil ou cargo desconhecido = `null` (falha fechada); base fora de `PERFIS` = sem base.
  */
-async function lerPerfilPorCargo(db: ClienteBanco, usuarioId: string): Promise<PerfilDoUsuarioPorCargo | null> {
-  const r = await db.query<{ codigo: string; cargo: string; permissoes: unknown }>(
-    `select p.codigo, p.cargo,
-            coalesce(jsonb_object_agg(c.chave, jsonb_strip_nulls(jsonb_build_object('nivel', c.nivel, 'alvos', to_jsonb(c.alvos))))
-                       filter (where c.chave is not null), '{}'::jsonb) as permissoes
-       from plataforma.usuario_perfil up
-       join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
-       left join plataforma.perfil_concessao c on c.tenant_id = p.tenant_id and c.perfil_id = p.id and c.deleted_at is null
-      where up.tenant_id = plataforma.tenant_atual() and up.usuario_id = $1 and up.deleted_at is null
-        and p.ativo and p.deleted_at is null
-      group by p.id, p.codigo, p.cargo
-      order by p.codigo
-      limit 1`,
+async function lerPerfilDoUsuario(db: ClienteBanco, usuarioId: string): Promise<PerfilDoUsuarioPorCargo | null> {
+  const r = await db.query<{ codigo: string; cargo: string; base: string | null; permissoes: unknown }>(
+    'select codigo, cargo, base, permissoes from plataforma.perfil_do_usuario($1)',
     [usuarioId],
   );
   const l = r.rows[0];
   const cargo = CargoSchema.safeParse(l?.cargo);
   if (!l || !cargo.success) return null;
-  return { codigo: l.codigo, cargo: cargo.data, permissoes: concessoesDe(l.permissoes) };
+  return { codigo: l.codigo, cargo: cargo.data, base: l.base && ehPerfil(l.base) ? l.base : null, permissoes: concessoesDe(l.permissoes) };
 }
 
 export const licencasDoBanco: FonteLicencas = (usuario, banco) =>
@@ -235,8 +229,8 @@ export const licencasDoBanco: FonteLicencas = (usuario, banco) =>
       "select modulo from plataforma.usuario_modulo where usuario_id = $1 and efeito = 'remover' and deleted_at is null",
       [usuario.id],
     );
-    // ADR 0073 (E4): o perfil sem base só no motor 'cargo' (no 'base' o tenant pode não ter concessões)
-    const perfilPorCargo = motorDoTenant(t.catalogo) === 'cargo' ? { perfilPorCargo: await lerPerfilPorCargo(db, usuario.id) } : {};
+    // ADR 0073 (E6): o perfil por concessão só no motor 'cargo' (no 'base' o tenant pode não ter concessões)
+    const perfilPorCargo = motorDoTenant(t.catalogo) === 'cargo' ? { perfilPorCargo: await lerPerfilDoUsuario(db, usuario.id) } : {};
     return { ...t, doPerfil, removidosDoUsuario: modulos(removidos.rows), perfis, ...perfilPorCargo };
   });
 

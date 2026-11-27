@@ -41,8 +41,9 @@ import { erroModuloInativo, ROTA_ME_MODULOS } from '@macuxi/core/contracts';
 import {
   autorizarRotaPeloCargo,
   camposPeloCargo,
-  diferencasEntreMotores,
+  cargoDaBase,
   modelosDePerfil,
+  perfilDeCompatibilidade,
   consultasSemImplementacao,
   corpoDoErro,
   corpoDoErroModulo,
@@ -268,6 +269,9 @@ const CACHE_SAUDE_MS = 10_000;
 /** Prazo de cada sonda do `/v1/saude`. */
 const PRAZO_SONDA_SAUDE_MS = 2_000;
 
+/** Teto do memo dos avisos de divergência (cheio = recomeça; só evita repetir o mesmo aviso a cada requisição). */
+const MAX_DIVERGENCIAS_AVISADAS = 1000;
+
 /** Versão do pacote da API (package.json), lida uma vez. */
 export const VERSAO_API: string = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
@@ -331,6 +335,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const matriz = motorPermissoes.matriz;
   // ADR 0073 (E4): o super-admin, no motor 'cargo', recebe o modelo `admin` dos manifestos instalados (código `admin`)
   const adminDoModelo = { codigo: 'admin', ...modelosDePerfil(manifestos).admin };
+  // ADR 0073 (E6): perfis cujo cargo diverge da base congelada já avisados no log (um aviso por perfil e processo)
+  const divergenciasAvisadas = new Set<string>();
   const dependencias = dependenciasDosManifestos(manifestos);
   const porId = new Map(modulos.map((m) => [m.manifesto.id, m] as const));
   const consultas = registroDeConsultas(modulos);
@@ -536,31 +542,48 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       modulos: efetivos,
       perfis: perfisDeAcesso.map((p) => resolverPerfil(p, matriz)),
     };
-    // ADR 0073 (E4, RN-CORE-35): motor do tenant pela marca `plataforma.catalogo_aplicado`. No 'cargo', `cargo` e `perfil_acesso`
-    // vêm do perfil sem base (super-admin: o modelo admin) e a rota decide por eles (`montarRota`); os perfis antigos seguem
-    // lidos (leitura dupla até a E6) e a divergência entre os dois vai ao log, sem dado pessoal (só chaves e o código do perfil)
+    // ADR 0073 (E6, RN-CORE-35): motor do tenant pela marca `plataforma.catalogo_aplicado`. No 'cargo' (tenant em 'concessao')
+    // decide o perfil por concessão (`plataforma.perfil_do_usuario`; super-admin: o modelo admin): `cargo` e `perfil_acesso`
+    // decidem a rota (`montarRota`), `perfil` passa a ser a base congelada do perfil e `perfis` passa a ter um perfil só, com as
+    // concessões (o módulo que ainda consulta `pode(ctx.usuario.perfis, ...)` decide pelas concessões). No 'base', nada muda.
     const motor = motorDoTenant(licencas.catalogo);
-    if (motor === 'cargo') {
-      Object.assign(usuario, camposPeloCargo(doSA ? adminDoModelo : (licencas as LicencasUsuario).perfilPorCargo));
-      const diferencas = diferencasEntreMotores(usuario.perfis, usuario.perfil_acesso);
-      if (diferencas.length > 0)
-        req.log.warn(
-          {
-            evento: 'perfis.motores_divergem',
-            tenant_id: usuario.tenant_id,
-            modulo: modulo ?? 'plataforma',
-            request_id: req.id,
-            perfil: usuario.perfil_acesso?.codigo ?? null,
-            chaves: diferencas.map((d) => d.chave),
-          },
-          'Motores de permissão divergem (ADR 0073, leitura dupla)',
-        );
+    if (motor === 'cargo' && doSA) Object.assign(usuario, camposPeloCargo(adminDoModelo));
+    else if (motor === 'cargo') {
+      const doUsuario = (licencas as LicencasUsuario).perfilPorCargo ?? null;
+      Object.assign(usuario, camposPeloCargo(doUsuario));
+      const acessoNovo = usuario.perfil_acesso;
+      const base = doUsuario?.base ?? (acessoNovo ? perfilDeCompatibilidade(acessoNovo.cargo, acessoNovo.permissoes) : token.perfil);
+      usuario.perfil = base;
+      usuario.perfis = acessoNovo ? [{ codigo: acessoNovo.codigo, base, permissoes: acessoNovo.permissoes }] : [];
+      // o código que ainda compara o NOME do perfil (`ctx.usuario.perfil`, transição do plano §5 passo 4) decide pela base
+      // congelada: se o cargo do perfil não é o da base, ele decide diferente do cargo. Uma vez por perfil, sem dado pessoal
+      if (acessoNovo && doUsuario?.base && cargoDaBase(doUsuario.base) !== acessoNovo.cargo) {
+        const chave = `${usuario.tenant_id}:${acessoNovo.codigo}:${acessoNovo.cargo}:${doUsuario.base}`;
+        if (!divergenciasAvisadas.has(chave)) {
+          if (divergenciasAvisadas.size >= MAX_DIVERGENCIAS_AVISADAS) divergenciasAvisadas.clear();
+          divergenciasAvisadas.add(chave);
+          req.log.warn(
+            {
+              evento: 'perfis.motores_divergem',
+              tenant_id: usuario.tenant_id,
+              modulo: modulo ?? 'plataforma',
+              request_id: req.id,
+              perfil: acessoNovo.codigo,
+              cargo: acessoNovo.cargo,
+              base: doUsuario.base,
+            },
+            'Cargo do perfil diverge da base congelada (ADR 0073): quem compara o nome do perfil decide pela base',
+          );
+        }
+      }
     }
     // ADR 0025: `tx.consultar(..., { licenca: 'tenant' })`: efetivos do TENANT (todos os instalados no lugar do perfil), com as
     // mesmas dependências (RN-CORE-03) e o core sempre ativo. Em escrita (≠ GET/HEAD; o pull do sync é GET, o push não) só
     // para consulta `configuracaoDoTenant`, executada num savepoint somente leitura (§4.1, T-0114)
     const escrita = req.method !== 'GET' && req.method !== 'HEAD';
     const modulosDoTenant = modulosEfetivos({ manifestos, ativosNoTenant: licencas.ativosNoTenant, doPerfil: manifestos.map((x) => x.id) });
+    // escopo de carteira e de equipe (RN-CORE-04) pelo perfil da requisição: no 'cargo', a base congelada do perfil
+    const tokenDoEscopo: UsuarioAutenticado = usuario.perfil === token.perfil ? token : { ...token, perfil: usuario.perfil };
     let carteira: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     let usuariosVisiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3); o que a rota gravou
@@ -612,7 +635,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
           ? Promise.resolve(new Set<string>())
           : doSA
           ? Promise.resolve('tenant' as const)
-          : carteiraDe(token, acessoDaRequisicao, { agora: relogio, fuso }).catch((e: unknown) => {
+          : carteiraDe(tokenDoEscopo, acessoDaRequisicao, { agora: relogio, fuso }).catch((e: unknown) => {
               carteira = null;
               throw e;
             })),
@@ -622,7 +645,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
           ? Promise.resolve(new Set<string>([token.id]))
           : doSA
           ? Promise.resolve('tenant' as const)
-          : usuariosDe(token, acessoDaRequisicao).then(
+          : usuariosDe(tokenDoEscopo, acessoDaRequisicao).then(
               (v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])),
               (e: unknown) => {
                 usuariosVisiveis = null;
@@ -828,17 +851,13 @@ interface ConfigRotaModulo {
 }
 
 /**
- * Passos 2 e 3 de `montarRota` no motor 'cargo' (ADR 0073 E4; RN-CORE-33, RN-PRO-01 e RN-CORE-35 pelo cargo e pela concessão):
- * `autorizarRotaPeloCargo`. Leitura dupla SEGURA até a E6: a rota sem `acao` com lista `perfis` própria ainda não tem chave no
- * catálogo e o cargo não a abre sozinho: vale também a lista de hoje.
+ * Passos 2 e 3 de `montarRota` no motor 'cargo' (ADR 0073 E6; RN-CORE-33, RN-PRO-01 e RN-CORE-35 pelo cargo e pela concessão):
+ * só `autorizarRotaPeloCargo`. A rota sem `acao` vale pela licença do módulo (o perfil usa o módulo); a lista `perfis` da rota e
+ * do manifesto não decide mais (`test/acesso-por-cargo.test.ts` confere que os 7 modelos respondem igual nas rotas reais).
  */
 function autorizarPeloCargo(u: UsuarioDaRequisicao, permissoes: ReturnType<typeof criarPermissoes>, modulo: ModuloId, rota: RotaModulo): void {
   const r = autorizarRotaPeloCargo(u, permissoes, modulo, rota);
   if (!r.ok) negar(r, rota.acao ? (permissoes.moduloDaAcao(rota.acao) ?? modulo) : modulo);
-  if (!rota.acao && rota.perfis) {
-    const hoje = verificarAcesso(u, { modulo, perfis: rota.perfis });
-    if (!hoje.ok) negar(hoje, modulo);
-  }
 }
 
 /** RN-PRO-01 com RN-CORE-35: o usuário só tem perfis de base promotor (sem a lista resolvida, o perfil do token). */
