@@ -15,15 +15,28 @@ describe('RN-VEN-12: crédito estourado manda o pedido para aprovação (T-0184,
     expect(exigeAprovacaoPorCredito({ ...base, prazo_medio_dias: 0, disponivel_cents: 0 })).toBe(false);
     expect(exigeAprovacaoPorCredito({ ...base, prazo_medio_dias: 0, limite_informado: false })).toBe(false);
   });
-  it('RN-VEN-12 (P4 A): cliente sem limite informado pelo ERP, a prazo, vai para aprovação com o motivo crédito', () => {
-    expect(exigeAprovacaoPorCredito({ ...base, limite_informado: false, disponivel_cents: 0 })).toBe(true);
+  it('RN-VEN-12: cliente sem limite informado pelo ERP é sem restrição: nenhum motivo de crédito e nenhuma recusa, para cada ação do tenant', () => {
+    for (const acao of ['aprovacao', 'orcamento', 'avisar'] as const) {
+      const e = { ...base, limite_informado: false, disponivel_cents: 0, acao };
+      expect(creditoExcedido(e)).toBe(false);
+      expect(exigeAprovacaoPorCredito(e)).toBe(false);
+      expect(soOrcamentoPorCredito(e)).toBe(false);
+      expect(motivosFinanceirosDoPedido({ ...e, maior_atraso_dias: 0, limite_dias: 5 })).toEqual([]);
+      expect(aprovacoesFinanceiras({ prazo_medio_dias: 28, total_cents: 10_000, financeiro: { limite_informado: false, disponivel_cents: 0, maior_atraso_dias: 0, limite_dias: 5 }, niveis: { credito: 'gerente', inadimplencia: 'gerente' }, acao_credito: acao })).toEqual([]);
+    }
   });
-  it('RN-VEN-12 (P4 A): limite 0 e limite ausente, sem disponível do ERP, contam como não informado e vão para aprovação a prazo', () => {
+  it('RN-VEN-12: com limite informado e estourado vale cada ação (aprovação, só orçamento, aviso)', () => {
+    const e = { ...base, disponivel_cents: 9_999 };
+    expect(exigeAprovacaoPorCredito({ ...e, acao: 'aprovacao' })).toBe(true);
+    expect(soOrcamentoPorCredito({ ...e, acao: 'orcamento' })).toBe(true);
+    expect(exigeAprovacaoPorCredito({ ...e, acao: 'avisar' })).toBe(false);
+  });
+  it('RN-VEN-12: limite 0 e limite ausente, sem disponível do ERP, contam como não informado e não restringem o crédito', () => {
     expect(limiteInformadoPeloErp({ limite_cents: 0, credito_disponivel_erp_cents: null })).toBe(false);
     expect(limiteInformadoPeloErp({ limite_cents: 1, credito_disponivel_erp_cents: null })).toBe(true);
     expect(limiteInformadoPeloErp({ limite_cents: 0, credito_disponivel_erp_cents: 0 })).toBe(true);
     for (const limite_informado of [limiteInformadoPeloErp({ limite_cents: 0, credito_disponivel_erp_cents: null }), false]) {
-      expect(exigeAprovacaoPorCredito({ ...base, limite_informado, disponivel_cents: 0 })).toBe(true);
+      expect(exigeAprovacaoPorCredito({ ...base, limite_informado, disponivel_cents: 0 })).toBe(false);
     }
   });
   it('RN-VEN-12: disponível negativo e total zero não geram falso positivo além da regra', () => {
@@ -53,9 +66,9 @@ describe('RN-VEN-12 e RN-VEN-13: motivos separados, um por aprovação (P3 B)', 
 });
 
 describe('RN-VEN-12: o aviso offline não bloqueia o envio', () => {
-  it('RN-VEN-12: à vista não mostra o aviso de crédito; a prazo sem limite mostra com disponível zero', () => {
+  it('RN-VEN-12: à vista não mostra o aviso de crédito; a prazo sem limite informado também não mostra (sem restrição)', () => {
     expect(disponivelParaAlerta({ prazo_medio_dias: 0, limite_informado: true, disponivel_cents: 0 })).toBeNull();
-    expect(disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: false, disponivel_cents: 5_000 })).toBe(0);
+    expect(disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: false, disponivel_cents: 5_000 })).toBeNull();
     expect(disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: true, disponivel_cents: 5_000 })).toBe(5_000);
     expect(disponivelParaAlerta({ prazo_medio_dias: undefined, limite_informado: true, disponivel_cents: 5_000 })).toBe(5_000);
   });

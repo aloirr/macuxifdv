@@ -4,7 +4,7 @@
  * ao receber (critério 4) com a mesma regra (`api/financeiro-aprovacao.ts`).
  *  - RN-VEN-12: a prazo, total acima do crédito disponível (limite − saldo em aberto − aprovados não faturados) vai para
  *    aprovação com o motivo `credito`; igual ao disponível não vai; à vista nunca vai por crédito; cliente sem limite
- *    informado pelo ERP, a prazo, vai (P4 A).
+ *    informado pelo ERP é sem restrição de crédito: não excede, não vai e não é recusado (R-20261127-005556, substitui a P4 A).
  *  - RN-VEN-13: título vencido há mais que o limite vai para aprovação com o motivo `inadimplencia`, também à vista (P1 A).
  */
 import { formatBRL } from '@macuxi/comum';
@@ -13,7 +13,7 @@ import type { AcaoCreditoExcedido } from './parametros-pedidos';
 
 export type MotivoFinanceiro = 'credito' | 'inadimplencia';
 
-/** O ERP informou limite ou disponível para o cliente (P4 A: sem isso, a prazo, o pedido vai para aprovação). */
+/** O ERP informou limite ou disponível para o cliente (sem isso, o cliente é sem restrição de crédito, RN-VEN-12). */
 export const limiteInformadoPeloErp = (f: { limite_cents: number; credito_disponivel_erp_cents: number | null }): boolean => f.limite_cents > 0 || f.credito_disponivel_erp_cents != null;
 
 export interface EntradaCreditoPedido {
@@ -32,7 +32,7 @@ const aVista = (prazo: number | undefined): boolean => prazo === 0;
 /** RN-VEN-12: o crédito está excedido (fato), qualquer que seja a ação do tenant. */
 export function creditoExcedido(i: EntradaCreditoPedido): boolean {
   if (aVista(i.prazo_medio_dias) || i.total_cents <= 0) return false;
-  return !i.limite_informado || i.total_cents > i.disponivel_cents;
+  return i.limite_informado && i.total_cents > i.disponivel_cents;
 }
 
 /** RN-VEN-12: o crédito excedido vai para aprovação só com a ação `aprovacao` (padrão). */
@@ -59,10 +59,10 @@ export function motivosFinanceirosDoPedido(i: EntradaCreditoPedido & { maior_atr
   return [...(exigeAprovacaoPorCredito(i) ? (['credito'] as const) : []), ...(exigeAprovacaoPorInadimplencia(i) ? (['inadimplencia'] as const) : [])];
 }
 
-/** O disponível que alimenta o alerta "Limite de crédito excedido": `null` = sem alerta (à vista); sem limite informado = 0. */
+/** O disponível que alimenta o alerta "Limite de crédito excedido": `null` = sem alerta (à vista ou sem limite informado). */
 export function disponivelParaAlerta(i: Pick<EntradaCreditoPedido, 'prazo_medio_dias' | 'limite_informado' | 'disponivel_cents'>): number | null {
   if (aVista(i.prazo_medio_dias)) return null;
-  return i.limite_informado ? i.disponivel_cents : 0;
+  return i.limite_informado ? i.disponivel_cents : null;
 }
 
 /** O que o servidor sabe do financeiro do cliente ao receber o pedido. `undefined` = consulta indisponível (não bloqueia, RN-VEN-13). */
@@ -89,9 +89,7 @@ export function aprovacoesFinanceiras(i: {
   if (!f) return [];
   const saida: AprovacaoNova[] = [];
   if (exigeAprovacaoPorCredito({ prazo_medio_dias: i.prazo_medio_dias, total_cents: i.total_cents, limite_informado: f.limite_informado, disponivel_cents: f.disponivel_cents, ...(i.acao_credito ? { acao: i.acao_credito } : {}) })) {
-    const texto = f.limite_informado
-      ? `Total de ${formatBRL(i.total_cents)} acima do crédito disponível de ${formatBRL(Math.max(0, f.disponivel_cents))}: aguardando ${i.niveis.credito}`
-      : `Cliente sem limite de crédito informado pelo ERP: aguardando ${i.niveis.credito}`;
+    const texto = `Total de ${formatBRL(i.total_cents)} acima do crédito disponível de ${formatBRL(Math.max(0, f.disponivel_cents))}: aguardando ${i.niveis.credito}`;
     saida.push({ motivo: 'credito', nivel: i.niveis.credito, texto });
   }
   if (exigeAprovacaoPorInadimplencia(f)) {

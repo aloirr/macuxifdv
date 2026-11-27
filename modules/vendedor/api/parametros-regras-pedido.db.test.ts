@@ -247,6 +247,22 @@ describe.skipIf(semBanco())('Vendedor × Postgres: pedido mínimo, crédito exce
     });
   });
 
+  describe('RN-VEN-12: cliente sem limite informado pelo ERP é sem restrição de crédito', () => {
+    const semLimite = { ...FINANCEIRO_FOLGADO, limite_cents: 0, credito_disponivel_erp_cents: null };
+    it('RN-VEN-12: sem limite, a prazo, nenhuma ação (aprovacao, orcamento, avisar) abre aprovação de crédito nem recusa; linha financeira ausente idem', async () => {
+      const acoes = ['aprovacao', 'orcamento', 'avisar'] as const;
+      for (const [i, acao] of acoes.entries()) {
+        const { r } = await comFinanceiro(semLimite, () => enviar(15 + i, { credito_excedido_acao: acao }));
+        expect(r).toMatchObject({ status: 'aceito' });
+        expect((await lerPedido(id(15 + i))).p).toMatchObject({ status: 'approved', motivos_aprovacao: [] });
+        expect(await aprovacoesDe(id(15 + i))).toEqual([]);
+      }
+      const { r } = await comFinanceiro(null, () => enviar(18, { credito_excedido_acao: 'orcamento' }));
+      expect(r).toMatchObject({ status: 'aceito' });
+      expect(await aprovacoesDe(id(18))).toEqual([]);
+    });
+  });
+
   describe('RN-VEN-20: estoque insuficiente', () => {
     const faltaEstoque = () => {
       saldoDoTeste = [{ produto_id: prod1, quantidade_base: 1 }];

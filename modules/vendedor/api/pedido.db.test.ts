@@ -465,7 +465,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     const aPrazo = { forma_pagamento_id: null, prazo_pagamento_id: null };
 
     async function tresMotivos(pid: string) {
-      financeiroDoTeste = { ...VENCIDO, limite_cents: 0 }; // sem limite (P4 A) e vencido (P1 A)
+      financeiroDoTeste = { ...VENCIDO, limite_cents: 1_000_000, credito_disponivel_erp_cents: 0 }; // limite estourado (RN-VEN-12) e vencido (P1 A)
       try {
         const { ctx, registro } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
         expect((await receber(ctx, push(pid, { customer_id: A.clientes.c1, discount_pct: 8, items: itens(), ...aPrazo })))[0]!.status).toBe('aceito');
@@ -476,7 +476,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     }
     const aprovacoesDe = (pid: string) => comTenant(pool, A.tenantId, async (c) => (await c.query('select motivo, nivel, estado, ciclo from vendedor.pedido_aprovacao where pedido_id = $1 order by motivo', [pid])).rows);
 
-    it('RN-VEN-12 e RN-VEN-13: desconto, crédito (sem limite, a prazo) e inadimplência abrem três aprovações; o pedido leva o maior nível', async () => {
+    it('RN-VEN-12 e RN-VEN-13: desconto, crédito (limite estourado, a prazo) e inadimplência abrem três aprovações; o pedido leva o maior nível', async () => {
       const registro = await tresMotivos(id(45));
       expect(await aprovacoesDe(id(45))).toEqual([
         { motivo: 'credito', nivel: 'gerente', estado: 'pendente', ciclo: 1 },
@@ -609,7 +609,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect(await enviar(62, (await pesando()) + total)).toBe('approved');
     });
 
-    it('RN-VEN-13: consulta financeira ausente (cliente sem linha) é sem limite informado: a prazo vai para crédito', async () => {
+    it('RN-VEN-12: consulta financeira ausente (cliente sem linha) é sem limite informado: sem restrição de crédito, nenhuma aprovação', async () => {
       financeiroDoTeste = null;
       try {
         const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
@@ -617,7 +617,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       } finally {
         financeiroDoTeste = FINANCEIRO_FOLGADO;
       }
-      expect((await aprovacoesDe(id(63))).map((a) => a.motivo)).toEqual(['credito']);
+      expect(await aprovacoesDe(id(63))).toEqual([]);
     });
 
     it('RN-PRO-01 e RN-CORE-04: promotor 403; outro tenant e fora da equipe 404; GET alcadas traz os dois níveis (padrão gerente)', async () => {
