@@ -91,7 +91,6 @@ export function exigirPermissaoPeloCargo(
     throw new ErroHttpModulo(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
 }
 
-
 /**
  * `ContextoPermissao` de `Permissoes.pode` fora da rota de módulo (sync), sem os `perfis` (o sync decide pela ação do manifesto):
  * com `perfil_acesso` (tenant em 'concessao') decide a concessão; sem ele, o perfil do token.

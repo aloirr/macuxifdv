@@ -212,6 +212,14 @@ describe('ContextoPermissao.perfilAcesso (shell)', () => {
 });
 
 describe('sync fora da rota de módulo (ADR 0073 E6)', () => {
+  const promotorSemPedidoVer = () => {
+    const promotor = usuario('promotor');
+    const { 'pedido.ver': _fora, ...semVer } = promotor.perfil_acesso!.permissoes;
+    const semPedido = { ...promotor, perfil_acesso: { ...promotor.perfil_acesso!, permissoes: semVer } };
+    const { perfil_acesso: _p, ...doToken } = semPedido;
+    return { promotor, semPedido, doToken };
+  };
+
   it('RN-PRO-01: com perfil_acesso vale o cargo promotor; sem ele, o perfil do token', () => {
     const promotor = usuario('promotor');
     expect(promotorNaRequisicao({ ...promotor, perfil: 'vendedor' })).toBe(true);
@@ -221,24 +229,18 @@ describe('sync fora da rota de módulo (ADR 0073 E6)', () => {
   });
 
   it('bloqueiaPedidoDoPromotor: RN-PRO-01 + O-3 barra pedido* só do promotor sem pedido.ver; outras entidades passam', () => {
-    const promotor = usuario('promotor');
-    const { 'pedido.ver': _fora, ...semVer } = promotor.perfil_acesso!.permissoes;
-    const semPedido = { ...promotor, perfil_acesso: { ...promotor.perfil_acesso!, permissoes: semVer } };
+    const { promotor, semPedido, doToken } = promotorSemPedidoVer();
     const barra = bloqueiaPedidoDoPromotor(PERMISSOES, semPedido);
     expect([barra('pedido'), barra('pedido_item'), barra('visita')]).toEqual([true, true, false]);
     expect(bloqueiaPedidoDoPromotor(PERMISSOES, promotor)('pedido')).toBe(false); // com pedido.ver, puxa
     expect(bloqueiaPedidoDoPromotor(PERMISSOES, { ...usuario('vendedor'), perfil: 'promotor' })('pedido')).toBe(false); // cargo decide
-    const { perfil_acesso: _p, ...doToken } = semPedido;
     expect(bloqueiaPedidoDoPromotor(PERMISSOES, doToken)('pedido')).toBe(false); // motor antigo: o manifesto dá pedido.ver
   });
 
   it('contextoDePermissao: com perfil_acesso decide a concessão (pedido.ver desmarcado); sem ele, o perfil do token', () => {
-    const promotor = usuario('promotor');
-    const { 'pedido.ver': _fora, ...semVer } = promotor.perfil_acesso!.permissoes;
-    const semPedido = { ...promotor, perfil_acesso: { ...promotor.perfil_acesso!, permissoes: semVer } };
+    const { promotor, semPedido, doToken } = promotorSemPedidoVer();
     expect(PERMISSOES.pode('pedido.ver', contextoDePermissao(promotor))).toBe(true);
     expect(PERMISSOES.pode('pedido.ver', contextoDePermissao(semPedido))).toBe(false);
-    const { perfil_acesso: _p, ...doToken } = semPedido;
     expect(contextoDePermissao(doToken)).toEqual({ perfil: 'promotor', modulosAtivos: doToken.modulos });
   });
 });
