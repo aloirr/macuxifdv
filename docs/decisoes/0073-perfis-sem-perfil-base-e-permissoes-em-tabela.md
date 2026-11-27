@@ -147,7 +147,7 @@ com `CARGO_DA_BASE` em `db/testes/cargo-hierarquia.db.test.ts`.
 | Onde entra (`PERFIS_DO_APP`) | caixas `acesso.campo`, `acesso.gestao`, `acesso.bko`, `acesso.portal`, com as travas do cargo (§2.5) |
 | Escopo de dados ≤ o da base | `dados.escopo` com teto pelo **cargo**: vendedor e promotor `carteira`; supervisor `equipe`; gerente `equipes_abaixo`; administrativo `tenant` |
 | Promotor sem pedido (RN-PRO-01) | trava pelo **cargo** promotor (§2.5) |
-| `promotor_ve_pedidos` (parâmetro do tenant) | caixa `pedido.ver` no perfil (o mesmo efeito, uma informação num lugar); o parâmetro sai na implementação |
+| `promotor_ve_pedidos` (parâmetro do tenant) | caixa `pedido.ver` no perfil (o mesmo efeito, uma informação num lugar). A leitura do tenant (`plataforma.catalogo_aplicado`, §5.3) é `legado` (ainda no motor antigo: base + sobreposições) ou `concessao` (lê as concessões da tabela nova); no tenant em `legado` fica o parâmetro, só pela API `GET|PUT /v1/core/parametros/promotor-ve-pedidos` (R-20261127-165252); em `concessao` vale `pedido.ver` |
 | `promotor_ve_preco_estoque` (parâmetro) | caixa `produto.ver_preco_estoque` no perfil; o parâmetro sai |
 | Último admin = base admin com gestão | usuário ativo cujo perfil ativo tem `acesso.bko` e as 4 chaves de `CHAVES_GESTAO_DO_ACESSO` |
 | Senha nunca de base admin | senha nunca de quem tem a gestão do acesso (`perfil.gerir`) nem a própria |
@@ -356,8 +356,7 @@ Nenhum evento existente leva `base`; nada precisa de `@v2`.
   barreira da RN-PRO-01 pelo cargo, aplicação do catálogo por versão, lint contra nome fixo.
 - Banco (banco-dados): §5.
 - Core (modulo-core): CRUD de perfis e catálogo (§4.2), cadastro de usuário sem base, senha e último admin pela gestão do acesso,
-  `promotor_ve_pedidos` vira `pedido.ver`; no tenant em `legado` o BKO não tem tela e o ajuste é só pela API
-  `GET|PUT /v1/core/parametros/promotor-ve-pedidos` (R-20261127-165252).
+  `promotor_ve_pedidos` vira `pedido.ver` (ressalva do `legado` na §2.4).
 - Catálogo (modulo-catalogo): `promotor_ve_preco_estoque` vira `produto.ver_preco_estoque`.
 - Vendedor, Gestor, Pesquisa, Treinamento, Promotor, Integração: trocar comparações de nome de perfil por chave ou cargo (§1.3);
   manifestos com `cargos` no lugar de `perfis`.
@@ -404,7 +403,7 @@ algumas ações do Core que hoje caem em "Administração" pela entidade (marcad
   `documento.permissoes`, `filial.ver`, `filial.editar`, `frase_dia.editar`, `rastreamento.configurar`,
   `parametro.campos_obrigatorios`, `parametro.campos_obrigatorios_editar`, `parametro.farol`, `parametro.inicio`,
   `parametro.alertas_produtividade`, `parametro.curva_abc`, `parametro.checkout_pendencia`.
-  `parametro.promotor_ve_pedidos` sai (vira `pedido.ver` no perfil, §2.4).
+  `parametro.promotor_ve_pedidos` sai no tenant em `concessao` (§2.4).
 
 Cadeados na tabela (§2.5): escrita de pedido em perfil de cargo promotor (RN-PRO-01); `acesso.bko` e `acesso.portal` nos cargos
 vendedor, promotor e supervisor (RN-CORE-33); `acesso.portal` sem a gestão do acesso; `acesso.campo` fora de vendedor/promotor e
