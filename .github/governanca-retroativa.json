@@ -24,6 +24,12 @@
       "pr": 679,
       "recado": "R-20261123-212947-alexandre",
       "motivo": "squash do Agente PO com \"Agente: gerente-projetos\" em vez do rito; conteúdo (.github/workflows/producao-limpar-cadastros.yml, v1.0.31) autorizado pelo Agente PO em nome do Alexandre (delegação R-20261123-212947-alexandre) no head 969d5ec974f20fe55a98d1fc987765274c130cac"
+    },
+    {
+      "sha": "0af3a23ea31d4d36efffbb89488b5643dd03584b",
+      "pr": 868,
+      "recado": "R-20261127-185514-alexandre",
+      "motivo": "squash do gerente com \"Agente: engenheiro-software\" em vez do rito; conteúdo (.github/workflows/producao-diagnostico-outbox.yml) autorizado em R-20261127-185514-alexandre, em 27/11/2026 às 18h55"
     }
   ]
 }
