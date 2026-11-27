@@ -273,6 +273,8 @@ export function dadosAtuaisDoAparelho(e: {
   cliente: SituacaoCliente;
   policy: DadosAtuais['policy'];
   estoque_bloqueia: boolean;
+  /** RN-VEN-22: `pedido_minimo_cents` do tenant; 0 ou ausente = sem mínimo */
+  pedido_minimo_cents?: number;
   /** RN-VEN-43/46: % do prazo do documento em bp; a faixa escalonada vale primeiro e o % entra depois, como na API (o orçamento guarda a tabela já ajustada), senão a diferença de preço seria falsa */
   percentual_ajuste_bp?: number;
 }): DadosAtuais {
@@ -295,7 +297,7 @@ export function dadosAtuaisDoAparelho(e: {
       minimo_base_cents: minimoDoProdutoNoPrazo(p as ProdutoComMinimo, bp),
     };
   }
-  return { cliente: e.cliente, itens, policy: e.policy, estoque_bloqueia: e.estoque_bloqueia };
+  return { cliente: e.cliente, itens, policy: e.policy, estoque_bloqueia: e.estoque_bloqueia, ...(e.pedido_minimo_cents ? { pedido_minimo_cents: e.pedido_minimo_cents } : {}) };
 }
 
 /** `preco_vale`: o preço congelado ainda está nos 7 dias (RN-VEN-18); `false` = Transformar reprecifica pela tabela do dia. */

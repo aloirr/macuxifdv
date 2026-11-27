@@ -8,6 +8,7 @@
  *  - RN-VEN-13: título vencido há mais que o limite vai para aprovação com o motivo `inadimplencia`, também à vista (P1 A).
  */
 import type { AprovacaoNova, NivelAprovacao } from './aprovacao';
+import type { AcaoCreditoExcedido } from './parametros-pedidos';
 
 export type MotivoFinanceiro = 'credito' | 'inadimplencia';
 
@@ -21,13 +22,26 @@ export interface EntradaCreditoPedido {
   /** o ERP informou limite (ou disponível) para o cliente */
   limite_informado: boolean;
   disponivel_cents: number;
+  /** RN-VEN-12 (P-6): `credito_excedido_acao` do tenant; ausente = `aprovacao` */
+  acao?: AcaoCreditoExcedido;
 }
 
 const aVista = (prazo: number | undefined): boolean => prazo === 0;
 
-export function exigeAprovacaoPorCredito(i: EntradaCreditoPedido): boolean {
+/** RN-VEN-12: o crédito está excedido (fato), qualquer que seja a ação do tenant. */
+export function creditoExcedido(i: EntradaCreditoPedido): boolean {
   if (aVista(i.prazo_medio_dias) || i.total_cents <= 0) return false;
   return !i.limite_informado || i.total_cents > i.disponivel_cents;
+}
+
+/** RN-VEN-12: o crédito excedido vai para aprovação só com a ação `aprovacao` (padrão). */
+export function exigeAprovacaoPorCredito(i: EntradaCreditoPedido): boolean {
+  return (i.acao ?? 'aprovacao') === 'aprovacao' && creditoExcedido(i);
+}
+
+/** RN-VEN-12: com a ação `orcamento`, o pedido a prazo com crédito excedido só sai como orçamento (o servidor recusa o envio). */
+export function soOrcamentoPorCredito(i: EntradaCreditoPedido): boolean {
+  return i.acao === 'orcamento' && creditoExcedido(i);
 }
 
 export function exigeAprovacaoPorInadimplencia(i: { maior_atraso_dias: number; limite_dias: number }): boolean {
@@ -64,11 +78,13 @@ export function aprovacoesFinanceiras(i: {
   total_cents: number;
   financeiro: FinanceiroParaAprovacao | undefined;
   niveis: { credito: NivelAprovacao; inadimplencia: NivelAprovacao };
+  /** RN-VEN-12 (P-6): `credito_excedido_acao`; só `aprovacao` (padrão) abre a aprovação de crédito */
+  acao_credito?: AcaoCreditoExcedido;
 }): AprovacaoNova[] {
   const f = i.financeiro;
   if (!f) return [];
   const saida: AprovacaoNova[] = [];
-  if (exigeAprovacaoPorCredito({ prazo_medio_dias: i.prazo_medio_dias, total_cents: i.total_cents, limite_informado: f.limite_informado, disponivel_cents: f.disponivel_cents })) {
+  if (exigeAprovacaoPorCredito({ prazo_medio_dias: i.prazo_medio_dias, total_cents: i.total_cents, limite_informado: f.limite_informado, disponivel_cents: f.disponivel_cents, ...(i.acao_credito ? { acao: i.acao_credito } : {}) })) {
     const texto = f.limite_informado
       ? `Total de ${reais(i.total_cents)} acima do crédito disponível de ${reais(Math.max(0, f.disponivel_cents))}: aguardando ${i.niveis.credito}`
       : `Cliente sem limite de crédito informado pelo ERP: aguardando ${i.niveis.credito}`;

@@ -33,6 +33,13 @@ import {
   ehPedidoEmNome,
   momentoDaConversao,
   aplicacaoMaxOrcamento,
+  abaixoDoPedidoMinimo,
+  acaoCreditoExcedido,
+  acaoEstoqueInsuficiente,
+  mensagemPedidoMinimo,
+  nivelDoEstoque,
+  pedidoMinimoCents,
+  soOrcamentoPorCredito,
   marcaDoRetrato,
   modalidadePadraoDosParametros,
   niveisDosParametros,
@@ -242,6 +249,10 @@ export async function calcularDocumento(
   // 6b) crédito (RN-VEN-12) e inadimplência (RN-VEN-13): o servidor recalcula e vale a lista dele (T-0184). Orçamento não passa por aqui.
   const financeiro = tipo === 'pedido' ? await financeiroDoCliente(ctx, db, tx, p.customer_id) : undefined;
 
+  // RN-VEN-20 (T-0149, v1.0.39): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial); o que fazer vem de `estoque_insuficiente_acao`
+  const acaoEstoque = acaoEstoqueInsuficiente(ctx.parametros());
+  const faltaEstoque = tipo === 'pedido' ? await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: quantidadeBase(i.quantity, medidas.get(idx)!.fator) })), retratoFilial?.filial_id ?? null, p.id) : [];
+
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
   const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
@@ -282,6 +293,10 @@ export async function calcularDocumento(
     financeiro: financeiro?.para_aprovacao,
     prazo_medio_dias: pagamento?.prazo.prazo_medio_dias,
     niveis_financeiros: niveisDosParametros(ctx.parametros()),
+    // RN-VEN-12 (P-6): o crédito excedido só abre aprovação com a ação `aprovacao`
+    acao_credito: acaoCreditoExcedido(ctx.parametros()),
+    // RN-VEN-20 (PA-10): item acima do estoque com a ação `aprovacao` abre a aprovação do motivo estoque, no nível de Alçadas
+    ...(faltaEstoque.length > 0 && acaoEstoque === 'aprovacao' ? { estoque_insuficiente: { nivel: nivelDoEstoque(ctx.parametros()) } } : {}),
     // RN-VEN-45: percentual divergente aceito = aviso na linha do tempo, fora da alçada
     percentual_mudou: pg.percentual_mudou,
     aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
@@ -292,10 +307,17 @@ export async function calcularDocumento(
     ...(emNome ? { autor_perfil: ctx.usuario.perfil } : {}),
   });
   if (!rv.ok) return recusa(itemId, rv);
-  // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
   if (tipo === 'pedido') {
-    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: quantidadeBase(i.quantity, medidas.get(idx)!.fator) })), retratoFilial?.filial_id ?? null, p.id);
-    if (falta.length > 0) return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
+    // RN-VEN-22 (PA-3, PA-4): o total final (desconto e acréscimo, sem frete) abaixo do mínimo; o orçamento nunca é barrado
+    const minimo = pedidoMinimoCents(ctx.parametros());
+    if (abaixoDoPedidoMinimo({ total_cents: rv.total_cents, minimo_cents: minimo })) return rejeitado(itemId, 'RN-VEN-22', mensagemPedidoMinimo(minimo));
+    // RN-VEN-12 (P-6): crédito excedido com a ação `orcamento`: o pedido só sai como orçamento (consulta indisponível não bloqueia)
+    const fin = financeiro?.para_aprovacao;
+    if (fin && soOrcamentoPorCredito({ prazo_medio_dias: pagamento?.prazo.prazo_medio_dias, total_cents: rv.total_cents, limite_informado: fin.limite_informado, disponivel_cents: fin.disponivel_cents, acao: acaoCreditoExcedido(ctx.parametros()) })) {
+      return rejeitado(itemId, 'RN-VEN-12', 'Limite de crédito excedido. Envie como orçamento ou reduza o pedido.');
+    }
+    // RN-VEN-20: com a ação `orcamento` (padrão) o pedido só sai como orçamento; `aprovacao` abriu a aprovação acima; `avisar` segue
+    if (faltaEstoque.length > 0 && acaoEstoque === 'orcamento') return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
   }
   // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
   const recebidoEm = agora.toISOString();

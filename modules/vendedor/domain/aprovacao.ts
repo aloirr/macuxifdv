@@ -7,6 +7,7 @@ import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
 import { decisorEhAutor, MSG_APROVACAO_DO_PROPRIO_PEDIDO } from './pedido-em-nome';
 import { aprovacoesFinanceiras, type FinanceiroParaAprovacao } from './credito-pedido';
+import type { AcaoCreditoExcedido, AcaoEstoqueInsuficiente } from './parametros-pedidos';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
 import { CODIGO_DESCONTO_PEDIDO_ACIMA_LIMITE, limiteDoUsuario, mensagemPedidoAcimaDoLimite, minimoDoItem, pedidoAcimaDoLimite } from './limite-desconto';
@@ -71,6 +72,18 @@ export function situacaoDoEnvio(i: { existente: { dono_id: string; status: strin
 export function niveisDosParametros(p: Readonly<Record<string, unknown>>): { credito: NivelAprovacao; inadimplencia: NivelAprovacao } {
   const nivel = (v: unknown): NivelAprovacao => ((NIVEIS_APROVACAO as readonly unknown[]).includes(v) ? (v as NivelAprovacao) : 'gerente');
   return { credito: nivel(p['aprovacao.credito_nivel']), inadimplencia: nivel(p['aprovacao.inadimplencia_nivel']) };
+}
+
+/** RN-VEN-20 (PA-10): quem aprova o estoque insuficiente (`aprovacao.estoque_nivel`, Alçadas); padrão `gerente`, também com o parâmetro ausente ou inválido. */
+export function nivelDoEstoque(p: Readonly<Record<string, unknown>>): NivelAprovacao {
+  const v = p['aprovacao.estoque_nivel'];
+  return (NIVEIS_APROVACAO as readonly unknown[]).includes(v) ? (v as NivelAprovacao) : 'gerente';
+}
+
+/** RN-VEN-20 (PA-10): com a ação `aprovacao` e item acima do estoque da filial, uma aprovação do motivo `estoque` (P3 B: uma por motivo). */
+export function aprovacoesDeEstoque(i: { falta: boolean; acao: AcaoEstoqueInsuficiente; nivel: NivelAprovacao }): AprovacaoNova[] {
+  if (!i.falta || i.acao !== 'aprovacao') return [];
+  return [{ motivo: 'estoque', nivel: i.nivel, texto: `Item acima do estoque da filial: aguardando ${i.nivel}` }];
 }
 
 /** Vocabulário do doc 03 (RN-VEN-30) usado nos eventos e pelo Gestor/Integração. */
@@ -332,6 +345,10 @@ export interface RevalidarEntrada {
   prazo_medio_dias?: number;
   /** P2 B / P5 B: nível de cada aprovação financeira (`niveisDosParametros`); ausente = gerente */
   niveis_financeiros?: { credito: NivelAprovacao; inadimplencia: NivelAprovacao };
+  /** RN-VEN-12 (P-6): `credito_excedido_acao` do tenant; ausente = `aprovacao` */
+  acao_credito?: AcaoCreditoExcedido;
+  /** RN-VEN-20 (PA-10): presente só quando há item acima do estoque da filial e a ação do tenant é `aprovacao`; o nível vem de `nivelDoEstoque` */
+  estoque_insuficiente?: { nivel: NivelAprovacao };
   /** RN-VEN-45: o percentual do push difere do vigente (cadastro mudou depois da data declarada pelo aparelho): aviso na linha do tempo, fora da alçada. */
   percentual_mudou?: boolean;
   /** T-0187 (P4 A, RN-GES-04): perfil do autor no pedido em nome; o motivo que cairia no nível dele sobe um nível. Ausente = pedido do próprio vendedor. */
@@ -501,7 +518,10 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (!r0.aceito) return { ok: false, codigo: r0.codigo, http: r0.http, mensagem: r0.mensagem };
   const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
-  const comFinanceiro = comAprovacoesFinanceiras(resto0, aprovacoesFinanceiras({ prazo_medio_dias: e.prazo_medio_dias, total_cents: totais.total_cents, financeiro: e.financeiro, niveis: e.niveis_financeiros ?? { credito: 'gerente', inadimplencia: 'gerente' } }));
+  const comFinanceiro = comAprovacoesFinanceiras(resto0, [
+    ...aprovacoesFinanceiras({ prazo_medio_dias: e.prazo_medio_dias, total_cents: totais.total_cents, financeiro: e.financeiro, niveis: e.niveis_financeiros ?? { credito: 'gerente', inadimplencia: 'gerente' }, ...(e.acao_credito ? { acao_credito: e.acao_credito } : {}) }),
+    ...aprovacoesDeEstoque({ falta: e.estoque_insuficiente !== undefined, acao: 'aprovacao', nivel: e.estoque_insuficiente?.nivel ?? 'gerente' }),
+  ]);
   const elevado = e.autor_perfil ? comNivelDoAutor(comFinanceiro, e.autor_perfil) : comFinanceiro;
   const resto = e.percentual_mudou ? comAvisoDoPrazoMudou(elevado) : elevado;
   return {

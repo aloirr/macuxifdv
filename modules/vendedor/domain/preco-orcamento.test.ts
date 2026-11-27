@@ -11,6 +11,7 @@ import {
   type OrcamentoParaReconferir,
 } from './orcamento';
 import { politicaDosParametros } from './aprovacao';
+import { mensagemPedidoMinimo } from './pedido-minimo';
 
 const FUSO = 'America/Manaus'; // UTC-4
 
@@ -85,6 +86,25 @@ describe('RN-VEN-18: Transformar depois do preço vencido reprecifica pela tabel
     ]);
     expect(r.total_orcado_cents).toBe(3800);
     expect(r.diferenca_total_cents).toBe(4180 - 3800);
+  });
+
+  it('RN-VEN-22: Transformar com o total abaixo do pedido mínimo bloqueia, com a frase da regra; no mínimo ou sem mínimo passa', () => {
+    const abaixo = reconferirOrcamento(orc, { ...hoje(1100, 2200), pedido_minimo_cents: 5000 }, { preco_vale: true });
+    expect(abaixo.pode_enviar).toBe(false);
+    expect(abaixo.bloqueio).toBe(mensagemPedidoMinimo(5000));
+    const igual = reconferirOrcamento(orc, { ...hoje(1100, 2200), pedido_minimo_cents: 3800 }, { preco_vale: true });
+    expect(igual.pode_enviar).toBe(true);
+    expect(reconferirOrcamento(orc, { ...hoje(1100, 2200), pedido_minimo_cents: 0 }, { preco_vale: true }).bloqueio).toBeNull();
+    expect(reconferirOrcamento(orc, hoje(1100, 2200), { preco_vale: true }).bloqueio).toBeNull();
+  });
+
+  it('RN-VEN-20: Transformar com item sem estoque bloqueia só quando a ação do tenant é orcamento (estoque_bloqueia)', () => {
+    const semSaldo = (bloqueia: boolean): DadosAtuais => {
+      const h = hoje(1000, 2000);
+      return { ...h, itens: { ...h.itens, a: { ...h.itens['a']!, estoque_base: 1 } }, estoque_bloqueia: bloqueia };
+    };
+    expect(reconferirOrcamento(orc, semSaldo(true), { preco_vale: true }).bloqueio).toBe('Sem estoque suficiente para um dos itens.');
+    expect(reconferirOrcamento(orc, semSaldo(false), { preco_vale: true }).bloqueio).toBeNull();
   });
 
   it('RN-VEN-18: preço vencido: total de cada item antes (preço do orçamento) e hoje (tabela do dia), para a folha "Preços de hoje"', () => {

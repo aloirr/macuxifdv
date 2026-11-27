@@ -124,3 +124,26 @@ describe('RN-VEN-10 (T-0165, RD-0142): a alçada vira uma linha nos Alertas', ()
     expect(textoDoMaximo(10)).toBe('Máx. 10,0%');
   });
 });
+
+describe('RN-VEN-22, RN-VEN-12 e RN-VEN-20 (v1.0.39): alertas conforme a ação do tenant', () => {
+  const cliente = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
+  const semEstoque = [{ item: 'p1', codigo: 'AGU-1' }];
+  it('RN-VEN-22: pedido abaixo do mínimo vira a linha com o valor e só permite orçamento', () => {
+    const a = alertasDoPedido({ cliente, abaixo_do_minimo_cents: 150000 });
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatchObject({ tipo: 'minimo', texto: 'Pedido abaixo do mínimo de R$\u00a01.500,00', so_orcamento: true });
+    expect(alertasDoPedido({ cliente, abaixo_do_minimo_cents: 0 })).toEqual([]);
+  });
+  it('RN-VEN-12: o crédito excedido só trava o envio com a ação orcamento', () => {
+    const base = { cliente, disponivel_cents: 0, total_cents: 5000 };
+    expect(soOrcamentoPorAlertas(alertasDoPedido(base))).toBe(false);
+    expect(soOrcamentoPorAlertas(alertasDoPedido({ ...base, credito_so_orcamento: true }))).toBe(true);
+    expect(alertasDoPedido({ ...base, credito_so_orcamento: true })[0]).toMatchObject({ tipo: 'credito', texto: 'Limite de crédito excedido' });
+  });
+  it('RN-VEN-20: o estoque insuficiente trava o envio por padrão; com aprovacao ou avisar a linha fica e o pedido segue', () => {
+    expect(soOrcamentoPorAlertas(alertasDoPedido({ cliente, itens_sem_estoque: semEstoque }))).toBe(true);
+    const segue = alertasDoPedido({ cliente, itens_sem_estoque: semEstoque, estoque_so_orcamento: false });
+    expect(segue.map((x) => x.tipo)).toEqual(['estoque']);
+    expect(soOrcamentoPorAlertas(segue)).toBe(false);
+  });
+});

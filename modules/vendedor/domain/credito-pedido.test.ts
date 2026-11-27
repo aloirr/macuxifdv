@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { disponivelParaAlerta, exigeAprovacaoPorCredito, exigeAprovacaoPorInadimplencia, limiteInformadoPeloErp, motivosFinanceirosDoPedido } from './credito-pedido';
+import { aprovacoesFinanceiras, creditoExcedido, disponivelParaAlerta, exigeAprovacaoPorCredito, soOrcamentoPorCredito, exigeAprovacaoPorInadimplencia, limiteInformadoPeloErp, motivosFinanceirosDoPedido } from './credito-pedido';
 
 const base = { prazo_medio_dias: 28, total_cents: 10_000, limite_informado: true, disponivel_cents: 10_000 };
 
@@ -58,5 +58,42 @@ describe('RN-VEN-12: o aviso offline não bloqueia o envio', () => {
     expect(disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: false, disponivel_cents: 5_000 })).toBe(0);
     expect(disponivelParaAlerta({ prazo_medio_dias: 28, limite_informado: true, disponivel_cents: 5_000 })).toBe(5_000);
     expect(disponivelParaAlerta({ prazo_medio_dias: undefined, limite_informado: true, disponivel_cents: 5_000 })).toBe(5_000);
+  });
+});
+
+describe('RN-VEN-12 (P-6): a ação do tenant para o crédito excedido', () => {
+  const estourado = { ...base, disponivel_cents: 9_999 };
+  const financeiro = { limite_informado: true, disponivel_cents: 9_999, maior_atraso_dias: 0, limite_dias: 5 };
+  const niveis = { credito: 'gerente', inadimplencia: 'gerente' } as const;
+  it('RN-VEN-12: sem ação informada vale aprovacao (o comportamento de antes)', () => {
+    expect(exigeAprovacaoPorCredito(estourado)).toBe(true);
+    expect(exigeAprovacaoPorCredito({ ...estourado, acao: 'aprovacao' })).toBe(true);
+  });
+  it('RN-VEN-12: orcamento e avisar não mandam para aprovação, mas o crédito segue excedido', () => {
+    for (const acao of ['orcamento', 'avisar'] as const) {
+      expect(exigeAprovacaoPorCredito({ ...estourado, acao })).toBe(false);
+      expect(creditoExcedido({ ...estourado, acao })).toBe(true);
+    }
+    expect(creditoExcedido(base)).toBe(false);
+  });
+  it('RN-VEN-12: só a ação orcamento deixa o pedido só como orçamento; à vista e dentro do limite nunca', () => {
+    expect(soOrcamentoPorCredito({ ...estourado, acao: 'orcamento' })).toBe(true);
+    expect(soOrcamentoPorCredito({ ...estourado, acao: 'avisar' })).toBe(false);
+    expect(soOrcamentoPorCredito({ ...estourado, acao: 'aprovacao' })).toBe(false);
+    expect(soOrcamentoPorCredito({ ...estourado, acao: 'orcamento', prazo_medio_dias: 0 })).toBe(false);
+    expect(soOrcamentoPorCredito({ ...base, acao: 'orcamento' })).toBe(false);
+  });
+  it('RN-VEN-12: os motivos financeiros só trazem crédito com a ação aprovacao; a inadimplência segue', () => {
+    const f = { ...estourado, maior_atraso_dias: 9, limite_dias: 5 };
+    expect(motivosFinanceirosDoPedido(f)).toEqual(['credito', 'inadimplencia']);
+    expect(motivosFinanceirosDoPedido({ ...f, acao: 'avisar' })).toEqual(['inadimplencia']);
+    expect(motivosFinanceirosDoPedido({ ...f, acao: 'orcamento' })).toEqual(['inadimplencia']);
+  });
+  it('RN-VEN-12: o servidor abre a aprovação de crédito só com a ação aprovacao', () => {
+    const entrada = { prazo_medio_dias: 28, total_cents: 10_000, financeiro, niveis };
+    expect(aprovacoesFinanceiras(entrada).map((a) => a.motivo)).toEqual(['credito']);
+    expect(aprovacoesFinanceiras({ ...entrada, acao_credito: 'aprovacao' }).map((a) => a.motivo)).toEqual(['credito']);
+    expect(aprovacoesFinanceiras({ ...entrada, acao_credito: 'avisar' })).toEqual([]);
+    expect(aprovacoesFinanceiras({ ...entrada, acao_credito: 'orcamento' })).toEqual([]);
   });
 });

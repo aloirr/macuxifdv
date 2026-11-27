@@ -4,7 +4,7 @@ import { manifest } from '../manifest';
 import { OrdersPage } from './components/orders/orders-page';
 import { AlcadasPage } from './pages/alcadas-page';
 import { FormasPagamentoPage } from './pages/formas-pagamento-page';
-import { PrecoOrcamentoPanel, TituloVencidoPanel } from './pages/parametros-pedidos-panel';
+import { CreditoExcedidoPanel, EstoqueInsuficientePanel, PedidoMinimoPanel, PrecoOrcamentoPanel, TituloVencidoPanel } from './pages/parametros-pedidos-panel';
 import { TransportadorasPage } from './pages/transportadoras-page';
 
 /** Páginas do Vendedor no BKO (ADR 0003). O shell só monta se o módulo estiver efetivo e o perfil puder. */
@@ -22,5 +22,9 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     // RN-VEN-13 e RN-VEN-18 (spec 7.3 e 7.4): `alcada.gerenciar` esconde para quem não ajusta; a API revalida
     { id: 'titulo-vencido', secao: 'pedidos', titulo: 'Título vencido', ordem: 20, acao: 'alcada.gerenciar', componente: TituloVencidoPanel },
     { id: 'preco-orcamento', secao: 'pedidos', titulo: 'Preço do orçamento', ordem: 30, acao: 'alcada.gerenciar', componente: PrecoOrcamentoPanel },
+    // v1.0.39 (spec 7.5; Frete padrão fica com a ordem 40): pedido mínimo (RN-VEN-22), crédito excedido (RN-VEN-12, P-6) e estoque insuficiente (RN-VEN-20)
+    { id: 'pedido-minimo', secao: 'pedidos', titulo: 'Pedido mínimo', ordem: 50, acao: 'alcada.gerenciar', componente: PedidoMinimoPanel },
+    { id: 'credito-excedido', secao: 'pedidos', titulo: 'Crédito excedido', ordem: 60, acao: 'alcada.gerenciar', componente: CreditoExcedidoPanel },
+    { id: 'estoque-insuficiente', secao: 'pedidos', titulo: 'Estoque insuficiente', ordem: 70, acao: 'alcada.gerenciar', componente: EstoqueInsuficientePanel },
   ],
 });

@@ -99,3 +99,21 @@ describe('RN-VEN-12 e RN-VEN-13: ligação do aparelho com a regra', () => {
     expect(financeiroParaAprovacao({ tipo: 'dados', limite_cents: 1, disponivel_cents: 1, limite_informado: true, alerta: { titulos: 1, valorCents: 1, dias: 9 } }, 0, 5)).toMatchObject({ maior_atraso_dias: 9, prazo_medio_dias: 0, limite_dias: 5 });
   });
 });
+
+describe('RN-VEN-12 (P-6, v1.0.39): a ação do tenant muda o que o app faz com o crédito excedido', () => {
+  it('RN-VEN-12: com orcamento ou avisar o pedido não vai para aprovação por crédito (o servidor decide o resto)', () => {
+    for (const acao of ['orcamento', 'avisar'] as const) {
+      const { v } = prepararPedido({ ...base, financeiro: fin({ disponivel_cents: 0, acao }) });
+      expect(v.outcome).toBe('ok');
+      expect(v.issues.some((i) => i.code === 'credit_exceeded')).toBe(false);
+    }
+  });
+  it('RN-VEN-12: com aprovacao (ou sem ação) segue indo para aprovação; a inadimplência não depende da ação', () => {
+    expect(prepararPedido({ ...base, financeiro: fin({ disponivel_cents: 0, acao: 'aprovacao' }) }).v.outcome).toBe('pending_approval');
+    expect(prepararPedido({ ...base, financeiro: fin({ disponivel_cents: 0, maior_atraso_dias: 12, acao: 'avisar' }) }).v.issues.map((i) => i.code)).toEqual(['overdue_receivables']);
+  });
+  it('RN-VEN-12: financeiroParaAprovacao leva a ação do tenant (padrão aprovacao)', () => {
+    expect(financeiroParaAprovacao({ tipo: 'vazio' }, 28, 5)).toMatchObject({ acao: 'aprovacao' });
+    expect(financeiroParaAprovacao({ tipo: 'vazio' }, 28, 5, 'orcamento')).toMatchObject({ acao: 'orcamento' });
+  });
+});

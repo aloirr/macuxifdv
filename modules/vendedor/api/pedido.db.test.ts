@@ -796,7 +796,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
 
     it('alçadas: devolve a política dos parâmetros do tenant (padrão 5/10/15 e analista)', async () => {
       const pol = await chamar(rotaAlcadas, contexto(analista).ctx);
-      expect(pol).toEqual({ seller_pct: 5, supervisor_pct: 10, manager_pct: 15, above_manager: 'director', exceptions: [], aprovador_credito: 'gerente', aprovador_inadimplencia: 'gerente' });
+      expect(pol).toEqual({ seller_pct: 5, supervisor_pct: 10, manager_pct: 15, above_manager: 'director', exceptions: [], aprovador_credito: 'gerente', aprovador_inadimplencia: 'gerente', aprovador_estoque: 'gerente' });
       const custom = await chamar(rotaAlcadas, contexto(analista, { parametros: { 'alcada.vendedor_pct': 3, 'alcada.acima_gerente': 'bloquear' } }).ctx);
       expect(custom).toMatchObject({ seller_pct: 3, above_manager: 'block' });
     });

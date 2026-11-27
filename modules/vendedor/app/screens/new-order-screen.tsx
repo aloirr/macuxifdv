@@ -29,8 +29,10 @@ import { modalidadePadraoDosParametros, percentualAjusteParaBp } from '../../dom
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { AbaEntrega, AbaResumo, AbaVenda, CampoEmNomeDe, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
 import { financeiroParaAprovacao, type ModeloDoCredito } from '../lib/credito-cliente';
-import { aprovacoesFinanceiras, disponivelParaAlerta } from '../../domain/credito-pedido';
-import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
+import { aprovacoesFinanceiras, disponivelParaAlerta, soOrcamentoPorCredito } from '../../domain/credito-pedido';
+import { acaoCreditoExcedido, acaoEstoqueInsuficiente, pedidoMinimoCents } from '../../domain/parametros-pedidos';
+import { abaixoDoPedidoMinimo } from '../../domain/pedido-minimo';
+import { aprovacoesDeEstoque, nivelComAprovacoes, nivelDoEstoque, niveisDosParametros } from '../../domain/aprovacao';
 import { tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, rascunhoMantendoPrecoFinal, situacaoDoPagamento } from '../lib/pagamento-pedido';
@@ -393,11 +395,22 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
   // RN-VEN-13 (T-0129): título vencido há mais que o limite nunca bloqueia a forma; o pedido vai para aprovação no nível dos parâmetros (padrão gerente)
   const prazoEscolhido = prazos.find((p) => p.id === draft.prazo_pagamento_id);
   // T-0184 (RN-VEN-12 e RN-VEN-13, P1 A, P4 A): crédito estourado e título vencido (também à vista) mandam o pedido para aprovação
-  const financeiroDoPedido = sent ? null : financeiroParaAprovacao(credito, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor));
+  const financeiroDoPedido = sent ? null : financeiroParaAprovacao(credito, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor), acaoCreditoExcedido(parametrosVendedor));
   // o nível é o dos parâmetros (`niveisDosParametros`, padrão gerente), o mesmo que o servidor usa ao receber o pedido
-  const aprovacoesFin = financeiroDoPedido
-    ? aprovacoesFinanceiras({ prazo_medio_dias: financeiroDoPedido.prazo_medio_dias, total_cents: calculoBase?.total_cents ?? 0, financeiro: financeiroDoPedido, niveis: niveisDosParametros(parametrosVendedor) })
-    : [];
+  // v1.0.39 (RN-VEN-12, RN-VEN-20, RN-VEN-22): o que o tenant manda fazer com crédito excedido, estoque insuficiente e pedido abaixo do mínimo
+  const acaoEstoque = acaoEstoqueInsuficiente(parametrosVendedor);
+  const aprovacoesFin = [
+    ...(financeiroDoPedido
+      ? aprovacoesFinanceiras({ prazo_medio_dias: financeiroDoPedido.prazo_medio_dias, total_cents: calculoBase?.total_cents ?? 0, financeiro: financeiroDoPedido, niveis: niveisDosParametros(parametrosVendedor), acao_credito: financeiroDoPedido.acao })
+      : []),
+    // RN-VEN-20 (PA-10): item acima do estoque com a ação `aprovacao` também pergunta "Enviar para aprovação?"
+    ...(!sent && draft.tipo !== 'orcamento' && calculoBase
+      ? aprovacoesDeEstoque({ falta: itensSemEstoque(calculoBase.linhas, (id) => byId.get(id)).length > 0, acao: acaoEstoque, nivel: nivelDoEstoque(parametrosVendedor) })
+      : []),
+  ];
+  const minimoDoPedido = pedidoMinimoCents(parametrosVendedor);
+  const abaixoDoMinimo = draft.tipo !== 'orcamento' && !sent && abaixoDoPedidoMinimo({ total_cents: calculoBase?.total_cents ?? 0, minimo_cents: minimoDoPedido }) ? minimoDoPedido : 0;
+  const creditoSoOrcamento = financeiroDoPedido !== null && soOrcamentoPorCredito({ ...financeiroDoPedido, total_cents: calculoBase?.total_cents ?? 0 });
   const calculo = calculoBase && aprovacoesFin.length > 0 ? { ...calculoBase, nivel: nivelComAprovacoes(calculoBase.nivel, aprovacoesFin) } : calculoBase;
   useEffect(() => {
     if (sent) return;
@@ -448,6 +461,9 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
     acima_do_limite: calculoBase?.acima_do_limite ?? null,
     produtoDoCodigo: (codigo) => catalog.find((p) => p.erp_code === codigo)?.id,
     sem_estoque: semEstoque,
+    estoque_so_orcamento: acaoEstoque === 'orcamento',
+    abaixo_do_minimo_cents: abaixoDoMinimo,
+    credito_so_orcamento: creditoSoOrcamento,
     // RD-0172: título vencido só entra em Alertas quando muda o resultado (acima do limite, com prazo a prazo; RN-VEN-13)
     vencidos: vencidosComEfeito(credito?.tipo === 'dados' && credito.alerta ? { titulos: credito.alerta.titulos, valor_cents: credito.alerta.valorCents, dias: credito.alerta.dias } : null, tituloVencidoDias(parametrosVendedor)),
     disponivel_cents: financeiroDoPedido ? disponivelParaAlerta(financeiroDoPedido) : null,
@@ -685,7 +701,7 @@ function OrderEditor({ customerId, editId, rascunhoId, visitId, stopId, vendedor
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const editandoTipo = editId ? (editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orcamento' : 'pedido') : null;
   const botoesNovo = editId ? null : botoesDoSalvarNovo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, itens: calculo.linhas.length });
-  const botoesEdicaoBase = editandoTipo ? botoesDaEdicao({ cliente: situacaoCliente, editando: editandoTipo, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: semEstoque.map((x) => x.codigo), editando_no_servidor: editingServer }) : null;
+  const botoesEdicaoBase = editandoTipo ? botoesDaEdicao({ cliente: situacaoCliente, editando: editandoTipo, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: acaoEstoque === 'orcamento' ? semEstoque.map((x) => x.codigo) : [], abaixo_do_minimo_cents: abaixoDoMinimo, credito_so_orcamento: creditoSoOrcamento, editando_no_servidor: editingServer }) : null;
   // permissão e sinal (edição de pedido já no servidor) valem além das pendências
   const podeAgir = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: false, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
   const liberaSalvar = <B extends { habilitado: boolean }>(b: B): B => ({ ...b, habilitado: b.habilitado && podeAgir });

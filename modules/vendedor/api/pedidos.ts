@@ -31,7 +31,7 @@ import {
   type Order,
   type OrderDetail,
 } from '../contracts';
-import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
+import { decidirAprovacao, type DecisaoAprovador, maiorNivel, niveisDosParametros, nivelDoEstoque, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
 import { aprovacoesComNomes, comNomesDosDecisores, gravarAprovacoes, gravarDecisoes, lerAprovacoes, nomesDosDecisores } from './aprovacoes';
@@ -267,7 +267,7 @@ export const rotaAlcadas: RotaModulo = {
   async executar(ctx): Promise<AlcadaApi> {
     const p = politicaDosParametros({ ...ctx.parametros() });
     const n = niveisDosParametros({ ...ctx.parametros() });
-    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [], aprovador_credito: n.credito, aprovador_inadimplencia: n.inadimplencia };
+    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [], aprovador_credito: n.credito, aprovador_inadimplencia: n.inadimplencia, aprovador_estoque: nivelDoEstoque({ ...ctx.parametros() }) };
   },
 };
 

@@ -74,6 +74,12 @@ export function alertasDoNovoPedido(e: {
   /** erp_code para produto_id (o toque leva ao item) */
   produtoDoCodigo: (codigo: string) => string | undefined;
   sem_estoque: readonly ItemDoAlerta[];
+  /** RN-VEN-20 (v1.0.39): `estoque_insuficiente_acao` = orcamento; com `aprovacao` ou `avisar` a linha avisa e o pedido segue */
+  estoque_so_orcamento?: boolean;
+  /** RN-VEN-22: o pedido mínimo do tenant quando o total está abaixo dele (0 = não está) */
+  abaixo_do_minimo_cents?: number;
+  /** RN-VEN-12 (P-6): `credito_excedido_acao` = orcamento */
+  credito_so_orcamento?: boolean;
   vencidos: { titulos: number; valor_cents: number; dias: number } | null;
   disponivel_cents: number | null;
   total_cents: number;
@@ -97,6 +103,9 @@ export function alertasDoNovoPedido(e: {
     recusas,
     itens_acima_do_maximo: e.acima_do_maximo.map((codigo) => ({ item: e.produtoDoCodigo(codigo) ?? codigo, codigo })),
     itens_sem_estoque: e.sem_estoque,
+    ...(e.estoque_so_orcamento === false ? { estoque_so_orcamento: false } : {}),
+    ...(e.abaixo_do_minimo_cents ? { abaixo_do_minimo_cents: e.abaixo_do_minimo_cents } : {}),
+    ...(e.credito_so_orcamento ? { credito_so_orcamento: true } : {}),
     vencidos: e.vencidos,
     disponivel_cents: e.disponivel_cents,
     total_cents: e.total_cents,

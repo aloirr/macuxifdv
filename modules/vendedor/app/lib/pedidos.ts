@@ -9,6 +9,7 @@ import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import { TEXTO_LIMITE_EXCEDIDO, TEXTO_TITULO_VENCIDO } from '../../domain/alertas-pedido';
 import { chaveDoRascunhoNovo } from '../../domain/rascunhos';
 import { motivosFinanceirosDoPedido } from '../../domain/credito-pedido';
+import type { AcaoCreditoExcedido } from '../../domain/parametros-pedidos';
 import { resultadoDosAvisos, validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
 import { mensagemAcimaDoMaximo, percentualAjusteParaBp, rotuloMedida } from '../../domain/preco-pedido';
@@ -172,7 +173,7 @@ export interface EntradaPrepararPedido {
    * pedido. Com eles, crédito estourado e título vencido mandam o pedido para aprovação em vez de seguir como "ok". `null` ou
    * ausente = o Core não respondeu: o app não decide, o servidor decide ao receber.
    */
-  financeiro?: { prazo_medio_dias: number | undefined; limite_informado: boolean; disponivel_cents: number; maior_atraso_dias: number; limite_dias: number } | null;
+  financeiro?: { prazo_medio_dias: number | undefined; limite_informado: boolean; disponivel_cents: number; maior_atraso_dias: number; limite_dias: number; acao?: AcaoCreditoExcedido } | null;
 }
 
 /** `OrderValidation` com o cálculo do novo pedido (medidas, ajustes, desconto efetivo) anexado. */
@@ -194,7 +195,7 @@ export function observacaoDoPush(r: Pick<Rascunho, 'observacao' | 'observacao_en
   return texto || null;
 }
 
-/** RN-VEN-12 e RN-VEN-13 (T-0184): os motivos financeiros viram avisos que mandam para aprovação, nunca bloqueiam. */
+/** RN-VEN-12 e RN-VEN-13 (T-0184): os motivos financeiros viram avisos que mandam para aprovação, nunca bloqueiam. O crédito só entra com a ação `aprovacao` do tenant (P-6). */
 export function avisosFinanceiros(f: EntradaPrepararPedido['financeiro'], total_cents: number): OrderIssue[] {
   if (!f) return [];
   const motivos = motivosFinanceirosDoPedido({ ...f, total_cents });

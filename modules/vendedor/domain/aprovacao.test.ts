@@ -9,6 +9,8 @@ import {
   emitidoEm,
   decidirAprovacao,
   niveisDosParametros,
+  nivelDoEstoque,
+  aprovacoesDeEstoque,
   MOTIVO_REJEICAO_MIN,
   montarPedidoAprovado,
   nivelComAprovacoes,
@@ -436,5 +438,43 @@ describe('RN-VEN-10 e RN-GES-04: ninguém aprova o próprio pedido; o motivo sob
   it('vendedor autor: nada muda', () => {
     const a = [{ motivo: 'credito' as const, nivel: 'supervisor' as const, texto: 'a' }];
     expect(elevarAoNivelDoAutor(a, 'vendedor')).toEqual(a);
+  });
+});
+
+describe('RN-VEN-20: estoque insuficiente com a ação aprovacao abre a aprovação do motivo estoque', () => {
+  it('RN-VEN-20: nivelDoEstoque lê aprovacao.estoque_nivel e o padrão é gerente, também com valor inválido', () => {
+    expect(nivelDoEstoque({})).toBe('gerente');
+    expect(nivelDoEstoque({ 'aprovacao.estoque_nivel': 'analista' })).toBe('analista');
+    expect(nivelDoEstoque({ 'aprovacao.estoque_nivel': 'diretor' })).toBe('gerente');
+  });
+  it('RN-VEN-20: só com falta de estoque e a ação aprovacao há aprovação por estoque', () => {
+    expect(aprovacoesDeEstoque({ falta: true, acao: 'aprovacao', nivel: 'supervisor' })).toEqual([{ motivo: 'estoque', nivel: 'supervisor', texto: 'Item acima do estoque da filial: aguardando supervisor' }]);
+    expect(aprovacoesDeEstoque({ falta: false, acao: 'aprovacao', nivel: 'gerente' })).toEqual([]);
+    expect(aprovacoesDeEstoque({ falta: true, acao: 'avisar', nivel: 'gerente' })).toEqual([]);
+    expect(aprovacoesDeEstoque({ falta: true, acao: 'orcamento', nivel: 'gerente' })).toEqual([]);
+  });
+  it('RN-VEN-20: o pedido dentro da alçada, com estoque por aprovação, vai para pending_approval com o motivo estoque', () => {
+    const r = revalidarPedido(entrada({ estoque_insuficiente: { nivel: 'gerente' } }));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.status).toBe('pending_approval');
+      expect(r.motivos).toEqual(['estoque']);
+      expect(r.nivel).toBe('gerente');
+    }
+  });
+  it('RN-VEN-20: sem a entrada de estoque o pedido segue aprovado sozinho (avisar)', () => {
+    const r = revalidarPedido(entrada());
+    expect(r.ok && r.status).toBe('approved');
+  });
+});
+
+describe('RN-VEN-12: ação do crédito dentro do revalidarPedido', () => {
+  const financeiro = { limite_informado: true, disponivel_cents: 0, maior_atraso_dias: 0, limite_dias: 5 };
+  it('RN-VEN-12: crédito excedido com acao_credito avisar não abre aprovação; com aprovacao (padrão) abre', () => {
+    const base = { financeiro, prazo_medio_dias: 28 };
+    const padrao = revalidarPedido(entrada(base));
+    expect(padrao.ok && padrao.motivos).toEqual(['credito']);
+    const avisar = revalidarPedido(entrada({ ...base, acao_credito: 'avisar' }));
+    expect(avisar.ok && avisar.status).toBe('approved');
   });
 });

@@ -5,10 +5,11 @@
  * recusa (RN-VEN-40). Função pura, sem React. A tela só desenha; os efeitos no salvar vêm de `so_orcamento` e `impede_enviar`.
  */
 import { alertasDaVenda } from './alertas-venda';
+import { mensagemPedidoMinimoCurta } from './pedido-minimo';
 import { exigeAprovacaoPorInadimplencia } from './credito-pedido';
 import { textoCadastroIncompleto, type SituacaoCliente } from './orcamento';
 
-export type TipoDoAlerta = 'cliente' | 'faltante' | 'maximo' | 'estoque' | 'credito' | 'titulo' | 'alcada' | 'limite_pedido' | 'recusa' | 'copia' | 'sinal';
+export type TipoDoAlerta = 'cliente' | 'faltante' | 'maximo' | 'estoque' | 'credito' | 'titulo' | 'alcada' | 'limite_pedido' | 'minimo' | 'recusa' | 'copia' | 'sinal';
 
 export interface AlertaDoPedido {
   /** estável: tipo + item/aba, serve de chave na tela */
@@ -52,6 +53,12 @@ export interface EntradaAlertasDoPedido {
   acima_da_alcada?: boolean;
   /** RN-VEN-11a (T-0168): limite do pedido em ‰ quando o desconto efetivo passa dele; uma linha só, só orçamento */
   acima_do_limite?: number | null;
+  /** RN-VEN-22: o pedido mínimo do tenant quando o total final (sem frete) está abaixo dele; 0 ou ausente = não está */
+  abaixo_do_minimo_cents?: number;
+  /** RN-VEN-12 (P-6): `credito_excedido_acao` = orcamento; a linha de crédito passa a só permitir orçamento */
+  credito_so_orcamento?: boolean;
+  /** RN-VEN-20: `estoque_insuficiente_acao` = orcamento (padrão, ausente = true); com `aprovacao` ou `avisar` a linha avisa e o pedido segue */
+  estoque_so_orcamento?: boolean;
   /** motivos de recusa (servidor ou supervisor), já em uma linha */
   recusas?: readonly string[];
   /** RD-0174: itens que a cópia deixou de fora ("AGU-1500 fora da cópia: sem preço"); uma linha por item, sem efeito no envio */
@@ -124,9 +131,10 @@ export function alertasDoPedido(e: EntradaAlertasDoPedido): AlertaDoPedido[] {
   (e.faltantes ?? []).filter((f) => f.aba !== e.aba_atual).forEach((f) => r.push(alerta({ id: `faltante-${f.aba}-${f.texto}`, tipo: 'faltante', texto: semPonto(f.texto), aba: f.aba, vai_para: { aba: f.aba }, impede_enviar: true })));
   (e.itens_acima_do_maximo ?? []).forEach((i) => r.push(alerta({ id: `maximo-${i.item}`, tipo: 'maximo', texto: `${i.codigo} acima do desconto máximo`, vai_para: { item: i.item }, so_orcamento: true, ...(i.maximo_pct !== undefined ? { maximo_pct: i.maximo_pct } : {}) })));
   if (e.acima_do_limite != null) r.push(alerta({ id: 'limite-pedido', tipo: 'limite_pedido', texto: `Pedido acima do desconto máximo (${Math.floor(e.acima_do_limite / 10)},${e.acima_do_limite % 10}%)`, vai_para: { aba: 'Resumo' }, so_orcamento: true }));
-  (e.itens_sem_estoque ?? []).forEach((i) => r.push(alerta({ id: `estoque-${i.item}`, tipo: 'estoque', texto: textoDoEstoqueInsuficiente(i), vai_para: { item: i.item }, so_orcamento: true, ...(i.estoque && i.estoque.quantidade > 0 ? { estoque_positivo: true } : {}) })));
+  (e.itens_sem_estoque ?? []).forEach((i) => r.push(alerta({ id: `estoque-${i.item}`, tipo: 'estoque', texto: textoDoEstoqueInsuficiente(i), vai_para: { item: i.item }, so_orcamento: e.estoque_so_orcamento !== false, ...(i.estoque && i.estoque.quantidade > 0 ? { estoque_positivo: true } : {}) })));
+  if ((e.abaixo_do_minimo_cents ?? 0) > 0) r.push(alerta({ id: 'minimo', tipo: 'minimo', texto: mensagemPedidoMinimoCurta(e.abaixo_do_minimo_cents!), vai_para: { aba: 'Itens' }, so_orcamento: true }));
 
-  if (venda.some((a) => a.tipo === 'credito_excedido')) r.push(alerta({ id: 'credito', tipo: 'credito', texto: TEXTO_LIMITE_EXCEDIDO }));
+  if (venda.some((a) => a.tipo === 'credito_excedido')) r.push(alerta({ id: 'credito', tipo: 'credito', texto: TEXTO_LIMITE_EXCEDIDO, ...(e.credito_so_orcamento ? { so_orcamento: true } : {}) }));
   if (venda.some((a) => a.tipo === 'vencido')) r.push(alerta({ id: 'titulo', tipo: 'titulo', texto: TEXTO_TITULO_VENCIDO }));
   if (e.acima_da_alcada) r.push(alerta({ id: 'alcada', tipo: 'alcada', texto: TEXTO_ACIMA_DA_ALCADA, vai_para: { aba: 'Itens' } }));
   return r;

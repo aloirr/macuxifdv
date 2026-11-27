@@ -8,6 +8,7 @@
  * desliga só sem item (T-0198); os motivos de "só orçamento" por item (RN-VEN-11, RN-VEN-11a, RN-VEN-20) desligam enviar ou transformar.
  */
 import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
+import { mensagemPedidoMinimo } from './pedido-minimo';
 import { mensagemAcimaDoMaximo, type NivelDePreco } from './preco-pedido';
 
 /** RN-VEN-38 (RD-0036): os rótulos da edição de pedido e de orçamento, num mapa só (botões do Resumo, folha de saída e detalhe). */
@@ -44,8 +45,12 @@ export interface ItensSoOrcamento {
   itens_acima_do_maximo?: readonly string[];
   /** RN-VEN-11a (T-0168): o desconto efetivo passa do limite do pedido; só orçamento */
   acima_do_limite?: boolean;
-  /** RN-VEN-20 (T-0150, 10/11): códigos dos itens sem estoque; entram no pedido, mas o pedido só sai como orçamento (igual ao máximo) */
+  /** RN-VEN-20 (T-0150, 10/11): códigos dos itens sem estoque; entram no pedido, mas o pedido só sai como orçamento (igual ao máximo). Quem chama só os passa com a ação `orcamento` do tenant (v1.0.39) */
   itens_sem_estoque?: readonly string[];
+  /** RN-VEN-22: o pedido mínimo do tenant quando o total final (sem frete) está abaixo dele; 0 ou ausente = não está */
+  abaixo_do_minimo_cents?: number;
+  /** RN-VEN-12 (P-6): crédito excedido com a ação `orcamento` do tenant; só orçamento */
+  credito_so_orcamento?: boolean;
 }
 
 /**
@@ -59,6 +64,8 @@ export function motivoDoItemSoOrcamento(e: ItensSoOrcamento, pre_venda_ligada = 
   if (e.acima_do_limite === true) return `Pedido acima do desconto máximo. ${fim('Ajuste o item para enviar.')}`;
   const semEstoque = e.itens_sem_estoque ?? [];
   if (semEstoque.length > 0) return `${semEstoque.join(', ')} sem estoque. ${fim('Retire o item para enviar.')}`;
+  if ((e.abaixo_do_minimo_cents ?? 0) > 0) return mensagemPedidoMinimo(e.abaixo_do_minimo_cents!);
+  if (e.credito_so_orcamento === true) return pre_venda_ligada ? 'Limite de crédito excedido. Salve como orçamento.' : 'Limite de crédito excedido. Reduza o pedido ou mude o prazo para enviar.';
   return null;
 }
 
