@@ -985,8 +985,8 @@ describe('T-0077 critério 4 — promotor lê os pedidos da carteira no Cliente 
     expect(tela).toMatch(/const cartao = ficha && ficha\.pedidos_visiveis && fin/);
     expect(tela).toMatch(/const itensComprados: ItemCompradoLinha\[\] = ficha && ficha\.pedidos_visiveis/);
     expect(tela).toContain('const itensAbas = abasDoApp(locais.perfil, locais.verPedidos);');
-    // a API revalida (P12): o Histórico online pede promotor_ve_pedidos
-    expect(ler('modules/core/api/cliente360-v2.ts')).toContain("abasDaFicha(ctx.usuario.perfil, ctx.usuario.perfil !== 'promotor' || (await lerPromotorVePedidos(db))).includes('historico')");
+    // a API revalida (P12; ADR 0073 §2.4): o Histórico online pede usuarioVePedidos (pedido.ver em concessao, promotor_ve_pedidos em legado)
+    expect(ler('modules/core/api/cliente360-v2.ts')).toContain("abasDaFicha(ctx.usuario.perfil, await usuarioVePedidos(ctx, db)).includes('historico')");
   });
 
   it('LIGADA (padrão de fábrica, sem registro): o promotor lê no Cliente 360 os pedidos/mês, os valores e a última compra — offline', async () => {

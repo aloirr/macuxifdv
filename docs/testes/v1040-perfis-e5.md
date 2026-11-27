@@ -1,69 +1,87 @@
-# v1.0.40 · Perfis em tabela (ADR 0073, E5) — parecer final do testes
+# v1.0.40 · Perfis em tabela (ADR 0073): parecer do testes da E5 e da E6 do core
 
-Data: 27/11/2026, 09h35 (Manaus). Base: simulação aprovada `docs/design/simulacoes/2026-11-24/perfis-tabela.md` e ADR 0073.
+Data: 27/11/2026, 10h15 (Manaus). Sessão S18 (R-20261127-093805-alexandre). Base: a simulação aprovada `docs/design/simulacoes/2026-11-24/perfis-tabela.md` e a ADR 0073.
 
 | PR | Dono | Branch | Head conferido |
 |---|---|---|---|
 | #853 (kit) | designer-ux | `nuvem/v1040-designer-ux-perfis` | `75a3813bc7f25ac87795ac95819140486013ab9c` |
-| #854 (tela, rotas V2 e 0109) | modulo-core | `nuvem/v1040-modulo-core-perfis` | `183638eb8990351d6795a44291002402b7147b77` |
+| PR novo (tela e rotas V2) | modulo-core | `nuvem/v1040-modulo-core-perfis-2` | `c8bf20834a25ccd6548662a964192a34cd6272e5` |
 
-O 183638eb contém o 75a3813b, e o #854 não muda `packages/` além do que o #853 traz.
+O c8bf2083 contém o 75a3813b e o `main` (cc78a5fd). Em `modules/`, ele é igual ao 183638eb (liberado no parecer anterior) mais 2 commits:
+- 46053bb1 (RD-3734, RD-3741): `usuarioDaRequisicaoVePedidos` passa a usar `podePeloCargo` do SDK, e o Cliente 360 (`api/clientes.ts`) e o pull do histórico (`api/sync.ts`) chamam `usuarioVePedidos` direto. Um TODO aponta a troca por `promotorNaRequisicao`.
+- c8bf2083: tira o symlink `modules/core/node_modules`.
+
+`web/` não mudou desde o 183638eb.
+
+Banco: as migrações do `main` (até a 0108) mais a 0109 corrigida da S19 (`nuvem/v1040-banco-dados-perfis-correcao` @ 833d47af), aplicada só na sessão, sem commit.
 
 ## Parecer
 - **#853 @ 75a3813b: LIBERADO.** Nenhum achado.
-- **#854 @ 183638eb: LIBERADO.** Os achados A1 a A5 do parecer anterior (908fc0c1) estão resolvidos. Não há achado novo.
+- **modulo-core-perfis-2 @ c8bf2083: LIBERADO.** Não há achado no código de produção.
 
-## O que rodou (no head 183638eb)
+Dois testes de `tests/` acompanhavam a forma antiga e foram corrigidos neste lote, no caminho do testes:
+- `tests/modulos/pedidos-busca-t0077.test.ts:989`: a asserção de fonte esperava `ctx.usuario.perfil !== 'promotor' || (await lerPromotorVePedidos(db))` no `cliente360-v2.ts`. Agora ela espera `abasDaFicha(ctx.usuario.perfil, await usuarioVePedidos(ctx, db)).includes('historico')`, que é a regra da ADR 0073 §2.4: `pedido.ver` em `concessao` e `promotor_ve_pedidos` em `legado`. Só a asserção mudou.
+- `tests/integracao/demo/demo-matriz.test.ts:516`: a contagem de usuários por perfil lia `GET /v1/core/perfis` com o `PerfilListaRespostaSchema` antigo, que tem `base` e `fabrica`. Agora a rota responde V2, então o teste lê com o `PerfilListaRespostaV2Schema`. A conferência da contagem não mudou.
+
+## O que rodou (no head c8bf2083, Node 24.22 de `/opt/node24`, Postgres 16 local de `db/scripts/pg-local.sh`)
 | Pacote | Comando | Resultado |
 |---|---|---|
-| @macuxi/ui | `vitest run` | 59 arquivos, 661 testes, verdes |
-| @macuxi/ui | `pnpm typecheck` (web e mobile) | limpo |
 | @macuxi/core | `pnpm typecheck` (api, web e mobile) | limpo |
-| @macuxi/core web e domain | `vitest run web domain` (Node 22) | verdes |
-| @macuxi/core api, com Postgres local (`db/scripts/pg-local.sh --env`, Node 24.22 de `/opt/node24`) | `vitest run api` | 105 arquivos, 1123 testes: 1122 verdes. `perfis-v2.db.test.ts` com 36 testes verdes, `perfis-v2.test.ts`, `promotor-pedidos.db.test.ts` e `promotor-historico.db.test.ts` verdes |
-| BKO no navegador | `tests/e2e/bko/prints-perfis-v1040.ts` (Chromium de `/opt/pw-browsers`, Next em dev) | sem divergências |
+| @macuxi/core | `pnpm lint` | 0 erros (50 avisos `perfil-fixo` já conhecidos) |
+| @macuxi/core | `vitest run` (a suíte inteira, com o banco) | 318 arquivos, 3554 testes: 3553 verdes. `perfis-v2.db.test.ts` (36), `perfis-v2.test.ts`, `promotor-pedidos.db.test.ts`, `promotor-historico.db.test.ts`, `domain/promotor-pedidos.test.ts` e `web/lib/perfis-tabela.test.ts` estão verdes |
+| tests/ | `vitest run --config tests/vitest.config.ts` (com o banco) | 187 arquivos, 2860 testes: 2828 verdes, 22 pulados e 8 todo. Caíram 2, os dois corrigidos acima. Com a correção, os 2 arquivos têm 106 de 106 verdes |
+| tests/ | `tsc -p tests/tsconfig.json` e `eslint` nos arquivos tocados | limpos |
+| BKO no navegador, com a **API real** | `tests/e2e/bko/prints-perfis-v1040-api.ts` | sem divergências |
 
-- Com o Node 22 da sessão, 97 testes da API caem só por falta de `crypto.argon2` (autenticação, credencial, senha e usuários). Isso não é achado. Com o Node 24 eles passam.
-- Um teste caiu na suíte completa: `api/vinculo-erp.db.test.ts` (RN-CORE-58, linha 197). Rodando só esse arquivo, os 9 testes passam. O #854 não toca o vínculo com o ERP, então isso não é achado deste lote. Fica registrado como teste instável na suíte paralela.
+- Um teste caiu na suíte do core: `api/vinculo-erp.db.test.ts` (RN-CORE-58). Sozinho, o arquivo passa com 9 de 9. É o mesmo teste instável da suíte paralela já registrado no 183638eb, e o lote não toca o vínculo com o ERP. Não é achado.
 
-## Critério → teste → resultado
+## E5: os 11 critérios → teste → resultado
 | Critério | Teste | Resultado |
 |---|---|---|
-| Trava pelo cargo com o motivo, sem código de RN | `perfis-tabela.test.ts` (RN-CORE-33). No navegador aparecem os motivos e não há "RN-" na página | ✅ |
-| Cargo travado quando o perfil tem usuários | `perfis-tabela.test.ts`. Nos prints, o cadeado aparece com "Não muda enquanto houver usuários neste perfil.". Na API, o db.test cobre o 422 `CARGO_EM_USO` | ✅ |
-| Módulo sem licença desabilitado, guardando o valor | navegador: Treinamento com "Sem licença", a caixa sem efeito e "4 de 12 ligadas". db.test: 422 `PERMISSAO_SEM_LICENCA` e o valor guardado continua guardado (RN-CORE-02) | ✅ |
-| Aviso de autogestão uma vez só, no topo | print Admin: um aviso só, e as linhas travadas sem texto repetido. A API marca `autogestao` só no perfil de quem está logado (db.test) | ✅ |
-| Caixa do grupo com 3 estados, só nas linhas livres | navegador: Clientes vai de `mixed` 1 de 8 para `true` 8 de 8, com "7 mudanças não salvas". Em Onde entra, só a linha livre muda | ✅ |
-| Escopo acima do teto do cargo com cadeado e motivo | print Vendedor: cadeado em Equipe, Equipes abaixo e Toda a empresa, e o motivo escrito "O cargo Vendedor vai até "Carteira própria"." (A3 resolvido). API: 422 `ESCOPO_ACIMA_DO_CARGO` | ✅ |
-| RN-PRO-01: o promotor nunca cria nem altera pedido | navegador, perfil Promotor: `pedido.criar`, `editar`, `cancelar`, `excluir`, `aprovar` e `criar_em_nome` travados com "Perfil de promotor nunca cria, edita, cancela, exclui ou aprova pedido.", e `pedido.ver` livre. db.test: a API recusa com 422 `TRAVA_DO_PERFIL` (pelo corpo e pela cópia de outro cargo), e o banco recusa o insert direto (23514). Domain: `usuarioDaRequisicaoVePedidos` muda só a leitura | ✅ |
-| Só quem tem `perfil.gerir` edita | db.test: todas as rotas de gestão exigem `perfil.gerir`, e o vendedor não tem essa permissão. `perfis-tabela.test.ts`. A página mostra o aviso quando `usePode('perfil.gerir')` falha e no 403 | ✅ |
-| 422 com texto único | `MENSAGEM_PERFIS_NAO_MIGRADOS` existe só em `contracts/perfis.ts`. A API lança esse texto, e a tela o mostra pelo `frasesDaRecusa(details, message)`, sem texto próprio. db.test: POST, PUT e DELETE com o tenant em `legado` dão 422 `PERFIS_NAO_MIGRADOS` | ✅ |
-| Busca | navegador: "transportadora" mostra só as 2 linhas de Pedidos, e "zzz" mostra "Nenhuma permissão com esse nome." | ✅ |
-| Salvar como único botão principal | navegador: os botões principais são só ["Salvar"], no Vendedor e no Admin | ✅ |
-| Sem "Perfil base", "Restaurar padrão" e "Promotor vê pedidos" | busca de texto na página. O cartão saiu (A1 resolvido) | ✅ |
+| 1. Trava pelo cargo com o motivo, sem código de RN | `perfis-tabela.test.ts` (RN-CORE-33). No navegador com a API real, as travas mostram o motivo (por exemplo "Este cargo nunca entra no BKO nem no portal.") e não há "RN-" na página | ✅ |
+| 2. Cargo travado quando o perfil tem usuários | prints: o cadeado aparece com "Não muda enquanto houver usuários neste perfil.". db.test: 422 `CARGO_EM_USO` | ✅ |
+| 3. Módulo sem licença desabilitado, guardando o valor | db.test: 422 `PERMISSAO_SEM_LICENCA` em `legado` e em `concessao`, e o valor guardado continua guardado (RN-CORE-02). A base de demo tem tudo contratado, por isso o grupo sem licença ficou no print simulado do parecer anterior. A tela não mudou desde então | ✅ |
+| 4. Aviso de autogestão uma vez só, no topo | print Admin (API real): um aviso só, "Você usa este perfil…". O script conta 1 no Admin e 0 no Vendedor. db.test: `autogestao` só no perfil de quem está logado | ✅ |
+| 5. Caixa do grupo com 3 estados, só nas linhas livres | prints: grupos em `mixed`, `true` e vazio. `perfis-tabela.test.ts`. A tela não mudou desde o 183638eb, conferido no navegador | ✅ |
+| 6. Escopo acima do teto do cargo com cadeado e motivo | print Vendedor: cadeado em Equipe, Equipes abaixo e Toda a empresa, com "O cargo Vendedor vai até "Carteira própria".". db.test: 422 `ESCOPO_ACIMA_DO_CARGO` | ✅ |
+| 7. RN-PRO-01: o promotor nunca cria nem altera pedido | navegador com a API real, perfil Promotor: `pedido.criar`, `editar`, `cancelar`, `excluir`, `aprovar` e `criar_em_nome` travados com "Perfil de promotor nunca cria, edita, cancela, exclui ou aprova pedido.", e `pedido.ver` livre. db.test: 422 `TRAVA_DO_PERFIL` (pelo corpo e pela cópia) e 23514 no insert direto | ✅ |
+| 8. Só quem tem `perfil.gerir` edita | db.test: toda rota de gestão exige `perfil.gerir`, e o vendedor não tem essa permissão | ✅ |
+| 9. 422 com texto único | `MENSAGEM_PERFIS_NAO_MIGRADOS` existe só em `contracts/perfis.ts`, e a tela usa `frasesDaRecusa`. db.test: POST, PUT e DELETE em `legado` dão 422 `PERFIS_NAO_MIGRADOS` | ✅ |
+| 10. Busca | `perfis-tabela.test.ts`. No navegador (183638eb, com `web/` igual): "transportadora" mostra 2 linhas e "zzz" mostra "Nenhuma permissão com esse nome." | ✅ |
+| 11. Salvar como único botão principal, sem "Perfil base", "Restaurar padrão" e "Promotor vê pedidos" | API real: os botões principais são só ["Salvar"] no Vendedor e no Admin. Os textos proibidos não aparecem na página | ✅ |
 
-### Valor × regra: "n de m ligadas"
-Pela regra, n é o número de chaves concedidas da área (livres, travadas e sem licença) e m é o número de chaves da área no catálogo. O grupo Dados não tem contagem. O script calcula o esperado a partir da resposta e compara com a tela em todos os grupos do Vendedor e do Admin, e **não há divergência**. Exemplos: no Vendedor, Onde entra 1 de 4, Pedidos 5 de 12 e Treinamento 4 de 12; no Admin, Onde entra 2 de 4 e Administração 39 de 43. Rótulo × valor: "ligadas" conta as concessões gravadas. A tela não tem data, fuso nem dinheiro, então dia útil, virada de mês e fuso não se aplicam.
+## E6 do lado do core
+| Item | Teste | Resultado |
+|---|---|---|
+| Um tenant em `concessao` e um em `legado` | `perfis-v2.db.test.ts` 344 a 385: a fixture grava `legado`, liga e desliga por tenant, e o detalhe é igual nos dois. Base de demo com a 0109: o tenant `demo` ficou em `concessao` (`ligar_leitura_por_concessao`), e a tela leu dele | ✅ |
+| 422 `PERFIS_NAO_MIGRADOS` | db.test 375: em `legado`, a leitura funciona e a escrita é recusada | ✅ |
+| RN-PRO-01 pelo cargo | db.test 115 e 467: a API e o banco (23514), em `concessao` | ✅ |
+| O promotor vê pedidos com `pedido.ver` e a trava do cargo (RD-3741) | domain: `usuarioDaRequisicaoVePedidos` com `podePeloCargo`. `vetadaPeloCargo` barra só a escrita de pedido (`ehAcaoDeEscritaDePedido`), então `pedido.ver` passa. db.test 479: em `legado`, vale o parâmetro. Em `concessao`, tirar `pedido.ver` do perfil esconde o histórico, e devolver a chave mostra de novo. `promotor-historico.db.test.ts` (6) cobre o Cliente 360 e o pull. O t0077 corrigido confere o `cliente360-v2.ts` | ✅ |
+| Licença | db.test 66, 125 e 406 | ✅ |
+| Isolamento entre tenants | db.test 212, 263 e 501 (RN-CORE-05) | ✅ |
+| Último admin pela gestão | db.test 189 e 450: 422 `ULTIMO_ADMIN` com `AUTOGESTAO`, e em `concessao` o banco recusa a escrita direta no COMMIT | ✅ |
 
-## Achados anteriores
-| Id | Situação no 183638eb |
-|---|---|
-| A1 (alta) cartão "Promotor vê pedidos" | resolvido: o painel saiu de `web/index.ts`, e a leitura passou para a chave `pedido.ver` |
-| A2 (média) rótulo de `dados.escopo` | resolvido: agora é "Quais clientes e números vê" |
-| A3 (média) motivo do teto escondido | resolvido: o motivo aparece escrito sob o nome da linha (print Vendedor) |
-| A4 (baixa) títulos dos grupos | resolvido: os títulos estão iguais aos da simulação |
-| A5 (baixa) barra sobre o menu | resolvido: `md:left-[240px]` |
+Observação, que não é achado: o `sync.ts` deixou de conferir `ctx.usuario.cargo !== 'promotor'` antes de `usuarioVePedidos`. Agora quem decide é o `requisicaoDePromotor`, pelo cargo de `perfil_acesso` ou, em `legado`, pelo perfil do token. Em `legado`, cargo promotor implica perfil promotor, então o resultado é o mesmo. O `promotor-historico.db.test.ts` passa.
 
-Nenhum achado novo.
+## Valor × regra: "n de m ligadas" (API real)
+A regra: n é o número de chaves concedidas da área (livres, travadas e sem licença), e m é o número de chaves da área no catálogo. O grupo só de escopo (Dados) não tem contagem. O script calcula o esperado a partir das respostas reais de `/core/permissoes/catalogo` e `/core/perfis/:codigo`, compara com a tela em todos os grupos e **não acha divergência**.
+- Vendedor: Onde entra 1 de 4, Usuários 0 de 10, Clientes 1 de 8, Pedidos 5 de 12, Catálogo 3 de 10, Trade 0 de 20, Pesquisa 1 de 8, Treinamento 4 de 12, Metas 2 de 6, Gestão 0 de 8, Integração 0 de 6 e Administração 8 de 43.
+- Admin: Onde entra 2 de 4, Usuários 9 de 10, Clientes 8 de 8, Pedidos 6 de 12, Catálogo 10 de 10, Trade 10 de 20, Pesquisa 7 de 8, Treinamento 9 de 12, Metas 6 de 6, Gestão 2 de 8, Integração 6 de 6 e Administração 39 de 43.
 
-## Prints (1366 px, deviceScaleFactor 2, head 183638eb)
+Rótulo × valor: "ligadas" conta as concessões gravadas. A tela não tem data, fuso nem dinheiro, então dia útil, virada de mês e fuso não se aplicam.
+
+## Prints (1366 px, deviceScaleFactor 2, head c8bf2083, **API real**)
 - `docs/testes/prints/v1040-perfis/perfis-vendedor-1366.png`
 - `docs/testes/prints/v1040-perfis/perfis-admin-1366.png`
 
-**A API foi simulada** com `page.route`, porque o prazo não deu para subir a API com a demo. As respostas seguem o formato V2 real e saem das funções do domain no head 183638eb (`montarCatalogoPorArea` com `so_bko`, `montarDetalheV2` com `perfilDoLogado`, e `ehAutogestao` na lista), com o catálogo dos 8 manifestos e os 7 modelos do SDK. O Treinamento fica sem licença, e o usuário logado usa o perfil `admin`. As rotas V2 reais foram conferidas pelos 36 testes de `perfis-v2.db.test.ts`, com Postgres.
+Como foram feitos: a API (`apps/api`, porta 8100) rodou sobre a base `macuxi_prints_v1040`, com as migrações do `main`, a 0109 da S19 e `seed demo`, e o tenant `demo` em `concessao`. O BKO rodou em `next dev`, pelo `/api-proxy`. O formulário de login recusa o código "demo" da base, que não tem UF nem 4 números. Por isso o script entra pelo `POST /auth/login` real e passa o token à sessão do navegador. Todas as leituras da tela vieram da API real.
+
+## Achados anteriores (A1 a A5)
+Continuam resolvidos no c8bf2083. Não há achado novo.
 
 ## Roteiro manual (API real)
 1. Entrar como Admin, abrir o Vendedor, ligar uma caixa livre e salvar. Conferir o toast e o "Nenhuma mudança".
 2. Abrir o mesmo perfil em duas abas e salvar nas duas. Deve aparecer "Outra pessoa alterou este perfil…".
 3. Entrar com um perfil sem `perfil.gerir` e conferir o aviso no lugar da tela.
 4. Com o tenant em `legado`, salvar e conferir que a tela mostra o texto único do 422.
+5. No app Campo, como promotor de um tenant em `concessao`: tirar `pedido.ver` do perfil Promotor no BKO, sincronizar e conferir que o histórico some do Cliente 360. Depois, devolver a chave e conferir que o histórico volta.
