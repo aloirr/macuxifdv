@@ -4,8 +4,8 @@
  * vêm da API (que revalida); aqui só se monta, se edita o rascunho e se monta o corpo do PUT.
  */
 import { CHAVES_GESTAO_DO_ACESSO } from '@macuxi/platform-sdk';
-import { textoDoTeto, textoSemLicenca } from '@macuxi/ui/web';
-import type { CatalogoResposta, EditarPerfilRequestV2, PerfilDetalheV2 } from '../../contracts';
+import { niveisAcimaDoTeto, textoDoTeto, textoSemLicenca } from '@macuxi/ui/web';
+import { CODIGOS_ERRO_PERFIL_V2, type CatalogoResposta, EditarPerfilRequestV2, PerfilDetalheV2, PerfilHistoricoItemV2 } from '../../contracts';
 import { rotuloDaPermissao } from './acesso';
 import { rotuloDoModulo, rotuloDoNivel } from './perfis';
 
@@ -14,6 +14,11 @@ const CHAVE_BKO = 'acesso.bko';
 /** As 5 chaves que juntas são a "gestão do acesso": quem usa o perfil não as tira dele (autogestão, RN-CORE-35). */
 export const CHAVES_DA_AUTOGESTAO: readonly string[] = [CHAVE_BKO, ...CHAVES_GESTAO_DO_ACESSO];
 export const AVISO_AUTOGESTAO = 'Você usa este perfil. Por isso ele não pode perder a gestão de usuários e perfis.';
+/** Ação do BKO marcada num perfil que não entra no BKO (ADR 0073 §2.5, item 10). */
+export const SEM_EFEITO_NO_BKO = 'Sem efeito: o perfil não entra no BKO';
+/** Tenant ainda em migração (422 `PERFIS_NAO_MIGRADOS`): ler funciona, salvar espera. */
+export const MENSAGEM_NAO_MIGRADO = 'Os perfis desta empresa ainda estão em ajuste e não podem ser alterados agora. Fale com o suporte.';
+export const ehNaoMigrado = (e: unknown): boolean => (e as { code?: unknown } | null)?.code === CODIGOS_ERRO_PERFIL_V2.naoMigrado;
 export const ERRO_SEM_ALVO = 'Marque pelo menos um perfil ou desligue esta permissão.';
 export const MOTIVO_SEM_LICENCA_NA_LINHA = (modulo: string) => `O módulo ${rotuloDoModulo(modulo)} está sem licença.`;
 
@@ -37,6 +42,8 @@ export interface LinhaModelo {
   trava: { motivo?: string } | null;
   /** A trava vem do cargo (a API não aceita a chave concedida). */
   travaDoCargo: boolean;
+  /** Marcada, mas sem efeito: ação só do BKO num perfil sem `acesso.bko`. */
+  semEfeito?: string;
   /** Níveis do segmentado e o teto do cargo (só `escopo`). */
   niveis?: { valor: string; rotulo: string }[];
   teto?: string;
@@ -56,15 +63,10 @@ const NIVEIS_ALCADA = ['ate_alcada', 'acima_alcada'];
 export const edicaoDoDetalhe = (d: PerfilDetalheV2): EdicaoTabela =>
   Object.fromEntries(d.permissoes.map((p) => [p.chave, { concedida: p.concedida, nivel: p.nivel, alvos: p.alvos }]));
 
-/** O perfil que o usuário logado usa e que tem a gestão do acesso: as 5 chaves ficam com cadeado e o aviso aparece uma vez (RN-CORE-35). */
-export function ehAutogestao(d: PerfilDetalheV2, codigoDoUsuario: string | null | undefined): boolean {
-  if (!codigoDoUsuario || d.perfil.codigo !== codigoDoUsuario) return false;
-  const tem = (c: string) => d.permissoes.some((p) => p.chave === c && p.concedida);
-  return CHAVES_DA_AUTOGESTAO.every(tem);
-}
-
-export function montarGrupos(entrada: { catalogo: CatalogoResposta; detalhe: PerfilDetalheV2; edicao: EdicaoTabela; autogestao: boolean; rotuloDoCargo: string }): GrupoModelo[] {
-  const { catalogo, detalhe, edicao, autogestao } = entrada;
+export function montarGrupos(entrada: { catalogo: CatalogoResposta; detalhe: PerfilDetalheV2; edicao: EdicaoTabela; rotuloDoCargo: string }): GrupoModelo[] {
+  const { catalogo, detalhe, edicao } = entrada;
+  const autogestao = detalhe.perfil.autogestao;
+  const entraNoBko = edicao[CHAVE_BKO]?.concedida === true;
   const doDetalhe = new Map(detalhe.permissoes.map((p) => [p.chave, p]));
   const grupos: GrupoModelo[] = [];
   for (const area of catalogo.areas) {
@@ -86,8 +88,9 @@ export function montarGrupos(entrada: { catalogo: CatalogoResposta; detalhe: Per
         const teto = detalhe.teto_escopo;
         linha.niveis = NIVEIS_ESCOPO.filter((n) => n !== 'proprio' || teto === 'proprio' || v.nivel === 'proprio').map((n) => ({ valor: n, rotulo: rotuloDoNivel(n) }));
         linha.teto = teto;
-        linha.motivoTeto = textoDoTeto(entrada.rotuloDoCargo, rotuloDoNivel(teto));
+        if (niveisAcimaDoTeto(linha.niveis, teto).size > 0) linha.motivoTeto = textoDoTeto(entrada.rotuloDoCargo, rotuloDoNivel(teto));
       } else if (tipo === 'alcada') linha.niveis = NIVEIS_ALCADA.map((n) => ({ valor: n, rotulo: rotuloDoNivel(n) }));
+      if (c.so_bko && linha.marcada && !entraNoBko) linha.semEfeito = SEM_EFEITO_NO_BKO;
       // grupo misto: a linha sem licença leva o motivo no lugar do cadeado do cargo
       if (semLic(c) && !todasSemLicenca && !linha.trava) linha.trava = { motivo: MOTIVO_SEM_LICENCA_NA_LINHA(c.modulo) };
       linhas.push(linha);
@@ -128,10 +131,14 @@ export function aplicarMarcacoes(e: EdicaoTabela, linhas: readonly GrupoModelo['
 export const erroDeAlvos = (l: Pick<LinhaModelo, 'id' | 'tipo' | 'marcada'>, e: EdicaoTabela): string | null =>
   l.tipo === 'alvos' && e[l.id]?.concedida && (e[l.id]?.alvos?.length ?? 0) === 0 ? ERRO_SEM_ALVO : null;
 
+/** Perfil (`concedida` presente) ou modelo (só o que concede) de onde se copia. */
+export interface OrigemDaCopia {
+  permissoes: readonly { chave: string; concedida?: boolean; nivel: string | null; alvos: string[] | null }[];
+}
+
 /** "Copiar permissões de…": troca as caixas marcadas pelas do perfil de origem; travadas e sem licença ficam como estão; o escopo respeita o teto. */
-export function copiarDoPerfil(e: EdicaoTabela, grupos: readonly GrupoModelo[], origem: PerfilDetalheV2, teto: string): EdicaoTabela {
+export function copiarDoPerfil(e: EdicaoTabela, grupos: readonly GrupoModelo[], origem: OrigemDaCopia, teto: string): EdicaoTabela {
   const daOrigem = new Map(origem.permissoes.map((p) => [p.chave, p]));
-  const pos = (n: string | null) => NIVEIS_ESCOPO.indexOf(n ?? '');
   let r = e;
   for (const g of grupos) {
     if (g.semLicenca) continue;
@@ -139,8 +146,8 @@ export function copiarDoPerfil(e: EdicaoTabela, grupos: readonly GrupoModelo[], 
       if (l.trava) continue;
       const o = daOrigem.get(l.id);
       let nivel: string | null = o?.nivel ?? null;
-      if (l.tipo === 'escopo' && nivel && pos(nivel) > pos(teto)) nivel = teto;
-      r = { ...r, [l.id]: { concedida: !!o?.concedida, nivel: nivel as NivelDaApi, alvos: o?.alvos ?? null } };
+      if (l.tipo === 'escopo' && nivel && l.niveis && niveisAcimaDoTeto(l.niveis, teto).has(nivel)) nivel = teto;
+      r = { ...r, [l.id]: { concedida: !!o && (o.concedida ?? true), nivel: nivel as NivelDaApi, alvos: o?.alvos ?? null } };
     }
   }
   return r;
@@ -179,19 +186,18 @@ export function corpoDoPut(d: PerfilDetalheV2, e: EdicaoTabela, ident: Identific
   };
 }
 
-/** Frases do histórico (auditoria `perfil.alterar`: `permissoes` guarda só o que saiu, mudou ou entrou). Nunca JSON, chave ou nível crus. */
-export function frasesDoHistorico(antes: unknown, depois: unknown, rotuloDe: (chave: string) => string): string[] {
-  const a = (antes ?? {}) as { nome?: string; ativo?: boolean; permissoes?: Record<string, unknown> };
-  const d = (depois ?? {}) as { nome?: string; ativo?: boolean; permissoes?: Record<string, unknown> };
+/** Frases do histórico, em palavras da tela, a partir do `mudancas` da API: nunca JSON, chave ou nível crus. */
+export function frasesDoHistorico(item: Pick<PerfilHistoricoItemV2, 'antes' | 'depois' | 'mudancas'>, rotuloDe: (chave: string) => string): string[] {
+  const a = (item.antes ?? {}) as { nome?: string; ativo?: boolean };
+  const d = (item.depois ?? {}) as { nome?: string; ativo?: boolean };
   const frases: string[] = [];
   if (a.nome && d.nome && a.nome !== d.nome) frases.push(`Nome: ${a.nome} → ${d.nome}`);
   if (a.ativo !== undefined && d.ativo !== undefined && a.ativo !== d.ativo) frases.push(d.ativo ? 'Perfil reativado.' : 'Perfil desativado.');
-  const pa = a.permissoes ?? {};
-  const pd = d.permissoes ?? {};
-  for (const c of [...new Set([...Object.keys(pa), ...Object.keys(pd)])].sort()) {
-    const r = rotuloDe(c);
-    if (pa[c] && !pd[c]) frases.push(`${r}: desligada`);
-    else if (!pa[c] && pd[c]) frases.push(`${r}: ligada`);
+  for (const m of [...item.mudancas].sort((x, y) => x.chave.localeCompare(y.chave))) {
+    const r = rotuloDe(m.chave);
+    if (!m.de) frases.push(`${r}: ligada${m.para?.nivel ? ` (${rotuloDoNivel(m.para.nivel)})` : ''}`);
+    else if (!m.para) frases.push(`${r}: desligada`);
+    else if (m.de.nivel !== m.para.nivel) frases.push(`${r}: ${m.de.nivel ? rotuloDoNivel(m.de.nivel) : 'sem nível'} → ${m.para.nivel ? rotuloDoNivel(m.para.nivel) : 'sem nível'}`);
     else frases.push(`${r}: ajustada`);
   }
   return frases;

@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import { CarteiraDoUsuarioRespostaSchema, HierarquiaEquipeSchema, RotasListaSchema, type BaseNoMapa, type CalendarioRotas, type MembroHierarquia, type RouteDay } from '../../contracts';
+import { CarteiraDoUsuarioRespostaSchema, HierarquiaEquipeSchema, ModelosDePerfilRespostaSchema, PerfilListaRespostaV2Schema, RotasListaSchema, type BaseNoMapa, type CalendarioRotas, type MembroHierarquia, type RouteDay } from '../../contracts';
 import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { hojeNoFuso } from './hoje';
 import { clienteDaCarteira, donosDeRotaDaHierarquia, equipesDaHierarquia, paraRouteDay, pontoDaBase } from './rotas-api';
@@ -19,6 +19,13 @@ export const qk = {
   sellerCustomers: (sellerId: string) => ['customers', 'seller', sellerId] as const,
   hierarquia: ['core', 'hierarquia'] as const,
 };
+
+/** Lista de perfis da empresa (uma só consulta para a lista, a edição e o "Novo perfil"). */
+export const usePerfisV2 = () => useQuery({ queryKey: ['core', 'perfis'], queryFn: async () => PerfilListaRespostaV2Schema.parse(await api('/core/perfis')).itens });
+
+/** Os 7 perfis padrão como modelo, para "Copiar permissões de…" (`GET /core/perfis/modelos`). */
+export const useModelosDePerfil = () =>
+  useQuery({ queryKey: ['core', 'modelos-de-perfil'], queryFn: async () => ModelosDePerfilRespostaSchema.parse(await api('/core/perfis/modelos')).itens, staleTime: 5 * 60_000 });
 
 function useAuthed() {
   return useSession().status === 'authenticated';

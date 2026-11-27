@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
-import { api, ApiRequestError, errorMessage, useSession } from '@macuxi/platform-sdk/web';
+import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { ROTULO_CARGO } from '../../../contracts/cargos';
 import {
   alternarMarcado,
@@ -39,11 +39,10 @@ import {
   MENSAGEM_NOME_OBRIGATORIO,
   MENSAGEM_PERFIL_REPETIDO,
   PerfilDetalheV2Schema,
-  PerfilHistoricoRespostaSchema,
-  PerfilListaRespostaV2Schema,
+  PerfilHistoricoRespostaV2Schema,
   UsuarioListaRespostaSchema,
   type PerfilDetalheV2,
-  type PerfilHistoricoItem,
+  type PerfilHistoricoItemV2,
   type PerfilResumoV2,
 } from '../../../contracts';
 import { ALVO_TODOS_PERFIS, frasesDaRecusa } from '../../lib/perfis';
@@ -55,21 +54,23 @@ import {
   copiarDoPerfil,
   corpoDoPut,
   edicaoDoDetalhe,
-  ehAutogestao,
+  ehNaoMigrado,
   erroDeAlvos,
   escolherNivel,
   frasesDoHistorico,
   marcarAlvos,
+  MENSAGEM_NAO_MIGRADO,
   montarGrupos,
   type EdicaoTabela,
   type Identificacao,
   type LinhaModelo,
+  type OrigemDaCopia,
 } from '../../lib/perfis-tabela';
 import { contagemPorPerfil, rotuloDaPermissao } from '../../lib/acesso';
 import { NovoPerfil } from './novo-perfil';
 import { PARAM_EDITAR_PERFIL, perfilEmEdicao } from '../../lib/parametros-url';
-import { CabecalhoDoPerfil, IdentificacaoDoPerfil } from './cabecalho-perfil';
-import { useMe } from '../../lib/queries';
+import { BotaoVoltar, CabecalhoDoPerfil, CAMPO, IdentificacaoDoPerfil } from './cabecalho-perfil';
+import { useMe, useModelosDePerfil, usePerfisV2 } from '../../lib/queries';
 
 const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
 const SEM_CONEXAO = 'Sem conexão. Confira a internet e tente de novo.';
@@ -85,7 +86,7 @@ function ListaDePerfis() {
   const pathname = usePathname();
   const qc = useQueryClient();
   const [acao, setAcao] = useState<{ tipo: 'desativar' | 'reativar'; perfil: PerfilResumoV2 } | null>(null);
-  const lista = useQuery({ queryKey: ['core', 'perfis'], queryFn: async () => PerfilListaRespostaV2Schema.parse(await api('/core/perfis')).itens });
+  const lista = usePerfisV2();
   // a contagem sai da MESMA lista da tela Usuários (sem filtro); sem permissão de ver usuários, vale a da API
   const usuariosQ = useQuery({
     queryKey: ['core', 'usuarios', '', '', ''],
@@ -207,7 +208,7 @@ function ListaDePerfis() {
                 ? `${acao.perfil.nome} tem ${usuariosDe(acao.perfil)} ${usuariosDe(acao.perfil) === 1 ? 'usuário' : 'usuários'}. Troque o perfil deles em Usuários antes de desativar.`
                 : `${acao.perfil.nome} deixa de aparecer no cadastro de usuários. Dá para reativar depois.`}
           </p>
-          {mudarSituacao.isError && <Notice tone="danger">{ehSemConexao(mudarSituacao.error) ? SEM_CONEXAO : errorMessage(mudarSituacao.error)}</Notice>}
+          {mudarSituacao.isError && <Notice tone="danger">{ehSemConexao(mudarSituacao.error) ? SEM_CONEXAO : ehNaoMigrado(mudarSituacao.error) ? MENSAGEM_NAO_MIGRADO : errorMessage(mudarSituacao.error)}</Notice>}
         </Dialog>
       )}
     </div>
@@ -221,10 +222,9 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
   const pathname = usePathname();
   const qc = useQueryClient();
   const toast = useToast();
-  const sessao = useSession<{ perfil?: string }>();
   const q = useQuery({ queryKey: ['core', 'perfis', codigo], queryFn: async () => PerfilDetalheV2Schema.parse(await api(`/core/perfis/${codigo}`)) });
   const cat = useQuery({ queryKey: ['core', 'permissoes', 'catalogo'], queryFn: async () => CatalogoRespostaSchema.parse(await api('/core/permissoes/catalogo')) });
-  const lista = useQuery({ queryKey: ['core', 'perfis'], queryFn: async () => PerfilListaRespostaV2Schema.parse(await api('/core/perfis')).itens });
+  const lista = usePerfisV2();
   const d = q.data;
   const [edicao, setEdicao] = useState<EdicaoTabela | null>(null);
   const [ident, setIdent] = useState<Identificacao | null>(null);
@@ -248,10 +248,10 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
     }
   }, [d]);
 
-  const autogestao = !!d && ehAutogestao(d, sessao.user?.perfil);
+  const autogestao = !!d?.perfil.autogestao;
   const grupos = useMemo(
-    () => (d && cat.data && edicao ? montarGrupos({ catalogo: cat.data, detalhe: d, edicao, autogestao, rotuloDoCargo: ROTULO_CARGO[d.perfil.cargo] }) : []),
-    [d, cat.data, edicao, autogestao],
+    () => (d && cat.data && edicao ? montarGrupos({ catalogo: cat.data, detalhe: d, edicao, rotuloDoCargo: ROTULO_CARGO[d.perfil.cargo] }) : []),
+    [d, cat.data, edicao],
   );
   const rotulos = useMemo(() => Object.fromEntries((d?.alvos_possiveis ?? []).map((p) => [p.codigo, rotuloDoPerfil(p.codigo, { nome: p.nome })])), [d]);
   const inicial = useMemo(() => (d ? edicaoDoDetalhe(d) : {}), [d]);
@@ -278,7 +278,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
       setRecusa(null);
       setConflito(false);
       setErroNome(null);
-      toast('success', 'Perfil salvo. Vale na próxima ação de quem o usa.');
+      toast('success', 'Perfil salvo.');
       await qc.invalidateQueries({ queryKey: ['core', 'perfis'], exact: true });
     },
     onError: (e) => {
@@ -287,8 +287,9 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
       else if (e instanceof ApiRequestError && e.code === CODIGO_REPETIDO) {
         setErroNome(MENSAGEM_PERFIL_REPETIDO);
         window.setTimeout(() => document.getElementById('perfil-nome')?.focus(), 0);
-      } else if (e instanceof ApiRequestError && e.status === 422) setRecusa(frasesDaRecusa(e.details, e.message));
-      else setRecusa([ehSemConexao(e) ? 'Sem conexão. Suas mudanças continuam na tela. Tente de novo.' : 'Não foi possível salvar agora. Suas mudanças continuam na tela. Tente de novo.']);
+      } else if (ehNaoMigrado(e)) setRecusa([MENSAGEM_NAO_MIGRADO]);
+      else if (e instanceof ApiRequestError && e.status === 422) setRecusa(frasesDaRecusa(e.details, e.message));
+      else setRecusa([ehSemConexao(e) ? SEM_CONEXAO : 'Não foi possível salvar agora. Tente de novo.']);
     },
   });
 
@@ -298,10 +299,8 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
     const nao = q.error instanceof ApiRequestError && q.error.status === 404;
     return (
       <div className="flex flex-col gap-3">
-        <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={voltar}>
-          ‹ Voltar
-        </button>
-        <ErrorBlock message={ehSemConexao(q.error ?? cat.error) ? SEM_CONEXAO : nao ? 'Este perfil não existe mais.' : ''} onRetry={nao ? undefined : () => void (q.isError ? q.refetch() : cat.refetch())} />
+        <BotaoVoltar onClick={voltar} />
+        <ErrorBlock message={ehSemConexao(q.error ?? cat.error) ? SEM_CONEXAO : nao ? 'Este perfil não existe mais.' : 'Não foi possível abrir o perfil. Tente de novo.'} onRetry={nao ? undefined : () => void (q.isError ? q.refetch() : cat.refetch())} />
       </div>
     );
   }
@@ -357,9 +356,9 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
       rotulo: l.rotulo,
       marcada: l.marcada,
       trava: l.trava,
-      travada: !!l.trava,
       semCaixa: l.tipo === 'escopo',
-      descricao: l.tipo === 'escopo' && l.motivoTeto && edicao[l.id]?.nivel && l.niveis && l.niveis.findIndex((n) => n.valor === edicao[l.id]?.nivel) > l.niveis.findIndex((n) => n.valor === l.teto) ? l.motivoTeto : undefined,
+      descricao: l.motivoTeto,
+      semEfeito: l.semEfeito,
       direita: direitaDa(l),
     })),
   });
@@ -372,11 +371,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
   return (
     <div className="flex flex-col gap-4 pb-24">
       <CabecalhoDoPerfil
-        voltar={
-          <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={() => (sujo ? setSair(true) : voltar())}>
-            ‹ Voltar
-          </button>
-        }
+        voltar={<BotaoVoltar onClick={() => (sujo ? setSair(true) : voltar())} />}
         titulo={d.perfil.nome}
         selo={d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
         acoes={
@@ -434,7 +429,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
           </button>
         </Notice>
       )}
-      <div className="fixed inset-x-0 bottom-0 md:left-[220px] z-30 flex items-center justify-between gap-3 border-t border-line bg-surface px-6 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+      <div className="fixed inset-x-0 bottom-0 md:left-[240px] z-30 flex items-center justify-between gap-3 border-t border-line bg-surface px-6 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
         <span className="text-[13px] font-semibold" role="status" aria-live="polite" data-testid="perfil.contagem">
           {contagemNaoSalva(mudancas)}
         </span>
@@ -489,10 +484,14 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
 
 // ---------------------------------------------------------------- copiar de outro perfil
 
-function CopiarPermissoes({ perfis, onClose, onCopiar }: { perfis: PerfilResumoV2[]; onClose: () => void; onCopiar: (origem: PerfilDetalheV2) => void }) {
+function CopiarPermissoes({ perfis, onClose, onCopiar }: { perfis: PerfilResumoV2[]; onClose: () => void; onCopiar: (origem: OrigemDaCopia) => void }) {
   const [origem, setOrigem] = useState('');
+  const modelos = useModelosDePerfil();
   const copiar = useMutation({
-    mutationFn: async () => PerfilDetalheV2Schema.parse(await api(`/core/perfis/${origem}`)),
+    mutationFn: async (): Promise<OrigemDaCopia> => {
+      const modelo = origem.startsWith('modelo:') ? modelos.data?.find((m) => m.modelo === origem.slice(7)) : undefined;
+      return modelo ?? PerfilDetalheV2Schema.parse(await api(`/core/perfis/${origem.slice(7)}`));
+    },
     onSuccess: onCopiar,
   });
   return (
@@ -510,14 +509,23 @@ function CopiarPermissoes({ perfis, onClose, onCopiar }: { perfis: PerfilResumoV
       }
     >
       <div className="flex flex-col gap-3">
-        <p className="m-0 text-[15px]">As caixas marcadas trocam pelas do perfil escolhido. Confira e salve para valer.</p>
-        <select className="h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink" value={origem} onChange={(e) => setOrigem(e.target.value)} aria-label="Perfil de origem" data-testid="perfil.copiar.origem">
+        <p className="m-0 text-[15px]">As caixas marcadas trocam pelas do perfil escolhido.</p>
+        <select className={CAMPO} value={origem} onChange={(e) => setOrigem(e.target.value)} aria-label="Perfil de origem" data-testid="perfil.copiar.origem">
           <option value="">Escolha um perfil…</option>
-          {perfis.map((p) => (
-            <option key={p.codigo} value={p.codigo}>
-              {rotuloDoPerfil(p.codigo, { nome: p.nome })}
-            </option>
-          ))}
+          <optgroup label="Perfis da empresa">
+            {perfis.map((p) => (
+              <option key={p.codigo} value={`perfil:${p.codigo}`}>
+                {rotuloDoPerfil(p.codigo, { nome: p.nome })}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Modelos">
+            {(modelos.data ?? []).map((m) => (
+              <option key={m.modelo} value={`modelo:${m.modelo}`}>
+                {rotuloDoPerfil(m.modelo, { nome: m.nome })}
+              </option>
+            ))}
+          </optgroup>
         </select>
         {copiar.isError && <Notice tone="danger">{ehSemConexao(copiar.error) ? SEM_CONEXAO : errorMessage(copiar.error)}</Notice>}
       </div>
@@ -530,10 +538,10 @@ function CopiarPermissoes({ perfis, onClose, onCopiar }: { perfis: PerfilResumoV
 function HistoricoDoPerfil({ codigo, nome, onClose }: { codigo: string; nome: string; onClose: () => void }) {
   const fuso = useMe().data.tenant.timezone;
   const [antes, setAntes] = useState<string | null>(null);
-  const [itens, setItens] = useState<PerfilHistoricoItem[]>([]);
+  const [itens, setItens] = useState<PerfilHistoricoItemV2[]>([]);
   const q = useQuery({
     queryKey: ['core', 'perfis', codigo, 'historico', antes],
-    queryFn: async () => PerfilHistoricoRespostaSchema.parse(await api(`/core/perfis/${codigo}/historico${antes ? `?antes=${encodeURIComponent(antes)}` : ''}`)),
+    queryFn: async () => PerfilHistoricoRespostaV2Schema.parse(await api(`/core/perfis/${codigo}/historico${antes ? `?antes=${encodeURIComponent(antes)}` : ''}`)),
   });
   useEffect(() => {
     if (q.data) setItens((atual) => (antes ? [...atual, ...q.data.itens.filter((i) => !atual.some((a) => a.id === i.id))] : q.data.itens));
@@ -549,7 +557,7 @@ function HistoricoDoPerfil({ codigo, nome, onClose }: { codigo: string; nome: st
       ) : (
         <div className="flex flex-col gap-4">
           {itens.map((i) => {
-            const frases = i.acao === 'perfil.criar' ? ['Perfil criado.'] : frasesDoHistorico(i.antes, i.depois, (c) => rotuloDaPermissao(c));
+            const frases = i.acao === 'perfil.criar' ? ['Perfil criado.'] : frasesDoHistorico(i, (c) => rotuloDaPermissao(c));
             return (
               <div key={i.id} className="flex flex-col gap-1 border-b border-line pb-3">
                 <strong className="text-[13px]">
