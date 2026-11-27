@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { revalidarPedido } from './aprovacao';
 import { alcadaDoAutorPct, decisorEhAutor, ehPedidoEmNome, politicaDoAutor, verificarPedidoEmNome } from './pedido-em-nome';
 
-const SUP = { id: 'sup', perfil: 'supervisor' };
-const GER = { id: 'ger', perfil: 'gerente' };
+const SUP = { id: 'sup', perfil: 'supervisor', promotor: false };
+const GER = { id: 'ger', perfil: 'gerente', promotor: false };
 const vendedor = { id: 'v1', perfil: 'vendedor' };
 
 describe('RN-VEN-35: pedido em nome só quando o dono não é o autor', () => {
@@ -40,7 +40,10 @@ describe('RN-VEN-35: gerente cria para vendedores da área dele', () => {
 
 describe('RN-PRO-01: o promotor nunca cria pedido, nem em nome nem como dono', () => {
   it('autor promotor é 403 RN-PRO-01', () => {
-    expect(verificarPedidoEmNome({ autor: { id: 'p', perfil: 'promotor' }, vendedor_id: 'v1', vendedor, visiveis: 'tenant' })).toMatchObject({ codigo: 'RN-PRO-01', http: 403 });
+    expect(verificarPedidoEmNome({ autor: { id: 'p', perfil: 'promotor', promotor: true }, vendedor_id: 'v1', vendedor, visiveis: 'tenant' })).toMatchObject({ codigo: 'RN-PRO-01', http: 403 });
+  });
+  it('autor de cargo promotor com perfil base vendedor é 403 RN-PRO-01', () => {
+    expect(verificarPedidoEmNome({ autor: { id: 'p', perfil: 'vendedor', promotor: true }, vendedor_id: 'v1', vendedor, visiveis: 'tenant' })).toMatchObject({ codigo: 'RN-PRO-01', http: 403 });
   });
   it('dono promotor é recusado: o pedido não conta para quem não vende', () => {
     expect(verificarPedidoEmNome({ autor: SUP, vendedor_id: 'p1', vendedor: { id: 'p1', perfil: 'promotor' }, visiveis: new Set(['p1']) })).toMatchObject({ codigo: 'RN-PRO-01', http: 403 });
@@ -50,7 +53,7 @@ describe('RN-PRO-01: o promotor nunca cria pedido, nem em nome nem como dono', (
 describe('RN-VEN-35: quem pode ser autor e quem pode ser dono', () => {
   it('vendedor, analista e assistente não criam em nome', () => {
     for (const perfil of ['vendedor', 'analista', 'assistente', 'admin']) {
-      expect(verificarPedidoEmNome({ autor: { id: 'a', perfil }, vendedor_id: 'v1', vendedor, visiveis: 'tenant' })).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', http: 403 });
+      expect(verificarPedidoEmNome({ autor: { id: 'a', perfil, promotor: false }, vendedor_id: 'v1', vendedor, visiveis: 'tenant' })).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', http: 403 });
     }
   });
   it('dono inexistente ou que não é vendedor é 422 VENDEDOR_INVALIDO', () => {

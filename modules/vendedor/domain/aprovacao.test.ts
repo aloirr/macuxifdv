@@ -120,6 +120,9 @@ describe('revalidarPedido (servidor)', () => {
     const r = revalidarPedido(entrada({ perfil: 'promotor' }));
     expect(r).toMatchObject({ ok: false, codigo: 'RN-PRO-01', http: 403 });
   });
+  it('RN-PRO-01: cargo promotor com perfil base vendedor também é 403', () => {
+    expect(revalidarPedido(entrada({ perfil: 'vendedor', promotor: true }))).toMatchObject({ ok: false, codigo: 'RN-PRO-01', http: 403 });
+  });
   it('RN-VEN-35: perfil sem pedido.criar é recusado', () => {
     expect(revalidarPedido(entrada({ perfil: 'analista' }))).toMatchObject({ ok: false, codigo: 'PERFIL_SEM_ACESSO' });
   });
@@ -215,7 +218,7 @@ describe('quemDecide (P-3, RN-GES-04)', () => {
 
 describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
   const pend = (motivo: 'desconto' | 'credito' | 'inadimplencia', nivel: 'supervisor' | 'gerente' | 'analista') => ({ motivo, nivel, estado: 'pendente' as const });
-  const base = { status: 'pending_approval' as const, aprovacoes: [pend('desconto', 'supervisor')], perfil: 'supervisor' };
+  const base = { status: 'pending_approval' as const, aprovacoes: [pend('desconto', 'supervisor')], perfil: 'supervisor', promotor: false };
   it('RN-VEN-10 e T-0187 P4 A: o autor não decide o próprio pedido (422 APROVACAO_DO_PROPRIO_PEDIDO), em qualquer decisão', () => {
     const proprio = { ...base, decisor_id: 'sup', pedido: { autor_id: 'sup', vendedor_id: 'v1' } };
     for (const decisao of ['aprovar', 'devolver', 'recusar'] as const) {
@@ -253,24 +256,25 @@ describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
     expect(decidirAprovacao({ ...base, perfil: 'gerente', decisao: 'aprovar' })).toMatchObject({ tipo: 'ok', acima_do_nivel: true });
   });
   it('RN-PRO-01 e matriz: promotor 403 RN-PRO-01; vendedor 403 PERFIL_SEM_ACESSO', () => {
-    expect(decidirAprovacao({ ...base, perfil: 'promotor', decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-PRO-01', http: 403 });
+    expect(decidirAprovacao({ ...base, perfil: 'promotor', promotor: true, decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-PRO-01', http: 403 });
+    expect(decidirAprovacao({ ...base, perfil: 'vendedor', promotor: true, decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-PRO-01', http: 403 });
     expect(decidirAprovacao({ ...base, perfil: 'vendedor', decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'PERFIL_SEM_ACESSO', http: 403 });
   });
   const tres = [pend('desconto', 'supervisor'), pend('credito', 'gerente'), pend('inadimplencia', 'analista')];
   it('RN-VEN-30 (P7 A): o pedido só sai aprovado quando todas as aprovações estão aprovadas; aprovar um motivo deixa o pedido pendente', () => {
-    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'aprovar', motivo: 'credito' });
+    const r = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'aprovar', motivo: 'credito' });
     expect(r).toMatchObject({ tipo: 'ok', para: 'pending_approval', mudancas: [{ motivo: 'credito', estado: 'aprovada' }] });
-    const ultima = decidirAprovacao({ status: 'pending_approval', aprovacoes: [{ ...tres[0]!, estado: 'aprovada' }, { ...tres[1]!, estado: 'aprovada' }, tres[2]!], perfil: 'analista', decisao: 'aprovar', motivo: 'inadimplencia' });
+    const ultima = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: [{ ...tres[0]!, estado: 'aprovada' }, { ...tres[1]!, estado: 'aprovada' }, tres[2]!], perfil: 'analista', decisao: 'aprovar', motivo: 'inadimplencia' });
     expect(ultima).toMatchObject({ tipo: 'ok', para: 'approved', mudancas: [{ motivo: 'inadimplencia', estado: 'aprovada' }] });
   });
   it('RN-VEN-30 (P3 B): sem motivo, aprova todas as pendentes que o perfil decide; o resto continua pendente', () => {
-    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'aprovar' });
+    const r = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'aprovar' });
     expect(r).toMatchObject({ tipo: 'ok', para: 'pending_approval', acima_do_nivel: true });
     expect(r.tipo === 'ok' && r.mudancas.map((m) => m.motivo)).toEqual(['desconto', 'credito']);
     expect(r.tipo === 'ok' && r.pendentes).toEqual(['inadimplencia']);
   });
   it('RN-VEN-30 (P8 A): uma rejeição encerra as aprovações que ainda estão pendentes', () => {
-    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'recusar', motivo: 'credito', texto: 'sem limite' });
+    const r = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'recusar', motivo: 'credito', texto: 'sem limite' });
     expect(r).toMatchObject({ tipo: 'ok', para: 'cancelled', pendentes: [] });
     expect(r.tipo === 'ok' && r.mudancas).toEqual([
       { motivo: 'desconto', estado: 'encerrada' },
@@ -279,13 +283,13 @@ describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
     ]);
   });
   it('RN-VEN-30 (P8 A): uma devolução encerra as pendentes e leva o pedido a rejected', () => {
-    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'supervisor', decisao: 'devolver', motivo: 'desconto', texto: 'baixe o desconto' });
+    const r = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: tres, perfil: 'supervisor', decisao: 'devolver', motivo: 'desconto', texto: 'baixe o desconto' });
     expect(r).toMatchObject({ tipo: 'ok', para: 'rejected' });
     expect(r.tipo === 'ok' && r.mudancas.map((m) => m.estado)).toEqual(['devolvida', 'encerrada', 'encerrada']);
   });
   it('RN-VEN-10: motivo acima do nível do perfil recusa; recusar sem motivo basta uma aprovação que o perfil decida', () => {
-    expect(decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'supervisor', decisao: 'aprovar', motivo: 'credito' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10' });
-    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'supervisor', decisao: 'recusar', texto: 'não pode' });
+    expect(decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: tres, perfil: 'supervisor', decisao: 'aprovar', motivo: 'credito' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10' });
+    const r = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: tres, perfil: 'supervisor', decisao: 'recusar', texto: 'não pode' });
     expect(r).toMatchObject({ tipo: 'ok', para: 'cancelled' });
     expect(r.tipo === 'ok' && r.mudancas).toEqual([
       { motivo: 'desconto', estado: 'rejeitada' },
@@ -294,24 +298,24 @@ describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
     ]);
   });
   it('RN-VEN-33: aprovar de novo o mesmo motivo já aprovado é idempotente', () => {
-    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: [{ ...tres[0]!, estado: 'aprovada' }, tres[1]!], perfil: 'supervisor', decisao: 'aprovar', motivo: 'desconto' });
+    const r = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: [{ ...tres[0]!, estado: 'aprovada' }, tres[1]!], perfil: 'supervisor', decisao: 'aprovar', motivo: 'desconto' });
     expect(r).toEqual({ tipo: 'repetida' });
   });
   it('RN-VEN-10 e RN-VEN-33: repetir "aprovar tudo" depois de uma aprovação parcial é idempotente, não 422', () => {
     const parcial = [{ ...tres[0]!, estado: 'aprovada' as const }, tres[1]!];
-    expect(decidirAprovacao({ status: 'pending_approval', aprovacoes: parcial, perfil: 'supervisor', decisao: 'aprovar' })).toEqual({ tipo: 'repetida' });
+    expect(decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: parcial, perfil: 'supervisor', decisao: 'aprovar' })).toEqual({ tipo: 'repetida' });
   });
   it('RN-VEN-10: aprovar tudo sem nada decidido pelo perfil e sem decisão dele antes segue 422 com o nível exigido', () => {
-    const r = decidirAprovacao({ status: 'pending_approval', aprovacoes: [tres[1]!], perfil: 'supervisor', decisao: 'aprovar' });
+    const r = decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: [tres[1]!], perfil: 'supervisor', decisao: 'aprovar' });
     expect(r).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10', http: 422 });
   });
   it('RN-VEN-30: pedido pendente sem linhas de aprovação (API antiga) vale como desconto no nível do pedido', () => {
     const sem = { status: 'pending_approval' as const, aprovacoes: [], perfil: 'supervisor', nivel_do_pedido: 'supervisor' as const };
-    expect(decidirAprovacao({ ...sem, decisao: 'aprovar' })).toMatchObject({ tipo: 'ok', para: 'approved', mudancas: [{ motivo: 'desconto', estado: 'aprovada' }], sintetizada: true, aprovacoes: [{ motivo: 'desconto', nivel: 'supervisor', estado: 'pendente' }] });
-    expect(decidirAprovacao({ status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'aprovar', nivel_do_pedido: 'gerente' })).toMatchObject({ sintetizada: false });
-    expect(decidirAprovacao({ ...sem, nivel_do_pedido: 'gerente', decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10' });
-    expect(decidirAprovacao({ ...sem, decisao: 'recusar', texto: 'não pode' })).toMatchObject({ tipo: 'ok', para: 'cancelled', mudancas: [{ motivo: 'desconto', estado: 'rejeitada' }] });
-    expect(decidirAprovacao({ ...sem, nivel_do_pedido: undefined, decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-30' });
+    expect(decidirAprovacao({ promotor: false, ...sem, decisao: 'aprovar' })).toMatchObject({ tipo: 'ok', para: 'approved', mudancas: [{ motivo: 'desconto', estado: 'aprovada' }], sintetizada: true, aprovacoes: [{ motivo: 'desconto', nivel: 'supervisor', estado: 'pendente' }] });
+    expect(decidirAprovacao({ promotor: false, status: 'pending_approval', aprovacoes: tres, perfil: 'gerente', decisao: 'aprovar', nivel_do_pedido: 'gerente' })).toMatchObject({ sintetizada: false });
+    expect(decidirAprovacao({ promotor: false, ...sem, nivel_do_pedido: 'gerente', decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-10' });
+    expect(decidirAprovacao({ promotor: false, ...sem, decisao: 'recusar', texto: 'não pode' })).toMatchObject({ tipo: 'ok', para: 'cancelled', mudancas: [{ motivo: 'desconto', estado: 'rejeitada' }] });
+    expect(decidirAprovacao({ promotor: false, ...sem, nivel_do_pedido: undefined, decisao: 'aprovar' })).toMatchObject({ tipo: 'recusa', codigo: 'RN-VEN-30' });
   });
 });
 
@@ -390,12 +394,12 @@ describe('RN-VEN-33: conteúdo canônico do envio (hash_envio)', () => {
 describe('RN-PRO-01 / matriz §2: perfil que cria pedido pelo aparelho', () => {
   it('RN-PRO-01: promotor recebe 403 RN-PRO-01', async () => {
     const { recusaDePerfil } = await import('./aprovacao');
-    expect(recusaDePerfil('promotor')).toMatchObject({ codigo: 'RN-PRO-01', http: 403 });
+    expect(recusaDePerfil('vendedor', false, true)).toMatchObject({ codigo: 'RN-PRO-01', http: 403 });
   });
   it('matriz §2: só o vendedor cria pelo aparelho nesta fatia; supervisor recebe PERFIL_SEM_ACESSO', async () => {
     const { recusaDePerfil } = await import('./aprovacao');
-    expect(recusaDePerfil('vendedor')).toBeNull();
-    expect(recusaDePerfil('supervisor')).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', http: 403 });
+    expect(recusaDePerfil('vendedor', false, false)).toBeNull();
+    expect(recusaDePerfil('supervisor', false, false)).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO', http: 403 });
   });
 });
 

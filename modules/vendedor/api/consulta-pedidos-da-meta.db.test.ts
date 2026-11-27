@@ -21,12 +21,12 @@ describe.skipIf(semBanco())('Vendedor × Postgres: vendedor.pedidos_da_meta@1 (R
   let pool: pg.Pool;
   let admin: pg.Client;
 
-  const consultar = async (tenant: string, perfil: string, usuarioId: string, usuario_ids: string[], periodo = '2026-11') =>
+  const consultar = async (tenant: string, perfil: string, usuarioId: string, usuario_ids: string[], periodo = '2026-11', extra: object = {}) =>
     PedidosDaMetaSaidaSchema.parse(
       await comTenant(pool, tenant, (c) =>
         consultaPedidosDaMeta.executar(PedidosDaMetaEntradaSchema.parse({ usuario_ids, periodo }), {
           db: c as unknown as ClienteBanco,
-          usuario: { id: usuarioId, perfil, tenant_id: tenant },
+          usuario: { id: usuarioId, perfil, tenant_id: tenant, ...extra },
         } as unknown as ContextoConsulta),
       ),
     );
@@ -102,5 +102,17 @@ describe.skipIf(semBanco())('Vendedor × Postgres: vendedor.pedidos_da_meta@1 (R
     expect(proprio.pedidos).toHaveLength(2);
     const cruzado = await consultar(A.tenantId, 'gerente', VEND, [B.usuarios.vendedor]);
     expect(cruzado).toEqual({ pedidos: [], faturamentos: [] });
+  });
+
+  it('RN-PRO-01: proprioApenas vale para o cargo promotor (base vendedor em concessão) e para o perfil promotor legado: só os próprios pedidos', async () => {
+    const cargo = { perfil_acesso: { codigo: 'promotor_base_vendedor', cargo: 'promotor', permissoes: {} } };
+    // consulta os pedidos de outro vendedor: filtrado, vazio
+    expect(await consultar(A.tenantId, 'vendedor', GESTOR, [VEND], '2026-11', cargo)).toEqual({ pedidos: [], faturamentos: [] });
+    expect(await consultar(A.tenantId, 'promotor', GESTOR, [VEND])).toEqual({ pedidos: [], faturamentos: [] });
+    // consulta os próprios: aparecem (o filtro só restringe ao próprio id)
+    expect((await consultar(A.tenantId, 'vendedor', VEND, [VEND, GESTOR], '2026-11', cargo)).pedidos).toHaveLength(2);
+    expect((await consultar(A.tenantId, 'promotor', VEND, [VEND, GESTOR])).pedidos).toHaveLength(2);
+    // contraste: gerente (não promotor) vê o vendedor consultado
+    expect((await consultar(A.tenantId, 'gerente', GESTOR, [VEND])).pedidos).toHaveLength(2);
   });
 });

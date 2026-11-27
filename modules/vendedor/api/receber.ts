@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS, type LimiteDesconto } from '@macuxi/core/contracts';
-import { ErroHttpModulo, fracaoLiberadaNaPorta, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, fracaoLiberadaNaPorta, promotorNaRequisicao, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   EVENTO_PEDIDO_APROVACAO_SOLICITADA_V2,
   EVENTO_PEDIDO_APROVADO,
@@ -161,7 +161,7 @@ export async function calcularDocumento(
   const autor = cad.usuarios.find((u) => u.id === eu);
   if (emNome) {
     // RN-VEN-35: equipe do supervisor / área do gerente; dono precisa ser vendedor; o promotor nunca (RN-PRO-01)
-    const nao = verificarPedidoEmNome({ autor: { id: eu, perfil: ctx.usuario.perfil }, vendedor_id: donoId, vendedor: vendedor ? { id: vendedor.id, perfil: vendedor.perfil } : null, visiveis: await ctx.usuariosVisiveis() });
+    const nao = verificarPedidoEmNome({ autor: { id: eu, perfil: ctx.usuario.perfil, promotor: promotorNaRequisicao(ctx.usuario) }, vendedor_id: donoId, vendedor: vendedor ? { id: vendedor.id, perfil: vendedor.perfil } : null, visiveis: await ctx.usuariosVisiveis() });
     if (nao) return recusa(itemId, nao);
   }
 
@@ -250,6 +250,7 @@ export async function calcularDocumento(
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
   const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
+    promotor: promotorNaRequisicao(ctx.usuario),
     em_nome: emNome,
     tipo,
     // RN-VEN-11a (T-0168): o limite é o do AUTOR (o gestor, em nome); emissor antigo sem os campos = padrão
@@ -327,7 +328,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   const agora = ctx.agora();
 
   // 1) perfil (a plataforma já barrou o promotor; revalida) e carteira (RN-CORE-04)
-  const perfil = recusaDePerfil(ctx.usuario.perfil, ehPedidoEmNome(eu, p.vendedor_id));
+  const perfil = recusaDePerfil(ctx.usuario.perfil, ehPedidoEmNome(eu, p.vendedor_id), promotorNaRequisicao(ctx.usuario));
   if (perfil) return recusa(item.id, perfil);
 
   // serializa envios simultâneos do mesmo pedido (timeout + retentativa): o segundo espera e cai na idempotência

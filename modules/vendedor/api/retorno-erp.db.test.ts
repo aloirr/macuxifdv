@@ -188,7 +188,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     );
     expect((await admin.query('select status, motivo_cancelamento from vendedor.pedido where id = $1', [PED2])).rows[0]).toEqual({ status: 'cancelled', motivo_cancelamento: 'Cancelado no ERP: pedido duplicado' });
     // pull com as colunas do faturamento (0013)
-    const e = escopoDoPedido('vendedor', new Set([A.usuarios.vendedor1]), 'tenant');
+    const e = escopoDoPedido(false, new Set([A.usuarios.vendedor1]), 'tenant');
     const ate = new Date(AGORA.getTime() + 3_600_000).toISOString();
     const pedidos = await noTenant(A.tenantId, async (db) => {
       const q = sqlPedido({ ate, desde: null, limite: 50 } as never, e, true);

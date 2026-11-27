@@ -10,6 +10,7 @@ import {
   ehConsultaIndisponivel,
   ErroHttpModulo,
   ErroNaoEncontrado,
+  promotorNaRequisicao,
   ErroRegraNegocio,
   type ClienteBanco,
   type ContextoBase,
@@ -102,7 +103,7 @@ const escaparLike = (q: string) => q.replace(/[\\%_]/g, (m) => `\\${m}`);
 
 /** Carrega o pedido (se estiver no escopo de leitura do usuário) com itens e histórico. `null` = inexistente ou fora do escopo. */
 async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenant, id: string, bloquear = false): Promise<{ linha: LinhaPedido; detalhe: OrderDetail } | null> {
-  const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
+  const e = escopoDoPedido(promotorNaRequisicao(ctx.usuario), await ctx.usuariosVisiveis(), await ctx.carteira());
   const { rows } = await db.query<LinhaPedido>(
     `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS} ${FATURAMENTO_LIGADO ? JUNCAO_FATURAMENTO : ''}
       where p.id = $1 and p.deleted_at is null
@@ -167,7 +168,7 @@ export const rotaListarPedidos: RotaModulo = {
     await exigirLeituraDePedidos(ctx); // O-3: opção `promotor_ve_pedidos` (só afeta o promotor)
     const q = ctx.query as z.infer<typeof OrderListQuery>;
     const limite = q.limite ?? q.limit ?? 50;
-    const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
+    const e = escopoDoPedido(promotorNaRequisicao(ctx.usuario), await ctx.usuariosVisiveis(), await ctx.carteira());
     const status = (q.status ?? '')
       .split(',')
       .map((s) => s.trim())
@@ -305,7 +306,7 @@ function decidir(decisao: DecisaoAprovador): RotaModulo {
         const lidas = (await lerAprovacoes(db, [id])).get(id) ?? [];
         const resposta = async (status: OrderStatus): Promise<DecisaoAprovacaoResposta> => ({ status, aprovacoes: await aprovacoesComNomes(tx, (await lerAprovacoes(db, [id])).get(id) ?? []) });
         // 2) regra pura (RN-GES-08, RN-GES-04, RN-VEN-10, RN-VEN-30)
-        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, decisao, nivel_do_pedido: linha.nivel_aprovacao as NivelAprovacao | null, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo, decisor_id: eu, pedido: linha });
+        const r = decidirAprovacao({ status: linha.status, aprovacoes: lidas, perfil: ctx.usuario.perfil, promotor: promotorNaRequisicao(ctx.usuario), decisao, nivel_do_pedido: linha.nivel_aprovacao as NivelAprovacao | null, motivo: corpo.motivo_aprovacao, texto: decisao === 'aprovar' ? corpo.comentario : corpo.motivo, decisor_id: eu, pedido: linha });
         if (r.tipo === 'recusa') throw new ErroHttpModulo(r.http === 403 ? 403 : 422, r.codigo, r.mensagem);
         if (r.tipo === 'repetida') return resposta(linha.status);
         const ciclo = Number((await db.query<{ c: number }>('select aprovacao_ciclo::int as c from vendedor.pedido where id = $1', [id])).rows[0]?.c ?? 1);
