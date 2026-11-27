@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { PerfilDoUsuario } from '../contracts';
 import { avaliarEstadoDePerfis } from '../domain';
 import { carregar, motorDe } from './perfis';
+import { carregarEstadoV2, conferir, licencasDoTenant, tenantEmConcessao } from './perfis-v2';
 
 export const MENSAGEM_PERFIL_INDISPONIVEL = 'O perfil escolhido foi desativado. Feche e abra o formulário de novo.';
 
@@ -46,6 +47,14 @@ export async function refsDoUsuario(db: ClienteBanco, usuarioId: string, princip
 
 /** Limites do tenant com este usuário já nos perfis/situação novos (RN-CORE-01/35). `usuarioId` novo = criação. */
 export async function conferirPerfisDoUsuario(ctx: ContextoBase, db: ClienteBanco, usuarioId: string, codigos: readonly string[], ativo: boolean): Promise<void> {
+  if (await tenantEmConcessao(db)) {
+    // ADR 0073: em `concessao` o estado do tenant vem das concessões (como na V2), não das sobreposições do modelo antigo
+    const e = await carregarEstadoV2(db, true);
+    const novoV2 = { id: usuarioId, ativo, perfil: codigos[0] ?? null };
+    const depois = e.usuarios.some((u) => u.id === usuarioId) ? e.usuarios.map((u) => (u.id === usuarioId ? novoV2 : u)) : [...e.usuarios, novoV2];
+    conferir(ctx, e, { perfis: e.perfis, usuarios: depois }, await licencasDoTenant(db), null);
+    return;
+  }
   const c = await carregar(db, true);
   const novo = { id: usuarioId, ativo, perfis: [...codigos] };
   const existia = c.usuarios.some((u) => u.id === usuarioId);

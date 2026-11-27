@@ -7,7 +7,7 @@ import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, CampoSenha, IconeModulo, IconUser, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil, type AcaoDoMenu, type IdDoModulo } from '@macuxi/ui/web';
-import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type HorarioAlmoco, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { FiliaisListaSchema, CriarUsuarioRespostaSchema, DesbloquearUsuarioRespostaSchema, LicencasEstadoSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, VincularErpRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type HorarioAlmoco, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
@@ -47,9 +47,9 @@ import {
 } from '../../lib/usuarios';
 import { alternarVenda, avisoSemFilial, descricaoParaLeitor, erroDaFilialCadastro, escolherCadastro, estaSemFilial, filiaisEmOrdem, filtrarPorFilial, FILTRO_FILIAL_SEM, mostraColunaFilial, nomeDaFilialDe, ROTULO_FILIAL_DE_CADASTRO, SELO_SEM_FILIAL, vendaTravada } from '../../lib/filial-usuario';
 import { regrasDoCargo } from '../../../domain/cargos';
-import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
+import { modulosExibiveis, mudancasDeExcecoes, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
-import { useMe } from '../../lib/queries';
+import { lerPerfilOpcoesV2, useMe } from '../../lib/queries';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 import { rotuloDoAlmoco } from '../../../domain/jornada';
 import { perfilTemEndereco } from '../../../domain/base-vendedor';
@@ -163,7 +163,7 @@ export function UsuariosConteudo() {
     const t = setTimeout(() => setAgora(new Date()), proximoFim - Date.now() + 500);
     return () => clearTimeout(t);
   }, [proximoFim]);
-  const perfisQ = useQuery({ queryKey: ['core', 'perfis', 'opcoes'], queryFn: async () => PerfilOpcoesRespostaSchema.parse(await api('/core/perfis/opcoes')).itens });
+  const perfisQ = useQuery({ queryKey: ['core', 'perfis', 'opcoes'], queryFn: () => lerPerfilOpcoesV2() });
   const opcoesDePerfil = perfisQ.data ?? [];
   // só o admin lê as licenças (`modulo.gerir_licencas`); sem elas a coluna e a lista de módulos não aparecem
   const licencasQ = useQuery({
@@ -205,12 +205,11 @@ export function UsuariosConteudo() {
     return concluir(null);
   };
 
-  /** Módulos do perfil escolhido (o padrão do perfil base, RN-CORE-01) e os efetivos do formulário. */
+  /** Módulos do perfil escolhido (perfil_modulo, RN-CORE-01) e os efetivos do formulário. */
   const perfilEscolhido = opcoesDePerfil.find((p) => p.codigo === form.perfis[0]);
-  const baseEscolhida = perfilEscolhido?.base;
   const cargo = perfilEscolhido?.cargo ?? null;
   const regras = regrasDoCargo(cargo);
-  const doPerfil: ModuloId[] = licencas && baseEscolhida ? (licencas.perfis[baseEscolhida] ?? []) : [];
+  const doPerfil: ModuloId[] = licencas && perfilEscolhido ? (licencas.perfis[perfilEscolhido.codigo] ?? []) : [];
   const efetivosDoForm = licencas
     ? efetivosPelasDependencias({
         modulos: licencas.modulos,
@@ -226,11 +225,8 @@ export function UsuariosConteudo() {
   const gravarModulos = async (usuarioId: string, antes: readonly string[]) => {
     if (!licencas) return;
     const depois = removidosDoFormulario(doPerfil, new Set(modulosDoForm.map((m) => m.id).filter((m) => !desmarcados.has(m))));
-    const ids = new Set<string>([...antes, ...depois]);
-    for (const modulo of ids) {
-      const removerAgora = depois.includes(modulo as ModuloId);
-      if (removerAgora === antes.includes(modulo)) continue;
-      await api(`/core/licencas/usuarios/${usuarioId}/${modulo}`, { method: 'PUT', body: { ativo: !removerAgora } });
+    for (const { modulo, ativo } of mudancasDeExcecoes(antes, depois)) {
+      await api(`/core/licencas/usuarios/${usuarioId}/${modulo}`, { method: 'PUT', body: { ativo } });
     }
   };
 
@@ -582,7 +578,7 @@ export function UsuariosConteudo() {
           <Campo rotulo="Perfil" erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : undefined}>
             <select
               value={form.perfis[0] ?? ''}
-              onChange={(e) => upd({ perfis: e.target.value ? [e.target.value] : [], perfil: opcoesDePerfil.find((p) => p.codigo === e.target.value)?.base ?? form.perfil })}
+              onChange={(e) => upd({ perfis: e.target.value ? [e.target.value] : [] })}
               className={CLASSE_CAMPO_BKO}
               data-testid="usuarios.campo-perfis"
             >
@@ -694,7 +690,7 @@ export function UsuariosConteudo() {
               </Button>
             </div>
           )}
-          {(editando ? podeEditar && perfilTemEndereco(editando.perfil) : perfilTemEndereco(baseEscolhida ?? '')) && <SecaoEndereco key={editando?.id ?? 'novo'} usuarioId={editando?.id ?? null} registrar={registrarEndereco} />}
+          {(editando ? podeEditar && perfilTemEndereco(editando.perfil) : perfilTemEndereco(cargo ?? '')) && <SecaoEndereco key={editando?.id ?? 'novo'} usuarioId={editando?.id ?? null} registrar={registrarEndereco} />}
             <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="usuarios.jornada">
               <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Horário de almoço</legend>
               <label className="flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[15px] font-semibold text-ink">

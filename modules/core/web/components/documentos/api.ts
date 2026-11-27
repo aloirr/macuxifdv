@@ -4,9 +4,10 @@
  */
 import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
 import {
-  ClienteListaRespostaSchema, DocumentoPermissoesRespostaSchema, DocumentosRespostaSchema, PerfilListaRespostaSchema,
+  ClienteListaRespostaSchema, DocumentoPermissoesRespostaSchema, DocumentosRespostaSchema,
   type DocumentoExcecaoPut, type DocumentoPermissoesPut, type DocumentoPermissoesResposta,
 } from '../../../contracts';
+import { lerPerfisV2 } from '../../lib/queries';
 import { colunasDePerfil, type ColunaPerfil } from '../../lib/documentos-permissoes';
 
 export const CHAVE_DOCUMENTOS = ['core', 'documentos', 'permissoes'] as const;
@@ -19,7 +20,7 @@ export function criarApiDocumentos(chamar: typeof api = api) {
     salvarExcecao: async (corpo: DocumentoExcecaoPut): Promise<void> => {
       await chamar<unknown>('/core/documentos/excecoes', { method: 'PUT', body: corpo });
     },
-    colunas: async (): Promise<ColunaPerfil[]> => colunasDePerfil(PerfilListaRespostaSchema.parse(await chamar<unknown>('/core/perfis')).itens),
+    colunas: async (): Promise<ColunaPerfil[]> => colunasDePerfil(await lerPerfisV2(chamar)),
     buscarClientes: async (q: string) => ClienteListaRespostaSchema.parse(await chamar<unknown>('/core/clientes', { query: { q, limite: 8 } })).itens,
     documentosDoCliente: async (clienteId: string) => DocumentosRespostaSchema.parse(await chamar<unknown>(`/core/clientes/${clienteId}/documentos`)).itens,
   };

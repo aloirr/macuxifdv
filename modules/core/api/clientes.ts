@@ -17,10 +17,10 @@ import {
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { dataLocal, perfilVeRecusa, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, palavrasDaBusca, papelCompativel, perfilRecebeHistoricoDeCompra, recortarHierarquia, resumoCompras, resumoFinanceiro, sqlBuscaNormalizada } from '../domain';
+import { dataLocal, perfilVeRecusa, digitosDeBuscaDoDocumento, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, palavrasDaBusca, papelCompativel, recortarHierarquia, resumoCompras, resumoFinanceiro, sqlBuscaNormalizada } from '../domain';
 import { auditar } from './auditoria';
 import { lerHierarquiaDoTenant } from './hierarquia-leitura';
-import { lerPromotorVePedidos } from './promotor-pedidos';
+import { usuarioVePedidos } from './promotor-pedidos';
 import { BASE, TABELAS_SYNC, comHoje } from './sync';
 
 const Uuid = z.string().uuid();
@@ -91,8 +91,8 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
     const contatos = await linhas(t.cliente_contato, 'cliente_id = $1', 'principal desc, nome, id');
     const [financeiro = null] = await linhas(t.cliente_financeiro, 'cliente_id = $1', 'id');
     const titulos = await linhas(t.titulo, `cliente_id = $1 and ${comHoje(t.titulo.janela, hoje)}`, 'vencimento, id');
-    // RN-PRO-01 / T-0077 D2: promotor com `promotor_ve_pedidos` desligada não recebe o histórico (campo segue obrigatório: vazio e resumo zerado)
-    const comHistorico = ctx.usuario.perfil !== 'promotor' || perfilRecebeHistoricoDeCompra('promotor', await lerPromotorVePedidos(db));
+    // RN-PRO-01 / T-0077 D2: sem `pedido.ver` (concessao) ou com `promotor_ve_pedidos` desligada (legado) o promotor não recebe o histórico (campo segue obrigatório: vazio e resumo zerado)
+    const comHistorico = await usuarioVePedidos(ctx, db);
     const historico = comHistorico ? await linhas(t.historico_compra, `cliente_id = $1 and ${comHoje(t.historico_compra.janela, hoje)}`, 'ano_mes desc, id') : [];
     // T-0061 (RF-CORE-12, RN-VEN-17): endereços ativos do cliente, o padrão primeiro. O escopo de carteira já foi checado acima.
     const brutos = (await linhas(t.cliente_endereco, 'cliente_id = $1 and ativo', 'id')) as unknown as ClienteEnderecoSync[];

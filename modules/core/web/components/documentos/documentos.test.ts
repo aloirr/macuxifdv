@@ -22,8 +22,8 @@ const resposta = {
 };
 const perfis = {
   itens: [
-    { codigo: 'vendedor', nome: 'Vendedor', descricao: null, base: 'vendedor', fabrica: true, ativo: true, usuarios: 3, onde_entra: ['campo'], cargo: 'vendedor' },
-    { codigo: 'admin', nome: 'Administrador', descricao: null, base: 'admin', fabrica: true, ativo: true, usuarios: 1, onde_entra: ['bko'], cargo: 'administrativo' },
+    { codigo: 'vendedor', nome: 'Vendedor', descricao: null, ativo: true, usuarios: 3, onde_entra: ['campo'], cargo: 'vendedor', autogestao: false },
+    { codigo: 'admin', nome: 'Administrador', descricao: null, ativo: true, usuarios: 1, onde_entra: ['bko'], cargo: 'administrativo', autogestao: false },
   ],
 };
 
@@ -60,7 +60,7 @@ describe('RN-CORE-40: Parâmetros › Documentos no BKO', () => {
     expect(html).toContain('>Gerente<');
   });
 
-  it('RN-CORE-40: as chamadas vão às rotas de permissões e exceções, e as colunas saem dos perfis do app', async () => {
+  it('RN-CORE-40: as chamadas vão às rotas de permissões e exceções, e as colunas saem dos perfis do app (resposta de perfis-v2, sem `base`)', async () => {
     const api = criarApiSimulada({ 'GET /core/documentos/permissoes': resposta, 'PUT /core/documentos/permissoes': resposta, 'PUT /core/documentos/excecoes': {}, 'GET /core/perfis': perfis });
     const c = criarApiDocumentos(api.chamar);
     await c.ler();

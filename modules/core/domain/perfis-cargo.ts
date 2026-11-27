@@ -8,6 +8,9 @@ import {
   AREAS_PERMISSAO,
   CHAVE_ACESSO,
   protegidoDaSenha,
+  MODELOS_PERFIL,
+  ROTULO_PERFIL,
+  type ModeloPerfil,
   type Cargo,
   type DefinicaoChave,
   type LugarDeAcesso,
@@ -29,6 +32,8 @@ import {
   STATUS_PERFIL_ALTERADO,
   type CatalogoResposta,
   type CopiarDe,
+  type ModelosDePerfilResposta,
+  type MudancaDePermissao,
   type PerfilDetalheV2,
   type PermissaoConcedidaV2,
 } from '../contracts/perfis';
@@ -36,17 +41,17 @@ import { mesmosAlvos } from './perfis';
 
 /** Rótulo de cada área na tabela de permissões. */
 export const ROTULO_AREA: Readonly<Record<(typeof AREAS_PERMISSAO)[number], string>> = {
-  acesso: 'Acesso',
+  acesso: 'Onde entra',
   dados: 'Dados',
-  usuarios: 'Usuários',
+  usuarios: 'Usuários e perfis',
   clientes: 'Clientes',
   pedidos: 'Pedidos',
   catalogo: 'Catálogo',
-  trade: 'Trade marketing',
-  pesquisa: 'Pesquisas',
+  trade: 'Trade',
+  pesquisa: 'Pesquisa',
   treinamento: 'Treinamento',
-  metas: 'Metas',
-  gestao: 'Gestão',
+  metas: 'Metas e RV',
+  gestao: 'Gestão da equipe',
   integracao: 'Integração',
   administracao: 'Administração',
 };
@@ -69,6 +74,20 @@ export function nomeJaUsado(perfis: readonly { id: string; nome: string; ativo: 
   return perfis.some((p) => p.id !== ignorarId && p.ativo && p.nome.toLowerCase() === n);
 }
 
+/**
+ * Chaves que só valem no BKO (ADR 0073 §2.5.10): ação de tela do BKO, sem uso no app. Sem `acesso.bko` no perfil a linha vem
+ * "Sem efeito: o perfil não entra no BKO" (só na tela, sem 422). O manifesto ainda não diz a superfície da ação; até lá a regra é esta:
+ * gestão de usuários e perfis, administração do tenant (`parametro.*`, `*.gerenciar`) e as telas só do BKO.
+ */
+const SO_BKO = new Set([
+  'usuario.ver', 'usuario.criar', 'usuario.editar', 'usuario.desativar', 'usuario.desbloquear', 'usuario.filial_editar', 'usuario_avatar.trocar_outro',
+  'senha.redefinir', 'perfil.gerir', 'dispositivo.bloquear', 'cliente.aprovar_coordenada', 'cliente.pre_cadastro_recusados', 'cliente.pagamento_editar',
+  'produto.editar_preco', 'produto.parametros', 'medida.gerenciar', 'modulo.gerir_licencas', 'inicio_bko.ver', 'notificacao.enviar', 'motivo.editar',
+  'foto_tipo.editar', 'documento.permissoes', 'filial.editar', 'frase_dia.editar', 'rastreamento.configurar', 'meta.editar', 'meta_produtividade.editar',
+  'plano_rv.editar', 'conector.gerenciar', 'mapeamento.editar',
+]);
+export const soValeNoBko = (chave: string): boolean => SO_BKO.has(chave) || chave.startsWith('parametro.') || chave.endsWith('.gerenciar');
+
 export function montarCatalogoPorArea(
   catalogo: readonly DefinicaoChave[],
   licencas: ReadonlySet<ModuloId>,
@@ -90,6 +109,7 @@ export function montarCatalogoPorArea(
           alvos: !!d.alvos,
           disponivel,
           motivo: disponivel ? null : MOTIVO_MODULO_SEM_LICENCA,
+          so_bko: soValeNoBko(d.chave),
         };
       }),
   })).filter((a) => a.chaves.length > 0);
@@ -160,7 +180,13 @@ export interface EntradaDetalheV2 {
   licencas: ReadonlySet<ModuloId>;
   perfisAtivos: readonly PerfilAtivoParaDetalhe[];
   modulos?: readonly string[];
+  /** Perfil de quem está logado (código); `autogestao` = é este perfil e ele tem a gestão do acesso. */
+  perfilDoLogado?: string | null;
 }
+
+/** RN-CORE-35: o perfil é o de quem está logado e tem a gestão do acesso (a tela trava a gestão do acesso no próprio perfil). */
+export const ehAutogestao = (codigo: string, permissoes: MapaDeConcessoes, perfilDoLogado: string | null | undefined): boolean =>
+  !!perfilDoLogado && perfilDoLogado === codigo && temGestaoDoAcesso(permissoes);
 
 /**
  * `PerfilDetalheV2` (ADR 0073 §4.2): uma linha por chave do catálogo, com o valor gravado, o cadeado do cargo
@@ -192,6 +218,7 @@ export function montarDetalheV2(e: EntradaDetalheV2): PerfilDetalheV2 {
       ativo: e.ativo,
       usuarios: e.usuarios,
       onde_entra: ondeEntraPeloCargo(e.cargo, e.permissoes),
+      autogestao: ehAutogestao(e.codigo, e.permissoes, e.perfilDoLogado),
     },
     permissoes,
     teto_escopo: tetoDeEscopoDoCargo(e.cargo),
@@ -229,4 +256,46 @@ const chaveDaViolacao = (v: ViolacaoLimite) => `${v.codigo}|${v.perfil ?? ''}|${
 export function violacoesNovas(antes: readonly ViolacaoLimite[], depois: readonly ViolacaoLimite[], perfilEscrito: string | null): ViolacaoLimite[] {
   const jaExistiam = new Set(antes.map(chaveDaViolacao));
   return depois.filter((v) => (perfilEscrito !== null && v.perfil === perfilEscrito) || !jaExistiam.has(chaveDaViolacao(v)));
+}
+
+/** `GET /v1/core/perfis/modelos`: os 7 modelos na ordem de `MODELOS_PERFIL`, sem as chaves fixas do aparelho (a tela não as mostra). */
+export function montarModelos(modelos: ModelosDePerfil, foraDaTela: ReadonlySet<string>): ModelosDePerfilResposta {
+  return {
+    itens: MODELOS_PERFIL.map((m: ModeloPerfil) => {
+      const { cargo, permissoes } = modelos[m];
+      return {
+        modelo: m,
+        nome: ROTULO_PERFIL[m],
+        cargo,
+        onde_entra: ondeEntraPeloCargo(cargo, permissoes),
+        permissoes: Object.entries(permissoes)
+          .filter(([c]) => !foraDaTela.has(c))
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([chave, v]) => ({ chave, nivel: v.nivel ?? null, alvos: v.alvos ? [...v.alvos] : null })),
+      };
+    }),
+  };
+}
+
+/** O que a auditoria guarda em `permissoes`: mapa chave → valor (`perfil.alterar`: só o que mudou) ou lista de chaves (`perfil.criar`). */
+type ValorAuditado = MudancaDePermissao['de'] & object;
+function lerPermissoesAuditadas(o: unknown): Map<string, ValorAuditado> {
+  const r = new Map<string, ValorAuditado>();
+  const p = o && typeof o === 'object' ? (o as { permissoes?: unknown }).permissoes : null;
+  if (Array.isArray(p)) {
+    for (const c of p) if (typeof c === 'string') r.set(c, { nivel: null, alvos: null });
+  } else if (p && typeof p === 'object') {
+    for (const [c, v] of Object.entries(p as Record<string, { nivel?: ValorAuditado['nivel']; alvos?: string[] | null } | null>)) r.set(c, { nivel: v?.nivel ?? null, alvos: v?.alvos ? [...v.alvos] : null });
+  }
+  return r;
+}
+
+/** RN-AUD-01: a diferença de permissões de uma linha do histórico (`antes.permissoes` × `depois.permissoes`), por chave, em ordem. */
+export function mudancasDoHistorico(antes: unknown, depois: unknown): MudancaDePermissao[] {
+  const a = lerPermissoesAuditadas(antes);
+  const d = lerPermissoesAuditadas(depois);
+  return [...new Set([...a.keys(), ...d.keys()])]
+    .sort()
+    .map((chave) => ({ chave, de: a.get(chave) ?? null, para: d.get(chave) ?? null }))
+    .filter((m) => JSON.stringify(m.de) !== JSON.stringify(m.para));
 }

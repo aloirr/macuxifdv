@@ -4,11 +4,11 @@
  * Toda escrita trava os perfis, monta o estado do tenant (perfis, concessões e usuários) e roda `validarAcessoPeloCargo` (SDK) antes de gravar:
  * a mesma regra existe no banco como rede de segurança (gatilho `perfil_concessao_travas`). Auditoria `perfil.criar|alterar|apagar` (RN-AUD-01).
  *
- * ADITIVO: as rotas de `perfis.ts` (com base) seguem como estão e saem na E6. Os caminhos daqui são os FINAIS de `/v1/core` e colidem com
- * os antigos, por isso `rotasDePerfisV2` ainda NÃO está em `index.ts`: a E6 troca `rotasDePerfis` por esta lista (e mantém o `historico`
- * antigo, que não muda). Enquanto o tenant está na janela de transição, `plataforma.perfil.base` (NOT NULL) é gravada com o valor de
- * compatibilidade (`perfilDeCompatibilidade`), e o espelho da 0107 refaz as concessões ao inserir o perfil ou trocar o cargo; a gravação
- * das concessões vem DEPOIS, então o que vale é o enviado.
+ * E6 (v1.0.40): estas são as rotas de `/v1/core/perfis` no ar (as com base saíram). A LEITURA é pelo caminho duplo da 0109
+ * (`plataforma.permissoes_efetivas_do_perfil`: concessões no tenant em `concessao`, o acesso de hoje em `legado`); a ESCRITA grava
+ * `perfil_concessao` e só vale com o tenant em `concessao` (422 `PERFIS_NAO_MIGRADOS` em `legado`). Enquanto o tenant está na janela de
+ * transição, `plataforma.perfil.base` (NOT NULL) é gravada com o valor de compatibilidade (`perfilDeCompatibilidade`), e o espelho da
+ * 0107 refaz as concessões ao inserir o perfil ou trocar o cargo; a gravação das concessões vem DEPOIS, então o que vale é o enviado.
  */
 import {
   CATALOGO_PERMISSOES_VERSAO,
@@ -41,7 +41,11 @@ import {
   CriarPerfilRequestV2Schema,
   EditarPerfilRequestV2Schema,
   MENSAGEM_PERFIL_REPETIDO,
+  MENSAGEM_PERFIS_NAO_MIGRADOS,
+  ModelosDePerfilRespostaSchema,
   PerfilDetalheV2Schema,
+  PerfilHistoricoQuerySchema,
+  PerfilHistoricoRespostaV2Schema,
   PerfilListaRespostaV2Schema,
   PerfilOpcoesRespostaV2Schema,
   PerfilResumoV2Schema,
@@ -53,8 +57,11 @@ import {
   codigoDoPerfil,
   conferirTravaOtimista,
   diffConcessoes,
+  ehAutogestao,
   montarCatalogoPorArea,
   montarDetalheV2,
+  montarModelos,
+  mudancasDoHistorico,
   moduloLicenciado,
   nomeJaUsado,
   ondeEntraPeloCargo,
@@ -87,18 +94,21 @@ interface Estado {
   usuarios: UsuarioPorCargo[];
 }
 
+/** Os segmentos fixos de `perfis/…`: um perfil com este código não seria alcançável pelo detalhe. */
+const CODIGOS_DE_ROTA = new Set(['modelos', 'opcoes']);
+
 const semTela = (catalogo: readonly DefinicaoChave[]) => catalogo.filter((d) => !FORA_DA_TELA.has(d.chave));
 
 const catalogoDoMotor = (ctx: ContextoBase): readonly DefinicaoChave[] => ctx.permissoes?.catalogo ?? [];
 
 /** Módulos licenciados no tenant (RN-CORE-02); o Core é sempre licenciado. */
-async function licencasDoTenant(db: ClienteBanco): Promise<Set<ModuloId>> {
+export async function licencasDoTenant(db: ClienteBanco): Promise<Set<ModuloId>> {
   const r = await db.query<{ modulo: ModuloId }>('select modulo from plataforma.tenant_modulo where ativo and deleted_at is null');
   return new Set<ModuloId>(['core', ...r.rows.map((x) => x.modulo)]);
 }
 
 /** Perfis vivos com as concessões e os usuários com o seu perfil. `travar` = `for update` nos perfis (escrita). */
-async function carregar(db: ClienteBanco, travar: boolean): Promise<Estado> {
+export async function carregarEstadoV2(db: ClienteBanco, travar: boolean): Promise<Estado> {
   const lock = travar ? ' for update' : '';
   // RN-CORE-35: escritas de perfil se serializam por tenant ANTES de ler; assim a checagem de nome/código vê o que a outra transação gravou
   if (travar) await db.query("select pg_advisory_xact_lock(hashtextextended('perfis:' || plataforma.tenant_atual()::text, 0))");
@@ -106,8 +116,13 @@ async function carregar(db: ClienteBanco, travar: boolean): Promise<Estado> {
     `select id, codigo, nome, descricao, cargo, ativo, fabrica, to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as atualizado_em
        from plataforma.perfil where deleted_at is null order by codigo${lock}`,
   );
+  // 0109: o caminho duplo no banco; nunca a tabela direto na leitura (o tenant em `legado` sem derivação não tem concessões)
   const cs = await db.query<{ perfil_id: string; chave: string; nivel: ValorPermissao['nivel'] | null; alvos: string[] | null }>(
-    'select perfil_id, chave, nivel, alvos from plataforma.perfil_concessao where deleted_at is null order by chave',
+    `select p.id as perfil_id, e.key as chave, e.value->>'nivel' as nivel,
+            case when jsonb_typeof(e.value->'alvos') = 'array' then array(select jsonb_array_elements_text(e.value->'alvos')) end as alvos
+       from plataforma.perfil p
+       cross join lateral jsonb_each(coalesce(plataforma.permissoes_efetivas_do_perfil(p.id), '{}'::jsonb)) e
+      where p.deleted_at is null order by e.key`,
   );
   const us = await db.query<{ id: string; ativo: boolean; perfil: string | null }>(
     `select u.id, u.ativo, (array_agg(p.codigo order by p.codigo) filter (where p.codigo is not null))[1] as perfil
@@ -140,6 +155,21 @@ async function carregarModelos(db: ClienteBanco): Promise<ModelosDePerfil> {
   return m as unknown as ModelosDePerfil;
 }
 
+/** O tenant lê os perfis pelas concessões (0109)? Em `legado` (migração parada por conflito ou tenant ainda não ligado) lê o acesso de hoje. */
+export async function tenantEmConcessao(db: ClienteBanco): Promise<boolean> {
+  const r = await db.query<{ ok: boolean }>("select plataforma.leitura_de_perfis(plataforma.tenant_atual()) = 'concessao' as ok");
+  return r.rows[0]?.ok === true;
+}
+
+/** A escrita grava `perfil_concessao`, que só vale em `concessao`: em `legado` não teria efeito, então recusa. */
+async function exigirTenantMigrado(db: ClienteBanco): Promise<void> {
+  if (!(await tenantEmConcessao(db)))
+    throw new ErroRegraNegocio(CODIGOS_ERRO_PERFIL_V2.naoMigrado, MENSAGEM_PERFIS_NAO_MIGRADOS, { regra: 'RN-CORE-35' });
+}
+
+/** O perfil (código) de quem está logado; `null` fora do tenant (super-admin). */
+const perfilDoLogado = (e: Estado, ctx: ContextoBase): string | null => e.usuarios.find((u) => u.id === ctx.usuario.id)?.perfil ?? null;
+
 const naoEncontrado = () => new ErroNaoEncontrado(CODIGOS_PERFIL.naoEncontrado, 'Este perfil não existe mais. Atualize a lista.');
 const dadosInvalidos = (mensagem: string, campo: string) => new ErroRegraNegocio(CODIGOS_PERFIL.dadosInvalidos, mensagem, { campos: [{ campo, mensagem }] });
 const repetido = () => new ErroRegraNegocio(CODIGO_REPETIDO, MENSAGEM_PERFIL_REPETIDO, { regra: 'RN-CORE-35' });
@@ -156,7 +186,7 @@ function recusar(violacoes: readonly ViolacaoLimite[], perfil: string | null): n
 }
 
 /** `validarAcessoPeloCargo` sobre o estado depois da escrita; só segura o que a escrita traz de novo (ver `violacoesNovas`). */
-function conferir(ctx: ContextoBase, antes: Estado, depois: Pick<Estado, 'perfis' | 'usuarios'>, licencas: ReadonlySet<ModuloId>, perfilEscrito: string | null): void {
+export function conferir(ctx: ContextoBase, antes: Estado, depois: Pick<Estado, 'perfis' | 'usuarios'>, licencas: ReadonlySet<ModuloId>, perfilEscrito: string | null): void {
   const catalogo = catalogoDoMotor(ctx);
   const comum = { catalogo: catalogo.length > 0 ? catalogo : undefined, licencas };
   const estadoAntes = { perfis: antes.perfis, usuarios: antes.usuarios };
@@ -173,7 +203,7 @@ const modulosDoPerfil = async (db: ClienteBanco, codigo: string): Promise<string
   (await db.query<{ modulo: string }>('select modulo from plataforma.perfil_modulo where perfil = $1 and deleted_at is null order by modulo', [codigo])).rows.map((r) => r.modulo);
 
 async function detalheDe(ctx: ContextoBase, db: ClienteBanco, codigo: string): Promise<PerfilDetalheV2> {
-  const e = await carregar(db, false);
+  const e = await carregarEstadoV2(db, false);
   const linha = e.linhas.find((l) => l.codigo === codigo);
   const perfil = e.perfis.find((p) => p.codigo === codigo);
   if (!linha || !perfil) throw naoEncontrado();
@@ -191,14 +221,24 @@ async function detalheDe(ctx: ContextoBase, db: ClienteBanco, codigo: string): P
       licencas: await licencasDoTenant(db),
       perfisAtivos: e.perfis.filter((p) => p.ativo).map((p) => ({ codigo: p.codigo, nome: p.nome ?? p.codigo, cargo: p.cargo, permissoes: p.permissoes })),
       modulos: await modulosDoPerfil(db, codigo),
+      perfilDoLogado: perfilDoLogado(e, ctx),
     }),
   );
 }
 
-function resumoDe(e: Estado, i: number): PerfilResumoV2 {
+function resumoDe(e: Estado, i: number, logado: string | null): PerfilResumoV2 {
   const l = e.linhas[i]!;
   const p = e.perfis[i]!;
-  return PerfilResumoV2Schema.parse({ codigo: l.codigo, nome: l.nome, descricao: l.descricao, cargo: l.cargo, ativo: l.ativo, usuarios: contagemDe(e, l.codigo), onde_entra: ondeEntraPeloCargo(l.cargo, p.permissoes) });
+  return PerfilResumoV2Schema.parse({
+    codigo: l.codigo,
+    nome: l.nome,
+    descricao: l.descricao,
+    cargo: l.cargo,
+    ativo: l.ativo,
+    usuarios: contagemDe(e, l.codigo),
+    onde_entra: ondeEntraPeloCargo(l.cargo, p.permissoes),
+    autogestao: ehAutogestao(l.codigo, p.permissoes, logado),
+  });
 }
 
 /** Grava o conjunto no perfil: o que saiu vira soft delete, o que mudou é atualizado e o que entrou é inserido (RN-CORE-35: perfil = o que está marcado). */
@@ -247,8 +287,8 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
     carteira: 'nao_se_aplica',
     executar: async (ctx) =>
       ctx.comTenant(async (db) => {
-        const e = await carregar(db, false);
-        return PerfilListaRespostaV2Schema.parse({ itens: e.linhas.map((_, i) => resumoDe(e, i)).sort(ordemDaLista) });
+        const e = await carregarEstadoV2(db, false);
+        return PerfilListaRespostaV2Schema.parse({ itens: e.linhas.map((_, i) => resumoDe(e, i, perfilDoLogado(e, ctx))).sort(ordemDaLista) });
       }),
   },
   {
@@ -260,13 +300,46 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
     carteira: 'nao_se_aplica',
     executar: async (ctx) =>
       ctx.comTenant(async (db) => {
-        const e = await carregar(db, false);
+        const e = await carregarEstadoV2(db, false);
         const itens = e.linhas
-          .map((_, i) => resumoDe(e, i))
+          .map((_, i) => resumoDe(e, i, null))
           .filter((r) => r.ativo)
           .sort(ordemDaLista)
           .map(({ codigo, nome, cargo, onde_entra }) => ({ codigo, nome, cargo, onde_entra }));
         return PerfilOpcoesRespostaV2Schema.parse({ itens });
+      }),
+  },
+  {
+    // "Copiar permissões de…": os 7 perfis padrão como modelo (a cópia vale `copiar_de: { modelo }`)
+    metodo: 'GET',
+    caminho: 'perfis/modelos',
+    superficie: 'bko',
+    acao: 'perfil.gerir',
+    carteira: 'nao_se_aplica',
+    executar: async (ctx) => ctx.comTenant(async (db) => ModelosDePerfilRespostaSchema.parse(montarModelos(await carregarModelos(db), FORA_DA_TELA))),
+  },
+  {
+    metodo: 'GET',
+    caminho: 'perfis/:codigo/historico',
+    superficie: 'bko',
+    acao: 'perfil.gerir',
+    carteira: 'nao_se_aplica',
+    params: CodigoParam,
+    query: PerfilHistoricoQuerySchema,
+    executar: async (ctx) =>
+      ctx.comTenant(async (db) => {
+        const p = await db.query<{ id: string }>('select id from plataforma.perfil where codigo = $1 and deleted_at is null', [ctx.params.codigo]);
+        if (!p.rows[0]) throw naoEncontrado();
+        const { antes, limite } = ctx.query;
+        const r = await db.query<{ id: string; em: string; usuario_nome: string | null; acao: string; antes: unknown; depois: unknown }>(
+          `select a.id, to_char(a.ocorrido_em at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as em, u.nome as usuario_nome, a.acao, a.antes, a.depois
+             from plataforma.auditoria a left join core.usuario u on u.id = a.usuario_id
+            where a.modulo = 'core' and a.entidade = 'perfil' and a.entidade_id = $1 and ($2::timestamptz is null or a.ocorrido_em < $2::timestamptz)
+            order by a.ocorrido_em desc, a.id desc limit $3`,
+          [p.rows[0].id, antes ?? null, limite + 1],
+        );
+        const itens = r.rows.slice(0, limite).map((x) => ({ ...x, mudancas: x.acao === 'perfil.alterar' ? mudancasDoHistorico(x.antes, x.depois) : [] }));
+        return PerfilHistoricoRespostaV2Schema.parse({ itens, proximo: r.rows.length > limite ? (itens[itens.length - 1]?.em ?? null) : null });
       }),
   },
   {
@@ -293,7 +366,8 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
       const erros = validarNomeDoPerfil(nome, descricao);
       if (erros[0]) throw dadosInvalidos(erros[0].mensagem, erros[0].campo);
       return ctx.comTenant(async (db) => {
-        const e = await carregar(db, true);
+        await exigirTenantMigrado(db);
+        const e = await carregarEstadoV2(db, true);
         // idempotente pelo id do aparelho: repetir devolve o mesmo perfil, sem gravar nada
         const jaCriado = e.linhas.find((l) => l.id === id);
         if (jaCriado) return detalheDe(ctx, db, jaCriado.codigo);
@@ -317,7 +391,7 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
         const codigosUsados = new Set((await db.query<{ codigo: string }>('select codigo from plataforma.perfil')).rows.map((r) => r.codigo));
         const raiz = codigoDoPerfil(nome);
         let codigo = raiz;
-        for (let n = 2; codigosUsados.has(codigo); n++) codigo = `${raiz.slice(0, 36)}_${n}`;
+        for (let n = 2; codigosUsados.has(codigo) || CODIGOS_DE_ROTA.has(codigo); n++) codigo = `${raiz.slice(0, 36)}_${n}`;
         const novo: PerfilPorCargo = { id, codigo, nome, cargo, ativo: true, permissoes: concedidas };
         conferir(ctx, e, { perfis: [...e.perfis, novo], usuarios: e.usuarios }, licencas, codigo);
         const efetivas = resolverPerfilPeloCargo(novo).permissoes;
@@ -366,7 +440,8 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
     executar: async (ctx) => {
       const c0 = ctx.corpo;
       return ctx.comTenant(async (db) => {
-        const e = await carregar(db, true);
+        await exigirTenantMigrado(db);
+        const e = await carregarEstadoV2(db, true);
         const i = e.linhas.findIndex((l) => l.codigo === ctx.params.codigo);
         const linha = e.linhas[i];
         const atual = e.perfis[i];
@@ -422,7 +497,8 @@ export const rotasDePerfisV2: readonly RotaModulo[] = [
     params: CodigoParam,
     executar: async (ctx) =>
       ctx.comTenant(async (db) => {
-        const e = await carregar(db, true);
+        await exigirTenantMigrado(db);
+        const e = await carregarEstadoV2(db, true);
         const i = e.linhas.findIndex((l) => l.codigo === ctx.params.codigo);
         const linha = e.linhas[i];
         const atual = e.perfis[i];

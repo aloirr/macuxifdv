@@ -32,7 +32,7 @@ export async function lerEstadoDeLicencas(db: ClienteBanco, dependencias: Record
   for (const m of MODULOS) tenantMapa[m] = m === 'core';
   for (const l of tenant.rows) if (ehModulo(l.modulo)) tenantMapa[l.modulo] = l.ativo || l.modulo === 'core';
   const perfisMapa: Record<string, ModuloId[]> = Object.fromEntries(PERFIS.map((p) => [p, [] as ModuloId[]]));
-  for (const l of perfis.rows) if (ehModulo(l.modulo)) perfisMapa[l.perfil]?.push(l.modulo);
+  for (const l of perfis.rows) if (ehModulo(l.modulo)) (perfisMapa[l.perfil] ??= []).push(l.modulo);
   return {
     modulos: [...MODULOS],
     dependencias,
