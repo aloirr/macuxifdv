@@ -356,9 +356,8 @@ Nenhum evento existente leva `base`; nada precisa de `@v2`.
   barreira da RN-PRO-01 pelo cargo, aplicação do catálogo por versão, lint contra nome fixo.
 - Banco (banco-dados): §5.
 - Core (modulo-core): CRUD de perfis e catálogo (§4.2), cadastro de usuário sem base, senha e último admin pela gestão do acesso,
-  `promotor_ve_pedidos` vira `pedido.ver`.
-- Promotor vê pedidos (limitação, Caminho C, R-20261127-165252): o BKO não tem tela para tenant em legado; nele, só se ajusta pela
-  API `GET|PUT /v1/core/parametros/promotor-ve-pedidos`. Nos tenants em concessão vale a permissão `pedido.ver` do perfil.
+  `promotor_ve_pedidos` vira `pedido.ver`; no tenant em `legado` o BKO não tem tela e o ajuste é só pela API
+  `GET|PUT /v1/core/parametros/promotor-ve-pedidos` (R-20261127-165252).
 - Catálogo (modulo-catalogo): `promotor_ve_preco_estoque` vira `produto.ver_preco_estoque`.
 - Vendedor, Gestor, Pesquisa, Treinamento, Promotor, Integração: trocar comparações de nome de perfil por chave ou cargo (§1.3);
   manifestos com `cargos` no lugar de `perfis`.
