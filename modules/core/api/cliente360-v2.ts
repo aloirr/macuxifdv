@@ -48,7 +48,7 @@ import {
 } from '../domain';
 import { carteiraNoBanco } from './carteira';
 import { auditar, type RegistroAuditoria } from './auditoria';
-import { lerPromotorVePedidos } from './promotor-pedidos';
+import { usuarioVePedidos } from './promotor-pedidos';
 
 // --- Notas ----------------------------------------------------------------------------------------------------------
 
@@ -424,7 +424,7 @@ export const rotasDeCliente360V2: RotaModulo[] = [
       const { id } = ctx.params as z.infer<typeof ClienteParam>;
       await exigirCarteira(ctx, id);
       return ctx.comTenant(async (db) => {
-        const podeVerHistorico = abasDaFicha(ctx.usuario.perfil, ctx.usuario.perfil !== 'promotor' || (await lerPromotorVePedidos(db))).includes('historico');
+        const podeVerHistorico = abasDaFicha(ctx.usuario.perfil, await usuarioVePedidos(ctx, db)).includes('historico');
         return listarNotas(repositorioNotasSql(db, ctx.fuso()), { clienteId: id, query: ctx.query as HistoricoNfQuery, hoje: dataLocal(ctx.agora(), ctx.fuso()), podeVerHistorico });
       });
     },
@@ -439,7 +439,7 @@ export const rotasDeCliente360V2: RotaModulo[] = [
       const { id, nota_id } = ctx.params as z.infer<typeof NotaParam>;
       await exigirCarteira(ctx, id);
       return ctx.comTenant(async (db) => {
-        const podeVerHistorico = abasDaFicha(ctx.usuario.perfil, ctx.usuario.perfil !== 'promotor' || (await lerPromotorVePedidos(db))).includes('historico');
+        const podeVerHistorico = abasDaFicha(ctx.usuario.perfil, await usuarioVePedidos(ctx, db)).includes('historico');
         return detalheDaNota(repositorioNotasSql(db, ctx.fuso()), { clienteId: id, notaId: nota_id, hoje: dataLocal(ctx.agora(), ctx.fuso()), podeVerHistorico });
       });
     },

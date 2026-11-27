@@ -4,7 +4,7 @@
  * (ação `parametro.promotor_ve_pedidos`). A escrita é idempotente (upsert do mesmo valor) e audita antes/depois só quando o valor muda.
  * A opção só controla a LEITURA de pedido pelo promotor; a escrita de pedido segue sempre negada (RN-PRO-01).
  */
-import type { ClienteBanco, RotaModulo } from '@macuxi/platform-sdk';
+import type { ClienteBanco, ContextoBase, RotaModulo } from '@macuxi/platform-sdk';
 import { PARAMETRO_PROMOTOR_VE_PEDIDOS, PromotorVePedidosPutSchema, PromotorVePedidosSchema, type PromotorVePedidos } from '../contracts';
 import { promotorVePedidos } from '../domain';
 import { auditar } from './auditoria';
@@ -15,6 +15,17 @@ export async function lerPromotorVePedidos(db: ClienteBanco): Promise<boolean> {
     PARAMETRO_PROMOTOR_VE_PEDIDOS,
   ]);
   return promotorVePedidos(r.rows[0]?.valor);
+}
+
+/**
+ * ADR 0073 §2.4 (E6): quem lê pedidos é a chave `pedido.ver` do perfil, não mais o parâmetro do tenant. `perfil_do_usuario` (0109) já
+ * dá o caminho certo por tenant: em `concessao` a concessão; em `legado` o acesso de hoje (o parâmetro desligado tira `pedido.ver`
+ * do promotor). Só o cargo promotor depende dela aqui (RN-PRO-01); os demais seguem o escopo de carteira. Sem perfil lido: ligado.
+ */
+export async function usuarioVePedidos(ctx: ContextoBase, db: ClienteBanco): Promise<boolean> {
+  if (ctx.usuario.perfil !== 'promotor' && ctx.usuario.cargo !== 'promotor') return true;
+  const r = await db.query<{ ve: boolean }>("select coalesce(permissoes ? 'pedido.ver', true) as ve from plataforma.perfil_do_usuario($1)", [ctx.usuario.id]);
+  return r.rows[0]?.ve ?? true;
 }
 
 export const rotasDePromotorPedidos: RotaModulo[] = [
