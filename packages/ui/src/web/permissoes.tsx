@@ -7,14 +7,32 @@
  *   no iOS e o foco no Android); o texto também vai como descrição para o leitor de tela.
  * - `Interruptor`: liga/desliga com "Sim"/"Não" escrito ao lado (cor nunca sozinha), `role="switch"`, alvo de 44 px. Com
  *   `estadoEscrito="so-desligada"` (liga/desliga geral da regra, T-0180): ligado sem texto; desligado com o selo neutro "Desligada".
+ * - `SeletorDeNivel`: escolha de um nível em botões lado a lado (rádios nativos: as setas do teclado andam entre eles). Opção
+ *   desabilitada leva o motivo, falado na própria opção e escrito embaixo do grupo com o cadeado.
+ * - `LinhaDePermissao`: rótulo, ajuda, cadeado e o controle à direita; "Padrão: X" quando o valor difere do de fábrica.
  * - `SeletorDePerfis`: seleção múltipla de perfis (alvos da redefinição de senha e o campo "Perfis" do usuário).
+ * - `ResumoDasMudancas`: o "o que mudou" antes de salvar e no histórico, agrupado por seção.
  */
+import type { ReactNode } from 'react';
 import { CLASSES_DESTAQUE } from './cores';
 import { IconLock } from './icons';
-import { ALVO_TODOS_PERFIS, ROTULO_CADEADO, TEXTO_INTERRUPTOR } from './perfis';
+import {
+  agruparMudancas,
+  ALVO_TODOS_PERFIS,
+  contagemDeMudancas,
+  ROTULO_CADEADO,
+  TEXTO_INTERRUPTOR,
+  textoDaMudanca,
+  textoDosAfetados,
+  textoFaladoDaMudanca,
+  type MudancaDePermissao,
+} from './perfis';
 import { Badge, cx } from './ui';
 
 export * from './perfis';
+
+/** Ids derivados de uma linha (para `aria-labelledby` e `aria-describedby` do controle que a tela põe dentro dela). */
+export const idsDaLinha = (id: string) => ({ rotulo: `${id}-rotulo`, ajuda: `${id}-ajuda`, trava: `${id}-trava` });
 
 /** Junta ids de descrição, sem vazios (`aria-describedby`). */
 const juntarIds = (...ids: Array<string | false | null | undefined>): string | undefined => {
@@ -132,6 +150,159 @@ export function Interruptor({
   );
 }
 
+/* ---------- seletor de nível ---------- */
+
+export interface OpcaoDeNivel {
+  valor: string;
+  rotulo: string;
+  /** Acima do permitido (escopo da base) ou travada por regra. */
+  desabilitada?: boolean;
+  /** Por que está desabilitada (com a regra). Falado na opção e escrito embaixo do grupo. */
+  motivo?: string;
+}
+
+export function SeletorDeNivel({
+  nome,
+  opcoes,
+  valor,
+  onChange,
+  rotuloId,
+  rotulo,
+  descricaoId,
+  desabilitado = false,
+  testId = 'nivel',
+}: {
+  /** `name` dos rádios (único na página). */
+  nome: string;
+  opcoes: readonly OpcaoDeNivel[];
+  valor: string;
+  onChange: (valor: string) => void;
+  rotuloId?: string;
+  rotulo?: string;
+  descricaoId?: string;
+  /** O grupo todo travado (cadeado na linha) ou sem permissão de editar. */
+  desabilitado?: boolean;
+  testId?: string;
+}) {
+  const motivos = [...new Set(opcoes.filter((o) => o.desabilitada && o.motivo).map((o) => o.motivo as string))];
+  const notaId = motivos.length > 0 ? `${nome}-motivos` : undefined;
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div
+        role="radiogroup"
+        aria-labelledby={rotuloId}
+        aria-label={rotuloId ? undefined : rotulo}
+        aria-describedby={descricaoId}
+        aria-disabled={desabilitado || undefined}
+        className={cx('inline-flex flex-wrap justify-end rounded-[12px] border border-field bg-surface p-[2px]', desabilitado && 'opacity-60')}
+        data-testid={testId}
+      >
+        {opcoes.map((o) => {
+          const off = desabilitado || !!o.desabilitada;
+          return (
+            <label key={o.valor} title={o.desabilitada ? o.motivo : undefined} className={cx('relative', off ? 'cursor-not-allowed' : 'cursor-pointer')}>
+              <input
+                type="radio"
+                name={nome}
+                value={o.valor}
+                checked={o.valor === valor}
+                disabled={off}
+                onChange={() => onChange(o.valor)}
+                className="peer sr-only"
+                data-testid={`${testId}.${o.valor}`}
+              />
+              <span
+                className={cx(
+                  'inline-flex min-h-[40px] items-center gap-1 rounded-[10px] px-3 text-[15px] font-semibold whitespace-nowrap text-ink-3',
+                  'peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-accent',
+                  o.desabilitada && 'text-disabled',
+                  !off && 'hover:bg-ground peer-checked:hover:bg-ink',
+                )}
+              >
+                {o.desabilitada && <IconLock size={12} />}
+                {o.rotulo}
+                {o.desabilitada && o.motivo && <span className="sr-only">{`, travado: ${o.motivo}`}</span>}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {notaId && (
+        <p id={notaId} aria-hidden="true" className="m-0 flex items-center gap-1 text-right text-[12px] text-ink-2" data-testid={`${testId}.motivos`}>
+          <IconLock size={12} className="shrink-0" />
+          {motivos.join(' ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ---------- linha ---------- */
+
+export function LinhaDePermissao({
+  id,
+  rotulo,
+  ajuda,
+  padrao,
+  trava,
+  children,
+  abaixo,
+  erro,
+  testId,
+}: {
+  /** Base dos ids (`idsDaLinha(id)`); o controle usa `rotuloId` e `descricaoId` daí. */
+  id: string;
+  rotulo: string;
+  ajuda?: ReactNode;
+  /** "Padrão: Equipe" (`textoDoPadrao`), só quando o valor difere do de fábrica. */
+  padrao?: string;
+  /** Linha travada: o cadeado com o texto da regra; o controle vem desabilitado pela tela. */
+  trava?: { mensagem: string } | null;
+  /** O controle (Interruptor, SeletorDeNivel). */
+  children: ReactNode;
+  /** Bloco embaixo da linha, na largura toda (ex.: a lista de perfis-alvo quando a redefinição de senha está ligada). */
+  abaixo?: ReactNode;
+  /** Recusa da API nesta linha (texto da tela, já traduzido). */
+  erro?: string | null;
+  testId?: string;
+}) {
+  const ids = idsDaLinha(id);
+  const tid = testId ?? `permissao.${id}`;
+  return (
+    <div className="flex flex-col gap-2 border-b border-line-2 py-3 last:border-b-0" data-testid={tid} data-travada={trava ? 'sim' : undefined}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-[220px] flex-1 flex-col gap-0.5">
+          <div className="flex items-center gap-1">
+            <span id={ids.rotulo} className="text-[15px] font-semibold text-ink">
+              {rotulo}
+            </span>
+            {trava && <Cadeado id={ids.trava} mensagem={trava.mensagem} testId={`${tid}.cadeado`} />}
+          </div>
+          {ajuda && (
+            <span id={ids.ajuda} className="text-[12px] text-ink-2">
+              {ajuda}
+            </span>
+          )}
+          {padrao && <span className="text-[12px] text-ink-2" data-testid={`${tid}.padrao`}>{padrao}</span>}
+        </div>
+        {children}
+      </div>
+      {abaixo}
+      {erro && (
+        <p role="alert" className="m-0 text-[12px] font-semibold text-danger" data-testid={`${tid}.erro`}>
+          {erro}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** `aria-describedby` do controle de uma linha: ajuda e, se travada, o texto do cadeado. */
+export const descricaoDaLinha = (id: string, opts: { ajuda?: boolean; travada?: boolean }): string | undefined => {
+  const ids = idsDaLinha(id);
+  return juntarIds(opts.ajuda && ids.ajuda, opts.travada && ids.trava);
+};
+
 /* ---------- seletor de perfis (seleção múltipla) ---------- */
 
 export interface OpcaoDePerfil {
@@ -229,3 +400,47 @@ export function SeletorDePerfis({
     </fieldset>
   );
 }
+
+/* ---------- resumo "o que mudou" ---------- */
+
+export function ResumoDasMudancas({
+  mudancas,
+  afetados,
+  testId = 'resumo-mudancas',
+}: {
+  mudancas: readonly MudancaDePermissao[];
+  /** Quantos usuários têm este perfil (linha "Afeta 12 usuários."). */
+  afetados?: number;
+  testId?: string;
+}) {
+  const grupos = agruparMudancas(mudancas);
+  const total = grupos.reduce((n, g) => n + g.itens.length, 0);
+  return (
+    <div className="flex flex-col gap-3" data-testid={testId}>
+      <p className="m-0 text-[15px] font-semibold text-ink" data-testid={`${testId}.contagem`}>
+        {contagemDeMudancas(total)}
+        {afetados !== undefined && total > 0 && <span className="font-normal text-ink-2">{` · ${textoDosAfetados(afetados)}`}</span>}
+      </p>
+      {grupos.map((g) => (
+        <section key={g.secao} aria-labelledby={`${testId}-${g.secao}`} className="flex flex-col gap-1" data-testid={`${testId}.${g.secao}`}>
+          <h3 id={`${testId}-${g.secao}`} className="m-0 text-[12px] font-semibold tracking-wide text-ink-2 uppercase">
+            {g.titulo}
+          </h3>
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+            {g.itens.map((m, i) => (
+              <li key={`${m.rotulo}-${i}`} className="text-[15px] text-ink">
+                <span aria-hidden="true">
+                  {m.rotulo}: <span className="text-ink-2">{m.antes}</span> → <span className="font-semibold">{m.depois}</span>
+                </span>
+                <span className="sr-only">{textoFaladoDaMudanca(m)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** Texto plano do resumo (para o histórico exportado e para conferir nos testes). */
+export const resumoEmTexto = (mudancas: readonly MudancaDePermissao[]): string[] => agruparMudancas(mudancas).flatMap((g) => g.itens.map((m) => `${g.titulo} · ${textoDaMudanca(m)}`));

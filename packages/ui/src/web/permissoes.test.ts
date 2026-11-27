@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Cadeado, Interruptor, SeletorDePerfis } from './permissoes';
+import { Cadeado, descricaoDaLinha, Interruptor, LinhaDePermissao, ResumoDasMudancas, resumoEmTexto, SeletorDeNivel, SeletorDePerfis } from './permissoes';
 
 // sem react-dom: os componentes (sem hooks) são chamados como função e a árvore é percorrida
 type No = { type: unknown; props: Record<string, unknown> & { children?: unknown } };
@@ -82,6 +82,76 @@ describe('Interruptor', () => {
   });
 });
 
+describe('SeletorDeNivel', () => {
+  const opcoes = [
+    { valor: 'carteira', rotulo: 'Carteira própria' },
+    { valor: 'equipe', rotulo: 'Equipe' },
+    { valor: 'tenant', rotulo: 'Toda a empresa', desabilitada: true, motivo: 'Acima do perfil base Supervisor.' },
+  ];
+
+  it('radiogroup com rádios nativos (setas do teclado) e a opção marcada', () => {
+    const a = nos(SeletorDeNivel({ nome: 'escopo', opcoes, valor: 'equipe', onChange: nada, rotuloId: 'escopo-rotulo' }));
+    expect(porTestId(a, 'nivel')?.props.role).toBe('radiogroup');
+    expect(porTestId(a, 'nivel')?.props['aria-labelledby']).toBe('escopo-rotulo');
+    const radios = a.filter((n) => n.type === 'input');
+    expect(radios.map((r) => r.props.type)).toEqual(['radio', 'radio', 'radio']);
+    expect(radios.every((r) => r.props.name === 'escopo')).toBe(true);
+    expect(radios.map((r) => r.props.checked)).toEqual([false, true, false]);
+  });
+
+  it('opção acima da base: desabilitada, motivo falado na opção e escrito embaixo', () => {
+    const a = nos(SeletorDeNivel({ nome: 'escopo', opcoes, valor: 'equipe', onChange: nada, rotulo: 'Escopo' }));
+    expect(porTestId(a, 'nivel.tenant')?.props.disabled).toBe(true);
+    expect(porTestId(a, 'nivel.carteira')?.props.disabled).toBe(false);
+    const labelTenant = a.filter((n) => n.type === 'label')[2];
+    expect(texto(labelTenant)).toBe('Toda a empresa, travado: Acima do perfil base Supervisor.');
+    const nota = porTestId(a, 'nivel.motivos');
+    expect(nota?.props['aria-hidden']).toBe('true');
+    expect(JSON.stringify(nota?.props.children)).toContain('Acima do perfil base Supervisor.');
+  });
+
+  it('escolher chama onChange com o valor; o grupo travado desabilita tudo', () => {
+    const recebido: string[] = [];
+    const a = nos(SeletorDeNivel({ nome: 'n', opcoes, valor: 'equipe', onChange: (v) => recebido.push(v), rotulo: 'x' }));
+    (porTestId(a, 'nivel.carteira')?.props.onChange as () => void)();
+    expect(recebido).toEqual(['carteira']);
+    const t = nos(SeletorDeNivel({ nome: 'n', opcoes, valor: 'equipe', onChange: nada, rotulo: 'x', desabilitado: true }));
+    expect(t.filter((n) => n.type === 'input').every((r) => r.props.disabled === true)).toBe(true);
+    expect(porTestId(t, 'nivel')?.props['aria-disabled']).toBe(true);
+  });
+});
+
+describe('LinhaDePermissao', () => {
+  it('rótulo com id para o controle; cadeado quando travada; padrão e erro', () => {
+    const a = nos(
+      LinhaDePermissao({
+        id: 'acesso-bko',
+        rotulo: 'BKO',
+        trava: { mensagem: 'Vendedor nunca entra no BKO.' },
+        padrao: 'Padrão: Não',
+        erro: 'A empresa ficaria sem admin.',
+        children: Interruptor({ ligado: false, onChange: nada, rotuloId: 'acesso-bko-rotulo', desabilitado: true, descricaoId: descricaoDaLinha('acesso-bko', { travada: true }) }),
+      }),
+    );
+    const linha = porTestId(a, 'permissao.acesso-bko');
+    expect(linha?.props['data-travada']).toBe('sim');
+    expect(a.find((n) => n.props.id === 'acesso-bko-rotulo')).toBeDefined();
+    expect(porTestId(a, 'permissao.acesso-bko.cadeado.texto')?.props.id).toBe('acesso-bko-trava');
+    expect(texto(porTestId(a, 'permissao.acesso-bko.padrao'))).toBe('Padrão: Não');
+    expect(porTestId(a, 'permissao.acesso-bko.erro')?.props.role).toBe('alert');
+    const sw = a.find((n) => n.props.role === 'switch');
+    expect(sw?.props['aria-describedby']).toBe('acesso-bko-trava');
+  });
+
+  it('sem trava não há cadeado; descricaoDaLinha junta ajuda e trava', () => {
+    const a = nos(LinhaDePermissao({ id: 'p', rotulo: 'Excluir rascunho', ajuda: 'Só rascunho.', children: null }));
+    expect(porTestId(a, 'permissao.p')?.props['data-travada']).toBeUndefined();
+    expect(porTestId(a, 'permissao.p.cadeado')).toBeUndefined();
+    expect(descricaoDaLinha('p', {})).toBeUndefined();
+    expect(descricaoDaLinha('p', { ajuda: true, travada: true })).toBe('p-ajuda p-trava');
+  });
+});
+
 describe('SeletorDePerfis', () => {
   const opcoes = [
     { valor: 'vendedor', rotulo: 'Vendedor', selo: 'Padrão' },
@@ -127,5 +197,29 @@ describe('SeletorDePerfis', () => {
     const a = nos(SeletorDePerfis({ nome: 'p', legenda: 'x', opcoes, marcados: [], onChange: (v, m) => recebido.push([v, m]) }));
     (porTestId(a, 'perfis.vendedor')?.props.onChange as (e: unknown) => void)({ target: { checked: true } });
     expect(recebido).toEqual([['vendedor', true]]);
+  });
+});
+
+describe('ResumoDasMudancas', () => {
+  const mudancas = [
+    { secao: 'pedidos' as const, rotulo: 'Cancelar pedido', antes: 'Equipe', depois: 'Próprio' },
+    { secao: 'onde-entra' as const, rotulo: 'BKO', antes: 'Sim', depois: 'Não' },
+  ];
+
+  it('contagem, afetados, grupos na ordem das seções e texto falado sem seta', () => {
+    const a = nos(ResumoDasMudancas({ mudancas, afetados: 12 }));
+    expect(texto(porTestId(a, 'resumo-mudancas.contagem'))).toBe('2 mudanças · Afeta 12 usuários.');
+    const grupos = a.filter((n) => n.type === 'section').map((s) => s.props['data-testid']);
+    expect(grupos).toEqual(['resumo-mudancas.onde-entra', 'resumo-mudancas.pedidos']);
+    expect(texto(porTestId(a, 'resumo-mudancas.pedidos'))).toBe('PedidosCancelar pedido, de Equipe para Próprio');
+  });
+
+  it('sem mudança: "Nenhuma mudança" e sem afetados', () => {
+    const a = nos(ResumoDasMudancas({ mudancas: [], afetados: 3 }));
+    expect(texto(porTestId(a, 'resumo-mudancas.contagem'))).toBe('Nenhuma mudança');
+  });
+
+  it('resumo em texto para o histórico', () => {
+    expect(resumoEmTexto(mudancas)).toEqual(['Onde entra · BKO: Sim → Não', 'Pedidos · Cancelar pedido: Equipe → Próprio']);
   });
 });

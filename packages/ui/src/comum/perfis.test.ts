@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import * as COMUM from '@macuxi/comum/perfis';
 
 import { ehPerfilPadrao, ORDEM_PERFIL_PADRAO, ROTULO_PERFIL_CURTO, ROTULO_PERFIL_LONGO, rotuloDoPerfil } from './perfis';
+import { ORDEM_PERFIL_BASE, ROTULO_PERFIL_BASE } from '../web/perfis';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
@@ -31,7 +32,10 @@ describe('RD-0014: nome dos 7 perfis padrão, um só em todas as telas', () => {
     expect(Object.values(ROTULO_PERFIL_LONGO).join(' ')).not.toMatch(/\bBKO\b/);
   });
 
-  it('o kit web não tem mapa próprio: nenhum outro arquivo do kit escreve os nomes à mão', () => {
+  it('o kit web não tem mapa próprio: ROTULO_PERFIL_BASE e ORDEM_PERFIL_BASE são os mesmos objetos', () => {
+    expect(ROTULO_PERFIL_BASE).toBe(ROTULO_PERFIL_CURTO);
+    expect(ORDEM_PERFIL_BASE).toBe(ORDEM_PERFIL_PADRAO);
+    // nenhum outro arquivo do kit escreve os nomes à mão
     expect(ler('../web/perfis.ts')).not.toMatch(/admin: 'Admin'/);
   });
 
