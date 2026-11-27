@@ -26,7 +26,7 @@ import { provedoresSyncVendedor } from './sync';
 const A = DOIS_TENANTS.A;
 /** Relógio único do arquivo (T-0042): lido do banco no beforeAll, o mesmo que grava created_at/updated_at. */
 let AGORA!: Date;
-const id = (n: number) => `0f2a0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const id = (n: number) => `0f2b0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 /** Cadastro do Core da fixture, em memória (a consulta real é do Core): o teste não faz SQL em schema de outro módulo. */
 const CADASTRO = (() => {
   const d = dadosDoisTenants('hash-de-teste');

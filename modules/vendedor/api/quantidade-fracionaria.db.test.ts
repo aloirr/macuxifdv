@@ -18,7 +18,7 @@ import { rotaVerPedido } from './pedidos';
 import { provedoresSyncVendedor } from './sync';
 
 const A = DOIS_TENANTS.A;
-const id = (n: number) => `0f2a0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const id = (n: number) => `0f2c0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const IDS = Array.from({ length: 12 }, (_, i) => id(i + 1));
 const CADASTRO = (() => {
   const d = dadosDoisTenants('hash-de-teste');

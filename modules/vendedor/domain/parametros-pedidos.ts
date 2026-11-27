@@ -4,12 +4,11 @@
  * (vale no painel e na API, que sempre revalida).
  */
 import { lerInteiroNaFaixa } from './inteiro-na-faixa';
-import { VALIDADE_MAX_DIAS, VALIDADE_MIN_DIAS } from './orcamento';
+import { VALIDADE_MAX_DIAS, VALIDADE_MIN_DIAS } from './limites-pedido';
 import { TITULO_VENCIDO_DIAS_MAX, TITULO_VENCIDO_DIAS_MIN } from './pagamento';
 
-/* funções: `aprovacao` e `orcamento` se importam; a constante nasceria antes das faixas (ciclo) */
-const msgTituloVencidoDias = () => `Use um número de ${TITULO_VENCIDO_DIAS_MIN} a ${TITULO_VENCIDO_DIAS_MAX}`;
-const msgValidadeOrcamentoDias = () => `Use um número de ${VALIDADE_MIN_DIAS} a ${VALIDADE_MAX_DIAS}`;
+const MSG_TITULO_VENCIDO_DIAS = `Use um número de ${TITULO_VENCIDO_DIAS_MIN} a ${TITULO_VENCIDO_DIAS_MAX}`;
+const MSG_VALIDADE_ORCAMENTO_DIAS = `Use um número de ${VALIDADE_MIN_DIAS} a ${VALIDADE_MAX_DIAS}`;
 
 export type ResultadoParametroPedidos = { ok: true; valor: number } | { ok: false; codigo: 'RN-VEN-13' | 'RN-VEN-18' | 'RN-VEN-22'; mensagem: string };
 
@@ -43,13 +42,13 @@ function conferir(v: unknown, min: number, max: number): number | undefined {
 /** RN-VEN-13: dias de atraso para o título vencido bloquear (inteiro 0..365). */
 export function validarTituloVencidoDias(valor: unknown): ResultadoParametroPedidos {
   const n = conferir(valor, TITULO_VENCIDO_DIAS_MIN, TITULO_VENCIDO_DIAS_MAX);
-  return n !== undefined ? { ok: true, valor: n } : { ok: false, codigo: 'RN-VEN-13', mensagem: msgTituloVencidoDias() };
+  return n !== undefined ? { ok: true, valor: n } : { ok: false, codigo: 'RN-VEN-13', mensagem: MSG_TITULO_VENCIDO_DIAS };
 }
 
 /** RN-VEN-18: validade do orçamento em dias (inteiro 1..90). */
 export function validarValidadeOrcamentoDias(valor: unknown): ResultadoParametroPedidos {
   const n = conferir(valor, VALIDADE_MIN_DIAS, VALIDADE_MAX_DIAS);
-  return n !== undefined ? { ok: true, valor: n } : { ok: false, codigo: 'RN-VEN-18', mensagem: msgValidadeOrcamentoDias() };
+  return n !== undefined ? { ok: true, valor: n } : { ok: false, codigo: 'RN-VEN-18', mensagem: MSG_VALIDADE_ORCAMENTO_DIAS };
 }
 
 /** RN-VEN-22: valor mínimo do pedido em centavos (inteiro de 0 a R$ 100.000,00; 0 = sem mínimo). */
@@ -88,3 +87,9 @@ export function validarAcaoEstoqueInsuficiente(valor: unknown): ResultadoAcaoPar
 export function acaoEstoqueInsuficiente(parametros: Readonly<Record<string, unknown>>): AcaoEstoqueInsuficiente {
   return conferirAcao(parametros['estoque_insuficiente_acao'], ACOES_ESTOQUE_INSUFICIENTE) ?? ACAO_ESTOQUE_INSUFICIENTE_PADRAO;
 }
+
+/** RN-VEN-20: com a ação `orcamento`, o item sem estoque só sai como orçamento (pedido e Transformar). */
+export const estoqueSoOrcamento = (parametros: Readonly<Record<string, unknown>>): boolean => acaoEstoqueInsuficiente(parametros) === 'orcamento';
+
+/** RN-VEN-20: a recusa do servidor quando o item está sem estoque e a ação é só orçamento. */
+export const mensagemEstoqueSoOrcamento = (): string => 'Sem estoque na filial para um dos itens. Reduza a quantidade ou salve como orçamento.';

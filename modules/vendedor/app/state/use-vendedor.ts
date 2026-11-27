@@ -46,7 +46,7 @@ import { idsSemTexto } from '../../domain/busca-seletor';
 import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import { efeitosDosParametrosDoPedido, nivelComAprovacoes } from '../../domain/aprovacao';
-import { acaoEstoqueInsuficiente, pedidoMinimoCents } from '../../domain/parametros-pedidos';
+import { estoqueSoOrcamento, pedidoMinimoCents } from '../../domain/parametros-pedidos';
 import { motivoDeNaoEnviarOSalvo, precisaPerguntarAlcadaNoEnvioSalvo } from '../../domain/botoes-resumo';
 import { itensSemEstoque } from '../lib/alertas-novo-pedido';
 import { financeiroParaAprovacao, modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
@@ -940,7 +940,7 @@ export function useVendedor() {
         cliente: situacaoDoClienteLocal(cliente.id),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         // RN-VEN-20 (v1.0.39): com a ação `orcamento` do tenant, o Transformar não segue com item sem estoque
-        estoque_bloqueia: acaoEstoqueInsuficiente(parametrosRef.current) === 'orcamento',
+        estoque_bloqueia: estoqueSoOrcamento(parametrosRef.current),
         pedido_minimo_cents: pedidoMinimoCents(parametrosRef.current),
         // RN-VEN-43/45: o % gravado do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
         percentual_ajuste_bp: percentualAjusteParaBp(percentualDoDetalhe(d, prazos)),

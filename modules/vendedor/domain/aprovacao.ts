@@ -7,7 +7,7 @@ import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
 import { decisorEhAutor, MSG_APROVACAO_DO_PROPRIO_PEDIDO } from './pedido-em-nome';
 import { aprovacoesFinanceiras, soOrcamentoPorCredito, type FinanceiroParaAprovacao } from './credito-pedido';
-import { acaoCreditoExcedido, acaoEstoqueInsuficiente, pedidoMinimoCents, type AcaoEstoqueInsuficiente } from './parametros-pedidos';
+import { acaoCreditoExcedido, acaoEstoqueInsuficiente, estoqueSoOrcamento, pedidoMinimoCents, type AcaoEstoqueInsuficiente } from './parametros-pedidos';
 import { abaixoDoPedidoMinimo } from './pedido-minimo';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
@@ -117,7 +117,7 @@ export function efeitosDosParametrosDoPedido(i: {
       ...aprovacoesFinanceiras({ prazo_medio_dias: i.prazo_medio_dias, total_cents: i.total_cents, financeiro: f, niveis, acao_credito: acaoCredito }),
       ...(i.tipo === 'pedido' ? aprovacoesDeEstoque({ falta: i.falta_estoque, acao: acaoEstoque, nivel: niveis.estoque }) : []),
     ],
-    itens_sem_estoque_bloqueiam: i.falta_estoque && acaoEstoque === 'orcamento',
+    itens_sem_estoque_bloqueiam: i.falta_estoque && estoqueSoOrcamento(i.parametros),
     abaixo_do_minimo_cents: i.tipo === 'pedido' && abaixoDoPedidoMinimo({ total_cents: i.total_cents, minimo_cents: minimo }) ? minimo : 0,
     credito_so_orcamento: f !== undefined && soOrcamentoPorCredito(credito),
   };

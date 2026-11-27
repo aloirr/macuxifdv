@@ -35,6 +35,7 @@ import {
   aplicacaoMaxOrcamento,
   mensagemCreditoSoOrcamento,
   mensagemPedidoMinimo,
+  mensagemEstoqueSoOrcamento,
   marcaDoRetrato,
   modalidadePadraoDosParametros,
   MSG_RECUSA_FRETE,
@@ -303,7 +304,7 @@ export async function calcularDocumento(
     const ef = rv.efeitos;
     if (ef.abaixo_do_minimo_cents > 0) return rejeitado(itemId, 'RN-VEN-22', mensagemPedidoMinimo(ef.abaixo_do_minimo_cents));
     if (ef.credito_so_orcamento) return rejeitado(itemId, 'RN-VEN-12', mensagemCreditoSoOrcamento(true));
-    if (ef.itens_sem_estoque_bloqueiam) return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
+    if (ef.itens_sem_estoque_bloqueiam) return rejeitado(itemId, 'RN-VEN-20', mensagemEstoqueSoOrcamento());
   }
   // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
   const recebidoEm = agora.toISOString();

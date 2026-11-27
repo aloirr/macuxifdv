@@ -54,7 +54,7 @@ export function modeloDoCredito(f: FinanceiroDaConsulta | null, pedidos: readonl
 /**
  * RN-VEN-12 e RN-VEN-13 (T-0184): o que o pedido precisa saber do crédito para ir (ou não) para aprovação. `null` = o Core não
  * respondeu (`modelo` nulo ou ainda carregando): o app não decide. Sem linha financeira (`vazio`), o limite não foi informado (P4 A).
- * `acao` é o `credito_excedido_acao` do tenant (P-6): só `aprovacao` manda o crédito excedido para aprovação.
+ * A ação do tenant (`credito_excedido_acao`, P-6) entra depois, em `aprovacoesFinanceiras`: só `aprovacao` manda o crédito excedido para aprovação.
  */
 export function financeiroParaAprovacao(modelo: ModeloDoCredito | null | undefined, prazo_medio_dias: number | undefined, limite_dias: number) {
   if (!modelo) return null;

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { somenteDigitos } from '@macuxi/comum';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, CampoFormulario, CLASSE_CAMPO, ErrorBlock, GrupoOpcoesCartao, LoadingBlock, Notice, OpcaoCartao } from '@macuxi/ui/web';
+import { Button, CampoFormulario, CLASSE_CAMPO, ErrorBlock, GrupoOpcoesCartao, IconAlert, LoadingBlock, Notice, OpcaoCartao } from '@macuxi/ui/web';
 import { ParametrosPedidosSchema, ROTA_PARAMETROS_PEDIDOS, type ParametrosPedidos } from '../../contracts';
 import {
   alterado,
@@ -49,7 +49,7 @@ function useParametroPedidos<C extends ChaveDoPainelPedidos>(chave: C) {
   const enviar = (valor: ParametrosPedidos[C], aoGravar?: () => void) => {
     setErroApi(null);
     setSucesso(false);
-    gravar.mutate(valor, { ...(aoGravar ? { onSuccess: aoGravar } : {}) });
+    gravar.mutate(valor, { onSuccess: aoGravar });
   };
   return { q, salvo: q.data?.[chave], gravando: gravar.isPending, sucesso, erroApi, enviar, limparSucesso: () => setSucesso(false), texto: SUCESSO_PARAMETRO[chave] };
 }
@@ -94,6 +94,7 @@ function PainelParametroPedidos({ chave }: { chave: ChaveParametroPedidos }) {
             inputMode="numeric"
             value={texto ?? String(salvo)}
             aria-invalid={erroCampo ? true : undefined}
+              aria-describedby={erroCampo ? 'pedido-minimo-erro' : undefined}
             data-testid={`${testId}.campo`}
             onChange={(e) => {
               setTexto(somenteDigitos(e.target.value));
@@ -173,7 +174,12 @@ export function PedidoMinimoPanel() {
               }}
             />
           </span>
-          {erroCampo && <Notice tone="danger">{erroCampo}</Notice>}
+          {erroCampo && (
+            <span id="pedido-minimo-erro" className="flex items-start gap-1 text-[12px] font-normal text-danger">
+              <IconAlert size={13} className="mt-[2px] shrink-0" />
+              {erroCampo}
+            </span>
+          )}
         </div>
       )}
       <RodapeSalvar testId={testId} ativo={alteradoAgora} gravando={p.gravando} sucesso={p.sucesso} texto={p.texto} onSalvar={salvar} />
