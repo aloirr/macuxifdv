@@ -9,6 +9,7 @@ export * from './totais';
 export * from './quantidade';
 export * from './retorno-erp';
 export * from './inteiro-na-faixa';
+export * from './limites-pedido';
 export * from './orcamento';
 export * from './orcamento-em-aberto';
 export * from './produto-no-rascunho';
