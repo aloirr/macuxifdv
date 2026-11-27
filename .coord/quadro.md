@@ -2,6 +2,51 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **Fechamento de 26/11 (gerente-projetos).** Horários de Manaus.
+> - **No ar: v1.0.38** (tag v1.0.38, 509a3530, 26/11 20h13, sem APK): #833 (core, campos obrigatórios), #835 (vendedor, dias de atraso e validade do orçamento), #836 (testes), #838 (web, teste do menu), #834 (promotor, teste) e #837 ([T-0199](tarefas/T-0199.md), cursor do sync em microssegundos).
+> - **v1.0.37** (tag v1.0.37, e6c4d75e, 26/11 19h48; APKs Campo e Gestão 1.0.37 às 20h08): #801 (0108, catálogo v2), #830 (E4) e #831 (E4b), com o motor novo desligado; ensaio 0105–0108 em produção verde (run 45908291907, ROLLBACK); [T-0197](tarefas/T-0197.md) e [T-0198](tarefas/T-0198.md). O liberar caiu uma vez numa corrida antiga do pré-cadastro e passou no rerun único autorizado (R-20261126-193016-alexandre). #807 e #808 fechados (refeitos no #830 e no #831).
+> - **v1.0.39 (27/11; R-20261126-183412-alexandre):**
+>   - pedido mínimo, crédito excedido (P-6) e estoque insuficiente: desenho e simulação primeiro, às 08h; pontos em aberto ao Alexandre;
+>   - pedido do ERP no FDV: rótulo "Vendedor" para `vendedor_external_id` em `rotuloDoCampo` e o vendedor na correção do recusado (`errosDaRecusaPorColuna`, RN-CORE-78);
+>   - consulta por um cliente no diagnóstico (Teste 003, "A" em R-20261126-184213-alexandre), governança do engenheiro-software;
+>   - estabilização: corrida `tests/integracao/api/pre-cadastro-revisao-v1030.test.ts:390` (modulo-core); oscilações `modules/catalogo/app/desempenho-veiculo.test.ts:129` (modulo-catalogo) e `modules/core/api/vinculo-erp.db.test.ts:197` (modulo-core); #840 (banco-dados, db/testes: catalogo-v2 e deadlocks);
+>   - baixo: "Carregando os campos…" → "Carregando…" (spec menu-parametros §7.1), ajuda do "Preço do orçamento" na spec (designer-ux).
+> - **v1.0.40 ou seguinte:** tela dos perfis e troca do motor (E5, E6; migração 0109 reservada, vai para 0110 se a v1.0.39 precisar de migração).
+> - Corretor: #820 e #792 ainda abertos.
+
+> **Retomada de 26/11 (sessão do Cline, gerente-projetos).** Horários de Manaus.
+> - **No ar: v1.0.36** (tag a10141421, 25/11; issue #822; APKs de Campo e Gestão 1.0.36 publicados às 15h20). A fração (ADR 0076) abre sozinha 24 h depois dos dois APKs.
+> - Tags desde a última atualização deste quadro: v1.0.27 a v1.0.32, v1.0.34, v1.0.35 e v1.0.36. A v1.0.33 foi fechada sem publicar (R-20261125-033145). O registro de cada uma fica nos recados do Agente PO.
+> - **Ensaio das migrações 0105 a 0108** (R-20261125-124720 e -124914): **não rodou**. O workflow "producao — ensaio das migrações" não tem nenhum disparo. Ele roda do main ou de uma tag v*, com o SHA do head do PR que traz as migrações, e precisa da aprovação do environment PRODUCAO. O gerente da sessão do Cline não dispara: o token não tem permissão de Actions.
+> - **v1.0.37 (perfis com o motor novo desligado, R-20261125-121725), estado dos PRs em 26/11:**
+>   - **CI verde e `clean`:**
+>     - #771 (banco, 0105 a 0107);
+>     - #801 (banco, 0108; contém o #771);
+>     - #782 (platform-sdk, catálogo v2);
+>     - #805 (platform-sdk, fim das listas; contém o #782).
+>   - **CI vermelho por "agente ambíguo"**: o PR leva commits de outros donos dos branches de base, e o "verificar donos do PR" barra.
+>     - #802 (core, com o 49323bea do engenheiro-software);
+>     - #803 (pesquisa, idem);
+>     - #804 (promotor, idem);
+>     - #807 (E4, com 9 commits do banco-dados);
+>     - #808 (E4b, idem).
+>   - **Correção, sem force push:** depois que os PRs de base entrarem, cada um é **refeito num branch novo a partir do main**, só com os commits do próprio dono. O PR antigo fecha apontando para o novo. Os pareceres valem no SHA novo, se o diff do dono for o mesmo.
+>   - **Ordem:**
+>     1. #771 sozinho (migração);
+>     2. #801 sozinho (migração);
+>     3. #782;
+>     4. #805, #802, #803 e #804 **juntos**, porque um sem o outro quebra o teste de igualdade (R-20261125-095020);
+>     5. E4 (#807 refeito);
+>     6. E4b (#808 refeito).
+>   - Antes do liberar: o ensaio 0105 a 0108 em produção e o diagnóstico.
+>   - Os PRs do corretor #820 e #792 estão em conflito com o main (`dirty`): o corretor junta o main com merge.
+> - **Defeitos do Campo 1.0.36 (25/11, 21h55), na fila depois da v1.0.37:**
+>   - [T-0197](tarefas/T-0197.md): catálogo vazio dentro do pedido culpa o aparelho;
+>   - [T-0198](tarefas/T-0198.md): Novo pedido sem itens "salva" e some; Salvar inativo até o primeiro item.
+>   - Os dois só chegam aos aparelhos no próximo APK.
+> - **Outros recados de 25/11:**
+>   - pré-cadastro recusado pelo ERP se corrige no BKO, na aba Clientes (R-20261125-154052). O Agente PO confere o log da integração FDV → ERP.
+
 > **PAUSA GERAL** (22/11/2026 ~08h, ordem do Alexandre): tudo parado até a retomada escrita dele. No ar: **v1.0.26** (08h05; #666 + #667). Sessões S17 e S18 interrompidas (o que estava feito fica nos branches `nuvem/v1027-erp-*`).
 > **v1.0.27 (só registrado, nada começa antes da retomada):**
 > - **Cliente novo para o ERP** ("2 A", 22/11): o cliente do pré-cadastro (RF-CORE-10) aprovado no BKO fica disponível na API para o ERP buscar, e o ERP devolve o código dele, como nos pedidos.
