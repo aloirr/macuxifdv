@@ -17,6 +17,9 @@ name: producao — diagnóstico da outbox (só leitura)
 # Contagem do catálogo (opcional, contagem_catalogo; R-20261121-135629): produtos, preços, saldos, nós e, por filial, sem preço e sem estoque.
 # Contagem da integração (opcional, contagem_integracao; v1.0.21, consultas do modulo-integracao): lotes e erros de 30 dias,
 # conectores, cursores, registros no Hub e filiais com tabelas e depósitos. Reprocesso: producao-reprocessar-outbox.yml.
+# Um cliente (opcional, cliente_external_id; v1.0.39, Teste 003, R-20261126-184213): o cliente no FDV (só id, external_id e
+# situação; nunca nome nem documento), a filial e a tabela de preço dele, o registro no Hub e as recusas do Hub com o campo e o
+# código (sem a mensagem nem o payload, que trazem texto do ERP).
 # Empresa padrão do formulário: AM2808 (R-20261120-203901).
 
 on:
@@ -34,6 +37,10 @@ on:
         description: contar também a integração de cada empresa (lotes, erros, conectores, cursores, Hub e filiais)
         type: boolean
         default: false
+      cliente_external_id:
+        description: consultar um cliente pelo external_id do ERP (vazio = não consulta)
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -60,6 +67,7 @@ jobs:
           EMPRESAS: ${{ inputs.empresas }}
           CONTAGEM_CATALOGO: ${{ inputs.contagem_catalogo }}
           CONTAGEM_INTEGRACAO: ${{ inputs.contagem_integracao }}
+          CLIENTE_EXTERNAL_ID: ${{ inputs.cliente_external_id }}
         run: |
           IFS=',' read -ra lista <<< "${EMPRESAS// /}"
           [ "${#lista[@]}" -ge 1 ] && [ "${#lista[@]}" -le 10 ] || { echo "::error::informe de 1 a 10 códigos de empresa"; exit 1; }
@@ -82,6 +90,14 @@ jobs:
           SQL
           if [ "$CONTAGEM_CATALOGO" = true ]; then echo '\set contagem_catalogo true'; else echo '\set contagem_catalogo false'; fi >> "$sql"
           if [ "$CONTAGEM_INTEGRACAO" = true ]; then echo '\set contagem_integracao true'; else echo '\set contagem_integracao false'; fi >> "$sql"
+          # sem aspas, barra invertida nem espaço; no \set vai entre aspas simples (sem elas, o psql trocaria ":max" do valor pela
+          # variável) e no SQL só por :'cliente_eid'
+          cliente="$(printf '%s' "$CLIENTE_EXTERNAL_ID" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+          if [ -z "$cliente" ]; then echo '\set tem_cliente false' >> "$sql"
+          else
+            [[ "$cliente" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$ ]] || { echo "::error::external_id de cliente inválido (letras, números e . _ : / -, até 200)"; exit 1; }
+            { echo '\set tem_cliente true'; echo "\\set cliente_eid '$cliente'"; } >> "$sql"
+          fi
           for c in "${lista[@]}"; do
             [[ "$c" =~ ^[a-z0-9][a-z0-9-]{1,39}$ || "$c" =~ ^[A-Z]{2}[0-9]{4}$ ]] || { echo "::error::código de empresa inválido: $c"; exit 1; }
             sed "s/__CODIGO__/$c/" <<'SQL' >> "$sql"
@@ -316,6 +332,49 @@ jobs:
            group by 1, 2, 3, 4
            order by padrao desc, filial;
           \pset expanded off
+          \endif
+          \if :tem_cliente
+          \echo '--- cliente' :'cliente_eid'
+          \echo 'K1 cliente no FDV (sem linha = não existe nesta empresa)'
+          select c.id, c.external_id,
+                 case when c.deleted_at is not null then 'excluído' when not c.ativo then 'inativo'
+                      when c.status_cadastro <> 'aprovado' then c.status_cadastro
+                      else 'ativo' end as situacao
+            from core.cliente c
+           where c.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and c.external_id = :'cliente_eid'
+           order by c.deleted_at nulls first, c.created_at
+           limit 20;
+          \echo 'K2 filial e tabela de preço do cliente vivo (tabela vazia = sem tabela: todo produto sem preço, RN-CAT-06;'
+          \echo '   com tabela, itens_na_filial 0 = o preço sai da filial padrão, RN-CORE-39)'
+          select f.codigo as filial, f.external_id as filial_external_id, f.padrao, f.ativo and f.deleted_at is null as filial_ativa,
+                 t.codigo as tabela, t.external_id as tabela_external_id, t.ativo and t.deleted_at is null as tabela_ativa,
+                 (select count(*) from catalogo.tabela_preco_item i
+                   where i.tenant_id = c.tenant_id and i.tabela_preco_id = t.id and i.filial_id = c.filial_id
+                     and i.deleted_at is null) as itens_na_filial
+            from core.cliente c
+            left join core.filial f on f.tenant_id = c.tenant_id and f.id = c.filial_id
+            left join catalogo.cliente_tabela_preco ct on ct.tenant_id = c.tenant_id and ct.cliente_id = c.id and ct.deleted_at is null
+            left join catalogo.tabela_preco t on t.tenant_id = ct.tenant_id and t.id = ct.tabela_preco_id
+           where c.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and c.external_id = :'cliente_eid'
+             and c.deleted_at is null;
+          \echo 'K3 registro de cliente no Hub (sem linha = o Hub nunca aceitou este external_id)'
+          select r.ativo, r.deleted_at is not null as excluido,
+                 to_char(r.alterado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as alterado_erp_manaus,
+                 to_char(r.aplicado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as aplicado_manaus
+            from integracao.registro_atual r
+           where r.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and r.entidade = 'cliente'
+             and r.external_id = :'cliente_eid';
+          \echo 'K4 recusas do Hub com este external_id (em_aberto = ainda não resolvida)'
+          select l.entidade, e.campo, e.codigo, e.reprocessavel, (e.resolvido_em is null) as em_aberto,
+                 count(*) as linhas,
+                 to_char(max(l.recebido_em) at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as ultimo_manaus
+            from integracao.lote_linha_erro e
+            join integracao.lote l on l.tenant_id = e.tenant_id and l.id = e.lote_id and l.deleted_at is null
+           where e.tenant_id = (select id from plataforma.tenant_por_codigo('__CODIGO__')) and e.external_id = :'cliente_eid'
+             and e.deleted_at is null
+           group by 1, 2, 3, 4, 5
+           order by max(l.recebido_em) desc
+           limit 50;
           \endif
           \else
           \echo 'empresa não encontrada (código errado ou empresa excluída)'
