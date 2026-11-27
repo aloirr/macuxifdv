@@ -110,6 +110,7 @@ Fora do domínio, também não mudam:
    - O ERP integra de servidor para servidor.
    - **Bucket:** se o PUT assinado do ZIP estiver ligado (`MACUXI_ENVIO_URL_ASSINADA=1`, ADR 0058), o CORS do bucket precisa aceitar `https://fdv.macuxifdv.com.br` (ao lado de `bko.` até o corte). Desligado, como é o padrão, nada muda.
 8. **Links que o sistema gera: `MACUXI_HOSTS_ANTIGOS` (api e worker), padrão LIGADA.**
+   - **Desde a v1.0.42 (R-20261127-174854, decisão 39 A), o padrão virou DESLIGADA (`fdv.`):** só `1`, `true` ou `sim` ligam os hosts antigos; ausente, vazia ou qualquer outro valor deixam os links no `fdv.`. O texto abaixo descreve a leitura da v1.0.33 à v1.0.41.
    - **Leitura** (`hostsAntigosLigados` em `apps/api/src/config.ts`, um lugar só): `0`, `false`, `nao` ou `não` desligam; ausente, vazia, `1`/`true`/`sim` ou qualquer outro valor deixam ligada. É o mesmo padrão do `MACUXI_SESSAO_COOKIE_SEGURO`: valor que não se entende fica no padrão, que é o que funciona antes do corte.
    - **Ligada** (até o corte):
      - botão do e-mail → `https://bko.macuxifdv.com.br`;

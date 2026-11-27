@@ -143,8 +143,8 @@ export function lerSessaoWeb(env: NodeJS.ProcessEnv, hostBanco: string): { segur
 
 /**
  * ADR 0071 (v1.0.33): endereços públicos do web nos links que o sistema gera. Até o corte, o BKO e o portal respondem nos
- * hosts antigos (`bko.`, `config.`) e no novo (`fdv.`, por caminho); os links continuam nos antigos até o dono do produto
- * configurar o `fdv.` na Cloudflare e desligar `MACUXI_HOSTS_ANTIGOS` na VM (ADR 0071, decisão 2).
+ * hosts antigos (`bko.`, `config.`) e no novo (`fdv.`, por caminho). Desde a v1.0.42 (R-20261127-174854) os links vão para o
+ * `fdv.`; `MACUXI_HOSTS_ANTIGOS=1` na VM volta aos antigos (ADR 0071, decisão 8).
  * A API fica em `api.macuxifdv.com.br` nos dois casos.
  */
 export const ENDERECOS_WEB = {
@@ -153,12 +153,12 @@ export const ENDERECOS_WEB = {
 } as const;
 
 /**
- * `MACUXI_HOSTS_ANTIGOS` (api e worker), padrão LIGADA: `0`/`false`/`nao` desliga; ausente, `1`/`true`/`sim` ou outro valor
- * = ligada (mesma leitura do `MACUXI_SESSAO_COOKIE_SEGURO`: valor que não se entende fica no padrão, que é o que funciona hoje).
+ * `MACUXI_HOSTS_ANTIGOS` (api e worker), padrão DESLIGADA desde a v1.0.42 (R-20261127-174854): só `1`/`true`/`sim` (sem
+ * caixa nem espaços) liga os hosts antigos; ausente, vazia ou qualquer outro valor = desligada (links no `fdv.`).
  */
 export function hostsAntigosLigados(env: NodeJS.ProcessEnv): boolean {
   const v = (env.MACUXI_HOSTS_ANTIGOS ?? '').trim().toLowerCase();
-  return !['0', 'false', 'nao', 'não'].includes(v);
+  return ['1', 'true', 'sim'].includes(v);
 }
 
 /**

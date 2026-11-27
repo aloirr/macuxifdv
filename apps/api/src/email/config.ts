@@ -225,7 +225,7 @@ export function lerConfigEmail(env: NodeJS.ProcessEnv, opcoes: { producao?: bool
     avisos.push('sem MACUXI_EMAIL_URL_ATIVOS: o e-mail sai sem o logo (só o texto alternativo)');
   }
   const bkoBruto = valor('MACUXI_EMAIL_URL_BKO');
-  // ADR 0071: sem a variável, a produção usa o padrão da `MACUXI_HOSTS_ANTIGOS`; fora dela (PC, testes) o e-mail sai sem botão,
+  // ADR 0071: sem a variável, a produção usa o padrão da `MACUXI_HOSTS_ANTIGOS` (desligada desde a v1.0.42: `fdv.`); fora dela (PC, testes) o e-mail sai sem botão,
   // para um e-mail local nunca apontar para o BKO de produção
   const bko =
     bkoBruto !== undefined
