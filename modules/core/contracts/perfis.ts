@@ -145,6 +145,8 @@ export const ChaveDoCatalogoSchema = z
     alvos: z.boolean(),
     disponivel: z.boolean(),
     motivo: z.literal(MOTIVO_MODULO_SEM_LICENCA).nullable(),
+    /** `true` = ação de tela do BKO: sem `acesso.bko` no perfil a linha vem "Sem efeito: o perfil não entra no BKO" (ADR 0073 §2.5.10). */
+    so_bko: z.boolean(),
   })
   .strict();
 export type ChaveDoCatalogo = z.infer<typeof ChaveDoCatalogoSchema>;
@@ -161,6 +163,8 @@ export const PerfilResumoV2Schema = z
     ativo: z.boolean(),
     usuarios: z.number().int().nonnegative(),
     onde_entra: z.array(LugarDeAcessoSchema),
+    /** `true` = é o perfil de quem está logado e ele tem a gestão do acesso (autogestão, RN-CORE-35): a tela trava a gestão do acesso. */
+    autogestao: z.boolean(),
   })
   .strict();
 export type PerfilResumoV2 = z.infer<typeof PerfilResumoV2Schema>;
@@ -247,5 +251,35 @@ export const CODIGOS_ERRO_PERFIL_V2 = {
   alterado: 'PERFIL_ALTERADO',
   /** Transição (até a fase 2): os 7 perfis padrão não se apagam nem se desativam (RN-CORE-35; o banco também recusa). */
   padraoFixo: 'PERFIL_PADRAO_FIXO',
+  /** Tenant ainda em `legado` (migração da 0109 parada por conflito ou não ligada): a leitura funciona, a escrita espera o tenant ligar a `concessao`. */
+  naoMigrado: 'PERFIS_NAO_MIGRADOS',
 } as const;
 export const STATUS_PERFIL_ALTERADO = 409;
+
+/** `GET /v1/core/perfis/modelos`: os 7 perfis padrão como modelo, para "Copiar permissões de…" (a cópia vale `copiar_de: { modelo }`). */
+export const ModeloDePerfilItemSchema = z
+  .object({
+    modelo: ModeloDePerfilSchema,
+    nome: z.string(),
+    cargo: CargoSchema,
+    onde_entra: z.array(LugarDeAcessoSchema),
+    permissoes: z.array(z.object({ chave: z.string(), nivel: Nivel.nullable(), alvos: z.array(z.string()).nullable() }).strict()),
+  })
+  .strict();
+export type ModeloDePerfilItem = z.infer<typeof ModeloDePerfilItemSchema>;
+export const ModelosDePerfilRespostaSchema = z.object({ itens: z.array(ModeloDePerfilItemSchema) }).strict();
+export type ModelosDePerfilResposta = z.infer<typeof ModelosDePerfilRespostaSchema>;
+
+/**
+ * `GET /v1/core/perfis/:codigo/historico`: a auditoria do perfil. `mudancas` (só em `perfil.alterar` e `perfil.criar`) é a diferença
+ * de permissões já pronta: `de` = valor antes (`null` = não tinha), `para` = valor depois (`null` = tirou).
+ */
+const ValorDaMudancaSchema = z.object({ nivel: Nivel.nullable(), alvos: z.array(z.string()).nullable() }).strict();
+export const MudancaDePermissaoSchema = z
+  .object({ chave: z.string(), de: ValorDaMudancaSchema.nullable(), para: ValorDaMudancaSchema.nullable() })
+  .strict();
+export type MudancaDePermissao = z.infer<typeof MudancaDePermissaoSchema>;
+export const PerfilHistoricoItemV2Schema = PerfilHistoricoItemSchema.extend({ mudancas: z.array(MudancaDePermissaoSchema) }).strict();
+export type PerfilHistoricoItemV2 = z.infer<typeof PerfilHistoricoItemV2Schema>;
+export const PerfilHistoricoRespostaV2Schema = z.object({ itens: z.array(PerfilHistoricoItemV2Schema), proximo: z.string().nullable() }).strict();
+export type PerfilHistoricoRespostaV2 = z.infer<typeof PerfilHistoricoRespostaV2Schema>;
