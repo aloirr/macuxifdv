@@ -34,6 +34,8 @@ import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, validarPreCa
 import { CodigosDoCliente, textoDosCodigosDoCliente } from '../codigos-cliente';
 import {
   colunaExigida,
+  CAMPO_VENDEDOR,
+  erroDoVendedor,
   errosDaRecusaPorColuna,
   primeiraColunaMarcada,
   rotuloDoCampo,
@@ -240,6 +242,7 @@ function GavetaDoPreCadastro({ item, api, fuso, aoFechar }: { item: RecusadoItem
         {editando ? (
           <FormularioDeCorrecao
             clienteId={item.cliente_id}
+            vendedor={item.vendedor?.nome}
             api={api}
             fuso={fuso}
             aoMudar={() => setSujo(true)}
@@ -321,7 +324,7 @@ interface PropsFormulario {
   aoVerHistorico: () => void;
 }
 
-function FormularioDeCorrecao({ clienteId, ...props }: PropsFormulario & { clienteId: string }) {
+function FormularioDeCorrecao({ clienteId, vendedor, ...props }: PropsFormulario & { clienteId: string; vendedor?: string | undefined }) {
   const { api } = props;
   const atual = useQuery({ queryKey: [...CHAVE_RECUSADOS, 'atual', clienteId], queryFn: () => api.atual(clienteId), gcTime: 0 });
   const apiCampos = useMemo(() => criarApiCamposObrigatorios(), []);
@@ -329,11 +332,11 @@ function FormularioDeCorrecao({ clienteId, ...props }: PropsFormulario & { clien
   if (atual.isError) return <ErrorBlock message={errorMessage(atual.error)} onRetry={() => void atual.refetch()} />;
   if (!atual.data || campos.isPending) return <LoadingBlock label="Carregando o cadastro…" />;
   return (
-    <Formulario {...props} atual={atual.data} exigidos={campos.data ? obrigatoriosDoPreCadastro(campos.data.obrigatorios) : null} />
+    <Formulario {...props} vendedor={vendedor} atual={atual.data} exigidos={campos.data ? obrigatoriosDoPreCadastro(campos.data.obrigatorios) : null} />
   );
 }
 
-function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar, aoVerHistorico }: PropsFormulario & { atual: PreCadastroAtual; exigidos: ReturnType<typeof obrigatoriosDoPreCadastro> | null }) {
+function Formulario({ vendedor, atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar, aoVerHistorico }: PropsFormulario & { vendedor?: string | undefined; atual: PreCadastroAtual; exigidos: ReturnType<typeof obrigatoriosDoPreCadastro> | null }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [valores, setValores] = useState<ValoresPreCadastro>(() => valoresDosDados(atual));
@@ -343,6 +346,7 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
   const [saiu, setSaiu] = useState<ReadonlySet<ColunaFormulario>>(new Set());
   const [aviso, setAviso] = useState<ReactNode>(atual.motivo);
   const raiz = useRef<HTMLFormElement>(null);
+  const erroVendedor = erroDoVendedor(atual.erros);
 
   const rolarAte = (c: ColunaFormulario | null) => {
     if (c) raiz.current?.querySelector(`[data-testid="${P}.form.campo.${c}"]`)?.scrollIntoView({ block: 'center' });
@@ -419,6 +423,11 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
         <Notice tone="danger">
           <span data-testid={`${P}.form.aviso`}>{aviso}</span>
         </Notice>
+      )}
+      {erroVendedor && (
+        <CampoFormulario rotulo={rotuloDoCampo(CAMPO_VENDEDOR)} erro={erroVendedor}>
+          <input className={CLASSE_CAMPO} value={vendedor ?? '—'} readOnly aria-invalid data-testid={`${P}.form.campo.vendedor`} />
+        </CampoFormulario>
       )}
       <div className="grid grid-cols-6 gap-3">
         {GRADE_DA_CORRECAO.map(({ coluna, largura, mascara }) => (

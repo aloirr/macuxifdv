@@ -122,12 +122,19 @@ describe('pré-cadastro no aparelho (RN-CORE-78, RN-CORE-79)', () => {
     expect(sobreporPreCadastros([recusado], [], 'x')).toEqual([recusado]);
   });
 
+  it('RN-CORE-78: a recusa por vendedor_external_id chega à correção como erro_vendedor (campo "Vendedor"), sem marcar coluna', () => {
+    const recusado = linhaCliente({ status_cadastro: 'recusado', revisao_cadastro: 2, erros_recusa: [{ campo: 'vendedor_external_id', codigo: 'V', mensagem: 'Vendedor não existe no ERP' }] });
+    const c = correcaoDoCliente([recusado], [], ID);
+    expect(c?.erro_vendedor).toBe('Vendedor não existe no ERP');
+    expect(c?.erros).toEqual({});
+  });
   it('RN-CORE-78: a correção do recusado pelo ERP abre preenchida, com a revisão vista e os erros por campo na coluna exata', () => {
     const recusado = linhaCliente({ status_cadastro: 'recusado', revisao_cadastro: 3, cidade: 'Manaus', uf: 'AM', latitude: '-3.1', longitude: -60, erros_recusa: [{ campo: 'cep', codigo: 'CEP', mensagem: 'CEP não existe' }, { campo: 'regime', codigo: 'X', mensagem: 'Fora do formulário' }] });
     const c = correcaoDoCliente([recusado], [], ID);
     expect(c?.valores).toMatchObject({ razao_social: 'Mercado Boa Vista', cidade: 'Manaus', uf: 'AM', email: '' });
     expect(c?.base).toEqual({ revisao_base: 3, latitude: -3.1, longitude: -60 });
     expect(c?.erros).toEqual({ cep: 'CEP não existe' });
+    expect(c?.erro_vendedor).toBeNull();
     // linha antiga, sem revisão: o recusado é a revisão 1
     expect(correcaoDoCliente([linhaCliente({ status_cadastro: 'recusado' })], [], ID)?.base.revisao_base).toBe(1);
     expect(correcaoDoCliente([], [], ID)).toBeNull();
