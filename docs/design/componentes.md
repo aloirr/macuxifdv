@@ -192,14 +192,13 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `CampoSenha` (web `@macuxi/ui/web` e mobile `@macuxi/ui/mobile`): o campo de senha único, com o olho só em ícone. Medidas,
   textos e comportamento: `campo-senha/spec.md`. Vale também no login; a lista de regras não entra no login.
 
-### 4.4 Permissões e perfis (BKO; T-0111; spec `docs/design/perfis-de-acesso.md` §12)
-- `LinhaDePermissao`: rótulo, ajuda, "Padrão: X" e o controle à direita; com `trava`, o `Cadeado` logo depois do rótulo.
+### 4.4 Permissões e perfis (BKO; T-0111; tabela do perfil: `docs/design/telas/perfis-tabela-kit.md`, ADR 0073)
+- Tabela do perfil: `TabelaPermissoes`, `GrupoPermissoes`, `LinhaPermissao`, `SeletorEscopo` e `CaixaMarcar` (`perfis-tabela-kit.md`).
 - `Interruptor`: liga/desliga com "Sim"/"Não"/"Em parte" escrito, `role="switch"`, alvo de 44 px; trilho desligado em `disabled`
   (3:1 sobre branco), ligado em `ink`. Em toda página de permissões, liga/desliga é sempre interruptor; caixa fica para listas.
   O ligado é grafite (`ink`) de propósito: é estado, não ação; o Azul noite (`accent`) fica para o botão principal (MC-0018).
-- `SeletorDeNivel`: botões lado a lado sobre rádios nativos (setas do teclado); opção acima do permitido com cadeado e motivo.
 - `SeletorDePerfis`: caixas num `fieldset`, opção "todos" opcional, opção travada com motivo. `Cadeado`: regra no hover, foco e
-  toque, e como descrição para o leitor de tela. `ResumoDasMudancas`: "Rótulo: antes → depois" por seção, falado sem a seta.
+  toque, e como descrição para o leitor de tela.
 
 ### 4.5 Formulário com abas: pendências, saída e salvar (T-0126; spec `docs/design/formulario-pendencias.md`)
 > **T-0166 (12/11):** vale a **falta no campo, só na tentativa** (`formulario-pendencias.md` §0.0; peças no §4.9).
