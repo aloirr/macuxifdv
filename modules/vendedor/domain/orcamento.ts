@@ -37,7 +37,6 @@ export const VALIDADE_ORCAMENTO_DIAS_PADRAO = 7;
 export const PARAMETRO_VALIDADE_ORCAMENTO = 'orcamento.validade_dias';
 /** Chave gravada pelo painel Parâmetros › Pedidos e pelo passo Empresa; a chave antiga (`PARAMETRO_VALIDADE_ORCAMENTO`) segue valendo na leitura. */
 export const PARAMETRO_VALIDADE_ORCAMENTO_DIAS = 'validade_orcamento_dias';
-export { VALIDADE_MIN_DIAS, VALIDADE_MAX_DIAS };
 
 export function validadeOrcamentoDias(parametros: Record<string, unknown>): number {
   // chave nova presente mas inválida cai no padrão (não olha a antiga)
