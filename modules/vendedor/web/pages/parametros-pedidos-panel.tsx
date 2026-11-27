@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { somenteDigitos } from '@macuxi/comum';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, CampoFormulario, CLASSE_CAMPO, ErrorBlock, GrupoOpcoesCartao, IconAlert, LoadingBlock, Notice, OpcaoCartao } from '@macuxi/ui/web';
+import { Button, CampoFormulario, CLASSE_CAMPO, ErrorBlock, GrupoOpcoesCartao, LoadingBlock, Notice, OpcaoCartao } from '@macuxi/ui/web';
 import { ParametrosPedidosSchema, ROTA_PARAMETROS_PEDIDOS, type ParametrosPedidos } from '../../contracts';
 import {
   alterado,
@@ -94,7 +94,6 @@ function PainelParametroPedidos({ chave }: { chave: ChaveParametroPedidos }) {
             inputMode="numeric"
             value={texto ?? String(salvo)}
             aria-invalid={erroCampo ? true : undefined}
-              aria-describedby={erroCampo ? 'pedido-minimo-erro' : undefined}
             data-testid={`${testId}.campo`}
             onChange={(e) => {
               setTexto(somenteDigitos(e.target.value));
@@ -154,7 +153,7 @@ export function PedidoMinimoPanel() {
         <OpcaoCartao nome="pedido-minimo" valor="exigir" selecionada={efetivo === 'exigir'} onSelecionar={() => escolher('exigir')} rotulo="Exigir a partir de" testId={`${testId}.exigir`} />
       </GrupoOpcoesCartao>
       {efetivo === 'exigir' && (
-        <div className="flex max-w-[260px] flex-col gap-1">
+        <CampoFormulario rotulo="Valor mínimo" erro={erroCampo} className="max-w-[260px] [&>span:first-child]:sr-only">
           <span className="text-[13px] font-normal text-ink-2">Abaixo desse valor, o pedido só sai como orçamento.</span>
           <span className="relative block">
             <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[15px] text-ink-2">
@@ -163,7 +162,6 @@ export function PedidoMinimoPanel() {
             <input
               className={`${CLASSE_CAMPO} pl-10`}
               inputMode="decimal"
-              aria-label="Valor mínimo"
               value={valorTexto}
               aria-invalid={erroCampo ? true : undefined}
               data-testid={`${testId}.campo`}
@@ -174,13 +172,7 @@ export function PedidoMinimoPanel() {
               }}
             />
           </span>
-          {erroCampo && (
-            <span id="pedido-minimo-erro" className="flex items-start gap-1 text-[12px] font-normal text-danger">
-              <IconAlert size={13} className="mt-[2px] shrink-0" />
-              {erroCampo}
-            </span>
-          )}
-        </div>
+        </CampoFormulario>
       )}
       <RodapeSalvar testId={testId} ativo={alteradoAgora} gravando={p.gravando} sucesso={p.sucesso} texto={p.texto} onSalvar={salvar} />
     </div>
