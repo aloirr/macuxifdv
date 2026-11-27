@@ -42,7 +42,7 @@ export function CamposObrigatoriosPanel({ cliente }: { cliente?: ApiCamposObriga
   return (
     <div className="flex flex-col gap-4" data-testid={`${P}.painel`}>
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-      {q.isPending && <LoadingBlock label="Carregando os campos…" />}
+      {q.isPending && <LoadingBlock label="Carregando…" />}
       {aviso?.tom === 'danger' && (
         <Notice tone="danger" onClose={() => setAviso(null)}>
           <span data-testid={`${P}.aviso`}>{aviso.texto}</span>

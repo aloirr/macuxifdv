@@ -25,7 +25,7 @@ import {
   sobreporPreCadastros,
   type BaseDaCorrecao,
 } from '../lib/pre-cadastro-local';
-import { colunaExigida, COLUNAS_FORMULARIO, primeiraColunaMarcada, rotuloDoCampo, valoresDosDados, type ColunaFormulario as Coluna, type ValoresPreCadastro } from '../lib/pre-cadastro-formulario';
+import { CAMPO_VENDEDOR, colunaExigida, COLUNAS_FORMULARIO, primeiraColunaMarcada, rotuloDoCampo, valoresDosDados, type ColunaFormulario as Coluna, type ValoresPreCadastro } from '../lib/pre-cadastro-formulario';
 
 export interface PropsTelaNovoClientePreCadastro {
   /** "Corrigir e reenviar": abre o formulário preenchido do mesmo cliente (mesmo id), que vai como revisão nova. */
@@ -58,6 +58,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const [base, setBase] = useState<BaseDaCorrecao | null>(null);
   // erros por campo da recusa: marcados desde a entrada; a marca de um campo sai quando o valor dele muda (spec §3.1)
   const [errosRecusa, setErrosRecusa] = useState<Partial<Record<Coluna, string>>>({});
+  const [erroVendedor, setErroVendedor] = useState<string | null>(null);
   const [valores, setValores] = useState<ValoresPreCadastro>(vazioDoFormulario);
   const [alterado, setAlterado] = useState(false);
   const [tentou, setTentou] = useState(false);
@@ -90,6 +91,7 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
         setValores(correcao.valores);
         setBase(correcao.base);
         setErrosRecusa(correcao.erros);
+        setErroVendedor(correcao.erro_vendedor);
         setMotivo(situacaoDoPreCadastro(atual).motivo);
         setCodigoFdv(atual.codigo_fdv ?? null);
       } else if (clienteId) {
@@ -206,6 +208,12 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }} testID="novo-cliente-motivo" accessibilityRole="alert">
             <Icon name="alert" size={16} color={colors.danger} />
             <Text style={[t.sub, { flex: 1, color: colors.danger }]}>{motivo}</Text>
+          </View>
+        ) : null}
+        {erroVendedor ? (
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }} testID="novo-cliente-vendedor" accessibilityRole="alert">
+            <Icon name="alert" size={16} color={colors.danger} />
+            <Text style={[t.sub, { flex: 1, color: colors.danger }]}>{`${rotuloDoCampo(CAMPO_VENDEDOR)}: ${erroVendedor}`}</Text>
           </View>
         ) : null}
         {campoTexto('documento', { mascara: 'documento' })}

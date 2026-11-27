@@ -34,6 +34,8 @@ import { FALTA_OBRIGATORIO_PRE_CADASTRO, obrigatoriosDoPreCadastro, validarPreCa
 import { CodigosDoCliente, textoDosCodigosDoCliente } from '../codigos-cliente';
 import {
   colunaExigida,
+  CAMPO_VENDEDOR,
+  erroDoVendedor,
   errosDaRecusaPorColuna,
   primeiraColunaMarcada,
   rotuloDoCampo,
@@ -343,6 +345,7 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
   const [saiu, setSaiu] = useState<ReadonlySet<ColunaFormulario>>(new Set());
   const [aviso, setAviso] = useState<ReactNode>(atual.motivo);
   const raiz = useRef<HTMLFormElement>(null);
+  const erroVendedor = erroDoVendedor(atual.erros);
 
   const rolarAte = (c: ColunaFormulario | null) => {
     if (c) raiz.current?.querySelector(`[data-testid="${P}.form.campo.${c}"]`)?.scrollIntoView({ block: 'center' });
@@ -418,6 +421,11 @@ function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar,
       {aviso && (
         <Notice tone="danger">
           <span data-testid={`${P}.form.aviso`}>{aviso}</span>
+        </Notice>
+      )}
+      {erroVendedor && (
+        <Notice tone="danger">
+          <span data-testid={`${P}.form.campo.vendedor`}>{`${rotuloDoCampo(CAMPO_VENDEDOR)}: ${erroVendedor}`}</span>
         </Notice>
       )}
       <div className="grid grid-cols-6 gap-3">

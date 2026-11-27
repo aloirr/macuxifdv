@@ -8,7 +8,7 @@ import { somenteDigitos } from '@macuxi/comum';
 import { definirEntidadeSync, type MotorSync } from '@macuxi/platform-sdk';
 import { PreCadastroClienteSchema, type CampoCadastroCliente, type ClienteSync, type PreCadastroCliente } from '../../contracts';
 import { camposExigidosDasLinhas, MOTIVO_ENVIO_FALHOU, obrigatoriosDoPreCadastro, validarPreCadastro } from '../../domain';
-import { dadosDoFormulario, errosDaRecusaPorColuna, valoresDosDados, type ColunaFormulario, type ValoresPreCadastro } from './pre-cadastro-formulario';
+import { dadosDoFormulario, erroDoVendedor, errosDaRecusaPorColuna, valoresDosDados, type ColunaFormulario, type ValoresPreCadastro } from './pre-cadastro-formulario';
 
 /** Entidade de push do pré-cadastro (a API do Core a recebe com este nome). */
 export const ENTIDADE_PRE_CADASTRO = 'cliente_pre_cadastro';
@@ -137,6 +137,8 @@ export interface CorrecaoAberta {
   valores: ValoresPreCadastro;
   base: BaseDaCorrecao;
   erros: Partial<Record<ColunaFormulario, string>>;
+  /** Recusa do ERP por `vendedor_external_id`: sai no campo "Vendedor" (só leitura). */
+  erro_vendedor: string | null;
 }
 
 /**
@@ -151,13 +153,14 @@ export function correcaoDoCliente(clientes: readonly ClienteSync[], itens: reado
   const revisaoDoServidor = doPull?.revisao_cadastro ?? (doPull?.status_cadastro === 'recusado' ? 1 : null);
   const servidorMaisNovo = fila?.revisao_base != null && revisaoDoServidor !== null && revisaoDoServidor > fila.revisao_base;
   if (fila && !servidorMaisNovo) {
-    return { valores: valoresDosDados(fila), base: { revisao_base: fila.revisao_base ?? null, latitude: fila.latitude ?? null, longitude: fila.longitude ?? null }, erros: {} };
+    return { valores: valoresDosDados(fila), base: { revisao_base: fila.revisao_base ?? null, latitude: fila.latitude ?? null, longitude: fila.longitude ?? null }, erros: {}, erro_vendedor: null };
   }
   if (!doPull) return null;
   return {
     valores: valoresDosDados(doPull),
     base: { revisao_base: revisaoDoServidor, latitude: numeroOuNulo(doPull.latitude), longitude: numeroOuNulo(doPull.longitude) },
     erros: doPull.status_cadastro === 'recusado' ? errosDaRecusaPorColuna(doPull.erros_recusa) : {},
+    erro_vendedor: doPull.status_cadastro === 'recusado' ? erroDoVendedor(doPull.erros_recusa) : null,
   };
 }
 

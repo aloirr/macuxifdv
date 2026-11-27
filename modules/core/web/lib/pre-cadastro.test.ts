@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { CorrecaoPreCadastroSchema, type HistoricoPreCadastro, type PreCadastroAtual, type TentativaPreCadastro } from '../../contracts';
@@ -143,5 +144,13 @@ describe('RN-CORE-16: Salvar do painel de campos obrigatórios só liga com alte
     expect(listaAlterada(['razao_social', 'documento', 'cep'], ['cep', 'documento', 'razao_social'])).toBe(false);
     expect(listaAlterada(['razao_social', 'documento', 'cep', 'email'], ['razao_social', 'documento', 'cep'])).toBe(true);
     expect(listaAlterada(['razao_social', 'documento'], ['razao_social', 'documento', 'cep'])).toBe(true);
+  });
+});
+
+describe('RN-CORE-78: recusa do vendedor no formulário do BKO', () => {
+  it('a linha "Vendedor" (aviso) leva o erro de vendedor_external_id, só quando existe', () => {
+    const fonte = readFileSync(new URL('../components/pre-cadastro/pre-cadastros-recusados.tsx', import.meta.url), 'utf8');
+    expect(fonte).toContain('const erroVendedor = erroDoVendedor(atual.erros);');
+    expect(fonte).toMatch(/\{erroVendedor && \(\s*<Notice tone="danger">\s*<span data-testid=\{`\$\{P\}\.form\.campo\.vendedor`\}>\{`\$\{rotuloDoCampo\(CAMPO_VENDEDOR\)\}: \$\{erroVendedor\}`\}/);
   });
 });
