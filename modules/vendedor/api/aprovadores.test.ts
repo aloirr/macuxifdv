@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ContextoBase } from '@macuxi/platform-sdk';
 import { PutAprovadoresRequest } from '../contracts';
 import manifest from '../manifest';
-import { nivelDoEstoque, niveisDosParametros } from '../domain';
+import { niveisDosParametros } from '../domain';
 import { rotaGravarAprovadores } from './aprovadores';
 
 describe('T-0184 (P2 B, P5 B): quem aprova crédito e inadimplência (Parâmetros › Pedidos)', () => {
@@ -12,7 +12,7 @@ describe('T-0184 (P2 B, P5 B): quem aprova crédito e inadimplência (Parâmetro
     const r = await rotaGravarAprovadores.executar(ctx as never);
     expect(gravado).toEqual([{ 'aprovacao.credito_nivel': 'analista', 'aprovacao.inadimplencia_nivel': 'supervisor' }]);
     expect(r).toEqual({ aprovador_credito: 'analista', aprovador_inadimplencia: 'supervisor' });
-    expect(niveisDosParametros(gravado[0]!)).toEqual({ credito: 'analista', inadimplencia: 'supervisor' });
+    expect(niveisDosParametros(gravado[0]!)).toMatchObject({ credito: 'analista', inadimplencia: 'supervisor' });
   });
   it('RN-VEN-12: nível fora de supervisor, gerente e analista é recusado pelo contrato', () => {
     expect(PutAprovadoresRequest.safeParse({ aprovador_credito: 'diretor', aprovador_inadimplencia: 'gerente' }).success).toBe(false);
@@ -28,7 +28,7 @@ describe('T-0184 (P2 B, P5 B): quem aprova crédito e inadimplência (Parâmetro
     const r = await rotaGravarAprovadores.executar(ctx as never);
     expect(gravado).toEqual([{ 'aprovacao.credito_nivel': 'gerente', 'aprovacao.inadimplencia_nivel': 'gerente', 'aprovacao.estoque_nivel': 'supervisor' }]);
     expect(r).toEqual({ aprovador_credito: 'gerente', aprovador_inadimplencia: 'gerente', aprovador_estoque: 'supervisor' });
-    expect(nivelDoEstoque(gravado[0]!)).toBe('supervisor');
+    expect(niveisDosParametros(gravado[0]!).estoque).toBe('supervisor');
     expect(PutAprovadoresRequest.safeParse({ aprovador_credito: 'gerente', aprovador_inadimplencia: 'gerente', aprovador_estoque: 'diretor' }).success).toBe(false);
   });
 });

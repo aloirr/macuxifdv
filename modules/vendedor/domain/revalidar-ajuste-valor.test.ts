@@ -110,14 +110,14 @@ describe('revalidarPedido: crédito e inadimplência (RN-VEN-12, RN-VEN-13, T-01
     expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: { ...fin, disponivel_cents: t - 1 } }))).toMatchObject({ ok: true, status: 'pending_approval', motivos: ['credito'] });
     expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: { ...fin, disponivel_cents: t } }))).toMatchObject({ ok: true, status: 'approved' });
   });
-  it('RN-VEN-12 (P4 A): sem limite informado, a prazo vai para aprovação; à vista não', () => {
+  it('RN-VEN-12: sem limite informado é sem restrição de crédito, a prazo ou à vista', () => {
     const sem = { ...fin, limite_informado: false, disponivel_cents: 0 };
-    expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: sem }))).toMatchObject({ ok: true, status: 'pending_approval', motivos: ['credito'] });
+    expect(revalidarPedido(entrada({ prazo_medio_dias: 28, financeiro: sem }))).toMatchObject({ ok: true, status: 'approved', motivos: [] });
     expect(revalidarPedido(entrada({ prazo_medio_dias: 0, financeiro: sem }))).toMatchObject({ ok: true, status: 'approved' });
   });
   it('RN-VEN-10, RN-VEN-12 e RN-VEN-13 (P3 B): desconto, crédito e inadimplência juntos abrem três aprovações e o nível do pedido é o maior', () => {
     const r = revalidarPedido(
-      entrada({ desconto_pct: 8, prazo_medio_dias: 28, financeiro: { ...vencido, disponivel_cents: 0 }, niveis_financeiros: { credito: 'gerente', inadimplencia: 'analista' } }),
+      entrada({ desconto_pct: 8, prazo_medio_dias: 28, financeiro: { ...vencido, disponivel_cents: 0 }, parametros: { 'aprovacao.inadimplencia_nivel': 'analista' } }),
     );
     expect(r).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'analista', motivos: ['desconto', 'credito', 'inadimplencia'] });
     expect(r.ok && r.aprovacoes.map((a) => [a.motivo, a.nivel])).toEqual([['desconto', 'supervisor'], ['credito', 'gerente'], ['inadimplencia', 'analista']]);

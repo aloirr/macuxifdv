@@ -9,7 +9,6 @@ import {
   emitidoEm,
   decidirAprovacao,
   niveisDosParametros,
-  nivelDoEstoque,
   aprovacoesDeEstoque,
   MOTIVO_REJEICAO_MIN,
   montarPedidoAprovado,
@@ -318,11 +317,11 @@ describe('decidirAprovacao (uma aprovação por motivo, T-0184)', () => {
 
 describe('niveisDosParametros (P2 B, P5 B)', () => {
   it('RN-VEN-12 e RN-VEN-13: o padrão dos dois parâmetros é gerente, também com valor ausente ou inválido', () => {
-    expect(niveisDosParametros({})).toEqual({ credito: 'gerente', inadimplencia: 'gerente' });
-    expect(niveisDosParametros({ 'aprovacao.credito_nivel': 'diretor', 'aprovacao.inadimplencia_nivel': 3 })).toEqual({ credito: 'gerente', inadimplencia: 'gerente' });
+    expect(niveisDosParametros({})).toEqual({ credito: 'gerente', inadimplencia: 'gerente', estoque: 'gerente' });
+    expect(niveisDosParametros({ 'aprovacao.credito_nivel': 'diretor', 'aprovacao.inadimplencia_nivel': 3 })).toEqual({ credito: 'gerente', inadimplencia: 'gerente', estoque: 'gerente' });
   });
   it('RN-VEN-12 e RN-VEN-13: lê supervisor, gerente e analista de cada parâmetro', () => {
-    expect(niveisDosParametros({ 'aprovacao.credito_nivel': 'analista', 'aprovacao.inadimplencia_nivel': 'supervisor' })).toEqual({ credito: 'analista', inadimplencia: 'supervisor' });
+    expect(niveisDosParametros({ 'aprovacao.credito_nivel': 'analista', 'aprovacao.inadimplencia_nivel': 'supervisor' })).toEqual({ credito: 'analista', inadimplencia: 'supervisor', estoque: 'gerente' });
   });
 });
 
@@ -442,10 +441,10 @@ describe('RN-VEN-10 e RN-GES-04: ninguém aprova o próprio pedido; o motivo sob
 });
 
 describe('RN-VEN-20: estoque insuficiente com a ação aprovacao abre a aprovação do motivo estoque', () => {
-  it('RN-VEN-20: nivelDoEstoque lê aprovacao.estoque_nivel e o padrão é gerente, também com valor inválido', () => {
-    expect(nivelDoEstoque({})).toBe('gerente');
-    expect(nivelDoEstoque({ 'aprovacao.estoque_nivel': 'analista' })).toBe('analista');
-    expect(nivelDoEstoque({ 'aprovacao.estoque_nivel': 'diretor' })).toBe('gerente');
+  it('RN-VEN-20: niveisDosParametros lê aprovacao.estoque_nivel e o padrão é gerente, também com valor inválido', () => {
+    expect(niveisDosParametros({}).estoque).toBe('gerente');
+    expect(niveisDosParametros({ 'aprovacao.estoque_nivel': 'analista' }).estoque).toBe('analista');
+    expect(niveisDosParametros({ 'aprovacao.estoque_nivel': 'diretor' }).estoque).toBe('gerente');
   });
   it('RN-VEN-20: só com falta de estoque e a ação aprovacao há aprovação por estoque', () => {
     expect(aprovacoesDeEstoque({ falta: true, acao: 'aprovacao', nivel: 'supervisor' })).toEqual([{ motivo: 'estoque', nivel: 'supervisor', texto: 'Item acima do estoque da filial: aguardando supervisor' }]);
@@ -454,7 +453,7 @@ describe('RN-VEN-20: estoque insuficiente com a ação aprovacao abre a aprovaç
     expect(aprovacoesDeEstoque({ falta: true, acao: 'orcamento', nivel: 'gerente' })).toEqual([]);
   });
   it('RN-VEN-20: o pedido dentro da alçada, com estoque por aprovação, vai para pending_approval com o motivo estoque', () => {
-    const r = revalidarPedido(entrada({ estoque_insuficiente: { nivel: 'gerente' } }));
+    const r = revalidarPedido(entrada({ parametros: { estoque_insuficiente_acao: 'aprovacao' }, falta_estoque: true }));
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.status).toBe('pending_approval');
@@ -470,11 +469,11 @@ describe('RN-VEN-20: estoque insuficiente com a ação aprovacao abre a aprovaç
 
 describe('RN-VEN-12: ação do crédito dentro do revalidarPedido', () => {
   const financeiro = { limite_informado: true, disponivel_cents: 0, maior_atraso_dias: 0, limite_dias: 5 };
-  it('RN-VEN-12: crédito excedido com acao_credito avisar não abre aprovação; com aprovacao (padrão) abre', () => {
+  it('RN-VEN-12: crédito excedido com credito_excedido_acao avisar não abre aprovação; com aprovacao (padrão) abre', () => {
     const base = { financeiro, prazo_medio_dias: 28 };
     const padrao = revalidarPedido(entrada(base));
     expect(padrao.ok && padrao.motivos).toEqual(['credito']);
-    const avisar = revalidarPedido(entrada({ ...base, acao_credito: 'avisar' }));
+    const avisar = revalidarPedido(entrada({ ...base, parametros: { credito_excedido_acao: 'avisar' } }));
     expect(avisar.ok && avisar.status).toBe('approved');
   });
 });

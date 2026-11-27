@@ -26,7 +26,7 @@ import { provedoresSyncVendedor } from './sync';
 const A = DOIS_TENANTS.A;
 /** Relógio único do arquivo (T-0042): lido do banco no beforeAll, o mesmo que grava created_at/updated_at. */
 let AGORA!: Date;
-const id = (n: number) => `0f2a0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const id = (n: number) => `0f2b0000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 /** Cadastro do Core da fixture, em memória (a consulta real é do Core): o teste não faz SQL em schema de outro módulo. */
 const CADASTRO = (() => {
   const d = dadosDoisTenants('hash-de-teste');
@@ -193,7 +193,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: pedido mínimo, crédito exce
     });
     it('RN-VEN-22: um centavo abaixo do mínimo é recusado (rejeitado, nada gravado); no mínimo passa', async () => {
       const { r } = await enviar(2, { pedido_minimo_cents: 250_001 });
-      expect(r).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-22', mensagem: expect.stringMatching(/^Pedido abaixo do mínimo de R\$\s2\.500,01\. Envie como orçamento/) });
+      expect(r).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-22', mensagem: expect.stringMatching(/^Pedido abaixo do mínimo de R\$\s2\.500,01\. Aumente o pedido ou salve como orçamento/) });
       expect((await lerPedido(id(2))).p).toBeUndefined();
       expect((await enviar(3, { pedido_minimo_cents: 250_000 })).r).toMatchObject({ status: 'aceito' });
     });
@@ -244,6 +244,22 @@ describe.skipIf(semBanco())('Vendedor × Postgres: pedido mínimo, crédito exce
       expect((await lerPedido(id(13))).p.status).toBe('approved');
       await comFinanceiro({ ...semCredito, maior_atraso_dias: 12, vencidos_qtd: 1, vencidos_cents: 8_000 }, () => enviar(14, { credito_excedido_acao: 'avisar' }));
       expect((await aprovacoesDe(id(14))).map((a) => a.motivo)).toEqual(['inadimplencia']);
+    });
+  });
+
+  describe('RN-VEN-12: cliente sem limite informado pelo ERP é sem restrição de crédito', () => {
+    const semLimite = { ...FINANCEIRO_FOLGADO, limite_cents: 0, credito_disponivel_erp_cents: null };
+    it('RN-VEN-12: sem limite, a prazo, nenhuma ação (aprovacao, orcamento, avisar) abre aprovação de crédito nem recusa; linha financeira ausente idem', async () => {
+      const acoes = ['aprovacao', 'orcamento', 'avisar'] as const;
+      for (const [i, acao] of acoes.entries()) {
+        const { r } = await comFinanceiro(semLimite, () => enviar(15 + i, { credito_excedido_acao: acao }));
+        expect(r).toMatchObject({ status: 'aceito' });
+        expect((await lerPedido(id(15 + i))).p).toMatchObject({ status: 'approved', motivos_aprovacao: [] });
+        expect(await aprovacoesDe(id(15 + i))).toEqual([]);
+      }
+      const { r } = await comFinanceiro(null, () => enviar(18, { credito_excedido_acao: 'orcamento' }));
+      expect(r).toMatchObject({ status: 'aceito' });
+      expect(await aprovacoesDe(id(18))).toEqual([]);
     });
   });
 
