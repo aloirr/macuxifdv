@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { alternarMarcado, ALVO_TODOS_PERFIS, CADEADO, contagemNaoSalva, ORDEM_PERFIL_BASE, resumoDosAlvos, SECOES_DO_PERFIL } from './perfis';
+import {
+  agruparMudancas,
+  alternarMarcado,
+  ALVO_TODOS_PERFIS,
+  CADEADO,
+  contagemDeMudancas,
+  contagemNaoSalva,
+  ORDEM_PERFIL_BASE,
+  resumoDosAlvos,
+  SECOES_DO_PERFIL,
+  textoDaMudanca,
+  textoDosAfetados,
+  textoFaladoDaMudanca,
+  textoOndeEntra,
+  tituloDaSecao,
+  type MudancaDePermissao,
+} from './perfis';
 import * as perfis from './perfis';
 
 /** Código interno que nunca aparece para o cliente (R-20261124-094002). */
@@ -22,13 +38,37 @@ describe('perfis de acesso: textos e arrumação (T-0111)', () => {
       'Integração (BKO)',
       'Outras permissões',
     ]);
+    expect(tituloDaSecao('pedidos')).toBe('Pedidos');
     expect(ORDEM_PERFIL_BASE).toHaveLength(7);
   });
 
-  it('contagem das mudanças não salvas no singular e no plural', () => {
-    expect(contagemNaoSalva(0)).toBe('Nenhuma mudança');
+  it('agrupa o que mudou pela ordem das seções e ignora o que não mudou', () => {
+    const m: MudancaDePermissao[] = [
+      { secao: 'pedidos', rotulo: 'Cancelar pedido', antes: 'Equipe', depois: 'Próprio' },
+      { secao: 'onde-entra', rotulo: 'BKO', antes: 'Sim', depois: 'Não' },
+      { secao: 'pedidos', rotulo: 'Excluir rascunho', antes: 'Sim', depois: 'Sim' },
+      { secao: 'pedidos', rotulo: 'Aprovar desconto e crédito', antes: 'Não', depois: 'Até a alçada' },
+    ];
+    const g = agruparMudancas(m);
+    expect(g.map((x) => x.titulo)).toEqual(['Onde entra', 'Pedidos']);
+    expect(g[1]?.itens.map((x) => x.rotulo)).toEqual(['Cancelar pedido', 'Aprovar desconto e crédito']);
+  });
+
+  it('texto visível com seta e texto falado sem seta', () => {
+    const m: MudancaDePermissao = { secao: 'pedidos', rotulo: 'Cancelar pedido', antes: 'Equipe', depois: 'Próprio' };
+    expect(textoDaMudanca(m)).toBe('Cancelar pedido: Equipe → Próprio');
+    expect(textoFaladoDaMudanca(m)).toBe('Cancelar pedido, de Equipe para Próprio');
+  });
+
+  it('contagens no singular e no plural', () => {
+    expect(contagemDeMudancas(0)).toBe('Nenhuma mudança');
+    expect(contagemDeMudancas(1)).toBe('1 mudança');
+    expect(contagemDeMudancas(3)).toBe('3 mudanças');
     expect(contagemNaoSalva(1)).toBe('1 mudança não salva');
     expect(contagemNaoSalva(2)).toBe('2 mudanças não salvas');
+    expect(textoDosAfetados(0)).toBe('Nenhum usuário tem este perfil.');
+    expect(textoDosAfetados(1)).toBe('Afeta 1 usuário.');
+    expect(textoDosAfetados(12)).toBe('Afeta 12 usuários.');
   });
 
   it('resumo dos perfis-alvo da senha', () => {
@@ -45,6 +85,13 @@ describe('perfis de acesso: textos e arrumação (T-0111)', () => {
     expect(alternarMarcado(['vendedor', 'supervisor'], 'vendedor', ordem)).toEqual(['supervisor']);
     expect(alternarMarcado(['vendedor'], ALVO_TODOS_PERFIS, ordem)).toEqual([ALVO_TODOS_PERFIS]);
     expect(alternarMarcado([ALVO_TODOS_PERFIS], ALVO_TODOS_PERFIS, ordem)).toEqual([]);
+  });
+
+  it('onde entra, em frase', () => {
+    expect(textoOndeEntra([])).toBe('Não entra em nenhum app nem no BKO.');
+    expect(textoOndeEntra(['campo'])).toBe('Entra em: Campo.');
+    expect(textoOndeEntra(['bko', 'gestao'])).toBe('Entra em: Gestão e BKO.');
+    expect(textoOndeEntra(['portal', 'bko', 'campo'])).toBe('Entra em: Campo, BKO e Portal.');
   });
 
   it('nenhum texto visível traz código interno (R-20261124-094002)', () => {
