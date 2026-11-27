@@ -343,6 +343,17 @@ jobs:
             ssh -l "$USUARIO" prod 'rm -f /opt/macuxi/certs/dbaas-ca.pem'
           fi
 
+      - name: aviso de host antigo nas URLs do .env da VM (só o nome, nunca o valor)
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          # v1.0.42 (R-20261127-174854; ADR 0071, decisão 8): o padrão dos links virou fdv.; uma URL explícita com bko. ou
+          # config. vale por cima dele. O sed roda na VM e devolve só o nome da variável (o valor não sai de lá); só avisa.
+          nomes="$(ssh -l "$USUARIO" prod "sed -n -E 's/^[[:space:]]*(export[[:space:]]+)?(MACUXI_EMAIL_URL_BKO|MACUXI_DIAGNOSTICOS_PORTAL_URL)[[:space:]]*=.*(bko|config)[.].*/\2/p' /opt/macuxi/.env" 2>/dev/null)" || nomes=''
+          for nome in $(printf '%s\n' "$nomes" | grep -E '^(MACUXI_EMAIL_URL_BKO|MACUXI_DIAGNOSTICOS_PORTAL_URL)$' | sort -u); do
+            echo "::warning::$nome no /opt/macuxi/.env aponta para host antigo (bko. ou config.): remova ou troque pelo fdv. (ADR 0071)"
+          done
+
       - name: publicar (login no GHCR na VM, banco, compose up, conferência, volta atrás se falhar)
         env:
           USUARIO: ${{ secrets.PROD_USER }}
