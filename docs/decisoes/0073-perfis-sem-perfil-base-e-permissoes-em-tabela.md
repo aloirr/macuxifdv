@@ -357,6 +357,8 @@ Nenhum evento existente leva `base`; nada precisa de `@v2`.
 - Banco (banco-dados): §5.
 - Core (modulo-core): CRUD de perfis e catálogo (§4.2), cadastro de usuário sem base, senha e último admin pela gestão do acesso,
   `promotor_ve_pedidos` vira `pedido.ver`.
+- Promotor vê pedidos (limitação, Caminho C, R-20261127-165252): o BKO não tem tela para tenant em legado; nele, só se ajusta pela
+  API `GET|PUT /v1/core/parametros/promotor-ve-pedidos`. Nos tenants em concessão vale a permissão `pedido.ver` do perfil.
 - Catálogo (modulo-catalogo): `promotor_ve_preco_estoque` vira `produto.ver_preco_estoque`.
 - Vendedor, Gestor, Pesquisa, Treinamento, Promotor, Integração: trocar comparações de nome de perfil por chave ou cargo (§1.3);
   manifestos com `cargos` no lugar de `perfis`.
