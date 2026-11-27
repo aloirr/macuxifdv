@@ -8,8 +8,10 @@ import type { UsuarioAcesso } from './acesso';
 import {
   autorizarRotaPeloCargo,
   camposPeloCargo,
+  contextoDePermissao,
   diferencasEntreMotores,
   exigirPermissaoPeloCargo,
+  promotorNaRequisicao,
 } from './acesso-por-cargo';
 import { ErroHttpModulo } from './api';
 import { defineModule } from './manifesto';
@@ -205,6 +207,26 @@ describe('ContextoPermissao.perfilAcesso (shell)', () => {
     expect(PERMISSOES.pode('coleta.registrar', { perfil: 'promotor', modulosAtivos: TODOS_MODULOS })).toBe(
       true,
     );
+  });
+});
+
+describe('sync fora da rota de módulo (ADR 0073 E6)', () => {
+  it('RN-PRO-01: com perfil_acesso vale o cargo promotor; sem ele, o perfil do token', () => {
+    const promotor = usuario('promotor');
+    expect(promotorNaRequisicao({ ...promotor, perfil: 'vendedor' })).toBe(true);
+    expect(promotorNaRequisicao({ ...usuario('vendedor'), perfil: 'promotor' })).toBe(false);
+    expect(promotorNaRequisicao({ perfil: 'promotor' })).toBe(true);
+    expect(promotorNaRequisicao({ perfil: 'vendedor' })).toBe(false);
+  });
+
+  it('contextoDePermissao: com perfil_acesso decide a concessão (pedido.ver desmarcado); sem ele, o perfil do token', () => {
+    const promotor = usuario('promotor');
+    const { 'pedido.ver': _fora, ...semVer } = promotor.perfil_acesso!.permissoes;
+    const semPedido = { ...promotor, perfil_acesso: { ...promotor.perfil_acesso!, permissoes: semVer } };
+    expect(PERMISSOES.pode('pedido.ver', contextoDePermissao(promotor))).toBe(true);
+    expect(PERMISSOES.pode('pedido.ver', contextoDePermissao(semPedido))).toBe(false);
+    const { perfil_acesso: _p, ...doToken } = semPedido;
+    expect(contextoDePermissao(doToken)).toEqual({ perfil: 'promotor', modulosAtivos: doToken.modulos });
   });
 });
 

@@ -2,14 +2,13 @@
  * Acesso da requisição pelo perfil SEM base (ADR 0073 §2.7 e §2.8, etapa E3): o que a API usa para preencher
  * `ctx.usuario.cargo` e `ctx.usuario.perfil_acesso` e para autorizar a rota sem `RotaModulo.perfis` nem o `perfis` do manifesto.
  *
- * Transição: tudo aqui é ADITIVO e puro. A API continua decidindo pelo motor antigo (`verificarAcao`, `perfis`) até a troca de
- * leitura (E6); a E4 preenche os campos atrás da marca `plataforma.catalogo_aplicado` (`motorDePermissao`) e compara os dois
- * motores (`diferencasEntreMotores`) sem mudar a resposta.
+ * Transição: tudo aqui é puro. No tenant em 'legado' a API decide pelo motor antigo (`verificarAcao`, `perfis`); no tenant em
+ * 'concessao' (marca `plataforma.catalogo_aplicado`, `motorDePermissao`; ligada pela 0109, E6) decide por aqui.
  */
 import { verificarLicenca, type ResultadoAcesso, type UsuarioAcesso } from './acesso';
 import { ErroHttpModulo, promotorBarradoNaRota, type RotaModulo } from './api';
 import type { Cargo } from './cargos';
-import type { ModuloId } from './nomes';
+import type { ModuloId, Perfil } from './nomes';
 import { CODIGO_PERFIL_SEM_BKO } from './perfis';
 import {
   podePeloCargo,
@@ -18,7 +17,7 @@ import {
   type PerfilDaRequisicaoV2,
   type PerfilPorCargo,
 } from './perfis-por-cargo';
-import { SEM_ACESSO, verificarAcaoPeloCargo, type Permissoes } from './permissoes';
+import { SEM_ACESSO, verificarAcaoPeloCargo, type ContextoPermissao, type Permissoes } from './permissoes';
 import {
   CHAVE_ACESSO,
   combinarPerfis,
@@ -91,6 +90,30 @@ export function exigirPermissaoPeloCargo(
     throw new ErroHttpModulo(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
 }
 
+/**
+ * RN-PRO-01 fora da rota de módulo (sync: pull, novidades, pacotes e push): no caminho novo vale o CARGO promotor do perfil; sem
+ * `perfil_acesso` (motor antigo), o perfil do token.
+ */
+export function promotorNaRequisicao(usuario: { perfil?: Perfil; perfil_acesso?: PerfilDaRequisicaoV2 }): boolean {
+  return usuario.perfil_acesso ? usuario.perfil_acesso.cargo === 'promotor' : usuario.perfil === 'promotor'; // perfil-fixo-ok: motor antigo (tenant em 'legado'; sai na fase 2)
+}
+
+/**
+ * `ContextoPermissao` de `Permissoes.pode` fora da rota de módulo (sync), sem os `perfis` (o sync decide pela ação do manifesto):
+ * com `perfil_acesso` (tenant em 'concessao') decide a concessão; sem ele, o perfil do token.
+ */
+export function contextoDePermissao(usuario: {
+  perfil?: Perfil;
+  modulos: Iterable<ModuloId>;
+  perfil_acesso?: PerfilDaRequisicaoV2;
+}): ContextoPermissao {
+  return {
+    perfil: usuario.perfil,
+    modulosAtivos: usuario.modulos,
+    ...(usuario.perfil_acesso ? { perfilAcesso: usuario.perfil_acesso } : {}),
+  };
+}
+
 /** Uma chave em que os dois motores discordam (`null` = negada naquele motor). */
 export interface DiferencaDeMotor {
   chave: string;
@@ -103,7 +126,7 @@ const normal = (v: ValorPermissao | undefined): string =>
 
 /**
  * Leitura dupla (E4): as chaves em que o motor antigo (`perfis`, fábrica + sobreposições) e o novo (`perfil_acesso`) discordam
- * — concessão, nível ou alvos —, em ordem alfabética. Lista vazia = equivalentes. Só para log e teste: não decide nada.
+ * — concessão, nível ou alvos —, em ordem alfabética. Lista vazia = equivalentes. Só para teste e diagnóstico: não decide nada.
  */
 export function diferencasEntreMotores(
   perfis: readonly PerfilDaRequisicao[] | null | undefined,
