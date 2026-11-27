@@ -37,7 +37,7 @@ export function efetivosListaveisDoUsuario(e: LicencasEstado, usuarioId: string 
   return modulosListaveis(efetivosDoUsuario(e, usuarioId));
 }
 
-/** Módulos efetivos do usuário (RN-CORE-01/03), para a lista "Módulos efetivos do usuário". */
+/** Módulos efetivos do usuário (RN-CORE-01/03) pelo perfil da empresa dele, para a lista "Módulos efetivos do usuário" e a coluna Módulos de Usuários. */
 export function efetivosDoUsuario(e: LicencasEstado, usuarioId: string | null | undefined): ModuloId[] {
   const u = e.usuarios.find((x) => x.id === usuarioId);
   if (!u) return [];
@@ -45,7 +45,7 @@ export function efetivosDoUsuario(e: LicencasEstado, usuarioId: string | null | 
     modulos: e.modulos,
     dependencias: e.dependencias,
     ativosNoTenant: e.modulos.filter((m) => e.tenant[m] === true),
-    doPerfil: e.perfis[u.perfil] ?? [],
+    doPerfil: e.perfis[u.perfil_codigo] ?? [],
     removidosDoUsuario: u.removidos,
   });
 }

@@ -113,7 +113,7 @@ async function usuariosComPesquisa(db: ClienteBanco, ctx: ContextoBase, usuarios
       modulos: e.modulos,
       dependencias: e.dependencias,
       ativosNoTenant,
-      doPerfil: e.perfis[u.perfil] ?? [],
+      doPerfil: e.perfis[dono.get(u.id)?.perfil_codigo ?? u.perfil] ?? [],
       removidosDoUsuario: dono.get(u.id)?.removidos ?? [],
     });
     if (efetivos.includes('pesquisa')) ok.add(u.id);

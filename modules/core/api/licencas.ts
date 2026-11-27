@@ -23,9 +23,16 @@ export function dependenciasDoContexto(ctx: ContextoBase): Record<string, Modulo
 
 export async function lerEstadoDeLicencas(db: ClienteBanco, dependencias: Record<string, ModuloId[]>): Promise<LicencasEstado> {
   const tenant = await db.query<{ modulo: string; ativo: boolean }>('select modulo, ativo from plataforma.tenant_modulo where deleted_at is null');
-  const perfis = await db.query<{ perfil: Perfil; modulo: string }>('select perfil, modulo from plataforma.perfil_modulo where deleted_at is null');
-  const usuarios = await db.query<{ id: string; nome: string; email: string; perfil: Perfil }>(
-    'select id, nome, email, perfil from core.usuario where deleted_at is null and ativo order by nome, id',
+  const perfis = await db.query<{ perfil: string; modulo: string }>('select perfil, modulo from plataforma.perfil_modulo where deleted_at is null');
+  // O perfil da empresa do usuário (o mesmo de `plataforma.perfis_do_usuario`, que a API usa nos módulos efetivos); sem vínculo
+  // (usuário antigo), o código do perfil padrão de `core.usuario.perfil`
+  const usuarios = await db.query<{ id: string; nome: string; email: string; perfil: Perfil; perfil_codigo: string }>(
+    `select u.id, u.nome, u.email, u.perfil,
+            coalesce((select p.codigo from plataforma.usuario_perfil up
+                        join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id and p.ativo and p.deleted_at is null
+                       where up.tenant_id = u.tenant_id and up.usuario_id = u.id and up.deleted_at is null
+                       order by p.fabrica desc, p.codigo limit 1), u.perfil) as perfil_codigo
+       from core.usuario u where u.deleted_at is null and u.ativo order by u.nome, u.id`,
   );
   const removidos = await db.query<{ usuario_id: string; modulo: string }>("select usuario_id, modulo from plataforma.usuario_modulo where efeito = 'remover' and deleted_at is null");
   const tenantMapa: Record<string, boolean> = {};

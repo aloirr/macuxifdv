@@ -21,7 +21,7 @@ export const LicencasEstadoSchema = z
     dependencias: z.record(z.array(ModuloIdSchema)).default({}),
     /** Ativo no tenant. */
     tenant: z.record(z.boolean()),
-    /** Perfil → módulos ligados no padrão do perfil. */
+    /** Código do perfil da empresa (os 7 padrão e os criados no tenant) → módulos ligados nele (`plataforma.perfil_modulo`). */
     perfis: z.record(z.array(ModuloIdSchema)),
     usuarios: z.array(
       z.object({
@@ -29,6 +29,8 @@ export const LicencasEstadoSchema = z
         nome: z.string(),
         email: z.string(),
         perfil: PerfilSchema,
+        /** Código do perfil da empresa do usuário (RN-CORE-54: um só), a chave de `perfis` que a API usa para os módulos efetivos. */
+        perfil_codigo: z.string(),
         /** Exceções (módulos removidos só deste usuário). */
         removidos: z.array(ModuloIdSchema),
       }),

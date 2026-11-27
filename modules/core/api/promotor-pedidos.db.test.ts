@@ -5,10 +5,10 @@
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
-import { criarPermissoes, verificarAcao, type ClienteBanco, type ContextoBase, type ContextoConsulta, type LinhaSync, type PedidoPull, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { criarPermissoes, resolverPerfilPeloCargo, verificarAcao, type ClienteBanco, type ContextoBase, type ContextoConsulta, type LinhaSync, type PedidoPull, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CONSULTA_PROMOTOR_VE_PEDIDOS, ParametroSyncSchema, promotorVePedidosDasLinhas } from '../contracts';
+import { CONSULTA_PROMOTOR_VE_PEDIDOS, LeituraDePedidosDoUsuarioSchema, ParametroSyncSchema, promotorVePedidosDasLinhas, ROTA_LEITURA_DE_PEDIDOS, type LeituraDePedidosDoUsuario } from '../contracts';
 import { manifest } from '../manifest';
 import { consultaPromotorVePedidos } from './consultas';
 import { rotasDePromotorPedidos } from './promotor-pedidos';
@@ -110,7 +110,44 @@ describe.skipIf(semBanco())('Core T-0061 × Postgres: promotor_ve_pedidos', () =
       expect(r, perfil).toMatchObject({ ok: false, status: 403, codigo: 'PERFIL_SEM_ACESSO' });
     }
     expect(verificarAcao({ id: 'x', tenant_id: 'y', perfil: 'admin', modulos: ['core'] }, permissoes, 'parametro.promotor_ve_pedidos').ok).toBe(true);
-    for (const r of rotasDePromotorPedidos) expect(r.acao).toBe('parametro.promotor_ve_pedidos');
+    for (const r of rotasDePromotorPedidos.filter((x) => x.caminho === 'parametros/promotor-ve-pedidos')) expect(r.acao).toBe('parametro.promotor_ve_pedidos');
+  });
+
+  describe('R-20261127-144433 (item 5): GET eu/leitura-de-pedidos, a leitura de pedidos do próprio usuário para o app', () => {
+    const rota = () => rotasDePromotorPedidos.find((x) => x.metodo === 'GET' && x.caminho === ROTA_LEITURA_DE_PEDIDOS)!;
+    const ler = async (u: UsuarioAutenticado): Promise<LeituraDePedidosDoUsuario> =>
+      LeituraDePedidosDoUsuarioSchema.parse(await rota().executar({ ...ctx(u, 'r-leitura'), corpo: {}, query: {}, params: {} } as never));
+    /** Usuário de tenant em `concessao`: a requisição traz o perfil resolvido pelo cargo (como a API monta, 0109). */
+    const porCargo = (u: UsuarioAutenticado, cargo: 'promotor' | 'vendedor', permissoes: Record<string, object>): UsuarioAutenticado =>
+      ({ ...u, cargo, perfil_acesso: resolverPerfilPeloCargo({ codigo: `${cargo}_teste`, cargo, permissoes } as never) }) as unknown as UsuarioAutenticado;
+    const vendedorA = usuario(A.usuarios.vendedor1, 'vendedor', A.tenantId);
+
+    it('rota de leitura sem ação, fora da barreira de caminho de pedido (RN-PRO-01) e sem carteira', () => {
+      expect(rota()).toMatchObject({ metodo: 'GET', carteira: 'nao_se_aplica' });
+      expect(rota().acao).toBeUndefined();
+    });
+
+    it('legado: o promotor segue o parâmetro do tenant; os outros cargos veem pedidos', async () => {
+      await chamar('PUT', adminA, 'r-leitura-desliga', { ligado: false });
+      expect(await ler(promotorA)).toEqual({ usuario_id: A.usuarios.promotor, ve_pedidos: false, leitura: 'legado' });
+      expect(await ler(vendedorA)).toEqual({ usuario_id: A.usuarios.vendedor1, ve_pedidos: true, leitura: 'legado' });
+      await chamar('PUT', adminA, 'r-leitura-liga', { ligado: true });
+      expect(await ler(promotorA)).toMatchObject({ ve_pedidos: true, leitura: 'legado' });
+    });
+
+    it('concessao: o promotor segue a chave pedido.ver do perfil, e não o parâmetro do tenant', async () => {
+      await chamar('PUT', adminA, 'r-leitura-desliga-2', { ligado: false });
+      expect(await ler(porCargo(promotorA, 'promotor', { 'pedido.ver': {} }))).toEqual({ usuario_id: A.usuarios.promotor, ve_pedidos: true, leitura: 'concessao' });
+      await chamar('PUT', adminA, 'r-leitura-liga-2', { ligado: true });
+      expect(await ler(porCargo(promotorA, 'promotor', {}))).toEqual({ usuario_id: A.usuarios.promotor, ve_pedidos: false, leitura: 'concessao' });
+      // cargo vendedor: vê pedidos mesmo sem pedido.ver (só o promotor depende da leitura; o escopo de carteira vale em cada leitura)
+      expect(await ler(porCargo(vendedorA, 'vendedor', {}))).toEqual({ usuario_id: A.usuarios.vendedor1, ve_pedidos: true, leitura: 'concessao' });
+    });
+
+    it('multi-tenant: o parâmetro desligado no A não muda a leitura do promotor do B', async () => {
+      await chamar('PUT', adminA, 'r-leitura-desliga-3', { ligado: false });
+      expect(await ler(usuario(B.usuarios.vendedor, 'promotor', B.tenantId))).toEqual({ usuario_id: B.usuarios.vendedor, ve_pedidos: true, leitura: 'legado' });
+    });
   });
 
   it('o corpo do PUT precisa ser { ligado: boolean }', () => {
