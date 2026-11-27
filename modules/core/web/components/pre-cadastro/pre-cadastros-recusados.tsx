@@ -242,7 +242,6 @@ function GavetaDoPreCadastro({ item, api, fuso, aoFechar }: { item: RecusadoItem
         {editando ? (
           <FormularioDeCorrecao
             clienteId={item.cliente_id}
-            vendedor={item.vendedor?.nome}
             api={api}
             fuso={fuso}
             aoMudar={() => setSujo(true)}
@@ -324,7 +323,7 @@ interface PropsFormulario {
   aoVerHistorico: () => void;
 }
 
-function FormularioDeCorrecao({ clienteId, vendedor, ...props }: PropsFormulario & { clienteId: string; vendedor?: string | undefined }) {
+function FormularioDeCorrecao({ clienteId, ...props }: PropsFormulario & { clienteId: string }) {
   const { api } = props;
   const atual = useQuery({ queryKey: [...CHAVE_RECUSADOS, 'atual', clienteId], queryFn: () => api.atual(clienteId), gcTime: 0 });
   const apiCampos = useMemo(() => criarApiCamposObrigatorios(), []);
@@ -332,11 +331,11 @@ function FormularioDeCorrecao({ clienteId, vendedor, ...props }: PropsFormulario
   if (atual.isError) return <ErrorBlock message={errorMessage(atual.error)} onRetry={() => void atual.refetch()} />;
   if (!atual.data || campos.isPending) return <LoadingBlock label="Carregando o cadastro…" />;
   return (
-    <Formulario {...props} vendedor={vendedor} atual={atual.data} exigidos={campos.data ? obrigatoriosDoPreCadastro(campos.data.obrigatorios) : null} />
+    <Formulario {...props} atual={atual.data} exigidos={campos.data ? obrigatoriosDoPreCadastro(campos.data.obrigatorios) : null} />
   );
 }
 
-function Formulario({ vendedor, atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar, aoVerHistorico }: PropsFormulario & { vendedor?: string | undefined; atual: PreCadastroAtual; exigidos: ReturnType<typeof obrigatoriosDoPreCadastro> | null }) {
+function Formulario({ atual, exigidos, api, fuso, aoMudar, aoEnviar, aoReenviar, aoVerHistorico }: PropsFormulario & { atual: PreCadastroAtual; exigidos: ReturnType<typeof obrigatoriosDoPreCadastro> | null }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [valores, setValores] = useState<ValoresPreCadastro>(() => valoresDosDados(atual));
@@ -425,9 +424,9 @@ function Formulario({ vendedor, atual, exigidos, api, fuso, aoMudar, aoEnviar, a
         </Notice>
       )}
       {erroVendedor && (
-        <CampoFormulario rotulo={rotuloDoCampo(CAMPO_VENDEDOR)} erro={erroVendedor}>
-          <input className={CLASSE_CAMPO} value={vendedor ?? '—'} readOnly aria-invalid data-testid={`${P}.form.campo.vendedor`} />
-        </CampoFormulario>
+        <Notice tone="danger">
+          <span data-testid={`${P}.form.campo.vendedor`}>{`${rotuloDoCampo(CAMPO_VENDEDOR)}: ${erroVendedor}`}</span>
+        </Notice>
       )}
       <div className="grid grid-cols-6 gap-3">
         {GRADE_DA_CORRECAO.map(({ coluna, largura, mascara }) => (

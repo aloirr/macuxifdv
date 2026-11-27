@@ -148,9 +148,9 @@ describe('RN-CORE-16: Salvar do painel de campos obrigatórios só liga com alte
 });
 
 describe('RN-CORE-78: recusa do vendedor no formulário do BKO', () => {
-  it('o campo "Vendedor" só leitura leva o erro de vendedor_external_id, só quando existe', () => {
+  it('a linha "Vendedor" (aviso) leva o erro de vendedor_external_id, só quando existe', () => {
     const fonte = readFileSync(new URL('../components/pre-cadastro/pre-cadastros-recusados.tsx', import.meta.url), 'utf8');
     expect(fonte).toContain('const erroVendedor = erroDoVendedor(atual.erros);');
-    expect(fonte).toMatch(/\{erroVendedor && \(\s*<CampoFormulario rotulo=\{rotuloDoCampo\(CAMPO_VENDEDOR\)\} erro=\{erroVendedor\}>\s*<input[^>]*readOnly/);
+    expect(fonte).toMatch(/\{erroVendedor && \(\s*<Notice tone="danger">\s*<span data-testid=\{`\$\{P\}\.form\.campo\.vendedor`\}>\{`\$\{rotuloDoCampo\(CAMPO_VENDEDOR\)\}: \$\{erroVendedor\}`\}/);
   });
 });

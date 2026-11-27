@@ -37,9 +37,9 @@ describe('tela Novo cliente (pré-cadastro; RN-CORE-78 e RN-CORE-79)', () => {
     expect(tela).toContain('if (rolarAtePrimeira(faltas) || !motor) return;');
     expect(tela).not.toMatch(/rolarAtePrimeira\(\{[^)]*errosRecusa/);
   });
-  it('RN-CORE-78: a recusa do vendedor aparece no campo "Vendedor" só leitura, só quando há erro', () => {
+  it('RN-CORE-78: a recusa do vendedor aparece como linha de alerta "Vendedor: erro", só quando há erro', () => {
     expect(tela).toContain('setErroVendedor(correcao.erro_vendedor)');
-    expect(tela).toMatch(/\{erroVendedor \? <CampoTexto testID="novo-cliente-vendedor" rotulo=\{rotuloDoCampo\(CAMPO_VENDEDOR\)\}[^\n]*editable=\{false\}[^\n]*falta=\{erroVendedor\}/);
+    expect(tela).toMatch(/\{erroVendedor \? \(\s*<View [^>]*testID="novo-cliente-vendedor" accessibilityRole="alert">[\s\S]*?\$\{rotuloDoCampo\(CAMPO_VENDEDOR\)\}: \$\{erroVendedor\}/);
   });
   it('RN-CORE-78: depois de salvar a correção volta à lista (replace), sem o id antigo, e sem o cadastro no aparelho a tela não reabre o formulário (spec §4)', () => {
     const salvar = tela.slice(tela.indexOf('salvo.current = true;\n    setAlterado(false);\n    avisarClienteSalvo'));

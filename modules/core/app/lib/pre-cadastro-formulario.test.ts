@@ -17,6 +17,7 @@ describe('formulário do pré-cadastro (RN-CORE-78, RN-CORE-79)', () => {
   it('RN-CORE-78: a recusa por vendedor_external_id tem o rótulo "Vendedor", não marca coluna do formulário e sai por erroDoVendedor', () => {
     const erros = [{ campo: ' vendedor_external_id ', mensagem: 'Vendedor não existe no ERP' }, { campo: 'cep', mensagem: 'CEP não existe' }];
     expect(rotuloDoCampo('vendedor_external_id')).toBe('Vendedor');
+    expect(rotuloDoCampo(' vendedor_external_id ')).toBe('Vendedor');
     expect(errosDaRecusaPorColuna(erros)).toEqual({ cep: 'CEP não existe' });
     expect(erroDoVendedor(erros)).toBe('Vendedor não existe no ERP');
     expect(erroDoVendedor([{ campo: 'cep', mensagem: 'x' }])).toBeNull();

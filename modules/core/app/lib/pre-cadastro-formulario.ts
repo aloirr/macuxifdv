@@ -22,7 +22,7 @@ export const CAMPO_VENDEDOR = 'vendedor_external_id';
 
 /** Rótulo de uma coluna ou do campo citado no erro (os do contrato e os do endereço); campo que o formulário não tem aparece com o nome que veio. */
 export function rotuloDoCampo(campo: string): string {
-  if (campo === CAMPO_VENDEDOR) return 'Vendedor';
+  if (campo.trim() === CAMPO_VENDEDOR) return 'Vendedor';
   return ROTULOS_CAMPOS_PRE_CADASTRO[campo as CampoPreCadastro] ?? ROTULOS_ENDERECO[campo as keyof typeof ROTULOS_ENDERECO] ?? campo;
 }
 
@@ -56,7 +56,7 @@ const EH_COLUNA = new Set<string>(COLUNAS_FORMULARIO);
 
 /**
  * RN-CORE-78: erros por campo da recusa na coluna exata do formulário (o primeiro de cada coluna). O erro de um campo que o formulário
- * não tem fica só no motivo e no histórico.
+ * não tem fica só no motivo e no histórico; o de `vendedor_external_id` sai também na linha Vendedor (`erroDoVendedor`).
  */
 export function errosDaRecusaPorColuna(erros: readonly Pick<ErroCampoCadastro, 'campo' | 'mensagem'>[] | null | undefined): Partial<Record<ColunaFormulario, string>> {
   const r: Partial<Record<ColunaFormulario, string>> = {};

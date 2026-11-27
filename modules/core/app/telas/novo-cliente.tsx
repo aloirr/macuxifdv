@@ -57,8 +57,8 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
   const id = clienteId ?? novoId;
   const [base, setBase] = useState<BaseDaCorrecao | null>(null);
   // erros por campo da recusa: marcados desde a entrada; a marca de um campo sai quando o valor dele muda (spec §3.1)
-  const [erroVendedor, setErroVendedor] = useState<string | null>(null);
   const [errosRecusa, setErrosRecusa] = useState<Partial<Record<Coluna, string>>>({});
+  const [erroVendedor, setErroVendedor] = useState<string | null>(null);
   const [valores, setValores] = useState<ValoresPreCadastro>(vazioDoFormulario);
   const [alterado, setAlterado] = useState(false);
   const [tentou, setTentou] = useState(false);
@@ -210,7 +210,12 @@ function Formulario({ clienteId }: PropsTelaNovoClientePreCadastro) {
             <Text style={[t.sub, { flex: 1, color: colors.danger }]}>{motivo}</Text>
           </View>
         ) : null}
-        {erroVendedor ? <CampoTexto testID="novo-cliente-vendedor" rotulo={rotuloDoCampo(CAMPO_VENDEDOR)} valor="—" aoMudar={() => undefined} editable={false} opcional={false} falta={erroVendedor} /> : null}
+        {erroVendedor ? (
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }} testID="novo-cliente-vendedor" accessibilityRole="alert">
+            <Icon name="alert" size={16} color={colors.danger} />
+            <Text style={[t.sub, { flex: 1, color: colors.danger }]}>{`${rotuloDoCampo(CAMPO_VENDEDOR)}: ${erroVendedor}`}</Text>
+          </View>
+        ) : null}
         {campoTexto('documento', { mascara: 'documento' })}
         {duplicado ? (
           <Pressable testID="novo-cliente-abrir-existente" accessibilityRole="link" onPress={() => pedirSaida(() => abrirCliente(duplicado.id, 'Clientes'))} style={{ minHeight: 48, justifyContent: 'center' }}>
