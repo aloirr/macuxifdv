@@ -274,3 +274,70 @@ Depois do squash do antecessor, o dono roda na própria sessão:
 - **testes**: a 3.R1.
 - **gerente-projetos**: a ordem acima.
 - **Caixa**: não consegui ler a minha caixa nesta sessão (`coord.mjs caixa` recebeu HTTP 403 no repositório de recados). Os recados desta revisão vão pelo gerente.
+
+## 3ª rodada — `nuvem/v1040-modulo-core-perfis-2` @ `c8bf2083` (27/11, S18)
+
+Base do PR: o #853 @ `75a3813b`. São 7 commits sobre ele, todos com `Agente: modulo-core`, sem merge e sem a 0109.
+
+### Os dois commits novos
+
+- **`46053bb1`** 🟢:
+  - `usuarioDaRequisicaoVePedidos` passa a usar `podePeloCargo(perfil_acesso, 'pedido.ver')` do SDK. A leitura é a mesma de antes: `vetadaPeloCargo` só trava a escrita de pedido, e `pedido.ver` continua sendo a concessão do perfil.
+  - `sync.ts` e `clientes.ts` deixam de repetir o teste de promotor, que agora mora só em `usuarioVePedidos` (RN-PRO-01).
+  - `requisicaoDePromotor` é igual, linha por linha, ao `promotorNaRequisicao` do `37d2417b` (`packages/platform-sdk/src/acesso-por-cargo.ts:97`): com `perfil_acesso` vale o cargo; sem ele, o perfil do token. O TODO(RD-3741) está certo.
+  - O commit também trazia o symlink `modules/core/node_modules`.
+- **`c8bf2083`** 🟢: tira esse symlink. No diff do PR ele não aparece, e o squash apaga o vaivém.
+- **Conferido na sessão**:
+  - `vitest domain/promotor-pedidos.test.ts`: 10 testes passaram;
+  - `tsc -p tsconfig.json` e `eslint` nos 4 arquivos: limpos;
+  - o SDK usado no teste é igual ao do `c8bf2083`.
+
+### Processo
+
+- `coord verificar modulo-core --base 75a3813b` sai 0, com 29 arquivos.
+- `coord verificar --base 75a3813b` com `GITHUB_HEAD_REF=nuvem/v1040-modulo-core-perfis-2` infere `modulo-core` e sai 0. O 🔴 de "agente ambíguo" está resolvido **contra a base do #853**.
+- **Contra o `origin/main` de hoje** (`cc78a5fd`), o mesmo comando dá "agente ambíguo: designer-ux, modulo-core": entram os 4 commits do #853 (`9da50153` a `75a3813b`).
+  - O squash do #853 não resolve isso. Os 4 commits originais não ficam no `main`, a merge-base continua `cc78a5fd` e o CI do -2 cai.
+  - Merge do `main` no -2 também não resolve.
+  - **Por isso o cherry-pick é obrigatório** (passo abaixo).
+- 🟢 (lote seguinte): nos dois commits novos, há uma linha em branco entre `Agente:` e `Co-Authored-By`. O `coord` lê a linha, mas `git log --format=%(trailers)` não a reconhece como trailer. Daqui para a frente, `Agente:` fica junto do bloco de trailers.
+- 🟡 (pendência herdada, E5-P2): o `perfis-v2.db.test.ts` mudou e roda no branch novo, com o Postgres local e a 0109 corrigida, antes do push.
+
+### Ordem de merge e de deploy da v1.0.40 (atualiza a 2ª rodada)
+
+1. **0109 corrigida** (banco-dados, S19): `nuvem/v1040-banco-dados-perfis-correcao`, um squash só.
+   - O head no GitHub agora é `fbadb283` (dicionário e teste da DIFERENCA, RD-3733), depois do `833d47af`. O merge vale para o head que estiver revisado e com CI verde.
+2. **API** (engenheiro-software): o `37d2417b` está sobre o `41112e46` (a 0109 antiga, da banco-dados). Ele também precisa do cherry-pick sobre o `main` novo, num commit só.
+   - Não há arquivo em comum com o -2 nem com a 0109.
+3. **#853** (designer-ux) @ `75a3813b`.
+4. **-2** (modulo-core): por cherry-pick, num PR novo (passo abaixo).
+5. **Limpeza do kit** (designer-ux).
+
+- **Imagem e deploy**: os passos 2 e 4 saem na mesma imagem da v1.0.40. Não se libera um SHA do `main` que esteja entre os passos 1 e 4.
+- **Depois do 2**: o TODO(RD-3741) troca `requisicaoDePromotor` pelo `promotorNaRequisicao` do SDK. Entra no lote seguinte, porque a regra já é a mesma.
+
+### Passo exato do -2 depois do squash do #853
+
+```
+git fetch origin main nuvem/v1040-modulo-core-perfis-2
+git switch -c nuvem/v1040-modulo-core-perfis-3 origin/main
+git cherry-pick -n 4d6f6252 d86498d5 48f87029 5383b163 0586d8a8 46053bb1 c8bf2083
+git diff origin/nuvem/v1040-modulo-core-perfis-2 HEAD -- modules/core docs/modulos/core   # vazio (salvo o que o main mudou depois)
+git status --short | grep node_modules                                                    # vazio
+node scripts/coord.mjs verificar modulo-core --base origin/main                            # sai 0, sem "agente ambíguo"
+node scripts/ci/grafo-turbo.mjs                                                            # sai 0
+# lint, typecheck e testes de modules/core, inclusive o perfis-v2.db.test.ts
+git commit   # um commit só, com "Agente: modulo-core" no bloco final de trailers
+git push origin HEAD:nuvem/v1040-modulo-core-perfis-3
+```
+
+- PR novo `[PRONTO PARA MERGE] ...`, citando o -2 e o `c8bf2083`.
+- O PR do -2 é fechado, sem force push e sem apagar o branch.
+- **Opção sem cherry-pick**: se o #853 entrar por merge commit em vez de squash, os 4 commits ficam no `main` e o -2 entra como está. Hoje a regra é o squash, então vale o cherry-pick.
+
+### Veredito
+
+- `46053bb1`: 🟢
+- `c8bf2083`: 🟢
+- PR -2 contra o #853: sem 🔴
+- Contra o `main`: só entra pelo cherry-pick acima
