@@ -1708,8 +1708,8 @@ tenant recém-ligado os dois dão o mesmo (prova por usuário em `db/testes/perf
   EXECUTE: concessão viva `perfil.gerir` ou concessão gravada nesta transação). Cobre desativar ou apagar o usuário, trocar ou
   tirar o vínculo e desativar ou apagar o perfil. O gatilho novo `perfil_concessao_conferir` cobre tirar uma concessão da gestão.
   Tudo no COMMIT (`tenant_ultimo_admin`, 23514). No `legado`, o mesmo de hoje.
-- **A API** lê `perfil_do_usuario` (`codigo`, `cargo`, `permissoes`) no lugar da consulta própria de `apps/api/src/licencas.ts`
-  (`lerPerfilPorCargo`); `leitura` diz o caminho. O motor da API continua decidido por `catalogo_aplicado` (versão e leitura).
+- **A API** (`apps/api/src/licencas.ts`) lê `perfil_do_usuario` (`codigo`, `cargo`, `base`, `permissoes`). O motor da API continua
+  decidido por `catalogo_aplicado` (versão e leitura).
 - **Fixture `dois-tenants`**: grava `catalogo_aplicado` em `legado` (o motor dos testes de hoje); os testes do caminho novo ligam o
   tenant na transação.
 - **Volta** (`.down.sql` da 0109, plano §4.3): sai o gatilho; o perfil mudado pela API nova (concessões ≠ `concessoes_derivadas`)

@@ -11,6 +11,7 @@
  * - up -> down -> up: o down volta todo tenant a 'legado', as funções recriadas como cópia exata (texto e ACL) e as novas saem; o
  *   perfil mudado pela "API nova" recebe as sobreposições recalculadas (o acesso por usuário fica o que a concessão dava);
  * - db/scripts/diagnostico-0109.sql (só leitura, antes da 0109) prevê o resultado de cada tenant;
+ * - uma DIFERENCA na conferência §4.1 para a troca com 23514 (perfis_sem_base_conferencia) e o tenant fica em 'legado';
  * - tenant novo nasce em 'concessao'; último admin pela gestão do acesso; RLS e isolamento entre tenants.
  */
 import { readFileSync } from 'node:fs';
@@ -457,6 +458,23 @@ describe.skipIf(semBanco())('0109 funções de caminho duplo (fixture, ROLLBACK)
         await preparar('legado', true);
         expect(await noCommit(() => tirar(G, 'perfil.gerir'))).toBeNull();
       });
+    });
+  });
+
+  it('conferência §4.1 com DIFERENCA: ligar_leitura_por_concessao para com 23514 e o tenant fica em legado', async () => {
+    await emTransacao(admin, null, async () => {
+      // só nesta transação (ROLLBACK): a conferência acusa uma diferença para um usuário do tenant
+      await q(`create or replace function plataforma.conferir_perfis_sem_base(p_tenant uuid)
+                 returns table (usuario_id uuid, perfil_codigo text, chave text, antes jsonb, depois jsonb, tipo text)
+                 language sql stable set search_path = pg_catalog, plataforma, pg_temp
+                 as $$ select null::uuid, 'vendedor'::text, 'produto.consultar'::text, '{}'::jsonb, null::jsonb, 'DIFERENCA'::text $$`);
+      expect(await leitura(admin, A.tenantId)).toBe('legado');
+      await q('savepoint ligar');
+      const e = await erroDe(q('select plataforma.ligar_leitura_por_concessao($1)', [A.tenantId]));
+      await q('rollback to savepoint ligar');
+      expect(e?.code).toBe('23514');
+      expect(e?.message).toContain('acesso por concessão diferente');
+      expect(await leitura(admin, A.tenantId)).toBe('legado');
     });
   });
 
