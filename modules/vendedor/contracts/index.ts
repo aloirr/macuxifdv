@@ -467,10 +467,12 @@ export const DiscountPolicy = z.object({
   /** T-0184 (P2 B, P5 B): quem aprova crédito e inadimplência; padrão gerente; ausente = servidor anterior */
   aprovador_credito: z.enum(NIVEIS_APROVACAO).optional(),
   aprovador_inadimplencia: z.enum(NIVEIS_APROVACAO).optional(),
+  /** RN-VEN-20 (v1.0.39, PA-10): quem aprova o estoque insuficiente quando a ação do tenant é `aprovacao`; padrão gerente */
+  aprovador_estoque: z.enum(NIVEIS_APROVACAO).optional(),
 });
 export type DiscountPolicy = z.infer<typeof DiscountPolicy>;
 /** T-0184 (P2 B): quem aprova crédito e quem aprova inadimplência (Parâmetros › Pedidos). */
-export const PutAprovadoresRequest = z.object({ aprovador_credito: z.enum(NIVEIS_APROVACAO), aprovador_inadimplencia: z.enum(NIVEIS_APROVACAO) });
+export const PutAprovadoresRequest = z.object({ aprovador_credito: z.enum(NIVEIS_APROVACAO), aprovador_inadimplencia: z.enum(NIVEIS_APROVACAO), aprovador_estoque: z.enum(NIVEIS_APROVACAO).optional() });
 export type PutAprovadoresRequest = z.infer<typeof PutAprovadoresRequest>;
 export const PutDiscountPolicyRequest = z.object({
   seller_pct: Pct.min(0).max(100),

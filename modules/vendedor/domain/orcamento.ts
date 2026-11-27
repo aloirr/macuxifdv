@@ -26,6 +26,8 @@ import {
 } from './preco-pedido';
 
 import { lerInteiroNaFaixa } from './inteiro-na-faixa';
+import { VALIDADE_MAX_DIAS, VALIDADE_MIN_DIAS } from './limites-pedido';
+import { abaixoDoPedidoMinimo, mensagemPedidoMinimoCurta } from './pedido-minimo';
 
 export const TIPOS_DOCUMENTO = ['pedido', 'orcamento'] as const;
 export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[number];
@@ -35,8 +37,6 @@ export const VALIDADE_ORCAMENTO_DIAS_PADRAO = 7;
 export const PARAMETRO_VALIDADE_ORCAMENTO = 'orcamento.validade_dias';
 /** Chave gravada pelo painel Parâmetros › Pedidos e pelo passo Empresa; a chave antiga (`PARAMETRO_VALIDADE_ORCAMENTO`) segue valendo na leitura. */
 export const PARAMETRO_VALIDADE_ORCAMENTO_DIAS = 'validade_orcamento_dias';
-export const VALIDADE_MIN_DIAS = 1;
-export const VALIDADE_MAX_DIAS = 90;
 
 export function validadeOrcamentoDias(parametros: Record<string, unknown>): number {
   // chave nova presente mas inválida cai no padrão (não olha a antiga)
@@ -379,6 +379,8 @@ export interface DadosAtuais {
   policy: DiscountPolicy;
   /** RN-VEN-20: parâmetro que bloqueia (em vez de só avisar) quando falta estoque */
   estoque_bloqueia: boolean;
+  /** RN-VEN-22: `pedido_minimo_cents` do tenant (0 ou ausente = sem mínimo); abaixo dele o Transformar não segue */
+  pedido_minimo_cents?: number;
 }
 export type MudancaNaConversao =
   | { tipo: 'preco'; produto_id: string; de_cents: number; para_cents: number }
@@ -483,6 +485,8 @@ export function reconferirOrcamento(
   const totalOrcado = totalDosItens(o.itens, o.ajuste_pedido);
   const nivel = nivelDeAprovacao(totais.desconto_efetivo_alcada_pct, hoje.policy);
   if (itens.length === 0 && !bloqueio) bloqueio = 'Nenhum item do orçamento pode ser enviado hoje.';
+  // RN-VEN-22 (PA-3, PA-4): o total final do pedido, sem frete, abaixo do mínimo só sai como orçamento
+  if (!bloqueio && abaixoDoPedidoMinimo({ total_cents: totais.total_cents, minimo_cents: hoje.pedido_minimo_cents ?? 0 })) bloqueio = `${mensagemPedidoMinimoCurta(hoje.pedido_minimo_cents ?? 0)}. Aumente o pedido para transformar.`;
   // item que saiu do pedido muda o total por outro motivo (já avisado): a diferença compara só os que ficaram
   const ficaram = o.itens.filter((i) => itens.some((x) => x.product_id === i.product_id && x.unidade === i.unidade));
   return {

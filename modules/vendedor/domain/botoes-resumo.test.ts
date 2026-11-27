@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { botoesDaEdicao, botoesDoSalvarNovo, motivoDeNaoEnviarOSalvo, motivoDoItemSoOrcamento, motivoDoMaximo, perguntaDaAlcada, precisaPerguntarAlcadaNoEnvioSalvo, PERGUNTA_DA_ALCADA, ROTULOS_DA_EDICAO, ROTULOS_DO_SALVAR_NOVO } from './botoes-resumo';
+import { mensagemPedidoMinimo } from './pedido-minimo';
+import { botoesDaEdicao, botoesDoSalvarNovo, motivoDeNaoEnviarOSalvo, motivoDoItemSoOrcamento, motivoDoMaximo, perguntaDaAlcada, soOrcamentoPorItem, precisaPerguntarAlcadaNoEnvioSalvo, PERGUNTA_DA_ALCADA, ROTULOS_DA_EDICAO, ROTULOS_DO_SALVAR_NOVO } from './botoes-resumo';
 
 const liberado = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
 const base = { cliente: liberado, pre_venda_ligada: true, itens: 1 };
@@ -130,5 +131,31 @@ describe('RN-VEN-11/11a/20: motivo do item só-orçamento', () => {
     expect(motivoDoItemSoOrcamento({ itens_acima_do_maximo: [], acima_do_limite: false, itens_sem_estoque: [] })).toBeNull();
     expect(motivoDoItemSoOrcamento({ itens_sem_estoque: ['AGU-1'] })).toBe('AGU-1 sem estoque. Edite o item ou salve como orçamento.');
     expect(motivoDoItemSoOrcamento({ acima_do_limite: true })).toBe('Pedido acima do desconto máximo. Edite o item ou salve como orçamento.');
+  });
+});
+
+describe('RN-VEN-22 e RN-VEN-12: pedido mínimo e crédito só orçamento impedem o envio', () => {
+  it('RN-VEN-22: pedido abaixo do mínimo só sai como orçamento, com a frase da regra', () => {
+    const e = { abaixo_do_minimo_cents: 150000 };
+    expect(motivoDoItemSoOrcamento(e)).toBe(mensagemPedidoMinimo(150000));
+    expect(motivoDoItemSoOrcamento(e, false)).toBe('Pedido abaixo do mínimo de R$ 1.500,00. Aumente o pedido para enviar.');
+    expect(soOrcamentoPorItem(e)).toBe(true);
+    expect(soOrcamentoPorItem({ abaixo_do_minimo_cents: 0 })).toBe(false);
+  });
+  it('RN-VEN-12: crédito excedido com a ação orcamento só permite orçamento', () => {
+    expect(motivoDoItemSoOrcamento({ credito_so_orcamento: true })).toBe('Limite de crédito excedido. Salve como orçamento.');
+    expect(motivoDoItemSoOrcamento({ credito_so_orcamento: true }, false)).toBe('Limite de crédito excedido. Reduza o pedido ou mude o prazo para enviar.');
+    expect(soOrcamentoPorItem({ credito_so_orcamento: false })).toBe(false);
+  });
+  it('RN-VEN-22: a edição do pedido desliga o salvar alterações abaixo do mínimo; a do orçamento só desliga o Converter', () => {
+    const c = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
+    expect(botoesDaEdicao({ cliente: c, editando: 'pedido', abaixo_do_minimo_cents: 1000 }).salvarAlteracoes.habilitado).toBe(false);
+    const o = botoesDaEdicao({ cliente: c, editando: 'orcamento', abaixo_do_minimo_cents: 1000 });
+    expect(o.salvarOrcamento.habilitado).toBe(true);
+    expect(o.transformar.habilitado).toBe(false);
+  });
+  it('RN-VEN-48: o Enviar da aba Pedidos revalida o mínimo e o crédito', () => {
+    const c = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
+    expect(motivoDeNaoEnviarOSalvo({ cliente: c, pre_venda_ligada: true, abaixo_do_minimo_cents: 1000 })).toBe(mensagemPedidoMinimo(1000));
   });
 });

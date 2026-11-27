@@ -45,8 +45,8 @@ import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/
 import { idsSemTexto } from '../../domain/busca-seletor';
 import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
-import { aprovacoesFinanceiras } from '../../domain/credito-pedido';
-import { nivelComAprovacoes, niveisDosParametros } from '../../domain/aprovacao';
+import { efeitosDosParametrosDoPedido, nivelComAprovacoes } from '../../domain/aprovacao';
+import { estoqueSoOrcamento, pedidoMinimoCents } from '../../domain/parametros-pedidos';
 import { motivoDeNaoEnviarOSalvo, precisaPerguntarAlcadaNoEnvioSalvo } from '../../domain/botoes-resumo';
 import { itensSemEstoque } from '../lib/alertas-novo-pedido';
 import { financeiroParaAprovacao, modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
@@ -847,7 +847,9 @@ export function useVendedor() {
           erros_calculo: [],
         }).map((x) => x.texto);
         // RN-VEN-48: o Enviar revalida (RN-VEN-13/11/11a/20); o pedido salvo continua salvo quando não pode entrar na fila
-        let calculado: { itens_acima_do_maximo: string[]; acima_do_limite: boolean; itens_sem_estoque: string[] } = { itens_acima_do_maximo: [], acima_do_limite: false, itens_sem_estoque: [] };
+        let calculado: { itens_acima_do_maximo: string[]; acima_do_limite: boolean; itens_sem_estoque: string[]; abaixo_do_minimo_cents?: number; credito_so_orcamento?: boolean } = { itens_acima_do_maximo: [], acima_do_limite: false, itens_sem_estoque: [] };
+        let semEstoqueNoEnvio: string[] = [];
+        let efeitos: ReturnType<typeof efeitosDosParametrosDoPedido> | undefined;
         let fin: Awaited<ReturnType<typeof financeiroDoEnvio>> | undefined;
         let preparado: ReturnType<typeof prepararDoRascunho> | undefined;
         let v: ReturnType<typeof prepararDoRascunho>['v'] | undefined;
@@ -856,13 +858,22 @@ export function useVendedor() {
           preparado = prepararDoRascunho(r, cliente, catalogo, undefined, fin);
           v = preparado.v;
           const porId = new Map(catalogo.map((p) => [p.id, p]));
-          calculado = { itens_acima_do_maximo: v.calculo.acima_do_maximo, acima_do_limite: v.calculo.acima_do_limite !== null, itens_sem_estoque: itensSemEstoque(v.calculo.linhas, (id) => porId.get(id)).map((x) => x.codigo) };
+          // v1.0.39: o que falta de estoque, crédito e mínimo só trava o envio conforme os parâmetros do tenant (a API revalida sempre)
+          semEstoqueNoEnvio = itensSemEstoque(v.calculo.linhas, (id) => porId.get(id)).map((x) => x.codigo);
+          efeitos = efeitosDosParametrosDoPedido({ parametros: parametrosRef.current, tipo: 'pedido', total_cents: v.calculo.total_cents, prazo_medio_dias: fin?.prazo_medio_dias, falta_estoque: semEstoqueNoEnvio.length > 0, financeiro: fin });
+          calculado = {
+            itens_acima_do_maximo: v.calculo.acima_do_maximo,
+            acima_do_limite: v.calculo.acima_do_limite !== null,
+            itens_sem_estoque: efeitos.itens_sem_estoque_bloqueiam ? semEstoqueNoEnvio : [],
+            ...(efeitos.abaixo_do_minimo_cents > 0 ? { abaixo_do_minimo_cents: efeitos.abaixo_do_minimo_cents } : {}),
+            ...(efeitos.credito_so_orcamento ? { credito_so_orcamento: true } : {}),
+          };
         }
         const motivo = motivoDeNaoEnviarOSalvo({ pre_venda_ligada: preVendaLigada, cliente: situacaoDoClienteLocal(cliente.id), ...calculado, pendencias_de_preenchimento: falta });
         if (motivo) throw new Error(motivo);
         // RN-VEN-10 / RN-VEN-48: acima da alçada do autor (desconto ou crédito), a tela pergunta "Enviar para aprovação?" antes de enfileirar
         if (!confirmouAlcada && v) {
-          const aprov = fin ? aprovacoesFinanceiras({ prazo_medio_dias: fin.prazo_medio_dias, total_cents: v.calculo.total_cents, financeiro: fin, niveis: niveisDosParametros(parametrosRef.current) }) : [];
+          const aprov = efeitos?.aprovacoes ?? [];
           if (precisaPerguntarAlcadaNoEnvioSalvo({ nivel: aprov.length > 0 ? nivelComAprovacoes(v.calculo.nivel, aprov) : v.calculo.nivel })) return { kind: 'pergunta_alcada' };
         }
         return await enviarPedido(r, cliente, catalogo, chave, true, preparado);
@@ -928,7 +939,9 @@ export function useVendedor() {
         faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas,
         cliente: situacaoDoClienteLocal(cliente.id),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
-        estoque_bloqueia: false,
+        // RN-VEN-20 (v1.0.39): com a ação `orcamento` do tenant, o Transformar não segue com item sem estoque
+        estoque_bloqueia: estoqueSoOrcamento(parametrosRef.current),
+        pedido_minimo_cents: pedidoMinimoCents(parametrosRef.current),
         // RN-VEN-43/45: o % gravado do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
         percentual_ajuste_bp: percentualAjusteParaBp(percentualDoDetalhe(d, prazos)),
         // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença

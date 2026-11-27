@@ -31,7 +31,7 @@ export type ModeloDoCredito =
       tipo: 'dados';
       limite_cents: number;
       disponivel_cents: number;
-      /** o ERP informou limite ou disponível (P4 A, T-0184: sem limite informado, a prazo, o pedido vai para aprovação) */
+      /** o ERP informou limite ou disponível (RN-VEN-12: sem limite informado = sem restrição de crédito) */
       limite_informado: boolean;
       alerta: { titulos: number; valorCents: number; dias: number } | null;
     };
@@ -53,7 +53,8 @@ export function modeloDoCredito(f: FinanceiroDaConsulta | null, pedidos: readonl
 
 /**
  * RN-VEN-12 e RN-VEN-13 (T-0184): o que o pedido precisa saber do crédito para ir (ou não) para aprovação. `null` = o Core não
- * respondeu (`modelo` nulo ou ainda carregando): o app não decide. Sem linha financeira (`vazio`), o limite não foi informado (P4 A).
+ * respondeu (`modelo` nulo ou ainda carregando): o app não decide. Sem linha financeira (`vazio`), o limite não foi informado e não há restrição de crédito (RN-VEN-12).
+ * A ação do tenant (`credito_excedido_acao`, P-6) entra depois, em `aprovacoesFinanceiras`: só `aprovacao` manda o crédito excedido para aprovação.
  */
 export function financeiroParaAprovacao(modelo: ModeloDoCredito | null | undefined, prazo_medio_dias: number | undefined, limite_dias: number) {
   if (!modelo) return null;

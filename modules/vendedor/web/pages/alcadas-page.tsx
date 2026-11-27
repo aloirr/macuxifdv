@@ -31,7 +31,7 @@ export function AlcadasPage() {
   const atual = p ? formDosAprovadores(p) : null;
   useEffect(() => {
     if (p) setForm(formDosAprovadores(p));
-  }, [p?.aprovador_credito, p?.aprovador_inadimplencia, Boolean(p)]);
+  }, [p?.aprovador_credito, p?.aprovador_inadimplencia, p?.aprovador_estoque, Boolean(p)]);
   const salvar = useMutation({
     mutationFn: async (f: FormAprovadores) => api<unknown>('/vendedor/alcadas/aprovadores', { method: 'PUT', body: corpoDosAprovadores(f) }),
     onSuccess: async () => {
@@ -62,12 +62,13 @@ export function AlcadasPage() {
         <TabelaDados rotulo="Alçadas" colunas={colunasFaixas} linhas={faixas} chave={(f) => f.id} testId="alcadas.tabela" />
       )}
       {p && form && atual && (
-        <Panel title="Crédito e inadimplência" label="Crédito e inadimplência">
+        <Panel title="Crédito, inadimplência e estoque" label="Crédito, inadimplência e estoque">
           <div className="flex flex-col" data-testid="alcadas.aprovadores">
             {(
               [
                 ['credito', 'Quem aprova crédito'],
                 ['inadimplencia', 'Quem aprova inadimplência'],
+                ['estoque', 'Quem aprova estoque'],
               ] as const
             ).map(([campo, rotulo]) => (
               <div key={campo} className="grid min-h-14 grid-cols-[minmax(0,1fr)_300px] items-center gap-4">

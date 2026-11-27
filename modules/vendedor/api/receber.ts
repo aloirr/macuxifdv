@@ -33,9 +33,11 @@ import {
   ehPedidoEmNome,
   momentoDaConversao,
   aplicacaoMaxOrcamento,
+  mensagemCreditoSoOrcamento,
+  mensagemPedidoMinimo,
+  mensagemEstoqueSoOrcamento,
   marcaDoRetrato,
   modalidadePadraoDosParametros,
-  niveisDosParametros,
   MSG_RECUSA_FRETE,
   politicaDoAutor,
   politicaDosParametros,
@@ -242,6 +244,9 @@ export async function calcularDocumento(
   // 6b) crédito (RN-VEN-12) e inadimplência (RN-VEN-13): o servidor recalcula e vale a lista dele (T-0184). Orçamento não passa por aqui.
   const financeiro = tipo === 'pedido' ? await financeiroDoCliente(ctx, db, tx, p.customer_id) : undefined;
 
+  // RN-VEN-20 (T-0149, v1.0.39): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial); o que fazer vem de `estoque_insuficiente_acao`
+  const faltaEstoque = tipo === 'pedido' ? await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: quantidadeBase(i.quantity, medidas.get(idx)!.fator) })), retratoFilial?.filial_id ?? null, p.id) : [];
+
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
   const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
@@ -281,7 +286,9 @@ export async function calcularDocumento(
     faixas: mapaFaixas,
     financeiro: financeiro?.para_aprovacao,
     prazo_medio_dias: pagamento?.prazo.prazo_medio_dias,
-    niveis_financeiros: niveisDosParametros(ctx.parametros()),
+    // RN-VEN-12/20/22 (v1.0.39): o domain decide pelos parâmetros do tenant (ação do crédito e do estoque, níveis de Alçadas, mínimo)
+    parametros: ctx.parametros(),
+    falta_estoque: faltaEstoque.length > 0,
     // RN-VEN-45: percentual divergente aceito = aviso na linha do tempo, fora da alçada
     percentual_mudou: pg.percentual_mudou,
     aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
@@ -292,10 +299,12 @@ export async function calcularDocumento(
     ...(emNome ? { autor_perfil: ctx.usuario.perfil } : {}),
   });
   if (!rv.ok) return recusa(itemId, rv);
-  // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
   if (tipo === 'pedido') {
-    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: quantidadeBase(i.quantity, medidas.get(idx)!.fator) })), retratoFilial?.filial_id ?? null, p.id);
-    if (falta.length > 0) return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
+    // RN-VEN-22 (PA-3, PA-4), RN-VEN-12 (P-6) e RN-VEN-20: o que os parâmetros mandam fazer (o domain decide; consulta financeira indisponível não bloqueia)
+    const ef = rv.efeitos;
+    if (ef.abaixo_do_minimo_cents > 0) return rejeitado(itemId, 'RN-VEN-22', mensagemPedidoMinimo(ef.abaixo_do_minimo_cents));
+    if (ef.credito_so_orcamento) return rejeitado(itemId, 'RN-VEN-12', mensagemCreditoSoOrcamento(true));
+    if (ef.itens_sem_estoque_bloqueiam) return rejeitado(itemId, 'RN-VEN-20', mensagemEstoqueSoOrcamento());
   }
   // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
   const recebidoEm = agora.toISOString();

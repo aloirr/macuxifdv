@@ -1,5 +1,5 @@
 /**
- * Quem aprova crédito e quem aprova inadimplência (BKO › Parâmetros › Pedidos, prancha 01; T-0184, P2 B). Padrão Gerente (P5 B),
+ * Quem aprova crédito, inadimplência e estoque (BKO › Parâmetros › Pedidos, prancha 01; T-0184, P2 B). Padrão Gerente (P5 B),
  * também quando o servidor ainda não devolve os campos. O limite de crédito não aparece: vem do ERP (RN-VEN-12).
  */
 import type { DiscountPolicy, NivelAprovacao, PutAprovadoresRequest } from '../../contracts';
@@ -7,6 +7,8 @@ import type { DiscountPolicy, NivelAprovacao, PutAprovadoresRequest } from '../.
 export interface FormAprovadores {
   credito: NivelAprovacao;
   inadimplencia: NivelAprovacao;
+  /** RN-VEN-20 (PA-10): quem aprova o estoque insuficiente */
+  estoque: NivelAprovacao;
 }
 
 export const ROTULO_NIVEL: Record<NivelAprovacao, string> = { supervisor: 'Supervisor', gerente: 'Gerente', analista: 'Analista comercial' };
@@ -14,8 +16,9 @@ export const ROTULO_NIVEL: Record<NivelAprovacao, string> = { supervisor: 'Super
 export const formDosAprovadores = (p: Omit<DiscountPolicy, 'exceptions'> & { exceptions?: unknown }): FormAprovadores => ({
   credito: p.aprovador_credito ?? 'gerente',
   inadimplencia: p.aprovador_inadimplencia ?? 'gerente',
+  estoque: p.aprovador_estoque ?? 'gerente',
 });
 
-export const corpoDosAprovadores = (f: FormAprovadores): PutAprovadoresRequest => ({ aprovador_credito: f.credito, aprovador_inadimplencia: f.inadimplencia });
+export const corpoDosAprovadores = (f: FormAprovadores): PutAprovadoresRequest => ({ aprovador_credito: f.credito, aprovador_inadimplencia: f.inadimplencia, aprovador_estoque: f.estoque });
 
-export const houveMudanca = (a: FormAprovadores, b: FormAprovadores): boolean => a.credito !== b.credito || a.inadimplencia !== b.inadimplencia;
+export const houveMudanca = (a: FormAprovadores, b: FormAprovadores): boolean => a.credito !== b.credito || a.inadimplencia !== b.inadimplencia || a.estoque !== b.estoque;

@@ -192,6 +192,20 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
     expect(r.mudancas).toEqual([]);
     expect(r.pode_enviar).toBe(true);
   });
+  it('RN-VEN-22: Transformar abaixo do pedido mínimo do tenant não envia; sem mínimo ou no mínimo envia', () => {
+    const e = entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]);
+    const total = reconferirDocumento(e).calculo.totais.total_cents;
+    const abaixo = reconferirDocumento({ ...e, pedido_minimo_cents: total + 1 });
+    expect(abaixo.pode_enviar).toBe(false);
+    expect(abaixo.bloqueio).toContain('Pedido abaixo do mínimo de');
+    expect(reconferirDocumento({ ...e, pedido_minimo_cents: total }).pode_enviar).toBe(true);
+    expect(reconferirDocumento({ ...e, pedido_minimo_cents: 0 }).pode_enviar).toBe(true);
+  });
+  it('RN-VEN-20: com a ação orcamento (estoque_bloqueia) o item sem estoque barra o Transformar; com aprovacao ou avisar não', () => {
+    const sem = (bloqueia: boolean) => reconferirDocumento({ ...entrada([{ ...P(AGUA, 149), stock_total: 0 } as Product, P(CAFE, 1890), P(GAS, 11780)]), estoque_bloqueia: bloqueia });
+    expect(sem(true).pode_enviar).toBe(false);
+    expect(sem(false).pode_enviar).toBe(true);
+  });
   it('RN-VEN-43: com o % do prazo, a tabela de hoje é ajustada e não aparece diferença falsa de preço', () => {
     // o orçamento guarda a tabela já ajustada (-1,71%): 1890 vira 1858; o catálogo do aparelho traz 1890 (tabela pura)
     const e = entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]);

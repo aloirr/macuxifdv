@@ -267,7 +267,7 @@ export const rotaAlcadas: RotaModulo = {
   async executar(ctx): Promise<AlcadaApi> {
     const p = politicaDosParametros({ ...ctx.parametros() });
     const n = niveisDosParametros({ ...ctx.parametros() });
-    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [], aprovador_credito: n.credito, aprovador_inadimplencia: n.inadimplencia };
+    return { seller_pct: p.seller_pct, supervisor_pct: p.supervisor_pct, manager_pct: p.manager_pct, above_manager: p.above_manager, exceptions: [], aprovador_credito: n.credito, aprovador_inadimplencia: n.inadimplencia, aprovador_estoque: n.estoque };
   },
 };
 
