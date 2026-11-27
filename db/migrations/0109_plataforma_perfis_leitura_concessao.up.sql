@@ -12,35 +12,44 @@
 -- 2. plataforma.perfil_do_usuario(usuario) — NOVA; o perfil vivo e ativo do usuário no tenant do contexto (um só, RN-CORE-54):
 --    (perfil_id, codigo, nome, cargo, base, leitura, permissoes). Fora de contexto ou sem perfil = 0 linhas. É a leitura da API
 --    para ctx.usuario.cargo e perfil_acesso (ADR 0073 §2.7). INVOKER, stable; EXECUTE do macuxi_app.
--- 3. plataforma.perfis_do_usuario(usuario) — recriada (drop + create: retorno novo) com as colunas de antes e mais cargo e
---    permissoes (as efetivas, item 1) no fim. As colunas de antes seguem iguais (sobreposicoes = perfil_permissao), para a API
---    de hoje. Mesmas ACLs.
--- 4. Último admin pela gestão do acesso (ADR 0073 §2.5, decisão 4): usuario_admin_com_gestao e tenant_tem_admin_com_gestao
---    (0041). 'concessao': usuário ativo com perfil vivo e ativo cujas concessões têm acesso.bko e a gestão completa
---    (tem_gestao_do_acesso, 0106), de qualquer cargo; 'legado': o corpo da 0041. As conferências no COMMIT de hoje (0041/0049)
---    seguem chamando conferir_ultimo_admin, que passa a usar o caminho duplo. Gatilho NOVO perfil_concessao_conferir
---    (restrição adiável, SECURITY DEFINER como os da 0049): no tenant 'concessao', a concessão viva de uma chave da gestão que
---    sai (ou muda) de um perfil ativo com usuário ativo, que tinha a gestão completa antes da transação, confere o último admin
---    (tenant_ultimo_admin, 23514).
--- 5. plataforma.usuario_tem_perfil_admin (0047, portal e sa_*): 'concessao' = algum perfil vivo e ativo com a concessão viva
+--    plataforma.perfis_do_usuario (0041) NÃO muda: ninguém lê cargo nem permissoes por ela (a API lê perfil_do_usuario).
+-- 3. Último admin pela gestão do acesso (ADR 0073 §2.5, decisão 4; RN-CORE-35):
+--    - usuario_admin_com_gestao e tenant_tem_admin_com_gestao (0041): 'concessao' = usuário ativo com perfil vivo e ativo cujas
+--      concessões têm acesso.bko e a gestão completa (tem_gestao_do_acesso, 0106), de qualquer cargo ou base; 'legado' = o
+--      corpo da 0041. tenant_tem_admin_com_gestao filtra antes o perfil: base admin ('legado') ou a concessão viva perfil.gerir
+--      ('concessao'), para não agregar as concessões de todo vínculo do tenant.
+--    - perfil_com_gestao_na_transacao(tenant, perfil) — NOVA, interna dos gatilhos (sem EXECUTE para ninguém): o perfil tem a
+--      concessão viva perfil.gerir ou teve alguma concessão gravada nesta transação (updated_at = now(), a que saiu agora). É o
+--      "podia contar como admin antes da transação" do tenant 'concessao', como a base admin (imutável) é no 'legado'.
+--    - Os 3 gatilhos de restrição da 0041 (SECURITY DEFINER desde a 0049) passam a conferir o último admin também pelo perfil
+--      com a gestão no tenant 'concessao', além da base admin: usuario_conferir_acesso (desativar ou apagar o usuário),
+--      usuario_perfil_conferir (tirar ou trocar o vínculo, ou seja, o perfil do usuário) e perfil_conferir (desativar ou apagar
+--      o perfil). No 'legado', o mesmo de hoje. Recriados com SECURITY DEFINER explícito (o create or replace sem ele voltaria a
+--      INVOKER e desfaria a 0049) e o search_path fixo de antes; conferência no fim do bloco.
+--    - Gatilho NOVO perfil_concessao_conferir (restrição adiável, SECURITY DEFINER como os da 0049): no tenant 'concessao', a
+--      concessão viva de uma chave da gestão que sai (ou muda) de um perfil ativo com usuário ativo, que tinha a gestão completa
+--      antes da transação, confere o último admin (tenant_ultimo_admin, 23514). Se o usuário ou o vínculo também sai na mesma
+--      transação, quem confere é o gatilho do usuário ou do vínculo (o perfil teve concessão gravada nesta transação).
+-- 4. plataforma.usuario_tem_perfil_admin (0047, portal e sa_*): 'concessao' = algum perfil vivo e ativo com a concessão viva
 --    perfil.gerir (o alvo que o BKO nunca alcança, RN-CORE-34); 'legado' = o corpo da 0047. Mesmas ACLs (nenhum EXECUTE).
--- 6. plataforma.licencas_em_uso (0086): 'concessao' = o item da licença pelo CARGO do perfil (vendedor, promotor,
+-- 5. plataforma.licencas_em_uso (0086): 'concessao' = o item da licença pelo CARGO do perfil (vendedor, promotor,
 --    supervisor/gerente -> gestor, administrativo -> bko); 'legado' = pela base, como na 0086.
--- 7. plataforma.ligar_leitura_por_concessao(tenant) -> 'ligado' | 'ja_ligado' | 'parado' | 'sem_tenant'. Sem EXECUTE para
+-- 6. plataforma.ligar_leitura_por_concessao(tenant) -> 'ligado' | 'ja_ligado' | 'parado' | 'sem_tenant'. Sem EXECUTE para
 --    ninguém (só o dono). Trava do tenant (a de migrar_perfis_sem_base). Roda migrar_perfis_sem_base (0106) e
 --    aplicar_catalogo_v2 (0108); tenant com conflito 'para_tenant' fica em 'legado' com os conflitos gravados ('parado'); sem
 --    conflito, a conferência do §4.1 (conferir_perfis_sem_base, 0107): uma linha DIFERENCA = 23514 e a migração inteira volta
 --    (defeito da derivação, não do tenant); sem diferença, catalogo_aplicado passa a 'concessao', com aplicado_em = agora.
 --    Idempotente: tenant já em 'concessao' não muda; o parado repete a mesma derivação sem mudar linha.
--- 8. Tenant novo: tenant_semear_concessoes (0107/0108) passa a chamar ligar_leitura_por_concessao (nasce derivado, na v2 e em
+-- 7. Tenant novo: tenant_semear_concessoes (0107/0108) passa a chamar ligar_leitura_por_concessao (nasce derivado, na v2 e em
 --    'concessao').
--- 9. Rodada em todos os tenants (bloco no fim), com raise notice da contagem por resultado e dos achados abertos por tipo e
+-- 8. Rodada em todos os tenants (bloco no fim), com raise notice da contagem por resultado e dos achados abertos por tipo e
 --    efeito (sem dado pessoal).
 -- Não muda a lista de funções sa_* nem o kit do Conector. Não muda perfil.base, perfil_permissao nem core.usuario.perfil (a base
 -- fica congelada, §2.5). O espelho da 0107 segue ligado no tenant 'concessao' (janela até o deploy da API nova).
 --
 -- Caminho de volta: 0109_plataforma_perfis_leitura_concessao.down.sql (§4.3: sobreposições recalculadas dos perfis mudados
--- pela API nova, todo tenant volta a 'legado', as funções voltam como cópia exata e as novas saem).
+-- pela API nova, todo tenant volta a 'legado', as funções recriadas e as dos 3 gatilhos voltam como cópia exata e as novas
+-- saem).
 
 -- 1. Permissões efetivas do perfil (caminho duplo) ---------------------------------------------------------------------------
 create function plataforma.permissoes_efetivas_do_perfil(p_perfil uuid) returns jsonb
@@ -74,34 +83,7 @@ create function plataforma.perfil_do_usuario(p_usuario uuid)
 revoke all on function plataforma.perfil_do_usuario(uuid) from public;
 grant execute on function plataforma.perfil_do_usuario(uuid) to macuxi_app;
 
--- 3. Perfis do usuário (retorno novo: + cargo e permissoes) -------------------------------------------------------------------
-drop function plataforma.perfis_do_usuario(uuid);
-create function plataforma.perfis_do_usuario(p_usuario uuid)
-  returns table (perfil_id uuid, codigo text, base text, nome text, fabrica boolean, sobreposicoes jsonb, modulos text[],
-                 cargo text, permissoes jsonb)
-  language sql stable
-  set search_path = pg_catalog, plataforma, pg_temp
-  as $$
-    select p.id, p.codigo, p.base, p.nome, p.fabrica,
-           coalesce((select jsonb_agg(jsonb_build_object('chave', pp.chave, 'concedida', pp.concedida, 'nivel', pp.nivel,
-                                                         'alvos', to_jsonb(pp.alvos)) order by pp.chave)
-                       from plataforma.perfil_permissao pp
-                      where pp.tenant_id = p.tenant_id and pp.perfil_id = p.id and pp.deleted_at is null), '[]'::jsonb),
-           coalesce((select array_agg(pm.modulo order by pm.modulo)
-                       from plataforma.perfil_modulo pm
-                      where pm.tenant_id = p.tenant_id and pm.perfil = p.codigo and pm.deleted_at is null), '{}'::text[]),
-           p.cargo,
-           plataforma.permissoes_efetivas_do_perfil(p.id)
-      from plataforma.usuario_perfil up
-      join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
-     where up.tenant_id = plataforma.tenant_atual() and up.usuario_id = p_usuario and up.deleted_at is null
-       and p.ativo and p.deleted_at is null
-     order by p.fabrica desc, p.codigo
-  $$;
-revoke all on function plataforma.perfis_do_usuario(uuid) from public;
-grant execute on function plataforma.perfis_do_usuario(uuid) to macuxi_app;
-
--- 4. Último admin pela gestão do acesso (caminho duplo; o 'legado' é o corpo da 0041) ------------------------------------------
+-- 3. Último admin pela gestão do acesso (caminho duplo; o 'legado' é o corpo da 0041) ------------------------------------------
 create or replace function plataforma.usuario_admin_com_gestao(p_tenant uuid, p_usuario uuid) returns boolean
   language sql stable
   set search_path = pg_catalog, plataforma, pg_temp
@@ -137,6 +119,7 @@ create or replace function plataforma.usuario_admin_com_gestao(p_tenant uuid, p_
     end
   $$;
 
+-- filtro prévio do perfil (1.S1): base admin no 'legado'; a concessão viva perfil.gerir (pelo perfil_concessao_uk) no 'concessao'
 create or replace function plataforma.tenant_tem_admin_com_gestao(p_tenant uuid) returns boolean
   language sql stable
   set search_path = pg_catalog, plataforma, pg_temp
@@ -146,9 +129,131 @@ create or replace function plataforma.tenant_tem_admin_com_gestao(p_tenant uuid)
         from plataforma.usuario_perfil up
         join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
        where up.tenant_id = p_tenant and up.deleted_at is null and p.ativo and p.deleted_at is null
-         and (p.base = 'admin' or plataforma.leitura_de_perfis(p_tenant) = 'concessao')
+         and case when plataforma.leitura_de_perfis(p_tenant) = 'concessao'
+                  then exists (select 1 from plataforma.perfil_concessao c
+                                where c.tenant_id = p.tenant_id and c.perfil_id = p.id and c.chave = 'perfil.gerir'
+                                  and c.deleted_at is null)
+                  else p.base = 'admin' end
          and plataforma.usuario_admin_com_gestao(p_tenant, up.usuario_id))
   $$;
+
+-- Interna dos gatilhos de restrição (rodam como o dono): o perfil podia contar como admin antes da transação. A concessão viva
+-- perfil.gerir (sem ela, não há gestão completa) ou alguma concessão do perfil gravada nesta transação (a que saiu agora tem
+-- updated_at = now(), pelo gatilho perfil_concessao_updated_at). Caminho 'concessao' só; no 'legado' vale a base admin.
+create function plataforma.perfil_com_gestao_na_transacao(p_tenant uuid, p_perfil uuid) returns boolean
+  language sql stable
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+    select exists (select 1 from plataforma.perfil_concessao c
+                    where c.tenant_id = p_tenant and c.perfil_id = p_perfil and c.chave = 'perfil.gerir' and c.deleted_at is null)
+        or exists (select 1 from plataforma.perfil_concessao c
+                    where c.tenant_id = p_tenant and c.perfil_id = p_perfil and c.updated_at = now())
+  $$;
+revoke all on function plataforma.perfil_com_gestao_na_transacao(uuid, uuid) from public;
+
+-- Os 3 gatilhos da 0041 (DEFINER desde a 0049): além da base admin, no tenant 'concessao' o perfil com a gestão do acesso.
+create or replace function plataforma.usuario_conferir_acesso() returns trigger
+  language plpgsql security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+begin
+  if not exists (select 1 from plataforma.tenant t where t.id = new.tenant_id) then
+    return null;
+  end if;
+  perform plataforma.conferir_perfis_do_usuario(new.tenant_id, new.id);
+  -- desativou ou apagou quem tem perfil de base admin ou, no tenant 'concessao', perfil com a gestão do acesso
+  if tg_op = 'UPDATE' and old.ativo and old.deleted_at is null
+     and exists (select 1 from plataforma.usuario_perfil up
+                   join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
+                  where up.tenant_id = new.tenant_id and up.usuario_id = new.id and up.deleted_at is null
+                    and (p.base = 'admin'
+                         or (plataforma.leitura_de_perfis(new.tenant_id) = 'concessao'
+                             and plataforma.perfil_com_gestao_na_transacao(p.tenant_id, p.id)))) then
+    perform plataforma.conferir_ultimo_admin(new.tenant_id);
+  end if;
+  return null;
+end
+$$;
+revoke all on function plataforma.usuario_conferir_acesso() from public;
+
+create or replace function plataforma.usuario_perfil_conferir() returns trigger
+  language plpgsql security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+declare
+  v_tenant uuid := case when tg_op = 'DELETE' then old.tenant_id else new.tenant_id end;
+  v_base_antes text;
+  v_base_depois text;
+  v_gestao_antes boolean := false;
+begin
+  if not exists (select 1 from plataforma.tenant t where t.id = v_tenant) then
+    return null;
+  end if;
+  if tg_op <> 'DELETE' then
+    perform plataforma.conferir_perfis_do_usuario(new.tenant_id, new.usuario_id);
+    select p.base into v_base_depois from plataforma.perfil p where p.tenant_id = new.tenant_id and p.id = new.perfil_id;
+  end if;
+  if tg_op <> 'INSERT' then
+    if tg_op = 'DELETE' or old.usuario_id is distinct from new.usuario_id then
+      perform plataforma.conferir_perfis_do_usuario(old.tenant_id, old.usuario_id);
+    end if;
+    if old.deleted_at is null then
+      select p.base into v_base_antes from plataforma.perfil p where p.tenant_id = old.tenant_id and p.id = old.perfil_id;
+      v_gestao_antes := plataforma.leitura_de_perfis(old.tenant_id) = 'concessao'
+                        and plataforma.perfil_com_gestao_na_transacao(old.tenant_id, old.perfil_id);
+    end if;
+  end if;
+  -- saiu (ou trocou) um vínculo vivo com perfil de base admin ou, no tenant 'concessao', com perfil com a gestão do acesso; ou
+  -- quem tem perfil de base admin ganhou um que fecha o BKO (RN-CORE-33)
+  if v_base_antes = 'admin' or v_gestao_antes
+     or (tg_op <> 'DELETE' and new.deleted_at is null and v_base_depois in ('vendedor', 'promotor', 'supervisor')
+         and exists (select 1 from plataforma.usuario_perfil up
+                       join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
+                      where up.tenant_id = new.tenant_id and up.usuario_id = new.usuario_id and up.deleted_at is null
+                        and p.base = 'admin')) then
+    perform plataforma.conferir_ultimo_admin(v_tenant);
+  end if;
+  return null;
+end
+$$;
+revoke all on function plataforma.usuario_perfil_conferir() from public;
+
+create or replace function plataforma.perfil_conferir() returns trigger
+  language plpgsql security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+declare
+  v_atual record;
+begin
+  if not exists (select 1 from plataforma.tenant t where t.id = old.tenant_id) then
+    return null;
+  end if;
+  select p.ativo, p.deleted_at into v_atual from plataforma.perfil p where p.tenant_id = old.tenant_id and p.id = old.id;
+  -- os 7 de fábrica ficam (o CHECK perfil_fabrica_ativo cobre a desativação; aqui, a exclusão física fora da excluir_tenant)
+  if old.fabrica and not exists (select 1 from plataforma.perfil p
+                                   where p.tenant_id = old.tenant_id and p.codigo = old.codigo and p.fabrica) then
+    raise exception 'o perfil de fábrica % não pode ser apagado', old.codigo using errcode = '23514',
+      constraint = 'perfil_fabrica_presente', hint = 'RN-CORE-35';
+  end if;
+  -- perfil desativado ou apagado não pode ficar com usuário (os vínculos saem antes)
+  if (v_atual is null or not v_atual.ativo or v_atual.deleted_at is not null)
+     and exists (select 1 from plataforma.usuario_perfil up
+                   join core.usuario u on u.tenant_id = up.tenant_id and u.id = up.usuario_id and u.deleted_at is null
+                  where up.tenant_id = old.tenant_id and up.perfil_id = old.id and up.deleted_at is null) then
+    raise exception 'perfil em uso por usuário não pode ser desativado nem apagado' using errcode = '23514',
+      constraint = 'perfil_em_uso', hint = 'RN-CORE-01';
+  end if;
+  -- perfil de base admin ou, no tenant 'concessao', com a gestão do acesso
+  if old.ativo and old.deleted_at is null
+     and (old.base = 'admin'
+          or (plataforma.leitura_de_perfis(old.tenant_id) = 'concessao'
+              and plataforma.perfil_com_gestao_na_transacao(old.tenant_id, old.id))) then
+    perform plataforma.conferir_ultimo_admin(old.tenant_id);
+  end if;
+  return null;
+end
+$$;
+revoke all on function plataforma.perfil_conferir() from public;
 
 create function plataforma.perfil_concessao_conferir() returns trigger
   language plpgsql security definer
@@ -186,7 +291,32 @@ create constraint trigger perfil_concessao_conferir after update or delete on pl
   deferrable initially deferred
   for each row execute function plataforma.perfil_concessao_conferir();
 
--- 5. Portal: o admin que o BKO não alcança (caminho duplo; o 'legado' é o corpo da 0047) ----------------------------------------
+-- conferência: as 4 funções dos gatilhos de restrição DEFINER com o search_path fixo e sem EXECUTE para PUBLIC, app, worker ou
+-- portal (a 0049 e o gatilho novo); a interna perfil_com_gestao_na_transacao sem EXECUTE para ninguém além do dono
+do $$
+declare
+  v_n integer;
+begin
+  select count(*) into v_n
+    from pg_proc p
+   where p.oid in ('plataforma.usuario_conferir_acesso()'::regprocedure, 'plataforma.usuario_perfil_conferir()'::regprocedure,
+                   'plataforma.perfil_conferir()'::regprocedure, 'plataforma.perfil_concessao_conferir()'::regprocedure)
+     and p.prosecdef
+     and p.proconfig @> array['search_path=pg_catalog, plataforma, pg_temp']
+     and not exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                      where a.privilege_type = 'EXECUTE' and a.grantee <> p.proowner);
+  if v_n <> 4 then
+    raise exception '0109: % de 4 funções de conferência DEFINER com search_path fixo e EXECUTE só do dono', v_n using errcode = '42501';
+  end if;
+  if exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+              where p.oid = 'plataforma.perfil_com_gestao_na_transacao(uuid, uuid)'::regprocedure
+                and a.privilege_type = 'EXECUTE' and a.grantee <> p.proowner) then
+    raise exception '0109: perfil_com_gestao_na_transacao com EXECUTE além do dono' using errcode = '42501';
+  end if;
+end
+$$;
+
+-- 4. Portal: o admin que o BKO não alcança (caminho duplo; o 'legado' é o corpo da 0047) ----------------------------------------
 create or replace function plataforma.usuario_tem_perfil_admin(p_tenant uuid, p_usuario uuid) returns boolean
   language sql stable security invoker
   set search_path = pg_catalog, plataforma, pg_temp
@@ -203,7 +333,7 @@ create or replace function plataforma.usuario_tem_perfil_admin(p_tenant uuid, p_
                   else p.base = 'admin' end)
   $$;
 
--- 6. Licenças em uso pelo cargo (caminho duplo; o 'legado' é o corpo da 0086) ---------------------------------------------------
+-- 5. Licenças em uso pelo cargo (caminho duplo; o 'legado' é o corpo da 0086) ---------------------------------------------------
 create or replace function plataforma.licencas_em_uso(p_tenant uuid)
   returns table (item text, em_uso integer)
   language sql stable
@@ -243,7 +373,7 @@ create or replace function plataforma.licencas_em_uso(p_tenant uuid)
      order by i.n
   $$;
 
--- 7. Troca de leitura de um tenant, pela conferência ------------------------------------------------------------------------
+-- 6. Troca de leitura de um tenant, pela conferência ------------------------------------------------------------------------
 create function plataforma.ligar_leitura_por_concessao(p_tenant uuid) returns text
   language plpgsql volatile
   set search_path = pg_catalog, plataforma, pg_temp
@@ -278,7 +408,7 @@ end
 $$;
 revoke all on function plataforma.ligar_leitura_por_concessao(uuid) from public;
 
--- 8. Tenant novo nasce em 'concessao' --------------------------------------------------------------------------------------
+-- 7. Tenant novo nasce em 'concessao' --------------------------------------------------------------------------------------
 create or replace function plataforma.tenant_semear_concessoes() returns trigger
   language plpgsql security definer
   set search_path = pg_catalog, plataforma, pg_temp
@@ -289,7 +419,7 @@ begin
 end
 $$;
 
--- 9. Rodada em todos os tenants ----------------------------------------------------------------------------------------------
+-- 8. Rodada em todos os tenants ----------------------------------------------------------------------------------------------
 do $$
 declare
   v_t uuid;

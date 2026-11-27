@@ -45,8 +45,12 @@ const U = {
   cAdmin: 'cccccccc-0109-4000-8000-00000000c101',
   cVend: 'cccccccc-0109-4000-8000-00000000c102',
 };
-const FUNCOES = ['perfis_do_usuario', 'usuario_admin_com_gestao', 'tenant_tem_admin_com_gestao', 'usuario_tem_perfil_admin', 'licencas_em_uso', 'tenant_semear_concessoes'];
-const NOVAS = ['perfil_do_usuario', 'permissoes_efetivas_do_perfil', 'ligar_leitura_por_concessao', 'perfil_concessao_conferir'];
+const FUNCOES = [
+  'perfis_do_usuario', // a 0109 não muda (RD-3732): o texto é o mesmo antes, depois do up e depois do down
+  'usuario_admin_com_gestao', 'tenant_tem_admin_com_gestao', 'usuario_tem_perfil_admin', 'licencas_em_uso', 'tenant_semear_concessoes',
+  'usuario_conferir_acesso', 'usuario_perfil_conferir', 'perfil_conferir', // os 3 gatilhos do último admin (0041, DEFINER da 0049)
+];
+const NOVAS = ['perfil_do_usuario', 'permissoes_efetivas_do_perfil', 'perfil_com_gestao_na_transacao', 'ligar_leitura_por_concessao', 'perfil_concessao_conferir'];
 
 type Q = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<T[]>;
 const consulta = (c: pg.ClientBase): Q => async (sql, params = []) => (await c.query(sql, params)).rows;
@@ -204,6 +208,14 @@ describe.skipIf(semBanco())('0109 troca de leitura: prova por usuário, idempot�
 
       // up da 0109
       expect((await migrarUp(c)).aplicadas).toEqual(['0109_plataforma_perfis_leitura_concessao']);
+      const funcoesDepois = await funcoes(c);
+      expect(funcoesDepois['plataforma.perfis_do_usuario(uuid)']).toEqual(funcoesAntes['plataforma.perfis_do_usuario(uuid)']);
+      // os 3 gatilhos recriados seguem DEFINER (a 0049), com a mesma ACL
+      for (const f of ['usuario_conferir_acesso()', 'usuario_perfil_conferir()', 'perfil_conferir()']) {
+        expect(funcoesDepois[`plataforma.${f}`]!.def, f).toMatch(/SECURITY DEFINER/);
+        expect(funcoesDepois[`plataforma.${f}`]!.acl, f).toEqual(funcoesAntes[`plataforma.${f}`]!.acl);
+        expect(funcoesDepois[`plataforma.${f}`]!.def, f).not.toEqual(funcoesAntes[`plataforma.${f}`]!.def);
+      }
       const ligados = tenants.filter((t) => t !== TC);
       expect(await leituras(c)).toEqual(Object.fromEntries(tenants.map((t) => [t, t === TC ? 'legado' : 'concessao'])));
       expect(avisos.filter((a) => a.startsWith('0109:'))).toEqual([
@@ -220,6 +232,7 @@ describe.skipIf(semBanco())('0109 troca de leitura: prova por usuário, idempot�
       expect(await pelaApi(b.urlApp, antes)).toEqual(antes);
       expect(await licencas(c)).toEqual(licencasAntes);
       for (const t of ligados) expect(await q("select * from plataforma.conferir_perfis_sem_base($1) where tipo = 'DIFERENCA'", [t]), t).toEqual([]);
+      expect(antes).toHaveLength(24);
       console.info(`[0109] ${antes.length} usuário(s) provados sem perda em ${tenants.length} tenant(s): ${ligados.length} em concessao, 1 em legado`);
 
       // idempotência: rodar de novo não muda nenhuma linha
@@ -274,7 +287,7 @@ describe.skipIf(semBanco())('0109 funções de caminho duplo (fixture, ROLLBACK)
   /** A fixture grava catalogo_aplicado em 'legado' (o motor da API nos outros testes); aqui o tenant A é ligado na transação. */
   const ligarA = (c: Q) => c("update plataforma.catalogo_aplicado set leitura = 'concessao' where tenant_id = $1", [A.tenantId]);
 
-  it('perfil_do_usuario devolve codigo, cargo, base, leitura e as concessões; perfis_do_usuario as mesmas permissões', async () => {
+  it('perfil_do_usuario devolve codigo, cargo, base, leitura e as concessões', async () => {
     await emTransacao(app, A.tenantId, async () => {
       const ler = () => naApp('select perfil_id, codigo, cargo, base, leitura, permissoes from plataforma.perfil_do_usuario($1)', [A.usuarios.vendedor1]);
       const noLegado = await ler();
@@ -284,8 +297,6 @@ describe.skipIf(semBanco())('0109 funções de caminho duplo (fixture, ROLLBACK)
       expect(r[0]).toMatchObject({ perfil_id: idPerfilFabrica(A.tenantId, 'vendedor'), codigo: 'vendedor', cargo: 'vendedor', base: 'vendedor', leitura: 'concessao' });
       expect((r[0]!.permissoes as Permissoes)['acesso.campo']).toEqual({});
       expect({ ...noLegado[0], leitura: 'concessao' }).toEqual(r[0]); // os dois caminhos dão o mesmo
-      const v = await naApp('select codigo, cargo, permissoes from plataforma.perfis_do_usuario($1)', [A.usuarios.vendedor1]);
-      expect(v).toEqual([{ codigo: 'vendedor', cargo: 'vendedor', permissoes: r[0]!.permissoes }]);
     });
   });
 
@@ -346,6 +357,106 @@ describe.skipIf(semBanco())('0109 funções de caminho duplo (fixture, ROLLBACK)
       await tirarGerir();
       expect(await erroDe(q('set constraints all immediate'))).toBeNull();
       expect(await adm(A.usuarios.admin)).toEqual([{ a: false, p: false }]);
+    });
+  });
+
+  describe('último admin só pela gestão do acesso (RN-CORE-35, perfil de base analista)', () => {
+    const G = 'cccccccc-0109-4000-8000-00000000e001'; // perfil personalizado, base analista, com a gestão completa
+    const adminP = idPerfilFabrica(A.tenantId, 'admin');
+    const analistaP = idPerfilFabrica(A.tenantId, 'analista');
+    const gestao = ['acesso.bko', 'perfil.gerir', 'usuario.criar', 'usuario.editar', 'usuario.desativar'];
+    const tirar = (perfil: string, chave: string) =>
+      q('update plataforma.perfil_concessao set deleted_at = now() where tenant_id = $1 and perfil_id = $2 and chave = $3 and deleted_at is null', [A.tenantId, perfil, chave]);
+    const noCommit = async (acao: () => Promise<unknown>) => erroDe((async () => {
+      await acao();
+      await q('set constraints all immediate');
+    })());
+    const ultimoAdmin = ['23514', 'tenant_ultimo_admin'];
+    /** [código, restrição] do erro no COMMIT, ou null. */
+    const motivo = async (acao: () => Promise<unknown>): Promise<[string, string] | null> => {
+      try {
+        await acao();
+        await q('set constraints all immediate');
+        return null;
+      } catch (e) {
+        const err = e as { code?: string; constraint?: string; message?: string };
+        return [err.code ?? '?', err.constraint ?? err.message ?? ''];
+      }
+    };
+
+    /** A gestão vai para G (base analista) com o usuário analista; com `tirarDoAdmin`, o admin de base perde perfil.gerir. */
+    async function preparar(leituraDoTenant: 'concessao' | 'legado', tirarDoAdmin: boolean): Promise<void> {
+      await ligarA(q);
+      await q("insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ($1, $2, 'gestao_109', 'Gestão 109', 'analista', 'administrativo')", [G, A.tenantId]);
+      for (const k of gestao) await q('insert into plataforma.perfil_concessao (tenant_id, perfil_id, chave) values ($1, $2, $3) on conflict do nothing', [A.tenantId, G, k]);
+      await q('update plataforma.usuario_perfil set deleted_at = now() where tenant_id = $1 and usuario_id = $2 and deleted_at is null', [A.tenantId, A.usuarios.analista]);
+      await q('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [A.tenantId, A.usuarios.analista, G]);
+      if (tirarDoAdmin) await tirar(adminP, 'perfil.gerir');
+      if (leituraDoTenant === 'legado') await q("update plataforma.catalogo_aplicado set leitura = 'legado' where tenant_id = $1", [A.tenantId]);
+      await q('set constraints all immediate'); // o preparo passa: no concessao, o analista é o admin
+      await q('set constraints all deferred');
+    }
+    const adminDe = async (u: string) => (await q<{ a: boolean }>('select plataforma.usuario_admin_com_gestao($1, $2) as a', [A.tenantId, u]))[0]!.a;
+
+    it('em concessao: o único admin pela gestão não é desativado, apagado, trocado de perfil nem perde concessão (23514 no COMMIT)', async () => {
+      const casos: Array<[string, () => Promise<unknown>]> = [
+        ['desativar o usuário', () => q('update core.usuario set ativo = false where id = $1', [A.usuarios.analista])],
+        ['apagar o usuário', () => q('update core.usuario set deleted_at = now() where id = $1', [A.usuarios.analista])],
+        ['trocar o perfil (update do vínculo)', () => q('update plataforma.usuario_perfil set perfil_id = $2 where usuario_id = $1 and deleted_at is null', [A.usuarios.analista, analistaP])],
+        ['trocar o perfil (sai o vínculo, entra outro)', async () => {
+          await q('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [A.usuarios.analista]);
+          await q('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [A.tenantId, A.usuarios.analista, analistaP]);
+        }],
+        ...gestao.map((k): [string, () => Promise<unknown>] => [`tirar ${k} do perfil`, () => tirar(G, k)]),
+        ['desativar o perfil (o usuário sai antes)', async () => {
+          await q('update plataforma.usuario_perfil set perfil_id = $2 where usuario_id = $1 and deleted_at is null', [A.usuarios.analista, analistaP]);
+          await q('update plataforma.perfil set ativo = false where id = $1', [G]);
+        }],
+        ['apagar o perfil (o usuário sai antes)', async () => {
+          await q('update plataforma.usuario_perfil set perfil_id = $2 where usuario_id = $1 and deleted_at is null', [A.usuarios.analista, analistaP]);
+          await q('update plataforma.perfil set deleted_at = now() where id = $1', [G]);
+        }],
+        ['tirar perfil.gerir e desativar o usuário na mesma transação', async () => {
+          await tirar(G, 'perfil.gerir');
+          await q('update core.usuario set ativo = false where id = $1', [A.usuarios.analista]);
+        }],
+        ['tirar perfil.gerir e trocar o vínculo na mesma transação', async () => {
+          await tirar(G, 'perfil.gerir');
+          await q('update plataforma.usuario_perfil set perfil_id = $2 where usuario_id = $1 and deleted_at is null', [A.usuarios.analista, analistaP]);
+        }],
+      ];
+      for (const [nome, acao] of casos) {
+        await emTransacao(admin, null, async () => {
+          await preparar('concessao', true);
+          expect([await adminDe(A.usuarios.analista), await adminDe(A.usuarios.admin)], nome).toEqual([true, false]);
+          expect(await q('select plataforma.tenant_tem_admin_com_gestao($1) as t', [A.tenantId]), nome).toEqual([{ t: true }]);
+          expect(await motivo(acao), nome).toEqual(ultimoAdmin);
+        });
+      }
+    });
+
+    it('em concessao, com outro admin pela gestão (o de base admin), as mesmas mudanças passam', async () => {
+      await emTransacao(admin, null, async () => {
+        await preparar('concessao', false);
+        expect([await adminDe(A.usuarios.analista), await adminDe(A.usuarios.admin)]).toEqual([true, true]);
+        expect(await noCommit(async () => {
+          await tirar(G, 'perfil.gerir');
+          await q('update core.usuario set ativo = false where id = $1', [A.usuarios.analista]);
+        })).toBeNull();
+      });
+    });
+
+    it('em legado, o comportamento de hoje: o analista com as concessões não conta; o admin de base é o último', async () => {
+      await emTransacao(admin, null, async () => {
+        await preparar('legado', true);
+        expect([await adminDe(A.usuarios.analista), await adminDe(A.usuarios.admin)]).toEqual([false, true]);
+        expect(await noCommit(() => q('update core.usuario set ativo = false where id = $1', [A.usuarios.analista]))).toBeNull();
+        expect(await motivo(() => q('update core.usuario set ativo = false where id = $1', [A.usuarios.admin]))).toEqual(ultimoAdmin);
+      });
+      await emTransacao(admin, null, async () => {
+        await preparar('legado', true);
+        expect(await noCommit(() => tirar(G, 'perfil.gerir'))).toBeNull();
+      });
     });
   });
 

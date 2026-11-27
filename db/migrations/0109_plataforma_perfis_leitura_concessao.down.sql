@@ -8,9 +8,10 @@
 --    mantêm as sobreposições originais, que a 0109 nunca apagou.
 -- 3. Todo tenant volta a 'legado' (catalogo_aplicado fica, com a versão e o aplicado_em; as concessões e os achados ficam).
 -- 4. As funções recriadas voltam como cópia exata: usuario_admin_com_gestao e tenant_tem_admin_com_gestao (0041),
---    perfis_do_usuario (0041; drop + create, retorno de antes), usuario_tem_perfil_admin (0047), licencas_em_uso (0086) e
---    tenant_semear_concessoes (0108). As novas saem: perfil_do_usuario, permissoes_efetivas_do_perfil,
---    ligar_leitura_por_concessao e perfil_concessao_conferir.
+--    usuario_conferir_acesso, usuario_perfil_conferir e perfil_conferir (0041, com o SECURITY DEFINER da 0049),
+--    usuario_tem_perfil_admin (0047), licencas_em_uso (0086) e tenant_semear_concessoes (0108). As novas saem:
+--    perfil_do_usuario, permissoes_efetivas_do_perfil, perfil_com_gestao_na_transacao, ligar_leitura_por_concessao e
+--    perfil_concessao_conferir. perfis_do_usuario (0041) a 0109 não muda.
 -- Volte antes o código da API e do Core que lê perfil_do_usuario ou grava perfil_concessao.
 drop trigger perfil_concessao_conferir on plataforma.perfil_concessao;
 drop function plataforma.perfil_concessao_conferir();
@@ -131,6 +132,101 @@ create or replace function plataforma.usuario_tem_perfil_admin(p_tenant uuid, p_
   $$;
 revoke all on function plataforma.usuario_tem_perfil_admin(uuid, uuid) from public, macuxi_app, macuxi_worker, macuxi_portal;
 
+-- cópia exata da 0041 com o SECURITY DEFINER da 0049 (as 3 funções dos gatilhos de restrição; gatilhos e ACLs não mudam)
+create or replace function plataforma.usuario_conferir_acesso() returns trigger
+  language plpgsql security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+begin
+  if not exists (select 1 from plataforma.tenant t where t.id = new.tenant_id) then
+    return null;
+  end if;
+  perform plataforma.conferir_perfis_do_usuario(new.tenant_id, new.id);
+  -- desativou ou apagou quem tem perfil de base admin
+  if tg_op = 'UPDATE' and old.ativo and old.deleted_at is null
+     and exists (select 1 from plataforma.usuario_perfil up
+                   join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
+                  where up.tenant_id = new.tenant_id and up.usuario_id = new.id and up.deleted_at is null and p.base = 'admin') then
+    perform plataforma.conferir_ultimo_admin(new.tenant_id);
+  end if;
+  return null;
+end
+$$;
+revoke all on function plataforma.usuario_conferir_acesso() from public;
+
+create or replace function plataforma.usuario_perfil_conferir() returns trigger
+  language plpgsql security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+declare
+  v_tenant uuid := case when tg_op = 'DELETE' then old.tenant_id else new.tenant_id end;
+  v_base_antes text;
+  v_base_depois text;
+begin
+  if not exists (select 1 from plataforma.tenant t where t.id = v_tenant) then
+    return null;
+  end if;
+  if tg_op <> 'DELETE' then
+    perform plataforma.conferir_perfis_do_usuario(new.tenant_id, new.usuario_id);
+    select p.base into v_base_depois from plataforma.perfil p where p.tenant_id = new.tenant_id and p.id = new.perfil_id;
+  end if;
+  if tg_op <> 'INSERT' then
+    if tg_op = 'DELETE' or old.usuario_id is distinct from new.usuario_id then
+      perform plataforma.conferir_perfis_do_usuario(old.tenant_id, old.usuario_id);
+    end if;
+    if old.deleted_at is null then
+      select p.base into v_base_antes from plataforma.perfil p where p.tenant_id = old.tenant_id and p.id = old.perfil_id;
+    end if;
+  end if;
+  -- saiu um vínculo vivo com perfil de base admin; ou quem tem perfil de base admin ganhou um que fecha o BKO (RN-CORE-33)
+  if v_base_antes = 'admin'
+     or (tg_op <> 'DELETE' and new.deleted_at is null and v_base_depois in ('vendedor', 'promotor', 'supervisor')
+         and exists (select 1 from plataforma.usuario_perfil up
+                       join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
+                      where up.tenant_id = new.tenant_id and up.usuario_id = new.usuario_id and up.deleted_at is null
+                        and p.base = 'admin')) then
+    perform plataforma.conferir_ultimo_admin(v_tenant);
+  end if;
+  return null;
+end
+$$;
+revoke all on function plataforma.usuario_perfil_conferir() from public;
+
+create or replace function plataforma.perfil_conferir() returns trigger
+  language plpgsql security definer
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+declare
+  v_atual record;
+begin
+  if not exists (select 1 from plataforma.tenant t where t.id = old.tenant_id) then
+    return null;
+  end if;
+  select p.ativo, p.deleted_at into v_atual from plataforma.perfil p where p.tenant_id = old.tenant_id and p.id = old.id;
+  -- os 7 de fábrica ficam (o CHECK perfil_fabrica_ativo cobre a desativação; aqui, a exclusão física fora da excluir_tenant)
+  if old.fabrica and not exists (select 1 from plataforma.perfil p
+                                   where p.tenant_id = old.tenant_id and p.codigo = old.codigo and p.fabrica) then
+    raise exception 'o perfil de fábrica % não pode ser apagado', old.codigo using errcode = '23514',
+      constraint = 'perfil_fabrica_presente', hint = 'RN-CORE-35';
+  end if;
+  -- perfil desativado ou apagado não pode ficar com usuário (os vínculos saem antes)
+  if (v_atual is null or not v_atual.ativo or v_atual.deleted_at is not null)
+     and exists (select 1 from plataforma.usuario_perfil up
+                   join core.usuario u on u.tenant_id = up.tenant_id and u.id = up.usuario_id and u.deleted_at is null
+                  where up.tenant_id = old.tenant_id and up.perfil_id = old.id and up.deleted_at is null) then
+    raise exception 'perfil em uso por usuário não pode ser desativado nem apagado' using errcode = '23514',
+      constraint = 'perfil_em_uso', hint = 'RN-CORE-01';
+  end if;
+  if old.base = 'admin' and old.ativo and old.deleted_at is null then
+    perform plataforma.conferir_ultimo_admin(old.tenant_id);
+  end if;
+  return null;
+end
+$$;
+revoke all on function plataforma.perfil_conferir() from public;
+
+drop function plataforma.perfil_com_gestao_na_transacao(uuid, uuid);
+
 -- cópia exata da 0041
 create or replace function plataforma.usuario_admin_com_gestao(p_tenant uuid, p_usuario uuid) returns boolean
   language sql stable
@@ -172,30 +268,6 @@ create or replace function plataforma.tenant_tem_admin_com_gestao(p_tenant uuid)
   $$;
 revoke all on function plataforma.tenant_tem_admin_com_gestao(uuid) from public;
 grant execute on function plataforma.tenant_tem_admin_com_gestao(uuid) to macuxi_app;
-
--- cópia exata da 0041 (retorno de antes: drop + create)
-drop function plataforma.perfis_do_usuario(uuid);
-create function plataforma.perfis_do_usuario(p_usuario uuid)
-  returns table (perfil_id uuid, codigo text, base text, nome text, fabrica boolean, sobreposicoes jsonb, modulos text[])
-  language sql stable
-  set search_path = pg_catalog, plataforma, pg_temp
-  as $$
-    select p.id, p.codigo, p.base, p.nome, p.fabrica,
-           coalesce((select jsonb_agg(jsonb_build_object('chave', pp.chave, 'concedida', pp.concedida, 'nivel', pp.nivel,
-                                                         'alvos', to_jsonb(pp.alvos)) order by pp.chave)
-                       from plataforma.perfil_permissao pp
-                      where pp.tenant_id = p.tenant_id and pp.perfil_id = p.id and pp.deleted_at is null), '[]'::jsonb),
-           coalesce((select array_agg(pm.modulo order by pm.modulo)
-                       from plataforma.perfil_modulo pm
-                      where pm.tenant_id = p.tenant_id and pm.perfil = p.codigo and pm.deleted_at is null), '{}'::text[])
-      from plataforma.usuario_perfil up
-      join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
-     where up.tenant_id = plataforma.tenant_atual() and up.usuario_id = p_usuario and up.deleted_at is null
-       and p.ativo and p.deleted_at is null
-     order by p.fabrica desc, p.codigo
-  $$;
-revoke all on function plataforma.perfis_do_usuario(uuid) from public;
-grant execute on function plataforma.perfis_do_usuario(uuid) to macuxi_app;
 
 drop function plataforma.perfil_do_usuario(uuid);
 drop function plataforma.permissoes_efetivas_do_perfil(uuid);

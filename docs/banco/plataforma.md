@@ -1693,25 +1693,31 @@ tenant recém-ligado os dois dão o mesmo (prova por usuário em `db/testes/perf
 |---|---|---|---|---|
 | `permissoes_efetivas_do_perfil` | `(p_perfil uuid) → jsonb` `{ chave: { nivel?, alvos? } }`, alvos em ordem; perfil fora do tenant = `null` | `concessoes_do_perfil` | `permissoes_legado_do_perfil(perfil, true)` (com os 2 parâmetros) | `macuxi_app` |
 | `perfil_do_usuario` (nova) | `(p_usuario uuid) → table (perfil_id uuid, codigo text, nome text, cargo text, base text, leitura text, permissoes jsonb)`; o perfil vivo e ativo do usuário no tenant do contexto, 0 ou 1 linha (fora de contexto = 0) | `permissoes` = concessões | `permissoes` = acesso de hoje | `macuxi_app` |
-| `perfis_do_usuario` (recriada: drop + create) | `(p_usuario uuid) → table (perfil_id, codigo, base, nome, fabrica, sobreposicoes jsonb, modulos text[], cargo text, permissoes jsonb)`; as 7 colunas de antes iguais, `cargo` e `permissoes` no fim | idem | idem | `macuxi_app` |
 | `usuario_admin_com_gestao` | `(p_tenant, p_usuario) → boolean` | usuário ativo com perfil vivo e ativo com `acesso.bko` + a gestão completa (`tem_gestao_do_acesso`), de qualquer cargo | corpo da 0041 (base admin) | `macuxi_app` |
-| `tenant_tem_admin_com_gestao` | `(p_tenant) → boolean` | algum usuário com `usuario_admin_com_gestao` | corpo da 0041 | `macuxi_app` |
+| `tenant_tem_admin_com_gestao` | `(p_tenant) → boolean` | algum usuário com `usuario_admin_com_gestao`, com o filtro prévio do perfil com a concessão viva `perfil.gerir` (1.S1) | corpo da 0041 | `macuxi_app` |
 | `usuario_tem_perfil_admin` (portal, `sa_*`) | `(p_tenant, p_usuario) → boolean` | perfil vivo e ativo com a concessão `perfil.gerir` (o alvo que o BKO não alcança, RN-CORE-34) | base admin (0047) | ninguém |
 | `licencas_em_uso` | `(p_tenant) → table (item, em_uso)` | item pelo **cargo** (vendedor, promotor, supervisor/gerente → gestor, administrativo → bko) | pela base (0086) | `macuxi_app` |
 | `ligar_leitura_por_concessao` | `(p_tenant) → text` (`ligado`, `ja_ligado`, `parado`, `sem_tenant`) | — | — | ninguém (só o dono) |
 
-- **Último admin na escrita direta** em `perfil_concessao` (gatilho de restrição adiável `perfil_concessao_conferir`, SECURITY
-  DEFINER como os da 0049): no tenant `concessao`, a concessão viva de uma chave da gestão que sai ou muda num perfil ativo com
-  usuário ativo, que tinha a gestão completa antes da transação, chama `conferir_ultimo_admin` no COMMIT (`tenant_ultimo_admin`,
-  23514). Os gatilhos de hoje (0041/0049) seguem iguais e passam pelo caminho duplo de `tenant_tem_admin_com_gestao`.
+`perfis_do_usuario` (0041) não muda: ninguém lê `cargo` nem `permissoes` por ela (a API lê `perfil_do_usuario`; RD-3732).
+
+- **Último admin pela gestão do acesso** (RN-CORE-35, ADR 0073 §2.5 decisão 4): no tenant `concessao`, admin é quem tem a gestão
+  completa pelas concessões, de qualquer base ou cargo. Os 3 gatilhos de restrição da 0041 (`usuario_conferir_acesso`,
+  `usuario_perfil_conferir`, `perfil_conferir`) são recriados com SECURITY DEFINER explícito e `search_path` fixo e, além da base
+  admin, conferem o último admin quando o perfil tem a gestão (`perfil_com_gestao_na_transacao(tenant, perfil)`, interna, sem
+  EXECUTE: concessão viva `perfil.gerir` ou concessão gravada nesta transação). Cobre desativar ou apagar o usuário, trocar ou
+  tirar o vínculo e desativar ou apagar o perfil. O gatilho novo `perfil_concessao_conferir` cobre tirar uma concessão da gestão.
+  Tudo no COMMIT (`tenant_ultimo_admin`, 23514). No `legado`, o mesmo de hoje.
 - **A API** lê `perfil_do_usuario` (`codigo`, `cargo`, `permissoes`) no lugar da consulta própria de `apps/api/src/licencas.ts`
   (`lerPerfilPorCargo`); `leitura` diz o caminho. O motor da API continua decidido por `catalogo_aplicado` (versão e leitura).
 - **Fixture `dois-tenants`**: grava `catalogo_aplicado` em `legado` (o motor dos testes de hoje); os testes do caminho novo ligam o
   tenant na transação.
 - **Volta** (`.down.sql` da 0109, plano §4.3): sai o gatilho; o perfil mudado pela API nova (concessões ≠ `concessoes_derivadas`)
   recebe as sobreposições recalculadas contra o modelo v2 da base (lidas antes de gravar, por causa do espelho); todo tenant volta a
-  `legado`; as 6 funções voltam como cópia exata (texto e ACL) e as 3 novas saem. Perda documentada: o que só o modelo novo aceita
-  volta cortado pelas travas da base.
+  `legado`; as 5 funções recriadas e as 3 dos gatilhos voltam como cópia exata (texto e ACL) e as 5 novas saem. Perda documentada:
+  o que só o modelo novo aceita volta cortado pelas travas da base. Num tenant em que o único admin é só pela gestão num perfil de
+  base diferente de admin, o down para com 23514 (`tenant_ultimo_admin`) no recálculo das sobreposições; antes de descer, devolva a
+  gestão a um perfil de base admin.
 
 ### Desempenho
 - Rodada no fixture (2 tenants, 16 perfis, ~870 concessões): menos de 1 s. Por perfil: uma derivação (~100 chaves) por gravação
@@ -1723,5 +1729,4 @@ tenant recém-ligado os dois dão o mesmo (prova por usuário em `db/testes/perf
 - `perfil_imutavel` (troca de base no perfil sem vínculo) e `perfil_fabrica_ativo` (os 7 padrão desativáveis) no tenant migrado:
   ainda como na 0041 (a API nova não pode desativar os padrão nem mudar a base).
 - Conferências do conjunto no COMMIT para a escrita direta em `perfil_concessao` (portal com gestão, perfil sem acesso): no domain
-  e na API do Core. O último admin já está no banco (0109); desativar ou desvincular um perfil que conta como admin só pela gestão
-  (base diferente de admin) ainda passa pelos gatilhos da 0041, que olham a base.
+  e na API do Core. O último admin já está no banco (0109).
