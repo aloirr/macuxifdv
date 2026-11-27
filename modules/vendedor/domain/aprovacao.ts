@@ -353,6 +353,8 @@ export interface RevalidarEntrada {
   limite?: Partial<LimiteDesconto> | null;
   /** RN-VEN-35: supervisor/gerente digitando pelo vendedor (a API já conferiu equipe/área); libera o perfil do autor */
   em_nome?: boolean;
+  /** RN-PRO-01: opcional só para chamadores sem requisição (tests/, seed); a API sempre passa promotorNaRequisicao */
+  promotor?: boolean;
   cliente_id: string;
   carteira: readonly string[];
   /** desconto do pedido (RN-VEN-02) */
@@ -449,7 +451,7 @@ const pctDe = (parte: number, base: number) => (base > 0 ? Math.round((parte * 1
  */
 export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   // RN-PRO-01 e perfil sem acesso: uma checagem só (promotor 403 primeiro)
-  const recusa = recusaDePerfil(e.perfil, e.em_nome === true);
+  const recusa = recusaDePerfil(e.perfil, e.em_nome === true, e.promotor ?? e.perfil === 'promotor'); // perfil-fixo-ok: chamador sem requisição (tests/, seed); a API passa promotor
   if (recusa) return { ok: false, ...recusa };
   const acrescimoPedido = e.acrescimo_pct ?? 0;
   const descValor = e.desconto_valor_cents ?? 0;
@@ -619,6 +621,8 @@ export interface DecidirEntrada {
   /** as aprovações do ciclo atual do pedido */
   aprovacoes: readonly AprovacaoDoCiclo[];
   perfil: string;
+  /** RN-PRO-01: o decisor é promotor (API: `promotorNaRequisicao`) */
+  promotor: boolean;
   decisao: DecisaoAprovador;
   /** `motivo_aprovacao` do corpo da rota; ausente = vale para todas as pendentes que o perfil decide (app antigo ou "aprovar tudo") */
   motivo?: MotivoAprovacao | null;
@@ -672,7 +676,7 @@ const ESTADO_DA_DECISAO = { aprovar: 'aprovada', devolver: 'devolvida', recusar:
  * decide (pedido `approved` quando nenhuma sobra, P7); devolver ou recusar basta uma e encerra as outras pendentes (P8).
  */
 export function decidirAprovacao(e: DecidirEntrada): ResultadoDecisao {
-  if (e.perfil === 'promotor') return { tipo: 'recusa', codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não decide pedidos.' };
+  if (e.promotor) return { tipo: 'recusa', codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não decide pedidos.' };
   if (e.perfil !== 'supervisor' && e.perfil !== 'gerente' && e.perfil !== 'analista') {
     return { tipo: 'recusa', codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não aprova pedidos.' };
   }
@@ -861,8 +865,8 @@ export function montarPedidoAprovado(e: PedidoAprovadoEntrada): PedidoAprovadoPa
 
 // ---------- gate de perfil e hash do envio ----------
 /** RN-PRO-01 / matriz §2: quem pode criar pedido pelo aparelho. `null` = pode. A plataforma já barra o promotor; aqui é a revalidação. */
-export function recusaDePerfil(perfil: string, emNome = false): Recusa | null {
-  if (perfil === 'promotor') return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
+export function recusaDePerfil(perfil: string, emNome: boolean, promotor: boolean): Recusa | null {
+  if (promotor) return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
   // RN-VEN-35: em nome, o autor é supervisor/gerente (o escopo é conferido por `verificarPedidoEmNome`)
   if (emNome && (perfil === 'supervisor' || perfil === 'gerente')) return null;
   if (!(PERFIS_QUE_CRIAM as readonly string[]).includes(perfil)) {

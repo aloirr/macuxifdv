@@ -10,7 +10,7 @@
  */
 import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
 import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
-import { clienteAceitaFracao, ehConsultaIndisponivel, variacaoFracao, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { clienteAceitaFracao, ehConsultaIndisponivel, promotorNaRequisicao, variacaoFracao, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   entidadeClienteCondicao,
   entidadeCondicaoPagamento,
@@ -88,11 +88,11 @@ export interface EscopoPedido {
 
 /** Fonte única do filtro por perfil (pull e rotas de leitura). */
 export function escopoDoPedido(
-  perfil: string,
+  promotor: boolean,
   usuarios: ReadonlySet<string> | 'tenant',
   carteira: ReadonlySet<string> | 'tenant',
 ): EscopoPedido {
-  if (perfil === 'promotor') return { vendedores: null, clientes: carteira === 'tenant' ? null : [...carteira] };
+  if (promotor) return { vendedores: null, clientes: carteira === 'tenant' ? null : [...carteira] };
   return { vendedores: usuarios === 'tenant' ? null : [...usuarios], clientes: null };
 }
 
@@ -171,7 +171,7 @@ export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido, semFracao =
 async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido, fuso: string, semFracao: boolean) => { sql: string; valores: unknown[] }, ctx: ContextoBase, pedido: PedidoPull, item = false): Promise<LinhaSync[]> {
   // O-3: promotor com `promotor_ve_pedidos` desligada não recebe pedido, item nem evento
   if (!(await leituraDePedidosLiberada(ctx))) return [];
-  const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
+  const e = escopoDoPedido(promotorNaRequisicao(ctx.usuario), await ctx.usuariosVisiveis(), await ctx.carteira());
   const { sql, valores: v } = montar(pedido, e, ctx.fuso(), semFracao(ctx));
   return ctx.comTenant(async (db) => {
     const rows = (await db.query(sql, v)).rows as unknown as LinhaSync[];
@@ -199,7 +199,7 @@ export async function marcarAceiteDeCancelamento(linhas: LinhaSync[], tx: Transa
 
 async function puxarPedidos(ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
   if (!(await leituraDePedidosLiberada(ctx))) return [];
-  const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
+  const e = escopoDoPedido(promotorNaRequisicao(ctx.usuario), await ctx.usuariosVisiveis(), await ctx.carteira());
   const { sql, valores: v } = sqlPedido(pedido, e, FATURAMENTO_LIGADO, ctx.fuso(), semFracao(ctx));
   return ctx.comTenant(async (db, tx) => marcarAceiteDeCancelamento((await db.query(sql, v)).rows as unknown as LinhaSync[], tx));
 }

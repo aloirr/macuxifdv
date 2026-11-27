@@ -15,7 +15,8 @@ export function ehPedidoEmNome(autorId: string, vendedorId: string | null | unde
 }
 
 export interface EntradaPedidoEmNome {
-  autor: { id: string; perfil: string };
+  /** `promotor`: o autor é promotor (API: `promotorNaRequisicao`) */
+  autor: { id: string; perfil: string; promotor: boolean };
   vendedor_id: string;
   /** cadastro do dono (`core.cadastro_resumo@1`); `null` = não existe neste tenant */
   vendedor: { id: string; perfil: string } | null;
@@ -25,7 +26,7 @@ export interface EntradaPedidoEmNome {
 
 /** `null` = pode. Ordem: promotor → perfil do autor → dono válido → escopo (D-187-01). */
 export function verificarPedidoEmNome(e: EntradaPedidoEmNome): Recusa | null {
-  if (e.autor.perfil === 'promotor') return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
+  if (e.autor.promotor) return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
   if (!(PERFIS_EM_NOME as readonly string[]).includes(e.autor.perfil)) {
     return { codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não faz pedido em nome de vendedor.' };
   }

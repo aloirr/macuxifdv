@@ -12,6 +12,7 @@ import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import {
   criarRegistroSync,
+  resolverPerfilPeloCargo,
   rejeitarItensInvalidos,
   type ClienteBanco,
   type ContextoBase,
@@ -180,6 +181,10 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
   });
 
   // ---------- receber ----------
+  // RN-PRO-01: cargo promotor com base vendedor em concessão
+  const comPerfil = (permissoes: Record<string, { nivel?: string }>): UsuarioAutenticado =>
+    ({ ...vendedor1, perfil: 'vendedor', cargo: 'promotor', perfil_acesso: resolverPerfilPeloCargo({ codigo: 'promotor_base_vendedor', cargo: 'promotor', permissoes } as never) }) as unknown as UsuarioAutenticado;
+
   describe('receber (push do aparelho)', () => {
     it('RN-VEN-10: dentro da alçada (3%) o pedido fica aprovado na hora, com número, retrato, histórico, auditoria e eventos', async () => {
       const { ctx, registro } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
@@ -380,6 +385,13 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       const de_novo = await chamar(rotaAprovarPedido, s.ctx, { params: { id: id(30) } });
       expect((de_novo as { status: string }).status).toBe('approved');
       expect(s.registro.eventos).toHaveLength(3);
+    });
+
+    it('RN-PRO-01: cargo promotor com base vendedor em concessão não decide aprovação (403), mesmo com pedido.ver', async () => {
+      await pendente(id(91), 8);
+      const p = contexto(comPerfil({ 'acesso.campo': {}, 'pedido.ver': {} }), { carteira: new Set([A.clientes.c1]) });
+      await expect(chamar(rotaAprovarPedido, p.ctx, { params: { id: id(91) } })).rejects.toMatchObject({ status: 403, codigo: 'RN-PRO-01' });
+      expect((await lerPedido(id(91))).p.status).toBe('pending_approval');
     });
 
     it('RN-VEN-10 / P-3: supervisora não decide nível gerente (422); o gerente aprova (acima_do_nivel = false)', async () => {
@@ -682,6 +694,44 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
         // o desligado vale só para o promotor
         const v1 = contexto(vendedor1);
         expect(((await chamar(rotaListarPedidos, v1.ctx)) as { itens: unknown[] }).itens.length).toBeGreaterThan(0);
+      } finally {
+        opcaoPromotor = true;
+      }
+    });
+
+    it('RN-PRO-01 (ADR 0073 §2.4 E6): cargo promotor com base vendedor em concessão: sem pedido.ver = 403 na lista, no detalhe e no pull; com pedido.ver lê só a carteira; a opção legada é ignorada', async () => {
+      const puxar = (c: ReturnType<typeof contexto>, nome = 'pedido') =>
+        provedoresSyncVendedor.find((x) => x.entidade.nome === nome)!.puxar!(c.ctx as never, { desde: null, ate: new Date(AGORA.getTime() + 1000).toISOString(), limite: 100 });
+      try {
+        for (const legado of [true, false]) {
+          opcaoPromotor = legado; // em concessão a opção do Core não decide
+          const sem = contexto(comPerfil({ 'acesso.campo': {} }), { carteira: new Set([A.clientes.c2]) });
+          await expect(chamar(rotaListarPedidos, sem.ctx, { query: { limite: 200 } })).rejects.toMatchObject({ status: 403, codigo: 'RN-PRO-01' });
+          await expect(chamar(rotaVerPedido, sem.ctx, { params: { id: id(1) } })).rejects.toMatchObject({ status: 403, codigo: 'RN-PRO-01' });
+          expect(await puxar(sem)).toEqual([]);
+          for (const nome of ['pedido_item', 'pedido_evento']) {
+            expect(await puxar(sem, nome)).toEqual([]);
+          }
+          const com = contexto(comPerfil({ 'acesso.campo': {}, 'pedido.ver': {} }), { carteira: new Set([A.clientes.c2]) });
+          const lp = (await chamar(rotaListarPedidos, com.ctx, { query: { limite: 200 } })) as { itens: Array<{ customer_id: string }> };
+          expect(lp.itens.length).toBeGreaterThan(0);
+          expect(lp.itens.every((o) => o.customer_id === A.clientes.c2)).toBe(true); // escopo de carteira do promotor, nunca "os próprios" do vendedor-base
+          expect((await puxar(com)).length).toBeGreaterThan(0);
+          // detalhe: pedido da carteira 200; pedido fora da carteira 404 (escopo, não só a chave)
+          const daCarteira = lp.itens[0] as unknown as { id: string };
+          expect(await chamar(rotaVerPedido, com.ctx, { params: { id: daCarteira.id } })).toMatchObject({ id: daCarteira.id, customer_id: A.clientes.c2 });
+          await expect(chamar(rotaVerPedido, com.ctx, { params: { id: id(1) } })).rejects.toMatchObject({ status: 404 });
+          // pull de item e evento: só linhas de pedidos da carteira
+          const idsCarteira = new Set(lp.itens.map((o) => (o as unknown as { id: string }).id));
+          for (const nome of ['pedido_item', 'pedido_evento']) {
+            const linhas = (await puxar(com, nome)) as unknown as Array<{ pedido_id: string }>;
+            expect(linhas.length).toBeGreaterThan(0);
+            expect(linhas.every((l) => idsCarteira.has(l.pedido_id))).toBe(true);
+          }
+        }
+        // RN-PRO-01: o cargo promotor não cria pedido mesmo com base vendedor e pedido.ver
+        const comPush = contexto(comPerfil({ 'acesso.campo': {}, 'pedido.ver': {} }), { carteira: new Set([A.clientes.c2]) });
+        expect((await receber(comPush.ctx, push(id(90), { customer_id: A.clientes.c2, discount_pct: 0, items: itens() })))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-PRO-01' });
       } finally {
         opcaoPromotor = true;
       }

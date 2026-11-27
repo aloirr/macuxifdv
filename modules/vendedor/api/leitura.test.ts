@@ -53,9 +53,9 @@ describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
   });
 
   it('RN-CORE-04: o escopo é o do pull: promotor = carteira; os demais = usuários visíveis', () => {
-    expect(escopoDoPedido('promotor', new Set(['u']), new Set(['c1']))).toEqual({ vendedores: null, clientes: ['c1'] });
-    expect(escopoDoPedido('supervisor', new Set(['s', 'v']), new Set(['c1']))).toEqual({ vendedores: ['s', 'v'], clientes: null });
-    expect(escopoDoPedido('analista', 'tenant', 'tenant')).toEqual({ vendedores: null, clientes: null });
+    expect(escopoDoPedido(true, new Set(['u']), new Set(['c1']))).toEqual({ vendedores: null, clientes: ['c1'] });
+    expect(escopoDoPedido(false, new Set(['s', 'v']), new Set(['c1']))).toEqual({ vendedores: ['s', 'v'], clientes: null });
+    expect(escopoDoPedido(false, 'tenant', 'tenant')).toEqual({ vendedores: null, clientes: null });
   });
 
   it('T-0061 / RN-VEN-16: transportadoras e padrão do frete — gerenciar só admin/analista/gerente, promotor e vendedor sem acesso, e sem licença do módulo nada passa', () => {

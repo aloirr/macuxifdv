@@ -7,7 +7,7 @@
  * Vendedor e promotor só recebem o próprio número; os demais perfis, os `usuario_ids` pedidos (o Core já os escopou).
  */
 import { quantidadeDoBanco } from '@macuxi/comum/quantidade';
-import { implementarConsulta } from '@macuxi/platform-sdk';
+import { implementarConsulta, promotorNaRequisicao } from '@macuxi/platform-sdk';
 import { CONSULTA_PEDIDOS_DA_META } from '../contracts';
 import { DIAS_PRECO_RETROATIVO, itensDistintos, janelaDoPeriodo, STATUS_QUE_CONTAM_NA_META, statusParaMeta } from '../domain';
 
@@ -43,7 +43,7 @@ interface LinhaFaturamentoMeta {
 }
 
 export const consultaPedidosDaMeta = implementarConsulta(CONSULTA_PEDIDOS_DA_META, async (entrada, ctx) => {
-  const proprioApenas = ctx.usuario.perfil === 'vendedor' || ctx.usuario.perfil === 'promotor';
+  const proprioApenas = ctx.usuario.perfil === 'vendedor' || promotorNaRequisicao(ctx.usuario);
   const ids = proprioApenas ? entrada.usuario_ids.filter((i) => i === ctx.usuario.id) : entrada.usuario_ids;
   if (ids.length === 0) return { pedidos: [], faturamentos: [] };
   const { de, ate } = janelaDoPeriodo(entrada.periodo);

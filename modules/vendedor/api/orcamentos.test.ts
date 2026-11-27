@@ -94,7 +94,7 @@ describe('T-0071 §1.4 a: repositório SQL da pré-venda', () => {
 
 describe('T-0071 §1.4 b: pull com tipo, validade e janela do orçamento', () => {
   const pull = { ate: '2026-11-03T20:00:00.000000Z', desde: null, limite: 50 } as never;
-  const e = escopoDoPedido('vendedor', new Set(['u']), 'tenant');
+  const e = escopoDoPedido(false, new Set(['u']), 'tenant');
 
   it('COLUNAS_PEDIDO leva tipo, validade_data, validade_ate, orcamento_origem_id, convertido_pedido_id e as colunas da 0020', () => {
     const { sql, valores } = sqlPedido(pull, e, false, 'America/Manaus');

@@ -1,12 +1,11 @@
 /**
  * Ponto ÚNICO da opção `promotor_ve_pedidos` do perfil Promotor (O-3 do doc 03, decisão de 2026-11-02).
- * Lista, detalhe e pull de pedido/item/evento passam por `exigirLeituraDePedidos` / `leituraDePedidosLiberada`; ninguém
- * mais lê a opção. A regra em si é `podeLerPedidos` (domain, RN-PRO-01).
- *
- * A opção vem da consulta pública `core.promotor_ve_pedidos@1` (Core, ADR 0012), feita a CADA requisição, como a licença
- * (nunca em JWT/sessão/cache). Core inativo no tenant ou sem a consulta: padrão de fábrica LIGADA.
+ * Lista, detalhe e pull de pedido/item/evento passam por `exigirLeituraDePedidos` / `leituraDePedidosLiberada`.
+ * A decisão é `decidir` (abaixo); `podeLerPedidos` (domain) monta o 403. Em concessão (cargo com `perfil_acesso`)
+ * vale a chave `pedido.ver` (ADR 0073 §2.4 E6); o legado consulta a opção do Core a CADA requisição, como a licença
+ * (nunca em JWT/sessão/cache; Core inativo ou sem a consulta: padrão de fábrica LIGADA, ADR 0012).
  */
-import { ehConsultaIndisponivel, ErroHttpModulo, type ContextoBase } from '@macuxi/platform-sdk';
+import { ehConsultaIndisponivel, ErroHttpModulo, podePeloCargo, promotorNaRequisicao, type ContextoBase } from '@macuxi/platform-sdk';
 import { CONSULTA_PROMOTOR_VE_PEDIDOS, PROMOTOR_VE_PEDIDOS_PADRAO } from '@macuxi/core/contracts';
 import { podeLerPedidos } from '../domain/leitura-pedido';
 
@@ -43,10 +42,11 @@ export function usarOpcaoPromotorVePedidos(novo: LeitorOpcaoPromotor): () => voi
   };
 }
 
-/** Só consulta a opção para o promotor; os demais perfis não mudam. */
+/** RN-PRO-01 (ADR 0073 §2.4 E6): cópia mínima da regra do core (tarefa seguinte da v1.0.42, R-20261127-165252, item 5: `usuarioLePedidos` no SDK); legado consulta o Core só quando preciso. */
 async function decidir(ctx: ContextoBase) {
-  const opcao = ctx.usuario.perfil === 'promotor' ? await promotorVePedidos(ctx) : true;
-  return podeLerPedidos(ctx.usuario.perfil, opcao);
+  const u = ctx.usuario;
+  const ve = !promotorNaRequisicao(u) || (u.perfil_acesso ? podePeloCargo(u.perfil_acesso, 'pedido.ver') : await promotorVePedidos(ctx));
+  return podeLerPedidos(ve);
 }
 
 /** Pull: false = o promotor com a opção desligada não recebe pedido, item nem evento. */

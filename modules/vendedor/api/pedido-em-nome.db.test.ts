@@ -133,13 +133,13 @@ describe.skipIf(semBanco())('Pedido em nome do vendedor × Postgres (RF-GES-05, 
   });
 
   it('RN-CORE-21: o pedido conta para o vendedor (consulta da meta) e ele o recebe no pull; o gestor também vê', async () => {
-    const dono = escopoDoPedido('vendedor', new Set([vendedor1.id]), 'tenant');
+    const dono = escopoDoPedido(false, new Set([vendedor1.id]), 'tenant');
     expect(dono.vendedores).toEqual([vendedor1.id]);
     const linhas = await comTenant(pool, A.tenantId, async (c) =>
       (await c.query('select vendedor_id, autor_id from vendedor.pedido where id = $1 and vendedor_id = any($2::uuid[])', [id(1), dono.vendedores])).rows,
     );
     expect(linhas).toEqual([{ vendedor_id: vendedor1.id, autor_id: supervisor.id }]);
-    const gestor = escopoDoPedido('supervisor', new Set([supervisor.id, vendedor1.id]), 'tenant');
+    const gestor = escopoDoPedido(false, new Set([supervisor.id, vendedor1.id]), 'tenant');
     expect(gestor.vendedores).toContain(vendedor1.id);
   });
 

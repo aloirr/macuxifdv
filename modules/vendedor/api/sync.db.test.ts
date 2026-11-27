@@ -73,12 +73,13 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
   }
   const pedido = (): PedidoPull => ({ desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 1001 });
   /**
-   * Os arquivos de teste rodam juntos no mesmo banco: os pedidos de `pedido.db.test.ts` (prefixo 0f29), de
-   * `pre-venda.db.test.ts` (0f53, T-0053) e de `retorno-erp.db.test.ts` (0f54, T-0054) ficam de fora das contagens da fixture.
+   * Os arquivos de teste rodam juntos no mesmo banco e inserem pedidos nos mesmos clientes da fixture comum
+   * (pedido.db 0f29, pre-venda 0f53, retorno-erp 0f54, consulta-pedidos-da-meta 0f65 e outros). As asserções olham só os
+   * pedidos desta fixture (A, B e os antigos); pedido de outro arquivo não conta, e os da fixture que a regra proíbe
+   * (p2, c3, tenant B) continuam checados como ausentes.
    */
-  const OUTROS = ['0f290000-', '0f530000-', '0f540000-'];
-  const deOutroTeste = (v: string) => OUTROS.some((p) => v.startsWith(p));
-  const dosOutrosTestes = (l: LinhaSync) => deOutroTeste(l.id) || deOutroTeste(String((l as unknown as { pedido_id?: string }).pedido_id ?? ''));
+  const DESTA_FIXTURE = new Set<string>([...Object.values(A.pedidos), ...Object.values(B.pedidos), ANTIGO_FINAL, ANTIGO_ABERTO]);
+  const dosOutrosTestes = (l: LinhaSync) => !DESTA_FIXTURE.has(l.id) && !DESTA_FIXTURE.has(String((l as unknown as { pedido_id?: string }).pedido_id ?? ''));
   const puxar = async (prov: typeof provedorPedido, c: ContextoBase): Promise<LinhaSync[]> => (await prov!.puxar!(c, pedido())).filter((l) => !dosOutrosTestes(l));
 
   const vendedor1: UsuarioAutenticado = { id: A.usuarios.vendedor1, tenant_id: A.tenantId, perfil: 'vendedor' };
@@ -151,7 +152,7 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
 
   it('promotor com carteira vazia não recebe nada (não cai no tenant inteiro)', async () => {
     expect(await puxar(provedorPedido, ctx(promotor, 'tenant', new Set()))).toEqual([]);
-    expect(escopoDoPedido('promotor', 'tenant', new Set())).toEqual({ vendedores: null, clientes: [] });
+    expect(escopoDoPedido(true, 'tenant', new Set())).toEqual({ vendedores: null, clientes: [] });
   });
 
   it('item: mesmo escopo do pedido pai (vendedor-1: itens de p1 e p3, não os de p2)', async () => {
