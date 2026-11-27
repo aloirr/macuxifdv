@@ -206,9 +206,13 @@ describe('T-0149 RS-4 — fallback seguro', () => {
 describe('T-0149 RS-5 — a recusa no recebimento', () => {
   it('RS-5: só o pedido confere estoque (orçamento nunca), a recusa usa o código RN-VEN-20 e diz a ação', () => {
     const receber = ler('modules/vendedor/api/receber.ts');
-    const trecho = receber.slice(receber.indexOf('// RN-VEN-20 (T-0149)'), receber.indexOf('// RN-VEN-32'));
-    expect(trecho).toMatch(/if \(tipo === 'pedido'\) \{/);
-    expect(trecho).toMatch(/rejeitado\(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens\. Envie como orçamento ou reduza a quantidade\.'\)/);
+    // v1.0.39: a falta é calculada antes da alçada (a ação `aprovacao` abre a aprovação do motivo estoque) e só a ação `orcamento` recusa
+    const trecho = receber.slice(receber.indexOf('// RN-VEN-20 (T-0149'), receber.indexOf('// RN-VEN-32'));
+    expect(trecho).toMatch(/tipo === 'pedido' \? await faltaDeEstoqueNaFilial\(/);
+    // v1.0.39: o domain decide pela ação do tenant (`efeitosDosParametrosDoPedido`); a recusa usa a frase do domain
+    expect(trecho).toMatch(/falta_estoque: faltaEstoque\.length > 0/);
+    expect(trecho).toMatch(/if \(ef\.itens_sem_estoque_bloqueiam\) return rejeitado\(itemId, 'RN-VEN-20', mensagemEstoqueSoOrcamento\(\)\)/);
+    expect(ler('modules/vendedor/domain/parametros-pedidos.ts')).toContain("'Sem estoque na filial para um dos itens. Reduza a quantidade ou salve como orçamento.'");
     expect(trecho).toMatch(/retratoFilial\?\.filial_id \?\? null/); // a filial do pedido (retrato), não a do vendedor
   });
 

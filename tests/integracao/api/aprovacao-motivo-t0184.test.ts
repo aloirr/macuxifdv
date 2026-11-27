@@ -9,7 +9,8 @@
  * O ORÁCULO do crédito é escrito aqui pelo texto da RN-VEN-12 (desenho §5), sem chamar a função testada:
  *   disponível = (crédito disponível do ERP ?? limite − saldo em aberto) − Σ total dos pedidos do cliente em approved,
  *   sent_to_erp ou integrated (o integrated só quando o ERP não manda o disponível). A prazo, total > disponível = motivo
- *   `credito`; igual passa. Sem limite informado pelo ERP (limite 0 e sem disponível), a prazo = `credito` (P4 A).
+ *   `credito`; igual passa. Sem limite informado pelo ERP (limite 0 e sem disponível) = sem restrição de crédito: não vai
+ *   (R-20261127-005556, RN-VEN-12 ajustada; substitui a P4 A).
  * Fixture: o A.c1 tem limite R$ 50.000,00, saldo R$ 10.000,00 e o título NF-1001 1/2 vencido há 10 dias (padrão
  * `titulo_vencido_dias` = 5). Os casos de crédito sobem o `titulo_vencido_dias` para 30 (sem inadimplência) e ajustam a linha
  * `core.cliente_financeiro` do A.c1 (como a Integração gravaria); o `afterAll` devolve tudo.
@@ -221,11 +222,11 @@ describe.skipIf(semBanco())('T-0184 — aprovação do pedido por motivo: crédi
       expect(await eventos(PED.umCentavo, 'vendedor.pedido.aprovacao_solicitada@1')).toEqual([]);
     });
 
-    it('C3. cliente SEM limite informado pelo ERP (limite 0, sem disponível), a prazo: vai para aprovação `credito` (P4 A)', async () => {
+    it('C3. cliente SEM limite informado pelo ERP (limite 0, sem disponível), a prazo: sem restrição de crédito, aprovado na hora (R-20261127-005556)', async () => {
       await definirFinanceiroA({ limite_cents: 0, saldo_aberto_cents: 0, credito_disponivel_cents: null });
       aceito((await push(tk.vendedor, [pedidoA(PED.semLimite, 'prazo')]))[0], PED.semLimite);
-      expect(await pedido(PED.semLimite)).toMatchObject({ status: 'pending_approval', motivos_aprovacao: ['credito'] });
-      expect(await resumo(PED.semLimite)).toEqual(['credito:gerente:pendente']);
+      expect(await pedido(PED.semLimite)).toMatchObject({ status: 'approved', motivos_aprovacao: [] });
+      expect(await aprovacoes(PED.semLimite)).toEqual([]);
     });
 
     it('C4. cliente sem limite, À VISTA: o crédito não pesa (aprovado na hora, sem aprovação)', async () => {
@@ -256,7 +257,8 @@ describe.skipIf(semBanco())('T-0184 — aprovação do pedido por motivo: crédi
     /** Desconto 8% (supervisor), crédito estourado a prazo (gerente) e inadimplência (analista, pelo parâmetro). */
     const pedidoComTresMotivos = async (pid: string) => {
       await parametro(A.tenantId, 'titulo_vencido_dias', null);
-      await definirFinanceiroA({ limite_cents: 0, saldo_aberto_cents: 0, credito_disponivel_cents: null });
+      // limite informado e estourado: o ERP manda R$ 0,01 de crédito disponível (sem limite informado não há motivo crédito)
+      await definirFinanceiroA({ ...FIN_A_C1, credito_disponivel_cents: 1 });
       aceito((await push(tk.vendedor, [pedidoA(pid, 'prazo', 8)]))[0], pid);
       await definirFinanceiroA(FIN_A_C1);
       await parametro(A.tenantId, 'titulo_vencido_dias', '30');
