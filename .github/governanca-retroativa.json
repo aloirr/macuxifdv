@@ -29,7 +29,7 @@
       "sha": "0af3a23ea31d4d36efffbb89488b5643dd03584b",
       "pr": 868,
       "recado": "R-20261127-185514-alexandre",
-      "motivo": "squash do gerente com \"Agente: engenheiro-software\" em vez do rito; conteúdo (.github/workflows/producao-diagnostico-outbox.yml) autorizado em R-20261127-185514-alexandre, em 27/11/2026 às 18h55"
+      "motivo": "squash do gerente com \"Agente: engenheiro-software\" em vez do rito; conteúdo (.github/workflows/producao-diagnostico-outbox.yml) autorizado pelo Agente PO em nome do Alexandre (delegação R-20261123-212947-alexandre) em 27/11/2026 às 18h55"
     }
   ]
 }
