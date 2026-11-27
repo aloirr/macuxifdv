@@ -176,9 +176,9 @@ describe('formato do recado do diagnóstico (T-0158 §3)', () => {
     expect(textoDeUmaLinha(null)).toBe('—');
   });
 
-  it('ADR 0071: com MACUXI_HOSTS_ANTIGOS=0 o link do recado vai para fdv.../config/diagnosticos/<id>', () => {
+  it('ADR 0071: sem MACUXI_HOSTS_ANTIGOS (padrão da v1.0.42) o link do recado vai para fdv.../config/diagnosticos/<id>', () => {
     const l = linha(42, { origem: 'queda', motivo: 'crash_nativo' });
-    const urlPortal = urlPortalDiagnosticos({ MACUXI_HOSTS_ANTIGOS: '0' });
+    const urlPortal = urlPortalDiagnosticos({});
     const t = montarRecadoDiagnostico(l, { id: 'R-20261111-153012-diagnostico', agora: T0, urlPortal });
     expect(t).toContain(`https://fdv.macuxifdv.com.br/config/diagnosticos/${ID(42)}`);
     expect(t).not.toContain('config.macuxifdv.com.br');

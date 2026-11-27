@@ -182,10 +182,10 @@ describe('endereços públicos do e-mail (MACUXI_EMAIL_URL_ATIVOS, MACUXI_EMAIL_
 describe('padrão do botão "Abrir o backoffice" pela MACUXI_HOSTS_ANTIGOS (ADR 0071)', () => {
   const ARQ = { MACUXI_EMAIL_ARQUIVO_DIR: '/tmp/caixa', MACUXI_JWT_SEGREDO: SEGREDO_JWT };
 
-  it('em produção sem MACUXI_EMAIL_URL_BKO: ligada (ausente) → bko.; desligada (0) → fdv.../bko', () => {
-    expect(lerConfigEmail({ ...ARQ }, { producao: true }).apresentacao.urlBackoffice).toBe('https://bko.macuxifdv.com.br');
-    const c = lerConfigEmail({ ...ARQ, MACUXI_HOSTS_ANTIGOS: '0' }, { producao: true });
-    expect(c.apresentacao.urlBackoffice).toBe('https://fdv.macuxifdv.com.br/bko');
+  it('em produção sem MACUXI_EMAIL_URL_BKO: desligada (ausente, padrão da v1.0.42) → fdv.../bko; ligada (1) → bko.', () => {
+    expect(lerConfigEmail({ ...ARQ }, { producao: true }).apresentacao.urlBackoffice).toBe('https://fdv.macuxifdv.com.br/bko');
+    const c = lerConfigEmail({ ...ARQ, MACUXI_HOSTS_ANTIGOS: '1' }, { producao: true });
+    expect(c.apresentacao.urlBackoffice).toBe('https://bko.macuxifdv.com.br');
   });
 
   it('MACUXI_EMAIL_URL_BKO definida vale por cima da MACUXI_HOSTS_ANTIGOS, ligada ou desligada', () => {
