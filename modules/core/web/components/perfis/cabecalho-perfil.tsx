@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { CARGOS, type Cargo } from '@macuxi/platform-sdk';
-import { IconLock } from '@macuxi/ui/web';
+import { IconLock, rotuloDoPerfil } from '@macuxi/ui/web';
+import type { ModeloDePerfilItem } from '../../../contracts';
 import { ROTULO_CARGO } from '../../../contracts/cargos';
 import { ErroCampo } from '../campo';
 
@@ -11,6 +12,29 @@ export function BotaoVoltar({ onClick }: { onClick: () => void }) {
     <button type="button" className="min-h-[44px] self-start text-[15px] text-accent-ink hover:underline" onClick={onClick}>
       ‹ Voltar
     </button>
+  );
+}
+
+/** "Perfis da empresa / Modelos": a origem de uma cópia de permissões (valor `perfil:<codigo>` ou `modelo:<modelo>`; ver `origemDoValor`). */
+export function SeletorDeOrigem({ valor, onChange, perfis, modelos, vazio, rotulo, testId }: { valor: string; onChange: (v: string) => void; perfis: readonly { codigo: string; nome: string }[]; modelos: readonly Pick<ModeloDePerfilItem, 'modelo' | 'nome'>[]; vazio: string; rotulo?: string; testId: string }) {
+  return (
+    <select className={CAMPO} value={valor} onChange={(e) => onChange(e.target.value)} aria-label={rotulo} data-testid={testId}>
+      <option value="">{vazio}</option>
+      <optgroup label="Perfis da empresa">
+        {perfis.map((p) => (
+          <option key={p.codigo} value={`perfil:${p.codigo}`}>
+            {rotuloDoPerfil(p.codigo, { nome: p.nome })}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Modelos">
+        {modelos.map((m) => (
+          <option key={m.modelo} value={`modelo:${m.modelo}`}>
+            {rotuloDoPerfil(m.modelo, { nome: m.nome })}
+          </option>
+        ))}
+      </optgroup>
+    </select>
   );
 }
 

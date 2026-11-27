@@ -4,15 +4,15 @@ import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Cargo } from '@macuxi/platform-sdk';
-import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
-import { CODIGO_REPETIDO, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, PerfilDetalheV2Schema, type CopiarDe, type ModeloDePerfilItem } from '../../../contracts';
+import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
+import { Button, ErrorBlock, LoadingBlock, Notice, useToast } from '@macuxi/ui/web';
+import { CODIGO_REPETIDO, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, PerfilDetalheV2Schema } from '../../../contracts';
 import { MENSAGEM_CARGO_OBRIGATORIO } from '../../../contracts/cargos';
 import { frasesDaRecusa } from '../../lib/perfis';
 import { PARAM_EDITAR_PERFIL } from '../../lib/parametros-url';
-import { ehNaoMigrado, MENSAGEM_NAO_MIGRADO } from '../../lib/perfis-tabela';
+import { ehSemConexao, origemDoValor, SEM_CONEXAO } from '../../lib/perfis-tabela';
 import { useModelosDePerfil, usePerfisV2 } from '../../lib/queries';
-import { CabecalhoDoPerfil, CAMPO, IdentificacaoDoPerfil } from './cabecalho-perfil';
+import { CabecalhoDoPerfil, IdentificacaoDoPerfil, SeletorDeOrigem } from './cabecalho-perfil';
 
 /**
  * "Novo perfil" (ADR 0073 §4.2): Nome e Cargo, e, se quiser, partir das permissões de outro perfil ou de um modelo (cópia feita uma vez, sem
@@ -37,7 +37,7 @@ export function NovoPerfil() {
 
   const criar = useMutation({
     mutationFn: async () => {
-      const copiar_de: CopiarDe | undefined = origem.startsWith('perfil:') ? { perfil: origem.slice(7) } : origem.startsWith('modelo:') ? { modelo: origem.slice(7) as ModeloDePerfilItem['modelo'] } : undefined;
+      const copiar_de = origemDoValor(origem);
       return PerfilDetalheV2Schema.parse(await api('/core/perfis', { method: 'POST', body: { id, nome: nome.trim(), cargo, ...(copiar_de ? { copiar_de } : {}) } }));
     },
     onSuccess: async (d) => {
@@ -46,10 +46,9 @@ export function NovoPerfil() {
       router.push(`${pathname}?${PARAM_EDITAR_PERFIL}=${encodeURIComponent(d.perfil.codigo)}`);
     },
     onError: (e) => {
-      if (ehNaoMigrado(e)) setErro([MENSAGEM_NAO_MIGRADO]);
-      else if (e instanceof ApiRequestError && e.code === CODIGO_REPETIDO) setErro([MENSAGEM_PERFIL_REPETIDO]);
+      if (e instanceof ApiRequestError && e.code === CODIGO_REPETIDO) setErro([MENSAGEM_PERFIL_REPETIDO]);
       else if (e instanceof ApiRequestError && e.status === 422) setErro(frasesDaRecusa(e.details, e.message));
-      else setErro(['Não foi possível criar agora. Tente de novo.']);
+      else setErro([ehSemConexao(e) ? SEM_CONEXAO : 'Não foi possível criar agora. Tente de novo.']);
     },
   });
 
@@ -61,7 +60,7 @@ export function NovoPerfil() {
   };
 
   if (lista.isPending) return <LoadingBlock label="Carregando os perfis…" />;
-  if (lista.isError) return <ErrorBlock message="Não foi possível carregar os perfis. Confira a internet e tente de novo." onRetry={() => void lista.refetch()} />;
+  if (lista.isError) return <ErrorBlock message={ehSemConexao(lista.error) ? SEM_CONEXAO : errorMessage(lista.error)} onRetry={() => void lista.refetch()} />;
 
   return (
     <div className="flex w-full flex-col gap-5" data-testid="perfil.novo">
@@ -81,23 +80,7 @@ export function NovoPerfil() {
       <IdentificacaoDoPerfil nome={nome} cargo={cargo} onNome={setNome} onCargo={setCargo} erroNome={tentou && nome.trim() === '' ? MENSAGEM_NOME_OBRIGATORIO : null} erroCargo={tentou && cargo === '' ? MENSAGEM_CARGO_OBRIGATORIO : null} idNome="perfil-novo-nome" />
       <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
         Copiar permissões de (opcional)
-        <select className={CAMPO} value={origem} onChange={(e) => setOrigem(e.target.value)} data-testid="perfil.novo.copiar">
-          <option value="">Começar sem permissões</option>
-          <optgroup label="Perfis da empresa">
-            {(lista.data ?? []).filter((p) => p.ativo).map((p) => (
-              <option key={p.codigo} value={`perfil:${p.codigo}`}>
-                {rotuloDoPerfil(p.codigo, { nome: p.nome })}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Modelos">
-            {(modelos.data ?? []).map((m) => (
-              <option key={m.modelo} value={`modelo:${m.modelo}`}>
-                {rotuloDoPerfil(m.modelo, { nome: m.nome })}
-              </option>
-            ))}
-          </optgroup>
-        </select>
+        <SeletorDeOrigem valor={origem} onChange={setOrigem} perfis={(lista.data ?? []).filter((p) => p.ativo)} modelos={modelos.data ?? []} vazio="Começar sem permissões" testId="perfil.novo.copiar" />
       </label>
       {erro.length > 0 && (
         <Notice tone="danger">

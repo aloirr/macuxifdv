@@ -54,12 +54,13 @@ import {
   copiarDoPerfil,
   corpoDoPut,
   edicaoDoDetalhe,
-  ehNaoMigrado,
+  ehSemConexao,
+  origemDoValor,
+  SEM_CONEXAO,
   erroDeAlvos,
   escolherNivel,
   frasesDoHistorico,
   marcarAlvos,
-  MENSAGEM_NAO_MIGRADO,
   montarGrupos,
   type EdicaoTabela,
   type Identificacao,
@@ -69,15 +70,13 @@ import {
 import { contagemPorPerfil, rotuloDaPermissao } from '../../lib/acesso';
 import { NovoPerfil } from './novo-perfil';
 import { PARAM_EDITAR_PERFIL, perfilEmEdicao } from '../../lib/parametros-url';
-import { BotaoVoltar, CabecalhoDoPerfil, CAMPO, IdentificacaoDoPerfil } from './cabecalho-perfil';
+import { BotaoVoltar, CabecalhoDoPerfil, IdentificacaoDoPerfil, SeletorDeOrigem } from './cabecalho-perfil';
 import { useMe, useModelosDePerfil, usePerfisV2 } from '../../lib/queries';
 
 const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
-const SEM_CONEXAO = 'Sem conexão. Confira a internet e tente de novo.';
 const ABERTOS_AO_ENTRAR = ['acesso', 'dados'];
 
 const ehSemPermissao = (e: unknown) => e instanceof ApiRequestError && e.status === 403;
-const ehSemConexao = (e: unknown) => e instanceof TypeError || (e instanceof ApiRequestError && e.status === 0);
 
 // ---------------------------------------------------------------- lista
 
@@ -208,7 +207,7 @@ function ListaDePerfis() {
                 ? `${acao.perfil.nome} tem ${usuariosDe(acao.perfil)} ${usuariosDe(acao.perfil) === 1 ? 'usuário' : 'usuários'}. Troque o perfil deles em Usuários antes de desativar.`
                 : `${acao.perfil.nome} deixa de aparecer no cadastro de usuários. Dá para reativar depois.`}
           </p>
-          {mudarSituacao.isError && <Notice tone="danger">{ehSemConexao(mudarSituacao.error) ? SEM_CONEXAO : ehNaoMigrado(mudarSituacao.error) ? MENSAGEM_NAO_MIGRADO : errorMessage(mudarSituacao.error)}</Notice>}
+          {mudarSituacao.isError && <Notice tone="danger">{ehSemConexao(mudarSituacao.error) ? SEM_CONEXAO : errorMessage(mudarSituacao.error)}</Notice>}
         </Dialog>
       )}
     </div>
@@ -287,8 +286,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
       else if (e instanceof ApiRequestError && e.code === CODIGO_REPETIDO) {
         setErroNome(MENSAGEM_PERFIL_REPETIDO);
         window.setTimeout(() => document.getElementById('perfil-nome')?.focus(), 0);
-      } else if (ehNaoMigrado(e)) setRecusa([MENSAGEM_NAO_MIGRADO]);
-      else if (e instanceof ApiRequestError && e.status === 422) setRecusa(frasesDaRecusa(e.details, e.message));
+      } else if (e instanceof ApiRequestError && e.status === 422) setRecusa(frasesDaRecusa(e.details, e.message));
       else setRecusa([ehSemConexao(e) ? SEM_CONEXAO : 'Não foi possível salvar agora. Tente de novo.']);
     },
   });
@@ -489,8 +487,9 @@ function CopiarPermissoes({ perfis, onClose, onCopiar }: { perfis: PerfilResumoV
   const modelos = useModelosDePerfil();
   const copiar = useMutation({
     mutationFn: async (): Promise<OrigemDaCopia> => {
-      const modelo = origem.startsWith('modelo:') ? modelos.data?.find((m) => m.modelo === origem.slice(7)) : undefined;
-      return modelo ?? PerfilDetalheV2Schema.parse(await api(`/core/perfis/${origem.slice(7)}`));
+      const de = origemDoValor(origem);
+      const modelo = de && 'modelo' in de ? modelos.data?.find((m) => m.modelo === de.modelo) : undefined;
+      return modelo ?? PerfilDetalheV2Schema.parse(await api(`/core/perfis/${de && 'perfil' in de ? de.perfil : ''}`));
     },
     onSuccess: onCopiar,
   });
@@ -510,23 +509,7 @@ function CopiarPermissoes({ perfis, onClose, onCopiar }: { perfis: PerfilResumoV
     >
       <div className="flex flex-col gap-3">
         <p className="m-0 text-[15px]">As caixas marcadas trocam pelas do perfil escolhido.</p>
-        <select className={CAMPO} value={origem} onChange={(e) => setOrigem(e.target.value)} aria-label="Perfil de origem" data-testid="perfil.copiar.origem">
-          <option value="">Escolha um perfil…</option>
-          <optgroup label="Perfis da empresa">
-            {perfis.map((p) => (
-              <option key={p.codigo} value={`perfil:${p.codigo}`}>
-                {rotuloDoPerfil(p.codigo, { nome: p.nome })}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Modelos">
-            {(modelos.data ?? []).map((m) => (
-              <option key={m.modelo} value={`modelo:${m.modelo}`}>
-                {rotuloDoPerfil(m.modelo, { nome: m.nome })}
-              </option>
-            ))}
-          </optgroup>
-        </select>
+        <SeletorDeOrigem valor={origem} onChange={setOrigem} perfis={perfis} modelos={modelos.data ?? []} vazio="Escolha um perfil…" rotulo="Perfil de origem" testId="perfil.copiar.origem" />
         {copiar.isError && <Notice tone="danger">{ehSemConexao(copiar.error) ? SEM_CONEXAO : errorMessage(copiar.error)}</Notice>}
       </div>
     </Dialog>
