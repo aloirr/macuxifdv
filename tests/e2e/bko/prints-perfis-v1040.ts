@@ -20,7 +20,7 @@ import { manifest as promotorM } from '@macuxi/promotor/manifest';
 import { manifest as treinamentoM } from '@macuxi/treinamento/manifest';
 import { manifest as vendedorM } from '@macuxi/vendedor/manifest';
 import { CATALOGO_PERMISSOES_VERSAO, catalogoDePermissoes, MODELOS_PERFIL, modelosDePerfil, type ModuloId } from '@macuxi/platform-sdk';
-import { montarCatalogoPorArea, montarDetalheV2, ondeEntraPeloCargo } from '../../../modules/core/domain/perfis-cargo';
+import { ehAutogestao, montarCatalogoPorArea, montarDetalheV2, ondeEntraPeloCargo } from '../../../modules/core/domain/perfis-cargo';
 
 const BKO = process.env.MACUXI_BKO_URL ?? 'http://localhost:3000';
 const SAIDA = process.argv[2] ?? 'prints-perfis-v1040';
@@ -38,7 +38,7 @@ const ATUALIZADO = '2026-11-27T12:00:00.000Z';
 const resposta = {
   catalogo: montarCatalogoPorArea(catalogo, licencas, CATALOGO_PERMISSOES_VERSAO),
   lista: {
-    itens: MODELOS_PERFIL.map((m) => ({ codigo: m, nome: NOMES[m]!, descricao: null, cargo: modelos[m].cargo, ativo: true, usuarios: USUARIOS[m]!, onde_entra: ondeEntraPeloCargo(modelos[m].cargo, modelos[m].permissoes) })),
+    itens: MODELOS_PERFIL.map((m) => ({ codigo: m, nome: NOMES[m]!, descricao: null, cargo: modelos[m].cargo, ativo: true, usuarios: USUARIOS[m]!, onde_entra: ondeEntraPeloCargo(modelos[m].cargo, modelos[m].permissoes), autogestao: ehAutogestao(m, modelos[m].permissoes, 'admin') })),
   },
   detalhe: (codigo: (typeof MODELOS_PERFIL)[number]) =>
     montarDetalheV2({
@@ -54,6 +54,7 @@ const resposta = {
       licencas,
       perfisAtivos: MODELOS_PERFIL.map((m) => ({ codigo: m, nome: NOMES[m]!, cargo: modelos[m].cargo, permissoes: modelos[m].permissoes })),
       modulos: CONTRATADOS,
+      perfilDoLogado: 'admin',
     }),
 };
 
