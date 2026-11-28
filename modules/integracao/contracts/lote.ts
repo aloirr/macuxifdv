@@ -131,7 +131,7 @@ export type ErroEnvelope = z.infer<typeof ErroEnvelope>;
 export const RecusaEnvelope = z.object({ erros: z.array(ErroEnvelope).min(1) });
 export type RecusaEnvelope = z.infer<typeof RecusaEnvelope>;
 
-/** Códigos de erro por linha (RN-INT-03). Os dois últimos são reprocessáveis sem reenvio corrigido. */
+/** Códigos de erro por linha (RN-INT-03). `referencia_ausente` e `falha_processamento` são reprocessáveis sem reenvio corrigido. */
 export const CODIGOS_ERRO_LINHA = [
   'registro_invalido',
   'external_id_invalido',
@@ -144,6 +144,8 @@ export const CODIGOS_ERRO_LINHA = [
   'regra_invalida',
   'referencia_ausente',
   'falha_processamento',
+  /** RN-CORE-32 (ADR 0078): vendedor com e-mail já usado em outra empresa; o erro não leva o e-mail. */
+  'VENDEDOR_EMAIL_EM_OUTRA_EMPRESA',
 ] as const;
 export const CodigoErroLinha = z.enum(CODIGOS_ERRO_LINHA);
 export type CodigoErroLinha = z.infer<typeof CodigoErroLinha>;

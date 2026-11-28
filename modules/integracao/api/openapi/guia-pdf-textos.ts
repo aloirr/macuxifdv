@@ -542,6 +542,7 @@ export const CODIGOS_LINHA: Record<CodigoErroLinha, string> = {
   registro_invalido: 'A linha não é um objeto JSON válido.',
   external_id_invalido: '`external_id` ausente, vazio ou acima do limite (Seção 6).',
   campo_desconhecido: 'Campo que o contrato não tem.',
+  VENDEDOR_EMAIL_EM_OUTRA_EMPRESA: 'Vendedor com e-mail já usado em outra empresa (sem diferenciar maiúsculas nem espaços nas pontas). Troque o e-mail no ERP e reenvie.',
 };
 
 /** O que fazer em cada status HTTP (códigos específicos de cada rota estão na seção da rota). */

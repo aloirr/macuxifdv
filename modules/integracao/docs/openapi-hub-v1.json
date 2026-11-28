@@ -3715,7 +3715,8 @@
           "campo_desconhecido",
           "regra_invalida",
           "referencia_ausente",
-          "falha_processamento"
+          "falha_processamento",
+          "VENDEDOR_EMAIL_EM_OUTRA_EMPRESA"
         ]
       },
       "CodigoRecusaRetorno": {

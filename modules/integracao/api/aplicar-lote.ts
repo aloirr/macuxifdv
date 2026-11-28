@@ -4,8 +4,8 @@
  * reentrega de um lote já aplicado é um no-op (status diferente de `recebido`). Regras no `domain`; aqui só SQL e eventos.
  *
  *   lote travado → ordem (RN-INT-04: espera dependência/predecessor lançando erro, a outbox repete) → linhas inválidas do Conector
- *   (RN-INT-03) → validação por linha + duplicadas (RN-INT-02) → referências (RN-INT-04) → hash/obsoleta (RN-INT-02/06) → upsert
- *   monotônico + `integracao.<entidade>.atualizado@1` por registro que mudou → resultado, cursor (RN-INT-05) → sessão completa:
+ *   (RN-INT-03) → validação por linha + duplicadas (RN-INT-02) → referências (RN-INT-04) → e-mail do vendedor em outra empresa
+ *   (RN-CORE-32) → hash/obsoleta (RN-INT-02/06) → upsert monotônico + `integracao.<entidade>.atualizado@1` por registro que mudou → resultado, cursor (RN-INT-05) → sessão completa:
  *   inativação ou pendência (RN-INT-06) → `integracao.lote.concluido@1`.
  *
  * Diferenças do desenho (hub-api.md §7.10), assumidas na v1: sem checkpoint por bloco (a transação é uma só, o lote é atômico);
@@ -30,6 +30,8 @@ import {
   avisosCadastroIncompleto,
   avisosReferenciaFraca,
   contarDuplicadasNoLote,
+  emailsDeVendedorParaConferir,
+  recusarVendedoresComEmailEmOutraEmpresa,
   siglasParaConferir,
   verificarMedidas,
   dadosParaConsultaCadastro,
@@ -160,7 +162,12 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   // medida (RN-CORE-19): sigla não cadastrada/inativa = referencia_ausente; sem como conferir (consulta indisponível), não recusa
   const situacaoMedidas = await situacaoDasMedidas(ctx, siglasParaConferir(lote.entidade, ref.aceitas));
   const med = verificarMedidas(lote.entidade, ref.aceitas as LinhaValida[], situacaoMedidas && situacaoMedidas.ativas, situacaoMedidas?.inativas);
-  const aceitasValidas = med.aceitas;
+  // RN-CORE-32 (ADR 0078, D5): vendedor com e-mail vivo em outra empresa é recusado; o resto do lote segue
+  const emOutraEmpresa = await emailsEmOutraEmpresa(db, emailsDeVendedorParaConferir(lote.entidade, med.aceitas));
+  const mail = recusarVendedoresComEmailEmOutraEmpresa(lote.entidade, med.aceitas, emOutraEmpresa);
+  // o log leva só o external_id, nunca o e-mail
+  for (const e of mail.erros) ctx.log.warn({ lote_id: lote.id, entidade: lote.entidade, external_id: e.external_id, codigo: e.codigo }, 'vendedor recusado: e-mail em outra empresa');
+  const aceitasValidas = mail.aceitas;
   // referência fraca (produto -> nó do catálogo): aviso, a linha entra normalmente
   const fracas = new Set<string>();
   for (const l of aceitasValidas) for (const r of referenciasFracasDoRegistro(lote.entidade, l.registro)) fracas.add(r.external_id);
@@ -258,7 +265,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   // ---- erros por linha: um por (origem, índice) — a unique do banco; o primeiro campo com problema basta
   const errosHub: LinhaErro[] = [];
   const vistos = new Set<number>();
-  for (const e of [...v.erros, ...ref.erros, ...med.erros]) {
+  for (const e of [...v.erros, ...ref.erros, ...med.erros, ...mail.erros]) {
     if (vistos.has(e.indice)) continue;
     vistos.add(e.indice);
     errosHub.push({ ...e, origem: 'hub' });
@@ -347,6 +354,16 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
     lote.id,
   );
   ctx.log.info({ lote_id: lote.id, entidade: lote.entidade, status: resultado.status, novas: c.novas, atualizadas: c.atualizadas, com_erro: c.com_erro }, 'lote aplicado');
+}
+
+/** RN-CORE-32: dos e-mails normalizados, os vivos em outra empresa (`plataforma.email_em_outra_empresa`, migração 0111; só o booleano). */
+async function emailsEmOutraEmpresa(db: ClienteBanco, emails: readonly string[]): Promise<Set<string>> {
+  const achados = new Set<string>();
+  for (const bloco of blocos(emails)) {
+    const { rows } = await db.query<{ email: string }>('select e as email from unnest($1::text[]) as e where plataforma.email_em_outra_empresa(e)', [bloco]);
+    for (const r of rows) achados.add(r.email);
+  }
+  return achados;
 }
 
 /**

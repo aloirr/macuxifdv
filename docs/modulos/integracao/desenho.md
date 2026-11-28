@@ -131,6 +131,7 @@ Linha inválida **não trava o lote**. Cada problema vira uma `LinhaErro` (`indi
 | `regra_invalida` | regra entre campos (ex.: fim de vigência antes do início) | não |
 | `referencia_ausente` | cita `external_id` de outra entidade que ainda não existe (RN-INT-04) | **sim** |
 | `falha_processamento` | falha transitória ao gravar a linha | **sim** |
+| `VENDEDOR_EMAIL_EM_OUTRA_EMPRESA` | vendedor com e-mail (minúsculas, sem espaços nas pontas) vivo em outra empresa, pela `plataforma.email_em_outra_empresa` (RN-CORE-32, ADR 0078); o provisório `@sem-email.invalid` fica fora; o erro e o log levam só o `external_id` | não |
 
 - **Reprocessável**: basta tentar de novo (a dependência chegou / a falha passou); o BKO oferece "Reprocessar" usando o payload do staging. **Não reprocessável**: exige correção no ERP e reenvio.
 - **Resultado do lote** (`calcularResultadoLote`): `concluido` (nenhuma linha com erro), `concluido_com_erros` (parte), `falhou` (todas as linhas efetivas com erro **ou** falha do lote). Várias issues na mesma linha contam uma linha com erro; duplicadas no lote não entram na conta.

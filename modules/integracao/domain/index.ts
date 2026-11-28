@@ -31,6 +31,7 @@ export * from './medidas';
 export * from './pagamento';
 export * from './catalogo-produto';
 export * from './vendedor-filial';
+export * from './vendedor-email';
 export * from './marca-desconhecida';
 export * from './pedido-versao';
 export * from './linha-arquivo-legado';
