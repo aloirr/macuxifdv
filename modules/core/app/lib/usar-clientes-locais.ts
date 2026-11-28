@@ -8,9 +8,10 @@ import type { PedidoItemSync, PedidoSync } from '../../../vendedor/contracts';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { dataLocal, faixasCurvaAbcDasLinhas, PARAMETROS_CURVA_ABC_PADRAO, fotosComPendentes, pedidosVisiveisNoAparelho, type FaixasPorDimensao, type FotoPdvPush } from '../../domain';
+import { dataLocal, faixasCurvaAbcDasLinhas, PARAMETROS_CURVA_ABC_PADRAO, fotosComPendentes, pedidosVisiveisPelaLeitura, type FaixasPorDimensao, type FotoPdvPush } from '../../domain';
 import { agruparPorCliente, montarCliente360Local, type BaseLocal, type Cliente360Local } from './cliente360-local';
 import { fusoDe } from './estado';
+import { leituraDePedidosGuardada } from './leitura-de-pedidos';
 import { ENTIDADE_PRE_CADASTRO, sobreporPreCadastros } from './pre-cadastro-local';
 import { useCore } from './usar-core';
 
@@ -29,8 +30,8 @@ export interface ClientesLocais extends BaseLocal {
   pronto: boolean;
   carregado: boolean;
   /**
-   * RN-PRO-01 / RN-CORE-01: este usuário vê pedidos? Promotor com `promotor_ve_pedidos` desligado (parâmetro sincronizado) = false.
-   * Vendedor, gestor e demais perfis: sempre true. Offline: vem das linhas do aparelho.
+   * RN-PRO-01 / RN-CORE-01 / ADR 0073 §2.4: este usuário vê pedidos? Tenant em `concessao`: a leitura guardada do usuário (cargo e
+   * concessão). Em `legado`: promotor com `promotor_ve_pedidos` desligado = false; demais perfis, true. Offline: vem do aparelho.
    */
   verPedidos: boolean;
   /** Perfil da sessão (abas da ficha, "Visitada por" no Gestão); sem sessão, `vendedor`. */
@@ -57,7 +58,7 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, pedidos, pedidoItens, visitasSync, resumosVisita] = await Promise.all([
+      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, pedidos, pedidoItens, visitasSync, resumosVisita, leitura] = await Promise.all([
         motor.linhas<ClienteSync>('cliente'),
         motor.linhas<ClienteContatoSync>('cliente_contato'),
         motor.linhas<ClienteFinanceiroSync>('cliente_financeiro'),
@@ -72,9 +73,11 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<PedidoItemSync>('pedido_item'),
         motor.linhas<VisitaSync>('visita'),
         motor.linhas<ClienteVisitaResumoSync>('cliente_visita_resumo'),
+        leituraDePedidosGuardada(motor.armazenamentoDoModulo('core')),
       ]);
-      const perfil = motor.ambiente.usuario()?.perfil ?? 'vendedor';
-      const verPedidos = pedidosVisiveisNoAparelho(perfil, parametros);
+      const usuario = motor.ambiente.usuario();
+      const perfil = usuario?.perfil ?? 'vendedor';
+      const verPedidos = pedidosVisiveisPelaLeitura({ usuarioId: usuario?.id, perfil, parametros, leitura });
       if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, perfil, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null), resumosVisita: resumosVisita.filter((r) => r.deleted_at === null) });
     })();
     return () => {

@@ -41,7 +41,7 @@ export interface Cliente360Local {
   resumo_compras: ResumoCompras;
   resumo_financeiro: ResumoFinanceiro | null;
   /**
-   * RN-PRO-01 / RN-CORE-01: `false` quando o promotor não vê pedidos (opção `promotor_ve_pedidos` desligada). Aí `historico` vem
+   * RN-PRO-01 / RN-CORE-01: `false` quando o usuário não vê pedidos (`ClientesLocais.verPedidos`). Aí `historico` vem
    * vazio e `resumo_compras` zerado: nem a contagem de pedidos nem os valores de compra chegam à tela.
    */
   pedidos_visiveis: boolean;

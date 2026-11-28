@@ -54,6 +54,8 @@ export const CHAVES = {
   inicio: 'inicio',
   /** Cópia da própria RV de `GET /v1/core/rv` (etapa `core-rv`, T-0082). */
   rv: 'rv',
+  /** Cópia de `GET /v1/core/eu/leitura-de-pedidos` (etapa `core-leitura-de-pedidos`, ADR 0073 §2.4). */
+  leituraDePedidos: 'leitura_de_pedidos',
   carregadoEm: 'carregado_em',
 } as const;
 
