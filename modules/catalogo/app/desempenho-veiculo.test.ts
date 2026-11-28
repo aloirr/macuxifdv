@@ -1,9 +1,9 @@
 /**
  * RN-CAT-22 (desenho `docs/desenho/filtro-veiculo.md` §7, critério 9): 20 mil produtos com aplicação em texto, SQLite real. A lista filtrada por
  * veículo (`listaComVeiculo`, a do Catálogo) sai em até 300 ms (p95 sobre vários veículos, com o índice de veículos já montado) e a troca de nível
- * da cascata em até 100 ms. Meta estrita (`MACUXI_DESEMPENHO=1`): os tetos do desenho (`MACUXI_FATOR_DESEMPENHO` folga em CI compartilhado); na suíte
- * (turbo em paralelo, relógio de parede até 20x mais lento) os tetos viram razão a uma referência medida antes e depois de cada amostra, como o teto relativo de
- * `desempenho-vitrine.test.ts`. A montagem do índice é medida pela RAZÃO à montagem da lista de produtos do aparelho; a montagem cede o laço (não trava a tela) e `catalogo.veiculos@1` espera por ela.
+ * da cascata em até 100 ms. Decisão 129 A (R-20261128-054900): na suíte e no CI vale o teto próprio deste teste, a razão a uma referência medida antes e
+ * depois de cada amostra (folga para o runner compartilhado, como em `desempenho-vitrine.test.ts`); o teto de 900 ms vale no aparelho, no roteiro do testes.
+ * Em `MACUXI_DESEMPENHO=1` (máquina dedicada) valem também os tetos do desenho em relógio de parede (`MACUXI_FATOR_DESEMPENHO` dá folga). A montagem do índice é medida pela RAZÃO à montagem da lista de produtos do aparelho; a montagem cede o laço (não trava a tela) e `catalogo.veiculos@1` espera por ela.
  */
 import { criarArmazenamentoSqlite, type LinhaSync } from '@macuxi/platform-sdk';
 import { criarDriverNode } from '@macuxi/platform-sdk/sqlite-node';
@@ -149,9 +149,7 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     const rLista = p95(razoesLista);
     const rNivel = p95(razoesNivel);
     console.log(`[desempenho RN-CAT-22] carga ${(msCarga / 1000).toFixed(1)} s; lista de produtos ${msProdutos.toFixed(0)} ms; índice de veículos ${msIndice.toFixed(0)} ms (razão à lista de produtos ${(msIndice / msProdutos).toFixed(2)}), maior pausa do laço ${maiorPausa.toFixed(0)} ms; lista com veículo p95 ${pLista.toFixed(0)} ms (razão à referência p95 ${rLista.toFixed(2)}); troca de nível p95 ${pNivel.toFixed(0)} ms (razão à referência p95 ${rNivel.toFixed(3)}); referência ${refAntes.toFixed(0)} ms`);
-    // tetos do aparelho (desenho §7): 300 ms a lista e 100 ms a troca de nível, em relógio de parede, só em ESTRITO (máquina dedicada). Na suíte (turbo em
-    // paralelo) o relógio de parede oscila até 20x (SHA 0af3a23: 1784 ms; sozinho, 88 ms); o teto vira a razão à referência intercalada, como em
-    // `desempenho-vitrine.test.ts`
+    // decisão 129 A: relógio de parede só em ESTRITO; na suíte o relógio oscila até 20x (SHA 0af3a23: 1784 ms; sozinho, 88 ms) e vale a razão à referência
     if (ESTRITO) {
       expect(pLista).toBeLessThan(300 * FATOR);
       expect(pNivel).toBeLessThan(100 * FATOR);
