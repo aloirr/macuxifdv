@@ -972,8 +972,12 @@ describe('T-0077 critério 4 — promotor lê os pedidos da carteira no Cliente 
   it('o app encadeia assim (fonte): parâmetro sincronizado + perfil → verPedidos → ficha; abas/ações de pedido filtradas; seção de compras só com pedidos_visiveis', () => {
     const hook = ler('modules/core/app/lib/usar-clientes-locais.ts');
     expect(hook).toMatch(/motor\.linhas<ParametroSync & LinhaSync>\('parametro'\)/);
-    expect(hook).toContain("const perfil = motor.ambiente.usuario()?.perfil ?? 'vendedor';");
-    expect(hook).toContain('const verPedidos = pedidosVisiveisNoAparelho(perfil, parametros);');
+    // #878: a leitura de pedidos do usuário guardada no aparelho decide em concessão (ve_pedidos); sem ela ou em legado, o caminho antigo
+    expect(hook).toContain("leituraDePedidosGuardada(motor.armazenamentoDoModulo('core')),");
+    expect(hook).toContain("const perfil = usuario?.perfil ?? 'vendedor';");
+    expect(hook).toContain('const verPedidos = pedidosVisiveisPelaLeitura({ usuarioId: usuario?.id, perfil, parametros, leitura });');
+    const dominio = ler('modules/core/domain/promotor-pedidos.ts');
+    expect(dominio).toMatch(/l\.leitura === 'concessao'\) return l\.ve_pedidos;\s*return pedidosVisiveisNoAparelho\(e\.perfil, e\.parametros\);/);
     expect(hook).toMatch(/\{ verPedidos: dados\.verPedidos \}/);
     const tela = ler('modules/core/app/telas/cliente.tsx');
     expect(tela).toMatch(/const abas = filtrarExtensoesDePedido\(abasTodas, locais\.verPedidos\);/);
