@@ -2,10 +2,6 @@
  * T-0206 (v1.0.43) × Postgres real (fixture dois-tenants, papel macuxi_app, RLS): a filial do vendedor na carga é OPCIONAL
  * (RN-CORE-39, decisão do dono do produto R-20261128-060854). Caminho do Hub: `aplicarLote` de `vendedor` com a filial conferida
  * no `registro_atual` do Hub OU no Core (`core.filiais@1`, simulado por tenant). Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
- *  - com filial existente (Hub ou Core): linha aceita e `integracao.vendedor.atualizado@1` leva `filial_external_id`;
- *  - sem filial (ausente ou null): aceita, só o aviso `vendedor_sem_filial`, nenhum erro;
- *  - filial inexistente: `referencia_ausente` reprocessável no campo `filial_external_id`, nada publicado, sem dado pessoal;
- *  - isolamento: a filial que só existe em B não vale para o vendedor de A.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
@@ -74,19 +70,18 @@ describe.skipIf(semBanco())('Integração T-0206: filial opcional do vendedor ×
       await db.query('insert into integracao.lote_staging (tenant_id, lote_id, corpo) values (plataforma.tenant_atual(), $1, $2::jsonb)', [id, JSON.stringify({ registros, linhas_invalidas: [], linhas_invalidas_omitidas: 0 })]);
       return id;
     });
-  const aplicar = (tenantId: string, loteId: string) =>
-    rodar(tenantId, (ctx) =>
-      aplicarLote({ lote_id: loteId, conector_id: tenantId === A.tenantId ? A.integracao.identificador : B.integracao.identificador, entidade: 'vendedor', modo: 'delta', recebidas: 1, recebido_em: AGORA.toISOString() }, ctx),
+  const aplicar = (t: typeof A | typeof B, loteId: string) =>
+    rodar(t.tenantId, (ctx) =>
+      aplicarLote({ lote_id: loteId, conector_id: t.integracao.identificador, entidade: 'vendedor', modo: 'delta', recebidas: 1, recebido_em: AGORA.toISOString() }, ctx),
     );
   const vend = (n: string, extra: Record<string, unknown> = {}) => ({ external_id: `${P}-V${n}`, nome: `Fulano de Tal ${n}`, email: `fulano${n}@exemplo.com.br`, alterado_em: em(-60_000), ...extra });
-  const conectorDe = (t: typeof A | typeof B) => t.integracao.conector;
 
   /** A filial no Hub: registro_atual da entidade `filial` (como a carga de filial deixa). */
-  const filialNoHub = (tenantId: string, externalId: string) =>
+  const filialNoHub = (t: typeof A | typeof B, externalId: string) =>
     admin.query(
       `insert into integracao.registro_atual (tenant_id, entidade, conector_id, hash, payload, alterado_em, ativo, external_id, visto_em, aplicado_em)
        values ($1, 'filial', $2, $3, $4::jsonb, now(), true, $5, now(), now())`,
-      [tenantId, tenantId === A.tenantId ? A.integracao.conector : B.integracao.conector, sha(externalId), JSON.stringify({ external_id: externalId, codigo: 'F1', nome: 'Matriz' }), externalId],
+      [t.tenantId, t.integracao.conector, sha(externalId), JSON.stringify({ external_id: externalId, codigo: 'F1', nome: 'Matriz' }), externalId],
     );
 
   const lote = (tenantId: string, id: string) =>
@@ -125,10 +120,10 @@ describe.skipIf(semBanco())('Integração T-0206: filial opcional do vendedor ×
     await reiniciar();
     const noHub = `${P}-FH`;
     const noCore = `${P}-FC`;
-    await filialNoHub(A.tenantId, noHub);
+    await filialNoHub(A, noHub);
     coreFiliais.set(A.tenantId, new Set([noCore]));
-    const id = await novoLote(A.tenantId, conectorDe(A), [vend('1', { filial_external_id: noHub }), vend('2', { filial_external_id: noCore })]);
-    await aplicar(A.tenantId, id);
+    const id = await novoLote(A.tenantId, A.integracao.conector, [vend('1', { filial_external_id: noHub }), vend('2', { filial_external_id: noCore })]);
+    await aplicar(A, id);
     expect(await lote(A.tenantId, id)).toMatchObject({ status: 'concluido', novas: 2, com_erro: 0, avisos: null });
     expect(await erros(A.tenantId, id)).toEqual([]);
     expect(await registros(A.tenantId)).toEqual([`${P}-V1`, `${P}-V2`]);
@@ -141,11 +136,12 @@ describe.skipIf(semBanco())('Integração T-0206: filial opcional do vendedor ×
 
   it('RN-CORE-39 (decisão R-20261128-060854): sem filial (ausente ou null) a linha entra, só com o aviso vendedor_sem_filial e nenhum erro', async () => {
     await reiniciar();
-    const id = await novoLote(A.tenantId, conectorDe(A), [vend('3'), vend('4', { filial_external_id: null })]);
-    await aplicar(A.tenantId, id);
-    expect(await lote(A.tenantId, id)).toMatchObject({ status: 'concluido', novas: 2, com_erro: 0 });
+    const id = await novoLote(A.tenantId, A.integracao.conector, [vend('3'), vend('4', { filial_external_id: null })]);
+    await aplicar(A, id);
+    const l = await lote(A.tenantId, id);
+    expect(l).toMatchObject({ status: 'concluido', novas: 2, com_erro: 0 });
     expect(await erros(A.tenantId, id)).toEqual([]);
-    const avisos = (await lote(A.tenantId, id))?.avisos as { external_id: string; codigo: string }[];
+    const avisos = l?.avisos as { external_id: string; codigo: string }[];
     expect(avisos.map((a) => [a.external_id, a.codigo])).toEqual([
       [`${P}-V3`, 'vendedor_sem_filial'],
       [`${P}-V4`, 'vendedor_sem_filial'],
@@ -156,10 +152,10 @@ describe.skipIf(semBanco())('Integração T-0206: filial opcional do vendedor ×
   it('RN-INT-04: filial inexistente recusa só a linha com referencia_ausente reprocessável no campo filial_external_id; nada publicado para ela e sem dado pessoal na mensagem nem no log', async () => {
     await reiniciar();
     const boa = `${P}-FOK`;
-    await filialNoHub(A.tenantId, boa);
+    await filialNoHub(A, boa);
     const ruim = `${P}-NAOEXISTE`;
-    const id = await novoLote(A.tenantId, conectorDe(A), [vend('5', { filial_external_id: ruim }), vend('6', { filial_external_id: boa })]);
-    await aplicar(A.tenantId, id);
+    const id = await novoLote(A.tenantId, A.integracao.conector, [vend('5', { filial_external_id: ruim }), vend('6', { filial_external_id: boa })]);
+    await aplicar(A, id);
     expect(await lote(A.tenantId, id)).toMatchObject({ status: 'concluido_com_erros', novas: 1, com_erro: 1 });
     const e = await erros(A.tenantId, id);
     expect(e).toEqual([{ codigo: 'referencia_ausente', campo: 'filial_external_id', reprocessavel: true, external_id: `${P}-V5`, mensagem: expect.stringContaining(ruim) }]);
@@ -173,16 +169,16 @@ describe.skipIf(semBanco())('Integração T-0206: filial opcional do vendedor ×
   it('multi-tenant: a filial que existe só em B (Hub e Core) não vale para o vendedor de A; vale para o de B', async () => {
     await reiniciar();
     const soB = `${P}-FB`;
-    await filialNoHub(B.tenantId, soB);
+    await filialNoHub(B, soB);
     coreFiliais.set(B.tenantId, new Set([soB]));
-    const idA = await novoLote(A.tenantId, conectorDe(A), [vend('7', { filial_external_id: soB })]);
-    await aplicar(A.tenantId, idA);
+    const idA = await novoLote(A.tenantId, A.integracao.conector, [vend('7', { filial_external_id: soB })]);
+    await aplicar(A, idA);
     expect((await erros(A.tenantId, idA)).map((x) => [x.codigo, x.campo, x.reprocessavel])).toEqual([['referencia_ausente', 'filial_external_id', true]]);
     expect(await registros(A.tenantId)).toEqual([]);
     expect(nomes('integracao.vendedor.atualizado@1')).toHaveLength(0);
 
-    const idB = await novoLote(B.tenantId, conectorDe(B), [vend('7', { filial_external_id: soB })]);
-    await aplicar(B.tenantId, idB);
+    const idB = await novoLote(B.tenantId, B.integracao.conector, [vend('7', { filial_external_id: soB })]);
+    await aplicar(B, idB);
     expect(await lote(B.tenantId, idB)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
     expect(await registros(B.tenantId)).toEqual([`${P}-V7`]);
     expect(await registros(A.tenantId)).toEqual([]);
