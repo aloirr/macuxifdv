@@ -33,7 +33,7 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .cx{background:#fff;border:1px solid #DFE2E6;border-radius:12px}
 .tl{display:flex;justify-content:space-between;gap:8px;min-height:44px;align-items:center;padding:0 12px;font-size:14px;border-bottom:1px solid #ECEEF1}
 .tl:last-child{border-bottom:0}.tl span:first-child{color:#4A5562}
-.tag{align-self:flex-start;height:24px;border-radius:999px;padding:0 10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;background:#FFF1D6;color:#5C3B00}
+.tag{align-self:flex-start;height:24px;border-radius:999px;padding:0 10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;background:#FFF1D6;color:#7A4F00}
 .obs{padding:12px;font-size:14px;line-height:20px}
 .obs b{font-weight:600;display:block}
 .barra{height:56px;background:#fff;border-top:1px solid #DFE2E6;display:flex}
@@ -84,7 +84,7 @@ main{flex:1;padding:28px 32px;display:flex;flex-direction:column;gap:20px;max-wi
 .cab{display:flex;align-items:center;gap:12px}
 .cab small{font-size:14px;color:#4A5562;display:block}
 h1{font-size:24px;font-weight:700}
-.tag{height:24px;border-radius:999px;padding:0 10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;background:#FFF1D6;color:#5C3B00}
+.tag{height:24px;border-radius:999px;padding:0 10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;background:#FFF1D6;color:#7A4F00}
 .q{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px}
 h2{font-size:17px;font-weight:700}
 .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 24px}
