@@ -2,6 +2,21 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **v1.0.43 no ar (28/11, gerente-projetos da nuvem).** Horários de Manaus.
+> - No ar às 08h02 (tag v1.0.43, f1d3c98e; liberar 46141467633, publicar 46142316393). APKs Campo e Gestão 1.0.43 em seguida; o Gestão é obrigatório, por causa do campo novo do ranking.
+> - Entraram: #874 (T-0206, teste da filial do vendedor), #877 (catálogo consolidado do corretor; o #792 e o #820 foram fechados), #875 e #876 ([T-0207](tarefas/T-0207.md)), #878 (aba de pedidos no app pela leitura do usuário), #879 e #880 (RN-CAT-22, 129 A) e #881 (teste T-0077 critério 4).
+> - O 1º liberar (46140134876) caiu num teste de fonte desatualizado pelo #878 e foi corrigido no #881.
+> - [T-0201](tarefas/T-0201.md) CANCELADA (R-20261128-060854-alexandre). [T-0206](tarefas/T-0206.md) e [T-0207](tarefas/T-0207.md) concluídas.
+> - **v1.0.44:**
+>   - [T-0210](tarefas/T-0210.md): Vendas do mês segue a RN-CORE-20 e a RN-CORE-21 e o faturado parcial (1 A);
+>   - critério 9 da RN-CAT-22: no aparelho, reprova acima de 900 ms, e acima de 300 ms é só alerta (2 A); acertar o texto do #880 e o modo `MACUXI_DESEMPENHO=1`;
+>   - T-0208 (ST e IPI, ADR 0077, `v_icms_st_cents` e `v_ipi_cents`, R-20261128-100133);
+>   - T-0203, T-0204 e T-0209 (login sem a empresa);
+>   - [T-0200](tarefas/T-0200.md) (🟡 permissoes-perfil.ts:375);
+>   - 17 RD abertos no catálogo.
+> - Fotos do cliente: simulação aprovada; a migração 0110 continua livre.
+> - Limite semanal da conta em aviso: no máximo 3 sessões, e pausa nos 99%.
+
 > **Retomada de 27/11, 23h47 (gerente-projetos no VS Code do Alexandre).** Horários de Manaus.
 > - **Recados:**
 >   - a pausa das 19h46 (R-20261127-194649-alexandre) terminou com o "retome" (R-20261127-234812-alexandre e R-20261127-225437-alexandre);

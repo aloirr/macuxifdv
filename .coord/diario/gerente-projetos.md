@@ -443,3 +443,4 @@
 2026-11-27 — v1.0.39 no ar (02h15, APKs 02h38): parâmetros do pedido, core do pré-cadastro, diagnóstico por cliente e doc 03; pausa das 22h05 e retomada às 00h56 registradas nos recados.
 2026-11-27 — retomada das 23h47 (VS Code): quadro da v1.0.40 à v1.0.42, T-0193, T-0195 e T-0200 a T-0207 (T-0203, T-0204, T-0205 e T-0207 bloqueadas por falta de escopo); D0 da T-0189 fechado pela decisão 70; liberar da v1.0.42 travado pelo 403 de Actions (R-20261127-235023 e R-20261127-235223).
 2026-11-28 — v1.0.42 no ar (00h47) e APKs 1.0.42 (01h09); T-0203, T-0204, T-0205 e T-0207 com o escopo da 122 A; T-0208 (ST/IPI, ADR 0077) e T-0209 (login sem a empresa, ADR 0078) abertas; backlog dos passos manuais; ronda do time a cada 10 min.
+2026-11-28 — v1.0.43 no ar (08h02) pela nuvem: T-0206, T-0207, aba de pedidos, RN-CAT-22 (129 A) e catálogo do corretor; T-0201 cancelada; T-0210 aberta para a v1.0.44.
