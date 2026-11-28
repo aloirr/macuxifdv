@@ -182,7 +182,7 @@ dependency-cruiser) só deixa o Vendedor importar `modules/catalogo/contracts`; 
 6. A lista com veículo mantém a ordem de hoje (ranking com texto; sem texto, a da vitrine, RN-CAT-21).
 7. `contarChipsFiltrar`: contagem = produtos da lista atual; chip 0 sai salvo marcado; grupo de 1 opção sai; `Limpar` não tira o veículo.
 8. Igualdade aparelho × API (§4.2) nos itens e na ordem.
-9. Desempenho no aparelho com 20 mil produtos: a montagem do índice **não trava a tela** (o "+20%" vale para não travar, não para o tempo total; §2.2); lista com veículo p95 < 300 ms; troca de nível da cascata < 100 ms. No CI, o teste usa teto próprio (razão a uma referência medida junto, com folga para o runner compartilhado); o teto de 900 ms vale no aparelho, medido no roteiro do testes (R-20261128-054900).
+9. Desempenho com 20 mil produtos: a montagem do índice **não trava a tela** (o "+20%" vale para não travar, não para o tempo total; §2.2). No aparelho ou em máquina dedicada (`MACUXI_DESEMPENHO=1`; `MACUXI_FATOR_DESEMPENHO` multiplica os tetos), em p95: lista com veículo reprova acima de 900 ms e alerta acima de 300 ms; troca de nível da cascata reprova acima de 300 ms e alerta acima de 100 ms. Alerta é aviso no log do teste e não reprova. Na suíte e no CI, sem `MACUXI_DESEMPENHO=1`, o relógio não reprova: vale a razão a uma referência medida junto (R-20261128-054900; decisão 2 A, v1.0.44).
 10. Tenant sem veículo nas aplicações: `disponivel = false`, sem botão; resultados e tempos da busca iguais aos de hoje.
 
 **modulo-catalogo (telas) e modulo-vendedor (aba Itens):**
