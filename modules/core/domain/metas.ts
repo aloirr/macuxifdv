@@ -11,35 +11,24 @@ import type { INDICADORES_META } from '../contracts/sync';
 
 export type BaseApuracao = 'aprovado' | 'faturado';
 
-export interface PedidoApuravel {
-  /** Dono do número (RN-CORE-21): pedido em nome do vendedor conta para ele; `criado_por` não entra na conta. */
-  vendedor_id: string;
-  criado_por?: string | null;
-  cliente_id?: string;
-  /** Data civil do pedido no fuso do tenant. */
-  data: string;
-  total_cents: number;
-  aprovado: boolean;
-  faturado: boolean;
-  cancelado: boolean;
-  /** Cancelamento parcial já abatido (RN-CORE-21: líquido de cancelamentos). */
-  cancelado_cents?: number | null;
+/** Base do painel (BKO Indicadores e Metas): a das metas mostradas; `misto` quando há metas de pedido e de faturamento. */
+export type BaseDoPainel = BaseApuracao | 'misto';
+
+/** RN-CORE-21: a base das vendas vem do tipo da meta, não de parâmetro do tenant (pedido = aprovados; faturamento = notas). */
+export function baseDoTipoDaMeta(tipo: TipoMeta): BaseApuracao {
+  return tipo === 'faturamento' ? 'faturado' : 'aprovado';
 }
 
-function naBase(p: PedidoApuravel, base: BaseApuracao): boolean {
-  if (p.cancelado) return false;
-  return base === 'faturado' ? p.faturado : p.aprovado || p.faturado;
+/** RN-CORE-21: tipo da meta de venda (`venda_cents`) do usuário; sem meta de venda vale 'pedido'. */
+export function tipoDaMetaDeVenda(metas: ReadonlyArray<{ usuario_id: string; indicador: string; tipo: string }>, usuarioId: string): TipoMeta {
+  return metas.find((m) => m.usuario_id === usuarioId && m.indicador === 'venda_cents')?.tipo === 'faturamento' ? 'faturamento' : 'pedido';
 }
 
-function liquido(p: PedidoApuravel): number {
-  return Math.max(0, p.total_cents - (p.cancelado_cents ?? 0));
-}
-
-/** RN-CORE-21: soma dos pedidos do vendedor no período na base de apuração, líquida de cancelamentos. */
-export function realizadoDaMeta(pedidos: PedidoApuravel[], o: { usuario_id: string; periodo: string; base: BaseApuracao }): number {
-  return pedidos
-    .filter((p) => p.vendedor_id === o.usuario_id && yearMonthOf(p.data) === o.periodo && naBase(p, o.base))
-    .reduce((s, p) => s + liquido(p), 0);
+/** RN-CORE-21: base do painel pelos tipos das metas de venda das pessoas mostradas; sem pessoa = pedidos aprovados. */
+export function baseDoPainel(tipos: Iterable<TipoMeta>): BaseDoPainel {
+  const bases = new Set([...tipos].map(baseDoTipoDaMeta));
+  if (bases.size > 1) return 'misto';
+  return bases.has('faturado') ? 'faturado' : 'aprovado';
 }
 
 import { necessidadeDiaria } from '../contracts/necessidade-diaria';
@@ -70,13 +59,10 @@ export interface EntradaIndicadores {
   /** Calendário do tenant (RN-CORE-26): padrão segunda a sábado. Fonte única dos dias úteis do Início, Metas e BKO. */
   calendario?: CalendarioTenant;
   feriados?: Iterable<string>;
-  /** Pedidos já filtrados pelo escopo do usuário; ausente = ainda não há pedido no servidor (positivação/realizado nulos). */
-  pedidos?: PedidoApuravel[];
-  /** Read-model diário (`indicador_diario`): usado quando não há `pedidos`; não permite positivação. */
+  /** Read-model diário (`indicador_diario`): usado quando não há `apurado`; não permite positivação. */
   diarios?: DiarioApuravel[];
-  base?: BaseApuracao;
   meta_cents?: number | null;
-  /** T-0065 B: realizado já apurado pelo tipo da meta (`apuracao.ts`); vence `pedidos` e `diarios`. */
+  /** T-0065 B: realizado já apurado pelo tipo da meta (`apuracao.ts`, RN-CORE-21); vence `diarios`. Ausentes os dois = nulos. */
   apurado?: { realizado_cents: number; positivados: number; /** T-0170: centésimos; null/ausente = sem dado. */ itens_por_pedido?: number | null };
 }
 
@@ -95,10 +81,9 @@ export interface IndicadoresCalculados {
 
 /**
  * RN-CORE-20: visitado = check-in no dia da parada planejada (visita extra não entra); cobertura = visitados ÷ planejados;
- * positivado = cliente com ≥ 1 pedido na base de apuração no período.
+ * positivado = cliente com ≥ 1 pedido aprovado emitido no período (vem em `apurado`).
  */
 export function indicadoresDoPeriodo(e: EntradaIndicadores): IndicadoresCalculados {
-  const base = e.base ?? 'aprovado';
   const doMes = e.paradas.filter((p) => yearMonthOf(p.data) === e.periodo);
   const planejadas = new Set(doMes.map((p) => `${p.cliente_id}|${p.data}`));
   const checkins = new Set(e.visitas.map((v) => `${v.cliente_id}|${v.data_local}`));
@@ -110,10 +95,6 @@ export function indicadoresDoPeriodo(e: EntradaIndicadores): IndicadoresCalculad
   if (e.apurado) {
     positivados = e.apurado.positivados;
     realizado = e.apurado.realizado_cents;
-  } else if (e.pedidos) {
-    const doPeriodo = e.pedidos.filter((p) => p.vendedor_id === e.usuario_id && yearMonthOf(p.data) === e.periodo && naBase(p, base));
-    positivados = new Set(doPeriodo.map((p) => p.cliente_id).filter((c): c is string => Boolean(c))).size;
-    realizado = realizadoDaMeta(e.pedidos, { usuario_id: e.usuario_id, periodo: e.periodo, base });
   } else if (e.diarios) {
     realizado = realizadoDosDiarios(e.diarios, { usuario_id: e.usuario_id, periodo: e.periodo });
   }
@@ -182,7 +163,6 @@ export interface LinhasDoPainel {
   hoje: string;
   calendario?: CalendarioTenant;
   feriados?: Iterable<string>;
-  base?: BaseApuracao;
   paradas: ReadonlyArray<Removivel & { usuario_id: string; cliente_id: string; data: string }>;
   visitas: ReadonlyArray<Removivel & { usuario_id: string; cliente_id: string; data_local: string }>;
   diarios: ReadonlyArray<Removivel & DiarioApuravel>;
@@ -213,7 +193,6 @@ export function painelDoUsuario(l: LinhasDoPainel): PainelDeMetas {
       hoje: l.hoje,
       calendario: l.calendario,
       feriados: l.feriados,
-      base: l.base,
       paradas: l.paradas.filter(meu).map((p) => ({ cliente_id: p.cliente_id, data: p.data })),
       visitas: l.visitas.filter(meu).map((v) => ({ cliente_id: v.cliente_id, data_local: v.data_local })),
       diarios: l.diarios.filter(meu),

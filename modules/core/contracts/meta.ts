@@ -45,15 +45,17 @@ export const PainelMetasSchema = z.object({
   metas: z.array(LinhaPainelSchema),
 });
 export type PainelMetas = z.infer<typeof PainelMetasSchema>;
-const BaseApuracaoSchema = z.enum(['aprovado', 'faturado']);
+/** RN-CORE-21: base das vendas do painel, pelo tipo das metas mostradas; `misto` = há metas de pedido e de faturamento. */
+const BaseApuracaoSchema = z.enum(['aprovado', 'faturado', 'misto']);
 /** RN-CORE-21: texto curto da base das vendas, mostrado uma vez por tela (BKO e gestão). */
 export const BASE_APURACAO_ROTULO: Readonly<Record<z.infer<typeof BaseApuracaoSchema>, string>> = {
   aprovado: 'base: pedidos aprovados',
   faturado: 'base: notas faturadas',
+  misto: 'base: pela meta de cada pessoa',
 };
 export const IndicadoresListaSchema = z.object({
   periodo: AnoMes,
-  /** Base de apuração do tenant (`metas.base_apuracao`); vale para pedidos individuais, o read-model diário já vem apurado. */
+  /** RN-CORE-21 (T-0210): base pelo tipo das metas de venda das pessoas listadas (sem meta = pedido), nunca por parâmetro do tenant. */
   base_apuracao: BaseApuracaoSchema,
   /** RN-CORE-21: `parcial` até o 2º dia útil do mês seguinte (`fechamento_em`), depois `fechado`. */
   situacao: z.enum(['parcial', 'fechado']).optional(),

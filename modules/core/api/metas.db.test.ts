@@ -156,6 +156,62 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     }
   });
 
+  it('RN-CORE-21 (T-0210): rótulo e realizado seguem o tipo da meta, não o parâmetro do tenant; core.meta.definida@1 leva o tipo; virada do mês em Manaus', async () => {
+    const params = { usuarioId: U.vendedor1, periodo: PERIODO };
+    const [ano, mes] = PERIODO.split('-').map(Number) as [number, number];
+    const proximo = `${mes === 12 ? ano + 1 : ano}-${String(mes === 12 ? 1 : mes + 1).padStart(2, '0')}`;
+    // 22h de Manaus do último dia do mês = 02h UTC do dia 1º seguinte: conta no PERIODO pelo fuso do tenant
+    const viradaUtc = `${proximo}-01T02:00:00Z`;
+    respostaPedidosDaMeta = {
+      pedidos: [
+        { vendedor_id: U.vendedor1, cliente_id: C.c1, emitido_em: viradaUtc, aprovado_em: `${proximo}-02T13:00:00Z`, status: 'aprovado', total_cents: 30000, frete_cents: null, cancelado_cents: null, criado_por: U.vendedor1 },
+        { vendedor_id: U.vendedor1, cliente_id: C.c2, emitido_em: `${proximo}-01T05:00:00Z`, aprovado_em: `${proximo}-01T05:00:00Z`, status: 'aprovado', total_cents: 99900, frete_cents: null, cancelado_cents: null, criado_por: U.vendedor1 },
+      ],
+      faturamentos: [
+        { vendedor_id: U.vendedor1, cliente_id: C.c1, faturado_em: viradaUtc, valor_cents: 20000, cancelado_cents: null, devolvido_cents: null },
+        { vendedor_id: U.vendedor1, cliente_id: C.c1, faturado_em: `${proximo}-01T05:00:00Z`, valor_cents: 77700, cancelado_cents: null, devolvido_cents: null },
+      ],
+    };
+    // parâmetro do tenant alterado como o BKO faria; o original volta no fim
+    const original = await comTenant(pool, A.tenantId, async (c) => (await c.query<{ id: string; valor: unknown }>("select id, valor from plataforma.parametro where modulo = 'core' and chave = 'metas.base_apuracao' and deleted_at is null limit 1")).rows[0]);
+    const parametro = (valor: string | null) =>
+      comTenant(pool, A.tenantId, async (c) => {
+        if (original) await c.query('update plataforma.parametro set valor = $2::jsonb where id = $1', [original.id, JSON.stringify(valor ?? original.valor)]);
+        else if (valor === null) await c.query('delete from plataforma.parametro where id = $1', [id(90)]);
+        else await c.query("insert into plataforma.parametro (id, tenant_id, modulo, chave, valor) values ($1, $2, 'core', 'metas.base_apuracao', $3::jsonb) on conflict (id) do update set valor = excluded.valor", [id(90), A.tenantId, JSON.stringify(valor)]);
+      });
+    const um = () => chamar('GET', 'indicadores', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } });
+    try {
+      await parametro('faturado');
+      // parâmetro "faturado" com meta de PEDIDO: rótulo e valor por pedidos aprovados na emissão (Manaus)
+      await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params, corpo: { indicador: 'venda_cents', valor: 100000, tipo: 'pedido' } });
+      expect(eventos.filter((e) => e.nome === 'core.meta.definida@1').at(-1)!.payload).toMatchObject({ usuario_id: U.vendedor1, indicador: 'venda_cents', tipo: 'pedido' });
+      const ped = await um();
+      expect(ped.base_apuracao).toBe('aprovado');
+      expect(ped.itens[0].indicadores.realizado_cents).toBe(30000);
+      const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } });
+      expect(painel.base_apuracao).toBe('aprovado');
+      // só o tipo muda (valor igual): publica de novo, com o tipo novo; rótulo e valor viram faturamento
+      await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params, corpo: { indicador: 'venda_cents', valor: 100000, tipo: 'faturamento' } });
+      expect(eventos.filter((e) => e.nome === 'core.meta.definida@1').at(-1)!.payload).toMatchObject({ indicador: 'venda_cents', valor: 100000, valor_anterior: 100000, tipo: 'faturamento' });
+      await parametro('aprovado');
+      const fat = await um();
+      expect(fat.base_apuracao).toBe('faturado');
+      expect(fat.itens[0].indicadores.realizado_cents).toBe(20000);
+      expect(fat.itens[0].indicadores.positivados).toBe(1);
+      // lista com metas de pedido (sem meta = pedido) e de faturamento: rótulo "misto"
+      const todos = await chamar('GET', 'indicadores', gerente, { query: { periodo: PERIODO } });
+      expect(todos.itens.length).toBeGreaterThan(1);
+      expect(todos.base_apuracao).toBe('misto');
+      // meta de outro indicador publica tipo pedido
+      await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params, corpo: { indicador: 'visitas', valor: 7 } });
+      expect(eventos.filter((e) => e.nome === 'core.meta.definida@1').at(-1)!.payload).toMatchObject({ indicador: 'visitas', tipo: 'pedido' });
+    } finally {
+      respostaPedidosDaMeta = null;
+      await parametro(null);
+    }
+  });
+
   it('escopo de equipe (RN-CORE-04): vendedor vê só a si; supervisor não enxerga a equipe de outro e, a edição fora da equipe é 403', async () => {
     const meus = await chamar('GET', 'indicadores', vendedor1, { query: { periodo: PERIODO } });
     expect(meus.itens.map((i: { usuario_id: string }) => i.usuario_id)).toEqual([U.vendedor1]);

@@ -2,8 +2,8 @@
  * Metas e indicadores (`/v1/core/metas`, `/v1/core/indicadores`; RF-CORE-08, RN-CORE-20..22; desenho T-0016 §6).
  * Escopo de equipe (`usuariosVisiveis`): fora do escopo é 404, como em rotas. O cálculo é do domínio
  * (`painelDoUsuario`), a MESMA função que o app roda sobre as linhas locais: o BKO e o aparelho mostram os mesmos números.
- * Realizado de venda vem do read-model `core.indicador_diario` (o Core não lê `vendedor.*`); enquanto ele estiver
- * vazio, `realizado_cents` sai 0 e `positivados` nulo ("aguardando pedidos" no app).
+ * Realizado de venda pelo tipo da meta (RN-CORE-21), pela consulta `vendedor.pedidos_da_meta@1`; sem ela, pelo read-model
+ * `core.indicador_diario` (o Core não lê `vendedor.*`), com `positivados` nulo ("aguardando pedidos" no app).
  */
 import type { Perfil } from '@macuxi/platform-sdk';
 import { ConsultaIndisponivel, definirConsulta, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
@@ -33,7 +33,7 @@ import {
   type PutMeta,
   type MetasLista,
 } from '../contracts';
-import { calendarioDoTenant, copiarMetas, dataDoFechamento, dataLocal, expandirEquipe, painelDoUsuario, podeEditarMetaDe, situacaoDoPeriodo, type BaseApuracao, type FaturamentoApuravel, type IndicadorMeta, type PedidoDaMeta, type TipoMeta } from '../domain';
+import { baseDoPainel, calendarioDoTenant, copiarMetas, dataDoFechamento, dataLocal, expandirEquipe, painelDoUsuario, podeEditarMetaDe, situacaoDoPeriodo, tipoDaMetaDeVenda, type FaturamentoApuravel, type IndicadorMeta, type PedidoDaMeta, type TipoMeta } from '../domain';
 import { auditar } from './auditoria';
 import { erroHttp } from './erros';
 import { EQUIPES_DO_RESPONSAVEL } from './carteira';
@@ -76,12 +76,6 @@ export const CONSULTA_PEDIDOS_DA_META = definirConsulta({
   }),
 });
 
-/** Parâmetro `metas.base_apuracao` (aprovado|faturado); ausente ou inválido = aprovado. */
-export async function baseDeApuracao(db: ClienteBanco): Promise<BaseApuracao> {
-  const r = await db.query<{ valor: unknown }>("select valor from plataforma.parametro where modulo = 'core' and chave = 'metas.base_apuracao' and deleted_at is null limit 1");
-  return r.rows[0]?.valor === 'faturado' ? 'faturado' : 'aprovado';
-}
-
 /**
  * T-0065 B (RN-CORE-21): porta para os pedidos e faturamentos do Vendedor. A implementação real é a consulta pública
  * `vendedor.pedidos_da_meta@1` via `tx.consultar` (contrato pedido ao modulo-vendedor, R-20261103 T-0065); o Core não lê
@@ -89,10 +83,6 @@ export async function baseDeApuracao(db: ClienteBanco): Promise<BaseApuracao> {
  * `periodo` é AAAA-MM; a fonte traz uma folga de 1 dia para cada lado (o domínio decide o mês pelo fuso do tenant).
  */
 export type FontePedidosDaMeta = (q: { usuario_ids: string[]; periodo: string }) => Promise<{ pedidos: PedidoDaMeta[]; faturamentos: FaturamentoApuravel[] } | null>;
-
-/** Tipo da meta de venda do usuário (RN-CORE-21): lê `core.meta.tipo` da meta `venda_cents`; sem meta vale 'pedido'. */
-const tipoDaMeta = (metas: ReadonlyArray<{ usuario_id: string; indicador: string; tipo: string }>, usuarioId: string): TipoMeta =>
-  metas.find((m) => m.usuario_id === usuarioId && m.indicador === 'venda_cents')?.tipo === 'faturamento' ? 'faturamento' : 'pedido';
 
 /**
  * Liga a porta à consulta `vendedor.pedidos_da_meta@1` (`usaConsultas` no manifesto). Módulo Vendedor desligado ou não
@@ -138,10 +128,9 @@ export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySe
   const periodo = periodoDe(hoje, q.periodo);
   const usuarios = await usuariosDoPainel(db, visiveis, q.usuario_id);
   const ids = usuarios.map((u) => u.id);
-  const base = await baseDeApuracao(db);
   const situacao = situacaoDoPeriodo(periodo, hoje);
   const fechamento_em = dataDoFechamento(periodo);
-  if (ids.length === 0) return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, situacao, fechamento_em, itens: [] });
+  if (ids.length === 0) return IndicadoresListaSchema.parse({ periodo, base_apuracao: baseDoPainel([]), situacao, fechamento_em, itens: [] });
   const paradas = await db.query<{ usuario_id: string; cliente_id: string; data: string }>(
     "select usuario_id, cliente_id, to_char(data, 'YYYY-MM-DD') as data from core.rota_parada where deleted_at is null and usuario_id = any($1::uuid[]) and to_char(data, 'YYYY-MM') = $2",
     [ids, periodo],
@@ -164,10 +153,12 @@ export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySe
   const calendario = calendarioDoTenant(parametros.rows);
   const vendas = fonte ? await fonte({ usuario_ids: ids, periodo }) : null;
   const itens = usuarios.map((u) => {
-    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, calendario, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows, apuracao: vendas ? { tipo: tipoDaMeta(metas.rows, u.id), fuso, pedidos: vendas.pedidos, faturamentos: vendas.faturamentos } : undefined });
+    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, calendario, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows, apuracao: vendas ? { tipo: tipoDaMetaDeVenda(metas.rows, u.id), fuso, pedidos: vendas.pedidos, faturamentos: vendas.faturamentos } : undefined });
     return { usuario_id: u.id, usuario_nome: u.nome, indicadores: p.indicadores, metas: p.metas };
   });
-  return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, situacao, fechamento_em, itens });
+  // RN-CORE-21 (T-0210): o rótulo da base segue o tipo da meta de cada pessoa, o mesmo que define o realizado acima
+  const base_apuracao = baseDoPainel(usuarios.map((u) => tipoDaMetaDeVenda(metas.rows, u.id)));
+  return IndicadoresListaSchema.parse({ periodo, base_apuracao, situacao, fechamento_em, itens });
 }
 
 type Escopo = { equipe: Set<string>; equipesAbaixo: Set<string> };
@@ -207,7 +198,7 @@ async function gravarMeta(db: ClienteBanco, tx: TxPublicar, definidoPor: string,
   if (atual && atual.valor === c.valor && atual.tipo === tipo) return { resposta, atual, alterado: false };
   if (atual) await db.query('update core.meta set valor = $2, tipo = $3 where id = $1', [atual.id, c.valor, tipo]);
   else await db.query('insert into core.meta (tenant_id, usuario_id, periodo, indicador, valor, tipo) values (plataforma.tenant_atual(), $1, $2, $3, $4, $5)', [usuarioId, periodo, c.indicador, c.valor, tipo]);
-  await tx.publicar(EVENTO_META_DEFINIDA, { usuario_id: usuarioId, periodo, indicador: c.indicador, valor: c.valor, valor_anterior: atual?.valor ?? null, definido_por: definidoPor }, usuarioId);
+  await tx.publicar(EVENTO_META_DEFINIDA, { usuario_id: usuarioId, periodo, indicador: c.indicador, valor: c.valor, valor_anterior: atual?.valor ?? null, definido_por: definidoPor, tipo }, usuarioId);
   return { resposta, atual, alterado: true };
 }
 
@@ -367,7 +358,7 @@ export const rotasDeMetas: RotaModulo[] = [
             positivacao: item.indicadores.positivados ?? null,
             itens_por_pedido: null,
           };
-          const tipoVenda = tipoDaMeta(metas.rows, item.usuario_id);
+          const tipoVenda = tipoDaMetaDeVenda(metas.rows, item.usuario_id);
           for (const indicador of INDICADORES_META) {
             const linha = item.metas.find((m) => m.indicador === indicador);
             linhas.push({

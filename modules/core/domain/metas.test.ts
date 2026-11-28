@@ -1,37 +1,47 @@
 import { describe, expect, it } from 'vitest';
 import { CALENDARIO_PADRAO, diasUteisRestantes } from './meta-do-dia';
-import { indicadoresDoPeriodo, necessidadeDiaria, painelDeMetas, painelDoUsuario, realizadoDaMeta, realizadoDosDiarios, type PedidoApuravel } from './metas';
+import { baseDoPainel, baseDoTipoDaMeta, indicadoresDoPeriodo, necessidadeDiaria, painelDeMetas, painelDoUsuario, realizadoDosDiarios, tipoDaMetaDeVenda } from './metas';
 
-const ped = (over: Partial<PedidoApuravel>): PedidoApuravel => ({
-  vendedor_id: 'u1',
-  data: '2026-10-05',
-  total_cents: 100_00,
-  aprovado: true,
-  faturado: false,
-  cancelado: false,
-  ...over,
-});
-
-describe('realizado da meta (RN-CORE-21)', () => {
-  it('RN-CORE-21: base aprovado soma aprovados e faturados do vendedor no período', () => {
-    const r = realizadoDaMeta([ped({}), ped({ aprovado: false, faturado: true, total_cents: 50_00 }), ped({ aprovado: false })], { usuario_id: 'u1', periodo: '2026-10', base: 'aprovado' });
-    expect(r).toBe(150_00);
+describe('base das vendas pelo tipo da meta (RN-CORE-21)', () => {
+  it('RN-CORE-21: meta de pedido = pedidos aprovados; meta de faturamento = notas faturadas', () => {
+    expect(baseDoTipoDaMeta('pedido')).toBe('aprovado');
+    expect(baseDoTipoDaMeta('faturamento')).toBe('faturado');
   });
-  it('RN-CORE-21: base faturado ignora o que só foi aprovado', () => {
-    const r = realizadoDaMeta([ped({}), ped({ aprovado: false, faturado: true, total_cents: 50_00 })], { usuario_id: 'u1', periodo: '2026-10', base: 'faturado' });
-    expect(r).toBe(50_00);
+  it('RN-CORE-21: o tipo vem da meta de venda do usuário; sem meta de venda vale pedido', () => {
+    const metas = [
+      { usuario_id: 'u1', indicador: 'visitas', tipo: 'pedido' },
+      { usuario_id: 'u1', indicador: 'venda_cents', tipo: 'faturamento' },
+      { usuario_id: 'u2', indicador: 'venda_cents', tipo: 'pedido' },
+      { usuario_id: 'u3', indicador: 'visitas', tipo: 'faturamento' },
+    ];
+    expect(tipoDaMetaDeVenda(metas, 'u1')).toBe('faturamento');
+    expect(tipoDaMetaDeVenda(metas, 'u2')).toBe('pedido');
+    expect(tipoDaMetaDeVenda(metas, 'u3')).toBe('pedido');
+    expect(tipoDaMetaDeVenda(metas, 'u4')).toBe('pedido');
   });
-  it('RN-CORE-21: líquido de cancelamentos — cancelado sai e cancelamento parcial abate', () => {
-    const r = realizadoDaMeta([ped({ cancelado: true }), ped({ total_cents: 200_00, cancelado_cents: 30_00 })], { usuario_id: 'u1', periodo: '2026-10', base: 'aprovado' });
-    expect(r).toBe(170_00);
+  it('RN-CORE-21: a base do painel é a das metas mostradas; tipos diferentes = misto; sem pessoa = pedidos aprovados', () => {
+    expect(baseDoPainel(['pedido', 'pedido'])).toBe('aprovado');
+    expect(baseDoPainel(['faturamento'])).toBe('faturado');
+    expect(baseDoPainel(['faturamento', 'pedido'])).toBe('misto');
+    expect(baseDoPainel([])).toBe('aprovado');
   });
-  it('RN-CORE-21: pedido feito pelo gestor em nome do vendedor conta para o vendedor, não para o gestor', () => {
-    const emNome = ped({ criado_por: 'gestor1', total_cents: 80_00 });
-    expect(realizadoDaMeta([emNome], { usuario_id: 'u1', periodo: '2026-10', base: 'aprovado' })).toBe(80_00);
-    expect(realizadoDaMeta([emNome], { usuario_id: 'gestor1', periodo: '2026-10', base: 'aprovado' })).toBe(0);
-  });
-  it('RN-CORE-21: pedido de outro mês não entra', () => {
-    expect(realizadoDaMeta([ped({ data: '2026-09-30' }), ped({ data: '2026-11-01' })], { usuario_id: 'u1', periodo: '2026-10', base: 'aprovado' })).toBe(0);
+  it('RN-CORE-21: o realizado segue o tipo da meta, com a virada do mês no fuso de Manaus (emissão para pedido, faturamento para faturamento)', () => {
+    // 31/10 22h em Manaus (01/11 02h UTC): o pedido conta em outubro; faturado em 01/11 01h em Manaus (05h UTC) conta em novembro
+    const pedidos = [
+      { vendedor_id: 'u1', criado_por: 'u1', cliente_id: 'c1', emitido_em: '2026-11-01T02:00:00Z', aprovado_em: '2026-11-02T13:00:00Z', status: 'aprovado' as const, total_cents: 300_00, frete_cents: null, cancelado_cents: null },
+      { vendedor_id: 'u1', criado_por: 'u1', cliente_id: 'c2', emitido_em: '2026-10-15T15:00:00Z', aprovado_em: '2026-10-15T15:00:00Z', status: 'faturado' as const, total_cents: 100_00, frete_cents: null, cancelado_cents: null },
+    ];
+    const faturamentos = [
+      { vendedor_id: 'u1', cliente_id: 'c2', faturado_em: '2026-10-20T15:00:00Z', valor_cents: 80_00, cancelado_cents: null, devolvido_cents: 10_00 },
+      { vendedor_id: 'u1', cliente_id: 'c1', faturado_em: '2026-11-01T05:00:00Z', valor_cents: 300_00, cancelado_cents: null, devolvido_cents: null },
+    ];
+    const linhas = { periodo: '2026-10', usuario_id: 'u1', hoje: '2026-10-31', paradas: [], visitas: [], diarios: [], metas: [{ usuario_id: 'u1', periodo: '2026-10', indicador: 'venda_cents' as const, valor: 1_000_00 }] };
+    const comTipo = (tipo: 'pedido' | 'faturamento') => painelDoUsuario({ ...linhas, apuracao: { tipo, fuso: 'America/Manaus', pedidos, faturamentos } }).indicadores;
+    expect(comTipo('pedido').realizado_cents).toBe(400_00);
+    expect(comTipo('faturamento').realizado_cents).toBe(70_00);
+    // RN-CORE-20: positivado por pedido aprovado emitido no período, qualquer que seja o tipo da meta
+    expect(comTipo('pedido').positivados).toBe(2);
+    expect(comTipo('faturamento').positivados).toBe(2);
   });
 });
 
@@ -72,25 +82,6 @@ describe('indicadores do período (RN-CORE-20)', () => {
   it('RN-CORE-20: sem planejados a cobertura é 0, sem dividir por zero', () => {
     expect(indicadoresDoPeriodo({ periodo: '2026-10', usuario_id: 'u1', paradas: [], visitas, hoje: '2026-10-08' }).cobertura_pct).toBe(0);
   });
-  it('RN-CORE-20: positivados vem dos pedidos na base de apuração (clientes distintos)', () => {
-    const r = indicadoresDoPeriodo({
-      periodo: '2026-10',
-      usuario_id: 'u1',
-      paradas,
-      visitas,
-      hoje: '2026-10-08',
-      pedidos: [
-        { ...ped({}), cliente_id: 'c1' },
-        { ...ped({}), cliente_id: 'c1' },
-        { ...ped({ cancelado: true }), cliente_id: 'c2' },
-        { ...ped({ aprovado: false }), cliente_id: 'c3' },
-        { ...ped({}), cliente_id: 'c4' },
-      ],
-      base: 'aprovado',
-    });
-    expect(r.positivados).toBe(2);
-    expect(r.realizado_cents).toBe(300_00);
-  });
   it('sem pedidos disponíveis (ainda não há no servidor) positivados e realizado ficam nulos', () => {
     const r = indicadoresDoPeriodo({ periodo: '2026-10', usuario_id: 'u1', paradas, visitas, hoje: '2026-10-08' });
     expect(r.positivados).toBeNull();
@@ -104,8 +95,7 @@ describe('indicadores do período (RN-CORE-20)', () => {
       paradas,
       visitas,
       hoje: '2026-10-26', // RN-CORE-26: seg a sáb do tenant: 26..31 = 6 dias
-      pedidos: [{ ...ped({ total_cents: 500_00 }), cliente_id: 'c1' }],
-      base: 'aprovado',
+      apurado: { realizado_cents: 500_00, positivados: 1 },
       meta_cents: 1_000_00,
     });
     expect(r.dias_uteis_restantes).toBe(6);

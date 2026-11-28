@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { definirEvento } from '@macuxi/platform-sdk';
 import { ModulosAlteradosSchema } from './licencas';
-import { INDICADORES_META, RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from './sync';
+import { INDICADORES_META, RESULTADOS_VISITA, TIPOS_META, TIPOS_NOTIFICACAO } from './sync';
 import { TAREFA_DESTINATARIOS_MAX, TIPOS_TAREFA } from './tarefa';
 
 export const EVENTO_MODULOS_ALTERADOS = definirEvento('core.usuario.modulos_alterados@1', ModulosAlteradosSchema);
@@ -79,6 +79,11 @@ export const MetaDefinidaSchema = z.object({
   valor: z.number().int().min(0),
   valor_anterior: z.number().int().min(0).nullable(),
   definido_por: Uuid,
+  /**
+   * T-0210 (RN-CORE-21, aditivo): tipo da meta, que define a base do realizado (`pedido` = pedidos aprovados na emissão;
+   * `faturamento` = notas na data do faturamento). Só `venda_cents` aceita `faturamento`. Ausente = publicador antigo: vale `pedido`.
+   */
+  tipo: z.enum(TIPOS_META).optional(),
 });
 export const EVENTO_META_DEFINIDA = definirEvento('core.meta.definida@1', MetaDefinidaSchema);
 
