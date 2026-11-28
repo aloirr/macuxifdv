@@ -7,7 +7,7 @@
 >   - a pausa das 19h46 (R-20261127-194649-alexandre) terminou com o "retome" (R-20261127-234812-alexandre e R-20261127-225437-alexandre);
 >   - o prompt do gerente com as regras de 27/11 está gravado no R-20261127-200824-gerente-projetos;
 >   - previsão e estado das frentes: R-20261127-235023 e R-20261127-235223.
-> - **No ar:** v1.0.41 (tag 7fa48070, 27/11 13h13, issue #864; liberar 46066654282, publicar 46068920962; sem APK).
+> - **No ar: v1.0.42** desde 28/11, 00h47. Antes estava a v1.0.41 (tag 7fa48070, 27/11 13h13, issue #864; liberar 46066654282, publicar 46068920962; sem APK).
 > - **v1.0.42**, no main 1e4619eee931eb1dac29c7e07bdaf56a336adb41, com CI 46083571211 verde:
 >   - #865 (ADR 0073: o promotor vê pedidos sem tela no BKO, no legado);
 >   - #866 (vendedor: leitura pelo cargo do promotor, RN-PRO-01);
