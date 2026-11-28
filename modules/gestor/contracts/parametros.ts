@@ -6,6 +6,8 @@ import { IsoDate } from './base';
 export const BASES_APURACAO = ['aprovado', 'faturado'] as const;
 export const BaseApuracao = z.enum(BASES_APURACAO);
 export type BaseApuracao = z.infer<typeof BaseApuracao>;
+/** Texto curto da base ao lado do valor de venda (RN-CORE-21). */
+export const BASE_APURACAO_ROTULO: Readonly<Record<BaseApuracao, string>> = { aprovado: 'base: pedidos aprovados', faturado: 'base: notas faturadas' };
 
 /** Fuso IANA válido (a validação real roda com `Intl`, igual ao Treinamento). */
 const Fuso = z.string().refine((f) => {
