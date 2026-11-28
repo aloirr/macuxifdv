@@ -87,7 +87,7 @@ export type LinhaMetaBko = z.infer<typeof LinhaMetaBkoSchema>;
 
 export const PainelMetasBkoSchema = z.object({
   periodo: AnoMes,
-  base_apuracao: z.enum(['aprovado', 'faturado']),
+  base_apuracao: BaseApuracaoSchema,
   situacao: z.enum(['parcial', 'fechado']).optional(),
   fechamento_em: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   linhas: z.array(LinhaMetaBkoSchema),
