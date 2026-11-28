@@ -14,7 +14,9 @@ const AGORA = '2026-11-21T12:00:00.000Z'; // hora-fixa-ok: instante do catálogo
 const base = { updated_at: '2026-11-01T00:00:00.000000Z', deleted_at: null, external_id: null };
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const N_PRODUTOS = 20_000;
-const FATOR = Math.max(1, Number(process.env.MACUXI_FATOR_DESEMPENHO ?? 1));
+const FATOR_LIDO = Number(process.env.MACUXI_FATOR_DESEMPENHO ?? 1);
+// qualquer número finito > 0 multiplica os tetos (abaixo de 1 aperta); inválido, 0 ou negativo vale 1
+const FATOR = Number.isFinite(FATOR_LIDO) && FATOR_LIDO > 0 ? FATOR_LIDO : 1;
 const ESTRITO = process.env.MACUXI_DESEMPENHO === '1';
 const ALERTA_LISTA_MS = 300;
 const ALERTA_NIVEL_MS = 100;
@@ -152,8 +154,8 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     if (ESTRITO) {
       if (pLista > ALERTA_LISTA_MS * FATOR) console.warn(`[alerta RN-CAT-22] lista com veículo p95 ${pLista.toFixed(0)} ms acima de ${ALERTA_LISTA_MS * FATOR} ms`);
       if (pNivel > ALERTA_NIVEL_MS * FATOR) console.warn(`[alerta RN-CAT-22] troca de nível p95 ${pNivel.toFixed(0)} ms acima de ${ALERTA_NIVEL_MS * FATOR} ms`);
-      expect(pLista).toBeLessThan(TETO_LISTA_MS * FATOR);
-      expect(pNivel).toBeLessThan(TETO_NIVEL_MS * FATOR);
+      expect(pLista).toBeLessThanOrEqual(TETO_LISTA_MS * FATOR);
+      expect(pNivel).toBeLessThanOrEqual(TETO_NIVEL_MS * FATOR);
     }
     expect(rLista).toBeLessThan(RAZAO_LISTA_REF);
     expect(rNivel).toBeLessThan(RAZAO_NIVEL_REF);
