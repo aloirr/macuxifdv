@@ -1,9 +1,9 @@
 // Simulação da entrada sem a empresa (T-0209) com o rodapé legal (T-0204). designer-ux, 28/11/2026.
 // Spec: docs/design/v1044-entrada-sem-empresa.md. Tokens iguais a docs/design/telas/telas.css (packages/ui, marca v1).
-// Uso: FONTES=<pasta com Archivo-700/800 e IBMPlexSans-400/600/700 .woff2> node docs/design/simulacoes/v1044-entrada/gerar.mjs
-// Sem FONTES, cai na fonte do sistema. Saída: os PNGs nesta pasta (escala 2). Só dados fictícios.
+// Uso: node docs/design/simulacoes/v1044-entrada/gerar.mjs. Fonte do sistema (manual da marca §5); para o print representar o
+// Android, rode com a Roboto instalada. Saída: os PNGs nesta pasta (escala 2). Só dados fictícios.
 import { createRequire } from 'node:module';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,17 +11,6 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const RAIZ = join(AQUI, '..', '..', '..', '..');
 const LOGO = readFileSync(join(RAIZ, 'docs/marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg'), 'utf8');
-const FONTES = process.env.FONTES;
-
-function fontes() {
-  if (!FONTES) return '';
-  const f = (fam, peso, arq) => {
-    const p = join(FONTES, arq);
-    if (!existsSync(p)) return '';
-    return `@font-face{font-family:'${fam}';font-weight:${peso};src:url(data:font/woff2;base64,${readFileSync(p).toString('base64')}) format('woff2');}`;
-  };
-  return [f('Archivo', 700, 'Archivo-700.woff2'), f('Archivo', 800, 'Archivo-800.woff2'), f('IBM Plex Sans', 400, 'IBMPlexSans-400.woff2'), f('IBM Plex Sans', 600, 'IBMPlexSans-600.woff2'), f('IBM Plex Sans', 700, 'IBMPlexSans-700.woff2')].join('\n');
-}
 
 // ------------------------------------------------------------------------------------------------- textos (fonte única)
 const ANO = 2026;
@@ -50,20 +39,20 @@ const ic = {
 };
 
 const CSS = `
-${fontes()}
-:root{--ground:#F8F6F1;--surface:#FFFFFF;--ink:#16202A;--ink2:#4A5562;--ink3:#5B6673;--line:#DFE2E6;--lineStrong:#C9CED5;--field:#8B96A3;
+:root{--ground:#F8F6F1;--surface:#FFFFFF;--ink:#16202A;--ink2:#4A5562;--ink3:#5B6673;--line:#DFE2E6;--lineStrong:#7A8593;--field:#7A8593;
 --accent:#1E3350;--accentInk:#1E3350;--accentSoft:#DFE2E6;--faixa:#1E3350;--faixaTexto:#C9CED5;
---danger:#A8261B;--dangerBg:#FDE8E6;--warningInk:#5C3B00;--warningBg:#FFF1D6;}
+--danger:#A8261B;--dangerBg:#FDE8E6;--warningInk:#7A4F00;--warningBg:#FFF1D6;}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--ground);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;background:var(--ground);color:var(--ink);font-family:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 .pagina{min-height:100vh;display:flex;flex-direction:column}
-h1{margin:0;font-family:Archivo,'IBM Plex Sans',sans-serif;font-weight:700;color:var(--ink)}
+h1{margin:0;font-weight:700;color:var(--ink)}
 /* ---------- app (Campo e Gestão) */
 .app-status{height:24px;background:var(--faixa);color:#fff;font-size:12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;padding:0 20px}
-.app-faixa{background:var(--faixa);padding:26px 24px;display:flex;align-items:center;gap:14px}
-.app-faixa svg.logo{height:44px;width:auto;display:block}
+.app-faixa{background:var(--faixa);padding:28px 24px;display:flex;align-items:center;gap:14px}
+/* área de proteção (manual §2.3): logo a 44 px, "M" ~27 px; folga logo→divisor de 28 px (14 do gap + 14 da margem) */
+.app-faixa svg.logo{height:44px;width:auto;display:block;margin-right:14px}
 .app-faixa .sep{width:1px;height:28px;background:rgba(201,206,213,.4)}
-.app-faixa .area{font-family:Archivo,sans-serif;font-weight:700;font-size:18px;color:var(--faixaTexto)}
+.app-faixa .area{font-weight:700;font-size:18px;color:var(--faixaTexto)}
 .app-corpo{flex:1;width:100%;max-width:440px;margin:0 auto;padding:36px 20px 16px;display:flex;flex-direction:column;gap:16px}
 .app-corpo h1{font-size:28px;letter-spacing:-.3px}
 .app-corpo h1.menor{font-size:22px;line-height:28px}
@@ -111,7 +100,7 @@ h1{margin:0;font-family:Archivo,'IBM Plex Sans',sans-serif;font-weight:700;color
 .web .grupo{display:flex;flex-direction:column;gap:4px}
 .web-rodape{padding:24px 16px 12px}
 /* ---------- cadastro (fragmento do Novo usuário) */
-.cad h2{margin:0;font-family:Archivo,sans-serif;font-size:20px;font-weight:700}
+.cad h2{margin:0;font-size:20px;font-weight:700}
 .cad .linha{display:flex;gap:16px}
 .cad .linha>*{flex:1}
 .cad .acoes{display:flex;gap:12px;justify-content:flex-end}

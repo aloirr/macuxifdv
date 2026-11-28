@@ -100,7 +100,6 @@
       <div class="fx"><img src="${LOGO}" alt="Macuxi Força de Vendas"></div>
       <div class="sc">
         <h1>Entrar</h1>
-        ${campoCel('Código da empresa', 'distribuidora-norte')}
         ${campoCel('E-mail', gestao ? 'carla@distribuidora.com.br' : 'lucas@distribuidora.com.br')}
         ${campoCel('Senha', '')}
         <div class="btn">Entrar</div>
@@ -119,8 +118,7 @@
       <div class="col"><div class="coluna">
         <div class="mfaixa"><img src="${LOGO}" alt="Macuxi Força de Vendas"><span class="div"></span><span class="area">Backoffice</span></div>
         <form>
-          <div style="display:flex;flex-direction:column;gap:4px"><h1>Entrar</h1><span class="sub">Use o código da sua empresa, o seu e-mail e a sua senha.</span></div>
-          ${campoWeb('Código da empresa', 'distribuidora-norte')}
+          <div style="display:flex;flex-direction:column;gap:4px"><h1>Entrar</h1><span class="sub">Use o seu e-mail e a sua senha.</span></div>
           ${campoWeb('E-mail', 'marina@distribuidora.com.br')}
           ${campoWeb('Senha', '')}
           <div style="display:flex;flex-direction:column;gap:4px"><div class="btn">Entrar</div><div class="lk">Esqueci a senha</div></div>

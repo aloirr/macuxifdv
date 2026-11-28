@@ -15,13 +15,17 @@
 - **Faixa do app com o nome da área** ("Campo" / "Gestão"), como a `MarcaNaFaixa` do BKO e do portal: sem ela, as entradas do
   Campo e do Gestão ficam idênticas. Sai a linha de baixo "Macuxi Campo · vendedores e promotores" (o lugar é do rodapé legal).
   **Precisa da validação do design-de-marca** (mudança de layout da faixa).
+  Área de proteção do logo (manual §2.3): logo a 44 px de altura, 28 px até o divisor, 14 px até o nome, e 28 px acima e abaixo
+  na faixa.
+- **Cores dos campos e avisos:** borda do campo `#7A8593` no app e na web (manual §3); aviso de atenção (empresa suspensa) em
+  `#7A4F00` no `#FFF1D6` (6,38:1).
 
 ## 2. Rodapé legal proposto (T-0204)
 Uma linha, centralizada, no pé da tela de Entrar (não nas demais etapas), texto 12 px:
 
 **© 2026 Macuxi · Termos de uso · Política de privacidade**
 
-- "© 2026 Macuxi" em `ink2` (#4A5562, 7,1:1 no Pérola); os dois links em `accentInk` (#1E3350, 11,8:1), semibold, alvo ≥ 44 px
+- "© 2026 Macuxi" em `ink2` (#4A5562, 7,03:1 no Pérola); os dois links em `accentInk` (#1E3350, 11,82:1), semibold, alvo ≥ 44 px
   de altura; separador "·" em `ink3`. Cabe em uma linha a 390 px.
 - O ano sai do relógio (o ano corrente), não fica fixo no código.
 - Não repete nada da tela: a marca já está na faixa, por isso não há "Macuxi Força de Vendas" nem versão no rodapé.
@@ -65,4 +69,4 @@ já diz a natureza). Fica para a etapa 5 da T-0209 (designer-ux, `packages/ui`).
 5. O rodapé legal fica só no Entrar (não no Esqueci, no Crie sua senha nem na Escolha a filial).
 6. A faixa do app com "Campo"/"Gestão" e o rodapé novo dependem da validação do design-de-marca; os tons dos avisos (perigo para
    as credenciais, atenção para a suspensa, destaque para o enviado — nunca verde) seguem o `ciclo-de-senha.md`.
-7. Fontes da simulação: Archivo e IBM Plex Sans (Google Fonts) carregadas pelo gerador; sem elas, cai na fonte do sistema.
+7. Fonte do sistema (manual da marca §5).
