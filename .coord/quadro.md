@@ -2,6 +2,46 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **Retomada de 27/11, 23h47 (gerente-projetos no VS Code do Alexandre).** Horários de Manaus.
+> - **Recados:**
+>   - a pausa das 19h46 (R-20261127-194649-alexandre) terminou com o "retome" (R-20261127-234812-alexandre e R-20261127-225437-alexandre);
+>   - o prompt do gerente com as regras de 27/11 está gravado no R-20261127-200824-gerente-projetos;
+>   - previsão e estado das frentes: R-20261127-235023 e R-20261127-235223.
+> - **No ar:** v1.0.41 (tag 7fa48070, 27/11 13h13, issue #864; liberar 46066654282, publicar 46068920962; sem APK).
+> - **v1.0.42**, no main 1e4619eee931eb1dac29c7e07bdaf56a336adb41, com CI 46083571211 verde:
+>   - #865 (ADR 0073: o promotor vê pedidos sem tela no BKO, no legado);
+>   - #866 (vendedor: leitura pelo cargo do promotor, RN-PRO-01);
+>   - #867 (MACUXI_HOSTS_ANTIGOS desligada: links em fdv.);
+>   - #868 (recusas do Hub linha a linha no diagnóstico);
+>   - #869 (governança retroativa do #868, que saiu sem `Agente: alexandre`; isso não pode se repetir).
+>   - **Liberar não disparado:** o token do notebook dá 403 em Actions. Destrava com "Actions: Read and write" no token, pelo Alexandre.
+> - **v1.0.40** (tag d9576499, 27/11 06h37, issue #860): #856, o critério do ensaio que aceita a 0109, e #852, o quadro da v1.0.39. Ensaio da 0109 verde (run 46018616299, ROLLBACK).
+> - **v1.0.41** (tag 7fa48070): perfis E5 e E6 do ADR 0073:
+>   - #853 (kit da tabela de permissões);
+>   - #855 (0109, leitura por concessão);
+>   - #857 (motor por concessão);
+>   - #861 (perfis V2 no core);
+>   - #859 e #862 (testes);
+>   - #863 (teste do cancelamento do ERP).
+>   - O primeiro liberar (8afe764d) caiu no RN-CAT-22 instável. Saiu no 7fa48070 pela decisão "1 A" (R-20261127-165252).
+> - **v1.0.43:**
+>   - `nuvem/v1043-modulo-core-perfis` @ 12829713 (coluna Módulos, sem os 2 contratos V1, consulta de pedidos por usuário): faltam os pareceres do testes, do corretor, do engenheiro-software e do engenheiro-apps, e o PR;
+>   - `nuvem/v1043-modulo-catalogo-rn-cat-22` @ bde0d1dd: o testes não aprovou; falta decidir o critério 9;
+>   - aba de pedidos no app (engenheiro-apps);
+>   - [T-0201](tarefas/T-0201.md) e [T-0206](tarefas/T-0206.md);
+>   - parecer novo do corretor no lugar do #792 e do #820, fechados sem merge em 27/11 às 19h44.
+> - **Depois:**
+>   - [T-0202](tarefas/T-0202.md) a: simulação, que vai ao Alexandre pelo PO;
+>   - v1.0.44: [T-0200](tarefas/T-0200.md), T-0202 c e d, [T-0203](tarefas/T-0203.md), [T-0204](tarefas/T-0204.md) e [T-0207](tarefas/T-0207.md);
+>   - v1.0.45: [T-0205](tarefas/T-0205.md), [T-0161](tarefas/T-0161.md) e [T-0163](tarefas/T-0163.md).
+> - **G (recados no fuso de Manaus, R-20261127-113852):** governança, no ambiente MacuxiFDV-Governanca com MACUXI_AGENTE=alexandre. Entra depois dos APKs 1.0.42.
+> - **Com o Alexandre:**
+>   - token da Cloudflare e "aviso enviado", para o corte de bko. e config. em 29/11 às 7h (ADR 0071, sem redirecionamento);
+>   - Actions no token do notebook;
+>   - MACUXI_CHAVE_SEGREDOS_V1 e o IP fixo, para os ERPs F3 a F8.
+> - **ERP:** reprocessar os 2 parados da AM2808 depois que o ERP corrigir o envio (v0.3.26). O lembrete de 30/11 às 9h13 descarta a cópia da limpeza.
+> - **T-0189, D0:** resolvida pela decisão 70. O supervisor não vê o Início do BKO (RN-CORE-33 mantida).
+
 > **v1.0.39 no ar (27/11, gerente-projetos).** Horários de Manaus.
 > - Servidor às 02h15 (tag v1.0.39, bb9400ce; liberar 45948942882, publicar 45950110849); APKs Campo e Gestão 1.0.39 às 02h38 (android 45950683304, apk-publicar 45953054642).
 > - Entraram: #840 (db/testes), #843 (diagnóstico por um cliente, governança), #846 (core: rótulo e recusa do vendedor, corrida do mesmo id, "Carregando…"), #844 e #850 (doc 03), #845 (spec §7.5), #847 (vendedor: pedido mínimo, crédito excedido, estoque insuficiente), #848 (testes) e #849 (menu-bko.test).
@@ -76,7 +116,7 @@
 > **Em aberto** (decidido ou autorizado e ainda não feito).
 > - **"Sem preço" AM2808** (opção A, R-20261121-194900): o Conector da AM2808 não manda preço nem estoque. O cliente precisa ativar as entidades `preco` e `estoque` no `conector.json`, com as views `vw_macuxi_preco` e `vw_macuxi_estoque` e as chaves iguais às de produto e filial, e liberar as duas entidades no cadastro do conector no BKO. A confirmação vem pelo diagnóstico com `contagem_integracao`, depois do deploy da v1.0.21. Dono: modulo-integracao, com o cliente.
 > - **T-0190:** a retirada de `APP_*_APK_URL` do ambiente está sem prova. Dono: engenheiro-software.
-> - **T-0189, D0** (supervisor × RN-CORE-33): sem prova de resposta do dono do produto.
+> - ~~**T-0189, D0** (supervisor × RN-CORE-33): sem prova de resposta do dono do produto.~~ Resolvida em 27/11 pela decisão 70: o supervisor não vê o Início do BKO, e a RN-CORE-33 fica mantida.
 > - **Busca do Catálogo pela API** (`modules/catalogo/api/consultas-texto.ts`): ela ignora o `cliente_id`, e o escopo do cliente só vale no aparelho (a `veiculos@1` já aplica nos dois). Ela também lê só a `catalogo.produto_busca`, que nenhum código de produção preenche, e por isso o produto que chega pelo Hub não aparece nela. O app não usa essa busca. O teste `catalogo-veiculo-igualdade-t0193` marca o caso com `it.fails`. Dono: modulo-catalogo.
 > - **`modules/core/contracts/ciclo-import.test.ts`:** apagar depois da regra `error` do dependency-cruiser (RD-A do #636). Dono: modulo-core.
 > - **SSH comum dos workflows:** a ação `.github/actions/ssh-prod` (#652) é usada só no reprocesso; os 7 workflows antigos passam a usá-la. Dono: engenheiro-software (governança).
@@ -296,7 +336,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 ## Adiantadas (domínio sem banco/telas) e backlog de outras sprints
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
-| [T-0195](tarefas/T-0195.md) | Atualização obrigatória do APK no Campo e na Gestão: aviso no sininho nas primeiras 24 h, depois só a tela de reinstalar | gerente-projetos | — | backlog (R-20261123-200746-alexandre; fora da esteira até ordem do Alexandre) |
+| [T-0195](tarefas/T-0195.md) | Atualização obrigatória do APK no Campo e na Gestão: aviso no sininho nas primeiras 24 h, depois só a tela de reinstalar | gerente-projetos | — | backlog (R-20261123-200746-alexandre, com a palavra "backlog"; fora da esteira até a ordem do Alexandre; conferido em 27/11) |
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | nuvem → local (merge 6fba044) | concluida (🔴 da fixture corrigido · 🟡 aplicados · API 37/37 com banco) |
 | [T-0011](tarefas/T-0011.md) | Treinamento — domínio (trilhas, XP, níveis, medalhas, ranking) | modulo-treinamento | nuvem → local (merge 9f06e77) | concluida (230 testes · revisão sem 🔴 · RN-TRE-01..08 aplicadas) |
 | [T-0012](tarefas/T-0012.md) | Pesquisa — domínio | modulo-pesquisa | nuvem → local (merge f4fdbe5) | concluida (215 testes · revisão sem 🔴 · decisões do Alexandre aplicadas · cliente fechado via RN-CORE-14) |
@@ -417,7 +457,15 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0190](tarefas/T-0190.md) | Download dos APKs (Campo e Gestão) por link temporário gerado pelo BKO, como o do Conector (R-20261120-194335 e R-20261120-200027, item 5) | engenheiro-software, modulo-core, engenheiro-apps, testes | nuvem (v1.0.19 e v1.0.20) | concluida no código; a 1ª publicação pelo apk-publicar no "Em aberto" |
 | [T-0191](tarefas/T-0191.md) | BKO → Rotas: criar a rota do vendedor por proximidade a partir do endereço base (R1 a R3) e o botão Gerar coordenada pelo OpenStreetMap (R5); RN-CORE-75 a 77 | gerente-projetos, engenheiro-software, banco-dados, modulo-core, designer-ux, design-de-marca, testes, corretor-redundancias | nuvem (v1.0.19) | concluida (v1.0.19) |
 | [T-0192](tarefas/T-0192.md) | Catálogo do Campo: sem puxar para atualizar e mais rápido (melhorias A a F; RN-CAT-21) | modulo-catalogo, designer-ux, banco-dados, testes, corretor-redundancias, design-de-marca, gerente-projetos | nuvem (v1.0.20) | concluida (v1.0.20) |
-| [T-0193](tarefas/T-0193.md) | Filtro de veículo no Catálogo e no Novo pedido (etapa 6; RN-CAT-22) | engenheiro-software, designer-ux, modulo-catalogo, modulo-vendedor, testes, corretor-redundancias, design-de-marca | nuvem (v1.0.21) | em_andamento |
+| [T-0193](tarefas/T-0193.md) | Filtro de veículo no Catálogo e no Novo pedido (etapa 6; RN-CAT-22) | engenheiro-software, designer-ux, modulo-catalogo, modulo-vendedor, testes, corretor-redundancias, design-de-marca | nuvem (v1.0.21); teste estável em `nuvem/v1043-modulo-catalogo-rn-cat-22` @ bde0d1dd | em_andamento: filtro no ar desde a v1.0.21; falta o teste de desempenho estável (RN-CAT-22) na v1.0.43, com o critério 9 a decidir; o liberar da v1.0.41 caiu nele uma vez |
+| [T-0200](tarefas/T-0200.md) | Fotos do cliente: no app só a última; no BKO até 3 por item, e a 4ª exclui a mais antiga (simulação d5fa1e56 aprovada) | gerente-projetos | — | aberta (v1.0.44) |
+| [T-0201](tarefas/T-0201.md) | Jornada do usuário em PDF com as telas atuais | designer-ux | — | aberta (v1.0.43; jornadas a confirmar pelo PO) |
+| [T-0202](tarefas/T-0202.md) | BKO e Config no padrão de 27/11 (MENOS É MAIS, botões, tabelas, Config v4 do ERP, admin só com as Integrações em leitura): a simulação, b governança, c e d telas | designer-ux, engenheiro-apps, design-de-marca, corretor-redundancias | — | aberta (a: simulação ao Alexandre pelo PO; b: PR de governança; c e d: v1.0.44) |
+| [T-0203](tarefas/T-0203.md) | Escopo a confirmar pelo PO | gerente-projetos | — | bloqueada (sem escopo; v1.0.44) |
+| [T-0204](tarefas/T-0204.md) | Escopo a confirmar pelo PO | gerente-projetos | — | bloqueada (sem escopo; v1.0.44) |
+| [T-0205](tarefas/T-0205.md) | Escopo a confirmar pelo PO | gerente-projetos | — | bloqueada (sem escopo; v1.0.45) |
+| [T-0206](tarefas/T-0206.md) | Filial do vendedor na carga | modulo-integracao, modulo-core | — | aberta (v1.0.43) |
+| [T-0207](tarefas/T-0207.md) | Escopo a confirmar pelo PO | gerente-projetos | — | bloqueada (sem escopo; v1.0.44) |
 | [T-0194](tarefas/T-0194.md) | Portal config. enxuto: Integração via Conector \| via API, aba Empresa, fim do CSV e da Equipe, guia da API em PDF | engenheiro-apps, modulo-integracao, engenheiro-software, designer-ux, testes, corretor-redundancias, design-de-marca | nuvem (v1.0.22) | em_andamento |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
