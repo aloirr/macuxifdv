@@ -45,10 +45,16 @@ export const PainelMetasSchema = z.object({
   metas: z.array(LinhaPainelSchema),
 });
 export type PainelMetas = z.infer<typeof PainelMetasSchema>;
+const BaseApuracaoSchema = z.enum(['aprovado', 'faturado']);
+/** RN-CORE-21: texto curto da base das vendas, mostrado uma vez por tela (BKO e gestão). */
+export const BASE_APURACAO_ROTULO: Readonly<Record<z.infer<typeof BaseApuracaoSchema>, string>> = {
+  aprovado: 'base: pedidos aprovados',
+  faturado: 'base: notas faturadas',
+};
 export const IndicadoresListaSchema = z.object({
   periodo: AnoMes,
   /** Base de apuração do tenant (`metas.base_apuracao`); vale para pedidos individuais, o read-model diário já vem apurado. */
-  base_apuracao: z.enum(['aprovado', 'faturado']),
+  base_apuracao: BaseApuracaoSchema,
   /** RN-CORE-21: `parcial` até o 2º dia útil do mês seguinte (`fechamento_em`), depois `fechado`. */
   situacao: z.enum(['parcial', 'fechado']).optional(),
   fechamento_em: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -81,7 +87,7 @@ export type LinhaMetaBko = z.infer<typeof LinhaMetaBkoSchema>;
 
 export const PainelMetasBkoSchema = z.object({
   periodo: AnoMes,
-  base_apuracao: z.enum(['aprovado', 'faturado']),
+  base_apuracao: BaseApuracaoSchema,
   situacao: z.enum(['parcial', 'fechado']).optional(),
   fechamento_em: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   linhas: z.array(LinhaMetaBkoSchema),
