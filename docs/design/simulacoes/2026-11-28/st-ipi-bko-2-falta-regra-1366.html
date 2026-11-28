@@ -1,0 +1,43 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>T-0208 · BKO · falta regra</title><style>*{box-sizing:border-box;margin:0}
+body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background:#F8F6F1;color:#16202A;width:1366px;min-height:860px;display:flex;position:relative}
+.menu{width:240px;background:#16202A;color:#C9CED5;padding:20px 12px;display:flex;flex-direction:column;gap:4px;font-size:15px;flex-shrink:0}
+.menu b{color:#fff;font-size:17px;padding:0 10px 18px}
+.menu .g{color:#F59A52;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:10px 10px 4px}
+.menu span{padding:6px 10px 6px 20px;border-radius:8px}.menu span.on{background:#2B3743;color:#fff;font-weight:600}
+main{flex:1;padding:28px 32px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:24px;font-weight:700}
+.lista{background:#fff;border:1px solid #DFE2E6;border-radius:16px;height:520px}
+.veu{position:absolute;inset:0;background:rgba(15,20,25,.35)}
+.gav{position:absolute;top:0;right:0;bottom:0;width:900px;background:#F8F6F1;padding:24px 28px;display:flex;flex-direction:column;gap:14px;box-shadow:-8px 0 24px rgba(22,32,42,.18)}
+.topo{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.topo h2{font-size:22px;font-weight:700}.topo small{display:block;font-size:15px;color:#4A5562;margin-top:2px}
+.bts{display:flex;gap:8px}
+.btn{height:38px;border-radius:10px;padding:0 14px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;border:1px solid #C9CED5;background:#fff;color:#16202A;white-space:nowrap}
+.q{background:#fff;border:1px solid #DFE2E6;border-radius:12px;padding:16px}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.f small{display:block;font-size:13px;color:#4A5562}.f{font-size:15px}
+.tot{display:flex;flex-direction:column;gap:6px;font-size:15px;font-variant-numeric:tabular-nums}
+.tot div{display:flex;justify-content:space-between}
+.tot .r{color:#4A5562}
+.tot .fin{border-top:1px solid #ECEEF1;padding-top:6px;font-size:20px;font-weight:600}
+.tot .imp{border-top:1px solid #ECEEF1;padding-top:6px}
+.tot .imp + .imp{border-top:0;padding-top:0}
+.tot .imp .r{color:#16202A;font-weight:600}
+.ni{color:#4A5562;font-weight:400}
+h3{font-size:17px;font-weight:700;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+th{text-align:left;font-size:13px;font-weight:600;color:#4A5562;padding:6px 8px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 8px;height:44px;border-bottom:1px solid #ECEEF1;white-space:nowrap}
+td.d{white-space:normal}
+tr:last-child td{border-bottom:0}
+.n{text-align:right}
+.mono{font-family:monospace;color:#1E3350;font-weight:600}</style><body>
+<nav class="menu"><b>Distribuidora Exemplo</b><span class="g">Vendas</span><span class="on">Pedidos</span><span>Clientes</span><span>Catálogo</span><span class="g">Equipe</span><span>Vendedores</span></nav>
+<main><h1>Pedidos</h1><div class="lista"></div></main><div class="veu"></div>
+<aside class="gav">
+<div class="topo"><div><h2>Pedido 000014</h2><small>Mercado Bom Preço · cód. C5007 · Lucas Andrade</small></div><div class="bts"><span class="btn">PDF do cliente</span><span class="btn">PDF interno</span></div></div>
+<div class="q grade"><div class="f"><small>Condição</small>Boleto · 28/56 dias</div><div class="f"><small>Recebido</small>28/11/2026 08:41</div><div class="f"><small>Itens</small>3 · 7 un.</div><div class="f"><small>Tabela de preço</small>Varejo Manaus</div></div>
+<div class="q tot"><div><span class="r">Subtotal</span><span>R$ 119,70</span></div><div><span class="r">Desconto (0,8%)</span><span>− R$ 0,92</span></div><div class="fin"><span>Total</span><span>R$ 118,78</span></div>
+<div class="imp"><span class="r">ST</span><span><span class="ni">não informado</span></span></div><div class="imp"><span class="r">IPI</span><span>R$ 1,28</span></div></div>
+<div class="q"><h3>Itens</h3><table><thead><tr><th>Código</th><th>Descrição</th><th>Medida</th><th class="n">Qtd</th><th class="n">Tabela</th><th class="n">Desc./Acr.</th><th class="n">Total</th><th class="n">ST</th><th class="n">IPI</th></tr></thead><tbody><tr><td class="mono">ACU-1K</td><td class="d">Açúcar cristal 1 kg</td><td>FD c/ 10</td><td class="n">1</td><td class="n">36,00</td><td class="n">+10,0%</td><td class="n"><b>39,60</b></td><td class="n">2,38</td><td class="n">0,00</td></tr><tr><td class="mono">AGU-1500</td><td class="d">Água mineral 1,5 L</td><td>FD c/ 6</td><td class="n">2</td><td class="n">15,05</td><td class="n">−15,0%</td><td class="n"><b>25,58</b></td><td class="n"><span class="ni">não informado</span></td><td class="n">1,28</td></tr><tr><td class="mono">CAF-500</td><td class="d">Café torrado e moído 500 g</td><td>UN</td><td class="n">4</td><td class="n">13,40</td><td class="n">0,0%</td><td class="n"><b>53,60</b></td><td class="n">3,22</td><td class="n">0,00</td></tr></tbody></table></div>
+</aside><script>document.body.dataset.info='{"conflitos":[]}';document.body.dataset.pronto='1'</script></body></html>
