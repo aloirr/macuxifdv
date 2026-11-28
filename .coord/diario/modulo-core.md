@@ -202,3 +202,4 @@
 2026-11-21 — T-0189 — Início do BKO r3: achados RD-2509 a RD-2516 do corretor, D0-D3 do testes (supervisor fora, carga atrasada = atenção, feriados, última carga e parados_desde do Monitor), Pedidos = aprovados + em aprovação
 2026-11-24 — v1.0.34 — Fachada: foto só adiciona (podeEnviarFoto, fotoMaisRecente, fotosComPendentes, fachadaDoPdv), linhaDaFotoDoPdv + olho/câmera na aba Documentação, aviso de erro junto da linha; perfis.test.ts sem (RN-CORE-04) (lote Parâmetros); índice cliente_foto_vigente_uk pendente (banco-dados)
 2026-11-25 — T-0196 — manifesto consome vendedor.pedido.criado@2 (ADR 0076 E3a); pull filtrado usa VERSAO_APP_FRACAO 1.0.36
+2026-11-28 — v1.0.43 (R-20261127-144433 item 5 A) — app segue a leitura de pedidos do usuário (cargo e concessão): etapa core-leitura-de-pedidos guarda GET /v1/core/eu/leitura-de-pedidos no aparelho; pedidosVisiveisPelaLeitura decide (concessão do mesmo usuário = ve_pedidos; senão o legado de hoje).

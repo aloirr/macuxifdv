@@ -49,6 +49,7 @@ const ENTIDADE_CAMPO: Record<string, EtapaEntradaId> = {
   'pedidos-da-visita': 'pedidos_metas',
   'core-inicio': 'pedidos_metas',
   'core-rv': 'pedidos_metas',
+  'core-leitura-de-pedidos': 'pedidos_metas',
 };
 const ETAPA_DO_MODULO_CAMPO: Record<string, EtapaEntradaId> = {
   core: 'clientes_rota',
@@ -69,6 +70,7 @@ const ENTIDADE_GESTAO: Record<string, EtapaEntradaId> = {
   metas: 'metas',
   'core-inicio': 'metas',
   'core-rv': 'metas',
+  'core-leitura-de-pedidos': 'metas',
   notificacao: 'alertas',
   notificacao_leitura: 'alertas',
   alerta: 'alertas',

@@ -41,7 +41,7 @@ export const faixaDoMes = (iso: string): string => `${MESES[Number(iso.slice(5, 
 
 const ROTULO_ABA: Record<AbaFicha, string> = { resumo: 'Resumo', historico: 'Histórico', documentacao: 'Documentação' };
 
-/** P12: o promotor sem `promotor_ve_pedidos` fica com Resumo e Documentação. */
+/** P12: quem não vê pedidos fica com Resumo e Documentação. */
 export function abasDoApp(perfil: string, verPedidos: boolean): Array<{ id: AbaFicha; rotulo: string }> {
   return abasDaFicha(perfil, verPedidos).map((id) => ({ id, rotulo: ROTULO_ABA[id] }));
 }

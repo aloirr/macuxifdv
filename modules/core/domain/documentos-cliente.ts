@@ -159,7 +159,7 @@ export function validarMatrizDocumentos(
 
 export type AbaFicha = 'resumo' | 'historico' | 'documentacao';
 
-/** P12: promotor sem `promotor_ve_pedidos` não vê o Histórico (nem o cartão de crédito do Resumo); fica com Resumo e Documentação. */
+/** P12: promotor que não vê pedidos não vê o Histórico (nem o cartão de crédito do Resumo); fica com Resumo e Documentação. */
 export function abasDaFicha(perfil: string, promotorVePedidos: boolean): AbaFicha[] {
   return perfilRecebeHistoricoDeCompra(perfil, promotorVePedidos) ? ['resumo', 'historico', 'documentacao'] : ['resumo', 'documentacao'];
 }

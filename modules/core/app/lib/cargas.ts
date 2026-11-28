@@ -7,10 +7,11 @@
 import { monthStart } from '@macuxi/ui/mobile/puro';
 import type { EtapaSync } from '@macuxi/platform-sdk';
 
-import { InicioSchema, RvPainelSchema, type RvLocal, type SellerGoals } from '../../contracts';
+import { InicioSchema, ROTA_LEITURA_DE_PEDIDOS, RvPainelSchema, type RvLocal, type SellerGoals } from '../../contracts';
 import { CHAVES, fusoDe } from './estado';
 import { erroDeCliente, exigirHttp } from './http';
 import { tolerante } from './leitor-tolerante';
+import { LeituraDePedidosTolerante } from './leitura-de-pedidos';
 import type { OrderLike } from './visit';
 
 interface Pagina<T> {
@@ -108,6 +109,25 @@ export const etapasCore: readonly EtapaSync[] = [
         const copia: RvLocal = { recebido_em: ctx.agora().toISOString(), painel: r.data };
         await ctx.armazenamento.gravar(CHAVES.rv, copia);
       }
+    },
+  },
+  {
+    // ADR 0073 §2.4 (RN-PRO-01): se o usuário vê pedidos pelo cargo e pela concessão. Todos os perfis (Campo e Gestão).
+    // Falhou ou veio fora do contrato: mantém a cópia anterior.
+    id: 'core-leitura-de-pedidos',
+    rotulo: 'Leitura de pedidos',
+    modulo: 'core',
+    async executar(ctx) {
+      const http = exigirHttp(ctx);
+      let corpo: unknown;
+      try {
+        corpo = await http.get<unknown>(`/core/${ROTA_LEITURA_DE_PEDIDOS}`);
+      } catch (e) {
+        if (erroDeSessao(e)) throw e;
+        return;
+      }
+      const r = LeituraDePedidosTolerante.safeParse(corpo);
+      if (r.success) await ctx.armazenamento.gravar(CHAVES.leituraDePedidos, r.data);
     },
   },
 ];

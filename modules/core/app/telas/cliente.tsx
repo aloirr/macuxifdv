@@ -1,6 +1,6 @@
 /**
- * Ficha do cliente v2 (T-0186; docs/design/cliente-360-v2): três abas fixas, Resumo · Histórico · Documentação (`abasDaFicha`; o promotor
- * sem `promotor_ve_pedidos` fica sem o Histórico, P12). Faixa Azul noite no topo (nome e "código · bairro · cidade/UF"), abas paradas
+ * Ficha do cliente v2 (T-0186; docs/design/cliente-360-v2): três abas fixas, Resumo · Histórico · Documentação (`abasDaFicha`; quem não vê
+ * pedidos fica sem o Histórico, P12). Faixa Azul noite no topo (nome e "código · bairro · cidade/UF"), abas paradas
  * logo abaixo e o conteúdo rolando; o rodapé ("Check-in" sem atendimento aberto neste cliente ou "Checkout" com, "Pesquisa" e ações
  * `cliente.acoes`) fica visível em todas as abas. Alertas não financeiros (visita aberta, etapa pendente, `cliente.avisos`, erro de foto)
  * ficam no topo do conteúdo; NENHUM alerta financeiro na ficha (R-20261119-0440): o atraso aparece só na tabela do Histórico.
@@ -57,8 +57,8 @@ export function TelaCliente() {
   const { estado, rota, tz, atendimentoAberto: openVisit, motor, armazem } = core;
   const { dados: locais, hoje } = useClientesLocais();
   const gestao = perfilDeGestao(locais.perfil);
-  // RN-PRO-01 / RN-CORE-01: promotor com `promotor_ve_pedidos` desligado não vê pedidos (offline, pelo parâmetro sincronizado):
-  // o Core tira do ponto de montagem as abas e ações de extensão que mostram pedido. Os demais perfis não mudam.
+  // RN-PRO-01 / RN-CORE-01: quem não vê pedidos (`verPedidos`: cargo e concessão, ou `promotor_ve_pedidos` no legado; offline):
+  // o Core tira do ponto de montagem as abas e ações de extensão que mostram pedido.
   const abas = filtrarExtensoesDePedido(abasTodas, locais.verPedidos);
   const acoes = filtrarExtensoesDePedido(acoesTodas, locais.verPedidos);
   // Cliente 360 e resumo do check-in montados só com as linhas do aparelho (offline)
@@ -199,7 +199,7 @@ export function TelaCliente() {
         codigo: i.produto_sku ?? null,
       }))
     : [];
-  // Spec §3: Performance (curvas, indicadores e visitas) e o cartão de crédito; o promotor sem `promotor_ve_pedidos` fica sem curvas, compras e cartão (P12)
+  // Spec §3: Performance (curvas, indicadores e visitas) e o cartão de crédito; quem não vê pedidos fica sem curvas, compras e cartão (P12)
   const performance = ficha ? performanceDoCliente({ historico: ficha.historico, curvas, visitas, hoje, comAcessoACompras: ficha.pedidos_visiveis, visitadaPor: quemVisitou }) : null;
   const fin = ficha?.financeiro ?? null;
   const cartao = ficha && ficha.pedidos_visiveis && fin

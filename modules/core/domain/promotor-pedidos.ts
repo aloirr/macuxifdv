@@ -1,10 +1,10 @@
 /**
- * Opção `promotor_ve_pedidos` (RN-CORE-01; RN-PRO-01; T-0061). Funções puras, usadas pela API (consulta e rotas) e pelo app
- * (Cliente 360 offline). Padrão LIGADO: sem registro, ou com valor inválido, o promotor continua vendo os pedidos da carteira.
+ * Opção `promotor_ve_pedidos` (RN-CORE-01; RN-PRO-01; T-0061) e leitura de pedidos do usuário (ADR 0073 §2.4). Funções puras,
+ * usadas pela API (consulta e rotas) e pelo app (Cliente 360 offline). Padrão LIGADO: sem registro, ou com valor inválido, o promotor continua vendo os pedidos da carteira.
  * A opção só controla a LEITURA; a escrita de pedido pelo promotor é sempre negada (RN-PRO-01).
  */
 import { podePeloCargo, promotorNaRequisicao, type Perfil, type PerfilDaRequisicaoV2 } from '@macuxi/platform-sdk';
-import { promotorVePedidos, promotorVePedidosDasLinhas } from '../contracts/promotor-pedidos';
+import { promotorVePedidos, promotorVePedidosDasLinhas, type LeituraDePedidosDoUsuario } from '../contracts/promotor-pedidos';
 
 // A resolução do valor mora em contracts (o Vendedor a importa de lá); o domain reexporta.
 export { promotorVePedidos, promotorVePedidosDasLinhas };
@@ -47,6 +47,22 @@ export type LinhaParametro = { modulo: string; chave: string; valor?: unknown; d
  */
 export function pedidosVisiveisNoAparelho(perfil: string | null | undefined, parametros: readonly LinhaParametro[]): boolean {
   return perfilPodeVerPedidos(perfil ?? '', promotorVePedidosDasLinhas(parametros));
+}
+
+/**
+ * RN-PRO-01 / RN-CORE-01 / ADR 0073 §2.4, no aparelho: a leitura do usuário guardada (`GET /v1/core/eu/leitura-de-pedidos`) vale
+ * só se for do usuário da sessão e de tenant em `concessao` (aí decide `ve_pedidos`: cargo e concessão). Sem leitura, de outro
+ * usuário ou em `legado`: `pedidosVisiveisNoAparelho` (perfil e parâmetro sincronizado), como antes.
+ */
+export function pedidosVisiveisPelaLeitura(e: {
+  usuarioId: string | null | undefined;
+  perfil: string | null | undefined;
+  parametros: readonly LinhaParametro[];
+  leitura: LeituraDePedidosDoUsuario | null | undefined;
+}): boolean {
+  const l = e.leitura;
+  if (l && e.usuarioId && l.usuario_id === e.usuarioId && l.leitura === 'concessao') return l.ve_pedidos;
+  return pedidosVisiveisNoAparelho(e.perfil, e.parametros);
 }
 
 const ACAO_DE_PEDIDO = /^pedido(_[a-z0-9_]+)?\./;

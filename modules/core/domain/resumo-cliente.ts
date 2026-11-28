@@ -21,7 +21,7 @@ export interface PerformanceCalculada {
 }
 
 /**
- * Bloco Performance. `comAcessoACompras` falso (promotor sem `promotor_ve_pedidos`, RN-PRO-01/P12) tira as curvas e os indicadores
+ * Bloco Performance. `comAcessoACompras` falso (quem não vê pedidos, RN-PRO-01/P12) tira as curvas e os indicadores
  * de compra; as visitas ficam. "Última compra" não existe mais aqui (R-20261119-0440).
  */
 export function performanceDoCliente(e: {

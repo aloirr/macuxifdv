@@ -38,6 +38,12 @@ describe('RN-CORE-48: etapas nomeadas da entrada por perfil e módulos efetivos'
     expect(etapaDaEntidade('promotor', ['core', 'promotor'], carga)).toBe('clientes_rota');
     expect(etapaDaEntidade('supervisor', ['core', 'vendedor', 'gestor'], carga)).toBe('equipe');
   });
+  it('RN-CORE-48: a leitura de pedidos do usuário (ADR 0073 §2.4) carrega com os parâmetros, no Campo e na Gestão', () => {
+    const carga = { entidade: 'core-leitura-de-pedidos', modulo: 'core' };
+    for (const [perfil, modulos] of [['vendedor', ['core', 'vendedor']], ['promotor', ['core', 'promotor']], ['supervisor', ['core', 'vendedor', 'gestor']]] as const) {
+      expect(etapaDaEntidade(perfil, modulos, carga)).toBe(etapaDaEntidade(perfil, modulos, { entidade: 'parametro', modulo: 'core' }));
+    }
+  });
   it('RN-CORE-48: antes de qualquer entidade a etapa é o envio, com 0%', () => {
     const p = progressoDaEntrada(base());
     expect(p.atual).toMatchObject({ id: 'envio', numero: 1, situacao: 'atual' });
