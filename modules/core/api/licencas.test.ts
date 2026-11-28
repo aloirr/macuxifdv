@@ -99,13 +99,13 @@ describe('RF-CORE-02: administração de licenças (tenant → perfil → usuár
     const { db } = fakeDb([
       [/from plataforma.tenant_modulo/, [{ modulo: 'vendedor', ativo: true }, { modulo: 'promotor', ativo: false }, { modulo: 'teste', ativo: true }]],
       [/from plataforma.perfil_modulo/, [{ perfil: 'vendedor', modulo: 'vendedor' }, { perfil: 'vendedor', modulo: 'core' }]],
-      [/from core.usuario/, [{ id: USUARIO, nome: 'Vera', email: 'v@x.com', perfil: 'vendedor' }]],
+      [/from core.usuario/, [{ id: USUARIO, nome: 'Vera', email: 'v@x.com', perfil: 'vendedor', perfil_codigo: 'vendedor_externo' }]],
       [/from plataforma.usuario_modulo/, [{ usuario_id: USUARIO, modulo: 'vendedor' }]],
     ]);
     const estado = LicencasEstadoSchema.parse(await lerEstadoDeLicencas(db, { vendedor: ['core', 'catalogo'] }));
     expect(estado.tenant).toMatchObject({ core: true, vendedor: true, promotor: false, catalogo: false });
     expect(estado.perfis.vendedor).toEqual(['vendedor', 'core']);
-    expect(estado.usuarios[0]).toMatchObject({ removidos: ['vendedor'] });
+    expect(estado.usuarios[0]).toMatchObject({ perfil_codigo: 'vendedor_externo', removidos: ['vendedor'] });
     expect(estado.dependencias).toEqual({ vendedor: ['core', 'catalogo'] });
   });
 
