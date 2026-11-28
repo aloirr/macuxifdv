@@ -7,9 +7,8 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll } from '@macuxi/ui/web';
 import { CopiarMetasRespostaSchema, EquipeListaRespostaSchema, MetaEquipeRespostaSchema, PainelMetasBkoSchema, type LinhaMetaBko } from '../../../contracts';
-import { INDICADORES_META, ROTULO_INDICADOR_META } from '../../../contracts';
+import { BASE_APURACAO_ROTULO, INDICADORES_META, ROTULO_INDICADOR_META } from '../../../contracts';
 import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
-import { textoBaseVendas } from '../../lib/indicadores';
 import { useHojeDoTenant } from '../../lib/queries';
 import { CLASSE_CAMPO_BKO } from '../../lib/classes';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
@@ -173,7 +172,7 @@ function MetasConteudo() {
 
       {d && (
         <Panel
-          title={`${linhas.length} linha${linhas.length === 1 ? '' : 's'} · ${textoBaseVendas(d.base_apuracao)}`}
+          title={`${linhas.length} linha${linhas.length === 1 ? '' : 's'} · ${BASE_APURACAO_ROTULO[d.base_apuracao]}`}
           aside={<Badge tone={d.situacao === 'fechado' ? 'success' : 'warning'}>{d.situacao === 'fechado' ? 'Mês fechado' : `Parcial${d.fechamento_em ? ` até ${d.fechamento_em.split('-').reverse().join('/')}` : ''}`}</Badge>}
         >
           <TableScroll minWidth={960}>

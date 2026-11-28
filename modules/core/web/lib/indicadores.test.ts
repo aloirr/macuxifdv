@@ -41,11 +41,3 @@ describe('critério 2 da T-0020: app e BKO mostram os mesmos números a partir d
     expect(centavosDoTexto('abc')).toBeNull();
   });
 });
-
-describe('RN-CORE-21: texto da base das vendas', () => {
-  it('RN-CORE-21: nomeia a base aprovada e a faturada', async () => {
-    const { textoBaseVendas } = await import('./indicadores');
-    expect(textoBaseVendas('aprovado')).toBe('base: pedidos aprovados');
-    expect(textoBaseVendas('faturado')).toBe('base: notas faturadas');
-  });
-});

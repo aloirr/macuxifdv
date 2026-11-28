@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INDICADORES_META, INDICADORES_RV, MetaSyncSchema, PutMetaSchema, RegraRvSchema, ROTULO_INDICADOR_META, rotuloDoIndicadorMeta } from './index';
+import { BASE_APURACAO_ROTULO, INDICADORES_META, INDICADORES_RV, MetaSyncSchema, PutMetaSchema, RegraRvSchema, ROTULO_INDICADOR_META, rotuloDoIndicadorMeta } from './index';
 
 describe('T-0170 (A-4): itens_por_pedido na meta mensal', () => {
   it('T-0170: a meta mensal aceita itens_por_pedido (centésimos) no sync e no PUT do BKO', () => {
@@ -31,5 +31,12 @@ describe('RD-0250: um nome por indicador (docs/design/rotulos-indicadores.md)', 
     expect(rotuloDoIndicadorMeta('venda_cents', null)).toBe('Vendas');
     expect(rotuloDoIndicadorMeta('venda_cents')).toBe('Vendas');
     expect(rotuloDoIndicadorMeta('cobertura_pct', 'faturamento')).toBe('Cobertura de rota');
+  });
+});
+
+describe('RN-CORE-21: texto da base das vendas', () => {
+  it('RN-CORE-21: nomeia a base aprovada e a faturada', () => {
+    expect(BASE_APURACAO_ROTULO.aprovado).toBe('base: pedidos aprovados');
+    expect(BASE_APURACAO_ROTULO.faturado).toBe('base: notas faturadas');
   });
 });
