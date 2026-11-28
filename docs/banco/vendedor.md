@@ -471,3 +471,25 @@ O item passa a aceitar fração (2,5 KG; "CX c/ 0,5"). Troca de tipo, sem coluna
   (jsonb) já aceita fração.
 - **Volta** (`.down.sql`): só sem fração gravada (`P0001` com tabela, coluna e quantas linhas; nada é arredondado); volta os
   tipos, os gatilhos e os CHECKs ao texto da 0013/0018. Teste: `db/testes/quantidade-fracionaria.db.test.ts`.
+
+## 0112 — ST e IPI vindos do ERP (`0112_vendedor_pedido_st_ipi`; v1.0.44, T-0208, ADR 0077 D5)
+O FDV não calcula imposto (decisão 63 A): guarda o ICMS-ST e o IPI que o ERP manda no retorno do pedido, no item e no total.
+**Aditiva**, sem default e sem backfill (linhas existentes ficam nulas = "não informado").
+
+| Tabela.coluna | Tipo | Regra |
+|---|---|---|
+| pedido.v_icms_st_cents | bigint null | >= 0 (`pedido_v_icms_st_nao_negativo`) |
+| pedido.v_ipi_cents | bigint null | >= 0 (`pedido_v_ipi_nao_negativo`) |
+| pedido_item.v_icms_st_cents | bigint null | >= 0 (`pedido_item_v_icms_st_nao_negativo`) |
+| pedido_item.v_ipi_cents | bigint null | >= 0 (`pedido_item_v_ipi_nao_negativo`) |
+
+- Os 3 casos (ADR 0077 D3): `0` = o ERP calculou e deu zero; `NULL` = ausente, "não informado" (nunca zero); total `NULL` com
+  itens preenchidos é válido. Nenhum gatilho, CHECK ou função soma os itens nem relaciona com `total_cents`.
+- Quem grava: o consumidor do Vendedor de `integracao.pedido.retorno_erp@1`, na mesma transação do status. O push do app nunca
+  grava; o pull manda `null` explícito.
+- RLS, políticas, grants (macuxi_app e macuxi_leitura na tabela) e índices não mudam. Não toca `sa_*` nem o kit do Conector.
+  Aparelho: sem migração (chaves no JSON de `ent_pedido` e `ent_pedido_item`).
+- Drizzle: `pedido.v_icms_st_cents`, `pedido.v_ipi_cents`, `pedidoItem.v_icms_st_cents`, `pedidoItem.v_ipi_cents` (bigint,
+  `mode: 'number'`, nulos). SQL cru com o `pg` lê bigint como string.
+- **Volta** (`.down.sql`): tira os 4 checks e as 4 colunas (os valores voltam no próximo retorno do ERP). Volte antes o código
+  do Vendedor e da Integração que lê ou grava as colunas. Teste: `db/testes/pedido-st-ipi.db.test.ts`.

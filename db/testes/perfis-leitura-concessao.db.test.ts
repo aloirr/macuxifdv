@@ -208,7 +208,7 @@ describe.skipIf(semBanco())('0109 troca de leitura: prova por usuário, idempot�
       expect(await retrato(c)).toEqual(r0); // só leitura
 
       // up da 0109
-      expect((await migrarUp(c)).aplicadas).toEqual(['0109_plataforma_perfis_leitura_concessao']);
+      expect((await migrarUp(c, { ate: '0109' })).aplicadas).toEqual(['0109_plataforma_perfis_leitura_concessao']);
       const funcoesDepois = await funcoes(c);
       expect(funcoesDepois['plataforma.perfis_do_usuario(uuid)']).toEqual(funcoesAntes['plataforma.perfis_do_usuario(uuid)']);
       // os 3 gatilhos recriados seguem DEFINER (a 0049), com a mesma ACL
@@ -261,10 +261,10 @@ describe.skipIf(semBanco())('0109 troca de leitura: prova por usuário, idempot�
         .toEqual([{ chave: 'cliente.pre_cadastrar', concedida: false }, { chave: 'dados.escopo', concedida: true }, { chave: 'produto.consultar', concedida: false }]);
 
       // up de novo: mesmo resultado por tenant e por usuário
-      expect((await migrarUp(c)).aplicadas).toEqual(['0109_plataforma_perfis_leitura_concessao']);
+      expect((await migrarUp(c, { ate: '0109' })).aplicadas).toEqual(['0109_plataforma_perfis_leitura_concessao']);
       expect(await leituras(c)).toEqual(Object.fromEntries(tenants.map((t) => [t, t === TC ? 'legado' : 'concessao'])));
       expect(await acessos(c, 'efetivo')).toEqual(aposDown);
-      expect(lerMigracoes().at(-1)!.versao).toBe('0109');
+      expect(lerMigracoes().find((m) => m.versao === '0109')?.nome).toBe('plataforma_perfis_leitura_concessao'); // up/down com { ate: '0109' }: as migrações seguintes não entram aqui
     });
   }, 600_000);
 });

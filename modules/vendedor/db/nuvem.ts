@@ -189,7 +189,11 @@ export const pedido = vendedor.table('pedido', {
   /** Retrato da filial: filial->>'id' = filial_id (CHECK). */
   filial: jsonb('filial').$type<RetratoFilial>(),
   /** 0088 (T-0184): ciclo atual das aprovações (pedidoAprovacao.ciclo), >= 1; cresce a cada reenvio depois de uma devolução. */
-  aprovacao_ciclo: integer('aprovacao_ciclo').notNull().default(1),
+  aprovacao_ciclo: integer('aprovacao_ciclo').notNull().default(1),  // --- 0112 (T-0208, ADR 0077 D5): impostos do ERP; o FDV só guarda e mostra (decisão 63 A), nunca soma os itens ---
+  /** Total do ICMS-ST do ERP, >= 0 (CHECK). NULL = "não informado" (nunca zero); 0 = o ERP calculou e deu zero. */
+  v_icms_st_cents: bigint('v_icms_st_cents', { mode: 'number' }),
+  /** Total do IPI do ERP, >= 0 (CHECK); mesma regra do v_icms_st_cents. */
+  v_ipi_cents: bigint('v_ipi_cents', { mode: 'number' }),
 });
 
 /**
@@ -279,6 +283,11 @@ export const pedidoItem = vendedor.table('pedido_item', {
    * das reservas por (tenant, produto, filial).
    */
   filial_id: uuid('filial_id'),
+  // --- 0112 (T-0208, ADR 0077 D5): impostos do ERP no item; NULL = "não informado", 0 = calculado e zero ---
+  /** ICMS-ST do item vindo do ERP, >= 0 (CHECK). */
+  v_icms_st_cents: bigint('v_icms_st_cents', { mode: 'number' }),
+  /** IPI do item vindo do ERP, >= 0 (CHECK). */
+  v_ipi_cents: bigint('v_ipi_cents', { mode: 'number' }),
 });
 
 /**
