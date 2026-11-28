@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { formatBRL0 } from '@macuxi/comum';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, MenuAcoes, PageHeader, Panel, rotuloComContagem, SelectField, TabelaDados } from '@macuxi/ui/web';
+import { BASE_APURACAO_ROTULO } from '@macuxi/core/contracts';
 import { INDICADORES_RANKING, PERIODOS_RANKING } from '../../contracts';
 import { INDICADOR_ROTULO, PERIODO_ROTULO, valorDoIndicador } from '../../app/lib/apresentacao';
 import { csvDoRanking } from '../lib/csv';
@@ -24,7 +25,7 @@ function Conteudo() {
     <div className="flex flex-col gap-4" data-testid="gestor.ranking">
       <PageHeader
         title={rotuloComContagem('Ranking da equipe', r?.linhas.length ?? 0)}
-        badge={r ? <span className="text-[13px] font-medium text-ink-2">{r.inicio === r.fim ? r.inicio : `${r.inicio} a ${r.fim}`}</span> : undefined}
+        badge={r ? <span className="text-[13px] font-medium text-ink-2">{r.inicio === r.fim ? r.inicio : `${r.inicio} a ${r.fim}`}{r.base_apuracao ? ` · ${BASE_APURACAO_ROTULO[r.base_apuracao]}` : ''}</span> : undefined}
         actions={
           <MenuAcoes
             acoes={[

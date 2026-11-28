@@ -12,9 +12,28 @@ export const STATUS_QUE_CONTAM: Record<BaseApuracao, ReadonlySet<StatusPedido>> 
   faturado: new Set<StatusPedido>(['faturado_parcial', 'faturado_total']),
 };
 
-/** Transições ordenadas por instante e, no empate, por `evento_id` (ordem total e estável). */
+/**
+ * Posição do status no ciclo do pedido (RN-CORE-21): recebido < em_aprovacao < aprovado < integrado_erp < faturado_*.
+ * `rejeitado` e `cancelado` são terminais e vêm depois do que os antecede no mesmo instante.
+ */
+const ORDEM_DO_CICLO: Record<StatusPedido, number> = {
+  rascunho: 0,
+  na_fila: 1,
+  recebido: 2,
+  em_aprovacao: 3,
+  aprovado: 4,
+  rejeitado: 5,
+  integrado_erp: 6,
+  faturado_parcial: 7,
+  faturado_total: 8,
+  cancelado: 9,
+};
+
+/** Transições ordenadas por instante; no empate, pela ordem do ciclo de status e, por fim, por `evento_id` (ordem total e estável). */
 export function historicoOrdenado(p: PedidoFato): EntradaHistoricoPedido[] {
-  return Object.values(p.historico).sort((a, b) => instanteMs(a.em) - instanteMs(b.em) || (a.evento_id < b.evento_id ? -1 : a.evento_id > b.evento_id ? 1 : 0));
+  return Object.values(p.historico).sort(
+    (a, b) => instanteMs(a.em) - instanteMs(b.em) || ORDEM_DO_CICLO[a.para] - ORDEM_DO_CICLO[b.para] || (a.evento_id < b.evento_id ? -1 : a.evento_id > b.evento_id ? 1 : 0),
+  );
 }
 
 export function statusAtual(p: PedidoFato): StatusPedido | null {

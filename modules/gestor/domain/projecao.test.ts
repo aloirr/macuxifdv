@@ -92,6 +92,18 @@ describe('apuração do pedido (RN-CORE-21, RN-VEN-30)', () => {
     expect(apuracaoDoPedido(p, 'aprovado').desde).toBe('2026-10-30T15:00:00Z');
   });
 
+  it.each([
+    ['recebido com id menor', 'ev-a', 'ev-b'],
+    ['recebido com id maior', 'ev-z', 'ev-b'],
+  ])('RN-GES-06/RN-CORE-21: recebido e aprovado no MESMO instante (aprovação automática) contam — %s', (_n, idRecebido, idAprovado) => {
+    const em = '2026-10-30T15:00:00Z';
+    const s = montar([pedidoCriado({ total: 10_000, em }), statusAlterado({ para: 'recebido', em }, idRecebido), statusAlterado({ para: 'aprovado', em }, idAprovado)]);
+    const p = s.pedidos[u(1000)]!;
+    expect(statusAtual(p)).toBe('aprovado');
+    expect(apuracaoDoPedido(p, 'aprovado')).toEqual({ conta: true, desde: em });
+    expect(vendasApuradas(s, 'aprovado')).toHaveLength(1);
+  });
+
   it('RN-CORE-21: líquido de cancelamentos — pedido cancelado depois de aprovado deixa de contar', () => {
     const s = montar([pedidoCriado({ total: 10_000 }), statusAlterado({ para: 'aprovado', em: '2026-10-30T15:00:00Z' }), statusAlterado({ para: 'cancelado', em: '2026-10-31T09:00:00Z' })]);
     expect(statusAtual(s.pedidos[u(1000)]!)).toBe('cancelado');
@@ -148,5 +160,27 @@ describe('apuração do pedido (RN-CORE-21, RN-VEN-30)', () => {
     const s = montar([checkin({ em: '2026-10-30T13:00:00Z', cliente: CLIENTE_A }), checkout({ em: '2026-10-30T13:20:00Z', cliente: CLIENTE_A }), checkin({ visita: u(2001), em: '2026-10-30T14:00:00Z', cliente: CLIENTE_B, usuario: PROMOTOR })]);
     expect(Object.keys(s.visitas)).toHaveLength(2);
     expect(s.visitas[u(2000)]!.checkout?.checkout_em).toBe('2026-10-30T13:20:00Z');
+  });
+
+  describe('RN-CORE-21: cancelado/rejeitado no mesmo instante do aprovado ou do faturado', () => {
+    const em = '2026-10-30T15:00:00Z';
+    it.each([
+      ['cancelado', 'ev-a', 'ev-z'],
+      ['cancelado', 'ev-z', 'ev-a'],
+      ['rejeitado', 'ev-a', 'ev-z'],
+      ['rejeitado', 'ev-z', 'ev-a'],
+    ] as const)('RN-CORE-21: %s no mesmo instante do aprovado não conta (id aprovado %s, id terminal %s)', (terminal, idAprovado, idTerminal) => {
+      const s = montar([pedidoCriado({ total: 10_000, em }), statusAlterado({ para: 'recebido', em }, 'ev-m'), statusAlterado({ para: 'aprovado', em }, idAprovado), statusAlterado({ para: terminal, em }, idTerminal)]);
+      const p = s.pedidos[u(1000)]!;
+      expect(statusAtual(p)).toBe(terminal);
+      expect(apuracaoDoPedido(p, 'aprovado').conta).toBe(false);
+    });
+    it.each([
+      ['ev-a', 'ev-z'],
+      ['ev-z', 'ev-a'],
+    ])('RN-CORE-21: cancelado no mesmo instante do faturado não conta na base faturada (id faturado %s, id cancelado %s)', (idFaturado, idCancelado) => {
+      const s = montar([pedidoCriado({ total: 10_000, em }), statusAlterado({ para: 'faturado_total', em }, idFaturado), statusAlterado({ para: 'cancelado', em }, idCancelado)]);
+      expect(apuracaoDoPedido(s.pedidos[u(1000)]!, 'faturado').conta).toBe(false);
+    });
   });
 });
