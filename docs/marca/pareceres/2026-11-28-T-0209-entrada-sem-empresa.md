@@ -83,3 +83,41 @@ passa a **validado para levar ao Alexandre**, com as duas perguntas da seção 3
 - Avisos sem prefixo, tom pela cor e pelo ícone; um aviso por vez.
 - Nenhuma marca de terceiro; nenhum grafismo; dados fictícios.
 - Escala: título 28 (app) e 24 (web) em 700; base 16/15; nada abaixo de 12.
+
+## 5. Revalidação — SHA 9d74d1bb02cfb72c7e093aaf54bdef573be6a207 (28/11/2026)
+Comparado com d879a348d: `gerar.mjs`, `docs/design/v1044-entrada-sem-empresa.md`, `docs/design/telas/rodape-legal.html` e os
+PNGs `campo-entrar-390`, `campo-empresa-suspensa-390` e `bko-entrar-1366` (lidos), entre os 18 regerados.
+
+| Achado | Situação |
+|---|---|
+| MC-2091 | **Fechado.** Sem `@font-face`, `FONTES`, Archivo nem Plex no gerador; `body` em `system-ui,"Segoe UI",Roboto,-apple-system,sans-serif`; doc §5 item 7 → "Fonte do sistema (manual da marca §5)". |
+| MC-2092 | **Fechado.** `--lineStrong` e `--field` em `#7A8593`; nos PNGs a borda do campo aparece no app e na web. |
+| MC-2093 | **Fechado.** `--warningInk:#7A4F00` no `#FFF1D6` (6,38:1); conferido no `campo-empresa-suspensa-390.png`. |
+| MC-2094 | **Fechado.** Faixa `padding:28px 24px`, `margin-right:14px` no logo + `gap:14px` = 28 px até o divisor; no PNG, ~28 px acima do logo e ~27,5 px até o divisor. Cabe em 390 px. A regra vai junto para a etapa 5 (engenheiro-apps). |
+| MC-2095 | **Fechado.** Doc com 7,03:1 e 11,82:1. |
+
+`rodape-legal.html`: saiu o campo "Código da empresa" do app e da web; subtítulo do BKO "Use o seu e-mail e a sua senha.":
+conforme (voz direta, sem jargão). Novo achado abaixo (MC-2096), que já estava no arquivo antes desta rodada.
+
+### MC-2096 · Archivo no protótipo do rodapé legal · baixa
+| Campo | Conteúdo |
+|---|---|
+| Onde | `docs/design/telas/rodape-legal.html:22,49,50` (`.cel h1`, `.mfaixa .area`, `.web h1`) |
+| Tipo | tipografia |
+| Fere | manual §5 e §5.1 (fonte do sistema; saem a Archivo e a IBM Plex) |
+| Correção | apagar `font-family: Archivo, sans-serif;` nas três regras (herdam a pilha do sistema); peso 800 dos títulos → 700, como no `gerar.mjs` |
+| Dono | designer-ux |
+
+Não muda os PNGs da simulação (saem do `gerar.mjs`); corrige no mesmo PR, antes do lote.
+
+### Premissa da fonte (sem Roboto na sessão)
+Basta para levar a simulação ao dono do produto. O manual (§5) manda a fonte do sistema e o gerador já pede `Roboto` na pilha; o
+que a sessão não tem é o arquivo da Roboto, então o Chromium caiu na sans padrão daqui. A simulação mostra layout, cores, logo e
+texto, e isso não depende do desenho da letra; a diferença de largura entre as duas sans não quebra nenhuma linha (o rodapé cabe a
+390 px com folga). **Ressalva obrigatória no recado:** "Simulação de layout e texto. A letra do print é a sans padrão do gerador;
+no celular sai a Roboto do Android e, no navegador, a fonte do sistema." A conferência da letra fica para o print do aparelho na
+etapa 5.
+
+### Parecer da revalidação
+**Liberado com ajustes** sobre 9d74d1bb0: a simulação está **validada para levar ao dono do produto** com a ressalva acima.
+MC-2096 (baixa, doc) corrige antes do lote.
