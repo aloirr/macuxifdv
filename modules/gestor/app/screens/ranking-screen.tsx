@@ -6,11 +6,14 @@ import { formatBRL0 } from '@macuxi/comum';
 import { Banner, Cartao, Chip, colors, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BASE_APURACAO_ROTULO, INDICADORES_RANKING, PERIODOS_RANKING, type IndicadorRanking, type PeriodoRanking, type RankingEquipe } from '../../contracts';
+import { BASE_APURACAO_ROTULO } from '@macuxi/core/contracts';
+import { INDICADORES_RANKING, PERIODOS_RANKING, type IndicadorRanking, type PeriodoRanking, type RankingEquipe } from '../../contracts';
 import { INDICADOR_ROTULO, PERIODO_ROTULO, valorDoIndicador } from '../lib/apresentacao';
 import { SeloFaixa } from '../components/selo-faixa';
 import { CAMINHO_EQUIPE } from '../rotas';
 import { useGestor } from '../state/use-gestor';
+
+const capitalizar = (x: string): string => x.charAt(0).toUpperCase() + x.slice(1);
 
 export default function RankingScreen() {
   const g = useGestor();
@@ -35,7 +38,7 @@ export default function RankingScreen() {
           <Chip key={i} testID={`ranking-indicador-${i}`} label={INDICADOR_ROTULO[i]} active={i === indicador} onPress={() => setIndicador(i)} />
         ))}
       </ScrollView>
-      {r?.ranking?.base_apuracao ? <Text style={t.small}>{BASE_APURACAO_ROTULO[r.ranking.base_apuracao]}</Text> : null}
+      {r?.ranking?.base_apuracao ? <Text style={t.small}>{capitalizar(BASE_APURACAO_ROTULO[r.ranking.base_apuracao])}</Text> : null}
       {r?.erro ? <Banner tone="danger">{r.erro}</Banner> : null}
       {!r ? <Loading /> : null}
       {r && !r.ranking ? <EstadoVazio icone="target" titulo="Sem ranking guardado" texto="Conecte-se à internet e escolha esta combinação de novo." /> : null}

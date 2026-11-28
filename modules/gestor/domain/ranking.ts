@@ -94,7 +94,7 @@ export interface EntradaRankingEquipe {
   agora: string;
 }
 
-const INDICADORES_DE_VENDA: ReadonlySet<string> = new Set(['vendas_cents', 'pedidos', 'positivados', 'ticket_medio_cents', 'atingimento_meta_pct']);
+const INDICADORES_DE_VENDA: ReadonlySet<IndicadorRanking> = new Set<IndicadorRanking>(['vendas_cents', 'pedidos', 'positivados', 'ticket_medio_cents', 'atingimento_meta_pct']);
 
 function valorDoIndicador(e: EntradaRankingEquipe, membro: MembroEquipe, inicio: string, fim: string, params: ParametrosGestor): number | null {
   const { estado } = e;
