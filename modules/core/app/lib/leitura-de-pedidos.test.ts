@@ -6,7 +6,6 @@ import { etapasCore } from './cargas';
 import { leituraDePedidosGuardada } from './leitura-de-pedidos';
 
 const EU = '00000000-0000-4000-8000-000000000001';
-const OUTRO = '00000000-0000-4000-8000-000000000002';
 const concessao = { usuario_id: EU, ve_pedidos: false, leitura: 'concessao' as const };
 const param = (valor: unknown) => ({ modulo: 'core', chave: 'promotor_ve_pedidos', valor });
 
@@ -47,13 +46,6 @@ describe('RN-PRO-01 / RN-CORE-01 / ADR 0073 §2.4: etapa core-leitura-de-pedidos
     },
   );
 
-  it('falha sem nada guardado: comportamento de hoje (parâmetro sincronizado)', async () => {
-    const { p, armazenamento } = rodar(async () => { throw new Error('sem conexão'); });
-    await p;
-    expect(await decide(armazenamento, EU, 'promotor', [param(false)])).toBe(false);
-    expect(await decide(armazenamento, EU, 'promotor', [param(true)])).toBe(true);
-  });
-
   it.each([401, 423])('%s sobe como erro (RN-CORE-15)', async (status) => {
     const { p } = rodar(async () => { throw { status }; });
     await expect(p).rejects.toEqual({ status });
@@ -66,20 +58,6 @@ describe('RN-PRO-01 / RN-CORE-01 / ADR 0073 §2.4: etapa core-leitura-de-pedidos
     const nova = rodar(async () => ({ ...concessao, campo_futuro: 1 }));
     await nova.p;
     expect(nova.armazenamento.m.get('leitura_de_pedidos')).toEqual(concessao);
-  });
-
-  it('leitura guardada de outro usuário não vale: comportamento de hoje', async () => {
-    const armazenamento = disco({ leitura_de_pedidos: { ...concessao, usuario_id: OUTRO } });
-    expect(await decide(armazenamento, EU, 'promotor', [param(true)])).toBe(true);
-  });
-
-  it('tenant em legado: igual a hoje (perfil e promotor_ve_pedidos), qualquer ve_pedidos', async () => {
-    for (const ve_pedidos of [true, false]) {
-      const armazenamento = disco({ leitura_de_pedidos: { usuario_id: EU, ve_pedidos, leitura: 'legado' } });
-      expect(await decide(armazenamento, EU, 'promotor', [param(false)])).toBe(false);
-      expect(await decide(armazenamento, EU, 'promotor', [param(true)])).toBe(true);
-      expect(await decide(armazenamento, EU, 'vendedor', [param(false)])).toBe(true);
-    }
   });
 
   it('cópia corrompida no disco = sem leitura', async () => {

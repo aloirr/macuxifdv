@@ -1,6 +1,6 @@
 /**
- * Cargas do Core para o aparelho que ainda vêm do REST da Fase M (etapas de sync do módulo — `moduloApp.etapasSync`):
- * só `metas` (T-0020) e `pedidos-da-visita` (ligação do pedido com a visita; o pedido real vem do Vendedor).
+ * Cargas do Core copiadas do REST para o aparelho (etapas de sync do módulo — `moduloApp.etapasSync`): metas, pedidos da visita,
+ * Início, RV e leitura de pedidos.
  * Carteira, rota do dia e visitas saíram daqui na T-0018: chegam pelo pull genérico (`entidades-cliente.ts`,
  * `entidades-rota.ts`) e a tela lê só o aparelho.
  */
@@ -33,6 +33,23 @@ const erroDeSessao = (e: unknown): boolean => {
   const s = (e as { status?: unknown } | null)?.status;
   return s === 401 || s === 423;
 };
+
+type Ctx = Parameters<EtapaSync['executar']>[0];
+type Validador<T> = { safeParse(v: unknown): { success: true; data: T } | { success: false } };
+
+/** Lê `rota` e grava em `chave` o que passar no `schema`. Falhou ou veio fora do contrato: mantém a cópia anterior. */
+async function copiarSeValido<T>(ctx: Ctx, rota: string, schema: Validador<T>, chave: string, transformar: (d: T) => unknown = (d) => d): Promise<void> {
+  const http = exigirHttp(ctx);
+  let corpo: unknown;
+  try {
+    corpo = await http.get<unknown>(rota);
+  } catch (e) {
+    if (erroDeSessao(e)) throw e;
+    return;
+  }
+  const r = schema.safeParse(corpo);
+  if (r.success) await ctx.armazenamento.gravar(chave, transformar(r.data));
+}
 
 export const etapasCore: readonly EtapaSync[] = [
   {
@@ -70,64 +87,29 @@ export const etapasCore: readonly EtapaSync[] = [
   },
   {
     // T-0073 §1.4: copia o realizado de vendas/positivação (até ontem × hoje) e os nomes da equipe para o aparelho.
-    // Roda no ritmo do motor (RN-CORE-23: nenhum timer próprio). Falhou ou veio fora do contrato: mantém a cópia anterior.
+    // Roda no ritmo do motor (RN-CORE-23: nenhum timer próprio).
     id: 'core-inicio',
     rotulo: 'Início (metas do dia)',
     modulo: 'core',
-    async executar(ctx) {
-      const http = exigirHttp(ctx);
-      let corpo: unknown;
-      try {
-        corpo = await http.get<unknown>('/core/inicio');
-      } catch (e) {
-        if (erroDeSessao(e)) throw e;
-        return;
-      }
-      const r = tolerante(InicioSchema).safeParse(corpo);
-      if (r.success) await ctx.armazenamento.gravar(CHAVES.inicio, r.data);
-    },
+    executar: (ctx) => copiarSeValido(ctx, '/core/inicio', tolerante(InicioSchema), CHAVES.inicio),
   },
   {
     // T-0082: a RV projetada do próprio vendedor (RN-CORE-29), calculada no servidor. Guarda o último cálculo com a hora em que
-    // chegou, para a tela mostrar offline. Falhou ou veio fora do contrato: mantém a cópia anterior. Só vendedor e promotor.
+    // chegou, para a tela mostrar offline. Só vendedor e promotor.
     id: 'core-rv',
     rotulo: 'Minha RV',
     modulo: 'core',
     async executar(ctx) {
       const perfil = ctx.usuario()?.perfil;
       if (perfil && perfil !== 'vendedor' && perfil !== 'promotor') return;
-      const http = exigirHttp(ctx);
-      let corpo: unknown;
-      try {
-        corpo = await http.get<unknown>('/core/rv');
-      } catch (e) {
-        if (erroDeSessao(e)) throw e;
-        return;
-      }
-      const r = tolerante(RvPainelSchema).safeParse(corpo);
-      if (r.success) {
-        const copia: RvLocal = { recebido_em: ctx.agora().toISOString(), painel: r.data };
-        await ctx.armazenamento.gravar(CHAVES.rv, copia);
-      }
+      await copiarSeValido(ctx, '/core/rv', tolerante(RvPainelSchema), CHAVES.rv, (painel): RvLocal => ({ recebido_em: ctx.agora().toISOString(), painel }));
     },
   },
   {
     // ADR 0073 §2.4 (RN-PRO-01): se o usuário vê pedidos pelo cargo e pela concessão. Todos os perfis (Campo e Gestão).
-    // Falhou ou veio fora do contrato: mantém a cópia anterior.
     id: 'core-leitura-de-pedidos',
     rotulo: 'Leitura de pedidos',
     modulo: 'core',
-    async executar(ctx) {
-      const http = exigirHttp(ctx);
-      let corpo: unknown;
-      try {
-        corpo = await http.get<unknown>(`/core/${ROTA_LEITURA_DE_PEDIDOS}`);
-      } catch (e) {
-        if (erroDeSessao(e)) throw e;
-        return;
-      }
-      const r = LeituraDePedidosTolerante.safeParse(corpo);
-      if (r.success) await ctx.armazenamento.gravar(CHAVES.leituraDePedidos, r.data);
-    },
+    executar: (ctx) => copiarSeValido(ctx, `/core/${ROTA_LEITURA_DE_PEDIDOS}`, LeituraDePedidosTolerante, CHAVES.leituraDePedidos),
   },
 ];
