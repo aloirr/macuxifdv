@@ -1,9 +1,8 @@
 /**
- * RN-CAT-22 (desenho `docs/desenho/filtro-veiculo.md` §7, critério 9): 20 mil produtos com aplicação em texto, SQLite real. A lista filtrada por
- * veículo (`listaComVeiculo`, a do Catálogo) sai em até 300 ms (p95 sobre vários veículos, com o índice de veículos já montado) e a troca de nível
- * da cascata em até 100 ms. Decisão 129 A (R-20261128-054900): na suíte e no CI vale o teto próprio deste teste, a razão a uma referência medida antes e
- * depois de cada amostra (folga para o runner compartilhado, como em `desempenho-vitrine.test.ts`); o teto de 900 ms vale no aparelho, no roteiro do testes.
- * Em `MACUXI_DESEMPENHO=1` (máquina dedicada) valem também os tetos do desenho em relógio de parede (`MACUXI_FATOR_DESEMPENHO` dá folga). A montagem do índice é medida pela RAZÃO à montagem da lista de produtos do aparelho; a montagem cede o laço (não trava a tela) e `catalogo.veiculos@1` espera por ela.
+ * RN-CAT-22 (`docs/desenho/filtro-veiculo.md` §7, critério 9; decisão 2 A, v1.0.44): 20 mil produtos com aplicação em texto, SQLite real.
+ * Em `MACUXI_DESEMPENHO=1` (aparelho ou máquina dedicada), p95: lista com veículo reprova acima de 900 ms e alerta acima de 300 ms; troca de nível
+ * reprova acima de 300 ms e alerta acima de 100 ms (`MACUXI_FATOR_DESEMPENHO` multiplica os tetos). Na suíte e no CI vale a razão à referência
+ * medida junto (R-20261128-054900). A montagem do índice cede o laço e é medida pela razão à lista de produtos do aparelho.
  */
 import { criarArmazenamentoSqlite, type LinhaSync } from '@macuxi/platform-sdk';
 import { criarDriverNode } from '@macuxi/platform-sdk/sqlite-node';
@@ -22,7 +21,7 @@ const FATOR = Math.max(1, Number(process.env.MACUXI_FATOR_DESEMPENHO ?? 1));
 const ESTRITO = process.env.MACUXI_DESEMPENHO === '1';
 // razões medidas (log desta suíte: índice 2,0x a lista de produtos, maior pausa ~0,15x a montagem), com folga de ~3x para o runner lento
 const RAZAO_INDICE = 6;
-// tetos do desenho em referências intercaladas (a leitura crua de 20 mil produtos gasta ~25 ms sozinha nesta máquina): 300 ms = 12 e 100 ms = 4. Medido:
+// alertas do desenho em referências intercaladas (a leitura crua de 20 mil produtos gasta ~25 ms sozinha nesta máquina): 300 ms = 12 e 100 ms = 4. Medido:
 // lista 4 a 5,3 referências e troca de nível 0,2 a 0,26, sozinho e com 6 processos de carga em 4 núcleos (o relógio de parede dobrou e a razão ficou igual)
 const RAZAO_LISTA_REF = 12;
 const RAZAO_NIVEL_REF = 4;
@@ -58,7 +57,7 @@ function gerar() {
 const p95 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.ceil(xs.length * 0.95) - 1]!;
 
 describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §7, critério 9)', { timeout: 300_000 }, () => {
-  it('RN-CAT-22: a lista com veículo sai em até 300 ms (p95) e a troca de nível da cascata em até 100 ms', async () => {
+  it('RN-CAT-22: no aparelho, lista com veículo até 900 ms e troca de nível até 300 ms (p95)', async () => {
     const t0 = performance.now();
     const dados = gerar();
     const armazenamento = criarArmazenamentoSqlite(criarDriverNode(':memory:'), {
@@ -149,10 +148,12 @@ describe('RN-CAT-22: lista filtrada por veículo com 20 mil produtos (desenho §
     const rLista = p95(razoesLista);
     const rNivel = p95(razoesNivel);
     console.log(`[desempenho RN-CAT-22] carga ${(msCarga / 1000).toFixed(1)} s; lista de produtos ${msProdutos.toFixed(0)} ms; índice de veículos ${msIndice.toFixed(0)} ms (razão à lista de produtos ${(msIndice / msProdutos).toFixed(2)}), maior pausa do laço ${maiorPausa.toFixed(0)} ms; lista com veículo p95 ${pLista.toFixed(0)} ms (razão à referência p95 ${rLista.toFixed(2)}); troca de nível p95 ${pNivel.toFixed(0)} ms (razão à referência p95 ${rNivel.toFixed(3)}); referência ${refAntes.toFixed(0)} ms`);
-    // decisão 129 A: relógio de parede só em ESTRITO; na suíte o relógio oscila até 20x (SHA 0af3a23: 1784 ms; sozinho, 88 ms) e vale a razão à referência
+    // relógio de parede só em ESTRITO; na suíte o relógio oscila até 20x (SHA 0af3a23: 1784 ms; sozinho, 88 ms) e vale a razão à referência
     if (ESTRITO) {
-      expect(pLista).toBeLessThan(300 * FATOR);
-      expect(pNivel).toBeLessThan(100 * FATOR);
+      if (pLista > 300 * FATOR) console.warn(`[alerta RN-CAT-22] lista com veículo p95 ${pLista.toFixed(0)} ms acima de ${300 * FATOR} ms`);
+      if (pNivel > 100 * FATOR) console.warn(`[alerta RN-CAT-22] troca de nível p95 ${pNivel.toFixed(0)} ms acima de ${100 * FATOR} ms`);
+      expect(pLista).toBeLessThan(900 * FATOR);
+      expect(pNivel).toBeLessThan(300 * FATOR);
     }
     expect(rLista).toBeLessThan(RAZAO_LISTA_REF);
     expect(rNivel).toBeLessThan(RAZAO_NIVEL_REF);
