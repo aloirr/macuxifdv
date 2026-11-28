@@ -8,7 +8,7 @@ const estado: LicencasEstado = {
   dependencias: { catalogo: ['core'], vendedor: ['core', 'catalogo'], promotor: ['core'] },
   tenant: { core: true, catalogo: true, vendedor: true, promotor: false },
   perfis: { vendedor: ['core', 'catalogo', 'vendedor'], promotor: ['core', 'promotor'], admin: ['core'] },
-  usuarios: [{ id: U1, nome: 'Vera "V." Silva', email: 'vera@exemplo.com.br', perfil: 'vendedor', removidos: [] }],
+  usuarios: [{ id: U1, nome: 'Vera "V." Silva', email: 'vera@exemplo.com.br', perfil: 'vendedor', perfil_codigo: 'vendedor', removidos: [] }],
 };
 
 describe('RF-CORE-02: tela de licenças (tenant → perfil → usuário)', () => {
@@ -31,6 +31,12 @@ describe('RF-CORE-02: tela de licenças (tenant → perfil → usuário)', () =>
     const comExcecao = { ...estado, usuarios: [{ ...estado.usuarios[0]!, removidos: ['vendedor' as const] }] };
     expect(efetivosDoUsuario(comExcecao, U1)).toEqual(['core', 'catalogo']);
     expect(efetivosDoUsuario(estado, 'inexistente')).toEqual([]);
+  });
+
+  it('R-20261127-144433 (item 2): os efetivos seguem o perfil da empresa do usuário, não o perfil padrão do mesmo cargo', () => {
+    const personalizado = { ...estado, perfis: { ...estado.perfis, vendedor_externo: ['core' as const, 'catalogo' as const] }, usuarios: [{ ...estado.usuarios[0]!, perfil_codigo: 'vendedor_externo' }] };
+    expect(efetivosDoUsuario(personalizado, U1)).toEqual(['core', 'catalogo']);
+    expect(efetivosDoUsuario({ ...personalizado, perfis: estado.perfis }, U1)).toEqual(['core']);
   });
 
   it('RN-CORE-03: desligar o Catálogo avisa que o Vendedor também desliga (só se estiver ligado no nível)', () => {

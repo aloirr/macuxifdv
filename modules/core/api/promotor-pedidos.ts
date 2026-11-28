@@ -5,7 +5,7 @@
  * A opção só controla a LEITURA de pedido pelo promotor; a escrita de pedido segue sempre negada (RN-PRO-01).
  */
 import { promotorNaRequisicao, type ClienteBanco, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
-import { PARAMETRO_PROMOTOR_VE_PEDIDOS, PromotorVePedidosPutSchema, PromotorVePedidosSchema, type PromotorVePedidos } from '../contracts';
+import { LeituraDePedidosDoUsuarioSchema, PARAMETRO_PROMOTOR_VE_PEDIDOS, PromotorVePedidosPutSchema, PromotorVePedidosSchema, ROTA_LEITURA_DE_PEDIDOS, type LeituraDePedidosDoUsuario, type PromotorVePedidos } from '../contracts';
 import { promotorVePedidos, usuarioDaRequisicaoVePedidos } from '../domain';
 import { auditar } from './auditoria';
 
@@ -28,6 +28,21 @@ export async function usuarioVePedidos(ctx: ContextoBase, db: ClienteBanco): Pro
 }
 
 export const rotasDePromotorPedidos: RotaModulo[] = [
+  {
+    // R-20261127-144433 (item 5): a leitura de pedidos do próprio usuário, para o app (sem `acao`: todo perfil com o Core a lê)
+    metodo: 'GET',
+    caminho: ROTA_LEITURA_DE_PEDIDOS,
+    carteira: 'nao_se_aplica',
+    executar: (ctx) =>
+      ctx.comTenant(
+        async (db): Promise<LeituraDePedidosDoUsuario> =>
+          LeituraDePedidosDoUsuarioSchema.parse({
+            usuario_id: ctx.usuario.id,
+            ve_pedidos: await usuarioVePedidos(ctx, db),
+            leitura: ctx.usuario.perfil_acesso ? 'concessao' : 'legado',
+          }),
+      ),
+  },
   {
     metodo: 'GET',
     caminho: 'parametros/promotor-ve-pedidos',

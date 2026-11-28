@@ -15,7 +15,6 @@
  */
 import { z } from 'zod';
 import { ACAO_RE, CargoSchema, MODELOS_PERFIL } from '@macuxi/platform-sdk';
-import { PerfilSchema } from './auth';
 
 /** RD-0017: código e textos únicos da recusa de nome repetido e de nome vazio (a tela decide pelo código, nunca pelo texto). */
 export const CODIGO_REPETIDO = 'CODIGO_REPETIDO';
@@ -25,25 +24,6 @@ export const MENSAGEM_NOME_OBRIGATORIO = 'Dê um nome ao perfil.';
 const Texto = (max: number) => z.string().trim().max(max);
 const Nivel = z.enum(['proprio', 'carteira', 'equipe', 'equipes_abaixo', 'tenant', 'ate_alcada', 'acima_alcada']);
 export const LugarDeAcessoSchema = z.enum(['campo', 'gestao', 'bko', 'portal']);
-
-/** V1: sai quando tests/ migrar para V2 (usado por tests/integracao/demo/demo-matriz.test.ts). */
-export const PerfilResumoSchema = z
-  .object({
-    codigo: z.string(),
-    nome: z.string(),
-    descricao: z.string().nullable(),
-    base: PerfilSchema,
-    fabrica: z.boolean(),
-    ativo: z.boolean(),
-    usuarios: z.number().int().nonnegative(),
-    onde_entra: z.array(LugarDeAcessoSchema),
-    /** Cargo do perfil (0069; um só, lista fixa `CARGOS`). */
-    cargo: CargoSchema,
-  })
-  .strict();
-
-/** V1: sai quando tests/ migrar para V2 (usado por tests/integracao/demo/demo-matriz.test.ts). */
-export const PerfilListaRespostaSchema = z.object({ itens: z.array(PerfilResumoSchema) }).strict();
 
 export const PerfilHistoricoQuerySchema = z.object({ antes: z.string().datetime().optional(), limite: z.coerce.number().int().min(1).max(50).default(20) }).strict();
 
