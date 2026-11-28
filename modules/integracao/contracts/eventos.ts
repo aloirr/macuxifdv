@@ -9,7 +9,7 @@ import { DataHoraUtc, Uuid } from './base';
 import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from './entidades';
 import { ErroCampoRetornoCliente, RevisaoCliente, StatusRetornoCliente } from './cliente-erp';
 import { EstadoLote, ModoCarga } from './lote';
-import { EstadoPedidoErp, ItemFaturado, NotaRetorno } from './pedido';
+import { EstadoPedidoErp, ImpostosRetorno, ItemFaturado, NotaRetorno } from './pedido';
 
 export const AcaoRegistro = z.enum(['criado', 'atualizado', 'inativado']);
 export type AcaoRegistro = z.infer<typeof AcaoRegistro>;
@@ -61,6 +61,11 @@ export const PedidoRetornoErpEvento = z.object({
   nota: NotaRetorno.nullable(),
   /** Itens faturados nesta nota (campo opcional novo, compatível com @1; RN-INT-08). */
   itens_faturados: z.array(ItemFaturado).nullish(),
+  /**
+   * ADR 0077 (aditivo, continua @1): ST e IPI do ERP, só em `integrado`/`faturado_*`. Presente = substitui a visão fiscal do pedido
+   * (item fora de `itens` fica nulo); ausente = não apagar o que já está gravado. Ausente/null em campo = "não informado", nunca 0.
+   */
+  impostos: ImpostosRetorno.nullish(),
   ocorrido_em: DataHoraUtc,
 });
 export type PedidoRetornoErpEvento = z.infer<typeof PedidoRetornoErpEvento>;

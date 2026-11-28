@@ -4486,6 +4486,111 @@
           }
         ]
       },
+      "ImpostoItemDescartado": {
+        "type": "object",
+        "properties": {
+          "indice": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sequencia": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "codigo": {
+            "type": "string",
+            "enum": [
+              "sequencia_inexistente",
+              "sequencia_repetida"
+            ]
+          },
+          "campo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "motivo": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "indice",
+          "sequencia",
+          "codigo",
+          "campo",
+          "motivo"
+        ]
+      },
+      "ImpostoItemRetorno": {
+        "type": "object",
+        "properties": {
+          "sequencia": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "v_icms_st_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "v_ipi_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sequencia"
+        ]
+      },
+      "ImpostosRetorno": {
+        "type": "object",
+        "properties": {
+          "v_icms_st_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "v_ipi_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImpostoItemRetorno"
+            }
+          }
+        },
+        "required": [
+          "itens"
+        ]
+      },
       "InativacaoLote": {
         "type": "object",
         "properties": {
@@ -6762,6 +6867,12 @@
             "items": {
               "$ref": "#/components/schemas/ItemFaturadoDescartado"
             }
+          },
+          "impostos_descartados": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImpostoItemDescartado"
+            }
           }
         },
         "required": [
@@ -6923,6 +7034,16 @@
               }
             ],
             "description": "Itens faturados NESTA nota (o que foi faturado antes não se repete). `sequencia` é a de `PedidoParaErp.itens`."
+          },
+          "impostos": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImpostosRetorno"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "ocorrido_em": {
             "type": "string",

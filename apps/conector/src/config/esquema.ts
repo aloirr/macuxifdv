@@ -128,6 +128,11 @@ export const PedidosConfig = z
         consulta: Consulta,
         /** Itens faturados de uma nota. Parâmetros: pedido_uuid, nota_numero, nota_serie. Colunas: sequencia, quantidade. */
         consultaItensNota: Consulta.optional(),
+        /**
+         * ADR 0077 (opcional): ST e IPI calculados pelo ERP. Parâmetro: pedido_uuid. Colunas: sequencia (a do pedido
+         * enviado; vazia na linha do total do pedido), v_icms_st e v_ipi em reais com 2 casas (DECIMAL, nunca FLOAT). Vazio = sem regra fiscal.
+         */
+        consultaImpostos: Consulta.optional(),
         /** Código do ERP → status do contrato. */
         mapaStatus: MapaStatus,
       })

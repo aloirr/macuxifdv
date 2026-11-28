@@ -39,3 +39,4 @@ export * from './status-lote';
 export * from './resumo-pedidos-erp';
 export * from './cliente-fila';
 export * from './fracao';
+export * from './impostos';

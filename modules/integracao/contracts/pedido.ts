@@ -205,6 +205,34 @@ export const NotaRetorno = z.object({
 export type NotaRetorno = z.infer<typeof NotaRetorno>;
 
 /**
+ * ADR 0077 (decisão 63 A; aditivo na v1, RN-INT-09): ST e IPI que o ERP calculou, em centavos inteiros. O FDV só guarda e mostra:
+ * `0` = calculado e zero; ausente ou `null` = "não informado" (nunca zero); total ausente = "não informado", sem somar os itens.
+ */
+export const ImpostoErpCents = CentavosNaoNegativos.nullish();
+export const ImpostoItemRetorno = z.object({
+  /** A do `PedidoParaErp.itens`. */
+  sequencia: z.number().int().positive(),
+  v_icms_st_cents: ImpostoErpCents,
+  v_ipi_cents: ImpostoErpCents,
+});
+export type ImpostoItemRetorno = z.infer<typeof ImpostoItemRetorno>;
+/**
+ * Bloco presente = o ERP mandou a visão fiscal e ela substitui por inteiro a do pedido (item fora de `itens` fica "não informado").
+ * Bloco ausente = Conector ou ERP antigo: nada do que já estava gravado é apagado. Só vale em `integrado`, `faturado_parcial` e
+ * `faturado_total`; em outro status o Hub ignora o bloco sem recusar o retorno.
+ */
+export const ImpostosRetorno = z.object({
+  /** Total do pedido; ausente quando faltar regra fiscal em algum item. */
+  v_icms_st_cents: ImpostoErpCents,
+  v_ipi_cents: ImpostoErpCents,
+  /** Pode vir vazia: todos os itens "não informado". */
+  itens: z.array(ImpostoItemRetorno),
+});
+export type ImpostosRetorno = z.infer<typeof ImpostosRetorno>;
+/** Status em que o bloco `impostos` vale (ADR 0077 D4). */
+export const STATUS_COM_IMPOSTOS = ['integrado', 'faturado_parcial', 'faturado_total'] as const;
+
+/**
  * T-0114 (aditivo na v1): estado que SÓ existe no corpo do retorno do Conector, nunca como estado do pedido nem no evento
  * `integracao.pedido.retorno_erp@1`. Diz que o ERP recusou o cancelamento pedido pelo Hub (`motivo` obrigatório, texto do ERP sem
  * dado pessoal). Conector antigo não o envia e segue válido; o pedido continua como estava e o monitor do BKO alerta.
@@ -222,6 +250,8 @@ const RetornoErpBase = z.object({
   nota: NotaRetorno.nullish(),
   /** Itens faturados nesta nota; só em `faturado_parcial`/`faturado_total`. Campo novo opcional: continua `v1` (RN-INT-09). */
   itens_faturados: z.array(ItemFaturado).min(1, 'itens_faturados não pode ser uma lista vazia').nullish(),
+  /** ADR 0077: ST e IPI do ERP (opcional e aditivo, continua `v1`). */
+  impostos: ImpostosRetorno.nullish(),
   ocorrido_em: DataHoraUtc,
 });
 
@@ -261,6 +291,17 @@ export const ItemFaturadoDescartado = z.object({
 });
 export type ItemFaturadoDescartado = z.infer<typeof ItemFaturadoDescartado>;
 
+/** ADR 0077 D4: linha de `impostos.itens` descartada (sequência repetida descarta todas as linhas dela). Os valores ficam "não informado". */
+export const CODIGOS_IMPOSTO_DESCARTADO = ['sequencia_inexistente', 'sequencia_repetida'] as const;
+export const ImpostoItemDescartado = z.object({
+  indice: z.number().int().nonnegative(),
+  sequencia: z.number().int().positive(),
+  codigo: z.enum(CODIGOS_IMPOSTO_DESCARTADO),
+  campo: z.string().min(1),
+  motivo: z.string().min(1),
+});
+export type ImpostoItemDescartado = z.infer<typeof ImpostoItemDescartado>;
+
 /** Resposta do Hub ao retorno (idempotente: repetir o mesmo retorno não é erro). */
 export const RetornoAceito = z.object({
   pedido_uuid: Uuid,
@@ -271,6 +312,8 @@ export const RetornoAceito = z.object({
    * Conector 1.2.0 ignora; versões futuras podem registrar no log local. Ausente ou vazio = todos os itens valeram.
    */
   itens_descartados: z.array(ItemFaturadoDescartado).optional(),
+  /** ADR 0077 (aditivo): linhas de `impostos.itens` descartadas (sequência inexistente ou repetida); o status e o resto do bloco valeram. */
+  impostos_descartados: z.array(ImpostoItemDescartado).optional(),
 });
 export type RetornoAceito = z.infer<typeof RetornoAceito>;
 

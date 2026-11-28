@@ -240,12 +240,14 @@ export async function retornoPedido(ctx: Ctx<RetornoErp, unknown, ReturnType<typ
 
     if (r.publicar) await tx.publicar(EVENTO_PEDIDO_RETORNO_ERP, r.evento, retorno.pedido_uuid);
     if (r.itens_descartados.length > 0) ctx.log.warn({ pedido_uuid: retorno.pedido_uuid, descartados: r.itens_descartados.length }, 'retorno aceito com itens faturados descartados');
+    if (r.impostos_descartados.length > 0) ctx.log.warn({ pedido_uuid: retorno.pedido_uuid, descartados: r.impostos_descartados.length }, 'retorno aceito com linhas de impostos descartadas');
 
     return {
       pedido_uuid: retorno.pedido_uuid,
       status: r.atualizacao.estado,
       repetido: r.repetido,
       ...(r.itens_descartados.length > 0 ? { itens_descartados: r.itens_descartados } : {}),
+      ...(r.impostos_descartados.length > 0 ? { impostos_descartados: r.impostos_descartados } : {}),
     } as RetornoAceito;
   });
 }

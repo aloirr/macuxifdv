@@ -15,7 +15,7 @@ import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { ConsultaIndisponivel, type ContextoConsumo, type DefinicaoEvento } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { VERSAO_CONTRATO } from '../contracts';
+import { RetornoErp, VERSAO_CONTRATO } from '../contracts';
 import manifest from '../manifest';
 import { aplicarLote } from './aplicar-lote';
 import { consultaCancelamentoErp } from './consulta-cancelamento';
@@ -809,6 +809,53 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       expect(await consultar(A.tenantId)).toEqual({ aceita: true });
       expect(await consultar(B.tenantId)).toEqual({ aceita: false });
       await aceite(false);
+    });
+
+    it('RN-INT-08/RN-INT-09 (ADR 0077): ST e IPI do ERP passam ao retorno_erp@1 como vieram (0, ausente, total ausente com itens) e o retorno sem o bloco não leva nada a apagar', async () => {
+      await limpar();
+      const uuid = randomUUID();
+      const doisItens = { ...pedido(uuid), itens: [pedido(uuid).itens[0]!, { sequencia: 2, produto_external_id: 'PRD-2', quantidade: 1, preco_unitario_cents: 500, desconto_cents: 0, total_cents: 500 }], total_cents: 2500 };
+      await aprovar(A.tenantId, doisItens);
+      await retirar();
+      const publicados: { nome: string; payload: Record<string, unknown> }[] = [];
+      const publicar = vi.fn(async (def: DefinicaoEvento, payload: unknown) => {
+        publicados.push({ nome: def.nome, payload: def.schema.parse(payload) as Record<string, unknown> });
+      });
+      const retornar = (corpo: Record<string, unknown>) =>
+        retornoPedido({
+          tenantId: A.tenantId,
+          conector: { id: A.integracao.conector, identificador: ID_A, recebe_pedidos: true },
+          corpo: RetornoErp.parse({ versao_contrato: 'v1', pedido_uuid: uuid, ocorrido_em: AGORA.toISOString(), ...corpo }),
+          params: { pedido_uuid: uuid },
+          log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+          comTenant: (fn: (db: pg.PoolClient, tx: unknown) => Promise<unknown>) => comTenant(pool, A.tenantId, (db) => fn(db, { publicar })),
+        } as never) as Promise<Record<string, unknown>>;
+
+      // integrado: total ST 0 (calculado e zero), total IPI ausente (faltou regra num item); item 1 com os dois, item 2 sem IPI;
+      // uma linha com sequência inexistente é descartada e volta ao Conector
+      const r1 = await retornar({
+        status: 'integrado',
+        numero_erp: 'PV-ST-1',
+        impostos: { v_icms_st_cents: 0, itens: [{ sequencia: 1, v_icms_st_cents: 0, v_ipi_cents: 0 }, { sequencia: 2, v_icms_st_cents: 0 }, { sequencia: 7, v_ipi_cents: 9 }] },
+      });
+      expect(r1).toMatchObject({ status: 'integrado', repetido: false, impostos_descartados: [{ indice: 2, sequencia: 7, codigo: 'sequencia_inexistente' }] });
+      const e1 = publicados.at(-1)!;
+      expect(e1.nome).toBe('integracao.pedido.retorno_erp@1');
+      expect(e1.payload.impostos).toEqual({ v_icms_st_cents: 0, itens: [{ sequencia: 1, v_icms_st_cents: 0, v_ipi_cents: 0 }, { sequencia: 2, v_icms_st_cents: 0 }] });
+      expect('v_ipi_cents' in (e1.payload.impostos as object)).toBe(false);
+
+      // faturado sem o bloco (Conector antigo): o evento não traz impostos (o Vendedor não apaga o que gravou)
+      const r2 = await retornar({ status: 'faturado_total', numero_erp: 'PV-ST-1', nota: { numero: '991', serie: '1', emitida_em: AGORA.toISOString(), total_cents: 2500 } });
+      expect(r2).toMatchObject({ status: 'faturado_total', repetido: false });
+      expect('impostos_descartados' in r2).toBe(false);
+      expect('impostos' in publicados.at(-1)!.payload).toBe(false);
+      expect(publicar).toHaveBeenCalledTimes(2);
+
+      // a trilha do Hub não guarda cópia dos valores (quem grava é o consumidor do Vendedor)
+      const trilha = await comTenant(pool, A.tenantId, async (db) => (await db.query<{ t: string }>('select row_to_json(r)::text as t from integracao.pedido_retorno r where pedido_uuid = $1', [uuid])).rows);
+      expect(trilha).toHaveLength(2);
+      for (const l of trilha) expect(l.t).not.toMatch(/v_icms_st|v_ipi/);
+      await limpar();
     });
 
     it('multi-tenant: a fila do tenant B não enxerga o pedido de A e a aprovação em B usa o de-para de B', async () => {

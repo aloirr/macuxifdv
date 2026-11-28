@@ -129,3 +129,52 @@ describe('ADR 0076 D6 / RN-VEN-02 v3: trava da quantidade fracionária no retorn
     await expect(executar(a.ctx(faturado(2)))).resolves.toMatchObject({ pedido_uuid: UUID });
   });
 });
+
+describe('RN-INT-08/RN-INT-09 (ADR 0077): ST e IPI do ERP no retorno, repassados sem cálculo', () => {
+  const doisItens = { payload: { pedido_uuid: UUID, itens: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 1 }, { sequencia: 2, produto_external_id: 'P2', quantidade: 1 }] }, estado: 'enviado' };
+  const integrado = (impostos?: unknown) => ({ versao_contrato: VERSAO_CONTRATO, pedido_uuid: UUID, status: 'integrado', numero_erp: 'PV-9', ocorrido_em: AGORA, ...(impostos === undefined ? {} : { impostos }) });
+  const evento = (a: ReturnType<typeof ambiente>) => {
+    const chamada = a.publicar.mock.calls[0] as unknown as [{ nome: string; schema: { parse: (x: unknown) => Record<string, unknown> } }, unknown];
+    expect(chamada[0].nome).toBe(EVENTO_PEDIDO_RETORNO_ERP.nome);
+    return chamada[0].schema.parse(chamada[1]);
+  };
+
+  it('RN-INT-08 (ADR 0077): 0 chega 0 no evento, no item e no total', async () => {
+    const a = ambiente(TENANT_A, doisItens);
+    await executar(a.ctx(integrado({ v_icms_st_cents: 0, v_ipi_cents: 0, itens: [{ sequencia: 1, v_icms_st_cents: 0, v_ipi_cents: 0 }] })));
+    expect(evento(a).impostos).toEqual({ v_icms_st_cents: 0, v_ipi_cents: 0, itens: [{ sequencia: 1, v_icms_st_cents: 0, v_ipi_cents: 0 }] });
+  });
+
+  it('RN-INT-08 (ADR 0077): campo ausente continua ausente no evento (nunca 0)', async () => {
+    const a = ambiente(TENANT_A, doisItens);
+    await executar(a.ctx(integrado({ v_icms_st_cents: 410, itens: [{ sequencia: 1, v_icms_st_cents: 410 }] })));
+    const imp = evento(a).impostos as Record<string, unknown> & { itens: Record<string, unknown>[] };
+    expect('v_ipi_cents' in imp).toBe(false);
+    expect('v_ipi_cents' in imp.itens[0]!).toBe(false);
+  });
+
+  it('RN-INT-08 (ADR 0077): total ausente com os itens presentes não vira a soma dos itens', async () => {
+    const a = ambiente(TENANT_A, doisItens);
+    await executar(a.ctx(integrado({ itens: [{ sequencia: 1, v_icms_st_cents: 100, v_ipi_cents: 10 }, { sequencia: 2, v_icms_st_cents: 200, v_ipi_cents: 20 }] })));
+    const imp = evento(a).impostos as Record<string, unknown>;
+    expect(imp.v_icms_st_cents).toBeUndefined();
+    expect(imp.v_ipi_cents).toBeUndefined();
+  });
+
+  it('RN-INT-09 (ADR 0077): retorno sem o bloco publica o evento sem impostos; linha com sequência inexistente volta em impostos_descartados', async () => {
+    const a = ambiente(TENANT_A, doisItens);
+    const r = await executar(a.ctx(integrado()));
+    expect('impostos' in evento(a)).toBe(false);
+    expect('impostos_descartados' in r).toBe(false);
+    const b = ambiente(TENANT_A, doisItens);
+    const r2 = await executar(b.ctx(integrado({ itens: [{ sequencia: 5, v_ipi_cents: 1 }] })));
+    expect(r2.impostos_descartados).toEqual([expect.objectContaining({ indice: 0, sequencia: 5, codigo: 'sequencia_inexistente' })]);
+    expect(evento(b).impostos).toEqual({ itens: [] });
+  });
+
+  it('RN-INT-08 (ADR 0077): fora de integrado/faturado_* o bloco é ignorado e o retorno vale', async () => {
+    const a = ambiente(TENANT_A, doisItens);
+    await expect(executar(a.ctx({ ...integrado({ v_ipi_cents: 5, itens: [] }), status: 'rejeitado_erp', numero_erp: undefined, motivo: 'sem estoque' }))).resolves.toMatchObject({ status: 'rejeitado_erp' });
+    expect('impostos' in evento(a)).toBe(false);
+  });
+});

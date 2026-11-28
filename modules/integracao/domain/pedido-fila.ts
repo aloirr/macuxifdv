@@ -9,6 +9,7 @@
 import {
   CODIGOS_ITEM_DESCARTADO,
   type EstadoPedidoErp,
+  type ImpostoItemDescartado,
   type ItemFaturado,
   type Mapeamento as MapeamentoContrato,
   PedidoAprovadoParaFila as PedidoAprovadoParaFilaSchema,
@@ -23,6 +24,7 @@ import type { PedidoAprovadoEvento as PedidoAprovadoConsumido } from '../../vend
 import { aplicarTimeoutEnvio, chaveNotaRetorno, podeEntrarNaFila, transicionarRetornoPedidoErp, type NotaChave } from './estados';
 import { somarQuantidades, subtrairQuantidades } from '@macuxi/comum/quantidade';
 import { hashRegistro } from './idempotencia';
+import { impostosDoRetorno } from './impostos';
 import { PARAMETROS_PADRAO } from './parametros';
 import { conectorAtendePedido, exigeConector } from './pedido-versao';
 
@@ -330,6 +332,8 @@ export type ResultadoRetorno =
       itens_descartados: ItemFaturadoDescartado[];
       /** P-4: um erro por item descartado, para gravar e mostrar no monitor (alerta `retorno_com_itens_descartados`). */
       erros_monitor: ErroRetornoMonitor[];
+      /** ADR 0077: linhas de `impostos.itens` descartadas (sequência inexistente/repetida). Vai em `RetornoAceito.impostos_descartados`. */
+      impostos_descartados: ImpostoItemDescartado[];
     }
   | { ok: false; status: 422; codigo: CodigoFalhaRetorno; mensagem: string; erros: ErroRetorno[] };
 
@@ -416,6 +420,8 @@ export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: Retorno
   let notas = item.notas_aplicadas;
   let validos: ItemFaturado[] | null = null;
   let descartados: ItemFaturadoDescartado[] = [];
+  // ADR 0077: o bloco de impostos só é conferido (sequência) e repassado; retorno repetido não publica, então não conta
+  const fiscal = tr.repetida ? { impostos: undefined, descartados: [] } : impostosDoRetorno(item.payload?.itens ?? [], retorno.status, retorno.impostos);
   if (!tr.repetida) {
     // T-0023 🔴: a idempotência dos itens é por NOTA, seja qual for o status. Nota já aplicada não soma (nem revalida) os itens de
     // novo — ex.: o ERP fecha o pedido sem nota nova e a nota parcial volta como faturado_total com os mesmos itens.
@@ -447,8 +453,11 @@ export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: Retorno
       nota: retorno.nota ?? null,
       // repetido: o evento não é publicado; ecoa o que veio. Aplicado: só os itens válidos (P-4); nenhum válido ⇒ null.
       itens_faturados: tr.repetida ? (retorno.itens_faturados ?? null) : validos && validos.length > 0 ? validos : null,
+      // ADR 0077: só com o bloco presente (ausente = o consumidor não apaga o que já estava gravado)
+      ...(fiscal.impostos ? { impostos: fiscal.impostos } : {}),
       ocorrido_em: retorno.ocorrido_em,
     },
+    impostos_descartados: fiscal.descartados,
     itens_descartados: descartados,
     erros_monitor: descartados.map((d) => ({
       ...d,

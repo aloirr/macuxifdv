@@ -85,3 +85,4 @@
 2026-11-19 — T-0186 — gerador do kit sem COLUNAS_EXTRAS_VIEW e exemploDoKit (RD-2386); artefatos idênticos
 2026-11-21 — v1.0.18 item 3a — popup do lote: lote que falhou mostra "falhou em dd/mm/aaaa hh:mm" no fuso do tenant (textoDoFimDoLote, teste com virada do dia e do ano)
 2026-11-21 — v1.0.21 S1 — ROTULO_ENTIDADE com fonte única em contracts/entidades.ts; web/lib/apresentacao.ts só reexporta
+2026-11-28 — T-0208 — ADR 0077 E4a: bloco opcional `impostos` (ST/IPI em centavos) no RetornoErp e no integracao.pedido.retorno_erp@1, Hub repassa sem cálculo (descarte de sequência em impostos_descartados), Conector com status.consultaImpostos (reais → centavos exato), varredura sem cálculo de imposto.

@@ -13,7 +13,7 @@
  *    o pedido é devolvido ao Hub como `rejeitado_erp` com o motivo (sem dado pessoal).
  *  - Cada retorno é persistido numa fila local e reenviado até o Hub aceitar (o Hub é idempotente); recusa por regra (4xx) não repete.
  */
-import { type ItemFaturado, PedidoParaErp, quantidadeDaEscala, quantidadeEmEscala, RetornoErp, somarQuantidades, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
+import { type ImpostosRetorno, type ItemFaturado, PedidoParaErp, quantidadeDaEscala, quantidadeEmEscala, RetornoErp, somarQuantidades, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 import type { PedidoLocal } from './armazenamento/armazenamento';
 import type { PedidosConfig } from './config/esquema';
 import { type Contexto, resumoErro } from './contexto';
@@ -21,6 +21,7 @@ import { ehErroDeConexao, type Linha } from './erp/driver';
 import { ErroHubAutenticacao, ErroHubTransitorio, ErroHubVersao } from './hub/cliente';
 import type { RetornoParaHub } from './hub/tipos';
 import { bloqueioPorVersao, tratarRecusaPorVersao } from './politica';
+import { impostosDasLinhas } from './impostos';
 import { mascararTexto } from './log/mascara';
 import { calcularEspera } from './util/retry';
 import { iso } from './util/relogio';
@@ -181,7 +182,7 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
     if (local.tentativas > 0 || local.erro !== null) {
       const existente = numeroGravado(await ctx.erp.consultar(cfg.gravacao.numeroErp, { pedido_uuid: pedido.pedido_uuid }));
       if (existente !== null) {
-        confirmarGravacao(ctx, r, pedido.pedido_uuid, existente);
+        await confirmarGravacao(ctx, cfg, r, pedido.pedido_uuid, existente);
         log.aviso('pedido_ja_existia_no_erp', { pedido_uuid: pedido.pedido_uuid, numero_erp: existente, dica: 'uma tentativa anterior gravou e a resposta se perdeu; nada foi gravado de novo' });
         return;
       }
@@ -197,7 +198,7 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
       if (n === null) throw new ErroRegraErp('o ERP não devolveu o número do pedido gravado (consulta numeroErp sem resultado)');
       return n;
     });
-    confirmarGravacao(ctx, r, pedido.pedido_uuid, numero);
+    await confirmarGravacao(ctx, cfg, r, pedido.pedido_uuid, numero);
     log.info('pedido_gravado_no_erp', { pedido_uuid: pedido.pedido_uuid, numero_erp: numero });
   } catch (e) {
     const motivo = mascararTexto(resumoErro(e));
@@ -306,11 +307,29 @@ function numeroGravado(linhas: Linha[]): string | null {
 }
 
 /** Pedido está no ERP: anota `gravado` e põe `integrado` (com o número) na fila de retornos ao Hub. */
-function confirmarGravacao(ctx: Contexto, r: ResultadoPedidos, uuid: string, numero: string): void {
+async function confirmarGravacao(ctx: Contexto, cfg: PedidosConfig, r: ResultadoPedidos, uuid: string, numero: string): Promise<void> {
   const agora = ctx.relogio.agora();
   ctx.store.atualizarPedido(uuid, { estado: 'gravado', numeroErp: numero, erro: null }, agora);
-  enfileirar(ctx, r, uuid, 'integrado', { status: 'integrado', numero_erp: numero, ocorrido_em: iso(agora) });
+  const impostos = await impostosDoPedido(ctx, cfg, uuid);
+  enfileirar(ctx, r, uuid, 'integrado', { status: 'integrado', numero_erp: numero, ...(impostos ? { impostos } : {}), ocorrido_em: iso(agora) });
   r.gravados++;
+}
+
+/**
+ * ADR 0077: ST e IPI do ERP pela `status.consultaImpostos` (sem a chave, o retorno vai sem o bloco, como antes). Nunca derruba o
+ * retorno: erro do ERP ou valor fora do formato deixa o bloco de fora (o Macuxi mantém o que já tinha) e o aviso `impostos_omitidos`
+ * diz a linha e o motivo, para o operador corrigir a consulta.
+ */
+async function impostosDoPedido(ctx: Contexto, cfg: PedidosConfig, uuid: string): Promise<ImpostosRetorno | undefined> {
+  if (!cfg.status.consultaImpostos) return undefined;
+  try {
+    const r = impostosDasLinhas(await ctx.erp.consultar(cfg.status.consultaImpostos, { pedido_uuid: uuid }));
+    if (r.ok) return r.impostos;
+    ctx.log.aviso('impostos_omitidos', { pedido_uuid: uuid, linha: r.linha, motivo: r.motivo });
+  } catch (e) {
+    ctx.log.aviso('impostos_omitidos', { pedido_uuid: uuid, motivo: mascararTexto(resumoErro(e)) });
+  }
+  return undefined;
 }
 
 /** Lê coluna sem diferenciar maiúsculas. */
@@ -401,6 +420,10 @@ export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: Res
         motivo: texto(col(linha, 'motivo'))?.slice(0, 300),
         ocorrido_em: dataIso(col(linha, 'ocorrido_em')) ?? iso(ctx.relogio.agora()),
       };
+      if (status === 'integrado' || status === 'faturado_parcial' || status === 'faturado_total') {
+        const impostos = await impostosDoPedido(ctx, cfg, local.pedidoUuid);
+        if (impostos) corpo.impostos = impostos;
+      }
       if ((status === 'faturado_parcial' || status === 'faturado_total') && nota) {
         const total = Number(col(linha, 'nota_total_cents'));
         corpo.nota = { numero: nota, serie, emitida_em: fato.emitidaEm ?? corpo.ocorrido_em, total_cents: Number.isFinite(total) ? Math.max(0, Math.round(total)) : 0 };
