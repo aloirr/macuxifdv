@@ -39,14 +39,13 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .cx{background:#fff;border:1px solid #DFE2E6;border-radius:12px;overflow:hidden}
 .tl{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:40px;padding:0 12px;font-size:14px;border-bottom:1px solid #ECEEF1}
 .tl:last-child{border-bottom:0}
-.tl span:first-child{color:#4A5562}
-.tl span:last-child{font-variant-numeric:tabular-nums;text-align:right}
-.tl.f{min-height:52px}.tl.f span:first-child{font-size:16px;font-weight:600;color:#16202A}.tl.f span:last-child{font-size:22px;font-weight:600}
-.tl.imp{background:#FAFAF8}
-.tl.imp span:first-child{color:#16202A;font-weight:600}
+.tl>span:first-child{color:#4A5562}
+.tl>span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.tl.f{min-height:52px}.tl.f>span:first-child{font-size:16px;font-weight:600;color:#16202A}.tl.f>span:last-child{font-size:22px;font-weight:600}
+.tl.imp>span:first-child{color:#16202A;font-weight:600}
 .ni{color:#4A5562;font-weight:400}
 table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
-th{font-size:11px;font-weight:600;color:#4A5562;text-align:right;padding:8px 6px;line-height:14px;vertical-align:bottom;border-bottom:1px solid #DFE2E6}
+th{font-size:12px;font-weight:600;color:#4A5562;text-align:right;padding:8px 6px;line-height:14px;vertical-align:bottom;border-bottom:1px solid #DFE2E6}
 th:first-child,td:first-child{text-align:left;padding-left:12px}
 th:last-child,td:last-child{padding-right:12px}
 td{text-align:right;padding:10px 6px 2px}
@@ -143,7 +142,7 @@ function bko(nome, cen) {
 <aside class="gav">
 <div class="topo"><div><h2>Pedido 000014</h2><small>Mercado Bom Preço · cód. C5007 · Lucas Andrade</small></div><div class="bts"><span class="btn">PDF do cliente</span><span class="btn">PDF interno</span></div></div>
 <div class="q grade"><div class="f"><small>Condição</small>Boleto · 28/56 dias</div><div class="f"><small>Recebido</small>28/11/2026 08:41</div><div class="f"><small>Itens</small>3 · 7 un.</div><div class="f"><small>Tabela de preço</small>Varejo Manaus</div></div>
-<div class="q tot"><div><span class="r">Subtotal</span><span>R$ 119,70</span></div><div><span class="r">Desconto (0,8%)</span><span>− R$ 0,92</span></div><div class="fin"><span>Total</span><span>R$ 118,78</span></div>
+<div class="q tot"><div><span class="r">Subtotal</span><span>R$ 119,70</span></div><div><span class="r">Desconto (0,8%)</span><span>− R$ 0,92</span></div><div class="fin"><span>Valor final</span><span>R$ 118,78</span></div>
 <div class="imp"><span class="r">ST</span><span>${vTot(c, 'st')}</span></div><div class="imp"><span class="r">IPI</span><span>${vTot(c, 'ipi')}</span></div></div>
 <div class="q"><h3>Itens</h3><table><thead><tr><th>Código</th><th>Descrição</th><th>Medida</th><th class="n">Qtd</th><th class="n">Tabela</th><th class="n">Desc./Acr.</th><th class="n">Total</th>${c ? '<th class="n">ST</th><th class="n">IPI</th>' : ''}</tr></thead><tbody>${linhas}</tbody></table></div>
 </aside>${PRONTO}</body></html>`;
@@ -158,21 +157,21 @@ body{font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif;background
 .emp{display:flex;gap:14px;align-items:center}
 .logo{width:54px;height:54px;border-radius:12px;background:#1E3350}
 .emp b{font-size:22px;font-weight:700;display:block}.emp small{display:block;font-size:13px;color:#4A5562;line-height:18px}
-.num{text-align:right}.num span{font-size:13px;letter-spacing:.12em;color:#C2540A;font-weight:600;margin-right:10px}.num b{font-size:28px;font-weight:700}.num small{display:block;font-size:13px;color:#4A5562}
-.ficha{display:grid;grid-template-columns:2fr 1fr 1fr;border:1px solid #16202A;border-radius:6px;background:#F2F3F1}
+.num{text-align:right}.num span{font-size:12px;letter-spacing:.08em;color:#1E3350;font-weight:600;margin-right:10px}.num b{font-size:28px;font-weight:700}.num small{display:block;font-size:13px;color:#4A5562}
+.ficha{display:grid;grid-template-columns:2fr 1fr 1fr;border:1px solid #16202A;border-radius:6px;background:#F8F6F1}
 .ficha div{padding:10px 12px;font-size:14px;border-right:1px solid #C9CED5}.ficha div:last-child{border-right:0}
-.ficha small{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#4A5562;font-weight:600}
+.ficha small{display:block;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#4A5562;font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
-th{background:#00843D;color:#fff;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;text-align:left;padding:10px 8px;white-space:nowrap}
+th{background:#00843D;color:#fff;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;text-align:left;padding:10px 8px;white-space:nowrap}
 td{padding:9px 8px;white-space:nowrap}
-tbody tr:nth-child(even) td{background:#F2F3F1}
+tbody tr:nth-child(even) td{background:#F8F6F1}
 tbody tr:last-child td{border-bottom:2px solid #16202A}
 .n{text-align:right}.mono{font-family:monospace;color:#34404D}
 .ni{color:#4A5562}
 .rod{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}
-.obs small{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#4A5562;font-weight:600;margin-top:8px}.obs b{font-size:14px}
+.obs small{display:block;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#4A5562;font-weight:600;margin-top:8px}.obs b{font-size:14px}
 .obs .nota{font-size:12px;color:#4A5562;margin-top:14px}
-.box{border:2px solid #16202A;border-radius:6px;background:#F2F3F1;padding:12px 16px;width:330px;display:flex;flex-direction:column;gap:6px;font-size:14px;font-variant-numeric:tabular-nums;flex-shrink:0}
+.box{border:2px solid #16202A;border-radius:6px;background:#F8F6F1;padding:12px 16px;width:330px;display:flex;flex-direction:column;gap:6px;font-size:14px;font-variant-numeric:tabular-nums;flex-shrink:0}
 .box div{display:flex;justify-content:space-between}
 .box .fin{font-size:16px;font-weight:600;align-items:baseline}.box .fin span:last-child{font-size:26px;font-weight:700}
 .box .imp{border-top:1px solid #C9CED5;padding-top:6px}.box .imp + .imp{border-top:0;padding-top:0}`;

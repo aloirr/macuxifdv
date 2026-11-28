@@ -21,21 +21,23 @@
 | `st-ipi-bko-1-completo-1366.png` | BKO, gaveta do pedido: colunas ST e IPI nos itens, linhas no total |
 | `st-ipi-bko-2-falta-regra-1366.png` | BKO: falta regra num item |
 | `st-ipi-bko-3-aguardando-erp-1366.png` | BKO: pedido enviado, sem resposta do ERP |
-| `st-ipi-pdf-1-cliente-falta-regra-1366.png` | PDF do cliente (A4 paisagem): colunas ST R$ e IPI R$, linhas na caixa do Total |
+| `st-ipi-pdf-1-cliente-falta-regra-1366.png` | PDF do cliente (A4 paisagem): colunas ST R$ e IPI R$, linhas na caixa do Valor final |
 | `st-ipi-pdf-2-escritorio-falta-regra-1366.png` | PDF do escritório |
 | `st-ipi-pdf-3-cliente-aguardando-erp-1366.png` | PDF sem resposta do ERP |
 
 ## Como fica
 - **Campo (390):** a tabela de itens não ganha coluna. Cada item ganha uma linha embaixo, `ST 2,38 · IPI 0,00`. Nos Totais, ST e IPI
   ficam em linhas próprias, abaixo do Valor final.
-- **BKO e PDF:** as colunas ST e IPI ficam depois do Total, e as linhas ST e IPI ficam abaixo do Total ou do Valor final.
+- **BKO e PDF:** as colunas ST e IPI ficam depois do Total, e as linhas ST e IPI ficam abaixo do Valor final.
 - `não informado` e `calculado pelo ERP` ficam em texto secundário (`#4A5562` sobre branco, 7,4:1). Não há cor de alerta: não é erro do
   vendedor e ele não tem o que fazer.
 
 ## Suposições do PO, para o Alexandre confirmar
-1. O valor sem imposto continua como hoje: Valor final ou Total, com o mesmo número e o mesmo rótulo.
+1. O valor sem imposto continua com o mesmo número e passa a ter um rótulo só nas três superfícies: **Valor final**, o que o Campo e
+   o PDF já usam. A gaveta do pedido no BKO ainda diz "Total" (`modules/vendedor/web/components/orders/order-drawer.tsx:125`) e
+   troca para "Valor final" na implementação.
 2. ST e IPI ficam em linhas próprias, abaixo do valor final. **Não há linha "Total com impostos"**, porque o FDV não soma imposto.
 3. No pedido offline ou na fila, aparece `calculado pelo ERP` até a resposta. Os itens não mostram ST e IPI nesse estado.
 4. (designer-ux) A nota do PDF do cliente "Valores sem impostos." passa a "Valor final sem ST e IPI.", porque o PDF agora mostra
    imposto.
-5. (designer-ux) Rótulos curtos: "ST" e "IPI". A outra opção é "ICMS-ST".
+5. (designer-ux) Rótulos curtos: "ST" e "IPI", iguais no Campo, no BKO e no PDF.
